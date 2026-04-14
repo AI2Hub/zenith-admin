@@ -156,14 +156,40 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const { tabs, activeKey, setActiveKey, addTab, removeTab, closeOthers, closeLeft, closeRight, closeAll } = useTabsStore(preferences.tabsMaxCount);
+  const { tabs, activeKey, setActiveKey, addTab, removeTab, closeOthers, closeLeft, closeRight, closeAll, reorderTabs } = useTabsStore(preferences.tabsMaxCount);
   const [prefsVisible, setPrefsVisible] = useState(false);
+  const dragSrcKey = useRef<string | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   const [exitingTabKeys, setExitingTabKeys] = useState<Set<string>>(new Set());
   const [enteringTabKeys, setEnteringTabKeys] = useState<Set<string>>(new Set());
   const prevTabsLengthRef = useRef(0);
   const [manualTopKey, setManualTopKey] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // ─── Tabs 拖拽排序 ──────────────────────────────────────────────────────────
+  const handleDragStart = useCallback((key: string) => {
+    dragSrcKey.current = key;
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, key: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragSrcKey.current !== key) setDragOverKey(key);
+  }, []);
+
+  const handleDrop = useCallback((key: string) => {
+    if (dragSrcKey.current && dragSrcKey.current !== key) {
+      reorderTabs(dragSrcKey.current, key);
+    }
+    dragSrcKey.current = null;
+    setDragOverKey(null);
+  }, [reorderTabs]);
+
+  const handleDragEnd = useCallback(() => {
+    dragSrcKey.current = null;
+    setDragOverKey(null);
+  }, []);
 
   // ─── Tabs 滚动 ─────────────────────────────────────────────────────────────
   const activeTabRef = useRef<HTMLDivElement>(null);
@@ -702,6 +728,8 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                     tab.key === activeKey ? 'admin-tab-item--active' : '',
                     isEntering ? 'admin-tab-item--entering' : '',
                     isExiting ? 'admin-tab-item--exiting' : '',
+                    dragSrcKey.current === tab.key ? 'admin-tab-item--dragging' : '',
+                    dragOverKey === tab.key ? 'admin-tab-item--drag-over' : '',
                   ].filter(Boolean).join(' ');
                   return (
                   <div
@@ -710,6 +738,12 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                     role="tab"
                     tabIndex={0}
                     className={tabClass}
+                    draggable
+                    onDragStart={() => handleDragStart(tab.key)}
+                    onDragOver={(e) => handleDragOver(e, tab.key)}
+                    onDrop={() => handleDrop(tab.key)}
+                    onDragEnd={handleDragEnd}
+                    onDragLeave={() => setDragOverKey(null)}
                     onClick={() => handleTabChange(tab.key)}
                     onKeyDown={(e) => { if (e.key === 'Enter') handleTabChange(tab.key); }}
                     onContextMenu={(e) => {

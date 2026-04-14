@@ -642,6 +642,15 @@
   font-weight: 500;
 }
 
+.admin-tab-item--dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+
+.admin-tab-item--drag-over {
+  box-shadow: -2px 0 0 0 var(--color-primary);
+}
+
 .admin-tab-item--active::after {
   content: '';
   position: absolute;

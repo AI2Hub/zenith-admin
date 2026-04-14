@@ -81,5 +81,17 @@ export function useTabsStore(maxCount: number = 20) {
     setActiveKey('/');
   }, []);
 
-  return { tabs, activeKey, setActiveKey, addTab, removeTab, closeOthers, closeLeft, closeRight, closeAll };
+  const reorderTabs = useCallback((fromKey: string, toKey: string) => {
+    setTabs((prev) => {
+      const from = prev.findIndex((t) => t.key === fromKey);
+      const to = prev.findIndex((t) => t.key === toKey);
+      if (from < 0 || to < 0 || from === to) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }, []);
+
+  return { tabs, activeKey, setActiveKey, addTab, removeTab, closeOthers, closeLeft, closeRight, closeAll, reorderTabs };
 }
