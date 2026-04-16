@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { AIChatDialogue, AIChatInput, Typography, Button, Tag, RadioGroup, Radio, Toast } from '@douyinfe/semi-ui';
-import { MessageSquarePlus, Trash2, Globe, AlignLeft, AlignJustify } from 'lucide-react';
+import { AIChatDialogue, AIChatInput, Typography, Button, Tag, RadioGroup, Radio, Select, Toast } from '@douyinfe/semi-ui';
+import { MessageSquarePlus, Trash2, Globe, AlignLeft, AlignJustify, Bot, Wrench } from 'lucide-react';
 
 const { Configure } = AIChatInput;
 const { Title, Text } = Typography;
@@ -8,7 +8,7 @@ const { Title, Text } = Typography;
 type Message = {
   id: string;
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | unknown[];
   createdAt: number;
   status?: 'completed' | 'in_progress' | 'failed';
 };
@@ -155,6 +155,94 @@ function MyPage() {
       },
     ],
   },
+  {
+    id: 'conv-3',
+    title: 'AI 富内容演示',
+    messages: [
+      {
+        id: 'msg-3-1',
+        role: 'system' as const,
+        content: '你是一位专业的 AI 助手，可以联网搜索和使用工具。',
+        createdAt: Date.now() - 100000,
+        status: 'completed' as const,
+      },
+      {
+        id: 'msg-3-2',
+        role: 'user' as const,
+        content: '帮我搜索 Semi Design 最新版本的 AI 组件有哪些？',
+        createdAt: Date.now() - 98000,
+        status: 'completed' as const,
+      },
+      {
+        id: 'msg-3-3',
+        role: 'assistant' as const,
+        createdAt: Date.now() - 96000,
+        status: 'completed' as const,
+        content: [
+          {
+            type: 'reasoning',
+            id: 'reasoning-1',
+            summary: [{ type: 'summary_text', text: '已思考完成（用时 3.2s）' }],
+            content: [{ type: 'thinking', text: '用户想了解 Semi Design 最新 AI 组件。我需要搜索相关信息并整理出清晰的回答。让我检索 Semi Design 官方文档中关于 AI 组件的介绍页面...' }],
+          },
+          {
+            type: 'web_search_call',
+            id: 'search-1',
+            status: 'completed',
+            action: { type: 'search', query: 'Semi Design AI 组件 最新版本' },
+          },
+          {
+            type: 'message',
+            id: 'output-1',
+            role: 'assistant',
+            content: [
+              {
+                type: 'output_text',
+                text: 'Semi Design 最新版本新增了专为 AI 场景设计的组件系列，主要包括：\n\n1. **AIChatInput** — 聊天输入框，支持富文本输入、文件上传、引用、配置区域（模型选择、联网搜索、MCP 工具）、技能模版等\n2. **AIChatDialogue** — AI 对话展示组件，支持多种消息类型（文本、图片、思考块、工具调用、参考来源引用等）\n3. **Sidebar** — 侧边信息栏，集成 MCP 配置、参考来源（Annotation）、代码预览（CodeContent）、富文本编辑（FileContent）\n\n此外还新增了 AI Token 色板和 AI 风格的 Button / Tag / FloatButton。',
+                annotations: [
+                  { type: 'url_citation', title: 'Semi Design AI 组件介绍', url: 'https://semi.design/zh-CN/ai/aiComponent', start_index: 0, end_index: 20 },
+                  { type: 'url_citation', title: 'AIChatInput 文档', url: 'https://semi.design/zh-CN/ai/aiChatInput', start_index: 60, end_index: 95 },
+                  { type: 'url_citation', title: 'AIChatDialogue 文档', url: 'https://semi.design/zh-CN/ai/aiChatDialogue', start_index: 96, end_index: 150 },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'msg-3-4',
+        role: 'user' as const,
+        content: '用代码展示一下 AIChatInput 的基本用法',
+        createdAt: Date.now() - 90000,
+        status: 'completed' as const,
+      },
+      {
+        id: 'msg-3-5',
+        role: 'assistant' as const,
+        createdAt: Date.now() - 88000,
+        status: 'completed' as const,
+        content: [
+          {
+            type: 'reasoning',
+            id: 'reasoning-2',
+            summary: [{ type: 'summary_text', text: '已思考完成（用时 1.8s）' }],
+            content: [{ type: 'thinking', text: '用户需要 AIChatInput 的代码示例。我可以直接从文档中提取一个完整的使用示例。' }],
+          },
+          {
+            type: 'message',
+            id: 'output-2',
+            role: 'assistant',
+            content: [
+              {
+                type: 'output_text',
+                text: '下面是 AIChatInput 的基本用法示例：\n\n```tsx\nimport { AIChatInput } from \'@douyinfe/semi-ui\';\n\nconst { Configure } = AIChatInput;\n\nfunction ChatInput() {\n  const [generating, setGenerating] = useState(false);\n\n  return (\n    <AIChatInput\n      placeholder="向 AI 提问..."\n      generating={generating}\n      onMessageSend={(content) => {\n        console.log(content.text);\n        setGenerating(true);\n      }}\n      onStopGenerate={() => setGenerating(false)}\n      renderConfigureArea={() => (\n        <Configure>\n          <Configure.Select\n            field="model"\n            initValue="gpt-4o"\n            optionList={[\n              { value: \'gpt-4o\', label: \'GPT-4o\' },\n              { value: \'deepseek\', label: \'DeepSeek\' },\n            ]}\n          />\n        </Configure>\n      )}\n    />\n  );\n}\n```\n\n核心 Props 包括 `generating`（控制生成状态）、`onMessageSend`（发送回调）和 `renderConfigureArea`（配置区域）。',
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 const HINTS = [
@@ -187,6 +275,7 @@ export default function AIChatPage() {
   const [activeConvId, setActiveConvId] = useState('conv-1');
   const [generating, setGenerating] = useState(false);
   const [align, setAlign] = useState<'leftRight' | 'leftAlign'>('leftRight');
+  const [mode, setMode] = useState<'bubble' | 'noBubble' | 'userBubble'>('bubble');
   const [configureValues, setConfigureValues] = useState<Record<string, unknown>>({
     model: 'gpt-4o',
     webSearch: false,
@@ -407,6 +496,17 @@ export default function AIChatPage() {
           </Title>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Tag color="purple" size="small">演示模式</Tag>
+            <Select
+              value={mode}
+              onChange={(v) => setMode(v as 'bubble' | 'noBubble' | 'userBubble')}
+              size="small"
+              style={{ width: 110 }}
+              optionList={[
+                { value: 'bubble', label: '双侧气泡' },
+                { value: 'noBubble', label: '无气泡' },
+                { value: 'userBubble', label: '用户气泡' },
+              ]}
+            />
             <RadioGroup
               type="button"
               value={align}
@@ -427,6 +527,11 @@ export default function AIChatPage() {
             roleConfig={roleConfig}
             hints={generating ? [] : HINTS}
             align={align}
+            mode={mode}
+            onMessageCopy={() => Toast.success('已复制到剪贴板')}
+            onMessageGoodFeedback={() => Toast.success('感谢您的正向反馈')}
+            onMessageBadFeedback={() => Toast.info('感谢您的反馈，我们会持续改进')}
+            onMessageReset={() => Toast.info('重新生成需接入真实 AI 服务')}
             onHintClick={handleHintClick}
             onChatsChange={(chats) => {
               updateMessages(() => chats as Message[]);
@@ -461,6 +566,14 @@ export default function AIChatPage() {
                   field="thinkMode"
                   initValue="fast"
                   options={THINK_MODE_OPTIONS}
+                />
+                <Configure.Mcp
+                  field="mcp"
+                  options={[
+                    { icon: <Bot size={14} />, label: 'Semi MCP', value: 'semi-mcp', active: true },
+                    { icon: <Wrench size={14} />, label: 'Code Exec', value: 'code-exec', active: false },
+                    { icon: <Globe size={14} />, label: 'Web Search', value: 'web-search', active: true },
+                  ]}
                 />
               </Configure>
             )}

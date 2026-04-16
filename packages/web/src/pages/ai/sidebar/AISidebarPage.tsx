@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Sidebar, Annotation, MCPConfigure, Button, Typography, Tag, Tabs, TabPane } from '@douyinfe/semi-ui';
-import { PanelRight, PanelRightClose, Search, FileText, Code2, Wrench, Bot, Figma } from 'lucide-react';
+import { Sidebar, Annotation, MCPConfigure, Button, Typography, Tag, Tabs, TabPane, Toast } from '@douyinfe/semi-ui';
+import { PanelRight, PanelRightClose, Search, FileText, Code2, Wrench, Bot, Palette } from 'lucide-react';
 
 const { Title, Text, Paragraph } = Typography;
 const { Container, CodeContent, FileContent, FileItem, CodeItem } = Sidebar;
@@ -41,6 +41,16 @@ const DEMO_ANNOTATIONS = [
         logo: 'https://lf3-static.bytednsdoc.com/obj/eden-cn/ptlz_zlp/ljhwZthlaukjlkulzlp/other/logo.png',
         order: 3,
         url: 'https://hono.dev',
+      },
+      {
+        type: 'video' as const,
+        title: 'AI 组件使用教程',
+        siteName: 'Semi Design TV',
+        detail: '手把手教你使用 Semi Design AI 组件快速搭建智能对话界面',
+        duration: 750,
+        img: 'https://lf3-static.bytednsdoc.com/obj/eden-cn/ptlz_zlp/ljhwZthlaukjlkulzlp/other/logo.png',
+        order: 4,
+        url: '#',
       },
     ],
   },
@@ -129,7 +139,7 @@ const DEMO_FILES = [
   {
     key: 'readme',
     name: 'AI 接入说明',
-    editable: false,
+    editable: true,
     content: `<h2>AI 功能接入指南</h2>
 <p>本页面展示了 <strong>Semi Design</strong> 提供的 AI Sidebar 组件能力，包括：</p>
 <ul>
@@ -161,7 +171,7 @@ const INITIAL_MCP_OPTIONS = [
     active: true,
   },
   {
-    icon: <Figma size={16} />,
+    icon: <Palette size={16} />,
     label: 'Figma',
     value: 'figma-mcp',
     desc: '连接 Figma 设计稿',
@@ -189,7 +199,9 @@ const INITIAL_MCP_OPTIONS = [
 export default function AISidebarPage() {
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [activeTabKey, setActiveTabKey] = useState('mcp');
-  const [annotationKey, setAnnotationKey] = useState<string | string[]>([]);
+  const [annotationKey, setAnnotationKey] = useState<string | string[]>(['source-1']);
+  const [codeActiveKey, setCodeActiveKey] = useState<string | string[]>([]);
+  const [fileActiveKey, setFileActiveKey] = useState<string | string[]>([]);
   const [mcpOptions, setMcpOptions] = useState(INITIAL_MCP_OPTIONS);
 
   return (
@@ -312,14 +324,16 @@ export default function AISidebarPage() {
             <TabPane tab="MCP 配置" itemKey="mcp">
               <div style={{ padding: '8px 0' }}>
                 <MCPConfigure
+                  visible
+                  motion={false}
+                  showClose={false}
+                  resizable={false}
                   options={mcpOptions}
-                  onStatusChange={(value, active) => {
-                    setMcpOptions(prev =>
-                      prev.map(opt => opt.value === value ? { ...opt, active } : opt)
-                    );
+                  onStatusChange={(options) => {
+                    setMcpOptions(options);
                   }}
                   onAddClick={() => {
-                    // 演示：实际场景中打开添加 MCP Server 的弹窗
+                    Toast.info('添加新的 MCP Server');
                   }}
                 />
               </div>
@@ -330,6 +344,11 @@ export default function AISidebarPage() {
                   info={DEMO_ANNOTATIONS}
                   activeKey={annotationKey}
                   onChange={setAnnotationKey}
+                  onClick={(_e, item) => {
+                    if (item?.url && item.url !== '#') {
+                      Toast.info(`打开链接：${item.title}`);
+                    }
+                  }}
                   visible
                   showClose={false}
                   motion={false}
@@ -341,6 +360,8 @@ export default function AISidebarPage() {
               <div style={{ padding: '8px 0' }}>
                 <CodeContent
                   codes={DEMO_CODES}
+                  activeKey={codeActiveKey}
+                  onChange={setCodeActiveKey}
                   style={{ border: 'none', boxShadow: 'none' }}
                 />
               </div>
@@ -349,6 +370,8 @@ export default function AISidebarPage() {
               <div style={{ padding: '8px 0' }}>
                 <FileContent
                   files={DEMO_FILES}
+                  activeKey={fileActiveKey}
+                  onChange={setFileActiveKey}
                   style={{ border: 'none', boxShadow: 'none' }}
                 />
               </div>
