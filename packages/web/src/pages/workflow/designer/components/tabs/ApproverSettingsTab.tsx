@@ -183,6 +183,7 @@ export default function ApproverSettingsTab({
                 max={10}
                 style={{ width: 200 }}
                 suffix="级主管"
+                placeholder="请输入层级"
               />
               <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', marginTop: 4 }}>
                 1 = 直属主管，2 = 直属主管的主管，以此类推
@@ -228,6 +229,7 @@ export default function ApproverSettingsTab({
                     max={20}
                     style={{ width: 200 }}
                     suffix="级"
+                    placeholder="请输入层级"
                   />
                 </Form.Slot>
               )}
@@ -271,6 +273,7 @@ export default function ApproverSettingsTab({
                     max={20}
                     style={{ width: 200 }}
                     suffix="级"
+                    placeholder="请输入层级"
                   />
                 </Form.Slot>
               )}
@@ -334,6 +337,7 @@ export default function ApproverSettingsTab({
                   max={10}
                   style={{ width: 200 }}
                   suffix="级"
+                  placeholder="请输入层级"
                 />
               </Form.Slot>
             </>
