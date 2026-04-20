@@ -392,7 +392,7 @@ export default function CronJobsPage() {
         title="全部执行日志"
         visible={allLogsDrawerVisible}
         onCancel={() => setAllLogsDrawerVisible(false)}
-        width={820}
+        width={1060}
         closeOnEsc
       >
         <Table
@@ -401,6 +401,7 @@ export default function CronJobsPage() {
           rowKey="id"
           loading={allLogsLoading}
           dataSource={allLogsData}
+          scroll={{ x: 'max-content' }}
           columns={[
             {
               title: '任务名称',
@@ -411,7 +412,7 @@ export default function CronJobsPage() {
             {
               title: '第几次执行',
               dataIndex: 'executionCount',
-              width: 100,
+              width: 80,
             },
             {
               title: '开始时间',
@@ -444,6 +445,7 @@ export default function CronJobsPage() {
             {
               title: '输出',
               dataIndex: 'output',
+              width: 260,
               ellipsis: true,
               render: (v: string | null) => v || '—',
             },
@@ -463,7 +465,7 @@ export default function CronJobsPage() {
         title={`执行日志 — ${logsJobName}`}
         visible={logsDrawerVisible}
         onCancel={() => setLogsDrawerVisible(false)}
-        width={760}
+        width={900}
         closeOnEsc
       >
         <Table
@@ -472,11 +474,12 @@ export default function CronJobsPage() {
           rowKey="id"
           loading={logsLoading}
           dataSource={logsData}
+          scroll={{ x: 'max-content' }}
           columns={[
             {
               title: '第几次执行',
               dataIndex: 'executionCount',
-              width: 100,
+              width: 80,
             },
             {
               title: '开始时间',
@@ -509,6 +512,7 @@ export default function CronJobsPage() {
             {
               title: '输出',
               dataIndex: 'output',
+              width: 270,
               ellipsis: true,
               render: (v: string | null) => v || '—',
             },
