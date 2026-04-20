@@ -449,8 +449,7 @@ export default function UsersPage() {
           />
         </div>
         <div className="users-content">
-      <SearchToolbar
-        left={<>
+      <SearchToolbar>
           <Input
             prefix={<Search size={14} />}
             placeholder="搜索用户名/昵称/邮箱"
@@ -511,8 +510,7 @@ export default function UsersPage() {
           >
             新增
           </Button>}
-        </>}
-      />
+      </SearchToolbar>
 
       <Table
         className="admin-table-nowrap"

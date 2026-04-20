@@ -175,8 +175,7 @@ export default function WorkflowDefinitionsPage() {
 
   return (
     <div className="page-container">
-      <SearchToolbar
-        left={<>
+      <SearchToolbar>
           <Input
             prefix={<Search size={14} />}
             placeholder="搜索流程名称"
@@ -203,8 +202,7 @@ export default function WorkflowDefinitionsPage() {
               新建流程
             </Button>
           )}
-        </>}
-      />
+      </SearchToolbar>
       <Table
         bordered
         columns={columns}

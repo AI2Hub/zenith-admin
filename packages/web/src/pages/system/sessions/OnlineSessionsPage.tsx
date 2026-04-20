@@ -96,8 +96,7 @@ export default function OnlineSessionsPage() {
 
   return (
     <div className="page-container">
-      <SearchToolbar
-        left={<>
+      <SearchToolbar>
           <Input
             prefix={<Search size={14} />}
             placeholder="搜索用户名/昵称/IP"
@@ -107,8 +106,7 @@ export default function OnlineSessionsPage() {
             showClear
           />
           <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { void fetchData(); }}>刷新</Button>
-        </>}
-      />
+      </SearchToolbar>
 
       <Table
         bordered

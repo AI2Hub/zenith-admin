@@ -370,8 +370,7 @@ export default function MyApplicationsPage() {
 
   return (
     <div className="page-container">
-      <SearchToolbar
-        left={<>
+      <SearchToolbar>
           <Select
             placeholder="全部状态"
             value={statusFilter || undefined}
@@ -388,8 +387,7 @@ export default function MyApplicationsPage() {
           <Button type="secondary" icon={<Plus size={14} />} onClick={() => void openApply()}>
             发起申请
           </Button>
-        </>}
-      />
+      </SearchToolbar>
       <Table
         bordered
         columns={columns}

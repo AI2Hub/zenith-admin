@@ -257,8 +257,7 @@ export default function CronJobsPage() {
 
   return (
     <div className="page-container">
-      <SearchToolbar
-        left={<>
+      <SearchToolbar>
           <Input
             prefix={<Search size={14} />}
             placeholder="搜索任务名称/处理器"
@@ -286,8 +285,7 @@ export default function CronJobsPage() {
           {hasPermission('system:cronjob:create') && (
             <Button type="secondary" icon={<Plus size={14} />} onClick={() => { setEditingJob(null); setCronExprValue(''); setModalVisible(true); }}>新增</Button>
           )}
-        </>}
-      />
+      </SearchToolbar>
 
       <Table
         bordered

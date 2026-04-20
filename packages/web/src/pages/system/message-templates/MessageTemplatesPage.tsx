@@ -244,8 +244,7 @@ export default function MessageTemplatesPage() {
 
   return (
     <div className="page-container">
-      <SearchToolbar
-        left={<>
+      <SearchToolbar>
           <Input
             prefix={<Search size={14} />}
             placeholder="搜索名称/编码"
@@ -281,8 +280,7 @@ export default function MessageTemplatesPage() {
           {hasPermission('system:message-template:create') && (
             <Button type="secondary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
           )}
-        </>}
-      />
+      </SearchToolbar>
 
       <Table
         bordered

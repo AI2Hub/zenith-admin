@@ -129,8 +129,7 @@ export default function DbBackupsPage() {
 
   return (
     <div className="page-container">
-      <SearchToolbar
-        left={<>
+      <SearchToolbar>
           <Select
             placeholder="备份类型"
             value={filterType}
@@ -162,8 +161,7 @@ export default function DbBackupsPage() {
           {hasPermission('system:db-backup:create') && (
             <Button type="secondary" icon={<Plus size={14} />} onClick={() => setCreateVisible(true)}>新增备份</Button>
           )}
-        </>}
-      />
+      </SearchToolbar>
 
       <Table
         bordered

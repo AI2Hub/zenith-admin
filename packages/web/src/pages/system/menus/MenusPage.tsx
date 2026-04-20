@@ -238,7 +238,7 @@ export default function MenusPage() {
 
   return (
     <div className="page-container">
-      <SearchToolbar
+      <SearchToolbar>
         left={
           <Button
             type="tertiary"

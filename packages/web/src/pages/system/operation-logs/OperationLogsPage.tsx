@@ -211,8 +211,7 @@ export default function OperationLogsPage() {
       </Tabs>
       {activeTab === 'list' && (
         <>
-          <SearchToolbar
-            left={<>
+          <SearchToolbar>
               <Input
                 prefix={<Search size={14} />}
                 placeholder="请输入操作人"
@@ -295,8 +294,7 @@ export default function OperationLogsPage() {
                 重置
               </Button>
               <Button icon={<Download size={14} />} loading={exportLoading} onClick={async () => { setExportLoading(true); try { await request.download('/api/operation-logs/export', '操作日志.xlsx'); } finally { setExportLoading(false); } }}>导出</Button>
-            </>}
-          />
+          </SearchToolbar>
 
           <Table
             bordered

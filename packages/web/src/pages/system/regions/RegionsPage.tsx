@@ -279,8 +279,7 @@ export default function RegionsPage() {
 
   return (
     <div className="page-container">
-      <SearchToolbar
-        left={<>
+      <SearchToolbar>
           <Input
             prefix={<Search size={14} />}
             placeholder="搜索名称或代码..."
@@ -324,8 +323,7 @@ export default function RegionsPage() {
               新增
             </Button>
           )}
-        </>}
-      />
+      </SearchToolbar>
 
       <Table
         bordered

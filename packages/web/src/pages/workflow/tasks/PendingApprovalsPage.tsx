@@ -253,7 +253,7 @@ export default function PendingApprovalsPage() {
 
   return (
     <div className="page-container">
-      <SearchToolbar
+      <SearchToolbar>
         left={
           <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => void fetchList(1)}>刷新</Button>
         }

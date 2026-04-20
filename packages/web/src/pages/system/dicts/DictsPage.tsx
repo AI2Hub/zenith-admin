@@ -246,8 +246,7 @@ export default function DictsPage() {
 
   return (
     <div className="page-container">
-      <SearchToolbar
-        left={<>
+      <SearchToolbar>
           <Input
             prefix={<Search size={14} />}
             placeholder="搜索字典名称/编码"
@@ -267,8 +266,7 @@ export default function DictsPage() {
           >
             新增
           </Button>}
-        </>}
-      />
+      </SearchToolbar>
       <Table
         bordered
         className="admin-table-nowrap"

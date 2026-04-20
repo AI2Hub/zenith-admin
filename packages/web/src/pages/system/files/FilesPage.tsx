@@ -281,9 +281,8 @@ export default function FilesPage() {
 
   return (
     <div className="page-container">
-      <SearchToolbar
+      <SearchToolbar>
         className="files-toolbar"
-        left={<>
           <Input
             prefix={<Search size={14} />}
             placeholder="搜索文件名 / 对象键 / 文件服务"
@@ -323,8 +322,7 @@ export default function FilesPage() {
             hidden
             onChange={handleUpload}
           />
-        </>}
-      />
+      </SearchToolbar>
 
       <div className="files-default-tip" style={{ padding: '8px 0' }}>
         <Text strong>默认文件服务：</Text>

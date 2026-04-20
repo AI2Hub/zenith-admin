@@ -307,7 +307,7 @@ export default function WorkflowMonitorPage() {
       </div>
 
       {/* 搜索栏 */}
-      <SearchToolbar
+      <SearchToolbar>
         left={
           <>
             <Input

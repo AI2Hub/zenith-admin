@@ -106,8 +106,7 @@ export default function LoginLogsPage() {
 
   return (
     <div className="page-container">
-      <SearchToolbar
-        left={<>
+      <SearchToolbar>
           <Input
             prefix={<Search size={14} />}
             placeholder="请输入用户名"
@@ -141,8 +140,7 @@ export default function LoginLogsPage() {
             重置
           </Button>
           <Button icon={<Download size={14} />} loading={exportLoading} onClick={async () => { setExportLoading(true); try { await request.download('/api/login-logs/export', '登录日志.xlsx'); } finally { setExportLoading(false); } }}>导出</Button>
-        </>}
-      />
+      </SearchToolbar>
 
       <Table
         bordered

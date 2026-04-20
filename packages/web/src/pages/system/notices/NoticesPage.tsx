@@ -531,8 +531,7 @@ export default function NoticesPage() {
 
   return (
     <div className="page-container">
-      <SearchToolbar
-        left={<>
+      <SearchToolbar>
           <Input
             prefix={<Search size={14} />}
             placeholder="搜索标题"
@@ -574,8 +573,7 @@ export default function NoticesPage() {
             </Button>
           )}
           {hasPermission('system:notice:create') && <Button icon={<Plus size={14} />} type="secondary" onClick={openCreateModal}>新增</Button>}
-        </>}
-      />
+      </SearchToolbar>
 
       <Table
         bordered

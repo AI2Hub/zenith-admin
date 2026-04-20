@@ -158,8 +158,7 @@ export default function SystemConfigsPage() {
 
   return (
     <div className="page-container">
-      <SearchToolbar
-        left={<>
+      <SearchToolbar>
           <Input
             prefix={<Search size={14} />}
             placeholder="搜索配置键/描述"
@@ -183,8 +182,7 @@ export default function SystemConfigsPage() {
           {hasPermission('system:config:create') && (
             <Button type="secondary" icon={<Plus size={14} />} onClick={() => { setEditingConfig(null); setModalVisible(true); }}>新增</Button>
           )}
-        </>}
-      />
+      </SearchToolbar>
 
       <Table
         bordered

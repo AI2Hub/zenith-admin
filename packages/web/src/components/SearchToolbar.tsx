@@ -2,30 +2,18 @@ import type { ReactNode } from 'react';
 import { Space } from '@douyinfe/semi-ui';
 
 interface SearchToolbarProps {
-  readonly left?: ReactNode;
-  readonly right?: ReactNode;
-  /** 额外的 CSS 类名，附加到 responsive-toolbar div 上 */
-  readonly className?: string;
-  /** 工具栏下方的附加内容（如提示文字），渲染在 search-area 内、responsive-toolbar 之后 */
+  /** 工具栏内容（搜索输入框、下拉筛选、按钮等），自动用 `<Space wrap>` 包裹 */
   readonly children?: ReactNode;
+  /** 附加 CSS 类名，附加到外层容器 */
+  readonly className?: string;
 }
 
-export function SearchToolbar({ left, right, className, children }: SearchToolbarProps) {
+export function SearchToolbar({ children, className }: SearchToolbarProps) {
   return (
     <div className="search-area">
       <div className={className ? `responsive-toolbar ${className}` : 'responsive-toolbar'}>
-        {left && (
-          <div className={className ? `responsive-toolbar__left ${className}__left` : 'responsive-toolbar__left'}>
-            <Space wrap>{left}</Space>
-          </div>
-        )}
-        {right && (
-          <div className={className ? `responsive-toolbar__right ${className}__right` : 'responsive-toolbar__right'}>
-            {right}
-          </div>
-        )}
+        <Space wrap>{children}</Space>
       </div>
-      {children}
     </div>
   );
 }

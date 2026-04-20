@@ -247,8 +247,7 @@ export default function DepartmentsPage() {
 
   return (
     <div className="page-container">
-      <SearchToolbar
-        left={<>
+      <SearchToolbar>
           <Input
             prefix={<Search size={14} />}
             placeholder="搜索部门名称/编码"
@@ -281,8 +280,7 @@ export default function DepartmentsPage() {
           >
             新增
           </Button>}
-        </>}
-      />
+      </SearchToolbar>
 
       <Table
         bordered

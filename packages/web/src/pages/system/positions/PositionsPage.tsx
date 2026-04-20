@@ -190,8 +190,7 @@ export default function PositionsPage() {
 
   return (
     <div className="page-container">
-      <SearchToolbar
-        left={<>
+      <SearchToolbar>
           <Input
             prefix={<Search size={14} />}
             placeholder="搜索岗位名称/编码"
@@ -236,8 +235,7 @@ export default function PositionsPage() {
           >
             新增
           </Button>}
-        </>}
-      />
+      </SearchToolbar>
 
       <Table
         bordered
