@@ -326,6 +326,7 @@ export default function CronJobsPage() {
             optionList={handlers.map((h) => ({ value: h, label: h }))}
             style={{ width: '100%' }}
             filter
+            placeholder="请选择处理器"
           />
           <Form.TextArea field="params" label="参数(JSON)" placeholder='可选，如 {"key":"value"}' />
           <Form.Select

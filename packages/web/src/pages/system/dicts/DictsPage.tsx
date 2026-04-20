@@ -348,6 +348,7 @@ export default function DictsPage() {
           <Form.Input field="description" label="描述" placeholder="请输入描述" style={{ width: '100%' }} />
           <Form.Select field="status" label="状态" style={{ width: '100%' }}
             optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
+            placeholder="请选择状态"
           />
         </Form>
       </Modal>
@@ -373,6 +374,7 @@ export default function DictsPage() {
           <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" min={0} style={{ width: '100%' }} />
           <Form.Select field="status" label="状态" style={{ width: '100%' }}
             optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
+            placeholder="请选择状态"
           />
           <Form.Input field="remark" label="备注" placeholder="请输入备注" style={{ width: '100%' }} />
         </Form>

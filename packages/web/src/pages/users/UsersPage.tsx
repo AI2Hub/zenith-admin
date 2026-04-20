@@ -588,6 +588,7 @@ export default function UsersPage() {
                 filter
                 showClear
                 optionList={positionOptionList}
+                placeholder="请选择岗位"
               />
             </Col>
             <Col span={12}>
@@ -598,6 +599,7 @@ export default function UsersPage() {
                 multiple
                 filter
                 optionList={allRoles.map((r) => ({ value: r.id, label: r.name }))}
+                placeholder="请选择角色"
               />
             </Col>
           </Row>
@@ -608,6 +610,7 @@ export default function UsersPage() {
                 label="状态"
                 style={{ width: '100%' }}
                 optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
+                placeholder="请选择状态"
               />
             </Col>
           </Row>

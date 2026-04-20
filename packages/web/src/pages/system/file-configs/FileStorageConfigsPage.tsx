@@ -419,13 +419,14 @@ export default function FileStorageConfigsPage() {
             label="存储类型"
             style={{ width: '100%' }}
             onChange={(value) => setFormProvider(value as FileStorageProvider)}
+            placeholder="请选择存储类型"
           >
             <Select.Option value="local">本地磁盘</Select.Option>
             <Select.Option value="oss">阿里云 OSS</Select.Option>
             <Select.Option value="s3">Amazon S3</Select.Option>
             <Select.Option value="cos">腾讯云 COS</Select.Option>
           </Form.Select>
-          <Form.Select field="status" label="状态" style={{ width: '100%' }}>
+          <Form.Select field="status" label="状态" style={{ width: '100%' }} placeholder="请选择状态">
             <Select.Option value="active">启用</Select.Option>
             <Select.Option value="disabled">禁用</Select.Option>
           </Form.Select>

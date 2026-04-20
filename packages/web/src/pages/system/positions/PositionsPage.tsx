@@ -282,6 +282,7 @@ export default function PositionsPage() {
             label="状态"
             optionList={statusItems.map((item) => ({ value: item.value, label: item.label }))}
             style={{ width: '100%' }}
+            placeholder="请选择状态"
           />
           <Form.TextArea field="remark" label="备注" placeholder="请输入备注" maxCount={256} />
         </Form>

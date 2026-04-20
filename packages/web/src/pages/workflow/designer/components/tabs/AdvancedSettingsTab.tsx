@@ -66,6 +66,7 @@ export default function AdvancedSettingsTab({
         onChange={(v) => onChange({ rejectStrategy: v })}
         style={{ width: '100%', marginBottom: 24 }}
         optionList={REJECT_STRATEGY_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
+        placeholder="请选择拒绝策略"
       />
 
       {/* 空审批人策略 */}
@@ -132,6 +133,7 @@ export default function AdvancedSettingsTab({
           onChange={(v) => onChange({ deduplicateStrategy: v })}
           style={{ width: '100%' }}
           optionList={DEDUPLICATE_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
+          placeholder="请选择去重策略"
         />
       </div>
 
@@ -170,6 +172,7 @@ export default function AdvancedSettingsTab({
                   { value: 'autoApprove', label: '自动通过' },
                   { value: 'autoReject', label: '自动拒绝' },
                 ]}
+                placeholder="请选择超时动作"
               />
             </div>
             {timeout.action === 'remind' && (

@@ -198,6 +198,7 @@ export default function DbBackupsPage() {
               { label: 'Drizzle 逻辑导出 (JSON)', value: 'drizzle_export' },
             ]}
             style={{ width: '100%' }}
+            placeholder="请选择备份类型"
           />
           <Form.Input field="name" label="备份名称" placeholder="可选，默认自动生成" style={{ width: '100%' }} />
           <Form.Slot>

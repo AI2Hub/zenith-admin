@@ -364,6 +364,7 @@ export default function RegionsPage() {
             optionList={LEVEL_OPTIONS}
             rules={[{ required: true, message: '请选择级别' }]}
             onChange={(v) => setEditingLevel(v as string)}
+            placeholder="请选择级别"
           />
           {editingLevel !== 'province' && (
             <Form.Cascader
@@ -401,6 +402,7 @@ export default function RegionsPage() {
             label="状态"
             optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
             rules={[{ required: true, message: '请选择状态' }]}
+            placeholder="请选择状态"
           />
         </Form>
       </Modal>

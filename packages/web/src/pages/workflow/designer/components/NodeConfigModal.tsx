@@ -102,6 +102,7 @@ export default function NodeConfigModal({
                 { value: 'all', label: '会签（所有人通过）' },
                 { value: 'sequential', label: '依次审批' },
               ]}
+              placeholder="请选择审批方式"
             />
           </>
         )}

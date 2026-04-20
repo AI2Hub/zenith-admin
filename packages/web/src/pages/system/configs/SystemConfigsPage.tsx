@@ -231,6 +231,7 @@ export default function SystemConfigsPage() {
             optionList={configTypeOptions}
             style={{ width: '100%' }}
             loading={configTypeLoading}
+            placeholder="请选择类型"
           />
           <Form.TextArea field="description" label="描述" placeholder="请输入描述" maxCount={256} />
         </Form>

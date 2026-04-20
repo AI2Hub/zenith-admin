@@ -218,6 +218,7 @@ export default function ApproverSettingsTab({
                     { value: 'level', label: '指定层级' },
                     { value: 'role', label: '指定角色' },
                   ]}
+                  placeholder="请选择审批终点"
                 />
               </Form.Slot>
               {multiLevelEndType === 'level' && (
@@ -262,6 +263,7 @@ export default function ApproverSettingsTab({
                     { value: 'topLevel', label: '最高层级（直到没有上级部门）' },
                     { value: 'level', label: '指定层级' },
                   ]}
+                  placeholder="请选择审批终点"
                 />
               </Form.Slot>
               {multiLevelEndType === 'level' && (

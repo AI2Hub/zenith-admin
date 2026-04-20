@@ -650,6 +650,7 @@ export default function WorkflowDesignerPage() {
               value: op,
               label: `${OPERATOR_LABELS[op] ?? op} (${op})`,
             }))}
+            placeholder="请选择运算符"
           />
           <Form.Input
             field="value"

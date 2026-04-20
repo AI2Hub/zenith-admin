@@ -354,6 +354,7 @@ export default function DepartmentsPage() {
                 label="状态"
                 optionList={statusItems.map((item) => ({ value: item.value, label: item.label }))}
                 style={{ width: '100%' }}
+                placeholder="请选择状态"
               />
             </Col>
           </Row>
