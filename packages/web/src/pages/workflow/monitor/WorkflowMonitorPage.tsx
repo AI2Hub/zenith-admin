@@ -308,35 +308,31 @@ export default function WorkflowMonitorPage() {
 
       {/* 搜索栏 */}
       <SearchToolbar>
-        left={
-          <>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="搜索申请标题 / 流程名称"
-              showClear
-              value={keywordInput}
-              onChange={v => setKeywordInput(v)}
-              onEnterPress={handleSearch}
-              style={{ width: 260 }}
-            />
-            <Select
-              placeholder="所有状态"
-              showClear
-              value={statusFilter || undefined}
-              onChange={v => setStatusFilter(v as string ?? '')}
-              style={{ width: 140 }}
-              optionList={[
-                { label: '审批中', value: 'running' },
-                { label: '已通过', value: 'approved' },
-                { label: '已驳回', value: 'rejected' },
-                { label: '已撤回', value: 'withdrawn' },
-              ]}
-            />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-          </>
-        }
-      />
+          <Input
+            prefix={<Search size={14} />}
+            placeholder="搜索申请标题 / 流程名称"
+            showClear
+            value={keywordInput}
+            onChange={v => setKeywordInput(v)}
+            onEnterPress={handleSearch}
+            style={{ width: 260 }}
+          />
+          <Select
+            placeholder="所有状态"
+            showClear
+            value={statusFilter || undefined}
+            onChange={v => setStatusFilter(v as string ?? '')}
+            style={{ width: 140 }}
+            optionList={[
+              { label: '审批中', value: 'running' },
+              { label: '已通过', value: 'approved' },
+              { label: '已驳回', value: 'rejected' },
+              { label: '已撤回', value: 'withdrawn' },
+            ]}
+          />
+          <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+          <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+      </SearchToolbar>
 
       <Table
         bordered

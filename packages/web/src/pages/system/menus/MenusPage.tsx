@@ -239,7 +239,6 @@ export default function MenusPage() {
   return (
     <div className="page-container">
       <SearchToolbar>
-        left={
           <Button
             type="tertiary"
             icon={isAllExpanded ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
@@ -248,8 +247,7 @@ export default function MenusPage() {
             {isAllExpanded ? '全部折叠' : '全部展开'}
           </Button>
           {hasPermission('system:menu:create') && <Button type="secondary" icon={<Plus size={14} />} onClick={() => openCreate()}>新增</Button>}
-        }
-      />
+      </SearchToolbar>
 
       <Table
         bordered
