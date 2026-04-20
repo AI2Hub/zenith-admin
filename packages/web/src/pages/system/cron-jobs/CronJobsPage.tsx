@@ -219,7 +219,7 @@ export default function CronJobsPage() {
     {
       title: '上次执行', dataIndex: 'lastRunStatus', width: 90,
       render: (v: string | null) =>
-        v ? <Tag color={runStatusColor[v] ?? 'grey'} size="small">{v}</Tag> : '—',
+        v ? <Tag color={runStatusColor[v] ?? 'grey'} size="small">{({'success': '成功', 'fail': '失败', 'running': '运行中'} as Record<string, string>)[v] ?? v}</Tag> : '—',
     },
     {
       title: '上次执行时间', dataIndex: 'lastRunAt', width: 180,
