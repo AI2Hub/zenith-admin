@@ -304,10 +304,10 @@ export default function RolesPage() {
           <Form.Input field="name" label="角色名称" rules={[{ required: true, message: '请输入角色名称' }]} />
           <Form.Input field="code" label="角色编码" rules={[{ required: true, message: '请输入角色编码' }]} />
           <Form.Input field="description" label="描述" />
-          <Form.Select field="status" label="状态"
+          <Form.Select field="status" label="状态" style={{ width: '100%' }}
             optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
           />
-          <Form.Select field="dataScope" label="数据权限"
+          <Form.Select field="dataScope" label="数据权限" style={{ width: '100%' }}
             optionList={[
               { value: 'all', label: '全部数据' },
               { value: 'dept', label: '本部门及以下' },
