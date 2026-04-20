@@ -332,6 +332,9 @@ export const cronJobs = pgTable('cron_jobs', {
   params: text('params'),
   status: statusEnum('status').notNull().default('disabled'),
   description: varchar('description', { length: 256 }).notNull().default(''),
+  retryCount: integer('retry_count').notNull().default(0),
+  retryInterval: integer('retry_interval').notNull().default(0),
+  monitorTimeout: integer('monitor_timeout'),
   lastRunAt: timestamp('last_run_at', { withTimezone: true }),
   nextRunAt: timestamp('next_run_at', { withTimezone: true }),
   lastRunStatus: cronRunStatusEnum('last_run_status'),
@@ -345,14 +348,15 @@ export type NewCronJob = typeof cronJobs.$inferInsert;
 
 // ─── 定时任务执行日志表 ────────────────────────────────────────────────────────
 export const cronJobLogs = pgTable('cron_job_logs', {
-  id:          serial('id').primaryKey(),
-  jobId:       integer('job_id').notNull().references(() => cronJobs.id, { onDelete: 'cascade' }),
-  jobName:     varchar('job_name', { length: 64 }).notNull(),
-  startedAt:   timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
-  endedAt:     timestamp('ended_at', { withTimezone: true }),
-  durationMs:  integer('duration_ms'),
-  status:      cronRunStatusEnum('status').notNull().default('running'),
-  output:      text('output'),
+  id:             serial('id').primaryKey(),
+  jobId:          integer('job_id').notNull().references(() => cronJobs.id, { onDelete: 'cascade' }),
+  jobName:        varchar('job_name', { length: 64 }).notNull(),
+  executionCount: integer('execution_count').notNull().default(1),
+  startedAt:      timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
+  endedAt:        timestamp('ended_at', { withTimezone: true }),
+  durationMs:     integer('duration_ms'),
+  status:         cronRunStatusEnum('status').notNull().default('running'),
+  output:         text('output'),
 });
 
 export type CronJobLogRow = typeof cronJobLogs.$inferSelect;

@@ -321,6 +321,9 @@ export interface CronJob {
   params: string | null;
   status: 'active' | 'disabled';
   description: string;
+  retryCount: number;
+  retryInterval: number;
+  monitorTimeout: number | null;
   lastRunAt: string | null;
   nextRunAt: string | null;
   lastRunStatus: CronRunStatus | null;

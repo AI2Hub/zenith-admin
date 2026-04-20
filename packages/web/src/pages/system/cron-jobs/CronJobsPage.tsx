@@ -30,6 +30,7 @@ interface CronJobLog {
   id: number;
   jobId: number;
   jobName: string;
+  executionCount: number;
   startedAt: string;
   endedAt: string | null;
   durationMs: number | null;
@@ -193,8 +194,11 @@ export default function CronJobsPage() {
         params: editingJob.params,
         status: editingJob.status,
         description: editingJob.description,
+        retryCount: editingJob.retryCount,
+        retryInterval: editingJob.retryInterval,
+        monitorTimeout: editingJob.monitorTimeout,
       }
-    : { status: 'active' };
+    : { status: 'active', retryCount: 0, retryInterval: 0 };
 
   const runStatusColor: Record<string, import('@douyinfe/semi-ui/lib/es/tag/interface').TagColor> = {
     success: 'green',
@@ -355,6 +359,30 @@ export default function CronJobsPage() {
             ]}
             style={{ width: '100%' }}
           />
+          <Form.InputNumber
+            field="retryCount"
+            label="重试次数"
+            rules={[{ required: true, message: '请输入重试次数' }]}
+            placeholder="设置为 0 时，不进行重试"
+            min={0}
+            max={10}
+            style={{ width: '100%' }}
+          />
+          <Form.InputNumber
+            field="retryInterval"
+            label="重试间隔"
+            rules={[{ required: true, message: '请输入重试间隔' }]}
+            placeholder="单位：毫秒。设置为 0 时，无需间隔"
+            min={0}
+            style={{ width: '100%' }}
+          />
+          <Form.InputNumber
+            field="monitorTimeout"
+            label="监控超时时间"
+            placeholder="单位：毫秒，可选"
+            min={0}
+            style={{ width: '100%' }}
+          />
           <Form.TextArea field="description" label="描述" placeholder="请输入描述" maxCount={256} />
         </Form>
       </Modal>
@@ -379,6 +407,11 @@ export default function CronJobsPage() {
               dataIndex: 'jobName',
               width: 160,
               ellipsis: true,
+            },
+            {
+              title: '第几次执行',
+              dataIndex: 'executionCount',
+              width: 100,
             },
             {
               title: '开始时间',
@@ -440,6 +473,11 @@ export default function CronJobsPage() {
           loading={logsLoading}
           dataSource={logsData}
           columns={[
+            {
+              title: '第几次执行',
+              dataIndex: 'executionCount',
+              width: 100,
+            },
             {
               title: '开始时间',
               dataIndex: 'startedAt',

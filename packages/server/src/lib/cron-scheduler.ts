@@ -1,12 +1,11 @@
 import cron, { type ScheduledTask } from 'node-cron';
-import { eq } from 'drizzle-orm';
+import { eq, count } from 'drizzle-orm';
 import { db } from '../db';
-import { cronJobs, cronJobLogs } from '../db/schema';
+import { cronJobs, cronJobLogs, dbBackups } from '../db/schema';
 import logger from './logger';
 import { cleanExpiredCaptchas } from './captcha';
 import { cleanExpiredSessions } from './session-manager';
 import { createPgDumpBackup, createDrizzleExportBackup } from './db-backup';
-import { dbBackups } from '../db/schema';
 
 type HandlerFn = (params?: string | null) => Promise<string>;
 
@@ -100,10 +99,20 @@ export function validateCronExpression(expression: string): boolean {
 async function executeJob(jobId: number, handler: string, params: string | null): Promise<{ success: boolean; message: string }> {
   const fn = handlerRegistry.get(handler);
 
-  // 获取任务名称（用于日志记录）
-  const [jobRow] = await db.select({ name: cronJobs.name }).from(cronJobs).where(eq(cronJobs.id, jobId)).limit(1);
+  // 获取任务配置（名称、重试参数）
+  const [jobRow] = await db.select({
+    name: cronJobs.name,
+    retryCount: cronJobs.retryCount,
+    retryInterval: cronJobs.retryInterval,
+  }).from(cronJobs).where(eq(cronJobs.id, jobId)).limit(1);
   const jobName = jobRow?.name ?? `job_${jobId}`;
+  const retryCount = jobRow?.retryCount ?? 0;
+  const retryInterval = jobRow?.retryInterval ?? 0;
   const startedAt = new Date();
+
+  // 计算第几次执行
+  const [countRow] = await db.select({ value: count() }).from(cronJobLogs).where(eq(cronJobLogs.jobId, jobId));
+  const executionCount = (countRow?.value ?? 0) + 1;
 
   if (!fn) {
     const msg = `Handler "${handler}" not found`;
@@ -117,6 +126,7 @@ async function executeJob(jobId: number, handler: string, params: string | null)
       db.insert(cronJobLogs).values({
         jobId,
         jobName,
+        executionCount,
         startedAt,
         endedAt: new Date(),
         durationMs: 0,
@@ -131,6 +141,7 @@ async function executeJob(jobId: number, handler: string, params: string | null)
   const [logRow] = await db.insert(cronJobLogs).values({
     jobId,
     jobName,
+    executionCount,
     startedAt,
     status: 'running',
   }).returning();
@@ -142,42 +153,62 @@ async function executeJob(jobId: number, handler: string, params: string | null)
     updatedAt: new Date(),
   }).where(eq(cronJobs.id, jobId));
 
-  try {
-    const message = await fn(params);
+  // 执行任务（含重试逻辑）
+  let lastError: Error | null = null;
+  let resultMessage = '';
+  let success = false;
+
+  for (let attempt = 0; attempt <= retryCount; attempt++) {
+    if (attempt > 0 && retryInterval > 0) {
+      await new Promise<void>(resolve => setTimeout(resolve, retryInterval));
+    }
+    try {
+      resultMessage = await fn(params);
+      success = true;
+      break;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < retryCount) {
+        logger.warn(`Cron job ${jobId} attempt ${attempt + 1}/${retryCount + 1} failed: ${lastError.message}, retrying...`);
+      }
+    }
+  }
+
+  if (success) {
     const endedAt = new Date();
     const durationMs = endedAt.getTime() - startedAt.getTime();
     await Promise.all([
       db.update(cronJobs).set({
         lastRunStatus: 'success',
-        lastRunMessage: message.slice(0, 1024),
+        lastRunMessage: resultMessage.slice(0, 1024),
         updatedAt: new Date(),
       }).where(eq(cronJobs.id, jobId)),
       db.update(cronJobLogs).set({
         endedAt,
         durationMs,
         status: 'success',
-        output: message.slice(0, 2048),
+        output: resultMessage.slice(0, 2048),
       }).where(eq(cronJobLogs.id, logRow.id)),
     ]);
-    return { success: true, message };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    return { success: true, message: resultMessage };
+  } else {
+    const errorMessage = lastError?.message ?? 'Unknown error';
     const endedAt = new Date();
     const durationMs = endedAt.getTime() - startedAt.getTime();
     await Promise.all([
       db.update(cronJobs).set({
         lastRunStatus: 'fail',
-        lastRunMessage: message.slice(0, 1024),
+        lastRunMessage: errorMessage.slice(0, 1024),
         updatedAt: new Date(),
       }).where(eq(cronJobs.id, jobId)),
       db.update(cronJobLogs).set({
         endedAt,
         durationMs,
         status: 'fail',
-        output: message.slice(0, 2048),
+        output: errorMessage.slice(0, 2048),
       }).where(eq(cronJobLogs.id, logRow.id)),
     ]);
-    logger.error(`Cron job ${jobId} failed:`, err);
-    return { success: false, message };
+    logger.error(`Cron job ${jobId} failed after ${retryCount + 1} attempt(s):`, lastError);
+    return { success: false, message: errorMessage };
   }
 }
