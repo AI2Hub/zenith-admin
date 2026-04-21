@@ -48,7 +48,10 @@ const startTime = Date.now();
 const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
 
 app.use('*', cors({ origin: '*', allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowHeaders: ['Content-Type', 'Authorization'] }));
-app.use('*', honoLogger((msg) => logger.info(msg)));
+// eslint-disable-next-line no-control-regex
+const ANSI_RE = /\x1b\[[0-9;]*m/g;
+const stripAnsi = (str: string) => str.replaceAll(ANSI_RE, '');
+app.use('*', honoLogger((msg) => logger.info(stripAnsi(msg))));
 app.use('/api/*', ipAccessMiddleware);
 
 app.route('/api/auth', authRoutes);
