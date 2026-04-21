@@ -6,6 +6,10 @@ export const config = {
   databaseUrl: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/zenith_admin',
   multiTenantMode: process.env.MULTI_TENANT_MODE === 'true',
   serverTimingEnabled: process.env.SERVER_TIMING_ENABLED === 'true',
+  // Body size limits（单位：字节）。0 表示不限制（使用运行时默认）
+  requestBodyLimit: Number(process.env.REQUEST_BODY_LIMIT) || 0,
+  // 请求超时（毫秒）。0 或未设置表示不启用超时中间件
+  requestTimeoutMs: Number(process.env.REQUEST_TIMEOUT_MS) || 0,
   redis: {
     // 优先使用 REDIS_URL（支持带密码的连接，如 redis://:password@127.0.0.1:6379/0）
     url: process.env.REDIS_URL,

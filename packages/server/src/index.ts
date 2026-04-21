@@ -5,6 +5,9 @@ import { timing } from 'hono/timing';
 import { compress } from 'hono/compress';
 import { secureHeaders } from 'hono/secure-headers';
 import { requestId } from 'hono/request-id';
+import { bodyLimit } from 'hono/body-limit';
+import { timeout } from 'hono/timeout';
+import { HTTPException } from 'hono/http-exception';
 import { serve } from '@hono/node-server';
 import { createNodeWebSocket } from '@hono/node-ws';
 import { swaggerUI } from '@hono/swagger-ui';
@@ -66,6 +69,44 @@ app.use('*', honoLogger((msg) => logger.info(stripAnsi(msg))));
 if (config.serverTimingEnabled) {
   app.use('*', timing());
 }
+
+// ─── 请求体大小限制（全局）───────────────────────────────────────────────────
+// config.requestBodyLimit === 0 时不挂载，使用运行时默认
+if (config.requestBodyLimit > 0) {
+  app.use(
+    '*',
+    bodyLimit({
+      maxSize: config.requestBodyLimit,
+      onError: (c) => c.json({ code: 413, message: '请求体超出大小限制', data: null }, 413),
+    }),
+  );
+}
+
+// ─── 请求超时（仅对 /api/* 生效，排除长耗时路由）───────────────────────────
+// config.requestTimeoutMs === 0 时不挂载
+if (config.requestTimeoutMs > 0) {
+  const timeoutMs = config.requestTimeoutMs;
+  // 天生长耗时的路径前缀：WebSocket、文件上传/下载、数据库备份
+  const TIMEOUT_EXCLUDE_PREFIXES = ['/api/ws', '/api/files', '/api/db-backups'];
+  // 排除所有 /export 导出接口
+  const isExcluded = (path: string) =>
+    TIMEOUT_EXCLUDE_PREFIXES.some((p) => path.startsWith(p)) || path.endsWith('/export');
+
+  const timeoutMiddleware = timeout(
+    timeoutMs,
+    () =>
+      new HTTPException(408, {
+        message: `请求处理超时（${timeoutMs}ms）`,
+      }),
+  );
+  app.use('/api/*', async (c, next) => {
+    if (isExcluded(c.req.path)) {
+      return next();
+    }
+    return timeoutMiddleware(c, next);
+  });
+}
+
 app.use('/api/*', ipAccessMiddleware);
 
 app.route('/api/auth', authRoutes);
@@ -132,6 +173,9 @@ app.get('/api/docs', swaggerUI({ url: '/api/openapi.json' }));
 
 // 全局未捕获异常处理—统一返回标准错误格式
 app.onError((err, c) => {
+  if (err instanceof HTTPException) {
+    return c.json({ code: err.status, message: err.message, data: null }, err.status);
+  }
   logger.error('[Unhandled Error]', err);
   return c.json({ code: 500, message: '服务器内部错误', data: null }, 500);
 });
