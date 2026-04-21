@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { OpenAPIHono } from '@hono/zod-openapi';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
 import { timing } from 'hono/timing';
@@ -13,7 +13,6 @@ import { serve } from '@hono/node-server';
 import { createNodeWebSocket } from '@hono/node-ws';
 import { swaggerUI } from '@hono/swagger-ui';
 import { config } from './config';
-import { openapiSpec } from './openapi';
 import logger from './lib/logger';
 import { db } from './db/index';
 import redis from './lib/redis';
@@ -50,7 +49,7 @@ import workflowInstancesRoutes from './routes/workflow-instances';
 import { createWsRoute } from './routes/ws';
 import { initCronScheduler } from './lib/cron-scheduler';
 
-const app = new Hono();
+const app = new OpenAPIHono();
 const startTime = Date.now();
 
 const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
@@ -171,7 +170,25 @@ app.get('/api/health', async (c) => {
 });
 
 // API 文档（无需认证）
-app.get('/api/openapi.json', (c) => c.json(openapiSpec));
+app.openAPIRegistry.registerComponent('securitySchemes', 'BearerAuth', {
+  type: 'http',
+  scheme: 'bearer',
+  bearerFormat: 'JWT',
+  description: '登录后获取的 accessToken，格式：`Bearer <token>`',
+});
+app.doc('/api/openapi.json', {
+  openapi: '3.1.0',
+  info: {
+    title: 'Zenith Admin API',
+    version: '0.1.1',
+    description:
+      'Zenith Admin 后台管理系统 REST API 文档。\n\n' +
+      '认证方式：Bearer Token（在 Authorize 中填入登录返回的 `accessToken`）。\n\n' +
+      '所有接口的成功响应格式为 `{ code: 0, message: "success", data: T }`，' +
+      '失败时 `code` 为非零值。',
+  },
+  servers: [{ url: '/', description: '当前服务器' }],
+});
 app.get('/api/docs', swaggerUI({ url: '/api/openapi.json' }));
 
 // 全局未捕获异常处理—统一返回标准错误格式

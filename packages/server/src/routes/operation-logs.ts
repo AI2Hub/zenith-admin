@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { desc, like, and, gte, lte, sql, eq } from 'drizzle-orm';
 import { db } from '../db';
 import { operationLogs } from '../db/schema';
@@ -7,35 +7,60 @@ import type { JwtPayload } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition } from '../lib/tenant';
+import { apiResponse, paginatedResponse, jsonContent } from '../lib/openapi-schemas';
 
-const operationLogsRoute = new Hono<{ Variables: { user: JwtPayload } }>();
+const operationLogsRoute = new OpenAPIHono<{ Variables: { user: JwtPayload } }>();
 
 operationLogsRoute.use('/*', authMiddleware);
 
-operationLogsRoute.get('/', guard({ permission: 'system:log:operation' }), async (c) => {
-  const page = Number(c.req.query('page')) || 1;
-  const pageSize = Number(c.req.query('pageSize')) || 10;
-  const username = c.req.query('username');
-  const module = c.req.query('module');
-  const description = c.req.query('description');
-  const method = c.req.query('method');
-  const path = c.req.query('path');
-  const ip = c.req.query('ip');
-  const status = c.req.query('status');
-  const startTime = c.req.query('startTime');
-  const endTime = c.req.query('endTime');
+const OperationLogDTO = z.looseObject({}).openapi('OperationLog');
+const StatsDTO = z.object({
+  moduleStats: z.array(z.object({ module: z.string(), count: z.number() })),
+  dailyStats: z.array(z.object({ date: z.string(), count: z.number() })),
+  userStats: z.array(z.object({ username: z.string(), count: z.number() })),
+}).openapi('OperationLogStats');
+
+const listRoute = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['OperationLogs'],
+  summary: '操作日志分页列表',
+  security: [{ BearerAuth: [] }],
+  middleware: [guard({ permission: 'system:log:operation' })] as const,
+  request: {
+    query: z.object({
+      page: z.coerce.number().optional(),
+      pageSize: z.coerce.number().optional(),
+      username: z.string().optional(),
+      module: z.string().optional(),
+      description: z.string().optional(),
+      method: z.string().optional(),
+      path: z.string().optional(),
+      ip: z.string().optional(),
+      status: z.enum(['success', 'fail']).optional(),
+      startTime: z.string().optional(),
+      endTime: z.string().optional(),
+    }),
+  },
+  responses: { 200: { content: jsonContent(paginatedResponse(OperationLogDTO)), description: '日志列表' } },
+});
+
+operationLogsRoute.openapi(listRoute, async (c) => {
+  const q = c.req.valid('query');
+  const page = Number(q.page) || 1;
+  const pageSize = Number(q.pageSize) || 10;
 
   const conditions = [];
-  if (username) conditions.push(like(operationLogs.username, `%${username}%`));
-  if (module) conditions.push(like(operationLogs.module, `%${module}%`));
-  if (description) conditions.push(like(operationLogs.description, `%${description}%`));
-  if (method) conditions.push(eq(operationLogs.method, method));
-  if (path) conditions.push(like(operationLogs.path, `%${path}%`));
-  if (ip) conditions.push(like(operationLogs.ip, `%${ip}%`));
-  if (status === 'success') conditions.push(and(gte(operationLogs.responseCode, 200), lte(operationLogs.responseCode, 399)));
-  if (status === 'fail') conditions.push(gte(operationLogs.responseCode, 400));
-  if (startTime) conditions.push(gte(operationLogs.createdAt, new Date(startTime)));
-  if (endTime) conditions.push(lte(operationLogs.createdAt, new Date(endTime)));
+  if (q.username) conditions.push(like(operationLogs.username, `%${q.username}%`));
+  if (q.module) conditions.push(like(operationLogs.module, `%${q.module}%`));
+  if (q.description) conditions.push(like(operationLogs.description, `%${q.description}%`));
+  if (q.method) conditions.push(eq(operationLogs.method, q.method));
+  if (q.path) conditions.push(like(operationLogs.path, `%${q.path}%`));
+  if (q.ip) conditions.push(like(operationLogs.ip, `%${q.ip}%`));
+  if (q.status === 'success') conditions.push(and(gte(operationLogs.responseCode, 200), lte(operationLogs.responseCode, 399)));
+  if (q.status === 'fail') conditions.push(gte(operationLogs.responseCode, 400));
+  if (q.startTime) conditions.push(gte(operationLogs.createdAt, new Date(q.startTime)));
+  if (q.endTime) conditions.push(lte(operationLogs.createdAt, new Date(q.endTime)));
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const user = c.get('user');
@@ -55,20 +80,35 @@ operationLogsRoute.get('/', guard({ permission: 'system:log:operation' }), async
     .limit(pageSize)
     .offset((page - 1) * pageSize);
 
-  return c.json({
-    code: 0,
-    message: 'ok',
-    data: {
-      list: rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
-      total: count,
-      page,
-      pageSize,
+  return c.json(
+    {
+      code: 0 as const,
+      message: 'ok',
+      data: {
+        list: rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
+        total: count,
+        page,
+        pageSize,
+      },
     },
-  });
+    200,
+  );
 });
 
-operationLogsRoute.get('/stats', guard({ permission: 'system:log:operation' }), async (c) => {
-  const days = Math.min(Math.max(Number(c.req.query('days')) || 90, 7), 365);
+const statsRoute = createRoute({
+  method: 'get',
+  path: '/stats',
+  tags: ['OperationLogs'],
+  summary: '操作日志统计',
+  security: [{ BearerAuth: [] }],
+  middleware: [guard({ permission: 'system:log:operation' })] as const,
+  request: { query: z.object({ days: z.coerce.number().optional() }) },
+  responses: { 200: { content: jsonContent(apiResponse(StatsDTO)), description: '统计结果' } },
+});
+
+operationLogsRoute.openapi(statsRoute, async (c) => {
+  const { days: daysRaw } = c.req.valid('query');
+  const days = Math.min(Math.max(Number(daysRaw) || 90, 7), 365);
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days + 1);
   startDate.setHours(0, 0, 0, 0);
@@ -87,7 +127,6 @@ operationLogsRoute.get('/stats', guard({ permission: 'system:log:operation' }), 
       .groupBy(operationLogs.module)
       .orderBy(desc(sql`count(*)`))
       .limit(20),
-
     db
       .select({
         date: sql<string>`to_char(date(${operationLogs.createdAt} AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`,
@@ -97,7 +136,6 @@ operationLogsRoute.get('/stats', guard({ permission: 'system:log:operation' }), 
       .where(baseWhere)
       .groupBy(sql`date(${operationLogs.createdAt} AT TIME ZONE 'UTC')`)
       .orderBy(sql`date(${operationLogs.createdAt} AT TIME ZONE 'UTC')`),
-
     db
       .select({
         username: operationLogs.username,
@@ -110,18 +148,36 @@ operationLogsRoute.get('/stats', guard({ permission: 'system:log:operation' }), 
       .limit(10),
   ]);
 
-  return c.json({
-    code: 0,
-    message: 'ok',
-    data: {
-      moduleStats: moduleStats.map((r) => ({ module: r.module ?? '未知模块', count: r.count })),
-      dailyStats: dailyStats.map((r) => ({ date: r.date, count: r.count })),
-      userStats: userStats.map((r) => ({ username: r.username ?? '未知用户', count: r.count })),
+  return c.json(
+    {
+      code: 0 as const,
+      message: 'ok',
+      data: {
+        moduleStats: moduleStats.map((r) => ({ module: r.module ?? '未知模块', count: r.count })),
+        dailyStats: dailyStats.map((r) => ({ date: r.date, count: r.count })),
+        userStats: userStats.map((r) => ({ username: r.username ?? '未知用户', count: r.count })),
+      },
     },
-  });
+    200,
+  );
 });
 
-operationLogsRoute.get('/export', guard({ permission: 'system:log:operation' }), async (c) => {
+const exportRoute = createRoute({
+  method: 'get',
+  path: '/export',
+  tags: ['OperationLogs'],
+  summary: '导出操作日志 Excel',
+  security: [{ BearerAuth: [] }],
+  middleware: [guard({ permission: 'system:log:operation' })] as const,
+  responses: {
+    200: {
+      content: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { schema: z.string() } },
+      description: 'Excel 文件',
+    },
+  },
+});
+
+operationLogsRoute.openapi(exportRoute, async (c) => {
   const rows = await db.select().from(operationLogs).where(tenantCondition(operationLogs, c.get('user'))).orderBy(desc(operationLogs.id));
   const buffer = await exportToExcel(
     [
@@ -137,11 +193,11 @@ operationLogsRoute.get('/export', guard({ permission: 'system:log:operation' }),
       { header: '时间', key: 'createdAt', width: 22 },
     ],
     rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
-    '操作日志'
+    '操作日志',
   );
   c.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   c.header('Content-Disposition', 'attachment; filename=operation-logs.xlsx');
-  return c.body(buffer);
+  return c.body(buffer) as never;
 });
 
 export default operationLogsRoute;

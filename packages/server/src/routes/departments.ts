@@ -1,19 +1,31 @@
-import { Hono } from 'hono';
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { asc, eq, and } from 'drizzle-orm';
 import { db } from '../db';
 import { departments, users } from '../db/schema';
-import { createDepartmentSchema, updateDepartmentSchema } from '@zenith/shared';
 import { authMiddleware } from '../middleware/auth';
 import type { JwtPayload } from '../middleware/auth';
 import { guard } from '../middleware/guard';
-import { zValidate } from '../lib/validate';
 import { exportToExcel } from '../lib/excel-export';
 import type { Department } from '@zenith/shared';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
+import { apiResponse, ErrorResponse, MessageResponse, jsonContent } from '../lib/openapi-schemas';
 
-const departmentsRouter = new Hono<{ Variables: { user: JwtPayload } }>();
-
+const departmentsRouter = new OpenAPIHono<{ Variables: { user: JwtPayload } }>();
 departmentsRouter.use('*', authMiddleware);
+
+const DepartmentDTO = z.looseObject({}).openapi('Department');
+
+const createDepartmentSchema = z.object({
+  parentId: z.number().int().min(0).default(0),
+  name: z.string().min(1).max(64),
+  code: z.string().min(1).max(64).regex(/^\w+$/),
+  leader: z.string().max(32).optional(),
+  phone: z.string().max(32).optional(),
+  email: z.string().max(128).optional(),
+  sort: z.number().int().default(0),
+  status: z.enum(['active', 'disabled']).default('active'),
+});
+const updateDepartmentSchema = createDepartmentSchema.partial();
 
 function toDepartment(row: typeof departments.$inferSelect): Omit<Department, 'children'> {
   return {
@@ -35,28 +47,17 @@ function buildTree(list: Omit<Department, 'children'>[]): Department[] {
   const map = new Map<number, Department>();
   list.forEach((item) => map.set(item.id, { ...item }));
   const roots: Department[] = [];
-
   map.forEach((node) => {
-    if (node.parentId === 0) {
-      roots.push(node);
-      return;
-    }
-
+    if (node.parentId === 0) { roots.push(node); return; }
     const parent = map.get(node.parentId);
-    if (!parent) {
-      roots.push(node);
-      return;
-    }
-
+    if (!parent) { roots.push(node); return; }
     parent.children = parent.children ?? [];
     parent.children.push(node);
   });
-
   const sortNodes = (nodes: Department[]) => {
     nodes.sort((a, b) => a.sort - b.sort || a.id - b.id);
     nodes.forEach((item) => item.children && sortNodes(item.children));
   };
-
   sortNodes(roots);
   return roots;
 }
@@ -77,67 +78,77 @@ async function ensureParentValid(parentId: number, currentId?: number) {
   if (parentId === 0) return null;
   const allDepartments = await db.select({ id: departments.id, parentId: departments.parentId }).from(departments);
   const parentExists = allDepartments.some((item) => item.id === parentId);
-  if (!parentExists) {
-    return '上级部门不存在';
-  }
+  if (!parentExists) return '上级部门不存在';
   if (!currentId) return null;
-  if (parentId === currentId) {
-    return '上级部门不能选择自身';
-  }
-
+  if (parentId === currentId) return '上级部门不能选择自身';
   const descendants = new Set<number>();
   const queue = [currentId];
   while (queue.length > 0) {
     const current = queue.shift();
-    if (current === undefined) {
-      continue;
-    }
+    if (current === undefined) continue;
     for (const item of allDepartments) {
-      if (item.parentId === current) {
-        descendants.add(item.id);
-        queue.push(item.id);
-      }
+      if (item.parentId === current) { descendants.add(item.id); queue.push(item.id); }
     }
   }
-
-  if (descendants.has(parentId)) {
-    return '上级部门不能选择子部门';
-  }
-
+  if (descendants.has(parentId)) return '上级部门不能选择子部门';
   return null;
 }
 
-departmentsRouter.get('/', guard({ permission: 'system:department:list' }), async (c) => {
-  const keyword = c.req.query('keyword') ?? '';
-  const status = c.req.query('status');
+const listRoute = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Departments'],
+  summary: '部门树',
+  security: [{ BearerAuth: [] }],
+  middleware: [guard({ permission: 'system:department:list' })] as const,
+  request: { query: z.object({ keyword: z.string().optional(), status: z.string().optional() }) },
+  responses: { 200: { content: jsonContent(apiResponse(z.array(DepartmentDTO))), description: '部门树' } },
+});
+departmentsRouter.openapi(listRoute, async (c) => {
+  const { keyword = '', status } = c.req.valid('query');
   const user = c.get('user');
   const tc = tenantCondition(departments, user);
-
   const rows = await db.select().from(departments).where(tc).orderBy(asc(departments.sort), asc(departments.id));
   const tree = buildTree(rows.map(toDepartment));
   const data = keyword || status ? filterTree(tree, keyword, status) : tree;
-  return c.json({ code: 0, message: 'ok', data });
+  return c.json({ code: 0 as const, message: 'ok', data }, 200);
 });
 
-departmentsRouter.get('/flat', guard({ permission: 'system:department:list' }), async (c) => {
-  const user = c.get('user');
-  const tc = tenantCondition(departments, user);
+const flatRoute = createRoute({
+  method: 'get',
+  path: '/flat',
+  tags: ['Departments'],
+  summary: '部门扁平列表',
+  security: [{ BearerAuth: [] }],
+  middleware: [guard({ permission: 'system:department:list' })] as const,
+  responses: { 200: { content: jsonContent(apiResponse(z.array(DepartmentDTO))), description: '列表' } },
+});
+departmentsRouter.openapi(flatRoute, async (c) => {
+  const tc = tenantCondition(departments, c.get('user'));
   const rows = await db.select().from(departments).where(tc).orderBy(asc(departments.sort), asc(departments.id));
-  return c.json({ code: 0, message: 'ok', data: rows.map(toDepartment) });
+  return c.json({ code: 0 as const, message: 'ok', data: rows.map(toDepartment) }, 200);
 });
 
-departmentsRouter.post('/', guard({ permission: 'system:department:create', audit: { description: '创建部门', module: '部门管理' } }), zValidate('json', createDepartmentSchema), async (c) => {
+const createRouteDef = createRoute({
+  method: 'post',
+  path: '/',
+  tags: ['Departments'],
+  summary: '创建部门',
+  security: [{ BearerAuth: [] }],
+  middleware: [guard({ permission: 'system:department:create', audit: { description: '创建部门', module: '部门管理' } })] as const,
+  request: { body: { content: jsonContent(createDepartmentSchema), required: true } },
+  responses: {
+    200: { content: jsonContent(apiResponse(DepartmentDTO)), description: '创建成功' },
+    400: { content: jsonContent(ErrorResponse), description: '参数错误' },
+  },
+});
+departmentsRouter.openapi(createRouteDef, async (c) => {
   const data = c.req.valid('json');
-
   const parentError = await ensureParentValid(data.parentId);
-  if (parentError) {
-    return c.json({ code: 400, message: parentError, data: null }, 400);
-  }
-
-  const user = c.get('user');
+  if (parentError) return c.json({ code: 400, message: parentError, data: null }, 400);
   try {
-    const [department] = await db.insert(departments).values({ ...data, tenantId: getCreateTenantId(user) }).returning();
-    return c.json({ code: 0, message: '创建成功', data: toDepartment(department) });
+    const [department] = await db.insert(departments).values({ ...data, tenantId: getCreateTenantId(c.get('user')) }).returning();
+    return c.json({ code: 0 as const, message: '创建成功', data: toDepartment(department) }, 200);
   } catch (error: unknown) {
     if ((error as { code?: string }).code === '23505') {
       return c.json({ code: 400, message: '部门编码已存在', data: null }, 400);
@@ -146,29 +157,34 @@ departmentsRouter.post('/', guard({ permission: 'system:department:create', audi
   }
 });
 
-departmentsRouter.put('/:id', guard({ permission: 'system:department:update', audit: { description: '更新部门', module: '部门管理' } }), zValidate('json', updateDepartmentSchema), async (c) => {
-  const id = Number(c.req.param('id'));
+const updateRouteDef = createRoute({
+  method: 'put',
+  path: '/{id}',
+  tags: ['Departments'],
+  summary: '更新部门',
+  security: [{ BearerAuth: [] }],
+  middleware: [guard({ permission: 'system:department:update', audit: { description: '更新部门', module: '部门管理' } })] as const,
+  request: { params: z.object({ id: z.coerce.number() }), body: { content: jsonContent(updateDepartmentSchema), required: true } },
+  responses: {
+    200: { content: jsonContent(apiResponse(DepartmentDTO)), description: '更新成功' },
+    400: { content: jsonContent(ErrorResponse), description: '参数错误' },
+    404: { content: jsonContent(ErrorResponse), description: '不存在' },
+  },
+});
+departmentsRouter.openapi(updateRouteDef, async (c) => {
+  const { id } = c.req.valid('param');
   const data = c.req.valid('json');
-
   if (data.parentId !== undefined) {
     const parentError = await ensureParentValid(data.parentId, id);
-    if (parentError) {
-      return c.json({ code: 400, message: parentError, data: null }, 400);
-    }
+    if (parentError) return c.json({ code: 400, message: parentError, data: null }, 400);
   }
-
   try {
-    const [department] = await db
-      .update(departments)
+    const [department] = await db.update(departments)
       .set({ ...data, updatedAt: new Date() })
       .where(and(eq(departments.id, id), tenantCondition(departments, c.get('user'))))
       .returning();
-
-    if (!department) {
-      return c.json({ code: 404, message: '部门不存在', data: null }, 404);
-    }
-
-    return c.json({ code: 0, message: '更新成功', data: toDepartment(department) });
+    if (!department) return c.json({ code: 404, message: '部门不存在', data: null }, 404);
+    return c.json({ code: 0 as const, message: '更新成功', data: toDepartment(department) }, 200);
   } catch (error: unknown) {
     if ((error as { code?: string }).code === '23505') {
       return c.json({ code: 400, message: '部门编码已存在', data: null }, 400);
@@ -177,40 +193,44 @@ departmentsRouter.put('/:id', guard({ permission: 'system:department:update', au
   }
 });
 
-departmentsRouter.delete('/:id', guard({ permission: 'system:department:delete', audit: { description: '删除部门', module: '部门管理' } }), async (c) => {
-  const id = Number(c.req.param('id'));
-  const user = c.get('user');
-  const tc = tenantCondition(departments, user);
+const deleteRouteDef = createRoute({
+  method: 'delete',
+  path: '/{id}',
+  tags: ['Departments'],
+  summary: '删除部门',
+  security: [{ BearerAuth: [] }],
+  middleware: [guard({ permission: 'system:department:delete', audit: { description: '删除部门', module: '部门管理' } })] as const,
+  request: { params: z.object({ id: z.coerce.number() }) },
+  responses: {
+    200: { content: jsonContent(MessageResponse), description: '删除成功' },
+    400: { content: jsonContent(ErrorResponse), description: '不可删除' },
+    404: { content: jsonContent(ErrorResponse), description: '不存在' },
+  },
+});
+departmentsRouter.openapi(deleteRouteDef, async (c) => {
+  const { id } = c.req.valid('param');
+  const tc = tenantCondition(departments, c.get('user'));
   const [department] = await db.select({ id: departments.id }).from(departments).where(and(eq(departments.id, id), tc)).limit(1);
-  if (!department) {
-    return c.json({ code: 404, message: '部门不存在', data: null }, 404);
-  }
-
-  const [childDepartment] = await db
-    .select({ id: departments.id })
-    .from(departments)
-    .where(eq(departments.parentId, id))
-    .limit(1);
-  if (childDepartment) {
-    return c.json({ code: 400, message: '该部门存在子部门，无法删除', data: null }, 400);
-  }
-
-  const [boundUser] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.departmentId, id))
-    .limit(1);
-  if (boundUser) {
-    return c.json({ code: 400, message: '该部门下仍有关联用户，无法删除', data: null }, 400);
-  }
-
+  if (!department) return c.json({ code: 404, message: '部门不存在', data: null }, 404);
+  const [childDepartment] = await db.select({ id: departments.id }).from(departments).where(eq(departments.parentId, id)).limit(1);
+  if (childDepartment) return c.json({ code: 400, message: '该部门存在子部门，无法删除', data: null }, 400);
+  const [boundUser] = await db.select({ id: users.id }).from(users).where(eq(users.departmentId, id)).limit(1);
+  if (boundUser) return c.json({ code: 400, message: '该部门下仍有关联用户，无法删除', data: null }, 400);
   await db.delete(departments).where(and(eq(departments.id, id), tc));
-  return c.json({ code: 0, message: '删除成功', data: null });
+  return c.json({ code: 0 as const, message: '删除成功', data: null }, 200);
 });
 
-departmentsRouter.get('/export', guard({ permission: 'system:department:list' }), async (c) => {
-  const user = c.get('user');
-  const tc = tenantCondition(departments, user);
+const exportRouteDef = createRoute({
+  method: 'get',
+  path: '/export',
+  tags: ['Departments'],
+  summary: '导出部门',
+  security: [{ BearerAuth: [] }],
+  middleware: [guard({ permission: 'system:department:list' })] as const,
+  responses: { 200: { content: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { schema: z.string() } }, description: 'Excel 文件' } },
+});
+departmentsRouter.openapi(exportRouteDef, async (c) => {
+  const tc = tenantCondition(departments, c.get('user'));
   const rows = await db.select().from(departments).where(tc).orderBy(asc(departments.sort));
   const buffer = await exportToExcel(
     [
@@ -223,11 +243,11 @@ departmentsRouter.get('/export', guard({ permission: 'system:department:list' })
       { header: '创建时间', key: 'createdAt', width: 22 },
     ],
     rows.map((r) => ({ ...r, leader: r.leader ?? '', phone: r.phone ?? '', createdAt: r.createdAt.toISOString() })),
-    '部门列表'
+    '部门列表',
   );
   c.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   c.header('Content-Disposition', 'attachment; filename=departments.xlsx');
-  return c.body(buffer);
+  return c.body(buffer) as never;
 });
 
 export default departmentsRouter;

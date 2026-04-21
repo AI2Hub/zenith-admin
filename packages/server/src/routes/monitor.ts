@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import os from 'node:os';
 import { execSync } from 'node:child_process';
 import { db } from '../db';
@@ -6,9 +6,9 @@ import { sql } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import redis from '../lib/redis';
+import { apiResponse, jsonContent } from '../lib/openapi-schemas';
 
-const monitorRouter = new Hono();
-
+const monitorRouter = new OpenAPIHono();
 monitorRouter.use('*', authMiddleware);
 
 function getCpuUsage(): Promise<number> {
@@ -36,7 +36,6 @@ function getCpuUsage(): Promise<number> {
 function getDiskInfo() {
   try {
     if (process.platform === 'win32') {
-      // Windows: use PowerShell to query C: drive
       const output = execSync(
         'powershell.exe -NoProfile -NonInteractive -Command "Get-PSDrive C | Format-List Used,Free"',
         { encoding: 'utf8', timeout: 5000 },
@@ -51,7 +50,6 @@ function getDiskInfo() {
       }
       return null;
     }
-    // Unix/Linux/macOS
     const output = execSync('df -B1 / --output=size,used,avail 2>/dev/null || df -B1 /', { encoding: 'utf8', timeout: 3000 });
     const lines = output.trim().split('\n');
     if (lines.length >= 2) {
@@ -106,16 +104,14 @@ async function getRedisInfo() {
 async function getDbInfo() {
   try {
     const [dbSizeResult] = await db.execute(
-      sql`SELECT pg_database_size(current_database()) AS size, current_database() AS name`
+      sql`SELECT pg_database_size(current_database()) AS size, current_database() AS name`,
     );
     const [connResult] = await db.execute(
-      sql`SELECT count(*) AS active FROM pg_stat_activity WHERE state = 'active'`
+      sql`SELECT count(*) AS active FROM pg_stat_activity WHERE state = 'active'`,
     );
-    const [totalConnResult] = await db.execute(
-      sql`SELECT count(*) AS total FROM pg_stat_activity`
-    );
+    const [totalConnResult] = await db.execute(sql`SELECT count(*) AS total FROM pg_stat_activity`);
     const [tableResult] = await db.execute(
-      sql`SELECT count(*) AS count FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`
+      sql`SELECT count(*) AS count FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
     );
     return {
       name: (dbSizeResult as { name: string }).name,
@@ -129,7 +125,19 @@ async function getDbInfo() {
   }
 }
 
-monitorRouter.get('/', guard({ permission: 'system:monitor:view' }), async (c) => {
+const MonitorDTO = z.looseObject({}).openapi('MonitorInfo');
+
+const statusRoute = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Monitor'],
+  summary: '获取服务器监控信息',
+  security: [{ BearerAuth: [] }],
+  middleware: [guard({ permission: 'system:monitor:view' })] as const,
+  responses: { 200: { content: jsonContent(apiResponse(MonitorDTO)), description: '监控数据' } },
+});
+
+monitorRouter.openapi(statusRoute, async (c) => {
   const [cpuUsage, dbInfo, redisInfo] = await Promise.all([getCpuUsage(), getDbInfo(), getRedisInfo()]);
 
   const totalMem = os.totalmem();
@@ -137,7 +145,6 @@ monitorRouter.get('/', guard({ permission: 'system:monitor:view' }), async (c) =
   const usedMem = totalMem - freeMem;
 
   const cpus = os.cpus();
-
   const disk = getDiskInfo();
 
   const data = {
@@ -179,7 +186,7 @@ monitorRouter.get('/', guard({ permission: 'system:monitor:view' }), async (c) =
     redis: redisInfo,
   };
 
-  return c.json({ code: 0, message: 'success', data });
+  return c.json({ code: 0 as const, message: 'success', data }, 200);
 });
 
 export default monitorRouter;
