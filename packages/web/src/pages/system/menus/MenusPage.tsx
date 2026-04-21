@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Table,
   Button,
+  Input,
+  Select,
   Space,
   Modal,
   Form,
@@ -13,7 +15,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
-import { Plus, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Plus, ChevronsDownUp, ChevronsUpDown, Search, RotateCcw } from 'lucide-react';
 import type { Menu } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -36,6 +38,10 @@ export default function MenusPage() {
   const [menuType, setMenuType] = useState<string>('menu');
 
   const [expandedRowKeys, setExpandedRowKeys] = useState<(string | number)[]>([]);
+  const [keyword, setKeyword] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [pendingKeyword, setPendingKeyword] = useState('');
+  const [pendingStatus, setPendingStatus] = useState<string>('');
 
   const { items: menuTypeItems } = useDictItems('menu_type');
   const { items: statusItems } = useDictItems('common_status');
@@ -67,6 +73,42 @@ export default function MenusPage() {
   }, [data]);
 
   const isAllExpanded = expandedRowKeys.length > 0 && expandedRowKeys.length >= allRowKeys.length;
+
+  // 递归过滤树节点
+  const filterTree = useCallback((items: Menu[], kw: string, st: string): Menu[] => {
+    return items.reduce<Menu[]>((acc, item) => {
+      const filteredChildren = item.children?.length ? filterTree(item.children, kw, st) : [];
+      const titleMatch = !kw || item.title.toLowerCase().includes(kw.toLowerCase());
+      const statusMatch = !st || item.status === st;
+      let mergedChildren: Menu[] | undefined;
+      if (filteredChildren.length > 0) {
+        mergedChildren = filteredChildren;
+      } else if (item.children?.length) {
+        mergedChildren = [];
+      }
+      if ((titleMatch && statusMatch) || filteredChildren.length > 0) {
+        acc.push({ ...item, children: mergedChildren });
+      }
+      return acc;
+    }, []);
+  }, []);
+
+  const filteredData = useMemo(
+    () => (keyword || statusFilter ? filterTree(data, keyword, statusFilter) : data),
+    [data, keyword, statusFilter, filterTree]
+  );
+
+  const handleSearch = () => {
+    setKeyword(pendingKeyword);
+    setStatusFilter(pendingStatus);
+  };
+
+  const handleReset = () => {
+    setPendingKeyword('');
+    setPendingStatus('');
+    setKeyword('');
+    setStatusFilter('');
+  };
 
   function toggleExpandAll() {
     setExpandedRowKeys(isAllExpanded ? [] : allRowKeys);
@@ -239,6 +281,28 @@ export default function MenusPage() {
   return (
     <div className="page-container">
       <SearchToolbar>
+          <Input
+            prefix={<Search size={14} />}
+            placeholder="菜单名称"
+            showClear
+            value={pendingKeyword}
+            onChange={(val) => setPendingKeyword(val)}
+            onEnterPress={handleSearch}
+            style={{ width: 200 }}
+          />
+          <Select
+            placeholder="状态"
+            showClear
+            value={pendingStatus || undefined}
+            onChange={(val) => setPendingStatus((val as string) ?? '')}
+            style={{ width: 120 }}
+          >
+            {statusItems.map((i) => (
+              <Select.Option key={i.value} value={i.value}>{i.label}</Select.Option>
+            ))}
+          </Select>
+          <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+          <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
           <Button
             type="tertiary"
             icon={isAllExpanded ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
@@ -253,7 +317,7 @@ export default function MenusPage() {
         bordered
         className="admin-table-nowrap"
         columns={columns}
-        dataSource={data}
+        dataSource={filteredData}
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 10, showSizeChanger: true }}
