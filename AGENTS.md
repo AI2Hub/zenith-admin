@@ -111,6 +111,23 @@ Redis key 规范：
 
 ---
 
+## 请求防护（Body Limit & Timeout）
+
+服务端基于 Hono 官方 `hono/body-limit` 与 `hono/timeout` 提供可选的请求防护，**默认均不启用**，通过环境变量控制：
+
+```env
+# 请求体大小上限（字节），0 = 不限制
+REQUEST_BODY_LIMIT=0
+# 请求超时（毫秒），0 = 不启用
+REQUEST_TIMEOUT_MS=0
+```
+
+- `bodyLimit` 作用于全局所有请求，超出返回 `{ code: 413, message: '请求体超出大小限制' }`。
+- `timeout` 仅作用于 `/api/*`，并自动排除长耗时路径：`/api/ws`、`/api/files`、`/api/db-backups` 及所有以 `/export` 结尾的导出接口。超时返回 `{ code: 408, message: '请求处理超时（Xms）' }`。
+- 实现位置：`packages/server/src/index.ts`，挂载逻辑条件性生效。
+
+---
+
 ## 时间格式规范
 
 前端所有时间显示**统一使用 `YYYY-MM-DD HH:mm:ss` 格式**（如 `2026-03-23 14:30:00`）。

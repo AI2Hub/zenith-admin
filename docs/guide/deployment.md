@@ -57,6 +57,12 @@ REDIS_URL=redis://127.0.0.1:6379
 LOG_LEVEL=info
 LOG_DIR=./logs
 
+# 请求防护（可选，默认均不启用）
+# 请求体大小上限（字节），0 = 不限制。建议生产环境至少开启一个合理值
+# REQUEST_BODY_LIMIT=10485760
+# 请求超时（毫秒），0 = 不启用。启用后自动排除 /api/ws、/api/files、/api/db-backups 及 /export 接口
+# REQUEST_TIMEOUT_MS=30000
+
 # CORS（生产环境务必收紧，指定前端域名）
 # CORS_ORIGIN=https://your-domain.com
 ```

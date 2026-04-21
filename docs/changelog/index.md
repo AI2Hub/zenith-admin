@@ -18,6 +18,13 @@
 - 字典列表新增「描述」列
 - 字典项侧边抽屉加宽（700 → 900），顶部新增标签/键值文本搜索与状态下拉筛选（客户端实时过滤）
 
+#### 服务端请求防护
+
+- 基于 Hono 官方 `hono/body-limit` 与 `hono/timeout` 新增可选的请求防护，均默认不启用
+- 新增环境变量 `REQUEST_BODY_LIMIT`（字节）、`REQUEST_TIMEOUT_MS`（毫秒），`0` 表示不启用
+- Timeout 自动排除长耗时路径：`/api/ws`、`/api/files`、`/api/db-backups` 及所有 `/export` 导出接口
+- 超时与超限返回统一错误体：`{ code: 408/413, message, data: null }`
+
 ---
 
 ## v0.3.1 - 2026-05-03
