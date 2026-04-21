@@ -5,6 +5,7 @@ import { fileStorageConfigs, managedFiles } from '../db/schema';
 import { createFileStorageConfigSchema, updateFileStorageConfigSchema } from '@zenith/shared';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
+import { zValidate } from '../lib/validate';
 
 const fileStorageConfigsRouter = new Hono();
 fileStorageConfigsRouter.use('*', authMiddleware);
@@ -125,46 +126,38 @@ fileStorageConfigsRouter.get('/default', guard({ permission: 'system:file:config
   return c.json({ code: 0, message: 'ok', data: config ? toFileStorageConfig(config) : null });
 });
 
-fileStorageConfigsRouter.post('/', guard({ permission: 'system:file:config:create', audit: { description: '创建文件存储配置', module: '文件存储配置' } }), async (c) => {
-  const body = await c.req.json();
-  const result = createFileStorageConfigSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+fileStorageConfigsRouter.post('/', guard({ permission: 'system:file:config:create', audit: { description: '创建文件存储配置', module: '文件存储配置' } }), zValidate('json', createFileStorageConfigSchema), async (c) => {
+  const data = c.req.valid('json');
 
   const existingDefault = await db.select({ id: fileStorageConfigs.id }).from(fileStorageConfigs).where(eq(fileStorageConfigs.isDefault, true)).limit(1);
-  const shouldBeDefault = result.data.isDefault || (existingDefault.length === 0 && result.data.status === 'active');
+  const shouldBeDefault = data.isDefault || (existingDefault.length === 0 && data.status === 'active');
   if (shouldBeDefault) {
     await clearDefaultFlag();
   }
 
   const [created] = await db.insert(fileStorageConfigs).values({
-    ...toStoragePayload({ ...result.data, isDefault: shouldBeDefault }),
+    ...toStoragePayload({ ...data, isDefault: shouldBeDefault }),
   }).returning();
 
   return c.json({ code: 0, message: '创建成功', data: toFileStorageConfig(created) });
 });
 
-fileStorageConfigsRouter.put('/:id', guard({ permission: 'system:file:config:update', audit: { description: '更新文件存储配置', module: '文件存储配置' } }), async (c) => {
+fileStorageConfigsRouter.put('/:id', guard({ permission: 'system:file:config:update', audit: { description: '更新文件存储配置', module: '文件存储配置' } }), zValidate('json', updateFileStorageConfigSchema), async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = updateFileStorageConfigSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
 
   const [current] = await db.select().from(fileStorageConfigs).where(eq(fileStorageConfigs.id, id)).limit(1);
   if (!current) return c.json({ code: 404, message: '文件配置不存在', data: null }, 404);
-  if (current.isDefault && result.data.status === 'disabled') {
+  if (current.isDefault && data.status === 'disabled') {
     return c.json({ code: 400, message: '默认文件服务不能被禁用，请先切换默认服务', data: null }, 400);
   }
 
-  if (result.data.isDefault) {
+  if (data.isDefault) {
     await clearDefaultFlag();
   }
 
   const [updated] = await db.update(fileStorageConfigs)
-    .set({ ...toStoragePayload(result.data), updatedAt: new Date() })
+    .set({ ...toStoragePayload(data), updatedAt: new Date() })
     .where(eq(fileStorageConfigs.id, id))
     .returning();
 

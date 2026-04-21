@@ -5,6 +5,7 @@ import { notices, noticeReads, noticeRecipients, users, userRoles, roles, depart
 import { createNoticeSchema, updateNoticeSchema } from '@zenith/shared';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
+import { zValidate } from '../lib/validate';
 import { exportToExcel } from '../lib/excel-export';
 import { broadcast, sendToUser } from '../lib/ws-manager';
 import type { JwtPayload } from '../middleware/auth';
@@ -287,30 +288,27 @@ noticesRouter.get('/:id', guard({ permission: 'system:notice:list' }), async (c)
 });
 
 // 创建
-noticesRouter.post('/', guard({ permission: 'system:notice:create', audit: { description: '创建通知公告', module: '通知公告' } }), async (c) => {
+noticesRouter.post('/', guard({ permission: 'system:notice:create', audit: { description: '创建通知公告', module: '通知公告' } }), zValidate('json', createNoticeSchema), async (c) => {
   const user = c.get('user');
-  const body = await c.req.json();
-  const result = createNoticeSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
+
   const now = new Date();
   let publishTime: Date | null = null;
-  if (result.data.publishTime) {
-    publishTime = new Date(result.data.publishTime);
-  } else if (result.data.publishStatus === 'published') {
+  if (data.publishTime) {
+    publishTime = new Date(data.publishTime);
+  } else if (data.publishStatus === 'published') {
     publishTime = now;
   }
 
   const [row] = await db
     .insert(notices)
     .values({
-      title: result.data.title,
-      content: result.data.content,
-      type: result.data.type,
-      publishStatus: result.data.publishStatus,
-      priority: result.data.priority,
-      targetType: result.data.targetType ?? 'all',
+      title: data.title,
+      content: data.content,
+      type: data.type,
+      publishStatus: data.publishStatus,
+      priority: data.priority,
+      targetType: data.targetType ?? 'all',
       publishTime,
       createById: user?.userId ?? null,
       createByName: user?.username ?? null,
@@ -319,7 +317,7 @@ noticesRouter.post('/', guard({ permission: 'system:notice:create', audit: { des
     .returning();
 
   // 保存收件人（仅 specific 时有意义，但 all 也可存空）
-  const recipientList = result.data.targetType === 'specific' ? (result.data.recipients ?? []) : [];
+  const recipientList = data.targetType === 'specific' ? (data.recipients ?? []) : [];
   await saveRecipients(row.id, recipientList);
 
   const notice = toNotice(row);
@@ -330,18 +328,15 @@ noticesRouter.post('/', guard({ permission: 'system:notice:create', audit: { des
 });
 
 // 更新
-noticesRouter.put('/:id', guard({ permission: 'system:notice:update', audit: { description: '更新通知公告', module: '通知公告' } }), async (c) => {
+noticesRouter.put('/:id', guard({ permission: 'system:notice:update', audit: { description: '更新通知公告', module: '通知公告' } }), zValidate('json', updateNoticeSchema), async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = updateNoticeSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
+
   const now = new Date();
   let publishTime: Date | null | undefined = undefined;
-  if (result.data.publishTime !== undefined) {
-    publishTime = result.data.publishTime ? new Date(result.data.publishTime) : null;
-  } else if (result.data.publishStatus === 'published') {
+  if (data.publishTime !== undefined) {
+    publishTime = data.publishTime ? new Date(data.publishTime) : null;
+  } else if (data.publishStatus === 'published') {
     // 如果切换为发布状态但没有传 publishTime，设为当前时间
     const existing = await db.select().from(notices).where(eq(notices.id, id));
     if (existing[0] && !existing[0].publishTime) {
@@ -349,7 +344,7 @@ noticesRouter.put('/:id', guard({ permission: 'system:notice:update', audit: { d
     }
   }
 
-  const updateData: Record<string, unknown> = { ...result.data, updatedAt: now };
+  const updateData: Record<string, unknown> = { ...data, updatedAt: now };
   // 不把 recipients 写入 notices 表
   delete updateData.recipients;
   if (publishTime !== undefined) updateData.publishTime = publishTime;
@@ -362,14 +357,14 @@ noticesRouter.put('/:id', guard({ permission: 'system:notice:update', audit: { d
   if (!row) return c.json({ code: 404, message: '通知不存在', data: null }, 404);
 
   // 更新收件人
-  if (result.data.targetType !== undefined || result.data.recipients !== undefined) {
-    const newTargetType = result.data.targetType ?? row.targetType;
-    const recipientList = newTargetType === 'specific' ? (result.data.recipients ?? []) : [];
+  if (data.targetType !== undefined || data.recipients !== undefined) {
+    const newTargetType = data.targetType ?? row.targetType;
+    const recipientList = newTargetType === 'specific' ? (data.recipients ?? []) : [];
     await saveRecipients(id, recipientList);
   }
 
   const notice = toNotice(row);
-  if (result.data.publishStatus === 'published') {
+  if (data.publishStatus === 'published') {
     await broadcastNotice(notice, row.id);
   }
   return c.json({ code: 0, message: '更新成功', data: notice });

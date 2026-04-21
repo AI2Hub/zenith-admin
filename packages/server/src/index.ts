@@ -2,6 +2,9 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
 import { timing } from 'hono/timing';
+import { compress } from 'hono/compress';
+import { secureHeaders } from 'hono/secure-headers';
+import { requestId } from 'hono/request-id';
 import { serve } from '@hono/node-server';
 import { createNodeWebSocket } from '@hono/node-ws';
 import { swaggerUI } from '@hono/swagger-ui';
@@ -48,6 +51,13 @@ const startTime = Date.now();
 
 const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
 
+app.use('*', requestId());
+app.use('*', secureHeaders({
+  crossOriginResourcePolicy: 'cross-origin', // API 允许跨域访问
+  crossOriginOpenerPolicy: false,             // 纯 API 服务，不适用
+  xFrameOptions: false,                       // API 无 UI，不需要
+}));
+app.use('*', compress());
 app.use('*', cors({ origin: '*', allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowHeaders: ['Content-Type', 'Authorization'] }));
 // eslint-disable-next-line no-control-regex
 const ANSI_RE = /\x1b\[[0-9;]*m/g;

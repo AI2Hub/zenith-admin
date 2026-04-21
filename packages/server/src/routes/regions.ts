@@ -5,6 +5,7 @@ import { regions } from '../db/schema';
 import { createRegionSchema, updateRegionSchema } from '@zenith/shared';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
+import { zValidate } from '../lib/validate';
 import type { Region } from '@zenith/shared';
 
 const regionsRouter = new Hono();
@@ -87,17 +88,13 @@ regionsRouter.get('/flat', guard({ permission: 'system:region:list' }), async (c
 regionsRouter.post('/', guard({
   permission: 'system:region:create',
   audit: { description: '创建地区', module: '地区管理' },
-}), async (c) => {
-  const body = await c.req.json();
-  const result = createRegionSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+}), zValidate('json', createRegionSchema), async (c) => {
+  const data = c.req.valid('json');
 
   // 如有 parentCode，验证父级是否存在
-  if (result.data.parentCode) {
+  if (data.parentCode) {
     const [parent] = await db.select({ code: regions.code })
-      .from(regions).where(eq(regions.code, result.data.parentCode));
+      .from(regions).where(eq(regions.code, data.parentCode));
     if (!parent) {
       return c.json({ code: 400, message: '父级地区不存在', data: null }, 400);
     }
@@ -105,12 +102,12 @@ regionsRouter.post('/', guard({
 
   try {
     const [row] = await db.insert(regions).values({
-      code: result.data.code,
-      name: result.data.name,
-      level: result.data.level,
-      parentCode: result.data.parentCode ?? null,
-      sort: result.data.sort,
-      status: result.data.status,
+      code: data.code,
+      name: data.name,
+      level: data.level,
+      parentCode: data.parentCode ?? null,
+      sort: data.sort,
+      status: data.status,
     }).returning();
     return c.json({ code: 0, message: '创建成功', data: toRegion(row) });
   } catch (err: unknown) {
@@ -125,24 +122,20 @@ regionsRouter.post('/', guard({
 regionsRouter.put('/:id', guard({
   permission: 'system:region:update',
   audit: { description: '更新地区', module: '地区管理' },
-}), async (c) => {
+}), zValidate('json', updateRegionSchema), async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = updateRegionSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
 
   // 如更新了 parentCode，验证父级存在且不是自身
-  if (result.data.parentCode) {
+  if (data.parentCode) {
     const [current] = await db.select({ code: regions.code }).from(regions).where(eq(regions.id, id));
     if (!current) {
       return c.json({ code: 404, message: '地区不存在', data: null }, 404);
     }
-    if (result.data.parentCode === current.code) {
+    if (data.parentCode === current.code) {
       return c.json({ code: 400, message: '父级地区不能选择自身', data: null }, 400);
     }
-    const [parent] = await db.select({ code: regions.code }).from(regions).where(eq(regions.code, result.data.parentCode));
+    const [parent] = await db.select({ code: regions.code }).from(regions).where(eq(regions.code, data.parentCode));
     if (!parent) {
       return c.json({ code: 400, message: '父级地区不存在', data: null }, 400);
     }
@@ -150,7 +143,7 @@ regionsRouter.put('/:id', guard({
 
   try {
     const [row] = await db.update(regions)
-      .set({ ...result.data, updatedAt: new Date() })
+      .set({ ...data, updatedAt: new Date() })
       .where(eq(regions.id, id))
       .returning();
     if (!row) {

@@ -6,6 +6,7 @@ import { createDepartmentSchema, updateDepartmentSchema } from '@zenith/shared';
 import { authMiddleware } from '../middleware/auth';
 import type { JwtPayload } from '../middleware/auth';
 import { guard } from '../middleware/guard';
+import { zValidate } from '../lib/validate';
 import { exportToExcel } from '../lib/excel-export';
 import type { Department } from '@zenith/shared';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
@@ -125,21 +126,17 @@ departmentsRouter.get('/flat', guard({ permission: 'system:department:list' }), 
   return c.json({ code: 0, message: 'ok', data: rows.map(toDepartment) });
 });
 
-departmentsRouter.post('/', guard({ permission: 'system:department:create', audit: { description: '创建部门', module: '部门管理' } }), async (c) => {
-  const body = await c.req.json();
-  const result = createDepartmentSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+departmentsRouter.post('/', guard({ permission: 'system:department:create', audit: { description: '创建部门', module: '部门管理' } }), zValidate('json', createDepartmentSchema), async (c) => {
+  const data = c.req.valid('json');
 
-  const parentError = await ensureParentValid(result.data.parentId);
+  const parentError = await ensureParentValid(data.parentId);
   if (parentError) {
     return c.json({ code: 400, message: parentError, data: null }, 400);
   }
 
   const user = c.get('user');
   try {
-    const [department] = await db.insert(departments).values({ ...result.data, tenantId: getCreateTenantId(user) }).returning();
+    const [department] = await db.insert(departments).values({ ...data, tenantId: getCreateTenantId(user) }).returning();
     return c.json({ code: 0, message: '创建成功', data: toDepartment(department) });
   } catch (error: unknown) {
     if ((error as { code?: string }).code === '23505') {
@@ -149,16 +146,12 @@ departmentsRouter.post('/', guard({ permission: 'system:department:create', audi
   }
 });
 
-departmentsRouter.put('/:id', guard({ permission: 'system:department:update', audit: { description: '更新部门', module: '部门管理' } }), async (c) => {
+departmentsRouter.put('/:id', guard({ permission: 'system:department:update', audit: { description: '更新部门', module: '部门管理' } }), zValidate('json', updateDepartmentSchema), async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = updateDepartmentSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
 
-  if (result.data.parentId !== undefined) {
-    const parentError = await ensureParentValid(result.data.parentId, id);
+  if (data.parentId !== undefined) {
+    const parentError = await ensureParentValid(data.parentId, id);
     if (parentError) {
       return c.json({ code: 400, message: parentError, data: null }, 400);
     }
@@ -167,7 +160,7 @@ departmentsRouter.put('/:id', guard({ permission: 'system:department:update', au
   try {
     const [department] = await db
       .update(departments)
-      .set({ ...result.data, updatedAt: new Date() })
+      .set({ ...data, updatedAt: new Date() })
       .where(and(eq(departments.id, id), tenantCondition(departments, c.get('user'))))
       .returning();
 

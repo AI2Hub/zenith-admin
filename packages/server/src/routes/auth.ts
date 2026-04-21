@@ -17,6 +17,7 @@ import { generateCaptcha, verifyCaptcha } from '../lib/captcha';
 import { getConfigBoolean, getConfigNumber } from '../lib/system-config';
 import { generateTokenId, registerSession, removeSession, checkLoginLock, recordLoginFailure, clearLoginAttempts, getOnlineSessions, forceLogout } from '../lib/session-manager';
 import { isPlatformAdmin } from '../lib/tenant';
+import { zValidate } from '../lib/validate';
 
 const auth = new Hono();
 
@@ -61,17 +62,11 @@ auth.get('/captcha', async (c) => {
   return c.json({ code: 0, message: 'ok', data: { enabled: true, captchaId: result.captchaId, svg: result.captchaImage } });
 });
 
-auth.post('/login', async (c) => {
-  const body = await c.req.json();
-  const result = loginSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
-
+auth.post('/login', zValidate('json', loginSchema), async (c) => {
   // Check if captcha is enabled
   const captchaEnabled = await getConfigBoolean('captcha_enabled', false);
   if (captchaEnabled) {
-    const { captchaId, captchaCode } = result.data;
+    const { captchaId, captchaCode } = c.req.valid('json');
     if (!captchaId || !captchaCode) {
       return c.json({ code: 400, message: '请输入验证码', data: null }, 400);
     }
@@ -80,12 +75,12 @@ auth.post('/login', async (c) => {
     }
   }
 
-  const { username, password } = result.data;
+  const { username, password } = c.req.valid('json');
 
   // ─── 多租户：解析 tenantCode ───────────────────────────────────────────────
   let tenantId: number | null = null;
-  if (config.multiTenantMode && result.data.tenantCode) {
-    const [tenant] = await db.select().from(tenants).where(eq(tenants.code, result.data.tenantCode)).limit(1);
+  if (config.multiTenantMode && c.req.valid('json').tenantCode) {
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.code, c.req.valid('json').tenantCode!)).limit(1);
     if (!tenant) {
       return c.json({ code: 400, message: '租户不存在', data: null }, 400);
     }
@@ -209,19 +204,13 @@ auth.post('/login', async (c) => {
   });
 });
 
-auth.post('/register', async (c) => {
+auth.post('/register', zValidate('json', registerSchema), async (c) => {
   const allowRegistration = await getConfigBoolean('allow_registration', false);
   if (!allowRegistration) {
     return c.json({ code: 403, message: '系统已关闭注册功能', data: null }, 403);
   }
 
-  const body = await c.req.json();
-  const result = registerSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
-
-  const { username, nickname, email, password } = result.data;
+  const { username, nickname, email, password } = c.req.valid('json');
 
   const [existing] = await db.select().from(users).where(eq(users.username, username)).limit(1);
   if (existing) {
@@ -394,16 +383,12 @@ auth.get('/me', authMiddleware, async (c) => {
 });
 
 // 修改个人资料
-auth.put('/profile', authMiddleware, async (c) => {
+auth.put('/profile', authMiddleware, zValidate('json', updateProfileSchema), async (c) => {
   const payload = getAuthUser(c as { get: (key: 'user') => unknown });
-  const body = await c.req.json();
-  const result = updateProfileSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
 
-  if (result.data.email) {
-    const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, result.data.email)).limit(1);
+  if (data.email) {
+    const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, data.email)).limit(1);
     if (existing && existing.id !== payload.userId) {
       return c.json({ code: 400, message: '邮箱已被使用', data: null }, 400);
     }
@@ -411,7 +396,7 @@ auth.put('/profile', authMiddleware, async (c) => {
 
   const [updated] = await db
     .update(users)
-    .set({ ...result.data, updatedAt: new Date() })
+    .set({ ...data, updatedAt: new Date() })
     .where(eq(users.id, payload.userId))
     .returning();
 
@@ -425,25 +410,21 @@ auth.put('/profile', authMiddleware, async (c) => {
 });
 
 // 修改密码
-auth.put('/password', authMiddleware, async (c) => {
+auth.put('/password', authMiddleware, zValidate('json', changePasswordSchema), async (c) => {
   const payload = getAuthUser(c as { get: (key: 'user') => unknown });
-  const body = await c.req.json();
-  const result = changePasswordSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
 
   const [user] = await db.select().from(users).where(eq(users.id, payload.userId)).limit(1);
   if (!user) {
     return c.json({ code: 404, message: '用户不存在', data: null }, 404);
   }
 
-  const valid = await bcrypt.compare(result.data.oldPassword, user.password);
+  const valid = await bcrypt.compare(data.oldPassword, user.password);
   if (!valid) {
     return c.json({ code: 400, message: '原密码错误', data: null }, 400);
   }
 
-  const hashed = await bcrypt.hash(result.data.newPassword, 10);
+  const hashed = await bcrypt.hash(data.newPassword, 10);
   await db.update(users).set({ password: hashed, passwordUpdatedAt: new Date(), updatedAt: new Date() }).where(eq(users.id, payload.userId));
 
   return c.json({ code: 0, message: '密码修改成功', data: null });
@@ -581,20 +562,14 @@ auth.delete('/my-sessions/:tokenId', authMiddleware, async (c) => {
 });
 
 // ─── 切换租户视角（仅平台超管） ─────────────────────────────────────────────
-auth.post('/switch-tenant', authMiddleware, async (c) => {
+auth.post('/switch-tenant', authMiddleware, zValidate('json', switchTenantSchema), async (c) => {
   const payload = getAuthUser(c as { get: (key: 'user') => unknown });
 
   if (!isPlatformAdmin(payload)) {
     return c.json({ code: 403, message: '仅平台超管可切换租户', data: null }, 403);
   }
 
-  const body = await c.req.json();
-  const result = switchTenantSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
-
-  const { tenantId: targetTenantId } = result.data;
+  const { tenantId: targetTenantId } = c.req.valid('json');
 
   // Validate target tenant exists (if not null)
   if (targetTenantId !== null) {
@@ -664,19 +639,13 @@ auth.get('/tenants', authMiddleware, async (c) => {
 });
 
 // ─── 忘记密码 ─────────────────────────────────────────────────────────────────
-auth.post('/forgot-password', async (c) => {
-  const body = await c.req.json();
-  const result = forgotPasswordSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
-
+auth.post('/forgot-password', zValidate('json', forgotPasswordSchema), async (c) => {
   const enabled = await getConfigBoolean('forgot_password_enabled');
   if (!enabled) {
     return c.json({ code: 403, message: '忘记密码功能未开启', data: null }, 403);
   }
 
-  const { email } = result.data;
+  const { email } = c.req.valid('json');
 
   // 始终返回成功，防止邮箱枚举攻击
   const [user] = await db.select({ id: users.id, username: users.username })
@@ -713,14 +682,8 @@ auth.post('/forgot-password', async (c) => {
 });
 
 // ─── 重置密码 ─────────────────────────────────────────────────────────────────
-auth.post('/reset-password', async (c) => {
-  const body = await c.req.json();
-  const result = resetPasswordSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
-
-  const { token, newPassword } = result.data;
+auth.post('/reset-password', zValidate('json', resetPasswordSchema), async (c) => {
+  const { token, newPassword } = c.req.valid('json');
   const now = new Date();
 
   const [record] = await db.select()

@@ -6,6 +6,7 @@ import { createRoleSchema, updateRoleSchema, assignRoleMenusSchema, assignRoleUs
 import { authMiddleware } from '../middleware/auth';
 import type { JwtPayload } from '../middleware/auth';
 import { guard } from '../middleware/guard';
+import { zValidate } from '../lib/validate';
 import { clearUserPermissionCache } from '../lib/permissions';
 import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
@@ -72,14 +73,10 @@ rolesRouter.get('/:id', guard({ permission: 'system:role:list' }), async (c) => 
 });
 
 // 新增角色
-rolesRouter.post('/', guard({ permission: 'system:role:create', audit: { description: '创建角色', module: '角色管理' } }), async (c) => {
-  const body = await c.req.json();
-  const result = createRoleSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+rolesRouter.post('/', guard({ permission: 'system:role:create', audit: { description: '创建角色', module: '角色管理' } }), zValidate('json', createRoleSchema), async (c) => {
+  const data = c.req.valid('json');
   try {
-    const [role] = await db.insert(roles).values({ ...result.data, tenantId: getCreateTenantId(c.get('user')) }).returning();
+    const [role] = await db.insert(roles).values({ ...data, tenantId: getCreateTenantId(c.get('user')) }).returning();
     return c.json({ code: 0, message: '创建成功', data: toRole(role) });
   } catch (err: unknown) {
     if ((err as { code?: string }).code === '23505') {
@@ -90,16 +87,12 @@ rolesRouter.post('/', guard({ permission: 'system:role:create', audit: { descrip
 });
 
 // 更新角色
-rolesRouter.put('/:id', guard({ permission: 'system:role:update', audit: { description: '更新角色', module: '角色管理' } }), async (c) => {
+rolesRouter.put('/:id', guard({ permission: 'system:role:update', audit: { description: '更新角色', module: '角色管理' } }), zValidate('json', updateRoleSchema), async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = updateRoleSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
   const [role] = await db
     .update(roles)
-    .set({ ...result.data, updatedAt: new Date() })
+    .set({ ...data, updatedAt: new Date() })
     .where(and(eq(roles.id, id), tenantCondition(roles, c.get('user'))))
     .returning();
   if (!role) return c.json({ code: 404, message: '角色不存在', data: null }, 404);
@@ -115,21 +108,17 @@ rolesRouter.delete('/:id', guard({ permission: 'system:role:delete', audit: { de
 });
 
 // 分配角色菜单
-rolesRouter.put('/:id/menus', guard({ permission: 'system:role:assign', audit: { description: '分配角色菜单', module: '角色管理' } }), async (c) => {
+rolesRouter.put('/:id/menus', guard({ permission: 'system:role:assign', audit: { description: '分配角色菜单', module: '角色管理' } }), zValidate('json', assignRoleMenusSchema), async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = assignRoleMenusSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
 
   const [role] = await db.select({ id: roles.id }).from(roles).where(and(eq(roles.id, id), tenantCondition(roles, c.get('user')))).limit(1);
   if (!role) return c.json({ code: 404, message: '角色不存在', data: null }, 404);
 
   // 先删除旧关联，再批量插入
   await db.delete(roleMenus).where(eq(roleMenus.roleId, id));
-  if (result.data.menuIds.length > 0) {
-    await db.insert(roleMenus).values(result.data.menuIds.map((menuId) => ({ roleId: id, menuId })));
+  if (data.menuIds.length > 0) {
+    await db.insert(roleMenus).values(data.menuIds.map((menuId) => ({ roleId: id, menuId })));
   }
 
   // Clear permission cache for all users since role menus changed
@@ -157,20 +146,16 @@ rolesRouter.get('/:id/users', guard({ permission: 'system:role:list' }), async (
 });
 
 // 设置角色关联的用户
-rolesRouter.put('/:id/users', guard({ permission: 'system:role:assign', audit: { description: '分配角色用户', module: '角色管理' } }), async (c) => {
+rolesRouter.put('/:id/users', guard({ permission: 'system:role:assign', audit: { description: '分配角色用户', module: '角色管理' } }), zValidate('json', assignRoleUsersSchema), async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = assignRoleUsersSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
 
   const [role] = await db.select({ id: roles.id }).from(roles).where(and(eq(roles.id, id), tenantCondition(roles, c.get('user')))).limit(1);
   if (!role) return c.json({ code: 404, message: '角色不存在', data: null }, 404);
 
   await db.delete(userRoles).where(eq(userRoles.roleId, id));
-  if (result.data.userIds.length > 0) {
-    await db.insert(userRoles).values(result.data.userIds.map((userId) => ({ userId, roleId: id })));
+  if (data.userIds.length > 0) {
+    await db.insert(userRoles).values(data.userIds.map((userId) => ({ userId, roleId: id })));
   }
 
   // Clear permission cache for affected users

@@ -8,6 +8,7 @@ import { guard } from '../middleware/guard';
 import { createTenantSchema, updateTenantSchema } from '@zenith/shared';
 import { exportToExcel } from '../lib/excel-export';
 import { isPlatformAdmin } from '../lib/tenant';
+import { zValidate } from '../lib/validate';
 
 const tenantsRoute = new Hono<{ Variables: { user: JwtPayload } }>();
 
@@ -98,21 +99,17 @@ tenantsRoute.get('/:id', async (c) => {
 });
 
 // 创建租户
-tenantsRoute.post('/', guard({ audit: { module: '租户管理', description: '创建租户' } }), async (c) => {
-  const body = await c.req.json();
-  const result = createTenantSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+tenantsRoute.post('/', guard({ audit: { module: '租户管理', description: '创建租户' } }), zValidate('json', createTenantSchema), async (c) => {
+  const data = c.req.valid('json');
 
-  const [existing] = await db.select().from(tenants).where(eq(tenants.code, result.data.code)).limit(1);
+  const [existing] = await db.select().from(tenants).where(eq(tenants.code, data.code)).limit(1);
   if (existing) {
     return c.json({ code: 400, message: '租户编码已存在', data: null }, 400);
   }
 
   const values = {
-    ...result.data,
-    expireAt: result.data.expireAt ? new Date(result.data.expireAt) : null,
+    ...data,
+    expireAt: data.expireAt ? new Date(data.expireAt) : null,
   };
 
   const [row] = await db.insert(tenants).values(values).returning();
@@ -129,24 +126,20 @@ tenantsRoute.post('/', guard({ audit: { module: '租户管理', description: '�
 });
 
 // 更新租户
-tenantsRoute.put('/:id', guard({ audit: { module: '租户管理', description: '更新租户' } }), async (c) => {
+tenantsRoute.put('/:id', guard({ audit: { module: '租户管理', description: '更新租户' } }), zValidate('json', updateTenantSchema), async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = updateTenantSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
 
-  if (result.data.code) {
+  if (data.code) {
     const [dup] = await db.select().from(tenants)
-      .where(and(eq(tenants.code, result.data.code), sql`${tenants.id} != ${id}`))
+      .where(and(eq(tenants.code, data.code), sql`${tenants.id} != ${id}`))
       .limit(1);
     if (dup) {
       return c.json({ code: 400, message: '租户编码已存在', data: null }, 400);
     }
   }
 
-  const { expireAt: rawExpireAt, ...rest } = result.data;
+  const { expireAt: rawExpireAt, ...rest } = data;
   const values = {
     ...rest,
     ...(rawExpireAt === undefined ? {} : { expireAt: rawExpireAt ? new Date(rawExpireAt) : null }),

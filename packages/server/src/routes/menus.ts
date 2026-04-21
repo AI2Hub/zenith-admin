@@ -5,6 +5,7 @@ import { menus } from '../db/schema';
 import { createMenuSchema, updateMenuSchema } from '@zenith/shared';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
+import { zValidate } from '../lib/validate';
 import { isSuperAdmin, getUserMenuIds } from '../lib/permissions';
 import type { JwtPayload } from '../middleware/auth';
 import type { Menu } from '@zenith/shared';
@@ -100,27 +101,19 @@ menusRouter.get('/flat', guard({ permission: 'system:menu:list' }), async (c) =>
 });
 
 // 新增菜单
-menusRouter.post('/', guard({ permission: 'system:menu:create', audit: { description: '创建菜单', module: '菜单管理' } }), async (c) => {
-  const body = await c.req.json();
-  const result = createMenuSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
-  const [menu] = await db.insert(menus).values(result.data).returning();
+menusRouter.post('/', guard({ permission: 'system:menu:create', audit: { description: '创建菜单', module: '菜单管理' } }), zValidate('json', createMenuSchema), async (c) => {
+  const data = c.req.valid('json');
+  const [menu] = await db.insert(menus).values(data).returning();
   return c.json({ code: 0, message: '创建成功', data: toMenu(menu) });
 });
 
 // 更新菜单
-menusRouter.put('/:id', guard({ permission: 'system:menu:update', audit: { description: '更新菜单', module: '菜单管理' } }), async (c) => {
+menusRouter.put('/:id', guard({ permission: 'system:menu:update', audit: { description: '更新菜单', module: '菜单管理' } }), zValidate('json', updateMenuSchema), async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = updateMenuSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
   const [menu] = await db
     .update(menus)
-    .set({ ...result.data, updatedAt: new Date() })
+    .set({ ...data, updatedAt: new Date() })
     .where(eq(menus.id, id))
     .returning();
   if (!menu) return c.json({ code: 404, message: '菜单不存在', data: null }, 404);

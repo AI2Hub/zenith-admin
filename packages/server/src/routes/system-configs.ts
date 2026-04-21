@@ -9,6 +9,7 @@ import { createSystemConfigSchema, updateSystemConfigSchema } from '@zenith/shar
 import { exportToExcel } from '../lib/excel-export';
 import { getPasswordPolicy } from '../lib/password-policy';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
+import { zValidate } from '../lib/validate';
 
 const systemConfigsRoute = new Hono<{ Variables: { user: JwtPayload } }>();
 const configTypeValues = ['string', 'number', 'boolean', 'json'] as const;
@@ -84,37 +85,29 @@ systemConfigsRoute.get('/', guard({ permission: 'system:config:list' }), async (
   });
 });
 
-systemConfigsRoute.post('/', guard({ permission: 'system:config:create', audit: { module: '系统配置', description: '新增配置' } }), async (c) => {
-  const body = await c.req.json();
-  const result = createSystemConfigSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+systemConfigsRoute.post('/', guard({ permission: 'system:config:create', audit: { module: '系统配置', description: '新增配置' } }), zValidate('json', createSystemConfigSchema), async (c) => {
+  const data = c.req.valid('json');
 
   const [existing] = await db.select().from(systemConfigs)
-    .where(and(eq(systemConfigs.configKey, result.data.configKey), tenantCondition(systemConfigs, c.get('user')) ?? sql`1=1`))
+    .where(and(eq(systemConfigs.configKey, data.configKey), tenantCondition(systemConfigs, c.get('user')) ?? sql`1=1`))
     .limit(1);
   if (existing) {
     return c.json({ code: 400, message: '配置键已存在', data: null }, 400);
   }
 
-  const [row] = await db.insert(systemConfigs).values({ ...result.data, tenantId: getCreateTenantId(c.get('user')) }).returning();
+  const [row] = await db.insert(systemConfigs).values({ ...data, tenantId: getCreateTenantId(c.get('user')) }).returning();
   return c.json({ code: 0, message: '创建成功', data: { ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() } });
 });
 
-systemConfigsRoute.put('/:id', guard({ permission: 'system:config:update', audit: { module: '系统配置', description: '更新配置' } }), async (c) => {
+systemConfigsRoute.put('/:id', guard({ permission: 'system:config:update', audit: { module: '系统配置', description: '更新配置' } }), zValidate('json', updateSystemConfigSchema), async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = updateSystemConfigSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
 
-  if (result.data.configKey) {
+  if (data.configKey) {
     const tc = tenantCondition(systemConfigs, c.get('user'));
     const dupWhere = tc
-      ? and(eq(systemConfigs.configKey, result.data.configKey), sql`${systemConfigs.id} != ${id}`, tc)
-      : and(eq(systemConfigs.configKey, result.data.configKey), sql`${systemConfigs.id} != ${id}`);
+      ? and(eq(systemConfigs.configKey, data.configKey), sql`${systemConfigs.id} != ${id}`, tc)
+      : and(eq(systemConfigs.configKey, data.configKey), sql`${systemConfigs.id} != ${id}`);
     const [dup] = await db.select().from(systemConfigs)
       .where(dupWhere)
       .limit(1);
@@ -125,7 +118,7 @@ systemConfigsRoute.put('/:id', guard({ permission: 'system:config:update', audit
 
   const tenantCond = tenantCondition(systemConfigs, c.get('user'));
   const [row] = await db.update(systemConfigs)
-    .set({ ...result.data, updatedAt: new Date() })
+    .set({ ...data, updatedAt: new Date() })
     .where(tenantCond ? and(eq(systemConfigs.id, id), tenantCond) : eq(systemConfigs.id, id))
     .returning();
 

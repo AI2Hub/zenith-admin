@@ -6,6 +6,7 @@ import { createMessageTemplateSchema, updateMessageTemplateSchema, previewMessag
 import { authMiddleware } from '../middleware/auth';
 import type { JwtPayload } from '../middleware/auth';
 import { guard } from '../middleware/guard';
+import { zValidate } from '../lib/validate';
 
 const messageTemplatesRouter = new Hono<{ Variables: { user: JwtPayload } }>();
 messageTemplatesRouter.use('*', authMiddleware);
@@ -73,14 +74,10 @@ messageTemplatesRouter.get('/:id', guard({ permission: 'system:message-template:
 });
 
 // 新增
-messageTemplatesRouter.post('/', guard({ permission: 'system:message-template:create', audit: { description: '创建消息模板', module: '消息模板' } }), async (c) => {
-  const body = await c.req.json();
-  const result = createMessageTemplateSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+messageTemplatesRouter.post('/', guard({ permission: 'system:message-template:create', audit: { description: '创建消息模板', module: '消息模板' } }), zValidate('json', createMessageTemplateSchema), async (c) => {
+  const data = c.req.valid('json');
   try {
-    const [row] = await db.insert(messageTemplates).values(result.data).returning();
+    const [row] = await db.insert(messageTemplates).values(data).returning();
     return c.json({ code: 0, message: '创建成功', data: toMessageTemplate(row) });
   } catch (err: unknown) {
     if ((err as { code?: string }).code === '23505') {
@@ -91,17 +88,13 @@ messageTemplatesRouter.post('/', guard({ permission: 'system:message-template:cr
 });
 
 // 更新
-messageTemplatesRouter.put('/:id', guard({ permission: 'system:message-template:update', audit: { description: '更新消息模板', module: '消息模板' } }), async (c) => {
+messageTemplatesRouter.put('/:id', guard({ permission: 'system:message-template:update', audit: { description: '更新消息模板', module: '消息模板' } }), zValidate('json', updateMessageTemplateSchema), async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = updateMessageTemplateSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
   try {
     const [row] = await db
       .update(messageTemplates)
-      .set({ ...result.data, updatedAt: new Date() })
+      .set({ ...data, updatedAt: new Date() })
       .where(eq(messageTemplates.id, id))
       .returning();
     if (!row) return c.json({ code: 404, message: '模板不存在', data: null }, 404);
@@ -123,18 +116,12 @@ messageTemplatesRouter.delete('/:id', guard({ permission: 'system:message-templa
 });
 
 // 预览（变量插值）
-messageTemplatesRouter.post('/:id/preview', guard({ permission: 'system:message-template:list' }), async (c) => {
+messageTemplatesRouter.post('/:id/preview', guard({ permission: 'system:message-template:list' }), zValidate('json', previewMessageTemplateSchema), async (c) => {
   const id = Number(c.req.param('id'));
   const [row] = await db.select().from(messageTemplates).where(eq(messageTemplates.id, id)).limit(1);
   if (!row) return c.json({ code: 404, message: '模板不存在', data: null }, 404);
 
-  const body = await c.req.json();
-  const result = previewMessageTemplateSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
-
-  const vars = result.data.variables;
+  const { variables: vars } = c.req.valid('json');
   const renderedSubject = row.subject ? interpolate(row.subject, vars) : null;
   const renderedContent = interpolate(row.content, vars);
 

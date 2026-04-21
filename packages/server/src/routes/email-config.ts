@@ -4,6 +4,7 @@ import { db } from '../db';
 import { emailConfigs } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
+import { zValidate } from '../lib/validate';
 import { emailConfigSchema } from '@zenith/shared';
 import type { JwtPayload } from '../middleware/auth';
 
@@ -28,25 +29,22 @@ emailConfigRouter.get('/', guard({ permission: 'system:email-config:view' }), as
 emailConfigRouter.put(
   '/',
   guard({ permission: 'system:email-config:update', audit: { description: '更新邮件配置', module: '邮件配置' } }),
+  zValidate('json', emailConfigSchema),
   async (c) => {
-    const body = await c.req.json();
-    const result = emailConfigSchema.safeParse(body);
-    if (!result.success) {
-      return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-    }
+    const data = c.req.valid('json');
 
     const [config] = await db.select().from(emailConfigs).limit(1);
     if (!config) {
       const [created] = await db
         .insert(emailConfigs)
-        .values({ ...result.data, updatedAt: new Date() })
+        .values({ ...data, updatedAt: new Date() })
         .returning();
       return c.json({ code: 0, message: '保存成功', data: created });
     }
 
     const [updated] = await db
       .update(emailConfigs)
-      .set({ ...result.data, updatedAt: new Date() })
+      .set({ ...data, updatedAt: new Date() })
       .where(eq(emailConfigs.id, config.id))
       .returning();
     return c.json({ code: 0, message: '保存成功', data: updated });

@@ -6,6 +6,7 @@ import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { createCronJobSchema, updateCronJobSchema } from '@zenith/shared';
 import { scheduleJob, stopJob, runJobOnce, validateCronExpression, getRegisteredHandlers } from '../lib/cron-scheduler';
+import { zValidate } from '../lib/validate';
 import { exportToExcel } from '../lib/excel-export';
 
 const cronJobsRoute = new Hono();
@@ -64,23 +65,19 @@ cronJobsRoute.get('/', guard({ permission: 'system:cronjob:list' }), async (c) =
   });
 });
 
-cronJobsRoute.post('/', guard({ permission: 'system:cronjob:create', audit: { module: '定时任务', description: '新增任务' } }), async (c) => {
-  const body = await c.req.json();
-  const result = createCronJobSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+cronJobsRoute.post('/', guard({ permission: 'system:cronjob:create', audit: { module: '定时任务', description: '新增任务' } }), zValidate('json', createCronJobSchema), async (c) => {
+  const data = c.req.valid('json');
 
-  if (!validateCronExpression(result.data.cronExpression)) {
+  if (!validateCronExpression(data.cronExpression)) {
     return c.json({ code: 400, message: 'Cron 表达式无效', data: null }, 400);
   }
 
-  const [existing] = await db.select().from(cronJobs).where(eq(cronJobs.name, result.data.name)).limit(1);
+  const [existing] = await db.select().from(cronJobs).where(eq(cronJobs.name, data.name)).limit(1);
   if (existing) {
     return c.json({ code: 400, message: '任务名称已存在', data: null }, 400);
   }
 
-  const [row] = await db.insert(cronJobs).values(result.data).returning();
+  const [row] = await db.insert(cronJobs).values(data).returning();
 
   if (row.status === 'active') {
     scheduleJob(row.id, row.cronExpression, row.handler, row.params);
@@ -93,20 +90,16 @@ cronJobsRoute.post('/', guard({ permission: 'system:cronjob:create', audit: { mo
   });
 });
 
-cronJobsRoute.put('/:id', guard({ permission: 'system:cronjob:update', audit: { module: '定时任务', description: '更新任务' } }), async (c) => {
+cronJobsRoute.put('/:id', guard({ permission: 'system:cronjob:update', audit: { module: '定时任务', description: '更新任务' } }), zValidate('json', updateCronJobSchema), async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = updateCronJobSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
 
-  if (result.data.cronExpression && !validateCronExpression(result.data.cronExpression)) {
+  if (data.cronExpression && !validateCronExpression(data.cronExpression)) {
     return c.json({ code: 400, message: 'Cron 表达式无效', data: null }, 400);
   }
 
   const [row] = await db.update(cronJobs)
-    .set({ ...result.data, updatedAt: new Date() })
+    .set({ ...data, updatedAt: new Date() })
     .where(eq(cronJobs.id, id))
     .returning();
 

@@ -57,6 +57,7 @@ async function writeOperationLog(
       description: options.description,
       method: c.req.method,
       path: c.req.path,
+      requestId: (c.get('requestId') as string | undefined) ?? null,
       requestBody: bodyStr ?? null,
       beforeData: beforeData ?? null,
       afterData: afterData ?? null,

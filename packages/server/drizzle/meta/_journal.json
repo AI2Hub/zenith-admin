@@ -239,6 +239,13 @@
       "when": 1776695618887,
       "tag": "0033_foamy_venus",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1776782536795,
+      "tag": "0034_gorgeous_mimic",
+      "breakpoints": true
     }
   ]
 }

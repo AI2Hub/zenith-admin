@@ -4,6 +4,7 @@ import { db } from '../db';
 import { workflowDefinitions, workflowInstances, workflowTasks, users } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
+import { zValidate } from '../lib/validate';
 import {
   createWorkflowInstanceSchema,
   approveWorkflowTaskSchema,
@@ -299,18 +300,16 @@ router.get('/instances/:id', guard({ permission: 'workflow:instance:list' }), as
 });
 
 /** POST /instances — 发起流程 */
-router.post('/instances', guard({ permission: 'workflow:instance:create', audit: { description: '发起流程申请', module: '工作流管理' } }), async (c) => {
+router.post('/instances', guard({ permission: 'workflow:instance:create', audit: { description: '发起流程申请', module: '工作流管理' } }), zValidate('json', createWorkflowInstanceSchema), async (c) => {
   const user = c.get('user');
-  const body = await c.req.json();
-  const result = createWorkflowInstanceSchema.safeParse(body);
-  if (!result.success) return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
+  const data = c.req.valid('json');
 
   // 获取流程定义
   const [def] = await db
     .select()
     .from(workflowDefinitions)
     .where(and(
-      eq(workflowDefinitions.id, result.data.definitionId),
+      eq(workflowDefinitions.id, data.definitionId),
       eq(workflowDefinitions.status, 'published'),
     ))
     .limit(1);
@@ -324,7 +323,7 @@ router.post('/instances', guard({ permission: 'workflow:instance:create', audit:
   const validation = validateFlowData(flowData);
   if (!validation.valid) return c.json({ code: 400, message: validation.errors[0], data: null }, 400);
 
-  const formData: Record<string, unknown> = result.data.formData ?? {};
+  const formData: Record<string, unknown> = data.formData ?? {};
   const initialResult = getInitialTasks(flowData, formData);
   if (initialResult.tasksToCreate.length === 0 && !initialResult.finished) {
     return c.json({ code: 400, message: '流程定义中无可执行节点', data: null }, 400);
@@ -334,7 +333,7 @@ router.post('/instances', guard({ permission: 'workflow:instance:create', audit:
   const [instance] = await db.insert(workflowInstances).values({
     definitionId: def.id,
     definitionSnapshot: def as unknown as Record<string, unknown>,
-    title: result.data.title,
+    title: data.title,
     formData,
     status: initialResult.finished ? 'approved' : 'running',
     currentNodeKey: initialResult.currentNodeKeys[0] ?? null,

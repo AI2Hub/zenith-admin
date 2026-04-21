@@ -6,6 +6,7 @@ import { createPositionSchema, updatePositionSchema } from '@zenith/shared';
 import { authMiddleware } from '../middleware/auth';
 import type { JwtPayload } from '../middleware/auth';
 import { guard } from '../middleware/guard';
+import { zValidate } from '../lib/validate';
 import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 
@@ -54,15 +55,11 @@ positionsRouter.get('/', guard({ permission: 'system:position:list' }), async (c
   return c.json({ code: 0, message: 'ok', data: list.map(toPosition) });
 });
 
-positionsRouter.post('/', guard({ permission: 'system:position:create', audit: { description: '创建岗位', module: '岗位管理' } }), async (c) => {
-  const body = await c.req.json();
-  const result = createPositionSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+positionsRouter.post('/', guard({ permission: 'system:position:create', audit: { description: '创建岗位', module: '岗位管理' } }), zValidate('json', createPositionSchema), async (c) => {
+  const data = c.req.valid('json');
 
   try {
-    const [position] = await db.insert(positions).values({ ...result.data, tenantId: getCreateTenantId(c.get('user')) }).returning();
+    const [position] = await db.insert(positions).values({ ...data, tenantId: getCreateTenantId(c.get('user')) }).returning();
     return c.json({ code: 0, message: '创建成功', data: toPosition(position) });
   } catch (error: unknown) {
     if ((error as { code?: string }).code === '23505') {
@@ -72,18 +69,14 @@ positionsRouter.post('/', guard({ permission: 'system:position:create', audit: {
   }
 });
 
-positionsRouter.put('/:id', guard({ permission: 'system:position:update', audit: { description: '更新岗位', module: '岗位管理' } }), async (c) => {
+positionsRouter.put('/:id', guard({ permission: 'system:position:update', audit: { description: '更新岗位', module: '岗位管理' } }), zValidate('json', updatePositionSchema), async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = updatePositionSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
 
   try {
     const [position] = await db
       .update(positions)
-      .set({ ...result.data, updatedAt: new Date() })
+      .set({ ...data, updatedAt: new Date() })
       .where(and(eq(positions.id, id), tenantCondition(positions, c.get('user'))))
       .returning();
     if (!position) {

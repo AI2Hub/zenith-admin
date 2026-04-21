@@ -1,0 +1,1 @@
+ALTER TABLE "operation_logs" ADD COLUMN "request_id" varchar(36);

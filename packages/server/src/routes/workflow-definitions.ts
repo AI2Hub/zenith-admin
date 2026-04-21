@@ -4,6 +4,7 @@ import { db } from '../db';
 import { workflowDefinitions, users } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
+import { zValidate } from '../lib/validate';
 import { createWorkflowDefinitionSchema, updateWorkflowDefinitionSchema } from '@zenith/shared';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { validateFlowData } from '../lib/workflow-engine';
@@ -116,16 +117,14 @@ router.get('/:id', guard({ permission: 'workflow:definition:list' }), async (c) 
 });
 
 // POST / — 创建
-router.post('/', guard({ permission: 'workflow:definition:create', audit: { description: '创建流程定义', module: '工作流管理' } }), async (c) => {
+router.post('/', guard({ permission: 'workflow:definition:create', audit: { description: '创建流程定义', module: '工作流管理' } }), zValidate('json', createWorkflowDefinitionSchema), async (c) => {
   const user = c.get('user');
-  const body = await c.req.json();
-  const result = createWorkflowDefinitionSchema.safeParse(body);
-  if (!result.success) return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
+  const data = c.req.valid('json');
 
   const [row] = await db.insert(workflowDefinitions).values({
-    ...result.data,
-    flowData: result.data.flowData as Record<string, unknown> ?? null,
-    formFields: (result.data.formFields ?? null) as unknown as Record<string, unknown>,
+    ...data,
+    flowData: data.flowData as Record<string, unknown> ?? null,
+    formFields: (data.formFields ?? null) as unknown as Record<string, unknown>,
     createdBy: user.userId,
     tenantId: getCreateTenantId(user),
   }).returning();
@@ -134,23 +133,21 @@ router.post('/', guard({ permission: 'workflow:definition:create', audit: { desc
 });
 
 // PUT /:id — 更新
-router.put('/:id', guard({ permission: 'workflow:definition:edit', audit: { description: '更新流程定义', module: '工作流管理' } }), async (c) => {
+router.put('/:id', guard({ permission: 'workflow:definition:edit', audit: { description: '更新流程定义', module: '工作流管理' } }), zValidate('json', updateWorkflowDefinitionSchema), async (c) => {
   const user = c.get('user');
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = updateWorkflowDefinitionSchema.safeParse(body);
-  if (!result.success) return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
+  const data = c.req.valid('json');
 
   const tc = tenantCondition(workflowDefinitions, user);
   const conditions = [eq(workflowDefinitions.id, id)];
   if (tc) conditions.push(tc);
 
   const updateData: Record<string, unknown> = {
-    ...result.data,
+    ...data,
     updatedAt: new Date(),
   };
-  if (result.data.flowData !== undefined) updateData.flowData = result.data.flowData as Record<string, unknown>;
-  if (result.data.formFields !== undefined) updateData.formFields = result.data.formFields as unknown[];
+  if (data.flowData !== undefined) updateData.flowData = data.flowData as Record<string, unknown>;
+  if (data.formFields !== undefined) updateData.formFields = data.formFields as unknown[];
 
   const [updated] = await db
     .update(workflowDefinitions)

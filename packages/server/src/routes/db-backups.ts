@@ -5,6 +5,7 @@ import { dbBackups, users } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import type { JwtPayload } from '../middleware/auth';
 import { guard } from '../middleware/guard';
+import { zValidate } from '../lib/validate';
 import { createBackupSchema } from '@zenith/shared';
 import { createPgDumpBackup, createDrizzleExportBackup } from '../lib/db-backup';
 import logger from '../lib/logger';
@@ -71,15 +72,9 @@ backups.get('/', guard({ permission: 'system:db-backup:list' }), async (c) => {
 });
 
 // ─── 创建备份 ─────────────────────────────────────────────────────────
-backups.post('/', guard({ permission: 'system:db-backup:create', audit: { description: '创建数据库备份', module: '数据库备份' } }), async (c) => {
+backups.post('/', guard({ permission: 'system:db-backup:create', audit: { description: '创建数据库备份', module: '数据库备份' } }), zValidate('json', createBackupSchema), async (c) => {
   const payload = c.get('user') as JwtPayload;
-  const body = await c.req.json();
-  const result = createBackupSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
-
-  const { type, name } = result.data;
+  const { type, name } = c.req.valid('json');
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupName = name || `${type}-${timestamp}`;
 

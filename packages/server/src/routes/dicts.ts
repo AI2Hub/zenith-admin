@@ -6,6 +6,7 @@ import { createDictSchema, updateDictSchema, createDictItemSchema, updateDictIte
 import { authMiddleware } from '../middleware/auth';
 import type { JwtPayload } from '../middleware/auth';
 import { guard } from '../middleware/guard';
+import { zValidate } from '../lib/validate';
 import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 
@@ -39,14 +40,10 @@ dictsRouter.get('/', guard({ permission: 'system:dict:list' }), async (c) => {
   return c.json({ code: 0, message: 'ok', data: filtered.map(toDict) });
 });
 
-dictsRouter.post('/', guard({ permission: 'system:dict:create', audit: { description: '创建字典', module: '字典管理' } }), async (c) => {
-  const body = await c.req.json();
-  const result = createDictSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+dictsRouter.post('/', guard({ permission: 'system:dict:create', audit: { description: '创建字典', module: '字典管理' } }), zValidate('json', createDictSchema), async (c) => {
+  const data = c.req.valid('json');
   try {
-    const [dict] = await db.insert(dicts).values({ ...result.data, tenantId: getCreateTenantId(c.get('user')) }).returning();
+    const [dict] = await db.insert(dicts).values({ ...data, tenantId: getCreateTenantId(c.get('user')) }).returning();
     return c.json({ code: 0, message: '创建成功', data: toDict(dict) });
   } catch (err: unknown) {
     if ((err as { code?: string }).code === '23505') {
@@ -56,14 +53,10 @@ dictsRouter.post('/', guard({ permission: 'system:dict:create', audit: { descrip
   }
 });
 
-dictsRouter.put('/:id', guard({ permission: 'system:dict:update', audit: { description: '更新字典', module: '字典管理' } }), async (c) => {
+dictsRouter.put('/:id', guard({ permission: 'system:dict:update', audit: { description: '更新字典', module: '字典管理' } }), zValidate('json', updateDictSchema), async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = updateDictSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
-  const [dict] = await db.update(dicts).set({ ...result.data, updatedAt: new Date() }).where(and(eq(dicts.id, id), tenantCondition(dicts, c.get('user')))).returning();
+  const data = c.req.valid('json');
+  const [dict] = await db.update(dicts).set({ ...data, updatedAt: new Date() }).where(and(eq(dicts.id, id), tenantCondition(dicts, c.get('user')))).returning();
   if (!dict) return c.json({ code: 404, message: '字典不存在', data: null }, 404);
   return c.json({ code: 0, message: '更新成功', data: toDict(dict) });
 });
@@ -93,25 +86,17 @@ dictsRouter.get('/code/:code/items', async (c) => {
   return c.json({ code: 0, message: 'ok', data: items.map(toDictItem) });
 });
 
-dictsRouter.post('/:id/items', guard({ permission: 'system:dict:item', audit: { description: '创建字典项', module: '字典管理' } }), async (c) => {
+dictsRouter.post('/:id/items', guard({ permission: 'system:dict:item', audit: { description: '创建字典项', module: '字典管理' } }), zValidate('json', createDictItemSchema), async (c) => {
   const dictId = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = createDictItemSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
-  const [item] = await db.insert(dictItems).values({ ...result.data, dictId }).returning();
+  const data = c.req.valid('json');
+  const [item] = await db.insert(dictItems).values({ ...data, dictId }).returning();
   return c.json({ code: 0, message: '创建成功', data: toDictItem(item) });
 });
 
-dictsRouter.put('/:id/items/:itemId', guard({ permission: 'system:dict:item', audit: { description: '更新字典项', module: '字典管理' } }), async (c) => {
+dictsRouter.put('/:id/items/:itemId', guard({ permission: 'system:dict:item', audit: { description: '更新字典项', module: '字典管理' } }), zValidate('json', updateDictItemSchema), async (c) => {
   const itemId = Number(c.req.param('itemId'));
-  const body = await c.req.json();
-  const result = updateDictItemSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
-  const [item] = await db.update(dictItems).set({ ...result.data, updatedAt: new Date() }).where(eq(dictItems.id, itemId)).returning();
+  const data = c.req.valid('json');
+  const [item] = await db.update(dictItems).set({ ...data, updatedAt: new Date() }).where(eq(dictItems.id, itemId)).returning();
   if (!item) return c.json({ code: 404, message: '字典项不存在', data: null }, 404);
   return c.json({ code: 0, message: '更新成功', data: toDictItem(item) });
 });

@@ -248,6 +248,7 @@ export const operationLogs = pgTable('operation_logs', {
   description: varchar('description', { length: 256 }).notNull(),
   method: varchar('method', { length: 16 }).notNull(),
   path: varchar('path', { length: 256 }).notNull(),
+  requestId: varchar('request_id', { length: 36 }),
   requestBody: varchar('request_body', { length: 4096 }),
   beforeData: text('before_data'),
   afterData: text('after_data'),

@@ -8,6 +8,7 @@ import { createUserSchema, updateUserSchema, resetUserPasswordSchema } from '@ze
 import { authMiddleware } from '../middleware/auth';
 import type { JwtPayload } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
+import { zValidate } from '../lib/validate';
 import { clearUserPermissionCache } from '../lib/permissions';
 import { exportToExcel } from '../lib/excel-export';
 import { getDataScopeCondition } from '../lib/data-scope';
@@ -290,18 +291,14 @@ usersRouter.get('/', guard({ permission: 'system:user:list' }), async (c) => {
 });
 
 // 创建用户
-usersRouter.post('/', guard({ permission: 'system:user:create', audit: { description: '创建用户', module: '用户管理' } }), async (c) => {
-  const body = await c.req.json();
-  const result = createUserSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+usersRouter.post('/', guard({ permission: 'system:user:create', audit: { description: '创建用户', module: '用户管理' } }), zValidate('json', createUserSchema), async (c) => {
+  const data = c.req.valid('json');
 
   const policy = await getPasswordPolicy();
-  const policyError = validatePassword(result.data.password, policy);
+  const policyError = validatePassword(data.password, policy);
   if (policyError) return c.json({ code: 400, message: policyError, data: null }, 400);
 
-  const { password, roleIds, positionIds, departmentId, ...rest } = result.data;
+  const { password, roleIds, positionIds, departmentId, ...rest } = data;
   const nextRoleIds = Array.from(new Set(roleIds));
   const nextPositionIds = Array.from(new Set(positionIds));
 
@@ -355,13 +352,9 @@ usersRouter.post('/', guard({ permission: 'system:user:create', audit: { descrip
 });
 
 // 更新用户
-usersRouter.put('/:id', guard({ permission: 'system:user:update', audit: { description: '更新用户', module: '用户管理' } }), async (c) => {
+usersRouter.put('/:id', guard({ permission: 'system:user:update', audit: { description: '更新用户', module: '用户管理' } }), zValidate('json', updateUserSchema), async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = updateUserSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
 
   // 记录操作前快照（用于 diff）
   const [beforeUser] = await db.select().from(users).where(eq(users.id, id)).limit(1);
@@ -370,7 +363,7 @@ usersRouter.put('/:id', guard({ permission: 'system:user:update', audit: { descr
     setAuditBeforeData(c, safeBeforeUser);
   }
 
-  const { roleIds, positionIds, departmentId, ...rest } = result.data;
+  const { roleIds, positionIds, departmentId, ...rest } = data;
   const nextRoleIds = roleIds ? Array.from(new Set(roleIds)) : undefined;
   const nextPositionIds = positionIds ? Array.from(new Set(positionIds)) : undefined;
 
@@ -434,16 +427,12 @@ usersRouter.put('/:id', guard({ permission: 'system:user:update', audit: { descr
 });
 
 // 修改指定用户密码
-usersRouter.put('/:id/password', guard({ permission: 'system:user:update', audit: { description: '修改用户密码', module: '用户管理' } }), async (c) => {
+usersRouter.put('/:id/password', guard({ permission: 'system:user:update', audit: { description: '修改用户密码', module: '用户管理' } }), zValidate('json', resetUserPasswordSchema), async (c) => {
   const id = Number(c.req.param('id'));
-  const body = await c.req.json();
-  const result = resetUserPasswordSchema.safeParse(body);
-  if (!result.success) {
-    return c.json({ code: 400, message: result.error.issues[0].message, data: null }, 400);
-  }
+  const data = c.req.valid('json');
 
   const policy = await getPasswordPolicy();
-  const policyError = validatePassword(result.data.password, policy);
+  const policyError = validatePassword(data.password, policy);
   if (policyError) return c.json({ code: 400, message: policyError, data: null }, 400);
 
   const [user] = await db.select({ id: users.id }).from(users).where((() => { const tc = tenantCondition(users, c.get('user')); return tc ? and(eq(users.id, id), tc) : eq(users.id, id); })()).limit(1);
@@ -451,7 +440,7 @@ usersRouter.put('/:id/password', guard({ permission: 'system:user:update', audit
     return c.json({ code: 404, message: '用户不存在', data: null }, 404);
   }
 
-  const hashedPassword = await bcrypt.hash(result.data.password, 10);
+  const hashedPassword = await bcrypt.hash(data.password, 10);
   await db.update(users).set({ password: hashedPassword, updatedAt: new Date() }).where(eq(users.id, id));
 
   return c.json({ code: 0, message: '密码修改成功', data: null });
