@@ -7,7 +7,7 @@ import { guard } from '../middleware/guard';
 import { scheduleJob, stopJob, runJobOnce, validateCronExpression, getRegisteredHandlers } from '../lib/cron-scheduler';
 import { exportToExcel } from '../lib/excel-export';
 import { createCronJobSchema, updateCronJobSchema } from '@zenith/shared';
-import { apiResponse, ErrorResponse, MessageResponse, PaginationQuery, paginatedResponse, jsonContent, validationHook } from '../lib/openapi-schemas';
+import { apiResponse, ErrorResponse, MessageResponse, PaginationQuery, paginatedResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
 
 const cronJobsRoute = new OpenAPIHono({ defaultHook: validationHook });
 cronJobsRoute.use('*', authMiddleware);
@@ -33,7 +33,10 @@ const handlersRoute = createRoute({
   summary: '已注册 Handler',
   security: [{ BearerAuth: [] }],
   middleware: [guard({ permission: 'system:cronjob:list' })] as const,
-  responses: { 200: { content: jsonContent(apiResponse(z.array(z.string()))), description: 'ok' } },
+  responses: {
+    ...commonErrorResponses,
+    200: { content: jsonContent(apiResponse(z.array(z.string()))), description: 'ok' },
+  },
 });
 cronJobsRoute.openapi(handlersRoute, async (c) => {
   return c.json({ code: 0 as const, message: 'ok', data: getRegisteredHandlers() }, 200);
@@ -48,7 +51,10 @@ const validateRoute = createRoute({
   security: [{ BearerAuth: [] }],
   middleware: [guard({ permission: 'system:cronjob:list' })] as const,
   request: { body: { content: jsonContent(z.object({ expression: z.string() })), required: true } },
-  responses: { 200: { content: jsonContent(apiResponse(z.object({ valid: z.boolean() }))), description: 'ok' } },
+  responses: {
+    ...commonErrorResponses,
+    200: { content: jsonContent(apiResponse(z.object({ valid: z.boolean() }))), description: 'ok' },
+  },
 });
 cronJobsRoute.openapi(validateRoute, async (c) => {
   const { expression } = c.req.valid('json');
@@ -64,7 +70,10 @@ const listRoute = createRoute({
   security: [{ BearerAuth: [] }],
   middleware: [guard({ permission: 'system:cronjob:list' })] as const,
   request: { query: PaginationQuery.extend({ keyword: z.string().optional() }) },
-  responses: { 200: { content: jsonContent(paginatedResponse(CronJobDTO)), description: 'ok' } },
+  responses: {
+    ...commonErrorResponses,
+    200: { content: jsonContent(paginatedResponse(CronJobDTO)), description: 'ok' },
+  },
 });
 cronJobsRoute.openapi(listRoute, async (c) => {
   const { page = 1, pageSize = 10, keyword } = c.req.valid('query');
@@ -86,6 +95,7 @@ const createRouteDef = createRoute({
   middleware: [guard({ permission: 'system:cronjob:create', audit: { module: '定时任务', description: '新增任务' } })] as const,
   request: { body: { content: jsonContent(createCronJobSchema), required: true } },
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(apiResponse(CronJobDTO)), description: '创建成功' },
     400: { content: jsonContent(ErrorResponse), description: '参数错误' },
   },
@@ -110,6 +120,7 @@ const updateRouteDef = createRoute({
   middleware: [guard({ permission: 'system:cronjob:update', audit: { module: '定时任务', description: '更新任务' } })] as const,
   request: { params: z.object({ id: z.coerce.number() }), body: { content: jsonContent(updateCronJobSchema), required: true } },
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(apiResponse(CronJobDTO)), description: '更新成功' },
     400: { content: jsonContent(ErrorResponse), description: '参数错误' },
     404: { content: jsonContent(ErrorResponse), description: '不存在' },
@@ -136,6 +147,7 @@ const deleteRouteDef = createRoute({
   middleware: [guard({ permission: 'system:cronjob:delete', audit: { module: '定时任务', description: '删除任务' } })] as const,
   request: { params: z.object({ id: z.coerce.number() }) },
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(MessageResponse), description: '删除成功' },
     404: { content: jsonContent(ErrorResponse), description: '不存在' },
   },
@@ -158,6 +170,7 @@ const runRoute = createRoute({
   middleware: [guard({ permission: 'system:cronjob:execute', audit: { module: '定时任务', description: '手动执行任务' } })] as const,
   request: { params: z.object({ id: z.coerce.number() }) },
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(MessageResponse), description: '执行成功' },
     500: { content: jsonContent(ErrorResponse), description: '执行失败' },
   },
@@ -179,6 +192,7 @@ const statusRoute = createRoute({
   middleware: [guard({ permission: 'system:cronjob:update', audit: { module: '定时任务', description: '切换任务状态' } })] as const,
   request: { params: z.object({ id: z.coerce.number() }), body: { content: jsonContent(z.object({ status: z.enum(['active', 'disabled']) })), required: true } },
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(MessageResponse), description: 'ok' },
     400: { content: jsonContent(ErrorResponse), description: '参数错误' },
     404: { content: jsonContent(ErrorResponse), description: '不存在' },
@@ -202,7 +216,10 @@ const exportRouteDef = createRoute({
   summary: '导出任务',
   security: [{ BearerAuth: [] }],
   middleware: [guard({ permission: 'system:cronjob:list' })] as const,
-  responses: { 200: { content: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { schema: z.string() } }, description: 'Excel 文件' } },
+  responses: {
+    ...commonErrorResponses,
+    200: { content: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { schema: z.string() } }, description: 'Excel 文件' },
+  },
 });
 cronJobsRoute.openapi(exportRouteDef, async (c) => {
   const rows = await db.select().from(cronJobs).orderBy(desc(cronJobs.id));
@@ -234,7 +251,10 @@ const logsRoute = createRoute({
   security: [{ BearerAuth: [] }],
   middleware: [guard({ permission: 'system:cronjob:list' })] as const,
   request: { query: PaginationQuery },
-  responses: { 200: { content: jsonContent(paginatedResponse(CronJobLogDTO)), description: 'ok' } },
+  responses: {
+    ...commonErrorResponses,
+    200: { content: jsonContent(paginatedResponse(CronJobLogDTO)), description: 'ok' },
+  },
 });
 cronJobsRoute.openapi(logsRoute, async (c) => {
   const { page = 1, pageSize = 20 } = c.req.valid('query');
@@ -257,7 +277,10 @@ const idLogsRoute = createRoute({
   security: [{ BearerAuth: [] }],
   middleware: [guard({ permission: 'system:cronjob:list' })] as const,
   request: { params: z.object({ id: z.coerce.number() }), query: PaginationQuery },
-  responses: { 200: { content: jsonContent(paginatedResponse(CronJobLogDTO)), description: 'ok' } },
+  responses: {
+    ...commonErrorResponses,
+    200: { content: jsonContent(paginatedResponse(CronJobLogDTO)), description: 'ok' },
+  },
 });
 cronJobsRoute.openapi(idLogsRoute, async (c) => {
   const { id } = c.req.valid('param');

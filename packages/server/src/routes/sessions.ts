@@ -15,7 +15,7 @@ import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { getOnlineSessions, forceLogout } from '../lib/session-manager';
 import { sendToUser, closeUserConnections } from '../lib/ws-manager';
-import { validationHook, paginatedResponse, jsonContent } from '../lib/openapi-schemas';
+import { validationHook, paginatedResponse, jsonContent, commonErrorResponses } from '../lib/openapi-schemas';
 
 const sessionsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -57,6 +57,7 @@ const listRoute = createRoute({
     }),
   },
   responses: {
+    ...commonErrorResponses,
     200: {
       content: jsonContent(SessionListResponse),
       description: '在线会话列表',
@@ -121,6 +122,7 @@ const forceLogoutRoute = createRoute({
     }),
   },
   responses: {
+    ...commonErrorResponses,
     200: { content: { 'application/json': { schema: ForceLogoutResponse } }, description: '下线成功' },
     404: { content: { 'application/json': { schema: ForceLogoutResponse } }, description: '会话不存在' },
   },

@@ -5,7 +5,7 @@ import { db } from '../db';
 import { userApiTokens } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import type { AuthEnv } from '../middleware/auth';
-import { apiResponse, ErrorResponse, jsonContent, MessageResponse, validationHook } from '../lib/openapi-schemas';
+import { apiResponse, ErrorResponse, jsonContent, MessageResponse, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
 
 const apiTokensRoute = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 apiTokensRoute.use('/*', authMiddleware);
@@ -44,6 +44,7 @@ const listRoute = createRoute({
   summary: '获取我的 API Token 列表',
   security: [{ BearerAuth: [] }],
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(apiResponse(z.array(TokenListItem))), description: 'Token 列表' },
   },
 });
@@ -83,6 +84,7 @@ const createTokenRoute = createRoute({
     body: { content: jsonContent(CreateTokenBody), required: true },
   },
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(apiResponse(TokenCreated)), description: '创建成功' },
     400: { content: jsonContent(ErrorResponse), description: '参数错误或数量超限' },
   },
@@ -140,6 +142,7 @@ const deleteRoute = createRoute({
     params: z.object({ id: z.coerce.number() }),
   },
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(MessageResponse), description: 'Token 已撤销' },
     400: { content: jsonContent(ErrorResponse), description: '无效 ID' },
     404: { content: jsonContent(ErrorResponse), description: 'Token 不存在' },

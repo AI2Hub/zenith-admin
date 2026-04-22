@@ -16,7 +16,7 @@ import { generateCaptcha, verifyCaptcha } from '../lib/captcha';
 import { getConfigBoolean, getConfigNumber } from '../lib/system-config';
 import { generateTokenId, registerSession, removeSession, checkLoginLock, recordLoginFailure, clearLoginAttempts, getOnlineSessions, forceLogout } from '../lib/session-manager';
 import { isPlatformAdmin } from '../lib/tenant';
-import { apiResponse, ErrorResponse, MessageResponse, PaginationQuery, paginatedResponse, jsonContent, validationHook } from '../lib/openapi-schemas';
+import { apiResponse, ErrorResponse, MessageResponse, PaginationQuery, paginatedResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
 
 const auth = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -96,7 +96,10 @@ auth.openapi(createRoute({
   tags: ['Auth'],
   summary: '获取验证码',
   security: [],
-  responses: { 200: { content: jsonContent(apiResponse(CaptchaDTO)), description: 'ok' } },
+  responses: {
+    ...commonErrorResponses,
+    200: { content: jsonContent(apiResponse(CaptchaDTO)), description: 'ok' },
+  },
 }), async (c) => {
   const enabled = await getConfigBoolean('captcha_enabled', false);
   if (!enabled) return c.json({ code: 0 as const, message: 'ok', data: { enabled: false, captchaId: '', svg: '' } }, 200);
@@ -113,6 +116,7 @@ auth.openapi(createRoute({
   security: [],
   request: { body: { content: jsonContent(loginSchema), required: true } },
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(apiResponse(LoginResultDTO)), description: '登录成功' },
     400: { content: jsonContent(ErrorResponse), description: '参数错误' },
     403: { content: jsonContent(ErrorResponse), description: '禁用/过期' },
@@ -236,6 +240,7 @@ auth.openapi(createRoute({
   security: [],
   request: { body: { content: jsonContent(registerSchema), required: true } },
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(apiResponse(LoginResultDTO)), description: '注册成功' },
     400: { content: jsonContent(ErrorResponse), description: '参数错误' },
     403: { content: jsonContent(ErrorResponse), description: '注册关闭' },
@@ -301,6 +306,7 @@ auth.openapi(createRoute({
   security: [],
   request: { body: { content: jsonContent(refreshSchema), required: true } },
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(apiResponse(RefreshDTO)), description: 'ok' },
     400: { content: jsonContent(ErrorResponse), description: '参数错误' },
     401: { content: jsonContent(ErrorResponse), description: '无效令牌' },
@@ -334,7 +340,10 @@ auth.openapi(createRoute({
   summary: '退出登录',
   security: [{ BearerAuth: [] }],
   middleware: [authMiddleware] as const,
-  responses: { 200: { content: jsonContent(MessageResponse), description: 'ok' } },
+  responses: {
+    ...commonErrorResponses,
+    200: { content: jsonContent(MessageResponse), description: 'ok' },
+  },
 }), async (c) => {
   const payload = getAuthUser(c as { get: (key: 'user') => unknown });
   if (payload.jti) await removeSession(payload.jti);
@@ -350,6 +359,7 @@ auth.openapi(createRoute({
   security: [{ BearerAuth: [] }],
   middleware: [authMiddleware] as const,
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(apiResponse(UserProfileDTO)), description: 'ok' },
     404: { content: jsonContent(ErrorResponse), description: '不存在' },
   },
@@ -403,6 +413,7 @@ auth.openapi(createRoute({
   middleware: [authMiddleware] as const,
   request: { body: { content: jsonContent(updateProfileSchema), required: true } },
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(apiResponse(UserProfileDTO)), description: '已更新' },
     400: { content: jsonContent(ErrorResponse), description: '参数错误' },
   },
@@ -433,6 +444,7 @@ auth.openapi(createRoute({
   middleware: [authMiddleware] as const,
   request: { body: { content: jsonContent(changePasswordSchema), required: true } },
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(MessageResponse), description: '修改成功' },
     400: { content: jsonContent(ErrorResponse), description: '原密码错误' },
     404: { content: jsonContent(ErrorResponse), description: '用户不存在' },
@@ -458,7 +470,10 @@ auth.openapi(createRoute({
   security: [{ BearerAuth: [] }],
   middleware: [authMiddleware] as const,
   request: { query: PaginationQuery.extend({ status: z.enum(['success', 'fail']).optional(), startTime: z.string().optional(), endTime: z.string().optional() }) },
-  responses: { 200: { content: jsonContent(paginatedResponse(LogRowDTO)), description: 'ok' } },
+  responses: {
+    ...commonErrorResponses,
+    200: { content: jsonContent(paginatedResponse(LogRowDTO)), description: 'ok' },
+  },
 }), async (c) => {
   const payload = getAuthUser(c as { get: (key: 'user') => unknown });
   const { page = 1, pageSize = 10, status, startTime, endTime } = c.req.valid('query');
@@ -485,7 +500,10 @@ auth.openapi(createRoute({
   security: [{ BearerAuth: [] }],
   middleware: [authMiddleware] as const,
   request: { query: PaginationQuery.extend({ module: z.string().optional(), startTime: z.string().optional(), endTime: z.string().optional() }) },
-  responses: { 200: { content: jsonContent(paginatedResponse(LogRowDTO)), description: 'ok' } },
+  responses: {
+    ...commonErrorResponses,
+    200: { content: jsonContent(paginatedResponse(LogRowDTO)), description: 'ok' },
+  },
 }), async (c) => {
   const payload = getAuthUser(c as { get: (key: 'user') => unknown });
   const { page = 1, pageSize = 10, module, startTime, endTime } = c.req.valid('query');
@@ -511,7 +529,10 @@ auth.openapi(createRoute({
   summary: '我的会话',
   security: [{ BearerAuth: [] }],
   middleware: [authMiddleware] as const,
-  responses: { 200: { content: jsonContent(apiResponse(z.array(SessionDTO))), description: 'ok' } },
+  responses: {
+    ...commonErrorResponses,
+    200: { content: jsonContent(apiResponse(z.array(SessionDTO))), description: 'ok' },
+  },
 }), async (c) => {
   const payload = getAuthUser(c as { get: (key: 'user') => unknown });
   const allSessions = await getOnlineSessions();
@@ -539,7 +560,10 @@ auth.openapi(createRoute({
   summary: '退出其他设备',
   security: [{ BearerAuth: [] }],
   middleware: [authMiddleware] as const,
-  responses: { 200: { content: jsonContent(apiResponse(z.object({ count: z.number() }))), description: 'ok' } },
+  responses: {
+    ...commonErrorResponses,
+    200: { content: jsonContent(apiResponse(z.object({ count: z.number() }))), description: 'ok' },
+  },
 }), async (c) => {
   const payload = getAuthUser(c as { get: (key: 'user') => unknown });
   const allSessions = await getOnlineSessions();
@@ -558,6 +582,7 @@ auth.openapi(createRoute({
   middleware: [authMiddleware] as const,
   request: { params: z.object({ tokenId: z.string() }) },
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(MessageResponse), description: 'ok' },
     400: { content: jsonContent(ErrorResponse), description: '不能操作当前设备' },
     404: { content: jsonContent(ErrorResponse), description: '会话不存在' },
@@ -583,6 +608,7 @@ auth.openapi(createRoute({
   middleware: [authMiddleware] as const,
   request: { body: { content: jsonContent(switchTenantSchema), required: true } },
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(apiResponse(SwitchTenantDTO)), description: 'ok' },
     403: { content: jsonContent(ErrorResponse), description: '无权限' },
     404: { content: jsonContent(ErrorResponse), description: '租户不存在' },
@@ -637,6 +663,7 @@ auth.openapi(createRoute({
   security: [{ BearerAuth: [] }],
   middleware: [authMiddleware] as const,
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(apiResponse(z.array(TenantItemDTO))), description: 'ok' },
     403: { content: jsonContent(ErrorResponse), description: '无权限' },
   },
@@ -656,6 +683,7 @@ auth.openapi(createRoute({
   security: [],
   request: { body: { content: jsonContent(forgotPasswordSchema), required: true } },
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(MessageResponse), description: 'ok' },
     403: { content: jsonContent(ErrorResponse), description: '功能未开启' },
   },
@@ -696,6 +724,7 @@ auth.openapi(createRoute({
   security: [],
   request: { body: { content: jsonContent(resetPasswordSchema), required: true } },
   responses: {
+    ...commonErrorResponses,
     200: { content: jsonContent(MessageResponse), description: 'ok' },
     400: { content: jsonContent(ErrorResponse), description: '链接无效' },
   },
