@@ -6,11 +6,10 @@ import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { createFileStorageConfigSchema as _createSchema, updateFileStorageConfigSchema as _updateSchema } from '@zenith/shared';
 import { apiResponse, paginatedResponse, ErrorResponse, MessageResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { FileStorageConfigDTO } from '../lib/openapi-dtos';
 
 const fileStorageConfigsRouter = new OpenAPIHono({ defaultHook: validationHook });
 fileStorageConfigsRouter.use('*', authMiddleware);
-
-const FileStorageConfigDTO = z.looseObject({}).openapi('FileStorageConfig');
 
 const createFileStorageConfigSchema = _createSchema;
 const updateFileStorageConfigSchema = _updateSchema;

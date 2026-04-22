@@ -15,13 +15,10 @@ import { getPasswordPolicy, validatePassword } from '../lib/password-policy';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import type { Role, Position, User } from '@zenith/shared';
 import { apiResponse, ErrorResponse, MessageResponse, PaginationQuery, paginatedResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { UserDTO, ImportResultDTO } from '../lib/openapi-dtos';
 
 const usersRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 usersRouter.use('*', authMiddleware);
-
-// DTOs
-const UserDTO = z.looseObject({}).openapi('User');
-const ImportResultDTO = z.looseObject({}).openapi('UserImportResult');
 
 // Schemas (zod v4 local)
 const createUserSchema = z.object({

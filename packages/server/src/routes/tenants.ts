@@ -8,6 +8,7 @@ import { guard } from '../middleware/guard';
 import { exportToExcel } from '../lib/excel-export';
 import { isPlatformAdmin } from '../lib/tenant';
 import { apiResponse, ErrorResponse, MessageResponse, PaginationQuery, paginatedResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { TenantDTO } from '../lib/openapi-dtos';
 
 const tenantsRoute = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 
@@ -19,8 +20,6 @@ tenantsRoute.use('*', async (c, next) => {
   }
   await next();
 });
-
-const TenantDTO = z.looseObject({}).openapi('Tenant');
 
 const createTenantSchema = z.object({
   name: z.string().min(1).max(100),

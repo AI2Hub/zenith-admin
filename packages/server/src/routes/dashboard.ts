@@ -8,24 +8,11 @@ import { getOnlineCount } from '../lib/session-manager';
 import type { AuthEnv } from '../middleware/auth';
 import { tenantCondition } from '../lib/tenant';
 import { apiResponse, ErrorResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { DashboardStatsDTO as StatsDTO, DashboardChartsDTO as ChartsDTO } from '../lib/openapi-dtos';
 
 const dashboardRoute = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 
 dashboardRoute.use('/*', authMiddleware);
-
-const StatsDTO = z.object({
-  totalUsers: z.number(),
-  activeUsers: z.number(),
-  onlineUsers: z.number(),
-  todayLogins: z.number(),
-  todayOperations: z.number(),
-});
-
-const ChartsDTO = z.object({
-  loginTrend: z.array(z.object({ date: z.string(), successCount: z.number(), failCount: z.number() })),
-  operationTypes: z.array(z.object({ module: z.string(), count: z.number() })),
-  userActivity: z.array(z.object({ date: z.string(), activeUsers: z.number() })),
-});
 
 const statsRoute = createRoute({
   method: 'get',

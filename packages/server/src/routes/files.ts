@@ -9,6 +9,7 @@ import { buildManagedFileUrl, deleteStoredFile, readStoredFile, uploadFileByConf
 import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { apiResponse, ErrorResponse, MessageResponse, paginatedResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { ManagedFileDTO } from '../lib/openapi-dtos';
 
 const filesRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 
@@ -70,8 +71,6 @@ function toManagedFile(row: typeof managedFiles.$inferSelect) {
     updatedAt: row.updatedAt.toISOString(),
   };
 }
-
-const ManagedFileDTO = z.looseObject({}).openapi('ManagedFile');
 
 const listRoute = createRoute({
   method: 'get',

@@ -8,6 +8,7 @@ import { guard } from '../middleware/guard';
 import { createPgDumpBackup, createDrizzleExportBackup } from '../lib/db-backup';
 import logger from '../lib/logger';
 import { apiResponse, ErrorResponse, MessageResponse, paginatedResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { DbBackupItemDTO as BackupItem } from '../lib/openapi-dtos';
 
 import { createBackupSchema } from '@zenith/shared';
 
@@ -15,25 +16,6 @@ const backups = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 backups.use('*', authMiddleware);
 
 // ─── Schemas ───────────────────────────────────────────────────────────────
-const BackupItem = z
-  .object({
-    id: z.number(),
-    name: z.string(),
-    type: z.enum(['pg_dump', 'drizzle_export']),
-    fileId: z.number().nullable().optional(),
-    fileSize: z.number().nullable().optional(),
-    status: z.enum(['pending', 'running', 'success', 'failed']),
-    tables: z.unknown().nullable().optional(),
-    startedAt: z.string().nullable(),
-    completedAt: z.string().nullable(),
-    durationMs: z.number().nullable().optional(),
-    errorMessage: z.string().nullable().optional(),
-    createdBy: z.number().nullable().optional(),
-    createdByName: z.string().nullable().optional(),
-    createdAt: z.string(),
-  })
-  .openapi('DbBackupItem');
-
 const BackupCreated = z.object({
   id: z.number(),
   name: z.string(),

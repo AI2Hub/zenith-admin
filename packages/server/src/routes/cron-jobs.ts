@@ -8,12 +8,10 @@ import { scheduleJob, stopJob, runJobOnce, validateCronExpression, getRegistered
 import { exportToExcel } from '../lib/excel-export';
 import { createCronJobSchema, updateCronJobSchema } from '@zenith/shared';
 import { apiResponse, ErrorResponse, MessageResponse, PaginationQuery, paginatedResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { CronJobDTO, CronJobLogDTO } from '../lib/openapi-dtos';
 
 const cronJobsRoute = new OpenAPIHono({ defaultHook: validationHook });
 cronJobsRoute.use('*', authMiddleware);
-
-const CronJobDTO = z.looseObject({}).openapi('CronJob');
-const CronJobLogDTO = z.looseObject({}).openapi('CronJobLog');
 
 function toCronJob(row: typeof cronJobs.$inferSelect) {
   return {

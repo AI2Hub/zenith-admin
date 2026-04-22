@@ -9,6 +9,7 @@ import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { apiResponse, paginatedResponse, ErrorResponse, MessageResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
 import { createDictSchema, updateDictSchema, createDictItemSchema, updateDictItemSchema } from '@zenith/shared';
+import { DictDTO, DictItemDTO } from '../lib/openapi-dtos';
 
 const dictsRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 dictsRouter.use('*', authMiddleware);
@@ -21,9 +22,6 @@ function toDictItem(row: typeof dictItems.$inferSelect) {
   return { ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
 }
 
-// ─── Schemas ───────────────────────────────────────────────────────────────
-const DictDTO = z.looseObject({}).openapi('Dict');
-const DictItemDTO = z.looseObject({}).openapi('DictItem');
 
 // ─── 字典 CRUD ────────────────────────────────────────────────────────────────
 

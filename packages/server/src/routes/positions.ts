@@ -8,6 +8,7 @@ import { guard } from '../middleware/guard';
 import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { apiResponse, ErrorResponse, MessageResponse, jsonContent, validationHook, paginatedResponse, commonErrorResponses } from '../lib/openapi-schemas';
+import { PositionDTO } from '../lib/openapi-dtos';
 
 const positionsRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 
@@ -27,7 +28,6 @@ function toPosition(row: typeof positions.$inferSelect) {
 }
 
 // ─── Schemas ───────────────────────────────────────────────────────────────
-const PositionDTO = z.looseObject({}).openapi('Position');
 const createPositionSchema = z.object({
   name: z.string().min(1).max(64),
   code: z.string().min(1).max(64).regex(/^\w+$/),

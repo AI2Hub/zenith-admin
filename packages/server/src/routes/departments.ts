@@ -10,11 +10,10 @@ import type { Department } from '@zenith/shared';
 import { createDepartmentSchema, updateDepartmentSchema } from '@zenith/shared';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { apiResponse, ErrorResponse, MessageResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { DepartmentDTO } from '../lib/openapi-dtos';
 
 const departmentsRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 departmentsRouter.use('*', authMiddleware);
-
-const DepartmentDTO = z.looseObject({}).openapi('Department');
 
 function toDepartment(row: typeof departments.$inferSelect): Omit<Department, 'children'> {
   return {

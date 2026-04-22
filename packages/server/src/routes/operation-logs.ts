@@ -8,17 +8,11 @@ import { guard } from '../middleware/guard';
 import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition } from '../lib/tenant';
 import { apiResponse, paginatedResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { OperationLogDTO, OperationLogStatsDTO as StatsDTO } from '../lib/openapi-dtos';
 
 const operationLogsRoute = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 
 operationLogsRoute.use('/*', authMiddleware);
-
-const OperationLogDTO = z.looseObject({}).openapi('OperationLog');
-const StatsDTO = z.object({
-  moduleStats: z.array(z.object({ module: z.string(), count: z.number() })),
-  dailyStats: z.array(z.object({ date: z.string(), count: z.number() })),
-  userStats: z.array(z.object({ username: z.string(), count: z.number() })),
-}).openapi('OperationLogStats');
 
 const listRoute = createRoute({
   method: 'get',

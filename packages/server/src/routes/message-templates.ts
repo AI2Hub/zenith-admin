@@ -7,6 +7,7 @@ import type { AuthEnv } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { previewMessageTemplateSchema } from '@zenith/shared';
 import { apiResponse, ErrorResponse, MessageResponse, paginatedResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { MessageTemplateDTO, MessageTemplatePreviewDTO as PreviewResultDTO } from '../lib/openapi-dtos';
 
 const messageTemplatesRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 messageTemplatesRouter.use('*', authMiddleware);
@@ -23,7 +24,6 @@ function interpolate(content: string, vars: Record<string, string>): string {
 }
 
 // ─── Schemas ───────────────────────────────────────────────────────────────
-const MessageTemplateDTO = z.looseObject({}).openapi('MessageTemplate');
 const createMessageTemplateSchema = z.object({
   name: z.string().min(1).max(100),
   code: z.string().min(1).max(100).regex(/^[a-zA-Z]\w*$/),
@@ -35,7 +35,6 @@ const createMessageTemplateSchema = z.object({
   remark: z.string().max(500).optional(),
 });
 const updateMessageTemplateSchema = createMessageTemplateSchema.partial();
-const PreviewResultDTO = z.object({ subject: z.string().nullable(), content: z.string() });
 
 // ─── Routes ────────────────────────────────────────────────────────────────
 const listRoute = createRoute({

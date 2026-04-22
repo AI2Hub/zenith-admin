@@ -6,31 +6,12 @@ import { userApiTokens } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import type { AuthEnv } from '../middleware/auth';
 import { apiResponse, ErrorResponse, jsonContent, MessageResponse, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { ApiTokenListItemDTO as TokenListItem, ApiTokenCreatedDTO as TokenCreated } from '../lib/openapi-dtos';
 
 const apiTokensRoute = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 apiTokensRoute.use('/*', authMiddleware);
 
 // ─── Schemas ───────────────────────────────────────────────────────────────
-const TokenListItem = z
-  .object({
-    id: z.number(),
-    name: z.string(),
-    tokenPrefix: z.string(),
-    lastUsedAt: z.string().nullable(),
-    expiresAt: z.string().nullable(),
-    createdAt: z.string(),
-  })
-  .openapi('ApiTokenListItem');
-
-const TokenCreated = z
-  .object({
-    id: z.number(),
-    name: z.string(),
-    token: z.string(),
-    createdAt: z.string(),
-  })
-  .openapi('ApiTokenCreated');
-
 const CreateTokenBody = z.object({
   name: z.string(),
   expiresAt: z.string().optional(),

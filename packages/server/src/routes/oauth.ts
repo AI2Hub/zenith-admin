@@ -12,6 +12,7 @@ import { generateTokenId, registerSession } from '../lib/session-manager';
 import type { OAuthProviderType } from '@zenith/shared';
 import { OAUTH_PROVIDERS } from '@zenith/shared';
 import { apiResponse, ErrorResponse, MessageResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { OAuthAccountDTO, OAuthAuthUrlDTO, LoginResultDTO } from '../lib/openapi-dtos';
 
 const oauth = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 
@@ -22,11 +23,12 @@ function isValidProvider(p: string | undefined): p is OAuthProviderType {
 }
 
 async function getUserRoles(userId: number) {
-  return db
-    .select({ id: roles.id, name: roles.name, code: roles.code })
+  const rows = await db
+    .select({ id: roles.id, name: roles.name, code: roles.code, description: roles.description, status: roles.status, createdAt: roles.createdAt, updatedAt: roles.updatedAt })
     .from(userRoles)
     .innerJoin(roles, eq(userRoles.roleId, roles.id))
     .where(eq(userRoles.userId, userId));
+  return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString() }));
 }
 
 async function issueTokens(user: { id: number; username: string }, roleCodes: string[]) {
@@ -42,9 +44,7 @@ async function issueTokens(user: { id: number; username: string }, roleCodes: st
   return { accessToken, refreshToken, tokenId };
 }
 
-const OAuthAccountDTO = z.looseObject({}).openapi('OAuthAccount');
-const OAuthAuthUrlDTO = z.object({ authUrl: z.string(), state: z.string() });
-const OAuthCallbackDTO = z.looseObject({}).openapi('OAuthCallbackResult');
+const OAuthCallbackDTO = LoginResultDTO;
 
 // GET /accounts
 const accountsRoute = createRoute({

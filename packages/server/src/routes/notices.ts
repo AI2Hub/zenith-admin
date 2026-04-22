@@ -10,13 +10,11 @@ import type { JwtPayload } from '../middleware/auth';
 import { noticeRecipientSchema } from '@zenith/shared';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { apiResponse, ErrorResponse, MessageResponse, PaginationQuery, paginatedResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { NoticeDTO, NoticeReadStatsDTO } from '../lib/openapi-dtos';
 
 type Env = { Variables: { user: JwtPayload } };
 const noticesRouter = new OpenAPIHono<Env>({ defaultHook: validationHook });
 noticesRouter.use('*', authMiddleware);
-
-const NoticeDTO = z.looseObject({}).openapi('Notice');
-const NoticeReadStatsDTO = z.looseObject({}).openapi('NoticeReadStats');
 
 const createNoticeSchema = z.object({
   title: z.string().min(1).max(128),

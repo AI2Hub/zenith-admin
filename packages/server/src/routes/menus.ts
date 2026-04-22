@@ -8,6 +8,7 @@ import { isSuperAdmin, getUserMenuIds } from '../lib/permissions';
 import type { AuthEnv } from '../middleware/auth';
 import type { Menu } from '@zenith/shared';
 import { apiResponse, ErrorResponse, MessageResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { MenuDTO } from '../lib/openapi-dtos';
 
 const menusRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 menusRouter.use('*', authMiddleware);
@@ -57,7 +58,7 @@ function buildTree(list: Omit<Menu, 'children'>[]): Menu[] {
 }
 
 // ─── Schemas ───────────────────────────────────────────────────────────────
-const MenuDTO = z.looseObject({}).openapi('Menu');
+
 const createMenuSchema = z.object({
   parentId: z.coerce.number().int().default(0),
   title: z.string().min(1).max(64),

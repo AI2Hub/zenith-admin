@@ -8,22 +8,10 @@ import { guard } from '../middleware/guard';
 import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition } from '../lib/tenant';
 import { paginatedResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { LoginLogDTO as LoginLogItem } from '../lib/openapi-dtos';
 
 const loginLogsRoute = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 loginLogsRoute.use('/*', authMiddleware);
-
-// ─── Schemas ───────────────────────────────────────────────────────────────
-const LoginLogItem = z
-  .object({
-    id: z.number(),
-    username: z.string().nullable(),
-    ip: z.string().nullable(),
-    status: z.enum(['success', 'fail']),
-    message: z.string().nullable(),
-    userAgent: z.string().nullable().optional(),
-    createdAt: z.string(),
-  })
-  .openapi('LoginLogItem');
 
 // ─── Routes ────────────────────────────────────────────────────────────────
 const listRoute = createRoute({

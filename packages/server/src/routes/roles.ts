@@ -10,6 +10,7 @@ import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { createRoleSchema, updateRoleSchema, assignRoleMenusSchema, assignRoleUsersSchema } from '@zenith/shared';
 import { apiResponse, paginatedResponse, ErrorResponse, MessageResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { RoleDTO, UserDTO } from '../lib/openapi-dtos';
 
 const rolesRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 rolesRouter.use('*', authMiddleware);
@@ -22,10 +23,6 @@ function toRole(row: typeof roles.$inferSelect, menuIds?: number[]) {
     ...(menuIds === undefined ? {} : { menuIds }),
   };
 }
-
-// ─── Schemas ───────────────────────────────────────────────────────────────
-const RoleDTO = z.looseObject({}).openapi('Role');
-const UserDTO = z.looseObject({}).openapi('UserBrief');
 
 // ─── Routes ────────────────────────────────────────────────────────────────
 const allRoute = createRoute({

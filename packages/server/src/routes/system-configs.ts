@@ -9,18 +9,10 @@ import { exportToExcel } from '../lib/excel-export';
 import { getPasswordPolicy } from '../lib/password-policy';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { apiResponse, ErrorResponse, MessageResponse, paginatedResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { SystemConfigDTO, PublicConfigDTO, PasswordPolicyDTO } from '../lib/openapi-dtos';
 
 const systemConfigsRoute = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 const configTypeValues = ['string', 'number', 'boolean', 'json'] as const;
-
-// ─── Schemas ───────────────────────────────────────────────────────────────
-const SystemConfigDTO = z.looseObject({}).openapi('SystemConfig');
-const PublicConfigDTO = z.object({
-  configKey: z.string(),
-  configValue: z.string().nullable(),
-  configType: z.enum(configTypeValues),
-});
-const PasswordPolicyDTO = z.looseObject({}).openapi('PasswordPolicy');
 const createSystemConfigSchema = z.object({
   configKey: z.string().min(1).max(128).regex(/^[\w.]+$/),
   configValue: z.string().max(4096),

@@ -66,8 +66,29 @@ export function jsonContent<T extends z.ZodTypeAny>(schema: T) {
 
 /** 常用分页入参 */
 export const PaginationQuery = z.object({
-  page: z.coerce.number().int().min(1).optional().default(1),
-  pageSize: z.coerce.number().int().min(1).max(200).optional().default(10),
+  page: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .default(1)
+    .openapi({
+      param: { name: 'page', in: 'query' },
+      example: 1,
+      description: '页码（从 1 开始）',
+    }),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(200)
+    .optional()
+    .default(10)
+    .openapi({
+      param: { name: 'pageSize', in: 'query' },
+      example: 10,
+      description: '每页数量，最大 200',
+    }),
 });
 
 /** 常用错误响应集合（复制到 responses 里） */
@@ -81,7 +102,15 @@ export const commonErrorResponses = {
 
 /** id 参数 schema（path/query 通用） */
 export const IdParam = z.object({
-  id: z.coerce.number().int().positive(),
+  id: z.coerce
+    .number()
+    .int()
+    .positive()
+    .openapi({
+      param: { name: 'id', in: 'path' },
+      example: 1,
+      description: '主键 ID',
+    }),
 });
 
 /** 成功响应常量：200 + ApiResponse<any> */

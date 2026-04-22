@@ -16,23 +16,13 @@ import { guard } from '../middleware/guard';
 import { getOnlineSessions, forceLogout } from '../lib/session-manager';
 import { sendToUser, closeUserConnections } from '../lib/ws-manager';
 import { validationHook, paginatedResponse, jsonContent, commonErrorResponses } from '../lib/openapi-schemas';
+import { OnlineSessionDTO as SessionItemSchema } from '../lib/openapi-dtos';
 
 const sessionsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
 sessionsRoute.use('/*', authMiddleware);
 
 // ─── Schemas ───────────────────────────────────────────────────────────────
-const SessionItemSchema = z.object({
-  tokenId: z.string().openapi({ example: 'abc123' }),
-  userId: z.number().openapi({ example: 1 }),
-  username: z.string().openapi({ example: 'admin' }),
-  nickname: z.string().openapi({ example: '管理员' }),
-  ip: z.string().openapi({ example: '127.0.0.1' }),
-  browser: z.string().openapi({ example: 'Chrome 120' }),
-  os: z.string().openapi({ example: 'Windows 11' }),
-  loginAt: z.string().openapi({ example: '2026-04-21T10:00:00.000Z' }),
-}).openapi('SessionItem');
-
 const SessionListResponse = paginatedResponse(SessionItemSchema);
 
 const ForceLogoutResponse = z.object({

@@ -1,4 +1,4 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import os from 'node:os';
 import { execSync } from 'node:child_process';
 import { db } from '../db';
@@ -7,6 +7,7 @@ import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import redis from '../lib/redis';
 import { apiResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { MonitorDTO } from '../lib/openapi-dtos';
 
 const monitorRouter = new OpenAPIHono({ defaultHook: validationHook });
 monitorRouter.use('*', authMiddleware);
@@ -124,8 +125,6 @@ async function getDbInfo() {
     return null;
   }
 }
-
-const MonitorDTO = z.looseObject({}).openapi('MonitorInfo');
 
 const statusRoute = createRoute({
   method: 'get',

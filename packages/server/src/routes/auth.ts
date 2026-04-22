@@ -17,6 +17,7 @@ import { getConfigBoolean, getConfigNumber } from '../lib/system-config';
 import { generateTokenId, registerSession, removeSession, checkLoginLock, recordLoginFailure, clearLoginAttempts, getOnlineSessions, forceLogout } from '../lib/session-manager';
 import { isPlatformAdmin } from '../lib/tenant';
 import { apiResponse, ErrorResponse, MessageResponse, PaginationQuery, paginatedResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { LoginResultDTO, UserProfileDTO, CaptchaDTO, RefreshTokenResultDTO as RefreshDTO, SessionDTO, TenantItemDTO, SwitchTenantResultDTO as SwitchTenantDTO, LogRowDTO } from '../lib/openapi-dtos';
 
 const auth = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -49,14 +50,9 @@ const resetPasswordSchema = z.object({ token: z.string().min(1), newPassword: z.
 const refreshSchema = z.object({ refreshToken: z.string().min(1) });
 
 // ─── DTOs ────────────────────────────────────────────────────────────────────
-const LoginResultDTO = z.looseObject({}).openapi('LoginResult');
-const UserProfileDTO = z.looseObject({}).openapi('UserProfile');
-const CaptchaDTO = z.object({ enabled: z.boolean(), captchaId: z.string(), svg: z.string() }).openapi('Captcha');
-const RefreshDTO = z.object({ accessToken: z.string() }).openapi('RefreshResult');
-const SessionDTO = z.looseObject({}).openapi('MySession');
-const TenantItemDTO = z.looseObject({}).openapi('TenantItem');
-const SwitchTenantDTO = z.looseObject({}).openapi('SwitchTenantResult');
-const LogRowDTO = z.looseObject({}).openapi('LogRow');
+// LoginResultDTO / UserProfileDTO / CaptchaDTO / RefreshDTO / SessionDTO /
+// TenantItemDTO / SwitchTenantDTO / LogRowDTO 均由 openapi-dtos 统一提供
+
 
 async function recordLoginLog(c: Context, username: string, status: 'success' | 'fail', message: string, userId?: number, tenantId?: number | null) {
   const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || '127.0.0.1';

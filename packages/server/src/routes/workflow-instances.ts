@@ -10,14 +10,11 @@ import type { JwtPayload } from '../middleware/auth';
 import { createWorkflowInstanceSchema, approveWorkflowTaskSchema, rejectWorkflowTaskSchema } from '@zenith/shared';
 import type { WorkflowFlowData } from '@zenith/shared';
 import { apiResponse, ErrorResponse, PaginationQuery, paginatedResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { WorkflowInstanceDTO, WorkflowInstanceListItemDTO, WorkflowInstanceAllDTO } from '../lib/openapi-dtos';
 
 type Env = { Variables: { user: JwtPayload } };
 const router = new OpenAPIHono<Env>({ defaultHook: validationHook });
 router.use('*', authMiddleware);
-
-const WorkflowInstanceDTO = z.looseObject({}).openapi('WorkflowInstance');
-const WorkflowInstanceListDTO = z.looseObject({}).openapi('WorkflowInstanceListItem');
-const WorkflowInstanceAllDTO = z.looseObject({}).openapi('WorkflowInstanceAll');
 
 function toTask(row: typeof workflowTasks.$inferSelect, assigneeName?: string | null, assigneeAvatar?: string | null) {
   return {
@@ -113,7 +110,7 @@ const pendingMineRoute = createRoute({
   request: { query: PaginationQuery },
   responses: {
     ...commonErrorResponses,
-    200: { content: jsonContent(paginatedResponse(WorkflowInstanceListDTO)), description: 'ok' },
+    200: { content: jsonContent(paginatedResponse(WorkflowInstanceListItemDTO)), description: 'ok' },
   },
 });
 router.openapi(pendingMineRoute, async (c) => {

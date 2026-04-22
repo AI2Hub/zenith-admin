@@ -9,12 +9,11 @@ import { validateFlowData } from '../lib/workflow-engine';
 import type { JwtPayload } from '../middleware/auth';
 import type { WorkflowFlowData } from '@zenith/shared';
 import { apiResponse, ErrorResponse, MessageResponse, PaginationQuery, paginatedResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { WorkflowDefinitionDTO } from '../lib/openapi-dtos';
 
 type Env = { Variables: { user: JwtPayload } };
 const router = new OpenAPIHono<Env>({ defaultHook: validationHook });
 router.use('*', authMiddleware);
-
-const WorkflowDefinitionDTO = z.looseObject({}).openapi('WorkflowDefinition');
 
 const createWorkflowDefinitionSchema = z.object({
   name: z.string().min(1).max(64),

@@ -6,6 +6,7 @@ import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import type { Region } from '@zenith/shared';
 import { apiResponse, ErrorResponse, MessageResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { RegionDTO } from '../lib/openapi-dtos';
 
 const regionsRouter = new OpenAPIHono({ defaultHook: validationHook });
 regionsRouter.use('*', authMiddleware);
@@ -65,7 +66,7 @@ function filterTree(nodes: Region[], keyword: string, status?: string, level?: s
 }
 
 // ─── Schemas ───────────────────────────────────────────────────────────────
-const RegionDTO = z.looseObject({}).openapi('Region');
+
 const createRegionSchema = z.object({
   code: z.string().min(1).max(12),
   name: z.string().min(1).max(64),

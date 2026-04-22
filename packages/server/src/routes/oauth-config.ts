@@ -7,6 +7,7 @@ import { guard } from '../middleware/guard';
 import type { AuthEnv } from '../middleware/auth';
 import type { OAuthProviderType } from '@zenith/shared';
 import { apiResponse, ErrorResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { OAuthConfigItemDTO as OAuthConfigItem } from '../lib/openapi-dtos';
 
 import { updateOauthConfigSchema } from '@zenith/shared';
 
@@ -14,21 +15,6 @@ const VALID_PROVIDERS: OAuthProviderType[] = ['github', 'dingtalk', 'wechat_work
 
 const oauthConfigRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 oauthConfigRouter.use('*', authMiddleware);
-
-// ─── Schemas ───────────────────────────────────────────────────────────────
-const OAuthConfigItem = z
-  .object({
-    id: z.number(),
-    provider: z.string(),
-    clientId: z.string().nullable(),
-    clientSecret: z.string(),
-    enabled: z.boolean(),
-    agentId: z.string().nullable().optional(),
-    corpId: z.string().nullable().optional(),
-    createdAt: z.union([z.string(), z.date()]).nullable().optional(),
-    updatedAt: z.union([z.string(), z.date()]).nullable().optional(),
-  })
-  .openapi('OAuthConfigItem');
 
 // ─── Routes ────────────────────────────────────────────────────────────────
 const listRoute = createRoute({

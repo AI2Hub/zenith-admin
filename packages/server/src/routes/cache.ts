@@ -12,6 +12,7 @@ import { guard } from '../middleware/guard';
 import redis from '../lib/redis';
 import { config } from '../config';
 import { validationHook } from '../lib/openapi-schemas';
+import { CacheItemDTO as CacheItemSchema } from '../lib/openapi-dtos';
 
 const cacheRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -86,17 +87,6 @@ async function getKeyMeta(key: string) {
 }
 
 // ─── Schemas ───────────────────────────────────────────────────────────────
-const CacheItemSchema = z.object({
-  key: z.string(),
-  displayKey: z.string(),
-  segment: z.string(),
-  category: z.string(),
-  type: z.string(),
-  ttl: z.number(),
-  size: z.number(),
-  value: z.string().nullable(),
-}).openapi('CacheItem');
-
 const GenericResponse = z.object({
   code: z.number(),
   message: z.string(),
