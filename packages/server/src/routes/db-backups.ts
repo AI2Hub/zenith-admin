@@ -3,7 +3,7 @@ import { eq, desc, sql, and } from 'drizzle-orm';
 import { db } from '../db';
 import { dbBackups, users } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
-import type { JwtPayload } from '../middleware/auth';
+import type { AuthEnv } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { createPgDumpBackup, createDrizzleExportBackup } from '../lib/db-backup';
 import logger from '../lib/logger';
@@ -11,7 +11,7 @@ import { apiResponse, ErrorResponse, MessageResponse, paginatedResponse, jsonCon
 
 import { createBackupSchema } from '@zenith/shared';
 
-const backups = new OpenAPIHono<{ Variables: { user: JwtPayload } }>({ defaultHook: validationHook });
+const backups = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 backups.use('*', authMiddleware);
 
 // ─── Schemas ───────────────────────────────────────────────────────────────

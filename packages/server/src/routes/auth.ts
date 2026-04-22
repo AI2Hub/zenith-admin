@@ -95,6 +95,7 @@ auth.openapi(createRoute({
   path: '/captcha',
   tags: ['Auth'],
   summary: '获取验证码',
+  security: [],
   responses: { 200: { content: jsonContent(apiResponse(CaptchaDTO)), description: 'ok' } },
 }), async (c) => {
   const enabled = await getConfigBoolean('captcha_enabled', false);
@@ -109,6 +110,7 @@ auth.openapi(createRoute({
   path: '/login',
   tags: ['Auth'],
   summary: '登录',
+  security: [],
   request: { body: { content: jsonContent(loginSchema), required: true } },
   responses: {
     200: { content: jsonContent(apiResponse(LoginResultDTO)), description: '登录成功' },
@@ -231,6 +233,7 @@ auth.openapi(createRoute({
   path: '/register',
   tags: ['Auth'],
   summary: '注册',
+  security: [],
   request: { body: { content: jsonContent(registerSchema), required: true } },
   responses: {
     200: { content: jsonContent(apiResponse(LoginResultDTO)), description: '注册成功' },
@@ -295,6 +298,7 @@ auth.openapi(createRoute({
   path: '/refresh',
   tags: ['Auth'],
   summary: '刷新令牌',
+  security: [],
   request: { body: { content: jsonContent(refreshSchema), required: true } },
   responses: {
     200: { content: jsonContent(apiResponse(RefreshDTO)), description: 'ok' },
@@ -649,6 +653,7 @@ auth.openapi(createRoute({
   path: '/forgot-password',
   tags: ['Auth'],
   summary: '忘记密码',
+  security: [],
   request: { body: { content: jsonContent(forgotPasswordSchema), required: true } },
   responses: {
     200: { content: jsonContent(MessageResponse), description: 'ok' },
@@ -688,6 +693,7 @@ auth.openapi(createRoute({
   path: '/reset-password',
   tags: ['Auth'],
   summary: '重置密码',
+  security: [],
   request: { body: { content: jsonContent(resetPasswordSchema), required: true } },
   responses: {
     200: { content: jsonContent(MessageResponse), description: 'ok' },

@@ -4,7 +4,7 @@ import { db } from '../db';
 import { oauthConfigs } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
-import type { JwtPayload } from '../middleware/auth';
+import type { AuthEnv } from '../middleware/auth';
 import type { OAuthProviderType } from '@zenith/shared';
 import { apiResponse, ErrorResponse, jsonContent , validationHook } from '../lib/openapi-schemas';
 
@@ -12,7 +12,7 @@ import { updateOauthConfigSchema } from '@zenith/shared';
 
 const VALID_PROVIDERS: OAuthProviderType[] = ['github', 'dingtalk', 'wechat_work'];
 
-const oauthConfigRouter = new OpenAPIHono<{ Variables: { user: JwtPayload } }>({ defaultHook: validationHook });
+const oauthConfigRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 oauthConfigRouter.use('*', authMiddleware);
 
 // ─── Schemas ───────────────────────────────────────────────────────────────

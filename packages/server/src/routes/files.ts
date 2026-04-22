@@ -3,14 +3,14 @@ import { and, desc, eq, like, or, sql, gte, lte } from 'drizzle-orm';
 import { db } from '../db';
 import { fileStorageConfigs, managedFiles } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
-import type { JwtPayload } from '../middleware/auth';
+import type { AuthEnv } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { buildManagedFileUrl, deleteStoredFile, readStoredFile, uploadFileByConfig } from '../lib/file-storage';
 import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { apiResponse, ErrorResponse, MessageResponse, paginatedResponse, jsonContent , validationHook } from '../lib/openapi-schemas';
 
-const filesRouter = new OpenAPIHono<{ Variables: { user: JwtPayload } }>({ defaultHook: validationHook });
+const filesRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 
 // ─── Public file content endpoint (no auth) ───────────────────────────────
 const contentRoute = createRoute({

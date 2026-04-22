@@ -4,12 +4,12 @@ import { db } from '../db';
 import { emailConfigs } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
-import type { JwtPayload } from '../middleware/auth';
+import type { AuthEnv } from '../middleware/auth';
 import { apiResponse, ErrorResponse, MessageResponse, jsonContent , validationHook } from '../lib/openapi-schemas';
 
 import { emailConfigSchema } from '@zenith/shared';
 
-const emailConfigRouter = new OpenAPIHono<{ Variables: { user: JwtPayload } }>({ defaultHook: validationHook });
+const emailConfigRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 emailConfigRouter.use('*', authMiddleware);
 
 // ─── Schemas ───────────────────────────────────────────────────────────────

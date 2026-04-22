@@ -5,11 +5,11 @@ import { menus } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { isSuperAdmin, getUserMenuIds } from '../lib/permissions';
-import type { JwtPayload } from '../middleware/auth';
+import type { AuthEnv } from '../middleware/auth';
 import type { Menu } from '@zenith/shared';
 import { apiResponse, ErrorResponse, MessageResponse, jsonContent , validationHook } from '../lib/openapi-schemas';
 
-const menusRouter = new OpenAPIHono<{ Variables: { user: JwtPayload } }>({ defaultHook: validationHook });
+const menusRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 menusRouter.use('*', authMiddleware);
 
 function toMenu(row: typeof menus.$inferSelect): Omit<Menu, 'children'> {

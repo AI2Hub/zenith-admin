@@ -3,14 +3,14 @@ import { eq, like, and, sql, desc } from 'drizzle-orm';
 import { db } from '../db';
 import { systemConfigs } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
-import type { JwtPayload } from '../middleware/auth';
+import type { AuthEnv } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { exportToExcel } from '../lib/excel-export';
 import { getPasswordPolicy } from '../lib/password-policy';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { apiResponse, ErrorResponse, MessageResponse, paginatedResponse, jsonContent , validationHook } from '../lib/openapi-schemas';
 
-const systemConfigsRoute = new OpenAPIHono<{ Variables: { user: JwtPayload } }>({ defaultHook: validationHook });
+const systemConfigsRoute = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 const configTypeValues = ['string', 'number', 'boolean', 'json'] as const;
 
 // ─── Schemas ───────────────────────────────────────────────────────────────

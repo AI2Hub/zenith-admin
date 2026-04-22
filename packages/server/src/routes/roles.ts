@@ -3,7 +3,7 @@ import { eq, and, like, or, gte, lte } from 'drizzle-orm';
 import { db } from '../db';
 import { roles, roleMenus, userRoles, users } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
-import type { JwtPayload } from '../middleware/auth';
+import type { AuthEnv } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { clearUserPermissionCache } from '../lib/permissions';
 import { exportToExcel } from '../lib/excel-export';
@@ -11,7 +11,7 @@ import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { createRoleSchema, updateRoleSchema, assignRoleMenusSchema, assignRoleUsersSchema } from '@zenith/shared';
 import { apiResponse, ErrorResponse, MessageResponse, jsonContent , validationHook } from '../lib/openapi-schemas';
 
-const rolesRouter = new OpenAPIHono<{ Variables: { user: JwtPayload } }>({ defaultHook: validationHook });
+const rolesRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 rolesRouter.use('*', authMiddleware);
 
 function toRole(row: typeof roles.$inferSelect, menuIds?: number[]) {

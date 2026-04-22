@@ -201,7 +201,7 @@ app.openAPIRegistry.registerComponent('securitySchemes', 'BearerAuth', {
   bearerFormat: 'JWT',
   description: '登录后获取的 accessToken，格式：`Bearer <token>`',
 });
-app.doc('/api/openapi.json', {
+app.doc('/api/openapi.json', (c) => ({
   openapi: '3.1.0',
   info: {
     title: 'Zenith Admin API',
@@ -212,8 +212,10 @@ app.doc('/api/openapi.json', {
       '所有接口的成功响应格式为 `{ code: 0, message: "success", data: T }`，' +
       '失败时 `code` 为非零值。',
   },
-  servers: [{ url: '/', description: '当前服务器' }],
-});
+  servers: [{ url: new URL(c.req.url).origin, description: '当前服务器' }],
+  // 全局默认安全方案，公开接口通过 security: [] 单独覆盖
+  security: [{ BearerAuth: [] }],
+}));
 app.get('/api/docs', swaggerUI({ url: '/api/openapi.json' }));
 
 // 全局未捕获异常处理—统一返回标准错误格式

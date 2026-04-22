@@ -3,12 +3,12 @@ import { eq, and, ilike, or, count } from 'drizzle-orm';
 import { db } from '../db';
 import { messageTemplates } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
-import type { JwtPayload } from '../middleware/auth';
+import type { AuthEnv } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { previewMessageTemplateSchema } from '@zenith/shared';
 import { apiResponse, ErrorResponse, MessageResponse, paginatedResponse, jsonContent , validationHook } from '../lib/openapi-schemas';
 
-const messageTemplatesRouter = new OpenAPIHono<{ Variables: { user: JwtPayload } }>({ defaultHook: validationHook });
+const messageTemplatesRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 messageTemplatesRouter.use('*', authMiddleware);
 
 function toMessageTemplate(row: typeof messageTemplates.$inferSelect) {

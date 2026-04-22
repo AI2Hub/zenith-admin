@@ -5,7 +5,7 @@ import ExcelJS from 'exceljs';
 import { db } from '../db';
 import { users, userRoles, roles, departments, positions, userPositions } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
-import type { JwtPayload } from '../middleware/auth';
+import type { AuthEnv, JwtPayload } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
 import { clearUserPermissionCache } from '../lib/permissions';
 import { exportToExcel } from '../lib/excel-export';
@@ -16,7 +16,7 @@ import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import type { Role, Position, User } from '@zenith/shared';
 import { apiResponse, ErrorResponse, MessageResponse, PaginationQuery, paginatedResponse, jsonContent, validationHook } from '../lib/openapi-schemas';
 
-const usersRouter = new OpenAPIHono<{ Variables: { user: JwtPayload } }>({ defaultHook: validationHook });
+const usersRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 usersRouter.use('*', authMiddleware);
 
 // DTOs

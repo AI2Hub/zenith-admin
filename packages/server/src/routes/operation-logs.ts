@@ -3,13 +3,13 @@ import { desc, like, and, gte, lte, sql, eq } from 'drizzle-orm';
 import { db } from '../db';
 import { operationLogs } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
-import type { JwtPayload } from '../middleware/auth';
+import type { AuthEnv } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition } from '../lib/tenant';
 import { apiResponse, paginatedResponse, jsonContent , validationHook } from '../lib/openapi-schemas';
 
-const operationLogsRoute = new OpenAPIHono<{ Variables: { user: JwtPayload } }>({ defaultHook: validationHook });
+const operationLogsRoute = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 
 operationLogsRoute.use('/*', authMiddleware);
 

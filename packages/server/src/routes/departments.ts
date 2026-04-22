@@ -3,7 +3,7 @@ import { asc, eq, and } from 'drizzle-orm';
 import { db } from '../db';
 import { departments, users } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
-import type { JwtPayload } from '../middleware/auth';
+import type { AuthEnv } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { exportToExcel } from '../lib/excel-export';
 import type { Department } from '@zenith/shared';
@@ -11,7 +11,7 @@ import { createDepartmentSchema, updateDepartmentSchema } from '@zenith/shared';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { apiResponse, ErrorResponse, MessageResponse, jsonContent , validationHook } from '../lib/openapi-schemas';
 
-const departmentsRouter = new OpenAPIHono<{ Variables: { user: JwtPayload } }>({ defaultHook: validationHook });
+const departmentsRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 departmentsRouter.use('*', authMiddleware);
 
 const DepartmentDTO = z.looseObject({}).openapi('Department');
