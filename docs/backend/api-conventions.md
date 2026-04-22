@@ -70,24 +70,34 @@ const user = c.get('user'); // JwtPayload
 推荐写法：
 
 ```typescript
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { AuthEnv } from '../middleware/auth';
+import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { authMiddleware } from '../middleware/auth';
+import { guard } from '../middleware/guard';
 import { apiResponse, paginatedResponse, jsonContent, MessageResponse, ErrorResponse, PaginationQuery, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
 
-const xxxRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
+// 不使用 <AuthEnv> 泛型，不添加全局 use('*', authMiddleware)
+const xxxRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-// 路由内通过 c.req.valid() 取已验证的类型安全数据
-xxxRouter.openapi(createRoute({
-  method: 'post', path: '/',
-  request: { body: { content: jsonContent(createXxxSchema), required: true } },
-  responses: {
-    ...commonErrorResponses,
-    200: { content: jsonContent(apiResponse(XxxDTO)), description: 'ok' },
+// 每个路由定义为命名常量，middleware 中显式声明 authMiddleware
+const createXxxRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:xxx:create', audit: { description: '创建XXX', module: 'XXX管理' } })] as const,
+    request: { body: { content: jsonContent(createXxxSchema), required: true } },
+    responses: {
+      ...commonErrorResponses,
+      200: { content: jsonContent(apiResponse(XxxDTO)), description: 'ok' },
+    },
+  }),
+  handler: async (c) => {
+    const data = c.req.valid('json');  // 类型安全，已验证
+    // ...
   },
-}), async (c) => {
-  const data = c.req.valid('json');  // 类型安全，已验证
-  // ...
 });
+
+// 收集所有路由常量，统一注册（放在 export 之前）
+xxxRouter.openapiRoutes([createXxxRoute, /* 其他路由 */] as const);
 ```
 
 > `validationHook` 将 Zod 校验失败自动转为 `{ code: 400, message, data: null }` 标准格式，**创建 `OpenAPIHono` 实例时必须传入 `{ defaultHook: validationHook }`**。`commonErrorResponses` 已包含 400/401/403/404/500 标准错误码，所有路由的 `responses:` 块均需通过 `...commonErrorResponses` 展开。Zod schema 可直接从 `@zenith/shared/src/validation.ts` 导入（shared 已升级至 Zod v4），或在路由文件内本地声明。共享的辅助类型与工具函数位于 `packages/server/src/lib/openapi-schemas.ts`。
@@ -99,13 +109,16 @@ xxxRouter.openapi(createRoute({
 ```typescript
 import { UserDTO, RoleDTO, MenuDTO } from '../lib/openapi-dtos';
 
-xxxRouter.openapi(createRoute({
-  // ...
-  responses: {
-    ...commonErrorResponses,
-    200: { content: jsonContent(apiResponse(UserDTO)), description: 'ok' },
-  },
-}), handler);
+const listXxxRoute = defineOpenAPIRoute({
+  route: createRoute({
+    // ...
+    responses: {
+      ...commonErrorResponses,
+      200: { content: jsonContent(apiResponse(UserDTO)), description: 'ok' },
+    },
+  }),
+  handler: async (c) => { /* ... */ },
+});
 ```
 
 **约束：**
