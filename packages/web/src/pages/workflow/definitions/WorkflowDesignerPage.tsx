@@ -278,9 +278,9 @@ export default function WorkflowDesignerPage() {
 
   // 加载用户列表（用于审批人选择）
   useEffect(() => {
-    request.get<{ list: UserOption[] }>('/api/users?page=1&pageSize=200').then(res => {
-      if (res.code === 0 && res.data?.list) {
-        setUsers(res.data.list);
+    request.get<UserOption[]>('/api/users/all').then(res => {
+      if (res.code === 0 && res.data) {
+        setUsers(res.data);
       }
     });
   }, []);

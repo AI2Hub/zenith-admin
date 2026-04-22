@@ -150,10 +150,10 @@ export default function RolesPage() {
     setUserModalLoading(true);
     try {
       const [usersRes, assignedRes] = await Promise.all([
-        request.get<{ list: User[] }>('/api/users?page=1&pageSize=1000'),
+        request.get<User[]>('/api/users/all'),
         request.get<User[]>(`/api/roles/${role.id}/users`),
       ]);
-      if (usersRes.code === 0) setAllUsers(usersRes.data.list);
+      if (usersRes.code === 0) setAllUsers(usersRes.data);
       if (assignedRes.code === 0) setAssignedUserIds(assignedRes.data.map((u) => u.id));
     } finally {
       setUserModalLoading(false);

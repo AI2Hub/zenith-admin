@@ -105,14 +105,14 @@ export default function WorkflowDesignerPage() {
   }, [id, isNew]);
 
   useEffect(() => {
-    request.get<{ list: UserOption[] }>('/api/users?page=1&pageSize=200').then(res => {
-      if (res.code === 0 && res.data?.list) {
-        setUsers(res.data.list);
+    request.get<UserOption[]>('/api/users/all').then(res => {
+      if (res.code === 0 && res.data) {
+        setUsers(res.data);
       }
     });
-    request.get<{ list: RoleOption[] }>('/api/roles?page=1&pageSize=200').then(res => {
-      if (res.code === 0 && res.data?.list) {
-        setRoles(res.data.list);
+    request.get<RoleOption[]>('/api/roles/all').then(res => {
+      if (res.code === 0 && res.data) {
+        setRoles(res.data);
       }
     });
   }, []);

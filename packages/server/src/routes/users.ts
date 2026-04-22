@@ -178,6 +178,36 @@ async function toPublicUsers(rows: UserListRow[]): Promise<User[]> {
   });
 }
 
+// GET /all  全量用户（供下拉框）
+usersRouter.openapi(createRoute({
+  method: 'get', path: '/all',
+  tags: ['Users'], summary: '全量用户（供下拉框）',
+  security: [{ BearerAuth: [] }],
+  middleware: [guard({ permission: 'system:user:list' })] as const,
+  request: {},
+  responses: {
+    ...commonErrorResponses,
+    200: { content: jsonContent(apiResponse(z.array(UserDTO))), description: '全量用户' },
+  },
+}), async (c) => {
+  const payload = c.get('user');
+  const tc = tenantCondition(users, payload);
+  const list = await db
+    .select({
+      id: users.id, username: users.username, nickname: users.nickname, email: users.email,
+      phone: users.phone, avatar: users.avatar,
+      departmentId: users.departmentId, departmentName: departments.name,
+      status: users.status, passwordUpdatedAt: users.passwordUpdatedAt,
+      createdAt: users.createdAt, updatedAt: users.updatedAt,
+    })
+    .from(users)
+    .leftJoin(departments, eq(users.departmentId, departments.id))
+    .where(tc)
+    .orderBy(users.id);
+  const publicUsers = await toPublicUsers(list);
+  return c.json({ code: 0 as const, message: 'ok', data: publicUsers }, 200);
+});
+
 // GET /
 usersRouter.openapi(createRoute({
   method: 'get', path: '/',

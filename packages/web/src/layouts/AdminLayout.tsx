@@ -210,8 +210,8 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
 
   useEffect(() => {
     if (isPlatformAdmin) {
-      request.get<{ list: Tenant[] }>('/api/tenants?page=1&pageSize=1000&status=active', { silent: true }).then((res) => {
-        if (res.code === 0 && res.data) setTenantList(res.data.list);
+      request.get<Tenant[]>('/api/tenants/all', { silent: true }).then((res) => {
+        if (res.code === 0 && res.data) setTenantList(res.data.filter((t) => t.status === 'active'));
       });
     }
   }, [isPlatformAdmin]);
