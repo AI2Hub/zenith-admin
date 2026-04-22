@@ -112,20 +112,24 @@ Redis key 规范：
 
 ---
 
-## 请求防护（Body Limit & Timeout）
+## 请求防护（Body Limit & Timeout & CSRF & 限流）
 
-服务端基于 Hono 官方 `hono/body-limit` 与 `hono/timeout` 提供可选的请求防护，**默认均不启用**，通过环境变量控制：
+服务端提供多层可选请求防护，通过环境变量控制：
 
 ```env
-# 请求体大小上限（字节），0 = 不限制
+# 请求体大小上限（字节），0 = 不限制（使用运行时默认）
 REQUEST_BODY_LIMIT=0
 # 请求超时（毫秒），0 = 不启用
 REQUEST_TIMEOUT_MS=0
+# CSRF 允许来源白名单，逗号分隔，留空 = 开发模式不限制
+ALLOWED_ORIGINS=
 ```
 
 - `bodyLimit` 作用于全局所有请求，超出返回 `{ code: 413, message: '请求体超出大小限制' }`。
-- `timeout` 仅作用于 `/api/*`，并自动排除长耗时路径：`/api/ws`、`/api/files`、`/api/db-backups` 及所有以 `/export` 结尾的导出接口。超时返回 `{ code: 408, message: '请求处理超时（Xms）' }`。
-- 实现位置：`packages/server/src/index.ts`，挂载逻辑条件性生效。
+- `timeout` 仅作用于 `/api/*`，使用 `hono/combine` 的 `except()` 自动排除长耗时路径：`/api/ws`、`/api/files`、`/api/db-backups` 及所有以 `/export` 结尾的导出接口。超时返回 `{ code: 408, message: '请求处理超时（Xms）' }`。
+- `hono/csrf` 校验请求的 `Origin` 头。`ALLOWED_ORIGINS` 为空时（开发模式）不限制；无 `Origin` 头的请求（curl/Postman/服务端）直接放行；Origin 不在白名单中返回 403。
+- **接口级限流**（`hono-rate-limiter` + Redis）对高危认证接口限制请求频率，超限返回 `{ code: 429, message: '...' }`，计数器存储于 Redis，key 格式：`{prefix}rl:{ip}`。限流配置见 `packages/server/src/middleware/rate-limit.ts`。
+- 实现位置：`packages/server/src/index.ts`（全局），`packages/server/src/middleware/rate-limit.ts`（限流）。
 
 ---
 

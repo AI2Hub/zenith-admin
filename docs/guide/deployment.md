@@ -63,12 +63,16 @@ LOG_DIR=./logs
 # 请求超时（毫秒），0 = 不启用。启用后自动排除 /api/ws、/api/files、/api/db-backups 及 /export 接口
 # REQUEST_TIMEOUT_MS=30000
 
+# CSRF 防护（生产环境强烈建议配置，防止跨站请求伪造）
+# 逗号分隔的允许来源，留空则不限制（开发模式）
+ALLOWED_ORIGINS=https://your-domain.com
+
 # CORS（生产环境务必收紧，指定前端域名）
 # CORS_ORIGIN=https://your-domain.com
 ```
 
 ::: warning 安全提示
-生产环境务必使用强随机字符串作为 `JWT_SECRET`，并通过 `CORS_ORIGIN` 限制允许的前端来源，不要保留默认的"允许所有来源"配置。
+生产环境务必使用强随机字符串作为 `JWT_SECRET`，并通过 `ALLOWED_ORIGINS` 限制允许的前端来源（CSRF 防护），不要保留默认的"允许所有来源"配置。
 :::
 
 ### 3. 初始化数据库
