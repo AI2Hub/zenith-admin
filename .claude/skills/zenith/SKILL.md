@@ -272,11 +272,12 @@ npm run db:migrate
 - 时间字段序列化为 `string`（ISO 格式）
 
 **Step 5** — `packages/server/src/routes/xxx.ts`：创建 OpenAPIHono Router
+- 使用 `new OpenAPIHono<Env>({ defaultHook: validationHook })` 初始化（`validationHook` 从 `../lib/openapi-schemas` 导入），确保 Zod 校验失败时返回标准 `{ code: 400, message, data: null }` 格式
 - `use('*', authMiddleware)` 保护所有路由
 - 使用 `OpenAPIHono + createRoute` 实现标准 5 个端点：`GET /`（list+分页）、`POST /`（create）、`PUT /{id}`（update）、`DELETE /{id}`（delete）、`GET /{id}`（可选，详情）
 - 路径风格用 `/{id}` 而非 `/:id`（OpenAPI 规范）
 - 每个写操作在 `middleware: [guard({ permission, audit })] as const` 中包裹
-- Schema 在路由文件内本地用 Zod v4 重新声明（**不从 `@zenith/shared` 导入**，因 shared 仍是 Zod v3）
+- Schema 可直接从 `@zenith/shared/src/validation.ts` 导入（shared 已升级至 Zod v4，与 `@hono/zod-openapi` 一致）；若需要 coerce 或特殊处理，可在路由文件内本地声明
 - DTO 响应使用 `z.looseObject({}).openapi('XxxName')` 作为不透明类型
 
 **Step 6** — `packages/server/src/index.ts`：注册路由

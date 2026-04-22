@@ -112,16 +112,18 @@ import type { JwtPayload } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
 import {
   apiResponse, paginatedResponse, jsonContent,
-  PaginationQuery, MessageResponse, ErrorResponse,
+  PaginationQuery, MessageResponse, ErrorResponse, validationHook,
 } from '../lib/openapi-schemas';
+// 可直接从 @zenith/shared 导入（shared 已升级至 Zod v4）
+// import { createXxxSchema, updateXxxSchema } from '@zenith/shared';
 
-const xxxRouter = new OpenAPIHono<{ Variables: { user: JwtPayload } }>();
+const xxxRouter = new OpenAPIHono<{ Variables: { user: JwtPayload } }>({ defaultHook: validationHook });
 xxxRouter.use('*', authMiddleware);
 
 // 不透明 DTO（避免严格字段类型）
 const XxxDTO = z.looseObject({}).openapi('Xxx');
 
-// 本地 Zod v4 Schema（不要从 @zenith/shared 导入，共享包仍为 Zod v3）
+// 若 @zenith/shared 中的 schema 不满足需求（如需 coerce），可在本地声明
 const createXxxSchema = z.object({
   name: z.string().min(1).max(64),
   description: z.string().max(256).optional(),

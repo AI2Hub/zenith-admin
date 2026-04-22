@@ -113,7 +113,7 @@
 ### 数据规范
 
 - 列表接口统一返回分页结构 `{ list, total, page, pageSize }`
-- 参数通过 `zValidate` 中间件（`@hono/zod-validator`）自动校验，结果注入 `c.req.valid()`
+- 路由使用 `@hono/zod-openapi`（`OpenAPIHono + createRoute`）自动校验请求参数，校验失败由 `validationHook` 统一转为 `{ code: 400, message, data: null }`，结果注入 `c.req.valid()`
 - 统一响应格式 `{ code, message, data }`
 - Zod Schema 前后端共享，避免重复定义
 

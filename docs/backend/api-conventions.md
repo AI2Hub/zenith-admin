@@ -71,9 +71,9 @@ const user = c.get('user'); // JwtPayload
 
 ```typescript
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { apiResponse, paginatedResponse, jsonContent, MessageResponse, ErrorResponse, PaginationQuery } from '../lib/openapi-schemas';
+import { apiResponse, paginatedResponse, jsonContent, MessageResponse, ErrorResponse, PaginationQuery, validationHook } from '../lib/openapi-schemas';
 
-const xxxRouter = new OpenAPIHono<{ Variables: { user: JwtPayload } }>();
+const xxxRouter = new OpenAPIHono<{ Variables: { user: JwtPayload } }>({ defaultHook: validationHook });
 
 // 路由内通过 c.req.valid() 取已验证的类型安全数据
 xxxRouter.openapi(createRoute({
@@ -86,7 +86,7 @@ xxxRouter.openapi(createRoute({
 });
 ```
 
-> 路由文件内本地用 **Zod v4** 重新声明所需的 schema（`@zenith/shared` 中的 schema 是 Zod v3，不可直接用于 `createRoute`）。共享的辅助类型内廾在 `packages/server/src/lib/openapi-schemas.ts`。
+> `validationHook` 将 Zod 校验失败自动转为 `{ code: 400, message, data: null }` 标准格式，**创建 `OpenAPIHono` 实例时必须传入 `{ defaultHook: validationHook }`**。Zod schema 可直接从 `@zenith/shared/src/validation.ts` 导入（shared 已升级至 Zod v4），或在路由文件内本地声明。共享的辅助类型与工具函数位于 `packages/server/src/lib/openapi-schemas.ts`。
 
 ## 常用错误码
 
