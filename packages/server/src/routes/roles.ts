@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { eq, and, like, or, gte, lte } from 'drizzle-orm';
+import { eq, and, like, or, gte, lte, sql } from 'drizzle-orm';
 import { db } from '../db';
 import { roles, roleMenus, userRoles, users } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
@@ -9,7 +9,7 @@ import { clearUserPermissionCache } from '../lib/permissions';
 import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { createRoleSchema, updateRoleSchema, assignRoleMenusSchema, assignRoleUsersSchema } from '@zenith/shared';
-import { apiResponse, ErrorResponse, MessageResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { apiResponse, paginatedResponse, ErrorResponse, MessageResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
 
 const rolesRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
 rolesRouter.use('*', authMiddleware);
@@ -41,16 +41,19 @@ const listRoute = createRoute({
       status: z.enum(['active', 'disabled']).optional(),
       startTime: z.string().optional(),
       endTime: z.string().optional(),
+      page: z.coerce.number().optional().default(1),
+      pageSize: z.coerce.number().optional().default(10),
     }),
   },
   responses: {
     ...commonErrorResponses,
-    200: { content: jsonContent(apiResponse(z.array(RoleDTO))), description: '角色列表' },
+    200: { content: jsonContent(paginatedResponse(RoleDTO)), description: '角色列表' },
   },
 });
 
 rolesRouter.openapi(listRoute, async (c) => {
   const q = c.req.valid('query');
+  const { page = 1, pageSize = 10 } = q;
   const conditions = [];
   if (q.keyword) {
     conditions.push(or(like(roles.name, `%${q.keyword}%`), like(roles.code, `%${q.keyword}%`)));
@@ -63,9 +66,10 @@ rolesRouter.openapi(listRoute, async (c) => {
   const user = c.get('user');
   const tc = tenantCondition(roles, user);
   const finalWhere = where && tc ? and(where, tc) : (tc ?? where);
-  const list = await db.select().from(roles).where(finalWhere).orderBy(roles.id);
+  const [{ total }] = await db.select({ total: sql<number>`cast(count(*) as integer)` }).from(roles).where(finalWhere);
+  const list = await db.select().from(roles).where(finalWhere).orderBy(roles.id).limit(pageSize).offset((page - 1) * pageSize);
 
-  return c.json({ code: 0 as const, message: 'ok', data: list.map((r) => toRole(r)) }, 200);
+  return c.json({ code: 0 as const, message: 'ok', data: { list: list.map((r) => toRole(r)), total, page, pageSize } }, 200);
 });
 
 const getOneRoute = createRoute({

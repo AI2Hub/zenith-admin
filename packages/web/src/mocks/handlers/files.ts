@@ -70,9 +70,19 @@ export const filesHandlers = [
 
   // ─── 文件存储配置 ───────────────────────────────────────────────────────────
 
-  // 存储配置列表
-  http.get('/api/file-storage-configs', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: mockFileStorageConfigs });
+  // 存储配置列表（支持服务端分页）
+  http.get('/api/file-storage-configs', ({ request }) => {
+    const url = new URL(request.url);
+    const status = url.searchParams.get('status') ?? '';
+    const page = Number(url.searchParams.get('page') ?? '1');
+    const pageSize = Number(url.searchParams.get('pageSize') ?? '10');
+    const filtered = mockFileStorageConfigs.filter((c) => {
+      if (status && c.status !== status) return false;
+      return true;
+    });
+    const total = filtered.length;
+    const list = filtered.slice((page - 1) * pageSize, page * pageSize);
+    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
   }),
 
   // 获取单个存储配置

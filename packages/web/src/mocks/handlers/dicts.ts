@@ -3,22 +3,26 @@ import { mockDicts, mockDictItems, getNextDictId, getNextDictItemId } from '@/mo
 import type { Dict, DictItem } from '@zenith/shared';
 
 export const dictsHandlers = [
-  // 字典列表（DictsPage 期望平铺数组）
+  // 字典列表（支持服务端分页）
   http.get('/api/dicts', ({ request }) => {
     const url = new URL(request.url);
     const keyword = url.searchParams.get('keyword') ?? '';
     const status = url.searchParams.get('status') ?? '';
     const startDate = url.searchParams.get('startDate') ?? '';
     const endDate = url.searchParams.get('endDate') ?? '';
+    const page = Number(url.searchParams.get('page') ?? '1');
+    const pageSize = Number(url.searchParams.get('pageSize') ?? '10');
 
-    const list = mockDicts.filter((d) => {
+    const filtered = mockDicts.filter((d) => {
       if (keyword && !d.name.includes(keyword) && !d.code.includes(keyword)) return false;
       if (status && d.status !== status) return false;
       if (startDate && d.createdAt < startDate) return false;
       if (endDate && d.createdAt > `${endDate}T23:59:59.999Z`) return false;
       return true;
     });
-    return HttpResponse.json({ code: 0, message: 'ok', data: list });
+    const total = filtered.length;
+    const list = filtered.slice((page - 1) * pageSize, page * pageSize);
+    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
   }),
 
   // 获取单个字典

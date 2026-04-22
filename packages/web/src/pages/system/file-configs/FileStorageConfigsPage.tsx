@@ -18,6 +18,7 @@ import type {
   CreateFileStorageConfigInput,
   FileStorageConfig,
   FileStorageProvider,
+  PaginatedResponse,
   UpdateFileStorageConfigInput,
 } from '@zenith/shared';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -118,12 +119,15 @@ export default function FileStorageConfigsPage() {
   const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingConfig, setEditingConfig] = useState<FileStorageConfig | null>(null);
   const [formProvider, setFormProvider] = useState<FileStorageProvider>('local');
   const [formIsDefault, setFormIsDefault] = useState(false);
 
-  const fetchConfigs = useCallback(async (params = searchParams) => {
+  const fetchConfigs = useCallback(async (params = searchParams, p = page, ps = pageSize) => {
     setLoading(true);
     try {
       const query = new URLSearchParams({
@@ -134,28 +138,33 @@ export default function FileStorageConfigsPage() {
             endTime: params.timeRange[1].toISOString(),
           }
           : {}),
+        page: String(p),
+        pageSize: String(ps),
       }).toString();
       const url = query ? `/api/file-storage-configs?${query}` : '/api/file-storage-configs';
-      const res = await request.get<FileStorageConfig[]>(url);
+      const res = await request.get<PaginatedResponse<FileStorageConfig>>(url);
       if (res.code === 0) {
-        setConfigs(res.data);
+        setConfigs(res.data.list);
+        setTotal(res.data.total);
       }
     } finally {
       setLoading(false);
     }
-  }, [searchParams]);
+  }, [searchParams, page, pageSize]);
 
   useEffect(() => {
     void fetchConfigs();
   }, [fetchConfigs]);
 
   const handleSearch = () => {
-    void fetchConfigs();
+    setPage(1);
+    void fetchConfigs(searchParams, 1, pageSize);
   };
 
   const handleReset = () => {
+    setPage(1);
     setSearchParams(defaultSearchParams);
-    void fetchConfigs(defaultSearchParams);
+    void fetchConfigs(defaultSearchParams, 1, pageSize);
   };
 
   const openCreate = () => {
@@ -379,7 +388,14 @@ export default function FileStorageConfigsPage() {
         dataSource={configs}
         rowKey="id"
         loading={loading}
-        pagination={{ pageSize: 10, showSizeChanger: true }}
+        pagination={{
+          currentPage: page,
+          pageSize,
+          total,
+          onPageChange: (p) => { setPage(p); void fetchConfigs(searchParams, p, pageSize); },
+          onPageSizeChange: (s) => { setPage(1); setPageSize(s); void fetchConfigs(searchParams, 1, s); },
+          showSizeChanger: true,
+        }}
         size="small"
       />
 

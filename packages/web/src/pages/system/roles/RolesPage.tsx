@@ -15,7 +15,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Plus, RotateCcw, Download } from 'lucide-react';
-import type { Role, Menu, User } from '@zenith/shared';
+import type { Role, Menu, User, PaginatedResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTime } from '@/utils/date';
@@ -39,6 +39,9 @@ export default function RolesPage() {
   const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [menuModalVisible, setMenuModalVisible] = useState(false);
@@ -56,7 +59,7 @@ export default function RolesPage() {
   const [dataScopeRole, setDataScopeRole] = useState<Role | null>(null);
   const [selectedDataScope, setSelectedDataScope] = useState<string>('all');
 
-  const fetchRoles = useCallback(async (params = searchParams) => {
+  const fetchRoles = useCallback(async (params = searchParams, p = page, ps = pageSize) => {
     setLoading(true);
     try {
       const query = new URLSearchParams({
@@ -68,24 +71,31 @@ export default function RolesPage() {
             endTime: params.timeRange[1].toISOString(),
           }
           : {}),
+        page: String(p),
+        pageSize: String(ps),
       }).toString();
       const url = query ? `/api/roles?${query}` : '/api/roles';
-      const res = await request.get<Role[]>(url);
-      if (res.code === 0) setData(res.data);
+      const res = await request.get<PaginatedResponse<Role>>(url);
+      if (res.code === 0) {
+        setData(res.data.list);
+        setTotal(res.data.total);
+      }
     } finally {
       setLoading(false);
     }
-  }, [searchParams]);
+  }, [searchParams, page, pageSize]);
 
   useEffect(() => { void fetchRoles(); }, [fetchRoles]);
 
   function handleSearch() {
-    void fetchRoles();
+    setPage(1);
+    void fetchRoles(searchParams, 1, pageSize);
   }
 
   function handleReset() {
+    setPage(1);
     setSearchParams(defaultSearchParams);
-    void fetchRoles(defaultSearchParams);
+    void fetchRoles(defaultSearchParams, 1, pageSize);
   }
 
   // 拉取菜单树（用于分配权限）
@@ -313,7 +323,14 @@ export default function RolesPage() {
         dataSource={data}
         rowKey="id"
         loading={loading}
-        pagination={{ pageSize: 10, showSizeChanger: true }}
+        pagination={{
+          currentPage: page,
+          pageSize,
+          total,
+          onPageChange: (p) => { setPage(p); void fetchRoles(searchParams, p, pageSize); },
+          onPageSizeChange: (s) => { setPage(1); setPageSize(s); void fetchRoles(searchParams, 1, s); },
+          showSizeChanger: true,
+        }}
       />
 
       {/* 创建/编辑 Modal */}

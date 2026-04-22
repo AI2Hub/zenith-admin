@@ -1,11 +1,11 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { asc, desc, eq, count, and, gte, lte } from 'drizzle-orm';
+import { asc, desc, eq, count, and, gte, lte, sql } from 'drizzle-orm';
 import { db } from '../db';
 import { fileStorageConfigs, managedFiles } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { createFileStorageConfigSchema as _createSchema, updateFileStorageConfigSchema as _updateSchema } from '@zenith/shared';
-import { apiResponse, ErrorResponse, MessageResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { apiResponse, paginatedResponse, ErrorResponse, MessageResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
 
 const fileStorageConfigsRouter = new OpenAPIHono({ defaultHook: validationHook });
 fileStorageConfigsRouter.use('*', authMiddleware);
@@ -89,21 +89,22 @@ const listRoute = createRoute({
   summary: '存储配置列表',
   security: [{ BearerAuth: [] }],
   middleware: [guard({ permission: 'system:file:config' })] as const,
-  request: { query: z.object({ status: z.string().optional(), startTime: z.string().optional(), endTime: z.string().optional() }) },
+  request: { query: z.object({ status: z.string().optional(), startTime: z.string().optional(), endTime: z.string().optional(), page: z.coerce.number().optional().default(1), pageSize: z.coerce.number().optional().default(10) }) },
   responses: {
     ...commonErrorResponses,
-    200: { content: jsonContent(apiResponse(z.array(FileStorageConfigDTO))), description: 'ok' },
+    200: { content: jsonContent(paginatedResponse(FileStorageConfigDTO)), description: 'ok' },
   },
 });
 fileStorageConfigsRouter.openapi(listRoute, async (c) => {
-  const { status, startTime, endTime } = c.req.valid('query');
+  const { status, startTime, endTime, page = 1, pageSize = 10 } = c.req.valid('query');
   const conditions = [];
   if (status === 'active' || status === 'disabled') conditions.push(eq(fileStorageConfigs.status, status));
   if (startTime) conditions.push(gte(fileStorageConfigs.updatedAt, new Date(startTime)));
   if (endTime) conditions.push(lte(fileStorageConfigs.updatedAt, new Date(endTime)));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
-  const list = await db.select().from(fileStorageConfigs).where(where).orderBy(desc(fileStorageConfigs.isDefault), asc(fileStorageConfigs.id));
-  return c.json({ code: 0 as const, message: 'ok', data: list.map(toFileStorageConfig) }, 200);
+  const [{ total }] = await db.select({ total: sql<number>`cast(count(*) as integer)` }).from(fileStorageConfigs).where(where);
+  const list = await db.select().from(fileStorageConfigs).where(where).orderBy(desc(fileStorageConfigs.isDefault), asc(fileStorageConfigs.id)).limit(pageSize).offset((page - 1) * pageSize);
+  return c.json({ code: 0 as const, message: 'ok', data: { list: list.map(toFileStorageConfig), total, page, pageSize } }, 200);
 });
 
 // GET /default

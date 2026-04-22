@@ -14,7 +14,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Plus, List, RotateCcw, Download } from 'lucide-react';
-import type { Dict, DictItem } from '@zenith/shared';
+import type { Dict, DictItem, PaginatedResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTime } from '@/utils/date';
@@ -38,8 +38,9 @@ export default function DictsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [submittedStatus, setSubmittedStatus] = useState('');
   const [timeRange, setTimeRange] = useState<[Date, Date] | null>(null);
-  const [submittedTimeRange, setSubmittedTimeRange] = useState<[Date, Date] | null>(null);
-  const [dictModalVisible, setDictModalVisible] = useState(false);
+  const [submittedTimeRange, setSubmittedTimeRange] = useState<[Date, Date] | null>(null);  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);  const [dictModalVisible, setDictModalVisible] = useState(false);
   const [editingDict, setEditingDict] = useState<Dict | null>(null);
 
   // ─── 字典项列表 ────────────────────────────────────────────────────────────
@@ -64,10 +65,13 @@ export default function DictsPage() {
         params.set('startDate', submittedTimeRange[0].toISOString().slice(0, 10));
         params.set('endDate', submittedTimeRange[1].toISOString().slice(0, 10));
       }
-      const res = await request.get<Dict[]>(`/api/dicts?${params.toString()}`);
+      params.set('page', String(page));
+      params.set('pageSize', String(pageSize));
+      const res = await request.get<PaginatedResponse<Dict>>(`/api/dicts?${params.toString()}`);
       if (res.code === 0) {
-        setDicts(res.data);
-        if (selectedDict && !res.data.some((d) => d.id === selectedDict.id)) {
+        setDicts(res.data.list);
+        setTotal(res.data.total);
+        if (selectedDict && !res.data.list.some((d) => d.id === selectedDict.id)) {
           setSelectedDict(null);
           setItems([]);
         }
@@ -75,7 +79,7 @@ export default function DictsPage() {
     } finally {
       setDictsLoading(false);
     }
-  }, [submittedKeyword, submittedStatus, submittedTimeRange, selectedDict]);
+  }, [submittedKeyword, submittedStatus, submittedTimeRange, selectedDict, page, pageSize]);
 
   const fetchItems = useCallback(async (dictId: number) => {
     setItemsLoading(true);
@@ -90,12 +94,14 @@ export default function DictsPage() {
   useEffect(() => { fetchDicts(); }, [fetchDicts]);
 
   function handleSearch() {
+    setPage(1);
     setSubmittedKeyword(keyword);
     setSubmittedStatus(statusFilter);
     setSubmittedTimeRange(timeRange);
   }
 
   function handleReset() {
+    setPage(1);
     setKeyword('');
     setSubmittedKeyword('');
     setStatusFilter('');
@@ -322,7 +328,14 @@ export default function DictsPage() {
         dataSource={dicts}
         rowKey="id"
         loading={dictsLoading}
-        pagination={{ pageSize: 10, showSizeChanger: true }}
+        pagination={{
+          currentPage: page,
+          pageSize,
+          total,
+          onPageChange: (p) => setPage(p),
+          onPageSizeChange: (s) => { setPage(1); setPageSize(s); },
+          showSizeChanger: true,
+        }}
         size="small"
         onRow={(row) => ({
           onClick: () => row && selectDict(row),

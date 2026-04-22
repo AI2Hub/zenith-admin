@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { eq, asc, and } from 'drizzle-orm';
+import { eq, asc, and, or, like, gte, lte, sql } from 'drizzle-orm';
 import { db } from '../db';
 import { dicts, dictItems } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
@@ -7,7 +7,7 @@ import type { AuthEnv } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
-import { apiResponse, ErrorResponse, MessageResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
+import { apiResponse, paginatedResponse, ErrorResponse, MessageResponse, jsonContent, validationHook, commonErrorResponses } from '../lib/openapi-schemas';
 import { createDictSchema, updateDictSchema, createDictItemSchema, updateDictItemSchema } from '@zenith/shared';
 
 const dictsRouter = new OpenAPIHono<AuthEnv>({ defaultHook: validationHook });
@@ -37,29 +37,32 @@ const listDictsRoute = createRoute({
   request: {
     query: z.object({
       keyword: z.string().optional(),
-      status: z.string().optional(),
+      status: z.enum(['active', 'disabled']).optional(),
       startDate: z.string().optional(),
       endDate: z.string().optional(),
+      page: z.coerce.number().optional().default(1),
+      pageSize: z.coerce.number().optional().default(10),
     }),
   },
   responses: {
     ...commonErrorResponses,
-    200: { content: jsonContent(apiResponse(z.array(DictDTO))), description: '字典列表' },
+    200: { content: jsonContent(paginatedResponse(DictDTO)), description: '字典列表' },
   },
 });
 
 dictsRouter.openapi(listDictsRoute, async (c) => {
-  const { keyword = '', status = '', startDate = '', endDate = '' } = c.req.valid('query');
+  const { keyword = '', status = '', startDate = '', endDate = '', page, pageSize } = c.req.valid('query');
+  const conditions = [];
+  if (keyword) conditions.push(or(like(dicts.name, `%${keyword}%`), like(dicts.code, `%${keyword}%`)));
+  if (status) conditions.push(eq(dicts.status, status));
+  if (startDate) conditions.push(gte(dicts.createdAt, new Date(startDate)));
+  if (endDate) conditions.push(lte(dicts.createdAt, new Date(`${endDate}T23:59:59.999Z`)));
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
   const tc = tenantCondition(dicts, c.get('user'));
-  const list = await db.select().from(dicts).where(tc).orderBy(dicts.id);
-  const filtered = list.filter((d) => {
-    if (keyword && !d.name.includes(keyword) && !d.code.includes(keyword)) return false;
-    if (status && d.status !== status) return false;
-    if (startDate && d.createdAt < new Date(startDate)) return false;
-    if (endDate && d.createdAt > new Date(`${endDate}T23:59:59.999Z`)) return false;
-    return true;
-  });
-  return c.json({ code: 0 as const, message: 'ok', data: filtered.map(toDict) }, 200);
+  const finalWhere = where && tc ? and(where, tc) : (tc ?? where);
+  const [{ total }] = await db.select({ total: sql<number>`cast(count(*) as integer)` }).from(dicts).where(finalWhere);
+  const list = await db.select().from(dicts).where(finalWhere).orderBy(dicts.id).limit(pageSize).offset((page - 1) * pageSize);
+  return c.json({ code: 0 as const, message: 'ok', data: { list: list.map(toDict), total, page, pageSize } }, 200);
 });
 
 const createDictRoute = createRoute({
