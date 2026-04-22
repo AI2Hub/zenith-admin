@@ -2,6 +2,8 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
 import { timing } from 'hono/timing';
+import { httpInstrumentationMiddleware } from '@hono/otel';
+import { prometheus } from '@hono/prometheus';
 import { compress } from 'hono/compress';
 import { secureHeaders } from 'hono/secure-headers';
 import { requestId } from 'hono/request-id';
@@ -49,11 +51,27 @@ import workflowInstancesRoutes from './routes/workflow-instances';
 import healthRoutes from './routes/health';
 import { createWsRoute } from './routes/ws';
 import { initCronScheduler } from './lib/cron-scheduler';
+import { initTelemetry } from './lib/telemetry';
+
+await initTelemetry();
 
 const app = new OpenAPIHono();
+const { printMetrics, registerMetrics } = prometheus({ collectDefaultMetrics: true });
 
 const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
 
+app.use('*', registerMetrics);
+if (config.otel.enabled) {
+  app.use(
+    '*',
+    httpInstrumentationMiddleware({
+      serviceName: config.otel.serviceName,
+      serviceVersion: config.otel.serviceVersion,
+      captureRequestHeaders: ['x-request-id', 'user-agent'],
+      captureResponseHeaders: ['x-request-id'],
+    }),
+  );
+}
 app.use('*', requestId());
 // AsyncLocalStorage 上下文（允许 currentUser()/getCtx() 在辅助函数中零参取值）
 app.use('*', contextStorage());
@@ -163,6 +181,7 @@ app.route('/api/workflows/definitions', workflowDefinitionsRoutes);
 app.route('/api/workflows', workflowInstancesRoutes);
 app.route('/api/ws', createWsRoute(upgradeWebSocket));
 app.route('/api/health', healthRoutes);
+app.get('/metrics', printMetrics);
 
 // API 文档（无需认证）
 app.openAPIRegistry.registerComponent('securitySchemes', 'BearerAuth', {

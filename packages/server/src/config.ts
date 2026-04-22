@@ -1,5 +1,8 @@
 import 'dotenv/config';
 
+const otelEnabledEnv = process.env.OTEL_ENABLED;
+const otelEndpoint = process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+
 export const config = {
   port: Number(process.env.PORT) || 3300,
   jwtSecret: process.env.JWT_SECRET || 'zenith-admin-secret',
@@ -28,6 +31,11 @@ export const config = {
     level: process.env.LOG_LEVEL || 'info',
     dir: process.env.LOG_DIR || 'logs',
     maxFiles: process.env.LOG_MAX_FILES || '30d',
+  },
+  otel: {
+    enabled: otelEnabledEnv === 'true' || (otelEnabledEnv !== 'false' && Boolean(otelEndpoint)),
+    serviceName: process.env.OTEL_SERVICE_NAME || 'zenith-admin-server',
+    serviceVersion: process.env.OTEL_SERVICE_VERSION || process.env.npm_package_version || 'unknown',
   },
   oauth: {
     github: {
