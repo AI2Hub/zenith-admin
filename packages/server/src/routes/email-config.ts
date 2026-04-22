@@ -101,12 +101,12 @@ const testRoute = createRoute({
 emailConfigRouter.openapi(testRoute, async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const toEmail = body?.email as string | undefined;
-  if (!toEmail || !toEmail.includes('@')) {
+  if (!toEmail?.includes('@')) {
     return c.json({ code: 400, message: '请提供有效的收件邮箱', data: null }, 400);
   }
 
   const [config] = await db.select().from(emailConfigs).limit(1);
-  if (!config || !config.smtpHost || !config.smtpUser) {
+  if (!config?.smtpHost || !config?.smtpUser) {
     return c.json({ code: 400, message: '请先完整配置SMTP信息', data: null }, 400);
   }
 
