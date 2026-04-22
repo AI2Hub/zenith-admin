@@ -7,6 +7,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import { requestId } from 'hono/request-id';
 import { bodyLimit } from 'hono/body-limit';
 import { timeout } from 'hono/timeout';
+import { except } from 'hono/combine';
 import { HTTPException } from 'hono/http-exception';
 import { contextStorage } from 'hono/context-storage';
 import { csrf } from 'hono/csrf';
@@ -104,9 +105,6 @@ if (config.requestTimeoutMs > 0) {
   const timeoutMs = config.requestTimeoutMs;
   // 天生长耗时的路径前缀：WebSocket、文件上传/下载、数据库备份
   const TIMEOUT_EXCLUDE_PREFIXES = ['/api/ws', '/api/files', '/api/db-backups'];
-  // 排除所有 /export 导出接口
-  const isExcluded = (path: string) =>
-    TIMEOUT_EXCLUDE_PREFIXES.some((p) => path.startsWith(p)) || path.endsWith('/export');
 
   const timeoutMiddleware = timeout(
     timeoutMs,
@@ -115,12 +113,18 @@ if (config.requestTimeoutMs > 0) {
         message: `请求处理超时（${timeoutMs}ms）`,
       }),
   );
-  app.use('/api/*', async (c, next) => {
-    if (isExcluded(c.req.path)) {
-      return next();
-    }
-    return timeoutMiddleware(c, next);
-  });
+
+  // 使用 hono/combine except() 排除无法设超时的长耗时路由
+  app.use(
+    '/api/*',
+    except(
+      (c) => {
+        const path = c.req.path;
+        return TIMEOUT_EXCLUDE_PREFIXES.some((p) => path.startsWith(p)) || path.endsWith('/export');
+      },
+      timeoutMiddleware,
+    ),
+  );
 }
 
 app.use('/api/*', ipAccessMiddleware);
