@@ -2,16 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getConfigValue, getConfigBoolean, getConfigNumber } from './system-config';
 import { config } from '../config';
 
-const mockSelect = vi.fn();
-const mockFrom = vi.fn();
-const mockWhere = vi.fn();
 const mockLimit = vi.fn();
 
 // Provide some simplified mock for the query builder
 vi.mock('../db', async (importOriginal) => {
-  const actual = await importOriginal() as any;
+  const actual = await importOriginal();
   return {
-    ...actual,
+    ...(actual as Record<string, unknown>),
     db: {
       select: vi.fn(() => ({
         from: vi.fn(() => ({
