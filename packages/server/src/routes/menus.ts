@@ -75,159 +75,159 @@ const updateMenuSchema = createMenuSchema.partial();
 // ─── Routes ────────────────────────────────────────────────────────────────
 const userMenuRoute = defineOpenAPIRoute({
   route: createRoute({
-  method: 'get',
-  path: '/user',
-  tags: ['Menus'],
-  summary: '当前用户可见菜单树',
-  security: [{ BearerAuth: [] }],
-  middleware: [authMiddleware] as const,
-  responses: {
-    ...commonErrorResponses,
-    200: { content: jsonContent(apiResponse(z.array(MenuDTO))), description: '菜单树' },
-  },
+    method: 'get',
+    path: '/user',
+    tags: ['Menus'],
+    summary: '当前用户可见菜单树',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    responses: {
+      ...commonErrorResponses,
+      200: { content: jsonContent(apiResponse(z.array(MenuDTO))), description: '菜单树' },
+    },
   }),
   handler: async (c) => {
-  const user = c.get('user');
-  const allMenus = await db.select().from(menus).orderBy(asc(menus.sort), asc(menus.id));
+    const user = c.get('user');
+    const allMenus = await db.select().from(menus).orderBy(asc(menus.sort), asc(menus.id));
 
-  if (isSuperAdmin(user.roles)) {
-    return c.json({ code: 0 as const, message: 'ok', data: buildTree(allMenus.map(toMenu)) }, 200);
-  }
-
-  const allowedMenuIds = new Set(await getUserMenuIds(user.userId));
-  const idToMenu = new Map(allMenus.map((m) => [m.id, m]));
-  for (const id of new Set(allowedMenuIds)) {
-    let current = idToMenu.get(id);
-    while (current && current.parentId !== 0) {
-      if (allowedMenuIds.has(current.parentId)) break;
-      allowedMenuIds.add(current.parentId);
-      current = idToMenu.get(current.parentId);
+    if (isSuperAdmin(user.roles)) {
+      return c.json({ code: 0 as const, message: 'ok', data: buildTree(allMenus.map(toMenu)) }, 200);
     }
-  }
 
-  const filtered = allMenus.filter((m) => allowedMenuIds.has(m.id) || !m.visible);
-  return c.json({ code: 0 as const, message: 'ok', data: buildTree(filtered.map(toMenu)) }, 200);
+    const allowedMenuIds = new Set(await getUserMenuIds(user.userId));
+    const idToMenu = new Map(allMenus.map((m) => [m.id, m]));
+    for (const id of new Set(allowedMenuIds)) {
+      let current = idToMenu.get(id);
+      while (current && current.parentId !== 0) {
+        if (allowedMenuIds.has(current.parentId)) break;
+        allowedMenuIds.add(current.parentId);
+        current = idToMenu.get(current.parentId);
+      }
+    }
+
+    const filtered = allMenus.filter((m) => allowedMenuIds.has(m.id) || !m.visible);
+    return c.json({ code: 0 as const, message: 'ok', data: buildTree(filtered.map(toMenu)) }, 200);
   },
 });
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({
-  method: 'get',
-  path: '/',
-  tags: ['Menus'],
-  summary: '菜单树（管理用）',
-  security: [{ BearerAuth: [] }],
-  middleware: [authMiddleware, guard({ permission: 'system:menu:list' })] as const,
-  responses: {
-    ...commonErrorResponses,
-    200: { content: jsonContent(apiResponse(z.array(MenuDTO))), description: '全量菜单树' },
-  },
+    method: 'get',
+    path: '/',
+    tags: ['Menus'],
+    summary: '菜单树（管理用）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:menu:list' })] as const,
+    responses: {
+      ...commonErrorResponses,
+      200: { content: jsonContent(apiResponse(z.array(MenuDTO))), description: '全量菜单树' },
+    },
   }),
   handler: async (c) => {
-  const list = await db.select().from(menus).orderBy(asc(menus.sort), asc(menus.id));
-  return c.json({ code: 0 as const, message: 'ok', data: buildTree(list.map(toMenu)) }, 200);
+    const list = await db.select().from(menus).orderBy(asc(menus.sort), asc(menus.id));
+    return c.json({ code: 0 as const, message: 'ok', data: buildTree(list.map(toMenu)) }, 200);
   },
 });
 
 const flatRoute = defineOpenAPIRoute({
   route: createRoute({
-  method: 'get',
-  path: '/flat',
-  tags: ['Menus'],
-  summary: '平铺菜单列表',
-  security: [{ BearerAuth: [] }],
-  middleware: [authMiddleware, guard({ permission: 'system:menu:list' })] as const,
-  responses: {
-    ...commonErrorResponses,
-    200: { content: jsonContent(apiResponse(z.array(MenuDTO))), description: '平铺菜单' },
-  },
+    method: 'get',
+    path: '/flat',
+    tags: ['Menus'],
+    summary: '平铺菜单列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:menu:list' })] as const,
+    responses: {
+      ...commonErrorResponses,
+      200: { content: jsonContent(apiResponse(z.array(MenuDTO))), description: '平铺菜单' },
+    },
   }),
   handler: async (c) => {
-  const list = await db.select().from(menus).orderBy(asc(menus.sort), asc(menus.id));
-  return c.json({ code: 0 as const, message: 'ok', data: list.map(toMenu) }, 200);
+    const list = await db.select().from(menus).orderBy(asc(menus.sort), asc(menus.id));
+    return c.json({ code: 0 as const, message: 'ok', data: list.map(toMenu) }, 200);
   },
 });
 
 const createMenuRoute = defineOpenAPIRoute({
   route: createRoute({
-  method: 'post',
-  path: '/',
-  tags: ['Menus'],
-  summary: '新增菜单',
-  security: [{ BearerAuth: [] }],
-  middleware: [authMiddleware, guard({ permission: 'system:menu:create', audit: { description: '创建菜单', module: '菜单管理' } })] as const,
-  request: { body: { content: jsonContent(createMenuSchema), required: true } },
-  responses: {
-    ...commonErrorResponses,
-    200: { content: jsonContent(apiResponse(MenuDTO)), description: '创建成功' },
-  },
+    method: 'post',
+    path: '/',
+    tags: ['Menus'],
+    summary: '新增菜单',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:menu:create', audit: { description: '创建菜单', module: '菜单管理' } })] as const,
+    request: { body: { content: jsonContent(createMenuSchema), required: true } },
+    responses: {
+      ...commonErrorResponses,
+      200: { content: jsonContent(apiResponse(MenuDTO)), description: '创建成功' },
+    },
   }),
   handler: async (c) => {
-  const data = c.req.valid('json');
-  const [menu] = await db.insert(menus).values(data).returning();
-  return c.json({ code: 0 as const, message: '创建成功', data: toMenu(menu) }, 200);
+    const data = c.req.valid('json');
+    const [menu] = await db.insert(menus).values(data).returning();
+    return c.json({ code: 0 as const, message: '创建成功', data: toMenu(menu) }, 200);
   },
 });
 
 const updateMenuRoute = defineOpenAPIRoute({
   route: createRoute({
-  method: 'put',
-  path: '/{id}',
-  tags: ['Menus'],
-  summary: '更新菜单',
-  security: [{ BearerAuth: [] }],
-  middleware: [authMiddleware, guard({ permission: 'system:menu:update', audit: { description: '更新菜单', module: '菜单管理' } })] as const,
-  request: {
-    params: z.object({ id: z.coerce.number() }),
-    body: { content: jsonContent(updateMenuSchema), required: true },
-  },
-  responses: {
-    ...commonErrorResponses,
-    200: { content: jsonContent(apiResponse(MenuDTO)), description: '更新成功' },
-    404: { content: jsonContent(ErrorResponse), description: '菜单不存在' },
-  },
+    method: 'put',
+    path: '/{id}',
+    tags: ['Menus'],
+    summary: '更新菜单',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:menu:update', audit: { description: '更新菜单', module: '菜单管理' } })] as const,
+    request: {
+      params: z.object({ id: z.coerce.number() }),
+      body: { content: jsonContent(updateMenuSchema), required: true },
+    },
+    responses: {
+      ...commonErrorResponses,
+      200: { content: jsonContent(apiResponse(MenuDTO)), description: '更新成功' },
+      404: { content: jsonContent(ErrorResponse), description: '菜单不存在' },
+    },
   }),
   handler: async (c) => {
-  const { id } = c.req.valid('param');
-  const data = c.req.valid('json');
-  const [menu] = await db
-    .update(menus)
-    .set({ ...data, updatedAt: new Date() })
-    .where(eq(menus.id, id))
-    .returning();
-  if (!menu) return c.json({ code: 404, message: '菜单不存在', data: null }, 404);
-  return c.json({ code: 0 as const, message: '更新成功', data: toMenu(menu) }, 200);
+    const { id } = c.req.valid('param');
+    const data = c.req.valid('json');
+    const [menu] = await db
+      .update(menus)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(menus.id, id))
+      .returning();
+    if (!menu) return c.json({ code: 404, message: '菜单不存在', data: null }, 404);
+    return c.json({ code: 0 as const, message: '更新成功', data: toMenu(menu) }, 200);
   },
 });
 
 const deleteMenuRoute = defineOpenAPIRoute({
   route: createRoute({
-  method: 'delete',
-  path: '/{id}',
-  tags: ['Menus'],
-  summary: '删除菜单及子菜单',
-  security: [{ BearerAuth: [] }],
-  middleware: [authMiddleware, guard({ permission: 'system:menu:delete', audit: { description: '删除菜单', module: '菜单管理' } })] as const,
-  request: { params: z.object({ id: z.coerce.number() }) },
-  responses: {
-    ...commonErrorResponses,
-    200: { content: jsonContent(MessageResponse), description: '删除成功' },
-  },
+    method: 'delete',
+    path: '/{id}',
+    tags: ['Menus'],
+    summary: '删除菜单及子菜单',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:menu:delete', audit: { description: '删除菜单', module: '菜单管理' } })] as const,
+    request: { params: z.object({ id: z.coerce.number() }) },
+    responses: {
+      ...commonErrorResponses,
+      200: { content: jsonContent(MessageResponse), description: '删除成功' },
+    },
   }),
   handler: async (c) => {
-  const { id } = c.req.valid('param');
-  const all = await db.select({ id: menus.id, parentId: menus.parentId }).from(menus);
-  const toDelete = new Set<number>();
-  const queue = [id];
-  while (queue.length) {
-    const cur = queue.shift()!;
-    toDelete.add(cur);
-    all.filter((m) => m.parentId === cur).forEach((m) => queue.push(m.id));
-  }
-  for (const mid of toDelete) {
-    await db.delete(menus).where(and(eq(menus.id, mid)));
-  }
-  return c.json({ code: 0 as const, message: '删除成功', data: null }, 200);
+    const { id } = c.req.valid('param');
+    const all = await db.select({ id: menus.id, parentId: menus.parentId }).from(menus);
+    const toDelete = new Set<number>();
+    const queue = [id];
+    while (queue.length) {
+      const cur = queue.shift()!;
+      toDelete.add(cur);
+      all.filter((m) => m.parentId === cur).forEach((m) => queue.push(m.id));
+    }
+    for (const mid of toDelete) {
+      await db.delete(menus).where(and(eq(menus.id, mid)));
+    }
+    return c.json({ code: 0 as const, message: '删除成功', data: null }, 200);
   },
 });
 

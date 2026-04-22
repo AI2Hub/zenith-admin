@@ -18,102 +18,102 @@ const oauthConfigRouter = new OpenAPIHono({ defaultHook: validationHook });
 // ─── Routes ────────────────────────────────────────────────────────────────────────────
 const listRoute = defineOpenAPIRoute({
   route: createRoute({
-  method: 'get',
-  path: '/',
-  tags: ['OAuthConfig'],
-  summary: '获取所有 OAuth 配置',
-  security: [{ BearerAuth: [] }],
-  middleware: [authMiddleware, guard({ permission: 'system:oauth-config:view' })] as const,
-  responses: {
-    ...commonErrorResponses,
-    200: {
-      content: jsonContent(apiResponse(z.array(OAuthConfigItem))),
-      description: 'OAuth 配置列表',
+    method: 'get',
+    path: '/',
+    tags: ['OAuthConfig'],
+    summary: '获取所有 OAuth 配置',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:oauth-config:view' })] as const,
+    responses: {
+      ...commonErrorResponses,
+      200: {
+        content: jsonContent(apiResponse(z.array(OAuthConfigItem))),
+        description: 'OAuth 配置列表',
+      },
     },
-  },
   }),
   handler: async (c) => {
-  // 确保三个 provider 都有记录
-  for (const p of VALID_PROVIDERS) {
-    const [existing] = await db.select().from(oauthConfigs).where(eq(oauthConfigs.provider, p)).limit(1);
-    if (!existing) {
-      await db.insert(oauthConfigs).values({ provider: p }).onConflictDoNothing();
+    // 确保三个 provider 都有记录
+    for (const p of VALID_PROVIDERS) {
+      const [existing] = await db.select().from(oauthConfigs).where(eq(oauthConfigs.provider, p)).limit(1);
+      if (!existing) {
+        await db.insert(oauthConfigs).values({ provider: p }).onConflictDoNothing();
+      }
     }
-  }
 
-  const configs = await db.select().from(oauthConfigs);
-  const safeConfigs = configs.map(({ clientSecret, ...rest }) => ({
-    ...rest,
-    clientSecret: clientSecret ? '******' : '',
-  }));
-  return c.json({ code: 0 as const, message: 'success', data: safeConfigs }, 200);
+    const configs = await db.select().from(oauthConfigs);
+    const safeConfigs = configs.map(({ clientSecret, ...rest }) => ({
+      ...rest,
+      clientSecret: clientSecret ? '******' : '',
+    }));
+    return c.json({ code: 0 as const, message: 'success', data: safeConfigs }, 200);
   },
 });
 
 const updateRoute = defineOpenAPIRoute({
   route: createRoute({
-  method: 'put',
-  path: '/{provider}',
-  tags: ['OAuthConfig'],
-  summary: '更新指定 provider 的 OAuth 配置',
-  security: [{ BearerAuth: [] }],
-  middleware: [
-    authMiddleware,
-    guard({
-      permission: 'system:oauth-config:update',
-      audit: { description: '更新OAuth配置', module: 'OAuth配置' },
-    }),
-  ] as const,
-  request: {
-    params: z.object({ provider: z.string() }),
-    body: {
-      content: jsonContent(updateOauthConfigSchema),
-      required: true,
+    method: 'put',
+    path: '/{provider}',
+    tags: ['OAuthConfig'],
+    summary: '更新指定 provider 的 OAuth 配置',
+    security: [{ BearerAuth: [] }],
+    middleware: [
+      authMiddleware,
+      guard({
+        permission: 'system:oauth-config:update',
+        audit: { description: '更新OAuth配置', module: 'OAuth配置' },
+      }),
+    ] as const,
+    request: {
+      params: z.object({ provider: z.string() }),
+      body: {
+        content: jsonContent(updateOauthConfigSchema),
+        required: true,
+      },
     },
-  },
-  responses: {
-    ...commonErrorResponses,
-    200: {
-      content: jsonContent(apiResponse(OAuthConfigItem.nullable())),
-      description: '保存成功',
+    responses: {
+      ...commonErrorResponses,
+      200: {
+        content: jsonContent(apiResponse(OAuthConfigItem.nullable())),
+        description: '保存成功',
+      },
+      400: { content: jsonContent(ErrorResponse), description: '不支持的 provider' },
     },
-    400: { content: jsonContent(ErrorResponse), description: '不支持的 provider' },
-  },
   }),
   handler: async (c) => {
-  const provider = c.req.param('provider') as OAuthProviderType;
-  if (!VALID_PROVIDERS.includes(provider)) {
-    return c.json({ code: 400, message: '不支持的提供方', data: null }, 400);
-  }
+    const provider = c.req.param('provider') as OAuthProviderType;
+    if (!VALID_PROVIDERS.includes(provider)) {
+      return c.json({ code: 400, message: '不支持的提供方', data: null }, 400);
+    }
 
-  const data = c.req.valid('json');
+    const data = c.req.valid('json');
 
-  const updateData: Record<string, unknown> = {
-    clientId: data.clientId,
-    enabled: data.enabled,
-    agentId: data.agentId ?? null,
-    corpId: data.corpId ?? null,
-    updatedAt: new Date(),
-  };
-  if (data.clientSecret && data.clientSecret !== '******') {
-    updateData.clientSecret = data.clientSecret;
-  }
+    const updateData: Record<string, unknown> = {
+      clientId: data.clientId,
+      enabled: data.enabled,
+      agentId: data.agentId ?? null,
+      corpId: data.corpId ?? null,
+      updatedAt: new Date(),
+    };
+    if (data.clientSecret && data.clientSecret !== '******') {
+      updateData.clientSecret = data.clientSecret;
+    }
 
-  const [existing] = await db.select().from(oauthConfigs).where(eq(oauthConfigs.provider, provider)).limit(1);
-  if (!existing) {
-    const [created] = await db
-      .insert(oauthConfigs)
-      .values({ provider, ...updateData } as typeof oauthConfigs.$inferInsert)
+    const [existing] = await db.select().from(oauthConfigs).where(eq(oauthConfigs.provider, provider)).limit(1);
+    if (!existing) {
+      const [created] = await db
+        .insert(oauthConfigs)
+        .values({ provider, ...updateData } as typeof oauthConfigs.$inferInsert)
+        .returning();
+      return c.json({ code: 0 as const, message: '保存成功', data: created }, 200);
+    }
+
+    const [updated] = await db
+      .update(oauthConfigs)
+      .set(updateData)
+      .where(eq(oauthConfigs.provider, provider))
       .returning();
-    return c.json({ code: 0 as const, message: '保存成功', data: created }, 200);
-  }
-
-  const [updated] = await db
-    .update(oauthConfigs)
-    .set(updateData)
-    .where(eq(oauthConfigs.provider, provider))
-    .returning();
-  return c.json({ code: 0 as const, message: '保存成功', data: updated }, 200);
+    return c.json({ code: 0 as const, message: '保存成功', data: updated }, 200);
   },
 });
 

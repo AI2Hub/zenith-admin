@@ -79,171 +79,171 @@ const updateRegionSchema = createRegionSchema.partial();
 // ─── Routes ────────────────────────────────────────────────────────────────
 const listRoute = defineOpenAPIRoute({
   route: createRoute({
-  method: 'get',
-  path: '/',
-  tags: ['Regions'],
-  summary: '地区树形结构',
-  security: [{ BearerAuth: [] }],
-  middleware: [authMiddleware, guard({ permission: 'system:region:list' })] as const,
-  request: {
-    query: z.object({
-      keyword: z.string().optional(),
-      status: z.enum(['active', 'disabled']).optional(),
-      level: z.enum(['province', 'city', 'county']).optional(),
-    }),
-  },
-  responses: {
-    ...commonErrorResponses,
-    200: { content: jsonContent(apiResponse(z.array(RegionDTO))), description: '地区树' },
-  },
+    method: 'get',
+    path: '/',
+    tags: ['Regions'],
+    summary: '地区树形结构',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:region:list' })] as const,
+    request: {
+      query: z.object({
+        keyword: z.string().optional(),
+        status: z.enum(['active', 'disabled']).optional(),
+        level: z.enum(['province', 'city', 'county']).optional(),
+      }),
+    },
+    responses: {
+      ...commonErrorResponses,
+      200: { content: jsonContent(apiResponse(z.array(RegionDTO))), description: '地区树' },
+    },
   }),
   handler: async (c) => {
-  const q = c.req.valid('query');
-  const rows = await db.select().from(regions).orderBy(asc(regions.sort), asc(regions.code));
-  const tree = buildTree(rows.map(toRegion));
-  const data = q.keyword || q.status || q.level ? filterTree(tree, q.keyword ?? '', q.status, q.level) : tree;
-  return c.json({ code: 0 as const, message: 'ok', data }, 200);
+    const q = c.req.valid('query');
+    const rows = await db.select().from(regions).orderBy(asc(regions.sort), asc(regions.code));
+    const tree = buildTree(rows.map(toRegion));
+    const data = q.keyword || q.status || q.level ? filterTree(tree, q.keyword ?? '', q.status, q.level) : tree;
+    return c.json({ code: 0 as const, message: 'ok', data }, 200);
   },
 });
 
 const flatRoute = defineOpenAPIRoute({
   route: createRoute({
-  method: 'get',
-  path: '/flat',
-  tags: ['Regions'],
-  summary: '平铺地区列表',
-  security: [{ BearerAuth: [] }],
-  middleware: [authMiddleware, guard({ permission: 'system:region:list' })] as const,
-  responses: {
-    ...commonErrorResponses,
-    200: { content: jsonContent(apiResponse(z.array(RegionDTO))), description: '平铺地区列表' },
-  },
+    method: 'get',
+    path: '/flat',
+    tags: ['Regions'],
+    summary: '平铺地区列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:region:list' })] as const,
+    responses: {
+      ...commonErrorResponses,
+      200: { content: jsonContent(apiResponse(z.array(RegionDTO))), description: '平铺地区列表' },
+    },
   }),
   handler: async (c) => {
-  const rows = await db.select().from(regions).orderBy(asc(regions.sort), asc(regions.code));
-  return c.json({ code: 0 as const, message: 'ok', data: rows.map(toRegion) }, 200);
+    const rows = await db.select().from(regions).orderBy(asc(regions.sort), asc(regions.code));
+    return c.json({ code: 0 as const, message: 'ok', data: rows.map(toRegion) }, 200);
   },
 });
 
 const createRegionRoute = defineOpenAPIRoute({
   route: createRoute({
-  method: 'post',
-  path: '/',
-  tags: ['Regions'],
-  summary: '新增地区',
-  security: [{ BearerAuth: [] }],
-  middleware: [authMiddleware, guard({ permission: 'system:region:create', audit: { description: '创建地区', module: '地区管理' } })] as const,
-  request: { body: { content: jsonContent(createRegionSchema), required: true } },
-  responses: {
-    ...commonErrorResponses,
-    200: { content: jsonContent(apiResponse(RegionDTO)), description: '创建成功' },
-    400: { content: jsonContent(ErrorResponse), description: '父级不存在或代码重复' },
-  },
+    method: 'post',
+    path: '/',
+    tags: ['Regions'],
+    summary: '新增地区',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:region:create', audit: { description: '创建地区', module: '地区管理' } })] as const,
+    request: { body: { content: jsonContent(createRegionSchema), required: true } },
+    responses: {
+      ...commonErrorResponses,
+      200: { content: jsonContent(apiResponse(RegionDTO)), description: '创建成功' },
+      400: { content: jsonContent(ErrorResponse), description: '父级不存在或代码重复' },
+    },
   }),
   handler: async (c) => {
-  const data = c.req.valid('json');
-  if (data.parentCode) {
-    const [parent] = await db.select({ code: regions.code }).from(regions).where(eq(regions.code, data.parentCode));
-    if (!parent) return c.json({ code: 400, message: '父级地区不存在', data: null }, 400);
-  }
-  try {
-    const [row] = await db
-      .insert(regions)
-      .values({
-        code: data.code,
-        name: data.name,
-        level: data.level,
-        parentCode: data.parentCode ?? null,
-        sort: data.sort,
-        status: data.status,
-      })
-      .returning();
-    return c.json({ code: 0 as const, message: '创建成功', data: toRegion(row) }, 200);
-  } catch (err: unknown) {
-    if ((err as { code?: string }).code === '23505') {
-      return c.json({ code: 400, message: '区划代码已存在', data: null }, 400);
+    const data = c.req.valid('json');
+    if (data.parentCode) {
+      const [parent] = await db.select({ code: regions.code }).from(regions).where(eq(regions.code, data.parentCode));
+      if (!parent) return c.json({ code: 400, message: '父级地区不存在', data: null }, 400);
     }
-    throw err;
-  }
+    try {
+      const [row] = await db
+        .insert(regions)
+        .values({
+          code: data.code,
+          name: data.name,
+          level: data.level,
+          parentCode: data.parentCode ?? null,
+          sort: data.sort,
+          status: data.status,
+        })
+        .returning();
+      return c.json({ code: 0 as const, message: '创建成功', data: toRegion(row) }, 200);
+    } catch (err: unknown) {
+      if ((err as { code?: string }).code === '23505') {
+        return c.json({ code: 400, message: '区划代码已存在', data: null }, 400);
+      }
+      throw err;
+    }
   },
 });
 
 const updateRegionRoute = defineOpenAPIRoute({
   route: createRoute({
-  method: 'put',
-  path: '/{id}',
-  tags: ['Regions'],
-  summary: '更新地区',
-  security: [{ BearerAuth: [] }],
-  middleware: [authMiddleware, guard({ permission: 'system:region:update', audit: { description: '更新地区', module: '地区管理' } })] as const,
-  request: {
-    params: z.object({ id: z.coerce.number() }),
-    body: { content: jsonContent(updateRegionSchema), required: true },
-  },
-  responses: {
-    ...commonErrorResponses,
-    200: { content: jsonContent(apiResponse(RegionDTO)), description: '更新成功' },
-    400: { content: jsonContent(ErrorResponse), description: '父级错误或重复' },
-    404: { content: jsonContent(ErrorResponse), description: '地区不存在' },
-  },
+    method: 'put',
+    path: '/{id}',
+    tags: ['Regions'],
+    summary: '更新地区',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:region:update', audit: { description: '更新地区', module: '地区管理' } })] as const,
+    request: {
+      params: z.object({ id: z.coerce.number() }),
+      body: { content: jsonContent(updateRegionSchema), required: true },
+    },
+    responses: {
+      ...commonErrorResponses,
+      200: { content: jsonContent(apiResponse(RegionDTO)), description: '更新成功' },
+      400: { content: jsonContent(ErrorResponse), description: '父级错误或重复' },
+      404: { content: jsonContent(ErrorResponse), description: '地区不存在' },
+    },
   }),
   handler: async (c) => {
-  const { id } = c.req.valid('param');
-  const data = c.req.valid('json');
-  if (data.parentCode) {
-    const [current] = await db.select({ code: regions.code }).from(regions).where(eq(regions.id, id));
-    if (!current) return c.json({ code: 404, message: '地区不存在', data: null }, 404);
-    if (data.parentCode === current.code) {
-      return c.json({ code: 400, message: '父级地区不能选择自身', data: null }, 400);
+    const { id } = c.req.valid('param');
+    const data = c.req.valid('json');
+    if (data.parentCode) {
+      const [current] = await db.select({ code: regions.code }).from(regions).where(eq(regions.id, id));
+      if (!current) return c.json({ code: 404, message: '地区不存在', data: null }, 404);
+      if (data.parentCode === current.code) {
+        return c.json({ code: 400, message: '父级地区不能选择自身', data: null }, 400);
+      }
+      const [parent] = await db.select({ code: regions.code }).from(regions).where(eq(regions.code, data.parentCode));
+      if (!parent) return c.json({ code: 400, message: '父级地区不存在', data: null }, 400);
     }
-    const [parent] = await db.select({ code: regions.code }).from(regions).where(eq(regions.code, data.parentCode));
-    if (!parent) return c.json({ code: 400, message: '父级地区不存在', data: null }, 400);
-  }
-  try {
-    const [row] = await db
-      .update(regions)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(regions.id, id))
-      .returning();
-    if (!row) return c.json({ code: 404, message: '地区不存在', data: null }, 404);
-    return c.json({ code: 0 as const, message: '更新成功', data: toRegion(row) }, 200);
-  } catch (err: unknown) {
-    if ((err as { code?: string }).code === '23505') {
-      return c.json({ code: 400, message: '区划代码已存在', data: null }, 400);
+    try {
+      const [row] = await db
+        .update(regions)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(regions.id, id))
+        .returning();
+      if (!row) return c.json({ code: 404, message: '地区不存在', data: null }, 404);
+      return c.json({ code: 0 as const, message: '更新成功', data: toRegion(row) }, 200);
+    } catch (err: unknown) {
+      if ((err as { code?: string }).code === '23505') {
+        return c.json({ code: 400, message: '区划代码已存在', data: null }, 400);
+      }
+      throw err;
     }
-    throw err;
-  }
   },
 });
 
 const deleteRoute = defineOpenAPIRoute({
   route: createRoute({
-  method: 'delete',
-  path: '/{id}',
-  tags: ['Regions'],
-  summary: '删除地区',
-  security: [{ BearerAuth: [] }],
-  middleware: [authMiddleware, guard({ permission: 'system:region:delete', audit: { description: '删除地区', module: '地区管理' } })] as const,
-  request: { params: z.object({ id: z.coerce.number() }) },
-  responses: {
-    ...commonErrorResponses,
-    200: { content: jsonContent(MessageResponse), description: '删除成功' },
-    400: { content: jsonContent(ErrorResponse), description: '存在子地区' },
-    404: { content: jsonContent(ErrorResponse), description: '地区不存在' },
-  },
+    method: 'delete',
+    path: '/{id}',
+    tags: ['Regions'],
+    summary: '删除地区',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:region:delete', audit: { description: '删除地区', module: '地区管理' } })] as const,
+    request: { params: z.object({ id: z.coerce.number() }) },
+    responses: {
+      ...commonErrorResponses,
+      200: { content: jsonContent(MessageResponse), description: '删除成功' },
+      400: { content: jsonContent(ErrorResponse), description: '存在子地区' },
+      404: { content: jsonContent(ErrorResponse), description: '地区不存在' },
+    },
   }),
   handler: async (c) => {
-  const { id } = c.req.valid('param');
-  const [current] = await db.select({ code: regions.code }).from(regions).where(eq(regions.id, id));
-  if (!current) return c.json({ code: 404, message: '地区不存在', data: null }, 404);
+    const { id } = c.req.valid('param');
+    const [current] = await db.select({ code: regions.code }).from(regions).where(eq(regions.id, id));
+    if (!current) return c.json({ code: 404, message: '地区不存在', data: null }, 404);
 
-  const children = await db.select({ id: regions.id }).from(regions).where(eq(regions.parentCode, current.code));
-  if (children.length > 0) {
-    return c.json({ code: 400, message: '该地区下存在子地区，请先删除子地区', data: null }, 400);
-  }
+    const children = await db.select({ id: regions.id }).from(regions).where(eq(regions.parentCode, current.code));
+    if (children.length > 0) {
+      return c.json({ code: 400, message: '该地区下存在子地区，请先删除子地区', data: null }, 400);
+    }
 
-  await db.delete(regions).where(eq(regions.id, id));
-  return c.json({ code: 0 as const, message: '删除成功', data: null }, 200);
+    await db.delete(regions).where(eq(regions.id, id));
+    return c.json({ code: 0 as const, message: '删除成功', data: null }, 200);
   },
 });
 

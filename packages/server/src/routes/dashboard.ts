@@ -13,191 +13,191 @@ const dashboardRoute = new OpenAPIHono({ defaultHook: validationHook });
 
 const statsRouteDef = defineOpenAPIRoute({
   route: createRoute({
-  method: 'get',
-  path: '/stats',
-  tags: ['Dashboard'],
-  summary: '仪表盘统计',
-  security: [{ BearerAuth: [] }],
-  middleware: [authMiddleware] as const,
-  responses: {
-    ...commonErrorResponses,
-    200: { content: jsonContent(apiResponse(StatsDTO)), description: '统计数据' },
-    403: { content: jsonContent(ErrorResponse), description: '无权限' },
-  },
+    method: 'get',
+    path: '/stats',
+    tags: ['Dashboard'],
+    summary: '仪表盘统计',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    responses: {
+      ...commonErrorResponses,
+      200: { content: jsonContent(apiResponse(StatsDTO)), description: '统计数据' },
+      403: { content: jsonContent(ErrorResponse), description: '无权限' },
+    },
   }),
   handler: async (c) => {
-  const user = c.get('user');
-  if (!isSuperAdmin(user.roles)) {
-    return c.json({ code: 403, message: '无权限', data: null }, 403);
-  }
+    const user = c.get('user');
+    if (!isSuperAdmin(user.roles)) {
+      return c.json({ code: 403, message: '无权限', data: null }, 403);
+    }
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date(todayStart);
-  todayEnd.setDate(todayEnd.getDate() + 1);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayEnd.getDate() + 1);
 
-  const utc = tenantCondition(users, user);
-  const ltc = tenantCondition(loginLogs, user);
-  const otc = tenantCondition(operationLogs, user);
+    const utc = tenantCondition(users, user);
+    const ltc = tenantCondition(loginLogs, user);
+    const otc = tenantCondition(operationLogs, user);
 
-  const [totalUsersResult] = await db
-    .select({ count: sql<number>`cast(count(*) as integer)` })
-    .from(users)
-    .where(utc);
+    const [totalUsersResult] = await db
+      .select({ count: sql<number>`cast(count(*) as integer)` })
+      .from(users)
+      .where(utc);
 
-  const [activeUsersResult] = await db
-    .select({ count: sql<number>`cast(count(*) as integer)` })
-    .from(users)
-    .where(utc ? and(sql`${users.status} = 'active'`, utc) : sql`${users.status} = 'active'`);
+    const [activeUsersResult] = await db
+      .select({ count: sql<number>`cast(count(*) as integer)` })
+      .from(users)
+      .where(utc ? and(sql`${users.status} = 'active'`, utc) : sql`${users.status} = 'active'`);
 
-  const todayLoginWhere = ltc
-    ? and(gte(loginLogs.createdAt, todayStart), lt(loginLogs.createdAt, todayEnd), ltc)
-    : and(gte(loginLogs.createdAt, todayStart), lt(loginLogs.createdAt, todayEnd));
-  const [todayLoginsResult] = await db
-    .select({ count: sql<number>`cast(count(*) as integer)` })
-    .from(loginLogs)
-    .where(todayLoginWhere);
+    const todayLoginWhere = ltc
+      ? and(gte(loginLogs.createdAt, todayStart), lt(loginLogs.createdAt, todayEnd), ltc)
+      : and(gte(loginLogs.createdAt, todayStart), lt(loginLogs.createdAt, todayEnd));
+    const [todayLoginsResult] = await db
+      .select({ count: sql<number>`cast(count(*) as integer)` })
+      .from(loginLogs)
+      .where(todayLoginWhere);
 
-  const todayOpWhere = otc
-    ? and(gte(operationLogs.createdAt, todayStart), lt(operationLogs.createdAt, todayEnd), otc)
-    : and(gte(operationLogs.createdAt, todayStart), lt(operationLogs.createdAt, todayEnd));
-  const [todayOperationsResult] = await db
-    .select({ count: sql<number>`cast(count(*) as integer)` })
-    .from(operationLogs)
-    .where(todayOpWhere);
+    const todayOpWhere = otc
+      ? and(gte(operationLogs.createdAt, todayStart), lt(operationLogs.createdAt, todayEnd), otc)
+      : and(gte(operationLogs.createdAt, todayStart), lt(operationLogs.createdAt, todayEnd));
+    const [todayOperationsResult] = await db
+      .select({ count: sql<number>`cast(count(*) as integer)` })
+      .from(operationLogs)
+      .where(todayOpWhere);
 
-  const onlineUsers = await getOnlineCount();
+    const onlineUsers = await getOnlineCount();
 
-  return c.json(
-    {
-      code: 0 as const,
-      message: 'success',
-      data: {
-        totalUsers: totalUsersResult.count,
-        activeUsers: activeUsersResult.count,
-        onlineUsers,
-        todayLogins: todayLoginsResult.count,
-        todayOperations: todayOperationsResult.count,
+    return c.json(
+      {
+        code: 0 as const,
+        message: 'success',
+        data: {
+          totalUsers: totalUsersResult.count,
+          activeUsers: activeUsersResult.count,
+          onlineUsers,
+          todayLogins: todayLoginsResult.count,
+          todayOperations: todayOperationsResult.count,
+        },
       },
-    },
-    200,
-  );
+      200,
+    );
   },
 });
 
 const chartsRouteDef = defineOpenAPIRoute({
   route: createRoute({
-  method: 'get',
-  path: '/charts',
-  tags: ['Dashboard'],
-  summary: '仪表盘图表数据',
-  security: [{ BearerAuth: [] }],
-  middleware: [authMiddleware] as const,
-  responses: {
-    ...commonErrorResponses,
-    200: { content: jsonContent(apiResponse(ChartsDTO)), description: '图表数据' },
-    403: { content: jsonContent(ErrorResponse), description: '无权限' },
-  },
+    method: 'get',
+    path: '/charts',
+    tags: ['Dashboard'],
+    summary: '仪表盘图表数据',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    responses: {
+      ...commonErrorResponses,
+      200: { content: jsonContent(apiResponse(ChartsDTO)), description: '图表数据' },
+      403: { content: jsonContent(ErrorResponse), description: '无权限' },
+    },
   }),
   handler: async (c) => {
-  const user = c.get('user');
-  if (!isSuperAdmin(user.roles)) {
-    return c.json({ code: 403, message: '无权限', data: null }, 403);
-  }
+    const user = c.get('user');
+    if (!isSuperAdmin(user.roles)) {
+      return c.json({ code: 403, message: '无权限', data: null }, 403);
+    }
 
-  const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date(todayStart);
-  todayEnd.setDate(todayEnd.getDate() + 1);
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayEnd.getDate() + 1);
 
-  const sevenDaysAgo = new Date(todayStart);
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    const sevenDaysAgo = new Date(todayStart);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 
-  const ltc = tenantCondition(loginLogs, user);
-  const otc = tenantCondition(operationLogs, user);
+    const ltc = tenantCondition(loginLogs, user);
+    const otc = tenantCondition(operationLogs, user);
 
-  const loginRangeWhere = ltc
-    ? and(gte(loginLogs.createdAt, sevenDaysAgo), ltc)
-    : gte(loginLogs.createdAt, sevenDaysAgo);
+    const loginRangeWhere = ltc
+      ? and(gte(loginLogs.createdAt, sevenDaysAgo), ltc)
+      : gte(loginLogs.createdAt, sevenDaysAgo);
 
-  const todayOpWhere = otc
-    ? and(gte(operationLogs.createdAt, todayStart), lt(operationLogs.createdAt, todayEnd), otc)
-    : and(gte(operationLogs.createdAt, todayStart), lt(operationLogs.createdAt, todayEnd));
+    const todayOpWhere = otc
+      ? and(gte(operationLogs.createdAt, todayStart), lt(operationLogs.createdAt, todayEnd), otc)
+      : and(gte(operationLogs.createdAt, todayStart), lt(operationLogs.createdAt, todayEnd));
 
-  const activityRangeWhere = ltc
-    ? and(gte(loginLogs.createdAt, sevenDaysAgo), eq(loginLogs.status, 'success'), ltc)
-    : and(gte(loginLogs.createdAt, sevenDaysAgo), eq(loginLogs.status, 'success'));
+    const activityRangeWhere = ltc
+      ? and(gte(loginLogs.createdAt, sevenDaysAgo), eq(loginLogs.status, 'success'), ltc)
+      : and(gte(loginLogs.createdAt, sevenDaysAgo), eq(loginLogs.status, 'success'));
 
-  const [loginTrendRows, operationTypeRows, userActivityRows] = await Promise.all([
-    db
-      .select({
-        date: sql<string>`to_char(date(${loginLogs.createdAt} AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`,
-        status: loginLogs.status,
-        count: sql<number>`cast(count(*) as integer)`,
-      })
-      .from(loginLogs)
-      .where(loginRangeWhere)
-      .groupBy(sql`date(${loginLogs.createdAt} AT TIME ZONE 'UTC')`, loginLogs.status)
-      .orderBy(sql`date(${loginLogs.createdAt} AT TIME ZONE 'UTC')`),
-    db
-      .select({
-        module: operationLogs.module,
-        count: sql<number>`cast(count(*) as integer)`,
-      })
-      .from(operationLogs)
-      .where(todayOpWhere)
-      .groupBy(operationLogs.module)
-      .orderBy(desc(sql`count(*)`))
-      .limit(8),
-    db
-      .select({
-        date: sql<string>`to_char(date(${loginLogs.createdAt} AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`,
-        activeUsers: sql<number>`cast(count(distinct ${loginLogs.username}) as integer)`,
-      })
-      .from(loginLogs)
-      .where(activityRangeWhere)
-      .groupBy(sql`date(${loginLogs.createdAt} AT TIME ZONE 'UTC')`)
-      .orderBy(sql`date(${loginLogs.createdAt} AT TIME ZONE 'UTC')`),
-  ]);
+    const [loginTrendRows, operationTypeRows, userActivityRows] = await Promise.all([
+      db
+        .select({
+          date: sql<string>`to_char(date(${loginLogs.createdAt} AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`,
+          status: loginLogs.status,
+          count: sql<number>`cast(count(*) as integer)`,
+        })
+        .from(loginLogs)
+        .where(loginRangeWhere)
+        .groupBy(sql`date(${loginLogs.createdAt} AT TIME ZONE 'UTC')`, loginLogs.status)
+        .orderBy(sql`date(${loginLogs.createdAt} AT TIME ZONE 'UTC')`),
+      db
+        .select({
+          module: operationLogs.module,
+          count: sql<number>`cast(count(*) as integer)`,
+        })
+        .from(operationLogs)
+        .where(todayOpWhere)
+        .groupBy(operationLogs.module)
+        .orderBy(desc(sql`count(*)`))
+        .limit(8),
+      db
+        .select({
+          date: sql<string>`to_char(date(${loginLogs.createdAt} AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`,
+          activeUsers: sql<number>`cast(count(distinct ${loginLogs.username}) as integer)`,
+        })
+        .from(loginLogs)
+        .where(activityRangeWhere)
+        .groupBy(sql`date(${loginLogs.createdAt} AT TIME ZONE 'UTC')`)
+        .orderBy(sql`date(${loginLogs.createdAt} AT TIME ZONE 'UTC')`),
+    ]);
 
-  const dates: string[] = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(sevenDaysAgo);
-    d.setDate(d.getDate() + i);
-    dates.push(d.toISOString().slice(0, 10));
-  }
+    const dates: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(sevenDaysAgo);
+      d.setDate(d.getDate() + i);
+      dates.push(d.toISOString().slice(0, 10));
+    }
 
-  const trendMap: Record<string, { successCount: number; failCount: number }> = {};
-  for (const row of loginTrendRows) {
-    if (!trendMap[row.date]) trendMap[row.date] = { successCount: 0, failCount: 0 };
-    if (row.status === 'success') trendMap[row.date].successCount = row.count;
-    else trendMap[row.date].failCount = row.count;
-  }
-  const loginTrend = dates.map((date) => ({
-    date,
-    successCount: trendMap[date]?.successCount ?? 0,
-    failCount: trendMap[date]?.failCount ?? 0,
-  }));
+    const trendMap: Record<string, { successCount: number; failCount: number }> = {};
+    for (const row of loginTrendRows) {
+      if (!trendMap[row.date]) trendMap[row.date] = { successCount: 0, failCount: 0 };
+      if (row.status === 'success') trendMap[row.date].successCount = row.count;
+      else trendMap[row.date].failCount = row.count;
+    }
+    const loginTrend = dates.map((date) => ({
+      date,
+      successCount: trendMap[date]?.successCount ?? 0,
+      failCount: trendMap[date]?.failCount ?? 0,
+    }));
 
-  const activityMap: Record<string, number> = {};
-  for (const row of userActivityRows) {
-    activityMap[row.date] = row.activeUsers;
-  }
-  const userActivity = dates.map((date) => ({ date, activeUsers: activityMap[date] ?? 0 }));
+    const activityMap: Record<string, number> = {};
+    for (const row of userActivityRows) {
+      activityMap[row.date] = row.activeUsers;
+    }
+    const userActivity = dates.map((date) => ({ date, activeUsers: activityMap[date] ?? 0 }));
 
-  return c.json(
-    {
-      code: 0 as const,
-      message: 'success',
-      data: {
-        loginTrend,
-        operationTypes: operationTypeRows.map((r) => ({ module: r.module ?? '未知', count: r.count })),
-        userActivity,
+    return c.json(
+      {
+        code: 0 as const,
+        message: 'success',
+        data: {
+          loginTrend,
+          operationTypes: operationTypeRows.map((r) => ({ module: r.module ?? '未知', count: r.count })),
+          userActivity,
+        },
       },
-    },
-    200,
-  );
+      200,
+    );
   },
 });
 
