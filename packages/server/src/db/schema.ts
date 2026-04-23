@@ -1,4 +1,5 @@
 import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, unique, text, uniqueIndex, jsonb } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
 
 export const statusEnum = pgEnum('status', ['active', 'disabled']);
 export const menuTypeEnum = pgEnum('menu_type', ['directory', 'menu', 'button']);
@@ -568,3 +569,139 @@ export const workflowTasks = pgTable('workflow_tasks', {
 
 export type WorkflowTaskRow = typeof workflowTasks.$inferSelect;
 export type NewWorkflowTask = typeof workflowTasks.$inferInsert;
+
+// ─── 关系声明（Drizzle Relational Query API）──────────────────────────────────
+// 声明后可使用 db.query.xxx.findMany({ with: { ... } }) 进行关联查询
+
+export const tenantsRelations = relations(tenants, ({ many }) => ({
+  departments: many(departments),
+  positions: many(positions),
+  users: many(users),
+  roles: many(roles),
+  dicts: many(dicts),
+  managedFiles: many(managedFiles),
+  notices: many(notices),
+  systemConfigs: many(systemConfigs),
+  workflowDefinitions: many(workflowDefinitions),
+  workflowInstances: many(workflowInstances),
+}));
+
+export const departmentsRelations = relations(departments, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [departments.tenantId], references: [tenants.id] }),
+  users: many(users),
+}));
+
+export const positionsRelations = relations(positions, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [positions.tenantId], references: [tenants.id] }),
+  userPositions: many(userPositions),
+}));
+
+export const usersRelations = relations(users, ({ one, many }) => ({
+  department: one(departments, { fields: [users.departmentId], references: [departments.id] }),
+  tenant: one(tenants, { fields: [users.tenantId], references: [tenants.id] }),
+  userRoles: many(userRoles),
+  userPositions: many(userPositions),
+  oauthAccounts: many(userOauthAccounts),
+  apiTokens: many(userApiTokens),
+  passwordResetTokens: many(passwordResetTokens),
+}));
+
+export const rolesRelations = relations(roles, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [roles.tenantId], references: [tenants.id] }),
+  roleMenus: many(roleMenus),
+  userRoles: many(userRoles),
+}));
+
+export const menusRelations = relations(menus, ({ many }) => ({
+  roleMenus: many(roleMenus),
+}));
+
+export const userRolesRelations = relations(userRoles, ({ one }) => ({
+  user: one(users, { fields: [userRoles.userId], references: [users.id] }),
+  role: one(roles, { fields: [userRoles.roleId], references: [roles.id] }),
+}));
+
+export const userPositionsRelations = relations(userPositions, ({ one }) => ({
+  user: one(users, { fields: [userPositions.userId], references: [users.id] }),
+  position: one(positions, { fields: [userPositions.positionId], references: [positions.id] }),
+}));
+
+export const roleMenusRelations = relations(roleMenus, ({ one }) => ({
+  role: one(roles, { fields: [roleMenus.roleId], references: [roles.id] }),
+  menu: one(menus, { fields: [roleMenus.menuId], references: [menus.id] }),
+}));
+
+export const dictsRelations = relations(dicts, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [dicts.tenantId], references: [tenants.id] }),
+  items: many(dictItems),
+}));
+
+export const dictItemsRelations = relations(dictItems, ({ one }) => ({
+  dict: one(dicts, { fields: [dictItems.dictId], references: [dicts.id] }),
+}));
+
+export const fileStorageConfigsRelations = relations(fileStorageConfigs, ({ many }) => ({
+  files: many(managedFiles),
+}));
+
+export const managedFilesRelations = relations(managedFiles, ({ one }) => ({
+  storageConfig: one(fileStorageConfigs, { fields: [managedFiles.storageConfigId], references: [fileStorageConfigs.id] }),
+  tenant: one(tenants, { fields: [managedFiles.tenantId], references: [tenants.id] }),
+}));
+
+export const cronJobsRelations = relations(cronJobs, ({ many }) => ({
+  logs: many(cronJobLogs),
+}));
+
+export const cronJobLogsRelations = relations(cronJobLogs, ({ one }) => ({
+  job: one(cronJobs, { fields: [cronJobLogs.jobId], references: [cronJobs.id] }),
+}));
+
+export const noticesRelations = relations(notices, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [notices.tenantId], references: [tenants.id] }),
+  reads: many(noticeReads),
+  recipients: many(noticeRecipients),
+}));
+
+export const noticeReadsRelations = relations(noticeReads, ({ one }) => ({
+  notice: one(notices, { fields: [noticeReads.noticeId], references: [notices.id] }),
+}));
+
+export const noticeRecipientsRelations = relations(noticeRecipients, ({ one }) => ({
+  notice: one(notices, { fields: [noticeRecipients.noticeId], references: [notices.id] }),
+}));
+
+export const userOauthAccountsRelations = relations(userOauthAccounts, ({ one }) => ({
+  user: one(users, { fields: [userOauthAccounts.userId], references: [users.id] }),
+}));
+
+export const userApiTokensRelations = relations(userApiTokens, ({ one }) => ({
+  user: one(users, { fields: [userApiTokens.userId], references: [users.id] }),
+}));
+
+export const passwordResetTokensRelations = relations(passwordResetTokens, ({ one }) => ({
+  user: one(users, { fields: [passwordResetTokens.userId], references: [users.id] }),
+}));
+
+export const dbBackupsRelations = relations(dbBackups, ({ one }) => ({
+  file: one(managedFiles, { fields: [dbBackups.fileId], references: [managedFiles.id] }),
+  createdByUser: one(users, { fields: [dbBackups.createdBy], references: [users.id] }),
+}));
+
+export const workflowDefinitionsRelations = relations(workflowDefinitions, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [workflowDefinitions.tenantId], references: [tenants.id] }),
+  createdByUser: one(users, { fields: [workflowDefinitions.createdBy], references: [users.id] }),
+  instances: many(workflowInstances),
+}));
+
+export const workflowInstancesRelations = relations(workflowInstances, ({ one, many }) => ({
+  definition: one(workflowDefinitions, { fields: [workflowInstances.definitionId], references: [workflowDefinitions.id] }),
+  initiator: one(users, { fields: [workflowInstances.initiatorId], references: [users.id] }),
+  tenant: one(tenants, { fields: [workflowInstances.tenantId], references: [tenants.id] }),
+  tasks: many(workflowTasks),
+}));
+
+export const workflowTasksRelations = relations(workflowTasks, ({ one }) => ({
+  instance: one(workflowInstances, { fields: [workflowTasks.instanceId], references: [workflowInstances.id] }),
+  assignee: one(users, { fields: [workflowTasks.assigneeId], references: [users.id] }),
+}));

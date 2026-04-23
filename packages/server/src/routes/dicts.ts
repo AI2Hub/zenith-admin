@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { eq, asc, and, or, like, gte, lte } from 'drizzle-orm';
 import { db } from '../db';
+import { pageOffset } from '../lib/pagination';
 import { dicts, dictItems } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
@@ -58,7 +59,7 @@ const listDictsRoute = defineOpenAPIRoute({
     const finalWhere = where && tc ? and(where, tc) : (tc ?? where);
     const [total, list] = await Promise.all([
       db.$count(dicts, finalWhere),
-      db.select().from(dicts).where(finalWhere).orderBy(dicts.id).limit(pageSize).offset((page - 1) * pageSize),
+      db.select().from(dicts).where(finalWhere).orderBy(dicts.id).limit(pageSize).offset(pageOffset(page, pageSize)),
     ]);
     return c.json({ code: 0 as const, message: 'ok', data: { list: list.map(toDict), total, page, pageSize } }, 200);
   },

@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { eq, and, ilike, or } from 'drizzle-orm';
 import { db } from '../db';
+import { pageOffset } from '../lib/pagination';
 import { messageTemplates } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
@@ -78,7 +79,7 @@ const listRoute = defineOpenAPIRoute({
         .where(where)
         .orderBy(messageTemplates.id)
         .limit(pageSize)
-        .offset((page - 1) * pageSize),
+        .offset(pageOffset(page, pageSize)),
     ]);
 
     return c.json(

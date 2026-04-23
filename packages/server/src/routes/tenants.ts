@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { eq, like, and, sql, desc } from 'drizzle-orm';
 import { createMiddleware } from 'hono/factory';
 import { db } from '../db';
+import { pageOffset } from '../lib/pagination';
 import { tenants } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
@@ -64,7 +65,7 @@ const listRoute = defineOpenAPIRoute({
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const [count, rows] = await Promise.all([
       db.$count(tenants, where),
-      db.select().from(tenants).where(where).orderBy(desc(tenants.id)).limit(pageSize).offset((page - 1) * pageSize),
+      db.select().from(tenants).where(where).orderBy(desc(tenants.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
     ]);
     return c.json({ code: 0 as const, message: 'ok', data: { list: rows.map(toTenant), total: count, page, pageSize } }, 200);
   },

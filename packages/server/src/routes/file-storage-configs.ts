@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { asc, desc, eq, and, gte, lte } from 'drizzle-orm';
 import { db } from '../db';
+import { pageOffset } from '../lib/pagination';
 import { fileStorageConfigs, managedFiles } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
@@ -105,7 +106,7 @@ const listRoute = defineOpenAPIRoute({
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const [total, list] = await Promise.all([
       db.$count(fileStorageConfigs, where),
-      db.select().from(fileStorageConfigs).where(where).orderBy(desc(fileStorageConfigs.isDefault), asc(fileStorageConfigs.id)).limit(pageSize).offset((page - 1) * pageSize),
+      db.select().from(fileStorageConfigs).where(where).orderBy(desc(fileStorageConfigs.isDefault), asc(fileStorageConfigs.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
     ]);
     return c.json({ code: 0 as const, message: 'ok', data: { list: list.map(toFileStorageConfig), total, page, pageSize } }, 200);
   },

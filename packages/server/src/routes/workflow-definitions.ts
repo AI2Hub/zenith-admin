@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { eq, and, like, desc } from 'drizzle-orm';
 import { db } from '../db';
+import { pageOffset } from '../lib/pagination';
 import { workflowDefinitions, users } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
@@ -71,7 +72,7 @@ const listRoute = defineOpenAPIRoute({
         .where(where)
         .orderBy(desc(workflowDefinitions.id))
         .limit(pageSize)
-        .offset((page - 1) * pageSize),
+        .offset(pageOffset(page, pageSize)),
     ]);
     return c.json({ code: 0 as const, message: 'ok', data: { list: rows.map(r => toDefinition(r.def, r.createdByName)), total, page, pageSize } }, 200);
   },

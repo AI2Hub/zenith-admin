@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { eq, like, and, or, inArray, gte, lte } from 'drizzle-orm';
 import ExcelJS from 'exceljs';
 import { db } from '../db';
+import { pageOffset } from '../lib/pagination';
 import { users, userRoles, roles, departments, positions, userPositions } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import type { JwtPayload } from '../middleware/auth';
@@ -263,7 +264,7 @@ const listUsersRoute = defineOpenAPIRoute({
         .leftJoin(departments, eq(users.departmentId, departments.id))
         .where(where)
         .limit(pageSize)
-        .offset((page - 1) * pageSize)
+        .offset(pageOffset(page, pageSize))
         .orderBy(users.id),
     ]);
     const publicUsers = await toPublicUsers(list);

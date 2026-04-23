@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { eq, like, and, desc } from 'drizzle-orm';
 import { db } from '../db';
+import { pageOffset } from '../lib/pagination';
 import { cronJobs, cronJobLogs } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
@@ -84,7 +85,7 @@ const listRoute = defineOpenAPIRoute({
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const [count, rows] = await Promise.all([
       db.$count(cronJobs, where),
-      db.select().from(cronJobs).where(where).orderBy(desc(cronJobs.id)).limit(pageSize).offset((page - 1) * pageSize),
+      db.select().from(cronJobs).where(where).orderBy(desc(cronJobs.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
     ]);
     return c.json({ code: 0 as const, message: 'ok', data: { list: rows.map(toCronJob), total: count, page, pageSize } }, 200);
   },
@@ -278,7 +279,7 @@ const logsRoute = defineOpenAPIRoute({
     const { page = 1, pageSize = 20 } = c.req.valid('query');
     const [count, rows] = await Promise.all([
       db.$count(cronJobLogs),
-      db.select().from(cronJobLogs).orderBy(desc(cronJobLogs.startedAt)).limit(pageSize).offset((page - 1) * pageSize),
+      db.select().from(cronJobLogs).orderBy(desc(cronJobLogs.startedAt)).limit(pageSize).offset(pageOffset(page, pageSize)),
     ]);
     const list = rows.map((r) => ({
       id: r.id, jobId: r.jobId, jobName: r.jobName, executionCount: r.executionCount,
@@ -309,7 +310,7 @@ const idLogsRoute = defineOpenAPIRoute({
     const { page = 1, pageSize = 20 } = c.req.valid('query');
     const [count, rows] = await Promise.all([
       db.$count(cronJobLogs, eq(cronJobLogs.jobId, id)),
-      db.select().from(cronJobLogs).where(eq(cronJobLogs.jobId, id)).orderBy(desc(cronJobLogs.startedAt)).limit(pageSize).offset((page - 1) * pageSize),
+      db.select().from(cronJobLogs).where(eq(cronJobLogs.jobId, id)).orderBy(desc(cronJobLogs.startedAt)).limit(pageSize).offset(pageOffset(page, pageSize)),
     ]);
     const list = rows.map((r) => ({
       id: r.id, jobId: r.jobId, jobName: r.jobName, executionCount: r.executionCount,

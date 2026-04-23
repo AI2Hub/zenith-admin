@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { count, countDistinct, eq, and, desc, sql } from 'drizzle-orm';
 import { db } from '../db';
+import { pageOffset } from '../lib/pagination';
 import { workflowDefinitions, workflowInstances, workflowTasks, users } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
@@ -90,7 +91,7 @@ const listRoute = defineOpenAPIRoute({
         .where(where)
         .orderBy(desc(workflowInstances.id))
         .limit(pageSize)
-        .offset((page - 1) * pageSize),
+        .offset(pageOffset(page, pageSize)),
     ]);
     return c.json({
       code: 0 as const,
@@ -132,7 +133,7 @@ const pendingMineRoute = defineOpenAPIRoute({
       .where(and(eq(workflowTasks.assigneeId, user.userId), eq(workflowTasks.status, 'pending'), eq(workflowInstances.status, 'running')))
       .orderBy(desc(workflowTasks.createdAt))
       .limit(pageSize)
-      .offset((page - 1) * pageSize);
+      .offset(pageOffset(page, pageSize));
     return c.json({
       code: 0 as const,
       message: 'ok',
@@ -189,7 +190,7 @@ const allRoute = defineOpenAPIRoute({
       .where(where)
       .orderBy(desc(workflowInstances.id))
       .limit(pageSize)
-      .offset((page - 1) * pageSize);
+      .offset(pageOffset(page, pageSize));
     return c.json({
       code: 0 as const,
       message: 'ok',

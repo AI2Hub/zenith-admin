@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { count, desc, eq, like, and, or, sql, gte, lte, inArray } from 'drizzle-orm';
 import { db } from '../db';
+import { pageOffset } from '../lib/pagination';
 import { notices, noticeReads, noticeRecipients, users, userRoles, roles, departments } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
@@ -192,7 +193,7 @@ const inboxRoute = defineOpenAPIRoute({
     if (isRead === 'true') list = list.filter((n) => n.isRead);
     else if (isRead === 'false') list = list.filter((n) => !n.isRead);
     const total = list.length;
-    const paged = list.slice((page - 1) * pageSize, page * pageSize);
+    const paged = list.slice(pageOffset(page, pageSize), page * pageSize);
     return c.json({ code: 0 as const, message: 'ok', data: { list: paged, total, page, pageSize } }, 200);
   },
 });
@@ -226,7 +227,7 @@ const listRoute = defineOpenAPIRoute({
     const finalWhere = where && tc ? and(where, tc) : (tc ?? where);
     const [total, rows] = await Promise.all([
       db.$count(notices, finalWhere),
-      db.select().from(notices).where(finalWhere).orderBy(desc(notices.createdAt)).limit(pageSize).offset((page - 1) * pageSize),
+      db.select().from(notices).where(finalWhere).orderBy(desc(notices.createdAt)).limit(pageSize).offset(pageOffset(page, pageSize)),
     ]);
     const noticeIds = rows.map((r) => r.id);
     const readCountRows = noticeIds.length > 0
@@ -357,7 +358,7 @@ const readStatsRoute = defineOpenAPIRoute({
       ? targetUserIds.filter((uid) => readMap.has(uid))
       : targetUserIds.filter((uid) => !readMap.has(uid));
     const total = filteredIds.length;
-    const pagedIds = filteredIds.slice((page - 1) * pageSize, page * pageSize);
+    const pagedIds = filteredIds.slice(pageOffset(page, pageSize), page * pageSize);
 
     let list: Array<{ id: number; username: string; nickname: string; avatar: string | null; readAt?: string }> = [];
     if (pagedIds.length > 0) {

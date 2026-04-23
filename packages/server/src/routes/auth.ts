@@ -5,6 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { eq, desc, gte, lte, like, and, isNull, gt } from 'drizzle-orm';
 import { UAParser } from 'ua-parser-js';
 import { db } from '../db';
+import { pageOffset } from '../lib/pagination';
 import { users, userRoles, roles, loginLogs, tenants, operationLogs, passwordResetTokens } from '../db/schema';
 import { config } from '../config';
 import { sendMail } from '../lib/email';
@@ -506,7 +507,7 @@ const myLoginLogsRoute = defineOpenAPIRoute({
     const where = and(...conditions);
     const [count, rows] = await Promise.all([
       db.$count(loginLogs, where),
-      db.select().from(loginLogs).where(where).orderBy(desc(loginLogs.createdAt)).limit(pageSize).offset((page - 1) * pageSize),
+      db.select().from(loginLogs).where(where).orderBy(desc(loginLogs.createdAt)).limit(pageSize).offset(pageOffset(page, pageSize)),
     ]);
     return c.json({
       code: 0 as const,
@@ -541,7 +542,7 @@ const myOperationLogsRoute = defineOpenAPIRoute({
     const where = and(...conditions);
     const [count, rows] = await Promise.all([
       db.$count(operationLogs, where),
-      db.select().from(operationLogs).where(where).orderBy(desc(operationLogs.createdAt)).limit(pageSize).offset((page - 1) * pageSize),
+      db.select().from(operationLogs).where(where).orderBy(desc(operationLogs.createdAt)).limit(pageSize).offset(pageOffset(page, pageSize)),
     ]);
     return c.json({
       code: 0 as const,

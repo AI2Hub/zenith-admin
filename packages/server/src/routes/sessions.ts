@@ -8,6 +8,7 @@ import { getOnlineSessions, forceLogout } from '../lib/session-manager';
 import { sendToUser, closeUserConnections } from '../lib/ws-manager';
 import { validationHook, paginatedResponse, jsonContent, commonErrorResponses } from '../lib/openapi-schemas';
 import { OnlineSessionDTO as SessionItemSchema } from '../lib/openapi-dtos';
+import { pageOffset } from '../lib/pagination';
 
 const sessionsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -60,7 +61,7 @@ const listRoute = defineOpenAPIRoute({
       );
     }
     const total = sessions.length;
-    const list = sessions.slice((page - 1) * pageSize, page * pageSize);
+    const list = sessions.slice(pageOffset(page, pageSize), page * pageSize);
 
     return c.json(
       {

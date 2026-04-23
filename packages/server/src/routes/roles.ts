@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { eq, and, like, or, gte, lte } from 'drizzle-orm';
 import { db } from '../db';
+import { pageOffset } from '../lib/pagination';
 import { roles, roleMenus, userRoles, users } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
@@ -84,7 +85,7 @@ const listRoute = defineOpenAPIRoute({
     const finalWhere = where && tc ? and(where, tc) : (tc ?? where);
     const [total, list] = await Promise.all([
       db.$count(roles, finalWhere),
-      db.select().from(roles).where(finalWhere).orderBy(roles.id).limit(pageSize).offset((page - 1) * pageSize),
+      db.select().from(roles).where(finalWhere).orderBy(roles.id).limit(pageSize).offset(pageOffset(page, pageSize)),
     ]);
 
     return c.json({ code: 0 as const, message: 'ok', data: { list: list.map((r) => toRole(r)), total, page, pageSize } }, 200);
