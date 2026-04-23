@@ -193,3 +193,45 @@ await db.transaction(async (tx) => {
 ```
 
 > **注意**：WebSocket 推送、发邮件等副作用操作**不要放在事务内**，应在事务成功后执行。
+
+### 分页列表的 count + list 并行查询
+
+所有分页列表接口中，`total` 统计和 `list` 数据查询是两个**完全独立**的数据库操作，必须用 `Promise.all` 并行执行，**不允许串行**：
+
+```ts
+// ✅ 正确：并行执行
+const [total, rows] = await Promise.all([
+  db.$count(xxxs, where),
+  db
+    .select()
+    .from(xxxs)
+    .where(where)
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+    .orderBy(xxxs.id),
+]);
+
+// ❌ 禁止：串行（会白白等待 count 完成后才开始 list 查询）
+const total = await db.$count(xxxs, where);
+const rows = await db.select().from(xxxs).where(where)...;
+```
+
+同理，仪表盘等需要**同时取多个独立统计值**时，也应统一放入 `Promise.all`：
+
+```ts
+const [totalUsers, activeUsers, todayLogins] = await Promise.all([
+  db.$count(users),
+  db.$count(users, eq(users.status, 'active')),
+  db.$count(loginLogs, gte(loginLogs.createdAt, todayStart)),
+]);
+```
+
+### SQL 调试日志（Drizzle Logger）
+
+`packages/server/src/db/index.ts` 已集成自定义 `DrizzleLogger`，通过 winston 输出 SQL。启用方式：
+
+```env
+LOG_LEVEL=debug
+```
+
+开启后，每条 SQL 及其参数会以 `debug` 级别写入控制台和日志文件，方便开发调试。生产环境将 `LOG_LEVEL` 保持默认 `info` 即可，不会有任何额外开销。

@@ -22,5 +22,6 @@
 | **批量按钮显示时机** | 批量操作按钮仅在 `selectedRowKeys.length > 0` 时显示，放在查询/重置按钮之后 |
 | **updatedAt 自动维护** | schema 中所有表的 `updatedAt` 已配置 `.$onUpdate(() => new Date())`，**禁止**在 `db.update().set({})` 中手动传入 `updatedAt: new Date()` |
 | **计数查询** | 单表计数统一使用 `db.$count(table, where)`，禁止 `db.select({ total: count() }).from(table).where(where)` |
+| **并行查询** | 分页列表中 count 和 list 是独立操作，**必须**用 `const [total, rows] = await Promise.all([db.$count(...), db.select()...])` 并行执行，禁止串行 `await` |
 | **事务** | 多步写操作（replace 模式 delete+insert、写主表+关联表）必须用 `db.transaction()`；辅助写函数接受 `executor: DbTransaction \| typeof db` 参数；副作用（WebSocket、邮件）不放入事务 |
 | **DTO 中心化** | 实体 DTO 必须定义在 `packages/server/src/lib/dtos/` 对应子文件，通过 `openapi-dtos.ts` 统一导出；**严禁**在路由文件内本地声明带 `.openapi('EntityName')` 的实体 DTO |

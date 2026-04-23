@@ -176,9 +176,11 @@ const listRoute = defineOpenAPIRoute({
     if (startTime) conditions.push(gte(xxxs.createdAt, new Date(startTime)));
     if (endTime)   conditions.push(lte(xxxs.createdAt, new Date(endTime)));
     const where = conditions.length > 0 ? and(...conditions) : undefined;
-    const total = await db.$count(xxxs, where);
-    const rows = await db.select().from(xxxs).where(where)
-      .limit(pageSize).offset((page - 1) * pageSize).orderBy(xxxs.id);
+    const [total, rows] = await Promise.all([
+      db.$count(xxxs, where),
+      db.select().from(xxxs).where(where)
+        .limit(pageSize).offset((page - 1) * pageSize).orderBy(xxxs.id),
+    ]);
     return c.json({ code: 0 as const, message: 'ok', data: { list: rows, total, page, pageSize } }, 200);
   },
 });
