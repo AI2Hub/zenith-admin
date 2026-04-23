@@ -41,7 +41,7 @@ npm run db:seed        # 填充初始种子数据
 - **验证**：所有入参通过 `@hono/zod-openapi` 的 `createRoute` 声明 Zod schema 后自动校验，路由内用 `c.req.valid()` 取已验证数据；`defaultHook: validationHook` 自动将校验失败转为 `{ code: 400, message: '...', data: null }`
 - **DTO 中心化**：所有响应实体 DTO 按业务域拆分至 `src/lib/dtos/`（`iam.ts` / `auth.ts` / `dict.ts` / `files.ts` / `logs.ts` / `notices.ts` / `system.ts` / `workflow.ts` / `dashboard.ts` / `region.ts` / `messages.ts`），通过 `src/lib/openapi-dtos.ts`（re-export barrel）对外统一暴露。各路由文件通过 `import { XxxDTO } from '../lib/openapi-dtos'` 导入，**新增实体请直接在对应子文件中维护**。**禁止在路由文件内本地声明带 `.openapi('EntityName')` 的实体 DTO**，避免 Swagger Components 重复/冲突
 - **统一响应**：`{ code: 0, message: 'success', data: T }`，失败时 `code` 为非零值
-- **数据库**：Drizzle ORM + PostgreSQL，schema 定义在 `src/db/schema.ts`，迁移文件在 `drizzle/`；计数查询统一用 `db.$count(table, where)`；分页列表的 `total` 与 `list` 必须用 `Promise.all` **并行执行**
+- **数据库**：Drizzle ORM + PostgreSQL，schema 定义在 `src/db/schema.ts`，迁移文件在 `drizzle/`；计数查询统一用 `db.$count(table, where)`；分页列表的 `total` 与 `list` 必须用 `Promise.all` **并行执行**；分页偏移量统一使用 `pageOffset(page, pageSize)` 工具函数（来自 `src/lib/pagination.ts`），禁止手写 `(page - 1) * pageSize`；关联数据查询优先使用 Drizzle RQB（`db.query.tableName.findMany/findFirst({ with: { relation: true } })`），`schema.ts` 已声明所有 `xxxRelations`，`db` 实例已传入 `schema`，可直接使用
 - **枚举同步**：数据库 pg enum、TypeScript union type、Zod enum **三者必须保持一致**
 
 ### 前端（`packages/web`）

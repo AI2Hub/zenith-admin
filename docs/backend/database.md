@@ -207,7 +207,7 @@ const [total, rows] = await Promise.all([
     .from(xxxs)
     .where(where)
     .limit(pageSize)
-    .offset((page - 1) * pageSize)
+    .offset(pageOffset(page, pageSize))
     .orderBy(xxxs.id),
 ]);
 
@@ -235,3 +235,59 @@ LOG_LEVEL=debug
 ```
 
 开启后，每条 SQL 及其参数会以 `debug` 级别写入控制台和日志文件，方便开发调试。生产环境将 `LOG_LEVEL` 保持默认 `info` 即可，不会有任何额外开销。
+
+### 分页偏移量 pageOffset
+
+分页偏移量统一使用 `pageOffset(page, pageSize)` 工具函数（来自 `src/lib/pagination.ts`），**禁止手写 `(page - 1) * pageSize`**：
+
+```ts
+import { pageOffset } from '../lib/pagination';
+
+// ✅ 推荐
+db.select().from(xxxs).offset(pageOffset(page, pageSize));
+
+// ❌ 禁止
+db.select().from(xxxs).offset((page - 1) * pageSize);
+```
+
+### 关联查询优先使用 RQB
+
+`db` 实例已传入 `schema`，`schema.ts` 已为所有表声明 `xxxRelations`，可直接使用 `db.query.*`。
+
+**有关联数据时，优先用 RQB 替代手动 JOIN**：
+
+```ts
+// ✅ 推荐： RQB 自动处理关联
+const row = await db.query.workflowDefinitions.findFirst({
+  where: eq(workflowDefinitions.id, id),
+  with: {
+    createdByUser: { columns: { nickname: true } },
+  },
+});
+// row.createdByUser?.nickname
+
+// ❌ 避免：手动 JOIN
+const [row] = await db
+  .select({ def: workflowDefinitions, createdByName: users.nickname })
+  .from(workflowDefinitions)
+  .leftJoin(users, eq(workflowDefinitions.createdBy, users.id))
+  .where(eq(workflowDefinitions.id, id));
+```
+
+**已声明的关联关系（可直接使用）**：
+
+| 表 | 可用 `with` 字段 |
+| --- | --- |
+| `users` | `department`, `userRoles`, `userPositions`, `oauthAccounts`, `apiTokens` |
+| `roles` | `userRoles`, `roleMenus` |
+| `userRoles` | `user`, `role` |
+| `userPositions` | `user`, `position` |
+| `dicts` | `items` |
+| `workflowDefinitions` | `createdByUser`, `instances` |
+| `workflowInstances` | `definition`, `initiator`, `tasks` |
+| `workflowTasks` | `instance`, `assignee` |
+| `dbBackups` | `file`, `createdByUser` |
+| `cronJobs` | `logs` |
+| `notices` | `reads`, `recipients` |
+
+> **保留手动 JOIN 的场景**：聚合计数需要跨表过滤（如 `countDistinct` + 反向遍历联结表）；keyword 搜索同时过滤主表和关联表字段（WHERE 依赖 JOIN 列）。

@@ -125,6 +125,7 @@ export interface Xxx {
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { and, eq, like, gte, lte } from 'drizzle-orm';
 import { db } from '../db/index';
+import { pageOffset } from '../lib/pagination';
 import { xxxs } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
@@ -179,7 +180,7 @@ const listRoute = defineOpenAPIRoute({
     const [total, rows] = await Promise.all([
       db.$count(xxxs, where),
       db.select().from(xxxs).where(where)
-        .limit(pageSize).offset((page - 1) * pageSize).orderBy(xxxs.id),
+        .limit(pageSize).offset(pageOffset(page, pageSize)).orderBy(xxxs.id),
     ]);
     return c.json({ code: 0 as const, message: 'ok', data: { list: rows, total, page, pageSize } }, 200);
   },
@@ -269,6 +270,40 @@ xxxRouter.openapiRoutes([listRoute, createRoute_, updateRoute_, deleteRoute_] as
 
 export default xxxRouter;
 ```
+
+---
+
+## 关联查询：优先使用 RQB（`db.query.*`）
+
+当路由需要读取关联数据时（如「创建者昵称」「所属部门名称」），优先使用 Drizzle RQB 而非手写 JOIN：
+
+```ts
+// ✅ 推荐：RQB 自动处理 LEFT JOIN
+const row = await db.query.xxxs.findFirst({
+  where: eq(xxxs.id, id),
+  with: {
+    createdByUser: { columns: { nickname: true } },  // 只取 nickname
+  },
+});
+// 使用：row?.createdByUser?.nickname
+
+// ✅ 推荐：分页列表 + 关联
+const rows = await db.query.xxxs.findMany({
+  where,
+  with: { parent: { columns: { name: true } } },
+  orderBy: desc(xxxs.id),
+  limit: pageSize,
+  offset: pageOffset(page, pageSize),
+});
+
+// ❌ 避免：手写 LEFT JOIN（仅在跨表 WHERE 过滤或聚合计数时才需要）
+db.select({ xxx: xxxs, parentName: parents.name })
+  .from(xxxs)
+  .leftJoin(parents, eq(xxxs.parentId, parents.id))
+  .where(where);
+```
+
+> **注意**：新增表后须在 `schema.ts` 末尾补充 `xxxRelations`，否则 `db.query.xxx` 无法识别关联字段。
 
 ---
 
