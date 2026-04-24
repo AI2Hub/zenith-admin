@@ -409,14 +409,14 @@ export async function importUsers(user: JwtPayload, file: File): Promise<ImportU
     if (roleCodes.length > 0) {
       const missing = roleCodes.filter((code) => !roleCodeMap.has(code));
       if (missing.length > 0) { errors.push({ row: rowNum, message: `角色编码不存在: ${missing.join(', ')}` }); continue; }
-      roleIds = roleCodes.map((code) => roleCodeMap.get(code)!).filter((x): x is number => x !== undefined);
+      roleIds = roleCodes.map((code) => roleCodeMap.get(code)).filter((x): x is number => x !== undefined);
     }
     const positionCodes = positionCodesRaw ? positionCodesRaw.split(',').map((s) => s.trim()).filter(Boolean) : [];
     let positionIds: number[] = [];
     if (positionCodes.length > 0) {
       const missing = positionCodes.filter((code) => !positionCodeMap.has(code));
       if (missing.length > 0) { errors.push({ row: rowNum, message: `岗位编码不存在: ${missing.join(', ')}` }); continue; }
-      positionIds = positionCodes.map((code) => positionCodeMap.get(code)!).filter((x): x is number => x !== undefined);
+      positionIds = positionCodes.map((code) => positionCodeMap.get(code)).filter((x): x is number => x !== undefined);
     }
     let status: 'active' | 'disabled' = 'active';
     if (statusRaw) {

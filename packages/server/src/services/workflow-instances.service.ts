@@ -1,5 +1,3 @@
-import { workflowInstances, workflowTasks } from '../db/schema';
-
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 
 export function mapTask(
@@ -54,7 +52,7 @@ export function mapInstance(
 import { count, countDistinct, eq, and, desc, sql } from 'drizzle-orm';
 import { db } from '../db';
 import { pageOffset } from '../lib/pagination';
-import { workflowDefinitions, users } from '../db/schema';
+import { workflowInstances, workflowTasks, workflowDefinitions, users } from '../db/schema';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { advanceFlow, getInitialTasks, validateFlowData } from '../lib/workflow-engine';
 import type { WorkflowFlowData } from '@zenith/shared';
