@@ -32,7 +32,7 @@ export async function listDicts(q: ListDictsQuery) {
   const user = currentUser();
   const { keyword = '', status = '', startDate = '', endDate = '', page, pageSize } = q;
   const conditions: SQL[] = [];
-  if (keyword) conditions.push(or(like(dicts.name, `%${keyword}%`), like(dicts.code, `%${keyword}%`))!);
+  if (keyword) conditions.push(or(like(dicts.name, `%${keyword}%`), like(dicts.code, `%${keyword}%`)));
   if (status) conditions.push(eq(dicts.status, status));
   if (startDate) conditions.push(gte(dicts.createdAt, new Date(startDate)));
   if (endDate) conditions.push(lte(dicts.createdAt, new Date(`${endDate}T23:59:59.999Z`)));

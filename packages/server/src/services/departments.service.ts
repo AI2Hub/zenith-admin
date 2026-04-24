@@ -5,8 +5,7 @@ import { AppError } from '../lib/errors';
 import { currentUser } from '../lib/context';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { exportToExcel } from '../lib/excel-export';
-import type { Department } from '@zenith/shared';
-import type { createDepartmentSchema, updateDepartmentSchema } from '@zenith/shared';
+import type { Department, createDepartmentSchema, updateDepartmentSchema } from '@zenith/shared';
 import type { z } from 'zod';
 
 export type CreateDepartmentInput = z.infer<typeof createDepartmentSchema>;
