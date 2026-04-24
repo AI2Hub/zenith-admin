@@ -15,6 +15,8 @@ export interface UserPreferences {
   showBreadcrumb: boolean;
   themeColor: ThemeColor;
   tabAnimation: TabAnimation;
+  showMenuSearch: boolean;
+  showFullscreen: boolean;
 }
 
 export const defaultPreferences: UserPreferences = {
@@ -26,6 +28,8 @@ export const defaultPreferences: UserPreferences = {
   showBreadcrumb: false,
   themeColor: 'blue',
   tabAnimation: 'fade',
+  showMenuSearch: true,
+  showFullscreen: true,
 };
 
 function loadPreferences(): UserPreferences {

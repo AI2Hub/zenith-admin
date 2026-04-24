@@ -524,7 +524,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
   // ─── Header actions (reused in both topbar and vertical header) ────────────
   const headerActions = (
     <div className="admin-header__actions">
-      <MenuSearchInput menus={flatMenus} />
+      {(preferences.showMenuSearch ?? true) && <MenuSearchInput menus={flatMenus} />}
       {isPlatformAdmin && tenantList.length > 0 && (
         <>
           <Select
@@ -633,11 +633,13 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
           </button>
         </Dropdown>
       </Tooltip>
-      <Tooltip content={isFullscreen ? '退出全屏' : '全屏显示'} position="bottom">
-        <button className="admin-theme-btn" title={isFullscreen ? '退出全屏' : '全屏显示'} onClick={toggleFullscreen}>
-          {isFullscreen ? <Minimize2 size={16} strokeWidth={1.5} /> : <Maximize2 size={16} strokeWidth={1.5} />}
-        </button>
-      </Tooltip>
+      {(preferences.showFullscreen ?? true) && (
+        <Tooltip content={isFullscreen ? '退出全屏' : '全屏显示'} position="bottom">
+          <button className="admin-theme-btn" title={isFullscreen ? '退出全屏' : '全屏显示'} onClick={toggleFullscreen}>
+            {isFullscreen ? <Minimize2 size={16} strokeWidth={1.5} /> : <Maximize2 size={16} strokeWidth={1.5} />}
+          </button>
+        </Tooltip>
+      )}
       <div style={{ width: 1, height: 16, backgroundColor: 'var(--color-border)', margin: '0 4px' }} />
       <Dropdown
         position="bottomRight"
@@ -928,6 +930,18 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>显示面包屑导航</span>
                 <Switch checked={preferences.showBreadcrumb} onChange={(v) => setPreferences({ showBreadcrumb: v })} />
+              </div>
+
+              {/* ── 菜单搜索 ── */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>显示菜单搜索框</span>
+                <Switch checked={preferences.showMenuSearch ?? true} onChange={(v) => setPreferences({ showMenuSearch: v })} />
+              </div>
+
+              {/* ── 全屏按钮 ── */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>显示全屏按钮</span>
+                <Switch checked={preferences.showFullscreen ?? true} onChange={(v) => setPreferences({ showFullscreen: v })} />
               </div>
 
               <div className="prefs-section-divider" />
