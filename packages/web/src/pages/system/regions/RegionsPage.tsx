@@ -235,16 +235,17 @@ export default function RegionsPage() {
       width: 80,
     },
     {
-      title: '状态',
-      dataIndex: 'status',
-      width: 90,
-      render: (value: string) => <DictTag dictCode="common_status" value={value} />,
-    },
-    {
       title: '创建时间',
       dataIndex: 'createdAt',
       width: 180,
       render: (val: string) => formatDateTime(val),
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 90,
+      fixed: 'right',
+      render: (value: string) => <DictTag dictCode="common_status" value={value} />,
     },
     {
       title: '操作',
