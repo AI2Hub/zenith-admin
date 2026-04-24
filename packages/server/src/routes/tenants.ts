@@ -1,19 +1,23 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { eq, like, and, ne, desc } from 'drizzle-orm';
 import { createMiddleware } from 'hono/factory';
-import { db } from '../db';
-import { pageOffset } from '../lib/pagination';
-import { tenants } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
-import { exportToExcel } from '../lib/excel-export';
 import { isPlatformAdmin } from '../lib/tenant';
 import type { AppEnv } from '../lib/context';
-import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody, okExcel, excelBody } from '../lib/openapi-schemas';
+import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody, okExcel, excelBody } from '../lib/openapi-schemas';
 import { TenantDTO } from '../lib/openapi-dtos';
-import { mapTenant } from '../services/tenants.service';
+import {
+  listTenants,
+  listAllTenants,
+  getTenant,
+  createTenant,
+  updateTenant,
+  deleteTenant,
+  exportTenants,
+} from '../services/tenants.service';
 
 const tenantsRoute = new OpenAPIHono({ defaultHook: validationHook });
+
 const platformAdminMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   const user = c.get('user');
   if (!isPlatformAdmin(user)) {
@@ -35,181 +39,90 @@ const createTenantSchema = z.object({
 });
 const updateTenantSchema = createTenantSchema.partial();
 
-// GET /
 const listRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'get',
-    path: '/',
-    tags: ['Tenants'],
-    summary: '租户列表',
+    method: 'get', path: '/', tags: ['Tenants'], summary: '租户列表',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, platformAdminMiddleware] as const,
     request: { query: PaginationQuery.extend({ keyword: z.string().optional(), status: z.string().optional() }) },
     responses: { ...okPaginated(TenantDTO, 'ok'), ...commonErrorResponses },
   }),
-  handler: async (c) => {
-    const { page = 1, pageSize = 10, keyword, status } = c.req.valid('query');
-    const conditions = [];
-    if (keyword) conditions.push(like(tenants.name, `%${keyword}%`));
-    if (status === 'active' || status === 'disabled') conditions.push(eq(tenants.status, status));
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
-    const [count, rows] = await Promise.all([
-      db.$count(tenants, where),
-      db.select().from(tenants).where(where).orderBy(desc(tenants.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
-    ]);
-    return c.json(okBody({ list: rows.map((r) => mapTenant(r)), total: count, page, pageSize }), 200);
-  },
+  handler: async (c) => c.json(okBody(await listTenants(c.req.valid('query'))), 200),
 });
 
-// GET /all
 const allRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'get',
-    path: '/all',
-    tags: ['Tenants'],
-    summary: '全部租户',
+    method: 'get', path: '/all', tags: ['Tenants'], summary: '全部租户',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, platformAdminMiddleware] as const,
     responses: { ...ok(z.array(TenantDTO), 'ok'), ...commonErrorResponses },
   }),
-  handler: async (c) => {
-    const rows = await db.select({ id: tenants.id, name: tenants.name, code: tenants.code, status: tenants.status }).from(tenants).orderBy(tenants.id);
-    return c.json(okBody(rows), 200);
-  },
+  handler: async (c) => c.json(okBody(await listAllTenants()), 200),
 });
 
-// GET /export
 const exportRouteDef = defineOpenAPIRoute({
   route: createRoute({
-    method: 'get',
-    path: '/export',
-    tags: ['Tenants'],
-    summary: '导出租户',
+    method: 'get', path: '/export', tags: ['Tenants'], summary: '导出租户',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, platformAdminMiddleware] as const,
     responses: { ...okExcel() },
   }),
   handler: async (c) => {
-    const rows = await db.select().from(tenants).orderBy(desc(tenants.id));
-    const buffer = await exportToExcel(
-      [
-        { header: 'ID', key: 'id', width: 8 },
-        { header: '租户名称', key: 'name', width: 20 },
-        { header: '租户编码', key: 'code', width: 16 },
-        { header: '联系人', key: 'contactName', width: 14 },
-        { header: '联系电话', key: 'contactPhone', width: 16 },
-        { header: '状态', key: 'status', width: 10, transform: (v) => v === 'active' ? '启用' : '禁用' },
-        { header: '到期时间', key: 'expireAt', width: 22 },
-        { header: '最大用户数', key: 'maxUsers', width: 12 },
-        { header: '创建时间', key: 'createdAt', width: 22 },
-      ],
-      rows.map((r) => ({ ...r, expireAt: r.expireAt?.toISOString() ?? '', createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString() })),
-      '租户列表',
-    );
-    return excelBody(c, buffer, 'tenants.xlsx');
+    const { buffer, filename } = await exportTenants();
+    return excelBody(c, buffer, filename);
   },
 });
 
-// GET /{id}
 const detailRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'get',
-    path: '/{id}',
-    tags: ['Tenants'],
-    summary: '租户详情',
+    method: 'get', path: '/{id}', tags: ['Tenants'], summary: '租户详情',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, platformAdminMiddleware] as const,
     request: { params: IdParam },
-    responses: {
-      ...ok(TenantDTO, 'ok'),
-      404: { content: jsonContent(ErrorResponse), description: '不存在' },
-    },
+    responses: { ...ok(TenantDTO, 'ok'), ...commonErrorResponses },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    const [row] = await db.select().from(tenants).where(eq(tenants.id, id)).limit(1);
-    if (!row) return c.json(errBody('租户不存在', 404), 404);
-    return c.json(okBody(mapTenant(row)), 200);
+    return c.json(okBody(await getTenant(id)), 200);
   },
 });
 
-// POST /
 const createRouteDef = defineOpenAPIRoute({
   route: createRoute({
-    method: 'post',
-    path: '/',
-    tags: ['Tenants'],
-    summary: '创建租户',
+    method: 'post', path: '/', tags: ['Tenants'], summary: '创建租户',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, platformAdminMiddleware, guard({ audit: { module: '租户管理', description: '创建租户' } })] as const,
     request: { body: { content: jsonContent(createTenantSchema), required: true } },
-    responses: {
-      ...ok(TenantDTO, '创建成功'),
-      400: { content: jsonContent(ErrorResponse), description: '参数错误' },
-    },
+    responses: { ...ok(TenantDTO, '创建成功'), ...commonErrorResponses },
   }),
-  handler: async (c) => {
-    const data = c.req.valid('json');
-    const [existing] = await db.select().from(tenants).where(eq(tenants.code, data.code)).limit(1);
-    if (existing) return c.json(errBody('租户编码已存在'), 400);
-    const [row] = await db.insert(tenants).values({ ...data, expireAt: data.expireAt ? new Date(data.expireAt) : null }).returning();
-    return c.json(okBody(mapTenant(row), '创建成功'), 200);
-  },
+  handler: async (c) => c.json(okBody(await createTenant(c.req.valid('json')), '创建成功'), 200),
 });
 
-// PUT /{id}
 const updateRouteDef = defineOpenAPIRoute({
   route: createRoute({
-    method: 'put',
-    path: '/{id}',
-    tags: ['Tenants'],
-    summary: '更新租户',
+    method: 'put', path: '/{id}', tags: ['Tenants'], summary: '更新租户',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, platformAdminMiddleware, guard({ audit: { module: '租户管理', description: '更新租户' } })] as const,
     request: { params: IdParam, body: { content: jsonContent(updateTenantSchema), required: true } },
-    responses: {
-      ...ok(TenantDTO, '更新成功'),
-      400: { content: jsonContent(ErrorResponse), description: '参数错误' },
-      404: { content: jsonContent(ErrorResponse), description: '不存在' },
-    },
+    responses: { ...ok(TenantDTO, '更新成功'), ...commonErrorResponses },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    const data = c.req.valid('json');
-    if (data.code) {
-      const [dup] = await db.select().from(tenants).where(and(eq(tenants.code, data.code), ne(tenants.id, id))).limit(1);
-      if (dup) return c.json(errBody('租户编码已存在'), 400);
-    }
-    const { expireAt: rawExpireAt, ...rest } = data;
-    const values = {
-      ...rest,
-      ...(rawExpireAt === undefined ? {} : { expireAt: rawExpireAt ? new Date(rawExpireAt) : null }),
-    };
-    const [row] = await db.update(tenants).set(values).where(eq(tenants.id, id)).returning();
-    if (!row) return c.json(errBody('租户不存在', 404), 404);
-    return c.json(okBody(mapTenant(row), '更新成功'), 200);
+    return c.json(okBody(await updateTenant(id, c.req.valid('json')), '更新成功'), 200);
   },
 });
 
-// DELETE /{id}
 const deleteRouteDef = defineOpenAPIRoute({
   route: createRoute({
-    method: 'delete',
-    path: '/{id}',
-    tags: ['Tenants'],
-    summary: '删除租户',
+    method: 'delete', path: '/{id}', tags: ['Tenants'], summary: '删除租户',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, platformAdminMiddleware, guard({ audit: { module: '租户管理', description: '删除租户' } })] as const,
     request: { params: IdParam },
-    responses: {
-      ...okMsg('删除成功'),
-      404: { content: jsonContent(ErrorResponse), description: '不存在' },
-    },
+    responses: { ...okMsg('删除成功'), ...commonErrorResponses },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    const [row] = await db.delete(tenants).where(eq(tenants.id, id)).returning();
-    if (!row) return c.json(errBody('租户不存在', 404), 404);
+    await deleteTenant(id);
     return c.json(okBody(null, '删除成功'), 200);
   },
 });
