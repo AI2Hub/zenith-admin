@@ -7,6 +7,7 @@ import { isSuperAdmin, getUserPermissions } from '../lib/permissions';
 import { sanitizeBody } from '../lib/sanitize';
 import { db } from '../db';
 import { operationLogs } from '../db/schema';
+import { errBody } from '../lib/openapi-schemas';
 
 export interface AuditLogOptions {
   description: string;
@@ -91,7 +92,7 @@ export function guard(opts: GuardOptions) {
         const userPerms = await getUserPermissions(user.userId);
         const hasPermission = perms.some((p) => userPerms.includes(p));
         if (!hasPermission) {
-          return c.json({ code: 403, message: '权限不足', data: null }, 403);
+          return c.json(errBody('权限不足', 403), 403);
         }
       }
     }

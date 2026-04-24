@@ -2,6 +2,7 @@ import { rateLimiter, RedisStore } from 'hono-rate-limiter';
 import type { MiddlewareHandler } from 'hono';
 import redis from '../lib/redis';
 import { config } from '../config';
+import { errBody } from '../lib/openapi-schemas';
 
 // ioredis → hono-rate-limiter RedisClient 适配器
 // ioredis 的 evalsha 签名为 (sha1, numkeys, ...keys, ...args)，需要拍平传递
@@ -50,7 +51,7 @@ export const authRateLimit: MiddlewareHandler = rateLimiter({
   keyGenerator: ipKey,
   store: rateLimitStore,
   handler: (c) =>
-    c.json({ code: 429, message: '登录尝试过于频繁，请 15 分钟后再试', data: null }, 429),
+    c.json(errBody('登录尝试过于频繁，请 15 分钟后再试', 429), 429),
 });
 
 /**
@@ -63,7 +64,7 @@ export const captchaRateLimit: MiddlewareHandler = rateLimiter({
   keyGenerator: ipKey,
   store: rateLimitStore,
   handler: (c) =>
-    c.json({ code: 429, message: '验证码请求过于频繁，请稍后再试', data: null }, 429),
+    c.json(errBody('验证码请求过于频繁，请稍后再试', 429), 429),
 });
 
 /**
@@ -76,5 +77,5 @@ export const sensitiveRateLimit: MiddlewareHandler = rateLimiter({
   keyGenerator: ipKey,
   store: rateLimitStore,
   handler: (c) =>
-    c.json({ code: 429, message: '操作过于频繁，请 1 小时后重试', data: null }, 429),
+    c.json(errBody('操作过于频繁，请 1 小时后重试', 429), 429),
 });

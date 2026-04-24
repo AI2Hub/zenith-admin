@@ -2,6 +2,7 @@ import { createMiddleware } from 'hono/factory';
 import { jwt, type JwtVariables } from 'hono/jwt';
 import { isTokenBlacklisted, touchSession } from '../lib/session-manager';
 import { config } from '../config';
+import { errBody } from '../lib/openapi-schemas';
 
 export interface JwtPayload {
   userId: number;
@@ -29,7 +30,7 @@ const jwtMiddleware = jwt({
 export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
   const authorization = c.req.header('Authorization');
   if (!authorization?.startsWith('Bearer ')) {
-    return c.json({ code: 401, message: '未登录', data: null }, 401);
+    return c.json(errBody('未登录', 401), 401);
   }
 
   try {
@@ -41,7 +42,7 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
     if (payload.jti) {
       const blacklisted = await isTokenBlacklisted(payload.jti);
       if (blacklisted) {
-        return c.json({ code: 401, message: '会话已被强制下线', data: null }, 401);
+        return c.json(errBody('会话已被强制下线', 401), 401);
       }
     }
 
@@ -53,7 +54,7 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
     c.set('user', payload);
     await next();
   } catch {
-    return c.json({ code: 401, message: '登录已过期', data: null }, 401);
+    return c.json(errBody('登录已过期', 401), 401);
   }
 });
 

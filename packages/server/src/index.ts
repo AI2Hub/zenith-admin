@@ -18,6 +18,7 @@ import { createNodeWebSocket } from '@hono/node-ws';
 import { swaggerUI } from '@hono/swagger-ui';
 import { config } from './config';
 import logger from './lib/logger';
+import { errBody } from './lib/openapi-schemas';
 import { ipAccessMiddleware } from './middleware/ip-access';
 import { authRateLimit, captchaRateLimit, sensitiveRateLimit } from './middleware/rate-limit';
 import authRoutes from './routes/auth';
@@ -110,7 +111,7 @@ if (config.requestBodyLimit > 0) {
     '*',
     bodyLimit({
       maxSize: config.requestBodyLimit,
-      onError: (c) => c.json({ code: 413, message: '请求体超出大小限制', data: null }, 413),
+      onError: (c) => c.json(errBody('请求体超出大小限制', 413), 413),
     }),
   );
 }
@@ -215,7 +216,7 @@ app.onError((err, c) => {
     return c.json({ code: err.status, message: err.message, data: null }, err.status);
   }
   logger.error('[Unhandled Error]', err);
-  return c.json({ code: 500, message: '服务器内部错误', data: null }, 500);
+  return c.json(errBody('服务器内部错误', 500), 500);
 });
 
 logger.info(`Server starting on port ${config.port}...`);

@@ -157,7 +157,7 @@ export const okBody = <T>(data: T, message = 'ok') => ({ code: 0 as const, messa
  * return c.json(errBody('密码不符合要求'), 400);
  * return c.json(errBody('用户不存在', 404), 404);
  */
-export const errBody = <const T extends 400 | 401 | 403 | 404 | 409 | 422 | 423 | 429 | 500 = 400>(
+export const errBody = <const T extends 400 | 401 | 403 | 404 | 409 | 413 | 422 | 423 | 429 | 500 = 400>(
   message: string,
   code: T = 400 as T,
 ) => ({ code, message, data: null });

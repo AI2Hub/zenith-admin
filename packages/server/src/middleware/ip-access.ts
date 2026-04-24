@@ -1,6 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import ipRangeCheck from 'ip-range-check';
 import { getConfigBoolean, getConfigValue } from '../lib/system-config';
+import { errBody } from '../lib/openapi-schemas';
 
 /** 免检路径：这些接口无需经过 IP 访问控制 */
 const EXEMPT_PATHS = new Set([
@@ -73,7 +74,7 @@ export const ipAccessMiddleware = createMiddleware(async (c, next) => {
   if (cfg.blacklistEnabled && cfg.blacklist.length > 0) {
     const blocked = ipRangeCheck(ip, cfg.blacklist);
     if (blocked) {
-      return c.json({ code: 403, message: '您的IP已被禁止访问', data: null }, 403);
+      return c.json(errBody('您的IP已被禁止访问', 403), 403);
     }
   }
 
@@ -81,7 +82,7 @@ export const ipAccessMiddleware = createMiddleware(async (c, next) => {
   if (cfg.whitelistEnabled && cfg.whitelist.length > 0) {
     const allowed = ipRangeCheck(ip, cfg.whitelist);
     if (!allowed) {
-      return c.json({ code: 403, message: '您的IP不在允许访问范围内', data: null }, 403);
+      return c.json(errBody('您的IP不在允许访问范围内', 403), 403);
     }
   }
 
