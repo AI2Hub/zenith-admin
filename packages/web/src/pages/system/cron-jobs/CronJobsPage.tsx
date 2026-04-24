@@ -314,78 +314,89 @@ export default function CronJobsPage() {
         visible={modalVisible}
         onCancel={() => { setModalVisible(false); setEditingJob(null); setCronExprValue(''); }}
         onOk={handleModalOk}
-        width={560}
+        width={720}
       >
         <Form
           key={editingJob?.id ?? 'new-job'}
           getFormApi={(api) => { formApi.current = api; }}
           initValues={formInitValues}
-          labelPosition="left"
-          labelWidth={120}
+          labelPosition="top"
           onValueChange={(v: Record<string, unknown>) => {
             if (typeof v.cronExpression === 'string') setCronExprValue(v.cronExpression);
           }}
         >
-          <Form.Input field="name" label="任务名称" placeholder="请输入任务名称" rules={[{ required: true, message: '请输入任务名称' }]} />
-          <Form.Input
-            field="cronExpression"
-            label="Cron 表达式"
-            rules={[{ required: true, message: '请输入 Cron 表达式' }]}
-            placeholder="如 0 */5 * * * *"
-            addonAfter={
-              <CronBuilderPopover
-                value={cronExprValue}
-                onApply={(expr) => {
-                  formApi.current?.setValue('cronExpression', expr);
-                  setCronExprValue(expr);
-                }}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <Form.Input field="name" label="任务名称" placeholder="请输入任务名称" rules={[{ required: true, message: '请输入任务名称' }]} />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <Form.Input
+                field="cronExpression"
+                label="Cron 表达式"
+                rules={[{ required: true, message: '请输入 Cron 表达式' }]}
+                placeholder="如 0 */5 * * * *"
+                addonAfter={
+                  <CronBuilderPopover
+                    value={cronExprValue}
+                    onApply={(expr) => {
+                      formApi.current?.setValue('cronExpression', expr);
+                      setCronExprValue(expr);
+                    }}
+                  />
+                }
               />
-            }
-          />
-          <Form.Select
-            field="handler"
-            label="处理器"
-            rules={[{ required: true, message: '请选择处理器' }]}
-            optionList={handlers.map((h) => ({ value: h, label: h }))}
-            style={{ width: '100%' }}
-            filter
-            placeholder="请选择处理器"
-          />
-          <Form.TextArea field="params" label="参数(JSON)" placeholder='可选，如 {"key":"value"}' />
-          <Form.Select
-            field="status"
-            label="状态"
-            optionList={[
-              { value: 'active', label: '启用' },
-              { value: 'disabled', label: '禁用' },
-            ]}
-            style={{ width: '100%' }}
-          />
-          <Form.InputNumber
-            field="retryCount"
-            label="重试次数"
-            rules={[{ required: true, message: '请输入重试次数' }]}
-            placeholder="设置为 0 时，不进行重试"
-            min={0}
-            max={10}
-            style={{ width: '100%' }}
-          />
-          <Form.InputNumber
-            field="retryInterval"
-            label="重试间隔"
-            rules={[{ required: true, message: '请输入重试间隔' }]}
-            placeholder="单位：毫秒。设置为 0 时，无需间隔"
-            min={0}
-            style={{ width: '100%' }}
-          />
-          <Form.InputNumber
-            field="monitorTimeout"
-            label="监控超时时间"
-            placeholder="单位：毫秒，可选"
-            min={0}
-            style={{ width: '100%' }}
-          />
-          <Form.TextArea field="description" label="描述" placeholder="请输入描述" maxCount={256} />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <Form.Select
+                field="handler"
+                label="处理器"
+                rules={[{ required: true, message: '请选择处理器' }]}
+                optionList={handlers.map((h) => ({ value: h, label: h }))}
+                style={{ width: '100%' }}
+                filter
+                placeholder="请选择处理器"
+              />
+            </div>
+            <Form.Select
+              field="status"
+              label="状态"
+              optionList={[
+                { value: 'active', label: '启用' },
+                { value: 'disabled', label: '禁用' },
+              ]}
+              style={{ width: '100%' }}
+            />
+            <Form.InputNumber
+              field="retryCount"
+              label="重试次数"
+              rules={[{ required: true, message: '请输入重试次数' }]}
+              placeholder="0 表示不重试"
+              min={0}
+              max={10}
+              style={{ width: '100%' }}
+            />
+            <Form.InputNumber
+              field="retryInterval"
+              label="重试间隔（ms）"
+              rules={[{ required: true, message: '请输入重试间隔' }]}
+              placeholder="0 表示无间隔"
+              min={0}
+              style={{ width: '100%' }}
+            />
+            <Form.InputNumber
+              field="monitorTimeout"
+              label="监控超时（ms）"
+              placeholder="可选，超时报警阈值"
+              min={0}
+              style={{ width: '100%' }}
+            />
+            <div style={{ gridColumn: '1 / -1' }}>
+              <Form.TextArea field="params" label="参数（JSON）" placeholder='可选，如 {"key":"value"}' />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <Form.TextArea field="description" label="描述" placeholder="请输入描述" maxCount={256} />
+            </div>
+          </div>
         </Form>
       </Modal>
 
