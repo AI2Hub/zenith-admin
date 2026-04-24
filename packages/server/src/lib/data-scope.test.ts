@@ -11,15 +11,29 @@
  *  7. 无角色 (userRoles 为空) → 返回 undefined（ownerColumn 未传）
  *  8. collectDescendants 递归收集子部门（通过 dept 场景间接验证）
  *
- * Mock 策略：mock `../db`，使用可 await 的 chainable query builder mock；
- * drizzle-orm 的 eq / inArray 保持真实实现（纯函数，无 DB 依赖）。
+ * Mock 策略：
+ *  - `db.query.users.findFirst` 返回 { departmentId, userRoles: [{ role: { dataScope, code } }] }
+ *  - `db.select` 链式 mock（仅用于 dept 场景查询部门树）
+ *  - drizzle-orm 的 eq / inArray 保持真实实现（纯函数，无 DB 依赖）
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { pgTable, integer } from 'drizzle-orm/pg-core';
 import { db } from '../db';
 import { getDataScopeCondition } from './data-scope';
 
-// ─── 工具：创建可链式调用且 await 可以拿到指定结果的 mock chain ────────────────
+// ─── 工具：构造 findFirst 返回值 ─────────────────────────────────────────────
+interface MockRole {
+  dataScope: 'all' | 'dept' | 'self';
+  code: string;
+}
+function mockUser(departmentId: number | null, roles: MockRole[]) {
+  return {
+    departmentId,
+    userRoles: roles.map((role) => ({ role })),
+  };
+}
+
+// ─── 工具：创建可链式调用且 await 可以拿到指定结果的 mock chain（dept 查询使用）
 function createChain(result: unknown[]) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chain: Record<string, any> = {};
@@ -42,10 +56,18 @@ const mockOrderTable = pgTable('orders', {
 
 // ─── Mock ────────────────────────────────────────────────────────────────────
 vi.mock('../db', () => ({
-  db: { select: vi.fn() },
+  db: {
+    select: vi.fn(),
+    query: {
+      users: { findFirst: vi.fn() },
+    },
+  },
 }));
 
-const dbMock = vi.mocked(db);
+const dbMock = vi.mocked(db) as unknown as {
+  select: ReturnType<typeof vi.fn>;
+  query: { users: { findFirst: ReturnType<typeof vi.fn> } };
+};
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
 beforeEach(() => {
@@ -55,8 +77,8 @@ beforeEach(() => {
 // ─── 全量访问分支 ──────────────────────────────────────────────────────────────
 describe('全量访问（返回 undefined）', () => {
   it('super_admin 角色 → 返回 undefined', async () => {
-    dbMock.select.mockReturnValueOnce(
-      createChain([{ dataScope: 'self', code: 'super_admin' }]),
+    dbMock.query.users.findFirst.mockResolvedValueOnce(
+      mockUser(null, [{ dataScope: 'self', code: 'super_admin' }]),
     );
 
     const result = await getDataScopeCondition({
@@ -66,12 +88,12 @@ describe('全量访问（返回 undefined）', () => {
     });
 
     expect(result).toBeUndefined();
-    expect(dbMock.select).toHaveBeenCalledTimes(1);
+    expect(dbMock.query.users.findFirst).toHaveBeenCalledTimes(1);
   });
 
   it('dataScope = all → 返回 undefined', async () => {
-    dbMock.select.mockReturnValueOnce(
-      createChain([{ dataScope: 'all', code: 'admin' }]),
+    dbMock.query.users.findFirst.mockResolvedValueOnce(
+      mockUser(null, [{ dataScope: 'all', code: 'admin' }]),
     );
 
     const result = await getDataScopeCondition({
@@ -84,7 +106,7 @@ describe('全量访问（返回 undefined）', () => {
   });
 
   it('用户无角色且未传 ownerColumn → 返回 undefined', async () => {
-    dbMock.select.mockReturnValueOnce(createChain([])); // 无角色
+    dbMock.query.users.findFirst.mockResolvedValueOnce(mockUser(null, []));
 
     const result = await getDataScopeCondition({
       currentUserId: 3,
@@ -94,7 +116,7 @@ describe('全量访问（返回 undefined）', () => {
   });
 
   it('用户无角色但传了 ownerColumn → 返回 eq 条件（self 兜底）', async () => {
-    dbMock.select.mockReturnValueOnce(createChain([])); // 无角色
+    dbMock.query.users.findFirst.mockResolvedValueOnce(mockUser(null, []));
 
     const result = await getDataScopeCondition({
       currentUserId: 3,
@@ -109,20 +131,18 @@ describe('全量访问（返回 undefined）', () => {
 // ─── dept 权限分支 ────────────────────────────────────────────────────────────
 describe('dataScope = dept', () => {
   it('用户有部门时返回 inArray 过滤条件（含递归子部门）', async () => {
-    dbMock.select
-      // 1. 查用户角色 → dept 范围
-      .mockReturnValueOnce(createChain([{ dataScope: 'dept', code: 'manager' }]))
-      // 2. 查用户所属部门 → 部门 ID 5
-      .mockReturnValueOnce(createChain([{ departmentId: 5 }]))
-      // 3. 查所有部门树 → 5 → 6 → 7（三级嵌套）
-      .mockReturnValueOnce(
-        createChain([
-          { id: 5, parentId: 0 },
-          { id: 6, parentId: 5 },
-          { id: 7, parentId: 6 },
-          { id: 8, parentId: 99 }, // 不属于 5 的子树
-        ]),
-      );
+    dbMock.query.users.findFirst.mockResolvedValueOnce(
+      mockUser(5, [{ dataScope: 'dept', code: 'manager' }]),
+    );
+    // 查所有部门树 → 5 → 6 → 7（三级嵌套）
+    dbMock.select.mockReturnValueOnce(
+      createChain([
+        { id: 5, parentId: 0 },
+        { id: 6, parentId: 5 },
+        { id: 7, parentId: 6 },
+        { id: 8, parentId: 99 }, // 不属于 5 的子树
+      ]),
+    );
 
     const result = await getDataScopeCondition({
       currentUserId: 10,
@@ -132,13 +152,14 @@ describe('dataScope = dept', () => {
 
     // 应该返回 SQL 条件（inArray）
     expect(result).toBeDefined();
-    expect(dbMock.select).toHaveBeenCalledTimes(3);
+    expect(dbMock.query.users.findFirst).toHaveBeenCalledTimes(1);
+    expect(dbMock.select).toHaveBeenCalledTimes(1);
   });
 
   it('用户无部门时降级为 self（返回 eq 条件）', async () => {
-    dbMock.select
-      .mockReturnValueOnce(createChain([{ dataScope: 'dept', code: 'manager' }]))
-      .mockReturnValueOnce(createChain([{ departmentId: null }])); // 无部门
+    dbMock.query.users.findFirst.mockResolvedValueOnce(
+      mockUser(null, [{ dataScope: 'dept', code: 'manager' }]),
+    );
 
     const result = await getDataScopeCondition({
       currentUserId: 11,
@@ -147,12 +168,13 @@ describe('dataScope = dept', () => {
     });
 
     expect(result).toBeDefined();
-    expect(dbMock.select).toHaveBeenCalledTimes(2);
+    // 用户无部门则不查部门树
+    expect(dbMock.select).not.toHaveBeenCalled();
   });
 
   it('不传 deptColumn 时降级为 self', async () => {
-    dbMock.select.mockReturnValueOnce(
-      createChain([{ dataScope: 'dept', code: 'manager' }]),
+    dbMock.query.users.findFirst.mockResolvedValueOnce(
+      mockUser(5, [{ dataScope: 'dept', code: 'manager' }]),
     );
 
     const result = await getDataScopeCondition({
@@ -163,14 +185,15 @@ describe('dataScope = dept', () => {
 
     // 降级为 self → eq(ownerColumn, userId) → 不是 undefined
     expect(result).toBeDefined();
+    expect(dbMock.select).not.toHaveBeenCalled();
   });
 });
 
 // ─── self 权限分支 ────────────────────────────────────────────────────────────
 describe('dataScope = self', () => {
   it('返回 eq(ownerColumn, userId) SQL 条件', async () => {
-    dbMock.select.mockReturnValueOnce(
-      createChain([{ dataScope: 'self', code: 'operator' }]),
+    dbMock.query.users.findFirst.mockResolvedValueOnce(
+      mockUser(null, [{ dataScope: 'self', code: 'operator' }]),
     );
 
     const result = await getDataScopeCondition({
@@ -179,12 +202,12 @@ describe('dataScope = self', () => {
     });
 
     expect(result).toBeDefined();
-    expect(dbMock.select).toHaveBeenCalledTimes(1);
+    expect(dbMock.query.users.findFirst).toHaveBeenCalledTimes(1);
   });
 
   it('未传 ownerColumn 时返回 undefined', async () => {
-    dbMock.select.mockReturnValueOnce(
-      createChain([{ dataScope: 'self', code: 'operator' }]),
+    dbMock.query.users.findFirst.mockResolvedValueOnce(
+      mockUser(null, [{ dataScope: 'self', code: 'operator' }]),
     );
 
     const result = await getDataScopeCondition({
@@ -199,15 +222,15 @@ describe('dataScope = self', () => {
 // ─── collectDescendants 递归逻辑（通过 dept 场景间接验证）────────────────────────
 describe('collectDescendants 递归逻辑', () => {
   it('仅包含根部门本身（无子部门）', async () => {
-    dbMock.select
-      .mockReturnValueOnce(createChain([{ dataScope: 'dept', code: 'mgr' }]))
-      .mockReturnValueOnce(createChain([{ departmentId: 10 }]))
-      .mockReturnValueOnce(
-        createChain([
-          { id: 10, parentId: 0 },
-          { id: 20, parentId: 99 }, // 不属于 10
-        ]),
-      );
+    dbMock.query.users.findFirst.mockResolvedValueOnce(
+      mockUser(10, [{ dataScope: 'dept', code: 'mgr' }]),
+    );
+    dbMock.select.mockReturnValueOnce(
+      createChain([
+        { id: 10, parentId: 0 },
+        { id: 20, parentId: 99 }, // 不属于 10
+      ]),
+    );
 
     const result = await getDataScopeCondition({
       currentUserId: 30,
@@ -220,17 +243,17 @@ describe('collectDescendants 递归逻辑', () => {
 
   it('多级子部门均被收入', async () => {
     // Tree: 1 → 2 → 4, 1 → 3
-    dbMock.select
-      .mockReturnValueOnce(createChain([{ dataScope: 'dept', code: 'mgr' }]))
-      .mockReturnValueOnce(createChain([{ departmentId: 1 }]))
-      .mockReturnValueOnce(
-        createChain([
-          { id: 1, parentId: 0 },
-          { id: 2, parentId: 1 },
-          { id: 3, parentId: 1 },
-          { id: 4, parentId: 2 },
-        ]),
-      );
+    dbMock.query.users.findFirst.mockResolvedValueOnce(
+      mockUser(1, [{ dataScope: 'dept', code: 'mgr' }]),
+    );
+    dbMock.select.mockReturnValueOnce(
+      createChain([
+        { id: 1, parentId: 0 },
+        { id: 2, parentId: 1 },
+        { id: 3, parentId: 1 },
+        { id: 4, parentId: 2 },
+      ]),
+    );
 
     // 应返回包含 [1, 2, 3, 4] 的过滤条件
     const result = await getDataScopeCondition({

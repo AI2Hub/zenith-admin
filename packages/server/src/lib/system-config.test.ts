@@ -21,11 +21,15 @@ vi.mock('../db', async (importOriginal) => {
   };
 });
 
-vi.mock('drizzle-orm', () => ({
-  eq: vi.fn((c, v) => ({ c, v })),
-  and: vi.fn((a, b) => ({ a, b })),
-  isNull: vi.fn((c) => ({ c }))
-}));
+vi.mock('drizzle-orm', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('drizzle-orm')>();
+  return {
+    ...actual,
+    eq: vi.fn((c, v) => ({ c, v })),
+    and: vi.fn((a, b) => ({ a, b })),
+    isNull: vi.fn((c) => ({ c })),
+  };
+});
 
 describe('system-config', () => {
   beforeEach(() => {

@@ -43,6 +43,9 @@ vi.mock('../db', () => {
     delete: vi.fn(),
     $count: vi.fn(),
     transaction: vi.fn(async (callback: (tx: typeof db) => unknown) => callback(db)),
+    query: {
+      users: { findFirst: vi.fn(), findMany: vi.fn() },
+    },
   };
   return { db };
 });
@@ -260,9 +263,11 @@ describe('GET /api/auth/me - 认证中间件', () => {
       updatedAt: now,
     };
 
-    dbMock.select
-      .mockReturnValueOnce(createChain([mockUser])) // users 查询
-      .mockReturnValueOnce(createChain([]));         // getUserRoles 查询
+    dbMock.select.mockReturnValueOnce(createChain([mockUser])); // users 查询
+    // getUserRoles 使用 RQB（db.query.users.findFirst）
+    (dbMock.query.users.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      userRoles: [],
+    });
 
     const app = buildApp();
     const res = await app.request('/api/auth/me', {
