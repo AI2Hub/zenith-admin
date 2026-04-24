@@ -107,15 +107,13 @@ const getOneRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    const [role] = await db
-      .select()
-      .from(roles)
-      .where(and(eq(roles.id, id), tenantCondition(roles, c.get('user'))))
-      .limit(1);
+    const role = await db.query.roles.findFirst({
+      where: and(eq(roles.id, id), tenantCondition(roles, c.get('user'))),
+      with: { roleMenus: { columns: { menuId: true } } },
+    });
     if (!role) return c.json({ code: 404, message: '角色不存在', data: null }, 404);
 
-    const assignments = await db.select({ menuId: roleMenus.menuId }).from(roleMenus).where(eq(roleMenus.roleId, id));
-    const menuIds = assignments.map((a) => a.menuId);
+    const menuIds = role.roleMenus.map(({ menuId }) => menuId);
     return c.json({ code: 0 as const, message: 'ok', data: toRole(role, menuIds) }, 200);
   },
 });

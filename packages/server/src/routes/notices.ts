@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { count, desc, eq, like, and, or, sql, gte, lte, inArray } from 'drizzle-orm';
 import { db } from '../db';
+import type { DbExecutor } from '../db/types';
 import { pageOffset } from '../lib/pagination';
 import { notices, noticeReads, noticeRecipients, users, userRoles, roles, departments } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
@@ -13,7 +14,6 @@ import { ErrorResponse, PaginationQuery, BatchIdsBody, jsonContent, validationHo
 import { NoticeDTO, NoticeReadStatsDTO } from '../lib/openapi-dtos';
 
 const noticesRouter = new OpenAPIHono({ defaultHook: validationHook });
-type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const createNoticeSchema = z.object({
   title: z.string().min(1).max(128),
@@ -56,7 +56,7 @@ function buildAccessFilter(userId: number) {
   );
 }
 
-async function saveRecipients(executor: DbTransaction | typeof db, noticeId: number, recipientList: Array<{ recipientType: string; recipientId: number }>) {
+async function saveRecipients(executor: DbExecutor, noticeId: number, recipientList: Array<{ recipientType: string; recipientId: number }>) {
   await executor.delete(noticeRecipients).where(eq(noticeRecipients.noticeId, noticeId));
   if (recipientList.length > 0) {
     await executor.insert(noticeRecipients).values(

@@ -40,6 +40,12 @@ vi.mock('../db', () => {
     delete: vi.fn(),
     $count: vi.fn(),
     transaction: vi.fn(async (callback: (tx: typeof db) => unknown) => callback(db)),
+    query: {
+      users: {
+        findMany: vi.fn(),
+        findFirst: vi.fn(),
+      },
+    },
   };
   return { db };
 });
@@ -112,20 +118,6 @@ import usersRoutes from './users';
 const dbMock = vi.mocked(db);
 
 // ─── 工具 ─────────────────────────────────────────────────────────────────────
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function createChain(result: unknown[]): Record<string, any> {
-  const chain: Record<string, unknown> = {};
-  const methods = ['from', 'where', 'innerJoin', 'leftJoin', 'limit', 'offset', 'orderBy', 'groupBy', 'values', 'returning', 'set'];
-  for (const m of methods) {
-    chain[m] = vi.fn(() => chain);
-  }
-  chain.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
-    Promise.resolve(result).then(resolve, reject);
-  chain.catch = (fn: (e: unknown) => unknown) => Promise.resolve(result).catch(fn);
-  chain.finally = (fn: () => void) => Promise.resolve(result).finally(fn);
-  return chain;
-}
-
 async function makeToken(payload: object = {}) {
   const now = Math.floor(Date.now() / 1000);
   return sign(
@@ -172,8 +164,7 @@ describe('GET /api/users - 列表查询', () => {
     const token = await makeToken();
 
     dbMock.$count.mockResolvedValueOnce(0);
-    // list 查询 → 空
-    dbMock.select.mockReturnValueOnce(createChain([]));
+    (dbMock.query.users.findMany as unknown as { mockResolvedValueOnce: (value: unknown[]) => void }).mockResolvedValueOnce([]);
 
     const app = buildApp();
     const res = await app.request('/api/users', {

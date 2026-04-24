@@ -8,7 +8,7 @@
  *  4. clearUserPermissionCache — 清除单用户 / 全部用户缓存
  *
  * 测试策略：mock `../db`，避免真实数据库连接；
- * db.select().from().where() 整条链均通过可 await 的 mock chain 模拟。
+ * 通过 `db.query.users.findFirst()` 返回带嵌套 relations 的结果，验证 Drizzle RQB 聚合逻辑。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { db } from '../db';
@@ -19,28 +19,22 @@ import {
   clearUserPermissionCache,
 } from './permissions';
 
-// ─── 工具：创建可链式调用且 await 可以拿到指定结果的 mock chain ────────────────
-function createChain(result: unknown[]) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chain: Record<string, any> = {};
-  chain.from = vi.fn(() => chain);
-  chain.where = vi.fn(() => chain);
-  chain.innerJoin = vi.fn(() => chain);
-  chain.limit = vi.fn(() => chain);
-  // 让 chain 本身可以被 await（thenable）
-  chain.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
-    Promise.resolve(result).then(resolve, reject);
-  chain.catch = (fn: (e: unknown) => unknown) => Promise.resolve(result).catch(fn);
-  chain.finally = (fn: () => void) => Promise.resolve(result).finally(fn);
-  return chain as unknown as ReturnType<typeof db.select>;
+function createUserResult(menuGroups: Array<Array<{ id: number; permission: string | null }>>) {
+  return {
+    userRoles: menuGroups.map((menus) => ({
+      role: {
+        roleMenus: menus.map((menu) => ({ menu })),
+      },
+    })),
+  };
 }
 
 // ─── Mock ────────────────────────────────────────────────────────────────────
 vi.mock('../db', () => ({
-  db: { select: vi.fn() },
+  db: { query: { users: { findFirst: vi.fn() } } },
 }));
 
-const dbMock = vi.mocked(db);
+const findUserMock = vi.mocked(db.query.users.findFirst);
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
 beforeEach(() => {
@@ -71,35 +65,25 @@ describe('isSuperAdmin', () => {
 // ─── getUserPermissions ───────────────────────────────────────────────────────
 describe('getUserPermissions', () => {
   it('用户无角色时返回空数组（仅查一次 DB）', async () => {
-    dbMock.select.mockReturnValueOnce(createChain([])); // userRoles → empty
+    findUserMock.mockResolvedValueOnce({ userRoles: [] } as never);
 
     const perms = await getUserPermissions(1);
 
     expect(perms).toEqual([]);
-    expect(dbMock.select).toHaveBeenCalledTimes(1);
+    expect(findUserMock).toHaveBeenCalledTimes(1);
   });
 
   it('用户无角色对应的菜单时返回空数组', async () => {
-    dbMock.select
-      .mockReturnValueOnce(createChain([{ roleId: 1 }])) // userRoles → has role
-      .mockReturnValueOnce(createChain([]));              // roleMenus → empty
+    findUserMock.mockResolvedValueOnce(createUserResult([[]]) as never);
 
     const perms = await getUserPermissions(2);
 
     expect(perms).toEqual([]);
-    expect(dbMock.select).toHaveBeenCalledTimes(2);
+    expect(findUserMock).toHaveBeenCalledTimes(1);
   });
 
   it('正常情况返回权限码列表', async () => {
-    dbMock.select
-      .mockReturnValueOnce(createChain([{ roleId: 1 }]))
-      .mockReturnValueOnce(createChain([{ menuId: 10 }, { menuId: 11 }]))
-      .mockReturnValueOnce(
-        createChain([
-          { id: 10, permission: 'user:read' },
-          { id: 11, permission: 'user:write' },
-        ]),
-      );
+    findUserMock.mockResolvedValueOnce(createUserResult([[{ id: 10, permission: 'user:read' }, { id: 11, permission: 'user:write' }]]) as never);
 
     const perms = await getUserPermissions(3);
 
@@ -109,10 +93,10 @@ describe('getUserPermissions', () => {
   });
 
   it('对权限码进行去重', async () => {
-    dbMock.select
-      .mockReturnValueOnce(createChain([{ roleId: 1 }, { roleId: 2 }]))
-      .mockReturnValueOnce(createChain([{ menuId: 10 }, { menuId: 10 }]))
-      .mockReturnValueOnce(createChain([{ id: 10, permission: 'user:read' }]));
+    findUserMock.mockResolvedValueOnce(createUserResult([
+      [{ id: 10, permission: 'user:read' }],
+      [{ id: 10, permission: 'user:read' }],
+    ]) as never);
 
     const perms = await getUserPermissions(4);
 
@@ -121,15 +105,7 @@ describe('getUserPermissions', () => {
   });
 
   it('过滤掉 null 和空字符串权限码', async () => {
-    dbMock.select
-      .mockReturnValueOnce(createChain([{ roleId: 1 }]))
-      .mockReturnValueOnce(createChain([{ menuId: 10 }, { menuId: 11 }]))
-      .mockReturnValueOnce(
-        createChain([
-          { id: 10, permission: null },
-          { id: 11, permission: '' },
-        ]),
-      );
+    findUserMock.mockResolvedValueOnce(createUserResult([[{ id: 10, permission: null }, { id: 11, permission: '' }]]) as never);
 
     const perms = await getUserPermissions(5);
 
@@ -137,43 +113,36 @@ describe('getUserPermissions', () => {
   });
 
   it('第二次调用命中缓存，不再查询 DB', async () => {
-    dbMock.select
-      .mockReturnValueOnce(createChain([{ roleId: 1 }]))
-      .mockReturnValueOnce(createChain([{ menuId: 20 }]))
-      .mockReturnValueOnce(createChain([{ id: 20, permission: 'dashboard:view' }]));
+    findUserMock.mockResolvedValueOnce(createUserResult([[{ id: 20, permission: 'dashboard:view' }]]) as never);
 
     await getUserPermissions(10);
     await getUserPermissions(10); // 命中缓存
 
-    expect(dbMock.select).toHaveBeenCalledTimes(3); // 只查了一次（3次链式调用）
+    expect(findUserMock).toHaveBeenCalledTimes(1);
   });
 
   it('缓存 TTL 过期后重新查询 DB', async () => {
     vi.useFakeTimers();
 
-    dbMock.select
-      .mockReturnValueOnce(createChain([{ roleId: 1 }]))
-      .mockReturnValueOnce(createChain([{ menuId: 20 }]))
-      .mockReturnValueOnce(createChain([{ id: 20, permission: 'perm:a' }]));
+    findUserMock.mockResolvedValueOnce(createUserResult([[{ id: 20, permission: 'perm:a' }]]) as never);
 
     await getUserPermissions(50);
-    expect(dbMock.select).toHaveBeenCalledTimes(3);
+    expect(findUserMock).toHaveBeenCalledTimes(1);
 
     // 推进 5 分钟 + 1ms，超过 CACHE_TTL
     vi.advanceTimersByTime(5 * 60 * 1000 + 1);
 
-    dbMock.select
-      .mockReturnValueOnce(createChain([]))  // 重新查询（空角色）
+    findUserMock.mockResolvedValueOnce({ userRoles: [] } as never);
     await getUserPermissions(50);
 
-    expect(dbMock.select).toHaveBeenCalledTimes(4); // 缓存失效，多查一次
+    expect(findUserMock).toHaveBeenCalledTimes(2); // 缓存失效，多查一次
   });
 });
 
 // ─── getUserMenuIds ────────────────────────────────────────────────────────────
 describe('getUserMenuIds', () => {
   it('用户无角色时返回空数组', async () => {
-    dbMock.select.mockReturnValueOnce(createChain([]));
+    findUserMock.mockResolvedValueOnce({ userRoles: [] } as never);
 
     const ids = await getUserMenuIds(99);
 
@@ -181,15 +150,10 @@ describe('getUserMenuIds', () => {
   });
 
   it('正常情况返回去重后的菜单 ID 列表', async () => {
-    dbMock.select
-      .mockReturnValueOnce(createChain([{ roleId: 1 }]))
-      .mockReturnValueOnce(createChain([{ menuId: 5 }, { menuId: 6 }, { menuId: 5 }]))
-      .mockReturnValueOnce(
-        createChain([
-          { id: 5, permission: 'p1' },
-          { id: 6, permission: 'p2' },
-        ]),
-      );
+    findUserMock.mockResolvedValueOnce(createUserResult([
+      [{ id: 5, permission: 'p1' }, { id: 6, permission: 'p2' }],
+      [{ id: 5, permission: 'p1' }],
+    ]) as never);
 
     const ids = await getUserMenuIds(100);
 
@@ -204,34 +168,34 @@ describe('getUserMenuIds', () => {
 describe('clearUserPermissionCache', () => {
   it('清除指定用户的缓存后，下次调用重新查询 DB', async () => {
     // 预热 user 1 的缓存（roles 为空，只查一次 DB）
-    dbMock.select.mockReturnValueOnce(createChain([]));
+    findUserMock.mockResolvedValueOnce({ userRoles: [] } as never);
     await getUserPermissions(1);
-    expect(dbMock.select).toHaveBeenCalledTimes(1);
+    expect(findUserMock).toHaveBeenCalledTimes(1);
 
     clearUserPermissionCache(1);
 
     // 清除后再次调用应重查 DB
-    dbMock.select.mockReturnValueOnce(createChain([]));
+    findUserMock.mockResolvedValueOnce({ userRoles: [] } as never);
     await getUserPermissions(1);
-    expect(dbMock.select).toHaveBeenCalledTimes(2);
+    expect(findUserMock).toHaveBeenCalledTimes(2);
   });
 
   it('不传 userId 时清除所有用户的缓存', async () => {
     // 预热 user 1 & user 2 的缓存
-    dbMock.select.mockReturnValueOnce(createChain([]));
+    findUserMock.mockResolvedValueOnce({ userRoles: [] } as never);
     await getUserPermissions(1);
-    dbMock.select.mockReturnValueOnce(createChain([]));
+    findUserMock.mockResolvedValueOnce({ userRoles: [] } as never);
     await getUserPermissions(2);
-    const callsAfterWarmup = dbMock.select.mock.calls.length;
+    const callsAfterWarmup = findUserMock.mock.calls.length;
 
     clearUserPermissionCache(); // 清除全部
 
     // 两个用户都应重查
-    dbMock.select.mockReturnValueOnce(createChain([]));
+    findUserMock.mockResolvedValueOnce({ userRoles: [] } as never);
     await getUserPermissions(1);
-    dbMock.select.mockReturnValueOnce(createChain([]));
+    findUserMock.mockResolvedValueOnce({ userRoles: [] } as never);
     await getUserPermissions(2);
 
-    expect(dbMock.select).toHaveBeenCalledTimes(callsAfterWarmup + 2);
+    expect(findUserMock).toHaveBeenCalledTimes(callsAfterWarmup + 2);
   });
 });

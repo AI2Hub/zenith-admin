@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { asc, desc, eq, and, gte, lte } from 'drizzle-orm';
 import { db } from '../db';
+import type { DbExecutor } from '../db/types';
 import { pageOffset } from '../lib/pagination';
 import { fileStorageConfigs, managedFiles } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
@@ -10,8 +11,6 @@ import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErro
 import { FileStorageConfigDTO } from '../lib/openapi-dtos';
 
 const fileStorageConfigsRouter = new OpenAPIHono({ defaultHook: validationHook });
-type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
-type DbExecutor = typeof db | DbTransaction;
 
 const createFileStorageConfigSchema = _createSchema;
 const updateFileStorageConfigSchema = _updateSchema;

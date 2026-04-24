@@ -1,6 +1,6 @@
-import { eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { db } from '../db';
-import { userRoles, roleMenus, menus } from '../db/schema';
+import { users } from '../db/schema';
 
 const SUPER_ADMIN_CODE = 'super_admin';
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -40,39 +40,46 @@ export async function getUserMenuIds(userId: number): Promise<number[]> {
 }
 
 async function fetchUserPermissionData(userId: number): Promise<{ permissions: string[]; menuIds: number[] }> {
-  // Get role IDs for this user
-  const userRoleRows = await db
-    .select({ roleId: userRoles.roleId })
-    .from(userRoles)
-    .where(eq(userRoles.userId, userId));
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: {},
+    with: {
+      userRoles: {
+        columns: {},
+        with: {
+          role: {
+            columns: {},
+            with: {
+              roleMenus: {
+                columns: {},
+                with: {
+                  menu: {
+                    columns: {
+                      id: true,
+                      permission: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
 
-  const roleIds = userRoleRows.map((r) => r.roleId);
-  if (roleIds.length === 0) {
+  if (!user || user.userRoles.length === 0) {
     return { permissions: [], menuIds: [] };
   }
 
-  // Get menu IDs for these roles
-  const roleMenuRows = await db
-    .select({ menuId: roleMenus.menuId })
-    .from(roleMenus)
-    .where(inArray(roleMenus.roleId, roleIds));
-
-  const menuIds = [...new Set(roleMenuRows.map((r) => r.menuId))];
-  if (menuIds.length === 0) {
-    return { permissions: [], menuIds: [] };
-  }
-
-  // Get permission codes from these menus
-  const menuRows = await db
-    .select({ id: menus.id, permission: menus.permission })
-    .from(menus)
-    .where(inArray(menus.id, menuIds));
+  const menuRows = user.userRoles.flatMap(({ role }) => role.roleMenus.map(({ menu }) => menu));
+  const menuIds = [...new Set(menuRows.map((menu) => menu.id))];
 
   const permissions = [
     ...new Set(
       menuRows
-        .map((m) => m.permission)
-        .filter((p): p is string => p !== null && p !== '')
+        .map((menu) => menu.permission)
+        .filter((permission): permission is string => permission !== null && permission !== '')
     ),
   ];
 

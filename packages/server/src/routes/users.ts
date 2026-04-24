@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { eq, like, and, or, inArray, gte, lte } from 'drizzle-orm';
 import ExcelJS from 'exceljs';
 import { db } from '../db';
+import type { DbExecutor } from '../db/types';
 import { pageOffset } from '../lib/pagination';
 import { users, userRoles, roles, departments, positions, userPositions } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
@@ -14,13 +15,11 @@ import { getDataScopeCondition } from '../lib/data-scope';
 import { unlockUser } from '../lib/session-manager';
 import { getPasswordPolicy, validatePassword } from '../lib/password-policy';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
-import type { Role, Position, User } from '@zenith/shared';
+import type { User } from '@zenith/shared';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam } from '../lib/openapi-schemas';
 import { UserDTO, ImportResultDTO } from '../lib/openapi-dtos';
 
 const usersRouter = new OpenAPIHono({ defaultHook: validationHook });
-type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
-type DbExecutor = typeof db | DbTransaction;
 
 // Schemas (zod v4 local)
 const createUserSchema = z.object({
@@ -55,40 +54,74 @@ const batchIdsSchema = z.object({ ids: z.array(z.number().int()) });
 const batchStatusSchema = z.object({ ids: z.array(z.number().int()), status: z.enum(['active', 'disabled']) });
 
 // Helpers
-async function getUserRolesMap(userIds: number[]) {
-  if (userIds.length === 0) return new Map<number, Role[]>();
-  const result = await db.query.users.findMany({
-    where: inArray(users.id, userIds),
-    columns: { id: true },
-    with: { userRoles: { columns: {}, with: { role: true } } },
+const userRelationConfig = {
+  department: { columns: { name: true } },
+  userRoles: { columns: {}, with: { role: true } },
+  userPositions: { columns: {}, with: { position: true } },
+} as const;
+
+type FindManyUsersArgs = NonNullable<Parameters<typeof db.query.users.findMany>[0]>;
+type FindFirstUserArgs = NonNullable<Parameters<typeof db.query.users.findFirst>[0]>;
+
+async function findUsersWithRelations(config: Omit<FindManyUsersArgs, 'with'> = {}) {
+  return db.query.users.findMany({
+    ...config,
+    with: userRelationConfig,
   });
-  const map = new Map<number, Role[]>();
-  for (const u of result) {
-    map.set(u.id, u.userRoles.map(({ role: r }) => ({
-      id: r.id, name: r.name, code: r.code, description: r.description ?? undefined,
-      dataScope: r.dataScope, status: r.status,
-      createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString(),
-    })));
-  }
-  return map;
 }
 
-async function getUserPositionsMap(userIds: number[]) {
-  if (userIds.length === 0) return new Map<number, Position[]>();
-  const result = await db.query.users.findMany({
-    where: inArray(users.id, userIds),
-    columns: { id: true },
-    with: { userPositions: { columns: {}, with: { position: true } } },
+async function findUserWithRelations(config: Omit<FindFirstUserArgs, 'with'>) {
+  return db.query.users.findFirst({
+    ...config,
+    with: userRelationConfig,
   });
-  const map = new Map<number, Position[]>();
-  for (const u of result) {
-    map.set(u.id, u.userPositions.map(({ position: p }) => ({
-      id: p.id, name: p.name, code: p.code,
-      sort: p.sort, status: p.status, remark: p.remark ?? undefined,
-      createdAt: p.createdAt.toISOString(), updatedAt: p.updatedAt.toISOString(),
-    })));
-  }
-  return map;
+}
+
+type UserWithRelations = Awaited<ReturnType<typeof findUsersWithRelations>>[number];
+
+function toPublicUser(row: UserWithRelations): User {
+  const roles = row.userRoles.map(({ role: r }) => ({
+    id: r.id,
+    name: r.name,
+    code: r.code,
+    description: r.description ?? undefined,
+    dataScope: r.dataScope,
+    status: r.status,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+  }));
+  const positionList = row.userPositions.map(({ position: p }) => ({
+    id: p.id,
+    name: p.name,
+    code: p.code,
+    sort: p.sort,
+    status: p.status,
+    remark: p.remark ?? undefined,
+    createdAt: p.createdAt.toISOString(),
+    updatedAt: p.updatedAt.toISOString(),
+  }));
+
+  return {
+    id: row.id,
+    username: row.username,
+    nickname: row.nickname,
+    email: row.email,
+    phone: row.phone ?? undefined,
+    avatar: row.avatar ?? undefined,
+    departmentId: row.departmentId,
+    departmentName: row.department?.name ?? null,
+    positionIds: positionList.map((position) => position.id),
+    positions: positionList,
+    roles,
+    status: row.status,
+    passwordUpdatedAt: row.passwordUpdatedAt.toISOString(),
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  } satisfies User;
+}
+
+function toPublicUsers(rows: UserWithRelations[]): User[] {
+  return rows.map(toPublicUser);
 }
 
 async function setUserRoles(executor: DbExecutor, userId: number, roleIds: number[]) {
@@ -131,40 +164,6 @@ async function ensurePositionIdsExist(positionIds: number[], user?: JwtPayload) 
   return rows.length === uniq.length ? null : '存在无效岗位';
 }
 
-type UserListRow = {
-  id: number; username: string; nickname: string; email: string;
-  phone: string | null; avatar: string | null;
-  departmentId: number | null; departmentName: string | null;
-  status: 'active' | 'disabled';
-  passwordUpdatedAt: Date; createdAt: Date; updatedAt: Date;
-};
-
-async function toPublicUsers(rows: UserListRow[]): Promise<User[]> {
-  const userIds = rows.map((r) => r.id);
-  const [rolesMap, positionsMap] = await Promise.all([getUserRolesMap(userIds), getUserPositionsMap(userIds)]);
-  return rows.map((row) => {
-    const roleList = rolesMap.get(row.id) ?? [];
-    const positionList = positionsMap.get(row.id) ?? [];
-    return {
-      id: row.id,
-      username: row.username,
-      nickname: row.nickname,
-      email: row.email,
-      phone: row.phone ?? undefined,
-      avatar: row.avatar ?? undefined,
-      departmentId: row.departmentId,
-      departmentName: row.departmentName,
-      positionIds: positionList.map((p) => p.id),
-      positions: positionList,
-      roles: roleList,
-      status: row.status,
-      passwordUpdatedAt: row.passwordUpdatedAt.toISOString(),
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-    } satisfies User;
-  });
-}
-
 // GET /all  全量用户（供下拉框）
 const getAllUsersRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -181,13 +180,11 @@ const getAllUsersRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const payload = c.get('user');
     const tc = tenantCondition(users, payload);
-    const rawList = await db.query.users.findMany({
+    const rawList = await findUsersWithRelations({
       where: tc,
-      with: { department: { columns: { name: true } } },
       orderBy: users.id,
     });
-    const list = rawList.map(({ department, ...u }) => ({ ...u, departmentName: department?.name ?? null }));
-    const publicUsers = await toPublicUsers(list);
+    const publicUsers = toPublicUsers(rawList);
     return c.json({ code: 0 as const, message: 'ok', data: publicUsers }, 200);
   },
 });
@@ -230,16 +227,14 @@ const listUsersRoute = defineOpenAPIRoute({
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const [count, rawList] = await Promise.all([
       db.$count(users, where),
-      db.query.users.findMany({
+      findUsersWithRelations({
         where,
-        with: { department: { columns: { name: true } } },
         limit: pageSize,
         offset: pageOffset(page, pageSize),
         orderBy: users.id,
       }),
     ]);
-    const list = rawList.map(({ department, ...u }) => ({ ...u, departmentName: department?.name ?? null }));
-    const publicUsers = await toPublicUsers(list);
+    const publicUsers = toPublicUsers(rawList);
     return c.json({ code: 0 as const, message: 'ok', data: { list: publicUsers, total: Number(count), page, pageSize } }, 200);
   },
 });
@@ -289,13 +284,9 @@ const createUserRoute = defineOpenAPIRoute({
         await setUserPositions(tx, createdUser.id, nextPositionIds);
         return createdUser;
       });
-      const publicUser = (await toPublicUsers([{
-        id: user.id, username: user.username, nickname: user.nickname, email: user.email,
-        phone: user.phone, avatar: user.avatar, departmentId: user.departmentId,
-        departmentName: departmentId ? (await db.select({ name: departments.name }).from(departments).where(eq(departments.id, departmentId)).limit(1))[0]?.name ?? null : null,
-        status: user.status, passwordUpdatedAt: user.passwordUpdatedAt,
-        createdAt: user.createdAt, updatedAt: user.updatedAt,
-      }]))[0];
+      const createdUser = await findUserWithRelations({ where: eq(users.id, user.id) });
+      if (!createdUser) throw new Error('创建用户后回读失败');
+      const publicUser = toPublicUser(createdUser);
       return c.json({ code: 0 as const, message: '创建成功', data: publicUser }, 200);
     } catch (err: unknown) {
       if ((err as { code?: string }).code === '23505') {
@@ -474,14 +465,18 @@ const importUsersRoute = defineOpenAPIRoute({
       if (roleCodes.length > 0) {
         const missing = roleCodes.filter((code) => !roleCodeMap.has(code));
         if (missing.length > 0) { errors.push({ row: rowNum, message: `角色编码不存在: ${missing.join(', ')}` }); continue; }
-        roleIds = roleCodes.map((code) => roleCodeMap.get(code)!);
+        roleIds = roleCodes
+          .map((code) => roleCodeMap.get(code))
+          .filter((roleId): roleId is number => roleId !== undefined);
       }
       const positionCodes = positionCodesRaw ? positionCodesRaw.split(',').map((s) => s.trim()).filter(Boolean) : [];
       let positionIds: number[] = [];
       if (positionCodes.length > 0) {
         const missing = positionCodes.filter((code) => !positionCodeMap.has(code));
         if (missing.length > 0) { errors.push({ row: rowNum, message: `岗位编码不存在: ${missing.join(', ')}` }); continue; }
-        positionIds = positionCodes.map((code) => positionCodeMap.get(code)!);
+        positionIds = positionCodes
+          .map((code) => positionCodeMap.get(code))
+          .filter((positionId): positionId is number => positionId !== undefined);
       }
 
       let status: 'active' | 'disabled' = 'active';
@@ -673,15 +668,9 @@ const updateUserRoute = defineOpenAPIRoute({
 
     if (nextRoleIds !== undefined) clearUserPermissionCache(id);
 
-    const departmentName = user.departmentId
-      ? (await db.select({ name: departments.name }).from(departments).where(eq(departments.id, user.departmentId)).limit(1))[0]?.name ?? null
-      : null;
-    const publicUser = (await toPublicUsers([{
-      id: user.id, username: user.username, nickname: user.nickname, email: user.email,
-      phone: user.phone, avatar: user.avatar, departmentId: user.departmentId, departmentName,
-      status: user.status, passwordUpdatedAt: user.passwordUpdatedAt,
-      createdAt: user.createdAt, updatedAt: user.updatedAt,
-    }]))[0];
+    const updatedUser = await findUserWithRelations({ where: eq(users.id, user.id) });
+    if (!updatedUser) return c.json({ code: 404, message: '用户不存在', data: null }, 404);
+    const publicUser = toPublicUser(updatedUser);
     return c.json({ code: 0 as const, message: '更新成功', data: publicUser }, 200);
   },
 });
