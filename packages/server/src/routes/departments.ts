@@ -5,80 +5,13 @@ import { departments, users } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { exportToExcel } from '../lib/excel-export';
-import type { Department } from '@zenith/shared';
 import { createDepartmentSchema, updateDepartmentSchema } from '@zenith/shared';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { ErrorResponse, jsonContent, validationHook, commonErrorResponses, ok, okMsg, IdParam, okBody, errBody, okExcel, excelBody } from '../lib/openapi-schemas';
 import { DepartmentDTO } from '../lib/openapi-dtos';
+import { mapDepartment, buildDepartmentTree, filterDepartmentTree, ensureParentValid } from '../services/departments.service';
 
 const departmentsRouter = new OpenAPIHono({ defaultHook: validationHook });
-
-function toDepartment(row: typeof departments.$inferSelect): Omit<Department, 'children'> {
-  return {
-    id: row.id,
-    parentId: row.parentId,
-    name: row.name,
-    code: row.code,
-    leader: row.leader ?? undefined,
-    phone: row.phone ?? undefined,
-    email: row.email ?? undefined,
-    sort: row.sort,
-    status: row.status,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
-}
-
-function buildTree(list: Omit<Department, 'children'>[]): Department[] {
-  const map = new Map<number, Department>();
-  list.forEach((item) => map.set(item.id, { ...item }));
-  const roots: Department[] = [];
-  map.forEach((node) => {
-    if (node.parentId === 0) { roots.push(node); return; }
-    const parent = map.get(node.parentId);
-    if (!parent) { roots.push(node); return; }
-    parent.children = parent.children ?? [];
-    parent.children.push(node);
-  });
-  const sortNodes = (nodes: Department[]) => {
-    nodes.sort((a, b) => a.sort - b.sort || a.id - b.id);
-    nodes.forEach((item) => item.children && sortNodes(item.children));
-  };
-  sortNodes(roots);
-  return roots;
-}
-
-function filterTree(nodes: Department[], keyword: string, status?: string) {
-  return nodes.reduce<Department[]>((acc, node) => {
-    const children = node.children ? filterTree(node.children, keyword, status) : [];
-    const keywordMatched = !keyword || node.name.includes(keyword) || node.code.includes(keyword);
-    const statusMatched = !status || node.status === status;
-    if ((keywordMatched && statusMatched) || children.length > 0) {
-      acc.push({ ...node, children: children.length > 0 ? children : undefined });
-    }
-    return acc;
-  }, []);
-}
-
-async function ensureParentValid(parentId: number, currentId?: number) {
-  if (parentId === 0) return null;
-  const allDepartments = await db.select({ id: departments.id, parentId: departments.parentId }).from(departments);
-  const parentExists = allDepartments.some((item) => item.id === parentId);
-  if (!parentExists) return '上级部门不存在';
-  if (!currentId) return null;
-  if (parentId === currentId) return '上级部门不能选择自身';
-  const descendants = new Set<number>();
-  const queue = [currentId];
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (current === undefined) continue;
-    for (const item of allDepartments) {
-      if (item.parentId === current) { descendants.add(item.id); queue.push(item.id); }
-    }
-  }
-  if (descendants.has(parentId)) return '上级部门不能选择子部门';
-  return null;
-}
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -99,8 +32,8 @@ const listRoute = defineOpenAPIRoute({
     const user = c.get('user');
     const tc = tenantCondition(departments, user);
     const rows = await db.select().from(departments).where(tc).orderBy(asc(departments.sort), asc(departments.id));
-    const tree = buildTree(rows.map(toDepartment));
-    const data = keyword || status ? filterTree(tree, keyword, status) : tree;
+    const tree = buildDepartmentTree(rows.map(mapDepartment));
+    const data = keyword || status ? filterDepartmentTree(tree, keyword, status) : tree;
     return c.json(okBody(data), 200);
   },
 });
@@ -121,7 +54,7 @@ const flatRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const tc = tenantCondition(departments, c.get('user'));
     const rows = await db.select().from(departments).where(tc).orderBy(asc(departments.sort), asc(departments.id));
-    return c.json(okBody(rows.map(toDepartment)), 200);
+    return c.json(okBody(rows.map(mapDepartment)), 200);
   },
 });
 
@@ -142,11 +75,10 @@ const createRouteDef = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const data = c.req.valid('json');
-    const parentError = await ensureParentValid(data.parentId);
-    if (parentError) return c.json(errBody(parentError), 400);
+    await ensureParentValid(data.parentId);
     try {
       const [department] = await db.insert(departments).values({ ...data, tenantId: getCreateTenantId(c.get('user')) }).returning();
-      return c.json(okBody(toDepartment(department), '创建成功'), 200);
+      return c.json(okBody(mapDepartment(department), '创建成功'), 200);
     } catch (error: unknown) {
       if ((error as { code?: string }).code === '23505') {
         return c.json(errBody('部门编码已存在'), 400);
@@ -176,8 +108,7 @@ const updateRouteDef = defineOpenAPIRoute({
     const { id } = c.req.valid('param');
     const data = c.req.valid('json');
     if (data.parentId !== undefined) {
-      const parentError = await ensureParentValid(data.parentId, id);
-      if (parentError) return c.json(errBody(parentError), 400);
+      await ensureParentValid(data.parentId, id);
     }
     try {
       const [department] = await db.update(departments)
@@ -185,7 +116,7 @@ const updateRouteDef = defineOpenAPIRoute({
         .where(and(eq(departments.id, id), tenantCondition(departments, c.get('user'))))
         .returning();
       if (!department) return c.json(errBody('部门不存在', 404), 404);
-      return c.json(okBody(toDepartment(department), '更新成功'), 200);
+      return c.json(okBody(mapDepartment(department), '更新成功'), 200);
     } catch (error: unknown) {
       if ((error as { code?: string }).code === '23505') {
         return c.json(errBody('部门编码已存在'), 400);

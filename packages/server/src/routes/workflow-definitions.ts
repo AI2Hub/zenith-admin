@@ -10,6 +10,7 @@ import { validateFlowData } from '../lib/workflow-engine';
 import type { WorkflowFlowData } from '@zenith/shared';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody } from '../lib/openapi-schemas';
 import { WorkflowDefinitionDTO } from '../lib/openapi-dtos';
+import { mapDefinition } from '../services/workflow-definitions.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -21,23 +22,6 @@ const createWorkflowDefinitionSchema = z.object({
   status: z.enum(['draft', 'published', 'disabled']).default('draft'),
 });
 const updateWorkflowDefinitionSchema = createWorkflowDefinitionSchema.partial();
-
-function toDefinition(row: typeof workflowDefinitions.$inferSelect, createdByName?: string | null) {
-  return {
-    id: row.id,
-    name: row.name,
-    description: row.description,
-    flowData: row.flowData,
-    formFields: row.formFields,
-    status: row.status,
-    version: row.version,
-    tenantId: row.tenantId,
-    createdBy: row.createdBy,
-    createdByName: createdByName ?? null,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
-}
 
 // GET /
 const listRoute = defineOpenAPIRoute({
@@ -73,7 +57,7 @@ const listRoute = defineOpenAPIRoute({
         offset: pageOffset(page, pageSize),
       }),
     ]);
-    return c.json(okBody({ list: rows.map(r => toDefinition(r, r.createdByUser?.nickname ?? null)), total, page, pageSize }), 200);
+    return c.json(okBody({ list: rows.map(r => mapDefinition(r, r.createdByUser?.nickname ?? null)), total, page, pageSize }), 200);
   },
 });
 
@@ -97,7 +81,7 @@ const publishedRoute = defineOpenAPIRoute({
     const conditions = [eq(workflowDefinitions.status, 'published')];
     if (tc) conditions.push(tc);
     const rows = await db.select().from(workflowDefinitions).where(and(...conditions)).orderBy(desc(workflowDefinitions.updatedAt));
-    return c.json(okBody(rows.map(r => toDefinition(r))), 200);
+    return c.json(okBody(rows.map(r => mapDefinition(r))), 200);
   },
 });
 
@@ -128,7 +112,7 @@ const detailRoute = defineOpenAPIRoute({
       with: { createdByUser: { columns: { nickname: true } } },
     });
     if (!row) return c.json(errBody('流程定义不存在', 404), 404);
-    return c.json(okBody(toDefinition(row, row.createdByUser?.nickname ?? null)), 200);
+    return c.json(okBody(mapDefinition(row, row.createdByUser?.nickname ?? null)), 200);
   },
 });
 
@@ -157,7 +141,7 @@ const createRouteDef = defineOpenAPIRoute({
       createdBy: user.userId,
       tenantId: getCreateTenantId(user),
     }).returning();
-    return c.json(okBody(toDefinition(row), '创建成功'), 200);
+    return c.json(okBody(mapDefinition(row), '创建成功'), 200);
   },
 });
 
@@ -193,7 +177,7 @@ const updateRouteDef = defineOpenAPIRoute({
       .where(and(...conditions))
       .returning();
     if (!updated) return c.json(errBody('流程定义不存在', 404), 404);
-    return c.json(okBody(toDefinition(updated), '更新成功'), 200);
+    return c.json(okBody(mapDefinition(updated), '更新成功'), 200);
   },
 });
 
@@ -231,7 +215,7 @@ const publishRoute = defineOpenAPIRoute({
       .set({ status: 'published', version: existing.version + 1 })
       .where(and(...conditions))
       .returning();
-    return c.json(okBody(toDefinition(updated), '发布成功'), 200);
+    return c.json(okBody(mapDefinition(updated), '发布成功'), 200);
   },
 });
 
@@ -259,7 +243,7 @@ const disableRoute = defineOpenAPIRoute({
     if (tc) conditions.push(tc);
     const [updated] = await db.update(workflowDefinitions).set({ status: 'disabled' }).where(and(...conditions)).returning();
     if (!updated) return c.json(errBody('流程定义不存在', 404), 404);
-    return c.json(okBody(toDefinition(updated), '禁用成功'), 200);
+    return c.json(okBody(mapDefinition(updated), '禁用成功'), 200);
   },
 });
 

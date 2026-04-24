@@ -10,18 +10,9 @@ import { exportToExcel } from '../lib/excel-export';
 import { createCronJobSchema, updateCronJobSchema } from '@zenith/shared';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody, okExcel, excelBody } from '../lib/openapi-schemas';
 import { CronJobDTO, CronJobLogDTO } from '../lib/openapi-dtos';
+import { mapCronJob } from '../services/cron-jobs.service';
 
 const cronJobsRoute = new OpenAPIHono({ defaultHook: validationHook });
-
-function toCronJob(row: typeof cronJobs.$inferSelect) {
-  return {
-    ...row,
-    lastRunAt: row.lastRunAt?.toISOString() ?? null,
-    nextRunAt: row.nextRunAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
-}
 
 // GET /handlers
 const handlersRoute = defineOpenAPIRoute({
@@ -87,7 +78,7 @@ const listRoute = defineOpenAPIRoute({
       db.$count(cronJobs, where),
       db.select().from(cronJobs).where(where).orderBy(desc(cronJobs.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
     ]);
-    return c.json(okBody({ list: rows.map(toCronJob), total: count, page, pageSize }), 200);
+    return c.json(okBody({ list: rows.map((r) => mapCronJob(r)), total: count, page, pageSize }), 200);
   },
 });
 
@@ -114,7 +105,7 @@ const createRouteDef = defineOpenAPIRoute({
     if (existing) return c.json(errBody('任务名称已存在'), 400);
     const [row] = await db.insert(cronJobs).values(data).returning();
     if (row.status === 'active') scheduleJob(row.id, row.cronExpression, row.handler, row.params);
-    return c.json(okBody(toCronJob(row), '创建成功'), 200);
+    return c.json(okBody(mapCronJob(row), '创建成功'), 200);
   },
 });
 
@@ -143,7 +134,7 @@ const updateRouteDef = defineOpenAPIRoute({
     if (!row) return c.json(errBody('任务不存在', 404), 404);
     if (row.status === 'active') scheduleJob(row.id, row.cronExpression, row.handler, row.params);
     else stopJob(row.id);
-    return c.json(okBody(toCronJob(row), '更新成功'), 200);
+    return c.json(okBody(mapCronJob(row), '更新成功'), 200);
   },
 });
 

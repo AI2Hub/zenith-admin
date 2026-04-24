@@ -8,19 +8,9 @@ import { guard } from '../middleware/guard';
 import { previewMessageTemplateSchema } from '@zenith/shared';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody } from '../lib/openapi-schemas';
 import { MessageTemplateDTO, MessageTemplatePreviewDTO as PreviewResultDTO } from '../lib/openapi-dtos';
+import { mapMessageTemplate, interpolate } from '../services/message-templates.service';
 
 const messageTemplatesRouter = new OpenAPIHono({ defaultHook: validationHook });
-
-function toMessageTemplate(row: typeof messageTemplates.$inferSelect) {
-  return { ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
-}
-
-function interpolate(content: string, vars: Record<string, string>): string {
-  return content.replaceAll(/\{\{(\s*[\w.]+\s*)\}\}/g, (_, key: string) => {
-    const k = key.trim();
-    return Object.hasOwn(vars, k) ? vars[k] : `{{${k}}}`;
-  });
-}
 
 // ─── Schemas ───────────────────────────────────────────────────────────────
 const createMessageTemplateSchema = z.object({
@@ -81,7 +71,7 @@ const listRoute = defineOpenAPIRoute({
     ]);
 
     return c.json(
-      okBody({ list: list.map(toMessageTemplate), total, page, pageSize }),
+      okBody({ list: list.map(mapMessageTemplate), total, page, pageSize }),
       200,
     );
   },
@@ -106,7 +96,7 @@ const getRoute = defineOpenAPIRoute({
     const { id } = c.req.valid('param');
     const [row] = await db.select().from(messageTemplates).where(eq(messageTemplates.id, id)).limit(1);
     if (!row) return c.json(errBody('模板不存在', 404), 404);
-    return c.json(okBody(toMessageTemplate(row)), 200);
+    return c.json(okBody(mapMessageTemplate(row)), 200);
   },
 });
 
@@ -131,7 +121,7 @@ const createTemplateRoute = defineOpenAPIRoute({
     const data = c.req.valid('json');
     try {
       const [row] = await db.insert(messageTemplates).values(data).returning();
-      return c.json(okBody(toMessageTemplate(row), '创建成功'), 200);
+      return c.json(okBody(mapMessageTemplate(row), '创建成功'), 200);
     } catch (err: unknown) {
       if ((err as { code?: string }).code === '23505') {
         return c.json(errBody('模板编码已存在'), 400);
@@ -172,7 +162,7 @@ const updateTemplateRoute = defineOpenAPIRoute({
         .where(eq(messageTemplates.id, id))
         .returning();
       if (!row) return c.json(errBody('模板不存在', 404), 404);
-      return c.json(okBody(toMessageTemplate(row), '更新成功'), 200);
+      return c.json(okBody(mapMessageTemplate(row), '更新成功'), 200);
     } catch (err: unknown) {
       if ((err as { code?: string }).code === '23505') {
         return c.json(errBody('模板编码已存在'), 400);

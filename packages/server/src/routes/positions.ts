@@ -9,21 +9,9 @@ import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody, okExcel, excelBody } from '../lib/openapi-schemas';
 import { PositionDTO } from '../lib/openapi-dtos';
+import { mapPosition } from '../services/positions.service';
 
 const positionsRouter = new OpenAPIHono({ defaultHook: validationHook });
-
-function toPosition(row: typeof positions.$inferSelect) {
-  return {
-    id: row.id,
-    name: row.name,
-    code: row.code,
-    sort: row.sort,
-    status: row.status,
-    remark: row.remark ?? null,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
-}
 
 // ─── Schemas ───────────────────────────────────────────────────────────────
 const createPositionSchema = z.object({
@@ -51,7 +39,7 @@ const allRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const tc = tenantCondition(positions, c.get('user'));
     const list = await db.select().from(positions).where(tc).orderBy(asc(positions.sort), asc(positions.id));
-    return c.json(okBody(list.map(toPosition)), 200);
+    return c.json(okBody(list.map((r) => mapPosition(r))), 200);
   },
 });
 
@@ -102,7 +90,7 @@ const listRoute = defineOpenAPIRoute({
     ]);
 
     return c.json(
-      okBody({ list: list.map(toPosition), total: count, page, pageSize }),
+      okBody({ list: list.map((r) => mapPosition(r)), total: count, page, pageSize }),
       200,
     );
   },
@@ -129,7 +117,7 @@ const createPositionRoute = defineOpenAPIRoute({
         .insert(positions)
         .values({ ...data, tenantId: getCreateTenantId(c.get('user')) })
         .returning();
-      return c.json(okBody(toPosition(position), '创建成功'), 200);
+      return c.json(okBody(mapPosition(position), '创建成功'), 200);
     } catch (error: unknown) {
       if ((error as { code?: string }).code === '23505') {
         return c.json(errBody('岗位编码已存在'), 400);
@@ -169,7 +157,7 @@ const updatePositionRoute = defineOpenAPIRoute({
       if (!position) {
         return c.json(errBody('岗位不存在', 404), 404);
       }
-      return c.json(okBody(toPosition(position), '更新成功'), 200);
+      return c.json(okBody(mapPosition(position), '更新成功'), 200);
     } catch (error: unknown) {
       if ((error as { code?: string }).code === '23505') {
         return c.json(errBody('岗位编码已存在'), 400);

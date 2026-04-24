@@ -3,11 +3,9 @@ import bcrypt from 'bcryptjs';
 import { eq, like, and, or, inArray, gte, lte } from 'drizzle-orm';
 import ExcelJS from 'exceljs';
 import { db } from '../db';
-import type { DbExecutor } from '../db/types';
 import { pageOffset } from '../lib/pagination';
-import { users, userRoles, roles, departments, positions, userPositions } from '../db/schema';
+import { users, roles, departments, positions } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
-import type { JwtPayload } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
 import { clearUserPermissionCache } from '../lib/permissions';
 import { exportToExcel } from '../lib/excel-export';
@@ -15,9 +13,19 @@ import { getDataScopeCondition } from '../lib/data-scope';
 import { unlockUser } from '../lib/session-manager';
 import { getPasswordPolicy, validatePassword } from '../lib/password-policy';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
-import type { User } from '@zenith/shared';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody, okExcel, excelBody } from '../lib/openapi-schemas';
 import { UserDTO, ImportResultDTO } from '../lib/openapi-dtos';
+import {
+  findUsersWithRelations,
+  findUserWithRelations,
+  mapUser,
+  mapUsers,
+  setUserRoles,
+  setUserPositions,
+  ensureDepartmentExists,
+  ensureRoleIdsExist,
+  ensurePositionIdsExist,
+} from '../services/users.service';
 
 const usersRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -53,117 +61,6 @@ const resetUserPasswordSchema = z.object({ password: z.string().min(6).max(64) }
 const batchIdsSchema = z.object({ ids: z.array(z.number().int()) });
 const batchStatusSchema = z.object({ ids: z.array(z.number().int()), status: z.enum(['active', 'disabled']) });
 
-// Helpers
-const userRelationConfig = {
-  department: { columns: { name: true } },
-  userRoles: { columns: {}, with: { role: true } },
-  userPositions: { columns: {}, with: { position: true } },
-} as const;
-
-type FindManyUsersArgs = NonNullable<Parameters<typeof db.query.users.findMany>[0]>;
-type FindFirstUserArgs = NonNullable<Parameters<typeof db.query.users.findFirst>[0]>;
-
-async function findUsersWithRelations(config: Omit<FindManyUsersArgs, 'with'> = {}) {
-  return db.query.users.findMany({
-    ...config,
-    with: userRelationConfig,
-  });
-}
-
-async function findUserWithRelations(config: Omit<FindFirstUserArgs, 'with'>) {
-  return db.query.users.findFirst({
-    ...config,
-    with: userRelationConfig,
-  });
-}
-
-type UserWithRelations = Awaited<ReturnType<typeof findUsersWithRelations>>[number];
-
-function toPublicUser(row: UserWithRelations): User {
-  const roles = row.userRoles.map(({ role: r }) => ({
-    id: r.id,
-    name: r.name,
-    code: r.code,
-    description: r.description ?? undefined,
-    dataScope: r.dataScope,
-    status: r.status,
-    createdAt: r.createdAt.toISOString(),
-    updatedAt: r.updatedAt.toISOString(),
-  }));
-  const positionList = row.userPositions.map(({ position: p }) => ({
-    id: p.id,
-    name: p.name,
-    code: p.code,
-    sort: p.sort,
-    status: p.status,
-    remark: p.remark ?? undefined,
-    createdAt: p.createdAt.toISOString(),
-    updatedAt: p.updatedAt.toISOString(),
-  }));
-
-  return {
-    id: row.id,
-    username: row.username,
-    nickname: row.nickname,
-    email: row.email,
-    phone: row.phone ?? undefined,
-    avatar: row.avatar ?? undefined,
-    departmentId: row.departmentId,
-    departmentName: row.department?.name ?? null,
-    positionIds: positionList.map((position) => position.id),
-    positions: positionList,
-    roles,
-    status: row.status,
-    passwordUpdatedAt: row.passwordUpdatedAt.toISOString(),
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  } satisfies User;
-}
-
-function toPublicUsers(rows: UserWithRelations[]): User[] {
-  return rows.map(toPublicUser);
-}
-
-async function setUserRoles(executor: DbExecutor, userId: number, roleIds: number[]) {
-  await executor.delete(userRoles).where(eq(userRoles.userId, userId));
-  if (roleIds.length > 0) {
-    await executor.insert(userRoles).values(roleIds.map((roleId) => ({ userId, roleId })));
-  }
-}
-async function setUserPositions(executor: DbExecutor, userId: number, positionIds: number[]) {
-  await executor.delete(userPositions).where(eq(userPositions.userId, userId));
-  if (positionIds.length > 0) {
-    await executor.insert(userPositions).values(positionIds.map((positionId) => ({ userId, positionId })));
-  }
-}
-
-async function ensureDepartmentExists(departmentId?: number | null, user?: JwtPayload) {
-  if (departmentId === undefined || departmentId === null) return null;
-  const conditions = [eq(departments.id, departmentId)];
-  if (user) {
-    const tc = tenantCondition(departments, user);
-    if (tc) conditions.push(tc);
-  }
-  const [d] = await db.select({ id: departments.id }).from(departments).where(and(...conditions)).limit(1);
-  return d ? null : '所属部门不存在';
-}
-async function ensureRoleIdsExist(roleIds: number[], user?: JwtPayload) {
-  const uniq = Array.from(new Set(roleIds));
-  if (uniq.length === 0) return null;
-  const conditions = [inArray(roles.id, uniq)];
-  if (user) { const tc = tenantCondition(roles, user); if (tc) conditions.push(tc); }
-  const rows = await db.select({ id: roles.id }).from(roles).where(and(...conditions));
-  return rows.length === uniq.length ? null : '存在无效角色';
-}
-async function ensurePositionIdsExist(positionIds: number[], user?: JwtPayload) {
-  const uniq = Array.from(new Set(positionIds));
-  if (uniq.length === 0) return null;
-  const conditions = [inArray(positions.id, uniq)];
-  if (user) { const tc = tenantCondition(positions, user); if (tc) conditions.push(tc); }
-  const rows = await db.select({ id: positions.id }).from(positions).where(and(...conditions));
-  return rows.length === uniq.length ? null : '存在无效岗位';
-}
-
 // GET /all  全量用户（供下拉框）
 const getAllUsersRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -184,7 +81,7 @@ const getAllUsersRoute = defineOpenAPIRoute({
       where: tc,
       orderBy: users.id,
     });
-    const publicUsers = toPublicUsers(rawList);
+    const publicUsers = mapUsers(rawList);
     return c.json(okBody(publicUsers), 200);
   },
 });
@@ -234,7 +131,7 @@ const listUsersRoute = defineOpenAPIRoute({
         orderBy: users.id,
       }),
     ]);
-    const publicUsers = toPublicUsers(rawList);
+    const publicUsers = mapUsers(rawList);
     return c.json(okBody({ list: publicUsers, total: Number(count), page, pageSize }), 200);
   },
 });
@@ -263,13 +160,11 @@ const createUserRoute = defineOpenAPIRoute({
     const nextRoleIds = Array.from(new Set(roleIds));
     const nextPositionIds = Array.from(new Set(positionIds));
 
-    const [departmentError, roleError, positionError] = await Promise.all([
+    await Promise.all([
       ensureDepartmentExists(departmentId, c.get('user')),
       ensureRoleIdsExist(nextRoleIds, c.get('user')),
       ensurePositionIdsExist(nextPositionIds, c.get('user')),
     ]);
-    const referenceError = departmentError ?? roleError ?? positionError;
-    if (referenceError) return c.json(errBody(referenceError), 400);
 
     const hashedPassword = await bcrypt.hash(password, 10);
     try {
@@ -286,7 +181,7 @@ const createUserRoute = defineOpenAPIRoute({
       });
       const createdUser = await findUserWithRelations({ where: eq(users.id, user.id) });
       if (!createdUser) throw new Error('创建用户后回读失败');
-      const publicUser = toPublicUser(createdUser);
+      const publicUser = mapUser(createdUser);
       return c.json(okBody(publicUser, '创建成功'), 200);
     } catch (err: unknown) {
       if ((err as { code?: string }).code === '23505') {
@@ -631,13 +526,11 @@ const updateUserRoute = defineOpenAPIRoute({
     const nextRoleIds = roleIds ? Array.from(new Set(roleIds)) : undefined;
     const nextPositionIds = positionIds ? Array.from(new Set(positionIds)) : undefined;
 
-    const [departmentError, roleError, positionError] = await Promise.all([
+    await Promise.all([
       ensureDepartmentExists(departmentId, c.get('user')),
       ensureRoleIdsExist(nextRoleIds ?? [], c.get('user')),
       ensurePositionIdsExist(nextPositionIds ?? [], c.get('user')),
     ]);
-    const referenceError = departmentError ?? roleError ?? positionError;
-    if (referenceError) return c.json(errBody(referenceError), 400);
 
     const nextValues = {
       ...rest,
@@ -666,7 +559,7 @@ const updateUserRoute = defineOpenAPIRoute({
 
     const updatedUser = await findUserWithRelations({ where: eq(users.id, user.id) });
     if (!updatedUser) return c.json(errBody('用户不存在', 404), 404);
-    const publicUser = toPublicUser(updatedUser);
+    const publicUser = mapUser(updatedUser);
     return c.json(okBody(publicUser, '更新成功'), 200);
   },
 });

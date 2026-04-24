@@ -1,17 +1,16 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { count, desc, eq, like, and, or, sql, gte, lte, inArray } from 'drizzle-orm';
+import { count, desc, eq, like, and, gte, lte, inArray } from 'drizzle-orm';
 import { db } from '../db';
-import type { DbExecutor } from '../db/types';
 import { pageOffset } from '../lib/pagination';
 import { notices, noticeReads, noticeRecipients, users, userRoles, roles, departments } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { exportToExcel } from '../lib/excel-export';
-import { broadcast, sendToUser } from '../lib/ws-manager';
 import { noticeRecipientSchema } from '@zenith/shared';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { ErrorResponse, PaginationQuery, BatchIdsBody, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody, okExcel, excelBody } from '../lib/openapi-schemas';
 import { NoticeDTO, NoticeReadStatsDTO } from '../lib/openapi-dtos';
+import { mapNotice, buildAccessFilter, saveRecipients, broadcastNotice } from '../services/notices.service';
 
 const noticesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -26,65 +25,6 @@ const createNoticeSchema = z.object({
   publishTime: z.iso.datetime({ offset: true }).optional().nullable(),
 });
 const updateNoticeSchema = createNoticeSchema.partial();
-
-function toNotice(row: typeof notices.$inferSelect) {
-  return {
-    ...row,
-    targetType: row.targetType as 'all' | 'specific',
-    publishTime: row.publishTime ? row.publishTime.toISOString() : null,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
-}
-
-function buildAccessFilter(userId: number) {
-  return or(
-    eq(notices.targetType, 'all'),
-    sql`EXISTS (
-      SELECT 1 FROM notice_recipients nr
-      WHERE nr.notice_id = ${notices.id}
-      AND (
-        (nr.recipient_type = 'user' AND nr.recipient_id = ${userId})
-        OR (nr.recipient_type = 'role' AND nr.recipient_id IN (
-          SELECT role_id FROM user_roles WHERE user_id = ${userId}
-        ))
-        OR (nr.recipient_type = 'dept' AND nr.recipient_id = (
-          SELECT department_id FROM users WHERE id = ${userId}
-        ))
-      )
-    )`,
-  );
-}
-
-async function saveRecipients(executor: DbExecutor, noticeId: number, recipientList: Array<{ recipientType: string; recipientId: number }>) {
-  await executor.delete(noticeRecipients).where(eq(noticeRecipients.noticeId, noticeId));
-  if (recipientList.length > 0) {
-    await executor.insert(noticeRecipients).values(
-      recipientList.map((r) => ({ noticeId, recipientType: r.recipientType, recipientId: r.recipientId })),
-    ).onConflictDoNothing();
-  }
-}
-
-async function broadcastNotice(notice: ReturnType<typeof toNotice>, noticeId: number) {
-  if (notice.targetType === 'all') {
-    broadcast({ type: 'notice:new', payload: notice });
-    return;
-  }
-  const recipientRows = await db.select().from(noticeRecipients).where(eq(noticeRecipients.noticeId, noticeId));
-  const userIdSet = new Set<number>();
-  recipientRows.filter((r) => r.recipientType === 'user').forEach((r) => userIdSet.add(r.recipientId));
-  const roleIds = recipientRows.filter((r) => r.recipientType === 'role').map((r) => r.recipientId);
-  if (roleIds.length > 0) {
-    const roleUsers = await db.select({ userId: userRoles.userId }).from(userRoles).where(inArray(userRoles.roleId, roleIds));
-    roleUsers.forEach((r) => userIdSet.add(r.userId));
-  }
-  const deptIds = recipientRows.filter((r) => r.recipientType === 'dept').map((r) => r.recipientId);
-  if (deptIds.length > 0) {
-    const deptUsers = await db.select({ id: users.id }).from(users).where(inArray(users.departmentId, deptIds));
-    deptUsers.forEach((u) => userIdSet.add(u.id));
-  }
-  for (const uid of userIdSet) sendToUser(uid, { type: 'notice:new', payload: notice });
-}
 
 // GET /published
 const publishedRoute = defineOpenAPIRoute({
@@ -108,7 +48,7 @@ const publishedRoute = defineOpenAPIRoute({
     const rows = await db.select().from(notices).where(publishedWhere).orderBy(desc(notices.publishTime)).limit(20);
     const readRows = await db.select({ noticeId: noticeReads.noticeId }).from(noticeReads).where(eq(noticeReads.userId, user.userId));
     const readSet = new Set(readRows.map((r) => r.noticeId));
-    const data = rows.map((row) => ({ ...toNotice(row), isRead: readSet.has(row.id) }));
+    const data = rows.map((row) => ({ ...mapNotice(row), isRead: readSet.has(row.id) }));
     return c.json(okBody(data), 200);
   },
 });
@@ -189,7 +129,7 @@ const inboxRoute = defineOpenAPIRoute({
       db.select().from(notices).where(publishedWhere).orderBy(desc(notices.publishTime)),
     ]);
     const readSet = new Set(readRows.map((r) => r.noticeId));
-    let list = allRows.map((row) => ({ ...toNotice(row), isRead: readSet.has(row.id) }));
+    let list = allRows.map((row) => ({ ...mapNotice(row), isRead: readSet.has(row.id) }));
     if (isRead === 'true') list = list.filter((n) => n.isRead);
     else if (isRead === 'false') list = list.filter((n) => !n.isRead);
     const total = list.length;
@@ -234,7 +174,7 @@ const listRoute = defineOpenAPIRoute({
       ? await db.select({ noticeId: noticeReads.noticeId, cnt: count() }).from(noticeReads).where(inArray(noticeReads.noticeId, noticeIds)).groupBy(noticeReads.noticeId)
       : [];
     const readCountMap = new Map(readCountRows.map((r) => [r.noticeId, r.cnt]));
-    return c.json(okBody({ list: rows.map((r) => ({ ...toNotice(r), readCount: readCountMap.get(r.id) ?? 0 })), total, page, pageSize }), 200);
+    return c.json(okBody({ list: rows.map((r) => ({ ...mapNotice(r), readCount: readCountMap.get(r.id) ?? 0 })), total, page, pageSize }), 200);
   },
 });
 
@@ -410,7 +350,7 @@ const detailRoute = defineOpenAPIRoute({
       recipientId: r.recipientId,
       recipientLabel: labelMap.get(`${r.recipientType}:${r.recipientId}`) ?? '',
     }));
-    return c.json(okBody({ ...toNotice(row), recipients }), 200);
+    return c.json(okBody({ ...mapNotice(row), recipients }), 200);
   },
 });
 
@@ -455,7 +395,7 @@ const createRouteDef = defineOpenAPIRoute({
       return inserted;
     });
 
-    const notice = toNotice(row);
+    const notice = mapNotice(row);
     if (row.publishStatus === 'published') await broadcastNotice(notice, row.id);
     return c.json(okBody(notice, '创建成功'), 200);
   },
@@ -504,7 +444,7 @@ const updateRouteDef = defineOpenAPIRoute({
     });
     if (!row) return c.json(errBody('通知不存在', 404), 404);
 
-    const notice = toNotice(row);
+    const notice = mapNotice(row);
     if (data.publishStatus === 'published') await broadcastNotice(notice, row.id);
     return c.json(okBody(notice, '更新成功'), 200);
   },

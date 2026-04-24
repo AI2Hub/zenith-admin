@@ -19,6 +19,7 @@ import { swaggerUI } from '@hono/swagger-ui';
 import { config } from './config';
 import logger from './lib/logger';
 import { errBody } from './lib/openapi-schemas';
+import { AppError } from './lib/errors';
 import { ipAccessMiddleware } from './middleware/ip-access';
 import { authRateLimit, captchaRateLimit, sensitiveRateLimit } from './middleware/rate-limit';
 import authRoutes from './routes/auth';
@@ -212,6 +213,9 @@ app.get('/api/docs', swaggerUI({ url: '/api/openapi.json' }));
 
 // 全局未捕获异常处理—统一返回标准错误格式
 app.onError((err, c) => {
+  if (err instanceof AppError) {
+    return c.json(errBody(err.message, err.statusCode), err.statusCode as 400 | 401 | 403 | 404 | 409 | 422 | 500);
+  }
   if (err instanceof HTTPException) {
     return c.json({ code: err.status, message: err.message, data: null }, err.status);
   }

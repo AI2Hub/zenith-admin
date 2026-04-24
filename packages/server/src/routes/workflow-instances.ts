@@ -11,52 +11,9 @@ import { createWorkflowInstanceSchema, approveWorkflowTaskSchema, rejectWorkflow
 import type { WorkflowFlowData } from '@zenith/shared';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, IdParam, okBody, errBody } from '../lib/openapi-schemas';
 import { WorkflowInstanceDTO, WorkflowInstanceListItemDTO, WorkflowInstanceAllDTO } from '../lib/openapi-dtos';
+import { mapTask, mapInstance } from '../services/workflow-instances.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
-
-function toTask(row: typeof workflowTasks.$inferSelect, assigneeName?: string | null, assigneeAvatar?: string | null) {
-  return {
-    id: row.id,
-    instanceId: row.instanceId,
-    nodeKey: row.nodeKey,
-    nodeName: row.nodeName,
-    nodeType: row.nodeType ?? null,
-    assigneeId: row.assigneeId,
-    assigneeName: assigneeName ?? null,
-    assigneeAvatar: assigneeAvatar ?? null,
-    status: row.status,
-    comment: row.comment,
-    actionAt: row.actionAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
-  };
-}
-
-function toInstance(
-  row: typeof workflowInstances.$inferSelect,
-  extras: {
-    definitionName?: string | null;
-    initiatorName?: string | null;
-    initiatorAvatar?: string | null;
-    tasks?: ReturnType<typeof toTask>[];
-  } = {},
-) {
-  return {
-    id: row.id,
-    definitionId: row.definitionId,
-    definitionName: extras.definitionName ?? null,
-    title: row.title,
-    formData: row.formData,
-    status: row.status,
-    currentNodeKey: row.currentNodeKey,
-    initiatorId: row.initiatorId,
-    initiatorName: extras.initiatorName ?? null,
-    initiatorAvatar: extras.initiatorAvatar ?? null,
-    tenantId: row.tenantId,
-    tasks: extras.tasks ?? null,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
-}
 
 // GET /instances
 const listRoute = defineOpenAPIRoute({
@@ -95,7 +52,7 @@ const listRoute = defineOpenAPIRoute({
       }),
     ]);
     return c.json(okBody({
-        list: rows.map((r) => toInstance(r, {
+        list: rows.map((r) => mapInstance(r, {
           definitionName: r.definition?.name ?? null,
           initiatorName: r.initiator?.nickname ?? null,
           initiatorAvatar: r.initiator?.avatar ?? null,
@@ -139,7 +96,7 @@ const pendingMineRoute = defineOpenAPIRoute({
       .limit(pageSize)
       .offset(pageOffset(page, pageSize));
     return c.json(okBody({
-        list: rows.map((r) => ({ ...toInstance(r.inst, r), pendingTaskId: r.task.id })),
+        list: rows.map((r) => ({ ...mapInstance(r.inst, r), pendingTaskId: r.task.id })),
         total: Number(total),
         page,
         pageSize,
@@ -191,7 +148,7 @@ const allRoute = defineOpenAPIRoute({
       .orderBy(desc(workflowInstances.id))
       .limit(pageSize)
       .offset(pageOffset(page, pageSize));
-    return c.json(okBody({ stats, list: rows.map((r) => toInstance(r.inst, r)), total, page, pageSize }), 200);
+    return c.json(okBody({ stats, list: rows.map((r) => mapInstance(r.inst, r)), total, page, pageSize }), 200);
   },
 });
 
@@ -233,8 +190,8 @@ const detailRoute = defineOpenAPIRoute({
     const isInitiator = row.initiatorId === user.userId;
     const isAssignee = row.tasks.some((t) => t.assigneeId === user.userId);
     if (!isInitiator && !isAssignee) return c.json(errBody('无权查看', 403), 403);
-    const tasks = row.tasks.map((t) => toTask(t, t.assignee?.nickname, t.assignee?.avatar));
-    return c.json(okBody(toInstance(row, {
+    const tasks = row.tasks.map((t) => mapTask(t, t.assignee?.nickname, t.assignee?.avatar));
+    return c.json(okBody(mapInstance(row, {
         definitionName: row.definition?.name ?? null,
         initiatorName: row.initiator?.nickname ?? null,
         initiatorAvatar: row.initiator?.avatar ?? null,
@@ -299,7 +256,7 @@ const createInstanceRoute = defineOpenAPIRoute({
       }
       return createdInstance;
     });
-    return c.json(okBody(toInstance(instance), '申请已提交'), 200);
+    return c.json(okBody(mapInstance(instance), '申请已提交'), 200);
   },
 });
 
@@ -337,7 +294,7 @@ const withdrawRoute = defineOpenAPIRoute({
       const [row] = await tx.update(workflowInstances).set({ status: 'withdrawn' }).where(and(...conditions)).returning();
       return row;
     });
-    return c.json(okBody(toInstance(updated), '已撤回'), 200);
+    return c.json(okBody(mapInstance(updated), '已撤回'), 200);
   },
 });
 
@@ -423,9 +380,9 @@ const approveRoute = defineOpenAPIRoute({
     });
 
     if (updated.finished) {
-      return c.json(okBody(toInstance(updated.row), '审批通过，流程已完成'), 200);
+      return c.json(okBody(mapInstance(updated.row), '审批通过，流程已完成'), 200);
     }
-    return c.json(okBody(toInstance(updated.row), '审批通过，流程已推进'), 200);
+    return c.json(okBody(mapInstance(updated.row), '审批通过，流程已推进'), 200);
   },
 });
 
@@ -472,7 +429,7 @@ const rejectRoute = defineOpenAPIRoute({
         .returning();
       return row;
     });
-    return c.json(okBody(toInstance(updated), '已驳回'), 200);
+    return c.json(okBody(mapInstance(updated), '已驳回'), 200);
   },
 });
 

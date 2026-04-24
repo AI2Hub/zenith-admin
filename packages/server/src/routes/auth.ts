@@ -1,9 +1,8 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import type { Context } from 'hono';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
-import { eq, desc, gte, lte, like, and, isNull, gt } from 'drizzle-orm';
 import { UAParser } from 'ua-parser-js';
+import { eq, desc, gte, lte, like, and, isNull, gt } from 'drizzle-orm';
 import { db } from '../db';
 import { pageOffset } from '../lib/pagination';
 import { users, loginLogs, tenants, operationLogs, passwordResetTokens } from '../db/schema';
@@ -19,6 +18,7 @@ import { generateTokenId, registerSession, removeSession, checkLoginLock, record
 import { isPlatformAdmin } from '../lib/tenant';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, okBody, errBody } from '../lib/openapi-schemas';
 import { LoginResultDTO, UserProfileDTO, CaptchaDTO, RefreshTokenResultDTO as RefreshDTO, SessionDTO, TenantItemDTO, SwitchTenantResultDTO as SwitchTenantDTO, LogRowDTO } from '../lib/openapi-dtos';
+import { getUserRoles, issueTokens, recordLoginLog, getClientInfo } from '../services/auth.service';
 
 const auth = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -54,39 +54,8 @@ const refreshSchema = z.object({ refreshToken: z.string().min(1) });
 // LoginResultDTO / UserProfileDTO / CaptchaDTO / RefreshDTO / SessionDTO /
 // TenantItemDTO / SwitchTenantDTO / LogRowDTO 均由 openapi-dtos 统一提供
 
-
-async function recordLoginLog(c: Context, username: string, status: 'success' | 'fail', message: string, userId?: number, tenantId?: number | null) {
-  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || '127.0.0.1';
-  const ua = c.req.header('user-agent') || '';
-  const parser = new UAParser(ua);
-  const browser = parser.getBrowser();
-  const os = parser.getOS();
-  await db.insert(loginLogs).values({
-    username,
-    userId,
-    ip,
-    browser: browser.name ? `${browser.name} ${browser.version || ''}`.trim() : 'Unknown',
-    os: os.name ? `${os.name} ${os.version || ''}`.trim() : 'Unknown',
-    status,
-    message,
-    tenantId: tenantId ?? null,
-  });
-}
-
 function getAuthUser(c: { get: (key: 'user') => unknown }): JwtPayload {
   return c.get('user') as JwtPayload;
-}
-
-async function getUserRoles(userId: number) {
-  const result = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-    columns: {},
-    with: { userRoles: { columns: {}, with: { role: true } } },
-  });
-  return (result?.userRoles ?? []).map(({ role: r }) => ({
-    id: r.id, name: r.name, code: r.code, description: r.description,
-    status: r.status, createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString(),
-  }));
 }
 
 // ─── GET /captcha ────────────────────────────────────────────────────────────
@@ -163,21 +132,22 @@ const loginRoute = defineOpenAPIRoute({
     else userWhere = eq(users.username, username);
 
     const [user] = await db.select().from(users).where(userWhere).limit(1);
+    const { ip, ua } = getClientInfo(c.req.raw.headers);
     if (!user) {
       await Promise.all([
-        recordLoginLog(c, username, 'fail', '用户名或密码错误', undefined, tenantId),
+        recordLoginLog({ ip, ua, username, status: 'fail', message: '用户名或密码错误', tenantId }),
         recordLoginFailure(username, loginMaxAttempts, lockDurationSeconds),
       ]);
       return c.json(errBody('用户名或密码错误'), 400);
     }
     if (user.status === 'disabled') {
-      await recordLoginLog(c, username, 'fail', '账号已被禁用', user.id, tenantId);
+      await recordLoginLog({ ip, ua, username, status: 'fail', message: '账号已被禁用', userId: user.id, tenantId });
       return c.json(errBody('账号已被禁用', 403), 403);
     }
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
       await Promise.all([
-        recordLoginLog(c, username, 'fail', '用户名或密码错误', user.id, tenantId),
+        recordLoginLog({ ip, ua, username, status: 'fail', message: '用户名或密码错误', userId: user.id, tenantId }),
         recordLoginFailure(username, loginMaxAttempts, lockDurationSeconds),
       ]);
       return c.json(errBody('用户名或密码错误'), 400);
@@ -195,19 +165,8 @@ const loginRoute = defineOpenAPIRoute({
 
     await clearLoginAttempts(username);
     const userRoleList = await getUserRoles(user.id);
-    const tokenId = generateTokenId();
+    const { accessToken, refreshToken, tokenId } = await issueTokens(user, userRoleList.map((r) => r.code));
 
-    const accessToken = await signToken<JwtPayload>(
-      { userId: user.id, username: user.username, roles: userRoleList.map((r) => r.code), tenantId: user.tenantId ?? null, jti: tokenId },
-      '2h',
-    );
-    const refreshToken = await signToken(
-      { userId: user.id, username: user.username, type: 'refresh', tenantId: user.tenantId ?? null, jti: tokenId },
-      '30d',
-    );
-
-    const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || '127.0.0.1';
-    const ua = c.req.header('user-agent') || '';
     const parser = new UAParser(ua);
     const browserInfo = parser.getBrowser();
     const osInfo = parser.getOS();
@@ -223,7 +182,7 @@ const loginRoute = defineOpenAPIRoute({
       loginAt: new Date(),
     });
 
-    await recordLoginLog(c, username, 'success', '登录成功', user.id, tenantId);
+    await recordLoginLog({ ip, ua, username, status: 'success', message: '登录成功', userId: user.id, tenantId });
     const { password: _pw, ...userInfo } = user;
     return c.json(okBody({
       user: { ...userInfo, roles: userRoleList, createdAt: user.createdAt.toISOString(), updatedAt: user.updatedAt.toISOString(), requirePasswordChange },
@@ -263,18 +222,9 @@ const registerRoute = defineOpenAPIRoute({
     const [user] = await db.insert(users).values({ username, nickname, email, password: hashedPassword }).returning();
 
     const userRoleList = await getUserRoles(user.id);
-    const tokenId = generateTokenId();
-    const accessToken = await signToken<JwtPayload>(
-      { userId: user.id, username: user.username, roles: userRoleList.map((r) => r.code), tenantId: user.tenantId ?? null, jti: tokenId },
-      '2h',
-    );
-    const refreshToken = await signToken(
-      { userId: user.id, username: user.username, type: 'refresh', tenantId: user.tenantId ?? null, jti: tokenId },
-      '30d',
-    );
+    const { accessToken, refreshToken, tokenId } = await issueTokens(user, userRoleList.map((r) => r.code));
 
-    const regIp = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || '127.0.0.1';
-    const regUa = c.req.header('user-agent') || '';
+    const { ip: regIp, ua: regUa } = getClientInfo(c.req.raw.headers);
     const regParser = new UAParser(regUa);
     const regBrowser = regParser.getBrowser();
     const regOs = regParser.getOS();
@@ -289,7 +239,7 @@ const registerRoute = defineOpenAPIRoute({
       os: regOs.name ? `${regOs.name} ${regOs.version || ''}`.trim() : 'Unknown',
       loginAt: new Date(),
     });
-    await recordLoginLog(c, username, 'success', '注册并自动登录成功', user.id);
+    await recordLoginLog({ ip: regIp, ua: regUa, username, status: 'success', message: '注册并自动登录成功', userId: user.id });
     const { password: _pw, ...userInfo } = user;
     return c.json(okBody({
       user: { ...userInfo, roles: userRoleList, createdAt: user.createdAt.toISOString(), updatedAt: user.updatedAt.toISOString() },

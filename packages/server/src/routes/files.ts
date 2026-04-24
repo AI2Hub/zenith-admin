@@ -5,11 +5,12 @@ import { pageOffset } from '../lib/pagination';
 import { fileStorageConfigs, managedFiles } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
-import { buildManagedFileUrl, deleteStoredFile, readStoredFile, uploadFileByConfig } from '../lib/file-storage';
+import { deleteStoredFile, readStoredFile, uploadFileByConfig } from '../lib/file-storage';
 import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody, okExcel, excelBody } from '../lib/openapi-schemas';
 import { ManagedFileDTO } from '../lib/openapi-dtos';
+import { mapManagedFile } from '../services/files.service';
 
 const filesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -51,23 +52,6 @@ const contentRoute = defineOpenAPIRoute({
 
 function isUploadFile(value: unknown): value is File {
   return !!value && typeof (value as File).arrayBuffer === 'function' && typeof (value as File).name === 'string';
-}
-
-function toManagedFile(row: typeof managedFiles.$inferSelect) {
-  return {
-    id: row.id,
-    storageConfigId: row.storageConfigId,
-    storageName: row.storageName,
-    provider: row.provider,
-    originalName: row.originalName,
-    objectKey: row.objectKey,
-    size: row.size,
-    mimeType: row.mimeType ?? null,
-    extension: row.extension ?? null,
-    url: buildManagedFileUrl(row.id),
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
 }
 
 const listRoute = defineOpenAPIRoute({
@@ -127,7 +111,7 @@ const listRoute = defineOpenAPIRoute({
     ]);
 
     return c.json(
-      okBody({ list: paginated.map(toManagedFile), total: count, page, pageSize }),
+      okBody({ list: paginated.map(mapManagedFile), total: count, page, pageSize }),
       200,
     );
   },
@@ -186,7 +170,7 @@ const uploadRoute = defineOpenAPIRoute({
       })
       .returning();
 
-    return c.json(okBody(toManagedFile(created), '上传成功'), 200);
+    return c.json(okBody(mapManagedFile(created), '上传成功'), 200);
   },
 });
 

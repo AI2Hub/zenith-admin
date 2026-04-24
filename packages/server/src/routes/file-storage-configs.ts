@@ -1,7 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { asc, desc, eq, and, gte, lte } from 'drizzle-orm';
 import { db } from '../db';
-import type { DbExecutor } from '../db/types';
 import { pageOffset } from '../lib/pagination';
 import { fileStorageConfigs, managedFiles } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
@@ -9,6 +8,7 @@ import { guard } from '../middleware/guard';
 import { createFileStorageConfigSchema as _createSchema, updateFileStorageConfigSchema as _updateSchema } from '@zenith/shared';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody } from '../lib/openapi-schemas';
 import { FileStorageConfigDTO } from '../lib/openapi-dtos';
+import { mapFileStorageConfig, toStoragePayload, clearDefaultFlag } from '../services/file-storage-configs.service';
 
 const fileStorageConfigsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -16,70 +16,6 @@ const createFileStorageConfigSchema = _createSchema;
 const updateFileStorageConfigSchema = _updateSchema;
 
 type StorageInput = z.infer<typeof createFileStorageConfigSchema>;
-
-function toFileStorageConfig(row: typeof fileStorageConfigs.$inferSelect) {
-  return {
-    ...row,
-    basePath: row.basePath ?? null,
-    localRootPath: row.localRootPath ?? null,
-    ossRegion: row.ossRegion ?? null,
-    ossEndpoint: row.ossEndpoint ?? null,
-    ossBucket: row.ossBucket ?? null,
-    ossAccessKeyId: row.ossAccessKeyId ?? null,
-    ossAccessKeySecret: row.ossAccessKeySecret ?? null,
-    s3Region: row.s3Region ?? null,
-    s3Endpoint: row.s3Endpoint ?? null,
-    s3Bucket: row.s3Bucket ?? null,
-    s3AccessKeyId: row.s3AccessKeyId ?? null,
-    s3SecretAccessKey: row.s3SecretAccessKey ?? null,
-    s3ForcePathStyle: row.s3ForcePathStyle ?? null,
-    cosRegion: row.cosRegion ?? null,
-    cosBucket: row.cosBucket ?? null,
-    cosSecretId: row.cosSecretId ?? null,
-    cosSecretKey: row.cosSecretKey ?? null,
-    remark: row.remark ?? null,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
-}
-
-function toStoragePayload(input: StorageInput) {
-  const common = {
-    name: input.name,
-    provider: input.provider,
-    status: input.status,
-    isDefault: input.isDefault,
-    basePath: input.basePath ?? null,
-    remark: input.remark ?? null,
-  };
-  const nullS3 = { s3Region: null, s3Endpoint: null, s3Bucket: null, s3AccessKeyId: null, s3SecretAccessKey: null, s3ForcePathStyle: null };
-  const nullCos = { cosRegion: null, cosBucket: null, cosSecretId: null, cosSecretKey: null };
-  const nullOss = { ossRegion: null, ossEndpoint: null, ossBucket: null, ossAccessKeyId: null, ossAccessKeySecret: null };
-
-  if (input.provider === 'local') {
-    return { ...common, localRootPath: input.localRootPath ?? null, ...nullOss, ...nullS3, ...nullCos };
-  }
-  if (input.provider === 'oss') {
-    return { ...common, localRootPath: null,
-      ossRegion: input.ossRegion ?? null, ossEndpoint: input.ossEndpoint ?? null,
-      ossBucket: input.ossBucket ?? null, ossAccessKeyId: input.ossAccessKeyId ?? null,
-      ossAccessKeySecret: input.ossAccessKeySecret ?? null, ...nullS3, ...nullCos };
-  }
-  if (input.provider === 's3') {
-    return { ...common, localRootPath: null, ...nullOss,
-      s3Region: input.s3Region ?? null, s3Endpoint: input.s3Endpoint ?? null,
-      s3Bucket: input.s3Bucket ?? null, s3AccessKeyId: input.s3AccessKeyId ?? null,
-      s3SecretAccessKey: input.s3SecretAccessKey ?? null, s3ForcePathStyle: input.s3ForcePathStyle ?? null,
-      ...nullCos };
-  }
-  return { ...common, localRootPath: null, ...nullOss, ...nullS3,
-    cosRegion: input.cosRegion ?? null, cosBucket: input.cosBucket ?? null,
-    cosSecretId: input.cosSecretId ?? null, cosSecretKey: input.cosSecretKey ?? null };
-}
-
-async function clearDefaultFlag(executor: DbExecutor) {
-  await executor.update(fileStorageConfigs).set({ isDefault: false });
-}
 
 // GET /
 const listRoute = defineOpenAPIRoute({
@@ -107,7 +43,7 @@ const listRoute = defineOpenAPIRoute({
       db.$count(fileStorageConfigs, where),
       db.select().from(fileStorageConfigs).where(where).orderBy(desc(fileStorageConfigs.isDefault), asc(fileStorageConfigs.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
     ]);
-    return c.json(okBody({ list: list.map(toFileStorageConfig), total, page, pageSize }), 200);
+    return c.json(okBody({ list: list.map((r) => mapFileStorageConfig(r)), total, page, pageSize }), 200);
   },
 });
 
@@ -127,7 +63,7 @@ const defaultRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const [config] = await db.select().from(fileStorageConfigs).where(eq(fileStorageConfigs.isDefault, true)).limit(1);
-    return c.json(okBody(config ? toFileStorageConfig(config) : null), 200);
+    return c.json(okBody(config ? mapFileStorageConfig(config) : null), 200);
   },
 });
 
@@ -162,7 +98,7 @@ const createRouteDef = defineOpenAPIRoute({
         .returning();
       return row;
     });
-    return c.json(okBody(toFileStorageConfig(created), '创建成功'), 200);
+    return c.json(okBody(mapFileStorageConfig(created), '创建成功'), 200);
   },
 });
 
@@ -197,7 +133,7 @@ const updateRouteDef = defineOpenAPIRoute({
         .returning();
       return row;
     });
-    return c.json(okBody(toFileStorageConfig(updated), '更新成功'), 200);
+    return c.json(okBody(mapFileStorageConfig(updated), '更新成功'), 200);
   },
 });
 
@@ -231,7 +167,7 @@ const setDefaultRoute = defineOpenAPIRoute({
         .returning();
       return row;
     });
-    return c.json(okBody(toFileStorageConfig(updated), '默认文件服务已更新'), 200);
+    return c.json(okBody(mapFileStorageConfig(updated), '默认文件服务已更新'), 200);
   },
 });
 

@@ -5,14 +5,13 @@ import { UAParser } from 'ua-parser-js';
 import { db } from '../db';
 import { users, userOauthAccounts } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
-import type { JwtPayload } from '../middleware/auth';
-import { signToken } from '../lib/jwt';
 import { getOAuthProvider, isProviderConfigured } from '../lib/oauth';
-import { generateTokenId, registerSession } from '../lib/session-manager';
+import { registerSession } from '../lib/session-manager';
 import type { OAuthProviderType } from '@zenith/shared';
 import { OAUTH_PROVIDERS } from '@zenith/shared';
 import { ErrorResponse, jsonContent, validationHook, commonErrorResponses, ok, okMsg, okBody, errBody } from '../lib/openapi-schemas';
 import { OAuthAccountDTO, OAuthAuthUrlDTO, LoginResultDTO } from '../lib/openapi-dtos';
+import { getUserRoles, issueTokens } from '../services/auth.service';
 
 const oauth = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -20,31 +19,6 @@ const VALID_PROVIDERS = new Set<string>(OAUTH_PROVIDERS);
 
 function isValidProvider(p: string | undefined): p is OAuthProviderType {
   return !!p && VALID_PROVIDERS.has(p);
-}
-
-async function getUserRoles(userId: number) {
-  const result = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-    columns: {},
-    with: { userRoles: { columns: {}, with: { role: true } } },
-  });
-  return (result?.userRoles ?? []).map(({ role: r }) => ({
-    id: r.id, name: r.name, code: r.code, description: r.description,
-    status: r.status, createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString(),
-  }));
-}
-
-async function issueTokens(user: { id: number; username: string }, roleCodes: string[]) {
-  const tokenId = generateTokenId();
-  const accessToken = await signToken<JwtPayload>(
-    { userId: user.id, username: user.username, roles: roleCodes, tenantId: null, jti: tokenId },
-    '2h',
-  );
-  const refreshToken = await signToken(
-    { userId: user.id, username: user.username, type: 'refresh', jti: tokenId },
-    '30d',
-  );
-  return { accessToken, refreshToken, tokenId };
 }
 
 const OAuthCallbackDTO = LoginResultDTO;

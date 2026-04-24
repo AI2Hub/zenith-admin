@@ -11,10 +11,9 @@ import { isPlatformAdmin } from '../lib/tenant';
 import type { AppEnv } from '../lib/context';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody, okExcel, excelBody } from '../lib/openapi-schemas';
 import { TenantDTO } from '../lib/openapi-dtos';
+import { mapTenant } from '../services/tenants.service';
 
 const tenantsRoute = new OpenAPIHono({ defaultHook: validationHook });
-
-/** 仅允许平台超管操作 */
 const platformAdminMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   const user = c.get('user');
   if (!isPlatformAdmin(user)) {
@@ -35,15 +34,6 @@ const createTenantSchema = z.object({
   remark: z.string().max(500).optional(),
 });
 const updateTenantSchema = createTenantSchema.partial();
-
-function toTenant(row: typeof tenants.$inferSelect) {
-  return {
-    ...row,
-    expireAt: row.expireAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
-}
 
 // GET /
 const listRoute = defineOpenAPIRoute({
@@ -67,7 +57,7 @@ const listRoute = defineOpenAPIRoute({
       db.$count(tenants, where),
       db.select().from(tenants).where(where).orderBy(desc(tenants.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
     ]);
-    return c.json(okBody({ list: rows.map(toTenant), total: count, page, pageSize }), 200);
+    return c.json(okBody({ list: rows.map((r) => mapTenant(r)), total: count, page, pageSize }), 200);
   },
 });
 
@@ -139,7 +129,7 @@ const detailRoute = defineOpenAPIRoute({
     const { id } = c.req.valid('param');
     const [row] = await db.select().from(tenants).where(eq(tenants.id, id)).limit(1);
     if (!row) return c.json(errBody('租户不存在', 404), 404);
-    return c.json(okBody(toTenant(row)), 200);
+    return c.json(okBody(mapTenant(row)), 200);
   },
 });
 
@@ -163,7 +153,7 @@ const createRouteDef = defineOpenAPIRoute({
     const [existing] = await db.select().from(tenants).where(eq(tenants.code, data.code)).limit(1);
     if (existing) return c.json(errBody('租户编码已存在'), 400);
     const [row] = await db.insert(tenants).values({ ...data, expireAt: data.expireAt ? new Date(data.expireAt) : null }).returning();
-    return c.json(okBody(toTenant(row), '创建成功'), 200);
+    return c.json(okBody(mapTenant(row), '创建成功'), 200);
   },
 });
 
@@ -197,7 +187,7 @@ const updateRouteDef = defineOpenAPIRoute({
     };
     const [row] = await db.update(tenants).set(values).where(eq(tenants.id, id)).returning();
     if (!row) return c.json(errBody('租户不存在', 404), 404);
-    return c.json(okBody(toTenant(row), '更新成功'), 200);
+    return c.json(okBody(mapTenant(row), '更新成功'), 200);
   },
 });
 
