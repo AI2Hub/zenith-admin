@@ -377,17 +377,18 @@ export default function UsersPage() {
       ),
     },
     {
-      title: '状态',
-      dataIndex: 'status',
-      width: 100,
-      render: (status: string) => <DictTag dictCode="common_status" value={status} />,
-    },
-    {
       title: '创建时间',
       dataIndex: 'createdAt',
       width: 170,
       ellipsis: true,
       render: (t: string) => formatDateTime(t),
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 100,
+      fixed: 'right',
+      render: (status: string) => <DictTag dictCode="common_status" value={status} />,
     },
     {
       title: '操作',
