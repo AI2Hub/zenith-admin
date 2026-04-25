@@ -77,7 +77,8 @@ export async function broadcastNotice(notice: ReturnType<typeof mapNotice>, noti
   }
   const deptIds = recipientRows.filter((r) => r.recipientType === 'dept').map((r) => r.recipientId);
   if (deptIds.length > 0) {
-    const deptUsers = await db.select({ id: users.id }).from(users).where(inArray(users.departmentId, deptIds));
+    const tenantFilter = notice.tenantId == null ? undefined : eq(users.tenantId, notice.tenantId);
+    const deptUsers = await db.select({ id: users.id }).from(users).where(and(inArray(users.departmentId, deptIds), tenantFilter));
     deptUsers.forEach((u) => userIdSet.add(u.id));
   }
   for (const uid of userIdSet) sendToUser(uid, { type: 'notice:new', payload: notice });

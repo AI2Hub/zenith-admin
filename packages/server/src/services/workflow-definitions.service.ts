@@ -64,7 +64,7 @@ export async function listPublishedDefinitions() {
   return rows.map(r => mapDefinition(r));
 }
 
-async function findDefinition(id: number) {
+function findDefinition(id: number) {
   const user = currentUser();
   const tc = tenantCondition(workflowDefinitions, user);
   const conds = [eq(workflowDefinitions.id, id)];
@@ -73,7 +73,7 @@ async function findDefinition(id: number) {
 }
 
 export async function getDefinition(id: number) {
-  const where = await findDefinition(id);
+  const where = findDefinition(id);
   const row = await db.query.workflowDefinitions.findFirst({
     where,
     with: { createdByUser: { columns: { nickname: true } } },
@@ -101,7 +101,7 @@ export async function createDefinition(data: {
 export async function updateDefinition(id: number, data: Partial<{
   name: string; description: string | null; flowData: unknown; formFields: unknown; status: 'draft' | 'published' | 'disabled';
 }>) {
-  const where = await findDefinition(id);
+  const where = findDefinition(id);
   const updateData: Record<string, unknown> = { ...data };
   if (data.flowData !== undefined) updateData.flowData = data.flowData as Record<string, unknown>;
   if (data.formFields !== undefined) updateData.formFields = data.formFields as unknown[];
@@ -115,7 +115,7 @@ export async function updateDefinition(id: number, data: Partial<{
 }
 
 export async function publishDefinition(id: number) {
-  const where = await findDefinition(id);
+  const where = findDefinition(id);
   const [existing] = await db.select().from(workflowDefinitions).where(where).limit(1);
   if (!existing) throw new AppError('流程定义不存在', 404);
   const flowData = existing.flowData as WorkflowFlowData | null;
@@ -131,14 +131,14 @@ export async function publishDefinition(id: number) {
 }
 
 export async function disableDefinition(id: number) {
-  const where = await findDefinition(id);
+  const where = findDefinition(id);
   const [updated] = await db.update(workflowDefinitions).set({ status: 'disabled' }).where(where).returning();
   if (!updated) throw new AppError('流程定义不存在', 404);
   return mapDefinition(updated);
 }
 
 export async function deleteDefinition(id: number) {
-  const where = await findDefinition(id);
+  const where = findDefinition(id);
   const [existing] = await db.select().from(workflowDefinitions).where(where).limit(1);
   if (!existing) throw new AppError('流程定义不存在', 404);
   if (existing.status === 'published') throw new AppError('已发布的流程不能删除，请先禁用', 400);

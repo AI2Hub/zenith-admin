@@ -96,16 +96,17 @@ export async function getRedisInfo() {
 
 export async function getDbInfo() {
   try {
-    const [dbSizeResult] = await db.execute(
-      sql`SELECT pg_database_size(current_database()) AS size, current_database() AS name`,
-    );
-    const [connResult] = await db.execute(
-      sql`SELECT count(*) AS active FROM pg_stat_activity WHERE state = 'active'`,
-    );
-    const [totalConnResult] = await db.execute(sql`SELECT count(*) AS total FROM pg_stat_activity`);
-    const [tableResult] = await db.execute(
-      sql`SELECT count(*) AS count FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
-    );
+    const [
+      [dbSizeResult],
+      [connResult],
+      [totalConnResult],
+      [tableResult],
+    ] = await Promise.all([
+      db.execute(sql`SELECT pg_database_size(current_database()) AS size, current_database() AS name`),
+      db.execute(sql`SELECT count(*) AS active FROM pg_stat_activity WHERE state = 'active'`),
+      db.execute(sql`SELECT count(*) AS total FROM pg_stat_activity`),
+      db.execute(sql`SELECT count(*) AS count FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`),
+    ]);
     return {
       name: (dbSizeResult as { name: string }).name,
       size: Number((dbSizeResult as { size: string }).size),

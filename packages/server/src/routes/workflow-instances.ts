@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { approveWorkflowTaskSchema, rejectWorkflowTaskSchema, createWorkflowInstanceSchema } from '@zenith/shared';
-import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, IdParam, okBody, errBody } from '../lib/openapi-schemas';
+import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, IdParam, okBody } from '../lib/openapi-schemas';
 import { WorkflowInstanceDTO, WorkflowInstanceListItemDTO, WorkflowInstanceAllDTO } from '../lib/openapi-dtos';
 import {
   listMyInstances, listPendingMine, listAllInstances, getInstanceDetail,
@@ -106,7 +106,7 @@ const approveRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'workflow:task:handle', audit: { description: '审批通过', module: '工作流管理' } })] as const,
     request: {
       params: z.object({ taskId: z.coerce.number().openapi({ param: { name: 'taskId', in: 'path' }, example: 1 }) }),
-      body: { content: jsonContent(approveWorkflowTaskSchema), required: false },
+      body: { content: jsonContent(approveWorkflowTaskSchema), required: true },
     },
     responses: {
       ...commonErrorResponses,
@@ -118,10 +118,8 @@ const approveRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { taskId } = c.req.valid('param');
-    const body = await c.req.json().catch(() => ({}));
-    const parsed = approveWorkflowTaskSchema.safeParse(body);
-    if (!parsed.success) return c.json(errBody(parsed.error.issues[0].message), 400);
-    const result = await approveTask(taskId, parsed.data.comment);
+    const { comment } = c.req.valid('json');
+    const result = await approveTask(taskId, comment);
     return c.json(okBody(result.instance, result.message), 200);
   },
 });
@@ -145,10 +143,8 @@ const rejectRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { taskId } = c.req.valid('param');
-    const body = await c.req.json().catch(() => ({}));
-    const parsed = rejectWorkflowTaskSchema.safeParse(body);
-    if (!parsed.success) return c.json(errBody(parsed.error.issues[0].message), 400);
-    const r = await rejectTask(taskId, parsed.data.comment);
+    const { comment } = c.req.valid('json');
+    const r = await rejectTask(taskId, comment);
     return c.json(okBody(r, '已驳回'), 200);
   },
 });

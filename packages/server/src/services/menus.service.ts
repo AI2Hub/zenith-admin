@@ -1,4 +1,4 @@
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, inArray } from 'drizzle-orm';
 import { db } from '../db';
 import { menus } from '../db/schema';
 import type { Menu } from '@zenith/shared';
@@ -144,8 +144,6 @@ export async function deleteMenu(id: number): Promise<void> {
       toDelete.add(cur);
       all.filter((m) => m.parentId === cur).forEach((m) => queue.push(m.id));
     }
-    for (const mid of toDelete) {
-      await tx.delete(menus).where(eq(menus.id, mid));
-    }
+    await tx.delete(menus).where(inArray(menus.id, [...toDelete]));
   });
 }

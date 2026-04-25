@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { db } from '../db';
 import { oauthConfigs } from '../db/schema';
 import type { OAuthProviderType } from '@zenith/shared';
@@ -7,13 +7,13 @@ import { AppError } from '../lib/errors';
 export const VALID_OAUTH_PROVIDERS: OAuthProviderType[] = ['github', 'dingtalk', 'wechat_work'];
 
 export async function listOauthConfigs() {
-  for (const p of VALID_OAUTH_PROVIDERS) {
-    const [existing] = await db.select().from(oauthConfigs).where(eq(oauthConfigs.provider, p)).limit(1);
-    if (!existing) {
-      await db.insert(oauthConfigs).values({ provider: p }).onConflictDoNothing();
-    }
+  const existing = await db.select({ provider: oauthConfigs.provider }).from(oauthConfigs).where(inArray(oauthConfigs.provider, VALID_OAUTH_PROVIDERS));
+  const existingSet = new Set(existing.map((e) => e.provider));
+  const missing = VALID_OAUTH_PROVIDERS.filter((p) => !existingSet.has(p));
+  if (missing.length > 0) {
+    await db.insert(oauthConfigs).values(missing.map((p) => ({ provider: p }))).onConflictDoNothing();
   }
-  const configs = await db.select().from(oauthConfigs);
+  const configs = await db.select().from(oauthConfigs).where(inArray(oauthConfigs.provider, VALID_OAUTH_PROVIDERS));
   return configs.map(({ clientSecret, ...rest }) => ({ ...rest, clientSecret: clientSecret ? '******' : '' }));
 }
 

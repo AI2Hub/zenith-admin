@@ -93,10 +93,6 @@ import { isPlatformAdmin } from '../lib/tenant';
 import { AppError } from '../lib/errors';
 import { currentUser } from '../lib/context';
 
-function uaInfo(ua: string) {
-  return parseUserAgent(ua);
-}
-
 async function checkPasswordExpiry(user: { passwordUpdatedAt: Date | null; createdAt: Date }): Promise<boolean> {
   const enabled = await getConfigBoolean('password_expiry_enabled', false);
   if (!enabled) return false;
@@ -208,10 +204,12 @@ export async function register(input: RegisterInput) {
   const allow = await getConfigBoolean('allow_registration', false);
   if (!allow) throw new AppError('系统已关闭注册功能', 403);
 
-  const [exist] = await db.select().from(users).where(eq(users.username, input.username)).limit(1);
-  if (exist) throw new AppError('用户名已存在', 400);
-  const [emailExist] = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
-  if (emailExist) throw new AppError('邮箱已被注册', 400);
+  const [[usernameRow], [emailRow]] = await Promise.all([
+    db.select({ id: users.id }).from(users).where(eq(users.username, input.username)).limit(1),
+    db.select({ id: users.id }).from(users).where(eq(users.email, input.email)).limit(1),
+  ]);
+  if (usernameRow) throw new AppError('用户名已存在', 400);
+  if (emailRow) throw new AppError('邮箱已被注册', 400);
 
   const hashed = await bcrypt.hash(input.password, 10);
   const [user] = await db.insert(users).values({
@@ -221,7 +219,7 @@ export async function register(input: RegisterInput) {
   const userRoleList = await getUserRoles(user.id);
   const { accessToken, refreshToken, tokenId } = await issueTokens(user, userRoleList.map((r) => r.code));
 
-  const { browser, os } = uaInfo(input.ua);
+  const { browser, os } = parseUserAgent(input.ua);
   await registerSession({
     tokenId,
     userId: user.id,
@@ -394,7 +392,7 @@ export async function switchTenantView(targetTenantId: number | null, ip: string
     { userId: payload.userId, username: payload.username, type: 'refresh', tenantId: payload.tenantId, viewingTenantId: targetTenantId, jti: tokenId },
     '30d',
   );
-  const { browser, os } = uaInfo(ua);
+  const { browser, os } = parseUserAgent(ua);
   if (payload.jti) await removeSession(payload.jti);
   await registerSession({
     tokenId,

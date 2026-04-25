@@ -103,24 +103,27 @@ export async function listPendingMine(query: { page?: number; pageSize?: number 
     eq(workflowInstances.status, 'running'),
     tc,
   );
-  const [{ total }] = await db
-    .select({ total: countDistinct(workflowInstances.id) })
-    .from(workflowTasks)
-    .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
-    .where(where);
-  const rows = await db
-    .select({ inst: workflowInstances, definitionName: workflowDefinitions.name, initiatorName: users.nickname, initiatorAvatar: users.avatar, task: workflowTasks })
-    .from(workflowTasks)
-    .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
-    .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
-    .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
-    .where(where)
-    .orderBy(desc(workflowTasks.createdAt))
-    .limit(pageSize)
-    .offset(pageOffset(page, pageSize));
+  const [{ total }, rows] = await Promise.all([
+    db
+      .select({ total: countDistinct(workflowInstances.id) })
+      .from(workflowTasks)
+      .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
+      .where(where)
+      .then((r) => r),
+    db
+      .select({ inst: workflowInstances, definitionName: workflowDefinitions.name, initiatorName: users.nickname, initiatorAvatar: users.avatar, task: workflowTasks })
+      .from(workflowTasks)
+      .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
+      .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
+      .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
+      .where(where)
+      .orderBy(desc(workflowTasks.createdAt))
+      .limit(pageSize)
+      .offset(pageOffset(page, pageSize)),
+  ]);
   return {
     list: rows.map((r) => ({ ...mapInstance(r.inst, r), pendingTaskId: r.task.id })),
-    total: Number(total),
+    total: Number(total[0].total),
     page,
     pageSize,
   };
@@ -138,26 +141,29 @@ export async function listAllInstances(query: { page?: number; pageSize?: number
     conditions.push(or(ilike(workflowInstances.title, likeValue), ilike(workflowDefinitions.name, likeValue)));
   }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
-  const statRows = await db.select({ status: workflowInstances.status, cnt: count() }).from(workflowInstances).groupBy(workflowInstances.status);
+  const [statRows, [{ total }], rows] = await Promise.all([
+    db.select({ status: workflowInstances.status, cnt: count() })
+      .from(workflowInstances)
+      .where(tc)
+      .groupBy(workflowInstances.status),
+    db.select({ total: count() })
+      .from(workflowInstances)
+      .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
+      .where(where),
+    db.select({ inst: workflowInstances, definitionName: workflowDefinitions.name, initiatorName: users.nickname, initiatorAvatar: users.avatar })
+      .from(workflowInstances)
+      .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
+      .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
+      .where(where)
+      .orderBy(desc(workflowInstances.id))
+      .limit(pageSize)
+      .offset(pageOffset(page, pageSize)),
+  ]);
   const stats: Record<string, number> = { total: 0, running: 0, approved: 0, rejected: 0, withdrawn: 0 };
   for (const r of statRows) {
     stats[r.status] = r.cnt;
     stats.total += r.cnt;
   }
-  const [{ total }] = await db
-    .select({ total: count() })
-    .from(workflowInstances)
-    .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
-    .where(where);
-  const rows = await db
-    .select({ inst: workflowInstances, definitionName: workflowDefinitions.name, initiatorName: users.nickname, initiatorAvatar: users.avatar })
-    .from(workflowInstances)
-    .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
-    .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
-    .where(where)
-    .orderBy(desc(workflowInstances.id))
-    .limit(pageSize)
-    .offset(pageOffset(page, pageSize));
   return { stats, list: rows.map((r) => mapInstance(r.inst, r)), total, page, pageSize };
 }
 
