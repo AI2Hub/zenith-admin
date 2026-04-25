@@ -68,7 +68,9 @@ export function filterDepartmentTree(nodes: Department[], keyword: string, statu
 
 export async function ensureParentValid(parentId: number, currentId?: number) {
   if (parentId === 0) return;
-  const allDepartments = await db.select({ id: departments.id, parentId: departments.parentId }).from(departments);
+  const user = currentUser();
+  const tc = tenantCondition(departments, user);
+  const allDepartments = await db.select({ id: departments.id, parentId: departments.parentId }).from(departments).where(tc);
   const parentExists = allDepartments.some((item) => item.id === parentId);
   if (!parentExists) throw new AppError('上级部门不存在', 400);
   if (!currentId) return;
@@ -137,9 +139,11 @@ export async function deleteDepartment(id: number): Promise<void> {
   const tc = tenantCondition(departments, currentUser());
   const [exists] = await db.select({ id: departments.id }).from(departments).where(and(eq(departments.id, id), tc)).limit(1);
   if (!exists) throw new AppError('部门不存在', 404);
-  const [child] = await db.select({ id: departments.id }).from(departments).where(eq(departments.parentId, id)).limit(1);
+  const [[child], [boundUser]] = await Promise.all([
+    db.select({ id: departments.id }).from(departments).where(eq(departments.parentId, id)).limit(1),
+    db.select({ id: users.id }).from(users).where(eq(users.departmentId, id)).limit(1),
+  ]);
   if (child) throw new AppError('该部门存在子部门，无法删除', 400);
-  const [boundUser] = await db.select({ id: users.id }).from(users).where(eq(users.departmentId, id)).limit(1);
   if (boundUser) throw new AppError('该部门下仍有关联用户，无法删除', 400);
   await db.delete(departments).where(and(eq(departments.id, id), tc));
 }

@@ -81,31 +81,52 @@ export async function deleteDict(id: number) {
 }
 
 export async function listDictItems(dictId: number) {
+  const user = currentUser();
+  const [dict] = await db.select({ id: dicts.id }).from(dicts).where(and(eq(dicts.id, dictId), tenantCondition(dicts, user))).limit(1);
+  if (!dict) throw new AppError('字典不存在', 404);
   const items = await db.select().from(dictItems).where(eq(dictItems.dictId, dictId)).orderBy(asc(dictItems.sort), asc(dictItems.id));
   return items.map(mapDictItem);
 }
 
 export async function listDictItemsByCode(code: string) {
-  const [dict] = await db.select({ id: dicts.id }).from(dicts).where(eq(dicts.code, code)).limit(1);
+  const user = currentUser();
+  const [dict] = await db.select({ id: dicts.id }).from(dicts).where(and(eq(dicts.code, code), tenantCondition(dicts, user))).limit(1);
   if (!dict) throw new AppError('字典不存在', 404);
   const items = await db.select().from(dictItems).where(eq(dictItems.dictId, dict.id)).orderBy(asc(dictItems.sort));
   return items.map(mapDictItem);
 }
 
 export async function createDictItem(dictId: number, data: Omit<typeof dictItems.$inferInsert, 'dictId'>) {
+  const user = currentUser();
+  const [dict] = await db.select({ id: dicts.id }).from(dicts).where(and(eq(dicts.id, dictId), tenantCondition(dicts, user))).limit(1);
+  if (!dict) throw new AppError('字典不存在', 404);
   const [row] = await db.insert(dictItems).values({ ...data, dictId }).returning();
   return mapDictItem(row);
 }
 
 export async function updateDictItem(itemId: number, data: Partial<typeof dictItems.$inferInsert>) {
+  const user = currentUser();
+  const [item] = await db
+    .select({ id: dictItems.id })
+    .from(dictItems)
+    .innerJoin(dicts, and(eq(dicts.id, dictItems.dictId), tenantCondition(dicts, user)))
+    .where(eq(dictItems.id, itemId))
+    .limit(1);
+  if (!item) throw new AppError('字典项不存在', 404);
   const [row] = await db.update(dictItems).set({ ...data }).where(eq(dictItems.id, itemId)).returning();
-  if (!row) throw new AppError('字典项不存在', 404);
   return mapDictItem(row);
 }
 
 export async function deleteDictItem(itemId: number) {
-  const [row] = await db.delete(dictItems).where(eq(dictItems.id, itemId)).returning();
-  if (!row) throw new AppError('字典项不存在', 404);
+  const user = currentUser();
+  const [item] = await db
+    .select({ id: dictItems.id })
+    .from(dictItems)
+    .innerJoin(dicts, and(eq(dicts.id, dictItems.dictId), tenantCondition(dicts, user)))
+    .where(eq(dictItems.id, itemId))
+    .limit(1);
+  if (!item) throw new AppError('字典项不存在', 404);
+  await db.delete(dictItems).where(eq(dictItems.id, itemId));
 }
 
 export async function exportDicts(): Promise<{ buffer: ArrayBuffer; filename: string }> {

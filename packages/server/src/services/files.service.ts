@@ -30,7 +30,9 @@ import { AppError } from '../lib/errors';
 import { currentUser } from '../lib/context';
 
 export async function readFileContent(id: number) {
-  const [file] = await db.select().from(managedFiles).where(eq(managedFiles.id, id)).limit(1);
+  const user = currentUser();
+  const tc = tenantCondition(managedFiles, user);
+  const [file] = await db.select().from(managedFiles).where(mergeWhere(eq(managedFiles.id, id), tc)).limit(1);
   if (!file) throw new AppError('文件不存在', 404);
   const [storageConfig] = await db
     .select()

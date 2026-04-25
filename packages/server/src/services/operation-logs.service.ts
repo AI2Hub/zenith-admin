@@ -1,4 +1,5 @@
 import { count, desc, like, and, gte, lte, sql, eq } from 'drizzle-orm';
+import { mergeWhere } from '../lib/where-helpers';
 import { db } from '../db';
 import { operationLogs } from '../db/schema';
 import { pageOffset } from '../lib/pagination';
@@ -38,7 +39,7 @@ function buildWhere(q: ListOperationLogsQuery) {
   if (endTime) conditions.push(lte(operationLogs.createdAt, endTime));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const tc = tenantCondition(operationLogs, user);
-  return where && tc ? and(where, tc) : (tc ?? where);
+  return mergeWhere(where, tc);
 }
 
 export async function listOperationLogs(q: ListOperationLogsQuery) {

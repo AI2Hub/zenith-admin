@@ -397,10 +397,10 @@ export async function importUsers(file: File): Promise<ImportUsersResult> {
   sheet.eachRow((row, rowNum) => { if (rowNum > 1) dataRows.push(row); });
 
   const [allDepts, allRoles, allPositions, existingUsersList] = await Promise.all([
-    db.select({ id: departments.id, code: departments.code }).from(departments),
-    db.select({ id: roles.id, code: roles.code }).from(roles),
-    db.select({ id: positions.id, code: positions.code }).from(positions),
-    db.select({ username: users.username, email: users.email }).from(users),
+    db.select({ id: departments.id, code: departments.code }).from(departments).where(tenantCondition(departments, user)),
+    db.select({ id: roles.id, code: roles.code }).from(roles).where(tenantCondition(roles, user)),
+    db.select({ id: positions.id, code: positions.code }).from(positions).where(tenantCondition(positions, user)),
+    db.select({ username: users.username, email: users.email }).from(users).where(tenantCondition(users, user)),
   ]);
   const deptCodeMap = new Map(allDepts.map((d) => [d.code, d.id]));
   const roleCodeMap = new Map(allRoles.map((r) => [r.code, r.id]));
