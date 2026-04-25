@@ -4,6 +4,44 @@
 
 ---
 
+## v0.8.0 - 2026-04-25
+
+### Added
+
+#### 区域选择缓存
+- `RegionSelect` 组件新增缓存层（`RegionSelect.cache.ts`），区域数据首次加载后缓存，避免重复请求
+
+#### Excel 导出
+- 新增 `okExcel` / `excelBody` 响应辅助函数，多个模块支持导出 Excel 文件，日期时间统一使用 `dayjs` 格式化
+
+### Changed
+
+#### 时间格式规范统一
+- 系统内所有日期时间字符串统一为 `YYYY-MM-DD HH:mm:ss` 格式
+- 前端新增 `formatDateTime` / `formatDateTimeForApi` / `formatDateForApi` 工具函数（`packages/web/src/utils/date.ts`）
+- 后端新增 `formatDateTime` / `formatNullableDateTime` / `formatDate` / `formatFileTimestamp` / `parseDateTimeInput` 等工具函数（`packages/server/src/lib/datetime.ts`）
+- 禁止在业务代码中直接调用 `toISOString()` 等原生时间格式化方法
+
+#### 响应体构造规范
+- 统一使用 `okBody(data, msg?)` / `errBody(msg, code?)` 构造响应体，废弃内联字面量对象写法
+- 所有路由文件完成规范迁移
+
+#### 请求工具优化
+- 下载文件错误处理增强，新增网络请求失败提示，401 状态自动尝试刷新 token
+
+#### 监控页面
+- Redis 命令总执行数使用 `Intl.NumberFormat` 格式化，符合中文数字展示习惯
+- 修正进度条颜色样式选择器
+
+### Fixed
+
+- 修复 SonarLint 安全告警
+- 修复用户管理中角色/岗位编码映射的空值安全问题
+- 修复历史遗留测试失败（data-scope / auth / system-config）
+- 修复工作流设计器高级设置面板重构后的编译错误
+
+---
+
 ## v0.7.0 - 2026-04-24
 
 ### Added
