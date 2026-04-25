@@ -1,4 +1,5 @@
 import { eq, like, and, ne, desc } from 'drizzle-orm';
+import { mergeWhere } from '../lib/where-helpers';
 import { db } from '../db';
 import { systemConfigs } from '../db/schema';
 import { pageOffset } from '../lib/pagination';
@@ -36,7 +37,7 @@ export async function listSystemConfigs(q: ListSystemConfigsQuery) {
   if (q.configType) conditions.push(eq(systemConfigs.configType, q.configType));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const tc = tenantCondition(systemConfigs, user);
-  const finalWhere = where && tc ? and(where, tc) : (tc ?? where);
+  const finalWhere = mergeWhere(where, tc);
   const [total, rows] = await Promise.all([
     db.$count(systemConfigs, finalWhere),
     db.select().from(systemConfigs).where(finalWhere).orderBy(desc(systemConfigs.id)).limit(pageSize).offset(pageOffset(page, pageSize)),

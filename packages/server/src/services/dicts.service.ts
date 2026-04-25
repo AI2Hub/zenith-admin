@@ -1,4 +1,5 @@
 import { eq, asc, and, or, like, gte, lte, type SQL } from 'drizzle-orm';
+import { mergeWhere } from '../lib/where-helpers';
 import { db } from '../db';
 import { dicts, dictItems } from '../db/schema';
 import { pageOffset } from '../lib/pagination';
@@ -41,7 +42,7 @@ export async function listDicts(q: ListDictsQuery) {
   if (parsedEndDate) conditions.push(lte(dicts.createdAt, parsedEndDate));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const tc = tenantCondition(dicts, user);
-  const finalWhere = where && tc ? and(where, tc) : (tc ?? where);
+  const finalWhere = mergeWhere(where, tc);
   const [total, list] = await Promise.all([
     db.$count(dicts, finalWhere),
     db.select().from(dicts).where(finalWhere).orderBy(dicts.id).limit(pageSize).offset(pageOffset(page, pageSize)),

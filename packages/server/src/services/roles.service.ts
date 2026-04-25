@@ -1,4 +1,5 @@
 import { eq, and, like, or, gte, lte } from 'drizzle-orm';
+import { mergeWhere } from '../lib/where-helpers';
 import { db } from '../db';
 import { roles, roleMenus, userRoles } from '../db/schema';
 import { pageOffset } from '../lib/pagination';
@@ -47,7 +48,7 @@ export async function listRoles(q: ListRolesQuery) {
   if (endTime) conditions.push(lte(roles.createdAt, endTime));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const tc = tenantCondition(roles, user);
-  const finalWhere = where && tc ? and(where, tc) : (tc ?? where);
+  const finalWhere = mergeWhere(where, tc);
   const [total, list] = await Promise.all([
     db.$count(roles, finalWhere),
     db.select().from(roles).where(finalWhere).orderBy(roles.id).limit(pageSize).offset(pageOffset(page, pageSize)),

@@ -3,7 +3,7 @@ import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
 import {
   ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, IdParam, okBody, okExcel, excelBody,
+  ok, okPaginated, okMsg, IdParam, okBody, okExcel, excelBody, BatchIdsBody,
 } from '../lib/openapi-schemas';
 import { UserDTO, ImportResultDTO } from '../lib/openapi-dtos';
 import {
@@ -36,7 +36,6 @@ const updateUserSchema = z.object({
   status: z.enum(['active', 'disabled']).optional(),
 });
 const resetUserPasswordSchema = z.object({ password: z.string().min(6).max(64) });
-const batchIdsSchema = z.object({ ids: z.array(z.number().int()) });
 const batchStatusSchema = z.object({ ids: z.array(z.number().int()), status: z.enum(['active', 'disabled']) });
 
 const getAllUsersRoute = defineOpenAPIRoute({
@@ -87,7 +86,7 @@ const batchDeleteUsersRoute = defineOpenAPIRoute({
     method: 'delete', path: '/batch', tags: ['Users'], summary: '批量删除用户',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'system:user:delete', audit: { description: '批量删除用户', module: '用户管理' } })] as const,
-    request: { body: { content: jsonContent(batchIdsSchema), required: true } },
+    request: { body: { content: jsonContent(BatchIdsBody), required: true } },
     responses: {
       ...commonErrorResponses,
       ...okMsg('删除成功'),

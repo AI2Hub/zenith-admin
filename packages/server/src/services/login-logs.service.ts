@@ -1,4 +1,5 @@
 import { desc, eq, like, and, gte, lte } from 'drizzle-orm';
+import { mergeWhere } from '../lib/where-helpers';
 import { db } from '../db';
 import { loginLogs } from '../db/schema';
 import { pageOffset } from '../lib/pagination';
@@ -29,7 +30,7 @@ export async function listLoginLogs(q: ListLoginLogsQuery) {
   if (endTime) conditions.push(lte(loginLogs.createdAt, endTime));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const tc = tenantCondition(loginLogs, user);
-  const finalWhere = where && tc ? and(where, tc) : (tc ?? where);
+  const finalWhere = mergeWhere(where, tc);
   const [total, rows] = await Promise.all([
     db.$count(loginLogs, finalWhere),
     db.select().from(loginLogs).where(finalWhere).orderBy(desc(loginLogs.createdAt)).limit(pageSize).offset(pageOffset(page, pageSize)),

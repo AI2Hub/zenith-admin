@@ -1,4 +1,5 @@
-import { count, desc, eq, like, and, gte, lte, inArray, sql, or } from 'drizzle-orm';
+import { count, desc, eq, like, and, gte, lte, inArray, isNull, isNotNull, sql, or, getTableColumns } from 'drizzle-orm';
+import { mergeWhere } from '../lib/where-helpers';
 import { db } from '../db';
 import type { DbExecutor } from '../db/types';
 import { notices, noticeRecipients, noticeReads, users, userRoles, roles, departments } from '../db/schema';
@@ -103,14 +104,13 @@ export async function markNoticeRead(noticeId: number) {
 export async function markAllNoticesRead() {
   const userId = currentUser().userId;
   const accessFilter = buildAccessFilter(userId);
-  const allPublished = await db.select({ id: notices.id }).from(notices).where(and(eq(notices.publishStatus, 'published'), accessFilter));
-  if (allPublished.length === 0) return;
-  const readRows = await db.select({ noticeId: noticeReads.noticeId }).from(noticeReads).where(eq(noticeReads.userId, userId));
-  const readSet = new Set(readRows.map((r) => r.noticeId));
-  const unreadIds = allPublished.filter((n) => !readSet.has(n.id)).map((n) => n.id);
-  if (unreadIds.length > 0) {
-    await db.insert(noticeReads).values(unreadIds.map((noticeId) => ({ noticeId, userId }))).onConflictDoNothing();
-  }
+  const unreadRows = await db
+    .select({ id: notices.id })
+    .from(notices)
+    .leftJoin(noticeReads, and(eq(noticeReads.noticeId, notices.id), eq(noticeReads.userId, userId)))
+    .where(and(eq(notices.publishStatus, 'published'), accessFilter, isNull(noticeReads.id)));
+  if (unreadRows.length === 0) return;
+  await db.insert(noticeReads).values(unreadRows.map((r) => ({ noticeId: r.id, userId }))).onConflictDoNothing();
 }
 
 export async function getInbox(q: { page?: number; pageSize?: number; isRead?: string }) {
@@ -118,18 +118,23 @@ export async function getInbox(q: { page?: number; pageSize?: number; isRead?: s
   const { page = 1, pageSize = 10, isRead } = q;
   const tc = tenantCondition(notices, user);
   const accessFilter = buildAccessFilter(user.userId);
-  const where = and(eq(notices.publishStatus, 'published'), accessFilter, ...(tc ? [tc] : []));
-  const [readRows, allRows] = await Promise.all([
-    db.select({ noticeId: noticeReads.noticeId }).from(noticeReads).where(eq(noticeReads.userId, user.userId)),
-    db.select().from(notices).where(where).orderBy(desc(notices.publishTime)),
+  const baseWhere = and(eq(notices.publishStatus, 'published'), accessFilter, ...(tc ? [tc] : []));
+  const joinCond = and(eq(noticeReads.noticeId, notices.id), eq(noticeReads.userId, user.userId));
+  let readFilter: ReturnType<typeof isNotNull | typeof isNull> | undefined;
+  if (isRead === 'true') readFilter = isNotNull(noticeReads.id);
+  else if (isRead === 'false') readFilter = isNull(noticeReads.id);
+  const where = readFilter ? and(baseWhere, readFilter) : baseWhere;
+  const [totalRow, rows] = await Promise.all([
+    db.select({ total: count() }).from(notices).leftJoin(noticeReads, joinCond).where(where),
+    db.select({ ...getTableColumns(notices), isRead: isNotNull(noticeReads.id) })
+      .from(notices)
+      .leftJoin(noticeReads, joinCond)
+      .where(where)
+      .orderBy(desc(notices.publishTime))
+      .limit(pageSize)
+      .offset(pageOffset(page, pageSize)),
   ]);
-  const readSet = new Set(readRows.map((r) => r.noticeId));
-  let list = allRows.map((row) => ({ ...mapNotice(row), isRead: readSet.has(row.id) }));
-  if (isRead === 'true') list = list.filter((n) => n.isRead);
-  else if (isRead === 'false') list = list.filter((n) => !n.isRead);
-  const total = list.length;
-  const paged = list.slice(pageOffset(page, pageSize), page * pageSize);
-  return { list: paged, total, page, pageSize };
+  return { list: rows.map(({ isRead, ...noticeRow }) => ({ ...mapNotice(noticeRow), isRead })), total: totalRow[0].total, page, pageSize };
 }
 
 export async function listNotices(q: { page?: number; pageSize?: number; title?: string; type?: string; publishStatus?: string; startTime?: string; endTime?: string }) {
@@ -145,7 +150,7 @@ export async function listNotices(q: { page?: number; pageSize?: number; title?:
   if (parsedEndTime) conditions.push(lte(notices.createdAt, parsedEndTime));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const tc = tenantCondition(notices, user);
-  const finalWhere = where && tc ? and(where, tc) : (tc ?? where);
+  const finalWhere = mergeWhere(where, tc);
   const [total, rows] = await Promise.all([
     db.$count(notices, finalWhere),
     db.select().from(notices).where(finalWhere).orderBy(desc(notices.createdAt)).limit(pageSize).offset(pageOffset(page, pageSize)),

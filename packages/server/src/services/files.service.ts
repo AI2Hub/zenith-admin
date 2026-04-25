@@ -21,6 +21,7 @@ export function mapManagedFile(row: typeof managedFiles.$inferSelect) {
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
 import { and, desc, eq, like, or, gte, lte } from 'drizzle-orm';
+import { mergeWhere } from '../lib/where-helpers';
 import { db } from '../db';
 import { pageOffset } from '../lib/pagination';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
@@ -63,7 +64,7 @@ export async function listManagedFiles(query: {
   if (endTime) conditions.push(lte(managedFiles.createdAt, endTime));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const tc = tenantCondition(managedFiles, user);
-  const finalWhere = where && tc ? and(where, tc) : (tc ?? where);
+  const finalWhere = mergeWhere(where, tc);
   const [count, paginated] = await Promise.all([
     db.$count(managedFiles, finalWhere),
     db.select().from(managedFiles).where(finalWhere).orderBy(desc(managedFiles.id)).limit(pageSize).offset(pageOffset(page, pageSize)),

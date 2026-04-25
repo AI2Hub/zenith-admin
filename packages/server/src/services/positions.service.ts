@@ -1,4 +1,5 @@
 import { and, asc, eq, gte, inArray, like, lte, or } from 'drizzle-orm';
+import { mergeWhere } from '../lib/where-helpers';
 import { db } from '../db';
 import { positions, userPositions } from '../db/schema';
 import { AppError } from '../lib/errors';
@@ -61,7 +62,7 @@ export async function listPositions(q: ListPositionsQuery) {
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const tc = tenantCondition(positions, currentUser());
-  const finalWhere = where && tc ? and(where, tc) : (tc ?? where);
+  const finalWhere = mergeWhere(where, tc);
 
   const [total, list] = await Promise.all([
     db.$count(positions, finalWhere),
