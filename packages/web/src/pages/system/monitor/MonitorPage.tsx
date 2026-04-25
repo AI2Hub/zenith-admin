@@ -73,6 +73,12 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
+const numberFormatter = new Intl.NumberFormat('zh-CN');
+
+function formatNumber(value: number): string {
+  return numberFormatter.format(value);
+}
+
 function formatUptime(seconds: number): string {
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
@@ -346,7 +352,7 @@ export default function MonitorPage() {
                 <InfoRow label="已用内存" value={`${data.redis.usedMemoryHuman} (${formatBytes(data.redis.usedMemory)})`} />
                 <InfoRow label="已连接客户端" value={data.redis.connectedClients} />
                 <InfoRow label="Key 总数" value={data.redis.keyCount} />
-                <InfoRow label="命令总执行数" value={data.redis.totalCommandsProcessed.toLocaleString()} />
+                <InfoRow label="命令总执行数" value={formatNumber(data.redis.totalCommandsProcessed)} />
                 <InfoRow
                   label="命中率"
                   value={(() => {
