@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 
 // Mock Canvas for Semi-UI lottie
-HTMLCanvasElement.prototype.getContext = (() => {
+const getContextMock = () => {
   return {
     fillStyle: '',
     fillRect: Object,
@@ -29,7 +29,9 @@ HTMLCanvasElement.prototype.getContext = (() => {
     rect: Object,
     clip: Object,
   } as unknown as CanvasRenderingContext2D;
-}) as typeof HTMLCanvasElement.prototype.getContext;
+};
+
+HTMLCanvasElement.prototype.getContext = getContextMock as unknown as typeof HTMLCanvasElement.prototype.getContext;
 
 // Mock matchMedia
 Object.defineProperty(window, 'matchMedia', {

@@ -153,11 +153,11 @@
 }
 
 /* ===== 进度条颜色 ===== */
-.monitor-progress-warning :global(.semi-progress-stroke) {
+.monitor-progress-warning .semi-progress-stroke {
   background: var(--semi-color-warning) !important;
 }
 
-.monitor-progress-danger :global(.semi-progress-stroke) {
+.monitor-progress-danger .semi-progress-stroke {
   background: var(--semi-color-danger) !important;
 }
 

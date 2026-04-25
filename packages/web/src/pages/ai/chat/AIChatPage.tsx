@@ -1,17 +1,17 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { AIChatDialogue, AIChatInput, Typography, Button, Tag, RadioGroup, Radio, Select, Toast } from '@douyinfe/semi-ui';
+import type { Message as AIChatMessage } from '@douyinfe/semi-ui/lib/es/aiChatDialogue';
 import { MessageSquarePlus, Trash2, Globe, AlignLeft, AlignJustify, Bot, Wrench } from 'lucide-react';
 
 const { Configure } = AIChatInput;
 const { Title, Text } = Typography;
 
-type AIChatDialogueProps = React.ComponentProps<typeof AIChatDialogue>;
-type AIChatDialogueRefProp = React.ComponentPropsWithRef<typeof AIChatDialogue>['ref'];
+type AIChatDialogueInstance = InstanceType<typeof AIChatDialogue>;
 
-type Message = {
+type Message = Omit<AIChatMessage, 'role' | 'content' | 'status' | 'createdAt'> & {
   id: string;
   role: 'system' | 'user' | 'assistant';
-  content: string | unknown[];
+  content: NonNullable<AIChatMessage['content']>;
   createdAt: number;
   status?: 'completed' | 'in_progress' | 'failed';
 };
@@ -284,7 +284,7 @@ export default function AIChatPage() {
     webSearch: false,
     thinkMode: 'fast',
   });
-  const dialogueRef = useRef<{ scrollToBottom: (animation: boolean) => void } | null>(null);
+  const dialogueRef = useRef<AIChatDialogueInstance | null>(null);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
   const messages = activeConv?.messages ?? [];
@@ -528,8 +528,8 @@ export default function AIChatPage() {
         {/* 对话内容 */}
         <div style={{ flex: 1, overflow: 'hidden' }}>
           <AIChatDialogue
-            ref={dialogueRef as unknown as AIChatDialogueRefProp}
-            chats={messages as unknown as AIChatDialogueProps['chats']}
+            ref={dialogueRef}
+            chats={messages}
             roleConfig={roleConfig}
             hints={generating ? [] : HINTS}
             align={align}

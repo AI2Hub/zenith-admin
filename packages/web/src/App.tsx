@@ -8,7 +8,7 @@ import type { Menu, User } from '@zenith/shared';
 
 import AdminLayout from '@/layouts/AdminLayout';
 
-const modules = import.meta.glob('./pages/**/*.tsx');
+const modules = import.meta.glob(['./pages/**/*.tsx', '!./pages/**/**Skeleton.tsx']);
 const LoginPage = React.lazy(() => import('@/pages/login/LoginPage'));
 const ResetPasswordPage = React.lazy(() => import('@/pages/reset-password/ResetPasswordPage'));
 const DashboardPage = React.lazy(() => import('@/pages/dashboard/DashboardPage'));
