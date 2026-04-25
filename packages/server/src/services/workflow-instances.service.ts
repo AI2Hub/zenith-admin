@@ -122,7 +122,7 @@ export async function listPendingMine(query: { page?: number; pageSize?: number 
   ]);
   return {
     list: rows.map((r) => ({ ...mapInstance(r.inst, r), pendingTaskId: r.task.id })),
-    total: Number(total[0].total),
+    total: Number(total),
     page,
     pageSize,
   };
