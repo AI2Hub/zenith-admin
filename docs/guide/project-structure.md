@@ -22,7 +22,7 @@ zenith-admin/
 - `src/routes/`：API 路由（认证、用户、部门、岗位、角色、菜单、字典、通知、日志、监控、会话、定时任务等）
 - `src/services/`：Service 层（业务逻辑、数据映射 `mapXxx`、前置校验 `ensureXxx`；所有路由均已完成提取）
 - `src/db/`：Drizzle schema、统一数据库类型别名、迁移与 seed
-- `src/middleware/`：认证（`auth.ts`）、IP 访问控制（`ip-access.ts`）、权限守卫（`guard.ts`）、请求日志（`logger.ts`）
+- `src/middleware/`：认证（`auth.ts`）、IP 访问控制（`ip-access.ts`）、权限守卫（`guard.ts`）、接口限流（`rate-limit.ts`）
 - `src/lib/`：通用能力封装，详见下方列表
 - `drizzle/`：生成的迁移文件
 

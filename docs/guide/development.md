@@ -59,16 +59,4 @@ npm run docs:preview
 
 ## 发布新版本
 
-当需要发布新版本时，参考 Zenith Skill 中的「发布新版本流程」，或按以下步骤操作：
-
-1. 更新四个 `package.json` 中的版本号（根 + server + web + shared）
-2. 在 `docs/changelog/index.md` 顶部追加本版本变更记录
-3. 提交并推送到 `master`
-4. 打 tag 并推送，触发 Release 工作流：
-
-```bash
-git tag v0.2.0
-git push origin v0.2.0
-```
-
-GitHub Actions `release.yml` 将自动完成构建 → 打包 → 创建 GitHub Release。
+发布流程详见 [贡献指南 → 版本发布](./contributing#版本发布)。

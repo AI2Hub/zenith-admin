@@ -28,7 +28,7 @@ App.tsx 渲染 AdminRouteLoader 组件
     ↓
 后端返回当前用户有权访问的菜单树
     ↓
-flattenMenus() 扁平化：只保留 type=menu 且有 path + component 的菜单项
+flattenMenus() 扁平化：只保留有 `path` 且有 `component` 的菜单项（自动过滤固定路由不重复注册）
     ↓
 通过 import.meta.glob('./pages/**/*.tsx') 懒加载对应组件文件
     ↓
@@ -91,6 +91,7 @@ const { hasPermission } = usePermission();
 | `/` | 仪表盘（首页） | 是 |
 | `/profile` | 个人中心 | 是 |
 | `/notifications` | 通知中心 | 是 |
+| `/workflow/designer/:id` | 工作流设计器（接受动态 id 参数） | 是 |
 | `/forbidden` | 无权限提示页 | 是 |
 
 `/profile` 和 `/notifications` 虽然对应系统菜单中的隐藏菜单项，但路由是硬编码的，不经过动态加载。

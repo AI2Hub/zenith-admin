@@ -66,6 +66,11 @@ packages/web/src/mocks/
 │   ├── system.ts
 │   ├── notices.ts
 │   ├── logs.ts
+│   ├── email-config.ts
+│   ├── message-templates.ts
+│   ├── regions.ts
+│   ├── tenants.ts
+│   ├── workflow.ts
 │   └── index.ts        # 汇总导出
 ├── handlers/           # MSW Handler 定义（每个模块一个文件）
 │   ├── auth.ts
@@ -83,7 +88,20 @@ packages/web/src/mocks/
 │   ├── operation-logs.ts
 │   ├── cron-jobs.ts
 │   ├── monitor.ts
+│   ├── dashboard.ts
+│   ├── api-tokens.ts
+│   ├── cache.ts
+│   ├── db-backups.ts
+│   ├── email-config.ts
+│   ├── message-templates.ts
+│   ├── oauth-config.ts
+│   ├── oauth.ts
+│   ├── regions.ts
+│   ├── tenants.ts
+│   ├── workflow.ts
 │   └── index.ts        # 汇总所有 handlers
+├── utils/              # 辅助工具
+│   └── date.ts         # mockDateTime() / mockDate()
 ├── browser.ts          # setupWorker（浏览器环境）
 └── index.ts            # enableMocking() 入口，VITE_DEMO_MODE 控制是否激活
 ```
