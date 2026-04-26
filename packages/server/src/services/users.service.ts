@@ -243,10 +243,9 @@ export async function batchUpdateUserStatus(ids: number[], status: 'enabled' | '
 export async function getUserBeforeAudit(id: number) {
   const user = currentUser();
   const tc = tenantCondition(users, user);
-  const [before] = await db.select().from(users).where(tc ? and(eq(users.id, id), tc) : eq(users.id, id)).limit(1);
-  if (!before) return null;
-  const { password: _pw, ...safe } = before;
-  return safe;
+  const full = await findUserWithRelations({ where: tc ? and(eq(users.id, id), tc) : eq(users.id, id) });
+  if (!full) return null;
+  return mapUser(full);
 }
 
 export interface UpdateUserInput {
