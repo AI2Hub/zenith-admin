@@ -10,7 +10,7 @@
 
 ```ts
 // ─── 枚举（如有新枚举，三端必须同步：pgEnum / TS union / Zod enum）───
-export const xxxStatusEnum = pgEnum('xxx_status', ['active', 'disabled']);
+export const xxxStatusEnum = pgEnum('xxx_status', ['enabled', 'disabled']);
 // 如果复用已有 statusEnum，则无需新建
 
 // ─── 主表 ───────────────────────────────────────────────────────────────
@@ -19,7 +19,7 @@ export const xxxs = pgTable('xxxs', {
   name:        varchar('name', { length: 64 }).notNull(),
   description: text('description'),
   // 枚举字段（使用已有 status 枚举时）：
-  status:      statusEnum('status').notNull().default('active'),
+  status:      statusEnum('status').notNull().default('enabled'),
   // 外键（FK 字段 + onDelete 策略）：
   parentId:    integer('parent_id').references(() => xxxs.id, { onDelete: 'set null' }),
   // 时间戳：
@@ -57,7 +57,7 @@ export const xxxYyys = pgTable('xxx_yyys', {
 export const createXxxSchema = z.object({
   name:        z.string().min(1, '名称不能为空').max(64),
   description: z.string().max(256).optional(),
-  status:      z.enum(['active', 'disabled']).default('active'),
+  status:      z.enum(['enabled', 'disabled']).default('enabled'),
   // 外键引用（可选）：
   parentId:    z.number().int().positive().nullable().optional(),
   // 多对多（如 role IDs）：
@@ -87,7 +87,7 @@ export interface Xxx {
   id: number;
   name: string;
   description?: string;
-  status: 'active' | 'disabled';
+  status: 'enabled' | 'disabled';
   // 关联冗余字段（JOIN 后附加，供前端直接展示）：
   parentId?: number | null;
   parentName?: string | null;
@@ -156,7 +156,7 @@ export async function ensureXxxExists(id: number) {
 >     id: z.number().int(),
 >     name: z.string(),
 >     description: z.string().nullable().optional(),
->     status: z.enum(['active', 'disabled']),
+>     status: z.enum(['enabled', 'disabled']),
 >     createdAt: z.string(),
 >     updatedAt: z.string(),
 >   })
@@ -191,7 +191,7 @@ const xxxRouter = new OpenAPIHono({ defaultHook: validationHook });
 const createXxxSchema = z.object({
   name: z.string().min(1).max(64),
   description: z.string().max(256).optional(),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
 const updateXxxSchema = createXxxSchema.partial();
 
@@ -205,7 +205,7 @@ const listRoute = defineOpenAPIRoute({
     request: {
       query: PaginationQuery.extend({
         keyword: z.string().optional(),
-        status: z.enum(['active', 'disabled']).optional(),
+        status: z.enum(['enabled', 'disabled']).optional(),
         startTime: z.string().optional(),
         endTime: z.string().optional(),
       }),

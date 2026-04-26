@@ -70,7 +70,7 @@ handlerRegistry.set('myNewTask', async (params) => {
 | `PUT /api/cron-jobs/{id}` | 更新任务 |
 | `DELETE /api/cron-jobs/{id}` | 删除任务 |
 | `POST /api/cron-jobs/{id}/run` | 立即执行一次（不影响定时计划） |
-| `PUT /api/cron-jobs/{id}/status` | 更新任务状态（`active` / `disabled`） |
+| `PUT /api/cron-jobs/{id}/status` | 更新任务状态（`enabled` / `disabled`） |
 | `GET /api/cron-jobs/logs` | 查看全部执行日志（分页） |
 | `GET /api/cron-jobs/{id}/logs` | 查看单任务执行日志（分页） |
 | `GET /api/cron-jobs/handlers` | 获取已注册的 Handler 列表 |

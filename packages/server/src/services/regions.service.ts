@@ -57,7 +57,7 @@ export interface CreateRegionInput {
   level: 'province' | 'city' | 'county';
   parentCode?: string | null;
   sort?: number;
-  status?: 'active' | 'disabled';
+  status?: 'enabled' | 'disabled';
 }
 export type UpdateRegionInput = Partial<CreateRegionInput>;
 
@@ -84,7 +84,7 @@ export async function createRegion(data: CreateRegionInput) {
       level: data.level,
       parentCode: data.parentCode ?? null,
       sort: data.sort ?? 0,
-      status: data.status ?? 'active',
+      status: data.status ?? 'enabled',
     }).returning();
     return mapRegion(row);
   } catch (err) {

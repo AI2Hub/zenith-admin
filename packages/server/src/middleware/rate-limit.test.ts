@@ -6,7 +6,7 @@
  *  2. captchaRateLimit — rateLimiter 配置正确（windowMs=60000, limit=30）
  *  3. sensitiveRateLimit — rateLimiter 配置正确（windowMs=3600000, limit=5）
  *  4. handler 响应格式 — 返回 { code: 429, message: ..., data: null }
- *  5. keyGenerator — x-forwarded-for 优先，其次 x-real-ip，最后 fallback '0.0.0.0'
+ *  5. keyGenerator — x-forwarded-for 优先，其次 x-real-ip，最后 fallback '127.0.0.1'
  *
  * Mock 策略：
  *  - hono-rate-limiter 全部 mock（RedisStore + rateLimiter）
@@ -155,11 +155,11 @@ describe('rate-limit 中间件', () => {
       expect(key).toBe('192.168.1.100');
     });
 
-    it('fallback → "0.0.0.0"（无任何 IP 头）', async () => {
+    it('fallback → "127.0.0.1"（无任何 IP 头）', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const c = await makeContext() as any;
       const key = capturedOpts[0].keyGenerator(c);
-      expect(key).toBe('0.0.0.0');
+      expect(key).toBe('127.0.0.1');
     });
 
     it('x-forwarded-for 优先于 x-real-ip', async () => {

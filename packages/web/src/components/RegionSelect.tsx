@@ -12,7 +12,7 @@ interface CascaderItem {
 
 function regionsToCascader(regions: Region[]): CascaderItem[] {
   return regions
-    .filter((r) => r.status === 'active')
+    .filter((r) => r.status === 'enabled')
     .map((r) => ({
       label: r.name,
       value: r.code,

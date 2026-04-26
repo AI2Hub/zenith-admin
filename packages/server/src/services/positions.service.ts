@@ -27,7 +27,7 @@ export interface CreatePositionInput {
   name: string;
   code: string;
   sort?: number;
-  status?: 'active' | 'disabled';
+  status?: 'enabled' | 'disabled';
   remark?: string;
 }
 export type UpdatePositionInput = Partial<CreatePositionInput>;
@@ -36,7 +36,7 @@ export interface ListPositionsQuery {
   page?: number;
   pageSize?: number;
   keyword?: string;
-  status?: 'active' | 'disabled';
+  status?: 'enabled' | 'disabled';
   startTime?: string;
   endTime?: string;
 }
@@ -148,7 +148,7 @@ export async function exportPositions(): Promise<{ buffer: ArrayBuffer; filename
       { header: '岗位名称', key: 'name', width: 18 },
       { header: '岗位编码', key: 'code', width: 18 },
       { header: '排序', key: 'sort', width: 8 },
-      { header: '状态', key: 'status', width: 10, transform: (v) => (v === 'active' ? '启用' : '禁用') },
+      { header: '状态', key: 'status', width: 10, transform: (v) => (v === 'enabled' ? '启用' : '禁用') },
       { header: '备注', key: 'remark', width: 24 },
       { header: '创建时间', key: 'createdAt', width: 22 },
     ],

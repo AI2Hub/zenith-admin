@@ -113,7 +113,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
     const result: FlatMenuItem[] = [];
     const walk = (nodes: Menu[], parents: string[]) => {
       for (const node of nodes) {
-        if (node.type === 'menu' && node.path && node.status === 'active' && node.visible) {
+        if (node.type === 'menu' && node.path && node.status === 'enabled' && node.visible) {
           result.push({ id: node.id, title: node.title, path: node.path, icon: node.icon, breadcrumb: parents });
         }
         if (node.children?.length) walk(node.children, node.type === 'directory' ? [...parents, node.title] : parents);
@@ -226,7 +226,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
   useEffect(() => {
     if (isPlatformAdmin) {
       request.get<Tenant[]>('/api/tenants/all', { silent: true }).then((res) => {
-        if (res.code === 0 && res.data) setTenantList(res.data.filter((t) => t.status === 'active'));
+        if (res.code === 0 && res.data) setTenantList(res.data.filter((t) => t.status === 'enabled'));
       });
     }
   }, [isPlatformAdmin]);

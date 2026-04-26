@@ -341,7 +341,7 @@ export default function MenusPage() {
           initValues={
             editingMenu
               ? { ...editingMenu, visible: editingMenu.visible ? 'show' : 'hidden' }
-              : { type: 'menu', status: 'active', visible: 'show', sort: 0, parentId: parentId ?? 0 }
+                : { type: 'menu', status: 'enabled', visible: 'show', sort: 0, parentId: parentId ?? 0 }
           }
           labelPosition="left"
           labelWidth={90}

@@ -1,3 +1,5 @@
+export type EntityStatus = 'enabled' | 'disabled';
+
 // ─── 租户 ─────────────────────────────────────────────────────────────────────
 export interface Tenant {
   id: number;
@@ -6,7 +8,7 @@ export interface Tenant {
   logo?: string | null;
   contactName?: string | null;
   contactPhone?: string | null;
-  status: 'active' | 'disabled';
+  status: EntityStatus;
   expireAt?: string | null;
   maxUsers?: number | null;
   remark?: string | null;
@@ -28,7 +30,7 @@ export interface User {
   positionIds?: number[];
   positions?: Position[];
   roles: Role[];
-  status: 'active' | 'disabled';
+  status: EntityStatus;
   passwordUpdatedAt: string;
   requirePasswordChange?: boolean;
   createdAt: string;
@@ -84,7 +86,7 @@ export interface Menu {
   type: MenuType;
   permission?: string;
   sort: number;
-  status: 'active' | 'disabled';
+  status: EntityStatus;
   visible: boolean;
   createdAt: string;
   updatedAt: string;
@@ -101,7 +103,7 @@ export interface Role {
   description?: string;
   dataScope: DataScope;
   tenantId?: number | null;
-  status: 'active' | 'disabled';
+  status: EntityStatus;
   createdAt: string;
   updatedAt: string;
   menuIds?: number[];
@@ -117,7 +119,7 @@ export interface Department {
   phone?: string;
   email?: string;
   sort: number;
-  status: 'active' | 'disabled';
+  status: EntityStatus;
   createdAt: string;
   updatedAt: string;
   children?: Department[];
@@ -129,7 +131,7 @@ export interface Position {
   name: string;
   code: string;
   sort: number;
-  status: 'active' | 'disabled';
+  status: EntityStatus;
   remark?: string;
   createdAt: string;
   updatedAt: string;
@@ -141,7 +143,7 @@ export interface Dict {
   name: string;
   code: string;
   description?: string;
-  status: 'active' | 'disabled';
+  status: EntityStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -153,7 +155,7 @@ export interface DictItem {
   value: string;
   color?: string;
   sort: number;
-  status: 'active' | 'disabled';
+  status: EntityStatus;
   remark?: string;
   createdAt: string;
   updatedAt: string;
@@ -166,7 +168,7 @@ export interface FileStorageConfig {
   id: number;
   name: string;
   provider: FileStorageProvider;
-  status: 'active' | 'disabled';
+  status: EntityStatus;
   isDefault: boolean;
   basePath?: string;
   localRootPath?: string;
@@ -319,7 +321,7 @@ export interface CronJob {
   cronExpression: string;
   handler: string;
   params: string | null;
-  status: 'active' | 'disabled';
+  status: EntityStatus;
   description: string;
   retryCount: number;
   retryInterval: number;
@@ -366,7 +368,7 @@ export interface Region {
   level: RegionLevel;
   parentCode: string | null;
   sort: number;
-  status: 'active' | 'disabled';
+  status: EntityStatus;
   createdAt: string;
   updatedAt: string;
   children?: Region[];
@@ -384,7 +386,7 @@ export interface EmailConfig {
   fromName: string;
   fromEmail: string;
   encryption: EmailEncryption;
-  status: 'active' | 'disabled';
+  status: EntityStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -632,7 +634,7 @@ export interface MessageTemplate {
   subject: string | null;
   content: string;
   variables: string | null;
-  status: 'active' | 'disabled';
+  status: EntityStatus;
   remark: string | null;
   createdAt: string;
   updatedAt: string;

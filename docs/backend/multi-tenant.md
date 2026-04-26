@@ -45,7 +45,7 @@ CREATE TABLE tenants (
   logo        VARCHAR(500),
   contact_name  VARCHAR(50),
   contact_phone VARCHAR(20),
-  status      status_enum  NOT NULL DEFAULT 'active',
+  status      status_enum  NOT NULL DEFAULT 'enabled',
   expire_at   TIMESTAMPTZ,                    -- 到期时间（NULL = 永不到期）
   max_users   INTEGER,                        -- 最大用户数限制（NULL = 不限）
   remark      TEXT,
@@ -154,7 +154,7 @@ export async function listBusinessRows() {
 | --- | --- |
 | 租户名称 | 租户显示名，如「ACME 公司」 |
 | 租户编码 | 唯一标识（全局唯一），登录时使用 |
-| 状态 | `active` / `disabled` |
+| 状态 | `enabled` / `disabled` |
 | 到期时间 | 为空则永不过期 |
 | 最大用户数 | 为空则不限 |
 | 联系人 / 联系电话 | 选填 |

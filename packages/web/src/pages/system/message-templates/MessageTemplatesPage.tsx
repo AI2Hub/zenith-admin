@@ -201,8 +201,8 @@ export default function MessageTemplatesPage() {
       align: 'center',
       fixed: 'right',
       render: (v: string) => (
-        <Tag color={v === 'active' ? 'green' : 'red'} type="light">
-          {v === 'active' ? '启用' : '停用'}
+        <Tag color={v === 'enabled' ? 'green' : 'red'} type="light">
+          {v === 'enabled' ? '启用' : '停用'}
         </Tag>
       ),
     },
@@ -272,7 +272,7 @@ export default function MessageTemplatesPage() {
             style={{ width: 120 }}
             optionList={[
               { value: '', label: '全部状态' },
-              { value: 'active', label: '启用' },
+              { value: 'enabled', label: '启用' },
               { value: 'disabled', label: '停用' },
             ]}
           />
@@ -317,7 +317,7 @@ export default function MessageTemplatesPage() {
           getFormApi={(api) => { formApi.current = api; }}
           labelPosition="left"
           labelWidth={90}
-          initValues={editingTemplate ?? { status: 'active' }}
+          initValues={editingTemplate ?? { status: 'enabled' }}
         >
           <Form.Input
             field="name"
@@ -365,7 +365,7 @@ export default function MessageTemplatesPage() {
             field="status"
             label="状态"
             optionList={[
-              { value: 'active', label: '启用' },
+              { value: 'enabled', label: '启用' },
               { value: 'disabled', label: '停用' },
             ]}
             style={{ width: '100%' }}

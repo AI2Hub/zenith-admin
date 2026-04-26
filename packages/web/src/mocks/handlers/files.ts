@@ -100,7 +100,7 @@ export const filesHandlers = [
       id: mockFileStorageConfigs.length > 0 ? Math.max(...mockFileStorageConfigs.map((c) => c.id)) + 1 : 1,
       name: body.name ?? '',
       provider: body.provider ?? 'local',
-      status: body.status ?? 'active',
+      status: body.status ?? 'enabled',
       isDefault: body.isDefault ?? false,
       ...body,
       createdAt: mockDateTime(),

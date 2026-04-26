@@ -31,7 +31,7 @@ export interface ListRolesQuery {
   page?: number;
   pageSize?: number;
   keyword?: string;
-  status?: 'active' | 'disabled';
+  status?: 'enabled' | 'disabled';
   startTime?: string;
   endTime?: string;
 }
@@ -71,7 +71,7 @@ export interface CreateRoleInput {
   name: string;
   code: string;
   description?: string;
-  status?: 'active' | 'disabled';
+  status?: 'enabled' | 'disabled';
   sort?: number;
   dataScope?: 'all' | 'dept' | 'self';
   deptIds?: number[] | null;
@@ -152,7 +152,7 @@ export async function exportRoles(): Promise<{ buffer: ArrayBuffer; filename: st
       { header: '角色名称', key: 'name', width: 18 },
       { header: '角色编码', key: 'code', width: 18 },
       { header: '描述', key: 'description', width: 30 },
-      { header: '状态', key: 'status', width: 10, transform: (v) => (v === 'active' ? '启用' : '禁用') },
+      { header: '状态', key: 'status', width: 10, transform: (v) => (v === 'enabled' ? '启用' : '禁用') },
       { header: '创建时间', key: 'createdAt', width: 22 },
     ],
     rows.map((r) => ({ ...r, createdAt: formatDateTimeForExcel(r.createdAt) })),

@@ -55,7 +55,7 @@ export const messageTemplatesHandlers = [
       subject: body.subject ?? null,
       content: body.content ?? '',
       variables: body.variables ?? null,
-      status: body.status ?? 'active',
+      status: body.status ?? 'enabled',
       remark: body.remark ?? null,
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),

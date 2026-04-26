@@ -42,7 +42,7 @@ function buildPayload(provider: FileStorageProvider, isDefault: boolean, values:
     return {
       name: values.name?.trim() ?? '',
       provider,
-      status: values.status ?? 'active',
+      status: values.status ?? 'enabled',
       isDefault,
       basePath: normalizeOptional(values.basePath),
       localRootPath: normalizeOptional(values.localRootPath),
@@ -54,7 +54,7 @@ function buildPayload(provider: FileStorageProvider, isDefault: boolean, values:
     return {
       name: values.name?.trim() ?? '',
       provider,
-      status: values.status ?? 'active',
+      status: values.status ?? 'enabled',
       isDefault,
       basePath: normalizeOptional(values.basePath),
       ossRegion: normalizeOptional(values.ossRegion),
@@ -70,7 +70,7 @@ function buildPayload(provider: FileStorageProvider, isDefault: boolean, values:
     return {
       name: values.name?.trim() ?? '',
       provider,
-      status: values.status ?? 'active',
+      status: values.status ?? 'enabled',
       isDefault,
       basePath: normalizeOptional(values.basePath),
       s3Region: normalizeOptional(values.s3Region),
@@ -87,7 +87,7 @@ function buildPayload(provider: FileStorageProvider, isDefault: boolean, values:
   return {
     name: values.name?.trim() ?? '',
     provider,
-    status: values.status ?? 'active',
+    status: values.status ?? 'enabled',
     isDefault,
     basePath: normalizeOptional(values.basePath),
     cosRegion: normalizeOptional(values.cosRegion),
@@ -287,8 +287,8 @@ export default function FileStorageConfigsPage() {
       align: 'center',
       fixed: 'right',
       render: (status: FileStorageConfig['status']) => (
-        <Tag color={status === 'active' ? 'green' : 'grey'} size="small">
-          {status === 'active' ? '启用' : '禁用'}
+        <Tag color={status === 'enabled' ? 'green' : 'grey'} size="small">
+          {status === 'enabled' ? '启用' : '禁用'}
         </Tag>
       ),
     },
@@ -299,7 +299,7 @@ export default function FileStorageConfigsPage() {
       align: 'center',
       render: (_: unknown, record: FileStorageConfig) => (
         <Space>
-          {hasPermission('system:file:config:default') && <Button theme="borderless" size="small" onClick={() => handleSetDefault(record)} disabled={record.isDefault || record.status !== 'active'}>
+          {hasPermission('system:file:config:default') && <Button theme="borderless" size="small" onClick={() => handleSetDefault(record)} disabled={record.isDefault || record.status !== 'enabled'}>
             设为默认
           </Button>}
           {hasPermission('system:file:config:update') && <Button theme="borderless" size="small" onClick={() => openEdit(record)}>
@@ -346,7 +346,7 @@ export default function FileStorageConfigsPage() {
     : {
       name: '',
       provider: 'local',
-      status: 'active',
+      status: 'enabled',
       isDefault: false,
       basePath: 'uploads',
       localRootPath: 'storage/local',
@@ -363,7 +363,7 @@ export default function FileStorageConfigsPage() {
             style={{ width: 140 }}
           >
             <Select.Option value="">全部状态</Select.Option>
-            <Select.Option value="active">启用</Select.Option>
+            <Select.Option value="enabled">启用</Select.Option>
             <Select.Option value="disabled">禁用</Select.Option>
           </Select>
           <DatePicker
@@ -439,7 +439,7 @@ export default function FileStorageConfigsPage() {
             <Select.Option value="cos">腾讯云 COS</Select.Option>
           </Form.Select>
           <Form.Select field="status" label="状态" style={{ width: '100%' }} placeholder="请选择状态">
-            <Select.Option value="active">启用</Select.Option>
+            <Select.Option value="enabled">启用</Select.Option>
             <Select.Option value="disabled">禁用</Select.Option>
           </Form.Select>
           <Form.Input field="basePath" label="基础路径" placeholder="例如 uploads / images" />

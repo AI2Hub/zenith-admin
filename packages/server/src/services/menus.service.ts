@@ -67,7 +67,7 @@ export interface CreateMenuInput {
   type?: 'directory' | 'menu' | 'button';
   permission?: string;
   sort?: number;
-  status?: 'active' | 'disabled';
+  status?: 'enabled' | 'disabled';
   visible?: boolean;
 }
 export type UpdateMenuInput = Partial<CreateMenuInput>;
@@ -121,7 +121,7 @@ export async function createMenu(input: CreateMenuInput): Promise<Omit<Menu, 'ch
       type: input.type ?? 'menu',
       permission: input.permission,
       sort: input.sort ?? 0,
-      status: input.status ?? 'active',
+      status: input.status ?? 'enabled',
       visible: input.visible ?? true,
     })
     .returning();

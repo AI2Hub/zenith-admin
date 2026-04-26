@@ -1,7 +1,7 @@
 import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, unique, text, uniqueIndex, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
-export const statusEnum = pgEnum('status', ['active', 'disabled']);
+export const statusEnum = pgEnum('status', ['enabled', 'disabled']);
 export const menuTypeEnum = pgEnum('menu_type', ['directory', 'menu', 'button']);
 export const fileStorageProviderEnum = pgEnum('file_storage_provider', ['local', 'oss', 's3', 'cos']);
 export const dataScopeEnum = pgEnum('data_scope', ['all', 'dept', 'self']);
@@ -14,7 +14,7 @@ export const tenants = pgTable('tenants', {
   logo: varchar('logo', { length: 500 }),
   contactName: varchar('contact_name', { length: 50 }),
   contactPhone: varchar('contact_phone', { length: 20 }),
-  status: statusEnum('status').notNull().default('active'),
+  status: statusEnum('status').notNull().default('enabled'),
   expireAt: timestamp('expire_at', { withTimezone: true }),
   maxUsers: integer('max_users'),
   remark: text('remark'),
@@ -35,7 +35,7 @@ export const departments = pgTable('departments', {
   phone: varchar('phone', { length: 32 }),
   email: varchar('email', { length: 128 }),
   sort: integer('sort').notNull().default(0),
-  status: statusEnum('status').notNull().default('active'),
+  status: statusEnum('status').notNull().default('enabled'),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
@@ -50,7 +50,7 @@ export const positions = pgTable('positions', {
   name: varchar('name', { length: 64 }).notNull(),
   code: varchar('code', { length: 64 }).notNull(),
   sort: integer('sort').notNull().default(0),
-  status: statusEnum('status').notNull().default('active'),
+  status: statusEnum('status').notNull().default('enabled'),
   remark: varchar('remark', { length: 256 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -70,7 +70,7 @@ export const users = pgTable('users', {
   phone: varchar('phone', { length: 20 }),
   departmentId: integer('department_id').references(() => departments.id, { onDelete: 'set null' }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
-  status: statusEnum('status').notNull().default('active'),
+  status: statusEnum('status').notNull().default('enabled'),
   passwordUpdatedAt: timestamp('password_updated_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
@@ -94,7 +94,7 @@ export const menus = pgTable('menus', {
   type: menuTypeEnum('type').notNull().default('menu'),
   permission: varchar('permission', { length: 128 }),
   sort: integer('sort').notNull().default(0),
-  status: statusEnum('status').notNull().default('active'),
+  status: statusEnum('status').notNull().default('enabled'),
   visible: boolean('visible').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
@@ -109,7 +109,7 @@ export const roles = pgTable('roles', {
   name: varchar('name', { length: 64 }).notNull(),
   code: varchar('code', { length: 64 }).notNull(),
   description: varchar('description', { length: 256 }),
-  status: statusEnum('status').notNull().default('active'),
+  status: statusEnum('status').notNull().default('enabled'),
   dataScope: dataScopeEnum('data_scope').notNull().default('all'),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -143,7 +143,7 @@ export const dicts = pgTable('dicts', {
   name: varchar('name', { length: 64 }).notNull(),
   code: varchar('code', { length: 64 }).notNull(),
   description: varchar('description', { length: 256 }),
-  status: statusEnum('status').notNull().default('active'),
+  status: statusEnum('status').notNull().default('enabled'),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
@@ -160,7 +160,7 @@ export const dictItems = pgTable('dict_items', {
   value: varchar('value', { length: 64 }).notNull(),
   color: varchar('color', { length: 32 }),
   sort: integer('sort').notNull().default(0),
-  status: statusEnum('status').notNull().default('active'),
+  status: statusEnum('status').notNull().default('enabled'),
   remark: varchar('remark', { length: 256 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
@@ -176,7 +176,7 @@ export const fileStorageConfigs = pgTable('file_storage_configs', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 64 }).notNull(),
   provider: fileStorageProviderEnum('provider').notNull().default('local'),
-  status: statusEnum('status').notNull().default('active'),
+  status: statusEnum('status').notNull().default('enabled'),
   isDefault: boolean('is_default').notNull().default(false),
   basePath: varchar('base_path', { length: 256 }),
   localRootPath: varchar('local_root_path', { length: 512 }),
@@ -374,7 +374,7 @@ export const regions = pgTable('regions', {
   level:      regionLevelEnum('level').notNull(),
   parentCode: varchar('parent_code', { length: 12 }),
   sort:       integer('sort').notNull().default(0),
-  status:     statusEnum('status').notNull().default('active'),
+  status:     statusEnum('status').notNull().default('enabled'),
   createdAt:  timestamp('created_at').defaultNow().notNull(),
   updatedAt:  timestamp('updated_at').defaultNow().notNull(),
 });
@@ -394,7 +394,7 @@ export const emailConfigs = pgTable('email_configs', {
   fromName: varchar('from_name', { length: 64 }).notNull().default('Zenith Admin'),
   fromEmail: varchar('from_email', { length: 128 }).notNull().default(''),
   encryption: emailEncryptionEnum('encryption').notNull().default('ssl'),
-  status: statusEnum('status').notNull().default('active'),
+  status: statusEnum('status').notNull().default('enabled'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 });
@@ -501,7 +501,7 @@ export const messageTemplates = pgTable('message_templates', {
   subject: varchar('subject', { length: 200 }),
   content: text('content').notNull(),
   variables: text('variables'),
-  status: statusEnum('status').default('active').notNull(),
+  status: statusEnum('status').default('enabled').notNull(),
   remark: text('remark'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),

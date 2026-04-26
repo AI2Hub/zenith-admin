@@ -149,7 +149,7 @@ export default function XxxPage() {
         status: editingXxx.status,
         // 多对多字段示例：yyyIds: editingXxx.yyyIds ?? [],
       }
-    : { status: 'active' };
+    : { status: 'enabled' };
 
   async function handleModalOk() {
     let values: any;

@@ -30,7 +30,7 @@ describe('DictTag', () => {
 
   it('should render dictionary label when value is found', () => {
     vi.mocked(useDictItems).mockReturnValue({
-      items: [{ id: 1, dictId: 1, value: 'yes', label: '是', color: 'green', sort: 1, status: 'active', createdAt: '', updatedAt: '' }],
+      items: [{ id: 1, dictId: 1, value: 'yes', label: '是', color: 'green', sort: 1, status: 'enabled', createdAt: '', updatedAt: '' }],
       loading: false,
       getLabel: () => '是',
       getColor: () => 'green',
@@ -53,7 +53,7 @@ describe('DictTag', () => {
 
   it('should pass size prop to Tag', () => {
     vi.mocked(useDictItems).mockReturnValue({
-      items: [{ id: 1, dictId: 1, value: '1', label: 'One', sort: 0, status: 'active', createdAt: '', updatedAt: '' }],
+      items: [{ id: 1, dictId: 1, value: '1', label: 'One', sort: 0, status: 'enabled', createdAt: '', updatedAt: '' }],
       loading: false,
       getLabel: () => 'One',
       getColor: () => undefined,

@@ -49,7 +49,7 @@ export async function createCronJob(data: typeof cronJobs.$inferInsert) {
   const [existing] = await db.select().from(cronJobs).where(eq(cronJobs.name, data.name)).limit(1);
   if (existing) throw new AppError('任务名称已存在', 400);
   const [row] = await db.insert(cronJobs).values(data).returning();
-  if (row.status === 'active') scheduleJob(row.id, row.cronExpression, row.handler, row.params);
+  if (row.status === 'enabled') scheduleJob(row.id, row.cronExpression, row.handler, row.params);
   return mapCronJob(row);
 }
 
@@ -57,7 +57,7 @@ export async function updateCronJob(id: number, data: Partial<typeof cronJobs.$i
   if (data.cronExpression && !validateCronExpression(data.cronExpression)) throw new AppError('Cron 表达式无效', 400);
   const [row] = await db.update(cronJobs).set({ ...data }).where(eq(cronJobs.id, id)).returning();
   if (!row) throw new AppError('任务不存在', 404);
-  if (row.status === 'active') scheduleJob(row.id, row.cronExpression, row.handler, row.params);
+  if (row.status === 'enabled') scheduleJob(row.id, row.cronExpression, row.handler, row.params);
   else stopJob(row.id);
   return mapCronJob(row);
 }
@@ -74,12 +74,12 @@ export async function runCronJob(id: number) {
   return result.message;
 }
 
-export async function setCronJobStatus(id: number, status: 'active' | 'disabled') {
+export async function setCronJobStatus(id: number, status: 'enabled' | 'disabled') {
   const [row] = await db.update(cronJobs).set({ status }).where(eq(cronJobs.id, id)).returning();
   if (!row) throw new AppError('任务不存在', 404);
-  if (status === 'active') scheduleJob(row.id, row.cronExpression, row.handler, row.params);
+  if (status === 'enabled') scheduleJob(row.id, row.cronExpression, row.handler, row.params);
   else stopJob(row.id);
-  return status === 'active' ? '已启用' : '已停用';
+  return status === 'enabled' ? '已启用' : '已停用';
 }
 
 export async function exportCronJobs(): Promise<{ buffer: ArrayBuffer; filename: string }> {

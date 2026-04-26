@@ -13,7 +13,7 @@ type HandlerFn = (params?: string | null) => Promise<string>;
 /** Registry of built-in task handlers */
 const handlerRegistry = new Map<string, HandlerFn>();
 
-/** Active cron tasks by job ID */
+/** Scheduled cron tasks by job ID */
 const activeTasks = new Map<number, ScheduledTask>();
 
 // ─── Register built-in handlers ──────────────────────────────────
@@ -47,13 +47,13 @@ export function getRegisteredHandlers(): string[] {
   return Array.from(handlerRegistry.keys());
 }
 
-/** Initialize: load all active jobs from DB and schedule them */
+/** Initialize: load all enabled jobs from DB and schedule them */
 export async function initCronScheduler(): Promise<void> {
-  const jobs = await db.select().from(cronJobs).where(eq(cronJobs.status, 'active'));
+  const jobs = await db.select().from(cronJobs).where(eq(cronJobs.status, 'enabled'));
   for (const job of jobs) {
     scheduleJob(job.id, job.cronExpression, job.handler, job.params);
   }
-  logger.info(`Cron scheduler initialized with ${jobs.length} active job(s)`);
+  logger.info(`Cron scheduler initialized with ${jobs.length} enabled job(s)`);
 }
 
 /** Schedule a single job */

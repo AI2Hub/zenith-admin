@@ -98,7 +98,7 @@ export default function EmailConfigPage() {
         labelPosition="left"
         labelWidth={120}
         style={{ width: '100%' }}
-        initValues={{ encryption: 'ssl', smtpPort: 465, status: 'active', fromName: 'Zenith Admin' }}
+        initValues={{ encryption: 'ssl', smtpPort: 465, status: 'enabled', fromName: 'Zenith Admin' }}
       >
         <Form.Input
           field="smtpHost"
@@ -141,7 +141,7 @@ export default function EmailConfigPage() {
           style={{ width: '100%' }}
           placeholder="请选择状态"
           optionList={[
-            { label: '启用', value: 'active' },
+            { label: '启用', value: 'enabled' },
             { label: '禁用', value: 'disabled' },
           ]}
         />

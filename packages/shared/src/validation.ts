@@ -30,7 +30,7 @@ export const createUserSchema = z.object({
   departmentId: z.number().int().positive().nullable().optional(),
   positionIds: z.array(z.number().int().positive()).default([]),
   roleIds: z.array(z.number().int()).default([]),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
 
 export const updateUserSchema = createUserSchema.partial().omit({ password: true });
@@ -73,7 +73,7 @@ export const createMenuSchema = z.object({
   type: z.enum(['directory', 'menu', 'button']).default('menu'),
   permission: z.string().max(128).optional(),
   sort: z.number().int().default(0),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
   visible: z.boolean().default(true),
 });
 
@@ -84,7 +84,7 @@ export const createRoleSchema = z.object({
   name: z.string().min(1, '角色名称不能为空').max(64),
   code: z.string().min(1, '角色编码不能为空').max(64).regex(/^[a-z_]+$/, '角色编码只能包含小写字母和下划线'),
   description: z.string().max(256).optional(),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
   dataScope: z.enum(['all', 'dept', 'self']).default('all'),
 });
 
@@ -110,7 +110,7 @@ export const createDepartmentSchema = z.object({
     z.email('邮箱格式不正确').optional()
   ),
   sort: z.number().int().default(0),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
 
 export const updateDepartmentSchema = createDepartmentSchema.partial();
@@ -120,7 +120,7 @@ export const createPositionSchema = z.object({
   name: z.string().min(1, '岗位名称不能为空').max(64),
   code: z.string().min(1, '岗位编码不能为空').max(64).regex(/^\w+$/, '岗位编码只能包含字母、数字和下划线'),
   sort: z.number().int().default(0),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(256).optional(),
 });
 
@@ -131,7 +131,7 @@ export const createDictSchema = z.object({
   name: z.string().min(1, '字典名称不能为空').max(64),
   code: z.string().min(1, '字典编码不能为空').max(64).regex(/^[a-z_]+$/, '字典编码只能包含小写字母和下划线'),
   description: z.string().max(256).optional(),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
 
 export const updateDictSchema = createDictSchema.partial();
@@ -141,7 +141,7 @@ export const createDictItemSchema = z.object({
   value: z.string().min(1, '键值不能为空').max(64),
   color: z.string().max(32).optional(),
   sort: z.number().int().default(0),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(256).optional(),
 });
 
@@ -151,7 +151,7 @@ export const updateDictItemSchema = createDictItemSchema.partial();
 const baseFileStorageConfigSchema = z.object({
   name: z.string().min(1, '配置名称不能为空').max(64),
   provider: z.enum(['local', 'oss', 's3', 'cos']),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
   isDefault: z.boolean().default(false),
   basePath: z.string().max(256).optional(),
   // 本地存储
@@ -274,7 +274,7 @@ export const createCronJobSchema = z.object({
   cronExpression: z.string().min(1, 'Cron 表达式不能为空').max(128),
   handler: z.string().min(1, '处理器不能为空').max(128),
   params: z.string().max(4096).nullable().optional(),
-  status: z.enum(['active', 'disabled']).default('disabled'),
+  status: z.enum(['enabled', 'disabled']).default('disabled'),
   description: z.string().max(256).default(''),
   retryCount: z.number().int().min(0, '重试次数不能为负').max(10).default(0),
   retryInterval: z.number().int().min(0, '重试间隔不能为负').default(0),
@@ -293,7 +293,7 @@ export const createRegionSchema = z.object({
   level:      z.enum(['province', 'city', 'county']),
   parentCode: z.string().max(12).nullable().optional(),
   sort:       z.number().int().default(0),
-  status:     z.enum(['active', 'disabled']).default('active'),
+  status:     z.enum(['enabled', 'disabled']).default('enabled'),
 });
 
 export const updateRegionSchema = createRegionSchema.partial();
@@ -310,7 +310,7 @@ export const emailConfigSchema = z.object({
   fromName: z.string().max(64).default('Zenith Admin'),
   fromEmail: z.string().max(128).optional(),
   encryption: z.enum(['none', 'ssl', 'tls']).default('ssl'),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
 
 export type EmailConfigInput = z.infer<typeof emailConfigSchema>;
@@ -340,7 +340,7 @@ export const createTenantSchema = z.object({
   logo: z.string().max(500).optional(),
   contactName: z.string().max(50).optional(),
   contactPhone: z.string().max(20).optional(),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
   expireAt: dateTimeStringSchema.optional().nullable(),
   maxUsers: z.number().int().positive().optional().nullable(),
   remark: z.string().max(500).optional(),
@@ -368,7 +368,7 @@ export const createMessageTemplateSchema = z.object({
   subject: z.string().max(200).optional(),
   content: z.string().min(1, '模板内容不能为空'),
   variables: z.string().optional(),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(500).optional(),
 });
 

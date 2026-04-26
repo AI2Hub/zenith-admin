@@ -45,7 +45,7 @@ export const regionsHandlers = [
       level: body.level ?? 'province',
       parentCode: body.parentCode ?? null,
       sort: body.sort ?? 0,
-      status: body.status ?? 'active',
+      status: body.status ?? 'enabled',
       createdAt: now,
       updatedAt: now,
     };

@@ -8,7 +8,7 @@ export const FileStorageConfigDTO = z
     id: z.number().int(),
     name: z.string(),
     provider: z.enum(['local', 'oss', 's3', 'cos']),
-    status: z.enum(['active', 'disabled']),
+    status: z.enum(['enabled', 'disabled']),
     isDefault: z.boolean(),
     basePath: z.string().nullable().optional(),
     localRootPath: z.string().nullable().optional(),

@@ -16,7 +16,7 @@ export const mockFileStorageConfigs: FileStorageConfig[] = [
     id: 1,
     name: '本地磁盘',
     provider: 'local',
-    status: 'active',
+    status: 'enabled',
     isDefault: true,
     basePath: 'uploads',
     localRootPath: 'storage/local',

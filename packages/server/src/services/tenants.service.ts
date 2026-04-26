@@ -27,7 +27,7 @@ export async function listTenants(q: ListTenantsQuery) {
   const { page = 1, pageSize = 10, keyword, status } = q;
   const conditions = [];
   if (keyword) conditions.push(like(tenants.name, `%${escapeLike(keyword)}%`));
-  if (status === 'active' || status === 'disabled') conditions.push(eq(tenants.status, status));
+  if (status === 'enabled' || status === 'disabled') conditions.push(eq(tenants.status, status));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const [total, rows] = await Promise.all([
     db.$count(tenants, where),
@@ -52,7 +52,7 @@ interface TenantInput {
   logo?: string;
   contactName?: string;
   contactPhone?: string;
-  status: 'active' | 'disabled';
+  status: 'enabled' | 'disabled';
   expireAt?: string | null;
   maxUsers?: number | null;
   remark?: string;
@@ -94,7 +94,7 @@ export async function exportTenants(): Promise<{ buffer: ArrayBuffer; filename: 
       { header: '租户编码', key: 'code', width: 16 },
       { header: '联系人', key: 'contactName', width: 14 },
       { header: '联系电话', key: 'contactPhone', width: 16 },
-      { header: '状态', key: 'status', width: 10, transform: (v) => v === 'active' ? '启用' : '禁用' },
+      { header: '状态', key: 'status', width: 10, transform: (v) => v === 'enabled' ? '启用' : '禁用' },
       { header: '到期时间', key: 'expireAt', width: 22 },
       { header: '最大用户数', key: 'maxUsers', width: 12 },
       { header: '创建时间', key: 'createdAt', width: 22 },

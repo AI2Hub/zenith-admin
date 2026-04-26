@@ -42,7 +42,7 @@ export const positionsHandlers = [
       name: body.name ?? '',
       code: body.code ?? '',
       sort: body.sort ?? 0,
-      status: body.status ?? 'active',
+      status: body.status ?? 'enabled',
       remark: body.remark,
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),

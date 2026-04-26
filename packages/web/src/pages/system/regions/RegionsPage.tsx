@@ -177,7 +177,7 @@ export default function RegionsPage() {
         sort: editingRegion.sort,
         status: editingRegion.status,
       }
-    : { level: 'province', sort: 0, status: 'active' };
+    : { level: 'province', sort: 0, status: 'enabled' };
 
   async function handleModalOk() {
     let values;

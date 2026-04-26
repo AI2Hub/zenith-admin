@@ -35,7 +35,7 @@ async function seed() {
       nickname: '管理员',
       email: 'admin@zenith.dev',
       password: hashedPassword,
-      status: 'active',
+      status: 'enabled',
     });
   }
   logger.info('  ✔ Admin user seeded (skip if exists)');
@@ -170,7 +170,7 @@ async function seed() {
     id: 1,
     name: '本地磁盘',
     provider: 'local',
-    status: 'active',
+    status: 'enabled',
     isDefault: true,
     localRootPath: 'storage/local',
     basePath: 'uploads',
@@ -229,7 +229,7 @@ async function seed() {
       level: 'province' as const,
       parentCode: null,
       sort: i,
-      status: 'active' as const,
+      status: 'enabled' as const,
     })),
     ...cities.map((c, i) => ({
       code: c.code,
@@ -237,7 +237,7 @@ async function seed() {
       level: 'city' as const,
       parentCode: c.provinceCode,
       sort: i,
-      status: 'active' as const,
+      status: 'enabled' as const,
     })),
     ...areas.map((a, i) => ({
       code: a.code,
@@ -245,7 +245,7 @@ async function seed() {
       level: 'county' as const,
       parentCode: a.cityCode,
       sort: i,
-      status: 'active' as const,
+      status: 'enabled' as const,
     })),
   ];
   // 批量插入，每批 500 条，避免单次参数过多
@@ -265,7 +265,7 @@ async function seed() {
       code: 'tenant_a',
       contactName: '张三',
       contactPhone: '13800001111',
-      status: 'active',
+      status: 'enabled',
       maxUsers: 50,
       remark: '演示用租户A',
     },
@@ -274,7 +274,7 @@ async function seed() {
       code: 'tenant_b',
       contactName: '李四',
       contactPhone: '13800002222',
-      status: 'active',
+      status: 'enabled',
       remark: '演示用租户B',
     },
   ]).onConflictDoNothing({ target: tenants.code });
@@ -289,7 +289,7 @@ async function seed() {
       subject: '欢迎加入 {{app_name}}',
       content: '亲爱的 {{username}}，\n\n欢迎注册 {{app_name}}！\n您的账户已成功创建，请单击以下链接完成验证：\n{{verify_link}}\n\n此链接 24 小时内有效。',
       variables: JSON.stringify({ username: '用户名', app_name: '应用名称', verify_link: '验证链接' }),
-      status: 'active',
+      status: 'enabled',
       remark: '新用户注册后发送的激活邮件',
     },
     {
@@ -299,7 +299,7 @@ async function seed() {
       subject: '重置您的密码',
       content: '亲爱的 {{username}}，\n\n我们收到了您的密码重置申请。请单击以下链接重置密码：\n{{reset_link}}\n\n此链接 2 小时内有效。如果您未发起此请求，请忽略此邮件。',
       variables: JSON.stringify({ username: '用户名', reset_link: '重置密码链接' }),
-      status: 'active',
+      status: 'enabled',
       remark: '用户密码重置流程所用模板',
     },
     {
@@ -309,7 +309,7 @@ async function seed() {
       subject: null,
       content: '【{{app_name}}】您的验证码为 {{code}}，{{expire_minutes}} 分钟内有效，请勿泄露。',
       variables: JSON.stringify({ app_name: '应用名称', code: '验证码', expire_minutes: '有效分钟数' }),
-      status: 'active',
+      status: 'enabled',
       remark: '短信验证码模板',
     },
     {
@@ -319,7 +319,7 @@ async function seed() {
       subject: '系统公告：{{title}}',
       content: '{{content}}',
       variables: JSON.stringify({ title: '公告标题', content: '公告内容' }),
-      status: 'active',
+      status: 'enabled',
       remark: '纳内系统公告通知模板',
     },
   ]).onConflictDoNothing({ target: messageTemplates.code });

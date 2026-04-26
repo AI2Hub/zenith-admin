@@ -36,7 +36,7 @@ import { Search, RotateCcw, Plus } from 'lucide-react';
     allowClear
     style={{ width: 120 }}
   >
-    <Select.Option value="active">启用</Select.Option>
+    <Select.Option value="enabled">启用</Select.Option>
     <Select.Option value="disabled">禁用</Select.Option>
   </Select>
   <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>

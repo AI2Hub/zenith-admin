@@ -23,7 +23,7 @@ export interface ListMessageTemplatesQuery {
   pageSize?: number;
   keyword?: string;
   channel?: 'email' | 'sms' | 'in_app';
-  status?: 'active' | 'disabled';
+  status?: 'enabled' | 'disabled';
 }
 
 export async function listMessageTemplates(q: ListMessageTemplatesQuery) {

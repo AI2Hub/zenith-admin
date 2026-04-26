@@ -24,7 +24,7 @@ function makeRegion(
     level,
     parentCode,
     sort,
-    status: 'active',
+    status: 'enabled',
     createdAt: now,
     updatedAt: now,
   };

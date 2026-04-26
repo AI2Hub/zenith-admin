@@ -19,7 +19,7 @@ const createPositionSchema = z.object({
   name: z.string().min(1).max(64),
   code: z.string().min(1).max(64).regex(/^\w+$/),
   sort: z.coerce.number().int().default(0),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(256).optional(),
 });
 const updatePositionSchema = createPositionSchema.partial();
@@ -44,7 +44,7 @@ const listRoute = defineOpenAPIRoute({
     request: {
       query: PaginationQuery.extend({
         keyword: z.string().optional(),
-        status: z.enum(['active', 'disabled']).optional(),
+        status: z.enum(['enabled', 'disabled']).optional(),
         startTime: z.string().optional(),
         endTime: z.string().optional(),
       }),

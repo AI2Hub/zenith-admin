@@ -129,8 +129,8 @@ export default function TenantsPage() {
       align: 'center',
       fixed: 'right',
       render: (v: string) => (
-        <Tag color={v === 'active' ? 'green' : 'red'} type="light">
-          {v === 'active' ? '正常' : '停用'}
+        <Tag color={v === 'enabled' ? 'green' : 'red'} type="light">
+          {v === 'enabled' ? '正常' : '停用'}
         </Tag>
       ),
     },
@@ -191,7 +191,7 @@ export default function TenantsPage() {
             style={{ width: 140 }}
             optionList={[
               { value: '', label: '全部状态' },
-              { value: 'active', label: '正常' },
+              { value: 'enabled', label: '正常' },
               { value: 'disabled', label: '停用' },
             ]}
           />
@@ -246,7 +246,7 @@ export default function TenantsPage() {
       >
         <Form
           getFormApi={(api) => (formApi.current = api)}
-          initValues={editingTenant ?? { status: 'active' }}
+          initValues={editingTenant ?? { status: 'enabled' }}
           labelPosition="left"
           labelWidth={90}
         >
@@ -260,7 +260,7 @@ export default function TenantsPage() {
             label="状态"
             style={{ width: '100%' }}
             optionList={[
-              { value: 'active', label: '正常' },
+              { value: 'enabled', label: '正常' },
               { value: 'disabled', label: '停用' },
             ]}
             placeholder="请选择状态"

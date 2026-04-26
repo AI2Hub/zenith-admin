@@ -11,7 +11,7 @@ export const RegionDTO: z.ZodType = z
     level: z.enum(['province', 'city', 'county']),
     parentCode: z.string().nullable(),
     sort: z.number().int(),
-    status: z.enum(['active', 'disabled']),
+    status: z.enum(['enabled', 'disabled']),
     createdAt: z.string(),
     updatedAt: z.string(),
     get children() {

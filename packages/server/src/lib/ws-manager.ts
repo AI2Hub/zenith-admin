@@ -1,7 +1,7 @@
 import type { WSContext } from 'hono/ws';
 import type { WsMessage } from '@zenith/shared';
 
-// userId → Set of active WebSocket connections (supports multi-device)
+// userId → Set of open WebSocket connections (supports multi-device)
 const connections = new Map<number, Set<WSContext>>();
 
 export function registerConnection(userId: number, ws: WSContext) {

@@ -93,7 +93,7 @@ export const cronJobsHandlers = [
       cronExpression: body.cronExpression ?? '0 * * * * *',
       handler: body.handler ?? '',
       params: body.params ?? null,
-      status: body.status ?? 'active',
+      status: body.status ?? 'enabled',
       description: body.description ?? '',
       retryCount: body.retryCount ?? 0,
       retryInterval: body.retryInterval ?? 0,
@@ -137,11 +137,15 @@ export const cronJobsHandlers = [
     return HttpResponse.json({ code: 0, message: '执行成功', data: job });
   }),
 
-  // 启用/禁用任务
-  http.put('/api/cron-jobs/:id/toggle', ({ params }) => {
+  // 更新任务状态
+  http.put('/api/cron-jobs/:id/status', async ({ params, request }) => {
     const job = mockCronJobs.find((j) => j.id === Number(params.id));
     if (!job) return HttpResponse.json({ code: 404, message: '任务不存在', data: null });
-    job.status = job.status === 'active' ? 'disabled' : 'active';
+    const body = await request.json() as { status?: 'enabled' | 'disabled' };
+    if (body.status !== 'enabled' && body.status !== 'disabled') {
+      return HttpResponse.json({ code: 400, message: '状态值无效', data: null });
+    }
+    job.status = body.status;
     job.updatedAt = mockDateTime();
     return HttpResponse.json({ code: 0, message: '操作成功', data: job });
   }),

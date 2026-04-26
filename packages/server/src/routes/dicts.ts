@@ -27,7 +27,7 @@ const listDictsRoute = defineOpenAPIRoute({
     request: {
       query: PaginationQuery.extend({
         keyword: z.string().optional(),
-        status: z.enum(['active', 'disabled']).optional(),
+        status: z.enum(['enabled', 'disabled']).optional(),
         startDate: z.string().optional(),
         endDate: z.string().optional(),
       }),

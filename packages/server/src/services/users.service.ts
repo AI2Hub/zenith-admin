@@ -151,7 +151,7 @@ export async function listAllUsers() {
 
 export interface ListUsersQuery {
   page?: number; pageSize?: number; keyword?: string; phone?: string;
-  departmentId?: number; status?: 'active' | 'disabled';
+  departmentId?: number; status?: 'enabled' | 'disabled';
   startTime?: string; endTime?: string;
 }
 
@@ -185,7 +185,7 @@ export interface CreateUserInput {
   username: string; nickname: string; email: string; password: string;
   phone?: string; departmentId?: number | null;
   positionIds: number[]; roleIds: number[];
-  status: 'active' | 'disabled';
+  status: 'enabled' | 'disabled';
 }
 
 export async function createUser(data: CreateUserInput) {
@@ -232,7 +232,7 @@ export async function batchDeleteUsers(ids: number[]) {
   return validIds.length;
 }
 
-export async function batchUpdateUserStatus(ids: number[], status: 'active' | 'disabled') {
+export async function batchUpdateUserStatus(ids: number[], status: 'enabled' | 'disabled') {
   const user = currentUser();
   if (ids.length === 0) throw new AppError('请选择要操作的用户', 400);
   const validIds = ids.filter((id): id is number => typeof id === 'number' && Number.isInteger(id));
@@ -253,7 +253,7 @@ export interface UpdateUserInput {
   username?: string; nickname?: string; email?: string; phone?: string;
   departmentId?: number | null;
   positionIds?: number[]; roleIds?: number[];
-  status?: 'active' | 'disabled';
+  status?: 'enabled' | 'disabled';
 }
 
 export async function updateUser(id: number, data: UpdateUserInput) {
@@ -331,7 +331,7 @@ export async function exportUsers(): Promise<{ buffer: ArrayBuffer; filename: st
       { header: '昵称', key: 'nickname', width: 16 },
       { header: '邮箱', key: 'email', width: 24 },
       { header: '部门', key: 'departmentName', width: 16 },
-      { header: '状态', key: 'status', width: 10, transform: (v) => (v === 'active' ? '启用' : '禁用') },
+      { header: '状态', key: 'status', width: 10, transform: (v) => (v === 'enabled' ? '启用' : '禁用') },
       { header: '创建时间', key: 'createdAt', width: 22 },
     ],
     list,
@@ -351,7 +351,7 @@ export async function getUserImportTemplate(): Promise<ArrayBuffer> {
     { header: '部门编码', key: 'departmentCode', width: 18 },
     { header: '岗位编码(逗号分隔)', key: 'positionCodes', width: 22 },
     { header: '角色编码(逗号分隔)', key: 'roleCodes', width: 22 },
-    { header: '状态(active/disabled)', key: 'status', width: 22 },
+    { header: '状态(enabled/disabled)', key: 'status', width: 24 },
   ];
   const headerRow = sheet.getRow(1);
   headerRow.font = { bold: true };
@@ -359,7 +359,7 @@ export async function getUserImportTemplate(): Promise<ArrayBuffer> {
   sheet.addRow({
     username: 'zhangsan', nickname: '张三', email: 'zhangsan@example.com',
     password: '请修改为强密码', departmentCode: 'technology', positionCodes: 'engineer',
-    roleCodes: 'normal_user', status: 'active',
+    roleCodes: 'normal_user', status: 'enabled',
   });
   return workbook.xlsx.writeBuffer() as Promise<ArrayBuffer>;
 }
@@ -446,11 +446,11 @@ export async function importUsers(file: File): Promise<ImportUsersResult> {
       if (missing.length > 0) { errors.push({ row: rowNum, message: `岗位编码不存在: ${missing.join(', ')}` }); continue; }
       positionIds = positionCodes.map((code) => positionCodeMap.get(code)).filter((x): x is number => x !== undefined);
     }
-    let status: 'active' | 'disabled' = 'active';
+    let status: 'enabled' | 'disabled' = 'enabled';
     if (statusRaw) {
       const normalized = statusRaw.trim().toLowerCase();
-      if (normalized === 'active' || normalized === 'disabled') status = normalized;
-      else { errors.push({ row: rowNum, message: `状态值无效: ${statusRaw}（仅支持 active/disabled 或留空）` }); continue; }
+      if (normalized === 'enabled' || normalized === 'disabled') status = normalized;
+      else { errors.push({ row: rowNum, message: `状态值无效: ${statusRaw}（仅支持 enabled/disabled 或留空）` }); continue; }
     }
     const hashedPassword = await bcrypt.hash(password, 10);
     try {

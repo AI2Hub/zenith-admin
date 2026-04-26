@@ -25,7 +25,7 @@ export async function getDashboardStats() {
   const ltc = tenantCondition(loginLogs, user);
   const otc = tenantCondition(operationLogs, user);
 
-  const activeUsersWhere = utc ? and(eq(users.status, 'active'), utc) : eq(users.status, 'active');
+  const activeUsersWhere = utc ? and(eq(users.status, 'enabled'), utc) : eq(users.status, 'enabled');
   const todayLoginWhere = ltc
     ? and(gte(loginLogs.createdAt, todayStart), lt(loginLogs.createdAt, todayEnd), ltc)
     : and(gte(loginLogs.createdAt, todayStart), lt(loginLogs.createdAt, todayEnd));

@@ -11,7 +11,7 @@ export const mockEmailConfig: EmailConfig = {
   fromName: 'Zenith Admin',
   fromEmail: 'noreply@example.com',
   encryption: 'ssl',
-  status: 'active',
+  status: 'enabled',
   createdAt: SEED_DATE,
   updatedAt: SEED_DATE,
 };

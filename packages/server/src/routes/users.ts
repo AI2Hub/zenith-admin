@@ -23,7 +23,7 @@ const createUserSchema = z.object({
   departmentId: z.number().int().positive().nullable().optional(),
   positionIds: z.array(z.number().int().positive()).default([]),
   roleIds: z.array(z.number().int()).default([]),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
 const updateUserSchema = z.object({
   username: z.string().min(3).max(32).optional(),
@@ -33,10 +33,10 @@ const updateUserSchema = z.object({
   departmentId: z.number().int().positive().nullable().optional(),
   positionIds: z.array(z.number().int().positive()).optional(),
   roleIds: z.array(z.number().int()).optional(),
-  status: z.enum(['active', 'disabled']).optional(),
+  status: z.enum(['enabled', 'disabled']).optional(),
 });
 const resetUserPasswordSchema = z.object({ password: z.string().min(6).max(64) });
-const batchStatusSchema = z.object({ ids: z.array(z.number().int()), status: z.enum(['active', 'disabled']) });
+const batchStatusSchema = z.object({ ids: z.array(z.number().int()), status: z.enum(['enabled', 'disabled']) });
 
 const getAllUsersRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -57,7 +57,7 @@ const listUsersRoute = defineOpenAPIRoute({
     request: {
       query: PaginationQuery.extend({
         keyword: z.string().optional(), phone: z.string().optional(),
-        departmentId: z.coerce.number().optional(), status: z.enum(['active', 'disabled']).optional(),
+        departmentId: z.coerce.number().optional(), status: z.enum(['enabled', 'disabled']).optional(),
         startTime: z.string().optional(), endTime: z.string().optional(),
       }),
     },

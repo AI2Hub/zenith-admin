@@ -99,7 +99,7 @@ export interface ListFileStorageConfigsQuery {
 export async function listFileStorageConfigs(q: ListFileStorageConfigsQuery) {
   const { status, startTime, endTime, page = 1, pageSize = 10 } = q;
   const conditions = [];
-  if (status === 'active' || status === 'disabled') conditions.push(eq(fileStorageConfigs.status, status));
+  if (status === 'enabled' || status === 'disabled') conditions.push(eq(fileStorageConfigs.status, status));
   const parsedStartTime = parseDateTimeInput(startTime);
   const parsedEndTime = parseDateTimeInput(endTime);
   if (parsedStartTime) conditions.push(gte(fileStorageConfigs.updatedAt, parsedStartTime));
@@ -120,7 +120,7 @@ export async function getDefaultFileStorageConfig() {
 export async function createFileStorageConfig(data: StorageInput) {
   const created = await db.transaction(async (tx) => {
     const existingDefault = await tx.select({ id: fileStorageConfigs.id }).from(fileStorageConfigs).where(eq(fileStorageConfigs.isDefault, true)).limit(1);
-    const shouldBeDefault = data.isDefault || (existingDefault.length === 0 && data.status === 'active');
+    const shouldBeDefault = data.isDefault || (existingDefault.length === 0 && data.status === 'enabled');
     if (shouldBeDefault) await clearDefaultFlag(tx);
     const [row] = await tx.insert(fileStorageConfigs).values({ ...toStoragePayload({ ...data, isDefault: shouldBeDefault }) }).returning();
     return row;
@@ -147,7 +147,7 @@ export async function updateFileStorageConfig(id: number, data: Partial<StorageI
 export async function setDefaultFileStorageConfig(id: number) {
   const [target] = await db.select().from(fileStorageConfigs).where(eq(fileStorageConfigs.id, id)).limit(1);
   if (!target) throw new AppError('文件配置不存在', 404);
-  if (target.status !== 'active') throw new AppError('只有启用状态的文件配置才能设为默认', 400);
+  if (target.status !== 'enabled') throw new AppError('只有启用状态的文件配置才能设为默认', 400);
   const updated = await db.transaction(async (tx) => {
     await clearDefaultFlag(tx);
     const [row] = await tx.update(fileStorageConfigs).set({ isDefault: true }).where(eq(fileStorageConfigs.id, id)).returning();

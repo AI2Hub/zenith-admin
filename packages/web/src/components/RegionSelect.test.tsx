@@ -42,8 +42,8 @@ describe('RegionSelect', () => {
       code: 0,
       message: 'ok',
       data: [
-        { code: '110000', name: '北京', status: 'active', children: [] },
-        { code: '120000', name: '天津', status: 'inactive', children: [] } // should be filtered out
+        { code: '110000', name: '北京', status: 'enabled', children: [] },
+        { code: '120000', name: '天津', status: 'disabled', children: [] } // should be filtered out
       ]
     };
     vi.mocked(request.get).mockResolvedValueOnce(mockData);

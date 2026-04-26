@@ -158,7 +158,7 @@ export async function exportDepartments(): Promise<{ buffer: ArrayBuffer; filena
       { header: '部门编码', key: 'code', width: 16 },
       { header: '负责人', key: 'leader', width: 14 },
       { header: '电话', key: 'phone', width: 16 },
-      { header: '状态', key: 'status', width: 10, transform: (v) => (v === 'active' ? '启用' : '禁用') },
+      { header: '状态', key: 'status', width: 10, transform: (v) => (v === 'enabled' ? '启用' : '禁用') },
       { header: '创建时间', key: 'createdAt', width: 22 },
     ],
     rows.map((r) => ({ ...r, leader: r.leader ?? '', phone: r.phone ?? '', createdAt: formatDateTimeForExcel(r.createdAt) })),

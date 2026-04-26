@@ -22,7 +22,7 @@ export const CronJobDTO = z
     cronExpression: z.string().openapi({ example: '0 0 2 * * *' }),
     handler: z.string().openapi({ example: 'backupDatabase' }),
     params: z.string().nullable(),
-    status: z.enum(['active', 'disabled']),
+    status: z.enum(['enabled', 'disabled']),
     description: z.string(),
     retryCount: z.number().int(),
     retryInterval: z.number().int(),

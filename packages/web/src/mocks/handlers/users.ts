@@ -86,7 +86,7 @@ export const usersHandlers = [
       positionIds: body.positionIds ?? [],
       positions,
       roles,
-      status: body.status ?? 'active',
+      status: body.status ?? 'enabled',
       passwordUpdatedAt: mockDateTime(),
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
@@ -144,7 +144,7 @@ export const usersHandlers = [
   http.put('/api/users/:id/status', async ({ params, request }) => {
     const user = mockUsers.find((u) => u.id === Number(params.id));
     if (!user) return HttpResponse.json({ code: 404, message: '用户不存在', data: null });
-    const body = await request.json() as { status: 'active' | 'disabled' };
+    const body = await request.json() as { status: 'enabled' | 'disabled' };
     user.status = body.status;
     user.updatedAt = mockDateTime();
     return HttpResponse.json({ code: 0, message: '状态更新成功', data: null });

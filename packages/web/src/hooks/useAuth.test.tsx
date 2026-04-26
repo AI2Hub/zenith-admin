@@ -248,7 +248,7 @@ describe('updateUser()', () => {
         username: 'admin',
         nickname: '新昵称',
         email: 'admin@example.com',
-        status: 'active',
+        status: 'enabled',
         roles: [],
         passwordUpdatedAt: '',
         createdAt: formatDateTime(new Date()),

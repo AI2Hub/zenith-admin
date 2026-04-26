@@ -163,7 +163,7 @@ export default function UsersPage() {
     : {
         positionIds: [],
         roleIds: [],
-        status: 'active',
+        status: 'enabled',
       };
 
   const fetchUsers = useCallback(async (p = page, ps = pageSize, params = searchParams) => {

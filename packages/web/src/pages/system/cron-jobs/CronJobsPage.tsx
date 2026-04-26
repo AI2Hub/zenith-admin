@@ -198,7 +198,7 @@ export default function CronJobsPage() {
         retryInterval: editingJob.retryInterval,
         monitorTimeout: editingJob.monitorTimeout,
       }
-    : { status: 'active', retryCount: 0, retryInterval: 0 };
+    : { status: 'enabled', retryCount: 0, retryInterval: 0 };
 
   const runStatusColor: Record<string, import('@douyinfe/semi-ui/lib/es/tag/interface').TagColor> = {
     success: 'green',
@@ -224,7 +224,7 @@ export default function CronJobsPage() {
       title: '状态', dataIndex: 'status', width: 90,
       fixed: 'right',
       render: (v: string) => (
-        <Tag color={v === 'active' ? 'green' : 'grey'} size="small">{v === 'active' ? '启用' : '禁用'}</Tag>
+        <Tag color={v === 'enabled' ? 'green' : 'grey'} size="small">{v === 'enabled' ? '启用' : '禁用'}</Tag>
       ),
     },
     {
@@ -279,7 +279,7 @@ export default function CronJobsPage() {
             style={{ width: 140 }}
             optionList={[
               { value: '', label: '全部' },
-              { value: 'active', label: '启用' },
+              { value: 'enabled', label: '启用' },
               { value: 'disabled', label: '禁用' },
             ]}
           />
@@ -362,7 +362,7 @@ export default function CronJobsPage() {
               field="status"
               label="状态"
               optionList={[
-                { value: 'active', label: '启用' },
+                { value: 'enabled', label: '启用' },
                 { value: 'disabled', label: '禁用' },
               ]}
               style={{ width: '100%' }}

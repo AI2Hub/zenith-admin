@@ -345,7 +345,7 @@ export default function RolesPage() {
       >
         <Form
           getFormApi={(api) => formApi.current = api}
-          initValues={editingRole ?? { status: 'active' }}
+          initValues={editingRole ?? { status: 'enabled' }}
           labelPosition="left"
           labelWidth={90}
         >

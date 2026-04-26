@@ -263,7 +263,7 @@ describe('GET /api/auth/me - 认证中间件', () => {
       password: 'hashed',
       avatar: null,
       phone: null,
-      status: 'active',
+      status: 'enabled',
       departmentId: null,
       tenantId: null,
       remark: null,

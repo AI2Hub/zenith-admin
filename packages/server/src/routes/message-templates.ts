@@ -22,7 +22,7 @@ const createMessageTemplateSchema = z.object({
   subject: z.string().max(200).optional(),
   content: z.string().min(1),
   variables: z.string().optional(),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(500).optional(),
 });
 const updateMessageTemplateSchema = createMessageTemplateSchema.partial();
@@ -36,7 +36,7 @@ const listRoute = defineOpenAPIRoute({
       query: PaginationQuery.extend({
         keyword: z.string().optional(),
         channel: z.enum(['email', 'sms', 'in_app']).optional(),
-        status: z.enum(['active', 'disabled']).optional(),
+        status: z.enum(['enabled', 'disabled']).optional(),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(MessageTemplateDTO, '模板列表') },

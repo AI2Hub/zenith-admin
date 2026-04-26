@@ -41,7 +41,7 @@ export const dictsHandlers = [
       name: body.name ?? '',
       code: body.code ?? '',
       description: body.description,
-      status: body.status ?? 'active',
+      status: body.status ?? 'enabled',
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
     };
@@ -88,7 +88,7 @@ export const dictsHandlers = [
       value: body.value ?? '',
       color: body.color,
       sort: body.sort ?? 0,
-      status: body.status ?? 'active',
+      status: body.status ?? 'enabled',
       remark: body.remark,
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),

@@ -40,7 +40,7 @@ export const menusHandlers = [
       type: body.type ?? 'menu',
       permission: body.permission,
       sort: body.sort ?? 0,
-      status: body.status ?? 'active',
+      status: body.status ?? 'enabled',
       visible: body.visible ?? true,
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),

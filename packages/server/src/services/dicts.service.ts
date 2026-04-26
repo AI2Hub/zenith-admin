@@ -20,7 +20,7 @@ export function mapDictItem(row: typeof dictItems.$inferSelect) {
 
 export interface ListDictsQuery {
   keyword?: string;
-  status?: 'active' | 'disabled';
+  status?: 'enabled' | 'disabled';
   startDate?: string;
   endDate?: string;
   page: number;
@@ -138,7 +138,7 @@ export async function exportDicts(): Promise<{ buffer: ArrayBuffer; filename: st
       { header: '字典名称', key: 'name', width: 20 },
       { header: '字典编码', key: 'code', width: 20 },
       { header: '备注', key: 'remark', width: 30 },
-      { header: '状态', key: 'status', width: 10, transform: (v) => (v === 'active' ? '启用' : '禁用') },
+      { header: '状态', key: 'status', width: 10, transform: (v) => (v === 'enabled' ? '启用' : '禁用') },
       { header: '创建时间', key: 'createdAt', width: 22 },
     ],
     rows.map((r) => ({ ...r, createdAt: formatDateTimeForExcel(r.createdAt) })),

@@ -217,7 +217,7 @@ const listXxxRoute = defineOpenAPIRoute({
 
 - 单条删除：`DELETE /api/resource/:id`
 - 批量删除：`DELETE /api/resource/batch`，body 传 `{ ids: number[] }`
-- 批量修改状态：`PATCH /api/resource/batch-status`，body 传 `{ ids: number[], status: 'active' | 'disabled' }`
+- 批量修改状态：`PATCH /api/resource/batch-status`，body 传 `{ ids: number[], status: 'enabled' | 'disabled' }`
 
 ## 文件上传
 

@@ -417,14 +417,14 @@ export async function switchTenantView(targetTenantId: number | null, ip: string
 export async function listSwitchableTenants() {
   const payload = currentUser();
   if (!isPlatformAdmin(payload)) throw new AppError('无权限', 403);
-  return db.select({ id: tenants.id, name: tenants.name, code: tenants.code, status: tenants.status }).from(tenants).where(eq(tenants.status, 'active'));
+  return db.select({ id: tenants.id, name: tenants.name, code: tenants.code, status: tenants.status }).from(tenants).where(eq(tenants.status, 'enabled'));
 }
 
 export async function forgotPassword(email: string) {
   const enabled = await getConfigBoolean('forgot_password_enabled');
   if (!enabled) throw new AppError('忘记密码功能未开启', 403);
   const [user] = await db.select({ id: users.id, username: users.username })
-    .from(users).where(and(eq(users.email, email), eq(users.status, 'active'))).limit(1);
+    .from(users).where(and(eq(users.email, email), eq(users.status, 'enabled'))).limit(1);
   if (user) {
     const token = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);

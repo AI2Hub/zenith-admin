@@ -114,7 +114,7 @@ const statusRoute = defineOpenAPIRoute({
     method: 'put', path: '/{id}/status', tags: ['CronJobs'], summary: '切换状态',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'system:cronjob:update', audit: { module: '定时任务', description: '切换任务状态' } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(z.object({ status: z.enum(['active', 'disabled']) }).openapi('CronJobStatusBody')), required: true } },
+    request: { params: IdParam, body: { content: jsonContent(z.object({ status: z.enum(['enabled', 'disabled']) }).openapi('CronJobStatusBody')), required: true } },
     responses: { ...commonErrorResponses, ...okMsg('ok') },
   }),
   handler: async (c) => {

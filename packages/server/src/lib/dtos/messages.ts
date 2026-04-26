@@ -12,7 +12,7 @@ export const MessageTemplateDTO = z
     subject: z.string().nullable().optional(),
     content: z.string(),
     variables: z.string().nullable().optional(),
-    status: z.enum(['active', 'disabled']),
+    status: z.enum(['enabled', 'disabled']),
     remark: z.string().nullable().optional(),
     createdAt: z.string(),
     updatedAt: z.string(),

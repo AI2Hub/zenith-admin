@@ -129,7 +129,7 @@ npm run db:seed
 
 ```ts
 // ✅ 推荐
-const total = await db.$count(users, and(eq(users.status, 'active'), tc));
+const total = await db.$count(users, and(eq(users.status, 'enabled'), tc));
 
 // ❌ 避免（冗余 select）
 const [{ total }] = await db.select({ total: count() }).from(users).where(where);
@@ -243,7 +243,7 @@ const rows = await db.select().from(xxxs).where(where)...;
 ```ts
 const [totalUsers, activeUsers, todayLogins] = await Promise.all([
   db.$count(users),
-  db.$count(users, eq(users.status, 'active')),
+  db.$count(users, eq(users.status, 'enabled')),
   db.$count(loginLogs, gte(loginLogs.createdAt, todayStart)),
 ]);
 ```

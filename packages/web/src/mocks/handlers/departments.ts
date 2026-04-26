@@ -44,7 +44,7 @@ export const departmentsHandlers = [
       code: body.code ?? '',
       parentId: body.parentId ?? 0,
       sort: body.sort ?? 0,
-      status: body.status ?? 'active',
+      status: body.status ?? 'enabled',
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
     };

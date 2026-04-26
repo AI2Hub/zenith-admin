@@ -89,7 +89,7 @@ export async function uploadManagedFile(file: File) {
   const [defaultConfig] = await db
     .select()
     .from(fileStorageConfigs)
-    .where(and(eq(fileStorageConfigs.isDefault, true), eq(fileStorageConfigs.status, 'active')))
+    .where(and(eq(fileStorageConfigs.isDefault, true), eq(fileStorageConfigs.status, 'enabled')))
     .limit(1);
   if (!defaultConfig) throw new AppError('当前没有可用的默认文件服务，请先在文件配置中启用并设置默认服务', 400);
   const uploaded = await uploadFileByConfig(defaultConfig, file);

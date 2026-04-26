@@ -19,7 +19,7 @@ const createRegionSchema = z.object({
   level: z.enum(['province', 'city', 'county']),
   parentCode: z.string().max(12).nullable().optional(),
   sort: z.coerce.number().int().default(0),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
 const updateRegionSchema = createRegionSchema.partial();
 
@@ -31,7 +31,7 @@ const listRoute = defineOpenAPIRoute({
     request: {
       query: z.object({
         keyword: z.string().optional(),
-        status: z.enum(['active', 'disabled']).optional(),
+        status: z.enum(['enabled', 'disabled']).optional(),
         level: z.enum(['province', 'city', 'county']).optional(),
       }),
     },

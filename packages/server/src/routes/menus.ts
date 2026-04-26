@@ -26,7 +26,7 @@ const createMenuSchema = z.object({
   type: z.enum(['directory', 'menu', 'button']).default('menu'),
   permission: z.string().max(128).optional(),
   sort: z.coerce.number().int().default(0),
-  status: z.enum(['active', 'disabled']).default('active'),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
   visible: z.boolean().default(true),
 });
 const updateMenuSchema = createMenuSchema.partial();

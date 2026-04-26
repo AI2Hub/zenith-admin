@@ -181,7 +181,7 @@ export default function DepartmentsPage() {
     : {
         parentId: 0,
         sort: 0,
-        status: 'active',
+        status: 'enabled',
       };
 
   const handleReset = () => {

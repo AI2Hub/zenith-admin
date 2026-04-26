@@ -44,7 +44,7 @@ export const rolesHandlers = [
       code: body.code ?? '',
       description: body.description,
       dataScope: body.dataScope ?? 'all',
-      status: body.status ?? 'active',
+      status: body.status ?? 'enabled',
       menuIds: body.menuIds ?? [],
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),

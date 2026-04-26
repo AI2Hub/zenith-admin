@@ -208,7 +208,7 @@ export async function getNoticeReadStats(id: number, q: { page?: number; pageSiz
   let baseWhere: SQL | undefined;
   if (notice.targetType === 'all') {
     const tc = tenantCondition(users, user);
-    baseWhere = and(eq(users.status, 'active'), ...(tc ? [tc] : []));
+    baseWhere = and(eq(users.status, 'enabled'), ...(tc ? [tc] : []));
   } else {
     const recipients = await db.select().from(noticeRecipients).where(eq(noticeRecipients.noticeId, id));
     const userIdSet = new Set<number>();

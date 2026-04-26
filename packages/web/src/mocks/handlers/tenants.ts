@@ -42,7 +42,7 @@ export const tenantsHandlers = [
       logo: body.logo ?? null,
       contactName: body.contactName ?? null,
       contactPhone: body.contactPhone ?? null,
-      status: body.status ?? 'active',
+      status: body.status ?? 'enabled',
       expireAt: body.expireAt ?? null,
       maxUsers: body.maxUsers ?? null,
       remark: body.remark ?? null,

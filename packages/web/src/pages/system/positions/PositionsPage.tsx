@@ -87,7 +87,7 @@ export default function PositionsPage() {
       }
     : {
         sort: 0,
-        status: 'active',
+        status: 'enabled',
       };
 
   const handleSearch = () => {

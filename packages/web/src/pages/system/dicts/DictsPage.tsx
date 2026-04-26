@@ -419,7 +419,7 @@ export default function DictsPage() {
         <Form
           getFormApi={(api) => dictFormApi.current = api}
           key={editingDict?.id ?? 'new-dict'}
-          initValues={editingDict ?? { status: 'active' }}
+          initValues={editingDict ?? { status: 'enabled' }}
           labelPosition="left"
           labelWidth={90}
         >
@@ -445,7 +445,7 @@ export default function DictsPage() {
         <Form
           getFormApi={(api) => itemFormApi.current = api}
           key={editingItem?.id ?? 'new-item'}
-          initValues={editingItem ?? { status: 'active', sort: 0 }}
+          initValues={editingItem ?? { status: 'enabled', sort: 0 }}
           labelPosition="left"
           labelWidth={80}
         >
