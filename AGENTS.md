@@ -35,7 +35,7 @@ npm run db:seed        # 填充初始种子数据
 
 - **框架**：Hono v4，通过 `@hono/node-server` 运行在 Node.js
 - **路由**：所有路由挂载在 `/api` 前缀，文件位于 `src/routes/`
-- **认证**：JWT Bearer Token，7 天有效期；`src/middleware/auth.ts` 中 `authMiddleware` 注入 `c.set('user', payload)`；签发/校验统一走 `src/lib/jwt.ts` 的 `signToken` / `verifyToken`（基于 `hono/jwt`）
+- **认证**：Access Token（2h）+ Refresh Token（30d）双 token 机制；`src/middleware/auth.ts` 中 `authMiddleware` 注入 `c.set('user', payload)`；签发/校验统一走 `src/lib/jwt.ts` 的 `signToken` / `verifyToken`（基于 `hono/jwt`）
 - **请求上下文**：全局挂载 `hono/context-storage`，辅助函数可用 `src/lib/context.ts` 的 `currentUser()` / `getCtx()` 零参取值，无需再层层透传 `c` 或 `user`
 - **路由定义模式**：所有路由文件统一使用 `defineOpenAPIRoute` + `router.openapiRoutes()` 模式（参考 `src/routes/api-tokens.ts`）。不使用 `<AuthEnv>` 泛型，不添加全局 `router.use('*', authMiddleware)`；每个受保护路由在 `createRoute` 的 `middleware: [authMiddleware, guard(...)] as const` 中显式声明。收集所有路由常量后调用 `router.openapiRoutes([route1, route2, ...] as const)` 统一注册
 - **Service 层**：业务逻辑、数据映射、前置校验从路由中提取到 `src/services/xxx.service.ts`（已覆盖所有路由）。命名约定：`mapXxx`（数据映射，纯函数）、`ensureXxx`（前置校验，抛 `AppError`）。**禁止**在 service 中调用 `c.json()`、直接访问 Hono `Context`、使用 `console.*`；需要当前登录用户时统一通过 `src/lib/context.ts` 的 `currentUser()` 获取（依赖全局 `contextStorage()`）。路由 handler 只负责取参数、调 service、返回 HTTP 响应。DB 唯一约束异常（PG 错误码 `23505`）统一在 service 中通过 `src/lib/db-errors.ts` 的 `rethrowPgUniqueViolation(err, msg)` 映射为 `AppError`。`AppError` 定义在 `src/lib/errors.ts`，由 `src/index.ts` 的全局 `onError` 统一转为标准 JSON 错误响应。
