@@ -152,7 +152,7 @@ export async function ensureXxxExists(id: number) {
 
 ### 错误处理：AppError
 
-`AppError` 定义在 `src/lib/errors.ts`，由 `src/index.ts` 的全局 `onError` 统一处理：
+`AppError` 定义在 `packages/server/src/lib/errors.ts`，由 `packages/server/src/index.ts` 的全局 `onError` 统一处理：
 
 ```typescript
 // service 中
@@ -189,9 +189,9 @@ const listXxxRoute = defineOpenAPIRoute({
 **约束：**
 
 - ❌ **禁止**在路由文件中本地声明带 `.openapi('EntityName')` 的实体 DTO（会导致 Swagger Components 重复或冲突）
-- ✅ 所有实体（`UserDTO` / `RoleDTO` / `MenuDTO` / `DepartmentDTO` / `TenantDTO` / `DictDTO` 等 50+）按业务域拆分在 `lib/dtos/` 子目录，`openapi-dtos.ts` 为 re-export barrel
+- ✅ 所有实体（`UserDTO` / `RoleDTO` / `MenuDTO` / `DepartmentDTO` / `TenantDTO` / `DictDTO` 等 50+）按业务域拆分在 `packages/server/src/lib/dtos/` 子目录，`packages/server/src/lib/openapi-dtos.ts` 为 re-export barrel
 - ✅ 内联使用的 request body schema、不作为 Component 的一次性匿名对象无需搬到中心文件
-- ✅ 新增实体模块时，先在 `lib/dtos/` 下对应的子文件（或新建子文件）中添加 `export const XxxDTO = z.object({...}).openapi('Xxx');`，再在路由中从 `'../lib/openapi-dtos'` 导入
+- ✅ 新增实体模块时，先在 `packages/server/src/lib/dtos/` 下对应的子文件（或新建子文件）中添加 `export const XxxDTO = z.object({...}).openapi('Xxx');`，再在路由中从 `'../lib/openapi-dtos'` 导入
 
 这样做的好处：Swagger Components 有单一来源，避免同名冲突；前端/第三方可直接使用稳定的 OpenAPI Components 名称。
 
@@ -211,7 +211,7 @@ const listXxxRoute = defineOpenAPIRoute({
 - 按资源拆分到 `packages/server/src/routes/`
 - 保持资源命名直观，如 `users.ts`、`roles.ts`、`dicts.ts`
 - 和前端页面、共享 schema 尽量保持一一对应，便于排查问题
-- 每个路由文件使用 `OpenAPIHono` 实例，在 `src/index.ts` 统一注册
+- 每个路由文件使用 `OpenAPIHono` 实例，在 `packages/server/src/index.ts` 统一注册
 
 ## 数据删除规范
 

@@ -49,7 +49,7 @@
 #### Service 层全量提取
 
 - 后端所有路由（21 个业务模块）完成 Service 层提取，业务逻辑从 route handler 迁移至 `packages/server/src/services/` 下独立的 `xxx.service.ts` 文件
-- 新增 `AppError`（`src/lib/errors.ts`），由全局 `onError` 统一转为标准 JSON 错误响应，route handler 不再需要手动捕获业务错误
+- 新增 `AppError`（`packages/server/src/lib/errors.ts`），由全局 `onError` 统一转为标准 JSON 错误响应，route handler 不再需要手动捕获业务错误
 - 数据映射函数统一以 `mapXxx` 命名（纯函数），前置校验函数统一以 `ensureXxx` 命名（抛 `AppError`）
 
 #### 日志文件管理

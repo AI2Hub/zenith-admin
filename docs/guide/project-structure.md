@@ -19,12 +19,12 @@ zenith-admin/
 
 关注这些目录：
 
-- `src/routes/`：API 路由（认证、用户、部门、岗位、角色、菜单、字典、通知、日志、监控、会话、定时任务等）
-- `src/services/`：Service 层（业务逻辑、数据映射 `mapXxx`、前置校验 `ensureXxx`；所有路由均已完成提取）
-- `src/db/`：Drizzle schema、统一数据库类型别名、迁移与 seed
-- `src/middleware/`：认证（`auth.ts`）、IP 访问控制（`ip-access.ts`）、权限守卫（`guard.ts`）、接口限流（`rate-limit.ts`）
-- `src/lib/`：通用能力封装，详见下方列表
-- `drizzle/`：生成的迁移文件
+- `packages/server/src/routes/`：API 路由（认证、用户、部门、岗位、角色、菜单、字典、通知、日志、监控、会话、定时任务等）
+- `packages/server/src/services/`：Service 层（业务逻辑、数据映射 `mapXxx`、前置校验 `ensureXxx`；所有路由均已完成提取）
+- `packages/server/src/db/`：Drizzle schema、统一数据库类型别名、迁移与 seed
+- `packages/server/src/middleware/`：认证（`auth.ts`）、IP 访问控制（`ip-access.ts`）、权限守卫（`guard.ts`）、接口限流（`rate-limit.ts`）
+- `packages/server/src/lib/`：通用能力封装，详见下方列表
+- `packages/server/drizzle/`：生成的迁移文件
 
 `src/lib/` 主要模块：
 
@@ -32,8 +32,8 @@ zenith-admin/
 | --- | --- |
 | `session-manager.ts` | Redis 会话管理（在线会话 + 黑名单） |
 | `redis.ts` | ioredis 客户端单例与工具 |
-| `oauth/` | OAuth 提供方抽象（GitHub / 钉钉 / 企业微信）|
-| `cron-scheduler.ts` | 定时任务调度器（基于 node-cron）|
+| `oauth/` | OAuth 提供方抽象（GitHub / 钉钉 / 企业微信） |
+| `cron-scheduler.ts` | 定时任务调度器（基于 node-cron） |
 | `db-backup.ts` | 基于 pg_dump 的数据库备份 |
 | `file-storage.ts` | 文件存储抽象（本地 / 阿里云 OSS / S3 / COS） |
 | `email.ts` | SMTP 邮件发送 |
@@ -54,19 +54,19 @@ zenith-admin/
 
 关注这些目录：
 
-- `src/pages/`：页面级组件
-- `src/layouts/`：后台主布局
-- `src/components/`：公共组件
-- `src/hooks/`：认证、主题等逻辑
-- `src/utils/`：请求封装、日期处理等工具
+- `packages/web/src/pages/`：页面级组件
+- `packages/web/src/layouts/`：后台主布局
+- `packages/web/src/components/`：公共组件
+- `packages/web/src/hooks/`：认证、主题等逻辑
+- `packages/web/src/utils/`：请求封装、日期处理等工具
 
 ## `packages/shared`
 
 共享层用于减少前后端重复定义：
 
-- `types.ts`：实体类型、分页类型、接口响应类型
-- `validation.ts`：Zod 校验 schema
-- `constants.ts`：常量与枚举
+- `packages/shared/src/types.ts`：实体类型、分页类型、接口响应类型
+- `packages/shared/src/validation.ts`：Zod 校验 schema
+- `packages/shared/src/constants.ts`：常量与枚举
 
 ## `docs`
 
