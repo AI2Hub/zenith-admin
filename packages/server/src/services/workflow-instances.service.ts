@@ -51,6 +51,7 @@ export function mapInstance(
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
 import { count, countDistinct, eq, and, desc, ilike, or } from 'drizzle-orm';
+import { escapeLike } from '../lib/where-helpers';
 import { db } from '../db';
 import { pageOffset } from '../lib/pagination';
 import { workflowInstances, workflowTasks, workflowDefinitions, users } from '../db/schema';
@@ -136,7 +137,7 @@ export async function listAllInstances(query: { page?: number; pageSize?: number
   if (tc) conditions.push(tc);
   if (status) conditions.push(eq(workflowInstances.status, status as InstanceStatus));
   if (keyword) {
-    const likeValue = `%${keyword}%`;
+    const likeValue = `%${escapeLike(keyword)}%`;
     conditions.push(or(ilike(workflowInstances.title, likeValue), ilike(workflowDefinitions.name, likeValue)));
   }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
