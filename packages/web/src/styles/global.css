@@ -116,6 +116,16 @@ body {
   border-top-color: var(--color-border);
 }
 
+/*
+ * SideSheet 内表格色阶修正（全局）
+ * Semi SideSheet inner 默认 background = --semi-color-bg-2（暗色 #35363c）表示弹出面板层级，
+ * 而 Table 行/表头默认 background = --semi-color-bg-1（暗色 #232429），导致表格在抽屉内看起来偏深。
+ * 亮色模式下两者均为白色，不受影响。
+ */
+.semi-sidesheet-inner {
+  background-color: var(--semi-color-bg-1);
+}
+
 .admin-table-nowrap .semi-table-thead > .semi-table-row > .semi-table-row-head {
   white-space: nowrap;
 }
