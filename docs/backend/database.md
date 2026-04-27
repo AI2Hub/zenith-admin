@@ -47,6 +47,22 @@ npm run db:seed
 - TypeScript union type
 - Zod enum
 
+### LIKE 查询必须使用 escapeLike
+
+所有使用 `like()` / `ilike()` 的模糊查询，**必须**通过 `escapeLike()` 对用户输入进行转义，防止 `%`、`_`、`\` 等通配符被恶意利用：
+
+```ts
+import { escapeLike } from '../lib/where-helpers';
+
+// ✅ 正确
+like(users.username, `%${escapeLike(keyword)}%`)
+
+// ❌ 错误 - 未转义，可能匹配任意记录
+like(users.username, `%${keyword}%`)
+```
+
+`escapeLike` 定义在 `packages/server/src/lib/where-helpers.ts`，同时处理 `%`、`_`、`\` 三种元字符。
+
 ## 主要表
 
 ### 多租户（可选）

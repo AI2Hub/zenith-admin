@@ -31,3 +31,4 @@
 | **响应辅助函数** | 路由 `responses:` 中的 200 响应统一使用展开语法：`...ok(DTO, desc)`（单对象）、`...okPaginated(DTO, desc)`（分页列表）、`...okMsg(desc)`（仅 message 无 data）；**禁止**直接写 `200: { content: jsonContent(apiResponse(DTO)), description }` |
 | **Path Param 规范** | 数值型 `id` 参数统一使用 `IdParam`（`import { IdParam } from '../lib/openapi-schemas'`）；字符串型或自定义名参数（如 `tokenId`、`provider`、`key`）必须在字段上添加 `.openapi({ param: { name: '...', in: 'path' }, example: '...' })` |
 | **分页查询规范** | 列表接口的查询参数统一用 `PaginationQuery.extend({ ... })` 扩展额外字段，**禁止**内联声明 `page: z.coerce.number().optional()` |
+| **LIKE 查询转义** | 所有使用 `like()` / `ilike()` 的模糊查询，**必须**通过 `escapeLike(keyword)` 转义用户输入中的 `%`、`_`、`\`，防止 LIKE 通配符注入；`escapeLike` 来自 `'../lib/where-helpers'` |
