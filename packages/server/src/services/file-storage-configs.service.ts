@@ -85,7 +85,7 @@ export async function clearDefaultFlag(executor: DbExecutor) {
 // ─── 业务入口 ─────────────────────────────────────────────────────────────────
 import { asc, desc, eq, and, gte, lte } from 'drizzle-orm';
 import { db } from '../db';
-import { pageOffset } from '../lib/pagination';
+import { withPagination } from '../lib/where-helpers';
 import { AppError } from '../lib/errors';
 
 export interface ListFileStorageConfigsQuery {
@@ -104,10 +104,10 @@ export async function listFileStorageConfigs(q: ListFileStorageConfigsQuery) {
   const parsedEndTime = parseDateTimeInput(endTime);
   if (parsedStartTime) conditions.push(gte(fileStorageConfigs.updatedAt, parsedStartTime));
   if (parsedEndTime) conditions.push(lte(fileStorageConfigs.updatedAt, parsedEndTime));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
   const [total, list] = await Promise.all([
     db.$count(fileStorageConfigs, where),
-    db.select().from(fileStorageConfigs).where(where).orderBy(desc(fileStorageConfigs.isDefault), asc(fileStorageConfigs.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(fileStorageConfigs).where(where).orderBy(desc(fileStorageConfigs.isDefault), asc(fileStorageConfigs.id)).$dynamic(), page, pageSize),
   ]);
   return { list: list.map(mapFileStorageConfig), total, page, pageSize };
 }

@@ -1,8 +1,7 @@
 import { eq, and, ilike, or } from 'drizzle-orm';
-import { escapeLike } from '../lib/where-helpers';
+import { escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { messageTemplates } from '../db/schema';
-import { pageOffset } from '../lib/pagination';
 import { AppError } from '../lib/errors';
 import { rethrowPgUniqueViolation } from '../lib/db-errors';
 import { formatDateTime } from '../lib/datetime';
@@ -33,10 +32,10 @@ export async function listMessageTemplates(q: ListMessageTemplatesQuery) {
   if (q.keyword) conditions.push(or(ilike(messageTemplates.name, `%${escapeLike(q.keyword)}%`), ilike(messageTemplates.code, `%${escapeLike(q.keyword)}%`)));
   if (q.channel) conditions.push(eq(messageTemplates.channel, q.channel));
   if (q.status) conditions.push(eq(messageTemplates.status, q.status));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
   const [total, list] = await Promise.all([
     db.$count(messageTemplates, where),
-    db.select().from(messageTemplates).where(where).orderBy(messageTemplates.id).limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(messageTemplates).where(where).orderBy(messageTemplates.id).$dynamic(), page, pageSize),
   ]);
   return { list: list.map(mapMessageTemplate), total, page, pageSize };
 }

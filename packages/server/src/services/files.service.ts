@@ -21,9 +21,8 @@ export function mapManagedFile(row: typeof managedFiles.$inferSelect) {
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
 import { and, desc, eq, like, or, gte, lte } from 'drizzle-orm';
-import { mergeWhere, escapeLike } from '../lib/where-helpers';
+import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
-import { pageOffset } from '../lib/pagination';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { AppError } from '../lib/errors';
@@ -62,12 +61,12 @@ export async function listManagedFiles(query: {
   const endTime = parseDateTimeInput(query.endTime);
   if (startTime) conditions.push(gte(managedFiles.createdAt, startTime));
   if (endTime) conditions.push(lte(managedFiles.createdAt, endTime));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
   const tc = tenantCondition(managedFiles, user);
   const finalWhere = mergeWhere(where, tc);
   const [count, paginated] = await Promise.all([
     db.$count(managedFiles, finalWhere),
-    db.select().from(managedFiles).where(finalWhere).orderBy(desc(managedFiles.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(managedFiles).where(finalWhere).orderBy(desc(managedFiles.id)).$dynamic(), page, pageSize),
   ]);
   return { list: paginated.map(mapManagedFile), total: count, page, pageSize };
 }

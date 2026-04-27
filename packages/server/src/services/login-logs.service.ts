@@ -1,8 +1,7 @@
 import { desc, eq, like, and, gte, lte } from 'drizzle-orm';
-import { mergeWhere, escapeLike } from '../lib/where-helpers';
+import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { loginLogs } from '../db/schema';
-import { pageOffset } from '../lib/pagination';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
 import { tenantCondition } from '../lib/tenant';
 import { currentUser } from '../lib/context';
@@ -28,12 +27,12 @@ export async function listLoginLogs(q: ListLoginLogsQuery) {
   const endTime = parseDateTimeInput(q.endTime);
   if (startTime) conditions.push(gte(loginLogs.createdAt, startTime));
   if (endTime) conditions.push(lte(loginLogs.createdAt, endTime));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
   const tc = tenantCondition(loginLogs, user);
   const finalWhere = mergeWhere(where, tc);
   const [total, rows] = await Promise.all([
     db.$count(loginLogs, finalWhere),
-    db.select().from(loginLogs).where(finalWhere).orderBy(desc(loginLogs.createdAt)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(loginLogs).where(finalWhere).orderBy(desc(loginLogs.createdAt)).$dynamic(), page, pageSize),
   ]);
   return {
     list: rows.map((r) => ({ ...r, createdAt: formatDateTime(r.createdAt) })),

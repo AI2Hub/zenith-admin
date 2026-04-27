@@ -6,7 +6,7 @@ import { generateTokenId, registerSession, removeSession, checkLoginLock, record
 import type { JwtPayload } from '../middleware/auth';
 import { formatDateTime, parseDateTimeInput } from '../lib/datetime';
 import { parseUserAgent } from '../lib/request-helpers';
-import { escapeLike } from '../lib/where-helpers';
+import { escapeLike, withPagination } from '../lib/where-helpers';
 
 // ─── 获取用户角色列表 ─────────────────────────────────────────────────────────
 
@@ -85,7 +85,6 @@ export function getClientInfo(headers: { get: (key: string) => string | null | u
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
 import { config } from '../config';
-import { pageOffset } from '../lib/pagination';
 import { sendMail } from '../lib/email';
 import { isSuperAdmin, getUserPermissions } from '../lib/permissions';
 import { verifyCaptcha } from '../lib/captcha';
@@ -323,7 +322,7 @@ export async function listMyLoginLogs(query: { page?: number; pageSize?: number;
   const where = and(...conditions);
   const [count, rows] = await Promise.all([
     db.$count(loginLogs, where),
-    db.select().from(loginLogs).where(where).orderBy(desc(loginLogs.createdAt)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(loginLogs).where(where).orderBy(desc(loginLogs.createdAt)).$dynamic(), page, pageSize),
   ]);
   return { list: rows.map((r) => ({ ...r, createdAt: formatDateTime(r.createdAt) })), total: count, page, pageSize };
 }
@@ -340,7 +339,7 @@ export async function listMyOperationLogs(query: { page?: number; pageSize?: num
   const where = and(...conditions);
   const [count, rows] = await Promise.all([
     db.$count(operationLogs, where),
-    db.select().from(operationLogs).where(where).orderBy(desc(operationLogs.createdAt)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(operationLogs).where(where).orderBy(desc(operationLogs.createdAt)).$dynamic(), page, pageSize),
   ]);
   return { list: rows.map((r) => ({ ...r, createdAt: formatDateTime(r.createdAt) })), total: count, page, pageSize };
 }

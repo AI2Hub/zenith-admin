@@ -1,8 +1,7 @@
 import { eq, and, like, or, gte, lte } from 'drizzle-orm';
-import { mergeWhere, escapeLike } from '../lib/where-helpers';
+import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { roles, roleMenus, userRoles } from '../db/schema';
-import { pageOffset } from '../lib/pagination';
 import { clearUserPermissionCache } from '../lib/permissions';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
@@ -46,12 +45,12 @@ export async function listRoles(q: ListRolesQuery) {
   const endTime = parseDateTimeInput(q.endTime);
   if (startTime) conditions.push(gte(roles.createdAt, startTime));
   if (endTime) conditions.push(lte(roles.createdAt, endTime));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
   const tc = tenantCondition(roles, user);
   const finalWhere = mergeWhere(where, tc);
   const [total, list] = await Promise.all([
     db.$count(roles, finalWhere),
-    db.select().from(roles).where(finalWhere).orderBy(roles.id).limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(roles).where(finalWhere).orderBy(roles.id).$dynamic(), page, pageSize),
   ]);
   return { list: list.map((r) => mapRole(r)), total, page, pageSize };
 }

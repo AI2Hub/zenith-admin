@@ -1,8 +1,7 @@
 import { eq, asc, and, or, like, gte, lte, type SQL } from 'drizzle-orm';
-import { mergeWhere, escapeLike } from '../lib/where-helpers';
+import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { dicts, dictItems } from '../db/schema';
-import { pageOffset } from '../lib/pagination';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
 import { formatDateTime, parseDateRangeEnd, parseDateRangeStart } from '../lib/datetime';
@@ -40,12 +39,12 @@ export async function listDicts(q: ListDictsQuery) {
   const parsedEndDate = parseDateRangeEnd(endDate);
   if (parsedStartDate) conditions.push(gte(dicts.createdAt, parsedStartDate));
   if (parsedEndDate) conditions.push(lte(dicts.createdAt, parsedEndDate));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
   const tc = tenantCondition(dicts, user);
   const finalWhere = mergeWhere(where, tc);
   const [total, list] = await Promise.all([
     db.$count(dicts, finalWhere),
-    db.select().from(dicts).where(finalWhere).orderBy(dicts.id).limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(dicts).where(finalWhere).orderBy(dicts.id).$dynamic(), page, pageSize),
   ]);
   return { list: list.map(mapDict), total, page, pageSize };
 }

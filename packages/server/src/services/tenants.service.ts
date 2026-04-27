@@ -1,8 +1,7 @@
 import { eq, like, and, ne, desc } from 'drizzle-orm';
-import { escapeLike } from '../lib/where-helpers';
+import { escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { tenants } from '../db/schema';
-import { pageOffset } from '../lib/pagination';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
 import { AppError } from '../lib/errors';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../lib/datetime';
@@ -28,10 +27,10 @@ export async function listTenants(q: ListTenantsQuery) {
   const conditions = [];
   if (keyword) conditions.push(like(tenants.name, `%${escapeLike(keyword)}%`));
   if (status === 'enabled' || status === 'disabled') conditions.push(eq(tenants.status, status));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
   const [total, rows] = await Promise.all([
     db.$count(tenants, where),
-    db.select().from(tenants).where(where).orderBy(desc(tenants.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(tenants).where(where).orderBy(desc(tenants.id)).$dynamic(), page, pageSize),
   ]);
   return { list: rows.map(mapTenant), total, page, pageSize };
 }

@@ -21,7 +21,7 @@ export async function listDbBackups(q: ListDbBackupsQuery) {
   const conditions = [];
   if (q.status) conditions.push(eq(dbBackups.status, q.status));
   if (q.type) conditions.push(eq(dbBackups.type, q.type));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
   const [total, rows] = await Promise.all([
     db.$count(dbBackups, where),
     db.query.dbBackups.findMany({

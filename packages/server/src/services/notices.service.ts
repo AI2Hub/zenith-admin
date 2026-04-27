@@ -1,11 +1,10 @@
 import { count, desc, eq, like, and, gte, lte, inArray, isNull, isNotNull, sql, or, getTableColumns, type SQL } from 'drizzle-orm';
-import { mergeWhere, escapeLike } from '../lib/where-helpers';
+import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import type { DbExecutor } from '../db/types';
 import { notices, noticeRecipients, noticeReads, users, userRoles, roles, departments } from '../db/schema';
 import { broadcast, sendToUser } from '../lib/ws-manager';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
-import { pageOffset } from '../lib/pagination';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
 import { AppError } from '../lib/errors';
 import { currentUser } from '../lib/context';
@@ -130,13 +129,15 @@ export async function getInbox(q: { page?: number; pageSize?: number; isRead?: s
   const where = readFilter ? and(baseWhere, readFilter) : baseWhere;
   const [totalRow, rows] = await Promise.all([
     db.select({ total: count() }).from(notices).leftJoin(noticeReads, joinCond).where(where),
-    db.select({ ...getTableColumns(notices), isRead: isNotNull(noticeReads.id) })
-      .from(notices)
-      .leftJoin(noticeReads, joinCond)
-      .where(where)
-      .orderBy(desc(notices.publishTime))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+    withPagination(
+      db.select({ ...getTableColumns(notices), isRead: isNotNull(noticeReads.id) })
+        .from(notices)
+        .leftJoin(noticeReads, joinCond)
+        .where(where)
+        .orderBy(desc(notices.publishTime))
+        .$dynamic(),
+      page, pageSize,
+    ),
   ]);
   return { list: rows.map(({ isRead, ...noticeRow }) => ({ ...mapNotice(noticeRow), isRead })), total: totalRow[0].total, page, pageSize };
 }
@@ -152,12 +153,12 @@ export async function listNotices(q: { page?: number; pageSize?: number; title?:
   const parsedEndTime = parseDateTimeInput(endTime);
   if (parsedStartTime) conditions.push(gte(notices.createdAt, parsedStartTime));
   if (parsedEndTime) conditions.push(lte(notices.createdAt, parsedEndTime));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
   const tc = tenantCondition(notices, user);
   const finalWhere = mergeWhere(where, tc);
   const [total, rows] = await Promise.all([
     db.$count(notices, finalWhere),
-    db.select().from(notices).where(finalWhere).orderBy(desc(notices.createdAt)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(notices).where(finalWhere).orderBy(desc(notices.createdAt)).$dynamic(), page, pageSize),
   ]);
   const noticeIds = rows.map((r) => r.id);
   const readCountRows = noticeIds.length > 0
@@ -237,13 +238,15 @@ export async function getNoticeReadStats(id: number, q: { page?: number; pageSiz
     db.select({ cnt: count() }).from(users).leftJoin(noticeReads, joinCond).where(and(baseWhere, isNotNull(noticeReads.id))),
     db.select({ cnt: count() }).from(users).where(baseWhere),
     db.select({ cnt: count() }).from(users).leftJoin(noticeReads, joinCond).where(and(baseWhere, tabFilter)),
-    db.select({ id: users.id, username: users.username, nickname: users.nickname, avatar: users.avatar, readAt: noticeReads.readAt })
-      .from(users)
-      .leftJoin(noticeReads, joinCond)
-      .where(and(baseWhere, tabFilter))
-      .orderBy(users.id)
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+    withPagination(
+      db.select({ id: users.id, username: users.username, nickname: users.nickname, avatar: users.avatar, readAt: noticeReads.readAt })
+        .from(users)
+        .leftJoin(noticeReads, joinCond)
+        .where(and(baseWhere, tabFilter))
+        .orderBy(users.id)
+        .$dynamic(),
+      page, pageSize,
+    ),
   ]);
 
   return {

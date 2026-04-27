@@ -51,7 +51,7 @@ export function mapInstance(
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
 import { count, countDistinct, eq, and, desc, ilike, or } from 'drizzle-orm';
-import { escapeLike } from '../lib/where-helpers';
+import { escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { pageOffset } from '../lib/pagination';
 import { workflowInstances, workflowTasks, workflowDefinitions, users } from '../db/schema';
@@ -110,16 +110,18 @@ export async function listPendingMine(query: { page?: number; pageSize?: number 
       .from(workflowTasks)
       .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
       .where(where),
-    db
-      .select({ inst: workflowInstances, definitionName: workflowDefinitions.name, initiatorName: users.nickname, initiatorAvatar: users.avatar, task: workflowTasks })
-      .from(workflowTasks)
-      .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
-      .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
-      .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
-      .where(where)
-      .orderBy(desc(workflowTasks.createdAt))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+    withPagination(
+      db
+        .select({ inst: workflowInstances, definitionName: workflowDefinitions.name, initiatorName: users.nickname, initiatorAvatar: users.avatar, task: workflowTasks })
+        .from(workflowTasks)
+        .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
+        .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
+        .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
+        .where(where)
+        .orderBy(desc(workflowTasks.createdAt))
+        .$dynamic(),
+      page, pageSize,
+    ),
   ]);
   return {
     list: rows.map((r) => ({ ...mapInstance(r.inst, r), pendingTaskId: r.task.id })),
@@ -140,7 +142,7 @@ export async function listAllInstances(query: { page?: number; pageSize?: number
     const likeValue = `%${escapeLike(keyword)}%`;
     conditions.push(or(ilike(workflowInstances.title, likeValue), ilike(workflowDefinitions.name, likeValue)));
   }
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
   const [statRows, [{ total }], rows] = await Promise.all([
     db.select({ status: workflowInstances.status, cnt: count() })
       .from(workflowInstances)
@@ -150,14 +152,16 @@ export async function listAllInstances(query: { page?: number; pageSize?: number
       .from(workflowInstances)
       .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
       .where(where),
-    db.select({ inst: workflowInstances, definitionName: workflowDefinitions.name, initiatorName: users.nickname, initiatorAvatar: users.avatar })
-      .from(workflowInstances)
-      .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
-      .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
-      .where(where)
-      .orderBy(desc(workflowInstances.id))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+    withPagination(
+      db.select({ inst: workflowInstances, definitionName: workflowDefinitions.name, initiatorName: users.nickname, initiatorAvatar: users.avatar })
+        .from(workflowInstances)
+        .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
+        .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
+        .where(where)
+        .orderBy(desc(workflowInstances.id))
+        .$dynamic(),
+      page, pageSize,
+    ),
   ]);
   const stats: Record<string, number> = { total: 0, running: 0, approved: 0, rejected: 0, withdrawn: 0 };
   for (const r of statRows) {

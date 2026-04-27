@@ -1,8 +1,7 @@
 import { count, desc, like, and, gte, lte, sql, eq } from 'drizzle-orm';
-import { mergeWhere, escapeLike } from '../lib/where-helpers';
+import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { operationLogs } from '../db/schema';
-import { pageOffset } from '../lib/pagination';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
 import { tenantCondition } from '../lib/tenant';
 import { currentUser } from '../lib/context';
@@ -37,7 +36,7 @@ function buildWhere(q: ListOperationLogsQuery) {
   const endTime = parseDateTimeInput(q.endTime);
   if (startTime) conditions.push(gte(operationLogs.createdAt, startTime));
   if (endTime) conditions.push(lte(operationLogs.createdAt, endTime));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
   const tc = tenantCondition(operationLogs, user);
   return mergeWhere(where, tc);
 }
@@ -48,7 +47,7 @@ export async function listOperationLogs(q: ListOperationLogsQuery) {
   const finalWhere = buildWhere(q);
   const [total, rows] = await Promise.all([
     db.$count(operationLogs, finalWhere),
-    db.select().from(operationLogs).where(finalWhere).orderBy(desc(operationLogs.createdAt)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(operationLogs).where(finalWhere).orderBy(desc(operationLogs.createdAt)).$dynamic(), page, pageSize),
   ]);
   return { list: rows.map((r) => ({ ...r, createdAt: formatDateTime(r.createdAt) })), total, page, pageSize };
 }

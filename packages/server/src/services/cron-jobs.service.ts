@@ -1,8 +1,7 @@
 import { eq, like, and, desc } from 'drizzle-orm';
-import { escapeLike } from '../lib/where-helpers';
+import { escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { cronJobs, cronJobLogs } from '../db/schema';
-import { pageOffset } from '../lib/pagination';
 import { scheduleJob, stopJob, runJobOnce, validateCronExpression } from '../lib/cron-scheduler';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
 import { AppError } from '../lib/errors';
@@ -36,10 +35,10 @@ export async function listCronJobs(q: { page: number; pageSize: number; keyword?
   const { page, pageSize, keyword } = q;
   const conditions = [];
   if (keyword) conditions.push(like(cronJobs.name, `%${escapeLike(keyword)}%`));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
   const [total, rows] = await Promise.all([
     db.$count(cronJobs, where),
-    db.select().from(cronJobs).where(where).orderBy(desc(cronJobs.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(cronJobs).where(where).orderBy(desc(cronJobs.id)).$dynamic(), page, pageSize),
   ]);
   return { list: rows.map(mapCronJob), total, page, pageSize };
 }
@@ -111,7 +110,7 @@ export async function listAllCronJobLogs(q: { page: number; pageSize: number }) 
   const { page, pageSize } = q;
   const [total, rows] = await Promise.all([
     db.$count(cronJobLogs),
-    db.select().from(cronJobLogs).orderBy(desc(cronJobLogs.startedAt)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(cronJobLogs).orderBy(desc(cronJobLogs.startedAt)).$dynamic(), page, pageSize),
   ]);
   return { list: rows.map(mapLog), total, page, pageSize };
 }
@@ -120,7 +119,7 @@ export async function listCronJobLogs(jobId: number, q: { page: number; pageSize
   const { page, pageSize } = q;
   const [total, rows] = await Promise.all([
     db.$count(cronJobLogs, eq(cronJobLogs.jobId, jobId)),
-    db.select().from(cronJobLogs).where(eq(cronJobLogs.jobId, jobId)).orderBy(desc(cronJobLogs.startedAt)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(cronJobLogs).where(eq(cronJobLogs.jobId, jobId)).orderBy(desc(cronJobLogs.startedAt)).$dynamic(), page, pageSize),
   ]);
   return { list: rows.map(mapLog), total, page, pageSize };
 }

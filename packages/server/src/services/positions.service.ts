@@ -1,12 +1,11 @@
 import { and, asc, eq, gte, inArray, like, lte, or } from 'drizzle-orm';
-import { mergeWhere, escapeLike } from '../lib/where-helpers';
+import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { positions, userPositions } from '../db/schema';
 import { AppError } from '../lib/errors';
 import { currentUser } from '../lib/context';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
-import { pageOffset } from '../lib/pagination';
 import { rethrowPgUniqueViolation } from '../lib/db-errors';
 import { formatDateTime, parseDateTimeInput } from '../lib/datetime';
 
@@ -60,19 +59,16 @@ export async function listPositions(q: ListPositionsQuery) {
   if (startTime) conditions.push(gte(positions.createdAt, startTime));
   if (endTime) conditions.push(lte(positions.createdAt, endTime));
 
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
   const tc = tenantCondition(positions, currentUser());
   const finalWhere = mergeWhere(where, tc);
 
   const [total, list] = await Promise.all([
     db.$count(positions, finalWhere),
-    db
-      .select()
-      .from(positions)
-      .where(finalWhere)
-      .orderBy(asc(positions.sort), asc(positions.id))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+    withPagination(
+      db.select().from(positions).where(finalWhere).orderBy(asc(positions.sort), asc(positions.id)).$dynamic(),
+      page, pageSize,
+    ),
   ]);
 
   return { list: list.map(mapPosition), total, page, pageSize };

@@ -1,8 +1,7 @@
 import { eq, like, and, ne, desc } from 'drizzle-orm';
-import { mergeWhere } from '../lib/where-helpers';
+import { mergeWhere, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { systemConfigs } from '../db/schema';
-import { pageOffset } from '../lib/pagination';
 import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { currentUser } from '../lib/context';
@@ -35,12 +34,12 @@ export async function listSystemConfigs(q: ListSystemConfigsQuery) {
   const conditions = [];
   if (q.keyword) conditions.push(like(systemConfigs.configKey, `%${q.keyword}%`));
   if (q.configType) conditions.push(eq(systemConfigs.configType, q.configType));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
   const tc = tenantCondition(systemConfigs, user);
   const finalWhere = mergeWhere(where, tc);
   const [total, rows] = await Promise.all([
     db.$count(systemConfigs, finalWhere),
-    db.select().from(systemConfigs).where(finalWhere).orderBy(desc(systemConfigs.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(systemConfigs).where(finalWhere).orderBy(desc(systemConfigs.id)).$dynamic(), page, pageSize),
   ]);
   return { list: rows.map(mapConfig), total, page, pageSize };
 }
