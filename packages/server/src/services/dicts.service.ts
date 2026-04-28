@@ -6,7 +6,7 @@ import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
 import { formatDateTime, parseDateRangeEnd, parseDateRangeStart } from '../lib/datetime';
 import { currentUser } from '../lib/context';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { rethrowPgUniqueViolation } from '../lib/db-errors';
 
 export function mapDict(row: typeof dicts.$inferSelect) {
@@ -66,7 +66,7 @@ export async function updateDict(id: number, data: Partial<typeof dicts.$inferIn
     .set({ ...data })
     .where(and(eq(dicts.id, id), tenantCondition(dicts, user)))
     .returning();
-  if (!row) throw new AppError('字典不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '字典不存在' });
   return mapDict(row);
 }
 
@@ -76,13 +76,13 @@ export async function deleteDict(id: number) {
     .delete(dicts)
     .where(and(eq(dicts.id, id), tenantCondition(dicts, user)))
     .returning();
-  if (!row) throw new AppError('字典不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '字典不存在' });
 }
 
 export async function listDictItems(dictId: number) {
   const user = currentUser();
   const [dict] = await db.select({ id: dicts.id }).from(dicts).where(and(eq(dicts.id, dictId), tenantCondition(dicts, user))).limit(1);
-  if (!dict) throw new AppError('字典不存在', 404);
+  if (!dict) throw new HTTPException(404, { message: '字典不存在' });
   const items = await db.select().from(dictItems).where(eq(dictItems.dictId, dictId)).orderBy(asc(dictItems.sort), asc(dictItems.id));
   return items.map(mapDictItem);
 }
@@ -90,7 +90,7 @@ export async function listDictItems(dictId: number) {
 export async function listDictItemsByCode(code: string) {
   const user = currentUser();
   const [dict] = await db.select({ id: dicts.id }).from(dicts).where(and(eq(dicts.code, code), tenantCondition(dicts, user))).limit(1);
-  if (!dict) throw new AppError('字典不存在', 404);
+  if (!dict) throw new HTTPException(404, { message: '字典不存在' });
   const items = await db.select().from(dictItems).where(eq(dictItems.dictId, dict.id)).orderBy(asc(dictItems.sort));
   return items.map(mapDictItem);
 }
@@ -98,7 +98,7 @@ export async function listDictItemsByCode(code: string) {
 export async function createDictItem(dictId: number, data: Omit<typeof dictItems.$inferInsert, 'dictId'>) {
   const user = currentUser();
   const [dict] = await db.select({ id: dicts.id }).from(dicts).where(and(eq(dicts.id, dictId), tenantCondition(dicts, user))).limit(1);
-  if (!dict) throw new AppError('字典不存在', 404);
+  if (!dict) throw new HTTPException(404, { message: '字典不存在' });
   const [row] = await db.insert(dictItems).values({ ...data, dictId }).returning();
   return mapDictItem(row);
 }
@@ -111,7 +111,7 @@ export async function updateDictItem(itemId: number, data: Partial<typeof dictIt
     .innerJoin(dicts, and(eq(dicts.id, dictItems.dictId), tenantCondition(dicts, user)))
     .where(eq(dictItems.id, itemId))
     .limit(1);
-  if (!item) throw new AppError('字典项不存在', 404);
+  if (!item) throw new HTTPException(404, { message: '字典项不存在' });
   const [row] = await db.update(dictItems).set({ ...data }).where(eq(dictItems.id, itemId)).returning();
   return mapDictItem(row);
 }
@@ -124,7 +124,7 @@ export async function deleteDictItem(itemId: number) {
     .innerJoin(dicts, and(eq(dicts.id, dictItems.dictId), tenantCondition(dicts, user)))
     .where(eq(dictItems.id, itemId))
     .limit(1);
-  if (!item) throw new AppError('字典项不存在', 404);
+  if (!item) throw new HTTPException(404, { message: '字典项不存在' });
   await db.delete(dictItems).where(eq(dictItems.id, itemId));
 }
 

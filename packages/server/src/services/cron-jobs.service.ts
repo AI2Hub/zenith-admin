@@ -4,7 +4,7 @@ import { db } from '../db';
 import { cronJobs, cronJobLogs } from '../db/schema';
 import { scheduleJob, stopJob, runJobOnce, validateCronExpression } from '../lib/cron-scheduler';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { formatDateTime, formatNullableDateTime } from '../lib/datetime';
 
 export function mapCronJob(row: typeof cronJobs.$inferSelect) {
@@ -44,18 +44,18 @@ export async function listCronJobs(q: { page: number; pageSize: number; keyword?
 }
 
 export async function createCronJob(data: typeof cronJobs.$inferInsert) {
-  if (!validateCronExpression(data.cronExpression)) throw new AppError('Cron 表达式无效', 400);
+  if (!validateCronExpression(data.cronExpression)) throw new HTTPException(400, { message: 'Cron 表达式无效' });
   const [existing] = await db.select().from(cronJobs).where(eq(cronJobs.name, data.name)).limit(1);
-  if (existing) throw new AppError('任务名称已存在', 400);
+  if (existing) throw new HTTPException(400, { message: '任务名称已存在' });
   const [row] = await db.insert(cronJobs).values(data).returning();
   if (row.status === 'enabled') scheduleJob(row.id, row.cronExpression, row.handler, row.params);
   return mapCronJob(row);
 }
 
 export async function updateCronJob(id: number, data: Partial<typeof cronJobs.$inferInsert>) {
-  if (data.cronExpression && !validateCronExpression(data.cronExpression)) throw new AppError('Cron 表达式无效', 400);
+  if (data.cronExpression && !validateCronExpression(data.cronExpression)) throw new HTTPException(400, { message: 'Cron 表达式无效' });
   const [row] = await db.update(cronJobs).set({ ...data }).where(eq(cronJobs.id, id)).returning();
-  if (!row) throw new AppError('任务不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '任务不存在' });
   if (row.status === 'enabled') scheduleJob(row.id, row.cronExpression, row.handler, row.params);
   else stopJob(row.id);
   return mapCronJob(row);
@@ -64,7 +64,7 @@ export async function updateCronJob(id: number, data: Partial<typeof cronJobs.$i
 export async function deleteCronJob(id: number) {
   stopJob(id);
   const [row] = await db.delete(cronJobs).where(eq(cronJobs.id, id)).returning();
-  if (!row) throw new AppError('任务不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '任务不存在' });
 }
 
 export async function getCronJobBeforeAudit(id: number) {
@@ -75,13 +75,13 @@ export async function getCronJobBeforeAudit(id: number) {
 
 export async function runCronJob(id: number) {
   const result = await runJobOnce(id);
-  if (!result.success) throw new AppError(result.message, 500);
+  if (!result.success) throw new HTTPException(500, { message: result.message });
   return result.message;
 }
 
 export async function setCronJobStatus(id: number, status: 'enabled' | 'disabled') {
   const [row] = await db.update(cronJobs).set({ status }).where(eq(cronJobs.id, id)).returning();
-  if (!row) throw new AppError('任务不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '任务不存在' });
   if (status === 'enabled') scheduleJob(row.id, row.cronExpression, row.handler, row.params);
   else stopJob(row.id);
   return status === 'enabled' ? '已启用' : '已停用';

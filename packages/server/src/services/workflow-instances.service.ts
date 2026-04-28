@@ -58,7 +58,7 @@ import { workflowInstances, workflowTasks, workflowDefinitions, users } from '..
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { advanceFlow, getInitialTasks, validateFlowData } from '../lib/workflow-engine';
 import type { WorkflowFlowData } from '@zenith/shared';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
 
 type InstanceStatus = 'draft' | 'running' | 'approved' | 'rejected' | 'withdrawn';
@@ -187,10 +187,10 @@ export async function getInstanceDetail(id: number) {
       },
     },
   });
-  if (!row) throw new AppError('流程实例不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '流程实例不存在' });
   const isInitiator = row.initiatorId === user.userId;
   const isAssignee = row.tasks.some((t) => t.assigneeId === user.userId);
-  if (!isInitiator && !isAssignee) throw new AppError('无权查看', 403);
+  if (!isInitiator && !isAssignee) throw new HTTPException(403, { message: '无权查看' });
   const tasks = row.tasks.map((t) => mapTask(t, t.assignee?.nickname, t.assignee?.avatar));
   return mapInstance(row, {
     definitionName: row.definition?.name ?? null,
@@ -222,15 +222,15 @@ export async function getWorkflowTaskBeforeAudit(taskId: number) {
 export async function createInstance(data: { definitionId: number; title: string; formData?: Record<string, unknown> | null }) {
   const user = currentUser();
   const [def] = await db.select().from(workflowDefinitions).where(and(eq(workflowDefinitions.id, data.definitionId), eq(workflowDefinitions.status, 'published'))).limit(1);
-  if (!def) throw new AppError('流程定义不存在或未发布', 404);
+  if (!def) throw new HTTPException(404, { message: '流程定义不存在或未发布' });
   const flowData = def.flowData as WorkflowFlowData;
-  if (!flowData?.nodes?.length) throw new AppError('流程定义无效', 400);
+  if (!flowData?.nodes?.length) throw new HTTPException(400, { message: '流程定义无效' });
   const validation = validateFlowData(flowData);
-  if (!validation.valid) throw new AppError(validation.errors[0], 400);
+  if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
   const formData: Record<string, unknown> = data.formData ?? {};
   const initialResult = getInitialTasks(flowData, formData);
   if (initialResult.tasksToCreate.length === 0 && !initialResult.finished) {
-    throw new AppError('流程定义中无可执行节点', 400);
+    throw new HTTPException(400, { message: '流程定义中无可执行节点' });
   }
   const instance = await db.transaction(async (tx) => {
     const [createdInstance] = await tx.insert(workflowInstances).values({
@@ -266,9 +266,9 @@ export async function withdrawInstance(id: number) {
   const conditions = [eq(workflowInstances.id, id)];
   if (tc) conditions.push(tc);
   const [inst] = await db.select().from(workflowInstances).where(and(...conditions)).limit(1);
-  if (!inst) throw new AppError('流程实例不存在', 404);
-  if (inst.initiatorId !== user.userId) throw new AppError('只有发起人可以撤回', 403);
-  if (inst.status !== 'running') throw new AppError('只能撤回进行中的申请', 400);
+  if (!inst) throw new HTTPException(404, { message: '流程实例不存在' });
+  if (inst.initiatorId !== user.userId) throw new HTTPException(403, { message: '只有发起人可以撤回' });
+  if (inst.status !== 'running') throw new HTTPException(400, { message: '只能撤回进行中的申请' });
   const updated = await db.transaction(async (tx) => {
     await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date() })
       .where(and(eq(workflowTasks.instanceId, id), eq(workflowTasks.status, 'pending')));
@@ -286,15 +286,15 @@ export interface ApproveResult {
 export async function approveTask(taskId: number, comment?: string): Promise<ApproveResult> {
   const user = currentUser();
   const [task] = await db.select().from(workflowTasks).where(and(eq(workflowTasks.id, taskId), eq(workflowTasks.assigneeId, user.userId))).limit(1);
-  if (!task) throw new AppError('任务不存在或无权操作', 404);
-  if (task.status !== 'pending') throw new AppError('任务已处理', 400);
+  if (!task) throw new HTTPException(404, { message: '任务不存在或无权操作' });
+  if (task.status !== 'pending') throw new HTTPException(400, { message: '任务已处理' });
   const [inst] = await db.select().from(workflowInstances).where(eq(workflowInstances.id, task.instanceId)).limit(1);
-  if (!inst) throw new AppError('流程数据异常', 500);
-  if (inst.status !== 'running') throw new AppError('流程实例不在进行中', 400);
+  if (!inst) throw new HTTPException(500, { message: '流程数据异常' });
+  if (inst.status !== 'running') throw new HTTPException(400, { message: '流程实例不在进行中' });
 
   const snapshot = inst.definitionSnapshot as { flowData?: WorkflowFlowData };
   const flowData = snapshot?.flowData;
-  if (!flowData) throw new AppError('流程快照数据异常', 500);
+  if (!flowData) throw new HTTPException(500, { message: '流程快照数据异常' });
 
   const updated = await db.transaction(async (tx) => {
     await tx.update(workflowTasks).set({
@@ -348,11 +348,11 @@ export async function approveTask(taskId: number, comment?: string): Promise<App
 export async function rejectTask(taskId: number, comment: string) {
   const user = currentUser();
   const [task] = await db.select().from(workflowTasks).where(and(eq(workflowTasks.id, taskId), eq(workflowTasks.assigneeId, user.userId))).limit(1);
-  if (!task) throw new AppError('任务不存在或无权操作', 404);
-  if (task.status !== 'pending') throw new AppError('任务已处理', 400);
+  if (!task) throw new HTTPException(404, { message: '任务不存在或无权操作' });
+  if (task.status !== 'pending') throw new HTTPException(400, { message: '任务已处理' });
   const [inst] = await db.select().from(workflowInstances).where(eq(workflowInstances.id, task.instanceId)).limit(1);
-  if (!inst) throw new AppError('流程数据异常', 500);
-  if (inst.status !== 'running') throw new AppError('流程实例不在进行中', 400);
+  if (!inst) throw new HTTPException(500, { message: '流程数据异常' });
+  if (inst.status !== 'running') throw new HTTPException(400, { message: '流程实例不在进行中' });
   const updated = await db.transaction(async (tx) => {
     await tx.update(workflowTasks)
       .set({ status: 'rejected', comment, actionAt: new Date() })

@@ -86,7 +86,7 @@ export async function clearDefaultFlag(executor: DbExecutor) {
 import { asc, desc, eq, and, gte, lte } from 'drizzle-orm';
 import { db } from '../db';
 import { withPagination } from '../lib/where-helpers';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 
 export interface ListFileStorageConfigsQuery {
   page?: number;
@@ -130,8 +130,8 @@ export async function createFileStorageConfig(data: StorageInput) {
 
 export async function updateFileStorageConfig(id: number, data: Partial<StorageInput>) {
   const [current] = await db.select().from(fileStorageConfigs).where(eq(fileStorageConfigs.id, id)).limit(1);
-  if (!current) throw new AppError('文件配置不存在', 404);
-  if (current.isDefault && data.status === 'disabled') throw new AppError('默认文件服务不能被禁用，请先切换默认服务', 400);
+  if (!current) throw new HTTPException(404, { message: '文件配置不存在' });
+  if (current.isDefault && data.status === 'disabled') throw new HTTPException(400, { message: '默认文件服务不能被禁用，请先切换默认服务' });
   const updated = await db.transaction(async (tx) => {
     if (data.isDefault) await clearDefaultFlag(tx);
     const [row] = await tx
@@ -146,8 +146,8 @@ export async function updateFileStorageConfig(id: number, data: Partial<StorageI
 
 export async function setDefaultFileStorageConfig(id: number) {
   const [target] = await db.select().from(fileStorageConfigs).where(eq(fileStorageConfigs.id, id)).limit(1);
-  if (!target) throw new AppError('文件配置不存在', 404);
-  if (target.status !== 'enabled') throw new AppError('只有启用状态的文件配置才能设为默认', 400);
+  if (!target) throw new HTTPException(404, { message: '文件配置不存在' });
+  if (target.status !== 'enabled') throw new HTTPException(400, { message: '只有启用状态的文件配置才能设为默认' });
   const updated = await db.transaction(async (tx) => {
     await clearDefaultFlag(tx);
     const [row] = await tx.update(fileStorageConfigs).set({ isDefault: true }).where(eq(fileStorageConfigs.id, id)).returning();
@@ -158,10 +158,10 @@ export async function setDefaultFileStorageConfig(id: number) {
 
 export async function deleteFileStorageConfig(id: number) {
   const [target] = await db.select().from(fileStorageConfigs).where(eq(fileStorageConfigs.id, id)).limit(1);
-  if (!target) throw new AppError('文件配置不存在', 404);
-  if (target.isDefault) throw new AppError('默认文件服务不能删除，请先切换默认服务', 400);
+  if (!target) throw new HTTPException(404, { message: '文件配置不存在' });
+  if (target.isDefault) throw new HTTPException(400, { message: '默认文件服务不能删除，请先切换默认服务' });
   const valueCount = await db.$count(managedFiles, eq(managedFiles.storageConfigId, id));
-  if (valueCount > 0) throw new AppError('该文件配置下已有文件记录，不能删除', 400);
+  if (valueCount > 0) throw new HTTPException(400, { message: '该文件配置下已有文件记录，不能删除' });
   await db.delete(fileStorageConfigs).where(eq(fileStorageConfigs.id, id));
 }
 

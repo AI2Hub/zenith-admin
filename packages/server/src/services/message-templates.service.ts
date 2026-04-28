@@ -2,7 +2,7 @@ import { eq, and, ilike, or } from 'drizzle-orm';
 import { escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { messageTemplates } from '../db/schema';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { rethrowPgUniqueViolation } from '../lib/db-errors';
 import { formatDateTime } from '../lib/datetime';
 
@@ -42,7 +42,7 @@ export async function listMessageTemplates(q: ListMessageTemplatesQuery) {
 
 export async function getMessageTemplate(id: number) {
   const [row] = await db.select().from(messageTemplates).where(eq(messageTemplates.id, id)).limit(1);
-  if (!row) throw new AppError('模板不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '模板不存在' });
   return mapMessageTemplate(row);
 }
 
@@ -58,7 +58,7 @@ export async function createMessageTemplate(data: typeof messageTemplates.$infer
 export async function updateMessageTemplate(id: number, data: Partial<typeof messageTemplates.$inferInsert>) {
   try {
     const [row] = await db.update(messageTemplates).set({ ...data }).where(eq(messageTemplates.id, id)).returning();
-    if (!row) throw new AppError('模板不存在', 404);
+    if (!row) throw new HTTPException(404, { message: '模板不存在' });
     return mapMessageTemplate(row);
   } catch (err) {
     rethrowPgUniqueViolation(err, '模板编码已存在');
@@ -67,7 +67,7 @@ export async function updateMessageTemplate(id: number, data: Partial<typeof mes
 
 export async function deleteMessageTemplate(id: number) {
   const [row] = await db.delete(messageTemplates).where(eq(messageTemplates.id, id)).returning();
-  if (!row) throw new AppError('模板不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '模板不存在' });
 }
 
 export async function getMessageTemplateBeforeAudit(id: number) {
@@ -78,7 +78,7 @@ export async function getMessageTemplateBeforeAudit(id: number) {
 
 export async function previewMessageTemplate(id: number, vars: Record<string, string>) {
   const [row] = await db.select().from(messageTemplates).where(eq(messageTemplates.id, id)).limit(1);
-  if (!row) throw new AppError('模板不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '模板不存在' });
   const subject = row.subject ? interpolate(row.subject, vars) : null;
   const content = interpolate(row.content, vars);
   return { subject, content };

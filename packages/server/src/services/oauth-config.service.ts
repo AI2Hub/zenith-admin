@@ -2,7 +2,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { db } from '../db';
 import { oauthConfigs } from '../db/schema';
 import type { OAuthProviderType } from '@zenith/shared';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { formatNullableDateTime } from '../lib/datetime';
 
 export const VALID_OAUTH_PROVIDERS: OAuthProviderType[] = ['github', 'dingtalk', 'wechat_work'];
@@ -36,7 +36,7 @@ export interface UpdateOauthConfigData {
 }
 
 export async function updateOauthConfig(provider: OAuthProviderType, data: UpdateOauthConfigData) {
-  if (!VALID_OAUTH_PROVIDERS.includes(provider)) throw new AppError('不支持的提供方', 400);
+  if (!VALID_OAUTH_PROVIDERS.includes(provider)) throw new HTTPException(400, { message: '不支持的提供方' });
 
   const updateData: Record<string, unknown> = {
     clientId: data.clientId,

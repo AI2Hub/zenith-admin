@@ -3,7 +3,7 @@ import { eq, and } from 'drizzle-orm';
 import { db } from '../db';
 import { users, userOauthAccounts } from '../db/schema';
 import { getOAuthProvider, isProviderConfigured } from '../lib/oauth';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
 import { registerSession } from '../lib/session-manager';
 import { getUserRoles, issueTokens } from './auth.service';
@@ -18,8 +18,8 @@ export function isValidOAuthProvider(p: string | undefined): p is OAuthProviderT
 }
 
 export async function ensureProviderUsable(provider: string): Promise<OAuthProviderType> {
-  if (!isValidOAuthProvider(provider)) throw new AppError('不支持的 OAuth 提供方', 400);
-  if (!(await isProviderConfigured(provider))) throw new AppError('该 OAuth 提供方尚未配置，请联系管理员', 400);
+  if (!isValidOAuthProvider(provider)) throw new HTTPException(400, { message: '不支持的 OAuth 提供方' });
+  if (!(await isProviderConfigured(provider))) throw new HTTPException(400, { message: '该 OAuth 提供方尚未配置，请联系管理员' });
   return provider;
 }
 
@@ -59,7 +59,7 @@ export type OAuthCallbackResult = OAuthResolved | OAuthNeedBind;
 
 export async function resolveOAuthCallback(provider: string, code: string): Promise<OAuthCallbackResult> {
   const p = await ensureProviderUsable(provider);
-  if (!code) throw new AppError('缺少授权码', 400);
+  if (!code) throw new HTTPException(400, { message: '缺少授权码' });
 
   const oauthProvider = await getOAuthProvider(p);
   const tokenResult = await oauthProvider.getToken(code);
@@ -110,7 +110,7 @@ export async function resolveOAuthCallback(provider: string, code: string): Prom
   }
 
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  if (!user || user.status === 'disabled') throw new AppError('账号已被禁用', 403);
+  if (!user || user.status === 'disabled') throw new HTTPException(403, { message: '账号已被禁用' });
   return { kind: 'resolved', user };
 }
 
@@ -160,7 +160,7 @@ export async function handleOAuthCallback(provider: string, code: string, client
 
 export async function bindOAuthAccount(provider: string, code: string) {
   const user = currentUser();
-  if (!provider || !code) throw new AppError('缺少参数', 400);
+  if (!provider || !code) throw new HTTPException(400, { message: '缺少参数' });
   const p = await ensureProviderUsable(provider);
   const oauthProvider = await getOAuthProvider(p);
   const tokenResult = await oauthProvider.getToken(code);
@@ -173,8 +173,8 @@ export async function bindOAuthAccount(provider: string, code: string) {
     .limit(1);
 
   if (existing) {
-    if (existing.userId === user.userId) throw new AppError('该账号已绑定', 400);
-    throw new AppError('该第三方账号已被其他用户绑定', 400);
+    if (existing.userId === user.userId) throw new HTTPException(400, { message: '该账号已绑定' });
+    throw new HTTPException(400, { message: '该第三方账号已被其他用户绑定' });
   }
 
   const [myBind] = await db
@@ -182,7 +182,7 @@ export async function bindOAuthAccount(provider: string, code: string) {
     .from(userOauthAccounts)
     .where(and(eq(userOauthAccounts.userId, user.userId), eq(userOauthAccounts.provider, p)))
     .limit(1);
-  if (myBind) throw new AppError('您已绑定该类型账号，请先解绑', 400);
+  if (myBind) throw new HTTPException(400, { message: '您已绑定该类型账号，请先解绑' });
 
   await db.insert(userOauthAccounts).values({
     userId: user.userId,
@@ -200,10 +200,10 @@ export async function bindOAuthAccount(provider: string, code: string) {
 
 export async function unbindOAuthAccount(provider: string) {
   const user = currentUser();
-  if (!isValidOAuthProvider(provider)) throw new AppError('不支持的 OAuth 提供方', 400);
+  if (!isValidOAuthProvider(provider)) throw new HTTPException(400, { message: '不支持的 OAuth 提供方' });
   const result = await db
     .delete(userOauthAccounts)
     .where(and(eq(userOauthAccounts.userId, user.userId), eq(userOauthAccounts.provider, provider)))
     .returning();
-  if (result.length === 0) throw new AppError('未找到该绑定', 404);
+  if (result.length === 0) throw new HTTPException(404, { message: '未找到该绑定' });
 }

@@ -6,7 +6,7 @@ import { clearUserPermissionCache } from '../lib/permissions';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { currentUser } from '../lib/context';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { rethrowPgUniqueViolation } from '../lib/db-errors';
 import { formatDateTime, parseDateTimeInput } from '../lib/datetime';
 
@@ -61,7 +61,7 @@ export async function getRole(id: number) {
     where: and(eq(roles.id, id), tenantCondition(roles, user)),
     with: { roleMenus: { columns: { menuId: true } } },
   });
-  if (!role) throw new AppError('角色不存在', 404);
+  if (!role) throw new HTTPException(404, { message: '角色不存在' });
   const menuIds = role.roleMenus.map(({ menuId }) => menuId);
   return mapRole(role, menuIds);
 }
@@ -89,20 +89,20 @@ export async function createRole(data: CreateRoleInput) {
 export async function updateRole(id: number, data: Partial<CreateRoleInput>) {
   const user = currentUser();
   const [role] = await db.update(roles).set({ ...data }).where(and(eq(roles.id, id), tenantCondition(roles, user))).returning();
-  if (!role) throw new AppError('角色不存在', 404);
+  if (!role) throw new HTTPException(404, { message: '角色不存在' });
   return mapRole(role);
 }
 
 export async function deleteRole(id: number) {
   const user = currentUser();
   const [deleted] = await db.delete(roles).where(and(eq(roles.id, id), tenantCondition(roles, user))).returning();
-  if (!deleted) throw new AppError('角色不存在', 404);
+  if (!deleted) throw new HTTPException(404, { message: '角色不存在' });
 }
 
 async function ensureRoleBelongsToTenant(id: number) {
   const user = currentUser();
   const [role] = await db.select({ id: roles.id }).from(roles).where(and(eq(roles.id, id), tenantCondition(roles, user))).limit(1);
-  if (!role) throw new AppError('角色不存在', 404);
+  if (!role) throw new HTTPException(404, { message: '角色不存在' });
 }
 
 export async function assignRoleMenus(id: number, menuIds: number[]) {
@@ -123,7 +123,7 @@ export async function getRoleUsers(id: number) {
     columns: {},
     with: { userRoles: { columns: {}, with: { user: true } } },
   });
-  if (!role) throw new AppError('角色不存在', 404);
+  if (!role) throw new HTTPException(404, { message: '角色不存在' });
   return role.userRoles.map(({ user: u }) => ({
     id: u.id, username: u.username, nickname: u.nickname, email: u.email,
     avatar: u.avatar, status: u.status,

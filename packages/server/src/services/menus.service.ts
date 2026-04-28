@@ -2,7 +2,7 @@ import { eq, asc, inArray } from 'drizzle-orm';
 import { db } from '../db';
 import { menus } from '../db/schema';
 import type { Menu } from '@zenith/shared';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
 import { isSuperAdmin, getUserMenuIds } from '../lib/permissions';
 import { formatDateTime } from '../lib/datetime';
@@ -130,7 +130,7 @@ export async function createMenu(input: CreateMenuInput): Promise<Omit<Menu, 'ch
 
 export async function updateMenu(id: number, input: UpdateMenuInput): Promise<Omit<Menu, 'children'>> {
   const [row] = await db.update(menus).set({ ...input }).where(eq(menus.id, id)).returning();
-  if (!row) throw new AppError('菜单不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '菜单不存在' });
   return mapMenu(row);
 }
 

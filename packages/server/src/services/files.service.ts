@@ -25,18 +25,18 @@ import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
 
 export async function readFileContent(id: number) {
   const [file] = await db.select().from(managedFiles).where(eq(managedFiles.id, id)).limit(1);
-  if (!file) throw new AppError('文件不存在', 404);
+  if (!file) throw new HTTPException(404, { message: '文件不存在' });
   const [storageConfig] = await db
     .select()
     .from(fileStorageConfigs)
     .where(eq(fileStorageConfigs.id, file.storageConfigId))
     .limit(1);
-  if (!storageConfig) throw new AppError('文件存储配置不存在', 404);
+  if (!storageConfig) throw new HTTPException(404, { message: '文件存储配置不存在' });
   return readStoredFile(file, storageConfig);
 }
 
@@ -74,7 +74,7 @@ export async function listManagedFiles(query: {
 function normalizeUploadFile(value: unknown): File {
   const rawFile = Array.isArray(value) ? value[0] : value;
   if (!rawFile || typeof (rawFile as File).arrayBuffer !== 'function' || typeof (rawFile as File).name !== 'string') {
-    throw new AppError('请选择要上传的文件', 400);
+    throw new HTTPException(400, { message: '请选择要上传的文件' });
   }
   return rawFile as File;
 }
@@ -90,7 +90,7 @@ export async function uploadManagedFile(file: File) {
     .from(fileStorageConfigs)
     .where(and(eq(fileStorageConfigs.isDefault, true), eq(fileStorageConfigs.status, 'enabled')))
     .limit(1);
-  if (!defaultConfig) throw new AppError('当前没有可用的默认文件服务，请先在文件配置中启用并设置默认服务', 400);
+  if (!defaultConfig) throw new HTTPException(400, { message: '当前没有可用的默认文件服务，请先在文件配置中启用并设置默认服务' });
   const uploaded = await uploadFileByConfig(defaultConfig, file);
   const [created] = await db
     .insert(managedFiles)
@@ -114,7 +114,7 @@ export async function deleteManagedFile(id: number) {
   const tc = tenantCondition(managedFiles, user);
   const where = tc ? and(eq(managedFiles.id, id), tc) : eq(managedFiles.id, id);
   const [file] = await db.select().from(managedFiles).where(where).limit(1);
-  if (!file) throw new AppError('文件不存在', 404);
+  if (!file) throw new HTTPException(404, { message: '文件不存在' });
   const [storageConfig] = await db
     .select()
     .from(fileStorageConfigs)

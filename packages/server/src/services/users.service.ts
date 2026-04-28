@@ -4,7 +4,7 @@ import ExcelJS from 'exceljs';
 import { db } from '../db';
 import type { DbExecutor } from '../db/types';
 import { users, userRoles, roles, departments, positions, userPositions } from '../db/schema';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { pageOffset } from '../lib/pagination';
 import { getDataScopeCondition } from '../lib/data-scope';
@@ -113,7 +113,7 @@ export async function ensureDepartmentExists(departmentId?: number | null, user?
     if (tc) conditions.push(tc);
   }
   const [d] = await db.select({ id: departments.id }).from(departments).where(and(...conditions)).limit(1);
-  if (!d) throw new AppError('所属部门不存在', 400);
+  if (!d) throw new HTTPException(400, { message: '所属部门不存在' });
 }
 
 export async function ensureRoleIdsExist(roleIds: number[], user?: JwtPayload) {
@@ -125,7 +125,7 @@ export async function ensureRoleIdsExist(roleIds: number[], user?: JwtPayload) {
     if (tc) conditions.push(tc);
   }
   const rows = await db.select({ id: roles.id }).from(roles).where(and(...conditions));
-  if (rows.length !== uniq.length) throw new AppError('存在无效角色', 400);
+  if (rows.length !== uniq.length) throw new HTTPException(400, { message: '存在无效角色' });
 }
 
 export async function ensurePositionIdsExist(positionIds: number[], user?: JwtPayload) {
@@ -137,7 +137,7 @@ export async function ensurePositionIdsExist(positionIds: number[], user?: JwtPa
     if (tc) conditions.push(tc);
   }
   const rows = await db.select({ id: positions.id }).from(positions).where(and(...conditions));
-  if (rows.length !== uniq.length) throw new AppError('存在无效岗位', 400);
+  if (rows.length !== uniq.length) throw new HTTPException(400, { message: '存在无效岗位' });
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
@@ -192,7 +192,7 @@ export async function createUser(data: CreateUserInput) {
   const user = currentUser();
   const policy = await getPasswordPolicy();
   const policyError = validatePassword(data.password, policy);
-  if (policyError) throw new AppError(policyError, 400);
+  if (policyError) throw new HTTPException(400, { message: policyError });
   const { password, roleIds, positionIds, departmentId, ...rest } = data;
   const nextRoleIds = Array.from(new Set(roleIds));
   const nextPositionIds = Array.from(new Set(positionIds));
@@ -215,7 +215,7 @@ export async function createUser(data: CreateUserInput) {
       return u;
     });
     const full = await findUserWithRelations({ where: eq(users.id, created.id) });
-    if (!full) throw new AppError('创建用户后回读失败', 500);
+    if (!full) throw new HTTPException(500, { message: '创建用户后回读失败' });
     return mapUser(full);
   } catch (err: unknown) {
     rethrowPgUniqueViolation(err, '用户名或邮箱已存在');
@@ -224,9 +224,9 @@ export async function createUser(data: CreateUserInput) {
 
 export async function batchDeleteUsers(ids: number[]) {
   const user = currentUser();
-  if (ids.length === 0) throw new AppError('请选择要删除的用户', 400);
+  if (ids.length === 0) throw new HTTPException(400, { message: '请选择要删除的用户' });
   const validIds = ids.filter((id): id is number => typeof id === 'number' && Number.isInteger(id));
-  if (validIds.length === 0) throw new AppError('用户ID格式无效', 400);
+  if (validIds.length === 0) throw new HTTPException(400, { message: '用户ID格式无效' });
   const tc = tenantCondition(users, user);
   await db.delete(users).where(tc ? and(inArray(users.id, validIds), tc) : inArray(users.id, validIds));
   return validIds.length;
@@ -234,7 +234,7 @@ export async function batchDeleteUsers(ids: number[]) {
 
 export async function batchUpdateUserStatus(ids: number[], status: 'enabled' | 'disabled') {
   const user = currentUser();
-  if (ids.length === 0) throw new AppError('请选择要操作的用户', 400);
+  if (ids.length === 0) throw new HTTPException(400, { message: '请选择要操作的用户' });
   const validIds = ids.filter((id): id is number => typeof id === 'number' && Number.isInteger(id));
   const tc = tenantCondition(users, user);
   await db.update(users).set({ status }).where(tc ? and(inArray(users.id, validIds), tc) : inArray(users.id, validIds));
@@ -290,10 +290,10 @@ export async function updateUser(id: number, data: UpdateUserInput) {
     if (nextPositionIds !== undefined) await setUserPositions(tx, id, nextPositionIds);
     return u;
   });
-  if (!updated) throw new AppError('用户不存在', 404);
+  if (!updated) throw new HTTPException(404, { message: '用户不存在' });
   if (nextRoleIds !== undefined) clearUserPermissionCache(id);
   const full = await findUserWithRelations({ where: eq(users.id, updated.id) });
-  if (!full) throw new AppError('用户不存在', 404);
+  if (!full) throw new HTTPException(404, { message: '用户不存在' });
   return mapUser(full);
 }
 
@@ -301,17 +301,17 @@ export async function deleteUser(id: number) {
   const user = currentUser();
   const tc = tenantCondition(users, user);
   const [deleted] = await db.delete(users).where(tc ? and(eq(users.id, id), tc) : eq(users.id, id)).returning();
-  if (!deleted) throw new AppError('用户不存在', 404);
+  if (!deleted) throw new HTTPException(404, { message: '用户不存在' });
 }
 
 export async function updateUserPassword(id: number, password: string) {
   const user = currentUser();
   const policy = await getPasswordPolicy();
   const policyError = validatePassword(password, policy);
-  if (policyError) throw new AppError(policyError, 400);
+  if (policyError) throw new HTTPException(400, { message: policyError });
   const tc = tenantCondition(users, user);
   const [u] = await db.select({ id: users.id }).from(users).where(tc ? and(eq(users.id, id), tc) : eq(users.id, id)).limit(1);
-  if (!u) throw new AppError('用户不存在', 404);
+  if (!u) throw new HTTPException(404, { message: '用户不存在' });
   const hashed = await bcrypt.hash(password, 10);
   await db.update(users).set({ password: hashed }).where(eq(users.id, id));
 }
@@ -320,7 +320,7 @@ export async function unlockUserById(id: number) {
   const user = currentUser();
   const tc = tenantCondition(users, user);
   const [u] = await db.select({ username: users.username }).from(users).where(tc ? and(eq(users.id, id), tc) : eq(users.id, id)).limit(1);
-  if (!u) throw new AppError('用户不存在', 404);
+  if (!u) throw new HTTPException(404, { message: '用户不存在' });
   await unlockUserSession(u.username);
 }
 
@@ -382,7 +382,7 @@ export interface ImportUsersResult {
 
 function getImportFile(formData: FormData): File {
   const file = formData.get('file');
-  if (!file || typeof (file as File).arrayBuffer !== 'function') throw new AppError('请上传文件', 400);
+  if (!file || typeof (file as File).arrayBuffer !== 'function') throw new HTTPException(400, { message: '请上传文件' });
   return file as File;
 }
 
@@ -396,7 +396,7 @@ export async function importUsers(file: File): Promise<ImportUsersResult> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(arrayBuffer);
   const sheet = workbook.worksheets[0];
-  if (!sheet) throw new AppError('文件格式无效或工作表为空', 400);
+  if (!sheet) throw new HTTPException(400, { message: '文件格式无效或工作表为空' });
 
   const policy = await getPasswordPolicy();
   const errors: Array<{ row: number; message: string }> = [];

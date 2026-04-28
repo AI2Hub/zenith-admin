@@ -1,7 +1,7 @@
 import { asc, eq, and } from 'drizzle-orm';
 import { db } from '../db';
 import { departments, users } from '../db/schema';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
@@ -72,9 +72,9 @@ export async function ensureParentValid(parentId: number, currentId?: number) {
   const tc = tenantCondition(departments, user);
   const allDepartments = await db.select({ id: departments.id, parentId: departments.parentId }).from(departments).where(tc);
   const parentExists = allDepartments.some((item) => item.id === parentId);
-  if (!parentExists) throw new AppError('上级部门不存在', 400);
+  if (!parentExists) throw new HTTPException(400, { message: '上级部门不存在' });
   if (!currentId) return;
-  if (parentId === currentId) throw new AppError('上级部门不能选择自身', 400);
+  if (parentId === currentId) throw new HTTPException(400, { message: '上级部门不能选择自身' });
   const descendants = new Set<number>();
   const queue = [currentId];
   while (queue.length > 0) {
@@ -84,7 +84,7 @@ export async function ensureParentValid(parentId: number, currentId?: number) {
       if (item.parentId === current) { descendants.add(item.id); queue.push(item.id); }
     }
   }
-  if (descendants.has(parentId)) throw new AppError('上级部门不能选择子部门', 400);
+  if (descendants.has(parentId)) throw new HTTPException(400, { message: '上级部门不能选择子部门' });
 }
 
 // ─── 业务方法 ─────────────────────────────────────────────────────────────────
@@ -127,10 +127,10 @@ export async function updateDepartment(id: number, input: UpdateDepartmentInput)
       .set({ ...input })
       .where(and(eq(departments.id, id), tc))
       .returning();
-    if (!row) throw new AppError('部门不存在', 404);
+    if (!row) throw new HTTPException(404, { message: '部门不存在' });
     return mapDepartment(row);
   } catch (err) {
-    if (err instanceof AppError) throw err;
+    if (err instanceof HTTPException) throw err;
     rethrowPgUniqueViolation(err, '部门编码已存在');
   }
 }
@@ -138,13 +138,13 @@ export async function updateDepartment(id: number, input: UpdateDepartmentInput)
 export async function deleteDepartment(id: number): Promise<void> {
   const tc = tenantCondition(departments, currentUser());
   const [exists] = await db.select({ id: departments.id }).from(departments).where(and(eq(departments.id, id), tc)).limit(1);
-  if (!exists) throw new AppError('部门不存在', 404);
+  if (!exists) throw new HTTPException(404, { message: '部门不存在' });
   const [[child], [boundUser]] = await Promise.all([
     db.select({ id: departments.id }).from(departments).where(eq(departments.parentId, id)).limit(1),
     db.select({ id: users.id }).from(users).where(eq(users.departmentId, id)).limit(1),
   ]);
-  if (child) throw new AppError('该部门存在子部门，无法删除', 400);
-  if (boundUser) throw new AppError('该部门下仍有关联用户，无法删除', 400);
+  if (child) throw new HTTPException(400, { message: '该部门存在子部门，无法删除' });
+  if (boundUser) throw new HTTPException(400, { message: '该部门下仍有关联用户，无法删除' });
   await db.delete(departments).where(and(eq(departments.id, id), tc));
 }
 

@@ -2,7 +2,7 @@ import { and, asc, eq, gte, inArray, like, lte, or } from 'drizzle-orm';
 import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { positions, userPositions } from '../db/schema';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
@@ -94,10 +94,10 @@ export async function updatePosition(id: number, input: UpdatePositionInput) {
       .set({ ...input })
       .where(and(eq(positions.id, id), tc))
       .returning();
-    if (!row) throw new AppError('岗位不存在', 404);
+    if (!row) throw new HTTPException(404, { message: '岗位不存在' });
     return mapPosition(row);
   } catch (err) {
-    if (err instanceof AppError) throw err;
+    if (err instanceof HTTPException) throw err;
     rethrowPgUniqueViolation(err, '岗位编码已存在');
   }
 }
@@ -105,28 +105,28 @@ export async function updatePosition(id: number, input: UpdatePositionInput) {
 export async function deletePosition(id: number): Promise<void> {
   const tc = tenantCondition(positions, currentUser());
   const [pos] = await db.select({ id: positions.id }).from(positions).where(and(eq(positions.id, id), tc)).limit(1);
-  if (!pos) throw new AppError('岗位不存在', 404);
+  if (!pos) throw new HTTPException(404, { message: '岗位不存在' });
 
   const [binding] = await db
     .select({ positionId: userPositions.positionId })
     .from(userPositions)
     .where(eq(userPositions.positionId, id))
     .limit(1);
-  if (binding) throw new AppError('该岗位下仍有关联用户，无法删除', 400);
+  if (binding) throw new HTTPException(400, { message: '该岗位下仍有关联用户，无法删除' });
 
   await db.delete(positions).where(and(eq(positions.id, id), tc));
 }
 
 export async function batchDeletePositions(ids: number[]): Promise<{ count: number }> {
-  if (!Array.isArray(ids) || ids.length === 0) throw new AppError('请选择要删除的岗位', 400);
+  if (!Array.isArray(ids) || ids.length === 0) throw new HTTPException(400, { message: '请选择要删除的岗位' });
   const validIds = ids.filter((id): id is number => typeof id === 'number' && Number.isInteger(id));
-  if (validIds.length === 0) throw new AppError('岗位ID格式无效', 400);
+  if (validIds.length === 0) throw new HTTPException(400, { message: '岗位ID格式无效' });
 
   const bindings = await db
     .select({ positionId: userPositions.positionId })
     .from(userPositions)
     .where(inArray(userPositions.positionId, validIds));
-  if (bindings.length > 0) throw new AppError('所选岗位中存在关联用户，无法删除', 400);
+  if (bindings.length > 0) throw new HTTPException(400, { message: '所选岗位中存在关联用户，无法删除' });
 
   await db.delete(positions).where(and(inArray(positions.id, validIds), tenantCondition(positions, currentUser())));
   return { count: validIds.length };

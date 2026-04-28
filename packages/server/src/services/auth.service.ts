@@ -90,7 +90,7 @@ import { isSuperAdmin, getUserPermissions } from '../lib/permissions';
 import { verifyCaptcha } from '../lib/captcha';
 import { getConfigBoolean, getConfigNumber } from '../lib/system-config';
 import { isPlatformAdmin } from '../lib/tenant';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
 
 async function checkPasswordExpiry(user: { passwordUpdatedAt: Date | null; createdAt: Date }): Promise<boolean> {
@@ -115,23 +115,23 @@ export interface LoginInput {
 export async function login(input: LoginInput) {
   const captchaEnabled = await getConfigBoolean('captcha_enabled', false);
   if (captchaEnabled) {
-    if (!input.captchaId || !input.captchaCode) throw new AppError('请输入验证码', 400);
-    if (!verifyCaptcha(input.captchaId, input.captchaCode)) throw new AppError('验证码错误或已过期', 400);
+    if (!input.captchaId || !input.captchaCode) throw new HTTPException(400, { message: '请输入验证码' });
+    if (!verifyCaptcha(input.captchaId, input.captchaCode)) throw new HTTPException(400, { message: '验证码错误或已过期' });
   }
 
   let tenantId: number | null = null;
   if (config.multiTenantMode && input.tenantCode) {
     const [tenant] = await db.select().from(tenants).where(eq(tenants.code, input.tenantCode)).limit(1);
-    if (!tenant) throw new AppError('租户不存在', 400);
-    if (tenant.status === 'disabled') throw new AppError('租户已被禁用', 403);
-    if (tenant.expireAt && tenant.expireAt < new Date()) throw new AppError('租户已过期', 403);
+    if (!tenant) throw new HTTPException(400, { message: '租户不存在' });
+    if (tenant.status === 'disabled') throw new HTTPException(403, { message: '租户已被禁用' });
+    if (tenant.expireAt && tenant.expireAt < new Date()) throw new HTTPException(403, { message: '租户已过期' });
     tenantId = tenant.id;
   }
 
   const remainingLockSeconds = await checkLoginLock(input.username);
   if (remainingLockSeconds > 0) {
     const remainingMinutes = Math.ceil(remainingLockSeconds / 60);
-    throw new AppError(`账号已被锁定，请 ${remainingMinutes} 分钟后重试`, 423);
+    throw new HTTPException(423, { message: `账号已被锁定，请 ${remainingMinutes} 分钟后重试` });
   }
   const [loginMaxAttempts, loginLockDurationMinutes] = await Promise.all([
     getConfigNumber('login_max_attempts', 10),
@@ -150,11 +150,11 @@ export async function login(input: LoginInput) {
       recordLoginLog({ ip: input.ip, ua: input.ua, username: input.username, status: 'fail', message: '用户名或密码错误', tenantId }),
       recordLoginFailure(input.username, loginMaxAttempts, lockDurationSeconds),
     ]);
-    throw new AppError('用户名或密码错误', 400);
+    throw new HTTPException(400, { message: '用户名或密码错误' });
   }
   if (user.status === 'disabled') {
     await recordLoginLog({ ip: input.ip, ua: input.ua, username: input.username, status: 'fail', message: '账号已被禁用', userId: user.id, tenantId });
-    throw new AppError('账号已被禁用', 403);
+    throw new HTTPException(403, { message: '账号已被禁用' });
   }
   const valid = await bcrypt.compare(input.password, user.password);
   if (!valid) {
@@ -162,7 +162,7 @@ export async function login(input: LoginInput) {
       recordLoginLog({ ip: input.ip, ua: input.ua, username: input.username, status: 'fail', message: '用户名或密码错误', userId: user.id, tenantId }),
       recordLoginFailure(input.username, loginMaxAttempts, lockDurationSeconds),
     ]);
-    throw new AppError('用户名或密码错误', 400);
+    throw new HTTPException(400, { message: '用户名或密码错误' });
   }
 
   const requirePasswordChange = await checkPasswordExpiry(user);
@@ -202,14 +202,14 @@ export interface RegisterInput {
 
 export async function register(input: RegisterInput) {
   const allow = await getConfigBoolean('allow_registration', false);
-  if (!allow) throw new AppError('系统已关闭注册功能', 403);
+  if (!allow) throw new HTTPException(403, { message: '系统已关闭注册功能' });
 
   const [[usernameRow], [emailRow]] = await Promise.all([
     db.select({ id: users.id }).from(users).where(eq(users.username, input.username)).limit(1),
     db.select({ id: users.id }).from(users).where(eq(users.email, input.email)).limit(1),
   ]);
-  if (usernameRow) throw new AppError('用户名已存在', 400);
-  if (emailRow) throw new AppError('邮箱已被注册', 400);
+  if (usernameRow) throw new HTTPException(400, { message: '用户名已存在' });
+  if (emailRow) throw new HTTPException(400, { message: '邮箱已被注册' });
 
   const hashed = await bcrypt.hash(input.password, 10);
   const [user] = await db.insert(users).values({
@@ -244,12 +244,12 @@ export async function refreshAccessToken(token: string) {
   try {
     payload = await verifyToken<{ userId: number; username: string; type?: string; jti?: string; tenantId?: number | null }>(token);
   } catch {
-    throw new AppError('refresh token 已过期', 401);
+    throw new HTTPException(401, { message: 'refresh token 已过期' });
   }
-  if (payload.type !== 'refresh') throw new AppError('无效的 refresh token', 401);
+  if (payload.type !== 'refresh') throw new HTTPException(401, { message: '无效的 refresh token' });
   const [u] = await db.select({ status: users.status }).from(users).where(eq(users.id, payload.userId)).limit(1);
-  if (!u) throw new AppError('用户不存在', 401);
-  if (u.status === 'disabled') throw new AppError('账号已被禁用', 403);
+  if (!u) throw new HTTPException(401, { message: '用户不存在' });
+  if (u.status === 'disabled') throw new HTTPException(403, { message: '账号已被禁用' });
   const tokenId = payload.jti ?? generateTokenId();
   const userRoleList = await getUserRoles(payload.userId);
   const accessToken = await signToken<JwtPayload>(
@@ -267,7 +267,7 @@ export async function logoutSession() {
 export async function getMyProfile() {
   const userId = currentUser().userId;
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  if (!user) throw new AppError('用户不存在', 404);
+  if (!user) throw new HTTPException(404, { message: '用户不存在' });
   const userRoleList = await getUserRoles(user.id);
   const permissions = isSuperAdmin(userRoleList.map((r) => r.code)) ? ['*'] : await getUserPermissions(user.id);
   const requirePasswordChange = await checkPasswordExpiry(user);
@@ -292,7 +292,7 @@ export async function updateMyProfile(data: { nickname?: string; email?: string;
   const userId = currentUser().userId;
   if (data.email) {
     const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, data.email)).limit(1);
-    if (existing && existing.id !== userId) throw new AppError('邮箱已被使用', 400);
+    if (existing && existing.id !== userId) throw new HTTPException(400, { message: '邮箱已被使用' });
   }
   const [updated] = await db.update(users).set({ ...data }).where(eq(users.id, userId)).returning();
   const userRoleList = await getUserRoles(userId);
@@ -303,9 +303,9 @@ export async function updateMyProfile(data: { nickname?: string; email?: string;
 export async function changeMyPassword(oldPassword: string, newPassword: string) {
   const userId = currentUser().userId;
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  if (!user) throw new AppError('用户不存在', 404);
+  if (!user) throw new HTTPException(404, { message: '用户不存在' });
   const valid = await bcrypt.compare(oldPassword, user.password);
-  if (!valid) throw new AppError('原密码错误', 400);
+  if (!valid) throw new HTTPException(400, { message: '原密码错误' });
   const hashed = await bcrypt.hash(newPassword, 10);
   await db.update(users).set({ password: hashed, passwordUpdatedAt: new Date() }).where(eq(users.id, userId));
 }
@@ -369,19 +369,19 @@ export async function deleteMyOtherSessions() {
 
 export async function deleteMySession(tokenId: string) {
   const { userId, jti: currentTokenId } = currentUser();
-  if (tokenId === currentTokenId) throw new AppError('不能退出当前设备，请使用退出登录功能', 400);
+  if (tokenId === currentTokenId) throw new HTTPException(400, { message: '不能退出当前设备，请使用退出登录功能' });
   const allSessions = await getOnlineSessions();
   const session = allSessions.find((s) => s.tokenId === tokenId && s.userId === userId);
-  if (!session) throw new AppError('会话不存在或已过期', 404);
+  if (!session) throw new HTTPException(404, { message: '会话不存在或已过期' });
   await forceLogout(tokenId);
 }
 
 export async function switchTenantView(targetTenantId: number | null, ip: string, ua: string) {
   const payload = currentUser();
-  if (!isPlatformAdmin(payload)) throw new AppError('仅平台超管可切换租户', 403);
+  if (!isPlatformAdmin(payload)) throw new HTTPException(403, { message: '仅平台超管可切换租户' });
   if (targetTenantId !== null) {
     const [tenant] = await db.select().from(tenants).where(eq(tenants.id, targetTenantId)).limit(1);
-    if (!tenant) throw new AppError('租户不存在', 404);
+    if (!tenant) throw new HTTPException(404, { message: '租户不存在' });
   }
   const tokenId = generateTokenId();
   const newAccessToken = await signToken<JwtPayload>(
@@ -415,13 +415,13 @@ export async function switchTenantView(targetTenantId: number | null, ip: string
 
 export async function listSwitchableTenants() {
   const payload = currentUser();
-  if (!isPlatformAdmin(payload)) throw new AppError('无权限', 403);
+  if (!isPlatformAdmin(payload)) throw new HTTPException(403, { message: '无权限' });
   return db.select({ id: tenants.id, name: tenants.name, code: tenants.code, status: tenants.status }).from(tenants).where(eq(tenants.status, 'enabled'));
 }
 
 export async function forgotPassword(email: string) {
   const enabled = await getConfigBoolean('forgot_password_enabled');
-  if (!enabled) throw new AppError('忘记密码功能未开启', 403);
+  if (!enabled) throw new HTTPException(403, { message: '忘记密码功能未开启' });
   const [user] = await db.select({ id: users.id, username: users.username })
     .from(users).where(and(eq(users.email, email), eq(users.status, 'enabled'))).limit(1);
   if (user) {
@@ -450,7 +450,7 @@ export async function resetPassword(token: string, newPassword: string) {
   const [record] = await db.select().from(passwordResetTokens)
     .where(and(eq(passwordResetTokens.token, token), gt(passwordResetTokens.expiresAt, now), isNull(passwordResetTokens.usedAt)))
     .limit(1);
-  if (!record) throw new AppError('重置链接无效或已过期', 400);
+  if (!record) throw new HTTPException(400, { message: '重置链接无效或已过期' });
   const hashed = await bcrypt.hash(newPassword, 10);
   await db.transaction(async (tx) => {
     await tx.update(users).set({ password: hashed }).where(eq(users.id, record.userId));

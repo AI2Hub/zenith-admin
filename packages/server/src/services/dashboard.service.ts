@@ -4,13 +4,13 @@ import { users, loginLogs, operationLogs } from '../db/schema';
 import { isSuperAdmin } from '../lib/permissions';
 import { getOnlineCount } from '../lib/session-manager';
 import { tenantCondition } from '../lib/tenant';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import type { JwtPayload } from '../middleware/auth';
 import { currentUser } from '../lib/context';
 import { formatDate } from '../lib/datetime';
 
 function ensureSuperAdmin(user: JwtPayload) {
-  if (!isSuperAdmin(user.roles)) throw new AppError('无权限', 403);
+  if (!isSuperAdmin(user.roles)) throw new HTTPException(403, { message: '无权限' });
 }
 
 export async function getDashboardStats() {

@@ -6,7 +6,7 @@ import { notices, noticeRecipients, noticeReads, users, userRoles, roles, depart
 import { broadcast, sendToUser } from '../lib/ws-manager';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../lib/datetime';
 
@@ -189,9 +189,9 @@ export async function exportNotices(): Promise<{ buffer: ArrayBuffer; filename: 
 
 export async function batchDeleteNotices(ids: number[]) {
   const user = currentUser();
-  if (!Array.isArray(ids) || ids.length === 0) throw new AppError('请选择要删除的通知', 400);
+  if (!Array.isArray(ids) || ids.length === 0) throw new HTTPException(400, { message: '请选择要删除的通知' });
   const validIds = ids.filter((id): id is number => typeof id === 'number' && Number.isInteger(id));
-  if (validIds.length === 0) throw new AppError('通知ID格式无效', 400);
+  if (validIds.length === 0) throw new HTTPException(400, { message: '通知ID格式无效' });
   await db.delete(notices).where(and(inArray(notices.id, validIds), tenantCondition(notices, user)));
   return validIds.length;
 }
@@ -209,7 +209,7 @@ export async function getNoticeReadStats(id: number, q: { page?: number; pageSiz
   const { page = 1, pageSize = 10, tab: rawTab } = q;
   const tab = rawTab === 'unread' ? 'unread' : 'read';
   const [notice] = await db.select().from(notices).where(eq(notices.id, id));
-  if (!notice) throw new AppError('通知不存在', 404);
+  if (!notice) throw new HTTPException(404, { message: '通知不存在' });
 
   const joinCond = and(eq(noticeReads.noticeId, id), eq(noticeReads.userId, users.id));
   const tabFilter = tab === 'read' ? isNotNull(noticeReads.id) : isNull(noticeReads.id);
@@ -268,7 +268,7 @@ export async function getNoticeReadStats(id: number, q: { page?: number; pageSiz
 export async function getNoticeDetail(id: number) {
   const user = currentUser();
   const [row] = await db.select().from(notices).where(and(eq(notices.id, id), tenantCondition(notices, user)));
-  if (!row) throw new AppError('通知不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '通知不存在' });
   const recipientRows = await db.select().from(noticeRecipients).where(eq(noticeRecipients.noticeId, id));
   const userIds = recipientRows.filter((r) => r.recipientType === 'user').map((r) => r.recipientId);
   const roleIds = recipientRows.filter((r) => r.recipientType === 'role').map((r) => r.recipientId);
@@ -354,7 +354,7 @@ export async function updateNotice(id: number, data: Partial<CreateNoticeInput>)
     }
     return updated;
   });
-  if (!row) throw new AppError('通知不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '通知不存在' });
   const notice = mapNotice(row);
   if (data.publishStatus === 'published') await broadcastNotice(notice, row.id);
   return notice;
@@ -363,7 +363,7 @@ export async function updateNotice(id: number, data: Partial<CreateNoticeInput>)
 export async function deleteNotice(id: number) {
   const user = currentUser();
   const [row] = await db.delete(notices).where(and(eq(notices.id, id), tenantCondition(notices, user))).returning();
-  if (!row) throw new AppError('通知不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '通知不存在' });
 }
 
 export async function getNoticeBeforeAudit(id: number) {

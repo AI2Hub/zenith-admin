@@ -5,7 +5,7 @@ import { pageOffset } from '../lib/pagination';
 import { createPgDumpBackup, createDrizzleExportBackup } from '../lib/db-backup';
 import logger from '../lib/logger';
 import { currentUser } from '../lib/context';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { formatDateTime, formatFileTimestamp, formatNullableDateTime } from '../lib/datetime';
 
 export interface ListDbBackupsQuery {
@@ -65,9 +65,9 @@ export async function createDbBackup(input: { type: 'pg_dump' | 'drizzle_export'
 }
 
 export async function deleteDbBackup(id: number) {
-  if (!id) throw new AppError('无效 ID', 400);
+  if (!id) throw new HTTPException(400, { message: '无效 ID' });
   const result = await db.delete(dbBackups).where(eq(dbBackups.id, id)).returning();
-  if (result.length === 0) throw new AppError('备份记录不存在', 404);
+  if (result.length === 0) throw new HTTPException(404, { message: '备份记录不存在' });
 }
 
 export async function getDbBackupBeforeAudit(id: number) {

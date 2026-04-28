@@ -1,4 +1,4 @@
-import { AppError } from './errors';
+import { HTTPException } from 'hono/http-exception';
 
 export const PG_ERROR_CODES = {
   uniqueViolation: '23505',
@@ -21,6 +21,6 @@ export function isPgUniqueViolation(error: unknown): boolean {
  * 将 PostgreSQL 唯一约束冲突统一映射为业务错误，其他错误原样抛出。
  */
 export function rethrowPgUniqueViolation(error: unknown, message: string): never {
-  if (isPgUniqueViolation(error)) throw new AppError(message, 400);
+  if (isPgUniqueViolation(error)) throw new HTTPException(400, { message: message });
   throw error;
 }

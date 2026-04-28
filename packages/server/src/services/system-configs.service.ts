@@ -5,7 +5,7 @@ import { systemConfigs } from '../db/schema';
 import { exportToExcel } from '../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { currentUser } from '../lib/context';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { formatDateTime } from '../lib/datetime';
 
 type ConfigType = 'string' | 'number' | 'boolean' | 'json';
@@ -16,7 +16,7 @@ export function mapConfig(row: typeof systemConfigs.$inferSelect) {
 
 export async function getPublicConfig(key: string) {
   const [row] = await db.select().from(systemConfigs).where(eq(systemConfigs.configKey, key)).limit(1);
-  if (!row) throw new AppError('配置不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '配置不存在' });
   return { configKey: row.configKey, configValue: row.configValue, configType: row.configType };
 }
 
@@ -61,7 +61,7 @@ export async function createSystemConfig(data: SystemConfigInput) {
     .from(systemConfigs)
     .where(and(...conditions))
     .limit(1);
-  if (existing) throw new AppError('配置键已存在', 400);
+  if (existing) throw new HTTPException(400, { message: '配置键已存在' });
   const [row] = await db.insert(systemConfigs).values({ ...data, tenantId: getCreateTenantId(user) }).returning();
   return mapConfig(row);
 }
@@ -74,7 +74,7 @@ export async function updateSystemConfig(id: number, data: Partial<SystemConfigI
       ? and(eq(systemConfigs.configKey, data.configKey), ne(systemConfigs.id, id), tc)
       : and(eq(systemConfigs.configKey, data.configKey), ne(systemConfigs.id, id));
     const [dup] = await db.select().from(systemConfigs).where(dupWhere).limit(1);
-    if (dup) throw new AppError('配置键已存在', 400);
+    if (dup) throw new HTTPException(400, { message: '配置键已存在' });
   }
   const tenantCond = tenantCondition(systemConfigs, user);
   const [row] = await db
@@ -82,7 +82,7 @@ export async function updateSystemConfig(id: number, data: Partial<SystemConfigI
     .set({ ...data })
     .where(tenantCond ? and(eq(systemConfigs.id, id), tenantCond) : eq(systemConfigs.id, id))
     .returning();
-  if (!row) throw new AppError('配置不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '配置不存在' });
   return mapConfig(row);
 }
 
@@ -93,7 +93,7 @@ export async function deleteSystemConfig(id: number) {
     .delete(systemConfigs)
     .where(tc ? and(eq(systemConfigs.id, id), tc) : eq(systemConfigs.id, id))
     .returning();
-  if (!row) throw new AppError('配置不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '配置不存在' });
 }
 
 export async function getSystemConfigBeforeAudit(id: number) {

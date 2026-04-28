@@ -31,7 +31,7 @@ import { pageOffset } from '../lib/pagination';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { validateFlowData } from '../lib/workflow-engine';
 import type { WorkflowFlowData } from '@zenith/shared';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
 
 export async function listDefinitions(query: { page?: number; pageSize?: number; keyword?: string; status?: string }) {
@@ -79,7 +79,7 @@ export async function getDefinition(id: number) {
     where,
     with: { createdByUser: { columns: { nickname: true } } },
   });
-  if (!row) throw new AppError('流程定义不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '流程定义不存在' });
   return mapDefinition(row, row.createdByUser?.nickname ?? null);
 }
 
@@ -111,18 +111,18 @@ export async function updateDefinition(id: number, data: Partial<{
     .set(updateData as Partial<typeof workflowDefinitions.$inferInsert>)
     .where(where)
     .returning();
-  if (!updated) throw new AppError('流程定义不存在', 404);
+  if (!updated) throw new HTTPException(404, { message: '流程定义不存在' });
   return mapDefinition(updated);
 }
 
 export async function publishDefinition(id: number) {
   const where = findDefinition(id);
   const [existing] = await db.select().from(workflowDefinitions).where(where).limit(1);
-  if (!existing) throw new AppError('流程定义不存在', 404);
+  if (!existing) throw new HTTPException(404, { message: '流程定义不存在' });
   const flowData = existing.flowData as WorkflowFlowData | null;
-  if (!flowData?.nodes) throw new AppError('请先在设计器中设计流程', 400);
+  if (!flowData?.nodes) throw new HTTPException(400, { message: '请先在设计器中设计流程' });
   const validation = validateFlowData(flowData);
-  if (!validation.valid) throw new AppError(validation.errors[0], 400);
+  if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
   const [updated] = await db
     .update(workflowDefinitions)
     .set({ status: 'published', version: existing.version + 1 })
@@ -134,15 +134,15 @@ export async function publishDefinition(id: number) {
 export async function disableDefinition(id: number) {
   const where = findDefinition(id);
   const [updated] = await db.update(workflowDefinitions).set({ status: 'disabled' }).where(where).returning();
-  if (!updated) throw new AppError('流程定义不存在', 404);
+  if (!updated) throw new HTTPException(404, { message: '流程定义不存在' });
   return mapDefinition(updated);
 }
 
 export async function deleteDefinition(id: number) {
   const where = findDefinition(id);
   const [existing] = await db.select().from(workflowDefinitions).where(where).limit(1);
-  if (!existing) throw new AppError('流程定义不存在', 404);
-  if (existing.status === 'published') throw new AppError('已发布的流程不能删除，请先禁用', 400);
+  if (!existing) throw new HTTPException(404, { message: '流程定义不存在' });
+  if (existing.status === 'published') throw new HTTPException(400, { message: '已发布的流程不能删除，请先禁用' });
   await db.delete(workflowDefinitions).where(where);
 }
 

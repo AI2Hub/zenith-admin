@@ -2,7 +2,7 @@ import { asc, eq } from 'drizzle-orm';
 import { db } from '../db';
 import { regions } from '../db/schema';
 import type { Region } from '@zenith/shared';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { rethrowPgUniqueViolation } from '../lib/db-errors';
 import { formatDateTime } from '../lib/datetime';
 
@@ -75,7 +75,7 @@ export async function listRegionsFlat() {
 export async function createRegion(data: CreateRegionInput) {
   if (data.parentCode) {
     const [parent] = await db.select({ code: regions.code }).from(regions).where(eq(regions.code, data.parentCode));
-    if (!parent) throw new AppError('父级地区不存在', 400);
+    if (!parent) throw new HTTPException(400, { message: '父级地区不存在' });
   }
   try {
     const [row] = await db.insert(regions).values({
@@ -94,15 +94,15 @@ export async function createRegion(data: CreateRegionInput) {
 
 export async function updateRegion(id: number, data: UpdateRegionInput) {
   const [current] = await db.select({ code: regions.code }).from(regions).where(eq(regions.id, id));
-  if (!current) throw new AppError('地区不存在', 404);
+  if (!current) throw new HTTPException(404, { message: '地区不存在' });
   if (data.parentCode) {
-    if (data.parentCode === current.code) throw new AppError('父级地区不能选择自身', 400);
+    if (data.parentCode === current.code) throw new HTTPException(400, { message: '父级地区不能选择自身' });
     const [parent] = await db.select({ code: regions.code }).from(regions).where(eq(regions.code, data.parentCode));
-    if (!parent) throw new AppError('父级地区不存在', 400);
+    if (!parent) throw new HTTPException(400, { message: '父级地区不存在' });
   }
   try {
     const [row] = await db.update(regions).set({ ...data }).where(eq(regions.id, id)).returning();
-    if (!row) throw new AppError('地区不存在', 404);
+    if (!row) throw new HTTPException(404, { message: '地区不存在' });
     return mapRegion(row);
   } catch (err) {
     rethrowPgUniqueViolation(err, '区划代码已存在');
@@ -111,9 +111,9 @@ export async function updateRegion(id: number, data: UpdateRegionInput) {
 
 export async function deleteRegion(id: number) {
   const [current] = await db.select({ code: regions.code }).from(regions).where(eq(regions.id, id));
-  if (!current) throw new AppError('地区不存在', 404);
+  if (!current) throw new HTTPException(404, { message: '地区不存在' });
   const children = await db.select({ id: regions.id }).from(regions).where(eq(regions.parentCode, current.code));
-  if (children.length > 0) throw new AppError('该地区下存在子地区，请先删除子地区', 400);
+  if (children.length > 0) throw new HTTPException(400, { message: '该地区下存在子地区，请先删除子地区' });
   await db.delete(regions).where(eq(regions.id, id));
 }
 

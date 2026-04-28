@@ -17,6 +17,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import { sign } from 'hono/jwt';
 import { contextStorage } from 'hono/context-storage';
 
@@ -137,12 +138,11 @@ function buildApp() {
   const app = new Hono();
   app.use('*', contextStorage());
   app.route('/api/auth', authRoutes);
-  // 与 src/index.ts 保持一致的 AppError 全局处理
+  // 与 src/index.ts 保持一致的 HTTPException 全局处理
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   app.onError((err: any, c) => {
-    if (err?.statusCode && typeof err.message === 'string') {
-      const status = err.statusCode;
-      return c.json({ code: status, message: err.message, data: null }, status);
+    if (err instanceof HTTPException) {
+      return c.json({ code: err.status, message: err.message, data: null }, err.status);
     }
     return c.json({ code: 500, message: '服务器内部错误', data: null }, 500);
   });

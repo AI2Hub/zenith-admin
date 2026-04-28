@@ -1,6 +1,6 @@
 import redis from '../lib/redis';
 import { config } from '../config';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 
 const { keyPrefix } = config.redis;
 
@@ -113,14 +113,14 @@ export async function getAllCachesBeforeAudit() {
 }
 
 export async function deleteCacheKey(key: string) {
-  if (!key) throw new AppError('参数错误：缺少 key', 400);
-  if (!key.startsWith(keyPrefix)) throw new AppError('只能删除当前命名空间的缓存', 403);
+  if (!key) throw new HTTPException(400, { message: '参数错误：缺少 key' });
+  if (!key.startsWith(keyPrefix)) throw new HTTPException(403, { message: '只能删除当前命名空间的缓存' });
   const deleted = await redis.del(key);
-  if (deleted === 0) throw new AppError('key 不存在', 404);
+  if (deleted === 0) throw new HTTPException(404, { message: 'key 不存在' });
 }
 
 export async function deleteCacheByCategory(segment: string) {
-  if (!segment) throw new AppError('参数错误：缺少 segment', 400);
+  if (!segment) throw new HTTPException(400, { message: '参数错误：缺少 segment' });
   const keys = await scanKeys(`${keyPrefix}${segment}:*`);
   if (keys.length > 0) await redis.del(...keys);
   return keys.length;

@@ -85,7 +85,7 @@ export async function watchTail(
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 
 export function listLogFiles() {
   if (!fs.existsSync(LOG_DIR)) return [];
@@ -106,25 +106,25 @@ export function listLogFiles() {
 
 export function readLogFileLines(filename: string, lines: number, keyword?: string) {
   const name = safeFilename(filename);
-  if (!name) throw new AppError('无效的文件名', 400);
+  if (!name) throw new HTTPException(400, { message: '无效的文件名' });
   const filepath = resolveLogPath(name);
-  if (!filepath || !fs.existsSync(filepath)) throw new AppError('文件不存在', 404);
+  if (!filepath || !fs.existsSync(filepath)) throw new HTTPException(404, { message: '文件不存在' });
   const isGzip = name.endsWith('.gz');
   return isGzip ? readGzipLastLines(filepath, lines, keyword) : readLastLines(filepath, lines, keyword);
 }
 
 export function deleteLogFile(filename: string) {
   const name = safeFilename(filename);
-  if (!name) throw new AppError('无效的文件名', 400);
+  if (!name) throw new HTTPException(400, { message: '无效的文件名' });
   const filepath = resolveLogPath(name);
-  if (!filepath || !fs.existsSync(filepath)) throw new AppError('文件不存在', 404);
+  if (!filepath || !fs.existsSync(filepath)) throw new HTTPException(404, { message: '文件不存在' });
   fs.unlinkSync(filepath);
 }
 
 export function resolveLogFile(filename: string) {
   const name = safeFilename(filename);
-  if (!name) throw new AppError('无效的文件名', 400);
+  if (!name) throw new HTTPException(400, { message: '无效的文件名' });
   const filepath = resolveLogPath(name);
-  if (!filepath || !fs.existsSync(filepath)) throw new AppError('文件不存在', 404);
+  if (!filepath || !fs.existsSync(filepath)) throw new HTTPException(404, { message: '文件不存在' });
   return { name, filepath };
 }

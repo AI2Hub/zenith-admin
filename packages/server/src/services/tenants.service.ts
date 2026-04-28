@@ -3,7 +3,7 @@ import { escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { tenants } from '../db/schema';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../lib/datetime';
 
 export function mapTenant(row: typeof tenants.$inferSelect) {
@@ -41,7 +41,7 @@ export async function listAllTenants() {
 
 export async function getTenant(id: number) {
   const [row] = await db.select().from(tenants).where(eq(tenants.id, id)).limit(1);
-  if (!row) throw new AppError('租户不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '租户不存在' });
   return mapTenant(row);
 }
 
@@ -59,7 +59,7 @@ interface TenantInput {
 
 export async function createTenant(data: TenantInput) {
   const [existing] = await db.select().from(tenants).where(eq(tenants.code, data.code)).limit(1);
-  if (existing) throw new AppError('租户编码已存在', 400);
+  if (existing) throw new HTTPException(400, { message: '租户编码已存在' });
   const [row] = await db.insert(tenants).values({ ...data, expireAt: parseDateTimeInput(data.expireAt) }).returning();
   return mapTenant(row);
 }
@@ -67,7 +67,7 @@ export async function createTenant(data: TenantInput) {
 export async function updateTenant(id: number, data: Partial<TenantInput>) {
   if (data.code) {
     const [dup] = await db.select().from(tenants).where(and(eq(tenants.code, data.code), ne(tenants.id, id))).limit(1);
-    if (dup) throw new AppError('租户编码已存在', 400);
+    if (dup) throw new HTTPException(400, { message: '租户编码已存在' });
   }
   const { expireAt: rawExpireAt, ...rest } = data;
   const values = {
@@ -75,13 +75,13 @@ export async function updateTenant(id: number, data: Partial<TenantInput>) {
     ...(rawExpireAt === undefined ? {} : { expireAt: parseDateTimeInput(rawExpireAt) }),
   };
   const [row] = await db.update(tenants).set(values).where(eq(tenants.id, id)).returning();
-  if (!row) throw new AppError('租户不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '租户不存在' });
   return mapTenant(row);
 }
 
 export async function deleteTenant(id: number) {
   const [row] = await db.delete(tenants).where(eq(tenants.id, id)).returning();
-  if (!row) throw new AppError('租户不存在', 404);
+  if (!row) throw new HTTPException(404, { message: '租户不存在' });
 }
 
 export async function getTenantBeforeAudit(id: number) {

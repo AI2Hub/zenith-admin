@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../db';
 import { emailConfigs } from '../db/schema';
-import { AppError } from '../lib/errors';
+import { HTTPException } from 'hono/http-exception';
 import { formatNullableDateTime } from '../lib/datetime';
 
 export function mapEmailConfig(row: typeof emailConfigs.$inferSelect) {
@@ -39,12 +39,12 @@ export async function getEmailConfigBeforeAudit() {
 }
 
 export async function sendTestEmail(toEmail: string) {
-  if (!toEmail?.includes('@')) throw new AppError('请提供有效的收件邮箱', 400);
+  if (!toEmail?.includes('@')) throw new HTTPException(400, { message: '请提供有效的收件邮箱' });
   const [config] = await db.select().from(emailConfigs).limit(1);
-  if (!config?.smtpHost || !config?.smtpUser) throw new AppError('请先完整配置SMTP信息', 400);
+  if (!config?.smtpHost || !config?.smtpUser) throw new HTTPException(400, { message: '请先完整配置SMTP信息' });
 
   const nodemailer = await import('nodemailer').catch(() => null);
-  if (!nodemailer) throw new AppError('nodemailer 模块加载失败，请检查依赖安装（npm install）', 500);
+  if (!nodemailer) throw new HTTPException(500, { message: 'nodemailer 模块加载失败，请检查依赖安装（npm install）' });
   try {
     const secure = config.encryption === 'ssl';
     const transporter = nodemailer.default.createTransport({
@@ -66,6 +66,6 @@ export async function sendTestEmail(toEmail: string) {
     if (err instanceof Error) msg = err.message;
     else if (typeof err === 'string') msg = err;
     else msg = JSON.stringify(err);
-    throw new AppError(`发送失败: ${msg}`, 500);
+    throw new HTTPException(500, { message: `发送失败: ${msg}` });
   }
 }
