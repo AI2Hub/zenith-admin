@@ -4,6 +4,49 @@
 
 ---
 
+## v0.10.0 - 2026-04-30
+
+### Added
+
+#### 主题管理
+- 新增 `ThemeProvider` 组件，支持「亮色 / 暗色 / 跟随系统」三种主题模式的切换与持久化
+- 主题模式与主题色偏好存储于用户偏好，刷新后自动恢复
+- 富文本编辑器新增暗色模式适配样式（`RichTextEditor.css`）
+
+#### 审批时间线组件
+- 将审批时间线逻辑提取为独立组件 `ApprovalTimeline`，在「我的申请」「工作流监控」「待我审批」三个页面中复用
+
+### Changed
+
+#### 错误处理统一
+- 将 `AppError` 自定义错误类替换为 Hono 原生 `HTTPException`，统一全局错误处理链路，减少依赖层次
+
+#### 分页规范完善
+- SQL-builder 分页统一使用 `withPagination(query.$dynamic(), page, pageSize)`
+- RQB 分页统一使用 `pageOffset(page, pageSize)`，全库完成迁移
+
+#### 审计日志请求体解析
+- 重构 `setAuditBeforeData` 函数，新增 `resolveAuditRequestBody` 以正确处理 multipart/JSON 等不同请求体格式
+
+### Fixed
+
+#### 客户端真实 IP 获取
+- 修正 `getClientIP` 逻辑：优先读取 `x-forwarded-for` / `x-real-ip` 头，无反代时回退到 `getConnInfo` 获取直连 IP，解决反代场景下 IP 记录错误问题
+
+#### 压缩中间件误压缩流式响应
+- SSE 实时推送和文件下载等路由不再经过 `compress` 中间件，修复 SSE 事件流被截断的问题
+
+#### SideSheet 内表格样式
+- 修正侧边抽屉 `SideSheet` 内表格行/表头背景色，使用半透明背景色适配抽屉层级
+
+#### 地区管理表格
+- 启用虚拟滚动（`virtualized`）并设置垂直滚动高度，解决大量地区数据渲染卡顿问题
+
+#### 工作流实例关键词搜索
+- 工作流实例关键词过滤使用 `escapeLike` 转义，防止 SQL 通配符注入
+
+---
+
 ## v0.9.0 - 2026-04-26
 
 ### Added
