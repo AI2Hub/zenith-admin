@@ -1,4 +1,5 @@
 import '@wangeditor/editor/dist/css/style.css';
+import './RichTextEditor.css';
 import { Editor, Toolbar } from '@wangeditor/editor-for-react';
 import type { IDomEditor, IEditorConfig, IToolbarConfig } from '@wangeditor/editor';
 import { useEffect, useState } from 'react';

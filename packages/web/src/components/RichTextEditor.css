@@ -1,0 +1,19 @@
+/* wangeditor 暗色模式适配 */
+body[theme-mode='dark'] {
+  --w-e-textarea-bg-color: #1e1e23;
+  --w-e-textarea-color: #d1d1d1;
+  --w-e-textarea-border-color: #4a4a52;
+  --w-e-textarea-slight-border-color: #3a3a42;
+  --w-e-textarea-slight-color: #888890;
+  --w-e-textarea-slight-bg-color: #2a2a32;
+  --w-e-textarea-selected-border-color: #4d90d9;
+  --w-e-textarea-handler-bg-color: #4290f7;
+  --w-e-toolbar-color: #b0b0b8;
+  --w-e-toolbar-bg-color: #252529;
+  --w-e-toolbar-active-color: #e8e8e8;
+  --w-e-toolbar-active-bg-color: #3a3a42;
+  --w-e-toolbar-disabled-color: #55555d;
+  --w-e-toolbar-border-color: #3a3a42;
+  --w-e-modal-button-bg-color: #2a2a32;
+  --w-e-modal-button-border-color: #4a4a52;
+}
