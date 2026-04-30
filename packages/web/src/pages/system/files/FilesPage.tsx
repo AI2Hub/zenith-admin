@@ -12,7 +12,7 @@ import {
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import { Plus, Search, RotateCcw, Download } from 'lucide-react';
+import { Plus, Search, RotateCcw, Download, File, FileImage, FileVideo, FileAudio, FileText, FileCode, FileSpreadsheet, FileArchive, FileType, FilePen } from 'lucide-react';
 import { TOKEN_KEY } from '@zenith/shared';
 import type { FileStorageConfig, ManagedFile, PaginatedResponse } from '@zenith/shared';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -24,6 +24,45 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import './FilesPage.css';
 
 const { Text } = Typography;
+
+function getFileIcon(mimeType?: string | null) {
+  const color = 'var(--semi-color-text-2)';
+  const size = 15;
+  if (!mimeType) return <File size={size} color={color} />;
+  // 图片（含 SVG）
+  if (mimeType.startsWith('image/')) return <FileImage size={size} color="var(--semi-color-primary)" />;
+  // 视频
+  if (mimeType.startsWith('video/')) return <FileVideo size={size} color="var(--semi-color-warning)" />;
+  // 音频
+  if (mimeType.startsWith('audio/')) return <FileAudio size={size} color="var(--semi-color-success)" />;
+  // PDF
+  if (mimeType === 'application/pdf') return <FileText size={size} color="#e54d2e" />;
+  // Word 文档
+  if (mimeType.includes('msword') || mimeType.includes('wordprocessingml')) return <FileText size={size} color="#2b579a" />;
+  // PowerPoint 演示文稿
+  if (mimeType.includes('presentationml') || mimeType.includes('powerpoint')) return <FilePen size={size} color="#c43e1c" />;
+  // Excel / 表格（含 CSV）
+  if (mimeType.includes('spreadsheetml') || mimeType.includes('excel') || mimeType === 'text/csv') return <FileSpreadsheet size={size} color="#1a7f37" />;
+  // 压缩包（zip、rar、7z、tar、gz、bz2）
+  if (
+    mimeType.includes('zip') || mimeType.includes('archive') ||
+    mimeType.includes('gzip') || mimeType.includes('tar') ||
+    mimeType.includes('x-rar') || mimeType.includes('x-7z') ||
+    mimeType.includes('x-bzip')
+  ) return <FileArchive size={size} color={color} />;
+  // 字体文件
+  if (mimeType.startsWith('font/') || mimeType.includes('ttf') || mimeType.includes('woff') || mimeType.includes('opentype')) return <FileType size={size} color={color} />;
+  // 代码 / 配置文件（JSON、JS、HTML、CSS、XML、YAML、Shell 等）
+  if (
+    mimeType.includes('json') || mimeType.includes('javascript') ||
+    mimeType.includes('html') || mimeType.includes('css') ||
+    mimeType.includes('xml') || mimeType.includes('yaml') ||
+    mimeType === 'application/x-sh' || mimeType === 'text/x-shellscript'
+  ) return <FileCode size={size} color="var(--semi-color-tertiary)" />;
+  // 普通文本 / Markdown / 文档
+  if (mimeType.startsWith('text/') || mimeType.includes('document')) return <FileText size={size} color={color} />;
+  return <File size={size} color={color} />;
+}
 
 function formatSize(size: number) {
   if (size < 1024) return `${size} B`;
@@ -217,6 +256,12 @@ export default function FilesPage() {
       dataIndex: 'originalName',
       width: 220,
       ellipsis: true,
+      render: (name: string, record: ManagedFile) => (
+        <Space spacing={6} style={{ flexWrap: 'nowrap', overflow: 'hidden' }}>
+          <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{getFileIcon(record.mimeType)}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+        </Space>
+      ),
     },
     {
       title: '来源服务',
