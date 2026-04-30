@@ -64,6 +64,29 @@ export const filesHandlers = [
     return HttpResponse.json({ code: 0, message: `成功上传 ${uploadedFiles.length} 个文件`, data: uploadedFiles });
   }),
 
+  // 上传单个文件
+  http.post('/api/files/upload-one', async ({ request }) => {
+    const formData = await request.formData();
+    const file = formData.get('file') as File | null;
+    if (!file) return HttpResponse.json({ code: 400, message: '请选择要上传的文件', data: null });
+    const uploaded: ManagedFile = {
+      id: nextFileId++,
+      storageConfigId: 1,
+      storageName: '本地磁盘',
+      provider: 'local',
+      originalName: file.name,
+      objectKey: `uploads/${Date.now()}-${file.name}`,
+      size: file.size,
+      mimeType: file.type || 'application/octet-stream',
+      extension: file.name.split('.').pop() ?? '',
+      url: `https://via.placeholder.com/200?text=${encodeURIComponent(file.name)}`,
+      createdAt: mockDateTime(),
+      updatedAt: mockDateTime(),
+    };
+    mockManagedFiles.push(uploaded);
+    return HttpResponse.json({ code: 0, message: '上传成功', data: uploaded });
+  }),
+
   // 删除文件
   http.delete('/api/files/:id', ({ params }) => {
     const index = mockManagedFiles.findIndex((f) => f.id === Number(params.id));

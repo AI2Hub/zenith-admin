@@ -133,6 +133,36 @@ const exportRoute = defineOpenAPIRoute({
   },
 });
 
-filesRouter.openapiRoutes([contentRoute, listRoute, uploadRoute, deleteRoute, batchDeleteRoute, exportRoute] as const);
+const uploadOneRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/upload-one', tags: ['Files'], summary: '上传单个文件',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: {
+      body: {
+        content: {
+          'multipart/form-data': {
+            schema: z.object({
+              file: z.any().openapi({ type: 'string', format: 'binary' }),
+            }),
+          },
+        },
+        required: true,
+      },
+    },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(ManagedFileDTO, '上传成功'),
+      400: { content: jsonContent(ErrorResponse), description: '未选择文件或无可用存储' },
+    },
+  }),
+  handler: async (c) => {
+    const body = await c.req.parseBody();
+    const result = await uploadManagedFileFromBody(body.file);
+    return c.json(okBody(result, '上传成功'), 200);
+  },
+});
+
+filesRouter.openapiRoutes([contentRoute, listRoute, uploadRoute, uploadOneRoute, deleteRoute, batchDeleteRoute, exportRoute] as const);
 
 export default filesRouter;
