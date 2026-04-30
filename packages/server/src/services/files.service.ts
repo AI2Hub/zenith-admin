@@ -20,7 +20,7 @@ export function mapManagedFile(row: typeof managedFiles.$inferSelect) {
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
-import { and, desc, eq, like, or, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, inArray, like, or, gte, lte } from 'drizzle-orm';
 import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { exportToExcel, formatDateTimeForExcel } from '../lib/excel-export';
@@ -107,6 +107,26 @@ export async function uploadManagedFile(file: File) {
     })
     .returning();
   return mapManagedFile(created);
+}
+
+export async function batchDeleteFiles(ids: number[]) {
+  if (ids.length === 0) return 0;
+  const user = currentUser();
+  const tc = tenantCondition(managedFiles, user);
+  const idCondition = inArray(managedFiles.id, ids);
+  const where = tc ? and(idCondition, tc) : idCondition;
+  const files = await db.select().from(managedFiles).where(where);
+  const configIds = [...new Set(files.map((f) => f.storageConfigId))];
+  const configs = await db.select().from(fileStorageConfigs).where(inArray(fileStorageConfigs.id, configIds));
+  const configMap = new Map(configs.map((c) => [c.id, c]));
+  await Promise.allSettled(
+    files.map(async (file) => {
+      const storageConfig = configMap.get(file.storageConfigId);
+      if (storageConfig) await deleteStoredFile(file, storageConfig);
+    }),
+  );
+  await db.delete(managedFiles).where(where);
+  return files.length;
 }
 
 export async function deleteManagedFile(id: number) {

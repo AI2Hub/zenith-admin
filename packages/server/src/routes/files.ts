@@ -1,10 +1,10 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
-import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, okExcel, excelBody } from '../lib/openapi-schemas';
+import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, okExcel, excelBody, BatchIdsBody } from '../lib/openapi-schemas';
 import { ManagedFileDTO } from '../lib/openapi-dtos';
 import {
-  readFileContent, listManagedFiles, uploadManagedFileFromBody, deleteManagedFile, exportManagedFiles, getManagedFileBeforeAudit,
+  readFileContent, listManagedFiles, uploadManagedFileFromBody, deleteManagedFile, batchDeleteFiles, exportManagedFiles, getManagedFileBeforeAudit,
 } from '../services/files.service';
 
 const filesRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -101,6 +101,25 @@ const deleteRoute = defineOpenAPIRoute({
   },
 });
 
+const batchDeleteRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/batch', tags: ['Files'], summary: '批量删除文件',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:file:delete', audit: { description: '批量删除文件', module: '文件管理', recordBody: false } })] as const,
+    request: { body: { content: jsonContent(BatchIdsBody), required: true } },
+    responses: {
+      ...commonErrorResponses,
+      ...okMsg('删除成功'),
+      400: { content: jsonContent(ErrorResponse), description: '参数错误' },
+    },
+  }),
+  handler: async (c) => {
+    const { ids } = c.req.valid('json');
+    const count = await batchDeleteFiles(ids);
+    return c.json(okBody(null, `已删除 ${count} 个文件`), 200);
+  },
+});
+
 const exportRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/export', tags: ['Files'], summary: '导出文件列表 Excel',
@@ -114,6 +133,6 @@ const exportRoute = defineOpenAPIRoute({
   },
 });
 
-filesRouter.openapiRoutes([contentRoute, listRoute, uploadRoute, deleteRoute, exportRoute] as const);
+filesRouter.openapiRoutes([contentRoute, listRoute, uploadRoute, deleteRoute, batchDeleteRoute, exportRoute] as const);
 
 export default filesRouter;

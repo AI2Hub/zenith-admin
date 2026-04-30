@@ -13,12 +13,12 @@ import {
   Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
-import { Plus, Search, RotateCcw, Download } from 'lucide-react';
+import { Plus, Search, RotateCcw, Download, Copy, Trash2 } from 'lucide-react';
 import type { FileStorageConfig, ManagedFile, PaginatedResponse } from '@zenith/shared';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { request } from '@/utils/request';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
-import { formatFileSize, getFileTypeIcon, fetchProtectedFile } from '@/utils/file-utils';
+import { formatFileSize, getFileTypeIcon, fetchProtectedFile, getFileFullUrl } from '@/utils/file-utils';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import './FilesPage.css';
@@ -48,6 +48,8 @@ export default function FilesPage() {
   const [previewLoadingId, setPreviewLoadingId] = useState<number | null>(null);
   const previewBlobUrlsRef = useRef<string[]>([]);
   const [defaultConfig, setDefaultConfig] = useState<FileStorageConfig | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
+  const [batchDeleteLoading, setBatchDeleteLoading] = useState(false);
 
   const fetchDefaultConfig = useCallback(async () => {
     const res = await request.get<FileStorageConfig | null>('/api/file-storage-configs/default');
@@ -193,6 +195,36 @@ export default function FilesPage() {
     }
   };
 
+  const handleBatchDelete = () => {
+    Modal.confirm({
+      title: `确认删除选中的 ${selectedRowKeys.length} 个文件？`,
+      content: '删除后将同步尝试删除实际存储对象，无法恢复。',
+      okButtonProps: { type: 'danger', theme: 'solid' },
+      onOk: async () => {
+        setBatchDeleteLoading(true);
+        try {
+          const res = await request.delete<null>('/api/files/batch', { ids: selectedRowKeys });
+          if (res.code === 0) {
+            Toast.success(res.message || '批量删除成功');
+            setSelectedRowKeys([]);
+            void fetchFiles();
+          }
+        } finally {
+          setBatchDeleteLoading(false);
+        }
+      },
+    });
+  };
+
+  const handleCopyUrl = async (file: ManagedFile) => {
+    try {
+      await navigator.clipboard.writeText(getFileFullUrl(file.url));
+      Toast.success('链接已复制');
+    } catch {
+      Toast.error('复制失败，请手动复制');
+    }
+  };
+
   const columns: ColumnProps<ManagedFile>[] = [
     {
       title: '文件名',
@@ -252,12 +284,13 @@ export default function FilesPage() {
     {
       title: '操作',
       fixed: 'right',
-      width: 260,
+      width: 300,
       align: 'center',
       render: (_: unknown, record: ManagedFile) => (
         <Space>
           <Button theme="borderless" size="small" loading={previewLoadingId === record.id} onClick={() => handlePreview(record)}>预览</Button>
           <Button theme="borderless" size="small" onClick={() => handleDownload(record)}>下载</Button>
+          <Button theme="borderless" size="small" icon={<Copy size={12} />} onClick={() => handleCopyUrl(record)}>复制链接</Button>
           {hasPermission('system:file:delete') && <Button theme="borderless" size="small" type="danger" onClick={() => {
             Modal.confirm({
               title: '确认删除此文件？',
@@ -305,6 +338,11 @@ export default function FilesPage() {
           <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
           <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
           <Button icon={<Download size={14} />} loading={exportLoading} onClick={async () => { setExportLoading(true); try { await request.download('/api/files/export', '文件列表.xlsx'); } finally { setExportLoading(false); } }}>导出</Button>
+          {selectedRowKeys.length > 0 && hasPermission('system:file:delete') && (
+            <Button type="danger" theme="light" icon={<Trash2 size={14} />} loading={batchDeleteLoading} onClick={handleBatchDelete}>
+              批量删除 ({selectedRowKeys.length})
+            </Button>
+          )}
           {hasPermission('system:file:upload') && <Button type="secondary" icon={<Plus size={14} />} loading={uploading} disabled={!defaultConfig} onClick={handlePickFile}>
             上传文件
           </Button>}
@@ -352,6 +390,10 @@ export default function FilesPage() {
         columns={columns}
         dataSource={data?.list || []}
         rowKey="id"
+        rowSelection={hasPermission('system:file:delete') ? {
+          selectedRowKeys,
+          onChange: (keys) => setSelectedRowKeys(keys as number[]),
+        } : undefined}
         loading={loading}
         size="small"
         empty="暂无文件记录"

@@ -72,6 +72,21 @@ export const filesHandlers = [
     return HttpResponse.json({ code: 0, message: '删除成功', data: null });
   }),
 
+  // 批量删除文件
+  http.delete('/api/files/batch', async ({ request }) => {
+    const body = await request.json() as { ids: number[] };
+    const { ids } = body;
+    let count = 0;
+    for (const id of ids) {
+      const index = mockManagedFiles.findIndex((f) => f.id === id);
+      if (index !== -1) {
+        mockManagedFiles.splice(index, 1);
+        count++;
+      }
+    }
+    return HttpResponse.json({ code: 0, message: `已删除 ${count} 个文件`, data: null });
+  }),
+
   // ─── 文件存储配置 ───────────────────────────────────────────────────────────
 
   // 存储配置列表（支持服务端分页）

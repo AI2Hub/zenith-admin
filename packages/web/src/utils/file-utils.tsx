@@ -10,6 +10,12 @@ export function formatFileSize(size: number): string {
   return `${(size / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
+/** 将相对路径拼接为完整可访问 URL */
+export function getFileFullUrl(url: string): string {
+  if (/^https?:\/\//.test(url)) return url;
+  return `${config.apiBaseUrl}${url}`;
+}
+
 /** 根据 MIME 类型返回对应的 lucide-react 文件图标 */
 export function getFileTypeIcon(mimeType?: string | null) {
   const color = 'var(--semi-color-text-2)';
