@@ -39,26 +39,29 @@ export const filesHandlers = [
     return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
   }),
 
-  // 上传文件（demo 模式返回固定 URL）
+  // 上传文件（demo 模式支持多文件）
   http.post('/api/files/upload', async ({ request }) => {
     const formData = await request.formData();
-    const file = formData.get('file') as File | null;
-    const uploadedFile: ManagedFile = {
-      id: nextFileId++,
-      storageConfigId: 1,
-      storageName: '本地磁盘',
-      provider: 'local',
-      originalName: file?.name ?? 'unknown',
-      objectKey: `uploads/${Date.now()}-${file?.name ?? 'file'}`,
-      size: file?.size ?? 0,
-      mimeType: file?.type ?? 'application/octet-stream',
-      extension: file?.name?.split('.').pop() ?? '',
-      url: `https://via.placeholder.com/200?text=${encodeURIComponent(file?.name ?? 'file')}`,
-      createdAt: mockDateTime(),
-      updatedAt: mockDateTime(),
-    };
-    mockManagedFiles.push(uploadedFile);
-    return HttpResponse.json({ code: 0, message: '上传成功', data: uploadedFile });
+    const files = formData.getAll('file') as File[];
+    const uploadedFiles: ManagedFile[] = files.map((file) => {
+      const uploaded: ManagedFile = {
+        id: nextFileId++,
+        storageConfigId: 1,
+        storageName: '本地磁盘',
+        provider: 'local',
+        originalName: file?.name ?? 'unknown',
+        objectKey: `uploads/${Date.now()}-${file?.name ?? 'file'}`,
+        size: file?.size ?? 0,
+        mimeType: file?.type ?? 'application/octet-stream',
+        extension: file?.name?.split('.').pop() ?? '',
+        url: `https://via.placeholder.com/200?text=${encodeURIComponent(file?.name ?? 'file')}`,
+        createdAt: mockDateTime(),
+        updatedAt: mockDateTime(),
+      };
+      mockManagedFiles.push(uploaded);
+      return uploaded;
+    });
+    return HttpResponse.json({ code: 0, message: `成功上传 ${uploadedFiles.length} 个文件`, data: uploadedFiles });
   }),
 
   // 删除文件

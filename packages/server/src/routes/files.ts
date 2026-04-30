@@ -55,18 +55,28 @@ const uploadRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '上传文件', module: '文件管理', recordBody: false } })] as const,
     request: {
-      body: { content: { 'multipart/form-data': { schema: z.object({ file: z.instanceof(File).openapi({ type: 'string', format: 'binary' }) }) } }, required: true },
+      body: {
+        content: {
+          'multipart/form-data': {
+            schema: z.object({
+              file: z.any().openapi({ type: 'array', items: { type: 'string', format: 'binary' } }),
+            }),
+          },
+        },
+        required: true,
+      },
     },
     responses: {
       ...commonErrorResponses,
-      ...ok(ManagedFileDTO, '上传成功'),
+      ...ok(z.array(ManagedFileDTO), '上传成功'),
       400: { content: jsonContent(ErrorResponse), description: '未选择文件或无可用存储' },
     },
   }),
   handler: async (c) => {
-    const body = await c.req.parseBody();
-    const r = await uploadManagedFileFromBody(body.file);
-    return c.json(okBody(r, '上传成功'), 200);
+    const body = await c.req.parseBody({ all: true });
+    const fileValues = Array.isArray(body.file) ? body.file : [body.file];
+    const results = await Promise.all(fileValues.map((f) => uploadManagedFileFromBody(f)));
+    return c.json(okBody(results, `成功上传 ${results.length} 个文件`), 200);
   },
 });
 

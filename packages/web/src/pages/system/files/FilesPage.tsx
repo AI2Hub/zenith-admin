@@ -124,20 +124,22 @@ export default function FilesPage() {
   };
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files ?? []);
     event.target.value = '';
-    if (!file) return;
+    if (files.length === 0) return;
 
     setUploading(true);
     try {
       const formData = new FormData();
-      formData.append('file', file);
-      const res = await request.postForm<ManagedFile>('/api/files/upload', formData);
+      for (const file of Array.from(files)) {
+        formData.append('file', file);
+      }
+      const res = await request.postForm<ManagedFile[]>('/api/files/upload', formData);
       if (res.code === 0) {
-        Toast.success('文件上传成功');
+        Toast.success(res.data.length > 1 ? `成功上传 ${res.data.length} 个文件` : '文件上传成功');
         setPage(1);
         fetchDefaultConfig();
-        fetchFiles();
+        void fetchFiles(1);
       }
     } finally {
       setUploading(false);
@@ -320,6 +322,7 @@ export default function FilesPage() {
             ref={fileInputRef}
             type="file"
             hidden
+            multiple
             onChange={handleUpload}
           />
       </SearchToolbar>
