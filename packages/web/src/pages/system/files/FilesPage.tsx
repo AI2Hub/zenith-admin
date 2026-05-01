@@ -3,6 +3,7 @@ import {
   Button,
   DatePicker,
   Descriptions,
+  Dropdown,
   ImagePreview,
   Input,
   Modal,
@@ -14,7 +15,7 @@ import {
   Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
-import { Plus, Search, RotateCcw, Download, Trash2, FolderDown } from 'lucide-react';
+import { Plus, Search, RotateCcw, Download, Trash2, FolderDown, MoreHorizontal } from 'lucide-react';
 import { zipSync } from 'fflate';
 import type { FileStorageConfig, ManagedFile, PaginatedResponse } from '@zenith/shared';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -72,6 +73,22 @@ export default function FilesPage() {
   const [batchDeleteLoading, setBatchDeleteLoading] = useState(false);
   const [batchDownloadLoading, setBatchDownloadLoading] = useState(false);
   const [detailFile, setDetailFile] = useState<ManagedFile | null>(null);
+  const [openMoreId, setOpenMoreId] = useState<number | null>(null);
+
+  // 当 Dropdown 打开时，在下一个事件循环注册 document 级关闭监听器
+  // 延迟注册是为了避免打开 Dropdown 的同一次点击立即触发关闭
+  useEffect(() => {
+    if (openMoreId === null) return;
+    let handler: (e: MouseEvent) => void;
+    const timer = globalThis.setTimeout(() => {
+      handler = () => setOpenMoreId(null);
+      document.addEventListener('click', handler);
+    }, 0);
+    return () => {
+      globalThis.clearTimeout(timer);
+      if (handler) document.removeEventListener('click', handler);
+    };
+  }, [openMoreId]);
 
   const fetchDefaultConfig = useCallback(async () => {
     const res = await request.get<FileStorageConfig | null>('/api/file-storage-configs/default');
@@ -388,21 +405,46 @@ export default function FilesPage() {
     {
       title: '操作',
       fixed: 'right',
-      width: 220,
+      width: 150,
       align: 'center',
       render: (_: unknown, record: ManagedFile) => (
         <Space>
           <Button theme="borderless" size="small" loading={previewLoadingId === record.id} onClick={() => handlePreview(record)}>预览</Button>
-          <Button theme="borderless" size="small" onClick={() => handleDownload(record)}>下载</Button>
-          <Button theme="borderless" size="small" onClick={() => setDetailFile(record)}>详情</Button>
-          {hasPermission('system:file:delete') && <Button theme="borderless" size="small" type="danger" onClick={() => {
-            Modal.confirm({
-              title: '确认删除此文件？',
-              content: '删除文件记录后，将同步尝试删除实际存储对象。',
-              okButtonProps: { type: 'danger', theme: 'solid' },
-              onOk: () => handleDelete(record),
-            });
-          }}>删除</Button>}
+          <Dropdown
+            trigger="custom"
+            visible={openMoreId === record.id}
+            position="bottomRight"
+            render={
+              <Dropdown.Menu>
+                <Dropdown.Item onClick={() => { setOpenMoreId(null); handleDownload(record); }}>下载</Dropdown.Item>
+                <Dropdown.Item onClick={() => { setOpenMoreId(null); setDetailFile(record); }}>详情</Dropdown.Item>
+                <Dropdown.Item onClick={() => { setOpenMoreId(null); handleCopyUrl(record); }}>复制链接</Dropdown.Item>
+                {hasPermission('system:file:delete') && (
+                  <>
+                    <Dropdown.Divider />
+                    <Dropdown.Item
+                      type="danger"
+                      onClick={() => { setOpenMoreId(null); Modal.confirm({
+                        title: '确认删除此文件？',
+                        content: '删除文件记录后，将同步尝试删除实际存储对象。',
+                        okButtonProps: { type: 'danger', theme: 'solid' },
+                        onOk: () => handleDelete(record),
+                      }); }}
+                    >删除</Dropdown.Item>
+                  </>
+                )}
+              </Dropdown.Menu>
+            }
+          >
+            <span style={{ display: 'inline-block' }}>
+              <Button
+                theme="borderless"
+                size="small"
+                icon={<MoreHorizontal size={14} />}
+                onClick={(e) => { e.stopPropagation(); setOpenMoreId(openMoreId === record.id ? null : record.id); }}
+              />
+            </span>
+          </Dropdown>
         </Space>
       ),
     },
