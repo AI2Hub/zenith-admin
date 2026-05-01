@@ -22,6 +22,7 @@
     "@xyflow/react": "^12.10.2",
     "@zenith/shared": "*",
     "dayjs": "^1.11.20",
+    "fflate": "^0.8.2",
     "lucide-react": "^1.7.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

@@ -13,7 +13,8 @@ import {
   Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
-import { Plus, Search, RotateCcw, Download, Trash2 } from 'lucide-react';
+import { Plus, Search, RotateCcw, Download, Trash2, FolderDown } from 'lucide-react';
+import { zipSync } from 'fflate';
 import type { FileStorageConfig, ManagedFile, PaginatedResponse } from '@zenith/shared';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { request } from '@/utils/request';
@@ -50,6 +51,7 @@ export default function FilesPage() {
   const [defaultConfig, setDefaultConfig] = useState<FileStorageConfig | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [batchDeleteLoading, setBatchDeleteLoading] = useState(false);
+  const [batchDownloadLoading, setBatchDownloadLoading] = useState(false);
 
   const fetchDefaultConfig = useCallback(async () => {
     const res = await request.get<FileStorageConfig | null>('/api/file-storage-configs/default');
@@ -216,6 +218,62 @@ export default function FilesPage() {
     });
   };
 
+  const handleBatchDownload = async () => {
+    const selectedFiles = (data?.list ?? []).filter((f) => selectedRowKeys.includes(f.id));
+    if (selectedFiles.length === 0) return;
+
+    setBatchDownloadLoading(true);
+    try {
+      const results = await Promise.allSettled(
+        selectedFiles.map(async (f) => {
+          const blob = await fetchProtectedFile(f.url);
+          const arrayBuffer = await blob.arrayBuffer();
+          return { name: f.originalName, data: new Uint8Array(arrayBuffer) };
+        }),
+      );
+
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      const succeeded = results
+        .filter((r) => r.status === 'fulfilled')
+        .map((r) => (r as PromiseFulfilledResult<{ name: string; data: Uint8Array }>).value);
+
+      if (succeeded.length === 0) {
+        Toast.error('所有文件下载失败');
+        return;
+      }
+
+      // 对重名文件追加序号
+      const nameCount: Record<string, number> = {};
+      const zipFiles: Record<string, Uint8Array> = {};
+      for (const { name, data: fileData } of succeeded) {
+        const count = nameCount[name] ?? 0;
+        nameCount[name] = count + 1;
+        const dedupSuffix = `_${count}`;
+        const finalName = count === 0 ? name : name.replace(/(\.[^.]+)?$/, (ext: string) => `${dedupSuffix}${ext}`);
+        zipFiles[finalName] = fileData;
+      }
+
+      const zipped = zipSync(zipFiles);
+      const blob = new Blob([zipped.buffer as ArrayBuffer], { type: 'application/zip' });
+      const objectUrl = globalThis.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `files_${Date.now()}.zip`;
+      link.click();
+      globalThis.setTimeout(() => globalThis.URL.revokeObjectURL(objectUrl), 60_000);
+
+      if (failed > 0) {
+        Toast.warning(`已打包 ${succeeded.length} 个文件，${failed} 个文件获取失败`);
+      } else {
+        Toast.success(`已打包 ${succeeded.length} 个文件`);
+      }
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : '批量下载失败');
+    } finally {
+      setBatchDownloadLoading(false);
+    }
+  };
+
   const handleCopyUrl = async (file: ManagedFile) => {
     try {
       await navigator.clipboard.writeText(getFileFullUrl(file.url));
@@ -344,6 +402,11 @@ export default function FilesPage() {
           <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
           <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
           <Button icon={<Download size={14} />} loading={exportLoading} onClick={async () => { setExportLoading(true); try { await request.download('/api/files/export', '文件列表.xlsx'); } finally { setExportLoading(false); } }}>导出</Button>
+          {selectedRowKeys.length > 0 && (
+            <Button type="tertiary" theme="light" icon={<FolderDown size={14} />} loading={batchDownloadLoading} onClick={handleBatchDownload}>
+              批量下载 ({selectedRowKeys.length})
+            </Button>
+          )}
           {selectedRowKeys.length > 0 && hasPermission('system:file:delete') && (
             <Button type="danger" theme="light" icon={<Trash2 size={14} />} loading={batchDeleteLoading} onClick={handleBatchDelete}>
               批量删除 ({selectedRowKeys.length})
