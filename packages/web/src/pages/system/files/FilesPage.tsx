@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button,
   DatePicker,
+  Descriptions,
   ImagePreview,
   Input,
   Modal,
@@ -26,6 +27,19 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import './FilesPage.css';
 
 const { Text } = Typography;
+
+type ProviderColor = 'blue' | 'orange' | 'green' | 'cyan' | 'grey';
+const providerColorMap: Record<string, { color: ProviderColor; label: string }> = {
+  local: { color: 'blue', label: '本地磁盘' },
+  oss: { color: 'orange', label: '阿里云 OSS' },
+  s3: { color: 'green', label: 'S3 存储' },
+  cos: { color: 'cyan', label: '腾讯云 COS' },
+};
+
+function ProviderTag({ provider }: Readonly<{ provider: string }>) {
+  const info = providerColorMap[provider] ?? { color: 'grey' as ProviderColor, label: provider };
+  return <Tag color={info.color} size="small">{info.label}</Tag>;
+}
 
 export default function FilesPage() {
   const { hasPermission } = usePermission();
@@ -57,6 +71,7 @@ export default function FilesPage() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [batchDeleteLoading, setBatchDeleteLoading] = useState(false);
   const [batchDownloadLoading, setBatchDownloadLoading] = useState(false);
+  const [detailFile, setDetailFile] = useState<ManagedFile | null>(null);
 
   const fetchDefaultConfig = useCallback(async () => {
     const res = await request.get<FileStorageConfig | null>('/api/file-storage-configs/default');
@@ -348,59 +363,38 @@ export default function FilesPage() {
     {
       title: '来源服务',
       dataIndex: 'storageName',
-      width: 180,
+      width: 200,
       ellipsis: true,
-    },
-    {
-      title: '类型',
-      dataIndex: 'provider',
-      width: 120,
-      render: (provider: ManagedFile['provider']) => {
-        const providerMap: Record<string, { color: 'blue' | 'orange' | 'green' | 'cyan' | 'grey'; label: string }> = {
-          local: { color: 'blue', label: '本地磁盘' },
-          oss: { color: 'orange', label: '阿里云 OSS' },
-          s3: { color: 'green', label: 'S3 存储' },
-          cos: { color: 'cyan', label: '腾讯云 COS' },
-        };
-        const info = providerMap[provider] ?? { color: 'grey' as const, label: provider };
-        return <Tag color={info.color} size="small">{info.label}</Tag>;
-      },
+      render: (_: string, record: ManagedFile) => (
+          <Space spacing={4}>
+            <ProviderTag provider={record.provider} />
+            <Text ellipsis={{ showTooltip: true }}>{record.storageName}</Text>
+          </Space>
+        ),
     },
     {
       title: '大小',
       dataIndex: 'size',
-      width: 110,
+      width: 100,
       render: (size: number) => formatFileSize(size),
-    },
-    {
-      title: 'MIME',
-      dataIndex: 'mimeType',
-      width: 180,
-      ellipsis: true,
-      render: (value?: string) => value || '—',
-    },
-    {
-      title: '对象键',
-      dataIndex: 'objectKey',
-      ellipsis: true,
     },
     {
       title: '上传时间',
       dataIndex: 'createdAt',
-      width: 180,
+      width: 160,
       ellipsis: true,
       render: (value: string) => formatDateTime(value),
     },
     {
       title: '操作',
       fixed: 'right',
-      width: 300,
+      width: 220,
       align: 'center',
       render: (_: unknown, record: ManagedFile) => (
         <Space>
           <Button theme="borderless" size="small" loading={previewLoadingId === record.id} onClick={() => handlePreview(record)}>预览</Button>
           <Button theme="borderless" size="small" onClick={() => handleDownload(record)}>下载</Button>
-          <Button theme="borderless" size="small" onClick={() => handleCopyUrl(record)}>复制链接</Button>
+          <Button theme="borderless" size="small" onClick={() => setDetailFile(record)}>详情</Button>
           {hasPermission('system:file:delete') && <Button theme="borderless" size="small" type="danger" onClick={() => {
             Modal.confirm({
               title: '确认删除此文件？',
@@ -488,16 +482,7 @@ export default function FilesPage() {
         <Text strong>默认文件服务：</Text>
         {defaultConfig ? (
           <>
-            {(() => {
-              const providerMap: Record<string, { color: 'blue' | 'orange' | 'green' | 'cyan' | 'grey'; label: string }> = {
-                local: { color: 'blue', label: '本地磁盘' },
-                oss: { color: 'orange', label: '阿里云 OSS' },
-                s3: { color: 'green', label: 'S3 存储' },
-                cos: { color: 'cyan', label: '腾讯云 COS' },
-              };
-              const info = providerMap[defaultConfig.provider] ?? { color: 'grey' as const, label: defaultConfig.provider };
-              return <Tag color={info.color} size="small">{info.label}</Tag>;
-            })()}
+            <ProviderTag provider={defaultConfig.provider} />
             <Text>{defaultConfig.name}</Text>
           </>
         ) : (
@@ -520,6 +505,36 @@ export default function FilesPage() {
         }}
         infinite
       />
+
+      <Modal
+        title="文件详情"
+        visible={!!detailFile}
+        onCancel={() => setDetailFile(null)}
+        footer={
+          <Space>
+            <Button onClick={() => detailFile && handleCopyUrl(detailFile)}>复制链接</Button>
+            <Button type="primary" onClick={() => setDetailFile(null)}>关闭</Button>
+          </Space>
+        }
+        width={560}
+      >
+        {detailFile && (
+          <Descriptions
+            align="left"
+            size="medium"
+            data={[
+              { key: '文件名', value: detailFile.originalName },
+              { key: '存储服务', value: detailFile.storageName },
+              { key: '存储类型', value: <ProviderTag provider={detailFile.provider} /> },
+              { key: 'MIME 类型', value: detailFile.mimeType || '—' },
+              { key: '文件大小', value: formatFileSize(detailFile.size) },
+              { key: '对象键', value: <Text copyable style={{ fontSize: 12, wordBreak: 'break-all' }}>{detailFile.objectKey}</Text> },
+              { key: '访问链接', value: <Text copyable style={{ fontSize: 12, wordBreak: 'break-all' }}>{getFileFullUrl(detailFile.url)}</Text> },
+              { key: '上传时间', value: formatDateTime(detailFile.createdAt) },
+            ]}
+          />
+        )}
+      </Modal>
 
       <Table
         bordered
