@@ -197,6 +197,21 @@ export default function FilesPage() {
     );
   };
 
+  const handleGridSelectAll = (checked: boolean) => {
+    const currentPageIds = (data?.list ?? []).map((f) => f.id);
+    if (checked) {
+      setSelectedRowKeys((prev) => {
+        const next = [...prev];
+        for (const id of currentPageIds) {
+          if (!next.includes(id)) next.push(id);
+        }
+        return next;
+      });
+    } else {
+      setSelectedRowKeys((prev) => prev.filter((k) => !currentPageIds.includes(k)));
+    }
+  };
+
   const fetchDefaultConfig = useCallback(async () => {
     const res = await request.get<FileStorageConfig | null>('/api/file-storage-configs/default');
     if (res.code === 0) {
@@ -737,6 +752,28 @@ export default function FilesPage() {
         />
       ) : (
         <Spin spinning={loading}>
+          {hasPermission('system:file:delete') && (data?.list ?? []).length > 0 && (() => {
+            const currentPageIds = (data?.list ?? []).map((f) => f.id);
+            const selectedOnPage = currentPageIds.filter((id) => selectedRowKeys.includes(id));
+            const allSelected = selectedOnPage.length === currentPageIds.length;
+            const someSelected = selectedOnPage.length > 0 && !allSelected;
+            return (
+              <div className="files-grid-select-bar">
+                <Checkbox
+                  checked={allSelected}
+                  indeterminate={someSelected}
+                  onChange={(e) => handleGridSelectAll(!!(e.target as EventTarget & { checked?: boolean }).checked)}
+                >
+                  全选当前页
+                  {selectedOnPage.length > 0 && (
+                    <span style={{ marginLeft: 4, color: 'var(--semi-color-text-2)', fontWeight: 400 }}>
+                      ({selectedOnPage.length}/{currentPageIds.length})
+                    </span>
+                  )}
+                </Checkbox>
+              </div>
+            );
+          })()}
           <div className="files-grid">
             {(data?.list ?? []).length === 0 && !loading ? (
               <div className="files-grid-empty">暂无文件记录</div>

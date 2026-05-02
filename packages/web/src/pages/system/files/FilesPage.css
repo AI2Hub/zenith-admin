@@ -53,6 +53,10 @@
 }
 
 /* Grid view */
+.files-grid-select-bar {
+  padding: 4px 2px 8px;
+}
+
 .files-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
