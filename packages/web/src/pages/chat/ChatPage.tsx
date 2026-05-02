@@ -36,18 +36,20 @@ function UserAvatar({ name, avatar, size = 36 }: Readonly<{ name: string; avatar
 
 // ─── UserSearchList ────────────────────────────────────────────────────────────
 
-function UserSearchList({ onSelect, excludeIds = [] }: Readonly<{ onSelect: (user: ChatUser) => void; excludeIds?: number[] }>) {
+function UserSearchList({ onSelect, excludeIds }: Readonly<{ onSelect: (user: ChatUser) => void; excludeIds?: number[] }>) {
   const [keyword, setKeyword] = useState('');
   const [ulist, setUlist] = useState<ChatUser[]>([]);
   const [loading, setLoading] = useState(false);
+  const excludeIdKey = (excludeIds ?? []).join(',');
 
   const search = useCallback(async (kw: string) => {
     setLoading(true);
     const qs = kw ? `?keyword=${encodeURIComponent(kw)}` : '';
     const res = await request.get<ChatUser[]>(`/api/chat/users${qs}`, { silent: true });
     setLoading(false);
-    if (res.code === 0 && res.data) setUlist(res.data.filter((u) => !excludeIds.includes(u.id)));
-  }, [excludeIds]);
+    const excludeIdSet = new Set(excludeIdKey ? excludeIdKey.split(',').map((id) => Number(id)) : []);
+    if (res.code === 0 && res.data) setUlist(res.data.filter((u) => !excludeIdSet.has(u.id)));
+  }, [excludeIdKey]);
 
   useEffect(() => { void search(''); }, [search]);
   useEffect(() => {
