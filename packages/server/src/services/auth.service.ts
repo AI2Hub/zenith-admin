@@ -205,8 +205,8 @@ export async function register(input: RegisterInput) {
   if (!allow) throw new HTTPException(403, { message: '系统已关闭注册功能' });
 
   const [[usernameRow], [emailRow]] = await Promise.all([
-    db.select({ id: users.id }).from(users).where(eq(users.username, input.username)).limit(1),
-    db.select({ id: users.id }).from(users).where(eq(users.email, input.email)).limit(1),
+    db.select({ id: users.id }).from(users).where(and(eq(users.username, input.username), isNull(users.tenantId))).limit(1),
+    db.select({ id: users.id }).from(users).where(and(eq(users.email, input.email), isNull(users.tenantId))).limit(1),
   ]);
   if (usernameRow) throw new HTTPException(400, { message: '用户名已存在' });
   if (emailRow) throw new HTTPException(400, { message: '邮箱已被注册' });
