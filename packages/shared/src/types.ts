@@ -356,7 +356,10 @@ export interface CaptchaResponse {
 // ─── WebSocket 消息类型 ──────────────────────────────────────────────────────
 export type WsMessage =
   | { type: 'notice:new'; payload: Notice }
-  | { type: 'session:force-logout'; payload: { reason: string } };
+  | { type: 'session:force-logout'; payload: { reason: string } }
+  | { type: 'chat:message'; payload: ChatMessage }
+  | { type: 'chat:recall'; payload: { conversationId: number; messageId: number } }
+  | { type: 'chat:read'; payload: { conversationId: number; userId: number } };
 
 // ─── 地区管理 ──────────────────────────────────────────────
 export type RegionLevel = 'province' | 'city' | 'county';
@@ -619,6 +622,40 @@ export interface WorkflowInstance {
   initiatorAvatar?: string | null;
   tenantId: number | null;
   tasks?: WorkflowTask[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── 聊天 ─────────────────────────────────────────────────────────────────────
+export type ChatConversationType = 'direct' | 'group';
+export type ChatMessageType = 'text' | 'image' | 'file' | 'system';
+
+export interface ChatMessage {
+  id: number;
+  conversationId: number;
+  senderId: number | null;
+  senderName: string | null;
+  senderAvatar: string | null;
+  type: ChatMessageType;
+  content: string;
+  replyToId: number | null;
+  isRecalled: boolean;
+  extra: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatConversation {
+  id: number;
+  type: ChatConversationType;
+  name: string | null;
+  targetUser?: {
+    id: number;
+    nickname: string;
+    avatar: string | null;
+  } | null;
+  lastMessage: ChatMessage | null;
+  unreadCount: number;
   createdAt: string;
   updatedAt: string;
 }

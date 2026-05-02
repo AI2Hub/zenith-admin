@@ -467,3 +467,13 @@ export type UpdateWorkflowDefinitionInput = z.infer<typeof updateWorkflowDefinit
 export type CreateWorkflowInstanceInput = z.infer<typeof createWorkflowInstanceSchema>;
 export type ApproveWorkflowTaskInput = z.infer<typeof approveWorkflowTaskSchema>;
 export type RejectWorkflowTaskInput = z.infer<typeof rejectWorkflowTaskSchema>;
+
+// ─── 聊天 ─────────────────────────────────────────────────────────────────────
+export const sendChatMessageSchema = z.object({
+  content: z.string().min(1, '消息不能为空').max(4096),
+  type: z.enum(['text', 'image', 'file']).default('text'),
+  replyToId: z.number().int().positive().nullable().optional(),
+  extra: z.record(z.string(), z.unknown()).nullable().optional(),
+});
+
+export type SendChatMessageInput = z.infer<typeof sendChatMessageSchema>;

@@ -24,6 +24,7 @@ import { tenantsHandlers } from './tenants';
 import { cacheHandlers } from './cache';
 import { messageTemplatesHandlers } from './message-templates';
 import { workflowHandlers } from './workflow';
+import { chatHandlers } from './chat';
 
 export const handlers = [
   ...authHandlers,
@@ -52,4 +53,5 @@ export const handlers = [
   ...cacheHandlers,
   ...messageTemplatesHandlers,
   ...workflowHandlers,
+  ...chatHandlers,
 ];

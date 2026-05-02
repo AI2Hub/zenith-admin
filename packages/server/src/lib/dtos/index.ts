@@ -9,3 +9,4 @@ export * from './workflow';
 export * from './dashboard';
 export * from './region';
 export * from './messages';
+export * from './chat';

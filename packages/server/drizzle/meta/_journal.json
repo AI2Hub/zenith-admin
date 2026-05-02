@@ -253,6 +253,13 @@
       "when": 1777176934872,
       "tag": "0035_old_ares",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1777710943878,
+      "tag": "0036_regular_nightshade",
+      "breakpoints": true
     }
   ]
 }

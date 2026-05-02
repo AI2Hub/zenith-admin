@@ -570,6 +570,51 @@ export const workflowTasks = pgTable('workflow_tasks', {
 export type WorkflowTaskRow = typeof workflowTasks.$inferSelect;
 export type NewWorkflowTask = typeof workflowTasks.$inferInsert;
 
+// ─── 聊天会话表 ───────────────────────────────────────────────────────────────
+export const chatConversationTypeEnum = pgEnum('chat_conversation_type', ['direct', 'group']);
+
+export const chatConversations = pgTable('chat_conversations', {
+  id: serial('id').primaryKey(),
+  type: chatConversationTypeEnum('type').notNull().default('direct'),
+  name: varchar('name', { length: 64 }),
+  createdById: integer('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+
+export type ChatConversationRow = typeof chatConversations.$inferSelect;
+export type NewChatConversation = typeof chatConversations.$inferInsert;
+
+// ─── 聊天会话成员表 ───────────────────────────────────────────────────────────
+export const chatConversationMembers = pgTable('chat_conversation_members', {
+  conversationId: integer('conversation_id').notNull().references(() => chatConversations.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  lastReadAt: timestamp('last_read_at', { withTimezone: true }),
+  joinedAt: timestamp('joined_at').defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.conversationId, t.userId] })]);
+
+export type ChatConversationMemberRow = typeof chatConversationMembers.$inferSelect;
+
+// ─── 聊天消息表 ───────────────────────────────────────────────────────────────
+export const chatMessageTypeEnum = pgEnum('chat_message_type', ['text', 'image', 'file', 'system']);
+
+export const chatMessages = pgTable('chat_messages', {
+  id: serial('id').primaryKey(),
+  conversationId: integer('conversation_id').notNull().references(() => chatConversations.id, { onDelete: 'cascade' }),
+  senderId: integer('sender_id').references(() => users.id, { onDelete: 'set null' }),
+  type: chatMessageTypeEnum('type').notNull().default('text'),
+  content: text('content').notNull(),
+  replyToId: integer('reply_to_id'),
+  isRecalled: boolean('is_recalled').notNull().default(false),
+  extra: jsonb('extra'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+
+export type ChatMessageRow = typeof chatMessages.$inferSelect;
+export type NewChatMessage = typeof chatMessages.$inferInsert;
+
 // ─── 关系声明（Drizzle Relational Query API）──────────────────────────────────
 // 声明后可使用 db.query.xxx.findMany({ with: { ... } }) 进行关联查询
 
@@ -704,4 +749,21 @@ export const workflowInstancesRelations = relations(workflowInstances, ({ one, m
 export const workflowTasksRelations = relations(workflowTasks, ({ one }) => ({
   instance: one(workflowInstances, { fields: [workflowTasks.instanceId], references: [workflowInstances.id] }),
   assignee: one(users, { fields: [workflowTasks.assigneeId], references: [users.id] }),
+}));
+
+export const chatConversationsRelations = relations(chatConversations, ({ one, many }) => ({
+  createdBy: one(users, { fields: [chatConversations.createdById], references: [users.id] }),
+  tenant: one(tenants, { fields: [chatConversations.tenantId], references: [tenants.id] }),
+  members: many(chatConversationMembers),
+  messages: many(chatMessages),
+}));
+
+export const chatConversationMembersRelations = relations(chatConversationMembers, ({ one }) => ({
+  conversation: one(chatConversations, { fields: [chatConversationMembers.conversationId], references: [chatConversations.id] }),
+  user: one(users, { fields: [chatConversationMembers.userId], references: [users.id] }),
+}));
+
+export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
+  conversation: one(chatConversations, { fields: [chatMessages.conversationId], references: [chatConversations.id] }),
+  sender: one(users, { fields: [chatMessages.senderId], references: [users.id] }),
 }));
