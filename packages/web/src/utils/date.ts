@@ -53,3 +53,19 @@ export function stripHtml(html: string | null | undefined, maxLength = 100): str
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength)}...`;
 }
+
+/**
+ * 会话列表时间智能格式：
+ *  - 今天          → HH:mm
+ *  - 今年内（非今天）→ MM-DD HH:mm
+ *  - 跨年          → YYYY-MM-DD
+ */
+export function formatConvTime(date: DateInput): string {
+  if (!date) return '';
+  const d = dayjs(typeof date === 'string' ? date.replace(' ', 'T') : date);
+  if (!d.isValid()) return '';
+  const now = dayjs();
+  if (d.isSame(now, 'day')) return d.format('HH:mm');
+  if (d.isSame(now, 'year')) return d.format('MM-DD HH:mm');
+  return d.format('YYYY-MM-DD');
+}

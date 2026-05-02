@@ -7,7 +7,7 @@ import Picker from '@emoji-mart/react';
 import { Search, MessageSquarePlus, Send, CornerDownLeft, RotateCcw, Smile, ImagePlus, Users, UserPlus, Copy } from 'lucide-react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { request } from '@/utils/request';
-import { formatDateTime } from '@/utils/date';
+import { formatDateTime, formatConvTime } from '@/utils/date';
 import type { ChatConversation, ChatMessage, WsMessage } from '@zenith/shared';
 
 const { Text, Title } = Typography;
@@ -54,7 +54,7 @@ function shouldDisplayMessageTime(current: ChatMessage, next?: ChatMessage): boo
   return nextTime - currentTime > MESSAGE_TIME_GROUP_GAP_MS;
 }
 
-// ─── UserSearchList ────────────────────────────────────────────────────────────
+// ─── UserSearchList ──────────────────────────────────────────────────────────────────────────
 
 function UserSearchList({ onSelect, excludeIds }: Readonly<{ onSelect: (user: ChatUser) => void; excludeIds?: number[] }>) {
   const [keyword, setKeyword] = useState('');
@@ -892,7 +892,7 @@ export default function ChatPage() {
                       </Text>
                       {lastMsg && (
                         <Text type="tertiary" style={{ fontSize: 11, flexShrink: 0, marginLeft: 4 }}>
-                          {formatDateTime(lastMsg.createdAt)}
+                          {formatConvTime(lastMsg.createdAt)}
                         </Text>
                       )}
                     </div>
@@ -1077,7 +1077,7 @@ export default function ChatPage() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onPaste={handleInputPaste}
-                placeholder="输入消息，Enter 发送，Shift+Enter 换行（支持粘贴图片）"
+                placeholder="输入消息…"
                 rows={3}
                 style={{
                   width: '100%', resize: 'none', borderRadius: 8, padding: '8px 48px 8px 12px',
@@ -1100,7 +1100,7 @@ export default function ChatPage() {
                 }}
               />
             </div>
-            <Text type="tertiary" style={{ fontSize: 11, marginTop: 4, display: 'block' }}>Enter 发送 · Shift+Enter 换行</Text>
+            <Text type="tertiary" style={{ fontSize: 11, marginTop: 4, display: 'block' }}>Enter 发送 · Shift+Enter 换行 · 支持粘贴图片</Text>
           </div>
         </div>
       ) : (
