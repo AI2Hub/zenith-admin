@@ -341,15 +341,30 @@ function MessageBubble({
 
   const handleCopyImage = useCallback(async () => {
     try {
-      const res = await fetch(msg.content);
-      const blob = await res.blob();
       if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) {
         await navigator.clipboard.writeText(msg.content);
         Toast.success('当前环境不支持写入图片，已复制图片链接');
         return;
       }
-      const type = blob.type || 'image/png';
-      await navigator.clipboard.write([new ClipboardItem({ [type]: blob })]);
+      // 浏览器剪贴板仅支持 image/png，统一通过 canvas 转换
+      const pngBlob = await new Promise<Blob>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { reject(new Error('canvas unavailable')); return; }
+          ctx.drawImage(img, 0, 0);
+          canvas.toBlob((b) => {
+            if (b) resolve(b); else reject(new Error('toBlob failed'));
+          }, 'image/png');
+        };
+        img.onerror = () => reject(new Error('image load failed'));
+        img.src = msg.content;
+      });
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
       Toast.success('图片已复制');
     } catch {
       Toast.error('复制图片失败');
