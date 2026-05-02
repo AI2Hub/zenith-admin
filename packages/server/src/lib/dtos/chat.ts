@@ -40,6 +40,8 @@ export const ChatConversationDTO = z
       .optional(),
     lastMessage: ChatMessageDTO.nullable().optional(),
     unreadCount: z.number().int(),
+    isPinned: z.boolean(),
+    isStarred: z.boolean(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })

@@ -126,6 +126,10 @@ class Request {
     return this.request<T>(url, { method: 'PUT', body: body instanceof FormData ? body : JSON.stringify(body), ...opts });
   }
 
+  patch<T>(url: string, body?: unknown, opts: RequestOptions = {}) {
+    return this.request<T>(url, { method: 'PATCH', body: body instanceof FormData ? body : JSON.stringify(body), ...opts });
+  }
+
   delete<T>(url: string, body?: unknown, opts: RequestOptions = {}) {
     const bodyInit = body === undefined ? {} : { body: JSON.stringify(body) };
     return this.request<T>(url, { method: 'DELETE', ...bodyInit, ...opts });

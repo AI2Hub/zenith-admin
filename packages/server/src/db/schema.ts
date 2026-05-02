@@ -590,6 +590,8 @@ export type NewChatConversation = typeof chatConversations.$inferInsert;
 export const chatConversationMembers = pgTable('chat_conversation_members', {
   conversationId: integer('conversation_id').notNull().references(() => chatConversations.id, { onDelete: 'cascade' }),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  isPinned: boolean('is_pinned').notNull().default(false),
+  isStarred: boolean('is_starred').notNull().default(false),
   lastReadAt: timestamp('last_read_at', { withTimezone: true }),
   joinedAt: timestamp('joined_at').defaultNow().notNull(),
 }, (t) => [primaryKey({ columns: [t.conversationId, t.userId] })]);

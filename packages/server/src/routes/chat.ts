@@ -9,6 +9,7 @@ import {
   listConversations, getOrCreateDirectConversation, listMessages,
   sendMessage, recallMessage, markConversationRead, listChatUsers,
   createGroupConversation, addGroupMember, listGroupMembers,
+  pinConversation, starConversation,
 } from '../services/chat.service';
 
 const chatRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -190,6 +191,48 @@ chatRouter.openapi(
     const { id } = c.req.valid('param');
     const { userId } = c.req.valid('json');
     await addGroupMember(id, userId);
+    return c.json(okBody(null), 200);
+  },
+);
+
+// ─── 置顶 / 取消置顶 ───────────────────────────────────────────────────────────────────
+
+chatRouter.openapi(
+  createRoute({
+    method: 'patch', path: '/conversations/{id}/pin', tags: ['Chat'], summary: '置顶或取消置顶会话',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: {
+      params: IdParam,
+      body: { content: jsonContent(z.object({ pin: z.boolean() })) },
+    },
+    responses: { ...commonErrorResponses, ...okMsg('操作成功') },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const { pin } = c.req.valid('json');
+    await pinConversation(id, pin);
+    return c.json(okBody(null), 200);
+  },
+);
+
+// ─── 标记星标 / 取消星标 ───────────────────────────────────────────────────────────────────
+
+chatRouter.openapi(
+  createRoute({
+    method: 'patch', path: '/conversations/{id}/star', tags: ['Chat'], summary: '标记或取消星标会话',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: {
+      params: IdParam,
+      body: { content: jsonContent(z.object({ star: z.boolean() })) },
+    },
+    responses: { ...commonErrorResponses, ...okMsg('操作成功') },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const { star } = c.req.valid('json');
+    await starConversation(id, star);
     return c.json(okBody(null), 200);
   },
 );

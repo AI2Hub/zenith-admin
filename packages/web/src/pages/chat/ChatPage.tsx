@@ -5,6 +5,7 @@ import {
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import { Search, MessageSquarePlus, Send, CornerDownLeft, RotateCcw, Smile, ImagePlus, Users, UserPlus, Copy } from 'lucide-react';
+import { Pin, Star } from 'lucide-react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { request } from '@/utils/request';
 import { formatDateTime, formatConvTime } from '@/utils/date';
@@ -888,6 +889,8 @@ export default function ChatPage() {
               const avatar = conv.type === 'direct' ? conv.targetUser?.avatar : null;
               const lastMsg = conv.lastMessage;
               const isActive = conv.id === activeConvId;
+              const isPinned = conv.isPinned ?? false;
+              const isStarred = conv.isStarred ?? false;
               let lastMsgText = '暂无消息';
               if (lastMsg) {
                 if (lastMsg.isRecalled) {
@@ -900,42 +903,92 @@ export default function ChatPage() {
               }
 
               return (
-                <button
+                <Dropdown
                   key={conv.id}
-                  type="button"
-                  onClick={() => { void handleSelectConv(conv); }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                    cursor: 'pointer', width: '100%', textAlign: 'left', border: 'none',
-                    background: isActive ? 'var(--semi-color-primary-light-default)' : 'transparent',
-                    borderLeft: isActive ? '3px solid var(--semi-color-primary)' : '3px solid transparent',
-                  }}
-                  onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'var(--semi-color-fill-0)'; }}
-                  onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
-                >
-                  {conv.unreadCount > 0 ? (
-                    <Badge count={conv.unreadCount} overflowCount={99} dot={false}>
-                      <UserAvatar name={avatarName} avatar={avatar} size={38} />
-                    </Badge>
-                  ) : (
-                    <UserAvatar name={avatarName} avatar={avatar} size={38} />
+                  trigger="contextMenu"
+                  clickToHide
+                  render={(
+                    <Dropdown.Menu>
+                      <Dropdown.Item
+                        icon={<Pin size={13} />}
+                        onClick={() => {
+                          void request.patch(`/api/chat/conversations/${conv.id}/pin`, { pin: !isPinned }).then((r) => {
+                            if ((r as { code: number }).code === 0) {
+                              setConversations((prev) => {
+                                const updated = prev.map((c) => c.id === conv.id ? { ...c, isPinned: !isPinned } : c);
+                                updated.sort((a, b) => {
+                                  if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+                                  const ta = a.lastMessage?.createdAt ?? a.createdAt;
+                                  const tb = b.lastMessage?.createdAt ?? b.createdAt;
+                                  return tb.localeCompare(ta);
+                                });
+                                return updated;
+                              });
+                              Toast.success(isPinned ? '已取消置顶' : '已置顶');
+                            }
+                          });
+                        }}
+                      >
+                        {isPinned ? '取消置顶' : '置顶'}
+                      </Dropdown.Item>
+                      <Dropdown.Item
+                        icon={<Star size={13} />}
+                        onClick={() => {
+                          void request.patch(`/api/chat/conversations/${conv.id}/star`, { star: !isStarred }).then((r) => {
+                            if ((r as { code: number }).code === 0) {
+                              setConversations((prev) =>
+                                prev.map((c) => c.id === conv.id ? { ...c, isStarred: !isStarred } : c),
+                              );
+                              Toast.success(isStarred ? '已取消星标' : '已标记星标');
+                            }
+                          });
+                        }}
+                      >
+                        {isStarred ? '取消星标' : '标记星标'}
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
                   )}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text strong style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {name}
+                >
+                  <button
+                    type="button"
+                    onClick={() => { void handleSelectConv(conv); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                      cursor: 'pointer', width: '100%', textAlign: 'left', border: 'none',
+                      background: isActive ? 'var(--semi-color-primary-light-default)' : 'transparent',
+                      borderLeft: isActive ? '3px solid var(--semi-color-primary)' : '3px solid transparent',
+                    }}
+                    onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'var(--semi-color-fill-0)'; }}
+                    onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                  >
+                    {conv.unreadCount > 0 ? (
+                      <Badge count={conv.unreadCount} overflowCount={99} dot={false}>
+                        <UserAvatar name={avatarName} avatar={avatar} size={38} />
+                      </Badge>
+                    ) : (
+                      <UserAvatar name={avatarName} avatar={avatar} size={38} />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flex: 1 }}>
+                          {isPinned && <Pin size={10} style={{ color: 'var(--semi-color-primary)', flexShrink: 0 }} />}
+                          {isStarred && <Star size={10} style={{ color: '#facc15', flexShrink: 0 }} />}
+                          <Text strong style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {name}
+                          </Text>
+                        </div>
+                        {lastMsg && (
+                          <Text type="tertiary" style={{ fontSize: 11, flexShrink: 0 }}>
+                            {formatConvTime(lastMsg.createdAt)}
+                          </Text>
+                        )}
+                      </div>
+                      <Text type="tertiary" style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                        {lastMsgText}
                       </Text>
-                      {lastMsg && (
-                        <Text type="tertiary" style={{ fontSize: 11, flexShrink: 0, marginLeft: 4 }}>
-                          {formatConvTime(lastMsg.createdAt)}
-                        </Text>
-                      )}
                     </div>
-                    <Text type="tertiary" style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
-                      {lastMsgText}
-                    </Text>
-                  </div>
-                </button>
+                  </button>
+                </Dropdown>
               );
             })}
           </Spin>

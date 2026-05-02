@@ -39,7 +39,12 @@ export async function listConversations(): Promise<ChatConversation[]> {
 
   // 拿当前用户参与的所有会话
   const memberRows = await db
-    .select({ conversationId: chatConversationMembers.conversationId, lastReadAt: chatConversationMembers.lastReadAt })
+    .select({
+      conversationId: chatConversationMembers.conversationId,
+      lastReadAt: chatConversationMembers.lastReadAt,
+      isPinned: chatConversationMembers.isPinned,
+      isStarred: chatConversationMembers.isStarred,
+    })
     .from(chatConversationMembers)
     .where(eq(chatConversationMembers.userId, me.userId));
 
@@ -47,6 +52,8 @@ export async function listConversations(): Promise<ChatConversation[]> {
 
   const convIds = memberRows.map((r) => r.conversationId);
   const lastReadMap = new Map(memberRows.map((r) => [r.conversationId, r.lastReadAt]));
+  const pinnedMap = new Map(memberRows.map((r) => [r.conversationId, r.isPinned]));
+  const starredMap = new Map(memberRows.map((r) => [r.conversationId, r.isStarred]));
 
   // 批量拉取会话基本信息
   const convRows = await db
@@ -102,13 +109,16 @@ export async function listConversations(): Promise<ChatConversation[]> {
         ? mapChatMessage(lastMsgRow.msg, { id: lastMsgRow.msg.senderId ?? 0, nickname: lastMsgRow.nickname ?? '', avatar: lastMsgRow.avatar ?? null })
         : null,
       unreadCount: Number(unread),
+      isPinned: pinnedMap.get(conv.id) ?? false,
+      isStarred: starredMap.get(conv.id) ?? false,
       createdAt: formatDateTime(conv.createdAt),
       updatedAt: formatDateTime(conv.updatedAt),
     });
   }
 
-  // 按最新消息时间排序
+  // 置顶优先，然后按最新消息时间排序
   results.sort((a, b) => {
+    if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
     const ta = a.lastMessage?.createdAt ?? a.createdAt;
     const tb = b.lastMessage?.createdAt ?? b.createdAt;
     return tb.localeCompare(ta);
@@ -178,10 +188,48 @@ export async function getOrCreateDirectConversation(targetUserId: number): Promi
     name: null,
     targetUser,
     lastMessage: null,
-    unreadCount: 0,
-    createdAt: formatDateTime(conv.createdAt),
+    unreadCount: 0,    isPinned: false,
+    isStarred: false,    createdAt: formatDateTime(conv.createdAt),
     updatedAt: formatDateTime(conv.updatedAt),
   };
+}
+
+// ─── 置顶 / 取消置顶 ────────────────────────────────────────────────────────
+
+export async function pinConversation(conversationId: number, pin: boolean): Promise<void> {
+  const me = currentUser();
+  const member = await db.query.chatConversationMembers.findFirst({
+    where: and(
+      eq(chatConversationMembers.conversationId, conversationId),
+      eq(chatConversationMembers.userId, me.userId),
+    ),
+  });
+  if (!member) throw new HTTPException(403, { message: '无权操作该会话' });
+  await db.update(chatConversationMembers)
+    .set({ isPinned: pin })
+    .where(and(
+      eq(chatConversationMembers.conversationId, conversationId),
+      eq(chatConversationMembers.userId, me.userId),
+    ));
+}
+
+// ─── 标记星标 / 取消星标 ──────────────────────────────────────────────────
+
+export async function starConversation(conversationId: number, star: boolean): Promise<void> {
+  const me = currentUser();
+  const member = await db.query.chatConversationMembers.findFirst({
+    where: and(
+      eq(chatConversationMembers.conversationId, conversationId),
+      eq(chatConversationMembers.userId, me.userId),
+    ),
+  });
+  if (!member) throw new HTTPException(403, { message: '无权操作该会话' });
+  await db.update(chatConversationMembers)
+    .set({ isStarred: star })
+    .where(and(
+      eq(chatConversationMembers.conversationId, conversationId),
+      eq(chatConversationMembers.userId, me.userId),
+    ));
 }
 
 // ─── 消息列表（分页） ─────────────────────────────────────────────────────────
@@ -346,6 +394,8 @@ export async function createGroupConversation(name: string): Promise<ChatConvers
     targetUser: null,
     lastMessage: null,
     unreadCount: 0,
+    isPinned: false,
+    isStarred: false,
     createdAt: formatDateTime(conv.createdAt),
     updatedAt: formatDateTime(conv.updatedAt),
   };

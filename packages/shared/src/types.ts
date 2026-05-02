@@ -657,6 +657,8 @@ export interface ChatConversation {
   } | null;
   lastMessage: ChatMessage | null;
   unreadCount: number;
+  isPinned: boolean;
+  isStarred: boolean;
   createdAt: string;
   updatedAt: string;
 }
