@@ -19,6 +19,8 @@ export interface ChatLinkPreview {
   favicon: string | null;
 }
 
+const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i;
+
 function isPrivateIpv4(hostname: string): boolean {
   const parts = hostname.split('.').map((n) => Number(n));
   if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return false;
@@ -55,6 +57,10 @@ function validatePreviewUrl(rawUrl: string): URL {
   }
 
   return parsed;
+}
+
+function inferImageUrl(parsed: URL): string | null {
+  return IMAGE_EXT_RE.test(parsed.pathname) ? parsed.toString() : null;
 }
 
 function decodeHtmlEntities(input: string): string {
@@ -105,12 +111,13 @@ function toAbsUrl(raw: string | null, base: URL): string | null {
 
 export async function getLinkPreview(rawUrl: string): Promise<ChatLinkPreview> {
   const parsed = validatePreviewUrl(rawUrl.trim());
+  const directImage = inferImageUrl(parsed);
   const fallback: ChatLinkPreview = {
     url: parsed.toString(),
     title: parsed.hostname,
     description: null,
     siteName: parsed.hostname,
-    image: null,
+    image: directImage,
     favicon: null,
   };
 
@@ -130,6 +137,9 @@ export async function getLinkPreview(rawUrl: string): Promise<ChatLinkPreview> {
 
     if (!resp.ok) return fallback;
     const contentType = resp.headers.get('content-type')?.toLowerCase() ?? '';
+    if (contentType.startsWith('image/')) {
+      return { ...fallback, image: parsed.toString(), title: parsed.pathname.split('/').pop() || parsed.hostname };
+    }
     if (!contentType.includes('text/html')) return fallback;
 
     const htmlRaw = await resp.text();
@@ -157,7 +167,7 @@ export async function getLinkPreview(rawUrl: string): Promise<ChatLinkPreview> {
         { key: 'name', value: 'twitter:image' },
       ]),
       parsed,
-    );
+    ) ?? directImage;
 
     const favicon = toAbsUrl(pickFavicon(html), parsed);
 

@@ -28,15 +28,17 @@ export const chatHandlers = [
       return HttpResponse.json({ code: 400, message: '仅支持 http/https 链接', data: null }, { status: 400 });
     }
 
+    const isImageUrl = /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(parsed.pathname);
+
     return HttpResponse.json({
       code: 0,
       message: 'ok',
       data: {
         url: parsed.toString(),
-        title: parsed.hostname,
+        title: isImageUrl ? (parsed.pathname.split('/').pop() || parsed.hostname) : parsed.hostname,
         description: `这是 ${parsed.hostname} 的链接预览（Demo）`,
         siteName: parsed.hostname,
-        image: null,
+        image: isImageUrl ? parsed.toString() : null,
         favicon: `https://www.google.com/s2/favicons?domain=${parsed.hostname}&sz=64`,
       },
     });

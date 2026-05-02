@@ -64,6 +64,7 @@ function shouldDisplayMessageTime(current: ChatMessage, next?: ChatMessage): boo
 }
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/ig;
+const IMAGE_URL_REGEX = /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i;
 
 function extractFirstUrl(content: string): string | null {
   const hit = content.match(URL_REGEX);
@@ -73,12 +74,13 @@ function extractFirstUrl(content: string): string | null {
 function buildFallbackPreview(url: string): ChatLinkPreview | null {
   try {
     const parsed = new URL(url);
+    const isImageUrl = IMAGE_URL_REGEX.test(parsed.pathname);
     return {
       url: parsed.toString(),
-      title: parsed.hostname,
+      title: isImageUrl ? (parsed.pathname.split('/').pop() || parsed.hostname) : parsed.hostname,
       description: null,
       siteName: parsed.hostname,
-      image: null,
+      image: isImageUrl ? parsed.toString() : null,
       favicon: null,
     };
   } catch {
@@ -288,7 +290,7 @@ function GroupMembersPanel({ conversationId }: Readonly<{ conversationId: number
 function MessageContent({ msg, isSelf }: Readonly<{ msg: ChatMessage; isSelf: boolean }>) {
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
   const typedExtra = msg.extra as { name?: string; size?: number; linkPreview?: ChatLinkPreview } | null;
-  const linkPreview = typedExtra?.linkPreview ?? null;
+  const linkPreview = typedExtra?.linkPreview ?? buildFallbackPreview(extractFirstUrl(msg.content) ?? '');
   const bubbleStyle: React.CSSProperties = {
     background: isSelf ? 'var(--semi-color-primary)' : 'var(--semi-color-fill-1)',
     color: isSelf ? '#fff' : 'inherit',
