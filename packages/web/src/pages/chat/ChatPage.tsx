@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Input, Button, Avatar, Badge, Typography, Empty, Spin, Toast, Tooltip, Tabs, TabPane,
+  Input, Button, Avatar, Badge, Typography, Empty, Spin, Toast, Tooltip, Tabs, TabPane, Dropdown,
 } from '@douyinfe/semi-ui';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
@@ -228,6 +228,7 @@ function GroupMembersPanel({ conversationId }: Readonly<{ conversationId: number
 // ─── MessageContent ───────────────────────────────────────────────────────────
 
 function MessageContent({ msg, isSelf }: Readonly<{ msg: ChatMessage; isSelf: boolean }>) {
+  const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
   const bubbleStyle: React.CSSProperties = {
     background: isSelf ? 'var(--semi-color-primary)' : 'var(--semi-color-fill-1)',
     color: isSelf ? '#fff' : 'inherit',
@@ -238,15 +239,49 @@ function MessageContent({ msg, isSelf }: Readonly<{ msg: ChatMessage; isSelf: bo
 
   if (msg.type === 'image') {
     return (
-      <div style={{ background: 'transparent', padding: 0, borderRadius: 0 }}>
-        <a href={msg.content} target="_blank" rel="noreferrer">
+      <>
+        <button
+          type="button"
+          onClick={() => setImagePreviewVisible(true)}
+          style={{ background: 'transparent', padding: 0, border: 'none', borderRadius: 0, cursor: 'zoom-in' }}
+        >
           <img
             src={msg.content}
             alt={(msg.extra as { name?: string } | null)?.name ?? '图片'}
-            style={{ maxWidth: 240, maxHeight: 200, borderRadius: 0, display: 'block', cursor: 'pointer', border: 'none', boxShadow: 'none' }}
+            style={{ maxWidth: 240, maxHeight: 200, borderRadius: 0, display: 'block', cursor: 'zoom-in', border: 'none', boxShadow: 'none' }}
           />
-        </a>
-      </div>
+        </button>
+        {imagePreviewVisible && (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setImagePreviewVisible(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setImagePreviewVisible(false);
+              }
+            }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 2000,
+              background: 'rgba(0, 0, 0, 0.85)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+            }}
+          >
+            <img
+              src={msg.content}
+              alt={(msg.extra as { name?: string } | null)?.name ?? '预览图片'}
+              onClick={(e) => e.stopPropagation()}
+              style={{ maxWidth: '92vw', maxHeight: '88vh', display: 'block', border: 'none', boxShadow: 'none' }}
+            />
+          </div>
+        )}
+      </>
     );
   }
 
@@ -286,6 +321,7 @@ function MessageBubble({
 }>) {
   const fullTimeStr = formatDateTime(msg.createdAt);
   const [isHovered, setIsHovered] = useState(false);
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const showBottomTime = shouldShowTime || isHovered;
 
   if (msg.isRecalled) {
@@ -305,6 +341,10 @@ function MessageBubble({
       style={{ display: 'flex', flexDirection: isSelf ? 'row-reverse' : 'row', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setContextMenuPos({ x: e.clientX, y: e.clientY });
+      }}
     >
       {!isSelf && <UserAvatar name={msg.senderName ?? '?'} avatar={msg.senderAvatar} size={32} />}
       <div style={{ maxWidth: '65%', position: 'relative' }}>
@@ -327,18 +367,6 @@ function MessageBubble({
               <MessageContent msg={msg} isSelf={isSelf} />
             </div>
             <div style={{ display: 'flex', gap: 2, flexShrink: 0, paddingBottom: 2 }}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <Tooltip content="回复" position="top">
-                  <div style={{ display: 'flex' }}>
-                    <Button
-                      size="small" theme="borderless" type="tertiary"
-                      icon={<CornerDownLeft size={12} />}
-                      onClick={() => onReply(msg)}
-                      style={{ padding: '2px 4px', height: 'auto', minWidth: 'auto' }}
-                    />
-                  </div>
-                </Tooltip>
-              </div>
               {isSelf && (
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <Tooltip content="撤回" position="top">
@@ -376,6 +404,40 @@ function MessageBubble({
         >
           {fullTimeStr}
         </Text>
+        {contextMenuPos && (
+          <Dropdown
+            trigger="click"
+            visible
+            clickToHide
+            position="bottomLeft"
+            onVisibleChange={(visible) => {
+              if (!visible) setContextMenuPos(null);
+            }}
+            render={(
+              <Dropdown.Menu>
+                <Dropdown.Item
+                  icon={<CornerDownLeft size={12} />}
+                  onClick={() => {
+                    onReply(msg);
+                    setContextMenuPos(null);
+                  }}
+                >
+                  回复
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            )}
+          >
+            <span
+              style={{
+                position: 'fixed',
+                left: contextMenuPos.x,
+                top: contextMenuPos.y,
+                width: 1,
+                height: 1,
+              }}
+            />
+          </Dropdown>
+        )}
       </div>
     </div>
   );
