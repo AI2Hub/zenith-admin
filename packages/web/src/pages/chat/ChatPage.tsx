@@ -26,6 +26,15 @@ interface PendingImage {
   previewUrl: string;
 }
 
+interface ChatLinkPreview {
+  url: string;
+  title: string;
+  description: string | null;
+  siteName: string | null;
+  image: string | null;
+  favicon: string | null;
+}
+
 function getAvatarColor(name: string): string {
   const colors = ['#f093fb', '#4facfe', '#43e97b', '#fa709a', '#fee140', '#a18cd1', '#fbc2eb', '#a1c4fd'];
   let hash = 0;
@@ -52,6 +61,49 @@ function shouldDisplayMessageTime(current: ChatMessage, next?: ChatMessage): boo
   const nextTime = getMessageTimestamp(next.createdAt);
   if (Number.isNaN(currentTime) || Number.isNaN(nextTime)) return true;
   return nextTime - currentTime > MESSAGE_TIME_GROUP_GAP_MS;
+}
+
+const URL_REGEX = /(https?:\/\/[^\s]+)/ig;
+
+function extractFirstUrl(content: string): string | null {
+  const hit = content.match(URL_REGEX);
+  return hit?.[0] ?? null;
+}
+
+function buildFallbackPreview(url: string): ChatLinkPreview | null {
+  try {
+    const parsed = new URL(url);
+    return {
+      url: parsed.toString(),
+      title: parsed.hostname,
+      description: null,
+      siteName: parsed.hostname,
+      image: null,
+      favicon: null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function renderTextWithLinks(content: string, isSelf: boolean) {
+  const parts = content.split(URL_REGEX);
+  return parts.map((part, idx) => {
+    if (/^https?:\/\//i.test(part)) {
+      return (
+        <a
+          key={`${part}-${idx}`}
+          href={part}
+          target="_blank"
+          rel="noreferrer"
+          style={{ color: isSelf ? 'rgba(255,255,255,0.92)' : 'var(--semi-color-link)', textDecoration: 'underline' }}
+        >
+          {part}
+        </a>
+      );
+    }
+    return <span key={`${part}-${idx}`}>{part}</span>;
+  });
 }
 
 // ─── UserSearchList ──────────────────────────────────────────────────────────────────────────
@@ -235,6 +287,8 @@ function GroupMembersPanel({ conversationId }: Readonly<{ conversationId: number
 
 function MessageContent({ msg, isSelf }: Readonly<{ msg: ChatMessage; isSelf: boolean }>) {
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
+  const typedExtra = msg.extra as { name?: string; size?: number; linkPreview?: ChatLinkPreview } | null;
+  const linkPreview = typedExtra?.linkPreview ?? null;
   const bubbleStyle: React.CSSProperties = {
     background: isSelf ? 'var(--semi-color-primary)' : 'var(--semi-color-fill-1)',
     color: isSelf ? '#fff' : 'inherit',
@@ -292,7 +346,7 @@ function MessageContent({ msg, isSelf }: Readonly<{ msg: ChatMessage; isSelf: bo
   }
 
   if (msg.type === 'file') {
-    const extra = msg.extra as { name?: string; size?: number } | null;
+    const extra = typedExtra;
     return (
       <div style={{ ...bubbleStyle, display: 'flex', alignItems: 'center', gap: 8 }}>
         <a
@@ -311,7 +365,86 @@ function MessageContent({ msg, isSelf }: Readonly<{ msg: ChatMessage; isSelf: bo
     );
   }
 
-  return <div style={bubbleStyle}>{msg.content}</div>;
+  return (
+    <div style={bubbleStyle}>
+      <div style={{ whiteSpace: 'pre-wrap' }}>{renderTextWithLinks(msg.content, isSelf)}</div>
+      {linkPreview && (
+        <a
+          href={linkPreview.url}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            marginTop: 8,
+            display: 'flex',
+            gap: 10,
+            borderRadius: 8,
+            border: isSelf ? '1px solid rgba(255,255,255,0.35)' : '1px solid var(--semi-color-border)',
+            background: isSelf ? 'rgba(255,255,255,0.12)' : 'var(--semi-color-bg-1)',
+            color: isSelf ? '#fff' : 'inherit',
+            textDecoration: 'none',
+            overflow: 'hidden',
+            minWidth: 220,
+            maxWidth: 340,
+          }}
+        >
+          {linkPreview.image && (
+            <img
+              src={linkPreview.image}
+              alt={linkPreview.title}
+              style={{ width: 88, objectFit: 'cover', flexShrink: 0, borderRadius: 0 }}
+            />
+          )}
+          <div style={{ padding: '8px 10px', minWidth: 0, flex: 1 }}>
+            <Text
+              strong
+              style={{
+                display: 'block',
+                color: isSelf ? '#fff' : 'var(--semi-color-text-0)',
+                fontSize: 13,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {linkPreview.title}
+            </Text>
+            {linkPreview.description && (
+              <Text
+                style={{
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  marginTop: 2,
+                  color: isSelf ? 'rgba(255,255,255,0.88)' : 'var(--semi-color-text-2)',
+                  fontSize: 12,
+                }}
+              >
+                {linkPreview.description}
+              </Text>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+              {linkPreview.favicon && (
+                <img src={linkPreview.favicon} alt="favicon" style={{ width: 14, height: 14, borderRadius: 3 }} />
+              )}
+              <Text
+                type="tertiary"
+                style={{
+                  fontSize: 11,
+                  color: isSelf ? 'rgba(255,255,255,0.72)' : 'var(--semi-color-text-3)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {linkPreview.siteName ?? linkPreview.url}
+              </Text>
+            </div>
+          </div>
+        </a>
+      )}
+    </div>
+  );
 }
 
 // ─── MessageBubble ────────────────────────────────────────────────────────────
@@ -732,6 +865,12 @@ export default function ChatPage() {
     return msgRes.code === 0;
   }, [activeConvId]);
 
+  const fetchLinkPreview = useCallback(async (url: string): Promise<ChatLinkPreview | null> => {
+    const res = await request.get<ChatLinkPreview>(`/api/chat/link-preview?url=${encodeURIComponent(url)}`, { silent: true });
+    if (res.code === 0 && res.data) return res.data;
+    return null;
+  }, []);
+
   const handleSend = useCallback(async () => {
     if (!activeConvId || sending || (!input.trim() && pendingImages.length === 0)) return;
 
@@ -750,6 +889,11 @@ export default function ChatPage() {
     if (content) {
       const body: Record<string, unknown> = { content, type: 'text' };
       if (replyTo) body.replyToId = replyTo.id;
+      const firstUrl = extractFirstUrl(content);
+      if (firstUrl) {
+        const preview = await fetchLinkPreview(firstUrl) ?? buildFallbackPreview(firstUrl);
+        if (preview) body.extra = { linkPreview: preview };
+      }
       const res = await request.post<ChatMessage>(`/api/chat/conversations/${activeConvId}/messages`, body);
       if (res.code !== 0) {
         setInput(content);
@@ -772,7 +916,7 @@ export default function ChatPage() {
     if (failedImageCount > 0) {
       Toast.error(`有 ${failedImageCount} 张图片发送失败`);
     }
-  }, [activeConvId, input, pendingImages, replyTo, sendImageFile, sending]);
+  }, [activeConvId, fetchLinkPreview, input, pendingImages, replyTo, sendImageFile, sending]);
 
   const handleSelectImages = useCallback((files: File[]) => {
     const validFiles = files.filter((file) => file.type.startsWith('image/'));

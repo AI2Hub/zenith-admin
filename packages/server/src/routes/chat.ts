@@ -10,6 +10,7 @@ import {
   sendMessage, recallMessage, markConversationRead, listChatUsers,
   createGroupConversation, addGroupMember, listGroupMembers,
   pinConversation, starConversation, removeConversation,
+  getLinkPreview,
 } from '../services/chat.service';
 
 const chatRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -89,6 +90,32 @@ const sendMessageSchema = z.object({
   replyToId: z.number().int().positive().nullable().optional(),
   extra: z.record(z.string(), z.unknown()).nullable().optional(),
 });
+
+const chatLinkPreviewDTO = z.object({
+  url: z.string().url(),
+  title: z.string(),
+  description: z.string().nullable(),
+  siteName: z.string().nullable(),
+  image: z.string().url().nullable(),
+  favicon: z.string().url().nullable(),
+});
+
+chatRouter.openapi(
+  createRoute({
+    method: 'get', path: '/link-preview', tags: ['Chat'], summary: '获取链接预览信息',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: {
+      query: z.object({ url: z.string().url().max(2048) }),
+    },
+    responses: { ...commonErrorResponses, ...ok(chatLinkPreviewDTO, '链接预览') },
+  }),
+  async (c) => {
+    const { url } = c.req.valid('query');
+    const data = await getLinkPreview(url);
+    return c.json(okBody(data), 200);
+  },
+);
 
 chatRouter.openapi(
   createRoute({

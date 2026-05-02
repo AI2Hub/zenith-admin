@@ -10,6 +10,172 @@ import { pageOffset } from '../lib/pagination';
 import { HTTPException } from 'hono/http-exception';
 import type { SendChatMessageInput, ChatMessage, ChatConversation } from '@zenith/shared';
 
+export interface ChatLinkPreview {
+  url: string;
+  title: string;
+  description: string | null;
+  siteName: string | null;
+  image: string | null;
+  favicon: string | null;
+}
+
+function isPrivateIpv4(hostname: string): boolean {
+  const parts = hostname.split('.').map((n) => Number(n));
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return false;
+  const [a, b] = parts;
+  if (a === 10) return true;
+  if (a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  return false;
+}
+
+function validatePreviewUrl(rawUrl: string): URL {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new HTTPException(400, { message: '链接格式无效' });
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new HTTPException(400, { message: '仅支持 http/https 链接' });
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  if (
+    host === 'localhost'
+    || host === '::1'
+    || host === '[::1]'
+    || host.endsWith('.local')
+    || isPrivateIpv4(host)
+  ) {
+    throw new HTTPException(400, { message: '不支持内网地址预览' });
+  }
+
+  return parsed;
+}
+
+function decodeHtmlEntities(input: string): string {
+  return input
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+}
+
+function stripTags(input: string): string {
+  return input.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function pickMeta(html: string, attrs: Array<{ key: string; value: string }>): string | null {
+  for (const { key, value } of attrs) {
+    const pattern = new RegExp(`<meta[^>]*${key}=["']${value}["'][^>]*content=["']([^"']+)["'][^>]*>`, 'i');
+    const patternSwap = new RegExp(`<meta[^>]*content=["']([^"']+)["'][^>]*${key}=["']${value}["'][^>]*>`, 'i');
+    const hit = html.match(pattern) ?? html.match(patternSwap);
+    if (hit?.[1]) return decodeHtmlEntities(hit[1].trim());
+  }
+  return null;
+}
+
+function pickTitle(html: string): string | null {
+  const hit = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  if (!hit?.[1]) return null;
+  const text = stripTags(decodeHtmlEntities(hit[1]));
+  return text.length > 0 ? text : null;
+}
+
+function pickFavicon(html: string): string | null {
+  const hit = html.match(/<link[^>]*rel=["'][^"']*icon[^"']*["'][^>]*href=["']([^"']+)["'][^>]*>/i)
+    ?? html.match(/<link[^>]*href=["']([^"']+)["'][^>]*rel=["'][^"']*icon[^"']*["'][^>]*>/i);
+  return hit?.[1] ? decodeHtmlEntities(hit[1].trim()) : null;
+}
+
+function toAbsUrl(raw: string | null, base: URL): string | null {
+  if (!raw) return null;
+  try {
+    return new URL(raw, base).toString();
+  } catch {
+    return null;
+  }
+}
+
+export async function getLinkPreview(rawUrl: string): Promise<ChatLinkPreview> {
+  const parsed = validatePreviewUrl(rawUrl.trim());
+  const fallback: ChatLinkPreview = {
+    url: parsed.toString(),
+    title: parsed.hostname,
+    description: null,
+    siteName: parsed.hostname,
+    image: null,
+    favicon: null,
+  };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const resp = await fetch(parsed, {
+      method: 'GET',
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: {
+        accept: 'text/html,application/xhtml+xml',
+        'user-agent': 'ZenithAdminLinkPreviewBot/1.0',
+      },
+    });
+
+    if (!resp.ok) return fallback;
+    const contentType = resp.headers.get('content-type')?.toLowerCase() ?? '';
+    if (!contentType.includes('text/html')) return fallback;
+
+    const htmlRaw = await resp.text();
+    const html = htmlRaw.slice(0, 300_000);
+
+    const siteName = pickMeta(html, [
+      { key: 'property', value: 'og:site_name' },
+      { key: 'name', value: 'application-name' },
+    ]) ?? parsed.hostname;
+
+    const title = pickMeta(html, [
+      { key: 'property', value: 'og:title' },
+      { key: 'name', value: 'twitter:title' },
+    ]) ?? pickTitle(html) ?? parsed.hostname;
+
+    const description = pickMeta(html, [
+      { key: 'property', value: 'og:description' },
+      { key: 'name', value: 'description' },
+      { key: 'name', value: 'twitter:description' },
+    ]);
+
+    const image = toAbsUrl(
+      pickMeta(html, [
+        { key: 'property', value: 'og:image' },
+        { key: 'name', value: 'twitter:image' },
+      ]),
+      parsed,
+    );
+
+    const favicon = toAbsUrl(pickFavicon(html), parsed);
+
+    return {
+      url: parsed.toString(),
+      title: title.trim(),
+      description: description?.trim() ?? null,
+      siteName: siteName?.trim() ?? null,
+      image,
+      favicon,
+    };
+  } catch {
+    return fallback;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 
 export function mapChatMessage(

@@ -11,6 +11,37 @@ const CURRENT_USER_ID = 1;
 const CURRENT_USER_NICKNAME = '管理员';
 
 export const chatHandlers = [
+  // 链接预览
+  http.get('/api/chat/link-preview', ({ request }) => {
+    const url = new URL(request.url);
+    const raw = url.searchParams.get('url');
+    if (!raw) return HttpResponse.json({ code: 400, message: 'url 不能为空', data: null }, { status: 400 });
+
+    let parsed: URL;
+    try {
+      parsed = new URL(raw);
+    } catch {
+      return HttpResponse.json({ code: 400, message: '链接格式无效', data: null }, { status: 400 });
+    }
+
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return HttpResponse.json({ code: 400, message: '仅支持 http/https 链接', data: null }, { status: 400 });
+    }
+
+    return HttpResponse.json({
+      code: 0,
+      message: 'ok',
+      data: {
+        url: parsed.toString(),
+        title: parsed.hostname,
+        description: `这是 ${parsed.hostname} 的链接预览（Demo）`,
+        siteName: parsed.hostname,
+        image: null,
+        favicon: `https://www.google.com/s2/favicons?domain=${parsed.hostname}&sz=64`,
+      },
+    });
+  }),
+
   // 可聊天用户搜索
   http.get('/api/chat/users', ({ request }) => {
     const url = new URL(request.url);
@@ -77,7 +108,12 @@ export const chatHandlers = [
   // 发送消息
   http.post('/api/chat/conversations/:id/messages', async ({ params, request }) => {
     const convId = Number(params.id);
-    const body = await request.json() as { content: string; type?: string; replyToId?: number };
+    const body = await request.json() as {
+      content: string;
+      type?: string;
+      replyToId?: number;
+      extra?: Record<string, unknown> | null;
+    };
 
     const newMsg: ChatMessage = {
       id: getNextMsgId(),
@@ -89,7 +125,7 @@ export const chatHandlers = [
       content: body.content,
       replyToId: body.replyToId ?? null,
       isRecalled: false,
-      extra: null,
+      extra: body.extra ?? null,
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
     };
