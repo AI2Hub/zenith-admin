@@ -787,6 +787,30 @@ export default function ChatPage() {
     setPendingImages((prev) => [...prev, ...added]);
   }, []);
 
+  const handleSelectFile = useCallback((files: File[]) => {
+    const nonImageFiles = files.filter((file) => !file.type.startsWith('image/'));
+    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
+
+    if (nonImageFiles.length === 0 && imageFiles.length > 0) {
+      Toast.info('图片请使用“选择图片”按钮发送');
+      return;
+    }
+
+    if (nonImageFiles.length > 0) {
+      setSending(true);
+      void (async () => {
+        let failed = 0;
+        for (const file of nonImageFiles) {
+          // eslint-disable-next-line no-await-in-loop
+          const ok = await sendFileMessage(file);
+          if (!ok) failed += 1;
+        }
+        setSending(false);
+        if (failed > 0) Toast.error(`有 ${failed} 个文件发送失败`);
+      })();
+    }
+  }, [sendFileMessage]);
+
   const handleRemovePendingImage = useCallback((id: string) => {
     setPendingImages((prev) => {
       const target = prev.find((item) => item.id === id);
@@ -1324,7 +1348,7 @@ export default function ChatPage() {
                 style={{ display: 'none' }}
                 onChange={(e) => {
                   const files = Array.from(e.target.files ?? []);
-                  if (files.length > 0) handleSelectImages(files);
+                  if (files.length > 0) handleSelectFile(files);
                   e.target.value = '';
                 }}
               />
