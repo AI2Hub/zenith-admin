@@ -164,6 +164,6 @@ const uploadOneRoute = defineOpenAPIRoute({
   },
 });
 
-filesRouter.openapiRoutes([contentRoute, listRoute, uploadRoute, uploadOneRoute, deleteRoute, batchDeleteRoute, exportRoute] as const);
+filesRouter.openapiRoutes([contentRoute, listRoute, uploadRoute, uploadOneRoute, batchDeleteRoute, deleteRoute, exportRoute] as const);
 
 export default filesRouter;

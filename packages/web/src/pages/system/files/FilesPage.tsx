@@ -575,7 +575,7 @@ export default function FilesPage() {
         rowKey="id"
         rowSelection={hasPermission('system:file:delete') ? {
           selectedRowKeys,
-          onChange: (keys) => setSelectedRowKeys(keys as number[]),
+          onChange: (keys) => setSelectedRowKeys((keys as (string | number)[]).map(Number)),
         } : undefined}
         loading={loading}
         size="small"
