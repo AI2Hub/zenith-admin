@@ -360,7 +360,8 @@ export type WsMessage =
   | { type: 'chat:message'; payload: ChatMessage }
   | { type: 'chat:recall'; payload: { conversationId: number; messageId: number } }
   | { type: 'chat:read'; payload: { conversationId: number; userId: number } }
-  | { type: 'chat:member-join'; payload: { conversationId: number; user: { id: number; nickname: string; avatar: string | null } } };
+  | { type: 'chat:member-join'; payload: { conversationId: number; user: { id: number; nickname: string; avatar: string | null } } }
+  | { type: 'chat:typing'; payload: { conversationId: number; userId: number; nickname: string } };
 
 // ─── 地区管理 ──────────────────────────────────────────────
 export type RegionLevel = 'province' | 'city' | 'county';

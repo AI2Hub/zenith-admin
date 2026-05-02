@@ -92,6 +92,12 @@ function disconnectSharedSocket() {
   }
 }
 
+export function sendWsMessage(msg: WsMessage) {
+  if (sharedSocket && sharedSocket.readyState === WebSocket.OPEN) {
+    sharedSocket.send(JSON.stringify(msg));
+  }
+}
+
 /**
  * Generic WebSocket hook with auto-reconnect and exponential backoff.
  * Reuses one shared connection per page and fans out messages to subscribers.

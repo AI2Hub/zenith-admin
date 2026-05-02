@@ -4,9 +4,8 @@ import {
 } from '@douyinfe/semi-ui';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { Search, MessageSquarePlus, Send, CornerDownLeft, RotateCcw, Smile, ImagePlus, Users, UserPlus, Copy } from 'lucide-react';
-import { Pin, Star } from 'lucide-react';
-import { useWebSocket } from '@/hooks/useWebSocket';
+import { Search, MessageSquarePlus, Send, CornerDownLeft, RotateCcw, Smile, ImagePlus, Users, UserPlus, Copy, Paperclip, Pin, Star } from 'lucide-react';
+import { useWebSocket, sendWsMessage } from '@/hooks/useWebSocket';
 import { request } from '@/utils/request';
 import { formatDateTime, formatConvTime } from '@/utils/date';
 import type { ChatConversation, ChatMessage, WsMessage } from '@zenith/shared';
@@ -569,11 +568,14 @@ export default function ChatPage() {
   const [hasMore, setHasMore] = useState(false);
   const [pendingNewMsgCount, setPendingNewMsgCount] = useState(0);
   const [msgSearch, setMsgSearch] = useState('');
+  const [typingUsers, setTypingUsers] = useState<Record<number, { nickname: string; timer: ReturnType<typeof setTimeout> }>>({});
+  const typingThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileAttachRef = useRef<HTMLInputElement>(null);
   const emojiContainerRef = useRef<HTMLDivElement>(null);
   const pendingImagesRef = useRef<PendingImage[]>([]);
 
@@ -680,6 +682,36 @@ export default function ChatPage() {
     await fetchConversations();
     await handleSelectConv(conv);
   }, [fetchConversations, handleSelectConv]);
+
+  const sendFileMessage = useCallback(async (file: File) => {
+    if (!activeConvId) return false;
+    const fd = new FormData();
+    fd.append('file', file);
+    const uploadRes = await request.postForm<{ url: string; originalName: string; size: number }>('/api/files/upload-one', fd);
+    if (uploadRes.code !== 0 || !uploadRes.data) return false;
+    const { url, originalName, size } = uploadRes.data;
+    const msgRes = await request.post<ChatMessage>(`/api/chat/conversations/${activeConvId}/messages`, {
+      content: url,
+      type: 'file',
+      extra: { name: originalName, size },
+    });
+    return msgRes.code === 0;
+  }, [activeConvId]);
+
+  const handleTyping = useCallback(() => {
+    if (!activeConvId || !currentUserId) return;
+    if (typingThrottleRef.current) return; // 3秒内只发一次
+    let nickname = '用户';
+    try {
+      const token = localStorage.getItem('zenith_token');
+      if (token) {
+        const p = JSON.parse(atob(token.split('.')[1])) as { nickname?: string };
+        nickname = p.nickname ?? '用户';
+      }
+    } catch { /* ignore */ }
+    sendWsMessage({ type: 'chat:typing', payload: { conversationId: activeConvId, userId: currentUserId, nickname } });
+    typingThrottleRef.current = setTimeout(() => { typingThrottleRef.current = null; }, 3000);
+  }, [activeConvId, currentUserId]);
 
   const sendImageFile = useCallback(async (file: File) => {
     if (!activeConvId) return false;
@@ -833,6 +865,21 @@ export default function ChatPage() {
       setMessages((prev) =>
         prev.map((m) => m.id === messageId ? { ...m, isRecalled: true, content: '消息已撤回' } : m),
       );
+    } else if (wsMsg.type === 'chat:typing') {
+      const { conversationId, userId, nickname } = wsMsg.payload;
+      if (conversationId !== activeConvId || userId === currentUserId) return;
+      setTypingUsers((prev) => {
+        const existing = prev[userId];
+        if (existing) clearTimeout(existing.timer);
+        const timer = setTimeout(() => {
+          setTypingUsers((p) => {
+            const next = { ...p };
+            delete next[userId];
+            return next;
+          });
+        }, 4000);
+        return { ...prev, [userId]: { nickname, timer } };
+      });
     } else if (wsMsg.type === 'chat:member-join') {
       if (wsMsg.payload.conversationId === activeConvId) {
         void fetchConversations();
@@ -1262,13 +1309,54 @@ export default function ChatPage() {
                   e.target.value = '';
                 }}
               />
+              <Tooltip content="发送文件">
+                <Button
+                  size="small" theme="borderless" type="tertiary"
+                  icon={<Paperclip size={16} />}
+                  loading={sending && pendingImages.length === 0}
+                  onClick={() => fileAttachRef.current?.click()}
+                />
+              </Tooltip>
+              <input
+                ref={fileAttachRef}
+                type="file"
+                multiple
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  if (files.length > 0) handleSelectImages(files);
+                  e.target.value = '';
+                }}
+              />
             </div>
 
             <div style={{ position: 'relative', flex: 1 }}>
+              {Object.values(typingUsers).length > 0 && (
+                <div style={{ fontSize: 11, color: 'var(--semi-color-text-3)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span
+                    style={{
+                      display: 'inline-flex', gap: 2, alignItems: 'center',
+                    }}
+                  >
+                    {[0, 1, 2].map((i) => (
+                      <span
+                        key={i}
+                        style={{
+                          width: 4, height: 4, borderRadius: '50%',
+                          background: 'var(--semi-color-text-3)',
+                          display: 'inline-block',
+                          animation: `bounce 1.2s ${i * 0.2}s ease-in-out infinite`,
+                        }}
+                      />
+                    ))}
+                  </span>
+                  {Object.values(typingUsers).map((u) => u.nickname).join('、')}正在输入...
+                </div>
+              )}
               <textarea
                 ref={inputRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => { setInput(e.target.value); handleTyping(); }}
                 onKeyDown={handleKeyDown}
                 onPaste={handleInputPaste}
                 placeholder="输入消息…"

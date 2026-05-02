@@ -3,7 +3,11 @@ import type { UpgradeWebSocket } from 'hono/ws';
 import { verifyToken } from '../lib/jwt';
 import type { JwtPayload } from '../middleware/auth';
 import { isTokenBlacklisted } from '../lib/session-manager';
-import { registerConnection, removeConnection } from '../lib/ws-manager';
+import { registerConnection, removeConnection, sendToUser } from '../lib/ws-manager';
+import { db } from '../db';
+import { chatConversationMembers } from '../db/schema';
+import { eq, ne, and } from 'drizzle-orm';
+import type { WsMessage } from '@zenith/shared';
 
 /**
  * Create the WebSocket route.
@@ -44,6 +48,27 @@ export function createWsRoute(upgradeWebSocket: UpgradeWebSocket) {
             // On Redis error, allow connection (fail-open for WebSocket)
             registerConnection(currentPayload.userId, currentPayload.jti ?? '', ws);
           });
+        },
+        async onMessage(evt) {
+          if (!payload) return;
+          try {
+            const data: unknown = typeof evt.data === 'string' ? JSON.parse(evt.data) : null;
+            const msg = data as WsMessage;
+            if (msg?.type === 'chat:typing') {
+              const { conversationId } = msg.payload;
+              // 转发给会话内其他成员
+              const members = await db
+                .select({ userId: chatConversationMembers.userId })
+                .from(chatConversationMembers)
+                .where(and(
+                  eq(chatConversationMembers.conversationId, conversationId),
+                  ne(chatConversationMembers.userId, payload.userId),
+                ));
+              for (const { userId } of members) {
+                sendToUser(userId, msg);
+              }
+            }
+          } catch { /* ignore malformed */ }
         },
         onClose(_evt, ws) {
           if (payload) {
