@@ -169,14 +169,7 @@
   gap: 4px;
   font-size: 11px;
   color: var(--semi-color-text-2);
-  flex-wrap: wrap;
-}
-
-.files-grid-card__actions {
-  display: flex;
-  align-items: center;
-  padding: 3px 4px;
-  border-top: 1px solid var(--semi-color-border);
+  flex-wrap: nowrap;
 }
 
 .files-grid-pagination {

@@ -100,50 +100,46 @@ function FileGridCard({
         </Tooltip>
         <div className="files-grid-card__meta">
           <ProviderTag provider={file.provider} />
-          <span>{formatFileSize(file.size)}</span>
+          <span style={{ flex: 1 }}>{formatFileSize(file.size)}</span>
+          <Dropdown
+            trigger="click"
+            position="bottomRight"
+            clickToHide
+            render={
+              <Dropdown.Menu>
+                <Dropdown.Item onClick={() => onDownload(file)}>下载</Dropdown.Item>
+                <Dropdown.Item onClick={() => onDetail(file)}>详情</Dropdown.Item>
+                <Dropdown.Item onClick={() => onCopyUrl(file)}>复制链接</Dropdown.Item>
+                {canDelete && (
+                  <>
+                    <Dropdown.Divider />
+                    <Dropdown.Item
+                      type="danger"
+                      onClick={() => {
+                        Modal.confirm({
+                          title: '确认删除此文件？',
+                          content: '删除文件记录后，将同步尝试删除实际存储对象。',
+                          okButtonProps: { type: 'danger', theme: 'solid' },
+                          onOk: () => onDelete(file),
+                        });
+                      }}
+                    >删除</Dropdown.Item>
+                  </>
+                )}
+              </Dropdown.Menu>
+            }
+          >
+            <span style={{ display: 'inline-block' }}>
+              <Button
+                theme="borderless"
+                size="small"
+                icon={<MoreHorizontal size={14} />}
+                loading={downloadLoading}
+                onClick={(e) => { e.nativeEvent.stopImmediatePropagation(); }}
+              />
+            </span>
+          </Dropdown>
         </div>
-      </div>
-      <div className="files-grid-card__actions">
-        <Button theme="borderless" size="small" loading={previewLoading} onClick={() => onPreview(file)}>预览</Button>
-        <div style={{ flex: 1 }} />
-        <Dropdown
-          trigger="click"
-          position="bottomRight"
-          clickToHide
-          render={
-            <Dropdown.Menu>
-              <Dropdown.Item onClick={() => onDownload(file)}>下载</Dropdown.Item>
-              <Dropdown.Item onClick={() => onDetail(file)}>详情</Dropdown.Item>
-              <Dropdown.Item onClick={() => onCopyUrl(file)}>复制链接</Dropdown.Item>
-              {canDelete && (
-                <>
-                  <Dropdown.Divider />
-                  <Dropdown.Item
-                    type="danger"
-                    onClick={() => {
-                      Modal.confirm({
-                        title: '确认删除此文件？',
-                        content: '删除文件记录后，将同步尝试删除实际存储对象。',
-                        okButtonProps: { type: 'danger', theme: 'solid' },
-                        onOk: () => onDelete(file),
-                      });
-                    }}
-                  >删除</Dropdown.Item>
-                </>
-              )}
-            </Dropdown.Menu>
-          }
-        >
-          <span style={{ display: 'inline-block' }}>
-            <Button
-              theme="borderless"
-              size="small"
-              icon={<MoreHorizontal size={14} />}
-              loading={downloadLoading}
-              onClick={(e) => { e.nativeEvent.stopImmediatePropagation(); }}
-            />
-          </span>
-        </Dropdown>
       </div>
     </div>
   );
