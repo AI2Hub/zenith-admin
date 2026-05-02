@@ -386,15 +386,17 @@ function MessageBubble({
   return (
     <div
       style={{ display: 'flex', flexDirection: isSelf ? 'row-reverse' : 'row', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        setContextMenuPos({ x: e.clientX, y: e.clientY });
-      }}
     >
       {!isSelf && <UserAvatar name={msg.senderName ?? '?'} avatar={msg.senderAvatar} size={32} />}
-      <div style={{ maxWidth: '65%', position: 'relative' }}>
+      <div
+        style={{ maxWidth: '65%', position: 'relative' }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setContextMenuPos({ x: e.clientX, y: e.clientY });
+        }}
+      >
         {!isSelf && (
           <Text type="tertiary" style={{ fontSize: 11, display: 'block', marginBottom: 2, marginLeft: 4 }}>
             {msg.senderName}
