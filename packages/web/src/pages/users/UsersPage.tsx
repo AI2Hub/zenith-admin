@@ -536,7 +536,7 @@ export default function UsersPage() {
         empty="暂无数据"
         rowSelection={{
           selectedRowKeys,
-          onChange: (keys) => setSelectedRowKeys(keys as number[]),
+          onChange: (keys) => setSelectedRowKeys((keys as (string | number)[]).map(Number)),
         }}
       />
         </div>
