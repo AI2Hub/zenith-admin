@@ -11,6 +11,7 @@ import { formatDateTime } from '@/utils/date';
 import type { ChatConversation, ChatMessage, WsMessage } from '@zenith/shared';
 
 const { Text, Title } = Typography;
+const MESSAGE_TIME_GROUP_GAP_MS = 5 * 60 * 1000;
 
 interface ChatUser {
   id: number;
@@ -33,6 +34,18 @@ function UserAvatar({ name, avatar, size = 36 }: Readonly<{ name: string; avatar
       {name.slice(0, 1).toUpperCase()}
     </Avatar>
   );
+}
+
+function getMessageTimestamp(value: string): number {
+  return new Date(value.replace(' ', 'T')).getTime();
+}
+
+function shouldDisplayMessageTime(current: ChatMessage, next?: ChatMessage): boolean {
+  if (!next) return true;
+  const currentTime = getMessageTimestamp(current.createdAt);
+  const nextTime = getMessageTimestamp(next.createdAt);
+  if (Number.isNaN(currentTime) || Number.isNaN(nextTime)) return true;
+  return nextTime - currentTime > MESSAGE_TIME_GROUP_GAP_MS;
 }
 
 // ─── UserSearchList ────────────────────────────────────────────────────────────
@@ -263,29 +276,38 @@ function MessageContent({ msg, isSelf }: Readonly<{ msg: ChatMessage; isSelf: bo
 // ─── MessageBubble ────────────────────────────────────────────────────────────
 
 function MessageBubble({
-  msg, isSelf, onReply, onRecall,
+  msg, isSelf, onReply, onRecall, shouldShowTime,
 }: Readonly<{
   msg: ChatMessage;
   isSelf: boolean;
   onReply: (msg: ChatMessage) => void;
   onRecall: (msg: ChatMessage) => void;
+  shouldShowTime: boolean;
 }>) {
   const fullTimeStr = formatDateTime(msg.createdAt);
+  const [isHovered, setIsHovered] = useState(false);
+  const showBottomTime = shouldShowTime || isHovered;
 
   if (msg.isRecalled) {
     return (
       <div style={{ textAlign: 'center', padding: '4px 0' }}>
-        <Text type="tertiary" style={{ fontSize: 12 }}>
-          {isSelf ? '你' : (msg.senderName ?? '对方')}撤回了一条消息
-        </Text>
+        <Tooltip content={fullTimeStr} position="top">
+          <Text type="tertiary" style={{ fontSize: 12, cursor: 'default' }}>
+            {isSelf ? '你' : (msg.senderName ?? '对方')}撤回了一条消息
+          </Text>
+        </Tooltip>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: isSelf ? 'row-reverse' : 'row', gap: 8, marginBottom: 12, alignItems: 'flex-end' }}>
+    <div
+      style={{ display: 'flex', flexDirection: isSelf ? 'row-reverse' : 'row', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {!isSelf && <UserAvatar name={msg.senderName ?? '?'} avatar={msg.senderAvatar} size={32} />}
-      <div style={{ maxWidth: '65%' }}>
+      <div style={{ maxWidth: '65%', position: 'relative' }}>
         {!isSelf && (
           <Text type="tertiary" style={{ fontSize: 11, display: 'block', marginBottom: 2, marginLeft: 4 }}>
             {msg.senderName}
@@ -301,7 +323,9 @@ function MessageBubble({
         )}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: isSelf ? 'flex-end' : 'flex-start', gap: 4 }}>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, flexDirection: isSelf ? 'row-reverse' : 'row' }}>
-            <MessageContent msg={msg} isSelf={isSelf} />
+            <div style={{ display: 'flex', cursor: 'default' }}>
+              <MessageContent msg={msg} isSelf={isSelf} />
+            </div>
             <div style={{ display: 'flex', gap: 2, flexShrink: 0, paddingBottom: 2 }}>
               <div style={{ display: 'flex', alignItems: 'center' }}>
                 <Tooltip content="回复" position="top">
@@ -331,13 +355,27 @@ function MessageBubble({
               )}
             </div>
           </div>
-          <Text
-            type="tertiary"
-            style={{ fontSize: 11, whiteSpace: 'nowrap', cursor: 'default', marginLeft: isSelf ? 0 : 4, marginRight: isSelf ? 4 : 0 }}
-          >
-            {fullTimeStr}
-          </Text>
         </div>
+        <Text
+          type="tertiary"
+          style={{
+            position: 'absolute',
+            bottom: -14,
+            [isSelf ? 'right' : 'left']: 4,
+            fontSize: 10,
+            lineHeight: 1,
+            whiteSpace: 'nowrap',
+            cursor: 'default',
+            opacity: showBottomTime ? 1 : 0,
+            transform: `translateY(${showBottomTime ? '0' : '-2px'})`,
+            transition: 'opacity 120ms ease, transform 120ms ease',
+            pointerEvents: 'none',
+            background: 'var(--semi-color-bg-0)',
+            padding: '0 2px',
+          }}
+        >
+          {fullTimeStr}
+        </Text>
       </div>
     </div>
   );
@@ -694,13 +732,14 @@ export default function ChatPage() {
                 {messages.length === 0 && !loadingMsgs && (
                   <Empty description="发送第一条消息吧" style={{ margin: 'auto' }} imageStyle={{ width: 80 }} />
                 )}
-                {messages.map((msg) => (
+                {messages.map((msg, index) => (
                   <MessageBubble
                     key={msg.id}
                     msg={msg}
                     isSelf={msg.senderId === currentUserId}
                     onReply={setReplyTo}
                     onRecall={handleRecall}
+                    shouldShowTime={shouldDisplayMessageTime(msg, messages[index + 1])}
                   />
                 ))}
                 <div ref={messagesEndRef} />
