@@ -7,6 +7,7 @@ import Picker from '@emoji-mart/react';
 import { Search, MessageSquarePlus, Send, CornerDownLeft, RotateCcw, Smile, ImagePlus, Users, UserPlus } from 'lucide-react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { request } from '@/utils/request';
+import { formatDateTime } from '@/utils/date';
 import type { ChatConversation, ChatMessage, WsMessage } from '@zenith/shared';
 
 const { Text, Title } = Typography;
@@ -269,7 +270,7 @@ function MessageBubble({
   onReply: (msg: ChatMessage) => void;
   onRecall: (msg: ChatMessage) => void;
 }>) {
-  const timeStr = msg.createdAt.slice(11, 16);
+  const fullTimeStr = formatDateTime(msg.createdAt);
 
   if (msg.isRecalled) {
     return (
@@ -298,29 +299,44 @@ function MessageBubble({
             回复消息 #{msg.replyToId}
           </div>
         )}
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, flexDirection: isSelf ? 'row-reverse' : 'row' }}>
-          <MessageContent msg={msg} isSelf={isSelf} />
-          <div style={{ display: 'flex', gap: 2, flexShrink: 0, paddingBottom: 2 }}>
-            <Tooltip content="回复">
-              <Button
-                size="small" theme="borderless" type="tertiary"
-                icon={<CornerDownLeft size={12} />}
-                onClick={() => onReply(msg)}
-                style={{ padding: '2px 4px', height: 'auto', minWidth: 'auto' }}
-              />
-            </Tooltip>
-            {isSelf && (
-              <Tooltip content="撤回">
-                <Button
-                  size="small" theme="borderless" type="tertiary"
-                  icon={<RotateCcw size={12} />}
-                  onClick={() => onRecall(msg)}
-                  style={{ padding: '2px 4px', height: 'auto', minWidth: 'auto' }}
-                />
-              </Tooltip>
-            )}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: isSelf ? 'flex-end' : 'flex-start', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, flexDirection: isSelf ? 'row-reverse' : 'row' }}>
+            <MessageContent msg={msg} isSelf={isSelf} />
+            <div style={{ display: 'flex', gap: 2, flexShrink: 0, paddingBottom: 2 }}>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <Tooltip content="回复" position="top">
+                  <div style={{ display: 'flex' }}>
+                    <Button
+                      size="small" theme="borderless" type="tertiary"
+                      icon={<CornerDownLeft size={12} />}
+                      onClick={() => onReply(msg)}
+                      style={{ padding: '2px 4px', height: 'auto', minWidth: 'auto' }}
+                    />
+                  </div>
+                </Tooltip>
+              </div>
+              {isSelf && (
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <Tooltip content="撤回" position="top">
+                    <div style={{ display: 'flex' }}>
+                      <Button
+                        size="small" theme="borderless" type="tertiary"
+                        icon={<RotateCcw size={12} />}
+                        onClick={() => onRecall(msg)}
+                        style={{ padding: '2px 4px', height: 'auto', minWidth: 'auto' }}
+                      />
+                    </div>
+                  </Tooltip>
+                </div>
+              )}
+            </div>
           </div>
-          <Text type="tertiary" style={{ fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}>{timeStr}</Text>
+          <Text
+            type="tertiary"
+            style={{ fontSize: 11, whiteSpace: 'nowrap', cursor: 'default', marginLeft: isSelf ? 0 : 4, marginRight: isSelf ? 4 : 0 }}
+          >
+            {fullTimeStr}
+          </Text>
         </div>
       </div>
     </div>
@@ -619,7 +635,7 @@ export default function ChatPage() {
                       </Text>
                       {lastMsg && (
                         <Text type="tertiary" style={{ fontSize: 11, flexShrink: 0, marginLeft: 4 }}>
-                          {lastMsg.createdAt.slice(5, 16)}
+                          {formatDateTime(lastMsg.createdAt)}
                         </Text>
                       )}
                     </div>
