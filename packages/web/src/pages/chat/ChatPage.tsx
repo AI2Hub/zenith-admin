@@ -63,12 +63,36 @@ function GroupGridAvatar({
   size?: number;
   members?: Array<{ id: number; nickname: string; avatar?: string | null }>;
 }>) {
-  const cells = Array.from({ length: 9 }, (_, idx) => {
-    const member = members?.[idx];
-    if (member) return { key: `m-${member.id}-${idx}`, avatar: member.avatar, char: member.nickname.slice(0, 1) };
-    return { key: `f-${name}-${idx}`, avatar: null, char: '' };
-  });
-  const cellSize = Math.max(8, Math.floor((size - 6) / 3));
+  const memberCells = (members ?? []).slice(0, 9).map((member, idx) => ({
+    key: `m-${member.id}-${idx}`,
+    avatar: member.avatar,
+    char: member.nickname.slice(0, 1),
+  }));
+
+  const cells = memberCells.length > 0
+    ? memberCells
+    : [{ key: `placeholder-${name}`, avatar: null, char: '' }];
+
+  const count = cells.length;
+  let cols = 3;
+  let rows = 3;
+  if (count <= 1) {
+    cols = 1;
+    rows = 1;
+  } else if (count === 2) {
+    cols = 2;
+    rows = 1;
+  } else if (count <= 4) {
+    cols = 2;
+    rows = 2;
+  } else if (count <= 6) {
+    cols = 3;
+    rows = 2;
+  }
+
+  const gap = 1;
+  const innerSize = size - 4;
+  const cellSize = Math.max(8, Math.floor((innerSize - (cols - 1) * gap) / cols));
 
   return (
     <div
@@ -82,8 +106,11 @@ function GroupGridAvatar({
         background: 'var(--semi-color-fill-0)',
         border: '1px solid var(--semi-color-border)',
         display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: 1,
+        gridTemplateColumns: `repeat(${cols}, ${cellSize}px)`,
+        gridTemplateRows: `repeat(${rows}, ${cellSize}px)`,
+        justifyContent: 'center',
+        alignContent: 'center',
+        gap,
       }}
     >
       {cells.map((cell, idx) => (
