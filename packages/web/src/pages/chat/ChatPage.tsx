@@ -455,24 +455,26 @@ function GroupMembersPanel({
                 </div>
                 {isOwner && !isSelf && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                    <Button
-                      size="small"
-                      theme="borderless"
-                      type="tertiary"
-                      onClick={() => handleTransfer(m)}
-                      style={{ padding: '2px 4px', height: 'auto', minWidth: 'auto' }}
-                    >
-                      转让
-                    </Button>
-                    <Button
-                      size="small"
-                      theme="borderless"
-                      type="danger"
-                      onClick={() => handleRemoveMember(m)}
-                      style={{ padding: '2px 4px', height: 'auto', minWidth: 'auto' }}
-                    >
-                      移除
-                    </Button>
+                    <Tooltip content="转让群主">
+                      <Button
+                        size="small"
+                        theme="borderless"
+                        type="tertiary"
+                        icon={<Crown size={13} />}
+                        onClick={() => handleTransfer(m)}
+                        style={{ padding: '2px 4px', height: 'auto', minWidth: 'auto' }}
+                      />
+                    </Tooltip>
+                    <Tooltip content="移除成员">
+                      <Button
+                        size="small"
+                        theme="borderless"
+                        type="danger"
+                        icon={<UserMinus size={13} />}
+                        onClick={() => handleRemoveMember(m)}
+                        style={{ padding: '2px 4px', height: 'auto', minWidth: 'auto' }}
+                      />
+                    </Tooltip>
                   </div>
                 )}
               </div>
