@@ -170,6 +170,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
   const [enteringTabKeys, setEnteringTabKeys] = useState<Set<string>>(new Set());
   const prevTabsLengthRef = useRef(0);
   const [manualTopKey, setManualTopKey] = useState<string | null>(null);
+  const [tabRefreshVersion, setTabRefreshVersion] = useState<Record<string, number>>({});
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -458,6 +459,18 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
       doRemoveTab(key);
     }, 220);
   };
+
+  const handleTabRefresh = (key: string) => {
+    if (location.pathname !== key) {
+      navigate(key);
+    }
+    setTabRefreshVersion((prev) => ({
+      ...prev,
+      [key]: (prev[key] ?? 0) + 1,
+    }));
+  };
+
+  const outletRefreshKey = `${location.pathname}:${tabRefreshVersion[location.pathname] ?? 0}`;
 
   // ─── Render wrappers ──────────────────────────────────────────────────────
   const renderWrapper = useCallback(
@@ -761,6 +774,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                       menu.className = 'admin-tab-ctx';
 
                       let menuHtml = '';
+                      menuHtml += `<div class="admin-tab-ctx-item" data-action="refresh">刷新页面</div>`;
                       if (tab.closable) {
                         menuHtml += `<div class="admin-tab-ctx-item" data-action="close">关闭当前</div>`;
                       }
@@ -777,7 +791,9 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                       const handler = (ev: MouseEvent) => {
                         const target = ev.target as HTMLElement;
                         const action = (target.closest('.admin-tab-ctx-item') as HTMLElement)?.dataset.action;
-                        if (action === 'close') {
+                        if (action === 'refresh') {
+                          handleTabRefresh(tab.key);
+                        } else if (action === 'close') {
                           handleTabClose(tab.key);
                         } else if (action === 'close-others') {
                           const nextKey = closeOthers(tab.key);
@@ -833,7 +849,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
             </div>
           )}
           <div className="admin-content" style={{ background: 'var(--color-layout-bg)', overflow: 'auto', position: 'relative' }}>
-            <Outlet />
+            <Outlet key={outletRefreshKey} />
           </div>
 
           {/* Preferences SideSheet */}
