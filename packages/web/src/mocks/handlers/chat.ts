@@ -10,6 +10,24 @@ import { mockDateTime } from '@/mocks/utils/date';
 const CURRENT_USER_ID = 1;
 const CURRENT_USER_NICKNAME = '管理员';
 
+function addSystemMessage(conversationId: number, content: string) {
+  const newMsg: ChatMessage = {
+    id: getNextMsgId(),
+    conversationId,
+    senderId: null,
+    senderName: null,
+    senderAvatar: null,
+    type: 'system',
+    content,
+    replyToId: null,
+    isRecalled: false,
+    extra: null,
+    createdAt: mockDateTime(),
+    updatedAt: mockDateTime(),
+  };
+  addMockMessage(newMsg);
+}
+
 export const chatHandlers = [
   // 链接预览
   http.get('/api/chat/link-preview', ({ request }) => {
@@ -180,6 +198,7 @@ export const chatHandlers = [
     mockGroupMembers[newConv.id] = [
       { id: 1, nickname: '管理员', username: 'admin', avatar: null, role: 'owner' },
     ];
+    addSystemMessage(newConv.id, `${CURRENT_USER_NICKNAME} 创建了群聊`);
     return HttpResponse.json({ code: 0, message: 'ok', data: newConv });
   }),
 
@@ -227,6 +246,7 @@ export const chatHandlers = [
     const already = mockGroupMembers[convId].some((m) => m.id === body.userId);
     if (already) return HttpResponse.json({ code: 400, message: '已是群成员', data: null }, { status: 400 });
     mockGroupMembers[convId].push({ ...user, avatar: null, role: 'member' });
+    addSystemMessage(convId, `${user.nickname} 加入了群聊`);
     return HttpResponse.json({ code: 0, message: 'ok', data: null });
   }),
 
@@ -237,7 +257,9 @@ export const chatHandlers = [
     if (!mockGroupMembers[convId]) return HttpResponse.json({ code: 404, message: '群聊不存在', data: null }, { status: 404 });
     const idx = mockGroupMembers[convId].findIndex((m) => m.id === targetId);
     if (idx === -1) return HttpResponse.json({ code: 404, message: '该用户不在群聊中', data: null }, { status: 404 });
+    const target = mockGroupMembers[convId][idx];
     mockGroupMembers[convId].splice(idx, 1);
+    addSystemMessage(convId, `${target.nickname} 被 ${CURRENT_USER_NICKNAME} 移出群聊`);
     return HttpResponse.json({ code: 0, message: 'ok', data: null });
   }),
 
@@ -247,8 +269,20 @@ export const chatHandlers = [
     const body = await request.json() as { name?: string; announcement?: string | null };
     const conv = mockChatConversations.find((c) => c.id === convId);
     if (!conv) return HttpResponse.json({ code: 404, message: '会话不存在', data: null }, { status: 404 });
+    const oldName = conv.name ?? null;
+    const oldAnnouncement = (conv as unknown as { announcement?: string | null }).announcement ?? null;
     if (body.name !== undefined) conv.name = body.name || null;
     if ('announcement' in body) (conv as unknown as Record<string, unknown>).announcement = body.announcement ?? null;
+
+    if (body.name !== undefined && (conv.name ?? null) !== oldName) {
+      addSystemMessage(convId, `${CURRENT_USER_NICKNAME} 将群聊名称修改为「${conv.name ?? '未命名群聊'}」`);
+    }
+    if ('announcement' in body) {
+      const nextAnnouncement = (conv as unknown as { announcement?: string | null }).announcement ?? null;
+      if (nextAnnouncement !== oldAnnouncement) {
+        addSystemMessage(convId, `${CURRENT_USER_NICKNAME} 更新了群公告`);
+      }
+    }
     return HttpResponse.json({ code: 0, message: 'ok', data: null });
   }),
 
@@ -261,6 +295,7 @@ export const chatHandlers = [
     const target = members.find((m) => m.id === body.newOwnerId);
     if (!target) return HttpResponse.json({ code: 404, message: '目标用户不在群聊中', data: null }, { status: 404 });
     members.forEach((m) => { m.role = m.id === body.newOwnerId ? 'owner' : 'member'; });
+    addSystemMessage(convId, `${CURRENT_USER_NICKNAME} 将群主转让给 ${target.nickname}`);
     return HttpResponse.json({ code: 0, message: 'ok', data: null });
   }),
 ];

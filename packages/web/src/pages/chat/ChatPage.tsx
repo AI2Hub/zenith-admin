@@ -909,6 +909,29 @@ function MessageBubble({
     }
   }, [msg.content]);
 
+  if (msg.type === 'system') {
+    return (
+      <div id={`msg-${msg.id}`} style={{ textAlign: 'center', padding: '2px 0 10px' }}>
+        <Tooltip content={fullTimeStr} position="top">
+          <Text
+            type="tertiary"
+            style={{
+              display: 'inline-block',
+              fontSize: 12,
+              lineHeight: 1.5,
+              padding: '2px 10px',
+              borderRadius: 999,
+              background: 'var(--semi-color-fill-0)',
+              cursor: 'default',
+            }}
+          >
+            {msg.content}
+          </Text>
+        </Tooltip>
+      </div>
+    );
+  }
+
   if (msg.isRecalled) {
     return (
       <div style={{ textAlign: 'center', padding: '4px 0' }}>

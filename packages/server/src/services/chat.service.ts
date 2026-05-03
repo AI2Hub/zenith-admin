@@ -5,8 +5,7 @@ import {
 } from '../db/schema';
 import { sendToUser } from '../lib/ws-manager';
 import { currentUser } from '../lib/context';
-import { formatDateTime } from '../lib/datetime';
-import { parseDateRangeEnd, parseDateRangeStart } from '../lib/datetime';
+import { formatDateTime, parseDateRangeEnd, parseDateRangeStart } from '../lib/datetime';
 import { pageOffset } from '../lib/pagination';
 import { HTTPException } from 'hono/http-exception';
 import type {
@@ -230,6 +229,41 @@ function buildMessageSearchSnippet(message: ChatMessage): string {
   if (message.type === 'file') return `[文件] ${message.extra?.asset?.name ?? ''}`.trim();
   if (message.type === 'system') return `[系统] ${message.content}`;
   return message.content;
+}
+
+async function appendSystemMessage(conversationId: number, content: string): Promise<ChatMessage> {
+  const [row] = await db.insert(chatMessages).values({
+    conversationId,
+    senderId: null,
+    type: 'system',
+    content,
+    extra: null,
+  }).returning();
+
+  await db.update(chatConversations)
+    .set({ updatedAt: new Date() })
+    .where(eq(chatConversations.id, conversationId));
+
+  const msg = mapChatMessage(row, null);
+
+  const members = await db
+    .select({ userId: chatConversationMembers.userId })
+    .from(chatConversationMembers)
+    .where(eq(chatConversationMembers.conversationId, conversationId));
+
+  for (const { userId } of members) {
+    sendToUser(userId, { type: 'chat:message', payload: msg });
+  }
+
+  return msg;
+}
+
+async function getUserNickname(userId: number): Promise<string | null> {
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { nickname: true },
+  });
+  return user?.nickname ?? null;
 }
 
 // ─── 会话列表 ─────────────────────────────────────────────────────────────────
@@ -733,6 +767,7 @@ export async function markConversationRead(conversationId: number): Promise<void
 
 export async function createGroupConversation(name: string): Promise<ChatConversation> {
   const me = currentUser();
+  const myNickname = await getUserNickname(me.userId);
 
   const [conv] = await db.insert(chatConversations).values({
     type: 'group',
@@ -744,6 +779,8 @@ export async function createGroupConversation(name: string): Promise<ChatConvers
   await db.insert(chatConversationMembers).values([
     { conversationId: conv.id, userId: me.userId, role: 'owner' },
   ]);
+
+  await appendSystemMessage(conv.id, `${myNickname ?? '群主'} 创建了群聊`);
 
   return {
     id: conv.id,
@@ -802,6 +839,8 @@ export async function addGroupMember(conversationId: number, targetUserId: numbe
 
   await db.insert(chatConversationMembers).values({ conversationId, userId: targetUserId });
 
+  await appendSystemMessage(conversationId, `${target.nickname} 加入了群聊`);
+
   // 推送 WS 通知（群内所有成员）
   const members = await db
     .select({ userId: chatConversationMembers.userId })
@@ -817,6 +856,10 @@ export async function addGroupMember(conversationId: number, targetUserId: numbe
 
 export async function removeConversation(conversationId: number): Promise<void> {
   const me = currentUser();
+  const myNickname = await getUserNickname(me.userId);
+
+  const conv = await db.query.chatConversations.findFirst({ where: eq(chatConversations.id, conversationId) });
+  if (!conv) throw new HTTPException(404, { message: '会话不存在或无权操作' });
 
   const member = await db.query.chatConversationMembers.findFirst({
     where: and(
@@ -832,6 +875,9 @@ export async function removeConversation(conversationId: number): Promise<void> 
   ));
 
   const remainCount = await db.$count(chatConversationMembers, eq(chatConversationMembers.conversationId, conversationId));
+  if (conv.type === 'group' && remainCount > 0) {
+    await appendSystemMessage(conversationId, `${myNickname ?? '成员'} 退出了群聊`);
+  }
   if (remainCount === 0) {
     await db.delete(chatConversations).where(eq(chatConversations.id, conversationId));
   }
@@ -890,6 +936,7 @@ export async function listChatUsers(keyword?: string) {
 
 export async function removeGroupMember(conversationId: number, targetUserId: number): Promise<void> {
   const me = currentUser();
+  const myNickname = await getUserNickname(me.userId);
 
   const conv = await db.query.chatConversations.findFirst({
     where: eq(chatConversations.id, conversationId),
@@ -922,10 +969,20 @@ export async function removeGroupMember(conversationId: number, targetUserId: nu
     throw new HTTPException(404, { message: '该用户不在群聊中' });
   }
 
+  const targetUser = await db.query.users.findFirst({
+    where: eq(users.id, targetUserId),
+    columns: { nickname: true },
+  });
+
   await db.delete(chatConversationMembers).where(and(
     eq(chatConversationMembers.conversationId, conversationId),
     eq(chatConversationMembers.userId, targetUserId),
   ));
+
+  await appendSystemMessage(
+    conversationId,
+    `${targetUser?.nickname ?? '成员'} 被 ${myNickname ?? '群主'} 移出群聊`,
+  );
 
   // 推送成员离开通知
   const remaining = await db
@@ -946,6 +1003,7 @@ export async function updateGroupInfo(
   updates: { name?: string; announcement?: string | null },
 ): Promise<void> {
   const me = currentUser();
+  const myNickname = await getUserNickname(me.userId);
 
   const conv = await db.query.chatConversations.findFirst({
     where: eq(chatConversations.id, conversationId),
@@ -964,9 +1022,14 @@ export async function updateGroupInfo(
     throw new HTTPException(403, { message: '只有群主才能修改群聊信息' });
   }
 
+  const normalizedName = updates.name !== undefined ? (updates.name.trim() || null) : undefined;
+  const normalizedAnnouncement = 'announcement' in updates ? (updates.announcement ?? null) : undefined;
+  const nameChanged = normalizedName !== undefined && normalizedName !== (conv.name ?? null);
+  const announcementChanged = normalizedAnnouncement !== undefined && normalizedAnnouncement !== (conv.announcement ?? null);
+
   const set: Record<string, unknown> = {};
-  if (updates.name !== undefined) set.name = updates.name.trim() || null;
-  if ('announcement' in updates) set.announcement = updates.announcement ?? null;
+  if (normalizedName !== undefined) set.name = normalizedName;
+  if (normalizedAnnouncement !== undefined) set.announcement = normalizedAnnouncement;
   if (Object.keys(set).length === 0) return;
 
   await db.update(chatConversations).set(set).where(eq(chatConversations.id, conversationId));
@@ -983,12 +1046,20 @@ export async function updateGroupInfo(
       payload: { conversationId, ...('name' in set ? { name: set.name as string | null } : {}), ...('announcement' in set ? { announcement: set.announcement as string | null } : {}) },
     });
   }
+
+  if (nameChanged) {
+    await appendSystemMessage(conversationId, `${myNickname ?? '群主'} 将群聊名称修改为「${normalizedName}」`);
+  }
+  if (announcementChanged) {
+    await appendSystemMessage(conversationId, `${myNickname ?? '群主'} 更新了群公告`);
+  }
 }
 
 // ─── 转让群主 ─────────────────────────────────────────────────────────────────
 
 export async function transferGroupOwnership(conversationId: number, newOwnerId: number): Promise<void> {
   const me = currentUser();
+  const myNickname = await getUserNickname(me.userId);
 
   if (newOwnerId === me.userId) {
     throw new HTTPException(400, { message: '不能转让给自己' });
@@ -1020,6 +1091,11 @@ export async function transferGroupOwnership(conversationId: number, newOwnerId:
     throw new HTTPException(404, { message: '目标用户不在群聊中' });
   }
 
+  const newOwner = await db.query.users.findFirst({
+    where: eq(users.id, newOwnerId),
+    columns: { nickname: true },
+  });
+
   // 事务：当前群主降为 member，新群主升为 owner
   await db.transaction(async (tx) => {
     await tx.update(chatConversationMembers)
@@ -1048,4 +1124,9 @@ export async function transferGroupOwnership(conversationId: number, newOwnerId:
       payload: { conversationId },
     });
   }
+
+  await appendSystemMessage(
+    conversationId,
+    `${myNickname ?? '原群主'} 将群主转让给 ${newOwner?.nickname ?? '新群主'}`,
+  );
 }
