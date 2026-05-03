@@ -2358,20 +2358,47 @@ export default function ChatPage() {
               const conv = conversations.find((item) => item.id === msg.conversationId);
               const convName = conv?.type === 'direct' ? (conv.targetUser?.nickname ?? '私聊') : (conv?.name ?? '群聊');
               return (
-                <button
+                <Dropdown
                   key={msg.id}
-                  type="button"
-                  onClick={() => { void openFavoriteMessage(msg); }}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: '10px 12px', cursor: 'pointer' }}
+                  trigger="contextMenu"
+                  clickToHide
+                  render={(
+                    <Dropdown.Menu>
+                      <Dropdown.Item
+                        icon={<Search size={12} />}
+                        onClick={() => { void openFavoriteMessage(msg); }}
+                      >
+                        定位到原消息
+                      </Dropdown.Item>
+                      <Dropdown.Item
+                        icon={<Bookmark size={12} />}
+                        onClick={() => { void handleToggleFavorite(msg); }}
+                      >
+                        取消收藏
+                      </Dropdown.Item>
+                      <Dropdown.Item
+                        icon={<Pin size={12} />}
+                        onClick={() => { void handleTogglePinMessage(msg); }}
+                      >
+                        {msg.extra?.isPinned ? '取消置顶消息' : '置顶消息'}
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  )}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                    <Text strong style={{ fontSize: 12, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{convName}</Text>
-                    <Text type="tertiary" style={{ fontSize: 11, flexShrink: 0 }}>{formatConvTime(msg.createdAt)}</Text>
-                  </div>
-                  <Text type="tertiary" style={{ display: 'block', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {getMessageSummary(msg)}
-                  </Text>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => { void openFavoriteMessage(msg); }}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: '10px 12px', cursor: 'pointer' }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                      <Text strong style={{ fontSize: 12, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{convName}</Text>
+                      <Text type="tertiary" style={{ fontSize: 11, flexShrink: 0 }}>{formatConvTime(msg.createdAt)}</Text>
+                    </div>
+                    <Text type="tertiary" style={{ display: 'block', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {getMessageSummary(msg)}
+                    </Text>
+                  </button>
+                </Dropdown>
               );
             })}
           </Spin>
