@@ -486,7 +486,7 @@ export const chatAssetMetaSchema = z.object({
   extension: z.string().max(50).nullable(),
   width: z.number().int().positive().nullable().optional(),
   height: z.number().int().positive().nullable().optional(),
-  thumbnailUrl: z.url().nullable().optional(),
+  thumbnailUrl: z.string().max(2048).nullable().optional(),
 }).strict();
 
 export const chatMessageExtraSchema = z.object({

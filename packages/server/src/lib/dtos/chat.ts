@@ -33,7 +33,7 @@ export const ChatAssetMetaDTO = z
     extension: z.string().nullable(),
     width: z.number().int().nullable().optional(),
     height: z.number().int().nullable().optional(),
-    thumbnailUrl: z.url().nullable().optional(),
+    thumbnailUrl: z.string().max(2048).nullable().optional(),
   })
   .strict()
   .openapi('ChatAssetMeta');
