@@ -722,6 +722,22 @@
   background: var(--color-layout-hover);
 }
 
+.admin-tab-ctx-item--disabled {
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.admin-tab-ctx-item--disabled:hover {
+  background: transparent;
+}
+
+.admin-tab-ctx-divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 4px 0;
+}
+
 /* ===== Notification badge dot ===== */
 .admin-notify-badge .semi-badge-dot {
   width: 6px !important;

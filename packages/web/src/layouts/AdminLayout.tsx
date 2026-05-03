@@ -773,15 +773,24 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                       const menu = document.createElement('div');
                       menu.className = 'admin-tab-ctx';
 
+                      const tabIndex = tabs.findIndex((t) => t.key === tab.key);
+                      const hasClosableLeft = tabIndex > 0 && tabs.slice(0, tabIndex).some((t) => t.closable);
+                      const hasClosableRight = tabIndex >= 0 && tabs.slice(tabIndex + 1).some((t) => t.closable);
+                      const hasClosableOthers = tabs.some((t) => t.closable && t.key !== tab.key);
+                      const hasAnyClosable = tabs.some((t) => t.closable);
+
+                      const buildItem = (action: string, label: string, disabled = false) => (
+                        `<div class="admin-tab-ctx-item${disabled ? ' admin-tab-ctx-item--disabled' : ''}" data-action="${action}" data-disabled="${disabled ? 'true' : 'false'}">${label}</div>`
+                      );
+
                       let menuHtml = '';
-                      menuHtml += `<div class="admin-tab-ctx-item" data-action="refresh">刷新页面</div>`;
-                      if (tab.closable) {
-                        menuHtml += `<div class="admin-tab-ctx-item" data-action="close">关闭当前</div>`;
-                      }
-                      menuHtml += `<div class="admin-tab-ctx-item" data-action="close-others">关闭其他</div>`;
-                      menuHtml += `<div class="admin-tab-ctx-item" data-action="close-left">关闭左侧</div>`;
-                      menuHtml += `<div class="admin-tab-ctx-item" data-action="close-right">关闭右侧</div>`;
-                      menuHtml += `<div class="admin-tab-ctx-item" data-action="close-all">关闭全部</div>`;
+                      menuHtml += buildItem('refresh', '刷新页面');
+                      menuHtml += `<div class="admin-tab-ctx-divider"></div>`;
+                      menuHtml += buildItem('close', '关闭当前', !tab.closable);
+                      menuHtml += buildItem('close-others', '关闭其他', !hasClosableOthers);
+                      menuHtml += buildItem('close-left', '关闭左侧', !hasClosableLeft);
+                      menuHtml += buildItem('close-right', '关闭右侧', !hasClosableRight);
+                      menuHtml += buildItem('close-all', '关闭全部', !hasAnyClosable);
 
                       menu.innerHTML = menuHtml;
                       menu.style.left = `${e.clientX}px`;
@@ -790,7 +799,12 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
 
                       const handler = (ev: MouseEvent) => {
                         const target = ev.target as HTMLElement;
-                        const action = (target.closest('.admin-tab-ctx-item') as HTMLElement)?.dataset.action;
+                        const item = target.closest('.admin-tab-ctx-item') as HTMLElement | null;
+                        const action = item?.dataset.action;
+                        const disabled = item?.dataset.disabled === 'true';
+                        if (disabled) {
+                          return;
+                        }
                         if (action === 'refresh') {
                           handleTabRefresh(tab.key);
                         } else if (action === 'close') {
