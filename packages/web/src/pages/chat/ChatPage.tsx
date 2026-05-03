@@ -63,12 +63,10 @@ function GroupGridAvatar({
   size?: number;
   members?: Array<{ id: number; nickname: string; avatar?: string | null }>;
 }>) {
-  const fallbackChars = Array.from(name.replace(/\s+/g, ''));
   const cells = Array.from({ length: 9 }, (_, idx) => {
     const member = members?.[idx];
     if (member) return { key: `m-${member.id}-${idx}`, avatar: member.avatar, char: member.nickname.slice(0, 1) };
-    const char = fallbackChars[idx] ?? '';
-    return { key: `f-${name}-${idx}`, avatar: null, char };
+    return { key: `f-${name}-${idx}`, avatar: null, char: '' };
   });
   const cellSize = Math.max(8, Math.floor((size - 6) / 3));
 
