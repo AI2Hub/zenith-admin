@@ -30,6 +30,27 @@ const userRelationConfig = {
 type FindManyUsersArgs = NonNullable<Parameters<typeof db.query.users.findMany>[0]>;
 type FindFirstUserArgs = NonNullable<Parameters<typeof db.query.users.findFirst>[0]>;
 
+const PROTECTED_ADMIN_USERNAME = 'admin';
+
+function isProtectedAdminUser(username: string) {
+  return username.trim().toLowerCase() === PROTECTED_ADMIN_USERNAME;
+}
+
+async function ensureNoProtectedAdminInIds(ids: number[], action: '删除' | '禁用') {
+  if (ids.length === 0) return;
+  const user = currentUser();
+  const tc = tenantCondition(users, user);
+  const rows = await db
+    .select({ id: users.id, username: users.username })
+    .from(users)
+    .where(tc ? and(inArray(users.id, ids), tc) : inArray(users.id, ids));
+
+  const adminUser = rows.find((row) => isProtectedAdminUser(row.username));
+  if (adminUser) {
+    throw new HTTPException(400, { message: `admin 账号不允许${action}` });
+  }
+}
+
 export async function findUsersWithRelations(config: Omit<FindManyUsersArgs, 'with'> = {}) {
   return db.query.users.findMany({ ...config, with: userRelationConfig });
 }
@@ -237,6 +258,7 @@ export async function batchDeleteUsers(ids: number[]) {
   const validIds = ids.filter((id): id is number => typeof id === 'number' && Number.isInteger(id));
   if (validIds.length === 0) throw new HTTPException(400, { message: '用户ID格式无效' });
   const tc = tenantCondition(users, user);
+  await ensureNoProtectedAdminInIds(validIds, '删除');
   await db.delete(users).where(tc ? and(inArray(users.id, validIds), tc) : inArray(users.id, validIds));
   return validIds.length;
 }
@@ -246,6 +268,9 @@ export async function batchUpdateUserStatus(ids: number[], status: 'enabled' | '
   if (ids.length === 0) throw new HTTPException(400, { message: '请选择要操作的用户' });
   const validIds = ids.filter((id): id is number => typeof id === 'number' && Number.isInteger(id));
   const tc = tenantCondition(users, user);
+  if (status === 'disabled') {
+    await ensureNoProtectedAdminInIds(validIds, '禁用');
+  }
   await db.update(users).set({ status }).where(tc ? and(inArray(users.id, validIds), tc) : inArray(users.id, validIds));
 }
 
@@ -298,6 +323,17 @@ export async function updateUser(id: number, data: UpdateUserInput) {
     const [dup] = await db.select({ id: users.id }).from(users).where(and(...conds)).limit(1);
     if (dup) throw new HTTPException(400, { message: '邮箱已存在' });
   }
+  if (data.status === 'disabled') {
+    const [target] = await db
+      .select({ id: users.id, username: users.username })
+      .from(users)
+      .where(tc ? and(eq(users.id, id), tc) : eq(users.id, id))
+      .limit(1);
+    if (!target) throw new HTTPException(404, { message: '用户不存在' });
+    if (isProtectedAdminUser(target.username)) {
+      throw new HTTPException(400, { message: 'admin 账号不允许禁用' });
+    }
+  }
   const nextValues = {
     ...rest,
     ...(departmentId === undefined ? {} : { departmentId: departmentId ?? null }),
@@ -320,6 +356,7 @@ export async function updateUser(id: number, data: UpdateUserInput) {
 export async function deleteUser(id: number) {
   const user = currentUser();
   const tc = tenantCondition(users, user);
+  await ensureNoProtectedAdminInIds([id], '删除');
   const [deleted] = await db.delete(users).where(tc ? and(eq(users.id, id), tc) : eq(users.id, id)).returning();
   if (!deleted) throw new HTTPException(404, { message: '用户不存在' });
 }

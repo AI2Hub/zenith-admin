@@ -16,6 +16,7 @@ import {
   Row,
   Col,
   Tree,
+  Tooltip,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Plus, RotateCcw, Download, Trash2, FileUp } from 'lucide-react';
@@ -40,6 +41,10 @@ interface SearchParams {
 }
 
 const defaultSearchParams: SearchParams = { keyword: '', phone: '', status: '', timeRange: null, departmentId: null };
+
+function isAdminUser(user: Pick<User, 'username'>) {
+  return user.username.trim().toLowerCase() === 'admin';
+}
 
 export default function UsersPage() {
   const { hasPermission } = usePermission();
@@ -76,13 +81,28 @@ export default function UsersPage() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const importFileRef = useRef<File | null>(null);
 
+  const selectedDeletableCount = useMemo(() => {
+    if (!data?.list?.length) return 0;
+    const selectedSet = new Set(selectedRowKeys);
+    return data.list.filter((item) => selectedSet.has(item.id) && !isAdminUser(item)).length;
+  }, [data?.list, selectedRowKeys]);
+
   const handleBatchDelete = () => {
+    const deletableIds = (data?.list ?? [])
+      .filter((item) => selectedRowKeys.includes(item.id) && !isAdminUser(item))
+      .map((item) => item.id);
+
+    if (deletableIds.length === 0) {
+      Toast.warning('admin 账号不允许删除');
+      return;
+    }
+
     Modal.confirm({
-      title: `确认删除选中的 ${selectedRowKeys.length} 个用户？`,
+      title: `确认删除选中的 ${deletableIds.length} 个用户？`,
       content: '删除后无法恢复，请谨慎操作。',
       okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
-        const res = await request.delete<null>('/api/users/batch', { ids: selectedRowKeys });
+        const res = await request.delete<null>('/api/users/batch', { ids: deletableIds });
         if (res.code === 0) {
           Toast.success('批量删除成功');
           setSelectedRowKeys([]);
@@ -224,6 +244,12 @@ export default function UsersPage() {
       positionIds: values.positionIds ?? [],
       roleIds: values.roleIds ?? [],
     };
+    const nextStatus = (values as { status?: string }).status;
+
+    if (editingUser && isAdminUser(editingUser) && nextStatus === 'disabled') {
+      Toast.warning('admin 账号不允许禁用');
+      throw new Error('admin_status_forbidden');
+    }
 
     const res = editingUser
       ? await request.put(`/api/users/${editingUser.id}`, payload)
@@ -417,13 +443,34 @@ export default function UsersPage() {
               setModalVisible(true);
             }}
           >编辑</Button>}
-          {hasPermission('system:user:delete') && <Button theme="borderless" type="danger" size="small" onClick={() => {
-            Modal.confirm({
-              title: '确定要删除该用户吗？',
-              okButtonProps: { type: 'danger', theme: 'solid' },
-              onOk: () => handleDelete(record.id),
-            });
-          }}>删除</Button>}
+          {hasPermission('system:user:delete') && (() => {
+            const isAdmin = isAdminUser(record);
+            const deleteBtn = (
+              <Button
+                theme="borderless"
+                type="danger"
+                size="small"
+                disabled={isAdmin}
+                onClick={() => {
+                  Modal.confirm({
+                    title: '确定要删除该用户吗？',
+                    okButtonProps: { type: 'danger', theme: 'solid' },
+                    onOk: () => handleDelete(record.id),
+                  });
+                }}
+              >删除</Button>
+            );
+
+            if (!isAdmin) {
+              return deleteBtn;
+            }
+
+            return (
+              <Tooltip content="admin 账号不允许删除">
+                <span>{deleteBtn}</span>
+              </Tooltip>
+            );
+          })()}
         </Space>
       ),
     },
@@ -491,9 +538,9 @@ export default function UsersPage() {
           />
           <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
           <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-          {selectedRowKeys.length > 0 && hasPermission('system:user:delete') && (
+          {selectedDeletableCount > 0 && hasPermission('system:user:delete') && (
             <Button type="danger" theme="light" icon={<Trash2 size={14} />} onClick={handleBatchDelete}>
-              批量删除 ({selectedRowKeys.length})
+              批量删除 ({selectedDeletableCount})
             </Button>
           )}
           <Button icon={<Download size={14} />} loading={exportLoading} onClick={async () => { setExportLoading(true); try { await request.download('/api/users/export', '用户列表.xlsx'); } finally { setExportLoading(false); } }}>导出</Button>
@@ -536,7 +583,16 @@ export default function UsersPage() {
         empty="暂无数据"
         rowSelection={{
           selectedRowKeys,
-          onChange: (keys) => setSelectedRowKeys((keys as (string | number)[]).map(Number)),
+          onChange: (keys) => {
+            const nextKeys = (keys as (string | number)[]).map(Number);
+            const nextKeySet = new Set(nextKeys);
+            const adminIds = (data?.list ?? []).filter((item) => isAdminUser(item)).map((item) => item.id);
+            const filtered = nextKeys.filter((id) => !adminIds.includes(id));
+            if (filtered.length < nextKeys.length && adminIds.some((id) => nextKeySet.has(id))) {
+              Toast.warning('admin 账号不支持批量删除');
+            }
+            setSelectedRowKeys(filtered);
+          },
         }}
       />
         </div>
@@ -649,7 +705,11 @@ export default function UsersPage() {
                 field="status"
                 label="状态"
                 style={{ width: '100%' }}
-                optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
+                optionList={statusItems.map((i) => ({
+                  value: i.value,
+                  label: i.label,
+                  disabled: editingUser ? (isAdminUser(editingUser) && i.value === 'disabled') : false,
+                }))}
                 placeholder="请选择状态"
               />
             </Col>
