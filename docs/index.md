@@ -21,6 +21,8 @@ features:
     details: 前端基于抖音开源的 Semi Design v2 组件库，提供完整的企业级 UI 组件，图标统一使用 lucide-react。
   - title: 用户 / 角色 / 菜单
     details: 支持动态菜单配置与 RBAC 权限控制，提供按钮级别鉴权能力。
+  - title: 消息中心聊天
+    details: 内置消息中心，支持单聊/群聊、未读计数、会话置顶与收藏、消息搜索，以及 WebSocket 实时收发。
   - title: 共享类型层
     details: Zod Schema 在前后端共享，统一校验逻辑，减少字段不一致风险。
   - title: 文件存储
