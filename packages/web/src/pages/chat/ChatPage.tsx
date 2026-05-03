@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Input, Button, Avatar, Badge, Typography, Empty, Spin, Toast, Tooltip, Tabs, TabPane, Dropdown,
+  Input, Button, Avatar, Badge, Typography, Empty, Spin, Toast, Tooltip, Tabs, TabPane, Dropdown, Modal,
 } from '@douyinfe/semi-ui';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
@@ -1245,18 +1245,25 @@ export default function ChatPage() {
                       <Dropdown.Item
                         type="danger"
                         onClick={() => {
-                          void request.delete(`/api/chat/conversations/${conv.id}`).then((r) => {
-                            if ((r as { code: number; message?: string }).code === 0) {
-                              Toast.success('会话已删除');
-                              setConversations((prev) => prev.filter((c) => c.id !== conv.id));
-                              if (activeConvId === conv.id) {
-                                setActiveConvId(null);
-                                setMessages([]);
-                                setPendingNewMsgCount(0);
-                              }
-                            } else {
-                              Toast.error((r as { message?: string }).message ?? '删除失败');
-                            }
+                          Modal.confirm({
+                            title: '确定要删除该会话吗？',
+                            content: '删除后仅移除你当前账号下的会话记录，无法恢复。',
+                            okButtonProps: { type: 'danger', theme: 'solid' },
+                            onOk: () => {
+                              void request.delete(`/api/chat/conversations/${conv.id}`).then((r) => {
+                                if ((r as { code: number; message?: string }).code === 0) {
+                                  Toast.success('会话已删除');
+                                  setConversations((prev) => prev.filter((c) => c.id !== conv.id));
+                                  if (activeConvId === conv.id) {
+                                    setActiveConvId(null);
+                                    setMessages([]);
+                                    setPendingNewMsgCount(0);
+                                  }
+                                } else {
+                                  Toast.error((r as { message?: string }).message ?? '删除失败');
+                                }
+                              });
+                            },
                           });
                         }}
                       >
