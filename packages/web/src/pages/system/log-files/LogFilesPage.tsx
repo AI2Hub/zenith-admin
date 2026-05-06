@@ -182,7 +182,7 @@ export default function LogFilesPage() {
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        background: 'var(--semi-color-bg-0)',
+        background: 'var(--semi-color-bg-1)',
       }}>
         <div style={{
           padding: '10px 12px',
@@ -271,7 +271,7 @@ export default function LogFilesPage() {
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        background: 'var(--semi-color-bg-0)',
+        background: 'var(--semi-color-bg-1)',
         minWidth: 0,
       }}>
         {selected ? (

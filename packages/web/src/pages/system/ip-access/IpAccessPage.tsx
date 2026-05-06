@@ -111,7 +111,7 @@ export default function IpAccessPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* 白名单 */}
-      <Card>
+      <Card style={{ background: 'var(--semi-color-bg-1)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div>
             <Title heading={5} style={{ marginBottom: 4 }}>IP 白名单</Title>
@@ -144,7 +144,7 @@ export default function IpAccessPage() {
       </Card>
 
       {/* 黑名单 */}
-      <Card>
+      <Card style={{ background: 'var(--semi-color-bg-1)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div>
             <Title heading={5} style={{ marginBottom: 4 }}>IP 黑名单</Title>
