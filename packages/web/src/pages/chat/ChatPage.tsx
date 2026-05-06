@@ -1948,7 +1948,7 @@ export default function ChatPage() {
                 style={{
                   width: '100%', resize: 'none', borderRadius: 8, padding: '8px 48px 8px 12px',
                   border: '1px solid var(--semi-color-border)',
-                  background: 'var(--semi-color-bg-0)',
+                  background: 'var(--semi-color-bg-2)',
                   color: 'var(--semi-color-text-0)',
                   fontSize: 14, fontFamily: 'inherit', outline: 'none',
                   lineHeight: 1.5, boxSizing: 'border-box',
