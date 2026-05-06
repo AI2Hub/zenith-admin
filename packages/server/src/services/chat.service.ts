@@ -915,7 +915,7 @@ export async function forwardMessages(input: ForwardMessagesInput): Promise<void
   if (input.mode === 'merge') {
     // 合并转发：生成 forwardedMessages 列表，发送单条 forward 类型消息
     const forwardedItems: ChatForwardedItem[] = ordered
-      .filter((m) => !m.isRecalled)
+      .filter((m) => !m.isRecalled && m.type !== 'system')
       .map((m) => ({
         senderName: senderMap.get(m.senderId ?? -1)?.nickname ?? null,
         type: m.type as ChatForwardedItem['type'],
@@ -946,10 +946,11 @@ export async function forwardMessages(input: ForwardMessagesInput): Promise<void
       });
     }
   } else {
-    // 逐条转发：每条消息单独发送
+    // 逐条转发：每条消息单独发送（跳过撤回、系统、转发聚合类型）
     for (const targetConvId of input.targetConversationIds) {
       for (const m of ordered) {
         if (m.isRecalled) continue;
+        if (m.type === 'system' || m.type === 'forward') continue;
         const originalExtra = (m.extra as ChatMessageExtra | null) ?? null;
         const extra: ChatMessageExtra = {};
         if (originalExtra?.asset) extra.asset = originalExtra.asset;
