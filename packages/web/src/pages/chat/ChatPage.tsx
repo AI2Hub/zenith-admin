@@ -2335,7 +2335,18 @@ export default function ChatPage() {
         const idx = updated.findIndex((c) => c.id === msg.conversationId);
         if (idx > 0) {
           const [item] = updated.splice(idx, 1);
-          updated.unshift(item);
+          if (item.isPinned) {
+            // 置顶会话保持在置顶区最前面
+            updated.unshift(item);
+          } else {
+            // 非置顶会话插到第一个非置顶会话的位置（置顶会话之后）
+            const firstNonPinnedIdx = updated.findIndex((c) => !c.isPinned);
+            if (firstNonPinnedIdx === -1) {
+              updated.push(item);
+            } else {
+              updated.splice(firstNonPinnedIdx, 0, item);
+            }
+          }
         }
         return updated;
       });
