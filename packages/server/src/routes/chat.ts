@@ -16,7 +16,7 @@ import {
   removeGroupMember, updateGroupInfo, transferGroupOwnership,
   pinConversation, starConversation, removeConversation,
   getLinkPreview, listPinnedMessages, listFavoriteMessages, listGlobalFavoriteMessages,
-  toggleMessageFavorite, toggleMessagePin, listAnnouncementHistory, forwardMessages,
+  toggleMessageFavorite, toggleMessagePin, listAnnouncementHistory, forwardMessages, deleteMessagesForUser,
 } from '../services/chat.service';
 
 const chatRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -533,6 +533,29 @@ chatRouter.openapi(
     const body = c.req.valid('json');
     await forwardMessages(body);
     return c.json(okBody(null), 200);
+  },
+);
+
+// ─── 删除消息（仅对自己） ─────────────────────────────────────────────────────
+
+chatRouter.openapi(
+  createRoute({
+    method: 'post', path: '/messages/batch-delete', tags: ['Chat'], summary: '批量删除消息（仅对自己隐藏）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: {
+      body: {
+        content: jsonContent(z.object({
+          messageIds: z.array(z.number().int().positive()).min(1).max(100),
+        })),
+      },
+    },
+    responses: { ...commonErrorResponses, ...okMsg('删除成功') },
+  }),
+  async (c) => {
+    const { messageIds } = c.req.valid('json');
+    await deleteMessagesForUser(messageIds);
+    return c.json(okBody(null, '删除成功'), 200);
   },
 );
 

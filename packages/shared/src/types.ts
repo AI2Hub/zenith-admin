@@ -682,6 +682,7 @@ export interface ChatMessageExtra {
   announcementHistory?: ChatAnnouncementHistoryMeta | null;
   forwardedMessages?: ChatForwardedItem[] | null;
   forwardSourceConvName?: string | null;
+  hiddenFor?: number[] | null;
 }
 
 export interface ChatMessage {

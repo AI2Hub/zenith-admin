@@ -516,6 +516,7 @@ export const chatMessageExtraSchema = z.object({
   announcementHistory: chatAnnouncementHistorySchema.nullable().optional(),
   forwardedMessages: z.array(chatForwardedItemSchema).max(100).nullable().optional(),
   forwardSourceConvName: z.string().max(100).nullable().optional(),
+  hiddenFor: z.array(z.number().int()).nullable().optional(),
 }).strict();
 
 export const sendChatMessageSchema = z.object({

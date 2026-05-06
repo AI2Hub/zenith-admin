@@ -4,7 +4,7 @@ import {
 } from '@douyinfe/semi-ui';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { Search, MessageSquarePlus, Send, CornerDownLeft, RotateCcw, Smile, ImagePlus, Users, User, UserPlus, Copy, Paperclip, Pin, Star, X, Download, Crown, UserMinus, Pencil, ChevronLeft, ChevronRight, ListFilter, AtSign, Bookmark, History, CheckSquare, Square, Forward } from 'lucide-react';
+import { Search, MessageSquarePlus, Send, CornerDownLeft, RotateCcw, Smile, ImagePlus, Users, User, UserPlus, Copy, Paperclip, Pin, Star, X, Download, Crown, UserMinus, Pencil, ChevronLeft, ChevronRight, ListFilter, AtSign, Bookmark, History, CheckSquare, Square, Forward, Trash2 } from 'lucide-react';
 import { useWebSocket, sendWsMessage } from '@/hooks/useWebSocket';
 import { request } from '@/utils/request';
 import { formatDateTime, formatConvTime, formatDateTimeForApi } from '@/utils/date';
@@ -1198,7 +1198,7 @@ function ImageGalleryLightbox({
 // ─── MessageBubble ────────────────────────────────────────────────────────────
 
 function MessageBubble({
-  msg, isSelf, onReply, onRecall, onOpenImage, shouldShowTime, getReplyMessage, onScrollToMessage, onToggleFavorite, onTogglePin, onEditRecalled, recalledDraft, multiSelectMode, isSelected, onToggleSelect, onForwardSingle, onOpenForwardView,
+  msg, isSelf, onReply, onRecall, onOpenImage, shouldShowTime, getReplyMessage, onScrollToMessage, onToggleFavorite, onTogglePin, onEditRecalled, recalledDraft, multiSelectMode, isSelected, onToggleSelect, onForwardSingle, onOpenForwardView, onDeleteMessage,
 }: Readonly<{
   msg: ChatMessage;
   isSelf: boolean;
@@ -1217,6 +1217,7 @@ function MessageBubble({
   onToggleSelect?: (msg: ChatMessage) => void;
   onForwardSingle?: (msg: ChatMessage) => void;
   onOpenForwardView?: (items: NonNullable<ChatMessageExtra['forwardedMessages']>, title: string) => void;
+  onDeleteMessage?: (msg: ChatMessage) => void;
 }>) {
   const fullTimeStr = formatDateTime(msg.createdAt);
   const [isHovered, setIsHovered] = useState(false);
@@ -1521,6 +1522,18 @@ function MessageBubble({
                 >
                   {msg.extra?.isPinned ? '取消置顶消息' : '置顶消息'}
                 </Dropdown.Item>
+                {!msg.isRecalled && (
+                  <Dropdown.Item
+                    icon={<Trash2 size={12} />}
+                    type="danger"
+                    onClick={() => {
+                      onDeleteMessage?.(msg);
+                      setContextMenuPos(null);
+                    }}
+                  >
+                    删除
+                  </Dropdown.Item>
+                )}
                 {!msg.isRecalled && (
                   <Dropdown.Item
                     icon={<Forward size={12} />}
@@ -2148,6 +2161,45 @@ export default function ChatPage() {
     setForwardViewVisible(true);
   }, []);
 
+  const handleDeleteSingle = useCallback((msg: ChatMessage) => {
+    Modal.confirm({
+      title: '删除这条消息？',
+      content: '删除后仅对自己隐藏，不影响其他人。',
+      okButtonProps: { type: 'danger', theme: 'solid' },
+      okText: '删除',
+      onOk: async () => {
+        const res = await request.post('/api/chat/messages/batch-delete', { messageIds: [msg.id] });
+        if ((res as { code: number }).code === 0) {
+          setMessages((prev) => prev.filter((m) => m.id !== msg.id));
+          Toast.success('已删除');
+        } else {
+          Toast.error((res as { message?: string }).message ?? '删除失败');
+        }
+      },
+    });
+  }, []);
+
+  const handleDeleteSelected = useCallback(async () => {
+    if (selectedMessageIds.length === 0) return;
+    Modal.confirm({
+      title: `删除已选的 ${selectedMessageIds.length} 条消息？`,
+      content: '删除后仅对自己隐藏，不影响其他人。',
+      okButtonProps: { type: 'danger', theme: 'solid' },
+      okText: '删除',
+      onOk: async () => {
+        const res = await request.post('/api/chat/messages/batch-delete', { messageIds: selectedMessageIds });
+        if ((res as { code: number }).code === 0) {
+          const deletedIds = new Set(selectedMessageIds);
+          setMessages((prev) => prev.filter((m) => !deletedIds.has(m.id)));
+          Toast.success('已删除');
+          handleExitMultiSelect();
+        } else {
+          Toast.error((res as { message?: string }).message ?? '删除失败');
+        }
+      },
+    });
+  }, [selectedMessageIds, handleExitMultiSelect]);
+
   const handleRecall = useCallback(async (msg: ChatMessage) => {
     if (msg.type === 'text') {
       setRecalledDrafts((prev) => ({
@@ -2446,12 +2498,13 @@ export default function ChatPage() {
   const galleryImages = messages.filter((m) => m.type === 'image' && !m.isRecalled);
   const activeGalleryIndex = galleryImages.findIndex((m) => m.id === previewImageId);
   const useLocalSearchFallback = Boolean(msgSearch.trim()) && !(showSearchPanel && searchHasSearched);
+  const visibleMessages = messages.filter((m) => !currentUserId || !(m.extra?.hiddenFor ?? []).includes(currentUserId));
   const displayMessages = useLocalSearchFallback
-    ? messages.filter((m) => {
+    ? visibleMessages.filter((m) => {
       const keyword = msgSearch.toLowerCase();
       return (m.content ?? '').toLowerCase().includes(keyword) || (m.senderName ?? '').toLowerCase().includes(keyword);
     })
-    : messages;
+    : visibleMessages;
 
   useEffect(() => {
     if (previewImageId === null) return;
@@ -2926,6 +2979,7 @@ export default function ChatPage() {
                     onToggleSelect={handleToggleSelectMessage}
                     onForwardSingle={handleForwardSingle}
                     onOpenForwardView={handleOpenForwardView}
+                    onDeleteMessage={handleDeleteSingle}
                   />
                 ))}
                 <div ref={messagesEndRef} />
@@ -3164,6 +3218,13 @@ export default function ChatPage() {
                   onClick={() => { void handleFavoriteSelected(); }}
                 >
                   收藏
+                </Button>
+                <Button
+                  size="small" type="danger" theme="light" icon={<Trash2 size={14} />}
+                  disabled={selectedMessageIds.length === 0}
+                  onClick={() => { void handleDeleteSelected(); }}
+                >
+                  删除
                 </Button>
                 <Button size="small" type="tertiary" onClick={handleExitMultiSelect}>取消多选</Button>
               </div>

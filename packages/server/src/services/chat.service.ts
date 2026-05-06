@@ -965,6 +965,42 @@ export async function forwardMessages(input: ForwardMessagesInput): Promise<void
   }
 }
 
+// ─── 删除消息（仅对自己） ─────────────────────────────────────────────────────
+
+export async function deleteMessagesForUser(messageIds: number[]): Promise<void> {
+  const me = currentUser();
+  if (messageIds.length === 0) return;
+
+  const msgs = await db.query.chatMessages.findMany({
+    where: inArray(chatMessages.id, messageIds),
+  });
+  if (msgs.length === 0) return;
+
+  // 校验当前用户是这些消息所在会话的成员
+  const convIds = [...new Set(msgs.map((m) => m.conversationId))];
+  for (const convId of convIds) {
+    // eslint-disable-next-line no-await-in-loop
+    const member = await db.query.chatConversationMembers.findFirst({
+      where: and(
+        eq(chatConversationMembers.conversationId, convId),
+        eq(chatConversationMembers.userId, me.userId),
+      ),
+    });
+    if (!member) throw new HTTPException(403, { message: '无权操作该会话的消息' });
+  }
+
+  // 批量更新 extra.hiddenFor，追加当前用户 ID
+  await Promise.all(msgs.map(async (msg) => {
+    const extra = normalizeMessageExtra(msg.extra);
+    const hiddenFor = extra.hiddenFor ?? [];
+    if (hiddenFor.includes(me.userId)) return;
+    const nextExtra: ChatMessageExtra = { ...extra, hiddenFor: [...hiddenFor, me.userId] };
+    await db.update(chatMessages)
+      .set({ extra: nextExtra, updatedAt: new Date() })
+      .where(eq(chatMessages.id, msg.id));
+  }));
+}
+
 // ─── 撤回消息 ─────────────────────────────────────────────────────────────────
 
 export async function recallMessage(messageId: number): Promise<void> {
