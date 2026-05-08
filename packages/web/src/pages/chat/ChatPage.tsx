@@ -39,6 +39,8 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [mentionClosed, setMentionClosed] = useState(false);
+  const [mentionActiveIndex, setMentionActiveIndex] = useState(0);
+  const mentionListRef = useRef<HTMLDivElement>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [loadingConvs, setLoadingConvs] = useState(false);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
@@ -1031,7 +1033,51 @@ export default function ChatPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input]);
 
+  // mentionCandidates 变化时重置高亮到第一项
+  useEffect(() => {
+    setMentionActiveIndex(0);
+  }, [mentionCandidates]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const popupOpen = !!(mentionState && !mentionClosed && mentionCandidates.length > 0);
+    if (popupOpen) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionActiveIndex((i) => {
+          const next = (i + 1) % mentionCandidates.length;
+          // 滚动到可见区
+          requestAnimationFrame(() => {
+            const el = mentionListRef.current?.children[next] as HTMLElement | undefined;
+            el?.scrollIntoView({ block: 'nearest' });
+          });
+          return next;
+        });
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionActiveIndex((i) => {
+          const next = (i - 1 + mentionCandidates.length) % mentionCandidates.length;
+          requestAnimationFrame(() => {
+            const el = mentionListRef.current?.children[next] as HTMLElement | undefined;
+            el?.scrollIntoView({ block: 'nearest' });
+          });
+          return next;
+        });
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const candidate = mentionCandidates[mentionActiveIndex];
+        if (candidate) insertMention(candidate);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionClosed(true);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       void handleSend();
@@ -1960,6 +2006,7 @@ export default function ChatPage() {
             <div style={{ position: 'relative', flex: 1 }}>
               {mentionState && !mentionClosed && mentionCandidates.length > 0 && (
                 <div
+                  ref={mentionListRef}
                   style={{
                     position: 'absolute',
                     left: 0,
@@ -1975,12 +2022,18 @@ export default function ChatPage() {
                     overflowY: 'auto',
                   }}
                 >
-                  {mentionCandidates.map((member) => (
+                  {mentionCandidates.map((member, idx) => (
                     <button
                       key={member.id}
                       type="button"
                       onClick={() => insertMention(member)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', border: 'none', background: 'transparent', padding: '6px 8px', textAlign: 'left', cursor: 'pointer', borderRadius: 6 }}
+                      onMouseEnter={() => setMentionActiveIndex(idx)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8, width: '100%', border: 'none',
+                        background: idx === mentionActiveIndex ? 'var(--semi-color-fill-1)' : 'transparent',
+                        padding: '6px 8px', textAlign: 'left', cursor: 'pointer', borderRadius: 6,
+                        transition: 'background 0.1s',
+                      }}
                     >
                       <UserAvatar name={member.nickname} avatar={member.avatar} size={26} />
                       <div style={{ minWidth: 0 }}>
