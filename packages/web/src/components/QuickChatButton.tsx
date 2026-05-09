@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { FloatButton, Typography, Spin, Empty, Input, Button, Badge } from '@douyinfe/semi-ui';
-import { MessageCircle, ArrowLeft, ExternalLink, Send, X } from 'lucide-react';
+import { FloatButton, Typography, Spin, Empty, Input, Button, Badge, Toast } from '@douyinfe/semi-ui';
+import { MessageCircle, ArrowLeft, ExternalLink, Send, X, ImagePlus, Paperclip } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { request } from '@/utils/request';
 import { formatConvTime } from '@/utils/date';
-import { getMessageSummary } from '@/pages/chat/utils';
-import type { ChatConversation, ChatMessage, WsMessage } from '@zenith/shared';
+import { getMessageSummary, getFileExtension, getImageDimensions } from '@/pages/chat/utils';
+import type { ChatConversation, ChatMessage, WsMessage, ChatAssetMeta } from '@zenith/shared';
 import { UserAvatar, GroupGridAvatar } from '@/pages/chat/components/UserAvatar';
 
 const { Text } = Typography;
@@ -26,8 +26,11 @@ export default function QuickChatButton() {
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const totalUnread = conversations.reduce((acc, c) => acc + (c.unreadCount ?? 0), 0);
 
@@ -141,6 +144,54 @@ export default function QuickChatButton() {
       setMessages((prev) => [...prev, res.data!]);
     }
   }, [activeConvId, input, sending]);
+
+  const sendImageMessage = useCallback(async (file: File) => {
+    if (!activeConvId) return;
+    setUploading(true);
+    try {
+      const dimensions = await getImageDimensions(file);
+      const fd = new FormData();
+      fd.append('file', file);
+      const uploadRes = await request.postForm<{ url: string; originalName: string; size: number }>('/api/files/upload-one', fd);
+      if (uploadRes.code !== 0 || !uploadRes.data) { Toast.error('图片上传失败'); return; }
+      const { url, originalName, size } = uploadRes.data;
+      const asset: ChatAssetMeta = {
+        kind: 'image', name: originalName, size,
+        mimeType: file.type || null, extension: getFileExtension(originalName),
+        width: dimensions?.width ?? null, height: dimensions?.height ?? null, thumbnailUrl: url,
+      };
+      const res = await request.post<ChatMessage>(
+        `/api/chat/conversations/${activeConvId}/messages`,
+        { content: url, type: 'image', extra: { asset } },
+      );
+      if (res.code === 0 && res.data) setMessages((prev) => [...prev, res.data!]);
+    } finally {
+      setUploading(false);
+    }
+  }, [activeConvId]);
+
+  const sendFileMessage = useCallback(async (file: File) => {
+    if (!activeConvId) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const uploadRes = await request.postForm<{ url: string; originalName: string; size: number }>('/api/files/upload-one', fd);
+      if (uploadRes.code !== 0 || !uploadRes.data) { Toast.error('文件上传失败'); return; }
+      const { url, originalName, size } = uploadRes.data;
+      const asset: ChatAssetMeta = {
+        kind: 'file', name: originalName, size,
+        mimeType: file.type || null, extension: getFileExtension(originalName),
+      };
+      const res = await request.post<ChatMessage>(
+        `/api/chat/conversations/${activeConvId}/messages`,
+        { content: url, type: 'file', extra: { asset } },
+      );
+      if (res.code === 0 && res.data) setMessages((prev) => [...prev, res.data!]);
+    } finally {
+      setUploading(false);
+    }
+  }, [activeConvId]);
 
   // 在聊天页隐藏
   if (location.pathname.startsWith('/chat')) return null;
@@ -298,11 +349,51 @@ export default function QuickChatButton() {
                   padding: '8px 12px',
                   borderTop: '1px solid var(--semi-color-border)',
                   display: 'flex',
-                  gap: 8,
+                  gap: 6,
                   alignItems: 'center',
                   flexShrink: 0,
                 }}
               >
+                {/* 隐藏文件输入 */}
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void sendImageMessage(file);
+                    e.target.value = '';
+                  }}
+                />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void sendFileMessage(file);
+                    e.target.value = '';
+                  }}
+                />
+                <button
+                  type="button"
+                  title="发送图片"
+                  disabled={uploading}
+                  onClick={() => imageInputRef.current?.click()}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', color: 'var(--semi-color-text-2)', borderRadius: 6 }}
+                >
+                  <ImagePlus size={16} />
+                </button>
+                <button
+                  type="button"
+                  title="发送文件"
+                  disabled={uploading}
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', color: 'var(--semi-color-text-2)', borderRadius: 6 }}
+                >
+                  <Paperclip size={16} />
+                </button>
                 <Input
                   ref={inputRef}
                   value={input}
@@ -321,7 +412,7 @@ export default function QuickChatButton() {
                   type="primary"
                   size="small"
                   icon={<Send size={14} />}
-                  loading={sending}
+                  loading={sending || uploading}
                   onClick={() => void handleSend()}
                   disabled={!input.trim()}
                 />
