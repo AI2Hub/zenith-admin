@@ -418,20 +418,12 @@ export default function ChatPage() {
     return msgRes.code === 0;
   }, [activeConvId]);
 
-  const handleTyping = useCallback(() => {
-    if (!activeConvId || !currentUserId) return;
+  const handleTyping = useCallback((newValue: string) => {
+    if (!activeConvId || !currentUserId || !newValue.trim()) return;
     if (typingThrottleRef.current) return; // 3秒内只发一次
-    let nickname = '用户';
-    try {
-      const token = localStorage.getItem('zenith_token');
-      if (token) {
-        const p = JSON.parse(atob(token.split('.')[1])) as { nickname?: string };
-        nickname = p.nickname ?? '用户';
-      }
-    } catch { /* ignore */ }
-    sendWsMessage({ type: 'chat:typing', payload: { conversationId: activeConvId, userId: currentUserId, nickname } });
+    sendWsMessage({ type: 'chat:typing', payload: { conversationId: activeConvId, userId: currentUserId, nickname: currentUserNickname } });
     typingThrottleRef.current = setTimeout(() => { typingThrottleRef.current = null; }, 3000);
-  }, [activeConvId, currentUserId]);
+  }, [activeConvId, currentUserId, currentUserNickname]);
 
   const sendImageFile = useCallback(async (file: File) => {
     if (!activeConvId) return false;
@@ -2304,32 +2296,34 @@ export default function ChatPage() {
                   ))}
                 </div>
               )}
-              {Object.values(typingUsers).length > 0 && (
-                <div style={{ fontSize: 11, color: 'var(--semi-color-text-3)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span
-                    style={{
-                      display: 'inline-flex', gap: 2, alignItems: 'center',
-                    }}
-                  >
-                    {[0, 1, 2].map((i) => (
-                      <span
-                        key={i}
-                        style={{
-                          width: 4, height: 4, borderRadius: '50%',
-                          background: 'var(--semi-color-text-3)',
-                          display: 'inline-block',
-                          animation: `bounce 1.2s ${i * 0.2}s ease-in-out infinite`,
-                        }}
-                      />
-                    ))}
-                  </span>
-                  {Object.values(typingUsers).map((u) => u.nickname).join('、')}正在输入...
-                </div>
-              )}
+              {Object.values(typingUsers).length > 0 && (() => {
+                const names = Object.values(typingUsers).map((u) => u.nickname);
+                const label = names.length > 2
+                  ? `${names[0]}等${names.length}人正在输入...`
+                  : `${names.join('、')}正在输入...`;
+                return (
+                  <div style={{ fontSize: 11, color: 'var(--semi-color-text-3)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ display: 'inline-flex', gap: 3, alignItems: 'center' }}>
+                      {[0, 1, 2].map((i) => (
+                        <span
+                          key={i}
+                          style={{
+                            width: 4, height: 4, borderRadius: '50%',
+                            background: 'var(--semi-color-text-3)',
+                            display: 'inline-block',
+                            animation: `chat-typing-bounce 1.2s ${i * 0.2}s ease-in-out infinite`,
+                          }}
+                        />
+                      ))}
+                    </span>
+                    {label}
+                  </div>
+                );
+              })()}
               <textarea
                 ref={inputRef}
                 value={input}
-                onChange={(e) => { setInput(e.target.value); setMentionClosed(false); handleTyping(); }}
+                onChange={(e) => { setInput(e.target.value); setMentionClosed(false); handleTyping(e.target.value); }}
                 onKeyDown={handleKeyDown}
                 onPaste={handleInputPaste}
                 placeholder="输入消息…"
