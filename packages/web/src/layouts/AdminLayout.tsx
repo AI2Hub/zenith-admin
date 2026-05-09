@@ -17,6 +17,7 @@ import { config } from '@/config';
 import { renderLucideIcon } from '@/utils/icons';
 import NProgress from '@/components/NProgress';
 import Watermark from '@/components/Watermark';
+import QuickChatButton from '@/components/QuickChatButton';
 import './AdminLayout.css';
 
 // 主题图标
@@ -1110,6 +1111,9 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
           </SideSheet>
         </div>
       </div>
+
+      {/* ===== 快捷聊天浮动按钮 ===== */}
+      <QuickChatButton />
 
       {/* ===== 通知详情 Modal ===== */}
       <Modal
