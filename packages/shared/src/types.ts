@@ -749,6 +749,8 @@ export interface ChatConversation {
   } | null;
   lastMessage: ChatMessage | null;
   unreadCount: number;
+  /** 是否存在未读的 @我 消息 */
+  hasMentionUnread: boolean;
   isPinned: boolean;
   isStarred: boolean;
   isMuted: boolean;

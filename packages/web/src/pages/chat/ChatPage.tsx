@@ -36,6 +36,17 @@ import { MessageContent } from './components/MessageContent';
 
 const { Text, Title } = Typography;
 
+function getNextMentionUnread(
+  current: boolean | undefined,
+  isOwnMsg: boolean,
+  shouldAutoRead: boolean,
+  mentionedMe: boolean,
+) {
+  if (isOwnMsg) return current ?? false;
+  if (shouldAutoRead) return false;
+  return Boolean(current || mentionedMe);
+}
+
 export interface ChatPageProps {
   variant?: 'page' | 'quick';
   onClose?: () => void;
@@ -425,7 +436,7 @@ export default function ChatPage({
     setInput(loadDraft(conv.id));
     await fetchMessages(conv.id, 1);
     await request.post(`/api/chat/conversations/${conv.id}/read`, {}, { silent: true });
-    setConversations((prev) => prev.map((c) => c.id === conv.id ? { ...c, unreadCount: 0 } : c));
+    setConversations((prev) => prev.map((c) => c.id === conv.id ? { ...c, unreadCount: 0, hasMentionUnread: false } : c));
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   }, [activeConvId, fetchMessages, input, loadDraft, onConvChange, saveDraft]);
 
@@ -1077,6 +1088,7 @@ export default function ChatPage({
               ...c,
               lastMessage: msg,
               unreadCount: isOwnMsg ? c.unreadCount : (isActive && shouldAutoRead ? 0 : c.unreadCount + 1),
+              hasMentionUnread: getNextMentionUnread(c.hasMentionUnread, isOwnMsg, isActive && shouldAutoRead, mentionedMe),
               updatedAt: msg.createdAt,
             }
             : c,
@@ -1164,7 +1176,7 @@ export default function ChatPage({
     if (!isNearBottom()) return;
     if (pendingNewMsgCount > 0) setPendingNewMsgCount(0);
     request.post(`/api/chat/conversations/${activeConvId}/read`, {}, { silent: true }).catch(() => {});
-    setConversations((prev) => prev.map((c) => (c.id === activeConvId ? { ...c, unreadCount: 0 } : c)));
+    setConversations((prev) => prev.map((c) => (c.id === activeConvId ? { ...c, unreadCount: 0, hasMentionUnread: false } : c)));
   }, [activeConvId, isNearBottom, pendingNewMsgCount]);
 
   useWebSocket(handleWsMessage);
@@ -1194,7 +1206,7 @@ export default function ChatPage({
         if (shouldStickToBottom) {
           requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
           request.post(`/api/chat/conversations/${activeConvId}/read`, {}, { silent: true }).catch(() => {});
-          setConversations((prev) => prev.map((c) => (c.id === activeConvId ? { ...c, unreadCount: 0 } : c)));
+          setConversations((prev) => prev.map((c) => (c.id === activeConvId ? { ...c, unreadCount: 0, hasMentionUnread: false } : c)));
         }
       }
 
@@ -1452,6 +1464,7 @@ export default function ChatPage({
               const isPinned = conv.isPinned ?? false;
               const isStarred = conv.isStarred ?? false;
               const isMuted = conv.isMuted ?? false;
+              const hasMentionUnread = conv.hasMentionUnread ?? false;
               let lastMsgText = '暂无消息';
               if (lastMsg) {
                 const summary = getMessageSummary(lastMsg);
@@ -1502,9 +1515,26 @@ export default function ChatPage({
                           </Text>
                         )}
                       </div>
-                      <Text type="tertiary" style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
-                        {lastMsgText}
-                      </Text>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                        {hasMentionUnread && (
+                          <span
+                            style={{
+                              flexShrink: 0,
+                              fontSize: 11,
+                              lineHeight: '16px',
+                              padding: '0 4px',
+                              borderRadius: 4,
+                              color: 'var(--semi-color-danger)',
+                              background: 'var(--semi-color-danger-light-default)',
+                            }}
+                          >
+                            @我
+                          </span>
+                        )}
+                        <Text type="tertiary" style={{ flex: 1, minWidth: 0, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                          {lastMsgText}
+                        </Text>
+                      </div>
                     </div>
                 </button>
               );
@@ -1976,7 +2006,7 @@ export default function ChatPage({
                       setPendingNewMsgCount(0);
                       if (activeConvId) {
                         void request.post(`/api/chat/conversations/${activeConvId}/read`, {}, { silent: true });
-                        setConversations((prev) => prev.map((c) => (c.id === activeConvId ? { ...c, unreadCount: 0 } : c)));
+                        setConversations((prev) => prev.map((c) => (c.id === activeConvId ? { ...c, unreadCount: 0, hasMentionUnread: false } : c)));
                       }
                     }}
                   >

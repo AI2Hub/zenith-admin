@@ -409,16 +409,22 @@ export async function listConversations(): Promise<ChatConversation[]> {
       conversationId: chatMessages.conversationId,
       senderId: chatMessages.senderId,
       createdAt: chatMessages.createdAt,
+      extra: chatMessages.extra,
     })
     .from(chatMessages)
     .where(inArray(chatMessages.conversationId, convIds));
 
   const unreadMap = new Map<number, number>();
+  const mentionUnreadMap = new Map<number, boolean>();
   for (const row of msgTimeRows) {
     if (row.senderId === me.userId) continue;
     const lastReadAt = lastReadMap.get(row.conversationId) ?? null;
     if (!lastReadAt || row.createdAt > lastReadAt) {
       unreadMap.set(row.conversationId, (unreadMap.get(row.conversationId) ?? 0) + 1);
+      const extra = row.extra as ChatMessageExtra | null;
+      if ((extra?.mentions ?? []).some((item) => item.userId === me.userId)) {
+        mentionUnreadMap.set(row.conversationId, true);
+      }
     }
   }
 
@@ -430,6 +436,7 @@ export async function listConversations(): Promise<ChatConversation[]> {
     targetUser: conv.type === 'direct' ? (directTargetMap.get(conv.id) ?? null) : null,
     lastMessage: latestMsgMap.get(conv.id) ?? null,
     unreadCount: unreadMap.get(conv.id) ?? 0,
+    hasMentionUnread: mentionUnreadMap.get(conv.id) ?? false,
     isPinned: pinnedMap.get(conv.id) ?? false,
     isStarred: starredMap.get(conv.id) ?? false,
     isMuted: mutedMap.get(conv.id) ?? false,
@@ -510,6 +517,7 @@ export async function getOrCreateDirectConversation(targetUserId: number): Promi
     targetUser,
     lastMessage: null,
     unreadCount: 0,
+    hasMentionUnread: false,
     isPinned: false,
     isStarred: false,
     isMuted: false,
@@ -1200,6 +1208,7 @@ export async function createGroupConversation(name: string): Promise<ChatConvers
     targetUser: null,
     lastMessage: null,
     unreadCount: 0,
+    hasMentionUnread: false,
     isPinned: false,
     isStarred: false,
     isMuted: false,

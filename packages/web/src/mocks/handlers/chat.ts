@@ -113,6 +113,7 @@ export const chatHandlers = [
       targetUser,
       lastMessage: null,
       unreadCount: 0,
+      hasMentionUnread: false,
       isPinned: false,
       isStarred: false,
       isMuted: false,
@@ -227,7 +228,10 @@ export const chatHandlers = [
   http.post('/api/chat/conversations/:id/read', ({ params }) => {
     const convId = Number(params.id);
     const conv = mockChatConversations.find((c) => c.id === convId);
-    if (conv) conv.unreadCount = 0;
+    if (conv) {
+      conv.unreadCount = 0;
+      conv.hasMentionUnread = false;
+    }
     return HttpResponse.json({ code: 0, message: 'ok', data: null });
   }),
 
@@ -245,6 +249,7 @@ export const chatHandlers = [
       targetUser: null,
       lastMessage: null,
       unreadCount: 0,
+      hasMentionUnread: false,
       isPinned: false,
       isStarred: false,
       isMuted: false,
