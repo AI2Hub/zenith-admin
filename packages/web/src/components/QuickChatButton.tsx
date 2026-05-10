@@ -17,19 +17,32 @@ export default function QuickChatButton({ onHide }: Readonly<{ onHide?: () => vo
   const currentUserId = user?.id ?? null;
 
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [everOpened, setEverOpened] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const openRef = useRef(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const floatBtnRef = useRef<HTMLDivElement>(null);
 
-  const handleToggle = useCallback(() => {
-    setOpen((prev) => {
-      openRef.current = !prev;
-      if (!prev) setEverOpened(true);
-      return !prev;
-    });
+  const closePanel = useCallback(() => {
+    openRef.current = false;
+    setClosing(true);
+    setTimeout(() => {
+      setOpen(false);
+      setClosing(false);
+    }, 160);
   }, []);
+
+  const handleToggle = useCallback(() => {
+    if (openRef.current) {
+      closePanel();
+      return;
+    }
+    openRef.current = true;
+    setEverOpened(true);
+    setUnreadCount(0);  // 乐观清空未读数
+    setOpen(true);
+  }, [closePanel]);
 
   const fetchUnreadCount = useCallback(async () => {
     const res = await request.get<ChatConversation[]>('/api/chat/conversations', { silent: true });
@@ -47,17 +60,24 @@ export default function QuickChatButton({ onHide }: Readonly<{ onHide?: () => vo
     const handler = (e: MouseEvent) => {
       const target = e.target as Node;
       if (panelRef.current?.contains(target) || floatBtnRef.current?.contains(target)) return;
-      openRef.current = false;
-      setOpen(false);
+      closePanel();
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
+  }, [open, closePanel]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') closePanel(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open, closePanel]);
 
   useEffect(() => {
     if (location.pathname.startsWith('/chat')) {
       openRef.current = false;
       setOpen(false);
+      setClosing(false);
     }
   }, [location.pathname]);
 
@@ -78,7 +98,9 @@ export default function QuickChatButton({ onHide }: Readonly<{ onHide?: () => vo
   useWebSocket(handleWsMessage);
 
   const handleOpenFullPage = useCallback(() => {
+    openRef.current = false;
     setOpen(false);
+    setClosing(false);
     navigate('/chat');
   }, [navigate]);
 
@@ -105,6 +127,7 @@ export default function QuickChatButton({ onHide }: Readonly<{ onHide?: () => vo
             e.stopPropagation();
             openRef.current = false;
             setOpen(false);
+            setClosing(false);
             onHide?.();
           }}
         >
@@ -115,12 +138,12 @@ export default function QuickChatButton({ onHide }: Readonly<{ onHide?: () => vo
       {everOpened && (
         <div
           ref={panelRef}
-          className={open ? 'qc-panel' : 'qc-panel qc-panel--hidden'}
+          className={`qc-panel${!open && !closing ? ' qc-panel--hidden' : ''}${closing ? ' qc-panel--closing' : ''}`}
         >
           <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spin /></div>}>
             <QuickChatPanel
               variant="quick"
-              onClose={() => { openRef.current = false; setOpen(false); }}
+              onClose={closePanel}
               onOpenFullPage={handleOpenFullPage}
               onUnreadChange={setUnreadCount}
             />

@@ -3,6 +3,11 @@
   to   { opacity: 1; transform: translateY(0)    scale(1);    }
 }
 
+@keyframes qc-slide-out {
+  from { opacity: 1; transform: translateY(0)    scale(1);    }
+  to   { opacity: 0; transform: translateY(10px) scale(0.98); }
+}
+
 @keyframes qc-hide-btn-pop {
   from { opacity: 0; transform: scale(0.6); }
   to   { opacity: 1; transform: scale(1); }
@@ -63,4 +68,9 @@
 
 .qc-panel--hidden {
   display: none;
+}
+
+.qc-panel--closing {
+  animation: qc-slide-out 0.16s ease-in forwards;
+  pointer-events: none;
 }
