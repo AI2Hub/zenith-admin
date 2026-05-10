@@ -96,7 +96,6 @@ export default function ApprovalTimeline({ tasks }: Readonly<{ tasks: WorkflowTa
                 padding: '8px 10px',
                 backgroundColor: 'var(--semi-color-fill-0)',
                 borderRadius: 6,
-                borderLeft: `3px solid ${iconColor}`,
               }}>
                 <Typography.Text size="small" type="secondary">{task.comment}</Typography.Text>
               </div>
