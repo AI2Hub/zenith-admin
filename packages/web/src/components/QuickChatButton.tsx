@@ -57,17 +57,6 @@ export default function QuickChatButton({ onHide }: Readonly<{ onHide?: () => vo
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (panelRef.current?.contains(target) || floatBtnRef.current?.contains(target)) return;
-      closePanel();
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open, closePanel]);
-
-  useEffect(() => {
-    if (!open) return;
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') closePanel(); };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
