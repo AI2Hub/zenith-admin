@@ -672,11 +672,14 @@ export async function muteConversation(conversationId: number, mute: boolean): P
 // ─── 消息列表（分页） ─────────────────────────────────────────────────────────
 
 export async function listMessages(conversationId: number, beforeId: number | null, limit: number) {
+  const me = currentUser();
   await ensureConversationMember(conversationId);
 
-  const where = beforeId
-    ? and(eq(chatMessages.conversationId, conversationId), lt(chatMessages.id, beforeId))
-    : eq(chatMessages.conversationId, conversationId);
+  const where = and(
+    eq(chatMessages.conversationId, conversationId),
+    notHiddenFor(me.userId),
+    beforeId ? lt(chatMessages.id, beforeId) : undefined,
+  );
 
   const rows = await db
     .select({ msg: chatMessages, nickname: users.nickname, avatar: users.avatar })
