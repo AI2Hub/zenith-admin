@@ -1913,66 +1913,70 @@ export default function ChatPage({
               </Tooltip>
             )}
             {activeConv.type === 'direct' && activeConv.targetUser && (
-              <Popover
-                trigger="click"
-                position="bottomLeft"
-                showArrow
-                content={(
-                  <div style={{ padding: '8px 4px', minWidth: 220 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                      <UserAvatar name={activeConv.targetUser.nickname} avatar={activeConv.targetUser.avatar} size={44} />
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 15 }}>{activeConv.targetUser.nickname}</div>
-                        {activeConv.targetUser.departmentName && (
-                          <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: 2 }}>{activeConv.targetUser.departmentName}</div>
-                        )}
+              <>
+                <Popover
+                  trigger="click"
+                  position="bottomLeft"
+                  showArrow
+                  content={(
+                    <div style={{ padding: '8px 4px', minWidth: 220 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                        <UserAvatar name={activeConv.targetUser.nickname} avatar={activeConv.targetUser.avatar} size={44} />
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 15 }}>{activeConv.targetUser.nickname}</div>
+                          {activeConv.targetUser.departmentName && (
+                            <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: 2 }}>{activeConv.targetUser.departmentName}</div>
+                          )}
+                        </div>
                       </div>
+                      {(activeConv.targetUser.positionNames ?? []).length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+                          <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13, minWidth: 52 }}>岗位</span>
+                          <span style={{ fontSize: 13 }}>{(activeConv.targetUser.positionNames ?? []).join('、')}</span>
+                        </div>
+                      )}
+                      {activeConv.targetUser.phone && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                          <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13, minWidth: 52 }}>手机</span>
+                          <span style={{ fontSize: 13 }}>{activeConv.targetUser.phone}</span>
+                        </div>
+                      )}
+                      {activeConv.targetUser.email && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13, minWidth: 52 }}>邮箱</span>
+                          <span style={{ fontSize: 13 }}>{activeConv.targetUser.email}</span>
+                        </div>
+                      )}
                     </div>
-                    {(activeConv.targetUser.positionNames ?? []).length > 0 && (
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-                        <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13, minWidth: 52 }}>岗位</span>
-                        <span style={{ fontSize: 13 }}>{(activeConv.targetUser.positionNames ?? []).join('、')}</span>
-                      </div>
-                    )}
-                    {activeConv.targetUser.phone && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                        <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13, minWidth: 52 }}>手机</span>
-                        <span style={{ fontSize: 13 }}>{activeConv.targetUser.phone}</span>
-                      </div>
-                    )}
-                    {activeConv.targetUser.email && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13, minWidth: 52 }}>邮箱</span>
-                        <span style={{ fontSize: 13 }}>{activeConv.targetUser.email}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              >
-                <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: isQuick ? 6 : 8, flex: 1, minWidth: 0 }}>
-                  <UserAvatar name={activeConv.targetUser.nickname} avatar={activeConv.targetUser.avatar} size={isQuick ? 28 : 32} />
-                  <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                    <Title
-                      heading={6}
-                      style={{
-                        margin: 0,
-                        lineHeight: '1.2',
-                        fontSize: isQuick ? 15 : undefined,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {activeConv.targetUser.nickname}
-                    </Title>
-                    {activeConv.targetUser.departmentName && (
-                      <Text size="small" type="tertiary" style={{ lineHeight: '1.2', whiteSpace: 'nowrap' }}>
-                        {activeConv.targetUser.departmentName}
-                      </Text>
-                    )}
+                  )}
+                >
+                  <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: isQuick ? 6 : 8, maxWidth: '40%', minWidth: 0 }}>
+                    <UserAvatar name={activeConv.targetUser.nickname} avatar={activeConv.targetUser.avatar} size={isQuick ? 28 : 32} />
+                    <span style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, overflow: 'hidden' }}>
+                      <Title
+                        heading={6}
+                        style={{
+                          margin: 0,
+                          lineHeight: '1.2',
+                          fontSize: isQuick ? 15 : undefined,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {activeConv.targetUser.nickname}
+                      </Title>
+                      {activeConv.targetUser.departmentName && (
+                        <Text size="small" type="tertiary" style={{ whiteSpace: 'nowrap', flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {activeConv.targetUser.departmentName}
+                        </Text>
+                      )}
+                    </span>
                   </span>
-                </span>
-              </Popover>
+                </Popover>
+                <span style={{ flex: 1 }} />
+              </>
             )}
             {activeConv.type === 'group' && (
               <>
