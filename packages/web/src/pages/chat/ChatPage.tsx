@@ -1271,10 +1271,15 @@ export default function ChatPage({
   const handleMessagesScroll = useCallback(() => {
     if (!activeConvId) return;
     if (!isNearBottom()) return;
+    // 在上下文定位模式下滚动到底部时，自动恢复最新消息
+    if (contextMode) {
+      void restoreLatestMessages();
+      return;
+    }
     if (pendingNewMsgCount > 0) setPendingNewMsgCount(0);
     request.post(`/api/chat/conversations/${activeConvId}/read`, {}, { silent: true }).catch(() => {});
     setConversations((prev) => prev.map((c) => (c.id === activeConvId ? { ...c, unreadCount: 0, hasMentionUnread: false } : c)));
-  }, [activeConvId, isNearBottom, pendingNewMsgCount]);
+  }, [activeConvId, contextMode, isNearBottom, pendingNewMsgCount, restoreLatestMessages]);
 
   useWebSocket(handleWsMessage);
   const wsConnected = useWsConnected();
