@@ -87,7 +87,7 @@ export default function ChatPage({
   const [showNewChat, setShowNewChat] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [showSearchPanel, setShowSearchPanel] = useState(false);
-  const [page, setPage] = useState(1);
+  const [oldestMsgId, setOldestMsgId] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [pendingNewMsgCount, setPendingNewMsgCount] = useState(0);
   const [msgSearch, setMsgSearch] = useState('');
@@ -323,7 +323,7 @@ export default function ChatPage({
     setActiveConvId(message.conversationId);
     setMessages(res.data.list);
     setHasMore(res.data.hasBefore);
-    setPage(1);
+    setOldestMsgId(null);
     setContextMode({ anchorMessageId: res.data.anchorMessageId, keyword: '收藏消息' });
     setTimeout(() => {
       const el = document.getElementById(`msg-${res.data!.anchorMessageId}`);
@@ -357,34 +357,35 @@ export default function ChatPage({
     }
   }, [fetchFavoriteMessages, leftPaneMode]);
 
-  const fetchMessages = useCallback(async (convId: number, p = 1) => {
+  const fetchMessages = useCallback(async (convId: number, beforeId?: number) => {
     const el = messagesContainerRef.current;
     const prevScrollHeight = el?.scrollHeight ?? 0;
     const prevScrollTop = el?.scrollTop ?? 0;
     setLoadingMsgs(true);
-    const res = await request.get<{ list: ChatMessage[]; total: number; page: number; pageSize: number }>(
-      `/api/chat/conversations/${convId}/messages?page=${p}&pageSize=30`,
+    const qs = beforeId ? `beforeId=${beforeId}&limit=30` : 'limit=30';
+    const res = await request.get<{ list: ChatMessage[]; hasMore: boolean }>(
+      `/api/chat/conversations/${convId}/messages?${qs}`,
       { silent: true },
     );
     setLoadingMsgs(false);
     if (res.code === 0 && res.data) {
-      const newMsgs = [...res.data.list].reverse();
-      if (p === 1) {
-        setMessages(newMsgs);
-        setPage(1);
-        setPendingNewMsgCount(0);
-        setContextMode(null);
-      } else {
+      const newMsgs = [...res.data.list].reverse(); // backend returns newest-first, reverse to oldest-first
+      if (beforeId) {
         setMessages((prev) => [...newMsgs, ...prev]);
-        setPage(p);
+        setOldestMsgId(newMsgs[0]?.id ?? null);
         requestAnimationFrame(() => {
           const box = messagesContainerRef.current;
           if (!box) return;
           const delta = box.scrollHeight - prevScrollHeight;
           box.scrollTop = prevScrollTop + delta;
         });
+      } else {
+        setMessages(newMsgs);
+        setOldestMsgId(newMsgs[0]?.id ?? null);
+        setPendingNewMsgCount(0);
+        setContextMode(null);
       }
-      setHasMore(res.data.list.length >= 30);
+      setHasMore(res.data.hasMore);
     }
   }, []);
 
@@ -443,7 +444,7 @@ export default function ChatPage({
     setMediaHasMore(false);
     // 恢复目标会话草稿
     setInput(loadDraft(conv.id));
-    await fetchMessages(conv.id, 1);
+    await fetchMessages(conv.id);
     await request.post(`/api/chat/conversations/${conv.id}/read`, {}, { silent: true });
     setConversations((prev) => prev.map((c) => c.id === conv.id ? { ...c, unreadCount: 0, hasMentionUnread: false } : c));
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -1035,14 +1036,14 @@ export default function ChatPage({
     }
     setMessages(res.data.list);
     setHasMore(res.data.hasBefore);
-    setPage(1);
+    setOldestMsgId(null);
     setContextMode({ anchorMessageId: res.data.anchorMessageId, keyword: msgSearch.trim() || item.snippet });
     setTimeout(() => scrollToMessage(res.data.anchorMessageId), 80);
   }, [activeConvId, msgSearch, scrollToMessage]);
 
   const restoreLatestMessages = useCallback(async () => {
     if (!activeConvId) return;
-    await fetchMessages(activeConvId, 1);
+    await fetchMessages(activeConvId);
   }, [activeConvId, fetchMessages]);
 
   const fetchMediaItems = useCallback(async (convId: number, type: 'image' | 'file', p = 1) => {
@@ -1079,14 +1080,14 @@ export default function ChatPage({
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting && !loadingMsgs && hasMore) {
-          void fetchMessages(activeConvId, page + 1);
+          void fetchMessages(activeConvId, oldestMsgId ?? undefined);
         }
       },
       { threshold: 0.1 },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [activeConvId, hasMore, loadingMsgs, page, msgSearch, showSearchPanel, searchHasSearched, contextMode, fetchMessages]);
+  }, [activeConvId, hasMore, loadingMsgs, oldestMsgId, msgSearch, showSearchPanel, searchHasSearched, contextMode, fetchMessages]);
 
   const refreshGroupAvatarMembers = useCallback(async (conversationId: number) => {
     const res = await request.get<ChatGroupMember[]>(`/api/chat/conversations/${conversationId}/members`, { silent: true });
@@ -1240,7 +1241,7 @@ export default function ChatPage({
       await fetchConversations();
 
       if (activeConvId && !contextMode) {
-        await fetchMessages(activeConvId, 1);
+        await fetchMessages(activeConvId);
         if (shouldStickToBottom) {
           requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
           request.post(`/api/chat/conversations/${activeConvId}/read`, {}, { silent: true }).catch(() => {});
@@ -1690,7 +1691,7 @@ export default function ChatPage({
                     setLeftPaneMode('conversations');
                     setMessages(res.data.list);
                     setHasMore(res.data.hasBefore);
-                    setPage(1);
+                    setOldestMsgId(null);
                     setContextMode({ anchorMessageId: res.data.anchorMessageId, keyword: globalSearchKeyword.trim() });
                     setTimeout(() => scrollToMessage(res.data.anchorMessageId), 80);
                   }}

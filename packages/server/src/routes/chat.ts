@@ -89,16 +89,25 @@ chatRouter.openapi(
 
 chatRouter.openapi(
   createRoute({
-    method: 'get', path: '/conversations/{id}/messages', tags: ['Chat'], summary: '获取会话消息（分页）',
+    method: 'get', path: '/conversations/{id}/messages', tags: ['Chat'], summary: '获取会话消息（游标分页）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware] as const,
-    request: { params: IdParam, query: PaginationQuery },
-    responses: { ...commonErrorResponses, ...okPaginated(ChatMessageDTO, '消息列表') },
+    request: {
+      params: IdParam,
+      query: z.object({
+        beforeId: z.coerce.number().int().positive().optional(),
+        limit: z.coerce.number().int().positive().max(50).default(30),
+      }),
+    },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(z.object({ list: z.array(ChatMessageDTO), hasMore: z.boolean() }), '消息列表'),
+    },
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    const { page, pageSize } = c.req.valid('query');
-    const result = await listMessages(id, page, pageSize);
+    const { beforeId, limit } = c.req.valid('query');
+    const result = await listMessages(id, beforeId ?? null, limit);
     return c.json(okBody(result), 200);
   },
 );

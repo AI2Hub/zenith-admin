@@ -585,29 +585,32 @@ export async function muteConversation(conversationId: number, mute: boolean): P
 
 // ─── 消息列表（分页） ─────────────────────────────────────────────────────────
 
-export async function listMessages(conversationId: number, page: number, pageSize: number) {
+export async function listMessages(conversationId: number, beforeId: number | null, limit: number) {
   await ensureConversationMember(conversationId);
 
-  const [total, rows] = await Promise.all([
-    db.$count(chatMessages, eq(chatMessages.conversationId, conversationId)),
-    db
-      .select({ msg: chatMessages, nickname: users.nickname, avatar: users.avatar })
-      .from(chatMessages)
-      .leftJoin(users, eq(chatMessages.senderId, users.id))
-      .where(eq(chatMessages.conversationId, conversationId))
-      .orderBy(desc(chatMessages.createdAt))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
-  ]);
+  const where = beforeId
+    ? and(eq(chatMessages.conversationId, conversationId), lt(chatMessages.id, beforeId))
+    : eq(chatMessages.conversationId, conversationId);
 
-  const msgIds = rows.map((r) => r.msg.id);
+  const rows = await db
+    .select({ msg: chatMessages, nickname: users.nickname, avatar: users.avatar })
+    .from(chatMessages)
+    .leftJoin(users, eq(chatMessages.senderId, users.id))
+    .where(where)
+    .orderBy(desc(chatMessages.id))
+    .limit(limit + 1);
+
+  const hasMore = rows.length > limit;
+  const limited = rows.slice(0, limit);
+
+  const msgIds = limited.map((r) => r.msg.id);
   const reactionMap = await aggregateReactions(msgIds);
 
-  const list = rows.map((r) =>
+  const list = limited.map((r) =>
     mapChatMessage(r.msg, r.msg.senderId ? { id: r.msg.senderId, nickname: r.nickname ?? '', avatar: r.avatar ?? null } : null, reactionMap.get(r.msg.id) ?? []),
   );
 
-  return { list, total, page, pageSize };
+  return { list, hasMore };
 }
 
 export async function listPinnedMessages(conversationId: number): Promise<ChatMessage[]> {

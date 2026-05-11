@@ -159,19 +159,19 @@ export const chatHandlers = [
     return HttpResponse.json({ code: 0, message: 'ok', data: newConv });
   }),
 
-  // 消息列表（分页，最新在前）
+  // 消息列表（游标分页，最新在前）
   http.get('/api/chat/conversations/:id/messages', ({ params, request }) => {
     const convId = Number(params.id);
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? '1');
-    const pageSize = Number(url.searchParams.get('pageSize') ?? '30');
+    const beforeId = url.searchParams.get('beforeId') ? Number(url.searchParams.get('beforeId')) : null;
+    const limit = Number(url.searchParams.get('limit') ?? '30');
 
-    const all = getMockConvMessages(convId).slice().reverse(); // 最新在前
-    const total = all.length;
-    const start = (page - 1) * pageSize;
-    const list = all.slice(start, start + pageSize);
+    const all = getMockConvMessages(convId).slice().sort((a, b) => b.id - a.id); // 最新在前（按 id 降序）
+    const filtered = beforeId === null ? all : all.filter((m) => m.id < beforeId);
+    const batch = filtered.slice(0, limit);
+    const hasMore = filtered.length > limit;
 
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+    return HttpResponse.json({ code: 0, message: 'ok', data: { list: batch, hasMore } });
   }),
 
   // 发送消息
