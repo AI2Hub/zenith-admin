@@ -694,15 +694,38 @@ export default function ChatPage({
     }
   }, [handleSelectImages]);
 
-  const scrollToMessage = useCallback((id: number) => {
+  const scrollToMessage = useCallback(async (id: number) => {
     const el = document.getElementById(`msg-${id}`);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       el.style.transition = 'background 0.3s ease';
       el.style.background = 'var(--semi-color-primary-light-hover)';
       setTimeout(() => { el.style.background = ''; }, 1200);
+      return;
     }
-  }, []);
+    // 消息不在当前视图，通过 context 接口加载并跳转
+    if (!activeConvId) return;
+    const res = await request.get<ChatMessageContext>(
+      `/api/chat/conversations/${activeConvId}/messages/${id}/context?before=15&after=15`,
+      { silent: true },
+    );
+    if (res.code !== 0 || !res.data) {
+      Toast.error(res.message ?? '无法定位到该消息');
+      return;
+    }
+    setMessages(res.data.list);
+    setHasMore(res.data.hasBefore);
+    setOldestMsgId(res.data.list[0]?.id ?? null);
+    setContextMode({ anchorMessageId: id, keyword: '引用消息' });
+    setTimeout(() => {
+      const target = document.getElementById(`msg-${id}`);
+      if (!target) return;
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.style.transition = 'background 0.3s ease';
+      target.style.background = 'var(--semi-color-primary-light-hover)';
+      setTimeout(() => { target.style.background = ''; }, 1200);
+    }, 80);
+  }, [activeConvId]);
 
   const getReplyMessage = useCallback((id: number) => messages.find((m) => m.id === id), [messages]);
 
