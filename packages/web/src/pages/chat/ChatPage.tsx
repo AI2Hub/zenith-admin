@@ -141,7 +141,7 @@ export default function ChatPage({
   const [failedMessages, setFailedMessages] = useState<FailedMessage[]>([]);
   const [draftsMap, setDraftsMap] = useState<Record<number, string>>({});
   const [showMediaPanel, setShowMediaPanel] = useState(false);
-  const [mediaType, setMediaType] = useState<'image' | 'file'>('image');
+  const [mediaType, setMediaType] = useState<'image' | 'file' | 'link'>('image');
   const [mediaItems, setMediaItems] = useState<ChatMessage[]>([]);
   const [mediaPage, setMediaPage] = useState(1);
   const [mediaHasMore, setMediaHasMore] = useState(false);
@@ -1104,23 +1104,29 @@ export default function ChatPage({
     await fetchMessages(activeConvId);
   }, [activeConvId, fetchMessages]);
 
-  const fetchMediaItems = useCallback(async (convId: number, type: 'image' | 'file', p = 1) => {
+  const fetchMediaItems = useCallback(async (convId: number, type: 'image' | 'file' | 'link', p = 1) => {
     setMediaLoading(true);
-    const qs = new URLSearchParams({ types: type, page: String(p), pageSize: '30' });
+    const qs = type === 'link'
+      ? new URLSearchParams({ types: 'text', keyword: 'http', page: String(p), pageSize: '30' })
+      : new URLSearchParams({ types: type, page: String(p), pageSize: '30' });
     const res = await request.get<{ list: Array<{ message: ChatMessage }> }>(
       `/api/chat/conversations/${convId}/messages/search?${qs.toString()}`,
       { silent: true },
     );
     setMediaLoading(false);
     if (res.code === 0 && res.data) {
-      const items = res.data.list.map((item) => item.message);
+      const rawCount = res.data.list.length;
+      let items = res.data.list.map((item) => item.message);
+      if (type === 'link') {
+        items = items.filter((m) => m.extra?.linkPreview || /https?:\/\//i.test(m.content));
+      }
       if (p === 1) {
         setMediaItems(items);
       } else {
         setMediaItems((prev) => [...prev, ...items]);
       }
       setMediaPage(p);
-      setMediaHasMore(items.length >= 30);
+      setMediaHasMore(rawCount >= 30);
     }
   }, []);
 
@@ -2508,16 +2514,21 @@ export default function ChatPage({
                   >
                     文件
                   </Button>
+                  <Button
+                    size="small"
+                    theme={mediaType === 'link' ? 'solid' : 'borderless'}
+                    type={mediaType === 'link' ? 'primary' : 'tertiary'}
+                    onClick={() => setMediaType('link')}
+                  >
+                    链接
+                  </Button>
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
                   <Spin spinning={mediaLoading && mediaItems.length === 0}>
-                    {mediaItems.length === 0 && !mediaLoading && (
-                      <Empty
-                        description={`暂无${mediaType === 'image' ? '图片' : '文件'}消息`}
-                        imageStyle={{ width: 64 }}
-                        style={{ paddingTop: 40 }}
-                      />
-                    )}
+                    {mediaItems.length === 0 && !mediaLoading && (() => {
+                      const emptyDescMap: Record<typeof mediaType, string> = { image: '暂无图片消息', file: '暂无文件消息', link: '暂无链接消息' };
+                      return <Empty description={emptyDescMap[mediaType]} imageStyle={{ width: 64 }} style={{ paddingTop: 40 }} />;
+                    })()}
                     {mediaType === 'image' && (
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
                         {mediaItems.map((item) => (
@@ -2563,6 +2574,49 @@ export default function ChatPage({
                                 下载
                               </Button>
                             </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {mediaType === 'link' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {mediaItems.map((item) => {
+                          const preview = item.extra?.linkPreview;
+                          const urlMatch = preview?.url ?? (/(https?:\/\/[^\s]+)/.exec(item.content)?.[1] ?? item.content);
+                          return (
+                            <a
+                              key={item.id}
+                              href={urlMatch}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ display: 'flex', gap: 10, padding: '10px 12px', background: 'var(--semi-color-bg-0)', border: '1px solid var(--semi-color-border)', borderRadius: 8, textDecoration: 'none', color: 'inherit', alignItems: 'flex-start' }}
+                            >
+                              {preview?.image && (
+                                <img
+                                  src={preview.image}
+                                  alt=""
+                                  style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
+                                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                />
+                              )}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <Text strong style={{ fontSize: 12, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {preview?.title ?? urlMatch}
+                                </Text>
+                                <Text type="tertiary" style={{ fontSize: 11, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                                  {urlMatch}
+                                </Text>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                                  {preview?.favicon && (
+                                    <img src={preview.favicon} alt="" style={{ width: 12, height: 12, borderRadius: 2 }}
+                                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                    />
+                                  )}
+                                  <Text type="secondary" style={{ fontSize: 11 }}>{preview?.siteName ?? item.senderName}</Text>
+                                  <Text type="tertiary" style={{ fontSize: 11, marginLeft: 'auto' }}>{formatDateTime(item.createdAt)}</Text>
+                                </div>
+                              </div>
+                            </a>
                           );
                         })}
                       </div>
