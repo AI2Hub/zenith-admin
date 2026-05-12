@@ -75,7 +75,7 @@ export function createWsRoute(upgradeWebSocket: UpgradeWebSocket) {
             }
           } catch { /* ignore malformed */ }
         },
-        onClose(_evt, ws) {
+        onClose(_evt, _ws) {
           if (payload) {
             removeConnection(payload.userId, payload.jti ?? '');
           }

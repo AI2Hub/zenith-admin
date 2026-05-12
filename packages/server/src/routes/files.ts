@@ -46,7 +46,7 @@ const contentRoute = defineOpenAPIRoute({
         'Content-Disposition': resolveContentDisposition(storedFile.contentType, storedFile.fileName),
         'X-Content-Type-Options': 'nosniff',
       },
-    }) as never;
+    });
   },
 });
 

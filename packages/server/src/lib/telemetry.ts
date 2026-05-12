@@ -20,7 +20,7 @@ export const initTelemetry = async (): Promise<boolean> => {
       serviceName: config.otel.serviceName,
       traceExporter: new OTLPTraceExporter(),
     });
-    await telemetrySdk.start();
+    telemetrySdk.start();
     telemetryInitialized = true;
 
     logger.info('OpenTelemetry tracing enabled', {

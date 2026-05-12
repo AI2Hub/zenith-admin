@@ -19,15 +19,11 @@ export const httpMetricsMiddleware: MiddlewareHandler = async (c, next) => {
     return;
   }
   const start = performance.now();
-  let status = 0;
   try {
     await next();
-    status = c.res.status;
+    metricsSampler.http.record(performance.now() - start, c.res.status || 200);
   } catch (err) {
-    status = 500;
+    metricsSampler.http.record(performance.now() - start, 500);
     throw err;
-  } finally {
-    const duration = performance.now() - start;
-    metricsSampler.http.record(duration, status || c.res.status || 200);
   }
 };

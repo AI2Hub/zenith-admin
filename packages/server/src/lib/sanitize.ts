@@ -13,7 +13,7 @@ export function sanitizeBody(body: unknown): string {
 
 function redact(obj: unknown): void {
   if (!obj || typeof obj !== 'object') return;
-  for (const key of Object.keys(obj as Record<string, unknown>)) {
+  for (const key of Object.keys(obj)) {
     if (SENSITIVE_KEYS.some((k) => key.toLowerCase().includes(k.toLowerCase()))) {
       (obj as Record<string, unknown>)[key] = '***';
     } else {

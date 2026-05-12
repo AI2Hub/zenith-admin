@@ -6,7 +6,7 @@ const { combine, timestamp, printf, colorize, errors } = winston.format;
 
 const logFormat = printf(({ level, message, timestamp, stack, ...meta }) => {
   const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
-  return `${timestamp} [${level}] ${stack || message}${metaStr}`;
+  return `${String(timestamp)} [${level}] ${String(stack || message)}${metaStr}`;
 });
 
 const dailyRotateTransport = new DailyRotateFile({
