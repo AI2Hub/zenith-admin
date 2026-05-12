@@ -93,10 +93,17 @@ function stripTags(input: string): string {
   return input.replaceAll(/<[^>]*>/g, '').replaceAll(/\s+/g, ' ').trim();
 }
 
+/** 转义字符串中的正则元字符，防止将外部值拼入 RegExp 时产生注入或 ReDoS */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function pickMeta(html: string, attrs: Array<{ key: string; value: string }>): string | null {
   for (const { key, value } of attrs) {
-    const pattern = new RegExp(`<meta[^>]*${key}=["']${value}["'][^>]*content=["']([^"']+)["'][^>]*>`, 'i');
-    const patternSwap = new RegExp(`<meta[^>]*content=["']([^"']+)["'][^>]*${key}=["']${value}["'][^>]*>`, 'i');
+    const k = escapeRegExp(key);
+    const v = escapeRegExp(value);
+    const pattern = new RegExp(`<meta[^>]*${k}=["']${v}["'][^>]*content=["']([^"']+)["'][^>]*>`, 'i');
+    const patternSwap = new RegExp(`<meta[^>]*content=["']([^"']+)["'][^>]*${k}=["']${v}["'][^>]*>`, 'i');
     const hit = pattern.exec(html) ?? patternSwap.exec(html);
     if (hit?.[1]) return decodeHtmlEntities(hit[1].trim());
   }
