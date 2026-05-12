@@ -95,7 +95,7 @@ function stripTags(input: string): string {
 
 /** 转义字符串中的正则元字符，防止将外部值拼入 RegExp 时产生注入或 ReDoS */
 function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return s.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
 function pickMeta(html: string, attrs: Array<{ key: string; value: string }>): string | null {
@@ -262,7 +262,7 @@ export function mapChatMessage(
     replyToMessage,
     isRecalled: row.isRecalled,
     isEdited: row.isEdited,
-    extra: (row.extra as ChatMessageExtra | null) ?? null,
+    extra: row.extra ?? null,
     reactions,
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
@@ -290,7 +290,7 @@ async function fetchReplySnapshotMap(
       type: r.msg.type as ChatMessage['type'],
       content: r.msg.content,
       isRecalled: r.msg.isRecalled,
-      extra: (r.msg.extra as ChatMessageExtra | null) ?? null,
+      extra: r.msg.extra ?? null,
     });
   }
   return map;
@@ -507,7 +507,7 @@ export async function listConversations(): Promise<ChatConversation[]> {
 
   const results: ChatConversation[] = convRows.map((conv) => ({
     id: conv.id,
-    type: conv.type as ChatConversation['type'],
+    type: conv.type,
     name: conv.name,
     announcement: conv.announcement ?? null,
     targetUser: conv.type === 'direct' ? (directTargetMap.get(conv.id) ?? null) : null,
@@ -1100,7 +1100,7 @@ export async function forwardMessages(input: ForwardMessagesInput): Promise<void
       .filter((m) => !m.isRecalled && m.type !== 'system')
       .map((m) => ({
         senderName: senderMap.get(m.senderId ?? -1)?.nickname ?? null,
-        type: m.type as ChatForwardedItem['type'],
+        type: m.type,
         content: m.content,
         createdAt: formatDateTime(m.createdAt),
         asset: (m.extra as ChatMessageExtra | null)?.asset ?? null,

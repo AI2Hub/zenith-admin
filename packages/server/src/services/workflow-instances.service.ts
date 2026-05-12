@@ -235,7 +235,7 @@ export async function createInstance(data: { definitionId: number; title: string
   const instance = await db.transaction(async (tx) => {
     const [createdInstance] = await tx.insert(workflowInstances).values({
       definitionId: def.id,
-      definitionSnapshot: def as unknown as Record<string, unknown>,
+      definitionSnapshot: def,
       title: data.title,
       formData,
       status: initialResult.finished ? 'approved' : 'running',

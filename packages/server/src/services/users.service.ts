@@ -313,21 +313,22 @@ export async function updateUser(id: number, data: UpdateUserInput) {
   ]);
   // 更新时检查用户名/邮箱是否已被其他用户占用（排除自身），以及禁用时校验保护账号——三项独立并行
   const tc = tenantCondition(users, user);
+  const usernameWhereClause = tc
+    ? and(eq(users.username, data.username!), ne(users.id, id), tc)
+    : and(eq(users.username, data.username!), ne(users.id, id));
+  const emailWhereClause = tc
+    ? and(eq(users.email, data.email!), ne(users.id, id), tc)
+    : and(eq(users.email, data.email!), ne(users.id, id));
+  const idWhereClause = tc ? and(eq(users.id, id), tc) : eq(users.id, id);
   const [usernameDup, emailDup, disabledTarget] = await Promise.all([
     data.username
-      ? db.select({ id: users.id }).from(users)
-          .where(tc ? and(eq(users.username, data.username), ne(users.id, id), tc) : and(eq(users.username, data.username), ne(users.id, id)))
-          .limit(1)
+      ? db.select({ id: users.id }).from(users).where(usernameWhereClause).limit(1)
       : Promise.resolve([] as { id: number }[]),
     data.email
-      ? db.select({ id: users.id }).from(users)
-          .where(tc ? and(eq(users.email, data.email), ne(users.id, id), tc) : and(eq(users.email, data.email), ne(users.id, id)))
-          .limit(1)
+      ? db.select({ id: users.id }).from(users).where(emailWhereClause).limit(1)
       : Promise.resolve([] as { id: number }[]),
     data.status === 'disabled'
-      ? db.select({ id: users.id, username: users.username }).from(users)
-          .where(tc ? and(eq(users.id, id), tc) : eq(users.id, id))
-          .limit(1)
+      ? db.select({ id: users.id, username: users.username }).from(users).where(idWhereClause).limit(1)
       : Promise.resolve([] as { id: number; username: string }[]),
   ]);
   if (usernameDup[0]) throw new HTTPException(400, { message: '用户名已存在' });
@@ -431,7 +432,7 @@ export async function getUserImportTemplate(): Promise<ArrayBuffer> {
     password: '请修改为强密码', departmentCode: 'technology', positionCodes: 'engineer',
     roleCodes: 'normal_user', status: 'enabled',
   });
-  return workbook.xlsx.writeBuffer() as Promise<ArrayBuffer>;
+  return workbook.xlsx.writeBuffer();
 }
 
 export interface ImportUsersResult {

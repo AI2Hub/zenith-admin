@@ -34,6 +34,8 @@ import type { WorkflowFlowData } from '@zenith/shared';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
 
+export type WorkflowDefinitionStatus = 'draft' | 'published' | 'disabled';
+
 export async function listDefinitions(query: { page?: number; pageSize?: number; keyword?: string; status?: string }) {
   const user = currentUser();
   const { page = 1, pageSize = 20, keyword, status } = query;
@@ -41,7 +43,7 @@ export async function listDefinitions(query: { page?: number; pageSize?: number;
   const conditions = [];
   if (tc) conditions.push(tc);
   if (keyword) conditions.push(like(workflowDefinitions.name, `%${escapeLike(keyword)}%`));
-  if (status) conditions.push(eq(workflowDefinitions.status, status as 'draft' | 'published' | 'disabled'));
+  if (status) conditions.push(eq(workflowDefinitions.status, status as WorkflowDefinitionStatus));
   const where = conditions.length ? and(...conditions) : undefined;
   const [total, rows] = await Promise.all([
     db.$count(workflowDefinitions, where),
@@ -84,14 +86,14 @@ export async function getDefinition(id: number) {
 }
 
 export async function createDefinition(data: {
-  name: string; description?: string | null; flowData?: unknown; formFields?: unknown; status?: 'draft' | 'published' | 'disabled';
+  name: string; description?: string | null; flowData?: unknown; formFields?: unknown; status?: WorkflowDefinitionStatus;
 }) {
   const user = currentUser();
   const [row] = await db.insert(workflowDefinitions).values({
     name: data.name,
     description: data.description ?? null,
-    flowData: (data.flowData as Record<string, unknown>) ?? null,
-    formFields: (data.formFields ?? null) as unknown as Record<string, unknown>,
+    flowData: data.flowData ?? null,
+    formFields: data.formFields ?? null,
     status: data.status ?? 'draft',
     createdBy: user.userId,
     tenantId: getCreateTenantId(user),
@@ -100,12 +102,12 @@ export async function createDefinition(data: {
 }
 
 export async function updateDefinition(id: number, data: Partial<{
-  name: string; description: string | null; flowData: unknown; formFields: unknown; status: 'draft' | 'published' | 'disabled';
+  name: string; description: string | null; flowData: unknown; formFields: unknown; status: WorkflowDefinitionStatus;
 }>) {
   const where = findDefinition(id);
   const updateData: Record<string, unknown> = { ...data };
-  if (data.flowData !== undefined) updateData.flowData = data.flowData as Record<string, unknown>;
-  if (data.formFields !== undefined) updateData.formFields = data.formFields as unknown[];
+  if (data.flowData !== undefined) updateData.flowData = data.flowData;
+  if (data.formFields !== undefined) updateData.formFields = data.formFields;
   const [updated] = await db
     .update(workflowDefinitions)
     .set(updateData as Partial<typeof workflowDefinitions.$inferInsert>)
