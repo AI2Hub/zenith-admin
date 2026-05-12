@@ -110,7 +110,7 @@ const dbMock = vi.mocked(db);
 
 // ─── 工具：可 await 的链式 query builder mock ─────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function createChain(result: unknown[]): Record<string, any> {
+function createChain(result: unknown[]): any {
   const chain: Record<string, unknown> = {};
   const methods = ['from', 'where', 'innerJoin', 'leftJoin', 'limit', 'offset', 'orderBy', 'groupBy', 'values', 'returning'];
   for (const m of methods) {
