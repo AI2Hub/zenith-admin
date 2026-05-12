@@ -4,7 +4,7 @@ import {
   chatConversations, chatConversationMembers, chatMessages, users, chatMessageReactions,
   departments, positions, userPositions,
 } from '../db/schema';
-import { sendToUser } from '../lib/ws-manager';
+import { scheduleSendToUsers } from '../lib/ws-manager';
 import { currentUser } from '../lib/context';
 import { formatDateTime, parseDateRangeEnd, parseDateRangeStart } from '../lib/datetime';
 import { pageOffset } from '../lib/pagination';
@@ -333,9 +333,7 @@ async function appendSystemMessage(
     .from(chatConversationMembers)
     .where(eq(chatConversationMembers.conversationId, conversationId));
 
-  for (const { userId } of members) {
-    sendToUser(userId, { type: 'chat:message', payload: msg });
-  }
+  scheduleSendToUsers(members, { type: 'chat:message', payload: msg });
 
   return msg;
 }
@@ -1042,9 +1040,7 @@ export async function sendMessage(conversationId: number, input: SendChatMessage
     .from(chatConversationMembers)
     .where(eq(chatConversationMembers.conversationId, conversationId));
 
-  for (const { userId } of members) {
-    sendToUser(userId, { type: 'chat:message', payload: msg });
-  }
+  scheduleSendToUsers(members, { type: 'chat:message', payload: msg });
 
   return msg;
 }
@@ -1217,9 +1213,7 @@ export async function recallMessage(messageId: number): Promise<void> {
     .from(chatConversationMembers)
     .where(eq(chatConversationMembers.conversationId, msg.conversationId));
 
-  for (const { userId } of members) {
-    sendToUser(userId, { type: 'chat:recall', payload: { conversationId: msg.conversationId, messageId } });
-  }
+  scheduleSendToUsers(members, { type: 'chat:recall', payload: { conversationId: msg.conversationId, messageId } });
 }
 
 // ─── 编辑消息 ─────────────────────────────────────────────────────────────────
@@ -1259,9 +1253,7 @@ export async function editMessage(messageId: number, content: string): Promise<C
     .from(chatConversationMembers)
     .where(eq(chatConversationMembers.conversationId, msg.conversationId));
 
-  for (const { userId } of members) {
-    sendToUser(userId, { type: 'chat:edit', payload: updatedMsg });
-  }
+  scheduleSendToUsers(members, { type: 'chat:edit', payload: updatedMsg });
 
   return updatedMsg;
 }
@@ -1287,9 +1279,7 @@ export async function markConversationRead(conversationId: number): Promise<void
       ne(chatConversationMembers.userId, me.userId),
     ));
 
-  for (const { userId } of members) {
-    sendToUser(userId, { type: 'chat:read', payload: { conversationId, userId: me.userId } });
-  }
+  scheduleSendToUsers(members, { type: 'chat:read', payload: { conversationId, userId: me.userId } });
 }
 
 // ─── 创建群聊 ──────────────────────────────────────────────────────────────────
@@ -1378,9 +1368,7 @@ export async function addGroupMember(conversationId: number, targetUserId: numbe
     .from(chatConversationMembers)
     .where(eq(chatConversationMembers.conversationId, conversationId));
 
-  for (const { userId } of members) {
-    sendToUser(userId, { type: 'chat:member-join', payload: { conversationId, user: target } });
-  }
+  scheduleSendToUsers(members, { type: 'chat:member-join', payload: { conversationId, user: target } });
 }
 
 // ─── 删除/退出会话（仅对当前用户）─────────────────────────────────────────────
@@ -1526,10 +1514,7 @@ export async function removeGroupMember(conversationId: number, targetUserId: nu
     .from(chatConversationMembers)
     .where(eq(chatConversationMembers.conversationId, conversationId));
 
-  for (const { userId } of remaining) {
-    sendToUser(userId, { type: 'chat:member-leave', payload: { conversationId, userId: targetUserId } });
-  }
-  sendToUser(targetUserId, { type: 'chat:member-leave', payload: { conversationId, userId: targetUserId } });
+  scheduleSendToUsers([...remaining, { userId: targetUserId }], { type: 'chat:member-leave', payload: { conversationId, userId: targetUserId } });
 }
 
 // ─── 更新群聊信息 ─────────────────────────────────────────────────────────────
@@ -1576,12 +1561,10 @@ export async function updateGroupInfo(
     .from(chatConversationMembers)
     .where(eq(chatConversationMembers.conversationId, conversationId));
 
-  for (const { userId } of members) {
-    sendToUser(userId, {
-      type: 'chat:group-update',
-      payload: { conversationId, ...('name' in set ? { name: set.name as string | null } : {}), ...('announcement' in set ? { announcement: set.announcement as string | null } : {}) },
-    });
-  }
+  scheduleSendToUsers(members, {
+    type: 'chat:group-update',
+    payload: { conversationId, ...('name' in set ? { name: set.name as string | null } : {}), ...('announcement' in set ? { announcement: set.announcement as string | null } : {}) },
+  });
 
   if (nameChanged) {
     await appendSystemMessage(conversationId, `${myNickname ?? '群主'} 将群聊名称修改为「${normalizedName}」`);
@@ -1659,12 +1642,7 @@ export async function transferGroupOwnership(conversationId: number, newOwnerId:
     .from(chatConversationMembers)
     .where(eq(chatConversationMembers.conversationId, conversationId));
 
-  for (const { userId } of members) {
-    sendToUser(userId, {
-      type: 'chat:group-update',
-      payload: { conversationId },
-    });
-  }
+  scheduleSendToUsers(members, { type: 'chat:group-update', payload: { conversationId } });
 
   await appendSystemMessage(
     conversationId,
@@ -1724,12 +1702,10 @@ export async function toggleReaction(messageId: number, emoji: string): Promise<
     .from(chatConversationMembers)
     .where(eq(chatConversationMembers.conversationId, msg.conversationId));
 
-  for (const { userId } of members) {
-    sendToUser(userId, {
-      type: 'chat:reaction',
-      payload: { conversationId: msg.conversationId, messageId, reactions },
-    });
-  }
+  scheduleSendToUsers(members, {
+    type: 'chat:reaction',
+    payload: { conversationId: msg.conversationId, messageId, reactions },
+  });
 
   return reactions;
 }
@@ -1790,12 +1766,10 @@ export async function submitVote(messageId: number, optionIds: string[]): Promis
     .from(chatConversationMembers)
     .where(eq(chatConversationMembers.conversationId, msg.conversationId));
 
-  for (const { userId } of members) {
-    sendToUser(userId, {
-      type: 'chat:vote-update',
-      payload: { conversationId: msg.conversationId, messageId, voteData: nextVoteData },
-    });
-  }
+  scheduleSendToUsers(members, {
+    type: 'chat:vote-update',
+    payload: { conversationId: msg.conversationId, messageId, voteData: nextVoteData },
+  });
 
   return updatedMsg;
 }

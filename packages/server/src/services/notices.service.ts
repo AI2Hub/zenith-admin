@@ -63,7 +63,7 @@ export async function saveRecipients(
 
 export async function broadcastNotice(notice: ReturnType<typeof mapNotice>, noticeId: number) {
   if (notice.targetType === 'all') {
-    broadcast({ type: 'notice:new', payload: notice });
+    setImmediate(() => broadcast({ type: 'notice:new', payload: notice }));
     return;
   }
   const recipientRows = await db.select().from(noticeRecipients).where(eq(noticeRecipients.noticeId, noticeId));
@@ -80,7 +80,9 @@ export async function broadcastNotice(notice: ReturnType<typeof mapNotice>, noti
     const deptUsers = await db.select({ id: users.id }).from(users).where(and(inArray(users.departmentId, deptIds), tenantFilter));
     deptUsers.forEach((u) => userIdSet.add(u.id));
   }
-  for (const uid of userIdSet) sendToUser(uid, { type: 'notice:new', payload: notice });
+  setImmediate(() => {
+    for (const uid of userIdSet) sendToUser(uid, { type: 'notice:new', payload: notice });
+  });
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────

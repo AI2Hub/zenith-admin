@@ -82,3 +82,16 @@ export function closeUserConnections(userId: number, reason?: string) {
   }
   userTokens.delete(userId);
 }
+
+/**
+ * Defer WebSocket notifications to a list of users to the next I/O tick,
+ * allowing the current HTTP response to flush before WS sends begin.
+ */
+export function scheduleSendToUsers(members: { userId: number }[], message: WsMessage): void {
+  if (members.length === 0) return;
+  setImmediate(() => {
+    for (const { userId } of members) {
+      sendToUser(userId, message);
+    }
+  });
+}

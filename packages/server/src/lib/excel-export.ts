@@ -38,13 +38,19 @@ export async function exportToExcel(
     fgColor: { argb: 'FFE8E8E8' },
   };
 
-  for (const row of data) {
-    const transformed: Record<string, unknown> = {};
-    for (const col of columns) {
-      const val = row[col.key];
-      transformed[col.key] = col.transform ? col.transform(val) : val;
+  const BATCH_SIZE = 500;
+  for (let i = 0; i < data.length; i += BATCH_SIZE) {
+    for (const row of data.slice(i, i + BATCH_SIZE)) {
+      const transformed: Record<string, unknown> = {};
+      for (const col of columns) {
+        const val = row[col.key];
+        transformed[col.key] = col.transform ? col.transform(val) : val;
+      }
+      sheet.addRow(transformed);
     }
-    sheet.addRow(transformed);
+    if (i + BATCH_SIZE < data.length) {
+      await new Promise<void>(resolve => setImmediate(resolve));
+    }
   }
 
   const buffer = await workbook.xlsx.writeBuffer();
