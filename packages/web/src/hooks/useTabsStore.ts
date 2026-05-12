@@ -8,7 +8,7 @@ export interface TabItem {
 
 const HOME_TAB: TabItem = { key: '/', title: '首页', closable: false };
 
-export function useTabsStore(maxCount: number = 20) {
+export function useTabsStore(maxCount: number = 20, onEvict?: (evicted: TabItem[]) => void) {
   const [tabs, setTabs] = useState<TabItem[]>([HOME_TAB]);
   const [activeKey, setActiveKey] = useState('/');
 
@@ -18,18 +18,46 @@ export function useTabsStore(maxCount: number = 20) {
     stateRef.current = { tabs, activeKey };
   }, [tabs, activeKey]);
 
+  // 用 ref 存 onEvict，避免将其加入 useCallback 依赖
+  const onEvictRef = useRef(onEvict);
+  useEffect(() => { onEvictRef.current = onEvict; }, [onEvict]);
+
   const addTab = useCallback((key: string, title: string) => {
-    setTabs((prev) => {
-      if (prev.some((t) => t.key === key)) return prev;
-      const next = [...prev, { key, title, closable: true }];
-      // Evict oldest closable tab if exceeding max
-      if (next.length > maxCount) {
-        const idx = next.findIndex((t) => t.closable);
-        if (idx >= 0) next.splice(idx, 1);
+    // 使用 stateRef 读取最新状态，以便在超限时调用 onEvict 回调
+    const prev = stateRef.current.tabs;
+    if (prev.some((t) => t.key === key)) {
+      setActiveKey(key);
+      return;
+    }
+    const next = [...prev, { key, title, closable: true }];
+    // Evict oldest closable tab if exceeding max
+    if (next.length > maxCount) {
+      const idx = next.findIndex((t) => t.closable);
+      if (idx >= 0) {
+        const [evicted] = next.splice(idx, 1);
+        onEvictRef.current?.([evicted]);
       }
-      return next;
-    });
+    }
+    setTabs(next);
     setActiveKey(key);
+  }, [maxCount]);
+
+  // When maxCount decreases, trim excess tabs immediately
+  useEffect(() => {
+    const { tabs: currentTabs, activeKey: currentActive } = stateRef.current;
+    if (currentTabs.length <= maxCount) return;
+    const next = [...currentTabs];
+    const evicted: TabItem[] = [];
+    while (next.length > maxCount) {
+      const idx = next.findIndex((t) => t.closable);
+      if (idx < 0) break;
+      evicted.push(...next.splice(idx, 1));
+    }
+    setTabs(next);
+    if (!next.some((t) => t.key === currentActive)) {
+      setActiveKey('/');
+    }
+    if (evicted.length > 0) onEvictRef.current?.(evicted);
   }, [maxCount]);
 
   const removeTab = useCallback((key: string) => {

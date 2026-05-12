@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Avatar, Badge, Breadcrumb, Button, Dropdown, Empty, List, Notification, Popover, Select, Tooltip, Modal, Nav, Typography, SideSheet, Switch, InputNumber, RadioGroup, Radio } from '@douyinfe/semi-ui';
+import { Avatar, Badge, Breadcrumb, Button, Dropdown, Empty, List, Notification, Popover, Select, Tooltip, Modal, Nav, Typography, SideSheet, Switch, InputNumber, RadioGroup, Radio, Toast } from '@douyinfe/semi-ui';
 import { Bell, Building2, Check, Maximize2, Minimize2, Sun, Moon, Monitor, User as UserIcon, Settings, LogOut, X } from 'lucide-react';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
 import type { User, Menu, Notice, Tenant, WsMessage, SystemConfig } from '@zenith/shared';
@@ -165,7 +165,20 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
     }
   }, []);
 
-  const { tabs, activeKey, setActiveKey, addTab, removeTab, closeOthers, closeLeft, closeRight, closeAll, reorderTabs } = useTabsStore(preferences.tabsMaxCount);
+  // 每次 App 会话只弹一次：见过一次后不再重复
+  const evictToastShownRef = useRef(false);
+  const { tabs, activeKey, setActiveKey, addTab, removeTab, closeOthers, closeLeft, closeRight, closeAll, reorderTabs } = useTabsStore(
+    preferences.tabsMaxCount,
+    (evicted) => {
+      if (evictToastShownRef.current) return;
+      evictToastShownRef.current = true;
+      const names = evicted.map((t) => `「${t.title}」`).join('、');
+      Toast.warning({
+        content: `已达到最大标签数 (${preferences.tabsMaxCount})，自动关闭了 ${names}`,
+        duration: 3,
+      });
+    },
+  );
   const [prefsVisible, setPrefsVisible] = useState(false);
   const dragSrcKey = useRef<string | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
