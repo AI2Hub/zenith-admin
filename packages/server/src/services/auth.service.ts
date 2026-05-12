@@ -165,24 +165,28 @@ export async function login(input: LoginInput) {
     throw new HTTPException(400, { message: '用户名或密码错误' });
   }
 
-  const requirePasswordChange = await checkPasswordExpiry(user);
-  await clearLoginAttempts(input.username);
-  const userRoleList = await getUserRoles(user.id);
+  const [requirePasswordChange, userRoleList] = await Promise.all([
+    checkPasswordExpiry(user),
+    getUserRoles(user.id),
+    clearLoginAttempts(input.username),
+  ]);
   const { accessToken, refreshToken, tokenId } = await issueTokens(user, userRoleList.map((r) => r.code));
 
   const { browser, os } = parseUserAgent(input.ua);
-  await registerSession({
-    tokenId,
-    userId: user.id,
-    username: user.username,
-    nickname: user.nickname,
-    tenantId: user.tenantId ?? null,
-    ip: input.ip,
-    browser,
-    os,
-    loginAt: new Date(),
-  });
-  await recordLoginLog({ ip: input.ip, ua: input.ua, username: input.username, status: 'success', message: '登录成功', userId: user.id, tenantId });
+  await Promise.all([
+    registerSession({
+      tokenId,
+      userId: user.id,
+      username: user.username,
+      nickname: user.nickname,
+      tenantId: user.tenantId ?? null,
+      ip: input.ip,
+      browser,
+      os,
+      loginAt: new Date(),
+    }),
+    recordLoginLog({ ip: input.ip, ua: input.ua, username: input.username, status: 'success', message: '登录成功', userId: user.id, tenantId }),
+  ]);
   const { password: _pw, ...userInfo } = user;
   return {
     user: { ...userInfo, roles: userRoleList, createdAt: formatDateTime(user.createdAt), updatedAt: formatDateTime(user.updatedAt), requirePasswordChange },
@@ -268,15 +272,16 @@ export async function getMyProfile() {
   const userId = currentUser().userId;
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!user) throw new HTTPException(404, { message: '用户不存在' });
-  const userRoleList = await getUserRoles(user.id);
+  const [userRoleList, requirePasswordChange, tenantRows] = await Promise.all([
+    getUserRoles(user.id),
+    checkPasswordExpiry(user),
+    user.tenantId
+      ? db.select({ name: tenants.name }).from(tenants).where(eq(tenants.id, user.tenantId)).limit(1)
+      : Promise.resolve([] as { name: string }[]),
+  ]);
   const permissions = isSuperAdmin(userRoleList.map((r) => r.code)) ? ['*'] : await getUserPermissions(user.id);
-  const requirePasswordChange = await checkPasswordExpiry(user);
+  const tenantName = tenantRows[0]?.name ?? null;
   const { password: _pw, ...userInfo } = user;
-  let tenantName: string | null = null;
-  if (user.tenantId) {
-    const [t] = await db.select({ name: tenants.name }).from(tenants).where(eq(tenants.id, user.tenantId)).limit(1);
-    tenantName = t?.name ?? null;
-  }
   return {
     ...userInfo,
     tenantName,
@@ -294,8 +299,10 @@ export async function updateMyProfile(data: { nickname?: string; email?: string;
     const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, data.email)).limit(1);
     if (existing && existing.id !== userId) throw new HTTPException(400, { message: '邮箱已被使用' });
   }
-  const [updated] = await db.update(users).set({ ...data }).where(eq(users.id, userId)).returning();
-  const userRoleList = await getUserRoles(userId);
+  const [[updated], userRoleList] = await Promise.all([
+    db.update(users).set({ ...data }).where(eq(users.id, userId)).returning(),
+    getUserRoles(userId),
+  ]);
   const { password: _pw, ...userInfo } = updated;
   return { ...userInfo, roles: userRoleList, createdAt: formatDateTime(updated.createdAt), updatedAt: formatDateTime(updated.updatedAt) };
 }
