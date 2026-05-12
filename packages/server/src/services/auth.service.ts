@@ -94,9 +94,11 @@ import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
 
 async function checkPasswordExpiry(user: { passwordUpdatedAt: Date | null; createdAt: Date }): Promise<boolean> {
-  const enabled = await getConfigBoolean('password_expiry_enabled', false);
+  const [enabled, expiryDays] = await Promise.all([
+    getConfigBoolean('password_expiry_enabled', false),
+    getConfigNumber('password_expiry_days', 90),
+  ]);
   if (!enabled) return false;
-  const expiryDays = await getConfigNumber('password_expiry_days', 90);
   const pwdUpdate = user.passwordUpdatedAt || user.createdAt;
   const days = (Date.now() - pwdUpdate.getTime()) / (1000 * 60 * 60 * 24);
   return days > expiryDays;
