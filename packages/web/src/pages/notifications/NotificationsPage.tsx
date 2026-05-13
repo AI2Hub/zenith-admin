@@ -36,7 +36,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [activeTab, setActiveTab] = useState<'all' | 'unread'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'read'>('all');
   const [markAllLoading, setMarkAllLoading] = useState(false);
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -44,7 +44,9 @@ export default function NotificationsPage() {
 
   const fetchList = useCallback(async (p = 1, tab = activeTab) => {
     setLoading(true);
-    const isRead = tab === 'unread' ? 'false' : undefined;
+    let isRead: string | undefined;
+    if (tab === 'unread') isRead = 'false';
+    else if (tab === 'read') isRead = 'true';
     const qs = new URLSearchParams({ page: String(p), pageSize: '10' });
     if (isRead !== undefined) qs.set('isRead', isRead);
     const res = await request.get<{ list: NoticeWithRead[]; total: number }>(
@@ -84,7 +86,7 @@ export default function NotificationsPage() {
   };
 
   const handleTabChange = (key: string) => {
-    setActiveTab(key as 'all' | 'unread');
+    setActiveTab(key as 'all' | 'unread' | 'read');
     setPage(1);
   };
 
@@ -173,12 +175,14 @@ export default function NotificationsPage() {
               }
               itemKey="unread"
             />
+            <TabPane tab="已读消息" itemKey="read" />
           </Tabs>
           <Button
             type="secondary"
             icon={<CheckCheck size={14} />}
             loading={markAllLoading}
             onClick={handleMarkAllRead}
+            style={{ visibility: activeTab === 'read' ? 'hidden' : 'visible' }}
           >
             全部标记为已读
           </Button>
@@ -188,7 +192,11 @@ export default function NotificationsPage() {
       {list.length === 0 && !loading ? (
         <Empty
           image={<Bell size={48} strokeWidth={1} style={{ opacity: 0.3 }} />}
-          description={activeTab === 'unread' ? '暂无未读通知' : '暂无通知'}
+          description={(() => {
+            if (activeTab === 'unread') return '暂无未读通知';
+            if (activeTab === 'read') return '暂无已读通知';
+            return '暂无通知';
+          })()}
           style={{ padding: '48px 0' }}
         />
       ) : (
