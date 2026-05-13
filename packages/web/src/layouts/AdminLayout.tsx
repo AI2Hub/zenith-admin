@@ -708,6 +708,12 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
         render={
           <Dropdown.Menu>
             <Dropdown.Item icon={<UserIcon size={14} strokeWidth={1.5} />} onClick={() => navigate('/profile')}>个人中心</Dropdown.Item>
+            <Dropdown.Item
+              icon={<Bell size={14} strokeWidth={1.5} />}
+              onClick={() => navigate('/notifications')}
+            >
+              通知中心{unreadCount > 0 && <Badge count={unreadCount} overflowCount={99} style={{ marginLeft: 6 }} />}
+            </Dropdown.Item>
             <Dropdown.Item icon={<Settings size={14} strokeWidth={1.5} />} onClick={() => setPrefsVisible(true)}>偏好设置</Dropdown.Item>
             <Dropdown.Divider />
             <Dropdown.Item
