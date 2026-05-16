@@ -136,3 +136,52 @@ like(users.username, `%${keyword}%`)
 | `user_api_tokens` | 用户个人 API Token（用于第三方接口调用） |
 | `password_reset_tokens` | 密码重置 Token（含过期时间，支持找回密码流程） |
 | `db_backups` | 数据库备份记录（文件名、大小、状态、备份类型） |
+
+## 数据库备份
+
+从 v0.1.4 起，系统内置数据库备份功能，基于 `pg_dump` 命令生成 PostgreSQL 完整备份文件。
+
+### 菜单入口
+
+**系统设置 → 数据库备份**（路由：`/system/db-backups`，权限：`system:db-backup:list`）
+
+### 操作说明
+
+- **立即备份**：手动触发 `pg_dump`，生成 `.sql` 备份文件并保存到服务器本地
+- **删除备份**：删除服务器上的指定备份文件
+
+### 前置条件
+
+服务器环境必须安装 `pg_dump` 工具（PostgreSQL 客户端工具包），且版本需与数据库服务端版本兼容：
+
+```bash
+# Ubuntu / Debian
+apt-get install postgresql-client
+
+# 验证安装
+pg_dump --version
+```
+
+### 备份文件存储位置
+
+备份文件默认保存在后端服务的 `./backups/` 目录下。路径可通过后端环境变量 `BACKUP_DIR` 自定义：
+
+```ini
+# packages/server/.env
+BACKUP_DIR=./backups
+```
+
+### 相关接口
+
+- `GET /api/db-backups`：获取备份列表
+- `POST /api/db-backups`：触发立即备份
+- `DELETE /api/db-backups/{id}`：删除指定备份记录
+
+### 定期自动备份建议
+
+当前内置功能仅支持手动触发。如需定期自动备份，可通过**定时任务模块**实现：
+
+1. 在 `cron-scheduler.ts` 中注册一个备份 Handler
+2. 在「定时任务」页面创建任务，绑定该 Handler，设置适合的 Cron 表达式（如每天凌晨 2 点）
+
+> **生产建议**：建议将备份文件定期同步到对象存储（如阿里云 OSS、AWS S3），避免仅依赖本地磁盘存储。

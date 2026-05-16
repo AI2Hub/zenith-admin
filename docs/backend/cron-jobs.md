@@ -1,14 +1,8 @@
-# 定时任务与数据库备份
-
-本页介绍定时任务的配置与管理方式，以及数据库备份的操作流程。
-
----
-
-## 定时任务
+# 定时任务
 
 定时任务模块基于 Node.js 的 `node-cron` 库实现，支持在后台 UI 中创建、修改状态、手动执行任务，并可查看每次执行的历史日志。
 
-### 概念说明
+## 概念说明
 
 | 概念 | 说明 |
 |------|------|
@@ -16,11 +10,11 @@
 | **任务（Job）** | 在后台 UI 中创建，将 Cron 表达式与某个 Handler 关联起来 |
 | **执行日志** | 每次任务执行（手动或定时）的详情记录，包含开始/结束时间、状态、输出 |
 
-### 菜单入口
+## 菜单入口
 
 **系统管理 → 定时任务**（路由：`/system/cron-jobs`，权限：`system:cronjob:list`）
 
-### Cron 表达式格式
+## Cron 表达式格式
 
 支持标准 5 段式 Cron：
 
@@ -45,7 +39,7 @@
 
 UI 中提供 Cron 表达式校验按钮，填写后可即时验证格式是否正确。
 
-### 如何注册新的 Handler
+## 如何注册新的 Handler
 
 Handler 在 `packages/server/src/lib/cron-scheduler.ts` 中通过内部 `handlerRegistry.set(name, fn)` 静态注册。添加新 Handler 需直接修改该文件：
 
@@ -61,7 +55,7 @@ handlerRegistry.set('myNewTask', async (params) => {
 > **注意**：无法从外部模块动态注册 Handler，必须直接编辑 `cron-scheduler.ts`。
 > 修改后，在后台「定时任务」页面的「处理器」下拉框中即可看到该 Handler，并为其配置触发时间。
 
-### 相关接口
+## 相关接口
 
 | 接口 | 说明 |
 |------|------|
@@ -77,58 +71,7 @@ handlerRegistry.set('myNewTask', async (params) => {
 | `POST /api/cron-jobs/validate` | 校验 Cron 表达式格式 |
 | `GET /api/cron-jobs/export` | 导出任务列表 |
 
-### 数据库表
+## 数据库表
 
 - `cron_jobs`：任务定义（名称、Handler、Cron 表达式、状态）
 - `cron_job_logs`：任务执行历史（开始时间、结束时间、状态、输出）
-
----
-
-## 数据库备份
-
-从 v0.1.4 起，系统内置数据库备份功能，基于 `pg_dump` 命令生成 PostgreSQL 完整备份文件。
-
-### 数据库备份菜单入口
-
-**系统设置 → 数据库备份**（路由：`/system/db-backups`，权限：`system:db-backup:list`）
-
-### 操作说明
-
-- **立即备份**：手动触发 `pg_dump`，生成 `.sql` 备份文件并保存到服务器本地
-- **删除备份**：删除服务器上的指定备份文件
-
-### 前置条件
-
-服务器环境必须安装 `pg_dump` 工具（PostgreSQL 客户端工具包），且版本需与数据库服务端版本兼容：
-
-```bash
-# Ubuntu / Debian
-apt-get install postgresql-client
-
-# 验证安装
-pg_dump --version
-```
-
-### 备份文件存储位置
-
-备份文件默认保存在后端服务的 `./backups/` 目录下。路径可通过后端环境变量 `BACKUP_DIR` 自定义：
-
-```ini
-# packages/server/.env
-BACKUP_DIR=./backups
-```
-
-### 数据库备份相关接口
-
-- `GET /api/db-backups`：获取备份列表
-- `POST /api/db-backups`：触发立即备份
-- `DELETE /api/db-backups/{id}`：删除指定备份记录
-
-### 定期自动备份建议
-
-当前内置功能仅支持手动触发。如需定期自动备份，可通过**定时任务模块**实现：
-
-1. 在 `cron-scheduler.ts` 中注册一个备份 Handler
-2. 在「定时任务」页面创建任务，绑定该 Handler，设置适合的 Cron 表达式（如每天凌晨 2 点）
-
-> **生产建议**：建议将备份文件定期同步到对象存储（如阿里云 OSS、AWS S3），避免仅依赖本地磁盘存储。

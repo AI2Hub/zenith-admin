@@ -94,7 +94,7 @@ export default defineConfig({
           { text: '操作日志与变更记录', link: '/backend/audit-log-changes' },
           { text: '安全体系', link: '/backend/security' },
           { text: 'OAuth 第三方登录', link: '/backend/oauth' },
-          { text: '定时任务与数据库备份', link: '/backend/jobs-and-backup' },
+          { text: '定时任务', link: '/backend/cron-jobs' },
         ],
       },
       {
