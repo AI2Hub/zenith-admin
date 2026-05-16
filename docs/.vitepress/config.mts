@@ -86,6 +86,8 @@ export default defineConfig({
         items: [
           { text: 'API 规范', link: '/backend/api-conventions' },
           { text: '数据库与迁移', link: '/backend/database' },
+          { text: '数据库事务', link: '/backend/database-transactions' },
+          { text: '数据库操作规范', link: '/backend/database-operations' },
           { text: 'Swagger / OpenAPI', link: '/backend/swagger' },
           { text: '多租户指南', link: '/backend/multi-tenant' },
           { text: '系统内置配置', link: '/backend/system-configs' },
