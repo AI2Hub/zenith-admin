@@ -4,7 +4,7 @@ import { guard, setAuditBeforeData } from '../middleware/guard';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, okExcel, excelBody, BatchIdsBody } from '../lib/openapi-schemas';
 import { ManagedFileDTO } from '../lib/openapi-dtos';
 import {
-  readFileContent, listManagedFiles, uploadManagedFileFromBody, deleteManagedFile, batchDeleteFiles, exportManagedFiles, getManagedFileBeforeAudit,
+  readFileContent, listManagedFiles, uploadManagedFileFromBody, deleteManagedFile, batchDeleteFiles, exportManagedFiles, getManagedFileBeforeAudit, batchDownloadFilesAsZip,
 } from '../services/files.service';
 
 const filesRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -184,5 +184,18 @@ const uploadOneRoute = defineOpenAPIRoute({
 });
 
 filesRouter.openapiRoutes([contentRoute, listRoute, uploadRoute, uploadOneRoute, batchDeleteRoute, deleteRoute, exportRoute] as const);
+
+// 非 OpenAPI 路由：批量下载打包为 zip 流式响应
+filesRouter.post('/batch-download', authMiddleware, guard({ permission: 'system:file:list' }), async (c) => {
+  const body = await c.req.json<{ ids?: unknown }>().catch(() => ({ ids: [] }));
+  const ids = Array.isArray(body?.ids) ? (body.ids as unknown[]).map(Number).filter((n) => Number.isFinite(n) && n > 0) : [];
+  const { stream, filename } = await batchDownloadFilesAsZip(ids);
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+    },
+  });
+});
 
 export default filesRouter;

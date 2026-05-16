@@ -28,6 +28,7 @@
     "@opentelemetry/sdk-node": "^0.217.0",
     "@zenith/shared": "*",
     "ali-oss": "^6.23.0",
+    "archiver": "^5.3.2",
     "bcryptjs": "^3.0.3",
     "china-division": "^2.7.0",
     "cos-nodejs-sdk-v5": "^2.15.4",
@@ -53,6 +54,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/ali-oss": "^6.23.3",
+    "@types/archiver": "^7.0.0",
     "@types/bcryptjs": "^3.0.0",
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^7.0.11",

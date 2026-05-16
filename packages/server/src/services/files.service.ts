@@ -175,6 +175,52 @@ export async function getManagedFileBeforeAudit(id: number) {
   return mapManagedFile(file);
 }
 
+function deduplicateEntryName(name: string, count: number): string {
+  const lastDot = name.lastIndexOf('.');
+  if (lastDot === -1) return `${name}_${count}`;
+  return `${name.slice(0, lastDot)}_${count}${name.slice(lastDot)}`;
+}
+
+export async function batchDownloadFilesAsZip(ids: number[]): Promise<{ stream: ReadableStream; filename: string }> {
+  if (ids.length === 0) throw new HTTPException(400, { message: '请选择要下载的文件' });
+  const user = currentUser();
+  const tc = tenantCondition(managedFiles, user);
+  const idCondition = inArray(managedFiles.id, ids);
+  const where = tc ? and(idCondition, tc) : idCondition;
+  const files = await db.select().from(managedFiles).where(where);
+  if (files.length === 0) throw new HTTPException(400, { message: '未找到可下载的文件' });
+
+  const configIds = [...new Set(files.map((f) => f.storageConfigId))];
+  const configs = await db.select().from(fileStorageConfigs).where(inArray(fileStorageConfigs.id, configIds));
+  const configMap = new Map(configs.map((c) => [c.id, c]));
+
+  const { Readable, PassThrough } = await import('node:stream');
+  const { default: archiver } = await import('archiver');
+  const archive = archiver('zip', { zlib: { level: 5 } });
+  const passThrough = new PassThrough();
+  archive.on('error', (err: Error) => passThrough.destroy(err));
+  archive.pipe(passThrough);
+
+  const nameCount: Record<string, number> = {};
+  for (const file of files) {
+    const config = configMap.get(file.storageConfigId);
+    if (!config) continue;
+    try {
+      const { buffer } = await readStoredFile(file, config);
+      const count = nameCount[file.originalName] ?? 0;
+      nameCount[file.originalName] = count + 1;
+      const entryName = count === 0 ? file.originalName : deduplicateEntryName(file.originalName, count);
+      archive.append(Buffer.from(buffer), { name: entryName });
+    } catch {
+      // 单个文件读取失败时跳过，不中断整体打包
+    }
+  }
+  void archive.finalize();
+
+  const webStream = Readable.toWeb(passThrough) as ReadableStream;
+  return { stream: webStream, filename: `files_${Date.now()}.zip` };
+}
+
 export async function exportManagedFiles(): Promise<{ buffer: ArrayBuffer; filename: string }> {
   const user = currentUser();
   const rows = await db
