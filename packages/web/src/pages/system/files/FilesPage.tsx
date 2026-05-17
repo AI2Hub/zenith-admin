@@ -19,7 +19,7 @@ import {
   Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
-import { Plus, Search, RotateCcw, Trash2, FolderDown, MoreHorizontal, LayoutGrid, List, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Search, RotateCcw, Trash2, FolderDown, MoreHorizontal, LayoutGrid, List, CheckCircle2, XCircle, Eye, Download } from 'lucide-react';
 import type { FileStorageConfig, ManagedFile, PaginatedResponse } from '@zenith/shared';
 import { TOKEN_KEY } from '@zenith/shared';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -109,6 +109,7 @@ function FileGridCard({
   canDelete, previewLoading, downloadLoading,
 }: Readonly<FileGridCardProps>) {
   const isImage = file.mimeType?.startsWith('image/');
+  const ext = file.originalName.includes('.') ? file.originalName.split('.').pop()?.toUpperCase() : '';
   return (
     <div className={`files-grid-card${selected ? ' files-grid-card--selected' : ''}`}>
       {canSelect && (
@@ -119,28 +120,47 @@ function FileGridCard({
           />
         </div>
       )}
-      <button
-        type="button"
-        className="files-grid-card__media"
-        onClick={() => onPreview(file)}
-      >
-        {isImage ? (
-          <img src={`${config.apiBaseUrl}${file.url}`} alt={file.originalName} loading="lazy" />
-        ) : (
-          <span className="files-grid-card__icon">
-            {getFileTypeIcon(file.mimeType, 36)}
-          </span>
-        )}
-        {previewLoading && (
-          <div className="files-grid-card__media-overlay">
-            <Spin />
-          </div>
-        )}
-      </button>
+      <div className="files-grid-card__media-wrap">
+        <button
+          type="button"
+          aria-label={`预览 ${file.originalName}`}
+          className="files-grid-card__media"
+          onClick={() => onPreview(file)}
+        >
+          {isImage ? (
+            <img src={`${config.apiBaseUrl}${file.url}`} alt={file.originalName} loading="lazy" />
+          ) : (
+            <>
+              <span className="files-grid-card__icon">
+                {getFileTypeIcon(file.mimeType, 36)}
+              </span>
+              {ext && <span className="files-grid-card__type-badge">{ext}</span>}
+            </>
+          )}
+          {previewLoading && (
+            <div className="files-grid-card__media-overlay">
+              <Spin />
+            </div>
+          )}
+        </button>
+        <div className="files-grid-card__quick-actions">
+          <Tooltip content="预览" position="top">
+            <button type="button" className="files-grid-card__quick-btn" onClick={(e) => { e.stopPropagation(); onPreview(file); }}>
+              <Eye size={15} />
+            </button>
+          </Tooltip>
+          <Tooltip content="下载" position="top">
+            <button type="button" className="files-grid-card__quick-btn" disabled={downloadLoading} onClick={(e) => { e.stopPropagation(); onDownload(file); }}>
+              <Download size={15} />
+            </button>
+          </Tooltip>
+        </div>
+      </div>
       <div className="files-grid-card__info">
         <Tooltip content={file.originalName} position="top">
           <div className="files-grid-card__name">{file.originalName}</div>
         </Tooltip>
+        <div className="files-grid-card__date">{formatDateTime(file.createdAt)}</div>
         <div className="files-grid-card__meta">
           <span style={{ flex: 1 }}>{formatFileSize(file.size)}</span>
           <Dropdown
