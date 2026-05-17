@@ -300,11 +300,15 @@ export default function FilesPage() {
     if (uploadProgressVisible && uploadItems.length > 0 &&
       uploadItems.every(item => item.status === 'success' || item.status === 'error')) {
       const successCount = uploadItems.filter(item => item.status === 'success').length;
-      if (successCount > 0) {
-        Toast.success(successCount > 1 ? `成功上传 ${successCount} 个文件` : '文件上传成功');
-        void fetchDefaultConfig();
-        void fetchFiles(1);
-      }
+      const timer = setTimeout(() => {
+        setUploadProgressVisible(false);
+        if (successCount > 0) {
+          Toast.success(successCount > 1 ? `成功上传 ${successCount} 个文件` : '文件上传成功');
+          void fetchDefaultConfig();
+          void fetchFiles(1);
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
     }
   }, [uploadItems, uploadProgressVisible, fetchDefaultConfig, fetchFiles]);
 
