@@ -207,11 +207,20 @@ export async function batchDownloadFilesAsZip(ids: number[]): Promise<{ stream: 
     const config = configMap.get(file.storageConfigId);
     if (!config) continue;
     try {
-      const { buffer } = await readStoredFile(file, config);
+      const { stream } = await readStoredFile(file, config);
+      const chunks: Uint8Array[] = [];
+      const reader = stream.getReader();
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+      const buffer = Buffer.concat(chunks);
       const count = nameCount[file.originalName] ?? 0;
       nameCount[file.originalName] = count + 1;
       const entryName = count === 0 ? file.originalName : deduplicateEntryName(file.originalName, count);
-      archive.append(Buffer.from(buffer), { name: entryName });
+      archive.append(buffer, { name: entryName });
     } catch {
       // 单个文件读取失败时跳过，不中断整体打包
     }
