@@ -181,7 +181,7 @@ import {
 import { XxxDTO } from '../lib/openapi-dtos';
 // 业务逻辑统一从 service 导入
 import { listXxx, createXxx, updateXxx, deleteXxx, ensureXxxExists } from '../services/xxx.service';
-// 可直接从 @zenith/shared 导入（shared 已升级至 Zod v4）
+// 可直接从 @zenith/shared 导入（使用 Zod v4）
 // import { createXxxSchema, updateXxxSchema } from '@zenith/shared';
 
 // 不使用 <AuthEnv> 泛型，不添加全局 use('*', authMiddleware)
