@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import {
   Button,
+  Col,
   DatePicker,
   Form,
   Modal,
+  Row,
   Select,
   Space,
   Switch,
@@ -408,7 +410,7 @@ export default function FileStorageConfigsPage() {
           setEditingConfig(null);
         }}
         onOk={handleModalOk}
-        width={620}
+        width={660}
         bodyStyle={{ paddingBottom: 24 }}
       >
         <Form
@@ -425,83 +427,147 @@ export default function FileStorageConfigsPage() {
               <Switch checked={formIsDefault} onChange={(checked) => setFormIsDefault(checked)} />
             </div>
           </div>
-          <Form.Input field="name" label="配置名称" placeholder="请输入配置名称" rules={[{ required: true, message: '请输入配置名称' }]} />
-          <Form.Select
-            field="provider"
-            label="存储类型"
-            style={{ width: '100%' }}
-            onChange={(value) => setFormProvider(value as FileStorageProvider)}
-            placeholder="请选择存储类型"
-          >
-            <Select.Option value="local">本地磁盘</Select.Option>
-            <Select.Option value="oss">阿里云 OSS</Select.Option>
-            <Select.Option value="s3">Amazon S3</Select.Option>
-            <Select.Option value="cos">腾讯云 COS</Select.Option>
-          </Form.Select>
-          <Form.Select field="status" label="状态" style={{ width: '100%' }} placeholder="请选择状态">
-            <Select.Option value="enabled">启用</Select.Option>
-            <Select.Option value="disabled">禁用</Select.Option>
-          </Form.Select>
-          <Form.Input field="basePath" label="基础路径" placeholder="例如 uploads / images" />
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input field="name" label="配置名称" placeholder="请输入配置名称" rules={[{ required: true, message: '请输入配置名称' }]} />
+            </Col>
+            <Col span={12}>
+              <Form.Select
+                field="provider"
+                label="存储类型"
+                style={{ width: '100%' }}
+                onChange={(value) => setFormProvider(value as FileStorageProvider)}
+                placeholder="请选择存储类型"
+              >
+                <Select.Option value="local">本地磁盘</Select.Option>
+                <Select.Option value="oss">阿里云 OSS</Select.Option>
+                <Select.Option value="s3">Amazon S3</Select.Option>
+                <Select.Option value="cos">腾讯云 COS</Select.Option>
+              </Form.Select>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Select field="status" label="状态" style={{ width: '100%' }} placeholder="请选择状态">
+                <Select.Option value="enabled">启用</Select.Option>
+                <Select.Option value="disabled">禁用</Select.Option>
+              </Form.Select>
+            </Col>
+            <Col span={12}>
+              <Form.Input field="basePath" label="基础路径" placeholder="例如 uploads / images" />
+            </Col>
+          </Row>
 
           {formProvider === 'local' && (
-            <Form.Input
-              field="localRootPath"
-              label="存储目录"
-              placeholder="例如 storage/local 或 D:/uploads"
-              rules={[{ required: true, message: '请输入本地磁盘存储目录' }]}
-            />
+            <Row gutter={16}>
+              <Col span={24}>
+                <Form.Input
+                  field="localRootPath"
+                  label="存储目录"
+                  placeholder="例如 storage/local 或 D:/uploads"
+                  rules={[{ required: true, message: '请输入本地磁盘存储目录' }]}
+                />
+              </Col>
+            </Row>
           )}
 
           {formProvider === 'oss' && (
             <>
-              <Form.Input field="ossRegion" label="Region" placeholder="请输入 OSS Region" rules={[{ required: true, message: '请输入 OSS Region' }]} />
-              <Form.Input field="ossEndpoint" label="Endpoint" placeholder="请输入 OSS Endpoint" rules={[{ required: true, message: '请输入 OSS Endpoint' }]} />
-              <Form.Input field="ossBucket" label="Bucket" placeholder="请输入 OSS Bucket" rules={[{ required: true, message: '请输入 OSS Bucket' }]} />
-              <Form.Input field="ossAccessKeyId" label="AccessKey ID" placeholder="请输入 AccessKey ID" rules={[{ required: true, message: '请输入 AccessKey ID' }]} />
-              <Form.Input
-                field="ossAccessKeySecret"
-                label="AccessKey Secret"
-                placeholder="请输入 AccessKey Secret"
-                type="password"
-                rules={[{ required: true, message: '请输入 AccessKey Secret' }]}
-              />
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Input field="ossRegion" label="Region" placeholder="请输入 OSS Region" rules={[{ required: true, message: '请输入 OSS Region' }]} />
+                </Col>
+                <Col span={12}>
+                  <Form.Input field="ossEndpoint" label="Endpoint" placeholder="请输入 OSS Endpoint" rules={[{ required: true, message: '请输入 OSS Endpoint' }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Input field="ossBucket" label="Bucket" placeholder="请输入 OSS Bucket" rules={[{ required: true, message: '请输入 OSS Bucket' }]} />
+                </Col>
+                <Col span={12}>
+                  <Form.Input field="ossAccessKeyId" label="AccessKey ID" placeholder="请输入 AccessKey ID" rules={[{ required: true, message: '请输入 AccessKey ID' }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input
+                    field="ossAccessKeySecret"
+                    label="AccessKey Secret"
+                    placeholder="请输入 AccessKey Secret"
+                    type="password"
+                    rules={[{ required: true, message: '请输入 AccessKey Secret' }]}
+                  />
+                </Col>
+              </Row>
             </>
           )}
 
           {formProvider === 's3' && (
             <>
-              <Form.Input field="s3Region" label="Region" placeholder="请输入 S3 Region" rules={[{ required: true, message: '请输入 S3 Region' }]} />
-              <Form.Input field="s3Endpoint" label="Endpoint" placeholder="可选，用于兼容 S3 协议的自定义存储" />
-              <Form.Input field="s3Bucket" label="Bucket" placeholder="请输入 S3 Bucket" rules={[{ required: true, message: '请输入 S3 Bucket' }]} />
-              <Form.Input field="s3AccessKeyId" label="Access Key ID" placeholder="请输入 Access Key ID" rules={[{ required: true, message: '请输入 Access Key ID' }]} />
-              <Form.Input
-                field="s3SecretAccessKey"
-                label="Secret Access Key"
-                placeholder="请输入 Secret Access Key"
-                type="password"
-                rules={[{ required: true, message: '请输入 Secret Access Key' }]}
-              />
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Input field="s3Region" label="Region" placeholder="请输入 S3 Region" rules={[{ required: true, message: '请输入 S3 Region' }]} />
+                </Col>
+                <Col span={12}>
+                  <Form.Input field="s3Endpoint" label="Endpoint" placeholder="可选，兼容 S3 自定义存储" />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Input field="s3Bucket" label="Bucket" placeholder="请输入 S3 Bucket" rules={[{ required: true, message: '请输入 S3 Bucket' }]} />
+                </Col>
+                <Col span={12}>
+                  <Form.Input field="s3AccessKeyId" label="Access Key ID" placeholder="请输入 Access Key ID" rules={[{ required: true, message: '请输入 Access Key ID' }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input
+                    field="s3SecretAccessKey"
+                    label="Secret Access Key"
+                    placeholder="请输入 Secret Access Key"
+                    type="password"
+                    rules={[{ required: true, message: '请输入 Secret Access Key' }]}
+                  />
+                </Col>
+              </Row>
               <Form.Checkbox field="s3ForcePathStyle" noLabel>强制路径样式（MinIO / Ceph 等兼容当需开启）</Form.Checkbox>
             </>
           )}
 
           {formProvider === 'cos' && (
             <>
-              <Form.Input field="cosRegion" label="Region" placeholder="例如 ap-guangzhou" rules={[{ required: true, message: '请输入 COS Region' }]} />
-              <Form.Input field="cosBucket" label="Bucket" placeholder="例如 my-bucket-1250000000" rules={[{ required: true, message: '请输入 COS Bucket' }]} />
-              <Form.Input field="cosSecretId" label="SecretId" placeholder="请输入 SecretId" rules={[{ required: true, message: '请输入 SecretId' }]} />
-              <Form.Input
-                field="cosSecretKey"
-                label="SecretKey"
-                placeholder="请输入 SecretKey"
-                type="password"
-                rules={[{ required: true, message: '请输入 SecretKey' }]}
-              />
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Input field="cosRegion" label="Region" placeholder="例如 ap-guangzhou" rules={[{ required: true, message: '请输入 COS Region' }]} />
+                </Col>
+                <Col span={12}>
+                  <Form.Input field="cosBucket" label="Bucket" placeholder="例如 my-bucket-1250000000" rules={[{ required: true, message: '请输入 COS Bucket' }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Input field="cosSecretId" label="SecretId" placeholder="请输入 SecretId" rules={[{ required: true, message: '请输入 SecretId' }]} />
+                </Col>
+                <Col span={12}>
+                  <Form.Input
+                    field="cosSecretKey"
+                    label="SecretKey"
+                    placeholder="请输入 SecretKey"
+                    type="password"
+                    rules={[{ required: true, message: '请输入 SecretKey' }]}
+                  />
+                </Col>
+              </Row>
             </>
           )}
 
-          <Form.Input field="remark" label="备注" placeholder="选填，说明该文件服务的用途" />
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Input field="remark" label="备注" placeholder="选填，说明该文件服务的用途" />
+            </Col>
+          </Row>
         </Form>
       </Modal>
     </div>
