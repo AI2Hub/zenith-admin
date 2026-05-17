@@ -9,7 +9,6 @@ import {
   Select,
   Space,
   Switch,
-  Table,
   Tag,
   Toast,
   Typography,
@@ -28,6 +27,7 @@ import { request } from '@/utils/request';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 import './FileStorageConfigsPage.css';
 
 const { Text } = Typography;
@@ -384,7 +384,7 @@ export default function FileStorageConfigsPage() {
         <Text type="secondary">当前支持多文件服务配置，但上传时会优先走"默认文件服务"。切换默认服务不会影响历史文件记录。</Text>
       </div>
 
-      <Table
+      <ConfigurableTable
         bordered
         className="admin-table-nowrap"
         columns={columns}

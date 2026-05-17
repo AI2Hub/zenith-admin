@@ -6,7 +6,6 @@ import {
   RadioGroup,
   Radio,
   Space,
-  Table,
   Tag,
   Toast,
   Typography,
@@ -19,6 +18,7 @@ import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 
 export default function OnlineSessionsPage() {
   const { hasPermission } = usePermission();
@@ -152,7 +152,7 @@ export default function OnlineSessionsPage() {
           <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { setKeyword(''); setPage(1); void fetchData(1, pageSize, ''); }}>重置</Button>
       </SearchToolbar>
 
-      <Table
+      <ConfigurableTable
         bordered
         className="admin-table-nowrap"
         columns={columns}

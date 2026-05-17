@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Table,
   Button,
   Col,
   Input,
@@ -20,6 +19,7 @@ import type { MessageTemplate, MessageChannelType } from '@zenith/shared';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -285,7 +285,7 @@ export default function MessageTemplatesPage() {
           )}
       </SearchToolbar>
 
-      <Table
+      <ConfigurableTable
         bordered
         columns={columns}
         dataSource={data}

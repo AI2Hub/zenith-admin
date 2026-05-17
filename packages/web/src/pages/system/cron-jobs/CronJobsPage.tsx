@@ -25,6 +25,7 @@ import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 
 interface SearchParams {
   keyword: string;
@@ -369,7 +370,7 @@ export default function CronJobsPage() {
           )}
       </SearchToolbar>
 
-      <Table
+      <ConfigurableTable
         bordered
         className="admin-table-nowrap"
         columns={columns}

@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import DOMPurify from 'dompurify';
 import {
-  Table, Button, Tag, Space, Tabs, TabPane, Modal, Typography, Toast, Empty, Badge, Divider,
+  Button, Tag, Space, Tabs, TabPane, Modal, Typography, Toast, Empty, Badge, Divider,
 } from '@douyinfe/semi-ui';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { CheckCheck, Bell, Clock, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Notice } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
+import ConfigurableTable from '@/components/ConfigurableTable';
 
 const { Text } = Typography;
 
@@ -210,7 +211,7 @@ export default function NotificationsPage() {
           style={{ padding: '48px 0' }}
         />
       ) : (
-        <Table
+        <ConfigurableTable
           bordered
           loading={loading}
           dataSource={list}

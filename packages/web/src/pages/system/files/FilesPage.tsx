@@ -13,7 +13,6 @@ import {
   Select,
   Space,
   Spin,
-  Table,
   Tag,
   Toast,
   Tooltip,
@@ -30,6 +29,7 @@ import { config } from '@/config';
 import { usePermission } from '@/hooks/usePermission';
 import { usePreferences } from '@/hooks/usePreferences';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 import './FilesPage.css';
 
 const { Text } = Typography;
@@ -835,7 +835,7 @@ export default function FilesPage() {
       </Modal>
 
       {viewMode === 'list' ? (
-        <Table
+        <ConfigurableTable
           bordered
           className="admin-table-nowrap"
           columns={columns}

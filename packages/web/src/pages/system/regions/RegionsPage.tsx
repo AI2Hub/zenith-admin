@@ -6,7 +6,6 @@ import {
   Modal,
   Select,
   Space,
-  Table,
   Toast,
   Popconfirm,
 } from '@douyinfe/semi-ui';
@@ -21,6 +20,7 @@ import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 
 const LEVEL_LABELS: Record<string, string> = {
   province: '省级',
@@ -349,7 +349,7 @@ export default function RegionsPage() {
           )}
       </SearchToolbar>
 
-      <Table
+      <ConfigurableTable
         bordered
         columns={columns}
         dataSource={data}

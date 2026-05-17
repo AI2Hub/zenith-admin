@@ -30,6 +30,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 import './UsersPage.css';
 
 interface SearchParams {
@@ -595,7 +596,7 @@ export default function UsersPage() {
           </Button>}
       </SearchToolbar>
 
-      <Table
+      <ConfigurableTable
         className="admin-table-nowrap"
         bordered
         columns={columns}

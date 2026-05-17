@@ -8,7 +8,6 @@ import {
   Modal,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
 } from '@douyinfe/semi-ui';
@@ -18,6 +17,7 @@ import type { WorkflowInstance } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 import ApprovalTimeline from '@/components/ApprovalTimeline';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
@@ -248,7 +248,7 @@ export default function WorkflowMonitorPage() {
           <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
       </SearchToolbar>
 
-      <Table
+      <ConfigurableTable
         bordered
         columns={columns}
         dataSource={data?.list ?? []}

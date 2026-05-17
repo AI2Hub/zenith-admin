@@ -17,6 +17,7 @@ import { Search, Plus, List, RotateCcw, Download } from 'lucide-react';
 import type { Dict, DictItem, PaginatedResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateForApi, formatDateTime } from '@/utils/date';
 import DictTag from '@/components/DictTag';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -323,7 +324,7 @@ export default function DictsPage() {
             新增
           </Button>}
       </SearchToolbar>
-      <Table
+      <ConfigurableTable
         bordered
         className="admin-table-nowrap"
         columns={dictColumns}

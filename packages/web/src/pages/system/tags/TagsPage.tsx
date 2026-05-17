@@ -6,7 +6,6 @@ import {
   Modal,
   Select,
   Space,
-  Table,
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
@@ -18,6 +17,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { request } from '@/utils/request';
 import DictTag from '@/components/DictTag';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 
 const { Text } = Typography;
 
@@ -360,7 +360,7 @@ export default function TagsPage() {
         )}
       </SearchToolbar>
 
-      <Table
+      <ConfigurableTable
         bordered
         loading={loading}
         columns={columns}

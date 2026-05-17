@@ -8,7 +8,6 @@ import {
   Select,
   Space,
   Spin,
-  Table,
   Tag,
   Toast,
   Typography,
@@ -20,6 +19,7 @@ import type { WorkflowDefinition, WorkflowInstance, PaginatedResponse } from '@z
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 import ApprovalTimeline from '@/components/ApprovalTimeline';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
@@ -274,7 +274,7 @@ export default function MyApplicationsPage() {
             发起申请
           </Button>
       </SearchToolbar>
-      <Table
+      <ConfigurableTable
         bordered
         columns={columns}
         dataSource={data?.list ?? []}

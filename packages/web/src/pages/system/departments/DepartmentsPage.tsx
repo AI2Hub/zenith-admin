@@ -8,7 +8,6 @@ import {
   Row,
   Select,
   Space,
-  Table,
   Toast,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -22,6 +21,7 @@ import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 
 interface SearchParams {
   keyword: string;
@@ -310,7 +310,7 @@ export default function DepartmentsPage() {
           </Button>}
       </SearchToolbar>
 
-      <Table
+      <ConfigurableTable
         bordered
         className="admin-table-nowrap"
         columns={columns}

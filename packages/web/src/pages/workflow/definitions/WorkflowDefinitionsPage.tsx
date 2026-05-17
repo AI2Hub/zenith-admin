@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Input, Modal, Select, Space, Table, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Input, Modal, Select, Space, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +8,7 @@ import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
 
@@ -204,7 +205,7 @@ export default function WorkflowDefinitionsPage() {
             </Button>
           )}
       </SearchToolbar>
-      <Table
+      <ConfigurableTable
         bordered
         columns={columns}
         dataSource={data?.list ?? []}

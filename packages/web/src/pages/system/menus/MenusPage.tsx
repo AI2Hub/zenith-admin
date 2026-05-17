@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Table,
   Button,
   Input,
   Select,
@@ -19,6 +18,7 @@ import { Plus, ChevronsDownUp, ChevronsUpDown, Search, RotateCcw } from 'lucide-
 import type { Menu } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 import { renderLucideIcon } from '@/utils/icons';
 import IconPicker from '@/components/IconPicker';
 import { usePermission } from '@/hooks/usePermission';
@@ -320,7 +320,7 @@ export default function MenusPage() {
           {hasPermission('system:menu:create') && <Button type="primary" icon={<Plus size={14} />} onClick={() => openCreate()}>新增</Button>}
       </SearchToolbar>
 
-      <Table
+      <ConfigurableTable
         bordered
         className="admin-table-nowrap"
         columns={columns}

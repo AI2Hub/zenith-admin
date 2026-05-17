@@ -18,6 +18,7 @@ import { Search, Plus, RotateCcw, Download } from 'lucide-react';
 import type { Role, Menu, User, PaginatedResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import DictTag from '@/components/DictTag';
@@ -317,7 +318,7 @@ export default function RolesPage() {
           </Button>}
       </SearchToolbar>
 
-      <Table
+      <ConfigurableTable
         bordered
         className="admin-table-nowrap"
         columns={columns}

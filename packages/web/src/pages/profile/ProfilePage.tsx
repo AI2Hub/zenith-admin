@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  Card, Form, Button, Typography, Toast, Avatar, Tag, Space, Spin, Table,
+  Card, Form, Button, Typography, Toast, Avatar, Tag, Space, Spin,
   Modal, Cropper, Input, Tabs,
 } from '@douyinfe/semi-ui';
 import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle } from 'lucide-react';
@@ -13,6 +13,7 @@ import type {
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { formatPasswordPolicyHint, type PasswordPolicy } from '@/utils/password-policy';
+import ConfigurableTable from '@/components/ConfigurableTable';
 import './ProfilePage.css';
 
 const { Title, Text } = Typography;
@@ -494,7 +495,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                   size="small"
                 >
                   <Tabs.TabPane itemKey="login" tab="登录记录">
-                    <Table
+                    <ConfigurableTable
                       bordered
                       loading={loginLogsLoading}
                       dataSource={loginLogs}
@@ -519,7 +520,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                     />
                   </Tabs.TabPane>
                   <Tabs.TabPane itemKey="operation" tab="操作记录">
-                    <Table
+                    <ConfigurableTable
                       bordered
                       loading={operationLogsLoading}
                       dataSource={operationLogs}
@@ -561,7 +562,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                   {apiTokensLoading ? (
                     <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
                   ) : (
-                    <Table
+                    <ConfigurableTable
                       bordered
                       dataSource={apiTokens}
                       rowKey="id"

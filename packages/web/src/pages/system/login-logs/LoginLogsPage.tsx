@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, Input, Button, Tag, Select, DatePicker, Modal } from '@douyinfe/semi-ui';
+import { Input, Button, Tag, Select, DatePicker, Modal } from '@douyinfe/semi-ui';
 import { Search, RotateCcw, Download } from 'lucide-react';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import type { LoginLog, PaginatedResponse } from '@zenith/shared';
 
@@ -142,7 +143,7 @@ export default function LoginLogsPage() {
           <Button type="primary" icon={<Download size={14} />} loading={exportLoading} onClick={async () => { setExportLoading(true); try { await request.download('/api/login-logs/export', '登录日志.xlsx'); } finally { setExportLoading(false); } }}>导出</Button>
       </SearchToolbar>
 
-      <Table
+      <ConfigurableTable
         bordered
         columns={columns}
         dataSource={data}

@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Table,
   Button,
   Input,
   Select,
@@ -17,6 +16,7 @@ import { Search, Plus, RotateCcw, Download } from 'lucide-react';
 import type { Tenant } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -221,7 +221,7 @@ export default function TenantsPage() {
           )}
       </SearchToolbar>
 
-      <Table
+      <ConfigurableTable
         bordered
         className="admin-table-nowrap"
         columns={columns}

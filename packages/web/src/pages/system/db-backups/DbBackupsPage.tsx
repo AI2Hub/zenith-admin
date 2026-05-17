@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, Space, Tag, Select, Popconfirm, Toast, Modal, Form } from '@douyinfe/semi-ui';
+import { Button, Space, Tag, Select, Popconfirm, Toast, Modal, Form } from '@douyinfe/semi-ui';
 import { Search, RotateCcw, Plus } from 'lucide-react';
 import type { DbBackup, BackupType, BackupStatus } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import ConfigurableTable from '@/components/ConfigurableTable';
 
 export default function DbBackupsPage() {
   const [list, setList] = useState<DbBackup[]>([]);
@@ -164,7 +165,7 @@ export default function DbBackupsPage() {
           )}
       </SearchToolbar>
 
-      <Table
+      <ConfigurableTable
         bordered
         loading={loading}
         dataSource={list}

@@ -6,7 +6,6 @@ import {
   JsonViewer,
   Modal,
   Space,
-  Table,
   Tag,
   Toast,
   Tooltip,
@@ -16,6 +15,7 @@ import { Search, RotateCcw, RefreshCw, Trash2 } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { request } from '@/utils/request';
 import { usePermission } from '@/hooks/usePermission';
+import ConfigurableTable from '@/components/ConfigurableTable';
 
 interface CacheItem {
   key: string;
@@ -331,7 +331,7 @@ export default function CacheManagePage() {
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
         {/* 左侧：分类列表 */}
         <div style={{ width: 280, flexShrink: 0 }}>
-          <Table<CategoryRow>
+          <ConfigurableTable<CategoryRow>
             bordered
             size="small"
             columns={categoryColumns}
@@ -380,7 +380,7 @@ export default function CacheManagePage() {
                   />
                 </span>
               </div>
-              <Table<CacheItem>
+              <ConfigurableTable<CacheItem>
                 bordered
                 size="small"
                 columns={keyColumns}
