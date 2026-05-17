@@ -9,6 +9,7 @@ import {
   Input,
   Modal,
   Pagination,
+  Progress,
   Select,
   Space,
   Spin,
@@ -18,7 +19,7 @@ import {
   Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
-import { Plus, Search, RotateCcw, Trash2, FolderDown, MoreHorizontal, LayoutGrid, List } from 'lucide-react';
+import { Plus, Search, RotateCcw, Trash2, FolderDown, MoreHorizontal, LayoutGrid, List, CheckCircle2, XCircle } from 'lucide-react';
 import type { FileStorageConfig, ManagedFile, PaginatedResponse } from '@zenith/shared';
 import { TOKEN_KEY } from '@zenith/shared';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -32,6 +33,48 @@ import './FilesPage.css';
 
 const { Text } = Typography;
 
+interface UploadItem { uid: string; name: string; size: number; progress: number; status: 'pending' | 'uploading' | 'success' | 'error'; errorMsg?: string }
+
+function getProgressStatus(status: UploadItem['status']): 'success' | 'exception' | 'default' {
+  if (status === 'success') return 'success';
+  if (status === 'error') return 'exception';
+  return 'default';
+}
+
+function uploadSingleFile(
+  file: File,
+  uid: string,
+  apiBaseUrl: string,
+  token: string | null,
+  setItems: React.Dispatch<React.SetStateAction<UploadItem[]>>,
+) {
+  const updateItem = (updater: (item: UploadItem) => UploadItem) =>
+    setItems(prev => prev.map(item => item.uid === uid ? updater(item) : item));
+  updateItem(item => ({ ...item, status: 'uploading' }));
+  const formData = new FormData();
+  formData.append('file', file);
+  const xhr = new XMLHttpRequest();
+  xhr.upload.onprogress = (e) => {
+    if (e.lengthComputable)
+      updateItem(item => ({ ...item, progress: Math.round((e.loaded / e.total) * 100) }));
+  };
+  xhr.onload = () => {
+    try {
+      const resp = JSON.parse(xhr.responseText) as { code: number; message?: string };
+      if (xhr.status === 200 && resp.code === 0)
+        updateItem(item => ({ ...item, progress: 100, status: 'success' }));
+      else
+        updateItem(item => ({ ...item, status: 'error', errorMsg: resp.message || '上传失败' }));
+    } catch {
+      updateItem(item => ({ ...item, status: 'error', errorMsg: '解析响应失败' }));
+    }
+  };
+  xhr.onerror = () => updateItem(item => ({ ...item, status: 'error', errorMsg: '网络错误' }));
+  xhr.open('POST', `${apiBaseUrl}/api/files/upload`);
+  if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+  xhr.send(formData);
+}
+
 type ProviderColor = 'blue' | 'orange' | 'green' | 'cyan' | 'grey';
 const providerColorMap: Record<string, { color: ProviderColor; label: string }> = {
   local: { color: 'blue', label: '本地磁盘' },
@@ -41,7 +84,7 @@ const providerColorMap: Record<string, { color: ProviderColor; label: string }> 
 };
 
 function ProviderTag({ provider }: Readonly<{ provider: string }>) {
-  const info = providerColorMap[provider] ?? { color: 'grey' as ProviderColor, label: provider };
+  const info = providerColorMap[provider] ?? { color: 'grey', label: provider };
   return <Tag color={info.color} size="small">{info.label}</Tag>;
 }
 
@@ -158,7 +201,8 @@ export default function FilesPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [data, setData] = useState<PaginatedResponse<ManagedFile> | null>(null);
   const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
+  const [uploadProgressVisible, setUploadProgressVisible] = useState(false);
   const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(
@@ -253,6 +297,18 @@ export default function FilesPage() {
     void fetchFiles();
   }, [fetchFiles]);
 
+  useEffect(() => {
+    if (uploadProgressVisible && uploadItems.length > 0 &&
+      uploadItems.every(item => item.status === 'success' || item.status === 'error')) {
+      const successCount = uploadItems.filter(item => item.status === 'success').length;
+      if (successCount > 0) {
+        Toast.success(successCount > 1 ? `成功上传 ${successCount} 个文件` : '文件上传成功');
+        void fetchDefaultConfig();
+        void fetchFiles(1);
+      }
+    }
+  }, [uploadItems, uploadProgressVisible, fetchDefaultConfig, fetchFiles]);
+
   function handleSearch() {
     setPage(1);
     void fetchFiles(1, pageSize);
@@ -268,26 +324,16 @@ export default function FilesPage() {
     fileInputRef.current?.click();
   };
 
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
     if (files.length === 0) return;
-
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      for (const file of Array.from(files)) {
-        formData.append('file', file);
-      }
-      const res = await request.postForm<ManagedFile[]>('/api/files/upload', formData);
-      if (res.code === 0) {
-        Toast.success(res.data.length > 1 ? `成功上传 ${res.data.length} 个文件` : '文件上传成功');
-        setPage(1);
-        fetchDefaultConfig();
-        void fetchFiles(1);
-      }
-    } finally {
-      setUploading(false);
+    const items: UploadItem[] = files.map((f, i) => ({ uid: `${f.name}-${Date.now()}-${i}`, name: f.name, size: f.size, progress: 0, status: 'pending' as const }));
+    setUploadItems(items);
+    setUploadProgressVisible(true);
+    const token = localStorage.getItem(TOKEN_KEY);
+    for (const [i, file] of files.entries()) {
+      uploadSingleFile(file, items[i].uid, config.apiBaseUrl, token, setUploadItems);
     }
   };
 
@@ -608,16 +654,18 @@ export default function FilesPage() {
               批量删除 ({selectedRowKeys.length})
             </Button>
           )}
-          {hasPermission('system:file:upload') && <Button type="primary" icon={<Plus size={14} />} loading={uploading} disabled={!defaultConfig} onClick={handlePickFile}>
-            上传文件
-          </Button>}
-          <input
-            ref={fileInputRef}
-            type="file"
-            hidden
-            multiple
-            onChange={handleUpload}
-          />
+          {hasPermission('system:file:upload') && (
+            <Button
+              type="primary"
+              icon={<Plus size={14} />}
+              loading={uploadProgressVisible && uploadItems.some(item => item.status === 'uploading' || item.status === 'pending')}
+              disabled={!defaultConfig}
+              onClick={handlePickFile}
+            >
+              上传文件
+            </Button>
+          )}
+          <input ref={fileInputRef} type="file" hidden multiple onChange={handleUpload} />
       </SearchToolbar>
 
       <div className="files-default-tip" style={{ padding: '8px 0' }}>
@@ -651,6 +699,58 @@ export default function FilesPage() {
           />
         </Space>
       </div>
+
+      <Modal
+        title="上传进度"
+        visible={uploadProgressVisible}
+        onCancel={() => setUploadProgressVisible(false)}
+        footer={
+          uploadItems.every(item => item.status === 'success' || item.status === 'error')
+            ? <Button type="primary" onClick={() => setUploadProgressVisible(false)}>关闭</Button>
+            : null
+        }
+        width={480}
+        keepDOM={false}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '4px 0' }}>
+          {uploadItems.map((item) => (
+            <div key={item.uid}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Space spacing={6} style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    {getFileTypeIcon(undefined, 14)}
+                  </span>
+                  <Typography.Text ellipsis={{ showTooltip: true }} style={{ fontSize: 13, flex: 1, minWidth: 0 }}>
+                    {item.name}
+                  </Typography.Text>
+                </Space>
+                <Space spacing={6} style={{ flexShrink: 0, marginLeft: 8 }}>
+                  <Typography.Text type="tertiary" size="small">{formatFileSize(item.size)}</Typography.Text>
+                  {item.status === 'uploading' && (
+                    <Typography.Text size="small">{item.progress}%</Typography.Text>
+                  )}
+                  {item.status === 'success' && (
+                    <CheckCircle2 size={14} color="var(--semi-color-success)" />
+                  )}
+                  {item.status === 'error' && (
+                    <Tooltip content={item.errorMsg}>
+                      <XCircle size={14} color="var(--semi-color-danger)" />
+                    </Tooltip>
+                  )}
+                </Space>
+              </div>
+              <Progress
+                percent={item.progress}
+                type="line"
+                size="small"
+                status={getProgressStatus(item.status)}
+                showInfo={false}
+                style={{ margin: 0 }}
+              />
+            </div>
+          ))}
+        </div>
+      </Modal>
 
       <ImagePreview
         src={previewSrcList}
