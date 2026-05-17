@@ -570,7 +570,7 @@
 .fd-basic-info__inner {
   width: 100%;
   max-width: 560px;
-  background: var(--semi-color-bg-0);
+  background: var(--semi-color-bg-2);
   border-radius: 8px;
   padding: 32px 40px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
@@ -735,7 +735,7 @@ button.fd-node-card {
   border: 1px solid var(--semi-color-border);
   border-radius: 8px;
   padding: 12px;
-  background: var(--semi-color-bg-0);
+  background: var(--semi-color-bg-2);
 }
 
 .fd-condition-group__header {

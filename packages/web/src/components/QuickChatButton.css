@@ -55,7 +55,7 @@
   right: 24px;
   width: min(420px, calc(100vw - 32px));
   height: min(640px, calc(100vh - 120px));
-  background: var(--semi-color-bg-0);
+  background: var(--semi-color-bg-2);
   border: 1px solid var(--semi-color-border);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
