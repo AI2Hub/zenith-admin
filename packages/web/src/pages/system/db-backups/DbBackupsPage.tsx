@@ -186,7 +186,7 @@ export default function DbBackupsPage() {
         onCancel={() => setCreateVisible(false)}
         footer={null}
       >
-        <Form onSubmit={handleCreate} labelPosition="left" labelWidth={80}>
+        <Form onSubmit={handleCreate} labelPosition="left" labelWidth={90}>
           <Form.Select
             field="type"
             label="备份类型"
