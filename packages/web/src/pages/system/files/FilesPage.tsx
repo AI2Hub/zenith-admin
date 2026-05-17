@@ -36,10 +36,10 @@ const { Text } = Typography;
 
 interface UploadItem { uid: string; name: string; size: number; progress: number; status: 'pending' | 'uploading' | 'success' | 'error'; errorMsg?: string }
 
-function getProgressStatus(status: UploadItem['status']): 'success' | 'exception' | 'default' {
-  if (status === 'success') return 'success';
-  if (status === 'error') return 'exception';
-  return 'default';
+function getProgressStroke(status: UploadItem['status']): string | undefined {
+  if (status === 'success') return 'var(--semi-color-success)';
+  if (status === 'error') return 'var(--semi-color-danger)';
+  return undefined;
 }
 
 function uploadSingleFile(
@@ -780,7 +780,7 @@ export default function FilesPage() {
                 percent={item.progress}
                 type="line"
                 size="small"
-                status={getProgressStatus(item.status)}
+                stroke={getProgressStroke(item.status)}
                 showInfo={false}
                 style={{ margin: 0 }}
               />
