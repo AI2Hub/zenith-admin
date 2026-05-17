@@ -391,20 +391,20 @@ export default function TagsPage() {
         title={editRecord ? '编辑标签' : '新增标签'}
         visible={modalVisible}
         onOk={handleSubmit}
-        onCancel={() => setModalVisible(false)}
+        onCancel={() => { setModalVisible(false); setEditRecord(null); }}
         confirmLoading={submitting}
-        afterClose={() => {
-          formRef.current?.reset();
-          setColorValue('');
-        }}
+        maskClosable={false}
+        afterClose={() => { setColorValue(''); }}
         width={520}
+        bodyStyle={{ paddingBottom: 24 }}
       >
         <Form
           key={editRecord?.id ?? 'new'}
           getFormApi={(api) => {
             (formRef as { current: FormApi }).current = api;
           }}
-          layout="vertical"
+          labelPosition="left"
+          labelWidth={90}
           initValues={
             editRecord
               ? {
@@ -440,10 +440,9 @@ export default function TagsPage() {
           <Form.Select
             field="status"
             label="状态"
-            optionList={[
-              { label: '启用', value: 'enabled' },
-              { label: '禁用', value: 'disabled' },
-            ]}
+            placeholder="请选择状态"
+            style={{ width: '100%' }}
+            optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
           />
           <Form.InputNumber
             field="sortOrder"
@@ -451,6 +450,7 @@ export default function TagsPage() {
             min={0}
             max={9999}
             innerButtons
+            style={{ width: '100%' }}
           />
         </Form>
       </Modal>
