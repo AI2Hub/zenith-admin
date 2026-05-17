@@ -3,11 +3,14 @@ import {
   Badge,
   Button,
   Input,
+  JsonViewer,
   Modal,
+  Space,
   Table,
   Tag,
   Toast,
   Tooltip,
+  Typography,
 } from '@douyinfe/semi-ui';
 import { Search, RotateCcw, RefreshCw, Trash2 } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -71,6 +74,7 @@ export default function CacheManagePage() {
   const [selectedCategory, setSelectedCategory] = useState<CategoryRow | null>(null);
   const [keyword, setKeyword] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [viewingItem, setViewingItem] = useState<CacheItem | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -258,18 +262,30 @@ export default function CacheManagePage() {
     {
       title: '操作',
       fixed: 'right' as const,
-      width: 68,
-      render: (_: unknown, record: CacheItem) =>
-        hasPermission('system:cache:delete') ? (
-          <Button
-            theme="borderless"
-            type="danger"
-            size="small"
-            onClick={() => handleDeleteKey(record)}
-          >
-            删除
-          </Button>
-        ) : null,
+      width: 120,
+      render: (_: unknown, record: CacheItem) => (
+        <Space>
+          {record.value != null && (
+            <Button
+              theme="borderless"
+              size="small"
+              onClick={() => setViewingItem(record)}
+            >
+              查看
+            </Button>
+          )}
+          {hasPermission('system:cache:delete') && (
+            <Button
+              theme="borderless"
+              type="danger"
+              size="small"
+              onClick={() => handleDeleteKey(record)}
+            >
+              删除
+            </Button>
+          )}
+        </Space>
+      ),
     },
   ];
 
@@ -380,6 +396,41 @@ export default function CacheManagePage() {
           )}
         </div>
       </div>
+
+      <Modal
+        title={
+          <span>
+            查看缓存值
+            {viewingItem && (
+              <Typography.Text
+                type="secondary"
+                size="small"
+                style={{ marginLeft: 8, fontWeight: 'normal', fontFamily: 'monospace' }}
+              >
+                {viewingItem.displayKey}
+              </Typography.Text>
+            )}
+          </span>
+        }
+        visible={viewingItem != null}
+        onCancel={() => setViewingItem(null)}
+        footer={null}
+        width={680}
+      >
+        {viewingItem && (
+          <JsonViewer
+            key={viewingItem.key}
+            value={(() => {
+              if (!viewingItem.value) return '';
+              try { return JSON.stringify(JSON.parse(viewingItem.value), null, 2); }
+              catch { return viewingItem.value; }
+            })()}
+            height={360}
+            width="100%"
+            options={{ readOnly: true, autoWrap: true, formatOptions: { tabSize: 2, insertSpaces: true } }}
+          />
+        )}
+      </Modal>
     </div>
   );
 }
