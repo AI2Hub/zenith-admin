@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Table,
   Button,
+  Col,
   Input,
+  Row,
   Select,
   Space,
   Modal,
@@ -319,30 +321,51 @@ export default function MessageTemplatesPage() {
           labelWidth={90}
           initValues={editingTemplate ?? { status: 'enabled' }}
         >
-          <Form.Input
-            field="name"
-            label="模板名称"
-            rules={[{ required: true, message: '请输入模板名称' }]}
-            placeholder="请输入模板名称"
-          />
-          <Form.Input
-            field="code"
-            label="模板编码"
-            rules={[
-              { required: true, message: '请输入模板编码' },
-              { pattern: /^[a-zA-Z]\w*$/, message: '只能包含字母、数字和下划线，且以字母开头' },
-            ]}
-            placeholder="如：user_welcome"
-            disabled={!!editingTemplate}
-          />
-          <Form.Select
-            field="channel"
-            label="渠道类型"
-            rules={[{ required: true, message: '请选择渠道类型' }]}
-            placeholder="请选择渠道"
-            optionList={CHANNEL_OPTIONS}
-            style={{ width: '100%' }}
-          />
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input
+                field="name"
+                label="模板名称"
+                rules={[{ required: true, message: '请输入模板名称' }]}
+                placeholder="请输入模板名称"
+              />
+            </Col>
+            <Col span={12}>
+              <Form.Input
+                field="code"
+                label="模板编码"
+                rules={[
+                  { required: true, message: '请输入模板编码' },
+                  { pattern: /^[a-zA-Z]\w*$/, message: '只能包含字母、数字和下划线，且以字母开头' },
+                ]}
+                placeholder="如：user_welcome"
+                disabled={!!editingTemplate}
+              />
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Select
+                field="channel"
+                label="渠道类型"
+                rules={[{ required: true, message: '请选择渠道类型' }]}
+                placeholder="请选择渠道"
+                optionList={CHANNEL_OPTIONS}
+                style={{ width: '100%' }}
+              />
+            </Col>
+            <Col span={12}>
+              <Form.Select
+                field="status"
+                label="状态"
+                optionList={[
+                  { value: 'enabled', label: '启用' },
+                  { value: 'disabled', label: '停用' },
+                ]}
+                style={{ width: '100%' }}
+              />
+            </Col>
+          </Row>
           <Form.Input
             field="subject"
             label="模板标题"
@@ -360,15 +383,6 @@ export default function MessageTemplatesPage() {
             label="变量说明"
             placeholder={'JSON 格式说明变量含义，例如：{"username": "用户名", "link": "激活链接"}'}
             rows={3}
-          />
-          <Form.Select
-            field="status"
-            label="状态"
-            optionList={[
-              { value: 'enabled', label: '启用' },
-              { value: 'disabled', label: '停用' },
-            ]}
-            style={{ width: '100%' }}
           />
           <Form.TextArea
             field="remark"
