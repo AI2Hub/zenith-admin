@@ -647,7 +647,7 @@ export default function UsersPage() {
           getFormApi={(api) => { formApi.current = api; }}
           initValues={formInitValues}
           labelPosition="left"
-          labelWidth={90}
+          labelWidth={72}
         >
           {editingUser ? (
             <Row gutter={16}>
@@ -765,7 +765,7 @@ export default function UsersPage() {
           key={passwordUser?.id ?? 'password-form'}
           getFormApi={(api) => { passwordFormApi.current = api; }}
           labelPosition="left"
-          labelWidth={90}
+          labelWidth={72}
         >
           <Form.Input
             field="password"
