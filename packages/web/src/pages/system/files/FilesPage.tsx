@@ -525,7 +525,7 @@ export default function FilesPage() {
     {
       title: '来源服务',
       dataIndex: 'storageName',
-      width: 200,
+      width: 120,
       ellipsis: true,
       render: (_: string, record: ManagedFile) => (
           <Text ellipsis={{ showTooltip: true }}>{record.storageName}</Text>
@@ -535,6 +535,7 @@ export default function FilesPage() {
       title: '大小',
       dataIndex: 'size',
       width: 100,
+      align: 'right' as const,
       render: (size: number) => formatFileSize(size),
     },
     {
@@ -549,9 +550,14 @@ export default function FilesPage() {
       fixed: 'right',
       width: 150,
       align: 'center',
-      render: (_: unknown, record: ManagedFile) => (
+      render: (_: unknown, record: ManagedFile) => {
+        const isPreviewable = record.mimeType?.startsWith('image/') || record.mimeType?.startsWith('video/');
+        return (
         <Space>
-          <Button theme="borderless" size="small" loading={previewLoadingId === record.id} onClick={() => handlePreview(record)}>预览</Button>
+          {isPreviewable
+            ? <Button theme="borderless" size="small" loading={previewLoadingId === record.id} onClick={() => handlePreview(record)}>预览</Button>
+            : <Button theme="borderless" size="small" loading={downloadLoadingId === record.id} onClick={() => handleDownload(record)}>下载</Button>
+          }
           <Dropdown
             trigger="click"
             position="bottomRight"
@@ -589,7 +595,8 @@ export default function FilesPage() {
             </span>
           </Dropdown>
         </Space>
-      ),
+        );
+      },
     },
   ];
 
