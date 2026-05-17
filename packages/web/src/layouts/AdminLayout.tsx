@@ -1103,6 +1103,12 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                 <Switch checked={preferences.sidebarStickyScroll ?? true} onChange={(v) => setPreferences({ sidebarStickyScroll: v })} />
               </div>
 
+              {/* ── 表格列设置 ── */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>显示表格列设置按钮</span>
+                <Switch checked={preferences.showTableColumnSettings ?? true} onChange={(v) => setPreferences({ showTableColumnSettings: v })} />
+              </div>
+
               <div className="prefs-section-divider" />
 
               {/* ── 多标签页 ── */}

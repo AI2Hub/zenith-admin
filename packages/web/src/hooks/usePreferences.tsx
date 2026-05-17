@@ -17,6 +17,7 @@ export interface UserPreferences {
   showQuickChat: boolean;
   filesViewMode: 'list' | 'grid';
   sidebarStickyScroll: boolean;
+  showTableColumnSettings: boolean;
 }
 
 export const defaultPreferences: UserPreferences = {
@@ -31,6 +32,7 @@ export const defaultPreferences: UserPreferences = {
   showQuickChat: true,
   filesViewMode: 'list',
   sidebarStickyScroll: true,
+  showTableColumnSettings: true,
 };
 
 function loadPreferences(): UserPreferences {

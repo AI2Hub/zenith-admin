@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { usePreferences } from '@/hooks/usePreferences';
 import { Button, Checkbox, Dropdown, Space, Table } from '@douyinfe/semi-ui';
 import { RotateCcw, Settings2 } from 'lucide-react';
 import type { ColumnProps, Data, TableProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -150,6 +151,8 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
   columnSettingsLabel = '列设置',
   ...tableProps
 }: ConfigurableTableProps<RecordType>) {
+  const { preferences } = usePreferences();
+  const effectiveColumnSettings = (preferences.showTableColumnSettings ?? true) && columnSettings;
   const rawColumns = useMemo(() => (columns ?? []) as ConfigurableColumn<RecordType>[], [columns]);
   const alwaysVisibleKeys = useMemo(
     () => new Set([...DEFAULT_ALWAYS_VISIBLE_KEYS, ...alwaysVisibleColumnKeys].map((key) => key.toLowerCase())),
@@ -223,7 +226,7 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
 
   return (
     <div className="configurable-table">
-      {columnSettings && configurableOptions.length > 0 && (
+      {effectiveColumnSettings && configurableOptions.length > 0 && (
         <div className="configurable-table-actions">
           <Dropdown trigger="click" render={settingsPanel}>
             <Button type="tertiary" theme="borderless" icon={<Settings2 size={14} />}>
@@ -232,7 +235,7 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
           </Dropdown>
         </div>
       )}
-      <Table<RecordType> {...tableProps} columns={columnSettings ? visibleColumns : columns} />
+      <Table<RecordType> {...tableProps} columns={effectiveColumnSettings ? visibleColumns : columns} />
     </div>
   );
 }
