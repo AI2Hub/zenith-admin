@@ -548,23 +548,20 @@ export default function FilesPage() {
     {
       title: '操作',
       fixed: 'right',
-      width: 150,
+      width: 180,
       align: 'center',
       render: (_: unknown, record: ManagedFile) => {
         const isPreviewable = record.mimeType?.startsWith('image/') || record.mimeType?.startsWith('video/');
         return (
         <Space>
-          {isPreviewable
-            ? <Button theme="borderless" size="small" loading={previewLoadingId === record.id} onClick={() => handlePreview(record)}>预览</Button>
-            : <Button theme="borderless" size="small" loading={downloadLoadingId === record.id} onClick={() => handleDownload(record)}>下载</Button>
-          }
+          <Button theme="borderless" size="small" loading={downloadLoadingId === record.id} onClick={() => handleDownload(record)}>下载</Button>
+          <Button theme="borderless" size="small" disabled={!isPreviewable} loading={previewLoadingId === record.id} onClick={() => handlePreview(record)}>预览</Button>
           <Dropdown
             trigger="click"
             position="bottomRight"
             clickToHide
             render={
               <Dropdown.Menu>
-                <Dropdown.Item onClick={() => handleDownload(record)}>下载</Dropdown.Item>
                 <Dropdown.Item onClick={() => setDetailFile(record)}>详情</Dropdown.Item>
                 <Dropdown.Item onClick={() => handleCopyUrl(record)}>复制链接</Dropdown.Item>
                 {hasPermission('system:file:delete') && (
