@@ -528,10 +528,7 @@ export default function FilesPage() {
       width: 200,
       ellipsis: true,
       render: (_: string, record: ManagedFile) => (
-          <Space spacing={4}>
-            <ProviderTag provider={record.provider} />
-            <Text ellipsis={{ showTooltip: true }}>{record.storageName}</Text>
-          </Space>
+          <Text ellipsis={{ showTooltip: true }}>{record.storageName}</Text>
         ),
     },
     {
@@ -671,10 +668,7 @@ export default function FilesPage() {
         <Space>
           <Text strong>默认文件服务：</Text>
           {defaultConfig ? (
-            <>
-              <ProviderTag provider={defaultConfig.provider} />
-              <Text>{defaultConfig.name}</Text>
-            </>
+            <Text>{defaultConfig.name}</Text>
           ) : (
             <Text type="danger">未配置默认文件服务，请先前往"文件配置"设置。</Text>
           )}
@@ -786,7 +780,6 @@ export default function FilesPage() {
             data={[
               { key: '文件名', value: detailFile.originalName },
               { key: '存储服务', value: detailFile.storageName },
-              { key: '存储类型', value: <ProviderTag provider={detailFile.provider} /> },
               { key: 'MIME 类型', value: detailFile.mimeType || '—' },
               { key: '文件大小', value: formatFileSize(detailFile.size) },
               { key: '对象键', value: <Text copyable style={{ fontSize: 12, wordBreak: 'break-all' }}>{detailFile.objectKey}</Text> },
