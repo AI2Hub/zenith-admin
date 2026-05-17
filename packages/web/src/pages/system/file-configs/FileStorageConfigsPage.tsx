@@ -418,7 +418,7 @@ export default function FileStorageConfigsPage() {
           key={editingConfig?.id ?? 'new-file-storage-config'}
           initValues={initValues}
           labelPosition="left"
-          labelWidth={96}
+          labelWidth={120}
         >
           <div className="storage-config-form-header">
             <Text strong>配置选项</Text>
