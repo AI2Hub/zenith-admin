@@ -110,7 +110,7 @@ export default function TagsPage() {
   const [list, setList] = useState<Tag[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const pageSize = 20;
+  const [pageSize, setPageSize] = useState(20);
 
   const [keyword, setKeyword] = useState('');
   const [filterStatus, setFilterStatus] = useState<string | undefined>();
@@ -133,16 +133,18 @@ export default function TagsPage() {
   }, []);
 
   const fetchList = useCallback(
-    async (p: number, kw: string, st: string | undefined, gn: string | undefined) => {
+    async (p: number, kw: string, st: string | undefined, gn: string | undefined, ps = 20) => {
       setLoading(true);
       try {
-        const params = new URLSearchParams({ page: String(p), pageSize: String(pageSize) });
+        const params = new URLSearchParams({ page: String(p), pageSize: String(ps) });
         if (kw) params.set('keyword', kw);
         if (st) params.set('status', st);
         if (gn) params.set('groupName', gn);
         const res = await request.get<PaginatedResponse<Tag>>(`/api/tags?${params}`);
         setList(res.data?.list ?? []);
         setTotal(res.data?.total ?? 0);
+        setPage(res.data?.page ?? p);
+        setPageSize(res.data?.pageSize ?? ps);
       } finally {
         setLoading(false);
       }
@@ -151,23 +153,21 @@ export default function TagsPage() {
   );
 
   useEffect(() => {
-    void fetchList(page, keyword, filterStatus, filterGroup);
+    void fetchList(1, '', undefined, undefined, 20);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+  }, []);
 
   useEffect(() => { void fetchGroups(); }, [fetchGroups]);
 
   const handleSearch = () => {
-    setPage(1);
-    void fetchList(1, keyword, filterStatus, filterGroup);
+    void fetchList(1, keyword, filterStatus, filterGroup, pageSize);
   };
 
   const handleReset = () => {
     setKeyword('');
     setFilterStatus(undefined);
     setFilterGroup(undefined);
-    setPage(1);
-    void fetchList(1, '', undefined, undefined);
+    void fetchList(1, '', undefined, undefined, pageSize);
   };
 
   const openCreate = () => {
@@ -183,10 +183,14 @@ export default function TagsPage() {
   };
 
   const handleSubmit = async () => {
+    let values: Awaited<ReturnType<FormApi['validate']>>;
     try {
-      const values = await formRef.current?.validate();
-      if (!values) return;
-      setSubmitting(true);
+      values = (await formRef.current?.validate())!;
+    } catch {
+      throw new Error('validation');
+    }
+    setSubmitting(true);
+    try {
       const payload = { ...values, color: colorValue || null };
       if (editRecord) {
         await request.put(`/api/tags/${editRecord.id}`, payload);
@@ -196,7 +200,7 @@ export default function TagsPage() {
         Toast.success('创建成功');
       }
       setModalVisible(false);
-      void fetchList(page, keyword, filterStatus, filterGroup);
+      void fetchList(page, keyword, filterStatus, filterGroup, pageSize);
       void fetchGroups();
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message;
@@ -211,7 +215,7 @@ export default function TagsPage() {
       await request.delete(`/api/tags/${id}`);
       Toast.success('删除成功');
       setSelectedRowKeys((prev) => prev.filter((k) => k !== id));
-      void fetchList(page, keyword, filterStatus, filterGroup);
+      void fetchList(page, keyword, filterStatus, filterGroup, pageSize);
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message;
       if (msg) Toast.error(msg);
@@ -224,7 +228,7 @@ export default function TagsPage() {
       await request.delete('/api/tags/batch', { ids: selectedRowKeys });
       Toast.success(`已删除 ${selectedRowKeys.length} 条标签`);
       setSelectedRowKeys([]);
-      void fetchList(page, keyword, filterStatus, filterGroup);
+      void fetchList(page, keyword, filterStatus, filterGroup, pageSize);
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message;
       if (msg) Toast.error(msg);
@@ -255,16 +259,6 @@ export default function TagsPage() {
       render: (v: string | null) => v || <Text type="quaternary">—</Text>,
     },
     {
-      title: '状态',
-      dataIndex: 'status',
-      width: 90,
-      render: (v: string) => (
-        <Text type={v === 'enabled' ? 'success' : 'tertiary'}>
-          {v === 'enabled' ? '启用' : '禁用'}
-        </Text>
-      ),
-    },
-    {
       title: '排序',
       dataIndex: 'sortOrder',
       width: 80,
@@ -273,6 +267,17 @@ export default function TagsPage() {
       title: '创建时间',
       dataIndex: 'createdAt',
       width: 180,
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 90,
+      fixed: 'right' as const,
+      render: (v: string) => (
+        <Text type={v === 'enabled' ? 'success' : 'tertiary'}>
+          {v === 'enabled' ? '启用' : '禁用'}
+        </Text>
+      ),
     },
     {
       title: '操作',
@@ -373,8 +378,10 @@ export default function TagsPage() {
           total,
           currentPage: page,
           pageSize,
-          showSizeChanger: false,
-          onPageChange: (p: number) => setPage(p),
+          showTotal: true,
+          showSizeChanger: true,
+          onPageChange: (p: number) => { void fetchList(p, keyword, filterStatus, filterGroup, pageSize); },
+          onPageSizeChange: (s: number) => { void fetchList(1, keyword, filterStatus, filterGroup, s); },
         }}
         scroll={{ x: 900 }}
       />
@@ -392,6 +399,7 @@ export default function TagsPage() {
         width={520}
       >
         <Form
+          key={editRecord?.id ?? 'new'}
           getFormApi={(api) => {
             (formRef as { current: FormApi }).current = api;
           }}

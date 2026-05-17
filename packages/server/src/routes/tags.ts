@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import {
   PaginationQuery,
   jsonContent,
@@ -22,6 +22,7 @@ import {
   deleteTag,
   batchDeleteTags,
   listTagGroups,
+  ensureTagExists,
 } from '../services/tags.service';
 
 const tagsRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -81,6 +82,8 @@ const updateTagRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
+    const before = await ensureTagExists(id);
+    setAuditBeforeData(c, before);
     return c.json(okBody(await updateTag(id, c.req.valid('json')), '更新成功'), 200);
   },
 });
@@ -96,6 +99,8 @@ const deleteTagRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
+    const before = await ensureTagExists(id);
+    setAuditBeforeData(c, before);
     await deleteTag(id);
     return c.json(okBody(null, '删除成功'), 200);
   },
@@ -122,8 +127,8 @@ tagsRouter.openapiRoutes([
   listGroupsRoute,
   createTagRoute,
   updateTagRoute,
-  deleteTagRoute,
   batchDeleteTagsRoute,
+  deleteTagRoute,
 ] as const);
 
 export default tagsRouter;
