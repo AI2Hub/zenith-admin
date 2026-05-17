@@ -361,9 +361,16 @@ export function applyThemeColor(color: string, isDark: boolean): void {
   const root = document.documentElement;
 
   // 自定义语义变量
-  root.style.setProperty('--color-primary', vars.primary);
-  root.style.setProperty('--color-sidebar-active', vars.sidebarActive);
-  root.style.setProperty('--color-sidebar-text-active', isDark ? '#ffffff' : vars.primary);
+  // 同时设置 html 与 body，避免 body[theme-mode='dark'] 中的默认变量覆盖动态主题色。
+  const customVars: [string, string][] = [
+    ['--color-primary', vars.primary],
+    ['--color-sidebar-active', vars.sidebarActive],
+    ['--color-sidebar-text-active', isDark ? '#ffffff' : vars.primary],
+  ];
+  for (const [name, value] of customVars) {
+    root.style.setProperty(name, value);
+    document.body.style.setProperty(name, value);
+  }
 
   // Semi Design CSS 变量覆盖
   // 同时设置 html 与 body，确保覆盖 Semi 在 body 上挂载的变量。
