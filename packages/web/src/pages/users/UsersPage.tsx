@@ -17,9 +17,10 @@ import {
   Col,
   Tree,
   Tooltip,
+  Dropdown,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, RotateCcw, Download, Trash2, FileUp, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
+import { Search, Plus, RotateCcw, Download, Trash2, FileUp, ChevronsUpDown, ChevronsDownUp, MoreHorizontal } from 'lucide-react';
 import type { User, Role, PaginatedResponse, Department, Position } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
@@ -450,11 +451,6 @@ export default function UsersPage() {
           {hasPermission('system:user:update') && <Button
             theme="borderless"
             size="small"
-            onClick={() => handleUnlock(record.id)}
-          >解锁</Button>}
-          {hasPermission('system:user:update') && <Button
-            theme="borderless"
-            size="small"
             onClick={() => {
               setPasswordUser(record);
               setPasswordModalVisible(true);
@@ -488,6 +484,20 @@ export default function UsersPage() {
               </Tooltip>
             );
           })()}
+          {hasPermission('system:user:update') && (
+            <Dropdown
+              trigger="click"
+              position="bottomRight"
+              clickToHide
+              render={
+                <Dropdown.Menu>
+                  <Dropdown.Item onClick={() => handleUnlock(record.id)}>解锁</Dropdown.Item>
+                </Dropdown.Menu>
+              }
+            >
+              <Button theme="borderless" size="small" icon={<MoreHorizontal size={14} />} />
+            </Dropdown>
+          )}
         </Space>
       ),
     },
