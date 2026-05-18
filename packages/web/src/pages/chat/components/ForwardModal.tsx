@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, Input, Toast, Typography } from '@douyinfe/semi-ui';
+import { Modal, Input, Toast, Typography, List as SemiList } from '@douyinfe/semi-ui';
 import { Search, CheckSquare, Square } from 'lucide-react';
 import type { ChatConversation } from '@zenith/shared';
 
@@ -51,36 +51,39 @@ export function ForwardModal({
       <Text type="tertiary" style={{ fontSize: 12, display: 'block', marginBottom: 10 }}>
         {mode === 'merge' ? '将所选消息合并为一条聊天记录转发' : '将所选消息逐条独立转发'}
       </Text>
-      <div style={{ maxHeight: 320, overflowY: 'auto', border: '1px solid var(--semi-color-border)', borderRadius: 8 }}>
-        {filtered.length === 0 && (
+      <SemiList
+        bordered
+        size="small"
+        dataSource={filtered}
+        emptyContent={(
           <div style={{ padding: '20px 0', textAlign: 'center' }}>
             <Text type="tertiary" style={{ fontSize: 12 }}>暂无其他会话</Text>
           </div>
         )}
-        {filtered.map((conv) => {
+        style={{ maxHeight: 320, overflowY: 'auto', borderRadius: 8 }}
+        renderItem={(conv: ChatConversation) => {
           const name = conv.type === 'direct' ? (conv.targetUser?.nickname ?? '未知用户') : (conv.name ?? '群聊');
           const isChecked = selected.includes(conv.id);
           return (
-            <button
+            <SemiList.Item
               key={conv.id}
-              type="button"
               onClick={() => toggle(conv.id)}
+              align="center"
               style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '10px 14px', width: '100%', border: 'none',
+                padding: '10px 14px',
                 background: isChecked ? 'var(--semi-color-primary-light-default)' : 'transparent',
-                cursor: 'pointer', textAlign: 'left',
-                borderBottom: '1px solid var(--semi-color-border)',
+                cursor: 'pointer',
               }}
-            >
-              <span style={{ color: isChecked ? 'var(--semi-color-primary)' : 'var(--semi-color-text-3)', flexShrink: 0 }}>
-                {isChecked ? <CheckSquare size={16} /> : <Square size={16} />}
-              </span>
-              <Text style={{ fontSize: 13, flex: 1 }}>{name}</Text>
-            </button>
+              header={(
+                <span style={{ color: isChecked ? 'var(--semi-color-primary)' : 'var(--semi-color-text-3)', flexShrink: 0 }}>
+                  {isChecked ? <CheckSquare size={16} /> : <Square size={16} />}
+                </span>
+              )}
+              main={<Text style={{ fontSize: 13, flex: 1 }}>{name}</Text>}
+            />
           );
-        })}
-      </div>
+        }}
+      />
       {selected.length > 0 && (
         <Text type="tertiary" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>
           已选 {selected.length} 个会话

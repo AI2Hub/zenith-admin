@@ -315,6 +315,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
     dingtalk: { label: '钉钉', icon: <Icon icon="ant-design:dingtalk-outlined" width="16" height="16" /> },
     wechat_work: { label: '企业微信', icon: <Icon icon="ant-design:wechat-work-filled" width="16" height="16" /> },
   };
+  const OAUTH_PROVIDERS: OAuthProviderType[] = ['github', 'dingtalk', 'wechat_work'];
 
   return (
     <div className="page-container">
@@ -497,25 +498,35 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                   <div className="section-divider" />
 
                   <div className="section-title">第三方账号绑定</div>
-                  {oauthLoading ? (
-                    <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      {(['github', 'dingtalk', 'wechat_work'] as OAuthProviderType[]).map((provider) => {
+                  <SemiList
+                    bordered
+                    className="oauth-list"
+                    dataSource={OAUTH_PROVIDERS}
+                    loading={oauthLoading}
+                    renderItem={(provider: OAuthProviderType) => {
                         const info = PROVIDER_INFO[provider];
                         const bound = oauthAccounts.find((a) => a.provider === provider);
                         return (
-                          <div key={provider} className="oauth-item">
-                            <Space>
+                          <SemiList.Item
+                            key={provider}
+                            align="center"
+                            className="oauth-list-item"
+                            header={(
+                              <span className="oauth-list-icon">
                               {info.icon}
-                              <Text strong>{info.label}</Text>
-                              {bound ? (
-                                <Tag color="green" size="small">已绑定 · {bound.nickname || bound.openId}</Tag>
-                              ) : (
-                                <Tag color="grey" size="small">未绑定</Tag>
-                              )}
-                            </Space>
-                            {bound ? (
+                              </span>
+                            )}
+                            main={(
+                              <div className="oauth-list-main">
+                                <Text strong>{info.label}</Text>
+                                {bound ? (
+                                  <Tag color="green" size="small">已绑定 · {bound.nickname || bound.openId}</Tag>
+                                ) : (
+                                  <Tag color="grey" size="small">未绑定</Tag>
+                                )}
+                              </div>
+                            )}
+                            extra={bound ? (
                               <Button theme="borderless" type="danger" size="small" onClick={() => {
                                 Modal.confirm({
                                   title: `确定要解绑 ${info.label} 账号吗？`,
@@ -526,11 +537,10 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                             ) : (
                               <Button theme="borderless" size="small" onClick={() => handleOAuthBind(provider)}>绑定</Button>
                             )}
-                          </div>
+                          />
                         );
-                      })}
-                    </div>
-                  )}
+                    }}
+                  />
               </div>
             </Tabs.TabPane>
 

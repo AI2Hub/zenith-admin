@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Button, Tag, Space, Modal, Toast, Spin, Typography, Input } from '@douyinfe/semi-ui';
+import { Button, Tag, Space, Modal, Toast, Spin, Typography, Input, List as SemiList } from '@douyinfe/semi-ui';
 import { RefreshCw, FileText, Activity, StopCircle, Download, Trash2, Search } from 'lucide-react';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
@@ -211,55 +211,55 @@ export default function LogFilesPage() {
           />
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {files.length === 0 && !listLoading && (
-            <div style={{ padding: '24px 16px', textAlign: 'center' }}>
-              <Typography.Text type="tertiary" size="small">暂无日志文件</Typography.Text>
-            </div>
-          )}
-          {files.length > 0 && filteredFiles.length === 0 && !listLoading && (
-            <div style={{ padding: '24px 16px', textAlign: 'center' }}>
-              <Typography.Text type="tertiary" size="small">未找到匹配的日志文件</Typography.Text>
-            </div>
-          )}
-          {filteredFiles.map(file => (
-            <button
-              key={file.name}
-              type="button"
-              onClick={() => selectFile(file)}
-              style={{
-                padding: '10px 12px',
-                cursor: 'pointer',
-                borderBottom: '1px solid var(--semi-color-fill-1)',
-                background: selected?.name === file.name ? 'var(--semi-color-primary-light-default)' : 'transparent',
-                transition: 'background 0.15s',
-                width: '100%',
-                textAlign: 'left',
-                border: 'none',
-                outline: 'none',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 4 }}>
-                <FileText size={13} style={{ color: 'var(--semi-color-primary)', flexShrink: 0, marginTop: 2 }} />
-                <span style={{
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                  fontWeight: selected?.name === file.name ? 600 : 400,
-                  color: 'var(--semi-color-text-0)',
-                  wordBreak: 'break-all',
-                  lineHeight: 1.4,
-                }}>
-                  {file.name}
-                </span>
+          <SemiList
+            dataSource={filteredFiles}
+            loading={listLoading}
+            emptyContent={(
+              <div style={{ padding: '24px 16px', textAlign: 'center' }}>
+                <Typography.Text type="tertiary" size="small">
+                  {files.length === 0 ? '暂无日志文件' : '未找到匹配的日志文件'}
+                </Typography.Text>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 19 }}>
-                <Tag color={file.isGzip ? 'grey' : 'blue'} size="small">{file.isGzip ? 'gz' : 'log'}</Tag>
-                <Typography.Text type="tertiary" size="small">{formatFileSize(file.size)}</Typography.Text>
-              </div>
-              <div style={{ paddingLeft: 19, marginTop: 2 }}>
-                <Typography.Text type="tertiary" size="small">{formatDateTime(file.modifiedAt)}</Typography.Text>
-              </div>
-            </button>
-          ))}
+            )}
+            renderItem={(file: LogFile) => {
+              const active = selected?.name === file.name;
+              return (
+                <SemiList.Item
+                  key={file.name}
+                  align="flex-start"
+                  onClick={() => selectFile(file)}
+                  style={{
+                    padding: '10px 12px',
+                    cursor: 'pointer',
+                    background: active ? 'var(--semi-color-primary-light-default)' : 'transparent',
+                    transition: 'background 0.15s',
+                  }}
+                  header={<FileText size={13} style={{ color: 'var(--semi-color-primary)', flexShrink: 0, marginTop: 2 }} />}
+                  main={(
+                    <div style={{ minWidth: 0 }}>
+                      <span style={{
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                        fontWeight: active ? 600 : 400,
+                        color: 'var(--semi-color-text-0)',
+                        wordBreak: 'break-all',
+                        lineHeight: 1.4,
+                      }}>
+                        {file.name}
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                        <Tag color={file.isGzip ? 'grey' : 'blue'} size="small">{file.isGzip ? 'gz' : 'log'}</Tag>
+                        <Typography.Text type="tertiary" size="small">{formatFileSize(file.size)}</Typography.Text>
+                      </div>
+                      <div style={{ marginTop: 2 }}>
+                        <Typography.Text type="tertiary" size="small">{formatDateTime(file.modifiedAt)}</Typography.Text>
+                      </div>
+                    </div>
+                  )}
+                />
+              );
+            }}
+          />
         </div>
       </div>
 
