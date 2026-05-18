@@ -691,9 +691,11 @@
 }
 
 .admin-tab-item__close:hover {
+  opacity: 1;
   background: var(--semi-color-fill-1, rgba(0, 0, 0, 0.06));
 }
 
+.admin-tab-item--active .admin-tab-item__close,
 .admin-tab-item:hover .admin-tab-item__close {
   opacity: 1;
 }
