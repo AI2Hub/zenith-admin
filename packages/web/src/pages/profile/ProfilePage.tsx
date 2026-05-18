@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Card, Form, Button, Typography, Toast, Avatar, Tag, Space, Spin,
-  Modal, Cropper, Input, Tabs, DatePicker,
+  Modal, Cropper, Input, Tabs, DatePicker, List as SemiList,
 } from '@douyinfe/semi-ui';
 import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle } from 'lucide-react';
 import { Icon } from '@iconify/react';
@@ -27,39 +27,65 @@ interface ProfilePageProps {
   readonly onUserUpdate: (user: Omit<UserType, 'password'>) => void;
 }
 
-function SessionList({ sessions, onKick }: { readonly sessions: UserSession[]; readonly onKick: (tokenId: string) => void }) {
-  if (sessions.length === 0) {
-    return <div style={{ textAlign: 'center', padding: 40, color: 'var(--semi-color-text-2)' }}>暂无在线设备信息</div>;
-  }
+function SessionList({
+  sessions,
+  loading,
+  onKick,
+}: {
+  readonly sessions: UserSession[];
+  readonly loading?: boolean;
+  readonly onKick: (tokenId: string) => void;
+}) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {sessions.map((session) => (
-        <div key={session.tokenId} className={`session-item${session.isCurrent ? ' current' : ''}`}>
-          <div className="session-info">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <Monitor size={15} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }} />
-              <Text strong>{session.browser}</Text>
-              {session.isCurrent && <Tag color="blue" size="small">当前设备</Tag>}
+    <SemiList
+      bordered
+      className="session-list"
+      dataSource={sessions}
+      emptyContent={<div style={{ textAlign: 'center', padding: 40, color: 'var(--semi-color-text-2)' }}>暂无在线设备信息</div>}
+      loading={loading}
+      renderItem={(session: UserSession) => (
+        <SemiList.Item
+          key={session.tokenId}
+          align="center"
+          className={`session-list-item${session.isCurrent ? ' current' : ''}`}
+          header={(
+            <div className="session-list-icon">
+              <Monitor size={17} />
             </div>
-            <Text type="tertiary" size="small" style={{ display: 'block' }}>
-              {session.os} · IP: {session.ip}
-            </Text>
-            <Text type="tertiary" size="small" style={{ display: 'block' }}>
-              登录于 {formatDateTime(session.loginAt)} · 最后活跃 {formatDateTime(session.lastActiveAt)}
-            </Text>
-          </div>
-          {!session.isCurrent && (
-            <Button theme="borderless" type="danger" size="small" onClick={() => {
-              Modal.confirm({
-                title: '确定要退出该设备吗？',
-                okButtonProps: { type: 'danger', theme: 'solid' },
-                onOk: () => onKick(session.tokenId),
-              });
-            }}>退出</Button>
           )}
-        </div>
-      ))}
-    </div>
+          main={(
+            <div className="session-list-main">
+              <div className="session-list-title">
+                <Text strong>{session.browser}</Text>
+                {session.isCurrent && <Tag color="blue" size="small">当前设备</Tag>}
+              </div>
+              <Text type="tertiary" size="small" className="session-list-meta">
+                {session.os} · IP: {session.ip}
+              </Text>
+              <Text type="tertiary" size="small" className="session-list-meta">
+                登录于 {formatDateTime(session.loginAt)} · 最后活跃 {formatDateTime(session.lastActiveAt)}
+              </Text>
+            </div>
+          )}
+          extra={!session.isCurrent && (
+            <Button
+              theme="borderless"
+              type="danger"
+              size="small"
+              onClick={() => {
+                Modal.confirm({
+                  title: '确定要退出该设备吗？',
+                  okButtonProps: { type: 'danger', theme: 'solid' },
+                  onOk: () => onKick(session.tokenId),
+                });
+              }}
+            >
+              退出
+            </Button>
+          )}
+        />
+      )}
+    />
   );
 }
 
@@ -527,11 +553,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                       退出其他设备
                     </Button>
                   </div>
-                  {sessionsLoading ? (
-                    <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
-                  ) : (
-                    <SessionList sessions={sessions} onKick={handleKickSession} />
-                  )}
+                  <SessionList sessions={sessions} loading={sessionsLoading} onKick={handleKickSession} />
               </div>
             </Tabs.TabPane>
 
