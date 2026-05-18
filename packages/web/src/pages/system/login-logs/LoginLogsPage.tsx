@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Input, Button, Tag, Select, DatePicker, Modal } from '@douyinfe/semi-ui';
+import { useState, useEffect, useCallback } from 'react';
+import { Input, Button, Select, DatePicker } from '@douyinfe/semi-ui';
 import { Search, RotateCcw, Download } from 'lucide-react';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import ConfigurableTable from '@/components/ConfigurableTable';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { LoginLogsTable } from '@/components/logs/LoginLogsTable';
+import { formatDateTimeForApi } from '@/utils/date';
 import type { LoginLog, PaginatedResponse } from '@zenith/shared';
 
 export default function LoginLogsPage() {
@@ -23,7 +23,6 @@ export default function LoginLogsPage() {
   const [pageSize, setPageSize] = useState(10);
 
   const [searchParams, setSearchParams] = useState<SearchParams>(defaultParams);
-  const [detailLog, setDetailLog] = useState<LoginLog | null>(null);
 
   const fetchData = useCallback(async (p = page, ps = pageSize, params = searchParams) => {
     setLoading(true);
@@ -65,46 +64,6 @@ export default function LoginLogsPage() {
     fetchData(1, pageSize, defaultParams);
   };
 
-  const columns = [
-    { title: 'ID', dataIndex: 'id', width: 80 },
-    { title: '用户名', dataIndex: 'username', width: 120 },
-    { title: '登录信息', dataIndex: 'message', width: 150 },
-    { title: 'IP 地址', dataIndex: 'ip', width: 150 },
-    { title: '浏览器', dataIndex: 'browser', width: 150 },
-    { title: '操作系统', dataIndex: 'os', width: 150 },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 100,
-      render: (status: string) => (
-        <Tag color={status === 'success' ? 'green' : 'red'}>
-          {status === 'success' ? '成功' : '失败'}
-        </Tag>
-      ),
-    },
-    {
-      title: '登录时间',
-      dataIndex: 'createdAt',
-      width: 180,
-      render: (v: string) => formatDateTime(v),
-    },
-    {
-      title: '操作',
-      width: 80,
-      fixed: 'right' as const,
-      render: (_: unknown, record: LoginLog) => (
-        <Button
-          theme="borderless"
-          type="primary"
-          size="small"
-          onClick={() => setDetailLog(record)}
-        >
-          详情
-        </Button>
-      ),
-    },
-  ];
-
   return (
     <div className="page-container">
       <SearchToolbar>
@@ -143,9 +102,7 @@ export default function LoginLogsPage() {
           <Button type="primary" icon={<Download size={14} />} loading={exportLoading} onClick={async () => { setExportLoading(true); try { await request.download('/api/login-logs/export', '登录日志.xlsx'); } finally { setExportLoading(false); } }}>导出</Button>
       </SearchToolbar>
 
-      <ConfigurableTable
-        bordered
-        columns={columns}
+      <LoginLogsTable
         dataSource={data}
         loading={loading}
         pagination={{
@@ -157,43 +114,6 @@ export default function LoginLogsPage() {
           showSizeChanger: true,
         }}
       />
-
-      <Modal
-        title="登录日志详情"
-        visible={detailLog !== null}
-        onCancel={() => setDetailLog(null)}
-        footer={null}
-        width={560}
-        style={{ top: 40 }}
-      >
-        {detailLog && (
-          <div style={{ padding: '4px 0' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
-              {([
-                ['ID', String(detailLog.id)],
-                ['用户名', detailLog.username],
-                ['状态', null],
-                ['登录信息', detailLog.message ?? '-'],
-                ['IP 地址', detailLog.ip ?? '-'],
-                ['浏览器', detailLog.browser ?? '-'],
-                ['操作系统', detailLog.os ?? '-'],
-                ['登录时间', formatDateTime(detailLog.createdAt)],
-              ] as const).map(([label, value]) => (
-                <div key={label} style={{ padding: '8px 0', borderBottom: '1px solid var(--semi-color-border)' }}>
-                  <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginBottom: 2 }}>{label}</div>
-                  <div style={{ fontSize: 13, wordBreak: 'break-all' }}>
-                    {label === '状态'
-                      ? <Tag color={detailLog.status === 'success' ? 'green' : 'red'} size="small">
-                        {detailLog.status === 'success' ? '成功' : '失败'}
-                      </Tag>
-                      : value}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

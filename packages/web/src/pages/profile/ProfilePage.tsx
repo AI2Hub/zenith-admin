@@ -14,6 +14,8 @@ import { request } from '@/utils/request';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { formatPasswordPolicyHint, type PasswordPolicy } from '@/utils/password-policy';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { LoginLogsTable } from '@/components/logs/LoginLogsTable';
+import { OperationLogsTable } from '@/components/logs/OperationLogsTable';
 import './ProfilePage.css';
 
 const { Title, Text } = Typography;
@@ -545,11 +547,10 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                   size="small"
                 >
                   <Tabs.TabPane itemKey="login" tab="登录记录">
-                    <ConfigurableTable
-                      bordered
+                    <LoginLogsTable
                       loading={loginLogsLoading}
                       dataSource={loginLogs}
-                      rowKey="id"
+                      columnSettingsKey="profile-login-logs"
                       pagination={{
                         total: loginLogsTotal,
                         currentPage: loginLogsPage,
@@ -557,24 +558,13 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                         showSizeChanger: false,
                         onPageChange: (page) => void fetchLoginLogs(page),
                       }}
-                      columns={[
-                        { title: '登录时间', dataIndex: 'createdAt', render: (v: string) => formatDateTime(v), width: 180 },
-                        { title: 'IP', dataIndex: 'ip', width: 140 },
-                        { title: '浏览器', dataIndex: 'browser' },
-                        { title: '操作系统', dataIndex: 'os' },
-                        {
-                          title: '状态', dataIndex: 'status', width: 80,
-                          render: (v: string) => <Tag color={v === 'success' ? 'green' : 'red'} size="small">{v === 'success' ? '成功' : '失败'}</Tag>,
-                        },
-                      ]}
                     />
                   </Tabs.TabPane>
                   <Tabs.TabPane itemKey="operation" tab="操作记录">
-                    <ConfigurableTable
-                      bordered
+                    <OperationLogsTable
                       loading={operationLogsLoading}
                       dataSource={operationLogs}
-                      rowKey="id"
+                      columnSettingsKey="profile-operation-logs"
                       pagination={{
                         total: operationLogsTotal,
                         currentPage: operationLogsPage,
@@ -582,12 +572,6 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                         showSizeChanger: false,
                         onPageChange: (page) => void fetchOperationLogs(page),
                       }}
-                      columns={[
-                        { title: '操作时间', dataIndex: 'createdAt', render: (v: string) => formatDateTime(v), width: 180 },
-                        { title: '操作模块', dataIndex: 'module', width: 120 },
-                        { title: '操作描述', dataIndex: 'description' },
-                        { title: '请求方法', dataIndex: 'method', width: 90 },
-                      ]}
                     />
                   </Tabs.TabPane>
                 </Tabs>
