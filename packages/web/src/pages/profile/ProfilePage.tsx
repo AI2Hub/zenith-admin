@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Card, Form, Button, Typography, Toast, Avatar, Tag, Space, Spin,
-  Modal, Cropper, Input, Tabs,
+  Modal, Cropper, Input, Tabs, DatePicker,
 } from '@douyinfe/semi-ui';
 import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle } from 'lucide-react';
 import { Icon } from '@iconify/react';
@@ -11,7 +11,7 @@ import type {
   UserSession, UserApiToken, UserApiTokenCreated,
 } from '@zenith/shared';
 import { request } from '@/utils/request';
-import { formatDateTime } from '@/utils/date';
+import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { formatPasswordPolicyHint, type PasswordPolicy } from '@/utils/password-policy';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import './ProfilePage.css';
@@ -103,6 +103,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
   const [apiTokensLoading, setApiTokensLoading] = useState(false);
   const [newTokenVisible, setNewTokenVisible] = useState(false);
   const [newTokenName, setNewTokenName] = useState('');
+  const [newTokenExpiresAt, setNewTokenExpiresAt] = useState<Date | null>(null);
   const [newTokenCreating, setNewTokenCreating] = useState(false);
   const [createdToken, setCreatedToken] = useState<UserApiTokenCreated | null>(null);
   const [tokenCopied, setTokenCopied] = useState(false);
@@ -250,11 +251,14 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
   async function handleCreateToken() {
     if (!newTokenName.trim()) { Toast.error('请填写 Token 名称'); return; }
     setNewTokenCreating(true);
-    const res = await request.post<UserApiTokenCreated>('/api/api-tokens', { name: newTokenName.trim() });
+    const body: { name: string; expiresAt?: string } = { name: newTokenName.trim() };
+    if (newTokenExpiresAt) body.expiresAt = formatDateTimeForApi(newTokenExpiresAt);
+    const res = await request.post<UserApiTokenCreated>('/api/api-tokens', body);
     setNewTokenCreating(false);
     if (res.code === 0) {
       setCreatedToken(res.data);
       setNewTokenName('');
+      setNewTokenExpiresAt(null);
       setNewTokenVisible(false);
       void fetchApiTokens();
     }
@@ -673,10 +677,10 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
       <Modal
         title="新建 API Token"
         visible={newTokenVisible}
-        onCancel={() => { setNewTokenVisible(false); setNewTokenName(''); }}
+        onCancel={() => { setNewTokenVisible(false); setNewTokenName(''); setNewTokenExpiresAt(null); }}
         footer={
           <Space>
-            <Button onClick={() => { setNewTokenVisible(false); setNewTokenName(''); }}>取消</Button>
+            <Button onClick={() => { setNewTokenVisible(false); setNewTokenName(''); setNewTokenExpiresAt(null); }}>取消</Button>
             <Button type="primary" loading={newTokenCreating} onClick={handleCreateToken}>创建</Button>
           </Space>
         }
@@ -690,6 +694,16 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
               onChange={setNewTokenName}
               placeholder="如：本地开发、CI/CD 环境"
               style={{ width: '100%' }}
+            />
+          </Form.Slot>
+          <Form.Slot label="过期时间">
+            <DatePicker
+              type="dateTime"
+              value={newTokenExpiresAt ?? undefined}
+              onChange={(v) => setNewTokenExpiresAt(v ? new Date(v as Date) : null)}
+              placeholder="不填则永久有效"
+              style={{ width: '100%' }}
+              disabledDate={(date) => !!date && date < new Date()}
             />
           </Form.Slot>
         </Form>
