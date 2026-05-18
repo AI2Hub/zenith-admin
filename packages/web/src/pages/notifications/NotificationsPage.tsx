@@ -1,16 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import DOMPurify from 'dompurify';
 import {
-  Button, Tag, Space, Tabs, TabPane, Modal, Typography, Toast, Empty, Badge, Divider,
+  Button, Tag, Space, Tabs, TabPane, Toast, Empty, Badge,
 } from '@douyinfe/semi-ui';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
-import { CheckCheck, Bell, Clock, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckCheck, Bell } from 'lucide-react';
 import type { Notice } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import ConfigurableTable from '@/components/ConfigurableTable';
-
-const { Text } = Typography;
+import NoticeDetailModal from '@/components/NoticeDetailModal';
 
 type NoticeWithRead = Notice & { isRead: boolean };
 
@@ -230,82 +228,16 @@ export default function NotificationsPage() {
         />
       )}
 
-      <Modal
+      <NoticeDetailModal
         visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        width={600}
-        title={
-          <Space spacing={8}>
-            <BookOpen size={16} strokeWidth={1.5} style={{ color: 'var(--semi-color-primary)', flexShrink: 0 }} />
-            <span>{selected?.title ?? ''}</span>
-          </Space>
-        }
-        footer={
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Space>
-              <Button
-                icon={<ChevronLeft size={14} />}
-                disabled={selectedIndex <= 0}
-                onClick={handlePrev}
-              >上一条</Button>
-              <Button
-                icon={<ChevronRight size={14} />}
-                iconPosition="right"
-                disabled={selectedIndex >= list.length - 1}
-                onClick={handleNext}
-              >下一条</Button>
-            </Space>
-            <Space>
-              <Text type="tertiary" size="small">{selectedIndex + 1} / {list.length}</Text>
-              <Button onClick={() => setModalVisible(false)}>关闭</Button>
-            </Space>
-          </div>
-        }
-        closeOnEsc
-      >
-        {selected && (
-          <div>
-            {/* 元信息区 */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: 8,
-              marginBottom: 16,
-              paddingBottom: 12,
-              borderBottom: '1px solid var(--semi-color-border)',
-            }}>
-              <Tag size="small" color="blue">{TYPE_LABEL[selected.type] ?? selected.type}</Tag>
-              <Tag color={PRIORITY_COLOR[selected.priority] ?? 'blue'} size="small">
-                {PRIORITY_LABEL[selected.priority] ?? selected.priority}
-              </Tag>
-              <Divider layout="vertical" style={{ height: 12, margin: '0 2px' }} />
-              <Space spacing={4}>
-                <Clock size={12} strokeWidth={1.5} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }} />
-                <Text type="tertiary" size="small">
-                  {formatDateTime(selected.publishTime ?? selected.createdAt)}
-                </Text>
-              </Space>
-              <div style={{ marginLeft: 'auto' }}>
-                <Tag color={selected.isRead ? 'grey' : 'blue'} size="small">
-                  {selected.isRead ? '已读' : '未读'}
-                </Tag>
-              </div>
-            </div>
-            {/* 正文区 */}
-            <div
-              style={{
-                lineHeight: 1.9,
-                color: 'var(--semi-color-text-0)',
-                minHeight: 80,
-                fontSize: 14,
-                padding: '0 2px',
-              }}
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(selected.content) }}
-            />
-          </div>
-        )}
-      </Modal>
+        notice={selected}
+        onClose={() => setModalVisible(false)}
+        onPrev={handlePrev}
+        onNext={handleNext}
+        hasPrev={selectedIndex > 0}
+        hasNext={selectedIndex < list.length - 1}
+        indexLabel={selected ? `${selectedIndex + 1} / ${list.length}` : undefined}
+      />
     </div>
   );
 }

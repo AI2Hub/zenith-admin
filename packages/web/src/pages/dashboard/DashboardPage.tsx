@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import DOMPurify from 'dompurify';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, Calendar, Typography, Tag, Space, Skeleton, Empty, List, Modal } from '@douyinfe/semi-ui';
+import { Button, Card, Calendar, Typography, Tag, Space, Skeleton, Empty, List } from '@douyinfe/semi-ui';
 import {
   LineChart, Line,
   AreaChart, Area,
@@ -21,6 +20,7 @@ import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import type { Notice } from '@zenith/shared';
 import { usePermission } from '@/hooks/usePermission';
+import NoticeDetailModal from '@/components/NoticeDetailModal';
 import './DashboardPage.css';
 
 const { Text } = Typography;
@@ -247,13 +247,6 @@ export default function DashboardPage() {
     );
   }
 
-  const noticeTypeInfo = selectedNotice
-    ? (NOTICE_TYPE_MAP[selectedNotice.type] ?? { label: selectedNotice.type, color: 'blue' as TagColor })
-    : null;
-  const noticePriInfo = selectedNotice
-    ? (NOTICE_PRIORITY_MAP[selectedNotice.priority] ?? { label: selectedNotice.priority, color: 'grey' as TagColor })
-    : null;
-
   return (
     <div className="page-container dashboard-page">
       {isAdmin && (
@@ -459,32 +452,11 @@ export default function DashboardPage() {
       </div>
 
       {/* ===== 通知详情 Modal ===== */}
-      <Modal
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span>{selectedNotice?.title}</span>
-            {noticeTypeInfo && <Tag color={noticeTypeInfo.color} size="small">{noticeTypeInfo.label}</Tag>}
-            {noticePriInfo && <Tag color={noticePriInfo.color} size="small">{noticePriInfo.label}</Tag>}
-          </div>
-        }
+      <NoticeDetailModal
         visible={selectedNotice !== null}
-        onCancel={() => setSelectedNotice(null)}
-        footer={null}
-        width={640}
-        closeOnEsc
-      >
-        {selectedNotice && (
-          <div>
-            <div style={{ marginBottom: 12, color: 'var(--semi-color-text-3)', fontSize: 12 }}>
-              {selectedNotice.createByName ?? '-'} · {formatDateTime(selectedNotice.publishTime ?? selectedNotice.createdAt)}
-            </div>
-            <div
-              className="notice-modal-content"
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(selectedNotice.content) }}
-            />
-          </div>
-        )}
-      </Modal>
+        notice={selectedNotice}
+        onClose={() => setSelectedNotice(null)}
+      />
     </div>
   );
 }
