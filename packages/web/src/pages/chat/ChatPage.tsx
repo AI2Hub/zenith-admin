@@ -2362,42 +2362,48 @@ export default function ChatPage({
               {/* ⑥ 发送失败重试 */}
               {failedMessages.filter((m) => m.convId === activeConvId).length > 0 && (
                 <div style={{ padding: isQuick ? '0 12px 8px' : '0 20px 8px', flexShrink: 0 }}>
-                  {failedMessages.filter((m) => m.convId === activeConvId).map((failed) => (
-                    <div
-                      key={failed.id}
-                      style={{
-                        display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 12px',
-                        background: 'var(--semi-color-danger-light-default)',
-                        border: '1px solid var(--semi-color-danger-light-active)',
-                        borderRadius: 8, margin: '4px 0',
-                      }}
-                    >
-                      <AlertCircle size={14} style={{ color: 'var(--semi-color-danger)', marginTop: 2, flexShrink: 0 }} />
-                      <span style={{ flex: 1, fontSize: 13, wordBreak: 'break-word', color: 'var(--semi-color-text-0)' }}>
-                        {failed.content}
-                      </span>
-                      <Button
-                        size="small"
-                        type="danger"
-                        theme="borderless"
-                        onClick={() => {
-                          setFailedMessages((prev) => prev.filter((m) => m.id !== failed.id));
-                          setInput(failed.content);
-                          requestAnimationFrame(() => inputRef.current?.focus());
+                  <SemiList
+                    split={false}
+                    dataSource={failedMessages.filter((m) => m.convId === activeConvId)}
+                    renderItem={(failed) => (
+                      <SemiList.Item
+                        key={failed.id}
+                        style={{
+                          padding: '8px 12px', margin: '4px 0',
+                          background: 'var(--semi-color-danger-light-default)',
+                          border: '1px solid var(--semi-color-danger-light-active)',
+                          borderRadius: 8,
                         }}
                       >
-                        重试
-                      </Button>
-                      <Button
-                        size="small"
-                        theme="borderless"
-                        type="tertiary"
-                        onClick={() => setFailedMessages((prev) => prev.filter((m) => m.id !== failed.id))}
-                      >
-                        忽略
-                      </Button>
-                    </div>
-                  ))}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                          <AlertCircle size={14} style={{ color: 'var(--semi-color-danger)', marginTop: 2, flexShrink: 0 }} />
+                          <span style={{ flex: 1, fontSize: 13, wordBreak: 'break-word', color: 'var(--semi-color-text-0)' }}>
+                            {failed.content}
+                          </span>
+                          <Button
+                            size="small"
+                            type="danger"
+                            theme="borderless"
+                            onClick={() => {
+                              setFailedMessages((prev) => prev.filter((m) => m.id !== failed.id));
+                              setInput(failed.content);
+                              requestAnimationFrame(() => inputRef.current?.focus());
+                            }}
+                          >
+                            重试
+                          </Button>
+                          <Button
+                            size="small"
+                            theme="borderless"
+                            type="tertiary"
+                            onClick={() => setFailedMessages((prev) => prev.filter((m) => m.id !== failed.id))}
+                          >
+                            忽略
+                          </Button>
+                        </div>
+                      </SemiList.Item>
+                    )}
+                  />
                 </div>
               )}
               {pendingNewMsgCount > 0 && (
@@ -2519,35 +2525,40 @@ export default function ChatPage({
                   {searchHasSearched && searchResults.length === 0 && !searchLoading && (
                     <Empty description="没有找到符合条件的消息" style={{ paddingTop: 48 }} imageStyle={{ width: 72 }} />
                   )}
-                  {searchResults.map((item) => {
-                    const typeLabel = CHAT_MESSAGE_TYPE_OPTIONS.find((option) => option.value === item.message.type)?.label ?? item.message.type;
-                    return (
-                      <button
-                        key={item.message.id}
-                        type="button"
-                        onClick={() => { void jumpToSearchResult(item); }}
-                        style={{
-                          width: '100%', textAlign: 'left', border: '1px solid var(--semi-color-border)', background: 'var(--semi-color-bg-0)', borderRadius: 8,
-                          padding: '10px 12px', marginBottom: 10, cursor: 'pointer',
-                        }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--semi-color-fill-0)'; }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--semi-color-bg-0)'; }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                            <Tag size="small" color="light-blue">{typeLabel}</Tag>
-                            <Text strong style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {item.message.senderName ?? '未知发送人'}
+                  <SemiList
+                    split={false}
+                    dataSource={searchResults}
+                    renderItem={(item) => {
+                      const typeLabel = CHAT_MESSAGE_TYPE_OPTIONS.find((option) => option.value === item.message.type)?.label ?? item.message.type;
+                      return (
+                        <SemiList.Item key={item.message.id} style={{ padding: 0, marginBottom: 10, border: 'none' }}>
+                          <button
+                            type="button"
+                            onClick={() => { void jumpToSearchResult(item); }}
+                            style={{
+                              width: '100%', textAlign: 'left', border: '1px solid var(--semi-color-border)', background: 'var(--semi-color-bg-0)', borderRadius: 8,
+                              padding: '10px 12px', cursor: 'pointer',
+                            }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--semi-color-fill-0)'; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--semi-color-bg-0)'; }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                                <Tag size="small" color="light-blue">{typeLabel}</Tag>
+                                <Text strong style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {item.message.senderName ?? '未知发送人'}
+                                </Text>
+                              </div>
+                              <Text type="tertiary" style={{ fontSize: 11, flexShrink: 0 }}>{formatConvTime(item.message.createdAt)}</Text>
+                            </div>
+                            <Text style={{ display: 'block', fontSize: 12, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                              {item.snippet}
                             </Text>
-                          </div>
-                          <Text type="tertiary" style={{ fontSize: 11, flexShrink: 0 }}>{formatConvTime(item.message.createdAt)}</Text>
-                        </div>
-                        <Text style={{ display: 'block', fontSize: 12, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                          {item.snippet}
-                        </Text>
-                      </button>
-                    );
-                  })}
+                          </button>
+                        </SemiList.Item>
+                      );
+                    }}
+                  />
 
                   {searchHasSearched && searchResults.length < searchTotal && (
                     <div style={{ textAlign: 'center', marginTop: 4 }}>
@@ -2624,78 +2635,85 @@ export default function ChatPage({
                       </div>
                     )}
                     {mediaType === 'file' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {mediaItems.map((item) => {
+                      <SemiList
+                        split={false}
+                        dataSource={mediaItems}
+                        renderItem={(item) => {
                           const asset = item.extra?.asset;
                           return (
-                            <div
+                            <SemiList.Item
                               key={item.id}
-                              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--semi-color-bg-0)', border: '1px solid var(--semi-color-border)', borderRadius: 8 }}
+                              style={{ padding: '8px 10px', background: 'var(--semi-color-bg-0)', border: '1px solid var(--semi-color-border)', borderRadius: 8, marginBottom: 8 }}
                             >
-                              <span style={{ fontSize: 22, flexShrink: 0 }}>{getFileTypeIcon(asset?.name ?? '')}</span>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <Text strong style={{ fontSize: 12, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {asset?.name ?? '未知文件'}
-                                </Text>
-                                <Text type="tertiary" style={{ fontSize: 11 }}>
-                                  {asset?.size ? formatFileSize(asset.size) : ''}
-                                </Text>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontSize: 22, flexShrink: 0 }}>{getFileTypeIcon(asset?.name ?? '')}</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <Text strong style={{ fontSize: 12, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {asset?.name ?? '未知文件'}
+                                  </Text>
+                                  <Text type="tertiary" style={{ fontSize: 11 }}>
+                                    {asset?.size ? formatFileSize(asset.size) : ''}
+                                  </Text>
+                                </div>
+                                <Button
+                                  size="small"
+                                  theme="borderless"
+                                  type="primary"
+                                  onClick={() => { window.open(item.content, '_blank'); }}
+                                >
+                                  下载
+                                </Button>
                               </div>
-                              <Button
-                                size="small"
-                                theme="borderless"
-                                type="primary"
-                                onClick={() => { window.open(item.content, '_blank'); }}
-                              >
-                                下载
-                              </Button>
-                            </div>
+                            </SemiList.Item>
                           );
-                        })}
-                      </div>
+                        }}
+                      />
                     )}
                     {mediaType === 'link' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {mediaItems.map((item) => {
+                      <SemiList
+                        split={false}
+                        dataSource={mediaItems}
+                        renderItem={(item) => {
                           const preview = item.extra?.linkPreview;
                           const urlMatch = preview?.url ?? (/(https?:\/\/[^\s]+)/.exec(item.content)?.[1] ?? item.content);
                           return (
-                            <a
-                              key={item.id}
-                              href={urlMatch}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{ display: 'flex', gap: 10, padding: '10px 12px', background: 'var(--semi-color-bg-0)', border: '1px solid var(--semi-color-border)', borderRadius: 8, textDecoration: 'none', color: 'inherit', alignItems: 'flex-start' }}
-                            >
-                              {preview?.image && (
-                                <img
-                                  src={preview.image}
-                                  alt=""
-                                  style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
-                                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                                />
-                              )}
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <Text strong style={{ fontSize: 12, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {preview?.title ?? urlMatch}
-                                </Text>
-                                <Text type="tertiary" style={{ fontSize: 11, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
-                                  {urlMatch}
-                                </Text>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
-                                  {preview?.favicon && (
-                                    <img src={preview.favicon} alt="" style={{ width: 12, height: 12, borderRadius: 2 }}
-                                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                                    />
-                                  )}
-                                  <Text type="secondary" style={{ fontSize: 11 }}>{preview?.siteName ?? item.senderName}</Text>
-                                  <Text type="tertiary" style={{ fontSize: 11, marginLeft: 'auto' }}>{formatDateTime(item.createdAt)}</Text>
+                            <SemiList.Item key={item.id} style={{ padding: 0, marginBottom: 8, border: 'none' }}>
+                              <a
+                                href={urlMatch}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ display: 'flex', gap: 10, padding: '10px 12px', background: 'var(--semi-color-bg-0)', border: '1px solid var(--semi-color-border)', borderRadius: 8, textDecoration: 'none', color: 'inherit', alignItems: 'flex-start' }}
+                              >
+                                {preview?.image && (
+                                  <img
+                                    src={preview.image}
+                                    alt=""
+                                    style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
+                                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                  />
+                                )}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <Text strong style={{ fontSize: 12, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {preview?.title ?? urlMatch}
+                                  </Text>
+                                  <Text type="tertiary" style={{ fontSize: 11, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                                    {urlMatch}
+                                  </Text>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                                    {preview?.favicon && (
+                                      <img src={preview.favicon} alt="" style={{ width: 12, height: 12, borderRadius: 2 }}
+                                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                      />
+                                    )}
+                                    <Text type="secondary" style={{ fontSize: 11 }}>{preview?.siteName ?? item.senderName}</Text>
+                                    <Text type="tertiary" style={{ fontSize: 11, marginLeft: 'auto' }}>{formatDateTime(item.createdAt)}</Text>
+                                  </div>
                                 </div>
-                              </div>
-                            </a>
+                              </a>
+                            </SemiList.Item>
                           );
-                        })}
-                      </div>
+                        }}
+                      />
                     )}
                     {mediaHasMore && (
                       <div style={{ textAlign: 'center', marginTop: 8 }}>

@@ -1,4 +1,4 @@
-import { Typography } from '@douyinfe/semi-ui';
+import { Typography, List } from '@douyinfe/semi-ui';
 import { getFileTypeIcon, formatFileSize } from '@/utils/file-utils';
 import { getMessageExtra, renderTextWithMentions } from '../utils';
 import type { ChatMessage, ChatMessageExtra } from '@zenith/shared';
@@ -67,16 +67,22 @@ export function MessageContent({
           <Text style={{ fontSize: 11, color: isSelf ? 'rgba(255,255,255,0.65)' : 'var(--semi-color-text-3)' }}>点击查看</Text>
         </div>
         <div style={{ padding: '6px 12px 8px' }}>
-          {items.slice(0, 4).map((item) => (
-            <div key={getForwardedItemKey(item)} style={{ display: 'flex', gap: 6, marginBottom: 4, alignItems: 'flex-start' }}>
-              <Text style={{ fontSize: 11, color: isSelf ? 'rgba(255,255,255,0.75)' : 'var(--semi-color-text-3)', flexShrink: 0, lineHeight: 1.6 }}>
-                {item.senderName ?? '未知'}：
-              </Text>
-              <Text style={{ fontSize: 12, color: isSelf ? 'rgba(255,255,255,0.9)' : 'var(--semi-color-text-1)', lineHeight: 1.6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                {getForwardedItemPreview(item)}
-              </Text>
-            </div>
-          ))}
+          <List
+            split={false}
+            dataSource={items.slice(0, 4)}
+            renderItem={(item) => (
+              <List.Item key={getForwardedItemKey(item)} style={{ padding: 0, marginBottom: 4, border: 'none' }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                  <Text style={{ fontSize: 11, color: isSelf ? 'rgba(255,255,255,0.75)' : 'var(--semi-color-text-3)', flexShrink: 0, lineHeight: 1.6 }}>
+                    {item.senderName ?? '未知'}：
+                  </Text>
+                  <Text style={{ fontSize: 12, color: isSelf ? 'rgba(255,255,255,0.9)' : 'var(--semi-color-text-1)', lineHeight: 1.6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                    {getForwardedItemPreview(item)}
+                  </Text>
+                </div>
+              </List.Item>
+            )}
+          />
           {items.length > 4 && (
             <Text type="tertiary" style={{ fontSize: 11 }}>…共 {items.length} 条消息</Text>
           )}
