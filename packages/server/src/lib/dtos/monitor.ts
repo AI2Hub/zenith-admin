@@ -162,3 +162,39 @@ export const MonitorTimeseriesDTO = z
     ),
   })
   .openapi('MonitorTimeseries');
+
+export const MonitorWsDTO = z
+  .object({
+    currentConnections: z.number().int(),
+    currentUsers: z.number().int(),
+    totalConnects: z.number().int(),
+    totalDisconnects: z.number().int(),
+    totalSent: z.number().int(),
+    totalRecv: z.number().int(),
+    connections: z.array(
+      z.object({
+        tokenId: z.string(),
+        userId: z.number().int(),
+        username: z.string().nullable(),
+        nickname: z.string().nullable(),
+        connectedAt: z.number(),
+        lastActivityAt: z.number(),
+        sent: z.number().int(),
+        recv: z.number().int(),
+      }),
+    ),
+    recentDisconnects: z.array(
+      z.object({
+        tokenId: z.string(),
+        userId: z.number().int(),
+        username: z.string().nullable(),
+        nickname: z.string().nullable(),
+        at: z.number(),
+        reason: z.string(),
+        duration: z.number().int(),
+        sent: z.number().int(),
+        recv: z.number().int(),
+      }),
+    ),
+  })
+  .openapi('MonitorWs');

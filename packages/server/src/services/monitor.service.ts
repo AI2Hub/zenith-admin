@@ -3,10 +3,12 @@ import fs from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { db } from '../db';
-import { sql } from 'drizzle-orm';
+import { sql, inArray } from 'drizzle-orm';
+import { users } from '../db/schema';
 import redis from '../lib/redis';
 import logger from '../lib/logger';
 import { metricsSampler } from '../lib/metrics-sampler';
+import { getWsSnapshot } from '../lib/ws-manager';
 
 const execFileAsync = promisify(execFile);
 
@@ -488,5 +490,42 @@ export function getMonitorTimeseries() {
     intervalSec: 10,
     capacity: 360,
     points: series,
+  };
+}
+
+/**
+ * WebSocket 监控数据：返回当前所有 WS 连接、累计统计和最近断开记录。
+ * 自动关联 users 表查询用户昵称。
+ */
+export async function getWsMetrics() {
+  const snap = getWsSnapshot();
+  const userIds = new Set<number>();
+  for (const c of snap.connections) userIds.add(c.userId);
+  for (const d of snap.recentDisconnects) userIds.add(d.userId);
+  const userMap = new Map<number, { username: string | null; nickname: string | null }>();
+  if (userIds.size > 0) {
+    const rows = await db
+      .select({ id: users.id, username: users.username, nickname: users.nickname })
+      .from(users)
+      .where(inArray(users.id, [...userIds]));
+    for (const r of rows) userMap.set(r.id, { username: r.username ?? null, nickname: r.nickname ?? null });
+  }
+  return {
+    currentConnections: snap.currentConnections,
+    currentUsers: snap.currentUsers,
+    totalConnects: snap.totalConnects,
+    totalDisconnects: snap.totalDisconnects,
+    totalSent: snap.totalSent,
+    totalRecv: snap.totalRecv,
+    connections: snap.connections.map((c) => ({
+      ...c,
+      username: userMap.get(c.userId)?.username ?? null,
+      nickname: userMap.get(c.userId)?.nickname ?? null,
+    })),
+    recentDisconnects: snap.recentDisconnects.map((d) => ({
+      ...d,
+      username: userMap.get(d.userId)?.username ?? null,
+      nickname: userMap.get(d.userId)?.nickname ?? null,
+    })),
   };
 }

@@ -3,7 +3,7 @@ import type { UpgradeWebSocket } from 'hono/ws';
 import { verifyToken } from '../lib/jwt';
 import type { JwtPayload } from '../middleware/auth';
 import { isTokenBlacklisted } from '../lib/session-manager';
-import { registerConnection, removeConnection, sendToUser } from '../lib/ws-manager';
+import { registerConnection, removeConnection, sendToUser, incWsRecv } from '../lib/ws-manager';
 import { db } from '../db';
 import { chatConversationMembers } from '../db/schema';
 import { eq, ne, and } from 'drizzle-orm';
@@ -51,6 +51,7 @@ export function createWsRoute(upgradeWebSocket: UpgradeWebSocket) {
         },
         async onMessage(evt, ws) {
           if (!payload) return;
+          incWsRecv(payload.jti ?? '');
           try {
             const data: unknown = typeof evt.data === 'string' ? JSON.parse(evt.data) : null;
             const msg = data as WsMessage | { type: 'ping' };
@@ -75,9 +76,12 @@ export function createWsRoute(upgradeWebSocket: UpgradeWebSocket) {
             }
           } catch { /* ignore malformed */ }
         },
-        onClose(_evt, _ws) {
+        onClose(evt, _ws) {
           if (payload) {
-            removeConnection(payload.userId, payload.jti ?? '');
+            const reason = evt && typeof evt === 'object' && 'reason' in evt && typeof (evt as { reason: unknown }).reason === 'string'
+              ? ((evt as { reason: string }).reason || 'close')
+              : 'close';
+            removeConnection(payload.userId, payload.jti ?? '', reason);
           }
         },
         onError() {

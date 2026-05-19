@@ -3,8 +3,8 @@ import { streamSSE } from 'hono/streaming';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { validationHook, commonErrorResponses, ok, okBody } from '../lib/openapi-schemas';
-import { MonitorDTO, MonitorTimeseriesDTO } from '../lib/openapi-dtos';
-import { getMonitorStatus, getMonitorTimeseries } from '../services/monitor.service';
+import { MonitorDTO, MonitorTimeseriesDTO, MonitorWsDTO } from '../lib/openapi-dtos';
+import { getMonitorStatus, getMonitorTimeseries, getWsMetrics } from '../services/monitor.service';
 import { metricsSampler } from '../lib/metrics-sampler';
 
 const monitorRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -35,7 +35,20 @@ const timeseriesRoute = defineOpenAPIRoute({
   handler: (c) => c.json(okBody(getMonitorTimeseries(), 'success'), 200),
 });
 
-monitorRouter.openapiRoutes([statusRoute, timeseriesRoute] as const);
+const wsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get',
+    path: '/ws',
+    tags: ['Monitor'],
+    summary: '获取 WebSocket 实时连接监控',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:monitor:view' })] as const,
+    responses: { ...ok(MonitorWsDTO, 'WebSocket 监控数据'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await getWsMetrics(), 'success'), 200),
+});
+
+monitorRouter.openapiRoutes([statusRoute, timeseriesRoute, wsRoute] as const);
 
 /**
  * 计算两个 JSON 对象的浅 diff（递归对象、数组按引用整段替换）

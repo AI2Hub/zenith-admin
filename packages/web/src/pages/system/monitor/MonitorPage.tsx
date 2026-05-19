@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Card, Progress, Skeleton, Tabs, TabPane, Toast, Typography, Select, Tag } from '@douyinfe/semi-ui';
+import { Button, Card, Progress, Skeleton, Tabs, TabPane, Toast, Typography, Select, Tag, Table } from '@douyinfe/semi-ui';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
@@ -102,6 +102,38 @@ interface TimeseriesPoint {
 }
 interface TimeseriesData { intervalSec: number; capacity: number; points: TimeseriesPoint[]; }
 
+interface WsConnection {
+  tokenId: string;
+  userId: number;
+  username: string | null;
+  nickname: string | null;
+  connectedAt: number;
+  lastActivityAt: number;
+  sent: number;
+  recv: number;
+}
+interface WsDisconnect {
+  tokenId: string;
+  userId: number;
+  username: string | null;
+  nickname: string | null;
+  at: number;
+  reason: string;
+  duration: number;
+  sent: number;
+  recv: number;
+}
+interface WsMetrics {
+  currentConnections: number;
+  currentUsers: number;
+  totalConnects: number;
+  totalDisconnects: number;
+  totalSent: number;
+  totalRecv: number;
+  connections: WsConnection[];
+  recentDisconnects: WsDisconnect[];
+}
+
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) return '0 B';
   if (bytes < 1024) return `${bytes} B`;
@@ -124,6 +156,10 @@ function formatUptime(seconds: number): string {
   if (m > 0) parts.push(`${m}分`);
   parts.push(`${s}秒`);
   return parts.join(' ');
+}
+
+function formatDuration(ms: number): string {
+  return formatUptime(Math.max(0, Math.floor(ms / 1000)));
 }
 
 function getProgressClass(percent: number): string {
@@ -179,6 +215,7 @@ const SSE_STATUS_META: Record<'idle' | 'connecting' | 'open' | 'error', { color:
 export default function MonitorPage() {
   const [data, setData] = useState<MonitorData | null>(null);
   const [series, setSeries] = useState<TimeseriesPoint[]>([]);
+  const [wsMetrics, setWsMetrics] = useState<WsMetrics | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [refreshInterval, setRefreshInterval] = useState<number>(30000);
@@ -192,9 +229,10 @@ export default function MonitorPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [statusRes, tsRes] = await Promise.all([
+      const [statusRes, tsRes, wsRes] = await Promise.all([
         request.get<MonitorData>('/api/monitor', { silent: true }),
         request.get<TimeseriesData>('/api/monitor/timeseries', { silent: true }),
+        request.get<WsMetrics>('/api/monitor/ws', { silent: true }),
       ]);
       if (statusRes.code === 0 && statusRes.data) {
         setData(statusRes.data);
@@ -204,6 +242,9 @@ export default function MonitorPage() {
       }
       if (tsRes.code === 0 && tsRes.data) {
         setSeries(tsRes.data.points);
+      }
+      if (wsRes.code === 0 && wsRes.data) {
+        setWsMetrics(wsRes.data);
       }
     } catch {
       Toast.error('网络请求失败');
@@ -827,6 +868,66 @@ export default function MonitorPage() {
               <div className="monitor-section-title">慢日志（最近 10 条）</div>
               {renderRedisSlowLog(data.redis.slowLog)}
             </>) : <Text type="tertiary">Redis 信息不可用</Text>}
+          </TabPane>
+
+          <TabPane tab={<span className="monitor-tab-label"><Activity size={14} />WebSocket</span>} itemKey="ws">
+            {wsMetrics ? (<>
+              <div className="monitor-detail-grid">
+                <InfoRow label="当前连接数" value={formatNumber(wsMetrics.currentConnections)} />
+                <InfoRow label="在线用户数" value={formatNumber(wsMetrics.currentUsers)} />
+                <InfoRow label="累计连接" value={formatNumber(wsMetrics.totalConnects)} />
+                <InfoRow label="累计断开" value={formatNumber(wsMetrics.totalDisconnects)} />
+                <InfoRow label="累计发送消息" value={formatNumber(wsMetrics.totalSent)} />
+                <InfoRow label="累计接收消息" value={formatNumber(wsMetrics.totalRecv)} />
+              </div>
+              <div className="monitor-section-title">当前在线连接（{wsMetrics.connections.length}）</div>
+              <Table
+                size="small"
+                bordered
+                dataSource={wsMetrics.connections}
+                rowKey="tokenId"
+                pagination={wsMetrics.connections.length > 10 ? { pageSize: 10 } : false}
+                empty={<Text type="tertiary">暂无在线连接</Text>}
+                columns={[
+                  {
+                    title: '用户',
+                    dataIndex: 'userId',
+                    render: (_: unknown, r: WsConnection) => (
+                      <span>{r.nickname || r.username || '-'} <Text type="tertiary" size="small">#{r.userId}</Text></span>
+                    ),
+                  },
+                  { title: 'Token', dataIndex: 'tokenId', render: (v: string) => <Text type="tertiary" size="small">{v.slice(0, 8)}…</Text> },
+                  { title: '建立时间', dataIndex: 'connectedAt', render: (v: number) => formatDateTime(new Date(v)) },
+                  { title: '最近活动', dataIndex: 'lastActivityAt', render: (v: number) => formatDateTime(new Date(v)) },
+                  { title: '已持续', dataIndex: 'connectedAt', key: 'duration', render: (v: number) => formatDuration(Date.now() - v) },
+                  { title: '发送', dataIndex: 'sent', align: 'right' as const, render: (v: number) => formatNumber(v) },
+                  { title: '接收', dataIndex: 'recv', align: 'right' as const, render: (v: number) => formatNumber(v) },
+                ]}
+              />
+              <div className="monitor-section-title">最近断开（最多 50 条）</div>
+              <Table
+                size="small"
+                bordered
+                dataSource={wsMetrics.recentDisconnects}
+                rowKey={(r: WsDisconnect) => `${r.tokenId}-${r.at}`}
+                pagination={wsMetrics.recentDisconnects.length > 10 ? { pageSize: 10 } : false}
+                empty={<Text type="tertiary">暂无断开记录</Text>}
+                columns={[
+                  {
+                    title: '用户',
+                    dataIndex: 'userId',
+                    render: (_: unknown, r: WsDisconnect) => (
+                      <span>{r.nickname || r.username || '-'} <Text type="tertiary" size="small">#{r.userId}</Text></span>
+                    ),
+                  },
+                  { title: '断开时间', dataIndex: 'at', render: (v: number) => formatDateTime(new Date(v)) },
+                  { title: '原因', dataIndex: 'reason', render: (v: string) => <Tag size="small">{v || '-'}</Tag> },
+                  { title: '持续时长', dataIndex: 'duration', render: (v: number) => formatDuration(v) },
+                  { title: '发送', dataIndex: 'sent', align: 'right' as const, render: (v: number) => formatNumber(v) },
+                  { title: '接收', dataIndex: 'recv', align: 'right' as const, render: (v: number) => formatNumber(v) },
+                ]}
+              />
+            </>) : <Text type="tertiary">WebSocket 监控数据不可用</Text>}
           </TabPane>
         </Tabs>
       </Card>

@@ -203,6 +203,30 @@ export const monitorHandlers = [
       message: 'success',
       data: { intervalSec: 10, capacity: 360, points: buildSeries() },
     })),
+  http.get('/api/monitor/ws', () => {
+    const now = Date.now();
+    return HttpResponse.json({
+      code: 0,
+      message: 'success',
+      data: {
+        currentConnections: 3,
+        currentUsers: 2,
+        totalConnects: 128,
+        totalDisconnects: 125,
+        totalSent: 4521,
+        totalRecv: 1023,
+        connections: [
+          { tokenId: 'a1b2c3d4e5f6', userId: 1, username: 'admin', nickname: '超级管理员', connectedAt: now - 1_200_000, lastActivityAt: now - 5_000, sent: 42, recv: 18 },
+          { tokenId: 'f6e5d4c3b2a1', userId: 1, username: 'admin', nickname: '超级管理员', connectedAt: now - 320_000, lastActivityAt: now - 1_200, sent: 11, recv: 3 },
+          { tokenId: '0123456789ab', userId: 2, username: 'demo', nickname: '演示账号', connectedAt: now - 60_000, lastActivityAt: now - 800, sent: 6, recv: 2 },
+        ],
+        recentDisconnects: [
+          { tokenId: 'aaa11122233', userId: 2, username: 'demo', nickname: '演示账号', at: now - 30_000, reason: 'client-close', duration: 240_000, sent: 8, recv: 4 },
+          { tokenId: 'bbb44455566', userId: 1, username: 'admin', nickname: '超级管理员', at: now - 600_000, reason: 'force-logout', duration: 3_600_000, sent: 96, recv: 31 },
+        ],
+      },
+    });
+  }),
   // SSE 推送：首帧发送 metrics 全量；后续每 10s 发送 metrics:diff（仅高频抖动字段）
   http.get('/api/monitor/stream', () => {
     const encoder = new TextEncoder();
