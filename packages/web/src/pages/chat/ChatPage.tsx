@@ -3151,22 +3151,10 @@ export default function ChatPage({
                   <SemiList.Item
                     key={item.message.id}
                     style={{ padding: 0, marginBottom: 10, border: 'none' }}
-                    extra={
-                      <Button
-                        size="small"
-                        type="primary"
-                        onClick={() => {
-                          setShowSearchPanel(false);
-                          void jumpToSearchResult(item);
-                        }}
-                      >
-                        定位
-                      </Button>
-                    }
                   >
                     <div
                       style={{
-                        width: '100%', textAlign: 'left', border: '1px solid var(--semi-color-border)', background: 'var(--semi-color-bg-0)', borderRadius: 8,
+                        width: '100%', textAlign: 'left', border: '1px solid var(--semi-color-border)', background: 'var(--semi-color-bg-1)', borderRadius: 8,
                         padding: '10px 12px',
                       }}
                     >
@@ -3182,6 +3170,18 @@ export default function ChatPage({
                       <Text style={{ display: 'block', fontSize: 12, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                         {item.snippet}
                       </Text>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                        <Button
+                          size="small"
+                          type="primary"
+                          onClick={() => {
+                            setShowSearchPanel(false);
+                            void jumpToSearchResult(item);
+                          }}
+                        >
+                          定位到聊天位置
+                        </Button>
+                      </div>
                     </div>
                   </SemiList.Item>
                 );
