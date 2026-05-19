@@ -2716,23 +2716,27 @@ export default function ChatPage({
             footer={null}
             width={560}
           >
-            {announcementHistory.length === 0 ? (
-              <Empty description="暂无公告历史" imageStyle={{ width: 72 }} style={{ padding: '20px 0' }} />
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 420, overflowY: 'auto' }}>
-                {announcementHistory.map((item) => (
-                  <div key={item.id} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: '10px 12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
-                      <Text strong style={{ fontSize: 12 }}>{item.extra?.announcementHistory?.operatorName ?? item.senderName ?? '系统'}</Text>
-                      <Text type="tertiary" style={{ fontSize: 11 }}>{formatDateTime(item.createdAt)}</Text>
-                    </div>
-                    <Text style={{ fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                      {item.extra?.announcementHistory?.announcement || '已清空群公告'}
-                    </Text>
-                  </div>
-                ))}
-              </div>
-            )}
+            <SemiList
+              dataSource={announcementHistory}
+              emptyContent={<Empty description="暂无公告历史" imageStyle={{ width: 72 }} style={{ padding: '20px 0' }} />}
+              style={{ maxHeight: 420, overflowY: 'auto' }}
+              renderItem={(item) => (
+                <SemiList.Item
+                  key={item.id}
+                  main={(
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                        <Text strong style={{ fontSize: 12 }}>{item.extra?.announcementHistory?.operatorName ?? item.senderName ?? '系统'}</Text>
+                        <Text type="tertiary" style={{ fontSize: 11 }}>{formatDateTime(item.createdAt)}</Text>
+                      </div>
+                      <Text style={{ fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                        {item.extra?.announcementHistory?.announcement || '已清空群公告'}
+                      </Text>
+                    </>
+                  )}
+                />
+              )}
+            />
           </Modal>
 
           {/* Input area */}
