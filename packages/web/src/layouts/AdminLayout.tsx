@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import DOMPurify from 'dompurify';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Avatar, Badge, Breadcrumb, Button, ColorPicker, Dropdown, Empty, List, Notification, Popover, Select, Tooltip, Modal, Nav, Typography, SideSheet, Switch, InputNumber, RadioGroup, Radio, Toast } from '@douyinfe/semi-ui';
-import { Bell, Building2, Check, Maximize2, Minimize2, Sun, Moon, Monitor, User as UserIcon, Settings, LogOut, X, Palette } from 'lucide-react';
+import { Bell, Building2, Check, Maximize2, Minimize2, Megaphone, Sun, Moon, Monitor, User as UserIcon, Settings, LogOut, X, Palette } from 'lucide-react';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
-import type { User, Menu, Notice, Tenant, WsMessage, SystemConfig } from '@zenith/shared';
+import type { User, Menu, InAppMessage, Tenant, WsMessage, SystemConfig } from '@zenith/shared';
 import type { ThemeMode } from '@/hooks/useTheme';
 import { usePreferences, type NavLayout } from '@/hooks/usePreferences';
 import { THEME_COLOR_PRESETS } from '@/lib/theme-color';
@@ -101,12 +100,6 @@ interface AdminLayoutProps {
   readonly user: Omit<User, 'password'>;
   readonly onLogout: () => void;
   readonly presetMenus?: Menu[];
-}
-
-function stripHtml(html: string): string {
-  const tmp = document.createElement('div');
-  tmp.innerHTML = html;
-  return (tmp.textContent ?? tmp.innerText ?? '').replaceAll(/\s+/g, ' ').trim();
 }
 
 export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayoutProps) {
@@ -264,20 +257,22 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
   };
 
   // ─── 通知公告 ─────────────────────────────────────────────────────────────
-  const [notices, setNotices] = useState<(Notice & { isRead?: boolean })[]>([]);
-  const [noticePopVisible, setNoticePopVisible] = useState(false);
-  const [selectedNotice, setSelectedNotice] = useState<(Notice & { isRead?: boolean }) | null>(null);
-  const recentNoticeMessageRef = useRef(new Map<string, number>());
+  const [inAppMessages, setInAppMessages] = useState<InAppMessage[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [messagePopVisible, setMessagePopVisible] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<InAppMessage | null>(null);
+  const recentInAppMessageRef = useRef(new Map<string, number>());
 
-  const fetchNotices = () => {
-    request.get<(Notice & { isRead?: boolean })[]>('/api/notices/published', { silent: true }).then((res) => {
-      if (res.code === 0 && res.data) setNotices(res.data);
+  const fetchInAppMessages = useCallback(() => {
+    request.get<{ list: InAppMessage[]; total: number }>('/api/in-app-messages?page=1&pageSize=10', { silent: true }).then((res) => {
+      if (res.code === 0 && res.data) setInAppMessages(res.data.list ?? []);
     });
-  };
+    request.get<{ count: number }>('/api/in-app-messages/unread-count', { silent: true }).then((res) => {
+      if (res.code === 0 && res.data) setUnreadCount(res.data.count ?? 0);
+    });
+  }, []);
 
-  useEffect(() => { fetchNotices(); }, []);
-
-  const unreadCount = notices.filter((n) => !n.isRead).length;
+  useEffect(() => { fetchInAppMessages(); }, [fetchInAppMessages]);
 
   // ─── 聊天未读数 ────────────────────────────────────────────────────────────
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
@@ -292,29 +287,27 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
 
   // ─── WebSocket ──────────────────────────────────────────────────────────────
   const handleWsMessage = useCallback((msg: WsMessage) => {
-    if (msg.type === 'notice:new') {
-      const messageKey = `${msg.payload.id}:${msg.payload.updatedAt}`;
+    if (msg.type === 'in-app-message:new') {
+      const messageKey = `${msg.payload.title}:${msg.payload.createdAt}`;
       const now = Date.now();
 
-      for (const [key, timestamp] of recentNoticeMessageRef.current) {
+      for (const [key, timestamp] of recentInAppMessageRef.current) {
         if (now - timestamp > 60_000) {
-          recentNoticeMessageRef.current.delete(key);
+          recentInAppMessageRef.current.delete(key);
         }
       }
 
-      if (recentNoticeMessageRef.current.has(messageKey)) {
+      if (recentInAppMessageRef.current.has(messageKey)) {
         return;
       }
 
-      recentNoticeMessageRef.current.set(messageKey, now);
+      recentInAppMessageRef.current.set(messageKey, now);
 
-      setNotices((prev) => {
-        const next = prev.filter((notice) => notice.id !== msg.payload.id);
-        return [{ ...msg.payload, isRead: false }, ...next];
-      });
+      // 重新拉一次以获取带有实际 id 的记录
+      fetchInAppMessages();
 
       Notification.info({
-        title: '新通知',
+        title: '新站内信',
         content: msg.payload.title,
         duration: 5,
         position: 'topRight',
@@ -334,16 +327,15 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
       // Auto-logout after a brief delay so the user can see the notification
       setTimeout(() => onLogout(), 2000);
     }
-  }, [onLogout]);
+  }, [onLogout, fetchInAppMessages]);
 
   const { disconnect: disconnectWs } = useWebSocket(handleWsMessage);
 
   const markAsRead = (id: number) => {
-    const updateReadState = () => setNotices(
-      (prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n),
-    );
-    request.post(`/api/notices/${id}/read`, undefined, { silent: true }).then((res) => {
-      if (res.code === 0) updateReadState();
+    request.post(`/api/in-app-messages/${id}/read`, undefined, { silent: true }).then((res) => {
+      if (res.code !== 0) return;
+      setInAppMessages((prev) => prev.map((m) => (m.id === id ? { ...m, isRead: true } : m)));
+      setUnreadCount((c) => Math.max(0, c - 1));
     });
   };
 
@@ -603,31 +595,36 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
           <div style={{ width: 1, height: 16, backgroundColor: 'var(--color-border)', margin: '0 4px' }} />
         </>
       )}
+      <Tooltip content="公告中心" position="bottom">
+        <button className="admin-theme-btn" title="公告中心" onClick={() => navigate('/notifications')}>
+          <Megaphone size={16} strokeWidth={1.5} />
+        </button>
+      </Tooltip>
       <Popover
-        visible={noticePopVisible}
-        onVisibleChange={setNoticePopVisible}
+        visible={messagePopVisible}
+        onVisibleChange={setMessagePopVisible}
         position="bottomRight"
         trigger="click"
         showArrow
         content={
           <div style={{ width: 360, maxHeight: 440, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '12px 16px 8px', fontWeight: 600, fontSize: 14, borderBottom: '1px solid var(--semi-color-border)' }}>
-              通知公告
+              站内信
             </div>
-            {notices.length === 0 ? (
-              <Empty description="暂无通知" style={{ padding: '24px 0' }} />
+            {inAppMessages.length === 0 ? (
+              <Empty description="暂无站内信" style={{ padding: '24px 0' }} />
             ) : (
               <List
                 style={{ overflow: 'auto', maxHeight: 340 }}
-                dataSource={notices}
-                renderItem={(item: Notice & { isRead?: boolean }) => (
+                dataSource={inAppMessages}
+                renderItem={(item: InAppMessage) => (
                   <List.Item
                     key={item.id}
                     style={{ padding: '10px 16px', cursor: 'pointer', opacity: item.isRead ? 0.55 : 1 }}
                     onClick={() => {
                       if (!item.isRead) markAsRead(item.id);
-                      setNoticePopVisible(false);
-                      setSelectedNotice(item);
+                      setMessagePopVisible(false);
+                      setSelectedMessage(item);
                     }}
                     header={null}
                     main={
@@ -636,10 +633,10 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                         <div
                           style={{ fontSize: 12, color: 'var(--semi-color-text-2)', margin: '3px 0 4px', maxHeight: 40, overflow: 'hidden', lineHeight: 1.5 }}
                         >
-                          {stripHtml(item.content)}
+                          {item.content}
                         </div>
                         <Typography.Text style={{ fontSize: 11, color: 'var(--semi-color-text-3)' }}>
-                          {item.publishTime ? formatDateTime(item.publishTime) : formatDateTime(item.createdAt)}
+                          {formatDateTime(item.createdAt)}
                         </Typography.Text>
                       </div>
                     }
@@ -659,11 +656,11 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                 type="primary"
                 size="small"
                 onClick={() => {
-                  setNoticePopVisible(false);
-                  navigate('/notifications');
+                  setMessagePopVisible(false);
+                  navigate('/inbox');
                 }}
               >
-                查看全部通知
+                查看全部站内信
               </Button>
             </div>
           </div>
@@ -671,7 +668,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
       >
         <div style={{ display: 'inline-flex', cursor: 'pointer' }}>
           <Badge dot={unreadCount > 0} className="admin-notify-badge" style={{ zIndex: 1 }}>
-            <button className="admin-theme-btn" title="通知公告">
+            <button className="admin-theme-btn" title="站内信">
               <Bell size={16} strokeWidth={1.5} />
             </button>
           </Badge>
@@ -1203,24 +1200,23 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
       {/* ===== 快捷聊天浮动按钮 ===== */}
       {(preferences.showQuickChat ?? true) && <QuickChatButton onHide={() => setPreferences({ showQuickChat: false })} />}
 
-      {/* ===== 通知详情 Modal ===== */}
+      {/* ===== 站内信详情 Modal ===== */}
       <Modal
-        title={selectedNotice?.title ?? ''}
-        visible={selectedNotice !== null}
-        onCancel={() => setSelectedNotice(null)}
+        title={selectedMessage?.title ?? ''}
+        visible={selectedMessage !== null}
+        onCancel={() => setSelectedMessage(null)}
         footer={null}
         width={640}
         closeOnEsc
       >
-        {selectedNotice && (
+        {selectedMessage && (
           <div>
             <div style={{ marginBottom: 12, color: 'var(--semi-color-text-3)', fontSize: 12 }}>
-              {selectedNotice.createByName ?? '-'} · {formatDateTime(selectedNotice.publishTime ?? selectedNotice.createdAt)}
+              {selectedMessage.senderName ?? '系统'} · {formatDateTime(selectedMessage.createdAt)}
             </div>
-            <div
-              style={{ lineHeight: 1.7 }}
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(selectedNotice.content) }}
-            />
+            <div style={{ lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+              {selectedMessage.content}
+            </div>
           </div>
         )}
       </Modal>

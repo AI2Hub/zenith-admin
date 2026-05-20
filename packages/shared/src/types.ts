@@ -357,6 +357,7 @@ export interface CaptchaResponse {
 // ─── WebSocket 消息类型 ──────────────────────────────────────────────────────
 export type WsMessage =
   | { type: 'notice:new'; payload: Notice }
+  | { type: 'in-app-message:new'; payload: InAppMessage }
   | { type: 'session:force-logout'; payload: { reason: string } }
   | { type: 'chat:message'; payload: ChatMessage }
   | { type: 'chat:recall'; payload: { conversationId: number; messageId: number } }

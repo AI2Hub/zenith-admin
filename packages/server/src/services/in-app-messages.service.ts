@@ -7,6 +7,7 @@ import { formatDateTime } from '../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../lib/tenant';
 import { currentUser } from '../lib/context';
 import { renderTemplate } from '../lib/sms-sender';
+import { scheduleSendToUsers } from '../lib/ws-manager';
 import { ensureInAppTemplateExists } from './in-app-templates.service';
 import type { InAppMessageType, SendInAppInput } from '@zenith/shared';
 
@@ -158,5 +159,27 @@ export async function sendInApp(input: SendInAppInput) {
     tenantId,
   }));
   await db.insert(inAppMessages).values(rows);
+  scheduleSendToUsers(
+    recipients.map((r) => ({ userId: r.id })),
+    {
+      type: 'in-app-message:new',
+      payload: {
+        id: 0,
+        templateId,
+        userId: 0,
+        userName: null,
+        title,
+        content,
+        type,
+        isRead: false,
+        readAt: null,
+        source: 'manual',
+        senderId: me.userId,
+        senderName: null,
+        tenantId,
+        createdAt: formatDateTime(new Date()),
+      },
+    },
+  );
   return { sentCount: rows.length };
 }
