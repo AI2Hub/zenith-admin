@@ -357,6 +357,10 @@ export interface CaptchaResponse {
 // ─── WebSocket 消息类型 ──────────────────────────────────────────────────────
 export type WsMessage =
   | { type: 'announcement:new'; payload: Announcement }
+  | { type: 'announcement:updated'; payload: Announcement }
+  | { type: 'announcement:deleted'; payload: { id: number } }
+  | { type: 'announcement:read'; payload: { id: number } }
+  | { type: 'announcement:read-all'; payload: Record<string, never> }
   | { type: 'in-app-message:new'; payload: InAppMessage }
   | { type: 'in-app-message:read'; payload: { id: number } }
   | { type: 'in-app-message:read-all'; payload: Record<string, never> }

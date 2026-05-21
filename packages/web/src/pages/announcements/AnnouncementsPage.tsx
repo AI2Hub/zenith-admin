@@ -65,6 +65,12 @@ export default function AnnouncementsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
+  useEffect(() => {
+    const handler = () => { void fetchList(page, activeTab); };
+    globalThis.addEventListener('announcement:refresh', handler);
+    return () => globalThis.removeEventListener('announcement:refresh', handler);
+  }, [fetchList, page, activeTab]);
+
   const openNotice = async (item: AnnouncementWithRead, index: number) => {
     if (!item.isRead) {
       await request.post(`/api/announcements/${item.id}/read`, undefined, { silent: true });

@@ -341,6 +341,22 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
         if (target && !target.isRead) setUnreadCount((c) => Math.max(0, c - 1));
         return removeMessageById(msg.payload.id)(prev);
       });
+    } else if (
+      msg.type === 'announcement:new' ||
+      msg.type === 'announcement:updated' ||
+      msg.type === 'announcement:deleted' ||
+      msg.type === 'announcement:read' ||
+      msg.type === 'announcement:read-all'
+    ) {
+      window.dispatchEvent(new CustomEvent('announcement:refresh', { detail: msg }));
+      if (msg.type === 'announcement:new') {
+        Notification.info({
+          title: '新公告',
+          content: msg.payload.title,
+          duration: 5,
+          position: 'topRight',
+        });
+      }
     } else if (msg.type === 'chat:message') {
       // 只在当前不在 /chat 页面时增加未读
       if (!globalThis.location.pathname.startsWith('/chat')) {

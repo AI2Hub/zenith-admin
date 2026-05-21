@@ -61,11 +61,10 @@ export async function saveRecipients(
 
 // ─── WebSocket 广播 ───────────────────────────────────────────────────────────
 
-export async function broadcastAnnouncement(announcement: ReturnType<typeof mapAnnouncement>, announcementId: number) {
-  if (announcement.targetType === 'all') {
-    setImmediate(() => broadcast({ type: 'announcement:new', payload: announcement }));
-    return;
-  }
+import type { WsMessage } from '@zenith/shared';
+
+async function resolveAnnouncementAudience(announcementId: number, targetType: string, tenantId: number | null): Promise<'all' | Set<number>> {
+  if (targetType === 'all') return 'all';
   const recipientRows = await db.select().from(announcementRecipients).where(eq(announcementRecipients.announcementId, announcementId));
   const userIdSet = new Set<number>();
   recipientRows.filter((r) => r.recipientType === 'user').forEach((r) => userIdSet.add(r.recipientId));
@@ -76,13 +75,23 @@ export async function broadcastAnnouncement(announcement: ReturnType<typeof mapA
   }
   const deptIds = recipientRows.filter((r) => r.recipientType === 'dept').map((r) => r.recipientId);
   if (deptIds.length > 0) {
-    const tenantFilter = announcement.tenantId == null ? undefined : eq(users.tenantId, announcement.tenantId);
+    const tenantFilter = tenantId == null ? undefined : eq(users.tenantId, tenantId);
     const deptUsers = await db.select({ id: users.id }).from(users).where(and(inArray(users.departmentId, deptIds), tenantFilter));
     deptUsers.forEach((u) => userIdSet.add(u.id));
   }
+  return userIdSet;
+}
+
+function dispatchToAudience(audience: 'all' | Set<number>, message: WsMessage) {
   setImmediate(() => {
-    for (const uid of userIdSet) sendToUser(uid, { type: 'announcement:new', payload: announcement });
+    if (audience === 'all') broadcast(message);
+    else for (const uid of audience) sendToUser(uid, message);
   });
+}
+
+export async function broadcastAnnouncement(announcement: ReturnType<typeof mapAnnouncement>, announcementId: number) {
+  const audience = await resolveAnnouncementAudience(announcementId, announcement.targetType, announcement.tenantId);
+  dispatchToAudience(audience, { type: 'announcement:new', payload: announcement });
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
@@ -103,6 +112,7 @@ export async function listPublishedForUser() {
 export async function markAnnouncementRead(announcementId: number) {
   const userId = currentUser().userId;
   await db.insert(announcementReads).values({ announcementId, userId }).onConflictDoNothing();
+  setImmediate(() => sendToUser(userId, { type: 'announcement:read', payload: { id: announcementId } }));
 }
 
 export async function markAllAnnouncementsRead() {
@@ -116,6 +126,7 @@ export async function markAllAnnouncementsRead() {
   const unreadIds = rows.filter((r) => r.reads.length === 0).map((r) => r.id);
   if (unreadIds.length === 0) return;
   await db.insert(announcementReads).values(unreadIds.map((announcementId) => ({ announcementId, userId }))).onConflictDoNothing();
+  setImmediate(() => sendToUser(userId, { type: 'announcement:read-all', payload: {} }));
 }
 
 export async function getInbox(q: { page?: number; pageSize?: number; isRead?: string }) {
@@ -194,7 +205,10 @@ export async function batchDeleteAnnouncements(ids: number[]) {
   if (!Array.isArray(ids) || ids.length === 0) throw new HTTPException(400, { message: '请选择要删除的公告' });
   const validIds = ids.filter((id): id is number => typeof id === 'number' && Number.isInteger(id));
   if (validIds.length === 0) throw new HTTPException(400, { message: '公告ID格式无效' });
+  const toDelete = await db.select({ id: announcements.id, targetType: announcements.targetType, tenantId: announcements.tenantId }).from(announcements).where(and(inArray(announcements.id, validIds), tenantCondition(announcements, user)));
+  const audiences = await Promise.all(toDelete.map((row) => resolveAnnouncementAudience(row.id, row.targetType, row.tenantId)));
   await db.delete(announcements).where(and(inArray(announcements.id, validIds), tenantCondition(announcements, user)));
+  toDelete.forEach((row, i) => dispatchToAudience(audiences[i], { type: 'announcement:deleted', payload: { id: row.id } }));
   return validIds.length;
 }
 
@@ -358,14 +372,23 @@ export async function updateAnnouncement(id: number, data: Partial<CreateAnnounc
   });
   if (!row) throw new HTTPException(404, { message: '公告不存在' });
   const announcement = mapAnnouncement(row);
-  if (data.publishStatus === 'published') await broadcastAnnouncement(announcement, row.id);
+  if (data.publishStatus === 'published') {
+    await broadcastAnnouncement(announcement, row.id);
+  } else {
+    const audience = await resolveAnnouncementAudience(row.id, announcement.targetType, announcement.tenantId);
+    dispatchToAudience(audience, { type: 'announcement:updated', payload: announcement });
+  }
   return announcement;
 }
 
 export async function deleteAnnouncement(id: number) {
   const user = currentUser();
+  const [existing] = await db.select({ id: announcements.id, targetType: announcements.targetType, tenantId: announcements.tenantId }).from(announcements).where(and(eq(announcements.id, id), tenantCondition(announcements, user))).limit(1);
+  if (!existing) throw new HTTPException(404, { message: '公告不存在' });
+  const audience = await resolveAnnouncementAudience(existing.id, existing.targetType, existing.tenantId);
   const [row] = await db.delete(announcements).where(and(eq(announcements.id, id), tenantCondition(announcements, user))).returning();
   if (!row) throw new HTTPException(404, { message: '公告不存在' });
+  dispatchToAudience(audience, { type: 'announcement:deleted', payload: { id } });
 }
 
 export async function getAnnouncementBeforeAudit(id: number) {

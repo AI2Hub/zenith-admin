@@ -137,6 +137,12 @@ export default function AnnouncementsPage() {
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    const handler = () => { void fetchData(page, pageSize, submittedParams); };
+    globalThis.addEventListener('announcement:refresh', handler);
+    return () => globalThis.removeEventListener('announcement:refresh', handler);
+  }, [fetchData, page, pageSize, submittedParams]);
+
   const handleSearch = () => {
     setSubmittedParams({ ...searchParams });
     setPage(1);
