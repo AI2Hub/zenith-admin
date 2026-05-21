@@ -594,6 +594,11 @@ export default function DbAdminPage() {
                   <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--semi-color-border)' }}>
                     <Title heading={6} style={{ margin: 0 }}>
                       {selected.schema}.{selected.name}
+                      {selected.comment && (
+                        <Text type="tertiary" size="small" style={{ marginLeft: 8 }}>
+                          {selected.comment}
+                        </Text>
+                      )}
                       <Text type="tertiary" size="small" style={{ marginLeft: 8 }}>
                         约 {selected.rowEstimate.toLocaleString()} 行 / {selected.sizeText}
                       </Text>
