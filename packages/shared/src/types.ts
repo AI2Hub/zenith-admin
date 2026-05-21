@@ -358,6 +358,9 @@ export interface CaptchaResponse {
 export type WsMessage =
   | { type: 'announcement:new'; payload: Announcement }
   | { type: 'in-app-message:new'; payload: InAppMessage }
+  | { type: 'in-app-message:read'; payload: { id: number } }
+  | { type: 'in-app-message:read-all'; payload: Record<string, never> }
+  | { type: 'in-app-message:deleted'; payload: { id: number } }
   | { type: 'session:force-logout'; payload: { reason: string } }
   | { type: 'chat:message'; payload: ChatMessage }
   | { type: 'chat:recall'; payload: { conversationId: number; messageId: number } }

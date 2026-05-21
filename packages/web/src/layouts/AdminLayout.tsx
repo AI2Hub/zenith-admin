@@ -319,6 +319,18 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
         duration: 5,
         position: 'topRight',
       });
+    } else if (msg.type === 'in-app-message:read') {
+      setInAppMessages((prev) => prev.map((m) => (m.id === msg.payload.id && !m.isRead ? { ...m, isRead: true } : m)));
+      setUnreadCount((c) => Math.max(0, c - 1));
+    } else if (msg.type === 'in-app-message:read-all') {
+      setInAppMessages((prev) => prev.map((m) => (m.isRead ? m : { ...m, isRead: true })));
+      setUnreadCount(0);
+    } else if (msg.type === 'in-app-message:deleted') {
+      setInAppMessages((prev) => {
+        const target = prev.find((m) => m.id === msg.payload.id);
+        if (target && !target.isRead) setUnreadCount((c) => Math.max(0, c - 1));
+        return prev.filter((m) => m.id !== msg.payload.id);
+      });
     } else if (msg.type === 'chat:message') {
       // 只在当前不在 /chat 页面时增加未读
       if (!globalThis.location.pathname.startsWith('/chat')) {

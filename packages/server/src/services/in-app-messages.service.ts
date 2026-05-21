@@ -138,6 +138,7 @@ export async function adminDeleteInAppMessage(id: number) {
     .where(and(eq(inAppMessages.id, id), tenantScope(inAppMessages))).limit(1);
   if (!row) throw new HTTPException(404, { message: '消息不存在' });
   await db.delete(inAppMessages).where(eq(inAppMessages.id, id));
+  scheduleSendToUsers([{ userId: row.userId }], { type: 'in-app-message:deleted', payload: { id } });
 }
 
 /** 管理员标记任意站内信为已读 */
@@ -147,6 +148,7 @@ export async function adminMarkAsRead(id: number) {
   if (!row) throw new HTTPException(404, { message: '消息不存在' });
   if (row.isRead) return { count: 0 };
   await db.update(inAppMessages).set({ isRead: true, readAt: new Date() }).where(eq(inAppMessages.id, id));
+  scheduleSendToUsers([{ userId: row.userId }], { type: 'in-app-message:read', payload: { id } });
   return { count: 1 };
 }
 
@@ -169,6 +171,7 @@ export async function markAsRead(id: number) {
   if (!row) throw new HTTPException(404, { message: '消息不存在' });
   if (row.isRead) return { count: 0 };
   await db.update(inAppMessages).set({ isRead: true, readAt: new Date() }).where(eq(inAppMessages.id, id));
+  scheduleSendToUsers([{ userId: row.userId }], { type: 'in-app-message:read', payload: { id } });
   return { count: 1 };
 }
 
@@ -183,6 +186,9 @@ export async function markAllAsRead() {
     .set({ isRead: true, readAt: new Date() })
     .where(where ?? sql`true`)
     .returning({ id: inAppMessages.id });
+  if (result.length > 0) {
+    scheduleSendToUsers([{ userId: me.userId }], { type: 'in-app-message:read-all', payload: {} });
+  }
   return { count: result.length };
 }
 
@@ -192,6 +198,7 @@ export async function deleteInAppMessage(id: number) {
     .where(and(eq(inAppMessages.id, id), eq(inAppMessages.userId, me.userId), tenantScope(inAppMessages))).limit(1);
   if (!row) throw new HTTPException(404, { message: '消息不存在' });
   await db.delete(inAppMessages).where(eq(inAppMessages.id, id));
+  scheduleSendToUsers([{ userId: row.userId }], { type: 'in-app-message:deleted', payload: { id } });
 }
 
 /** 发送站内信（向多名用户批量发送） */
