@@ -4,6 +4,49 @@
 
 ---
 
+## v0.24.0 - 2026-05-21
+
+### Added
+
+#### 数据库管理（DB Inspector）
+
+- 新增系统功能「数据库管理」页面（`/system/db-admin`），集成 Monaco Editor 的 SQL 控制台、表结构 / 索引 / 外键浏览、表数据分页查看与查询历史记录
+- 表数据视图支持服务端排序与列筛选，采用 Semi Table 官方「带排序和过滤功能的表头」API（受控 `sortOrder` / `filteredValue` + `renderFilterDropdown`），Loading 状态走 Table 内置遮罩、工具栏与分页保持常驻
+- SQL 查询 CSV 导出改为基于 postgres-js cursor 的流式响应：批大小 1000，首字节延迟接近第一批结果到达时间，内存恒定，可安全导出大表
+- 所有 SQL 在 `BEGIN; SET LOCAL TRANSACTION READ ONLY; ...` 中执行，PostgreSQL 原生拒绝任何写操作；表浏览接口对 schema / table / column 名做白名单校验避免拼接注入；导出与查询均受 `statement_timeout` 保护
+
+#### 公告管理增强
+
+- 公告广播流程重构，新增公告更新、删除、已读事件的实时推送处理
+- 用户下拉菜单新增「公告中心」入口，公告页面支持筛选与已读统计
+- 顶部铃铛 badge 通过全局事件监听器实时同步
+
+#### 站内信管理（管理员视角）
+
+- 新增管理员视角的站内信管理 API：分页列表（多条件查询）、标记任意消息已读、删除任意消息
+- 用户端站内信已读 / 删除 / 全部已读支持实时事件推送，前端组件实时刷新
+- 顶部铃铛 badge 通过全局事件实时同步消息状态
+
+#### 文档
+
+- 新增 WebSocket 事件清单文档，涵盖公告、站内消息、会话、即时聊天等推送事件与 API
+
+### Changed
+
+- 聊天页面「新建对话」面板由内嵌结构改为模态框，简化交互流程
+- 聊天图片转换为 PNG Blob 的逻辑提取为模块级函数，简化代码结构
+- 多个组件（CronBuilderPopover、ChatPage、AddNodeButton、NodeCard）按钮增加 Tooltip 提示
+- 短信 / 邮件 / 公告等多处状态标签组件 props 改为 `Readonly<...>`
+- 验证模块邮箱校验改为 `z.email()` 简化写法
+- ESLint 配置导出方式由 `tseslint.config()` 改为数组形式
+
+### Fixed
+
+- 数据库管理列筛选服务端 SQL 中 `column_name = ANY(${array}::text[])` 因 Drizzle 数组参数展开导致的 PG 错误，改为 `IN (sql.join(...))` 并合并 orderBy/filters 列名校验为单次查询
+- 数据库管理数据 Tab 切换排序/筛选时整段 `<Spin />` 替换导致的视觉闪屏，改用 Table 自带 `loading` prop
+
+---
+
 ## v0.23.0 - 2026-05-21
 
 ### Added
