@@ -33,7 +33,7 @@ import {
   Copy,
   ArrowRight,
 } from 'lucide-react';
-import type { editor as MonacoEditor, KeyMod as KeyModT, KeyCode as KeyCodeT } from 'monaco-editor';
+import type { editor as MonacoEditor, KeyMod as KeyModT, KeyCode as KeyCodeT, Position } from 'monaco-editor';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import Editor from '@monaco-editor/react';
 import { TOKEN_KEY } from '@zenith/shared';
@@ -621,11 +621,6 @@ export default function DbAdminPage() {
                             </Text>
                             <Text type="tertiary" size="small">{t.sizeText}</Text>
                           </div>
-                          {t.comment && (
-                            <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ display: 'block' }}>
-                              {t.comment}
-                            </Text>
-                          )}
                         </div>
                       }
                     />
@@ -711,8 +706,8 @@ export default function DbAdminPage() {
                           <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Text type="tertiary" size="small">
                               共 {rows.total.toLocaleString()} 行
-                              {rowsOrderBy && (<>　·　排序：<Text code>{rowsOrderBy} {rowsOrderDir}</Text></>)}
-                              {Object.keys(rowsFilters).length > 0 && (<>　·　筛选：<Text code>{Object.keys(rowsFilters).join(', ')}</Text></>)}
+                              {rowsOrderBy && (<> · 排序：<Text code>{rowsOrderBy} {rowsOrderDir}</Text></>)}
+                              {Object.keys(rowsFilters).length > 0 && (<> · 筛选：<Text code>{Object.keys(rowsFilters).join(', ')}</Text></>)}
                             </Text>
                             {(rowsOrderBy || Object.keys(rowsFilters).length > 0) && (
                               <Button size="small" theme="borderless" onClick={handleRowsResetAll}>重置排序 / 筛选</Button>
@@ -827,7 +822,7 @@ export default function DbAdminPage() {
                   ed.addCommand(KeyMod.CtrlCmd | KeyCode.Enter, () => runQueryRef.current());
                   monaco.languages.registerCompletionItemProvider('sql', {
                     triggerCharacters: ['.', ' '],
-                    provideCompletionItems: (model, position) => {
+                    provideCompletionItems: (model: MonacoEditor.ITextModel, position: Position) => {
                       const word = model.getWordUntilPosition(position);
                       const range = {
                         startLineNumber: position.lineNumber,
