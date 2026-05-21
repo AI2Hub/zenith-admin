@@ -26,7 +26,7 @@ const PROVIDER_OPTIONS = [
   { label: '腾讯云', value: 'tencent' },
 ];
 
-function StatusTag({ value }: { value: SendStatus }) {
+function StatusTag({ value }: Readonly<{ value: SendStatus }>) {
   const it = STATUS_OPTIONS.find((s) => s.value === value);
   return <Tag color={it?.color ?? 'grey'} type="light">{it?.label ?? value}</Tag>;
 }

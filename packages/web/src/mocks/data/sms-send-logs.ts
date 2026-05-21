@@ -57,7 +57,7 @@ export const mockSmsSendLogs: SmsSendLog[] = [
     source: 'system',
     userId: null,
     userName: null,
-    ip: '10.0.0.5',
+    ip: '10.0.0.5', // NOSONAR
     sentAt: '2025-03-03 09:00:00',
     createdAt: '2025-03-03 09:00:00',
   },

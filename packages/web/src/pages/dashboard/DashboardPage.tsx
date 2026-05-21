@@ -212,8 +212,8 @@ export default function DashboardPage() {
         dataSource={notices.slice(0, 6)}
         size="small"
         renderItem={(n: AnnouncementWithRead) => {
-          const typeInfo = ANNOUNCEMENT_TYPE_MAP[n.type] ?? { label: n.type, color: 'blue' as TagColor };
-          const priInfo = ANNOUNCEMENT_PRIORITY_MAP[n.priority] ?? { label: n.priority, color: 'grey' as TagColor };
+          const typeInfo = ANNOUNCEMENT_TYPE_MAP[n.type] ?? { label: n.type, color: 'blue' };
+          const priInfo = ANNOUNCEMENT_PRIORITY_MAP[n.priority] ?? { label: n.priority, color: 'grey' };
           return (
             <List.Item
               className="notice-item notice-item--clickable"

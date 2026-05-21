@@ -14,7 +14,7 @@ export const loginSchema = z.object({
 export const registerSchema = z.object({
   username: z.string().min(2, '用户名至少2个字符').max(32),
   nickname: z.string().min(1, '昵称不能为空').max(32),
-  email: z.string().email('邮箱格式不正确'),
+  email: z.email('邮箱格式不正确'),
   password: z.string().min(6, '密码至少6个字符').max(64),
 });
 

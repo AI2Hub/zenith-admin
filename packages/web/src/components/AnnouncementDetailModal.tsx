@@ -44,14 +44,14 @@ export default function AnnouncementDetailModal({
   hasPrev,
   hasNext,
   indexLabel,
-}: AnnouncementDetailModalProps) {
+}: Readonly<AnnouncementDetailModalProps>) {
   const hasNav = onPrev !== undefined && onNext !== undefined;
 
   const typeInfo = announcement
-    ? (TYPE_MAP[announcement.type] ?? { label: announcement.type, color: 'blue' as TagColor })
+    ? (TYPE_MAP[announcement.type] ?? { label: announcement.type, color: 'blue' })
     : null;
   const priorityInfo = announcement
-    ? (PRIORITY_MAP[announcement.priority] ?? { label: announcement.priority, color: 'grey' as TagColor })
+    ? (PRIORITY_MAP[announcement.priority] ?? { label: announcement.priority, color: 'grey' })
     : null;
 
   const footer = hasNav ? (

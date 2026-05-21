@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Button, Form, Input, Modal, Select, Space, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Modal, Select, Tag, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Download, Plus, RotateCcw, Search } from 'lucide-react';
 import type { EmailSendLog, EmailTemplate, PaginatedResponse, SendStatus } from '@zenith/shared';
@@ -21,7 +21,7 @@ const SOURCE_OPTIONS = [
   { label: 'API', value: 'api' },
 ];
 
-function StatusTag({ value }: { value: SendStatus }) {
+function StatusTag({ value }: Readonly<{ value: SendStatus }>) {
   const it = STATUS_OPTIONS.find((s) => s.value === value);
   return <Tag color={it?.color ?? 'grey'} type="light">{it?.label ?? value}</Tag>;
 }

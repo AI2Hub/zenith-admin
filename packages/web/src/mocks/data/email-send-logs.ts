@@ -29,7 +29,7 @@ export const mockEmailSendLogs: EmailSendLog[] = [
     source: 'api',
     userId: null,
     userName: null,
-    ip: '10.0.0.1',
+    ip: '10.0.0.1', // NOSONAR
     sentAt: null,
     createdAt: '2025-03-02 14:30:00',
   },

@@ -53,6 +53,46 @@ function getNextMentionUnread(
   return Boolean(current || mentionedMe);
 }
 
+// 模块级 state updater 工厂，避免组件内函数嵌套超过 4 层
+const removeMessageById = (id: number) => (prev: ChatMessage[]) => prev.filter((m) => m.id !== id);
+
+const getReplyPreviewText = (m: ChatMessage): string => {
+  if (m.type === 'image') return '[图片]';
+  if (m.type === 'file') return `[文件] ${getAssetMeta(m)?.name ?? ''}`;
+  return m.content;
+};
+const removeMessagesByIds = (ids: Set<number>) => (prev: ChatMessage[]) => prev.filter((m) => !ids.has(m.id));
+const setMessageReactions = (messageId: number, reactions: ChatMessage['reactions']) =>
+  (prev: ChatMessage[]) => prev.map((m) => (m.id === messageId ? { ...m, reactions } : m));
+const recallMessageById = (messageId: number) =>
+  (prev: ChatMessage[]) => prev.map((m) => (m.id === messageId ? { ...m, isRecalled: true, content: '消息已撤回' } : m));
+const setMessageVoteData = (messageId: number, voteData: ChatVoteData) =>
+  (prev: ChatMessage[]) => prev.map((m) => (m.id === messageId ? { ...m, extra: { ...m.extra, voteData } } : m));
+
+const removeConversationById = (convId: number) => (prev: ChatConversation[]) => prev.filter((c) => c.id !== convId);
+const markConversationReadById = (convId: number) =>
+  (prev: ChatConversation[]) => prev.map((c) => (c.id === convId ? { ...c, unreadCount: 0, hasMentionUnread: false } : c));
+const sortConversations = (a: ChatConversation, b: ChatConversation) => {
+  if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+  const ta = a.lastMessage?.createdAt ?? a.createdAt;
+  const tb = b.lastMessage?.createdAt ?? b.createdAt;
+  return tb.localeCompare(ta);
+};
+const togglePinAndSort = (convId: number, isPinned: boolean) => (prev: ChatConversation[]) => {
+  const updated = prev.map((c) => (c.id === convId ? { ...c, isPinned: !isPinned } : c));
+  updated.sort(sortConversations);
+  return updated;
+};
+const toggleConvStarred = (convId: number, isStarred: boolean) =>
+  (prev: ChatConversation[]) => prev.map((c) => (c.id === convId ? { ...c, isStarred: !isStarred } : c));
+const toggleConvMuted = (convId: number, isMuted: boolean) =>
+  (prev: ChatConversation[]) => prev.map((c) => (c.id === convId ? { ...c, isMuted: !isMuted } : c));
+
+const removeFailedMessageById = (id: string) =>
+  (prev: FailedMessage[]) => prev.filter((m) => m.id !== id);
+const removeAnnouncementById = (id: number) =>
+  <T extends { id: number }>(prev: T[]) => prev.filter((it) => it.id !== id);
+
 export interface ChatPageProps {
   variant?: 'page' | 'quick';
   onClose?: () => void;
@@ -209,12 +249,12 @@ export default function ChatPage({
 
   const activeConv = conversations.find((c) => c.id === activeConvId) ?? null;
   const mentionState = useMemo(() => {
-    if (!activeConv || activeConv.type !== 'group') return null;
+    if (activeConv?.type !== 'group') return null;
     const cursor = inputRef.current?.selectionStart ?? input.length;
     const prefix = input.slice(0, cursor);
     const atIndex = prefix.lastIndexOf('@');
     if (atIndex < 0) return null;
-    if (atIndex > 0 && !/[\s\n]/.test(prefix[atIndex - 1] ?? '')) return null;
+    if (atIndex > 0 && !/\s/.test(prefix[atIndex - 1] ?? '')) return null;
     const query = prefix.slice(atIndex + 1);
     if (query.includes(' ') || query.includes('\n')) return null;
     return { start: atIndex, end: cursor, query };
@@ -352,7 +392,7 @@ export default function ChatPage({
         const res = await request.delete(`/api/chat/conversations/${activeConvId}/announcement-history/${messageId}`);
         if ((res as { code: number }).code === 0) {
           Toast.success('已删除');
-          setAnnouncementHistory((prev) => prev.filter((it) => it.id !== messageId));
+          setAnnouncementHistory(removeAnnouncementById(messageId));
         } else {
           Toast.error((res as { message?: string }).message ?? '删除失败');
         }
@@ -375,8 +415,9 @@ export default function ChatPage({
     setHasMore(res.data.hasBefore);
     setOldestMsgId(res.data.list[0]?.id ?? null);
     setContextMode({ anchorMessageId: res.data.anchorMessageId, keyword: '收藏消息' });
+    const anchorMessageId = res.data.anchorMessageId;
     setTimeout(() => {
-      const el = document.getElementById(`msg-${res.data!.anchorMessageId}`);
+      const el = document.getElementById(`msg-${anchorMessageId}`);
       if (!el) return;
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       el.style.transition = 'background 0.3s ease';
@@ -895,7 +936,7 @@ export default function ChatPage({
       onOk: async () => {
         const res = await request.post('/api/chat/messages/batch-delete', { messageIds: [msg.id] });
         if ((res as { code: number }).code === 0) {
-          setMessages((prev) => prev.filter((m) => m.id !== msg.id));
+          setMessages(removeMessageById(msg.id));
           Toast.success('已删除');
         } else {
           Toast.error((res as { message?: string }).message ?? '删除失败');
@@ -915,7 +956,7 @@ export default function ChatPage({
         const res = await request.post('/api/chat/messages/batch-delete', { messageIds: selectedMessageIds });
         if ((res as { code: number }).code === 0) {
           const deletedIds = new Set(selectedMessageIds);
-          setMessages((prev) => prev.filter((m) => !deletedIds.has(m.id)));
+          setMessages(removeMessagesByIds(deletedIds));
           Toast.success('已删除');
           handleExitMultiSelect();
         } else {
@@ -931,7 +972,7 @@ export default function ChatPage({
       { emoji },
     ).then((res) => {
       if (res.code === 0) {
-        setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, reactions: res.data ?? [] } : m));
+        setMessages(setMessageReactions(messageId, res.data ?? []));
       }
     });
   }, []);
@@ -1190,12 +1231,17 @@ export default function ChatPage({
       }
       setConversations((prev) => {
         const isActive = msg.conversationId === activeConvId;
+        const computeUnread = (c: typeof prev[number]) => {
+          if (isOwnMsg) return c.unreadCount;
+          if (isActive && shouldAutoRead) return 0;
+          return c.unreadCount + 1;
+        };
         const updated = prev.map((c) =>
           c.id === msg.conversationId
             ? {
               ...c,
               lastMessage: msg,
-              unreadCount: isOwnMsg ? c.unreadCount : (isActive && shouldAutoRead ? 0 : c.unreadCount + 1),
+              unreadCount: computeUnread(c),
               hasMentionUnread: getNextMentionUnread(c.hasMentionUnread, isOwnMsg, isActive && shouldAutoRead, mentionedMe),
               updatedAt: msg.createdAt,
             }
@@ -1225,32 +1271,27 @@ export default function ChatPage({
       }
     } else if (wsMsg.type === 'chat:recall') {
       const { messageId } = wsMsg.payload;
-      setMessages((prev) =>
-        prev.map((m) => m.id === messageId ? { ...m, isRecalled: true, content: '消息已撤回' } : m),
-      );
+      setMessages(recallMessageById(messageId));
     } else if (wsMsg.type === 'chat:edit') {
       applyMessageUpdate(wsMsg.payload);
     } else if (wsMsg.type === 'chat:reaction') {
       const { messageId, reactions } = wsMsg.payload;
-      setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, reactions } : m));
+      setMessages(setMessageReactions(messageId, reactions));
     } else if (wsMsg.type === 'chat:vote-update') {
       const { messageId, voteData } = wsMsg.payload;
-      setMessages((prev) => prev.map((m) =>
-        m.id === messageId ? { ...m, extra: { ...(m.extra ?? {}), voteData } } : m,
-      ));
+      setMessages(setMessageVoteData(messageId, voteData));
     } else if (wsMsg.type === 'chat:typing') {
       const { conversationId, userId, nickname } = wsMsg.payload;
       if (conversationId !== activeConvId || userId === currentUserId) return;
+      const removeTypingUser = (id: number) => (p: typeof typingUsers) => {
+        const next = { ...p };
+        delete next[id];
+        return next;
+      };
       setTypingUsers((prev) => {
         const existing = prev[userId];
         if (existing) clearTimeout(existing.timer);
-        const timer = setTimeout(() => {
-          setTypingUsers((p) => {
-            const next = { ...p };
-            delete next[userId];
-            return next;
-          });
-        }, 4000);
+        const timer = setTimeout(() => setTypingUsers(removeTypingUser(userId)), 4000);
         return { ...prev, [userId]: { nickname, timer } };
       });
     } else if (wsMsg.type === 'chat:member-join') {
@@ -1261,7 +1302,7 @@ export default function ChatPage({
     } else if (wsMsg.type === 'chat:member-leave') {
       const { conversationId, userId } = wsMsg.payload;
       if (userId === currentUserId) {
-        setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+        setConversations(removeConversationById(conversationId));
         if (activeConvId === conversationId) {
           setActiveConvId(null);
           setMessages([]);
@@ -1276,8 +1317,8 @@ export default function ChatPage({
         prev.map((c) => c.id === conversationId
           ? {
             ...c,
-            ...(name !== undefined ? { name } : {}),
-            ...(announcement !== undefined ? { announcement } : {}),
+            ...(name === undefined ? {} : { name }),
+            ...(announcement === undefined ? {} : { announcement }),
           }
           : c),
       );
@@ -1294,7 +1335,7 @@ export default function ChatPage({
     }
     if (pendingNewMsgCount > 0) setPendingNewMsgCount(0);
     request.post(`/api/chat/conversations/${activeConvId}/read`, {}, { silent: true }).catch(() => {});
-    setConversations((prev) => prev.map((c) => (c.id === activeConvId ? { ...c, unreadCount: 0, hasMentionUnread: false } : c)));
+    setConversations(markConversationReadById(activeConvId));
   }, [activeConvId, contextMode, pendingNewMsgCount, restoreLatestMessages]);
 
   const handleStartReached = useCallback(() => {
@@ -1329,7 +1370,7 @@ export default function ChatPage({
         if (shouldStickToBottom) {
           requestAnimationFrame(() => virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' }));
           request.post(`/api/chat/conversations/${activeConvId}/read`, {}, { silent: true }).catch(() => {});
-          setConversations((prev) => prev.map((c) => (c.id === activeConvId ? { ...c, unreadCount: 0, hasMentionUnread: false } : c)));
+          setConversations(markConversationReadById(activeConvId));
         }
       }
 
@@ -1440,10 +1481,11 @@ export default function ChatPage({
       }),
     ).then((entries) => {
       if (cancelled) return;
+      const toAvatarMember = (m: ChatGroupMember) => ({ id: m.id, nickname: m.nickname, avatar: m.avatar });
       setGroupAvatarMap((prev) => {
         const next = { ...prev };
         for (const [id, members] of entries) {
-          next[id] = members.map((m) => ({ id: m.id, nickname: m.nickname, avatar: m.avatar }));
+          next[id] = members.map(toAvatarMember);
         }
         return next;
       });
@@ -1473,6 +1515,10 @@ export default function ChatPage({
       overflow: 'hidden',
       background: 'var(--semi-color-bg-1)',
     };
+
+  const hasFailedInCurrentConv = failedMessages.some((m) => m.convId === activeConvId);
+  const isEmptyMessagesView = displayMessages.length === 0 && !hasFailedInCurrentConv;
+  const isInitialLoadingMessages = loadingMsgs && messages.length === 0;
 
   return (
     <div style={rootStyle}>
@@ -1880,16 +1926,7 @@ export default function ChatPage({
                         const isPinned = conv.isPinned ?? false;
                         void request.patch(`/api/chat/conversations/${conv.id}/pin`, { pin: !isPinned }).then((r) => {
                           if ((r as { code: number }).code === 0) {
-                            setConversations((prev) => {
-                              const updated = prev.map((c) => c.id === conv.id ? { ...c, isPinned: !isPinned } : c);
-                              updated.sort((a, b) => {
-                                if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-                                const ta = a.lastMessage?.createdAt ?? a.createdAt;
-                                const tb = b.lastMessage?.createdAt ?? b.createdAt;
-                                return tb.localeCompare(ta);
-                              });
-                              return updated;
-                            });
+                            setConversations(togglePinAndSort(conv.id, isPinned));
                             Toast.success(isPinned ? '已取消置顶' : '已置顶');
                           }
                         });
@@ -1905,9 +1942,7 @@ export default function ChatPage({
                         const isStarred = conv.isStarred ?? false;
                         void request.patch(`/api/chat/conversations/${conv.id}/star`, { star: !isStarred }).then((r) => {
                           if ((r as { code: number }).code === 0) {
-                            setConversations((prev) =>
-                              prev.map((c) => c.id === conv.id ? { ...c, isStarred: !isStarred } : c),
-                            );
+                            setConversations(toggleConvStarred(conv.id, isStarred));
                             Toast.success(isStarred ? '已取消星标' : '已标记星标');
                           }
                         });
@@ -1923,9 +1958,7 @@ export default function ChatPage({
                         const isMuted = conv.isMuted ?? false;
                         void request.patch(`/api/chat/conversations/${conv.id}/mute`, { mute: !isMuted }).then((r) => {
                           if ((r as { code: number }).code === 0) {
-                            setConversations((prev) =>
-                              prev.map((c) => c.id === conv.id ? { ...c, isMuted: !isMuted } : c),
-                            );
+                            setConversations(toggleConvMuted(conv.id, isMuted));
                             Toast.success(isMuted ? '已取消免打扰' : '已开启免打扰');
                           }
                         });
@@ -1947,7 +1980,7 @@ export default function ChatPage({
                             void request.delete(`/api/chat/conversations/${conv.id}`).then((r) => {
                               if ((r as { code: number; message?: string }).code === 0) {
                                 Toast.success('会话已删除');
-                                setConversations((prev) => prev.filter((c) => c.id !== conv.id));
+                                setConversations(removeConversationById(conv.id));
                                 if (activeConvId === conv.id) {
                                   setActiveConvId(null);
                                   setMessages([]);
@@ -2205,11 +2238,12 @@ export default function ChatPage({
           <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
             {/* Messages */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative', overflow: 'hidden' }}>
-              {loadingMsgs && messages.length === 0 ? (
+              {isInitialLoadingMessages && (
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Spin size="middle" />
                 </div>
-              ) : displayMessages.length === 0 && failedMessages.filter((m) => m.convId === activeConvId).length === 0 ? (
+              )}
+              {!isInitialLoadingMessages && isEmptyMessagesView && (
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
                   {!wsConnected && (
                     <div
@@ -2229,7 +2263,8 @@ export default function ChatPage({
                   )}
                   <Empty description="发送第一条消息吧" imageStyle={{ width: 80 }} />
                 </div>
-              ) : (
+              )}
+              {!isInitialLoadingMessages && !isEmptyMessagesView && (
                 <Virtuoso
                   ref={virtuosoRef}
                   style={{ flex: 1 }}
@@ -2243,7 +2278,7 @@ export default function ChatPage({
                   increaseViewportBy={{ top: 600, bottom: 200 }}
                   computeItemKey={(_idx, msg) => msg.id}
                   components={{
-                    Header: () => (
+                    Header: () => ( // NOSONAR
                       <div style={{ padding: isQuick ? '8px 12px 0' : '12px 20px 0' }}>
                         {!wsConnected && (
                           <div
@@ -2284,8 +2319,8 @@ export default function ChatPage({
                                         title="取消置顶"
                                         onClick={(event) => { event.stopPropagation(); void handleTogglePinMessage(item); }}
                                         style={{ flexShrink: 0, border: 'none', background: 'transparent', padding: 2, cursor: 'pointer', color: 'var(--semi-color-text-2)', display: 'flex', alignItems: 'center', borderRadius: 4 }}
-                                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--semi-color-danger)'; }}
-                                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--semi-color-text-2)'; }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--semi-color-danger)'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--semi-color-text-2)'; }}
                                       >
                                         <PinOff size={12} />
                                       </button>
@@ -2303,7 +2338,7 @@ export default function ChatPage({
                       </div>
                     ),
                   }}
-                  itemContent={(virtualIndex, msg) => {
+                  itemContent={(virtualIndex, msg) => { // NOSONAR
                     const realIndex = virtualIndex - firstItemIndex;
                     return (
                       <div style={{ padding: isQuick ? '0 12px' : '0 20px' }}>
@@ -2339,7 +2374,7 @@ export default function ChatPage({
                 />
               )}
               {/* ⑥ 发送失败重试 */}
-              {failedMessages.filter((m) => m.convId === activeConvId).length > 0 && (
+              {failedMessages.some((m) => m.convId === activeConvId) && (
                 <div style={{ padding: isQuick ? '0 12px 8px' : '0 20px 8px', flexShrink: 0 }}>
                   <SemiList
                     split={false}
@@ -2364,7 +2399,7 @@ export default function ChatPage({
                             type="danger"
                             theme="borderless"
                             onClick={() => {
-                              setFailedMessages((prev) => prev.filter((m) => m.id !== failed.id));
+                              setFailedMessages(removeFailedMessageById(failed.id));
                               setInput(failed.content);
                               requestAnimationFrame(() => inputRef.current?.focus());
                             }}
@@ -2375,7 +2410,7 @@ export default function ChatPage({
                             size="small"
                             theme="borderless"
                             type="tertiary"
-                            onClick={() => setFailedMessages((prev) => prev.filter((m) => m.id !== failed.id))}
+                            onClick={() => setFailedMessages(removeFailedMessageById(failed.id))}
                           >
                             忽略
                           </Button>
@@ -2397,7 +2432,7 @@ export default function ChatPage({
                       setPendingNewMsgCount(0);
                       if (activeConvId) {
                         void request.post(`/api/chat/conversations/${activeConvId}/read`, {}, { silent: true });
-                        setConversations((prev) => prev.map((c) => (c.id === activeConvId ? { ...c, unreadCount: 0, hasMentionUnread: false } : c)));
+                        setConversations(markConversationReadById(activeConvId));
                       }
                     }}
                   >
@@ -2534,7 +2569,7 @@ export default function ChatPage({
                                     src={preview.image}
                                     alt=""
                                     style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
-                                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                   />
                                 )}
                                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -2547,7 +2582,7 @@ export default function ChatPage({
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                                     {preview?.favicon && (
                                       <img src={preview.favicon} alt="" style={{ width: 12, height: 12, borderRadius: 2 }}
-                                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                       />
                                     )}
                                     <Text type="secondary" style={{ fontSize: 11 }}>{preview?.siteName ?? item.senderName}</Text>
@@ -2678,7 +2713,7 @@ export default function ChatPage({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '4px 10px', background: 'var(--semi-color-fill-0)', borderRadius: 6, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
                 <CornerDownLeft size={12} />
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  回复 {replyTo.senderName}：{replyTo.type === 'image' ? '[图片]' : replyTo.type === 'file' ? `[文件] ${getAssetMeta(replyTo)?.name ?? ''}` : replyTo.content}
+                  回复 {replyTo.senderName}：{getReplyPreviewText(replyTo)}
                 </span>
                 <Button size="small" theme="borderless" type="tertiary" onClick={() => setReplyTo(null)} style={{ padding: '0 4px', height: 'auto', minWidth: 'auto' }}>✕</Button>
               </div>
