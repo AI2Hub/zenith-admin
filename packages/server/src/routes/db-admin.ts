@@ -1,0 +1,208 @@
+import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { authMiddleware } from '../middleware/auth';
+import { guard } from '../middleware/guard';
+import {
+  PaginationQuery,
+  jsonContent,
+  validationHook,
+  commonErrorResponses,
+  ok,
+  okPaginated,
+  okMsg,
+  IdParam,
+  okBody,
+} from '../lib/openapi-schemas';
+import {
+  DbAdminTableItemDTO,
+  DbAdminTableStructureDTO,
+  DbAdminQueryResultDTO,
+  DbAdminExplainResultDTO,
+  DbAdminQueryHistoryItemDTO,
+} from '../lib/openapi-dtos';
+import {
+  listTables,
+  getTableStructure,
+  getTableRows,
+  executeReadonlyQuery,
+  explainQuery,
+  exportQueryCsv,
+  listQueryHistory,
+  clearQueryHistory,
+  deleteQueryHistory,
+} from '../services/db-admin.service';
+
+const router = new OpenAPIHono({ defaultHook: validationHook });
+
+const TableNameParam = z.object({
+  schema: z.string().openapi({ param: { in: 'path', name: 'schema' } }),
+  name: z.string().openapi({ param: { in: 'path', name: 'name' } }),
+});
+
+const RowsQuery = PaginationQuery.extend({
+  orderBy: z.string().optional(),
+  orderDir: z.enum(['asc', 'desc']).optional(),
+});
+
+const TableRowsDTO = z
+  .object({
+    list: z.array(z.record(z.string(), z.unknown())),
+    total: z.number(),
+    page: z.number(),
+    pageSize: z.number(),
+  })
+  .openapi('DbAdminTableRows');
+
+const sqlBodySchema = z.object({ sql: z.string().min(1, 'SQL 不能为空').max(50000) });
+
+// ─── 路由 ──────────────────────────────────────────────────────────────────────
+const listTablesRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/tables', tags: ['DbAdmin'], summary: '表列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:db-admin:view' })] as const,
+    responses: { ...commonErrorResponses, ...ok(z.array(DbAdminTableItemDTO), '表列表') },
+  }),
+  handler: async (c) => c.json(okBody(await listTables()), 200),
+});
+
+const tableStructureRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/tables/{schema}/{name}/structure', tags: ['DbAdmin'], summary: '表结构',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:db-admin:view' })] as const,
+    request: { params: TableNameParam },
+    responses: { ...commonErrorResponses, ...ok(DbAdminTableStructureDTO, '表结构') },
+  }),
+  handler: async (c) => {
+    const { schema, name } = c.req.valid('param');
+    return c.json(okBody(await getTableStructure(schema, name)), 200);
+  },
+});
+
+const tableRowsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/tables/{schema}/{name}/rows', tags: ['DbAdmin'], summary: '表数据',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:db-admin:view' })] as const,
+    request: { params: TableNameParam, query: RowsQuery },
+    responses: { ...commonErrorResponses, ...ok(TableRowsDTO, '表数据') },
+  }),
+  handler: async (c) => {
+    const { schema, name } = c.req.valid('param');
+    const { page, pageSize, orderBy, orderDir } = c.req.valid('query');
+    const data = await getTableRows({ schema, name, page, pageSize, orderBy, orderDir });
+    return c.json(okBody(data), 200);
+  },
+});
+
+const executeQueryRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/query', tags: ['DbAdmin'], summary: '执行只读 SQL',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'system:db-admin:query',
+      audit: { description: '执行 SQL 查询', module: '数据库管理' },
+    })] as const,
+    request: { body: { content: jsonContent(sqlBodySchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(DbAdminQueryResultDTO, '查询结果') },
+  }),
+  handler: async (c) => {
+    const { sql } = c.req.valid('json');
+    return c.json(okBody(await executeReadonlyQuery(sql)), 200);
+  },
+});
+
+const explainRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/explain', tags: ['DbAdmin'], summary: 'EXPLAIN 查询计划',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'system:db-admin:query',
+      audit: { description: 'EXPLAIN SQL', module: '数据库管理' },
+    })] as const,
+    request: { body: { content: jsonContent(sqlBodySchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(DbAdminExplainResultDTO, '查询计划') },
+  }),
+  handler: async (c) => {
+    const { sql } = c.req.valid('json');
+    return c.json(okBody(await explainQuery(sql)), 200);
+  },
+});
+
+const historyRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/query/history', tags: ['DbAdmin'], summary: '查询历史',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:db-admin:view' })] as const,
+    request: { query: PaginationQuery },
+    responses: { ...commonErrorResponses, ...okPaginated(DbAdminQueryHistoryItemDTO, '查询历史') },
+  }),
+  handler: async (c) => {
+    const { page, pageSize } = c.req.valid('query');
+    return c.json(okBody(await listQueryHistory(page, pageSize)), 200);
+  },
+});
+
+const deleteHistoryRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/query/history/{id}', tags: ['DbAdmin'], summary: '删除一条查询历史',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'system:db-admin:view',
+      audit: { description: '删除查询历史', module: '数据库管理' },
+    })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...okMsg('已删除') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    await deleteQueryHistory(id);
+    return c.json(okBody(null, '已删除'), 200);
+  },
+});
+
+const clearHistoryRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/query/history', tags: ['DbAdmin'], summary: '清空查询历史',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'system:db-admin:view',
+      audit: { description: '清空查询历史', module: '数据库管理' },
+    })] as const,
+    responses: { ...commonErrorResponses, ...okMsg('已清空') },
+  }),
+  handler: async (c) => {
+    await clearQueryHistory();
+    return c.json(okBody(null, '已清空'), 200);
+  },
+});
+
+router.openapiRoutes([
+  listTablesRoute,
+  tableStructureRoute,
+  tableRowsRoute,
+  executeQueryRoute,
+  explainRoute,
+  historyRoute,
+  deleteHistoryRoute,
+  clearHistoryRoute,
+] as const);
+
+// CSV 导出：流式响应，不在 OpenAPI Spec 中暴露（避免 schema 复杂度）
+router.post('/query/export.csv', authMiddleware, guard({
+  permission: 'system:db-admin:export',
+  audit: { description: '导出 SQL 结果 CSV', module: '数据库管理' },
+}), async (c) => {
+  const body = await c.req.json<{ sql?: string }>();
+  const csv = await exportQueryCsv(body.sql ?? '');
+  const filename = `query_${Date.now()}.csv`;
+  return new Response(csv, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    },
+  });
+});
+
+export default router;

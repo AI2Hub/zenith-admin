@@ -15,6 +15,7 @@ export * from './cron-jobs';
 export * from './email-config';
 export * from './cache';
 export * from './db-backups';
+export * from './db-admin';
 export * from './monitor';
 export * from './sessions';
 export * from './workflow';

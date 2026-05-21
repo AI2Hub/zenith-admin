@@ -492,6 +492,21 @@ export const dbBackups = pgTable('db_backups', {
 export type DbBackupRow = typeof dbBackups.$inferSelect;
 export type NewDbBackup = typeof dbBackups.$inferInsert;
 
+// ─── 数据库管理 SQL 查询历史表 ──────────────────────────────────────────────────
+export const dbAdminQueryHistory = pgTable('db_admin_query_history', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  sqlText: text('sql_text').notNull(),
+  durationMs: integer('duration_ms').notNull().default(0),
+  rowCount: integer('row_count').notNull().default(0),
+  success: boolean('success').notNull().default(true),
+  errorMessage: text('error_message'),
+  executedAt: timestamp('executed_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type DbAdminQueryHistoryRow = typeof dbAdminQueryHistory.$inferSelect;
+export type NewDbAdminQueryHistory = typeof dbAdminQueryHistory.$inferInsert;
+
 // ─── 个人 API Token 表 ─────────────────────────────────────────────────────────
 export const userApiTokens = pgTable('user_api_tokens', {
   id: serial('id').primaryKey(),

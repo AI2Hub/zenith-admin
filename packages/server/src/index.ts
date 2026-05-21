@@ -47,6 +47,7 @@ import tenantsRoutes from './routes/tenants';
 import oauthRoutes from './routes/oauth';
 import oauthConfigRoutes from './routes/oauth-config';
 import dbBackupsRoutes from './routes/db-backups';
+import dbAdminRoutes from './routes/db-admin';
 import apiTokensRoutes from './routes/api-tokens';
 import cacheRoutes from './routes/cache';
 import workflowDefinitionsRoutes from './routes/workflow-definitions';
@@ -100,7 +101,7 @@ app.use('*', secureHeaders({
   xFrameOptions: false,                       // API 无 UI，不需要
 }));
 // 流式/二进制路由排除压缩：SSE 实时推送 + 文件下载不能被缓冲压缩
-const COMPRESS_EXCLUDE_PREFIXES = ['/api/ws', '/api/files', '/api/db-backups', '/api/log-files', '/api/monitor/stream'];
+const COMPRESS_EXCLUDE_PREFIXES = ['/api/ws', '/api/files', '/api/db-backups', '/api/db-admin', '/api/log-files', '/api/monitor/stream'];
 app.use('*', except(
   (c) => COMPRESS_EXCLUDE_PREFIXES.some((p) => c.req.path.startsWith(p)),
   compress(),
@@ -140,7 +141,7 @@ if (config.requestBodyLimit > 0) {
 if (config.requestTimeoutMs > 0) {
   const timeoutMs = config.requestTimeoutMs;
   // 天生长耗时的路径前缀：WebSocket、文件上传/下载、数据库备份
-  const TIMEOUT_EXCLUDE_PREFIXES = ['/api/ws', '/api/files', '/api/db-backups', '/api/log-files', '/api/monitor/stream'];
+  const TIMEOUT_EXCLUDE_PREFIXES = ['/api/ws', '/api/files', '/api/db-backups', '/api/db-admin', '/api/log-files', '/api/monitor/stream'];
 
   const timeoutMiddleware = timeout(
     timeoutMs,
@@ -195,6 +196,7 @@ app.route('/api/tenants', tenantsRoutes);
 app.route('/api/auth/oauth', oauthRoutes);
 app.route('/api/oauth-config', oauthConfigRoutes);
 app.route('/api/db-backups', dbBackupsRoutes);
+app.route('/api/db-admin', dbAdminRoutes);
 app.route('/api/api-tokens', apiTokensRoutes);
 app.route('/api/cache', cacheRoutes);
 app.route('/api/workflows/definitions', workflowDefinitionsRoutes);
