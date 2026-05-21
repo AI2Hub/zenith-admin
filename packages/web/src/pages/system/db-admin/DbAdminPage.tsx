@@ -28,6 +28,7 @@ import {
   History,
   Trash2,
   Search,
+  Filter,
 } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import Editor from '@monaco-editor/react';
@@ -40,6 +41,44 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime } from '@/utils/date';
 
 const { Title, Text } = Typography;
+
+interface ColumnFilterDropdownProps {
+  columnName: string;
+  tempFilteredValue: unknown[];
+  setTempFilteredValue: (value: unknown[]) => void;
+  confirm: (props?: { closeDropdown?: boolean; filteredValue?: unknown[] }) => void;
+  clear: (props?: { closeDropdown?: boolean }) => void;
+  close: () => void;
+}
+
+function ColumnFilterDropdown(props: Readonly<ColumnFilterDropdownProps>) {
+  const { columnName, tempFilteredValue, setTempFilteredValue, confirm, clear, close } = props;
+  const tempValue = Array.isArray(tempFilteredValue) && tempFilteredValue.length > 0
+    ? String(tempFilteredValue[0])
+    : '';
+  const apply = () => {
+    const kw = tempValue.trim();
+    confirm({ filteredValue: kw ? [kw] : [] });
+  };
+  const reset = () => { clear(); close(); };
+  const handleInputChange = (v: string) => setTempFilteredValue(v ? [v] : []);
+  return (
+    <div style={{ padding: 8, width: 240 }}>
+      <Input
+        size="small"
+        autoFocus
+        value={tempValue}
+        onChange={handleInputChange}
+        onEnterPress={apply}
+        placeholder={`筛选 ${columnName}……`}
+      />
+      <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between' }}>
+        <Button size="small" theme="borderless" onClick={reset}>重置</Button>
+        <Button size="small" theme="solid" type="primary" onClick={apply}>筛选</Button>
+      </div>
+    </div>
+  );
+}
 
 interface TableItem {
   schema: string;
@@ -131,6 +170,9 @@ export default function DbAdminPage() {
   const [rowsLoading, setRowsLoading] = useState(false);
   const [rowsPage, setRowsPage] = useState(1);
   const [rowsPageSize, setRowsPageSize] = useState(20);
+  const [rowsOrderBy, setRowsOrderBy] = useState<string | undefined>(undefined);
+  const [rowsOrderDir, setRowsOrderDir] = useState<'asc' | 'desc' | undefined>(undefined);
+  const [rowsFilters, setRowsFilters] = useState<Record<string, string>>({});
 
   // SQL 控制台
   const [sql, setSql] = useState<string>(DEFAULT_SQL);
@@ -169,10 +211,30 @@ export default function DbAdminPage() {
     setStructureLoading(false);
   }, []);
 
-  const loadRows = useCallback(async (item: TableItem, page: number, pageSize: number) => {
+  const loadRows = useCallback(async (
+    item: TableItem,
+    page: number,
+    pageSize: number,
+    orderBy?: string,
+    orderDir?: 'asc' | 'desc',
+    filters?: Record<string, string>,
+  ) => {
     setRowsLoading(true);
+    const qs = new URLSearchParams();
+    qs.set('page', String(page));
+    qs.set('pageSize', String(pageSize));
+    if (orderBy && orderDir) {
+      qs.set('orderBy', orderBy);
+      qs.set('orderDir', orderDir);
+    }
+    const activeFilters = filters
+      ? Object.fromEntries(Object.entries(filters).filter(([, v]) => v.length > 0))
+      : {};
+    if (Object.keys(activeFilters).length > 0) {
+      qs.set('filters', JSON.stringify(activeFilters));
+    }
     const res = await request.get<TableRowsResponse>(
-      `/api/db-admin/tables/${encodeURIComponent(item.schema)}/${encodeURIComponent(item.name)}/rows?page=${page}&pageSize=${pageSize}`,
+      `/api/db-admin/tables/${encodeURIComponent(item.schema)}/${encodeURIComponent(item.name)}/rows?${qs.toString()}`,
     );
     if (res.code === 0 && res.data) setRows(res.data);
     setRowsLoading(false);
@@ -197,9 +259,9 @@ export default function DbAdminPage() {
     if (innerTab === 'structure') void loadStructure(selected);
     if (innerTab === 'data') {
       setRowsPage(1);
-      void loadRows(selected, 1, rowsPageSize);
+      void loadRows(selected, 1, rowsPageSize, rowsOrderBy, rowsOrderDir, rowsFilters);
     }
-  }, [selected, innerTab, loadStructure, loadRows, rowsPageSize]);
+  }, [selected, innerTab, loadStructure, loadRows, rowsPageSize, rowsOrderBy, rowsOrderDir, rowsFilters]);
 
   useEffect(() => {
     if (activeTab === 'history') void loadHistory(historyPage, historyPageSize);
@@ -210,13 +272,35 @@ export default function DbAdminPage() {
     setStructure(null);
     setRows(null);
     setRowsPage(1);
+    setRowsOrderBy(undefined);
+    setRowsOrderDir(undefined);
+    setRowsFilters({});
   };
 
   const handleRowsPageChange = (page: number, pageSize: number) => {
     if (!selected) return;
     setRowsPage(page);
     setRowsPageSize(pageSize);
-    void loadRows(selected, page, pageSize);
+    void loadRows(selected, page, pageSize, rowsOrderBy, rowsOrderDir, rowsFilters);
+  };
+
+  const handleRowsSort = (col: string, dir: 'asc' | 'desc' | undefined) => {
+    if (!selected) return;
+    const nextBy = dir ? col : undefined;
+    const nextDir = dir;
+    setRowsOrderBy(nextBy);
+    setRowsOrderDir(nextDir);
+    setRowsPage(1);
+    void loadRows(selected, 1, rowsPageSize, nextBy, nextDir, rowsFilters);
+  };
+
+  const handleRowsResetAll = () => {
+    if (!selected) return;
+    setRowsOrderBy(undefined);
+    setRowsOrderDir(undefined);
+    setRowsFilters({});
+    setRowsPage(1);
+    void loadRows(selected, 1, rowsPageSize, undefined, undefined, {});
   };
 
   // ─── SQL 执行 ────────────────────────────────────────────────────────────────
@@ -353,15 +437,49 @@ export default function DbAdminPage() {
     return str;
   };
 
-  const buildDataColumns = (cols: Array<{ name: string; dataType?: string }>): ColumnProps<Record<string, unknown>>[] =>
-    cols.map((c) => ({
-      title: c.dataType ? <Space spacing={4}><Text>{c.name}</Text><Text type="tertiary" size="small">{c.dataType}</Text></Space> : c.name,
-      dataIndex: c.name,
-      key: c.name,
-      width: 180,
-      ellipsis: { showTitle: false },
-      render: renderCell,
-    }));
+  const buildDataColumns = (
+    cols: Array<{ name: string; dataType?: string }>,
+    options?: { sortable?: boolean; filterable?: boolean },
+  ): ColumnProps<Record<string, unknown>>[] => {
+    const sortable = options?.sortable ?? false;
+    const filterable = options?.filterable ?? false;
+    return cols.map((c) => {
+      const titleNode = c.dataType
+        ? <Space spacing={4}><Text>{c.name}</Text><Text type="tertiary" size="small">{c.dataType}</Text></Space>
+        : c.name;
+      const col: ColumnProps<Record<string, unknown>> = {
+        title: titleNode,
+        dataIndex: c.name,
+        key: c.name,
+        width: 180,
+        ellipsis: { showTitle: false },
+        render: renderCell,
+      };
+      if (sortable) {
+        col.sorter = true;
+        let sortOrder: 'ascend' | 'descend' | false = false;
+        if (rowsOrderBy === c.name) sortOrder = rowsOrderDir === 'asc' ? 'ascend' : 'descend';
+        col.sortOrder = sortOrder;
+      }
+      if (filterable) {
+        const current = rowsFilters[c.name] ?? '';
+        const active = current.length > 0;
+        col.filterIcon = <Filter size={12} style={{ color: active ? 'var(--semi-color-primary)' : undefined }} />;
+        col.filteredValue = active ? [current] : [];
+        col.renderFilterDropdown = (renderProps) => (
+          <ColumnFilterDropdown
+            columnName={c.name}
+            tempFilteredValue={renderProps.tempFilteredValue}
+            setTempFilteredValue={renderProps.setTempFilteredValue}
+            confirm={renderProps.confirm}
+            clear={renderProps.clear}
+            close={renderProps.close}
+          />
+        );
+      }
+      return col;
+    });
+  };
 
   const historyColumns: ColumnProps<HistoryItem>[] = [
     { title: '时间', dataIndex: 'executedAt', width: 170, render: (v: string) => formatDateTime(v) },
@@ -496,14 +614,52 @@ export default function DbAdminPage() {
                     <TabPane tab="数据" itemKey="data">
                       {rowsLoading ? <Spin /> : rows && (
                         <div style={{ width: '100%' }}>
+                          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text type="tertiary" size="small">
+                              共 {rows.total.toLocaleString()} 行
+                              {rowsOrderBy && (<>　·　排序：<Text code>{rowsOrderBy} {rowsOrderDir}</Text></>)}
+                              {Object.keys(rowsFilters).length > 0 && (<>　·　筛选：<Text code>{Object.keys(rowsFilters).join(', ')}</Text></>)}
+                            </Text>
+                            {(rowsOrderBy || Object.keys(rowsFilters).length > 0) && (
+                              <Button size="small" theme="borderless" onClick={handleRowsResetAll}>重置排序 / 筛选</Button>
+                            )}
+                          </div>
                           <ConfigurableTable
                             bordered
-                            columns={buildDataColumns(rows.list[0] ? Object.keys(rows.list[0]).map((n) => ({ name: n })) : [])}
+                            columns={buildDataColumns(
+                              rows.list[0]
+                                ? Object.keys(rows.list[0]).map((n) => ({ name: n }))
+                                : Object.keys(rowsFilters).map((n) => ({ name: n })),
+                              { sortable: true, filterable: true },
+                            )}
                             dataSource={rows.list.map((r, i) => ({ ...r, __key: i }))}
                             rowKey="__key"
                             pagination={false}
                             size="small"
                             scroll={{ x: 'max-content' }}
+                            onChange={({ filters: columnFilters, sorter, extra }) => {
+                              const changeType = extra?.changeType;
+                              if (changeType === 'sorter') {
+                                const s = sorter as { dataIndex?: string; sortOrder?: 'ascend' | 'descend' | false } | undefined;
+                                if (!s?.dataIndex) return;
+                                if (s.sortOrder === 'ascend') handleRowsSort(s.dataIndex, 'asc');
+                                else if (s.sortOrder === 'descend') handleRowsSort(s.dataIndex, 'desc');
+                                else handleRowsSort(s.dataIndex, undefined);
+                              } else if (changeType === 'filter' && Array.isArray(columnFilters)) {
+                                // 将 Table 传出的 per-column filteredValue 汇总为与后端交互的平坑结构
+                                const next: Record<string, string> = {};
+                                for (const f of columnFilters as Array<{ dataIndex?: string; filteredValue?: unknown[] }>) {
+                                  if (!f.dataIndex) continue;
+                                  const v = Array.isArray(f.filteredValue) && f.filteredValue.length > 0
+                                    ? String(f.filteredValue[0]).trim()
+                                    : '';
+                                  if (v) next[f.dataIndex] = v;
+                                }
+                                setRowsFilters(next);
+                                setRowsPage(1);
+                                if (selected) void loadRows(selected, 1, rowsPageSize, rowsOrderBy, rowsOrderDir, next);
+                              }
+                            }}
                           />
                           <div style={{ marginTop: 12, textAlign: 'right' }}>
                             <Pagination

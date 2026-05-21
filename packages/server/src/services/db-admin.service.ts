@@ -256,6 +256,8 @@ export interface RowsParams {
   pageSize: number;
   orderBy?: string;
   orderDir?: 'asc' | 'desc';
+  /** 列名 -> 关键字（使用 col::text ILIKE %kw% 匹配） */
+  filters?: Record<string, string>;
 }
 
 export async function getTableRows(params: RowsParams): Promise<{
@@ -264,7 +266,7 @@ export async function getTableRows(params: RowsParams): Promise<{
   page: number;
   pageSize: number;
 }> {
-  const { schema, name, page, pageSize, orderBy, orderDir = 'asc' } = params;
+  const { schema, name, page, pageSize, orderBy, orderDir = 'asc', filters } = params;
   assertIdent(schema, 'schema');
   assertIdent(name, 'table');
 
@@ -281,15 +283,44 @@ export async function getTableRows(params: RowsParams): Promise<{
     }
   }
 
+  // 校验 filters 中的列名都存在
+  const filterEntries: Array<[string, string]> = filters
+    ? Object.entries(filters).filter(([, v]) => typeof v === 'string' && v.length > 0)
+    : [];
+  if (filterEntries.length > 0) {
+    for (const [col] of filterEntries) assertIdent(col, 'filter列');
+    const filterCols = filterEntries.map(([c]) => c);
+    const validCols = await db.execute(sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = ${schema} AND table_name = ${name}
+        AND column_name = ANY(${filterCols}::text[])
+    `);
+    const validSet = new Set(
+      (validCols as unknown as Array<{ column_name: string }>).map((r) => r.column_name),
+    );
+    for (const [col] of filterEntries) {
+      if (!validSet.has(col)) throw new HTTPException(400, { message: `筛选列不存在：${col}` });
+    }
+  }
+
   const fullName = `${quoteIdent(schema)}.${quoteIdent(name)}`;
   const offset = (page - 1) * pageSize;
   const dir = orderDir === 'desc' ? 'DESC' : 'ASC';
-  const orderClause = orderBy ? `ORDER BY ${quoteIdent(orderBy)} ${dir}` : '';
+  const orderClause = orderBy ? sql.raw(`ORDER BY ${quoteIdent(orderBy)} ${dir}`) : sql.raw('');
+
+  const whereSql = filterEntries.length > 0
+    ? sql`WHERE ${sql.join(
+        filterEntries.map(([col, kw]) =>
+          sql`${sql.raw(quoteIdent(col))}::text ILIKE ${'%' + kw + '%'}`,
+        ),
+        sql.raw(' AND '),
+      )}`
+    : sql.raw('');
 
   return runReadOnly(async (tx) => {
     const [listRows, totalRows] = await Promise.all([
-      tx.execute(sql.raw(`SELECT * FROM ${fullName} ${orderClause} LIMIT ${pageSize} OFFSET ${offset}`)),
-      tx.execute(sql.raw(`SELECT count(*)::bigint AS c FROM ${fullName}`)),
+      tx.execute(sql`SELECT * FROM ${sql.raw(fullName)} ${whereSql} ${orderClause} LIMIT ${pageSize} OFFSET ${offset}`),
+      tx.execute(sql`SELECT count(*)::bigint AS c FROM ${sql.raw(fullName)} ${whereSql}`),
     ]);
     const total = Number((totalRows as unknown as Array<{ c: string | number }>)[0]?.c ?? 0);
     return {

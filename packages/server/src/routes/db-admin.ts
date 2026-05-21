@@ -41,6 +41,8 @@ const TableNameParam = z.object({
 const RowsQuery = PaginationQuery.extend({
   orderBy: z.string().optional(),
   orderDir: z.enum(['asc', 'desc']).optional(),
+  /** JSON 字符串：{ 列名: 关键字 }，每列做 ILIKE 模糊匹配 */
+  filters: z.string().optional(),
 });
 
 const TableRowsDTO = z
@@ -89,8 +91,22 @@ const tableRowsRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { schema, name } = c.req.valid('param');
-    const { page, pageSize, orderBy, orderDir } = c.req.valid('query');
-    const data = await getTableRows({ schema, name, page, pageSize, orderBy, orderDir });
+    const { page, pageSize, orderBy, orderDir, filters: filtersStr } = c.req.valid('query');
+    let filters: Record<string, string> | undefined;
+    if (filtersStr) {
+      try {
+        const parsed: unknown = JSON.parse(filtersStr);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          filters = Object.fromEntries(
+            Object.entries(parsed as Record<string, unknown>)
+              .filter(([, v]) => typeof v === 'string' && v.length > 0) as Array<[string, string]>,
+          );
+        }
+      } catch {
+        // ignore invalid JSON; fall through with undefined filters
+      }
+    }
+    const data = await getTableRows({ schema, name, page, pageSize, orderBy, orderDir, filters });
     return c.json(okBody(data), 200);
   },
 });
