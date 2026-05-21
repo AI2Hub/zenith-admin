@@ -274,6 +274,13 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
 
   useEffect(() => { fetchInAppMessages(); }, [fetchInAppMessages]);
 
+  // 监听其他页面（如站内信管理）触发的刷新事件，同步顶部铃铛 badge
+  useEffect(() => {
+    const handler = () => fetchInAppMessages();
+    globalThis.addEventListener('in-app-messages:refresh', handler);
+    return () => globalThis.removeEventListener('in-app-messages:refresh', handler);
+  }, [fetchInAppMessages]);
+
   // ─── 聊天未读数 ────────────────────────────────────────────────────────────
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   // 初次加载时拉取会话列表计算未读

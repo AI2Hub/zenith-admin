@@ -107,6 +107,7 @@ export default function InAppMessagesPage() {
       if (res.code !== 0) return;
       Toast.success('发送成功');
       setSendVisible(false);
+      globalThis.dispatchEvent(new CustomEvent('in-app-messages:refresh'));
       void fetchList(1, keyword, filterType, filterRead, pageSize);
     } finally {
       setSubmitting(false);
@@ -114,8 +115,10 @@ export default function InAppMessagesPage() {
   };
 
   const handleMarkRead = async (id: number) => {
-    await request.post(`/api/in-app-messages/${id}/read`);
+    const res = await request.post(`/api/in-app-messages/${id}/read`);
+    if (res.code !== 0) return;
     Toast.success('已标记为已读');
+    globalThis.dispatchEvent(new CustomEvent('in-app-messages:refresh'));
     void fetchList(page, keyword, filterType, filterRead, pageSize);
   };
 
@@ -123,8 +126,10 @@ export default function InAppMessagesPage() {
     Modal.confirm({
       title: '确定要将所有未读消息标记为已读吗？',
       onOk: async () => {
-        await request.post('/api/in-app-messages/read-all');
+        const res = await request.post('/api/in-app-messages/read-all');
+        if (res.code !== 0) return;
         Toast.success('已全部标记为已读');
+        globalThis.dispatchEvent(new CustomEvent('in-app-messages:refresh'));
         void fetchList(page, keyword, filterType, filterRead, pageSize);
       },
     });
@@ -135,8 +140,10 @@ export default function InAppMessagesPage() {
       title: '确定要删除该消息吗？',
       okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
-        await request.delete(`/api/in-app-messages/${id}`);
+        const res = await request.delete(`/api/in-app-messages/${id}`);
+        if (res.code !== 0) return;
         Toast.success('删除成功');
+        globalThis.dispatchEvent(new CustomEvent('in-app-messages:refresh'));
         void fetchList(page, keyword, filterType, filterRead, pageSize);
       },
     });
