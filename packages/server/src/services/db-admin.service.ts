@@ -270,34 +270,31 @@ export async function getTableRows(params: RowsParams): Promise<{
   assertIdent(schema, 'schema');
   assertIdent(name, 'table');
 
-  // 校验 orderBy 是否真实存在于表中
-  if (orderBy) {
-    assertIdent(orderBy, 'orderBy');
-    const colCheck = await db.execute(sql`
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = ${schema} AND table_name = ${name} AND column_name = ${orderBy}
-      LIMIT 1
-    `);
-    if ((colCheck as unknown as unknown[]).length === 0) {
-      throw new HTTPException(400, { message: `列不存在：${orderBy}` });
-    }
-  }
-
-  // 校验 filters 中的列名都存在
+  // 收集需要校验存在性的列（orderBy + filters 列名），一次性查 information_schema
   const filterEntries: Array<[string, string]> = filters
     ? Object.entries(filters).filter(([, v]) => typeof v === 'string' && v.length > 0)
     : [];
-  if (filterEntries.length > 0) {
-    for (const [col] of filterEntries) assertIdent(col, 'filter列');
-    const filterCols = filterEntries.map(([c]) => c);
+  if (orderBy) assertIdent(orderBy, 'orderBy');
+  for (const [col] of filterEntries) assertIdent(col, 'filter列');
+
+  const colsToCheck = Array.from(
+    new Set<string>([
+      ...(orderBy ? [orderBy] : []),
+      ...filterEntries.map(([c]) => c),
+    ]),
+  );
+  if (colsToCheck.length > 0) {
     const validCols = await db.execute(sql`
       SELECT column_name FROM information_schema.columns
       WHERE table_schema = ${schema} AND table_name = ${name}
-        AND column_name IN (${sql.join(filterCols.map((c) => sql`${c}`), sql`, `)})
+        AND column_name IN (${sql.join(colsToCheck.map((c) => sql`${c}`), sql`, `)})
     `);
     const validSet = new Set(
       (validCols as unknown as Array<{ column_name: string }>).map((r) => r.column_name),
     );
+    if (orderBy && !validSet.has(orderBy)) {
+      throw new HTTPException(400, { message: `列不存在：${orderBy}` });
+    }
     for (const [col] of filterEntries) {
       if (!validSet.has(col)) throw new HTTPException(400, { message: `筛选列不存在：${col}` });
     }
