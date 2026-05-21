@@ -6,6 +6,7 @@ import {
   Empty,
   Input,
   JsonViewer,
+  List,
   Modal,
   Pagination,
   Popconfirm,
@@ -389,55 +390,66 @@ export default function DbAdminPage() {
         <TabPane tab={<span><TableIcon size={14} style={{ verticalAlign: -2, marginRight: 4 }} />表浏览</span>} itemKey="browse">
           <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - 240px)', minHeight: 480 }}>
             {/* 左侧表列表 */}
-            <div style={{ width: 320, display: 'flex', flexDirection: 'column', border: '1px solid var(--semi-color-border)', borderRadius: 6 }}>
-              <div style={{ padding: 12, borderBottom: '1px solid var(--semi-color-border)' }}>
-                <Space style={{ width: '100%' }}>
-                  <Input
-                    prefix={<Search size={14} />}
-                    placeholder="搜索表名"
-                    value={tableFilter}
-                    onChange={setTableFilter}
-                    showClear
-                    style={{ flex: 1 }}
-                  />
-                  <Tooltip content="刷新">
-                    <Button icon={<RefreshCw size={14} />} onClick={() => void loadTables()} loading={tablesLoading} />
-                  </Tooltip>
-                </Space>
-                <div style={{ marginTop: 8 }}>
-                  <Text type="tertiary" size="small">{filteredTables.length} / {tables.length} 张表</Text>
-                </div>
-              </div>
-              <div style={{ flex: 1, overflowY: 'auto' }}>
-                {tablesLoading ? (
-                  <div style={{ textAlign: 'center', padding: 32 }}><Spin /></div>
-                ) : filteredTables.length === 0 ? (
-                  <Empty title="无表" />
-                ) : filteredTables.map((t) => {
+            <div style={{ width: 320, display: 'flex', flexDirection: 'column', border: '1px solid var(--semi-color-border)', borderRadius: 6, overflow: 'hidden' }}>
+              <List
+                style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
+                dataSource={filteredTables}
+                loading={tablesLoading}
+                emptyContent={<Empty title="无匹配的表" style={{ padding: 32 }} />}
+                split={false}
+                size="small"
+                header={
+                  <div>
+                    <Space style={{ width: '100%' }}>
+                      <Input
+                        prefix={<Search size={14} />}
+                        placeholder="搜索表名 / schema"
+                        value={tableFilter}
+                        onChange={setTableFilter}
+                        showClear
+                        style={{ flex: 1 }}
+                      />
+                      <Tooltip content="刷新">
+                        <Button icon={<RefreshCw size={14} />} onClick={() => void loadTables()} loading={tablesLoading} />
+                      </Tooltip>
+                    </Space>
+                    <div style={{ marginTop: 6 }}>
+                      <Text type="tertiary" size="small">{filteredTables.length} / {tables.length} 张表</Text>
+                    </div>
+                  </div>
+                }
+                renderItem={(t) => {
                   const isActive = selected?.schema === t.schema && selected?.name === t.name;
                   return (
-                    <div
+                    <List.Item
                       key={`${t.schema}.${t.name}`}
                       onClick={() => handleSelectTable(t)}
                       style={{
-                        padding: '8px 12px',
                         cursor: 'pointer',
+                        padding: '8px 12px',
                         background: isActive ? 'var(--semi-color-primary-light-default)' : undefined,
                         borderBottom: '1px solid var(--semi-color-fill-0)',
                       }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text strong={isActive} ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>
-                          {t.schema !== 'public' && <Text type="tertiary" size="small">{t.schema}.</Text>}
-                          {t.name}
-                        </Text>
-                        <Text type="tertiary" size="small">{t.sizeText}</Text>
-                      </div>
-                      {t.comment && <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 280 }}>{t.comment}</Text>}
-                    </div>
+                      main={
+                        <div style={{ minWidth: 0, width: '100%' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                            <Text strong={isActive} ellipsis={{ showTooltip: true }} style={{ flex: 1, minWidth: 0 }}>
+                              {t.schema !== 'public' && <Text type="tertiary" size="small">{t.schema}.</Text>}
+                              {t.name}
+                            </Text>
+                            <Text type="tertiary" size="small">{t.sizeText}</Text>
+                          </div>
+                          {t.comment && (
+                            <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ display: 'block' }}>
+                              {t.comment}
+                            </Text>
+                          )}
+                        </div>
+                      }
+                    />
                   );
-                })}
-              </div>
+                }}
+              />
             </div>
 
             {/* 右侧详情 */}
