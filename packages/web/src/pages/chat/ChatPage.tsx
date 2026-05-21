@@ -2798,17 +2798,18 @@ export default function ChatPage({
             {/* Toolbar */}
             <div style={{ display: 'flex', gap: 4, marginBottom: 1, alignItems: 'center' }}>
               <div ref={emojiContainerRef}>
-                <Button
-                  size="small" theme="borderless" type="tertiary"
-                  icon={<Smile size={16} />}
-                  title="表情"
-                  onClick={() => {
-                    if (emojiVisible) { setEmojiVisible(false); return; }
-                    const rect = emojiContainerRef.current?.getBoundingClientRect();
-                    if (rect) setEmojiAnchor({ top: rect.top, left: rect.left });
-                    setEmojiVisible(true);
-                  }}
-                />
+                <Tooltip content="表情">
+                  <Button
+                    size="small" theme="borderless" type="tertiary"
+                    icon={<Smile size={16} />}
+                    onClick={() => {
+                      if (emojiVisible) { setEmojiVisible(false); return; }
+                      const rect = emojiContainerRef.current?.getBoundingClientRect();
+                      if (rect) setEmojiAnchor({ top: rect.top, left: rect.left });
+                      setEmojiVisible(true);
+                    }}
+                  />
+                </Tooltip>
               </div>
               {emojiVisible && emojiAnchor && (
                 <div

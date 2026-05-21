@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Button, InputNumber, Popover, Radio, Select, Space, Typography } from '@douyinfe/semi-ui';
+import { Button, InputNumber, Popover, Radio, Select, Space, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { Settings } from 'lucide-react';
 
 type CronMode = 'minutes' | 'hours' | 'daily' | 'weekly' | 'monthly' | 'custom';
@@ -267,16 +267,17 @@ export function CronBuilderPopover({ value, onApply }: CronBuilderPopoverProps) 
       content={content}
       position="bottomRight"
     >
-      <div style={{ display: 'inline-flex' }}>
-        <Button
-          icon={<Settings size={14} />}
-          size="small"
-          theme="borderless"
-          type="tertiary"
-          onClick={(e) => { e.stopPropagation(); setVisible((v) => !v); }}
-          title="可视化配置"
-        />
-      </div>
+      <Tooltip content="可视化配置">
+        <div style={{ display: 'inline-flex' }}>
+          <Button
+            icon={<Settings size={14} />}
+            size="small"
+            theme="borderless"
+            type="tertiary"
+            onClick={(e) => { e.stopPropagation(); setVisible((v) => !v); }}
+          />
+        </div>
+      </Tooltip>
     </Popover>
   );
 }

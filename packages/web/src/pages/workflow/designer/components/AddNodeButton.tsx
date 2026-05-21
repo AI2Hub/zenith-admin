@@ -3,6 +3,7 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { Plus } from 'lucide-react';
+import { Tooltip } from '@douyinfe/semi-ui';
 import { NODE_TYPE_GROUPS, type NodeTypeInfo } from '../constants';
 import type { FlowNodeType } from '../types';
 
@@ -33,14 +34,15 @@ export default function AddNodeButton({ onAdd }: Readonly<AddNodeButtonProps>) {
 
   return (
     <div className="fd-add-node-btn-wrap" ref={wrapRef}>
-      <button
-        className="fd-add-node-btn"
-        type="button"
-        onClick={() => setVisible(v => !v)}
-        title="添加节点"
-      >
-        <Plus size={16} />
-      </button>
+      <Tooltip content="添加节点">
+        <button
+          className="fd-add-node-btn"
+          type="button"
+          onClick={() => setVisible(v => !v)}
+        >
+          <Plus size={16} />
+        </button>
+      </Tooltip>
 
       {visible && (
         <div className="fd-node-picker-panel">

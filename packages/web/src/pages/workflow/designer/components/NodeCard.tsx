@@ -4,6 +4,7 @@
  * Body 区域根据节点属性显示丰富的配置摘要
  */
 import { ChevronRight, X } from 'lucide-react';
+import { Tooltip } from '@douyinfe/semi-ui';
 import type { FlowNode, AssigneeType, ApproveMethod, ApprovalType, OperationPermission, FieldPermission } from '../types';
 import { NODE_COLOR_MAP, ADDABLE_NODE_TYPES, ASSIGNEE_TYPE_OPTIONS, APPROVE_METHOD_OPTIONS, APPROVAL_TYPE_OPTIONS } from '../constants';
 
@@ -159,14 +160,15 @@ export default function NodeCard({ node, onEdit, onDelete }: Readonly<NodeCardPr
         )}
         <span className="fd-node-card__header-title">{node.name || info?.label || '节点'}</span>
         <span className="fd-node-card__header-actions">
-          <span
-            role="none"
-            className="fd-node-card__delete-btn"
-            onClick={(e) => { e.stopPropagation(); onDelete(node.id); }}
-            title="删除"
-          >
-            <X size={12} />
-          </span>
+          <Tooltip content="删除">
+            <span
+              role="none"
+              className="fd-node-card__delete-btn"
+              onClick={(e) => { e.stopPropagation(); onDelete(node.id); }}
+            >
+              <X size={12} />
+            </span>
+          </Tooltip>
         </span>
       </div>
 
