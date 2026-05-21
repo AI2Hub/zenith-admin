@@ -1,13 +1,13 @@
 /**
- * 通知公告相关 DTO
+ * 公告相关 DTO
  */
 import { z } from '@hono/zod-openapi';
 import { auditFields } from './_audit';
 
-export const NoticeDTO = z
+export const AnnouncementDTO = z
   .object({
     id: z.number().int(),
-    title: z.string().openapi({ example: '系统维护通知' }),
+    title: z.string().openapi({ example: '系统维护公告' }),
     content: z.string(),
     type: z.string().openapi({ example: 'notice' }),
     publishStatus: z.string().openapi({ example: 'published' }),
@@ -21,9 +21,9 @@ export const NoticeDTO = z
     updatedAt: z.string(),
     readCount: z.number().int().optional(),
   })
-  .openapi('Notice');
+  .openapi('Announcement');
 
-export const NoticeReadStatsDTO = z
+export const AnnouncementReadStatsDTO = z
   .object({
     readCount: z.number().int(),
     totalCount: z.number().int(),
@@ -40,4 +40,4 @@ export const NoticeReadStatsDTO = z
     page: z.number().int(),
     pageSize: z.number().int(),
   })
-  .openapi('NoticeReadStats');
+  .openapi('AnnouncementReadStats');

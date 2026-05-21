@@ -150,7 +150,7 @@ const rows = await db.query.users.findMany({
 | `workflowTasks` | `instance`, `assignee` |
 | `dbBackups` | `file`, `createdByUser` |
 | `cronJobs` | `logs` |
-| `notices` | `reads`, `recipients` |
+| `announcements` | `reads`, `recipients` |
 
 > **保留手动 JOIN 的场景**：聚合计数需要跨表过滤（如 `countDistinct` + 反向遍历联结表）；keyword 搜索同时过滤主表和关联表字段（WHERE 依赖 JOIN 列）。
 

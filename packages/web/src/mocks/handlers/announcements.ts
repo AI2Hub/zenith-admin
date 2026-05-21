@@ -1,11 +1,11 @@
 import { http, HttpResponse } from 'msw';
-import { mockNotices, getNextNoticeId } from '@/mocks/data/notices';
+import { mockAnnouncements, getNextAnnouncementId } from '@/mocks/data/announcements';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { Notice } from '@zenith/shared';
+import type { Announcement } from '@zenith/shared';
 
-export const noticesHandlers = [
-  // 通知列表（分页）
-  http.get('/api/notices', ({ request }) => {
+export const announcementsHandlers = [
+  // 公告列表（分页）
+  http.get('/api/announcements', ({ request }) => {
     const url = new URL(request.url);
     const page = Number(url.searchParams.get('page')) || 1;
     const pageSize = Number(url.searchParams.get('pageSize')) || 10;
@@ -13,7 +13,7 @@ export const noticesHandlers = [
     const publishStatus = url.searchParams.get('publishStatus') ?? '';
     const type = url.searchParams.get('type') ?? '';
 
-    let list = mockNotices.filter((n) => {
+    let list = mockAnnouncements.filter((n) => {
       if (keyword && !n.title.includes(keyword)) return false;
       if (publishStatus && n.publishStatus !== publishStatus) return false;
       if (type && n.type !== type) return false;
@@ -24,9 +24,9 @@ export const noticesHandlers = [
     return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
   }),
 
-  // 已发布通知列表（前台展示，无需鉴权）
-  http.get('/api/notices/published', () => {
-    const data = mockNotices
+  // 已发布公告列表（前台展示，无需鉴权）
+  http.get('/api/announcements/published', () => {
+    const data = mockAnnouncements
       .filter((n) => n.publishStatus === 'published')
       .sort((a, b) => (b.publishTime ?? '').localeCompare(a.publishTime ?? ''))
       .slice(0, 20)
@@ -34,14 +34,14 @@ export const noticesHandlers = [
     return HttpResponse.json({ code: 0, message: 'ok', data });
   }),
 
-  // 通知收件箱（分页，含已读状态 — Demo 模式已读状态不持久化，始终 false）
-  http.get('/api/notices/inbox', ({ request }) => {
+  // 公告收件箱（分页，含已读状态 — Demo 模式已读状态不持久化，始终 false）
+  http.get('/api/announcements/inbox', ({ request }) => {
     const url = new URL(request.url);
     const page = Number(url.searchParams.get('page')) || 1;
     const pageSize = Number(url.searchParams.get('pageSize')) || 10;
     const isReadFilter = url.searchParams.get('isRead');
 
-    let list = mockNotices
+    let list = mockAnnouncements
       .filter((n) => n.publishStatus === 'published')
       .sort((a, b) => (b.publishTime ?? '').localeCompare(a.publishTime ?? ''))
       .map((n) => ({ ...n, isRead: false }));
@@ -55,22 +55,22 @@ export const noticesHandlers = [
   }),
 
   // 全部标记为已读（Demo 模式不持久化，直接返回成功）
-  http.post('/api/notices/read-all', () => {
+  http.post('/api/announcements/read-all', () => {
     return HttpResponse.json({ code: 0, message: 'ok', data: null });
   }),
 
-  // 获取单个通知
-  http.get('/api/notices/:id', ({ params }) => {
-    const notice = mockNotices.find((n) => n.id === Number(params.id));
-    if (!notice) return HttpResponse.json({ code: 404, message: '通知不存在', data: null });
+  // 获取单个公告
+  http.get('/api/announcements/:id', ({ params }) => {
+    const notice = mockAnnouncements.find((n) => n.id === Number(params.id));
+    if (!notice) return HttpResponse.json({ code: 404, message: '公告不存在', data: null });
     return HttpResponse.json({ code: 0, message: 'ok', data: notice });
   }),
 
-  // 新增通知
-  http.post('/api/notices', async ({ request }) => {
-    const body = await request.json() as Partial<Notice>;
-    const newNotice: Notice = {
-      id: getNextNoticeId(),
+  // 新增公告
+  http.post('/api/announcements', async ({ request }) => {
+    const body = await request.json() as Partial<Announcement>;
+    const newNotice: Announcement = {
+      id: getNextAnnouncementId(),
       title: body.title ?? '',
       content: body.content ?? '',
       type: body.type ?? 'notice',
@@ -83,65 +83,65 @@ export const noticesHandlers = [
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
     };
-    mockNotices.push(newNotice);
+    mockAnnouncements.push(newNotice);
     return HttpResponse.json({ code: 0, message: '新增成功', data: newNotice });
   }),
 
-  // 更新通知
-  http.put('/api/notices/:id', async ({ params, request }) => {
-    const notice = mockNotices.find((n) => n.id === Number(params.id));
-    if (!notice) return HttpResponse.json({ code: 404, message: '通知不存在', data: null });
-    const body = await request.json() as Partial<Notice>;
+  // 更新公告
+  http.put('/api/announcements/:id', async ({ params, request }) => {
+    const notice = mockAnnouncements.find((n) => n.id === Number(params.id));
+    if (!notice) return HttpResponse.json({ code: 404, message: '公告不存在', data: null });
+    const body = await request.json() as Partial<Announcement>;
     Object.assign(notice, body, { updatedAt: mockDateTime() });
     return HttpResponse.json({ code: 0, message: '更新成功', data: notice });
   }),
 
-  // 发布通知
-  http.put('/api/notices/:id/publish', ({ params }) => {
-    const notice = mockNotices.find((n) => n.id === Number(params.id));
-    if (!notice) return HttpResponse.json({ code: 404, message: '通知不存在', data: null });
+  // 发布公告
+  http.put('/api/announcements/:id/publish', ({ params }) => {
+    const notice = mockAnnouncements.find((n) => n.id === Number(params.id));
+    if (!notice) return HttpResponse.json({ code: 404, message: '公告不存在', data: null });
     notice.publishStatus = 'published';
     notice.publishTime = mockDateTime();
     notice.updatedAt = mockDateTime();
     return HttpResponse.json({ code: 0, message: '发布成功', data: notice });
   }),
 
-  // 撤回通知
-  http.put('/api/notices/:id/recall', ({ params }) => {
-    const notice = mockNotices.find((n) => n.id === Number(params.id));
-    if (!notice) return HttpResponse.json({ code: 404, message: '通知不存在', data: null });
+  // 撤回公告
+  http.put('/api/announcements/:id/recall', ({ params }) => {
+    const notice = mockAnnouncements.find((n) => n.id === Number(params.id));
+    if (!notice) return HttpResponse.json({ code: 404, message: '公告不存在', data: null });
     notice.publishStatus = 'recalled';
     notice.updatedAt = mockDateTime();
     return HttpResponse.json({ code: 0, message: '撤回成功', data: notice });
   }),
 
-  // 批量删除通知
-  http.delete('/api/notices/batch', async ({ request }) => {
+  // 批量删除公告
+  http.delete('/api/announcements/batch', async ({ request }) => {
     const body = await request.json() as { ids: number[] };
     const ids = body?.ids ?? [];
     ids.forEach((id) => {
-      const index = mockNotices.findIndex((n) => n.id === id);
-      if (index !== -1) mockNotices.splice(index, 1);
+      const index = mockAnnouncements.findIndex((n) => n.id === id);
+      if (index !== -1) mockAnnouncements.splice(index, 1);
     });
-    return HttpResponse.json({ code: 0, message: `已删除 ${ids.length} 条通知`, data: null });
+    return HttpResponse.json({ code: 0, message: `已删除 ${ids.length} 条公告`, data: null });
   }),
 
-  // 删除通知
-  http.delete('/api/notices/:id', ({ params }) => {
-    const index = mockNotices.findIndex((n) => n.id === Number(params.id));
-    if (index === -1) return HttpResponse.json({ code: 404, message: '通知不存在', data: null });
-    mockNotices.splice(index, 1);
+  // 删除公告
+  http.delete('/api/announcements/:id', ({ params }) => {
+    const index = mockAnnouncements.findIndex((n) => n.id === Number(params.id));
+    if (index === -1) return HttpResponse.json({ code: 404, message: '公告不存在', data: null });
+    mockAnnouncements.splice(index, 1);
     return HttpResponse.json({ code: 0, message: '删除成功', data: null });
   }),
 
   // 已读统计详情（管理视角）
-  http.get('/api/notices/:id/read-stats', ({ params, request }) => {
+  http.get('/api/announcements/:id/read-stats', ({ params, request }) => {
     const url = new URL(request.url);
     const page = Number(url.searchParams.get('page')) || 1;
     const pageSize = Number(url.searchParams.get('pageSize')) || 10;
     const tab = url.searchParams.get('tab') === 'unread' ? 'unread' : 'read';
-    const notice = mockNotices.find((n) => n.id === Number(params.id));
-    if (!notice) return HttpResponse.json({ code: 404, message: '通知不存在', data: null });
+    const notice = mockAnnouncements.find((n) => n.id === Number(params.id));
+    if (!notice) return HttpResponse.json({ code: 404, message: '公告不存在', data: null });
 
     // 模拟已读和未读用户列表
     const mockReadUsers = [
@@ -174,8 +174,8 @@ export const noticesHandlers = [
     });
   }),
 
-  // 标记通知已读
-  http.post('/api/notices/:id/read', () => {
+  // 标记公告已读
+  http.post('/api/announcements/:id/read', () => {
     return HttpResponse.json({ code: 0, message: 'ok', data: null });
   }),
 ];

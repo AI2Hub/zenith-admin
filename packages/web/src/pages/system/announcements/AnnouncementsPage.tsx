@@ -22,7 +22,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Plus, RotateCcw, Download, Trash2 } from 'lucide-react';
-import type { Notice, NoticeRecipient, NoticeTargetType, PaginatedResponse, User, Role, Department, NoticeReadStats } from '@zenith/shared';
+import type { Announcement, AnnouncementRecipient, AnnouncementTargetType, PaginatedResponse, User, Role, Department, AnnouncementReadStats } from '@zenith/shared';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -63,9 +63,9 @@ type SearchParams = {
   timeRange: [Date, Date] | null;
 };
 
-export default function NoticesPage() {
+export default function AnnouncementsPage() {
   const { hasPermission } = usePermission();
-  const [data, setData] = useState<Notice[]>([]);
+  const [data, setData] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -76,7 +76,7 @@ export default function NoticesPage() {
   const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
 
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingNotice, setEditingNotice] = useState<Notice | null>(null);
+  const [editingNotice, setEditingNotice] = useState<Announcement | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formApi, setFormApi] = useState<FormApi | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
@@ -84,7 +84,7 @@ export default function NoticesPage() {
   const [editorKey, setEditorKey] = useState(0);
 
   // 收件人相关状态
-  const [targetType, setTargetType] = useState<NoticeTargetType>('all');
+  const [targetType, setTargetType] = useState<AnnouncementTargetType>('all');
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([]);
   const [selectedDeptIds, setSelectedDeptIds] = useState<number[]>([]);
@@ -94,14 +94,14 @@ export default function NoticesPage() {
   const [loadingOptions, setLoadingOptions] = useState(false);
   const userSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { items: typeItems } = useDictItems('notice_type');
-  const { items: statusItems } = useDictItems('notice_publish_status');
-  const { items: priorityItems } = useDictItems('notice_priority');
+  const { items: typeItems } = useDictItems('announcement_type');
+  const { items: statusItems } = useDictItems('announcement_publish_status');
+  const { items: priorityItems } = useDictItems('announcement_priority');
 
   // ─── 已读统计 ─────────────────────────────────────────────────────────────────────────────
   const [statsDrawerVisible, setStatsDrawerVisible] = useState(false);
-  const [statsNotice, setStatsNotice] = useState<Notice | null>(null);
-  const [statsData, setStatsData] = useState<NoticeReadStats | null>(null);
+  const [statsNotice, setStatsNotice] = useState<Announcement | null>(null);
+  const [statsData, setStatsData] = useState<AnnouncementReadStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsTab, setStatsTab] = useState<'read' | 'unread'>('read');
 
@@ -121,7 +121,7 @@ export default function NoticesPage() {
           }
           : {}),
       }).toString();
-      const res = await request.get<PaginatedResponse<Notice>>(`/api/notices?${query}`);
+      const res = await request.get<PaginatedResponse<Announcement>>(`/api/announcements?${query}`);
       if (res.code === 0) {
         setData(res.data.list);
         setTotal(res.data.total);
@@ -151,11 +151,11 @@ export default function NoticesPage() {
     fetchData(1, pageSize, empty);
   };
 
-  const fetchStatsData = async (notice: Notice, page: number, tab: 'read' | 'unread') => {
+  const fetchStatsData = async (notice: Announcement, page: number, tab: 'read' | 'unread') => {
     setStatsLoading(true);
     try {
-      const res = await request.get<NoticeReadStats>(
-        `/api/notices/${notice.id}/read-stats?tab=${tab}&page=${page}&pageSize=10`,
+      const res = await request.get<AnnouncementReadStats>(
+        `/api/announcements/${notice.id}/read-stats?tab=${tab}&page=${page}&pageSize=10`,
       );
       if (res.code === 0) setStatsData(res.data);
     } finally {
@@ -163,7 +163,7 @@ export default function NoticesPage() {
     }
   };
 
-  const openStatsDrawer = (notice: Notice) => {
+  const openStatsDrawer = (notice: Announcement) => {
     setStatsNotice(notice);
     setStatsTab('read');
     setStatsData(null);
@@ -221,7 +221,7 @@ export default function NoticesPage() {
     setModalVisible(true);
   };
 
-  const openEditModal = async (record: Notice) => {
+  const openEditModal = async (record: Announcement) => {
     setContentHtml(record.content ?? '');
     setEditorKey((k) => k + 1);
     setEditingNotice(record);
@@ -235,7 +235,7 @@ export default function NoticesPage() {
     // 异步加载选项和收件人详情
     const [, detailRes] = await Promise.all([
       loadRecipientOptions(),
-      request.get<Notice & { recipients: NoticeRecipient[] }>(`/api/notices/${record.id}`),
+      request.get<Announcement & { recipients: AnnouncementRecipient[] }>(`/api/announcements/${record.id}`),
     ]);
 
     if (detailRes.code === 0 && detailRes.data) {
@@ -259,7 +259,7 @@ export default function NoticesPage() {
   };
 
   const handleDelete = async (id: number) => {
-    const res = await request.delete<null>(`/api/notices/${id}`);
+    const res = await request.delete<null>(`/api/announcements/${id}`);
     if (res.code === 0) {
       Toast.success('删除成功');
       fetchData(page, pageSize, submittedParams);
@@ -268,11 +268,11 @@ export default function NoticesPage() {
 
   const handleBatchDelete = () => {
     Modal.confirm({
-      title: `确认删除选中的 ${selectedRowKeys.length} 条通知？`,
+      title: `确认删除选中的 ${selectedRowKeys.length} 条公告？`,
       content: '删除后无法恢复，请确认操作',
       okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
-        const res = await request.delete<null>('/api/notices/batch', { ids: selectedRowKeys });
+        const res = await request.delete<null>('/api/announcements/batch', { ids: selectedRowKeys });
         if (res.code === 0) {
           Toast.success(res.message ?? '删除成功');
           setSelectedRowKeys([]);
@@ -294,7 +294,7 @@ export default function NoticesPage() {
     try {
       const isContentEmpty = !contentHtml || contentHtml === '<p><br></p>';
       if (isContentEmpty) {
-        Toast.warning('请输入通知内容');
+        Toast.warning('请输入公告内容');
         setSubmitting(false);
         return;
       }
@@ -317,9 +317,9 @@ export default function NoticesPage() {
       };
       let res;
       if (editingNotice) {
-        res = await request.put<Notice>(`/api/notices/${editingNotice.id}`, payload);
+        res = await request.put<Announcement>(`/api/announcements/${editingNotice.id}`, payload);
       } else {
-        res = await request.post<Notice>('/api/notices', payload);
+        res = await request.post<Announcement>('/api/announcements', payload);
       }
       if (res.code === 0) {
         Toast.success(editingNotice ? '更新成功' : '创建成功');
@@ -341,7 +341,7 @@ export default function NoticesPage() {
       {
         title: '用户',
         dataIndex: 'username',
-        render: (_: unknown, u: NoticeReadStats['list'][number]) => (
+        render: (_: unknown, u: AnnouncementReadStats['list'][number]) => (
           <Space>
             <Avatar size="extra-extra-small" src={u.avatar ?? undefined} style={{ backgroundColor: u.avatar ? undefined : 'var(--semi-color-primary)', color: '#fff' }}>
               {u.nickname?.[0] ?? 'U'}
@@ -438,14 +438,14 @@ export default function NoticesPage() {
     recalled: 'orange',
   };
 
-  const columns: ColumnProps<Notice>[] = [
+  const columns: ColumnProps<Announcement>[] = [
     { title: 'ID', dataIndex: 'id', width: 70 },
     { title: '标题', dataIndex: 'title', width: 220, ellipsis: true },
     {
       title: '类型',
       dataIndex: 'type',
       width: 100,
-      render: (v: string) => <DictTag dictCode="notice_type" value={v} />,
+      render: (v: string) => <DictTag dictCode="announcement_type" value={v} />,
     },
     {
       title: '发布状态',
@@ -460,7 +460,7 @@ export default function NoticesPage() {
       title: '优先级',
       dataIndex: 'priority',
       width: 100,
-      render: (v: string) => <DictTag dictCode="notice_priority" value={v} />,
+      render: (v: string) => <DictTag dictCode="announcement_priority" value={v} />,
     },
     {
       title: '收件对象',
@@ -477,7 +477,7 @@ export default function NoticesPage() {
       title: '已读统计',
       dataIndex: 'readCount',
       width: 110,
-      render: (v: number, record: Notice) => {
+      render: (v: number, record: Announcement) => {
         if (record.publishStatus !== 'published') {
           return <span style={{ color: 'var(--semi-color-text-3)' }}>—</span>;
         }
@@ -511,16 +511,16 @@ export default function NoticesPage() {
       dataIndex: 'op',
       width: 180,
       fixed: 'right' as const,
-      render: (_: unknown, record: Notice) => (
+      render: (_: unknown, record: Announcement) => (
         <Space>
-          {hasPermission('system:notice:update') && <Button
+          {hasPermission('system:announcement:update') && <Button
             theme="borderless"
             size="small"
             onClick={() => openEditModal(record)}
           >编辑</Button>}
-          {hasPermission('system:notice:delete') && <Button theme="borderless" type="danger" size="small" onClick={() => {
+          {hasPermission('system:announcement:delete') && <Button theme="borderless" type="danger" size="small" onClick={() => {
             Modal.confirm({
-              title: '确定要删除该通知吗？',
+              title: '确定要删除该公告吗？',
               okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(record.id),
             });
@@ -543,7 +543,7 @@ export default function NoticesPage() {
             showClear
           />
           <Select
-            placeholder="通知类型"
+            placeholder="公告类型"
             value={searchParams.type || undefined}
             onChange={(v) => setSearchParams((prev) => ({ ...prev, type: typeof v === 'string' ? v : '' }))}
             optionList={typeItems.map((i) => ({ label: i.label, value: i.value }))}
@@ -567,13 +567,13 @@ export default function NoticesPage() {
           />
           <Button icon={<Search size={14} />} type="primary" onClick={handleSearch}>查询</Button>
           <Button icon={<RotateCcw size={14} />} type="tertiary" onClick={handleReset}>重置</Button>
-          <Button type="primary" icon={<Download size={14} />} loading={exportLoading} onClick={async () => { setExportLoading(true); try { await request.download('/api/notices/export', '通知列表.xlsx'); } finally { setExportLoading(false); } }}>导出</Button>
-          {selectedRowKeys.length > 0 && hasPermission('system:notice:delete') && (
+          <Button type="primary" icon={<Download size={14} />} loading={exportLoading} onClick={async () => { setExportLoading(true); try { await request.download('/api/announcements/export', '公告列表.xlsx'); } finally { setExportLoading(false); } }}>导出</Button>
+          {selectedRowKeys.length > 0 && hasPermission('system:announcement:delete') && (
             <Button type="danger" theme="light" icon={<Trash2 size={14} />} onClick={handleBatchDelete}>
               批量删除 ({selectedRowKeys.length})
             </Button>
           )}
-          {hasPermission('system:notice:create') && <Button icon={<Plus size={14} />} type="primary" onClick={openCreateModal}>新增</Button>}
+          {hasPermission('system:announcement:create') && <Button icon={<Plus size={14} />} type="primary" onClick={openCreateModal}>新增</Button>}
       </SearchToolbar>
 
       <ConfigurableTable
@@ -606,7 +606,7 @@ export default function NoticesPage() {
       />
 
       <SideSheet
-        title={editingNotice ? '编辑通知' : '新增通知'}
+        title={editingNotice ? '编辑公告' : '新增公告'}
         visible={modalVisible}
         onCancel={() => setModalVisible(false)}
         width={860}
@@ -637,13 +637,13 @@ export default function NoticesPage() {
           <Form.Input
             field="title"
             label="标题"
-            placeholder="请输入通知标题"
+            placeholder="请输入公告标题"
             rules={[{ required: true, message: '标题不能为空' }]}
           />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
             <Form.Select
               field="type"
-              label="通知类型"
+              label="公告类型"
               optionList={typeItems.map((i) => ({ label: i.label, value: i.value }))}
               placeholder="请选择类型"
               style={{ width: '100%' }}
@@ -667,7 +667,7 @@ export default function NoticesPage() {
             <div style={{ marginBottom: 8, fontSize: 14, fontWeight: 500 }}>收件对象</div>
             <RadioGroup
               value={targetType}
-              onChange={(e) => setTargetType(e.target.value as NoticeTargetType)}
+              onChange={(e) => setTargetType(e.target.value as AnnouncementTargetType)}
               style={{ marginBottom: targetType === 'specific' ? 12 : 0 }}
             >
               <Radio value="all">全体用户</Radio>
@@ -731,7 +731,7 @@ export default function NoticesPage() {
                   key={editorKey}
                   value={contentHtml}
                   onChange={setContentHtml}
-                  placeholder="请输入通知内容"
+                  placeholder="请输入公告内容"
                   height={500}
                 />
               </Suspense>

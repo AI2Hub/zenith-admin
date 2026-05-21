@@ -18,14 +18,14 @@ const GithubIcon = ({ size = 18 }: { size?: number }) => (
 );
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
-import type { Notice } from '@zenith/shared';
+import type { Announcement } from '@zenith/shared';
 import { usePermission } from '@/hooks/usePermission';
-import NoticeDetailModal from '@/components/NoticeDetailModal';
+import AnnouncementDetailModal from '@/components/AnnouncementDetailModal';
 import './DashboardPage.css';
 
 const { Text } = Typography;
 
-type NoticeWithRead = Notice & { isRead: boolean };
+type AnnouncementWithRead = Announcement & { isRead: boolean };
 
 interface DashboardStats {
   totalUsers: number;
@@ -68,19 +68,19 @@ const STAT_ITEMS: Array<{
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
 
-const NOTICE_TYPE_MAP: Record<string, { label: string; color: TagColor }> = {
+const ANNOUNCEMENT_TYPE_MAP: Record<string, { label: string; color: TagColor }> = {
   notice: { label: '通知', color: 'blue' },
   announcement: { label: '公告', color: 'cyan' },
   warning: { label: '预警', color: 'orange' },
 };
 
-const NOTICE_PRIORITY_MAP: Record<string, { label: string; color: TagColor }> = {
+const ANNOUNCEMENT_PRIORITY_MAP: Record<string, { label: string; color: TagColor }> = {
   high: { label: '高', color: 'red' },
   medium: { label: '中', color: 'orange' },
   low: { label: '低', color: 'green' },
 };
 
-const markReadById = (id: number) => (n: NoticeWithRead) =>
+const markReadById = (id: number) => (n: AnnouncementWithRead) =>
   n.id === id ? { ...n, isRead: true } : n;
 
 function stripHtml(html: string): string {
@@ -93,9 +93,9 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const { permissions } = usePermission();
   const isAdmin = permissions.includes('*');
-  const [notices, setNotices] = useState<NoticeWithRead[]>([]);
+  const [notices, setNotices] = useState<AnnouncementWithRead[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedNotice, setSelectedNotice] = useState<NoticeWithRead | null>(null);
+  const [selectedNotice, setSelectedNotice] = useState<AnnouncementWithRead | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [charts, setCharts] = useState<DashboardCharts | null>(null);
@@ -111,7 +111,7 @@ export default function DashboardPage() {
   ];
 
   useEffect(() => {
-    request.get<NoticeWithRead[]>('/api/notices/published', { silent: true })
+    request.get<AnnouncementWithRead[]>('/api/announcements/published', { silent: true })
       .then((res) => {
         if (res.code === 0) setNotices(res.data);
       })
@@ -139,13 +139,13 @@ export default function DashboardPage() {
   }, [isAdmin]);
 
   function markAsRead(id: number) {
-    request.post(`/api/notices/${id}/read`, undefined, { silent: true }).then((res) => {
+    request.post(`/api/announcements/${id}/read`, undefined, { silent: true }).then((res) => {
       if (res.code !== 0) return;
       setNotices((prev) => prev.map(markReadById(id)));
     });
   }
 
-  function openNotice(n: NoticeWithRead) {
+  function openNotice(n: AnnouncementWithRead) {
     setSelectedNotice(n);
     if (!n.isRead) markAsRead(n.id);
   }
@@ -205,15 +205,15 @@ export default function DashboardPage() {
         } />
       </div>
     );
-    if (notices.length === 0) return <Empty description="暂无通知公告" className="dashboard-empty" />;
+    if (notices.length === 0) return <Empty description="暂无公告" className="dashboard-empty" />;
     return (
       <List
         className="notice-list"
         dataSource={notices.slice(0, 6)}
         size="small"
-        renderItem={(n: NoticeWithRead) => {
-          const typeInfo = NOTICE_TYPE_MAP[n.type] ?? { label: n.type, color: 'blue' as TagColor };
-          const priInfo = NOTICE_PRIORITY_MAP[n.priority] ?? { label: n.priority, color: 'grey' as TagColor };
+        renderItem={(n: AnnouncementWithRead) => {
+          const typeInfo = ANNOUNCEMENT_TYPE_MAP[n.type] ?? { label: n.type, color: 'blue' as TagColor };
+          const priInfo = ANNOUNCEMENT_PRIORITY_MAP[n.priority] ?? { label: n.priority, color: 'grey' as TagColor };
           return (
             <List.Item
               className="notice-item notice-item--clickable"
@@ -383,7 +383,7 @@ export default function DashboardPage() {
                   <Bell size={14} />
                   <Text strong style={{ fontSize: 14 }}>通知公告</Text>
                 </Space>
-                <Button theme="borderless" size="small" type="tertiary" onClick={() => navigate('/notifications')}>查看更多</Button>
+                <Button theme="borderless" size="small" type="tertiary" onClick={() => navigate('/announcements')}>查看更多</Button>
               </div>
             }
             className="dashboard-card dashboard-card--notice"
@@ -452,9 +452,9 @@ export default function DashboardPage() {
       </div>
 
       {/* ===== 通知详情 Modal ===== */}
-      <NoticeDetailModal
+      <AnnouncementDetailModal
         visible={selectedNotice !== null}
-        notice={selectedNotice}
+        announcement={selectedNotice}
         onClose={() => setSelectedNotice(null)}
       />
     </div>

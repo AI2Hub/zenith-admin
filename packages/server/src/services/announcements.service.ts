@@ -2,7 +2,7 @@ import { count, desc, eq, like, and, gte, lte, inArray, isNull, isNotNull, sql, 
 import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import type { DbExecutor } from '../db/types';
-import { notices, noticeRecipients, noticeReads, users, userRoles, roles, departments } from '../db/schema';
+import { announcements, announcementRecipients, announcementReads, users, userRoles, roles, departments } from '../db/schema';
 import { broadcast, sendToUser } from '../lib/ws-manager';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { streamToExcel, formatDateTimeForExcel } from '../lib/excel-export';
@@ -12,7 +12,7 @@ import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../l
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 
-export function mapNotice(row: typeof notices.$inferSelect) {
+export function mapAnnouncement(row: typeof announcements.$inferSelect) {
   return {
     ...row,
     targetType: row.targetType as 'all' | 'specific',
@@ -22,20 +22,20 @@ export function mapNotice(row: typeof notices.$inferSelect) {
   };
 }
 
-// ─── 访问过滤条件（只能看到自己有权限的通知）────────────────────────────────
+// ─── 访问过滤条件（只能看到自己有权限的公告）────────────────────────────────
 
 export function buildAccessFilter(userId: number) {
   return or(
-    eq(notices.targetType, 'all'),
+    eq(announcements.targetType, 'all'),
     sql`EXISTS (
-      SELECT 1 FROM notice_recipients nr
-      WHERE nr.notice_id = ${notices.id}
+      SELECT 1 FROM announcement_recipients ar
+      WHERE ar.announcement_id = ${announcements.id}
       AND (
-        (nr.recipient_type = 'user' AND nr.recipient_id = ${userId})
-        OR (nr.recipient_type = 'role' AND nr.recipient_id IN (
+        (ar.recipient_type = 'user' AND ar.recipient_id = ${userId})
+        OR (ar.recipient_type = 'role' AND ar.recipient_id IN (
           SELECT role_id FROM user_roles WHERE user_id = ${userId}
         ))
-        OR (nr.recipient_type = 'dept' AND nr.recipient_id = (
+        OR (ar.recipient_type = 'dept' AND ar.recipient_id = (
           SELECT department_id FROM users WHERE id = ${userId}
         ))
       )
@@ -47,26 +47,26 @@ export function buildAccessFilter(userId: number) {
 
 export async function saveRecipients(
   executor: DbExecutor,
-  noticeId: number,
+  announcementId: number,
   recipientList: Array<{ recipientType: string; recipientId: number }>,
 ) {
-  await executor.delete(noticeRecipients).where(eq(noticeRecipients.noticeId, noticeId));
+  await executor.delete(announcementRecipients).where(eq(announcementRecipients.announcementId, announcementId));
   if (recipientList.length > 0) {
     await executor
-      .insert(noticeRecipients)
-      .values(recipientList.map((r) => ({ noticeId, recipientType: r.recipientType, recipientId: r.recipientId })))
+      .insert(announcementRecipients)
+      .values(recipientList.map((r) => ({ announcementId, recipientType: r.recipientType, recipientId: r.recipientId })))
       .onConflictDoNothing();
   }
 }
 
 // ─── WebSocket 广播 ───────────────────────────────────────────────────────────
 
-export async function broadcastNotice(notice: ReturnType<typeof mapNotice>, noticeId: number) {
-  if (notice.targetType === 'all') {
-    setImmediate(() => broadcast({ type: 'notice:new', payload: notice }));
+export async function broadcastAnnouncement(announcement: ReturnType<typeof mapAnnouncement>, announcementId: number) {
+  if (announcement.targetType === 'all') {
+    setImmediate(() => broadcast({ type: 'announcement:new', payload: announcement }));
     return;
   }
-  const recipientRows = await db.select().from(noticeRecipients).where(eq(noticeRecipients.noticeId, noticeId));
+  const recipientRows = await db.select().from(announcementRecipients).where(eq(announcementRecipients.announcementId, announcementId));
   const userIdSet = new Set<number>();
   recipientRows.filter((r) => r.recipientType === 'user').forEach((r) => userIdSet.add(r.recipientId));
   const roleIds = recipientRows.filter((r) => r.recipientType === 'role').map((r) => r.recipientId);
@@ -76,12 +76,12 @@ export async function broadcastNotice(notice: ReturnType<typeof mapNotice>, noti
   }
   const deptIds = recipientRows.filter((r) => r.recipientType === 'dept').map((r) => r.recipientId);
   if (deptIds.length > 0) {
-    const tenantFilter = notice.tenantId == null ? undefined : eq(users.tenantId, notice.tenantId);
+    const tenantFilter = announcement.tenantId == null ? undefined : eq(users.tenantId, announcement.tenantId);
     const deptUsers = await db.select({ id: users.id }).from(users).where(and(inArray(users.departmentId, deptIds), tenantFilter));
     deptUsers.forEach((u) => userIdSet.add(u.id));
   }
   setImmediate(() => {
-    for (const uid of userIdSet) sendToUser(uid, { type: 'notice:new', payload: notice });
+    for (const uid of userIdSet) sendToUser(uid, { type: 'announcement:new', payload: announcement });
   });
 }
 
@@ -89,90 +89,90 @@ export async function broadcastNotice(notice: ReturnType<typeof mapNotice>, noti
 
 export async function listPublishedForUser() {
   const user = currentUser();
-  const tc = tenantCondition(notices, user);
+  const tc = tenantCondition(announcements, user);
   const accessFilter = buildAccessFilter(user.userId);
-  const rows = await db.query.notices.findMany({
-    where: and(eq(notices.publishStatus, 'published'), accessFilter, ...(tc ? [tc] : [])),
-    with: { reads: { where: eq(noticeReads.userId, user.userId), columns: { id: true } } },
-    orderBy: [desc(notices.publishTime)],
+  const rows = await db.query.announcements.findMany({
+    where: and(eq(announcements.publishStatus, 'published'), accessFilter, ...(tc ? [tc] : [])),
+    with: { reads: { where: eq(announcementReads.userId, user.userId), columns: { id: true } } },
+    orderBy: [desc(announcements.publishTime)],
     limit: 20,
   });
-  return rows.map(({ reads, ...row }) => ({ ...mapNotice(row), isRead: reads.length > 0 }));
+  return rows.map(({ reads, ...row }) => ({ ...mapAnnouncement(row), isRead: reads.length > 0 }));
 }
 
-export async function markNoticeRead(noticeId: number) {
+export async function markAnnouncementRead(announcementId: number) {
   const userId = currentUser().userId;
-  await db.insert(noticeReads).values({ noticeId, userId }).onConflictDoNothing();
+  await db.insert(announcementReads).values({ announcementId, userId }).onConflictDoNothing();
 }
 
-export async function markAllNoticesRead() {
+export async function markAllAnnouncementsRead() {
   const userId = currentUser().userId;
   const accessFilter = buildAccessFilter(userId);
-  const rows = await db.query.notices.findMany({
-    where: and(eq(notices.publishStatus, 'published'), accessFilter),
-    with: { reads: { where: eq(noticeReads.userId, userId), columns: { id: true } } },
+  const rows = await db.query.announcements.findMany({
+    where: and(eq(announcements.publishStatus, 'published'), accessFilter),
+    with: { reads: { where: eq(announcementReads.userId, userId), columns: { id: true } } },
     columns: { id: true },
   });
   const unreadIds = rows.filter((r) => r.reads.length === 0).map((r) => r.id);
   if (unreadIds.length === 0) return;
-  await db.insert(noticeReads).values(unreadIds.map((noticeId) => ({ noticeId, userId }))).onConflictDoNothing();
+  await db.insert(announcementReads).values(unreadIds.map((announcementId) => ({ announcementId, userId }))).onConflictDoNothing();
 }
 
 export async function getInbox(q: { page?: number; pageSize?: number; isRead?: string }) {
   const user = currentUser();
   const { page = 1, pageSize = 10, isRead } = q;
-  const tc = tenantCondition(notices, user);
+  const tc = tenantCondition(announcements, user);
   const accessFilter = buildAccessFilter(user.userId);
-  const baseWhere = and(eq(notices.publishStatus, 'published'), accessFilter, ...(tc ? [tc] : []));
-  const joinCond = and(eq(noticeReads.noticeId, notices.id), eq(noticeReads.userId, user.userId));
+  const baseWhere = and(eq(announcements.publishStatus, 'published'), accessFilter, ...(tc ? [tc] : []));
+  const joinCond = and(eq(announcementReads.announcementId, announcements.id), eq(announcementReads.userId, user.userId));
   let readFilter: ReturnType<typeof isNotNull | typeof isNull> | undefined;
-  if (isRead === 'true') readFilter = isNotNull(noticeReads.id);
-  else if (isRead === 'false') readFilter = isNull(noticeReads.id);
+  if (isRead === 'true') readFilter = isNotNull(announcementReads.id);
+  else if (isRead === 'false') readFilter = isNull(announcementReads.id);
   const where = readFilter ? and(baseWhere, readFilter) : baseWhere;
   const [totalRow, rows] = await Promise.all([
-    db.select({ total: count() }).from(notices).leftJoin(noticeReads, joinCond).where(where),
+    db.select({ total: count() }).from(announcements).leftJoin(announcementReads, joinCond).where(where),
     withPagination(
-      db.select({ ...getTableColumns(notices), isRead: isNotNull(noticeReads.id) })
-        .from(notices)
-        .leftJoin(noticeReads, joinCond)
+      db.select({ ...getTableColumns(announcements), isRead: isNotNull(announcementReads.id) })
+        .from(announcements)
+        .leftJoin(announcementReads, joinCond)
         .where(where)
-        .orderBy(desc(notices.publishTime))
+        .orderBy(desc(announcements.publishTime))
         .$dynamic(),
       page, pageSize,
     ),
   ]);
-  return { list: rows.map(({ isRead, ...noticeRow }) => ({ ...mapNotice(noticeRow), isRead })), total: totalRow[0].total, page, pageSize };
+  return { list: rows.map(({ isRead, ...announcementRow }) => ({ ...mapAnnouncement(announcementRow), isRead })), total: totalRow[0].total, page, pageSize };
 }
 
-export async function listNotices(q: { page?: number; pageSize?: number; title?: string; type?: string; publishStatus?: string; startTime?: string; endTime?: string }) {
+export async function listAnnouncements(q: { page?: number; pageSize?: number; title?: string; type?: string; publishStatus?: string; startTime?: string; endTime?: string }) {
   const user = currentUser();
   const { page = 1, pageSize = 10, title, type, publishStatus, startTime, endTime } = q;
   const conditions = [];
-  if (title) conditions.push(like(notices.title, `%${escapeLike(title)}%`));
-  if (type) conditions.push(eq(notices.type, type));
-  if (publishStatus) conditions.push(eq(notices.publishStatus, publishStatus));
+  if (title) conditions.push(like(announcements.title, `%${escapeLike(title)}%`));
+  if (type) conditions.push(eq(announcements.type, type));
+  if (publishStatus) conditions.push(eq(announcements.publishStatus, publishStatus));
   const parsedStartTime = parseDateTimeInput(startTime);
   const parsedEndTime = parseDateTimeInput(endTime);
-  if (parsedStartTime) conditions.push(gte(notices.createdAt, parsedStartTime));
-  if (parsedEndTime) conditions.push(lte(notices.createdAt, parsedEndTime));
+  if (parsedStartTime) conditions.push(gte(announcements.createdAt, parsedStartTime));
+  if (parsedEndTime) conditions.push(lte(announcements.createdAt, parsedEndTime));
   const where = and(...conditions);
-  const tc = tenantCondition(notices, user);
+  const tc = tenantCondition(announcements, user);
   const finalWhere = mergeWhere(where, tc);
   const [total, rows] = await Promise.all([
-    db.$count(notices, finalWhere),
-    withPagination(db.select().from(notices).where(finalWhere).orderBy(desc(notices.createdAt)).$dynamic(), page, pageSize),
+    db.$count(announcements, finalWhere),
+    withPagination(db.select().from(announcements).where(finalWhere).orderBy(desc(announcements.createdAt)).$dynamic(), page, pageSize),
   ]);
-  const noticeIds = rows.map((r) => r.id);
-  const readCountRows = noticeIds.length > 0
-    ? await db.select({ noticeId: noticeReads.noticeId, cnt: count() }).from(noticeReads).where(inArray(noticeReads.noticeId, noticeIds)).groupBy(noticeReads.noticeId)
+  const announcementIds = rows.map((r) => r.id);
+  const readCountRows = announcementIds.length > 0
+    ? await db.select({ announcementId: announcementReads.announcementId, cnt: count() }).from(announcementReads).where(inArray(announcementReads.announcementId, announcementIds)).groupBy(announcementReads.announcementId)
     : [];
-  const readCountMap = new Map(readCountRows.map((r) => [r.noticeId, r.cnt]));
-  return { list: rows.map((r) => ({ ...mapNotice(r), readCount: readCountMap.get(r.id) ?? 0 })), total: Number(total), page, pageSize };
+  const readCountMap = new Map(readCountRows.map((r) => [r.announcementId, r.cnt]));
+  return { list: rows.map((r) => ({ ...mapAnnouncement(r), readCount: readCountMap.get(r.id) ?? 0 })), total: Number(total), page, pageSize };
 }
 
-export async function exportNotices(): Promise<{ stream: ReadableStream; filename: string }> {
+export async function exportAnnouncements(): Promise<{ stream: ReadableStream; filename: string }> {
   const user = currentUser();
-  const rows = await db.select().from(notices).where(tenantCondition(notices, user)).orderBy(desc(notices.id));
+  const rows = await db.select().from(announcements).where(tenantCondition(announcements, user)).orderBy(desc(announcements.id));
   const stream = await streamToExcel(
     [
       { header: 'ID', key: 'id', width: 8 },
@@ -184,44 +184,44 @@ export async function exportNotices(): Promise<{ stream: ReadableStream; filenam
       { header: '创建时间', key: 'createdAt', width: 22 },
     ],
     rows.map((r) => ({ ...r, createdAt: formatDateTimeForExcel(r.createdAt) })),
-    '通知公告',
+    '公告',
   );
-  return { stream, filename: 'notices.xlsx' };
+  return { stream, filename: 'announcements.xlsx' };
 }
 
-export async function batchDeleteNotices(ids: number[]) {
+export async function batchDeleteAnnouncements(ids: number[]) {
   const user = currentUser();
-  if (!Array.isArray(ids) || ids.length === 0) throw new HTTPException(400, { message: '请选择要删除的通知' });
+  if (!Array.isArray(ids) || ids.length === 0) throw new HTTPException(400, { message: '请选择要删除的公告' });
   const validIds = ids.filter((id): id is number => typeof id === 'number' && Number.isInteger(id));
-  if (validIds.length === 0) throw new HTTPException(400, { message: '通知ID格式无效' });
-  await db.delete(notices).where(and(inArray(notices.id, validIds), tenantCondition(notices, user)));
+  if (validIds.length === 0) throw new HTTPException(400, { message: '公告ID格式无效' });
+  await db.delete(announcements).where(and(inArray(announcements.id, validIds), tenantCondition(announcements, user)));
   return validIds.length;
 }
 
-export async function getNoticesBeforeAudit(ids: number[]) {
+export async function getAnnouncementsBeforeAudit(ids: number[]) {
   const user = currentUser();
   const validIds = ids.filter((id): id is number => typeof id === 'number' && Number.isInteger(id));
   if (validIds.length === 0) return [];
-  const rows = await db.select().from(notices).where(and(inArray(notices.id, validIds), tenantCondition(notices, user))).orderBy(desc(notices.id));
-  return rows.map(mapNotice);
+  const rows = await db.select().from(announcements).where(and(inArray(announcements.id, validIds), tenantCondition(announcements, user))).orderBy(desc(announcements.id));
+  return rows.map(mapAnnouncement);
 }
 
-export async function getNoticeReadStats(id: number, q: { page?: number; pageSize?: number; tab?: string }) {
+export async function getAnnouncementReadStats(id: number, q: { page?: number; pageSize?: number; tab?: string }) {
   const user = currentUser();
   const { page = 1, pageSize = 10, tab: rawTab } = q;
   const tab = rawTab === 'unread' ? 'unread' : 'read';
-  const [notice] = await db.select().from(notices).where(eq(notices.id, id));
-  if (!notice) throw new HTTPException(404, { message: '通知不存在' });
+  const [announcement] = await db.select().from(announcements).where(eq(announcements.id, id));
+  if (!announcement) throw new HTTPException(404, { message: '公告不存在' });
 
-  const joinCond = and(eq(noticeReads.noticeId, id), eq(noticeReads.userId, users.id));
-  const tabFilter = tab === 'read' ? isNotNull(noticeReads.id) : isNull(noticeReads.id);
+  const joinCond = and(eq(announcementReads.announcementId, id), eq(announcementReads.userId, users.id));
+  const tabFilter = tab === 'read' ? isNotNull(announcementReads.id) : isNull(announcementReads.id);
 
   let baseWhere: SQL | undefined;
-  if (notice.targetType === 'all') {
+  if (announcement.targetType === 'all') {
     const tc = tenantCondition(users, user);
     baseWhere = and(eq(users.status, 'enabled'), ...(tc ? [tc] : []));
   } else {
-    const recipients = await db.select().from(noticeRecipients).where(eq(noticeRecipients.noticeId, id));
+    const recipients = await db.select().from(announcementRecipients).where(eq(announcementRecipients.announcementId, id));
     const userIdSet = new Set<number>();
     recipients.filter((r) => r.recipientType === 'user').forEach((r) => userIdSet.add(r.recipientId));
     const roleIds = recipients.filter((r) => r.recipientType === 'role').map((r) => r.recipientId);
@@ -237,13 +237,13 @@ export async function getNoticeReadStats(id: number, q: { page?: number; pageSiz
   }
 
   const [readCountRow, totalCountRow, totalRow, list] = await Promise.all([
-    db.select({ cnt: count() }).from(users).leftJoin(noticeReads, joinCond).where(and(baseWhere, isNotNull(noticeReads.id))),
+    db.select({ cnt: count() }).from(users).leftJoin(announcementReads, joinCond).where(and(baseWhere, isNotNull(announcementReads.id))),
     db.select({ cnt: count() }).from(users).where(baseWhere),
-    db.select({ cnt: count() }).from(users).leftJoin(noticeReads, joinCond).where(and(baseWhere, tabFilter)),
+    db.select({ cnt: count() }).from(users).leftJoin(announcementReads, joinCond).where(and(baseWhere, tabFilter)),
     withPagination(
-      db.select({ id: users.id, username: users.username, nickname: users.nickname, avatar: users.avatar, readAt: noticeReads.readAt })
+      db.select({ id: users.id, username: users.username, nickname: users.nickname, avatar: users.avatar, readAt: announcementReads.readAt })
         .from(users)
-        .leftJoin(noticeReads, joinCond)
+        .leftJoin(announcementReads, joinCond)
         .where(and(baseWhere, tabFilter))
         .orderBy(users.id)
         .$dynamic(),
@@ -267,11 +267,11 @@ export async function getNoticeReadStats(id: number, q: { page?: number; pageSiz
   };
 }
 
-export async function getNoticeDetail(id: number) {
+export async function getAnnouncementDetail(id: number) {
   const user = currentUser();
-  const [row] = await db.select().from(notices).where(and(eq(notices.id, id), tenantCondition(notices, user)));
-  if (!row) throw new HTTPException(404, { message: '通知不存在' });
-  const recipientRows = await db.select().from(noticeRecipients).where(eq(noticeRecipients.noticeId, id));
+  const [row] = await db.select().from(announcements).where(and(eq(announcements.id, id), tenantCondition(announcements, user)));
+  if (!row) throw new HTTPException(404, { message: '公告不存在' });
+  const recipientRows = await db.select().from(announcementRecipients).where(eq(announcementRecipients.announcementId, id));
   const userIds = recipientRows.filter((r) => r.recipientType === 'user').map((r) => r.recipientId);
   const roleIds = recipientRows.filter((r) => r.recipientType === 'role').map((r) => r.recipientId);
   const deptIds = recipientRows.filter((r) => r.recipientType === 'dept').map((r) => r.recipientId);
@@ -290,10 +290,10 @@ export async function getNoticeDetail(id: number) {
     recipientId: r.recipientId,
     recipientLabel: labelMap.get(`${r.recipientType}:${r.recipientId}`) ?? '',
   }));
-  return { ...mapNotice(row), recipients };
+  return { ...mapAnnouncement(row), recipients };
 }
 
-export interface CreateNoticeInput {
+export interface CreateAnnouncementInput {
   title: string; content: string; type: string;
   publishStatus: 'draft' | 'published' | 'recalled';
   priority: string;
@@ -302,7 +302,7 @@ export interface CreateNoticeInput {
   publishTime?: string | null;
 }
 
-export async function createNotice(data: CreateNoticeInput) {
+export async function createAnnouncement(data: CreateAnnouncementInput) {
   const user = currentUser();
   const now = new Date();
   let publishTime: Date | null = null;
@@ -310,7 +310,7 @@ export async function createNotice(data: CreateNoticeInput) {
   else if (data.publishStatus === 'published') publishTime = now;
 
   const row = await db.transaction(async (tx) => {
-    const [inserted] = await tx.insert(notices).values({
+    const [inserted] = await tx.insert(announcements).values({
       title: data.title,
       content: data.content,
       type: data.type,
@@ -327,19 +327,19 @@ export async function createNotice(data: CreateNoticeInput) {
     return inserted;
   });
 
-  const notice = mapNotice(row);
-  if (row.publishStatus === 'published') await broadcastNotice(notice, row.id);
-  return notice;
+  const announcement = mapAnnouncement(row);
+  if (row.publishStatus === 'published') await broadcastAnnouncement(announcement, row.id);
+  return announcement;
 }
 
-export async function updateNotice(id: number, data: Partial<CreateNoticeInput>) {
+export async function updateAnnouncement(id: number, data: Partial<CreateAnnouncementInput>) {
   const user = currentUser();
   const now = new Date();
   let publishTime: Date | null | undefined;
   if (data.publishTime !== undefined) {
     publishTime = data.publishTime ? parseDateTimeInput(data.publishTime) : null;
   } else if (data.publishStatus === 'published') {
-    const existing = await db.select().from(notices).where(eq(notices.id, id));
+    const existing = await db.select().from(announcements).where(eq(announcements.id, id));
     if (existing[0] && !existing[0].publishTime) publishTime = now;
   }
   const updateData: Record<string, unknown> = { ...data };
@@ -347,7 +347,7 @@ export async function updateNotice(id: number, data: Partial<CreateNoticeInput>)
   if (publishTime !== undefined) updateData.publishTime = publishTime;
 
   const row = await db.transaction(async (tx) => {
-    const [updated] = await tx.update(notices).set(updateData).where(and(eq(notices.id, id), tenantCondition(notices, user))).returning();
+    const [updated] = await tx.update(announcements).set(updateData).where(and(eq(announcements.id, id), tenantCondition(announcements, user))).returning();
     if (!updated) return null;
     if (data.targetType !== undefined || data.recipients !== undefined) {
       const newTargetType = data.targetType ?? updated.targetType;
@@ -356,21 +356,21 @@ export async function updateNotice(id: number, data: Partial<CreateNoticeInput>)
     }
     return updated;
   });
-  if (!row) throw new HTTPException(404, { message: '通知不存在' });
-  const notice = mapNotice(row);
-  if (data.publishStatus === 'published') await broadcastNotice(notice, row.id);
-  return notice;
+  if (!row) throw new HTTPException(404, { message: '公告不存在' });
+  const announcement = mapAnnouncement(row);
+  if (data.publishStatus === 'published') await broadcastAnnouncement(announcement, row.id);
+  return announcement;
 }
 
-export async function deleteNotice(id: number) {
+export async function deleteAnnouncement(id: number) {
   const user = currentUser();
-  const [row] = await db.delete(notices).where(and(eq(notices.id, id), tenantCondition(notices, user))).returning();
-  if (!row) throw new HTTPException(404, { message: '通知不存在' });
+  const [row] = await db.delete(announcements).where(and(eq(announcements.id, id), tenantCondition(announcements, user))).returning();
+  if (!row) throw new HTTPException(404, { message: '公告不存在' });
 }
 
-export async function getNoticeBeforeAudit(id: number) {
+export async function getAnnouncementBeforeAudit(id: number) {
   const user = currentUser();
-  const [row] = await db.select().from(notices).where(and(eq(notices.id, id), tenantCondition(notices, user))).limit(1);
+  const [row] = await db.select().from(announcements).where(and(eq(announcements.id, id), tenantCondition(announcements, user))).limit(1);
   if (!row) return null;
-  return mapNotice(row);
+  return mapAnnouncement(row);
 }

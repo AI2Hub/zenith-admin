@@ -112,7 +112,7 @@ like(users.username, `%${keyword}%`)
 - **拦截点**：`db.insert(t).values(d)` / `db.update(t).set(d)` / `db.insert(t).values(d).onConflictDoUpdate({set})` 及其在 `db.transaction()` 中的子事务版本。
 - **严禁**：service / route / seed / cron 任意位置手动赋值 `createdBy` / `updatedBy`。
 - **例外**（**不**加审计列）：
-  - 多对多关联表：`user_roles`、`user_positions`、`role_menus`、`notice_reads`、`notice_recipients`、`chat_conversation_members`、`chat_message_reactions`
+  - 多对多关联表：`user_roles`、`user_positions`、`role_menus`、`announcement_reads`、`announcement_recipients`、`chat_conversation_members`、`chat_message_reactions`
   - 追加型日志：`login_logs`、`operation_logs`、`cron_job_logs`、`email_send_logs`、`sms_send_logs`、`in_app_messages`
   - 用户自身/临时凭证：`user_oauth_accounts`、`password_reset_tokens`、`chat_messages`
   - 工作流运行时：`workflow_tasks`
@@ -122,8 +122,8 @@ like(users.username, `%${keyword}%`)
 
 | 表名 | 说明 |
 | --- | --- |
-| `notices` | 通知公告（富文本 `text` 字段） |
-| `notice_reads` | 通知已读记录 |
+| `announcements` | 通知公告（富文本 `text` 字段） |
+| `announcement_reads` | 公告已读记录 |
 | `login_logs` | 登录日志 |
 | `operation_logs` | 操作日志（含 `before_data` / `after_data` JSON 快照）|
 

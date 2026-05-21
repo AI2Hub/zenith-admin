@@ -4,13 +4,13 @@ import {
 } from '@douyinfe/semi-ui';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { CheckCheck, Bell } from 'lucide-react';
-import type { Notice } from '@zenith/shared';
+import type { Announcement } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import NoticeDetailModal from '@/components/NoticeDetailModal';
+import AnnouncementDetailModal from '@/components/AnnouncementDetailModal';
 
-type NoticeWithRead = Notice & { isRead: boolean };
+type AnnouncementWithRead = Announcement & { isRead: boolean };
 
 const TYPE_LABEL: Record<string, string> = {
   notice: '通知',
@@ -30,8 +30,8 @@ const PRIORITY_LABEL: Record<string, string> = {
   high: '紧急',
 };
 
-export default function NotificationsPage() {
-  const [list, setList] = useState<NoticeWithRead[]>([]);
+export default function AnnouncementsPage() {
+  const [list, setList] = useState<AnnouncementWithRead[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -39,7 +39,7 @@ export default function NotificationsPage() {
   const [markAllLoading, setMarkAllLoading] = useState(false);
 
   const [modalVisible, setModalVisible] = useState(false);
-  const [selected, setSelected] = useState<NoticeWithRead | null>(null);
+  const [selected, setSelected] = useState<AnnouncementWithRead | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
 
   const fetchList = useCallback(async (p = 1, tab = activeTab) => {
@@ -49,8 +49,8 @@ export default function NotificationsPage() {
     else if (tab === 'read') isRead = 'true';
     const qs = new URLSearchParams({ page: String(p), pageSize: '10' });
     if (isRead !== undefined) qs.set('isRead', isRead);
-    const res = await request.get<{ list: NoticeWithRead[]; total: number }>(
-      `/api/notices/inbox?${qs.toString()}`,
+    const res = await request.get<{ list: AnnouncementWithRead[]; total: number }>(
+      `/api/announcements/inbox?${qs.toString()}`,
     );
     setLoading(false);
     if (res.code === 0 && res.data) {
@@ -65,9 +65,9 @@ export default function NotificationsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  const openNotice = async (item: NoticeWithRead, index: number) => {
+  const openNotice = async (item: AnnouncementWithRead, index: number) => {
     if (!item.isRead) {
-      await request.post(`/api/notices/${item.id}/read`, undefined, { silent: true });
+      await request.post(`/api/announcements/${item.id}/read`, undefined, { silent: true });
     }
     setSelected({ ...item, isRead: true });
     setSelectedIndex(index);
@@ -86,7 +86,7 @@ export default function NotificationsPage() {
 
   const handleMarkAllRead = async () => {
     setMarkAllLoading(true);
-    const res = await request.post('/api/notices/read-all', {});
+    const res = await request.post('/api/announcements/read-all', {});
     setMarkAllLoading(false);
     if (res.code === 0) {
       Toast.success('已全部标记为已读');
@@ -105,7 +105,7 @@ export default function NotificationsPage() {
     {
       title: '标题',
       dataIndex: 'title',
-      render: (v: string, record: NoticeWithRead, index: number) => (
+      render: (v: string, record: AnnouncementWithRead, index: number) => (
         <Button
           theme="borderless"
           size="small"
@@ -155,7 +155,7 @@ export default function NotificationsPage() {
       title: '操作',
       width: 80,
       fixed: 'right' as const,
-      render: (_: unknown, record: NoticeWithRead, index: number) => (
+      render: (_: unknown, record: AnnouncementWithRead, index: number) => (
         <Button
           theme="borderless"
           size="small"
@@ -172,11 +172,11 @@ export default function NotificationsPage() {
       <div className="search-area">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Tabs activeKey={activeTab} onChange={handleTabChange} style={{ marginBottom: 0 }}>
-            <TabPane tab="全部通知" itemKey="all" />
+            <TabPane tab="全部公告" itemKey="all" />
             <TabPane
               tab={
                 <Space spacing={4}>
-                  <span>未读消息</span>
+                  <span>未读公告</span>
                   {activeTab === 'all' && unreadCount > 0 && (
                     <Tag color="red" size="small">{unreadCount}</Tag>
                   )}
@@ -184,7 +184,7 @@ export default function NotificationsPage() {
               }
               itemKey="unread"
             />
-            <TabPane tab="已读消息" itemKey="read" />
+            <TabPane tab="已读公告" itemKey="read" />
           </Tabs>
           <Button
             type="primary"
@@ -202,9 +202,9 @@ export default function NotificationsPage() {
         <Empty
           image={<Bell size={48} strokeWidth={1} style={{ opacity: 0.3 }} />}
           description={(() => {
-            if (activeTab === 'unread') return '暂无未读通知';
-            if (activeTab === 'read') return '暂无已读通知';
-            return '暂无通知';
+            if (activeTab === 'unread') return '暂无未读公告';
+            if (activeTab === 'read') return '暂无已读公告';
+            return '暂无公告';
           })()}
           style={{ padding: '48px 0' }}
         />
@@ -223,14 +223,14 @@ export default function NotificationsPage() {
             onPageChange: (p) => void fetchList(p),
           }}
           onRow={(record) => ({
-            style: { opacity: (record as NoticeWithRead).isRead ? 0.7 : 1 },
+            style: { opacity: (record as AnnouncementWithRead).isRead ? 0.7 : 1 },
           })}
         />
       )}
 
-      <NoticeDetailModal
+      <AnnouncementDetailModal
         visible={modalVisible}
-        notice={selected}
+        announcement={selected}
         onClose={() => setModalVisible(false)}
         onPrev={handlePrev}
         onNext={handleNext}

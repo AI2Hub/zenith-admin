@@ -288,8 +288,8 @@ export const operationLogs = pgTable('operation_logs', {
 export type OperationLogRow = typeof operationLogs.$inferSelect;
 export type NewOperationLog = typeof operationLogs.$inferInsert;
 
-// ─── 通知公告表 ─────────────────────────────────────────────────────────────────
-export const notices = pgTable('notices', {
+// ─── 公告表 ─────────────────────────────────────────────────────────────────
+export const announcements = pgTable('announcements', {
   id: serial('id').primaryKey(),
   title: varchar('title', { length: 128 }).notNull(),
   content: text('content').notNull(),
@@ -306,28 +306,28 @@ export const notices = pgTable('notices', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
-export type NoticeRow = typeof notices.$inferSelect;
-export type NewNotice = typeof notices.$inferInsert;
+export type AnnouncementRow = typeof announcements.$inferSelect;
+export type NewAnnouncement = typeof announcements.$inferInsert;
 
-// ─── 通知已读记录表 ───────────────────────────────────────────────────────────
-export const noticeReads = pgTable('notice_reads', {
+// ─── 公告已读记录表 ───────────────────────────────────────────────────────────
+export const announcementReads = pgTable('announcement_reads', {
   id: serial('id').primaryKey(),
-  noticeId: integer('notice_id').notNull().references(() => notices.id, { onDelete: 'cascade' }),
+  announcementId: integer('announcement_id').notNull().references(() => announcements.id, { onDelete: 'cascade' }),
   userId: integer('user_id').notNull(),
   readAt: timestamp('read_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [unique('uniq_notice_user').on(t.noticeId, t.userId)]);
+}, (t) => [unique('uniq_announcement_user').on(t.announcementId, t.userId)]);
 
-export type NoticeReadRow = typeof noticeReads.$inferSelect;
+export type AnnouncementReadRow = typeof announcementReads.$inferSelect;
 
-// ─── 通知收件人表 ─────────────────────────────────────────────────────────────
-export const noticeRecipients = pgTable('notice_recipients', {
+// ─── 公告收件人表 ─────────────────────────────────────────────────────────────
+export const announcementRecipients = pgTable('announcement_recipients', {
   id: serial('id').primaryKey(),
-  noticeId: integer('notice_id').notNull().references(() => notices.id, { onDelete: 'cascade' }),
+  announcementId: integer('announcement_id').notNull().references(() => announcements.id, { onDelete: 'cascade' }),
   recipientType: varchar('recipient_type', { length: 16 }).notNull(), // 'user' | 'role' | 'dept'
   recipientId: integer('recipient_id').notNull(),
-}, (t) => [unique('uniq_notice_recipient').on(t.noticeId, t.recipientType, t.recipientId)]);
+}, (t) => [unique('uniq_announcement_recipient').on(t.announcementId, t.recipientType, t.recipientId)]);
 
-export type NoticeRecipientRow = typeof noticeRecipients.$inferSelect;
+export type AnnouncementRecipientRow = typeof announcementRecipients.$inferSelect;
 
 // ─── 系统参数配置表 ──────────────────────────────────────────────────────────
 export const configTypeEnum = pgEnum('config_type', ['string', 'number', 'boolean', 'json']);
@@ -838,7 +838,7 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   roles: many(roles),
   dicts: many(dicts),
   managedFiles: many(managedFiles),
-  notices: many(notices),
+  announcements: many(announcements),
   systemConfigs: many(systemConfigs),
   workflowDefinitions: many(workflowDefinitions),
   workflowInstances: many(workflowInstances),
@@ -917,18 +917,18 @@ export const cronJobLogsRelations = relations(cronJobLogs, ({ one }) => ({
   job: one(cronJobs, { fields: [cronJobLogs.jobId], references: [cronJobs.id] }),
 }));
 
-export const noticesRelations = relations(notices, ({ one, many }) => ({
-  tenant: one(tenants, { fields: [notices.tenantId], references: [tenants.id] }),
-  reads: many(noticeReads),
-  recipients: many(noticeRecipients),
+export const announcementsRelations = relations(announcements, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [announcements.tenantId], references: [tenants.id] }),
+  reads: many(announcementReads),
+  recipients: many(announcementRecipients),
 }));
 
-export const noticeReadsRelations = relations(noticeReads, ({ one }) => ({
-  notice: one(notices, { fields: [noticeReads.noticeId], references: [notices.id] }),
+export const announcementReadsRelations = relations(announcementReads, ({ one }) => ({
+  announcement: one(announcements, { fields: [announcementReads.announcementId], references: [announcements.id] }),
 }));
 
-export const noticeRecipientsRelations = relations(noticeRecipients, ({ one }) => ({
-  notice: one(notices, { fields: [noticeRecipients.noticeId], references: [notices.id] }),
+export const announcementRecipientsRelations = relations(announcementRecipients, ({ one }) => ({
+  announcement: one(announcements, { fields: [announcementRecipients.announcementId], references: [announcements.id] }),
 }));
 
 export const userOauthAccountsRelations = relations(userOauthAccounts, ({ one }) => ({

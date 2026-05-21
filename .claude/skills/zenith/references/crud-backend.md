@@ -158,7 +158,7 @@ export async function ensureXxxExists(id: number) {
 
 ## Step 6：OpenAPIHono Router（`packages/server/src/routes/xxx.ts`）
 
-> **必读：实体 DTO 必须集中在 `packages/server/src/lib/dtos/` 子目录中（按业务域拆分：`roles` / `positions` / `users` / `menus` / `departments` / `tenants` / `api-tokens` / `auth` / `dict` / `files` / `logs` / `notices` / `system-configs` / `cron-jobs` / `email-config` / `cache` / `db-backups` / `monitor` / `sessions` / `workflow` / `dashboard` / `region` / `messages`）。** 新增实体时先在对应子文件中添加：
+> **必读：实体 DTO 必须集中在 `packages/server/src/lib/dtos/` 子目录中（按业务域拆分：`roles` / `positions` / `users` / `menus` / `departments` / `tenants` / `api-tokens` / `auth` / `dict` / `files` / `logs` / `announcements` / `system-configs` / `cron-jobs` / `email-config` / `cache` / `db-backups` / `monitor` / `sessions` / `workflow` / `dashboard` / `region` / `messages`）。** 新增实体时先在对应子文件中添加：
 >
 > ```typescript
 > import { auditFields } from './_audit';

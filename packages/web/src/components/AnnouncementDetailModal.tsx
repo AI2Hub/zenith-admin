@@ -2,12 +2,12 @@ import DOMPurify from 'dompurify';
 import { Button, Tag, Space, Modal, Typography, Divider } from '@douyinfe/semi-ui';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { BookOpen, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { Notice } from '@zenith/shared';
+import type { Announcement } from '@zenith/shared';
 import { formatDateTime } from '@/utils/date';
 
 const { Text } = Typography;
 
-type NoticeWithRead = Notice & { isRead?: boolean };
+type AnnouncementWithRead = Announcement & { isRead?: boolean };
 
 const TYPE_MAP: Record<string, { label: string; color: TagColor }> = {
   notice: { label: '通知', color: 'blue' },
@@ -21,9 +21,9 @@ const PRIORITY_MAP: Record<string, { label: string; color: TagColor }> = {
   low: { label: '普通', color: 'cyan' },
 };
 
-interface NoticeDetailModalProps {
+interface AnnouncementDetailModalProps {
   visible: boolean;
-  notice: NoticeWithRead | null;
+  announcement: AnnouncementWithRead | null;
   onClose: () => void;
   /** 上一条回调，传入时显示导航按钮 */
   onPrev?: () => void;
@@ -35,23 +35,23 @@ interface NoticeDetailModalProps {
   indexLabel?: string;
 }
 
-export default function NoticeDetailModal({
+export default function AnnouncementDetailModal({
   visible,
-  notice,
+  announcement,
   onClose,
   onPrev,
   onNext,
   hasPrev,
   hasNext,
   indexLabel,
-}: NoticeDetailModalProps) {
+}: AnnouncementDetailModalProps) {
   const hasNav = onPrev !== undefined && onNext !== undefined;
 
-  const typeInfo = notice
-    ? (TYPE_MAP[notice.type] ?? { label: notice.type, color: 'blue' as TagColor })
+  const typeInfo = announcement
+    ? (TYPE_MAP[announcement.type] ?? { label: announcement.type, color: 'blue' as TagColor })
     : null;
-  const priorityInfo = notice
-    ? (PRIORITY_MAP[notice.priority] ?? { label: notice.priority, color: 'grey' as TagColor })
+  const priorityInfo = announcement
+    ? (PRIORITY_MAP[announcement.priority] ?? { label: announcement.priority, color: 'grey' as TagColor })
     : null;
 
   const footer = hasNav ? (
@@ -88,13 +88,13 @@ export default function NoticeDetailModal({
       title={
         <Space spacing={8}>
           <BookOpen size={16} strokeWidth={1.5} style={{ color: 'var(--semi-color-primary)', flexShrink: 0 }} />
-          <span>{notice?.title ?? ''}</span>
+          <span>{announcement?.title ?? ''}</span>
         </Space>
       }
       footer={footer}
       closeOnEsc
     >
-      {notice && (
+      {announcement && (
         <div>
           {/* 元信息区 */}
           <div style={{
@@ -112,13 +112,13 @@ export default function NoticeDetailModal({
             <Space spacing={4}>
               <Clock size={12} strokeWidth={1.5} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }} />
               <Text type="tertiary" size="small">
-                {formatDateTime(notice.publishTime ?? notice.createdAt)}
+                {formatDateTime(announcement.publishTime ?? announcement.createdAt)}
               </Text>
             </Space>
-            {notice.isRead !== undefined && (
+            {announcement.isRead !== undefined && (
               <div style={{ marginLeft: 'auto' }}>
-                <Tag color={notice.isRead ? 'grey' : 'blue'} size="small">
-                  {notice.isRead ? '已读' : '未读'}
+                <Tag color={announcement.isRead ? 'grey' : 'blue'} size="small">
+                  {announcement.isRead ? '已读' : '未读'}
                 </Tag>
               </div>
             )}
@@ -132,7 +132,7 @@ export default function NoticeDetailModal({
               fontSize: 14,
               padding: '0 2px',
             }}
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notice.content) }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(announcement.content) }}
           />
         </div>
       )}

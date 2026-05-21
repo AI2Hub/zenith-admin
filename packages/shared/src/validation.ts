@@ -232,28 +232,28 @@ export type UpdateDictItemInput = z.infer<typeof updateDictItemSchema>;
 export type CreateFileStorageConfigInput = z.infer<typeof createFileStorageConfigSchema>;
 export type UpdateFileStorageConfigInput = z.infer<typeof updateFileStorageConfigSchema>;
 
-// ─── 通知公告 Schema ─────────────────────────────────────────────────────────
-export const noticeRecipientSchema = z.object({
+// ─── 公告 Schema ─────────────────────────────────────────────────────────────
+export const announcementRecipientSchema = z.object({
   recipientType: z.enum(['user', 'role', 'dept']),
   recipientId: z.number().int().positive(),
 });
 
-export const createNoticeSchema = z.object({
+export const createAnnouncementSchema = z.object({
   title: z.string().min(1, '标题不能为空').max(128),
   content: z.string().min(1, '内容不能为空').max(4096),
   type: z.string().min(1).max(32).default('notice'),
   publishStatus: z.enum(['draft', 'published', 'recalled']).default('draft'),
   priority: z.string().min(1).max(32).default('medium'),
   targetType: z.enum(['all', 'specific']).default('all'),
-  recipients: z.array(noticeRecipientSchema).optional().default([]),
+  recipients: z.array(announcementRecipientSchema).optional().default([]),
   publishTime: dateTimeStringSchema.optional().nullable(),
 });
 
-export const updateNoticeSchema = createNoticeSchema.partial();
+export const updateAnnouncementSchema = createAnnouncementSchema.partial();
 
-export type CreateNoticeInput = z.infer<typeof createNoticeSchema>;
-export type UpdateNoticeInput = z.infer<typeof updateNoticeSchema>;
-export type NoticeRecipientInput = z.infer<typeof noticeRecipientSchema>;
+export type CreateAnnouncementInput = z.infer<typeof createAnnouncementSchema>;
+export type UpdateAnnouncementInput = z.infer<typeof updateAnnouncementSchema>;
+export type AnnouncementRecipientInput = z.infer<typeof announcementRecipientSchema>;
 
 // ─── 系统参数配置 Schema ─────────────────────────────────────────────────────
 export const createSystemConfigSchema = z.object({

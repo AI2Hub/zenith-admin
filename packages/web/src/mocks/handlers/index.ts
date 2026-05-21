@@ -6,7 +6,7 @@ import { departmentsHandlers } from './departments';
 import { positionsHandlers } from './positions';
 import { dictsHandlers } from './dicts';
 import { systemConfigsHandlers } from './system-configs';
-import { noticesHandlers } from './notices';
+import { announcementsHandlers } from './announcements';
 import { filesHandlers } from './files';
 import { cronJobsHandlers } from './cron-jobs';
 import { monitorHandlers } from './monitor';
@@ -43,7 +43,7 @@ export const handlers = [
   ...positionsHandlers,
   ...dictsHandlers,
   ...systemConfigsHandlers,
-  ...noticesHandlers,
+  ...announcementsHandlers,
   ...filesHandlers,
   ...cronJobsHandlers,
   ...monitorHandlers,

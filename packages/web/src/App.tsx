@@ -16,7 +16,7 @@ const ResetPasswordPage = React.lazy(() => import('@/pages/reset-password/ResetP
 const DashboardPage = React.lazy(() => import('@/pages/dashboard/DashboardPage'));
 import DashboardSkeleton from '@/pages/dashboard/DashboardSkeleton';
 const ProfilePage = React.lazy(() => import('@/pages/profile/ProfilePage'));
-const NotificationsPage = React.lazy(() => import('@/pages/notifications/NotificationsPage'));
+const AnnouncementsPage = React.lazy(() => import('@/pages/announcements/AnnouncementsPage'));
 const InboxPage = React.lazy(() => import('@/pages/inbox/InboxPage'));
 const NotFoundPage = React.lazy(() => import('@/pages/not-found/NotFoundPage'));
 const ForbiddenPage = React.lazy(() => import('@/pages/forbidden/ForbiddenPage'));
@@ -26,7 +26,7 @@ const WorkflowDesignerPage = React.lazy(() => import('@/pages/workflow/designer/
 const routeFallback = <div style={{ padding: 24 }}><Spin /></div>;
 
 /** 固定路由路径，不通过菜单动态加载 */
-const FIXED_ROUTES = new Set(['/profile', '/notifications', '/inbox']);
+const FIXED_ROUTES = new Set(['/profile', '/announcements', '/inbox']);
 
 /** 未登录时保存来源路径并跳转登录 */
 function RedirectToLogin() {
@@ -86,7 +86,7 @@ function AdminRouteLoader({ user, permissions, logout, updateUser }: Readonly<Ad
         {/* 固定路由 */}
         <Route index element={<Suspense fallback={<DashboardSkeleton />}><DashboardPage /></Suspense>} />
         <Route path="profile" element={<Suspense fallback={routeFallback}><ProfilePage user={user} onUserUpdate={updateUser} /></Suspense>} />
-        <Route path="notifications" element={<Suspense fallback={routeFallback}><NotificationsPage /></Suspense>} />
+        <Route path="announcements" element={<Suspense fallback={routeFallback}><AnnouncementsPage /></Suspense>} />
         <Route path="inbox" element={<Suspense fallback={routeFallback}><InboxPage /></Suspense>} />
         <Route path="workflow/designer/:id" element={<Suspense fallback={routeFallback}><WorkflowDesignerPage /></Suspense>} />
         <Route path="users" element={<Navigate to="/system/users" replace />} />

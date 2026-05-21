@@ -9,7 +9,7 @@ export * from './auth';
 export * from './dict';
 export * from './files';
 export * from './logs';
-export * from './notices';
+export * from './announcements';
 export * from './system-configs';
 export * from './cron-jobs';
 export * from './email-config';

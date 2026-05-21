@@ -194,7 +194,7 @@ const [regionCodes, setRegionCodes] = useState<string[]>();
 - 图片上传（通过 `POST /api/files/upload` 上传，自动插入编辑器）
 - 编辑器上传请求携带 `Authorization: Bearer <token>` 头
 
-**图片上传集成**：编辑器配置了自定义上传函数，上传成功后将返回的 URL 插入到编辑器内容中。相关配置在 `packages/web/src/pages/system/notices/` 的通知编辑组件中实现。
+**图片上传集成**：编辑器配置了自定义上传函数，上传成功后将返回的 URL 插入到编辑器内容中。相关配置在 `packages/web/src/pages/system/announcements/` 的公告编辑组件中实现。
 
 ---
 

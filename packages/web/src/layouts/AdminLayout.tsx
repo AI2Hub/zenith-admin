@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Avatar, Badge, Breadcrumb, Button, ColorPicker, Dropdown, Empty, List, Notification, Popover, Select, Tooltip, Modal, Nav, Typography, SideSheet, Switch, InputNumber, RadioGroup, Radio, Toast } from '@douyinfe/semi-ui';
-import { Bell, Building2, Check, Maximize2, Minimize2, Megaphone, Sun, Moon, Monitor, User as UserIcon, Settings, LogOut, X, Palette } from 'lucide-react';
+import { Bell, Building2, Check, Inbox, Maximize2, Minimize2, Megaphone, Sun, Moon, Monitor, User as UserIcon, Settings, LogOut, X, Palette } from 'lucide-react';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
 import type { User, Menu, InAppMessage, Tenant, WsMessage, SystemConfig } from '@zenith/shared';
 import type { ThemeMode } from '@/hooks/useTheme';
@@ -256,7 +256,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
     }
   };
 
-  // ─── 通知公告 ─────────────────────────────────────────────────────────────
+  // ─── 公告 ──────────────────────────────────────────────────────────────────
   const [inAppMessages, setInAppMessages] = useState<InAppMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [messagePopVisible, setMessagePopVisible] = useState(false);
@@ -307,7 +307,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
       fetchInAppMessages();
 
       Notification.info({
-        title: '新站内信',
+        title: '新消息',
         content: msg.payload.title,
         duration: 5,
         position: 'topRight',
@@ -596,7 +596,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
         </>
       )}
       <Tooltip content="公告中心" position="bottom">
-        <button className="admin-theme-btn" title="公告中心" onClick={() => navigate('/notifications')}>
+        <button className="admin-theme-btn" title="公告中心" onClick={() => navigate('/announcements')}>
           <Megaphone size={16} strokeWidth={1.5} />
         </button>
       </Tooltip>
@@ -609,10 +609,10 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
         content={
           <div style={{ width: 360, maxHeight: 440, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '12px 16px 8px', fontWeight: 600, fontSize: 14, borderBottom: '1px solid var(--semi-color-border)' }}>
-              站内信
+              最新消息
             </div>
             {inAppMessages.length === 0 ? (
-              <Empty description="暂无站内信" style={{ padding: '24px 0' }} />
+              <Empty description="暂无消息" style={{ padding: '24px 0' }} />
             ) : (
               <List
                 style={{ overflow: 'auto', maxHeight: 340 }}
@@ -660,7 +660,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                   navigate('/inbox');
                 }}
               >
-                查看全部站内信
+                查看全部
               </Button>
             </div>
           </div>
@@ -668,7 +668,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
       >
         <div style={{ display: 'inline-flex', cursor: 'pointer' }}>
           <Badge dot={unreadCount > 0} className="admin-notify-badge" style={{ zIndex: 1 }}>
-            <button className="admin-theme-btn" title="站内信">
+            <button className="admin-theme-btn" title="我的消息">
               <Bell size={16} strokeWidth={1.5} />
             </button>
           </Badge>
@@ -706,10 +706,10 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
           <Dropdown.Menu>
             <Dropdown.Item icon={<UserIcon size={14} strokeWidth={1.5} />} onClick={() => navigate('/profile')}>个人中心</Dropdown.Item>
             <Dropdown.Item
-              icon={<Bell size={14} strokeWidth={1.5} />}
-              onClick={() => navigate('/notifications')}
+              icon={<Inbox size={14} strokeWidth={1.5} />}
+              onClick={() => navigate('/inbox')}
             >
-              通知中心{unreadCount > 0 && <Badge count={unreadCount} overflowCount={99} style={{ marginLeft: 6 }} />}
+              我的消息{unreadCount > 0 && <Badge count={unreadCount} overflowCount={99} style={{ marginLeft: 6 }} />}
             </Dropdown.Item>
             <Dropdown.Item icon={<Settings size={14} strokeWidth={1.5} />} onClick={() => setPrefsVisible(true)}>偏好设置</Dropdown.Item>
             <Dropdown.Divider />
@@ -1200,7 +1200,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
       {/* ===== 快捷聊天浮动按钮 ===== */}
       {(preferences.showQuickChat ?? true) && <QuickChatButton onHide={() => setPreferences({ showQuickChat: false })} />}
 
-      {/* ===== 站内信详情 Modal ===== */}
+      {/* ===== 消息详情 Modal ===== */}
       <Modal
         title={selectedMessage?.title ?? ''}
         visible={selectedMessage !== null}

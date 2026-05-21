@@ -1,6 +1,6 @@
-import type { Notice } from '@zenith/shared';
+import type { Announcement } from '@zenith/shared';
 
-export const mockNotices: Notice[] = [
+export const mockAnnouncements: Announcement[] = [
   {
     id: 1,
     title: '系统上线公告',
@@ -33,8 +33,8 @@ export const mockNotices: Notice[] = [
   },
   {
     id: 3,
-    title: '系统维护通知（草稿）',
-    content: '<p>本通知为草稿状态，尚未发布。</p>',
+    title: '系统维护公告（草稿）',
+    content: '<p>本公告为草稿状态，尚未发布。</p>',
     type: 'notice',
     publishStatus: 'draft',
     priority: 'low',
@@ -48,7 +48,7 @@ export const mockNotices: Notice[] = [
   },
 ];
 
-let nextNoticeId = 4;
-export function getNextNoticeId() {
-  return nextNoticeId++;
+let nextAnnouncementId = 4;
+export function getNextAnnouncementId() {
+  return nextAnnouncementId++;
 }

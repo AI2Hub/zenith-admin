@@ -16,7 +16,7 @@
  *   - dtos/dict.ts           字典
  *   - dtos/files.ts          文件存储
  *   - dtos/logs.ts           日志
- *   - dtos/notices.ts        通知公告
+ *   - dtos/announcements.ts  公告
  *   - dtos/system-configs.ts 系统配置 / 密码策略
  *   - dtos/cron-jobs.ts      定时任务
  *   - dtos/email-config.ts   邮件配置

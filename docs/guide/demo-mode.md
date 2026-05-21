@@ -66,7 +66,7 @@ packages/web/src/mocks/
 │   ├── positions.ts
 │   ├── dicts.ts
 │   ├── system.ts
-│   ├── notices.ts
+│   ├── announcements.ts
 │   ├── logs.ts
 │   ├── email-config.ts
 │   ├── message-templates.ts
@@ -83,7 +83,7 @@ packages/web/src/mocks/
 │   ├── positions.ts
 │   ├── dicts.ts
 │   ├── system-configs.ts
-│   ├── notices.ts
+│   ├── announcements.ts
 │   ├── files.ts
 │   ├── sessions.ts
 │   ├── login-logs.ts

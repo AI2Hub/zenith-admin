@@ -251,38 +251,38 @@ export interface OperationLogStats {
   userStats: { username: string; count: number }[];
 }
 
-// ─── 通知公告 ──────────────────────────────────────────────
-export type NoticePublishStatus = 'draft' | 'published' | 'recalled';
-export type NoticeType = 'notice' | 'announcement' | 'warning';
-export type NoticePriority = 'low' | 'medium' | 'high';
-export type NoticeTargetType = 'all' | 'specific';
-export type NoticeRecipientType = 'user' | 'role' | 'dept';
+// ─── 公告 ──────────────────────────────────────────────────
+export type AnnouncementPublishStatus = 'draft' | 'published' | 'recalled';
+export type AnnouncementType = 'notice' | 'announcement' | 'warning';
+export type AnnouncementPriority = 'low' | 'medium' | 'high';
+export type AnnouncementTargetType = 'all' | 'specific';
+export type AnnouncementRecipientType = 'user' | 'role' | 'dept';
 
-export interface NoticeRecipient {
-  recipientType: NoticeRecipientType;
+export interface AnnouncementRecipient {
+  recipientType: AnnouncementRecipientType;
   recipientId: number;
   recipientLabel?: string;
 }
 
-export interface Notice {
+export interface Announcement {
   id: number;
   title: string;
   content: string;
   type: string;
   publishStatus: string;
   priority: string;
-  targetType: NoticeTargetType;
+  targetType: AnnouncementTargetType;
   publishTime: string | null;
   createById: number | null;
   createByName: string | null;
   createdAt: string;
   updatedAt: string;
-  recipients?: NoticeRecipient[];
+  recipients?: AnnouncementRecipient[];
   /** 已读人数（管理列表额外返回） */
   readCount?: number;
 }
 
-export interface NoticeReadStatsUser {
+export interface AnnouncementReadStatsUser {
   id: number;
   username: string;
   nickname: string;
@@ -291,10 +291,10 @@ export interface NoticeReadStatsUser {
   readAt?: string;
 }
 
-export interface NoticeReadStats {
+export interface AnnouncementReadStats {
   readCount: number;
   totalCount: number;
-  list: NoticeReadStatsUser[];
+  list: AnnouncementReadStatsUser[];
   total: number;
   page: number;
   pageSize: number;
@@ -356,7 +356,7 @@ export interface CaptchaResponse {
 
 // ─── WebSocket 消息类型 ──────────────────────────────────────────────────────
 export type WsMessage =
-  | { type: 'notice:new'; payload: Notice }
+  | { type: 'announcement:new'; payload: Announcement }
   | { type: 'in-app-message:new'; payload: InAppMessage }
   | { type: 'session:force-logout'; payload: { reason: string } }
   | { type: 'chat:message'; payload: ChatMessage }
