@@ -176,6 +176,7 @@ export default function DbAdminPage() {
   // SQL 控制台
   const [sql, setSql] = useState<string>(DEFAULT_SQL);
   const [queryLoading, setQueryLoading] = useState(false);
+  const [exportCsvLoading, setExportCsvLoading] = useState(false);
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
   const [queryError, setQueryError] = useState<string | null>(null);
   const [explainOpen, setExplainOpen] = useState(false);
@@ -343,6 +344,7 @@ export default function DbAdminPage() {
     const text = editorRef.current?.getValue() ?? sql;
     if (!text.trim()) { Toast.warning('请输入 SQL'); return; }
     const token = localStorage.getItem(TOKEN_KEY);
+    setExportCsvLoading(true);
     try {
       const res = await fetch(`${config.apiBaseUrl}/api/db-admin/query/export.csv`, {
         method: 'POST',
@@ -365,6 +367,8 @@ export default function DbAdminPage() {
       URL.revokeObjectURL(a.href);
     } catch (err) {
       Toast.error('导出失败：' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setExportCsvLoading(false);
     }
   };
 
@@ -740,7 +744,7 @@ export default function DbAdminPage() {
                 >执行</Button>
               </Tooltip>
               <Button icon={<Eye size={14} />} onClick={runExplain} disabled={!canQuery}>EXPLAIN</Button>
-              <Button icon={<Download size={14} />} onClick={exportCsv} disabled={!canExport}>导出 CSV</Button>
+              <Button icon={<Download size={14} />} onClick={exportCsv} disabled={!canExport} loading={exportCsvLoading}>导出 CSV</Button>
               <Text type="tertiary" size="small">硬上限 5000 行 / 60 秒</Text>
             </Space>
 
