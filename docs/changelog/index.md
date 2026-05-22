@@ -4,9 +4,18 @@
 
 ---
 
-## v0.24.2 - 2026-05-23
+## v0.25.0 - 2026-05-22
 
 ### Added
+
+#### 外呼 HTTP 客户端
+
+- 新增统一外呼 HTTP 客户端 `packages/server/src/lib/http-client.ts`：基于 undici，提供 `httpRequest` / `httpGet` / `httpPost` / `httpPut` / `httpPatch` / `httpDelete` 与统一错误 `HttpClientError`
+- 支持显式超时（默认无超时）、指数退避重试（默认 0 次）、按 host 维度的熔断器（连续 5 次失败开启 30s 冷却）、`baseURL` 拼接、`AbortSignal` 协作
+- 代理仅由调用方代码传入 `proxy` 参数，不读取 `HTTP_PROXY` / `HTTPS_PROXY` 等环境变量，避免运维环境差异导致的行为漂移
+- winston 结构化日志：自动脱敏 `authorization` / `cookie` / `*token*` / `*secret*` / `*password*` 等敏感 Header，并按 `logBodyLimit` 截断响应正文
+- 全部出站调用迁移：GitHub / 钉钉 / 企业微信 OAuth 三处接口、Chat 链接预览抓取（保留 `redirect: 'manual'` + 私网 IP 拦截 SSRF 防护）
+- 新增 [docs/backend/http-client.md](/backend/http-client) 文档与 zenith skill 后端硬性约束：禁止直接 `fetch()`
 
 #### 数据库管理（DB Inspector）
 
@@ -14,11 +23,26 @@
 - 列头筛选升级为**高级筛选**：每列可独立选择运算符 `ILIKE / = / ≠ / > / ≥ / < / ≤ / IS NULL / IS NOT NULL`，前端编码为 `op|value` 字符串、后端按白名单生成参数化 WHERE 子句
 - 数据表支持**列宽拖拽**与**列显隐配置**（按 `schema.table` 维度持久化到 localStorage）
 - 列头**外键标记**：对存在 FK 约束的列追加蓝色 `FK` Tag，点击可一键跳转到引用表的数据视图
-- 新增**ER 图**顶层 Tab：聚合数据库内所有外键关系，使用 SVG 渲染表节点 + 带箭头的连线，点击节点跳转表浏览
+- 表数据视图新增**单元格双击行内编辑**（EditableCell），适配文本 / 数值 / 布尔 / JSON / 长文本等类型
+- 行级上下文菜单新增**复制行 SQL**：可复制为 `INSERT` 或 `UPDATE` 语句
+- 新增 **ER 图**顶层 Tab：基于 @xyflow/react + dagre 自动布局，节点展示列信息，选中表高亮关联表；工具栏支持表/列搜索定位、隐藏孤立表、PNG / SVG 导出（PNG 通过 SVG → Canvas 2x DPI 渲染，速度与画质均显著优于截图方案）
+
+#### 操作日志
+
+- 操作日志新增 `response_body` 字段记录完整响应体，详情面板新增「响应详情」Tab
+- 操作日志统计 DTO 扩展 `summary` / `methodStats` / `hourlyStats`，前端面板新增汇总卡片、HTTP 方法分布、24 小时分布图表
+- StatCard 组件移除直接边框颜色，改为通过 `color` 参数控制主题
+
+#### 登录日志
+
+- 登录日志新增 `userAgent` 字段，记录并在列表中展示用户浏览器信息
 
 ### Fixed
 
 - 表数据视图未指定排序时回退到主键 ASC 排序，避免 UPDATE 后行的物理顺序漂移
+- 修复 Drizzle 操作日志迁移 `_journal.json` 时间戳错乱导致迁移未被应用的问题
+- 修复 `_journal.json` 文件末尾缺少换行的格式问题
+- 修复 Recharts v3 升级后 `OperationLogStatsPanel` 中 `labelFormatter` 类型不匹配导致 web 构建失败的问题
 
 ---
 
