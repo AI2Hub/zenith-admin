@@ -142,6 +142,7 @@ export function RowEditModal(props: Readonly<Props>): JSX.Element {
 
   const renderField = (c: ColumnInfo): JSX.Element => {
     const kind = getKind(c.name);
+    const fullRow = kind === 'json' || kind === 'long-text';
     const label = (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         {c.name}
@@ -162,23 +163,29 @@ export function RowEditModal(props: Readonly<Props>): JSX.Element {
       disabled: mode === 'edit' && c.isPrimaryKey,
     };
 
-    if (kind === 'bool') return <Form.Switch key={c.name} {...common} />;
-    if (kind === 'int') return <Form.InputNumber key={c.name} {...common} precision={0} />;
-    if (kind === 'number') return <Form.InputNumber key={c.name} {...common} />;
-    if (kind === 'json' || kind === 'long-text') {
-      return (
-        <div key={c.name} data-row-field={c.name}>
+    const inner = ((): JSX.Element => {
+      if (kind === 'bool') return <Form.Switch {...common} style={undefined} />;
+      if (kind === 'int') return <Form.InputNumber {...common} precision={0} />;
+      if (kind === 'number') return <Form.InputNumber {...common} />;
+      if (fullRow) {
+        return (
           <Form.TextArea
             {...common}
-            autosize={{ minRows: 2, maxRows: 8 }}
+            autosize={{ minRows: 2, maxRows: 6 }}
             placeholder={kind === 'json' ? '{ "key": "value" }' : ''}
           />
-        </div>
-      );
-    }
+        );
+      }
+      return <Form.Input {...common} maxLength={c.maxLength ?? undefined} />;
+    })();
+
     return (
-      <div key={c.name} data-row-field={c.name}>
-        <Form.Input {...common} maxLength={c.maxLength ?? undefined} />
+      <div
+        key={c.name}
+        data-row-field={c.name}
+        style={{ gridColumn: fullRow ? '1 / -1' : 'auto', minWidth: 0 }}
+      >
+        {inner}
       </div>
     );
   };
@@ -194,9 +201,10 @@ export function RowEditModal(props: Readonly<Props>): JSX.Element {
       onOk={handleSubmit}
       okText={mode === 'create' ? '插入' : '保存'}
       cancelText="取消"
-      width={720}
+      width={880}
       confirmLoading={submitting}
       maskClosable={false}
+      bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }}
     >
       {mode === 'edit' && primaryKey.length === 0 && (
         <Banner
@@ -210,6 +218,7 @@ export function RowEditModal(props: Readonly<Props>): JSX.Element {
         labelPosition="top"
         initValues={initialValues}
         getFormApi={(api) => { formRef.current = api; }}
+        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 16 }}
       >
         {pkCols.map(renderField)}
         {restCols.map(renderField)}
