@@ -22,7 +22,10 @@ export class WeChatWorkProvider implements OAuthProvider {
       corpid: this.cfg.corpId || '',
       corpsecret: this.cfg.clientSecret,
     });
-    const resp = await httpGet(`https://qyapi.weixin.qq.com/cgi-bin/gettoken?${params}`);
+    const resp = await httpGet(`https://qyapi.weixin.qq.com/cgi-bin/gettoken?${params}`, {
+      timeout: 10_000,
+      retries: 1,
+    });
     if (!resp.ok) throw new HttpClientError('WeChatWork token request failed', { status: resp.status, url: resp.url });
     const data = await resp.json<Record<string, unknown>>();
     if (data.errcode) throw new Error(`WeChatWork token error: ${data.errmsg}`);
@@ -36,14 +39,20 @@ export class WeChatWorkProvider implements OAuthProvider {
       access_token: token.accessToken,
       code,
     });
-    const resp = await httpGet(`https://qyapi.weixin.qq.com/cgi-bin/auth/getuserinfo?${params}`);
+    const resp = await httpGet(`https://qyapi.weixin.qq.com/cgi-bin/auth/getuserinfo?${params}`, {
+      timeout: 10_000,
+      retries: 1,
+    });
     if (!resp.ok) throw new HttpClientError('WeChatWork userinfo request failed', { status: resp.status, url: resp.url });
     const data = await resp.json<Record<string, unknown>>();
     if (data.errcode) throw new Error(`WeChatWork userinfo error: ${data.errmsg}`);
 
     const userId = (data.userid || data.UserId) as string;
     const detailParams = new URLSearchParams({ access_token: token.accessToken, userid: userId });
-    const detailResp = await httpGet(`https://qyapi.weixin.qq.com/cgi-bin/user/get?${detailParams}`);
+    const detailResp = await httpGet(`https://qyapi.weixin.qq.com/cgi-bin/user/get?${detailParams}`, {
+      timeout: 10_000,
+      retries: 1,
+    });
     if (!detailResp.ok) throw new HttpClientError('WeChatWork user/get request failed', { status: detailResp.status, url: detailResp.url });
     const detail = await detailResp.json<Record<string, unknown>>();
 

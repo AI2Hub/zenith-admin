@@ -25,6 +25,9 @@ export class DingTalkProvider implements OAuthProvider {
       clientSecret: this.cfg.clientSecret,
       code,
       grantType: 'authorization_code',
+    }, {
+      timeout: 10_000,
+      retries: 1,
     });
     if (!resp.ok) throw new HttpClientError('DingTalk token request failed', { status: resp.status, url: resp.url });
     const data = await resp.json<Record<string, unknown>>();
@@ -39,6 +42,8 @@ export class DingTalkProvider implements OAuthProvider {
   async getUserInfo(token: OAuthTokenResult): Promise<OAuthUserInfo> {
     const resp = await httpGet(`${NEW_API}/v1.0/contact/users/me`, {
       headers: { 'x-acs-dingtalk-access-token': token.accessToken },
+      timeout: 10_000,
+      retries: 1,
     });
     if (!resp.ok) throw new HttpClientError('DingTalk userinfo request failed', { status: resp.status, url: resp.url });
     const data = await resp.json<Record<string, unknown>>();

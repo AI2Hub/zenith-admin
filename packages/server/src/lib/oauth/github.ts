@@ -22,6 +22,8 @@ export class GitHubProvider implements OAuthProvider {
       code,
     }, {
       headers: { Accept: 'application/json' },
+      timeout: 10_000,
+      retries: 1,
     });
     if (!resp.ok) throw new HttpClientError('GitHub token request failed', { status: resp.status, url: resp.url });
     const data = await resp.json<Record<string, unknown>>();
@@ -32,6 +34,8 @@ export class GitHubProvider implements OAuthProvider {
   async getUserInfo(token: OAuthTokenResult): Promise<OAuthUserInfo> {
     const resp = await httpGet('https://api.github.com/user', {
       headers: { Authorization: `Bearer ${token.accessToken}`, Accept: 'application/json' },
+      timeout: 10_000,
+      retries: 1,
     });
     if (!resp.ok) throw new HttpClientError('GitHub userinfo request failed', { status: resp.status, url: resp.url });
     const user = await resp.json<Record<string, unknown>>();
