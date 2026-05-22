@@ -611,3 +611,63 @@ await db.insert(xxxs).values({
 - `tenantCondition` 在多租户关闭时返回 `undefined`，**无需**在路由中额外判断是否开启多租户
 - 平台超管在「平台视角」时同样返回 `undefined`，可查看全量数据
 - `getCreateTenantId` 在多租户关闭时返回 `null`，不影响写入
+
+## 外呼 HTTP 调用（统一走 `http-client`）
+
+服务端**所有**对外 HTTP 请求必须通过 `packages/server/src/lib/http-client.ts`，**禁止**直接使用全局 `fetch()`。
+
+### 基本用法
+
+```ts
+import { httpGet, httpPost, HttpClientError } from '../lib/http-client';
+
+// GET
+const resp = await httpGet('https://api.example.com/users', {
+  headers: { Authorization: `Bearer ${token}` },
+});
+if (!resp.ok) {
+  throw new HttpClientError('上游返回非 2xx', { status: resp.status, url: resp.url });
+}
+const data = await resp.json<{ id: number; name: string }>();
+
+// POST JSON（对象自动 JSON.stringify，自动补 Content-Type）
+const resp = await httpPost('https://api.example.com/users', { name: 'Alice' });
+```
+
+### 何时设置可选参数
+
+| 参数 | 默认 | 何时设置 |
+| --- | --- | --- |
+| `timeout` | `0`（无超时） | 调用不可控的第三方接口建议设 `5000`–`10000` |
+| `retries` | `0` | 上游偶发 5xx / 网络抖动场景设 `1`–`3` |
+| `retryDelay` | `300`（ms 基准） | 指数退避起点，通常无需改 |
+| `proxy` | 无 | **仅由代码显式传入**（如 `'http://127.0.0.1:7890'`），**不读环境变量** |
+| `baseURL` | 无 | url 为相对路径时拼接前缀 |
+| `signal` | 无 | 与外部 `AbortController` 协作 |
+
+### 错误处理
+
+失败统一抛 `HttpClientError`：
+
+- `status === 0` → 网络错误 / 熔断 / 超时
+- `status > 0` → 上游 HTTP 非 2xx（由业务代码主动 throw）
+- 包含 `url` / `headers` / `bodySnippet` / `cause` 字段，便于排查
+
+```ts
+try {
+  await httpGet(url);
+} catch (err) {
+  if (err instanceof HttpClientError && err.status === 0) {
+    throw new HTTPException(502, { message: '上游服务不可用' });
+  }
+  throw err;
+}
+```
+
+### 自动具备的能力（无需调用方关心）
+
+- 按 host 维度熔断：连续 5 次失败开启 30s 冷却
+- 敏感 Header 在日志中脱敏（`authorization` / `cookie` / `*token*` / `*secret*` / `*password*`）
+- 完整 winston 结构化日志（request / response / retry / error）
+
+> 详细 API 与设计说明：[docs/backend/http-client.md](../../../docs/backend/http-client.md)

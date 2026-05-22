@@ -33,3 +33,4 @@
 | **Path Param 规范** | 数值型 `id` 参数统一使用 `IdParam`（`import { IdParam } from '../lib/openapi-schemas'`）；字符串型或自定义名参数（如 `tokenId`、`provider`、`key`）必须在字段上添加 `.openapi({ param: { name: '...', in: 'path' }, example: '...' })` |
 | **分页查询规范** | 列表接口的查询参数统一用 `PaginationQuery.extend({ ... })` 扩展额外字段，**禁止**内联声明 `page: z.coerce.number().optional()` |
 | **LIKE 查询转义** | 所有使用 `like()` / `ilike()` 的模糊查询，**必须**通过 `escapeLike(keyword)` 转义用户输入中的 `%`、`_`、`\`，防止 LIKE 通配符注入；`escapeLike` 来自 `'../lib/where-helpers'` |
+| **外呼 HTTP 调用** | 服务端任何对外 HTTP 请求（OAuth、第三方 API、链接抓取等）**必须**通过 `packages/server/src/lib/http-client.ts` 的 `httpRequest` / `httpGet` / `httpPost` / `httpPut` / `httpPatch` / `httpDelete` 发出；**禁止**直接使用全局 `fetch()`。失败统一抛 `HttpClientError`；需要超时/重试/代理时通过参数 `{ timeout, retries, proxy }` 在代码中显式声明，代理**不从环境变量读取**；详见 [docs/backend/http-client.md](../../../docs/backend/http-client.md) |
