@@ -7,6 +7,7 @@ import {
   Modal,
   Form,
   Toast,
+  Typography,
   Tag,
   Row,
   Col,
@@ -105,10 +106,10 @@ export default function TenantsPage() {
   };
 
   const columns: ColumnProps<Tenant>[] = [
-    { title: '租户名称', dataIndex: 'name', width: 160, ellipsis: true },
-    { title: '租户编码', dataIndex: 'code', width: 140, ellipsis: true },
-    { title: '联系人', dataIndex: 'contactName', width: 120, ellipsis: true, render: (v) => v || '—' },
-    { title: '联系电话', dataIndex: 'contactPhone', width: 140, ellipsis: true, render: (v) => v || '—' },
+    { title: '租户名称', dataIndex: 'name', width: 160, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
+    { title: '租户编码', dataIndex: 'code', width: 140, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
+    { title: '联系人', dataIndex: 'contactName', width: 120, render: (v) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{}</Typography.Text> },
+    { title: '联系电话', dataIndex: 'contactPhone', width: 140, render: (v) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{}</Typography.Text> },
     { title: '最大用户数', dataIndex: 'maxUsers', width: 120, align: 'center', render: (v) => v ?? '不限' },
     {
       title: '到期时间',

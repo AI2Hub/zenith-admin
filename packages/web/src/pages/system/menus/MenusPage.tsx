@@ -8,7 +8,8 @@ import {
   Form,
   Radio,
   Toast,
-  TreeSelect,
+  TreeTypography,
+  Select,
   Row,
   Col,
 } from '@douyinfe/semi-ui';

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Button, Form, Input, Modal, Select, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Modal, Select, Tag, Typography,
+  Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Download, Plus, RotateCcw, Search } from 'lucide-react';
 import type { EmailSendLog, EmailTemplate, PaginatedResponse, SendStatus } from '@zenith/shared';
@@ -119,13 +120,13 @@ export default function EmailSendLogsPage() {
 
   const columns = [
     { title: '收件人', dataIndex: 'toEmail', width: 200 },
-    { title: '邮件主题', dataIndex: 'subject', ellipsis: true },
+    { title: '邮件主题', dataIndex: 'subject', render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
     { title: '模板', dataIndex: 'templateName', width: 140, render: (v: string | null) => v || '—' },
     { title: '来源', dataIndex: 'source', width: 90, render: (v: string) => SOURCE_OPTIONS.find((s) => s.value === v)?.label ?? v },
     { title: '操作人', dataIndex: 'userName', width: 120, render: (v: string | null) => v || '—' },
     { title: 'IP', dataIndex: 'ip', width: 130, render: (v: string | null) => v || '—' },
     { title: '发送时间', dataIndex: 'sentAt', width: 180, render: (v: string | null) => v || '—' },
-    { title: '错误信息', dataIndex: 'errorMsg', ellipsis: true, render: (v: string | null) => v || '—' },
+    { title: '错误信息', dataIndex: 'errorMsg', render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{}</Typography.Text> },
     {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right' as const,
       render: (v: SendStatus) => <StatusTag value={v} />,

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Button, Col, Form, Input, Modal, Row, Select, Space, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Input, Modal, Row, Select, Space, Tag, Typography,
+  Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { CheckCheck, Plus, RotateCcw, Search } from 'lucide-react';
 import type { InAppMessage, InAppMessageType, InAppTemplate, PaginatedResponse, User } from '@zenith/shared';
@@ -150,8 +151,8 @@ export default function InAppMessagesPage() {
   };
 
   const columns = [
-    { title: '标题', dataIndex: 'title', ellipsis: true },
-    { title: '内容', dataIndex: 'content', ellipsis: true },
+    { title: '标题', dataIndex: 'title', render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
+    { title: '内容', dataIndex: 'content', render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
     {
       title: '类型', dataIndex: 'type', width: 90,
       render: (v: InAppMessageType) => {

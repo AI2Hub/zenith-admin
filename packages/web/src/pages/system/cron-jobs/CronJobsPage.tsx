@@ -13,6 +13,7 @@ import {
   Switch,
   Table,
   Tag,
+  Typography,
   Toast,
   Tooltip,
 } from '@douyinfe/semi-ui';
@@ -238,7 +239,7 @@ export default function CronJobsPage() {
   const lastRunStatusLabel: Record<string, string> = { success: '成功', fail: '失败', running: '运行中' };
 
   const columns: ColumnProps<CronJob>[] = [
-    { title: '任务名称', dataIndex: 'name', width: 180, ellipsis: true },
+    { title: '任务名称', dataIndex: 'name', width: 180, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
     {
       title: 'Cron 表达式', dataIndex: 'cronExpression', width: 150,
       render: (v: string) => (
@@ -247,7 +248,7 @@ export default function CronJobsPage() {
         </Tooltip>
       ),
     },
-    { title: '处理器', dataIndex: 'handler', width: 180, ellipsis: true },
+    { title: '处理器', dataIndex: 'handler', width: 180, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
     {
       title: '上次执行',
       width: 175,
@@ -267,7 +268,7 @@ export default function CronJobsPage() {
         );
       },
     },
-    { title: '描述', dataIndex: 'description', width: 200, ellipsis: true },
+    { title: '描述', dataIndex: 'description', width: 200, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
     {
       title: '启用',
       dataIndex: 'status',

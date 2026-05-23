@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Button, Col, Form, Input, Modal, Row, Select, Space, Toast } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Input, Modal, Row, Select, Space, Typography,
+  Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, RotateCcw, Search } from 'lucide-react';
 import type { EmailTemplate, PaginatedResponse } from '@zenith/shared';
@@ -94,9 +95,9 @@ export default function EmailTemplatesPage() {
   const columns = [
     { title: '模板名称', dataIndex: 'name', width: 160 },
     { title: '模板编码', dataIndex: 'code', width: 180 },
-    { title: '邮件主题', dataIndex: 'subject', ellipsis: true },
-    { title: '变量', dataIndex: 'variables', width: 200, ellipsis: true, render: (v: string | null) => v || '—' },
-    { title: '备注', dataIndex: 'remark', ellipsis: true, render: (v: string | null) => v || '—' },
+    { title: '邮件主题', dataIndex: 'subject', render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
+    { title: '变量', dataIndex: 'variables', width: 200, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{}</Typography.Text> },
+    { title: '备注', dataIndex: 'remark', render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{}</Typography.Text> },
     { title: '创建时间', dataIndex: 'createdAt', width: 180 },
     {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right' as const,

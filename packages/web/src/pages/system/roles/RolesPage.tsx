@@ -10,6 +10,7 @@ import {
   Form,
   Toast,
   Tree,
+  Typography,
   Spin,
   Avatar,
   DatePicker,
@@ -215,9 +216,9 @@ export default function RolesPage() {
   };
 
   const columns: ColumnProps<Role>[] = [
-    { title: '角色名称', dataIndex: 'name', width: 160, ellipsis: true },
-    { title: '角色编码', dataIndex: 'code', width: 160, ellipsis: true },
-    { title: '描述', dataIndex: 'description', width: 200, ellipsis: true, render: (v) => v || '—' },
+    { title: '角色名称', dataIndex: 'name', width: 160, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
+    { title: '角色编码', dataIndex: 'code', width: 160, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
+    { title: '描述', dataIndex: 'description', width: 200, render: (v) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{}</Typography.Text> },
     {
       title: '数据权限',
       dataIndex: 'dataScope',
@@ -471,7 +472,7 @@ export default function RolesPage() {
                   </Space>
                 ),
               },
-              { title: '邮箱', dataIndex: 'email', ellipsis: true },
+              { title: '邮箱', dataIndex: 'email', render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
             ]}
           />
         )}

@@ -7,6 +7,7 @@ import {
   Modal,
   Select,
   Space,
+  Typography,
   Toast,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -148,8 +149,8 @@ export default function PositionsPage() {
   };
 
   const columns: ColumnProps<Position>[] = [
-    { title: '岗位名称', dataIndex: 'name', width: 200, ellipsis: true },
-    { title: '岗位编码', dataIndex: 'code', width: 180, ellipsis: true },
+    { title: '岗位名称', dataIndex: 'name', width: 200, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
+    { title: '岗位编码', dataIndex: 'code', width: 180, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
     { title: '排序', dataIndex: 'sort', width: 90 },
     {
       title: '备注',

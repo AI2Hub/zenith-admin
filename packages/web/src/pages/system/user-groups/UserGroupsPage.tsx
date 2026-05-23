@@ -10,6 +10,7 @@ import {
   SideSheet,
   Transfer,
   Empty,
+  Typography,
   Tag,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -177,8 +178,8 @@ export default function UserGroupsPage() {
   };
 
   const columns: ColumnProps<UserGroup>[] = [
-    { title: '用户组名称', dataIndex: 'name', width: 200, ellipsis: true },
-    { title: '编码', dataIndex: 'code', width: 180, ellipsis: true },
+    { title: '用户组名称', dataIndex: 'name', width: 200, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
+    { title: '编码', dataIndex: 'code', width: 180, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
     {
       title: '描述', dataIndex: 'description', ellipsis: true,
       render: (v: string | null | undefined) => v || '—',

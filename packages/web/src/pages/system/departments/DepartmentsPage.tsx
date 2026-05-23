@@ -8,6 +8,7 @@ import {
   Row,
   Select,
   Space,
+  Typography,
   Toast,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -243,10 +244,10 @@ export default function DepartmentsPage() {
 
   const columns: ColumnProps<Department>[] = [
     { title: '部门名称', dataIndex: 'name', width: 220 },
-    { title: '部门编码', dataIndex: 'code', width: 180, ellipsis: true },
+    { title: '部门编码', dataIndex: 'code', width: 180, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
     { title: '负责人', dataIndex: 'leaderName', width: 120, render: (value) => value || '—' },
     { title: '联系电话', dataIndex: 'phone', width: 140, render: (value) => value || '—' },
-    { title: '邮箱', dataIndex: 'email', width: 200, ellipsis: true, render: (value) => value || '—' },
+    { title: '邮箱', dataIndex: 'email', width: 200, render: (value: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{value || '—'}</Typography.Text> },
     { title: '排序', dataIndex: 'sort', width: 90 },
     {
       title: '创建时间',

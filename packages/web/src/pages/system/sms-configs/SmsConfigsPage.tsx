@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Button, Col, Form, Input, Modal, Row, Select, Space, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Input, Modal, Row, Select, Space, Tag, Typography,
+  Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, RotateCcw, Search } from 'lucide-react';
 import type { PaginatedResponse, SmsConfig, SmsProvider } from '@zenith/shared';
@@ -109,7 +110,7 @@ export default function SmsConfigsPage() {
       title: '服务商', dataIndex: 'provider', width: 100,
       render: (v: string) => PROVIDER_OPTIONS.find((p) => p.value === v)?.label ?? v,
     },
-    { title: 'AccessKeyId', dataIndex: 'accessKeyId', width: 180, ellipsis: true },
+    { title: 'AccessKeyId', dataIndex: 'accessKeyId', width: 180, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
     { title: '签名', dataIndex: 'signName', width: 120 },
     { title: '地域', dataIndex: 'region', width: 140, render: (v: string | null) => v || '—' },
     {

@@ -10,6 +10,7 @@ import {
   Modal,
   Form,
   Toast,
+  Typography,
   SideSheet,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -205,8 +206,8 @@ export default function DictsPage() {
         </button>
       ),
     },
-    { title: '字典编码', dataIndex: 'code', width: 160, ellipsis: true },
-    { title: '描述', dataIndex: 'description', ellipsis: true, render: (v) => v || '—' },
+    { title: '字典编码', dataIndex: 'code', width: 160, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
+    { title: '描述', dataIndex: 'description', render: (v) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{}</Typography.Text> },
     { title: '创建时间', dataIndex: 'createdAt', width: 160, render: (v) => formatDateTime(v) },
     {
       title: '状态',
@@ -244,10 +245,10 @@ export default function DictsPage() {
   ];
 
   const itemColumns: ColumnProps<DictItem>[] = [
-    { title: '标签', dataIndex: 'label', width: 160, ellipsis: true },
-    { title: '键值', dataIndex: 'value', width: 160, ellipsis: true },
+    { title: '标签', dataIndex: 'label', width: 160, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
+    { title: '键值', dataIndex: 'value', width: 160, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
     { title: '排序', dataIndex: 'sort', width: 70, align: 'center' },
-    { title: '备注', dataIndex: 'remark', width: 200, ellipsis: true, render: (v) => v || '—' },
+    { title: '备注', dataIndex: 'remark', width: 200, render: (v) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{}</Typography.Text> },
     { title: '创建时间', dataIndex: 'createdAt', width: 160, render: (v) => formatDateTime(v) },
     {
       title: '状态',

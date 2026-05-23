@@ -91,9 +91,9 @@ function IpAccessLogsTab() {
         </Tag>
       ),
     },
-    { title: '请求路径', dataIndex: 'path', ellipsis: true },
+    { title: '请求路径', dataIndex: 'path', render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
     { title: '请求方法', dataIndex: 'method', width: 100 },
-    { title: 'User-Agent', dataIndex: 'userAgent', ellipsis: true },
+    { title: 'User-Agent', dataIndex: 'userAgent', render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
     {
       title: '拦截时间', dataIndex: 'createdAt', width: 180,
       render: (v: string) => formatDateTime(v),

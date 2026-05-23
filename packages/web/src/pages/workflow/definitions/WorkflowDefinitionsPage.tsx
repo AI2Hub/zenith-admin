@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Dropdown, Input, Modal, Select, Space, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Dropdown, Input, Modal, Select, Space, Tag, Typography,
+  Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { MoreHorizontal, Plus, RotateCcw, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
