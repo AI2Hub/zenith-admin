@@ -100,6 +100,35 @@ export function collectAllNodes(root: FlowNode | undefined): Array<{ id: string;
   return result;
 }
 
+/**
+ * 在流程树中查找指定节点的"祖先链"上所有审批/办理节点。
+ * 用于审批节点"驳回到指定节点"功能 — 候选节点必须是当前节点之前、同一执行路径上的节点。
+ * 不包含当前节点自身，不包含分支节点本身（仅审批人 / 办理人）。
+ */
+export function findAncestorApproverNodes(
+  root: FlowNode | undefined,
+  targetId: string,
+): Array<{ id: string; name: string; type: FlowNodeType }> {
+  const path: FlowNode[] = [];
+  function walk(node: FlowNode | undefined): boolean {
+    if (!node) return false;
+    if (node.id === targetId) return true;
+    path.push(node);
+    if (walk(node.children)) return true;
+    if (node.branches) {
+      for (const b of node.branches) {
+        if (walk(b.children)) return true;
+      }
+    }
+    path.pop();
+    return false;
+  }
+  if (!walk(root)) return [];
+  return path
+    .filter((n) => n.type === 'approver' || n.type === 'handler')
+    .map((n) => ({ id: n.id, name: n.name, type: n.type }));
+}
+
 // ─── 节点链表操作 ────────────────────────────────────────────────────
 
 /**

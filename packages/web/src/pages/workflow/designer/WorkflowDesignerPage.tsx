@@ -25,6 +25,7 @@ import {
   treeToFlat,
   deepClone,
   collectAllNodes,
+  findAncestorApproverNodes,
   duplicateNode,
 } from './utils';
 import { useHistoryState } from './hooks/useHistoryState';
@@ -539,6 +540,7 @@ export default function WorkflowDesignerPage() {
         userGroups={userGroups}
         formFields={formFields}
         allNodes={collectAllNodes(process.initiator)}
+        rejectableAncestorNodes={editingNode ? findAncestorApproverNodes(process.initiator, editingNode.id) : []}
         onSave={handleSaveNode}
         onCancel={() => { setDrawerVisible(false); setEditingNode(null); }}
       />

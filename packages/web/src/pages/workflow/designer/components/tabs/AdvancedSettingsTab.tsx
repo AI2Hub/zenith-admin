@@ -21,6 +21,8 @@ interface UserOption { id: number; nickname: string; }
 
 interface AdvancedSettingsTabProps {
   rejectStrategy: RejectStrategy;
+  rejectToNodeKey?: string;
+  availableRejectNodes?: Array<{ id: string; name: string; type: string }>;
   emptyStrategy: EmptyAssigneeStrategy;
   emptyAssignTo?: number;
   sameInitiatorStrategy?: SameInitiatorStrategy;
@@ -32,6 +34,8 @@ interface AdvancedSettingsTabProps {
 
 export default function AdvancedSettingsTab({
   rejectStrategy,
+  rejectToNodeKey,
+  availableRejectNodes = [],
   emptyStrategy,
   emptyAssignTo,
   sameInitiatorStrategy = 'selfApprove',
@@ -64,10 +68,29 @@ export default function AdvancedSettingsTab({
       <Select
         value={rejectStrategy}
         onChange={(v) => onChange({ rejectStrategy: v })}
-        style={{ width: '100%', marginBottom: 24 }}
+        style={{ width: '100%', marginBottom: 12 }}
         optionList={REJECT_STRATEGY_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
         placeholder="请选择拒绝策略"
       />
+      {rejectStrategy === 'returnToNode' && (
+        <div style={{ marginBottom: 24 }}>
+          <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 6 }}>
+            选择被驳回后要返回的节点（仅能选当前节点之前同一执行路径上的审批、办理节点）
+          </Typography.Text>
+          <Select
+            value={rejectToNodeKey}
+            onChange={(v) => onChange({ rejectToNodeKey: v })}
+            style={{ width: '100%' }}
+            placeholder={availableRejectNodes.length === 0 ? '当前节点之前没有可选节点' : '请选择回退节点'}
+            disabled={availableRejectNodes.length === 0}
+            optionList={availableRejectNodes.map((n) => ({
+              value: n.id,
+              label: `${n.name}（${n.type === 'approver' ? '审批人' : '办理人'}）`,
+            }))}
+          />
+        </div>
+      )}
+      {rejectStrategy !== 'returnToNode' && <div style={{ marginBottom: 12 }} />}
 
       {/* 空审批人策略 */}
       <div style={{ borderTop: '1px solid var(--semi-color-border)', paddingTop: 16, marginBottom: 24 }}>

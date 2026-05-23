@@ -511,7 +511,42 @@ export async function rejectTask(taskId: number, comment: string) {
   const [inst] = await db.select().from(workflowInstances).where(eq(workflowInstances.id, task.instanceId)).limit(1);
   if (!inst) throw new HTTPException(500, { message: '流程数据异常' });
   if (inst.status !== 'running') throw new HTTPException(400, { message: '流程实例不在进行中' });
+
+  // 读取节点驳回策略
+  const snapshot = inst.definitionSnapshot as { flowData?: WorkflowFlowData } | null;
+  const flowData = snapshot?.flowData;
+  const currentNodeCfg = flowData?.nodes.find((n) => n.data.key === task.nodeKey)?.data;
+  const strategy = currentNodeCfg?.rejectStrategy ?? 'terminate';
+  const rejectToNodeKey = currentNodeCfg?.rejectToNodeKey;
+
+  // 解析目标节点（returnPrev / returnStart / returnToNode）
+  let targetNodeKey: string | null = null;
+  if (strategy !== 'terminate' && flowData) {
+    if (strategy === 'returnToNode') {
+      if (rejectToNodeKey && flowData.nodes.some((n) => n.data.key === rejectToNodeKey)) {
+        targetNodeKey = rejectToNodeKey;
+      }
+    } else if (strategy === 'returnPrev') {
+      // 找最近一个已 approved 的 approve/handler 任务节点
+      const prevApproved = await db.select().from(workflowTasks)
+        .where(and(
+          eq(workflowTasks.instanceId, inst.id),
+          eq(workflowTasks.status, 'approved'),
+        ))
+        .orderBy(desc(workflowTasks.actionAt), desc(workflowTasks.id));
+      const prev = prevApproved.find((t) => {
+        const cfg = flowData.nodes.find((n) => n.data.key === t.nodeKey)?.data;
+        return cfg && (cfg.type === 'approve' || cfg.type === 'handler');
+      });
+      if (prev) targetNodeKey = prev.nodeKey;
+    } else if (strategy === 'returnStart') {
+      // 从头重新走流程（重新生成首批任务）
+      targetNodeKey = '__start__';
+    }
+  }
+
   const updated = await db.transaction(async (tx) => {
+    // 当前任务 → rejected
     await tx.update(workflowTasks)
       .set({ status: 'rejected', comment, actionAt: new Date() })
       .where(eq(workflowTasks.id, taskId));
@@ -523,11 +558,62 @@ export async function rejectTask(taskId: number, comment: string) {
         eq(workflowTasks.nodeKey, task.nodeKey),
         or(eq(workflowTasks.status, 'pending'), eq(workflowTasks.status, 'waiting')),
       ));
+
+    // 终止：实例置为 rejected
+    if (strategy === 'terminate' || !targetNodeKey || !flowData) {
+      const [row] = await tx.update(workflowInstances)
+        .set({ status: 'rejected', currentNodeKey: null })
+        .where(eq(workflowInstances.id, inst.id))
+        .returning();
+      return { row, terminated: true };
+    }
+
+    // 回退：实例保持 running，在目标节点重新生成任务
+    const formData = (inst.formData ?? {}) as Record<string, unknown>;
+    let tasksToCreate: TaskAction[] = [];
+    let newCurrentKey: string | null = null;
+
+    if (strategy === 'returnStart') {
+      const initial = getInitialTasks(flowData, formData);
+      tasksToCreate = initial.tasksToCreate;
+      newCurrentKey = initial.currentNodeKeys[0] ?? null;
+    } else {
+      const targetCfg = flowData.nodes.find((n) => n.data.key === targetNodeKey)?.data;
+      if (targetCfg && (targetCfg.type === 'approve' || targetCfg.type === 'handler')) {
+        tasksToCreate = [{
+          nodeKey: targetCfg.key,
+          nodeName: targetCfg.label,
+          nodeType: targetCfg.type,
+          assigneeId: targetCfg.assigneeId ?? null,
+          nodeConfig: targetCfg,
+        }];
+        newCurrentKey = targetCfg.key;
+      }
+    }
+
+    if (tasksToCreate.length === 0) {
+      // 找不到合法目标，降级为终止
+      const [row] = await tx.update(workflowInstances)
+        .set({ status: 'rejected', currentNodeKey: null })
+        .where(eq(workflowInstances.id, inst.id))
+        .returning();
+      return { row, terminated: true };
+    }
+
+    const rows = await expandTasksToRows(tasksToCreate, {
+      instanceId: inst.id,
+      initiatorId: inst.initiatorId,
+      executor: tx,
+      formData,
+    });
+    if (rows.length > 0) await tx.insert(workflowTasks).values(rows);
+
     const [row] = await tx.update(workflowInstances)
-      .set({ status: 'rejected', currentNodeKey: null })
+      .set({ currentNodeKey: newCurrentKey })
       .where(eq(workflowInstances.id, inst.id))
       .returning();
-    return row;
+    return { row, terminated: false };
   });
-  return mapInstance(updated);
+
+  return mapInstance(updated.row);
 }

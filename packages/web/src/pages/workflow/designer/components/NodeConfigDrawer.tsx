@@ -30,6 +30,8 @@ interface NodeConfigDrawerProps {
   userGroups?: UserGroupOption[];
   formFields: FormField[];
   allNodes?: Array<{ id: string; name: string; type: FlowNodeType }>;
+  /** 可选为“驳回到指定节点”的候选节点（当前节点之前同一执行路径上的审批/办理节点） */
+  rejectableAncestorNodes?: Array<{ id: string; name: string; type: FlowNodeType }>;
   onSave: (nodeId: string, updates: { name?: string; props?: Record<string, unknown> }) => void;
   onCancel: () => void;
 }
@@ -42,6 +44,7 @@ export default function NodeConfigDrawer({
   userGroups = [],
   formFields,
   allNodes = [],
+  rejectableAncestorNodes = [],
   onSave,
   onCancel,
 }: Readonly<NodeConfigDrawerProps>) {
@@ -206,6 +209,8 @@ export default function NodeConfigDrawer({
             <TabPane tab="高级设置" itemKey="advanced">
               <AdvancedSettingsTab
                 rejectStrategy={(props.rejectStrategy as RejectStrategy) ?? 'terminate'}
+                rejectToNodeKey={props.rejectToNodeKey as string | undefined}
+                availableRejectNodes={rejectableAncestorNodes}
                 emptyStrategy={(props.emptyStrategy as EmptyAssigneeStrategy) ?? 'autoApprove'}
                 emptyAssignTo={props.emptyAssignTo as number | undefined}
                 sameInitiatorStrategy={(props.sameInitiatorStrategy as SameInitiatorStrategy) ?? 'selfApprove'}
