@@ -1,5 +1,5 @@
-import { Avatar, Tag, Timeline, Typography } from '@douyinfe/semi-ui';
-import { CheckCircle2, Clock, CornerUpLeft, Mail, RotateCcw, XCircle } from 'lucide-react';
+import { Avatar, Tag, Timeline, Typography, Toast } from '@douyinfe/semi-ui';
+import { CheckCircle2, Clock, CornerUpLeft, Mail, RotateCcw, XCircle, ExternalLink, Copy } from 'lucide-react';
 import type { WorkflowTask } from '@zenith/shared';
 import { formatDateTime } from '@/utils/date';
 
@@ -10,6 +10,13 @@ const TASK_STATUS_MAP: Record<string, { text: string; color: TagColor }> = {
   approved: { text: '已通过', color: 'green' },
   rejected: { text: '已驳回', color: 'red'   },
   skipped:  { text: '已跳过', color: 'grey'  },
+};
+
+const EXT_DISPATCH_MAP: Record<string, { text: string; color: TagColor }> = {
+  pending:    { text: '等待分派',  color: 'grey'   },
+  dispatched: { text: '已分派',    color: 'blue'   },
+  failed:     { text: '分派失败',  color: 'red'    },
+  fallback:   { text: '已降级',    color: 'orange' },
 };
 
 /** 审批流时间线，使用 Semi Design Timeline 组件统一渲染 */
@@ -149,9 +156,68 @@ export default function ApprovalTimeline({ tasks }: Readonly<{ tasks: WorkflowTa
                 <span>已退回至「{returnTargetName}」重新审批</span>
               </div>
             )}
+
+            {/* 外部审批信息 */}
+            {task.externalCallbackId && (
+              <div style={{
+                marginTop: 8,
+                padding: '8px 10px',
+                backgroundColor: 'var(--semi-color-fill-0)',
+                borderRadius: 6,
+                fontSize: 12,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <ExternalLink size={12} />
+                  <Typography.Text size="small" strong>外部审批</Typography.Text>
+                  {task.externalDispatchStatus && (
+                    <Tag color={EXT_DISPATCH_MAP[task.externalDispatchStatus]?.color ?? 'grey'} size="small">
+                      {EXT_DISPATCH_MAP[task.externalDispatchStatus]?.text ?? task.externalDispatchStatus}
+                    </Tag>
+                  )}
+                </div>
+                <ExternalCallbackUrl callbackId={task.externalCallbackId} />
+              </div>
+            )}
           </Timeline.Item>
         );
       })}
     </Timeline>
+  );
+}
+
+function ExternalCallbackUrl({ callbackId }: Readonly<{ callbackId: string }>) {
+  const path = `/api/public/workflow/external-callback/${callbackId}`;
+  const origin = globalThis.window === undefined ? '' : globalThis.window.location.origin;
+  const fullUrl = `${origin}${path}`;
+  const handleCopy = () => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(fullUrl).then(
+        () => Toast.success('已复制回调地址'),
+        () => Toast.error('复制失败'),
+      );
+    }
+  };
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <Typography.Text
+        size="small"
+        type="tertiary"
+        ellipsis={{ rows: 1, showTooltip: { opts: { content: fullUrl } } }}
+        style={{ flex: 1, fontFamily: 'monospace' }}
+      >
+        {fullUrl}
+      </Typography.Text>
+      <button
+        type="button"
+        onClick={handleCopy}
+        title="复制"
+        style={{
+          border: 'none', background: 'transparent', cursor: 'pointer', padding: 2,
+          display: 'inline-flex', alignItems: 'center', color: 'var(--semi-color-text-2)',
+        }}
+      >
+        <Copy size={12} />
+      </button>
+    </div>
   );
 }
