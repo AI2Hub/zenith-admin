@@ -524,6 +524,48 @@ function flattenNode(
   }
 
   // Regular node
+  const dataExtra: Record<string, unknown> = { ...node.props };
+  // 触发器节点：将顶层 props 收敛到 triggerConfig（与后端类型一致）
+  if (node.type === 'trigger') {
+    const p = node.props ?? {};
+    // 解析可能是 JSON 字符串的 headers / fieldValues
+    let headers: unknown = p.headers;
+    if (typeof headers === 'string' && headers.trim()) {
+      try { headers = JSON.parse(headers); } catch { /* keep string, backend tolerates */ }
+    }
+    let fieldValues: unknown = p.fieldValues;
+    if (typeof fieldValues === 'string' && fieldValues.trim()) {
+      try { fieldValues = JSON.parse(fieldValues); } catch { /* ignore */ }
+    }
+    dataExtra.triggerConfig = {
+      triggerType: p.triggerType ?? 'webhook',
+      ...(p.webhookUrl ? { webhookUrl: p.webhookUrl } : {}),
+      ...(p.httpMethod ? { httpMethod: p.httpMethod } : {}),
+      ...(headers ? { headers } : {}),
+      ...(p.bodyTemplate ? { bodyTemplate: p.bodyTemplate } : {}),
+      ...(p.fieldKeys ? { fieldKeys: p.fieldKeys } : {}),
+      ...(fieldValues ? { fieldValues } : {}),
+      ...(p.onFailure ? { onFailure: p.onFailure } : {}),
+      ...(p.maxRetries == null ? {} : { maxRetries: p.maxRetries }),
+      ...(p.timeoutMs == null ? {} : { timeoutMs: p.timeoutMs }),
+    };
+  }
+  // 审批节点：将外部审批相关 props 收敛到 externalApproval
+  if (node.type === 'approver') {
+    const p = node.props ?? {};
+    if (p.externalApproval && typeof p.externalApproval === 'object') {
+      dataExtra.externalApproval = p.externalApproval;
+    } else if (p.externalApprovalEnabled) {
+      dataExtra.externalApproval = {
+        enabled: !!p.externalApprovalEnabled,
+        url: (p.externalApprovalUrl as string) ?? '',
+        secret: (p.externalApprovalSecret as string) ?? '',
+        signMode: (p.externalApprovalSignMode as string) ?? 'hmacSha256',
+        timeoutMs: p.externalApprovalTimeoutMs ?? 10000,
+        fallbackStrategy: (p.externalApprovalFallback as string) ?? 'manual',
+      };
+    }
+  }
   nodes.push({
     id: flatId,
     type: 'workflowNode',
@@ -532,7 +574,7 @@ function flattenNode(
       key: node.id,
       type: nodeType,
       label: node.name,
-      ...node.props,
+      ...dataExtra,
     },
   });
   edges.push({ id: `e-${previousId}-${flatId}`, source: previousId, target: flatId });

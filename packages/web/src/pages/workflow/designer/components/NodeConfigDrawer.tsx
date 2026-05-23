@@ -9,7 +9,7 @@
  * - 延迟器/触发器/子流程：基础配置
  */
 import { useEffect, useState } from 'react';
-import { SideSheet, Tabs, TabPane, Input, Typography, Form, Select, InputNumber, Switch } from '@douyinfe/semi-ui';
+import { SideSheet, Tabs, TabPane, Input, TextArea, Typography, Form, Select, InputNumber, Switch } from '@douyinfe/semi-ui';
 import type { FlowNode, FlowNodeType, AssigneeType, ApproveMethod, ApprovalType, RejectStrategy, EmptyAssigneeStrategy, OperationPermission, FieldPermission, TimeoutConfig, SameInitiatorStrategy, DeduplicateStrategy } from '../types';
 import { ADDABLE_NODE_TYPES, DEFAULT_APPROVER_OPERATIONS, DELAY_UNIT_OPTIONS, TRIGGER_TYPE_OPTIONS } from '../constants';
 import ApproverSettingsTab from './tabs/ApproverSettingsTab';
@@ -21,6 +21,12 @@ interface UserOption { id: number; nickname: string; }
 interface RoleOption { id: number; name: string; }
 interface UserGroupOption { id: number; name: string; }
 interface FormField { key: string; label: string; }
+
+function stringifyHeadersOrBody(v: unknown): string {
+  if (typeof v === 'string') return v;
+  if (v == null) return '';
+  try { return JSON.stringify(v, null, 2); } catch { return ''; }
+}
 
 interface NodeConfigDrawerProps {
   visible: boolean;
@@ -163,6 +169,76 @@ export default function NodeConfigDrawer({
                     </Typography.Text>
                   </div>
                 )}
+                {/* 审批人节点特有：外部审批 */}
+                {node?.type === 'approver' && (() => {
+                  const ext = (props.externalApproval as Record<string, unknown> | undefined) ?? {};
+                  const updateExt = (patch: Record<string, unknown>) => {
+                    handlePropsChange({ externalApproval: { ...ext, ...patch } });
+                  };
+                  const enabled = !!ext.enabled;
+                  return (
+                    <div style={{ borderTop: '1px solid var(--semi-color-border)', margin: '16px 0', padding: '12px 0 0' }}>
+                      <Typography.Title heading={6} style={{ marginBottom: 8 }}>外部审批</Typography.Title>
+                      <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 8 }}>
+                        开启后将通过 HTTP 回调把任务分派给外部系统，由外部系统调用回调接口完成审批。
+                      </Typography.Text>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <Switch checked={enabled} onChange={(v) => updateExt({ enabled: v })} size="small" />
+                        <Typography.Text>启用外部审批</Typography.Text>
+                      </div>
+                      {enabled && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <Form.Slot label="回调 URL">
+                            <Input
+                              value={(ext.url as string) ?? ''}
+                              onChange={(v) => updateExt({ url: v })}
+                              placeholder="https://example.com/approve"
+                            />
+                          </Form.Slot>
+                          <Form.Slot label="签名密钥 secret">
+                            <Input
+                              mode="password"
+                              value={(ext.secret as string) ?? ''}
+                              onChange={(v) => updateExt({ secret: v })}
+                              placeholder="用于 HMAC-SHA256 签名"
+                            />
+                          </Form.Slot>
+                          <Form.Slot label="签名方式">
+                            <Select
+                              value={(ext.signMode as string) ?? 'hmacSha256'}
+                              onChange={(v) => updateExt({ signMode: v })}
+                              style={{ width: '100%' }}
+                              optionList={[
+                                { value: 'hmacSha256', label: 'HMAC-SHA256' },
+                                { value: 'none', label: '不签名' },
+                              ]}
+                            />
+                          </Form.Slot>
+                          <Form.Slot label="超时时间（毫秒）">
+                            <InputNumber
+                              min={1000} max={120000} step={1000}
+                              value={(ext.timeoutMs as number) ?? 10000}
+                              onChange={(v) => updateExt({ timeoutMs: v })}
+                              style={{ width: '100%' }}
+                            />
+                          </Form.Slot>
+                          <Form.Slot label="分派失败兜底策略">
+                            <Select
+                              value={(ext.fallbackStrategy as string) ?? 'manual'}
+                              onChange={(v) => updateExt({ fallbackStrategy: v })}
+                              style={{ width: '100%' }}
+                              optionList={[
+                                { value: 'manual', label: '保留任务，由系统审批人处理' },
+                                { value: 'autoApprove', label: '自动通过' },
+                                { value: 'autoReject', label: '自动拒绝' },
+                              ]}
+                            />
+                          </Form.Slot>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </TabPane>
             );
           })()}
@@ -290,7 +366,7 @@ export default function NodeConfigDrawer({
                 optionList={TRIGGER_TYPE_OPTIONS}
               />
             </Form.Slot>
-            {((props.triggerType as string) ?? 'webhook') === 'webhook' && (
+            {(((props.triggerType as string) ?? 'webhook') === 'webhook' || (props.triggerType as string) === 'callback') && (
               <>
                 <Form.Slot label="请求方式">
                   <Select
@@ -312,8 +388,75 @@ export default function NodeConfigDrawer({
                     placeholder="https://example.com/webhook"
                   />
                 </Form.Slot>
+                <Form.Slot label="自定义请求头（JSON 对象）">
+                  <TextArea
+                    value={stringifyHeadersOrBody(props.headers)}
+                    onChange={(v: string) => handlePropsChange({ headers: v })}
+                    placeholder={'{\n  "Authorization": "Bearer ..."\n}'}
+                    autosize={{ minRows: 2, maxRows: 6 }}
+                  />
+                </Form.Slot>
+                <Form.Slot label="请求体模板（支持 {{form.字段key}} 占位）">
+                  <TextArea
+                    value={(props.bodyTemplate as string) ?? ''}
+                    onChange={(v: string) => handlePropsChange({ bodyTemplate: v })}
+                    placeholder={'{\n  "title": "{{form.title}}"\n}'}
+                    autosize={{ minRows: 3, maxRows: 10 }}
+                  />
+                </Form.Slot>
               </>
             )}
+            {((props.triggerType as string) === 'updateData' || (props.triggerType as string) === 'deleteData') && (
+              <>
+                <Form.Slot label="操作字段 key（多个用英文逗号分隔）">
+                  <Input
+                    value={Array.isArray(props.fieldKeys) ? (props.fieldKeys as string[]).join(',') : (props.fieldKeys as string) ?? ''}
+                    onChange={(v) => handlePropsChange({ fieldKeys: v.split(',').map((s) => s.trim()).filter(Boolean) })}
+                    placeholder="title,amount"
+                  />
+                </Form.Slot>
+                {(props.triggerType as string) === 'updateData' && (
+                  <Form.Slot label="字段新值（JSON 对象，值支持 {{form.field}} 占位）">
+                    <TextArea
+                      value={stringifyHeadersOrBody(props.fieldValues)}
+                      onChange={(v: string) => handlePropsChange({ fieldValues: v })}
+                      placeholder={'{\n  "status": "approved"\n}'}
+                      autosize={{ minRows: 2, maxRows: 6 }}
+                    />
+                  </Form.Slot>
+                )}
+              </>
+            )}
+            <Form.Slot label="失败策略">
+              <Select
+                value={(props.onFailure as string) ?? 'continue'}
+                onChange={(v) => handlePropsChange({ onFailure: v })}
+                style={{ width: '100%' }}
+                optionList={[
+                  { value: 'continue', label: '继续后续节点' },
+                  { value: 'retry', label: '自动重试' },
+                  { value: 'block', label: '中止流程' },
+                ]}
+              />
+            </Form.Slot>
+            {(props.onFailure as string) === 'retry' && (
+              <Form.Slot label="最大重试次数">
+                <InputNumber
+                  min={1} max={10} step={1}
+                  value={(props.maxRetries as number) ?? 3}
+                  onChange={(v) => handlePropsChange({ maxRetries: v })}
+                  style={{ width: '100%' }}
+                />
+              </Form.Slot>
+            )}
+            <Form.Slot label="超时时间（毫秒）">
+              <InputNumber
+                min={1000} max={120000} step={1000}
+                value={(props.timeoutMs as number) ?? 10000}
+                onChange={(v) => handlePropsChange({ timeoutMs: v })}
+                style={{ width: '100%' }}
+              />
+            </Form.Slot>
           </div>
         </div>
       )}
@@ -399,6 +542,11 @@ function getDefaultProps(type: FlowNodeType): Record<string, unknown> {
         triggerType: 'webhook',
         httpMethod: 'POST',
         webhookUrl: '',
+        headers: '',
+        bodyTemplate: '',
+        onFailure: 'continue',
+        maxRetries: 3,
+        timeoutMs: 10000,
       };
     case 'subProcess':
       return {
