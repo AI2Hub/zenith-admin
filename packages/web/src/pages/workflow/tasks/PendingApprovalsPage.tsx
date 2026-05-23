@@ -7,6 +7,7 @@ import {
   Space,
   Spin,
   Toast,
+  Typography,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -124,12 +125,18 @@ export default function PendingApprovalsPage() {
     {
       title: '申请标题',
       dataIndex: 'title',
+      width: 200,
+      render: (v: string) => (
+        <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text>
+      ),
     },
     {
       title: '流程名称',
       dataIndex: 'definitionName',
       width: 160,
-      render: (v: string | null) => v ?? '—',
+      render: (v: string | null) => (
+        <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text>
+      ),
     },
     {
       title: '申请人',

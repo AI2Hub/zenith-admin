@@ -207,12 +207,17 @@ export default function MyApplicationsPage() {
       title: '申请标题',
       dataIndex: 'title',
       width: 200,
+      render: (v: string) => (
+        <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text>
+      ),
     },
     {
       title: '流程名称',
       dataIndex: 'definitionName',
       width: 160,
-      render: (v: string | null) => v ?? '—',
+      render: (v: string | null) => (
+        <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text>
+      ),
     },
     {
       title: '提交时间',

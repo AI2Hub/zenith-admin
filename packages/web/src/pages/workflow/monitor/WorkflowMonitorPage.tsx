@@ -164,13 +164,17 @@ export default function WorkflowMonitorPage() {
     {
       title: '申请标题',
       dataIndex: 'title',
-      ellipsis: true,
+      render: (v: string) => (
+        <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text>
+      ),
     },
     {
       title: '流程名称',
       dataIndex: 'definitionName',
       width: 160,
-      render: (v: string | null) => v ?? '—',
+      render: (v: string | null) => (
+        <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text>
+      ),
     },
     {
       title: '申请人',
@@ -213,7 +217,7 @@ export default function WorkflowMonitorPage() {
       width: 100,
       fixed: 'right',
       render: (_: unknown, record: WorkflowInstance) => (
-        <Button theme="borderless" size="small" onClick={() => openDetail(record)}>查看详情</Button>
+        <Button theme="borderless" size="small" onClick={() => openDetail(record)}>详情</Button>
       ),
     },
   ];
