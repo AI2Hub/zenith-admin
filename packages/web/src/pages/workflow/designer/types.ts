@@ -220,6 +220,8 @@ export interface FlowBranch {
 
 export interface FlowNode {
   id: string;
+  /** 用户可编辑的稳定业务标识；运行时事件 nodeKey 优先使用此字段，未设置则回退到 id */
+  key?: string;
   type: FlowNodeType;
   name: string;
   props: Record<string, unknown>;

@@ -84,11 +84,11 @@ export function deepClone<T>(obj: T): T {
 }
 
 /** 收集流程树中所有节点（用于"节点审批人"等下拉选择） */
-export function collectAllNodes(root: FlowNode | undefined): Array<{ id: string; name: string; type: FlowNodeType }> {
-  const result: Array<{ id: string; name: string; type: FlowNodeType }> = [];
+export function collectAllNodes(root: FlowNode | undefined): Array<{ id: string; key?: string; name: string; type: FlowNodeType }> {
+  const result: Array<{ id: string; key?: string; name: string; type: FlowNodeType }> = [];
   function walk(node: FlowNode | undefined) {
     if (!node) return;
-    result.push({ id: node.id, name: node.name, type: node.type });
+    result.push({ id: node.id, key: node.key, name: node.name, type: node.type });
     if (node.children) walk(node.children);
     if (node.branches) {
       for (const b of node.branches) {
@@ -209,13 +209,17 @@ function removeNodeRecursive(node: FlowNode, targetId: string): void {
 export function updateNode(
   process: FlowProcess,
   nodeId: string,
-  updates: Partial<Pick<FlowNode, 'name' | 'props'>>,
+  updates: Partial<Pick<FlowNode, 'name' | 'props' | 'key'>>,
 ): FlowProcess {
   const cloned = deepClone(process);
   const node = findNodeById(cloned.initiator, nodeId);
   if (node) {
     if (updates.name !== undefined) node.name = updates.name;
     if (updates.props !== undefined) node.props = { ...node.props, ...updates.props };
+    if (updates.key !== undefined) {
+      const trimmed = updates.key.trim();
+      node.key = trimmed === '' ? undefined : trimmed;
+    }
   }
   return cloned;
 }
@@ -571,7 +575,7 @@ function flattenNode(
     type: 'workflowNode',
     position: { x: 0, y: 0 },
     data: {
-      key: node.id,
+      key: node.key || node.id,
       type: nodeType,
       label: node.name,
       ...dataExtra,

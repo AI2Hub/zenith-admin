@@ -35,10 +35,10 @@ interface NodeConfigDrawerProps {
   roles: RoleOption[];
   userGroups?: UserGroupOption[];
   formFields: FormField[];
-  allNodes?: Array<{ id: string; name: string; type: FlowNodeType }>;
+  allNodes?: Array<{ id: string; key?: string; name: string; type: FlowNodeType }>;
   /** 可选为“驳回到指定节点”的候选节点（当前节点之前同一执行路径上的审批/办理节点） */
   rejectableAncestorNodes?: Array<{ id: string; name: string; type: FlowNodeType }>;
-  onSave: (nodeId: string, updates: { name?: string; props?: Record<string, unknown> }) => void;
+  onSave: (nodeId: string, updates: { name?: string; key?: string; props?: Record<string, unknown> }) => void;
   onCancel: () => void;
 }
 
@@ -57,6 +57,9 @@ export default function NodeConfigDrawer({
 
   // 节点名称
   const [name, setName] = useState('');
+  // 节点业务标识（key）— 可选，留空时运行时使用自动生成的 id
+  const [nodeKey, setNodeKey] = useState('');
+  const [nodeKeyError, setNodeKeyError] = useState<string>('');
   // 节点属性（临时编辑态）
   const [props, setProps] = useState<Record<string, unknown>>({});
 
@@ -69,6 +72,8 @@ export default function NodeConfigDrawer({
   useEffect(() => {
     if (visible && node) {
       setName(node.name);
+      setNodeKey(node.key ?? '');
+      setNodeKeyError('');
       setProps({ ...getDefaultProps(node.type), ...node.props });
     }
   }, [visible, node]);
@@ -79,7 +84,24 @@ export default function NodeConfigDrawer({
 
   const handleSave = () => {
     if (!node) return;
-    onSave(node.id, { name, props });
+    const trimmedKey = nodeKey.trim();
+    if (trimmedKey) {
+      if (!/^[a-zA-Z]\w*$/.test(trimmedKey)) {
+        setNodeKeyError('只能包含字母、数字、下划线，且需以字母开头');
+        return;
+      }
+      if (trimmedKey === 'start' || trimmedKey === 'end') {
+        setNodeKeyError('start / end 为保留标识');
+        return;
+      }
+      const dup = allNodes.some((n) => n.id !== node.id && ((n.key && n.key === trimmedKey) || n.id === trimmedKey));
+      if (dup) {
+        setNodeKeyError('该标识已被其他节点使用');
+        return;
+      }
+    }
+    setNodeKeyError('');
+    onSave(node.id, { name, key: trimmedKey, props });
   };
 
   // 判断哪些 Tab 可用
@@ -118,6 +140,27 @@ export default function NodeConfigDrawer({
           onChange={setName}
           placeholder="请输入节点名称"
         />
+      </div>
+
+      {/* 节点标识（可选、用于代码订阅事件过滤） */}
+      <div style={{ marginBottom: 16 }}>
+        <Typography.Text strong size="small" style={{ display: 'block', marginBottom: 6 }}>
+          节点标识 (key)
+          <Typography.Text type="tertiary" size="small" style={{ marginLeft: 8, fontWeight: 'normal' }}>
+            程序内事件订阅可据此过滤，留空则使用自动生成 id
+          </Typography.Text>
+        </Typography.Text>
+        <Input
+          value={nodeKey}
+          onChange={(v) => { setNodeKey(v); if (nodeKeyError) setNodeKeyError(''); }}
+          placeholder={node?.id ?? '如：finance_approve'}
+          validateStatus={nodeKeyError ? 'error' : 'default'}
+        />
+        {nodeKeyError && (
+          <Typography.Text type="danger" size="small" style={{ display: 'block', marginTop: 4 }}>
+            {nodeKeyError}
+          </Typography.Text>
+        )}
       </div>
 
       {/* 有多个 Tab 的节点类型 */}

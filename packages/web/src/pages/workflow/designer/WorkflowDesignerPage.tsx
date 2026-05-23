@@ -167,7 +167,7 @@ export default function WorkflowDesignerPage() {
     setDrawerVisible(true);
   }, []);
 
-  const handleSaveNode = useCallback((nodeId: string, updates: { name?: string; props?: Record<string, unknown> }) => {
+  const handleSaveNode = useCallback((nodeId: string, updates: { name?: string; key?: string; props?: Record<string, unknown> }) => {
     setProcess(prev => updateNode(prev, nodeId, updates));
     setDrawerVisible(false);
     setEditingNode(null);
