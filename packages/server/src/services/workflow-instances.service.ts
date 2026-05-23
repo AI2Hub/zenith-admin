@@ -26,6 +26,8 @@ export function mapInstance(
   row: typeof workflowInstances.$inferSelect,
   extras: {
     definitionName?: string | null;
+    categoryId?: number | null;
+    categoryName?: string | null;
     initiatorName?: string | null;
     initiatorAvatar?: string | null;
     tasks?: ReturnType<typeof mapTask>[];
@@ -35,6 +37,8 @@ export function mapInstance(
     id: row.id,
     definitionId: row.definitionId,
     definitionName: extras.definitionName ?? null,
+    categoryId: extras.categoryId ?? null,
+    categoryName: extras.categoryName ?? null,
     title: row.title,
     formData: row.formData,
     status: row.status,
@@ -56,7 +60,7 @@ import { count, countDistinct, eq, and, desc, ilike, or } from 'drizzle-orm';
 import { escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { pageOffset } from '../lib/pagination';
-import { workflowInstances, workflowTasks, workflowDefinitions, users } from '../db/schema';
+import { workflowInstances, workflowTasks, workflowDefinitions, workflowCategories, users } from '../db/schema';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { advanceFlow, getInitialTasks, validateFlowData, type TaskAction } from '../lib/workflow-engine';
 import type { WorkflowApproveMethod, WorkflowFlowData } from '@zenith/shared';
@@ -260,9 +264,9 @@ export async function listPendingMine(query: { page?: number; pageSize?: number 
   };
 }
 
-export async function listAllInstances(query: { page?: number; pageSize?: number; status?: string; keyword?: string }) {
+export async function listAllInstances(query: { page?: number; pageSize?: number; status?: string; keyword?: string; categoryId?: number; initiatorKeyword?: string }) {
   const user = currentUser();
-  const { page = 1, pageSize = 20, status, keyword } = query;
+  const { page = 1, pageSize = 20, status, keyword, categoryId, initiatorKeyword } = query;
   const conditions = [];
   const tc = tenantCondition(workflowInstances, user);
   if (tc) conditions.push(tc);
@@ -271,6 +275,8 @@ export async function listAllInstances(query: { page?: number; pageSize?: number
     const likeValue = `%${escapeLike(keyword)}%`;
     conditions.push(or(ilike(workflowInstances.title, likeValue), ilike(workflowDefinitions.name, likeValue)));
   }
+  if (categoryId !== undefined) conditions.push(eq(workflowDefinitions.categoryId, categoryId));
+  if (initiatorKeyword) conditions.push(ilike(users.nickname, `%${escapeLike(initiatorKeyword)}%`));
   const where = and(...conditions);
   const [statRows, [{ total }], rows] = await Promise.all([
     db.select({ status: workflowInstances.status, cnt: count() })
@@ -280,11 +286,21 @@ export async function listAllInstances(query: { page?: number; pageSize?: number
     db.select({ total: count() })
       .from(workflowInstances)
       .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
+      .leftJoin(workflowCategories, eq(workflowDefinitions.categoryId, workflowCategories.id))
+      .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
       .where(where),
     withPagination(
-      db.select({ inst: workflowInstances, definitionName: workflowDefinitions.name, initiatorName: users.nickname, initiatorAvatar: users.avatar })
+      db.select({
+        inst: workflowInstances,
+        definitionName: workflowDefinitions.name,
+        categoryId: workflowDefinitions.categoryId,
+        categoryName: workflowCategories.name,
+        initiatorName: users.nickname,
+        initiatorAvatar: users.avatar,
+      })
         .from(workflowInstances)
         .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
+        .leftJoin(workflowCategories, eq(workflowDefinitions.categoryId, workflowCategories.id))
         .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
         .where(where)
         .orderBy(desc(workflowInstances.id))

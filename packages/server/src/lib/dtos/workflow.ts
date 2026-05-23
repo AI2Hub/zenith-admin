@@ -79,6 +79,8 @@ export const WorkflowInstanceDTO = z
     id: z.number().int(),
     definitionId: z.number().int(),
     definitionName: z.string().nullable().optional(),
+    categoryId: z.number().int().nullable().optional(),
+    categoryName: z.string().nullable().optional(),
     title: z.string(),
     formData: z.unknown().nullable(),
     status: z.enum(['draft', 'running', 'approved', 'rejected', 'withdrawn']),

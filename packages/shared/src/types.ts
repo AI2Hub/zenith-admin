@@ -578,6 +578,13 @@ export type WorkflowApproveMethod =
   | 'sequential'  // 顺序会签：按顺序逐一通过
   | 'auto';       // 自动通过
 
+/** 审批节点被驳回时的处理策略 */
+export type WorkflowRejectStrategy =
+  | 'terminate'      // 终止流程
+  | 'returnPrev'     // 退回上一审批节点
+  | 'returnStart'    // 退回发起人（从头开始）
+  | 'returnToNode';  // 退回到指定节点（由 rejectToNodeKey 指定）
+
 // 流程节点配置（存在 flowData JSON 中）
 export interface WorkflowNodeConfig {
   key: string;       // 节点唯一标识
@@ -613,6 +620,10 @@ export interface WorkflowNodeConfig {
   formDeptHeadLevel?: number;
   /** nodeApprover 策略：关联前序节点 ID */
   nodeApproverNodeId?: string;
+  /** 审批被驳回时的处理策略（仅 approve / handler 节点有意义；缺省视为 terminate） */
+  rejectStrategy?: WorkflowRejectStrategy;
+  /** 当 rejectStrategy = 'returnToNode' 时，目标节点的 key */
+  rejectToNodeKey?: string;
 }
 
 // React Flow 数据结构（flowData JSON）
@@ -782,6 +793,8 @@ export interface WorkflowInstance {
   id: number;
   definitionId: number;
   definitionName?: string;
+  categoryId?: number | null;
+  categoryName?: string | null;
   title: string;
   formData: Record<string, unknown> | null;
   status: WorkflowInstanceStatus;

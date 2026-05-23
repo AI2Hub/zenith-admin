@@ -223,6 +223,8 @@ export const workflowHandlers = [
     const pageSize = Number(url.searchParams.get('pageSize')) || 20;
     const keyword = url.searchParams.get('keyword') ?? '';
     const status = url.searchParams.get('status') ?? '';
+    const categoryIdStr = url.searchParams.get('categoryId') ?? '';
+    const initiatorKeyword = url.searchParams.get('initiatorKeyword') ?? '';
 
     const stats = {
       total: mockWorkflowInstances.length,
@@ -235,6 +237,8 @@ export const workflowHandlers = [
     let list = [...mockWorkflowInstances];
     if (keyword) list = list.filter(i => i.title.includes(keyword) || (i.definitionName ?? '').includes(keyword));
     if (status) list = list.filter(i => i.status === status);
+    if (categoryIdStr) list = list.filter(i => i.categoryId === Number(categoryIdStr));
+    if (initiatorKeyword) list = list.filter(i => (i.initiatorName ?? '').includes(initiatorKeyword));
 
     const total = list.length;
     const paged = list

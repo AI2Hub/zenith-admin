@@ -13,12 +13,13 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RotateCcw, Search } from 'lucide-react';
-import type { WorkflowDefinition, WorkflowInstance } from '@zenith/shared';
+import type { WorkflowCategory, WorkflowDefinition, WorkflowInstance } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import WorkflowInstanceDetailPanel from '@/components/workflow/WorkflowInstanceDetailPanel';
+import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
 
@@ -96,6 +97,10 @@ export default function WorkflowMonitorPage() {
   const [keyword, setKeyword] = useState('');
   const [keywordInput, setKeywordInput] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [categoryFilter, setCategoryFilter] = useState<number | ''>('');
+  const [initiatorInput, setInitiatorInput] = useState('');
+  const [initiatorFilter, setInitiatorFilter] = useState('');
+  const { categories } = useWorkflowCategories();
 
   // 详情弹窗
   const [detailVisible, setDetailVisible] = useState(false);
@@ -103,12 +108,14 @@ export default function WorkflowMonitorPage() {
   const [detailDef, setDetailDef] = useState<WorkflowDefinition | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const fetchList = useCallback(async (p = page, kw = keyword, st = statusFilter, ps = pageSize) => {
+  const fetchList = useCallback(async (p = page, kw = keyword, st = statusFilter, ps = pageSize, cat = categoryFilter, initKw = initiatorFilter) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(p), pageSize: String(ps) });
       if (kw) params.set('keyword', kw);
       if (st) params.set('status', st);
+      if (cat !== '') params.set('categoryId', String(cat));
+      if (initKw) params.set('initiatorKeyword', initKw);
       const res = await request.get<MonitorResponse>(`/api/workflows/instances/all?${params.toString()}`);
       if (res.code === 0) {
         setData(res.data);
@@ -117,7 +124,7 @@ export default function WorkflowMonitorPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, statusFilter]);
+  }, [page, pageSize, keyword, statusFilter, categoryFilter, initiatorFilter]);
 
   useEffect(() => {
     void fetchList();
@@ -125,20 +132,24 @@ export default function WorkflowMonitorPage() {
 
   const handleSearch = () => {
     setKeyword(keywordInput);
-    void fetchList(1, keywordInput, statusFilter);
+    setInitiatorFilter(initiatorInput);
+    void fetchList(1, keywordInput, statusFilter, pageSize, categoryFilter, initiatorInput);
   };
 
   const handleReset = () => {
     setKeywordInput('');
     setKeyword('');
     setStatusFilter('');
-    void fetchList(1, '', '');
+    setCategoryFilter('');
+    setInitiatorInput('');
+    setInitiatorFilter('');
+    void fetchList(1, '', '', pageSize, '', '');
   };
 
   const handleStatCardClick = (st: string) => {
     const next = statusFilter === st ? '' : st;
     setStatusFilter(next);
-    void fetchList(1, keyword, next);
+    void fetchList(1, keyword, next, pageSize, categoryFilter, initiatorFilter);
   };
 
   const openDetail = (item: WorkflowInstance) => {
@@ -164,6 +175,7 @@ export default function WorkflowMonitorPage() {
     {
       title: '申请标题',
       dataIndex: 'title',
+      width: 220,
       render: (v: string) => (
         <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text>
       ),
@@ -175,6 +187,14 @@ export default function WorkflowMonitorPage() {
       render: (v: string | null) => (
         <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text>
       ),
+    },
+    {
+      title: '分类',
+      dataIndex: 'categoryName',
+      width: 110,
+      render: (v: string | null) => v
+        ? <Tag size="small" color="blue">{v}</Tag>
+        : <span style={{ color: 'var(--semi-color-text-2)' }}>—</span>,
     },
     {
       title: '申请人',
@@ -242,7 +262,23 @@ export default function WorkflowMonitorPage() {
             value={keywordInput}
             onChange={v => setKeywordInput(v)}
             onEnterPress={handleSearch}
-            style={{ width: 260 }}
+            style={{ width: 240 }}
+          />
+          <Select
+            placeholder="所有分类"
+            showClear
+            value={categoryFilter === '' ? undefined : categoryFilter}
+            onChange={v => setCategoryFilter(v as number ?? '')}
+            style={{ width: 140 }}
+            optionList={categories.map((c: WorkflowCategory) => ({ label: c.name, value: c.id }))}
+          />
+          <Input
+            placeholder="申请人"
+            showClear
+            value={initiatorInput}
+            onChange={v => setInitiatorInput(v)}
+            onEnterPress={handleSearch}
+            style={{ width: 120 }}
           />
           <Select
             placeholder="所有状态"
@@ -267,7 +303,7 @@ export default function WorkflowMonitorPage() {
         dataSource={data?.list ?? []}
         rowKey="id"
         loading={loading}
-        scroll={{ x: 900 }}
+        scroll={{ x: 1100 }}
         pagination={{
           currentPage: page,
           pageSize,

@@ -38,7 +38,7 @@ const allRoute = defineOpenAPIRoute({
     method: 'get', path: '/instances/all', tags: ['WorkflowInstances'], summary: '全局流程实例列表',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'workflow:instance:monitor' })] as const,
-    request: { query: PaginationQuery.extend({ status: z.string().optional(), keyword: z.string().optional() }) },
+    request: { query: PaginationQuery.extend({ status: z.string().optional(), keyword: z.string().optional(), categoryId: z.coerce.number().int().optional(), initiatorKeyword: z.string().optional() }) },
     responses: { ...commonErrorResponses, ...ok(WorkflowInstanceAllDTO, 'ok') },
   }),
   handler: async (c) => c.json(okBody(await listAllInstances(c.req.valid('query'))), 200),

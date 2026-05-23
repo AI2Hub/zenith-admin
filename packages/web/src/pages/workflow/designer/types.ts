@@ -59,9 +59,10 @@ export type EmptyAssigneeStrategy =
 
 /** 拒绝策略 */
 export type RejectStrategy =
-  | 'terminate'     // 终止流程
-  | 'returnPrev'    // 退回上一步
-  | 'returnStart';  // 退回发起人
+  | 'terminate'      // 终止流程
+  | 'returnPrev'     // 退回上一步审批节点
+  | 'returnStart'    // 退回发起人（流程从头开始）
+  | 'returnToNode';  // 退回到指定节点
 
 /** 操作权限 */
 export type OperationPermission =
@@ -120,6 +121,7 @@ export interface ApproverNodeProps {
   formDeptHeadLevel?: number;             // 表单内部门负责人层级
   approveMethod: ApproveMethod;
   rejectStrategy: RejectStrategy;
+  rejectToNodeKey?: string;               // 当 rejectStrategy='returnToNode' 时，目标节点 id
   emptyStrategy: EmptyAssigneeStrategy;
   emptyAssignTo?: number;                 // assignTo 策略
   emptyAssignToName?: string;

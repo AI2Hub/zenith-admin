@@ -160,9 +160,10 @@ export const EMPTY_ASSIGNEE_OPTIONS: Array<{ value: EmptyAssigneeStrategy; label
 ];
 
 export const REJECT_STRATEGY_OPTIONS: Array<{ value: RejectStrategy; label: string }> = [
-  { value: 'terminate',   label: '终止流程' },
-  { value: 'returnPrev',  label: '退回上一步' },
-  { value: 'returnStart', label: '退回发起人' },
+  { value: 'terminate',    label: '终止流程' },
+  { value: 'returnPrev',   label: '退回上一步' },
+  { value: 'returnStart',  label: '退回发起人' },
+  { value: 'returnToNode', label: '退回到指定节点' },
 ];
 
 export const OPERATION_PERMISSION_OPTIONS: Array<{ value: OperationPermission; label: string }> = [
