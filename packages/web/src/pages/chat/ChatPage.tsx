@@ -1512,8 +1512,6 @@ export default function ChatPage({
       flexDirection: 'column',
       height: '100%',
       minHeight: 500,
-      padding: 12,
-      boxSizing: 'border-box',
       overflow: 'hidden',
     };
 
@@ -1527,9 +1525,8 @@ export default function ChatPage({
         defaultSize={280}
         minSize={220}
         maxSize={420}
-        gap={isQuick ? 0 : 12}
-        bordered={!isQuick}
-        divider={isQuick}
+        gap={0}
+        divider
         persistKey={isQuick ? undefined : 'messages'}
         responsiveBreakpoint={isQuick ? 99999 : undefined}
         responsiveActive={activeConv ? 'detail' : 'master'}

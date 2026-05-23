@@ -959,17 +959,14 @@ export default function DbAdminPage() {
         }}
       >
         <TabPane tab={<span><TableIcon size={14} style={{ verticalAlign: -2, marginRight: 4 }} />表浏览</span>} itemKey="browse">
-          <div style={{ padding: 12, height: '100%', minHeight: 480, boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ height: '100%', minHeight: 480 }}>
             <MasterDetailLayout
-              gap={12}
-              bordered
-              divider={false}
               defaultSize={320}
               minSize={240}
               maxSize={520}
               persistKey="db-admin-browse"
               master={(
-                <>
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
               <div style={{ padding: 12, borderBottom: '1px solid var(--semi-color-border)', flexShrink: 0 }}>
                 <Space style={{ width: '100%' }}>
                   <Input
@@ -1050,7 +1047,7 @@ export default function DbAdminPage() {
                 );
               })()}
               </div>
-                </>
+                </div>
               )}
               detail={(
                 <>

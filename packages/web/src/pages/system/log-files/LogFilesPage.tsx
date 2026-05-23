@@ -173,11 +173,7 @@ export default function LogFilesPage() {
   };
 
   return (
-    <div style={{ padding: 12, height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
     <MasterDetailLayout
-      gap={12}
-      bordered
-      divider={false}
       defaultSize={260}
       minSize={200}
       maxSize={480}
@@ -371,6 +367,5 @@ export default function LogFilesPage() {
         </>
       )}
     />
-    </div>
   );
 }

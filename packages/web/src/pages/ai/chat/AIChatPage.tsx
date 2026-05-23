@@ -404,11 +404,7 @@ export default function AIChatPage() {
   );
 
   return (
-    <div style={{ padding: 12, height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
     <MasterDetailLayout
-      gap={12}
-      bordered
-      divider={false}
       defaultSize={220}
       minSize={180}
       maxSize={400}
@@ -585,6 +581,5 @@ export default function AIChatPage() {
         </>
       )}
     />
-    </div>
   );
 }

@@ -207,12 +207,8 @@ export default function AISidebarPage() {
   const [mcpOptions, setMcpOptions] = useState<MCPReactOption[]>(INITIAL_MCP_OPTIONS);
 
   return (
-    <div style={{ padding: 12, height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
     <MasterDetailLayout
       side="right"
-      gap={12}
-      bordered
-      divider={false}
       defaultSize={380}
       minSize={300}
       maxSize={600}
@@ -377,6 +373,5 @@ export default function AISidebarPage() {
         </Tabs>
       )}
     />
-    </div>
   );
 }
