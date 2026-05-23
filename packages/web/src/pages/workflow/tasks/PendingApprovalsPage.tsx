@@ -11,12 +11,13 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RotateCcw } from 'lucide-react';
-import type { WorkflowInstance, PaginatedResponse } from '@zenith/shared';
+import type { WorkflowInstance, WorkflowDefinition, PaginatedResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ApprovalTimeline from '@/components/ApprovalTimeline';
+import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 
 type PendingItem = WorkflowInstance & { pendingTaskId: number };
 
@@ -34,6 +35,7 @@ export default function PendingApprovalsPage() {
   const [detailVisible, setDetailVisible] = useState(false);
   const [detail, setDetail] = useState<WorkflowInstance | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailDef, setDetailDef] = useState<WorkflowDefinition | null>(null);
 
   const fetchList = useCallback(async (p = page, ps = pageSize) => {
     setLoading(true);
@@ -59,8 +61,18 @@ export default function PendingApprovalsPage() {
   const openDetail = (item: PendingItem) => {
     setDetailLoading(true);
     setDetailVisible(true);
+    setDetailDef(null);
     const p = request.get<WorkflowInstance>(`/api/workflows/instances/${item.id}`)
-      .then(res => { if (res.code === 0) setDetail(res.data); })
+      .then(res => {
+        if (res.code === 0) {
+          setDetail(res.data);
+          return request.get<WorkflowDefinition>(`/api/workflows/definitions/${res.data.definitionId}`);
+        }
+        return null;
+      })
+      .then(defRes => {
+        if (defRes?.code === 0) setDetailDef(defRes.data);
+      })
       .finally(() => setDetailLoading(false));
     // mark as intentionally floating promise
     p.catch(() => undefined);
@@ -187,9 +199,9 @@ export default function PendingApprovalsPage() {
       <Modal
         title="申请详情"
         visible={detailVisible}
-        onCancel={() => { setDetailVisible(false); setDetail(null); }}
+        onCancel={() => { setDetailVisible(false); setDetail(null); setDetailDef(null); }}
         footer={null}
-        style={{ width: 580 }}
+        style={{ width: 720 }}
       >
         {detailLoading ? (
           <div style={{ textAlign: 'center', padding: 32 }}>加载中...</div>
@@ -204,6 +216,16 @@ export default function PendingApprovalsPage() {
                 { key: '提交时间', value: formatDateTime(detail.createdAt) },
               ]}
             />
+            {detailDef?.formFields && detailDef.formFields.length > 0 ? (
+              <div style={{ marginTop: 16 }}>
+                <Typography.Title heading={6} style={{ marginBottom: 8 }}>表单内容</Typography.Title>
+                <WorkflowFormRenderer
+                  fields={detailDef.formFields}
+                  initValues={detail.formData ?? {}}
+                  readOnly
+                />
+              </div>
+            ) : null}
             {detail.tasks && detail.tasks.length > 0 ? (
               <div style={{ marginTop: 16 }}>
                 <Typography.Title heading={6} style={{ marginBottom: 8 }}>审批流程</Typography.Title>

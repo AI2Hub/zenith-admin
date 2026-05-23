@@ -96,6 +96,65 @@ export function evaluateCondition(
 
 // ─── 引擎核心 ─────────────────────────────────────────────────────────────────
 
+/**
+ * 计算从 start 出发、在给定 formData 下"实际可达"的节点 ID 集合。
+ * 用于包容网关 join 判断：未被激活的分支节点视为不可达，从而 join 不需要等待它们。
+ */
+function computeReachableNodeIds(
+  flowData: WorkflowFlowData,
+  formData: Record<string, unknown>,
+): Set<string> {
+  const { nodeMap, outEdges } = buildAdjacency(flowData);
+  const startNode = flowData.nodes.find(n => n.data.type === 'start');
+  const reachable = new Set<string>();
+  if (!startNode) return reachable;
+
+  const queue: string[] = [startNode.id];
+  while (queue.length > 0) {
+    const id = queue.shift();
+    if (!id || reachable.has(id)) continue;
+    reachable.add(id);
+    const node = nodeMap.get(id);
+    if (!node) continue;
+    const t = node.data.type;
+    if (t === 'end') continue;
+    const outs = outEdges.get(id) ?? [];
+    if (outs.length === 0) continue;
+
+    if (t === 'exclusiveGateway' || t === 'routeGateway') {
+      let chosen: string | null = null;
+      let fallback: string | null = null;
+      for (const { target, edge } of outs) {
+        const tgtNode = nodeMap.get(target);
+        if (!tgtNode) continue;
+        if (edge.condition) {
+          if (evaluateCondition(edge.condition, formData)) { chosen = target; break; }
+        } else if (tgtNode.data.isDefault || !fallback) {
+          fallback = target;
+        }
+      }
+      const next = chosen ?? fallback;
+      if (next) queue.push(next);
+    } else if (t === 'inclusiveGateway') {
+      let matched = 0;
+      let fallback: string | null = null;
+      for (const { target, edge } of outs) {
+        const tgtNode = nodeMap.get(target);
+        if (!tgtNode) continue;
+        if (edge.condition) {
+          if (evaluateCondition(edge.condition, formData)) { queue.push(target); matched++; }
+        } else if (tgtNode.data.isDefault || !fallback) {
+          fallback = target;
+        }
+      }
+      if (matched === 0 && fallback) queue.push(fallback);
+    } else {
+      for (const { target } of outs) queue.push(target);
+    }
+  }
+  return reachable;
+}
+
 /** 描述引擎推进后需要创建的任务 */
 export interface TaskAction {
   nodeKey: string;
@@ -240,10 +299,13 @@ export function advanceFlow(
         }
       } else {
         // Join：检查所有入边对应的节点是否都已完成
-        // 注：当前 inclusiveGateway 的 join 也使用"等待全部入边"语义；
-        //     若 fork 时部分分支未激活，会出现 join 永久阻塞 —— 由 P2 通过路径追踪修复。
+        // 包容网关 join：仅等待"实际被 fork 激活"的入边（基于 formData 重算可达性）。
         const inSources = inEdges.get(nodeId) ?? [];
+        const reachable = nodeType === 'inclusiveGateway'
+          ? computeReachableNodeIds(flowData, formData)
+          : null;
         const allCompleted = inSources.every(srcId => {
+          if (reachable && !reachable.has(srcId)) return true; // 未激活分支，视为已完成
           const srcNode = nodeMap.get(srcId);
           return srcNode ? completedNodeKeys.has(srcNode.data.key) : true;
         });

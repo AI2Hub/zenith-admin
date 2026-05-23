@@ -2,7 +2,7 @@
  * 工作流表单渲染器 — 设计器预览和运行时（发起/审批）共用
  * 支持联动：公式实时计算、dateRange→天数、select 级联
  */
-import { createContext, useContext, useRef } from 'react';
+import { createContext, useContext, useRef, useState } from 'react';
 import { Form, Select, Upload, Button, Tag, Typography, Row, Col, Divider, Rating } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus } from 'lucide-react';
@@ -51,6 +51,27 @@ export function evalFormula(formula: string, values: Record<string, unknown>, pr
   }
 }
 
+export function isFieldVisible(field: WorkflowFormField, values: Record<string, unknown>): boolean {
+  const cond = field.visibilityCondition;
+  if (!cond?.field) return true;
+  const left = values[cond.field];
+  const right = cond.value;
+  const toStr = (v: unknown): string => {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'object') return JSON.stringify(v);
+    if (typeof v === 'string') return v;
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    return '';
+  };
+  switch (cond.operator) {
+    case 'eq': return left === right || toStr(left) === toStr(right);
+    case 'neq': return left !== right && toStr(left) !== toStr(right);
+    case 'in': return Array.isArray(right) && right.map(toStr).includes(toStr(left));
+    case 'contains': return Array.isArray(left) && left.map(toStr).includes(toStr(right));
+    default: return true;
+  }
+}
+
 interface RendererProps {
   fields: WorkflowFormField[];
   initValues?: Record<string, unknown>;
@@ -65,6 +86,7 @@ export default function WorkflowFormRenderer({
 }: Readonly<RendererProps>) {
   const formApiRef = useRef<FormApi | null>(null);
   const valuesRef = useRef<Record<string, unknown>>(initValues ?? {});
+  const [valuesState, setValuesState] = useState<Record<string, unknown>>(initValues ?? {});
 
   const all = flattenFields(fields);
   const formulaFields = all.filter(f => f.type === 'formula' && f.formula);
@@ -73,6 +95,7 @@ export default function WorkflowFormRenderer({
 
   const handleValueChange = (next: Record<string, unknown>) => {
     valuesRef.current = next;
+    setValuesState(next);
     const api = formApiRef.current;
     if (api) {
       // 公式
@@ -116,7 +139,7 @@ export default function WorkflowFormRenderer({
   };
 
   return (
-    <ValuesContext.Provider value={valuesRef.current}>
+    <ValuesContext.Provider value={valuesState}>
       <Form
         labelPosition="top"
         style={style}
@@ -125,7 +148,7 @@ export default function WorkflowFormRenderer({
         onValueChange={handleValueChange}
       >
         {fields.map(field => (
-          <FieldRenderer key={field.key} field={field} readOnly={readOnly} />
+          isFieldVisible(field, valuesState) ? <FieldRenderer key={field.key} field={field} readOnly={readOnly} /> : null
         ))}
       </Form>
     </ValuesContext.Provider>
@@ -428,7 +451,7 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
           {(field.columns || []).map((col) => (
             <Col span={col.span} key={getColumnKey(field.key, col)}>
               {(col.fields || []).map(childField => (
-                <FieldRenderer key={childField.key} field={childField} readOnly={readOnly} />
+                isFieldVisible(childField, values) ? <FieldRenderer key={childField.key} field={childField} readOnly={readOnly} /> : null
               ))}
             </Col>
           ))}
@@ -450,7 +473,7 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
             {field.title || field.label}
           </div>
           {(field.children || []).map(childField => (
-            <FieldRenderer key={childField.key} field={childField} readOnly={readOnly} />
+            isFieldVisible(childField, values) ? <FieldRenderer key={childField.key} field={childField} readOnly={readOnly} /> : null
           ))}
         </div>
       );
