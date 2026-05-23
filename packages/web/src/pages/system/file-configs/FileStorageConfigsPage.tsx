@@ -226,7 +226,7 @@ export default function FileStorageConfigsPage() {
       title: '配置名称',
       dataIndex: 'name',
       width: 180,
-      ellipsis: true,
+      render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v || '—'}</Text>,
     },
     {
       title: '存储类型',
@@ -255,7 +255,6 @@ export default function FileStorageConfigsPage() {
       key: 'storageSummary',
       dataIndex: 'storageSummary',
       width: 180,
-      ellipsis: true,
       render: (_: unknown, record: FileStorageConfig) => {
         const labelMap: Record<FileStorageProvider, string> = {
           local: '目录',
@@ -265,22 +264,20 @@ export default function FileStorageConfigsPage() {
         };
         const label = labelMap[record.provider] ?? 'Bucket';
         const summary = getStorageSummary(record);
-        return `${label}: ${summary}`;
+        return <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{`${label}: ${summary}`}</Text>;
       },
     },
     {
       title: '基础路径',
       dataIndex: 'basePath',
       width: 160,
-      ellipsis: true,
-      render: (value?: string) => value || '—',
+      render: (value?: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{value || '—'}</Text>,
     },
     {
       title: '更新时间',
       dataIndex: 'updatedAt',
       width: 180,
-      ellipsis: true,
-      render: (value: string) => formatDateTime(value),
+      render: (value: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{formatDateTime(value)}</Text>,
     },
     {
       title: '状态',

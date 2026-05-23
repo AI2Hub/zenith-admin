@@ -265,8 +265,7 @@ export default function TagsPage() {
     {
       title: '描述',
       dataIndex: 'description',
-      ellipsis: true,
-      render: (v: string | null) => v || <Text type="quaternary">—</Text>,
+      render: (v: string | null) => v ? <Text ellipsis={{ showTooltip: true }}>{v}</Text> : <Text type="quaternary">—</Text>,
     },
     {
       title: '排序',

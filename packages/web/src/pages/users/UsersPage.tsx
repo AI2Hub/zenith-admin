@@ -377,21 +377,19 @@ export default function UsersPage() {
       title: '邮箱',
       dataIndex: 'email',
       width: 220,
-      ellipsis: true,
+      render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text>,
     },
     {
       title: '手机号码',
       dataIndex: 'phone',
       width: 150,
-      ellipsis: true,
-      render: (value: string | null | undefined) => value || '—',
+      render: (value: string | null | undefined) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{value || '—'}</Typography.Text>,
     },
     {
       title: '部门',
       dataIndex: 'departmentName',
       width: 160,
-      ellipsis: true,
-      render: (value: string | null | undefined) => value || '—',
+      render: (value: string | null | undefined) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{value || '—'}</Typography.Text>,
     },
     {
       title: '岗位',
@@ -424,7 +422,6 @@ export default function UsersPage() {
       title: '创建时间',
       dataIndex: 'createdAt',
       width: 170,
-      ellipsis: true,
       render: (t: string) => formatDateTime(t),
     },
     {

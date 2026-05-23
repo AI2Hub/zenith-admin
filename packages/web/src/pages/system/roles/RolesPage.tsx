@@ -233,7 +233,6 @@ export default function RolesPage() {
       title: '创建时间',
       dataIndex: 'createdAt',
       width: 180,
-      ellipsis: true,
       render: (v) => formatDateTime(v),
     },
     {

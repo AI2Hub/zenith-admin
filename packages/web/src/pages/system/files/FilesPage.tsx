@@ -575,8 +575,7 @@ export default function FilesPage() {
       title: '上传时间',
       dataIndex: 'createdAt',
       width: 160,
-      ellipsis: true,
-      render: (value: string) => formatDateTime(value),
+      render: (value: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{formatDateTime(value)}</Text>,
     },
     {
       title: '操作',

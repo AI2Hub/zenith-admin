@@ -155,14 +155,12 @@ export default function PositionsPage() {
     {
       title: '备注',
       dataIndex: 'remark',
-      ellipsis: true,
-      render: (value: string | undefined) => value || '—',
+      render: (value: string | undefined) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{value || '—'}</Typography.Text>,
     },
     {
       title: '创建时间',
       dataIndex: 'createdAt',
       width: 180,
-      ellipsis: true,
       render: (value: string) => formatDateTime(value),
     },
     {

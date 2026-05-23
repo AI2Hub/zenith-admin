@@ -110,7 +110,7 @@ export default function WorkflowDefinitionsPage() {
       title: '流程名称',
       dataIndex: 'name',
       width: 260,
-      ellipsis: true,
+      render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text>,
     },
     {
       title: '分类',
@@ -130,8 +130,7 @@ export default function WorkflowDefinitionsPage() {
     {
       title: '描述',
       dataIndex: 'description',
-      ellipsis: true,
-      render: (v: string | null) => v ?? '—',
+      render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text>,
     },
     {
       title: '版本',
@@ -143,8 +142,7 @@ export default function WorkflowDefinitionsPage() {
       title: '创建人',
       dataIndex: 'createdByName',
       width: 90,
-      ellipsis: true,
-      render: (v: string | null) => v ?? '—',
+      render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text>,
     },
     {
       title: '更新时间',

@@ -181,8 +181,8 @@ export default function UserGroupsPage() {
     { title: '用户组名称', dataIndex: 'name', width: 200, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
     { title: '编码', dataIndex: 'code', width: 180, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
     {
-      title: '描述', dataIndex: 'description', ellipsis: true,
-      render: (v: string | null | undefined) => v || '—',
+      title: '描述', dataIndex: 'description',
+      render: (v: string | null | undefined) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v || '—'}</Typography.Text>,
     },
     {
       title: '负责人', dataIndex: 'ownerName', width: 120,
@@ -197,8 +197,8 @@ export default function UserGroupsPage() {
       render: (v: number) => <Tag color="blue">{v ?? 0}</Tag>,
     },
     {
-      title: '创建时间', dataIndex: 'createdAt', width: 180, ellipsis: true,
-      render: (v: string) => formatDateTime(v),
+      title: '创建时间', dataIndex: 'createdAt', width: 180,
+      render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{formatDateTime(v)}</Typography.Text>,
     },
     {
       title: '状态', dataIndex: 'status', width: 100, fixed: 'right',

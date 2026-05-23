@@ -518,7 +518,7 @@ export default function CronJobsPage() {
               title: '任务名称',
               dataIndex: 'jobName',
               width: 160,
-              ellipsis: true,
+              render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v || '—'}</Typography.Text>,
             },
             {
               title: '第几次执行',
@@ -557,8 +557,7 @@ export default function CronJobsPage() {
               title: '输出',
               dataIndex: 'output',
               width: 260,
-              ellipsis: true,
-              render: (v: string | null) => v || '—',
+              render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v || '—'}</Typography.Text>,
             },
           ]}
           pagination={{
@@ -624,8 +623,7 @@ export default function CronJobsPage() {
               title: '输出',
               dataIndex: 'output',
               width: 270,
-              ellipsis: true,
-              render: (v: string | null) => v || '—',
+              render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v || '—'}</Typography.Text>,
             },
           ]}
           pagination={{

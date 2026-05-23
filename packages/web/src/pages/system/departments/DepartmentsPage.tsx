@@ -253,7 +253,6 @@ export default function DepartmentsPage() {
       title: '创建时间',
       dataIndex: 'createdAt',
       width: 180,
-      ellipsis: true,
       render: (value: string) => formatDateTime(value),
     },
     {
