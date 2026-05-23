@@ -80,10 +80,33 @@ function createField(type: WorkflowFormFieldType): WorkflowFormField {
       field.maxCount = 5;
       break;
     case 'description':
-      field.description = '';
-      break;
+      return {
+        key: `field_${Date.now()}`,
+        label: '说明文字',
+        type: 'description',
+        description: '请在此处填写说明文字...',
+      } as WorkflowFormField;
     case 'serialNumber':
       field.serialPrefix = '';
+      break;
+    case 'phone':
+      field.placeholder = '请输入手机号';
+      break;
+    case 'email':
+      field.placeholder = '请输入邮箱';
+      break;
+    case 'idCard':
+      field.placeholder = '请输入身份证号';
+      break;
+    case 'url':
+      field.placeholder = '请输入网址（含 https://）';
+      break;
+    case 'rate':
+      field.rateMax = 5;
+      break;
+    case 'formula':
+      field.formula = '';
+      field.precision = 2;
       break;
     case 'detail':
       field.children = [

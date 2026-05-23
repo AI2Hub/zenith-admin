@@ -19,7 +19,7 @@ export default function FieldConfigPanel({
   onChange,
 }: Readonly<FieldConfigPanelProps>) {
 
-  const [activeSection, setActiveSection] = useState<'basic' | 'visibility'>('basic');
+  const [activeSection, setActiveSection] = useState<'basic' | 'validation' | 'visibility'>('basic');
   const fieldInfo = FORM_FIELD_TYPES.find(t => t.type === field.type);
 
   // 可用作条件依赖的字段（select/multiSelect 类型，且不是当前字段）
@@ -36,6 +36,11 @@ export default function FieldConfigPanel({
   const isDate = field.type === 'date' || field.type === 'dateRange';
   const isFileType = field.type === 'attachment' || field.type === 'image';
   const isLayout = field.type === 'row' || field.type === 'divider' || field.type === 'group';
+  const isText = field.type === 'text' || field.type === 'textarea';
+  const isFormatted = field.type === 'phone' || field.type === 'email' || field.type === 'idCard' || field.type === 'url';
+  const isRate = field.type === 'rate';
+  const isFormula = field.type === 'formula';
+  const showValidationTab = !isDescription && !isSerialNumber && !isLayout && !isFileType && field.type !== 'contact' && field.type !== 'department' && field.type !== 'detail' && !isFormula && !isRate && !isDate;
 
   return (
     <div className="fd-form-config">
@@ -58,6 +63,15 @@ export default function FieldConfigPanel({
         >
           基础设置
         </button>
+        {showValidationTab && (
+          <button
+            type="button"
+            className={`fd-form-config__tab ${activeSection === 'validation' ? 'fd-form-config__tab--active' : ''}`}
+            onClick={() => setActiveSection('validation')}
+          >
+            校验规则
+          </button>
+        )}
         <button
           type="button"
           className={`fd-form-config__tab ${activeSection === 'visibility' ? 'fd-form-config__tab--active' : ''}`}
@@ -93,13 +107,48 @@ export default function FieldConfigPanel({
           )}
 
           {/* 必填开关（非说明文字、流水号、布局类型） */}
-          {!isDescription && !isSerialNumber && !isLayout && (
+          {!isDescription && !isSerialNumber && !isLayout && !isFormula && (
             <div className="fd-form-config__field fd-form-config__field--inline">
               <Typography.Text strong size="small">必填</Typography.Text>
               <Switch
                 checked={field.required ?? false}
                 onChange={(v) => onChange({ required: v })}
                 size="small"
+              />
+            </div>
+          )}
+
+          {/* 帮助提示（非纯展示） */}
+          {!isDescription && !isLayout && (
+            <div className="fd-form-config__field">
+              <Typography.Text strong size="small">帮助提示</Typography.Text>
+              <Input
+                value={field.helpText ?? ''}
+                onChange={(v) => onChange({ helpText: v || undefined })}
+                placeholder="显示在字段下方的辅助说明"
+              />
+            </div>
+          )}
+
+          {/* 默认值（简单类型） */}
+          {(field.type === 'text' || isFormatted) && (
+            <div className="fd-form-config__field">
+              <Typography.Text strong size="small">默认值</Typography.Text>
+              <Input
+                value={typeof field.defaultValue === 'string' ? field.defaultValue : ''}
+                onChange={(v) => onChange({ defaultValue: v || undefined })}
+                placeholder="留空表示无默认值"
+              />
+            </div>
+          )}
+          {isAmountOrNumber && (
+            <div className="fd-form-config__field">
+              <Typography.Text strong size="small">默认值</Typography.Text>
+              <InputNumber
+                value={field.defaultValue as number | undefined}
+                onChange={(v) => onChange({ defaultValue: v === undefined || v === '' ? undefined : Number(v) })}
+                placeholder="留空表示无默认值"
+                style={{ width: '100%' }}
               />
             </div>
           )}
@@ -128,6 +177,68 @@ export default function FieldConfigPanel({
                 style={{ width: '100%' }}
               />
             </div>
+          )}
+
+          {/* 数字/金额单位 */}
+          {(isAmountOrNumber || field.type === 'number') && (
+            <div className="fd-form-config__field">
+              <Typography.Text strong size="small">单位</Typography.Text>
+              <Input
+                value={field.unit ?? ''}
+                onChange={(v) => onChange({ unit: v || undefined })}
+                placeholder="如 元、天、件"
+              />
+            </div>
+          )}
+
+          {/* 评分上限 */}
+          {isRate && (
+            <div className="fd-form-config__field">
+              <Typography.Text strong size="small">星级上限</Typography.Text>
+              <InputNumber
+                value={field.rateMax ?? 5}
+                onChange={(v) => onChange({ rateMax: Number(v) || 5 })}
+                min={1}
+                max={10}
+                style={{ width: '100%' }}
+              />
+            </div>
+          )}
+
+          {/* 公式表达式 */}
+          {isFormula && (
+            <>
+              <div className="fd-form-config__field">
+                <Typography.Text strong size="small">公式表达式</Typography.Text>
+                <TextArea
+                  value={field.formula ?? ''}
+                  onChange={(v) => onChange({ formula: v })}
+                  placeholder="使用 {字段key} 引用其他字段，如：{amount} * {days}"
+                  rows={3}
+                />
+                <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 4 }}>
+                  支持 + - * / 与括号，运行时会从其他字段自动计算
+                </Typography.Text>
+              </div>
+              <div className="fd-form-config__field">
+                <Typography.Text strong size="small">结果小数位</Typography.Text>
+                <InputNumber
+                  value={field.precision ?? 2}
+                  onChange={(v) => onChange({ precision: Number(v) })}
+                  min={0}
+                  max={6}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div className="fd-form-config__field">
+                <Typography.Text strong size="small">单位</Typography.Text>
+                <Input
+                  value={field.unit ?? ''}
+                  onChange={(v) => onChange({ unit: v || undefined })}
+                  placeholder="如 元、天"
+                />
+              </div>
+            </>
           )}
 
           {/* 金额币种 */}
@@ -277,6 +388,84 @@ export default function FieldConfigPanel({
                 />
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* 校验规则 */}
+      {activeSection === 'validation' && showValidationTab && (
+        <div className="fd-form-config__section">
+          {(isText || isFormatted) && (
+            <>
+              <div className="fd-form-config__field">
+                <Typography.Text strong size="small">最小长度</Typography.Text>
+                <InputNumber
+                  value={field.minLength}
+                  onChange={(v) => onChange({ minLength: v === undefined || v === '' ? undefined : Number(v) })}
+                  min={0}
+                  placeholder="不限"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div className="fd-form-config__field">
+                <Typography.Text strong size="small">最大长度</Typography.Text>
+                <InputNumber
+                  value={field.maxLength}
+                  onChange={(v) => onChange({ maxLength: v === undefined || v === '' ? undefined : Number(v) })}
+                  min={1}
+                  placeholder="不限"
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </>
+          )}
+          {isAmountOrNumber && (
+            <>
+              <div className="fd-form-config__field">
+                <Typography.Text strong size="small">最小值</Typography.Text>
+                <InputNumber
+                  value={field.min}
+                  onChange={(v) => onChange({ min: v === undefined || v === '' ? undefined : Number(v) })}
+                  placeholder="不限"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div className="fd-form-config__field">
+                <Typography.Text strong size="small">最大值</Typography.Text>
+                <InputNumber
+                  value={field.max}
+                  onChange={(v) => onChange({ max: v === undefined || v === '' ? undefined : Number(v) })}
+                  placeholder="不限"
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </>
+          )}
+          {/* 正则校验（仅 text 类型显式可配；格式化控件已内置） */}
+          {isText && (
+            <>
+              <div className="fd-form-config__field">
+                <Typography.Text strong size="small">正则表达式</Typography.Text>
+                <Input
+                  value={field.pattern ?? ''}
+                  onChange={(v) => onChange({ pattern: v || undefined })}
+                  placeholder="如 ^[A-Z0-9]+$"
+                />
+              </div>
+              <div className="fd-form-config__field">
+                <Typography.Text strong size="small">校验失败提示</Typography.Text>
+                <Input
+                  value={field.patternMessage ?? ''}
+                  onChange={(v) => onChange({ patternMessage: v || undefined })}
+                  placeholder="如：仅允许大写字母和数字"
+                />
+              </div>
+            </>
+          )}
+          {isFormatted && (
+            <Typography.Text type="tertiary" size="small">
+              该控件已内置格式校验，无需配置正则。
+            </Typography.Text>
           )}
         </div>
       )}
@@ -472,6 +661,16 @@ function DetailChildrenEditor({
               placeholder="选项"
               style={{ flex: 1 }}
             />
+          )}
+          {(child.type === 'number' || child.type === 'amount') && (
+            <button
+              type="button"
+              className={`fd-detail-children__sum ${child.detailSummary ? 'fd-detail-children__sum--active' : ''}`}
+              title={child.detailSummary ? '取消合计' : '在底部显示合计'}
+              onClick={() => updateChild(i, { detailSummary: !child.detailSummary })}
+            >
+              Σ
+            </button>
           )}
           <button
             type="button"

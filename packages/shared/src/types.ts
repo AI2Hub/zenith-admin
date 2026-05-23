@@ -647,6 +647,12 @@ export type WorkflowFormFieldType =
   | 'select'        // 单选
   | 'multiSelect'   // 多选
   | 'amount'        // 金额
+  | 'phone'         // 手机号
+  | 'email'         // 邮箱
+  | 'idCard'        // 身份证
+  | 'url'           // 网址
+  | 'rate'          // 评分
+  | 'formula'       // 公式计算
   | 'attachment'    // 附件
   | 'image'         // 图片
   | 'contact'       // 联系人（人员选择）
@@ -677,16 +683,29 @@ export interface WorkflowFormField {
   type: WorkflowFormFieldType;
   required?: boolean;
   placeholder?: string;
+  helpText?: string;               // 帮助提示（label 下方/旁边的说明）
   options?: string[];              // select/multiSelect 的选项
   defaultValue?: unknown;
   visibilityCondition?: WorkflowFieldVisibilityCondition;
   children?: WorkflowFormField[];  // 明细子字段
   precision?: number;              // 数字/金额精度
+  step?: number;                   // 数字步长
+  unit?: string;                   // 数字/金额单位（如 "元" "天" "件"）
   currency?: string;               // 金额币种
   dateFormat?: string;             // 日期格式
   maxCount?: number;               // 附件/图片限制数
   description?: string;            // 说明文字内容
   serialPrefix?: string;           // 流水号前缀
+  rateMax?: number;                // 评分上限（默认 5）
+  formula?: string;                // 公式表达式，如 "{amount} * {days}"
+  detailSummary?: boolean;         // 明细子列：是否在底部显示合计
+  // 校验规则
+  minLength?: number;              // 文本最小长度
+  maxLength?: number;              // 文本最大长度
+  min?: number;                    // 数字/金额最小值
+  max?: number;                    // 数字/金额最大值
+  pattern?: string;                // 正则表达式
+  patternMessage?: string;         // 正则不匹配时的提示
   // Layout fields
   columns?: WorkflowFormFieldColumn[];  // for 'row' type
   title?: string;                       // for 'group' type header

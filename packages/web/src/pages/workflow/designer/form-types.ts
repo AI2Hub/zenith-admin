@@ -20,6 +20,12 @@ import {
   Columns,
   Minus,
   FolderOpen,
+  Phone,
+  Mail,
+  IdCard,
+  Link as LinkIcon,
+  Star,
+  Sigma,
   type LucideIcon,
 } from 'lucide-react';
 import type { WorkflowFormFieldType } from '@zenith/shared';
@@ -44,6 +50,14 @@ export const FORM_FIELD_TYPES: FormFieldTypeInfo[] = [
   { type: 'multiSelect',  label: '多选',     icon: ListChecks,    group: '基础控件', description: '多选下拉' },
   { type: 'date',         label: '日期',     icon: Calendar,      group: '基础控件', description: '日期选择' },
   { type: 'dateRange',    label: '日期区间', icon: CalendarRange,  group: '基础控件', description: '起止日期选择' },
+
+  // 格式化控件
+  { type: 'phone',        label: '手机号',   icon: Phone,         group: '格式化控件', description: '手机号码，含格式校验' },
+  { type: 'email',        label: '邮箱',     icon: Mail,          group: '格式化控件', description: '电子邮箱，含格式校验' },
+  { type: 'idCard',       label: '身份证',   icon: IdCard,        group: '格式化控件', description: '身份证号，含格式校验' },
+  { type: 'url',          label: '网址',     icon: LinkIcon,      group: '格式化控件', description: 'URL 链接' },
+  { type: 'rate',         label: '评分',     icon: Star,          group: '格式化控件', description: '星级评分' },
+  { type: 'formula',      label: '公式',     icon: Sigma,         group: '格式化控件', description: '从其他字段自动计算' },
 
   // 高级控件
   { type: 'attachment',   label: '附件',     icon: Paperclip,     group: '高级控件', description: '上传附件' },

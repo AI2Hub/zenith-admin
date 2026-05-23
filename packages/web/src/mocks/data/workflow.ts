@@ -140,6 +140,123 @@ export const mockWorkflowDefinitions: WorkflowDefinition[] = [
     createdAt: '2025-12-01 08:00:00',
     updatedAt: '2026-01-05 16:00:00',
   },
+  {
+    id: 5,
+    name: '出差报销审批（综合测试）',
+    description: '综合测试流程：覆盖多种新表单控件 + 复杂审批流程（条件分支、抄送、加签）',
+    flowData: {
+      nodes: [],
+      edges: [],
+      process: {
+        id: 'root',
+        type: 'initiator',
+        name: '发起人',
+        config: { assigneeType: 'self' },
+        next: {
+          id: 'manager',
+          type: 'approver',
+          name: '直属主管审批',
+          config: { assigneeType: 'manager', approvalType: 'sequential', approveMethod: 'or', emptyAssignee: 'auto-skip', rejectStrategy: 'end' },
+          next: {
+            id: 'branch_amount',
+            type: 'conditionBranch',
+            name: '金额条件分支',
+            config: {},
+            branches: [
+              {
+                id: 'b1',
+                name: '金额 ≤ 5000',
+                conditions: [{ field: 'totalAmount', operator: 'lte', value: 5000 }],
+                next: {
+                  id: 'dept_head',
+                  type: 'approver',
+                  name: '部门经理',
+                  config: { assigneeType: 'role', assigneeId: 2, assigneeName: '部门经理', approvalType: 'sequential', approveMethod: 'or' },
+                  next: null,
+                },
+              },
+              {
+                id: 'b2',
+                name: '金额 > 5000',
+                conditions: [{ field: 'totalAmount', operator: 'gt', value: 5000 }],
+                next: {
+                  id: 'gm',
+                  type: 'approver',
+                  name: '总经理审批',
+                  config: { assigneeType: 'user', assigneeId: 1, assigneeName: '张三', approvalType: 'sequential', approveMethod: 'or' },
+                  next: null,
+                },
+              },
+            ],
+            next: {
+              id: 'finance',
+              type: 'approver',
+              name: '财务审核',
+              config: { assigneeType: 'user', assigneeId: 4, assigneeName: '赵六', approvalType: 'sequential', approveMethod: 'or' },
+              next: {
+                id: 'cc_hr',
+                type: 'cc',
+                name: '抄送 HR',
+                config: { assigneeType: 'user', assigneeIds: [3], assigneeNames: ['王五'] },
+                next: null,
+              },
+            },
+          },
+        },
+      },
+    },
+    formFields: [
+      { key: 'serialNo', label: '申请编号', type: 'serialNumber', serialPrefix: 'BX-', dateFormat: 'YYYYMMDD', helpText: '自动生成，提交后赋值' },
+      { key: 'applicant', label: '申请人', type: 'text', required: true, defaultValue: '当前登录用户', helpText: '提交时自动填入登录账号' },
+      { key: 'phone', label: '联系手机', type: 'phone', required: true },
+      { key: 'email', label: '邮箱', type: 'email', required: true },
+      { key: 'idCard', label: '身份证号', type: 'idCard', required: false, helpText: '仅在跨境出差时填写' },
+      { key: 'divider_basic', label: '分割线', type: 'divider' },
+      {
+        key: 'group_trip', label: '出差信息', type: 'group', title: '出差信息',
+        children: [
+          {
+            key: 'row_trip', label: '行程', type: 'row',
+            columns: [
+              { span: 12, fields: [{ key: 'destination', label: '目的地', type: 'text', required: true, placeholder: '如 北京' }] },
+              { span: 12, fields: [{ key: 'transport', label: '交通方式', type: 'select', required: true, options: ['飞机', '高铁', '汽车', '其他'] }] },
+            ],
+          },
+          { key: 'dateRange', label: '出差时间', type: 'dateRange', required: true, dateFormat: 'YYYY-MM-DD' },
+          { key: 'days', label: '出差天数', type: 'number', required: true, unit: '天', min: 1, max: 60, precision: 0, helpText: '由出差时间自动估算，可手动调整' },
+          { key: 'urgency', label: '紧急程度', type: 'rate', rateMax: 5, helpText: '影响审批优先级' },
+        ],
+      },
+      { key: 'divider_amount', label: '分割线', type: 'divider' },
+      { key: 'dailyBudget', label: '日均预算', type: 'amount', required: true, currency: 'CNY', precision: 2, min: 0, unit: '元/天' },
+      { key: 'totalAmount', label: '预计总金额', type: 'formula', formula: '{dailyBudget} * {days}', precision: 2, unit: '元', helpText: '由日均预算 × 天数自动计算，金额 > 5000 将触发总经理审批' },
+      {
+        key: 'detail_expense', label: '费用明细', type: 'detail', helpText: '可逐项录入差旅费用',
+        children: [
+          { key: 'item', label: '费用项目', type: 'text' },
+          { key: 'occurDate', label: '发生日期', type: 'date' },
+          { key: 'category', label: '类别', type: 'select', options: ['交通', '住宿', '餐饮', '其他'] },
+          { key: 'itemAmount', label: '金额(元)', type: 'amount', currency: 'CNY', precision: 2, detailSummary: true },
+        ],
+      },
+      { key: 'companions', label: '随行人员', type: 'multiSelect', options: ['张三', '李四', '王五', '赵六', '钱七'], helpText: '可多选' },
+      { key: 'refUrl', label: '相关链接', type: 'url', placeholder: 'https://...', helpText: '如出差任务说明文档' },
+      { key: 'remark', label: '备注', type: 'textarea', maxLength: 500, helpText: '不超过 500 字' },
+      { key: 'attachments', label: '附件', type: 'attachment', maxCount: 10, helpText: '上传发票/行程单等' },
+      { key: 'photos', label: '现场照片', type: 'image', maxCount: 6 },
+      {
+        key: 'desc_tip', label: '提示说明', type: 'description',
+        description: '⚠ 请如实填写出差信息，金额超过 5000 元将自动转交总经理审批。提交后可在【我的申请】查看审批进度。',
+      },
+    ],
+    status: 'published',
+    version: 1,
+    tenantId: 1,
+    createdBy: 1,
+    createdByName: '张三',
+    createdAt: '2026-03-20 09:00:00',
+    updatedAt: '2026-03-20 09:00:00',
+  },
 ];
 
 // ─── 流程任务 ──────────────────────────────────────────────────────────────

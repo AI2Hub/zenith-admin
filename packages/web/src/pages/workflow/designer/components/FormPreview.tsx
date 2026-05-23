@@ -1,13 +1,53 @@
 /**
  * 表单预览组件 — 在 Modal 中渲染真实表单控件预览
  */
-import { Modal, Form, Select, Upload, Button, Tag, Typography, Row, Col, Divider } from '@douyinfe/semi-ui';
+import { useRef } from 'react';
+import { Modal, Form, Select, Upload, Button, Tag, Typography, Row, Col, Divider, Rating } from '@douyinfe/semi-ui';
+import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus } from 'lucide-react';
 import type { WorkflowFormField, WorkflowFormFieldColumn } from '@zenith/shared';
 import { CURRENCY_OPTIONS } from '../form-types';
 
+const PHONE_REGEX = /^1[3-9]\d{9}$/;
+const EMAIL_REGEX = /^[\w.+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
+const ID_CARD_REGEX = /^[1-9]\d{5}(18|19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{3}[0-9Xx]$/;
+const URL_REGEX = /^https?:\/\/.+/;
+const SAFE_EXPR_REGEX = /^[\d+\-*/(). ]+$/;
+
 const getColumnKey = (parentKey: string, column: WorkflowFormFieldColumn) =>
   `${parentKey}-col-${column.span}-${column.fields.map(field => field.key).join('-') || 'empty'}`;
+
+/** 收集所有叶子字段（递归展开 row/group/detail children） */
+function flattenFields(fields: WorkflowFormField[]): WorkflowFormField[] {
+  const out: WorkflowFormField[] = [];
+  for (const f of fields) {
+    out.push(f);
+    if (f.type === 'row' && f.columns) {
+      for (const col of f.columns) out.push(...flattenFields(col.fields));
+    } else if ((f.type === 'group' || f.type === 'detail') && f.children) {
+      out.push(...flattenFields(f.children));
+    }
+  }
+  return out;
+}
+
+/** 安全计算公式：替换 {key} 为数值后用白名单字符集校验执行 */
+function evalFormula(formula: string, values: Record<string, unknown>, precision = 2): number | null {
+  const replaced = formula.replace(/\{([^}]+)\}/g, (_, key: string) => {
+    const v = values[key.trim()];
+    const n = typeof v === 'number' ? v : Number(v);
+    return Number.isFinite(n) ? String(n) : '0';
+  });
+  if (!SAFE_EXPR_REGEX.test(replaced)) return null;
+  try {
+    // eslint-disable-next-line no-new-func
+    const result = new Function(`"use strict"; return (${replaced});`)() as number;
+    if (!Number.isFinite(result)) return null;
+    return Number(result.toFixed(precision));
+  } catch {
+    return null;
+  }
+}
 
 interface FormPreviewProps {
   visible: boolean;
@@ -16,6 +56,21 @@ interface FormPreviewProps {
 }
 
 export default function FormPreview({ visible, fields, onClose }: Readonly<FormPreviewProps>) {
+  const formApiRef = useRef<FormApi | null>(null);
+  const formulaFields = flattenFields(fields).filter(f => f.type === 'formula' && f.formula);
+
+  const handleValueChange = (values: Record<string, unknown>) => {
+    if (!formApiRef.current || formulaFields.length === 0) return;
+    for (const f of formulaFields) {
+      if (!f.formula) continue;
+      const result = evalFormula(f.formula, values, f.precision ?? 2);
+      const display = result === null ? '当前不可计算' : `${result}${f.unit ?? ''}`;
+      if (values[f.key] !== display) {
+        formApiRef.current.setValue(f.key, display);
+      }
+    }
+  };
+
   return (
     <Modal
       title="表单预览"
@@ -32,7 +87,12 @@ export default function FormPreview({ visible, fields, onClose }: Readonly<FormP
           暂无表单字段
         </div>
       ) : (
-        <Form labelPosition="top" style={{ padding: '0 8px' }}>
+        <Form
+          labelPosition="top"
+          style={{ padding: '0 8px' }}
+          getFormApi={(api) => { formApiRef.current = api; }}
+          onValueChange={handleValueChange}
+        >
           {fields.map(field => (
             <PreviewField key={field.key} field={field} />
           ))}
@@ -43,7 +103,24 @@ export default function FormPreview({ visible, fields, onClose }: Readonly<FormP
 }
 
 function PreviewField({ field }: Readonly<{ field: WorkflowFormField }>) {
-  const rules = field.required ? [{ required: true, message: `请填写${field.label}` }] : undefined;
+  const baseRules: Array<Record<string, unknown>> = [];
+  if (field.required) baseRules.push({ required: true, message: `请填写${field.label}` });
+  if (field.minLength !== undefined) baseRules.push({ type: 'string', minLength: field.minLength, message: `最少${field.minLength}个字符` });
+  if (field.maxLength !== undefined) baseRules.push({ type: 'string', maxLength: field.maxLength, message: `最多${field.maxLength}个字符` });
+  if (field.pattern) {
+    try {
+      baseRules.push({ pattern: new RegExp(field.pattern), message: field.patternMessage ?? '格式不正确' });
+    } catch { /* invalid regex */ }
+  }
+  const numberRules: Array<Record<string, unknown>> = [];
+  if (field.required) numberRules.push({ required: true, message: `请填写${field.label}` });
+  if (field.min !== undefined) numberRules.push({ type: 'number', min: field.min, message: `不小于${field.min}` });
+  if (field.max !== undefined) numberRules.push({ type: 'number', max: field.max, message: `不大于${field.max}` });
+  const rules = baseRules.length > 0 ? baseRules : undefined;
+  const helpText = field.helpText;
+  const extraProps = helpText ? { extraText: helpText } : {};
+  const unitSuffix = field.unit ? `（${field.unit}）` : '';
+  const numberLabel = `${field.label}${unitSuffix}`;
 
   switch (field.type) {
     case 'text':
@@ -52,7 +129,9 @@ function PreviewField({ field }: Readonly<{ field: WorkflowFormField }>) {
           field={field.key}
           label={field.label}
           placeholder={field.placeholder ?? `请输入${field.label}`}
+          initValue={field.defaultValue}
           rules={rules}
+          {...extraProps}
         />
       );
 
@@ -63,7 +142,88 @@ function PreviewField({ field }: Readonly<{ field: WorkflowFormField }>) {
           label={field.label}
           placeholder={field.placeholder ?? `请输入${field.label}`}
           autosize={{ minRows: 2, maxRows: 6 }}
+          initValue={field.defaultValue}
           rules={rules}
+          {...extraProps}
+        />
+      );
+
+    case 'phone':
+      return (
+        <Form.Input
+          field={field.key}
+          label={field.label}
+          placeholder={field.placeholder ?? '请输入手机号'}
+          initValue={field.defaultValue}
+          rules={[
+            ...(field.required ? [{ required: true, message: `请填写${field.label}` }] : []),
+            { pattern: PHONE_REGEX, message: '手机号格式不正确' },
+          ]}
+          {...extraProps}
+        />
+      );
+
+    case 'email':
+      return (
+        <Form.Input
+          field={field.key}
+          label={field.label}
+          placeholder={field.placeholder ?? '请输入邮箱'}
+          initValue={field.defaultValue}
+          rules={[
+            ...(field.required ? [{ required: true, message: `请填写${field.label}` }] : []),
+            { pattern: EMAIL_REGEX, message: '邮箱格式不正确' },
+          ]}
+          {...extraProps}
+        />
+      );
+
+    case 'idCard':
+      return (
+        <Form.Input
+          field={field.key}
+          label={field.label}
+          placeholder={field.placeholder ?? '请输入身份证号'}
+          initValue={field.defaultValue}
+          rules={[
+            ...(field.required ? [{ required: true, message: `请填写${field.label}` }] : []),
+            { pattern: ID_CARD_REGEX, message: '身份证号格式不正确' },
+          ]}
+          maxLength={18}
+          {...extraProps}
+        />
+      );
+
+    case 'url':
+      return (
+        <Form.Input
+          field={field.key}
+          label={field.label}
+          placeholder={field.placeholder ?? '请输入网址'}
+          initValue={field.defaultValue}
+          rules={[
+            ...(field.required ? [{ required: true, message: `请填写${field.label}` }] : []),
+            { pattern: URL_REGEX, message: '网址需以 http:// 或 https:// 开头' },
+          ]}
+          {...extraProps}
+        />
+      );
+
+    case 'rate':
+      return (
+        <Form.Slot label={field.label} {...extraProps}>
+          <Rating count={field.rateMax ?? 5} defaultValue={Number(field.defaultValue) || 0} />
+        </Form.Slot>
+      );
+
+    case 'formula':
+      return (
+        <Form.Input
+          field={field.key}
+          label={numberLabel}
+          disabled
+          initValue="请填写依赖字段后自动计算"
+          extraText={field.formula ? `公式：${field.formula}` : helpText}
         />
       );
 
@@ -71,25 +231,36 @@ function PreviewField({ field }: Readonly<{ field: WorkflowFormField }>) {
       return (
         <Form.InputNumber
           field={field.key}
-          label={field.label}
+          label={numberLabel}
           placeholder={field.placeholder ?? `请输入${field.label}`}
           precision={field.precision}
+          step={field.step}
+          min={field.min}
+          max={field.max}
+          initValue={field.defaultValue}
           style={{ width: '100%' }}
-          rules={rules}
+          rules={numberRules.length > 0 ? numberRules : undefined}
+          {...extraProps}
         />
       );
 
     case 'amount': {
       const currencyLabel = CURRENCY_OPTIONS.find(c => c.value === (field.currency ?? 'CNY'))?.label ?? 'CNY';
+      const amountSuffix = field.unit ? ` · ${field.unit}` : '';
+      const amountLabel = `${field.label}（${currencyLabel}${amountSuffix}）`;
       return (
         <Form.InputNumber
           field={field.key}
-          label={`${field.label}（${currencyLabel}）`}
+          label={amountLabel}
           placeholder={field.placeholder ?? `请输入${field.label}`}
           precision={field.precision ?? 2}
+          min={field.min}
+          max={field.max}
+          initValue={field.defaultValue}
           style={{ width: '100%' }}
           prefix="¥"
-          rules={rules}
+          rules={numberRules.length > 0 ? numberRules : undefined}
+          {...extraProps}
         />
       );
     }

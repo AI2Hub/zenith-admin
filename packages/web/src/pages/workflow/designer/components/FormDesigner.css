@@ -350,6 +350,34 @@
   background: var(--semi-color-danger-light-default);
 }
 
+.fd-detail-children__sum {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--semi-color-border);
+  background: transparent;
+  color: var(--semi-color-text-2);
+  cursor: pointer;
+  border-radius: 4px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.fd-detail-children__sum:hover {
+  border-color: var(--semi-color-primary);
+  color: var(--semi-color-primary);
+}
+
+.fd-detail-children__sum--active {
+  background: var(--semi-color-primary-light-default);
+  border-color: var(--semi-color-primary);
+  color: var(--semi-color-primary);
+}
+
 /* ===== Layout Components in Canvas ===== */
 
 /* Row (分栏) preview in canvas */
