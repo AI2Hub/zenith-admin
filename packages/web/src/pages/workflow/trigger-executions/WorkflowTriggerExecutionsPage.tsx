@@ -173,7 +173,7 @@ export default function WorkflowTriggerExecutionsPage() {
   ];
 
   return (
-    <div>
+    <div className="page-container">
       <SearchToolbar>
         <Select
           value={statusInput}

@@ -297,7 +297,7 @@ export default function WorkflowEventSubscriptionsPage() {
   ];
 
   return (
-    <div style={{ padding: 16 }}>
+    <div className="page-container">
       <SearchToolbar>
         <Input
           prefix={<Search size={14} />}
