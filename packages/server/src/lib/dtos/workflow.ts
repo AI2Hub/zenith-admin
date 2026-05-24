@@ -69,7 +69,7 @@ export const WorkflowTaskDTO = z
     assigneeId: z.number().int().nullable(),
     assigneeName: z.string().nullable().optional(),
     assigneeAvatar: z.string().nullable().optional(),
-    status: z.enum(['pending', 'approved', 'rejected', 'skipped']),
+    status: z.enum(['pending', 'approved', 'rejected', 'skipped', 'waiting']),
     comment: z.string().nullable(),
     actionAt: z.string().nullable(),
     createdAt: z.string(),

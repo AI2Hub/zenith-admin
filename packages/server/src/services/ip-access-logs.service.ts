@@ -34,7 +34,7 @@ export async function listIpAccessLogs(q: ListIpAccessLogsQuery) {
     ),
   ]);
   return {
-    list: rows.map((r) => ({ ...r, createdAt: formatDateTime(r.createdAt) })),
+    list: rows.map((r) => ({ ...r, createdAt: formatDateTime(r.createdAt), blockType: r.blockType as 'blacklist' | 'whitelist' })),
     total,
     page,
     pageSize,
