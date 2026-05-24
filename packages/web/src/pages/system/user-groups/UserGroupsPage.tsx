@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Form,
@@ -18,6 +18,7 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Plus, RotateCcw, Trash2, Users } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
+import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import type { UserGroup, PaginatedResponse, User, Department } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
@@ -67,6 +68,35 @@ export default function UserGroupsPage() {
   const [memberIds, setMemberIds] = useState<number[]>([]);
   const [memberSaving, setMemberSaving] = useState(false);
 
+  const departmentTreeData = useMemo<TreeNodeData[]>(() => {
+    const nodeMap = new Map<number, TreeNodeData>();
+    const rootNodes: TreeNodeData[] = [];
+
+    departments.forEach((item) => {
+      nodeMap.set(item.id, {
+        key: String(item.id),
+        value: item.id,
+        label: item.name,
+        children: [],
+      });
+    });
+
+    departments.forEach((item) => {
+      const currentNode = nodeMap.get(item.id);
+      if (!currentNode) return;
+
+      const parentNode = item.parentId ? nodeMap.get(item.parentId) : undefined;
+      if (parentNode) {
+        parentNode.children = [...(parentNode.children ?? []), currentNode];
+        return;
+      }
+
+      rootNodes.push(currentNode);
+    });
+
+    return rootNodes;
+  }, [departments]);
+
   const fetchList = useCallback(async (p = page, ps = pageSize, params = searchParams) => {
     setLoading(true);
     try {
@@ -92,7 +122,7 @@ export default function UserGroupsPage() {
     void (async () => {
       const [uRes, dRes] = await Promise.all([
         request.get<User[]>('/api/users/all'),
-        request.get<Department[]>('/api/departments'),
+        request.get<Department[]>('/api/departments/flat'),
       ]);
       if (uRes.code === 0) {
         setAllUsers(uRes.data.map(u => ({
@@ -336,10 +366,10 @@ export default function UserGroupsPage() {
               />
             </Col>
             <Col span={12}>
-              <Form.Select
+              <Form.TreeSelect
                 field="departmentId" label="所属部门" placeholder="请选择部门（可选）"
-                style={{ width: '100%' }} filter showClear
-                optionList={departments.map(d => ({ value: d.id, label: d.name }))}
+                style={{ width: '100%' }} filterTreeNode showClear
+                treeData={departmentTreeData}
               />
             </Col>
           </Row>
