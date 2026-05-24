@@ -391,10 +391,9 @@ export default function WorkflowDesignerPage() {
           icon={<ArrowLeft size={14} />}
           type="tertiary"
           theme="borderless"
+          title="返回列表"
           onClick={() => navigate('/workflow/definitions')}
-        >
-          返回列表
-        </Button>
+        />
 
         <div className="fd-toolbar__title">
           <Typography.Title heading={6} style={{ margin: 0 }}>

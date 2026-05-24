@@ -500,6 +500,7 @@ body[theme-mode='dark'] .fd-node-picker-panel {
 /* ─── 顶部工具栏 ──────────────────────────────────────────────────── */
 
 .fd-toolbar {
+  position: relative;
   padding: 10px 16px;
   border-bottom: 1px solid var(--semi-color-border);
   display: flex;
@@ -514,6 +515,14 @@ body[theme-mode='dark'] .fd-node-picker-panel {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex: 1;
+  max-width: 300px;
+}
+
+.fd-toolbar__title > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fd-toolbar__actions {
@@ -557,10 +566,13 @@ body[theme-mode='dark'] .fd-node-picker-panel {
 /* ─── 步骤导航 ────────────────────────────────────────────────────── */
 
 .fd-steps-nav {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   gap: 4px;
-  margin: 0 auto;
 }
 
 .fd-steps-nav__item {
