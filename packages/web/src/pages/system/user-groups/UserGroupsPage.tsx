@@ -91,7 +91,7 @@ export default function UserGroupsPage() {
   useEffect(() => {
     void (async () => {
       const [uRes, dRes] = await Promise.all([
-        request.get<{ code: number; message: string; data: User[] }>('/api/users/all'),
+        request.get<User[]>('/api/users/all'),
         request.get<Department[]>('/api/departments'),
       ]);
       if (uRes.code === 0) {
@@ -180,8 +180,8 @@ export default function UserGroupsPage() {
   };
 
   const columns: ColumnProps<UserGroup>[] = [
-    { title: '用户组名称', dataIndex: 'name', width: 200, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
-    { title: '编码', dataIndex: 'code', width: 180, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
+    { title: '用户组名称', dataIndex: 'name', width: 200, render: (v: string | null | undefined) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v || '—'}</Typography.Text> },
+    { title: '编码', dataIndex: 'code', width: 180, render: (v: string | null | undefined) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v || '—'}</Typography.Text> },
     {
       title: '描述', dataIndex: 'description',
       render: (v: string | null | undefined) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v || '—'}</Typography.Text>,
