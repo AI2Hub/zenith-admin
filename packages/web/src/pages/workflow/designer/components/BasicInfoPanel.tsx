@@ -1,16 +1,25 @@
 /**
  * 基础信息面板 — 步骤 ① 基础信息
  */
-import { Form, Tag } from '@douyinfe/semi-ui';
+import { Form, Select, Tag } from '@douyinfe/semi-ui';
 import type { WorkflowDefinition } from '@zenith/shared';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
+
+type InitiatorScopeType = 'all' | 'users' | 'departments' | 'roles';
 
 interface BasicInfoPanelProps {
   definition: WorkflowDefinition | null;
   isNew: boolean;
   categoryId: number | null;
+  users: Array<{ id: number; nickname: string }>;
+  roles: Array<{ id: number; name: string }>;
+  departments: Array<{ id: number; name: string }>;
+  initiatorScopeType: InitiatorScopeType;
+  initiatorScopeIds: number[];
   onFieldChange: (field: string, value: string) => void;
   onCategoryChange: (categoryId: number | null) => void;
+  onInitiatorScopeTypeChange: (v: InitiatorScopeType) => void;
+  onInitiatorScopeIdsChange: (v: number[]) => void;
 }
 
 function getStatusLabel(status: string): string {
@@ -19,8 +28,36 @@ function getStatusLabel(status: string): string {
   return '已禁用';
 }
 
-export default function BasicInfoPanel({ definition, isNew, categoryId, onFieldChange, onCategoryChange }: Readonly<BasicInfoPanelProps>) {
+export default function BasicInfoPanel({
+  definition,
+  isNew,
+  categoryId,
+  users,
+  roles,
+  departments,
+  initiatorScopeType,
+  initiatorScopeIds,
+  onFieldChange,
+  onCategoryChange,
+  onInitiatorScopeTypeChange,
+  onInitiatorScopeIdsChange,
+}: Readonly<BasicInfoPanelProps>) {
   const { categories } = useWorkflowCategories();
+  const scopeOptions = [
+    { value: 'all', label: '全体人员' },
+    { value: 'users', label: '指定人员' },
+    { value: 'departments', label: '指定部门' },
+    { value: 'roles', label: '指定角色' },
+  ] as const;
+  let targetOptions: Array<{ value: number; label: string }> = roles.map((r) => ({ value: r.id, label: r.name }));
+  if (initiatorScopeType === 'users') {
+    targetOptions = users.map((u) => ({ value: u.id, label: `${u.nickname} (#${u.id})` }));
+  } else if (initiatorScopeType === 'departments') {
+    targetOptions = departments.map((d) => ({ value: d.id, label: d.name }));
+  }
+  let scopePlaceholder = '请选择角色';
+  if (initiatorScopeType === 'users') scopePlaceholder = '请选择人员';
+  else if (initiatorScopeType === 'departments') scopePlaceholder = '请选择部门';
   return (
     <div className="fd-basic-info">
       <div className="fd-basic-info__inner">
@@ -67,6 +104,28 @@ export default function BasicInfoPanel({ definition, isNew, categoryId, onFieldC
             placeholder="请输入流程描述"
             autosize={{ minRows: 3, maxRows: 6 }}
           />
+          <Form.Slot label="可发起范围">
+            <Select
+              value={initiatorScopeType}
+              style={{ width: '100%' }}
+              optionList={scopeOptions as unknown as Array<{ label: string; value: string }>}
+              onChange={(v) => onInitiatorScopeTypeChange((v as InitiatorScopeType) ?? 'all')}
+            />
+          </Form.Slot>
+          {initiatorScopeType !== 'all' && (
+            <Form.Slot label="可发起对象">
+              <Select
+                value={initiatorScopeIds}
+                multiple
+                filter
+                maxTagCount={3}
+                style={{ width: '100%' }}
+                optionList={targetOptions}
+                onChange={(v) => onInitiatorScopeIdsChange((Array.isArray(v) ? v : []).map(Number).filter((x) => Number.isInteger(x) && x > 0))}
+                placeholder={scopePlaceholder}
+              />
+            </Form.Slot>
+          )}
           {!isNew && definition && (
             <>
               <Form.Input key={`v-${definition.version}`} field="version" label="版本号" disabled initValue={String(definition.version)} />

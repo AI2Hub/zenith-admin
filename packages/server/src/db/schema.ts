@@ -808,6 +808,8 @@ export const workflowDefinitions = pgTable('workflow_definitions', {
   name: varchar('name', { length: 64 }).notNull(),
   description: text('description'),
   categoryId: integer('category_id').references(() => workflowCategories.id, { onDelete: 'set null' }),
+  initiatorScopeType: varchar('initiator_scope_type', { length: 16 }).notNull().default('all'),
+  initiatorScopeIds: jsonb('initiator_scope_ids'),
   flowData: jsonb('flow_data'), // React Flow 节点+边 JSON
   formFields: jsonb('form_fields'), // 表单字段配置 JSON
   status: workflowDefinitionStatusEnum('status').default('draft').notNull(),

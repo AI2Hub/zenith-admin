@@ -62,6 +62,8 @@ export const workflowHandlers = [
       name: body.name ?? '新流程',
       description: body.description ?? null,
       categoryId: body.categoryId ?? null,
+      initiatorScopeType: body.initiatorScopeType ?? 'all',
+      initiatorScopeIds: body.initiatorScopeType === 'all' ? null : (body.initiatorScopeIds ?? []),
       flowData: body.flowData ?? null,
       formFields: body.formFields ?? null,
       status: 'draft',

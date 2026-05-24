@@ -44,6 +44,7 @@ import './styles/flow-designer.css';
 
 interface UserOption { id: number; nickname: string; }
 interface RoleOption { id: number; name: string; }
+interface DepartmentOption { id: number; name: string; }
 
 // ─── 主组件 ───────────────────────────────────────────────────────────
 
@@ -58,6 +59,7 @@ export default function WorkflowDesignerPage() {
   const [process, setProcess, history] = useHistoryState<FlowProcess>(createDefaultProcess());
   const [users, setUsers] = useState<UserOption[]>([]);
   const [roles, setRoles] = useState<RoleOption[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [userGroups, setUserGroups] = useState<Array<{ id: number; name: string }>>([]);
 
   // 节点编辑抽屉
@@ -89,6 +91,8 @@ export default function WorkflowDesignerPage() {
   // 基础信息（内联编辑）
   const [metaName, setMetaName] = useState('');
   const [metaDesc, setMetaDesc] = useState('');
+  const [metaInitiatorScopeType, setMetaInitiatorScopeType] = useState<'all' | 'users' | 'departments' | 'roles'>('all');
+  const [metaInitiatorScopeIds, setMetaInitiatorScopeIds] = useState<number[]>([]);
   const [searchParams] = useSearchParams();
   const initialCategoryId = (() => {
     const v = searchParams.get('categoryId');
@@ -113,6 +117,8 @@ export default function WorkflowDesignerPage() {
           setMetaName(res.data.name);
           setMetaDesc(res.data.description ?? '');
           setMetaCategoryId(res.data.categoryId ?? null);
+          setMetaInitiatorScopeType(res.data.initiatorScopeType ?? 'all');
+          setMetaInitiatorScopeIds(res.data.initiatorScopeIds ?? []);
           if (res.data.formFields) setLocalFormFields(res.data.formFields);
           const fd = res.data.flowData;
           if (fd && 'process' in fd && (fd as unknown as Record<string, unknown>).process) {
@@ -132,6 +138,11 @@ export default function WorkflowDesignerPage() {
     request.get<RoleOption[]>('/api/roles/all').then(res => {
       if (res.code === 0 && res.data) {
         setRoles(res.data);
+      }
+    });
+    request.get<DepartmentOption[]>('/api/departments/flat').then((res) => {
+      if (res.code === 0 && res.data) {
+        setDepartments(res.data.map((d) => ({ id: d.id, name: d.name })));
       }
     });
     request.get<Array<{ id: number; name: string }>>('/api/user-groups/all').then(res => {
@@ -265,10 +276,18 @@ export default function WorkflowDesignerPage() {
       name: metaName,
       description: metaDesc || null,
       categoryId: metaCategoryId,
+      initiatorScopeType: metaInitiatorScopeType,
+      initiatorScopeIds: metaInitiatorScopeType === 'all' ? null : metaInitiatorScopeIds,
     });
   };
 
-  const doSave = async (meta: { name: string; description?: string | null; categoryId: number | null }) => {
+  const doSave = async (meta: {
+    name: string;
+    description?: string | null;
+    categoryId: number | null;
+    initiatorScopeType: 'all' | 'users' | 'departments' | 'roles';
+    initiatorScopeIds: number[] | null;
+  }) => {
     setSaving(true);
     try {
       const flat = treeToFlat(process);
@@ -277,6 +296,8 @@ export default function WorkflowDesignerPage() {
         name: meta.name,
         description: meta.description ?? null,
         categoryId: meta.categoryId,
+        initiatorScopeType: meta.initiatorScopeType,
+        initiatorScopeIds: meta.initiatorScopeIds,
         flowData,
         formFields: localFormFields.length > 0 ? localFormFields : null,
       };
@@ -441,8 +462,18 @@ export default function WorkflowDesignerPage() {
           definition={definition}
           isNew={isNew}
           categoryId={metaCategoryId}
+          users={users}
+          roles={roles}
+          departments={departments}
+          initiatorScopeType={metaInitiatorScopeType}
+          initiatorScopeIds={metaInitiatorScopeIds}
           onFieldChange={handleMetaFieldChange}
           onCategoryChange={setMetaCategoryId}
+          onInitiatorScopeTypeChange={(v) => {
+            setMetaInitiatorScopeType(v);
+            setMetaInitiatorScopeIds([]);
+          }}
+          onInitiatorScopeIdsChange={setMetaInitiatorScopeIds}
         />
       )}
 

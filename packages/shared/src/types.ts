@@ -771,6 +771,10 @@ export interface WorkflowDefinition {
   name: string;
   description: string | null;
   categoryId: number | null;
+  /** 发起人范围：all=全员, users=指定用户, departments=指定部门, roles=指定角色 */
+  initiatorScopeType: 'all' | 'users' | 'departments' | 'roles';
+  /** 发起人范围 ID 列表（当 initiatorScopeType !== 'all' 时生效） */
+  initiatorScopeIds: number[] | null;
   categoryName?: string | null;
   categoryColor?: string | null;
   categoryIcon?: string | null;

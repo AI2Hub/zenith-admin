@@ -26,6 +26,8 @@ export const WorkflowDefinitionDTO = z
     name: z.string(),
     description: z.string().nullable(),
     categoryId: z.number().int().nullable(),
+    initiatorScopeType: z.enum(['all', 'users', 'departments', 'roles']),
+    initiatorScopeIds: z.array(z.number().int()).nullable(),
     categoryName: z.string().nullable().optional(),
     categoryColor: z.string().nullable().optional(),
     categoryIcon: z.string().nullable().optional(),

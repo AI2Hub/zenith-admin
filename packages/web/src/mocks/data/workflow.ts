@@ -46,6 +46,8 @@ export const mockWorkflowDefinitions: WorkflowDefinition[] = [
     name: '请假申请',
     description: '适用于各类请假场景，包括年假、病假、事假等',
     categoryId: null,
+    initiatorScopeType: 'all',
+    initiatorScopeIds: null,
     flowData: LEAVE_FLOW_DATA,
     formFields: [
       { key: 'leaveType', label: '请假类型', type: 'select', required: true, options: ['年假', '病假', '事假', '陪产假', '婚假'] },
@@ -67,6 +69,8 @@ export const mockWorkflowDefinitions: WorkflowDefinition[] = [
     name: '费用报销',
     description: '员工日常差旅、办公用品等费用报销申请',
     categoryId: null,
+    initiatorScopeType: 'departments',
+    initiatorScopeIds: [1],
     flowData: EXPENSE_FLOW_DATA,
     formFields: [
       { key: 'expenseType', label: '报销类型', type: 'select', required: true, options: ['差旅费', '交通费', '餐饮费', '办公用品', '其他'] },
@@ -99,6 +103,8 @@ export const mockWorkflowDefinitions: WorkflowDefinition[] = [
     name: '采购申请',
     description: '设备、物资采购审批流程',
     categoryId: null,
+    initiatorScopeType: 'users',
+    initiatorScopeIds: [2],
     flowData: null,
     formFields: [
       { key: 'itemName', label: '采购物品', type: 'text', required: true },
@@ -121,6 +127,8 @@ export const mockWorkflowDefinitions: WorkflowDefinition[] = [
     name: '离职申请',
     description: '员工离职流程，包含多部门并行审批',
     categoryId: null,
+    initiatorScopeType: 'roles',
+    initiatorScopeIds: [1],
     flowData: {
       nodes: [
         { id: 'start_1', type: 'start', position: { x: 300, y: 50 }, data: { key: 'start_1', type: 'start' as const, label: '开始' } },
@@ -149,6 +157,8 @@ export const mockWorkflowDefinitions: WorkflowDefinition[] = [
     name: '出差报销审批（综合测试）',
     description: '综合测试流程：覆盖多种新表单控件 + 复杂审批流程（条件分支、抄送、加签）',
     categoryId: null,
+    initiatorScopeType: 'all',
+    initiatorScopeIds: null,
     flowData: {
       nodes: [],
       edges: [],

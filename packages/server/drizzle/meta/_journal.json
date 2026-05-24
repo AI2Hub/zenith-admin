@@ -442,6 +442,13 @@
       "when": 1779664402000,
       "tag": "0062_wet_magma",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1779614156744,
+      "tag": "0063_elite_thanos",
+      "breakpoints": true
     }
   ]
 }

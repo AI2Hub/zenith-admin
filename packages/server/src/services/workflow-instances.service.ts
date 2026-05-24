@@ -62,7 +62,7 @@ import { count, countDistinct, eq, and, desc, ilike, or } from 'drizzle-orm';
 import { escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { pageOffset } from '../lib/pagination';
-import { workflowInstances, workflowTasks, workflowDefinitions, workflowCategories, users } from '../db/schema';
+import { workflowInstances, workflowTasks, workflowDefinitions, workflowCategories, users, userRoles } from '../db/schema';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { advanceFlow, getInitialTasks, validateFlowData, type TaskAction } from '../lib/workflow-engine';
 import type { WorkflowApproveMethod, WorkflowFlowData, WorkflowTask as WorkflowTaskDto } from '@zenith/shared';
@@ -438,6 +438,25 @@ export async function createInstance(data: { definitionId: number; title: string
   const user = currentUser();
   const [def] = await db.select().from(workflowDefinitions).where(and(eq(workflowDefinitions.id, data.definitionId), eq(workflowDefinitions.status, 'published'))).limit(1);
   if (!def) throw new HTTPException(404, { message: '流程定义不存在或未发布' });
+  const scopeType = (def.initiatorScopeType ?? 'all') as 'all' | 'users' | 'departments' | 'roles';
+  const scopeIds = Array.isArray(def.initiatorScopeIds)
+    ? def.initiatorScopeIds.map((v) => Number(v)).filter((v) => Number.isInteger(v) && v > 0)
+    : [];
+  if (scopeType !== 'all') {
+    let allowed = false;
+    if (scopeType === 'users') {
+      allowed = scopeIds.includes(user.userId);
+    } else if (scopeType === 'departments') {
+      const [me] = await db.select({ departmentId: users.departmentId }).from(users).where(eq(users.id, user.userId)).limit(1);
+      allowed = me?.departmentId != null && scopeIds.includes(me.departmentId);
+    } else if (scopeType === 'roles') {
+      const roleRows = await db.select({ roleId: userRoles.roleId }).from(userRoles).where(eq(userRoles.userId, user.userId));
+      allowed = roleRows.some((r) => scopeIds.includes(r.roleId));
+    }
+    if (!allowed) {
+      throw new HTTPException(403, { message: '当前流程不在你的可发起范围内' });
+    }
+  }
   const flowData = def.flowData as WorkflowFlowData;
   if (!flowData?.nodes?.length) throw new HTTPException(400, { message: '流程定义无效' });
   const validation = validateFlowData(flowData);

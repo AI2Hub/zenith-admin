@@ -15,6 +15,8 @@ const createWorkflowDefinitionSchema = z.object({
   name: z.string().min(1).max(64),
   description: z.string().max(500).nullable().optional(),
   categoryId: z.number().int().nullable().optional(),
+  initiatorScopeType: z.enum(['all', 'users', 'departments', 'roles']).default('all'),
+  initiatorScopeIds: z.array(z.number().int()).nullable().optional(),
   flowData: z.looseObject({}).nullable().optional(),
   formFields: z.array(z.looseObject({})).nullable().optional(),
   status: z.enum(['draft', 'published', 'disabled']).default('draft'),

@@ -1,4 +1,4 @@
-import { workflowDefinitions, workflowDefinitionVersions } from '../db/schema';
+import { workflowDefinitions, workflowDefinitionVersions, users, userRoles } from '../db/schema';
 import { formatDateTime } from '../lib/datetime';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
@@ -9,11 +9,16 @@ export function mapDefinition(
   },
   createdByName?: string | null,
 ) {
+  const initiatorScopeIds = Array.isArray(row.initiatorScopeIds)
+    ? row.initiatorScopeIds.map((v) => Number(v)).filter((v) => Number.isInteger(v) && v > 0)
+    : null;
   return {
     id: row.id,
     name: row.name,
     description: row.description,
     categoryId: row.categoryId ?? null,
+    initiatorScopeType: (row.initiatorScopeType ?? 'all') as 'all' | 'users' | 'departments' | 'roles',
+    initiatorScopeIds,
     categoryName: row.category?.name ?? null,
     categoryColor: row.category?.color ?? null,
     categoryIcon: row.category?.icon ?? null,
@@ -61,6 +66,26 @@ import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
 
 export type WorkflowDefinitionStatus = 'draft' | 'published' | 'disabled';
+type WorkflowInitiatorScopeType = 'all' | 'users' | 'departments' | 'roles';
+
+function normalizeScopeIds(ids: unknown): number[] {
+  if (!Array.isArray(ids)) return [];
+  return ids.map((v) => Number(v)).filter((v) => Number.isInteger(v) && v > 0);
+}
+
+function canUserInitiateByScope(
+  definition: typeof workflowDefinitions.$inferSelect,
+  me: { userId: number; departmentId: number | null; roleIds: number[] },
+): boolean {
+  const scopeType = (definition.initiatorScopeType ?? 'all') as WorkflowInitiatorScopeType;
+  const ids = normalizeScopeIds(definition.initiatorScopeIds);
+  if (scopeType === 'all') return true;
+  if (ids.length === 0) return false;
+  if (scopeType === 'users') return ids.includes(me.userId);
+  if (scopeType === 'departments') return me.departmentId != null && ids.includes(me.departmentId);
+  if (scopeType === 'roles') return me.roleIds.some((id) => ids.includes(id));
+  return false;
+}
 
 export async function listDefinitions(query: { page?: number; pageSize?: number; keyword?: string; status?: string; categoryId?: number }) {
   const user = currentUser();
@@ -93,8 +118,19 @@ export async function listPublishedDefinitions() {
   const tc = tenantCondition(workflowDefinitions, user);
   const conditions = [eq(workflowDefinitions.status, 'published')];
   if (tc) conditions.push(tc);
-  const rows = await db.select().from(workflowDefinitions).where(and(...conditions)).orderBy(desc(workflowDefinitions.updatedAt));
-  return rows.map(r => mapDefinition(r));
+  const [rows, me, roleRows] = await Promise.all([
+    db.select().from(workflowDefinitions).where(and(...conditions)).orderBy(desc(workflowDefinitions.updatedAt)),
+    db.select({ departmentId: users.departmentId }).from(users).where(eq(users.id, user.userId)).limit(1),
+    db.select({ roleId: userRoles.roleId }).from(userRoles).where(eq(userRoles.userId, user.userId)),
+  ]);
+  const roleIds = roleRows.map((r) => r.roleId);
+  const meInfo = {
+    userId: user.userId,
+    departmentId: me[0]?.departmentId ?? null,
+    roleIds,
+  };
+  const filtered = rows.filter((r) => canUserInitiateByScope(r, meInfo));
+  return filtered.map((r) => mapDefinition(r));
 }
 
 function findDefinition(id: number) {
@@ -119,13 +155,17 @@ export async function getDefinition(id: number) {
 }
 
 export async function createDefinition(data: {
-  name: string; description?: string | null; categoryId?: number | null; flowData?: unknown; formFields?: unknown; status?: WorkflowDefinitionStatus;
+  name: string; description?: string | null; categoryId?: number | null; initiatorScopeType?: WorkflowInitiatorScopeType; initiatorScopeIds?: number[] | null; flowData?: unknown; formFields?: unknown; status?: WorkflowDefinitionStatus;
 }) {
   const user = currentUser();
+  const scopeType = data.initiatorScopeType ?? 'all';
+  const scopeIds = scopeType === 'all' ? null : normalizeScopeIds(data.initiatorScopeIds);
   const [row] = await db.insert(workflowDefinitions).values({
     name: data.name,
     description: data.description ?? null,
     categoryId: data.categoryId ?? null,
+    initiatorScopeType: scopeType,
+    initiatorScopeIds: scopeIds,
     flowData: data.flowData ?? null,
     formFields: data.formFields ?? null,
     status: data.status ?? 'draft',
@@ -135,7 +175,7 @@ export async function createDefinition(data: {
 }
 
 export async function updateDefinition(id: number, data: Partial<{
-  name: string; description: string | null; categoryId: number | null; flowData: unknown; formFields: unknown; status: WorkflowDefinitionStatus;
+  name: string; description: string | null; categoryId: number | null; initiatorScopeType: WorkflowInitiatorScopeType; initiatorScopeIds: number[] | null; flowData: unknown; formFields: unknown; status: WorkflowDefinitionStatus;
 }>) {
   const where = findDefinition(id);
   const [existing] = await db.select().from(workflowDefinitions).where(where).limit(1);
@@ -143,6 +183,14 @@ export async function updateDefinition(id: number, data: Partial<{
   const updateData: Record<string, unknown> = { ...data };
   if (data.flowData !== undefined) updateData.flowData = data.flowData;
   if (data.formFields !== undefined) updateData.formFields = data.formFields;
+  if (data.initiatorScopeType !== undefined) {
+    const scopeType = data.initiatorScopeType;
+    updateData.initiatorScopeType = scopeType;
+    updateData.initiatorScopeIds = scopeType === 'all' ? null : normalizeScopeIds(data.initiatorScopeIds);
+  } else if (data.initiatorScopeIds !== undefined) {
+    const currentType = (existing.initiatorScopeType ?? 'all') as WorkflowInitiatorScopeType;
+    updateData.initiatorScopeIds = currentType === 'all' ? null : normalizeScopeIds(data.initiatorScopeIds);
+  }
   // 已发布的流程被修改后自动回到草稿，需重新发布
   if (existing.status === 'published' && data.status === undefined) {
     updateData.status = 'draft';
