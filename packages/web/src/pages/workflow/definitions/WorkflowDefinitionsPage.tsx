@@ -189,15 +189,6 @@ export default function WorkflowDefinitionsPage() {
               });
             }}>禁用</Button>
           )}
-          {record.status !== 'published' && hasPermission('workflow:definition:delete') && (
-            <Button theme="borderless" type="danger" size="small" onClick={() => {
-              Modal.confirm({
-                title: '确定要删除该流程吗？',
-                okButtonProps: { type: 'danger', theme: 'solid' },
-                onOk: () => handleDelete(record.id),
-              });
-            }}>删除</Button>
-          )}
           <Dropdown
             trigger="custom"
             visible={openMoreId === record.id}
@@ -206,6 +197,19 @@ export default function WorkflowDefinitionsPage() {
             render={
               <Dropdown.Menu>
                 <Dropdown.Item onClick={() => { setOpenMoreId(null); setHistoryTarget(record); }}>历史版本</Dropdown.Item>
+                {record.status !== 'published' && hasPermission('workflow:definition:delete') && (
+                  <Dropdown.Item
+                    type="danger"
+                    onClick={() => {
+                      setOpenMoreId(null);
+                      Modal.confirm({
+                        title: '确定要删除该流程吗？',
+                        okButtonProps: { type: 'danger', theme: 'solid' },
+                        onOk: () => handleDelete(record.id),
+                      });
+                    }}
+                  >删除</Dropdown.Item>
+                )}
               </Dropdown.Menu>
             }
           >
