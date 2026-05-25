@@ -647,7 +647,26 @@ function flattenNode(
       ...(p.onFailure ? { onFailure: p.onFailure } : {}),
       ...(p.maxRetries == null ? {} : { maxRetries: p.maxRetries }),
       ...(p.timeoutMs == null ? {} : { timeoutMs: p.timeoutMs }),
+      ...(p.callbackSignMode ? { callbackSignMode: p.callbackSignMode } : {}),
+      ...(p.callbackSecret ? { callbackSecret: p.callbackSecret } : {}),
     };
+  }
+  // 子流程节点：解析 mapping 字符串为对象，并将 waitChild / mapping 放到 data 顶层
+  if (node.type === 'subProcess') {
+    const p = node.props ?? {};
+    let fieldMapping: unknown = p.subProcessFieldMapping;
+    if (typeof fieldMapping === 'string' && fieldMapping.trim()) {
+      try { fieldMapping = JSON.parse(fieldMapping); } catch { fieldMapping = undefined; }
+    }
+    let outputMapping: unknown = p.subProcessOutputMapping;
+    if (typeof outputMapping === 'string' && outputMapping.trim()) {
+      try { outputMapping = JSON.parse(outputMapping); } catch { outputMapping = undefined; }
+    }
+    if (p.subProcessId != null) dataExtra.subProcessId = p.subProcessId;
+    if (p.subProcessName) dataExtra.subProcessName = p.subProcessName;
+    dataExtra.subProcessWaitChild = p.subProcessWaitChild !== false;
+    if (fieldMapping && typeof fieldMapping === 'object') dataExtra.subProcessFieldMapping = fieldMapping;
+    if (outputMapping && typeof outputMapping === 'object') dataExtra.subProcessOutputMapping = outputMapping;
   }
   // 审批节点：将外部审批相关 props 收敛到 externalApproval
   if (node.type === 'approver') {

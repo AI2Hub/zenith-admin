@@ -64,6 +64,7 @@ export default function WorkflowDesignerPage() {
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [userGroups, setUserGroups] = useState<Array<{ id: number; name: string }>>([]);
+  const [subProcessOptions, setSubProcessOptions] = useState<Array<{ value: number; label: string }>>([]);
 
   // 节点编辑抽屉
   const [editingNode, setEditingNode] = useState<FlowNode | null>(null);
@@ -164,7 +165,17 @@ export default function WorkflowDesignerPage() {
         setUserGroups(res.data.map(g => ({ id: g.id, name: g.name })));
       }
     });
-  }, []);
+    request.get<WorkflowDefinition[]>('/api/workflows/definitions/published').then((res) => {
+      if (res.code === 0 && Array.isArray(res.data)) {
+        const currentId = id && id !== 'new' ? Number(id) : null;
+        setSubProcessOptions(
+          res.data
+            .filter((d) => d.id !== currentId)
+            .map((d) => ({ value: d.id, label: d.name })),
+        );
+      }
+    });
+  }, [id]);
 
   // ─── 节点操作 ─────────────────────────────────────────────────────
 
@@ -671,6 +682,7 @@ export default function WorkflowDesignerPage() {
         formFields={formFields}
         allNodes={collectAllNodes(process.initiator)}
         rejectableAncestorNodes={editingNode ? findAncestorApproverNodes(process.initiator, editingNode.id) : []}
+        subProcessOptions={subProcessOptions}
         onSave={handleSaveNode}
         onCancel={() => { setDrawerVisible(false); setEditingNode(null); }}
       />

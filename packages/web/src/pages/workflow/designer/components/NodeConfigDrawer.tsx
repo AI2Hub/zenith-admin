@@ -21,6 +21,7 @@ interface UserOption { id: number; nickname: string; }
 interface RoleOption { id: number; name: string; }
 interface UserGroupOption { id: number; name: string; }
 interface FormField { key: string; label: string; type?: string }
+interface SubProcessOption { value: number; label: string }
 
 function stringifyHeadersOrBody(v: unknown): string {
   if (typeof v === 'string') return v;
@@ -48,6 +49,8 @@ interface NodeConfigDrawerProps {
   allNodes?: Array<{ id: string; key?: string; name: string; type: FlowNodeType }>;
   /** 可选为“驳回到指定节点”的候选节点（当前节点之前同一执行路径上的审批/办理节点） */
   rejectableAncestorNodes?: Array<{ id: string; key?: string; name: string; type: FlowNodeType }>;
+  /** 子流程节点可选的已发布流程定义列表 */
+  subProcessOptions?: SubProcessOption[];
   onSave: (nodeId: string, updates: { name?: string; key?: string; props?: Record<string, unknown> }) => void;
   onCancel: () => void;
 }
@@ -61,6 +64,7 @@ export default function NodeConfigDrawer({
   formFields,
   allNodes = [],
   rejectableAncestorNodes = [],
+  subProcessOptions = [],
   onSave,
   onCancel,
 }: Readonly<NodeConfigDrawerProps>) {
@@ -511,6 +515,34 @@ export default function NodeConfigDrawer({
                 style={{ width: '100%' }}
               />
             </Form.Slot>
+            {(props.triggerType as string) === 'callback' && (
+              <>
+                <Form.Slot label="回调签名方式">
+                  <Select
+                    value={(props.callbackSignMode as string) ?? 'none'}
+                    onChange={(v) => handlePropsChange({ callbackSignMode: v })}
+                    style={{ width: '100%' }}
+                    optionList={[
+                      { value: 'none', label: '不校验签名' },
+                      { value: 'hmacSha256', label: 'HMAC-SHA256（X-Zenith-Signature）' },
+                    ]}
+                  />
+                </Form.Slot>
+                {(props.callbackSignMode as string) === 'hmacSha256' && (
+                  <Form.Slot label="回调密钥（HMAC Secret）">
+                    <Input
+                      value={typeof props.callbackSecret === 'string' ? props.callbackSecret : ''}
+                      onChange={(v) => handlePropsChange({ callbackSecret: v })}
+                      placeholder="用于校验外部 POST 回调的 HMAC 密钥"
+                      mode="password"
+                    />
+                  </Form.Slot>
+                )}
+                <Typography.Text type="tertiary" size="small">
+                  回调地址通过 {'{{callbackUrl}}'} 占位符在 webhook 请求体/请求头中下发，外部系统 POST 回调后流程才会继续。
+                </Typography.Text>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -520,24 +552,46 @@ export default function NodeConfigDrawer({
         <div className="fd-drawer-tab-content">
           <Typography.Title heading={6} style={{ marginBottom: 16 }}>子流程配置</Typography.Title>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Form.Slot label="子流程 ID">
-              <InputNumber
+            <Form.Slot label="子流程">
+              <Select
                 value={(props.subProcessId as number) ?? undefined}
-                onChange={(v) => handlePropsChange({ subProcessId: v })}
-                placeholder="请输入子流程定义 ID"
+                onChange={(v) => handlePropsChange({ subProcessId: v, subProcessName: subProcessOptions.find((o) => o.value === v)?.label })}
+                placeholder={subProcessOptions.length === 0 ? '暂无已发布的流程定义' : '请选择子流程定义'}
                 style={{ width: '100%' }}
+                optionList={subProcessOptions}
+                showClear
+                filter
+                emptyContent="暂无已发布的流程"
               />
             </Form.Slot>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Typography.Text>异步执行</Typography.Text>
+              <Typography.Text>等待子流程完成</Typography.Text>
               <Switch
-                checked={(props.isAsync as boolean) ?? false}
-                onChange={(v) => handlePropsChange({ isAsync: v })}
+                checked={(props.subProcessWaitChild as boolean | undefined) !== false}
+                onChange={(v) => handlePropsChange({ subProcessWaitChild: v, isAsync: !v })}
               />
             </div>
             <Typography.Text type="tertiary" size="small">
-              {(props.isAsync as boolean) ? '主流程不等待子流程完成，直接继续' : '主流程等待子流程完成后继续'}
+              {(props.subProcessWaitChild as boolean | undefined) === false
+                ? '父流程不等待子流程，立即继续下游节点（fire-and-forget）'
+                : '父流程在子流程结束（通过 / 驳回）后继续执行下游节点'}
             </Typography.Text>
+            <Form.Slot label="父 → 子 表单字段映射（JSON，值支持 {{form.字段key}} 占位）">
+              <TextArea
+                value={stringifyHeadersOrBody(props.subProcessFieldMapping)}
+                onChange={(v: string) => handlePropsChange({ subProcessFieldMapping: v })}
+                placeholder={'{\n  "childTitle": "{{form.title}}",\n  "childAmount": "{{form.amount}}"\n}'}
+                autosize={{ minRows: 2, maxRows: 6 }}
+              />
+            </Form.Slot>
+            <Form.Slot label="子 → 父 输出字段映射（JSON，key 为父字段，value 为子字段）">
+              <TextArea
+                value={stringifyHeadersOrBody(props.subProcessOutputMapping)}
+                onChange={(v: string) => handlePropsChange({ subProcessOutputMapping: v })}
+                placeholder={'{\n  "parentResult": "childResult"\n}'}
+                autosize={{ minRows: 2, maxRows: 6 }}
+              />
+            </Form.Slot>
           </div>
         </div>
       )}
@@ -632,6 +686,7 @@ function getDefaultProps(type: FlowNodeType): Record<string, unknown> {
       };
     case 'subProcess':
       return {
+        subProcessWaitChild: true,
         isAsync: false,
       };
     default:
