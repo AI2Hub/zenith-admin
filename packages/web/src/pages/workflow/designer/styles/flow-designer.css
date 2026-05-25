@@ -592,8 +592,8 @@ body[theme-mode='dark'] .fd-node-picker-panel {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  flex: 1;
-  max-width: 300px;
+  flex: 0 1 auto;
+  max-width: min(280px, calc(50% - 340px));
 }
 
 .fd-toolbar__title > * {
