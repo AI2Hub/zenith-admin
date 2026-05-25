@@ -37,7 +37,7 @@ function getBranchNameClass(type: BranchNodeType, isDefault?: boolean): string {
 
 function getBranchDesc(branch: FlowBranch, branchType: BranchNodeType): string {
   if (branch.isDefault) return '未命中其它分支时，将进入此分支';
-  if (branchType === 'parallelBranch') return '无需配置条件，同时执行';
+  if (branchType === 'parallelBranch') return '';
   if (branchType === 'routeBranch') {
     const v = branch.caseValue?.trim();
     return v ? `匹配值：${v}` : '点击配置路由值';
@@ -51,6 +51,17 @@ function getBranchDesc(branch: FlowBranch, branchType: BranchNodeType): string {
     return `${totalRules} 个条件：${groupInfo}`;
   }
   return '点击配置条件';
+}
+
+function getBranchBanner(branchType: BranchNodeType): { text: string; className: string } | null {
+  switch (branchType) {
+    case 'parallelBranch':
+      return { text: '并行分支：所有分支同时执行，全部完成后才会继续', className: 'fd-branch-banner fd-branch-banner--parallel' };
+    case 'inclusiveBranch':
+      return { text: '包容分支：所有满足条件的分支同时执行', className: 'fd-branch-banner fd-branch-banner--inclusive' };
+    default:
+      return null;
+  }
 }
 
 export default function BranchContainer({
@@ -79,6 +90,8 @@ export default function BranchContainer({
     ? (formFields?.find(f => f.key === routeFieldKey)?.label ?? routeFieldKey)
     : null;
 
+  const banner = getBranchBanner(branchType);
+
   return (
     <>
       {branchType === 'routeBranch' && (
@@ -93,6 +106,11 @@ export default function BranchContainer({
           <span className="fd-branch-route-hint__value">{routeFieldLabel ?? '未选择'}</span>
           {!readOnly && <Pencil size={12} className="fd-branch-route-hint__icon" />}
         </button>
+      )}
+      {banner && (
+        <div className={banner.className}>
+          {banner.text}
+        </div>
       )}
       <div className="fd-branch-wrap">
       {!readOnly && (
@@ -130,7 +148,7 @@ export default function BranchContainer({
           <div key={branch.id} className="fd-branch-col">
             <div className="fd-branch-col-top-line" />
 
-            <button className="fd-branch-title" type="button" onClick={readOnly ? undefined : () => onEditBranch(branch, node.id)} tabIndex={readOnly ? -1 : 0}>
+            <button className="fd-branch-title" type="button" onClick={readOnly || branchType === 'parallelBranch' ? undefined : () => onEditBranch(branch, node.id)} tabIndex={readOnly || branchType === 'parallelBranch' ? -1 : 0}>
               <div className="fd-branch-title__header">
                 <span className={getBranchNameClass(branchType, branch.isDefault)}>
                   {branch.name}
@@ -141,9 +159,11 @@ export default function BranchContainer({
                   </span>
                 )}
               </div>
-              <div className="fd-branch-title__desc">
-                {getBranchDesc(branch, branchType)}
-              </div>
+              {getBranchDesc(branch, branchType) && (
+                <div className="fd-branch-title__desc">
+                  {getBranchDesc(branch, branchType)}
+                </div>
+              )}
 
               {!readOnly && canRemoveBranch && !branch.isDefault && (
                 <span

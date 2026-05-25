@@ -526,6 +526,29 @@ body[theme-mode='dark'] .fd-node-picker-panel {
   opacity: 1;
 }
 
+.fd-branch-banner {
+  margin: 0 0 16px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.fd-branch-banner--parallel {
+  background: rgba(113, 141, 255, 0.1);
+  color: #3a52c4;
+  border: 1px solid rgba(113, 141, 255, 0.35);
+}
+
+.fd-branch-banner--inclusive {
+  background: rgba(146, 84, 222, 0.1);
+  color: #5a2da3;
+  border: 1px solid rgba(146, 84, 222, 0.35);
+}
+
 .fd-branch-title__priority {
   font-size: 12px;
   color: var(--semi-color-text-2);
