@@ -3,7 +3,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Spin, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Spin, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { ArrowLeft, Download, Eye, History, Minus, Plus, Redo2, RotateCcw, Save, Send, Undo2, Upload } from 'lucide-react';
 import type { WorkflowDefinition, WorkflowFormField } from '@zenith/shared';
 import { request } from '@/utils/request';
@@ -493,9 +493,11 @@ export default function WorkflowDesignerPage() {
         />
 
         <div className="fd-toolbar__title">
-          <Typography.Title heading={6} style={{ margin: 0 }}>
-            {isNew ? '新建流程' : (metaName || definition?.name || '')}
-          </Typography.Title>
+          <Tooltip content={isNew ? '新建流程' : (metaName || definition?.name || '')} position="bottom">
+            <Typography.Title heading={6} style={{ margin: 0 }} ellipsis={{ showTooltip: false }}>
+              {isNew ? '新建流程' : (metaName || definition?.name || '')}
+            </Typography.Title>
+          </Tooltip>
         </div>
 
         {/* 步骤导航 */}
