@@ -3,7 +3,7 @@
  *
  * 渲染多列分支布局，每列内部可递归渲染子节点。
  */
-import { Pencil, Trash2, X } from 'lucide-react';
+import { Pencil, X } from 'lucide-react';
 import { Popconfirm } from '@douyinfe/semi-ui';
 import type { FlowNode, FlowBranch, FlowNodeType, BranchNodeType } from '../types';
 import { NODE_COLOR_MAP, BRANCH_ADD_LABEL } from '../constants';
@@ -80,7 +80,14 @@ export default function BranchContainer({
   const color = NODE_COLOR_MAP[node.type];
   const branchType = node.type as BranchNodeType;
   const addLabel = BRANCH_ADD_LABEL[branchType] ?? '添加分支';
-  const canRemoveBranch = branches.length > 2;
+  // 非默认分支始终可关闭；当剩余分支 ≤ 2 时点击 X 改为删除整个网关节点
+  const handleBranchClose = (branchId: string) => {
+    if (branches.length > 2) {
+      onRemoveBranch(node.id, branchId);
+    } else if (onDeleteNode) {
+      onDeleteNode(node.id);
+    }
+  };
 
   // 路由分支顶部提示行：展示当前已选的路由字段
   const routeFieldKey = node.type === 'routeBranch'
@@ -123,23 +130,6 @@ export default function BranchContainer({
         >
           {addLabel}
         </button>
-        {onDeleteNode && (
-          <Popconfirm
-            title="确认删除整个分支节点？"
-            content="所有分支及其内部节点将被一并删除"
-            position="top"
-            onConfirm={() => onDeleteNode(node.id)}
-          >
-            <button
-              type="button"
-              className="fd-branch-delete-btn"
-              title="删除整个分支节点"
-            >
-              <Trash2 size={12} />
-              <span>删除分支</span>
-            </button>
-          </Popconfirm>
-        )}
       </div>
       )}
 
@@ -165,15 +155,22 @@ export default function BranchContainer({
                 </div>
               )}
 
-              {!readOnly && canRemoveBranch && !branch.isDefault && (
-                <span
-                  className="fd-branch-title__close"
-                  role="none"
-                  onClick={(e) => { e.stopPropagation(); onRemoveBranch(node.id, branch.id); }}
-                  title={`删除${branch.name}`}
+              {!readOnly && !branch.isDefault && (
+                <Popconfirm
+                  title={branches.length > 2 ? `确认删除${branch.name}？` : '确认删除整个分支节点？'}
+                  content={branches.length > 2 ? undefined : '所有分支及其内部节点将被一并删除'}
+                  position="top"
+                  onConfirm={() => handleBranchClose(branch.id)}
                 >
-                  <X size={10} />
-                </span>
+                  <span
+                    className="fd-branch-title__close"
+                    role="none"
+                    onClick={(e) => e.stopPropagation()}
+                    title={branches.length > 2 ? `删除${branch.name}` : '删除整个分支节点'}
+                  >
+                    <X size={10} />
+                  </span>
+                </Popconfirm>
               )}
             </button>
 
