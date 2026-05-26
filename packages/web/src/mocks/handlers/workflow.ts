@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { WorkflowDefinition, WorkflowInstance, WorkflowTask } from '@zenith/shared';
+import type { WorkflowDefinition, WorkflowInstance, WorkflowTask, WorkflowTaskUrge } from '@zenith/shared';
 import {
   mockWorkflowDefinitions,
   mockWorkflowInstances,
@@ -19,6 +19,11 @@ function ok<T>(data: T) {
 function err(message: string, code = 400) {
   return HttpResponse.json({ code, message });
 }
+
+// 催办流水（内存）
+const mockWorkflowUrges: WorkflowTaskUrge[] = [];
+let urgeIdSeq = 1;
+const URGE_MIN_INTERVAL_MS = 5 * 60 * 1000;
 
 // ─── 流程定义 Handler ──────────────────────────────────────────────────────
 
@@ -495,6 +500,85 @@ export const workflowHandlers = [
       removed += 1;
     });
     return HttpResponse.json({ code: 0, message: `已减签 ${removed} 人`, data: null });
+  }),
+
+  // 催办：单任务
+  http.post('/api/workflows/tasks/:taskId/urge', async ({ params, request }) => {
+    const body = await request.json().catch(() => ({})) as { message?: string };
+    const taskId = Number(params.taskId);
+    const task = mockWorkflowTasks.find(t => t.id === taskId);
+    if (!task) return err('任务不存在', 404);
+    if (task.status !== 'pending') return err('该任务已处理');
+    const inst = mockWorkflowInstances.find(i => i.id === task.instanceId);
+    if (!inst) return err('流程不存在', 404);
+    if (inst.status !== 'running') return err('流程已结束，无需催办');
+    const last = mockWorkflowUrges.filter(u => u.taskId === taskId).sort((a, b) => b.id - a.id)[0];
+    if (last && Date.now() - new Date(last.createdAt).getTime() < URGE_MIN_INTERVAL_MS) {
+      const wait = Math.ceil((URGE_MIN_INTERVAL_MS - (Date.now() - new Date(last.createdAt).getTime())) / 1000);
+      return err(`催办过于频繁，请 ${wait}s 后再试`, 429);
+    }
+    const row: WorkflowTaskUrge = {
+      id: urgeIdSeq++,
+      taskId,
+      instanceId: inst.id,
+      urgerId: 1,
+      urgerName: 'admin',
+      message: body.message?.trim() || null,
+      createdAt: mockDateTime(),
+    };
+    mockWorkflowUrges.push(row);
+    return HttpResponse.json({ code: 0, message: '已催办', data: row });
+  }),
+
+  // 催办：单任务历史
+  http.get('/api/workflows/tasks/:taskId/urges', ({ params }) => {
+    const taskId = Number(params.taskId);
+    const list = mockWorkflowUrges.filter(u => u.taskId === taskId).sort((a, b) => b.id - a.id);
+    return ok(list);
+  }),
+
+  // 催办：实例历史
+  http.get('/api/workflows/instances/:id/urges', ({ params }) => {
+    const instId = Number(params.id);
+    const list = mockWorkflowUrges.filter(u => u.instanceId === instId).sort((a, b) => b.id - a.id);
+    return ok(list);
+  }),
+
+  // 催办：实例批量
+  http.post('/api/workflows/instances/:id/urge', async ({ params, request }) => {
+    const body = await request.json().catch(() => ({})) as { message?: string };
+    const instId = Number(params.id);
+    const inst = mockWorkflowInstances.find(i => i.id === instId);
+    if (!inst) return err('流程不存在', 404);
+    if (inst.status !== 'running') return err('流程已结束，无需催办');
+    const pendings = mockWorkflowTasks.filter(t => t.instanceId === instId && t.status === 'pending');
+    if (pendings.length === 0) return err('没有待办任务可催办');
+    const now = mockDateTime();
+    const nowMs = Date.now();
+    const created: WorkflowTaskUrge[] = [];
+    let skipped = 0;
+    pendings.forEach((task) => {
+      const last = mockWorkflowUrges.filter(u => u.taskId === task.id).sort((a, b) => b.id - a.id)[0];
+      if (last && nowMs - new Date(last.createdAt).getTime() < URGE_MIN_INTERVAL_MS) {
+        skipped += 1;
+        return;
+      }
+      const row: WorkflowTaskUrge = {
+        id: urgeIdSeq++,
+        taskId: task.id,
+        instanceId: instId,
+        urgerId: 1,
+        urgerName: 'admin',
+        message: body.message?.trim() || null,
+        createdAt: now,
+      };
+      mockWorkflowUrges.push(row);
+      created.push(row);
+    });
+    const msg = skipped > 0
+      ? `已催办 ${created.length} 人，${skipped} 人催办过于频繁已跳过`
+      : `已催办 ${created.length} 人`;
+    return HttpResponse.json({ code: 0, message: msg, data: created });
   }),
 
   // 退回

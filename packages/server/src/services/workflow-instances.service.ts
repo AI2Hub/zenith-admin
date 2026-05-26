@@ -64,7 +64,7 @@ import { count, countDistinct, eq, and, desc, ilike, or, inArray } from 'drizzle
 import { escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { pageOffset } from '../lib/pagination';
-import { workflowInstances, workflowTasks, workflowDefinitions, workflowCategories, users, userRoles } from '../db/schema';
+import { workflowInstances, workflowTasks, workflowTaskUrges, workflowDefinitions, workflowCategories, users, userRoles } from '../db/schema';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { advanceFlow, getInitialTasks, validateFlowData, type AdvanceResult, type TaskAction } from '../lib/workflow-engine';
 import type { WorkflowApproveMethod, WorkflowFlowData, WorkflowTask as WorkflowTaskDto, WorkflowEventActor, WorkflowActionButtonKey, WorkflowActionButtonConfig } from '@zenith/shared';
@@ -97,7 +97,7 @@ function emitInstanceEvent(
 
 /** 发射任务生命周期事件的辅助函数 */
 function emitTaskEvent(
-  type: 'task.created' | 'task.approved' | 'task.rejected' | 'task.skipped' | 'task.transferred' | 'task.assigned' | 'task.addSigned' | 'task.reduceSigned',
+  type: 'task.created' | 'task.approved' | 'task.rejected' | 'task.skipped' | 'task.transferred' | 'task.assigned' | 'task.addSigned' | 'task.reduceSigned' | 'task.urged',
   task: WorkflowTaskDto,
   meta: { definitionId: number; tenantId: number | null; actor?: { userId: number; name?: string | null }; comment?: string | null },
 ) {
@@ -1554,6 +1554,135 @@ export async function reduceSignTask(taskId: number, targetTaskIds: number[], co
     emitTaskEvent('task.reduceSigned', mapTask(t), { ...meta, comment: reduceComment });
   }
   return { removed: removed.map((t) => mapTask(t)), message: `已减签 ${removed.length} 人` };
+}
+
+// ─── 催办 ─────────────────────────────────────────────────────────────────────
+
+/** 同一任务两次催办的最小间隔（毫秒） */
+const URGE_MIN_INTERVAL_MS = 5 * 60 * 1000;
+
+function mapTaskUrge(row: typeof workflowTaskUrges.$inferSelect): import('@zenith/shared').WorkflowTaskUrge {
+  return {
+    id: row.id,
+    taskId: row.taskId,
+    instanceId: row.instanceId,
+    urgerId: row.urgerId ?? null,
+    urgerName: row.urgerName ?? null,
+    message: row.message ?? null,
+    createdAt: formatDateTime(row.createdAt),
+  };
+}
+
+/** 催办：仅发起人或管理员可催办 pending 任务；同任务 5 分钟内不可重复 */
+export async function urgeTask(taskId: number, message?: string) {
+  const user = currentUser();
+  const [task] = await db.select().from(workflowTasks)
+    .where(eq(workflowTasks.id, taskId)).limit(1);
+  if (!task) throw new HTTPException(404, { message: '任务不存在' });
+  if (task.status !== 'pending') throw new HTTPException(400, { message: '仅可催办未处理任务' });
+  const [inst] = await db.select().from(workflowInstances)
+    .where(eq(workflowInstances.id, task.instanceId)).limit(1);
+  if (!inst) throw new HTTPException(500, { message: '流程数据异常' });
+  if (inst.status !== 'running') throw new HTTPException(400, { message: '流程已结束，无需催办' });
+
+  const isInitiator = inst.initiatorId === user.userId;
+  const isAdmin = (user.roles ?? []).some((r) => r === 'super_admin' || r === 'tenant_admin');
+  if (!isInitiator && !isAdmin) {
+    throw new HTTPException(403, { message: '仅发起人或管理员可催办' });
+  }
+
+  const [last] = await db.select({ createdAt: workflowTaskUrges.createdAt }).from(workflowTaskUrges)
+    .where(eq(workflowTaskUrges.taskId, taskId))
+    .orderBy(desc(workflowTaskUrges.createdAt)).limit(1);
+  if (last) {
+    const elapsed = Date.now() - new Date(last.createdAt).getTime();
+    if (elapsed < URGE_MIN_INTERVAL_MS) {
+      const wait = Math.ceil((URGE_MIN_INTERVAL_MS - elapsed) / 1000);
+      throw new HTTPException(429, { message: `催办过于频繁，请 ${wait} 秒后再试` });
+    }
+  }
+
+  const [row] = await db.insert(workflowTaskUrges).values({
+    taskId,
+    instanceId: inst.id,
+    urgerId: user.userId,
+    urgerName: user.username ?? null,
+    message: message?.trim() || null,
+  }).returning();
+
+  const actor = { userId: user.userId, name: user.username };
+  emitTaskEvent('task.urged', mapTask(task), {
+    definitionId: inst.definitionId,
+    tenantId: inst.tenantId,
+    actor,
+    comment: row.message ?? undefined,
+  });
+  return mapTaskUrge(row);
+}
+
+/** 查询某任务的催办历史 */
+export async function listTaskUrges(taskId: number) {
+  const rows = await db.select().from(workflowTaskUrges)
+    .where(eq(workflowTaskUrges.taskId, taskId))
+    .orderBy(desc(workflowTaskUrges.createdAt));
+  return rows.map(mapTaskUrge);
+}
+
+/** 查询某实例的全部催办历史 */
+export async function listInstanceUrges(instanceId: number) {
+  const rows = await db.select().from(workflowTaskUrges)
+    .where(eq(workflowTaskUrges.instanceId, instanceId))
+    .orderBy(desc(workflowTaskUrges.createdAt));
+  return rows.map(mapTaskUrge);
+}
+
+/** 实例级批量催办：对实例所有 pending 任务依次催办，节流命中的任务静默跳过 */
+export async function urgeInstance(instanceId: number, message?: string) {
+  const user = currentUser();
+  const [inst] = await db.select().from(workflowInstances)
+    .where(eq(workflowInstances.id, instanceId)).limit(1);
+  if (!inst) throw new HTTPException(404, { message: '流程不存在' });
+  if (inst.status !== 'running') throw new HTTPException(400, { message: '流程已结束，无需催办' });
+  const isInitiator = inst.initiatorId === user.userId;
+  const isAdmin = (user.roles ?? []).some((r) => r === 'super_admin' || r === 'tenant_admin');
+  if (!isInitiator && !isAdmin) throw new HTTPException(403, { message: '仅发起人或管理员可催办' });
+
+  const pendings = await db.select().from(workflowTasks)
+    .where(and(eq(workflowTasks.instanceId, instanceId), eq(workflowTasks.status, 'pending')));
+  if (pendings.length === 0) throw new HTTPException(400, { message: '没有待办任务可催办' });
+
+  const created: import('@zenith/shared').WorkflowTaskUrge[] = [];
+  let skipped = 0;
+  for (const task of pendings) {
+    const [last] = await db.select({ createdAt: workflowTaskUrges.createdAt }).from(workflowTaskUrges)
+      .where(eq(workflowTaskUrges.taskId, task.id))
+      .orderBy(desc(workflowTaskUrges.createdAt)).limit(1);
+    if (last && Date.now() - new Date(last.createdAt).getTime() < URGE_MIN_INTERVAL_MS) {
+      skipped += 1;
+      continue;
+    }
+    const [row] = await db.insert(workflowTaskUrges).values({
+      taskId: task.id,
+      instanceId,
+      urgerId: user.userId,
+      urgerName: user.username ?? null,
+      message: message?.trim() || null,
+    }).returning();
+    created.push(mapTaskUrge(row));
+    const actor = { userId: user.userId, name: user.username };
+    emitTaskEvent('task.urged', mapTask(task), {
+      definitionId: inst.definitionId,
+      tenantId: inst.tenantId,
+      actor,
+      comment: row.message ?? undefined,
+    });
+  }
+  return {
+    list: created,
+    message: skipped > 0
+      ? `已催办 ${created.length} 人，${skipped} 人催办过于频繁已跳过`
+      : `已催办 ${created.length} 人`,
+  };
 }
 
 /** 退回：将当前任务驳回到一个或多个前序节点（多节点取流程定义中最早出现的节点作为执行目标） */

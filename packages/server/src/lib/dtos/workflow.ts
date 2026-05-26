@@ -83,6 +83,18 @@ export const WorkflowTaskDTO = z
   })
   .openapi('WorkflowTask');
 
+export const WorkflowTaskUrgeDTO = z
+  .object({
+    id: z.number().int(),
+    taskId: z.number().int(),
+    instanceId: z.number().int(),
+    urgerId: z.number().int().nullable(),
+    urgerName: z.string().nullable(),
+    message: z.string().nullable(),
+    createdAt: z.string(),
+  })
+  .openapi('WorkflowTaskUrge');
+
 export const WorkflowInstanceDTO = z
   .object({
     id: z.number().int(),

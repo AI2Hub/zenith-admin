@@ -768,6 +768,10 @@ export const returnWorkflowTaskSchema = z.object({
   comment: z.string().min(1, '退回原因不能为空').max(500),
 });
 
+export const urgeWorkflowTaskSchema = z.object({
+  message: z.string().max(256).optional(),
+});
+
 export type CreateWorkflowDefinitionInput = z.infer<typeof createWorkflowDefinitionSchema>;
 export type UpdateWorkflowDefinitionInput = z.infer<typeof updateWorkflowDefinitionSchema>;
 export type CreateWorkflowInstanceInput = z.infer<typeof createWorkflowInstanceSchema>;
@@ -778,6 +782,7 @@ export type DelegateWorkflowTaskInput = z.infer<typeof delegateWorkflowTaskSchem
 export type AddSignWorkflowTaskInput = z.infer<typeof addSignWorkflowTaskSchema>;
 export type ReduceSignWorkflowTaskInput = z.infer<typeof reduceSignWorkflowTaskSchema>;
 export type ReturnWorkflowTaskInput = z.infer<typeof returnWorkflowTaskSchema>;
+export type UrgeWorkflowTaskInput = z.infer<typeof urgeWorkflowTaskSchema>;
 
 // ─── 聊天 ─────────────────────────────────────────────────────────────────────
 export const chatLinkPreviewSchema = z.object({

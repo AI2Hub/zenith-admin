@@ -942,6 +942,20 @@ export const workflowTasks = pgTable('workflow_tasks', {
 export type WorkflowTaskRow = typeof workflowTasks.$inferSelect;
 export type NewWorkflowTask = typeof workflowTasks.$inferInsert;
 
+// 任务催办记录：发起人或管理员对 pending 任务的催办流水
+export const workflowTaskUrges = pgTable('workflow_task_urges', {
+  id: serial('id').primaryKey(),
+  taskId: integer('task_id').notNull().references(() => workflowTasks.id, { onDelete: 'cascade' }),
+  instanceId: integer('instance_id').notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),
+  urgerId: integer('urger_id').references(() => users.id, { onDelete: 'set null' }),
+  urgerName: varchar('urger_name', { length: 64 }),
+  message: varchar('message', { length: 256 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export type WorkflowTaskUrgeRow = typeof workflowTaskUrges.$inferSelect;
+export type NewWorkflowTaskUrge = typeof workflowTaskUrges.$inferInsert;
+
 // ─── 工作流事件订阅 / 投递 / 触发器执行 ─────────────────────────────────────
 export const workflowEventSubscriptions = pgTable('workflow_event_subscriptions', {
   id: serial('id').primaryKey(),
@@ -1254,9 +1268,16 @@ export const workflowInstancesRelations = relations(workflowInstances, ({ one, m
   tasks: many(workflowTasks),
 }));
 
-export const workflowTasksRelations = relations(workflowTasks, ({ one }) => ({
+export const workflowTasksRelations = relations(workflowTasks, ({ one, many }) => ({
   instance: one(workflowInstances, { fields: [workflowTasks.instanceId], references: [workflowInstances.id] }),
   assignee: one(users, { fields: [workflowTasks.assigneeId], references: [users.id] }),
+  urges: many(workflowTaskUrges),
+}));
+
+export const workflowTaskUrgesRelations = relations(workflowTaskUrges, ({ one }) => ({
+  task: one(workflowTasks, { fields: [workflowTaskUrges.taskId], references: [workflowTasks.id] }),
+  instance: one(workflowInstances, { fields: [workflowTaskUrges.instanceId], references: [workflowInstances.id] }),
+  urger: one(users, { fields: [workflowTaskUrges.urgerId], references: [users.id] }),
 }));
 
 export const chatConversationsRelations = relations(chatConversations, ({ one, many }) => ({

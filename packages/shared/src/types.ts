@@ -1014,6 +1014,16 @@ export interface WorkflowTask {
   createdAt: string;
 }
 
+export interface WorkflowTaskUrge {
+  id: number;
+  taskId: number;
+  instanceId: number;
+  urgerId: number | null;
+  urgerName: string | null;
+  message: string | null;
+  createdAt: string;
+}
+
 export interface WorkflowInstance {
   id: number;
   definitionId: number;
@@ -1048,7 +1058,8 @@ export type WorkflowEventType =
   | 'task.skipped'
   | 'task.transferred'
   | 'task.addSigned'
-  | 'task.reduceSigned';
+  | 'task.reduceSigned'
+  | 'task.urged';
 
 export interface WorkflowEventActor {
   userId: number;
@@ -1080,7 +1091,7 @@ export interface WorkflowNodeEventPayload extends WorkflowEventBase {
 }
 
 export interface WorkflowTaskEventPayload extends WorkflowEventBase {
-  type: 'task.created' | 'task.assigned' | 'task.approved' | 'task.rejected' | 'task.skipped' | 'task.transferred' | 'task.addSigned' | 'task.reduceSigned';
+  type: 'task.created' | 'task.assigned' | 'task.approved' | 'task.rejected' | 'task.skipped' | 'task.transferred' | 'task.addSigned' | 'task.reduceSigned' | 'task.urged';
   task: WorkflowTask;
   comment?: string | null;
 }

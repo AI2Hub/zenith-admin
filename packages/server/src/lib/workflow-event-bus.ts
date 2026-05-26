@@ -28,7 +28,7 @@ type EventByType<T extends WorkflowEventType> =
     ? WorkflowInstanceEventPayload
     : T extends 'node.entered' | 'node.left'
     ? WorkflowNodeEventPayload
-    : T extends 'task.created' | 'task.assigned' | 'task.approved' | 'task.rejected' | 'task.skipped' | 'task.transferred' | 'task.addSigned' | 'task.reduceSigned'
+    : T extends 'task.created' | 'task.assigned' | 'task.approved' | 'task.rejected' | 'task.skipped' | 'task.transferred' | 'task.addSigned' | 'task.reduceSigned' | 'task.urged'
     ? WorkflowTaskEventPayload
     : never;
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Form,
+  Modal,
   Popconfirm,
   Select,
   SideSheet,
@@ -10,6 +11,7 @@ import {
   Tabs,
   TabPane,
   Tag,
+  TextArea,
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
@@ -81,6 +83,26 @@ function InstanceDetailDrawer({
     }
   };
 
+  const [urgeVisible, setUrgeVisible] = useState(false);
+  const [urgeMessage, setUrgeMessage] = useState('');
+  const [urgeLoading, setUrgeLoading] = useState(false);
+  const handleUrge = async () => {
+    if (!instanceId) return;
+    setUrgeLoading(true);
+    try {
+      const res = await request.post<unknown>(`/api/workflows/instances/${instanceId}/urge`, { message: urgeMessage || undefined });
+      if (res.code === 0) {
+        Toast.success(res.message || '已催办');
+        setUrgeVisible(false);
+        setUrgeMessage('');
+      } else if (res.code === 429) {
+        Toast.warning(res.message);
+      }
+    } finally {
+      setUrgeLoading(false);
+    }
+  };
+
   return (
     <SideSheet
       title="申请详情"
@@ -91,6 +113,7 @@ function InstanceDetailDrawer({
       footer={
         data?.status === 'running' ? (
           <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Button onClick={() => { setUrgeMessage(''); setUrgeVisible(true); }}>催办</Button>
             <Popconfirm title="确定要撤回吗？" onConfirm={() => void handleWithdraw()}>
               <Button type="danger">撤回申请</Button>
             </Popconfirm>
@@ -103,6 +126,24 @@ function InstanceDetailDrawer({
       ) : (
         <WorkflowInstanceDetailPanel instance={data} definition={definition} loading={loading} />
       )}
+      <Modal
+        title="催办"
+        visible={urgeVisible}
+        onCancel={() => setUrgeVisible(false)}
+        onOk={() => void handleUrge()}
+        confirmLoading={urgeLoading}
+        okText="发送催办"
+      >
+        <Typography.Text type="tertiary" size="small">将对当前实例所有待办人发起催办（5 分钟内已被催办过的人员会被跳过）</Typography.Text>
+        <TextArea
+          value={urgeMessage}
+          onChange={setUrgeMessage}
+          placeholder="可选留言（最多 256 个字符）"
+          maxLength={256}
+          rows={3}
+          style={{ marginTop: 8 }}
+        />
+      </Modal>
     </SideSheet>
   );
 }

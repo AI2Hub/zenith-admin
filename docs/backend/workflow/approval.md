@@ -148,3 +148,58 @@
 | `task.reduceSigned` | 减签使任务变为 `skipped` 时，每个被减签任务触发一次 |
 
 事件 payload 与其他 `task.*` 事件一致（`WorkflowTaskEventPayload`），`meta.comment` 携带加签 / 减签时填写的备注。
+
+## 催办
+
+发起人和管理员（`super_admin` / `tenant_admin`）可以对仍在运行中的流程实例的「待办」任务发起催办，提醒审批人尽快处理。
+
+### 谁可以催办
+
+- 流程实例的发起人 `initiatorId === currentUser.userId`
+- 拥有超管 / 租户管理员角色的用户
+
+### 何时可催办
+
+- 实例 `status = running`
+- 目标任务 `status = pending`
+
+### 节流策略
+
+每个任务在最近 **5 分钟内只允许被催办 1 次**，再次提交将返回 `429`：
+
+```json
+{ "code": 429, "message": "催办过于频繁，请 XXXs 后再试" }
+```
+
+实例级批量催办接口会**静默跳过**节流命中的任务，并在 `message` 中汇报跳过人数。
+
+### 数据存储
+
+催办记录持久化到 `workflow_task_urges` 表：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | serial | 主键 |
+| `task_id` | int | 被催办的任务 ID（外键 → `workflow_tasks.id`） |
+| `instance_id` | int | 所属实例 ID（外键 → `workflow_instances.id`） |
+| `urger_id` | int | 催办发起人用户 ID |
+| `urger_name` | varchar(64) | 催办发起人姓名快照 |
+| `message` | varchar(256) | 催办留言（可空） |
+| `created_at` | timestamp | 催办时间 |
+
+### 事件
+
+催办成功时触发 `task.urged` 事件，payload 为 `WorkflowTaskEventPayload`，`meta.comment` 携带催办留言、`meta.actor` 携带催办人。该事件已加入事件订阅白名单，可在「事件订阅」中配置 WebHook / 通知。
+
+### REST 接口
+
+| Method | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/workflows/tasks/{taskId}/urge` | 催办单个任务，body：`{ message?: string }` |
+| `GET`  | `/api/workflows/tasks/{taskId}/urges` | 查询任务的催办历史 |
+| `GET`  | `/api/workflows/instances/{id}/urges` | 查询实例的全部催办流水 |
+| `POST` | `/api/workflows/instances/{id}/urge` | 实例级批量催办（对所有 pending 任务发起一次催办，节流命中的任务静默跳过） |
+
+### 前端入口
+
+「我的申请」详情抽屉内为「审批中」的实例提供「催办」按钮，可选填留言；提交后调用实例级批量催办接口。
