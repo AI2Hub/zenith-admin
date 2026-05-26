@@ -11,12 +11,14 @@
 import { useEffect, useState } from 'react';
 import { SideSheet, Tabs, TabPane, Input, TextArea, Typography, Form, Select, InputNumber, Switch } from '@douyinfe/semi-ui';
 import type { FlowNode, FlowNodeType, AssigneeType, ApproveMethod, ApprovalType, RejectStrategy, EmptyAssigneeStrategy, OperationPermission, FieldPermission, TimeoutConfig, SameInitiatorStrategy, DeduplicateStrategy, ActionButtonsConfig } from '../types';
+import type { NodeListenerConfig } from '@zenith/shared';
 import { ADDABLE_NODE_TYPES, DEFAULT_APPROVER_OPERATIONS, DELAY_UNIT_OPTIONS, TRIGGER_TYPE_OPTIONS } from '../constants';
 import ApproverSettingsTab from './tabs/ApproverSettingsTab';
 import FormPermissionTab from './tabs/FormPermissionTab';
 import OperationPermissionTab from './tabs/OperationPermissionTab';
 import ActionButtonsTab from './tabs/ActionButtonsTab';
 import AdvancedSettingsTab from './tabs/AdvancedSettingsTab';
+import NodeListenersTab from './tabs/NodeListenersTab';
 
 interface UserOption { id: number; nickname: string; }
 interface RoleOption { id: number; name: string; }
@@ -378,6 +380,16 @@ export default function NodeConfigDrawer({
                 timeout={props.timeout as TimeoutConfig | undefined}
                 users={users}
                 onChange={handlePropsChange}
+              />
+            </TabPane>
+          )}
+
+          {/* 节点监听器 Tab（审批人 / 办理人） */}
+          {(isApprover || isHandler) && (
+            <TabPane tab="节点监听器" itemKey="listeners">
+              <NodeListenersTab
+                value={props.nodeListeners as NodeListenerConfig[] | undefined}
+                onChange={(next) => handlePropsChange({ nodeListeners: next })}
               />
             </TabPane>
           )}

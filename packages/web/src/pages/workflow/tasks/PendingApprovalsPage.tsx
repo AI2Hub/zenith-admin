@@ -4,6 +4,7 @@ import {
   Button,
   Form,
   Modal,
+  Select,
   SideSheet,
   Space,
   Spin,
@@ -73,6 +74,7 @@ export default function PendingApprovalsPage() {
   const [rejectHintLoading, setRejectHintLoading] = useState(false);
   const [approveAttachments, setApproveAttachments] = useState<UploadedFile[]>([]);
   const [userOptions, setUserOptions] = useState<Array<{ label: string; value: number }>>([]);
+  const [selectedNextApprovers, setSelectedNextApprovers] = useState<number[]>([]);
 
   const currentTask: WorkflowTask | null = useMemo(() => {
     if (!detail || !selectedItem) return null;
@@ -93,6 +95,28 @@ export default function PendingApprovalsPage() {
     return nodes
       .filter((n) => (n.data.type === 'approve' || n.data.type === 'handler') && n.data.key !== currentTask.nodeKey)
       .map((n) => ({ label: n.data.label ?? n.data.key, value: n.data.key }));
+  }, [detailDef, currentTask]);
+
+  /** 判断当前节点下游是否存在 approverSelect 节点（需要本次审批人选人） */
+  const hasApproverSelectDownstream = useMemo(() => {
+    if (!detailDef || !currentTask) return false;
+    const flow = detailDef.flowData;
+    if (!flow) return false;
+    const startNode = flow.nodes.find((n) => n.data.key === currentTask.nodeKey);
+    if (!startNode) return false;
+    const visited = new Set<string>([startNode.id]);
+    const queue = [startNode.id];
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      for (const e of flow.edges) {
+        if (e.source !== cur || visited.has(e.target)) continue;
+        visited.add(e.target);
+        const targetNode = flow.nodes.find((n) => n.id === e.target);
+        if (targetNode?.data.assigneeType === 'approverSelect') return true;
+        queue.push(e.target);
+      }
+    }
+    return false;
   }, [detailDef, currentTask]);
 
   const loadUserOptions = useCallback(async () => {
@@ -127,6 +151,11 @@ export default function PendingApprovalsPage() {
   useEffect(() => {
     void fetchList();
   }, [fetchList]);
+
+  // 当审批弹窗打开且下游存在 approverSelect 节点，预加载用户列表
+  useEffect(() => {
+    if (approveVisible && hasApproverSelectDownstream) void loadUserOptions();
+  }, [approveVisible, hasApproverSelectDownstream, loadUserOptions]);
 
   const openDetail = (item: PendingItem) => {
     setSelectedItem(item);
@@ -163,12 +192,14 @@ export default function PendingApprovalsPage() {
         {
           comment: values?.comment ?? '',
           attachments: approveAttachments.length > 0 ? approveAttachments : undefined,
+          selectedNextApprovers: hasApproverSelectDownstream && selectedNextApprovers.length > 0 ? selectedNextApprovers : undefined,
         }
       );
       if (res.code === 0) {
         Toast.success('审批通过');
         setApproveVisible(false);
         setApproveAttachments([]);
+        setSelectedNextApprovers([]);
         void fetchList();
       }
     } catch {
@@ -420,7 +451,7 @@ export default function PendingApprovalsPage() {
       <Modal
         title={btnApprove.displayName ? `${btnApprove.displayName}` : '审批通过'}
         visible={approveVisible}
-        onCancel={() => { setApproveVisible(false); setApproveAttachments([]); }}
+        onCancel={() => { setApproveVisible(false); setApproveAttachments([]); setSelectedNextApprovers([]); }}
         onOk={() => void handleApprove()}
         okButtonProps={{ loading: submitting, type: 'primary' }}
         okText="确认"
@@ -455,6 +486,23 @@ export default function PendingApprovalsPage() {
             }}
           />
         </div>
+        {hasApproverSelectDownstream && (
+          <div style={{ marginTop: 12 }}>
+            <Typography.Text strong>下一节点审批人</Typography.Text>
+            <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 6 }}>
+              后续存在“前一审批人选择”节点，请选择审批人（可多选）
+            </Typography.Text>
+            <Select
+              multiple
+              filter
+              style={{ width: '100%' }}
+              placeholder="请选择下一节点审批人"
+              optionList={userOptions}
+              value={selectedNextApprovers}
+              onChange={(v) => setSelectedNextApprovers((v as number[]) ?? [])}
+            />
+          </div>
+        )}
       </Modal>
 
       {/* 驳回弹窗 */}
