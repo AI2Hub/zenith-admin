@@ -591,6 +591,7 @@ export type WorkflowApproveMethod =
   | 'and'         // 会签：所有人通过
   | 'or'          // 或签：任一人通过
   | 'sequential'  // 顺序会签：按顺序逐一通过
+  | 'ratio'       // 比例会签：达到指定百分比通过即可
   | 'auto';       // 自动通过
 
 export type WorkflowApprovalType = 'manual' | 'autoApprove' | 'autoReject';
@@ -683,6 +684,8 @@ export interface WorkflowNodeConfig {
   assigneeExpression?: string;
   /** 审批方式（人工节点，多人时生效） */
   approveMethod?: WorkflowApproveMethod;
+  /** 比例会签阈值（百分比 1-100，仅 approveMethod='ratio' 时生效） */
+  approveRatio?: number;
   emptyStrategy?: WorkflowEmptyAssigneeStrategy;
   emptyAssignTo?: number;
   emptyAssignToName?: string;

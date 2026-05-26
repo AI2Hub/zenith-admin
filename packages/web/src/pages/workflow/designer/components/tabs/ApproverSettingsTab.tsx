@@ -30,6 +30,7 @@ interface ApproverSettingsTabProps {
   managerLevel: number;
   formUserField: string;
   approveMethod: ApproveMethod;
+  approveRatio?: number;
   multiLevelEndType?: 'topLevel' | 'level' | 'role';
   multiLevelEndLevel?: number;
   multiLevelEndRoleId?: number;
@@ -63,6 +64,7 @@ export default function ApproverSettingsTab({
   managerLevel,
   formUserField,
   approveMethod,
+  approveRatio = 51,
   multiLevelEndType = 'topLevel',
   multiLevelEndLevel = 1,
   multiLevelEndRoleId,
@@ -533,6 +535,24 @@ export default function ApproverSettingsTab({
                   </button>
                 ))}
               </div>
+              {approveMethod === 'ratio' && (
+                <Form.Slot label="通过阈值" style={{ marginTop: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <InputNumber
+                      value={approveRatio}
+                      min={1}
+                      max={100}
+                      step={1}
+                      style={{ width: 120 }}
+                      onChange={(v) => onChange({ approveRatio: typeof v === 'number' ? v : Number(v) || 51 })}
+                      suffix="%"
+                    />
+                    <Typography.Text type="tertiary" size="small">
+                      同意率达到该百分比即认为节点通过
+                    </Typography.Text>
+                  </div>
+                </Form.Slot>
+              )}
             </>
           )}
         </>

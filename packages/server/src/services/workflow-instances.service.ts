@@ -539,6 +539,9 @@ async function expandTasksToRows(
 
     const fallbackMethod: Exclude<WorkflowApproveMethod, 'auto'> = userIds.length > 1 ? 'and' : 'or';
     const method: Exclude<WorkflowApproveMethod, 'auto'> = rawMethod && rawMethod !== 'auto' ? rawMethod : fallbackMethod;
+    const ratioPct = method === 'ratio'
+      ? Math.min(100, Math.max(1, t.nodeConfig.approveRatio ?? 51))
+      : null;
     userIds.forEach((uid, idx) => {
       rows.push({
         instanceId: ctx.instanceId,
@@ -550,6 +553,7 @@ async function expandTasksToRows(
         status: method === 'sequential' && idx > 0 ? 'waiting' as const : 'pending' as const,
         taskOrder: method === 'sequential' ? idx : null,
         approveMethod: userIds.length > 1 ? method : null,
+        approveRatio: userIds.length > 1 ? ratioPct : null,
       });
     });
   }
@@ -656,6 +660,23 @@ async function checkNodeCompletion(
     if (nextWaiting) {
       await tx.update(workflowTasks).set({ status: 'pending' })
         .where(eq(workflowTasks.id, nextWaiting.id));
+    }
+    return { completed: false, method };
+  }
+  if (method === 'ratio') {
+    const total = siblings.length;
+    const ratioPct = siblings.find((t) => t.approveRatio)?.approveRatio ?? 51;
+    const required = Math.ceil(total * ratioPct / 100);
+    const approvedCount = siblings.filter((t) => t.status === 'approved').length;
+    if (approvedCount >= required) {
+      // 剩余 pending/waiting 任务跳过
+      await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date() })
+        .where(and(
+          eq(workflowTasks.instanceId, instanceId),
+          eq(workflowTasks.nodeKey, nodeKey),
+          or(eq(workflowTasks.status, 'pending'), eq(workflowTasks.status, 'waiting')),
+        ));
+      return { completed: true, method };
     }
     return { completed: false, method };
   }
@@ -1144,6 +1165,24 @@ export async function rejectTaskCore(
   actor: WorkflowEventActor,
 ) {
   const taskId = task.id;
+  // 比例会签：在阈值仍可达成时，仅标记当前任务 rejected，不触发整节点驳回
+  if (task.approveMethod === 'ratio' && task.approveRatio) {
+    const siblings = await db.select().from(workflowTasks)
+      .where(and(eq(workflowTasks.instanceId, inst.id), eq(workflowTasks.nodeKey, task.nodeKey)));
+    const total = siblings.length;
+    const required = Math.ceil(total * task.approveRatio / 100);
+    const rejectedAfter = siblings.filter((t) => t.status === 'rejected').length + 1;
+    const maxPossibleApproved = total - rejectedAfter;
+    if (maxPossibleApproved >= required) {
+      const [rejectedTask] = await db.update(workflowTasks)
+        .set({ status: 'rejected', comment, actionAt: new Date() })
+        .where(eq(workflowTasks.id, taskId))
+        .returning();
+      const meta = { definitionId: inst.definitionId, tenantId: inst.tenantId, actor };
+      emitTaskEvent('task.rejected', mapTask(rejectedTask), { ...meta, comment });
+      return mapInstance(inst);
+    }
+  }
   // 读取节点驳回策略
   const snapshot = inst.definitionSnapshot as { flowData?: WorkflowFlowData } | null;
   const flowData = snapshot?.flowData;

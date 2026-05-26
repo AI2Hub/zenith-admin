@@ -206,6 +206,7 @@ export default function NodeConfigDrawer({
                   managerLevel={(props.managerLevel as number) ?? 1}
                   formUserField={(props.formUserField as string) ?? ''}
                   approveMethod={(props.approveMethod as ApproveMethod) ?? 'or'}
+                  approveRatio={props.approveRatio as number | undefined}
                   multiLevelEndType={(props.multiLevelEndType as 'topLevel' | 'level' | 'role') ?? 'topLevel'}
                   multiLevelEndLevel={(props.multiLevelEndLevel as number) ?? 1}
                   multiLevelEndRoleId={(props.multiLevelEndRoleId as number) ?? undefined}

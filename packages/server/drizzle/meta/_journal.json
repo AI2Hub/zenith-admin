@@ -463,6 +463,13 @@
       "when": 1779722171512,
       "tag": "0065_large_rocket_raccoon",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1779769299127,
+      "tag": "0066_burly_eternity",
+      "breakpoints": true
     }
   ]
 }

@@ -54,6 +54,7 @@ export type ApproveMethod =
   | 'or'          // 或签（一人通过即可）
   | 'and'         // 会签（所有人通过）
   | 'sequential'  // 依次审批
+  | 'ratio'       // 比例会签
   | 'auto';       // 自动通过（无需人工审批）
 
 /** 空审批人处理策略 */
@@ -154,6 +155,7 @@ export interface ApproverNodeProps {
   formDeptField?: string;                 // 表单内部门字段
   formDeptHeadLevel?: number;             // 表单内部门负责人层级
   approveMethod: ApproveMethod;
+  approveRatio?: number;                  // 比例会签阈值（1-100，仅 approveMethod='ratio' 时生效）
   rejectStrategy: RejectStrategy;
   rejectToNodeKey?: string;               // 当 rejectStrategy='returnToNode' 时，目标节点 id
   emptyStrategy: EmptyAssigneeStrategy;

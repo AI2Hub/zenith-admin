@@ -768,7 +768,7 @@ export const workflowEventSignModeEnum = pgEnum('workflow_event_sign_mode', ['hm
 export const workflowEventDeliveryStatusEnum = pgEnum('workflow_event_delivery_status', ['pending', 'success', 'failed', 'retrying']);
 export const workflowTriggerExecutionStatusEnum = pgEnum('workflow_trigger_execution_status', ['pending', 'running', 'success', 'failed', 'retrying']);
 export const workflowTaskExternalDispatchStatusEnum = pgEnum('workflow_task_external_dispatch_status', ['pending', 'dispatched', 'failed', 'fallback']);
-export const workflowApproveMethodEnum = pgEnum('workflow_approve_method', ['and', 'or', 'sequential']);
+export const workflowApproveMethodEnum = pgEnum('workflow_approve_method', ['and', 'or', 'sequential', 'ratio']);
 export const workflowNodeTypeEnum = pgEnum('workflow_node_type', [
   'start',
   'approve',
@@ -878,6 +878,8 @@ export const workflowTasks = pgTable('workflow_tasks', {
   taskOrder: integer('task_order'),
   /** 多人审批方式（仅同一 nodeKey 多 task 时生效） */
   approveMethod: workflowApproveMethodEnum('approve_method'),
+  /** 比例会签阈值（1–100 百分比），仅 approveMethod='ratio' 时有意义 */
+  approveRatio: integer('approve_ratio'),
   /** 外部审批：回调 ID（task.status='waiting' 期间有效） */
   externalCallbackId: varchar('external_callback_id', { length: 64 }).unique(),
   /** 外部审批：调度状态 */
