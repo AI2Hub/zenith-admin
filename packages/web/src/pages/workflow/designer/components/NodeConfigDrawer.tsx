@@ -376,6 +376,7 @@ export default function NodeConfigDrawer({
                 availableRejectNodes={rejectableAncestorNodes}
                 emptyStrategy={(props.emptyStrategy as EmptyAssigneeStrategy) ?? 'autoApprove'}
                 emptyAssignTo={props.emptyAssignTo as number | undefined}
+                emptyAssignToIds={props.emptyAssignToIds as number[] | undefined}
                 sameInitiatorStrategy={(props.sameInitiatorStrategy as SameInitiatorStrategy) ?? 'selfApprove'}
                 deduplicateStrategy={(props.deduplicateStrategy as DeduplicateStrategy) ?? 'autoSkip'}
                 timeout={props.timeout as TimeoutConfig | undefined}

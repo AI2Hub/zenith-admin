@@ -507,14 +507,24 @@ async function expandTasksToRows(
     const userIds = await applyAssigneeRuntimeStrategies(t, resolvedUserIds, ctx);
     if (userIds.length === 0) {
       const emptyStrategy = t.nodeConfig.emptyStrategy ?? 'autoApprove';
-      if (emptyStrategy === 'assignTo' && t.nodeConfig.emptyAssignTo) {
-        rows.push({
-          instanceId: ctx.instanceId,
-          nodeKey: t.nodeKey,
-          nodeName: t.nodeName,
-          nodeType: t.nodeType,
-          assigneeId: t.nodeConfig.emptyAssignTo,
-          status: 'pending' as const,
+      let emptyAssignIds: number[] = [];
+      if (t.nodeConfig.emptyAssignToIds && t.nodeConfig.emptyAssignToIds.length > 0) {
+        emptyAssignIds = t.nodeConfig.emptyAssignToIds;
+      } else if (t.nodeConfig.emptyAssignTo) {
+        emptyAssignIds = [t.nodeConfig.emptyAssignTo];
+      }
+      if (emptyStrategy === 'assignTo' && emptyAssignIds.length > 0) {
+        const emptyMethod: 'and' | 'or' | null = emptyAssignIds.length > 1 ? 'and' : null;
+        emptyAssignIds.forEach((uid) => {
+          rows.push({
+            instanceId: ctx.instanceId,
+            nodeKey: t.nodeKey,
+            nodeName: t.nodeName,
+            nodeType: t.nodeType,
+            assigneeId: uid,
+            status: 'pending' as const,
+            approveMethod: emptyMethod,
+          });
         });
       } else if (emptyStrategy === 'assignToAdmin') {
         const adminId = await resolveAdminAssigneeId(ctx.executor);
@@ -538,13 +548,18 @@ async function expandTasksToRows(
       continue;
     }
 
-    const fallbackMethod: Exclude<WorkflowApproveMethod, 'auto'> = userIds.length > 1 ? 'and' : 'or';
-    const method: Exclude<WorkflowApproveMethod, 'auto'> = rawMethod && rawMethod !== 'auto' ? rawMethod : fallbackMethod;
+    const fallbackMethod: 'and' | 'or' = userIds.length > 1 ? 'and' : 'or';
+    let effectiveUserIds = userIds;
+    if (rawMethod === 'random' && userIds.length > 1) {
+      effectiveUserIds = [userIds[Math.floor(Math.random() * userIds.length)]];
+    }
+    const method: Exclude<WorkflowApproveMethod, 'auto' | 'random'> =
+      rawMethod && rawMethod !== 'auto' && rawMethod !== 'random' ? rawMethod : fallbackMethod;
     const ratioPct = method === 'ratio'
       ? Math.min(100, Math.max(1, t.nodeConfig.approveRatio ?? 51))
       : null;
     const timeoutAt = computeTimeoutAt(t.nodeConfig.timeout);
-    userIds.forEach((uid, idx) => {
+    effectiveUserIds.forEach((uid, idx) => {
       const isPending = !(method === 'sequential' && idx > 0);
       rows.push({
         instanceId: ctx.instanceId,
@@ -555,8 +570,8 @@ async function expandTasksToRows(
         // 顺序会签：只有第一人 pending，其余 waiting
         status: method === 'sequential' && idx > 0 ? 'waiting' as const : 'pending' as const,
         taskOrder: method === 'sequential' ? idx : null,
-        approveMethod: userIds.length > 1 ? method : null,
-        approveRatio: userIds.length > 1 ? ratioPct : null,
+        approveMethod: effectiveUserIds.length > 1 ? method : null,
+        approveRatio: effectiveUserIds.length > 1 ? ratioPct : null,
         // 仅给 pending 的任务设置 timeoutAt；waiting 的在提升时重算
         timeoutAt: isPending ? timeoutAt : null,
       });
@@ -1004,6 +1019,9 @@ export async function approveTask(taskId: number, comment?: string, attachments?
   if (approveBtn?.uploadRequired && (!attachments || attachments.length === 0)) {
     throw new HTTPException(400, { message: '请上传附件后再提交' });
   }
+  if (nodeCfg?.operations?.includes('opinionRequired') && !comment?.trim()) {
+    throw new HTTPException(400, { message: '请填写审批意见后再提交' });
+  }
   const enrichedComment = attachments && attachments.length > 0
     ? `${comment ?? ''}\n[附件]${attachments.map((a) => a.name).join(', ')}`.trim()
     : comment;
@@ -1152,6 +1170,7 @@ export async function rejectTask(taskId: number, comment: string) {
   const [inst] = await db.select().from(workflowInstances).where(eq(workflowInstances.id, task.instanceId)).limit(1);
   if (!inst) throw new HTTPException(500, { message: '流程数据异常' });
   if (inst.status !== 'running') throw new HTTPException(400, { message: '流程实例不在进行中' });
+  if (!comment.trim()) throw new HTTPException(400, { message: '请填写拒绝原因' });
   return rejectTaskCore(task, inst, comment, { userId: user.userId, name: user.username });
 }
 

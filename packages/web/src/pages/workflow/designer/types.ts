@@ -55,6 +55,7 @@ export type ApproveMethod =
   | 'and'         // 会签（所有人通过）
   | 'sequential'  // 依次审批
   | 'ratio'       // 比例会签
+  | 'random'      // 随机挑选一人审批
   | 'auto';       // 自动通过（无需人工审批）
 
 /** 空审批人处理策略 */
@@ -161,8 +162,12 @@ export interface ApproverNodeProps {
   rejectStrategy: RejectStrategy;
   rejectToNodeKey?: string;               // 当 rejectStrategy='returnToNode' 时，目标节点 id
   emptyStrategy: EmptyAssigneeStrategy;
-  emptyAssignTo?: number;                 // assignTo 策略
+  /** @deprecated 兼容旧数据，使用 emptyAssignToIds */
+  emptyAssignTo?: number;
+  /** @deprecated 兼容旧数据，使用 emptyAssignToNames */
   emptyAssignToName?: string;
+  emptyAssignToIds?: number[];            // assignTo 策略（多人时全部生成会签任务）
+  emptyAssignToNames?: string[];
   sameInitiatorStrategy?: SameInitiatorStrategy;  // 审批人=发起人时
   deduplicateStrategy?: DeduplicateStrategy;      // 审批人去重
   operations: OperationPermission[];
@@ -181,8 +186,12 @@ export interface HandlerNodeProps {
   managerLevel?: number;
   formUserField?: string;
   emptyStrategy: EmptyAssigneeStrategy;
+  /** @deprecated 兼容旧数据，使用 emptyAssignToIds */
   emptyAssignTo?: number;
+  /** @deprecated 兼容旧数据，使用 emptyAssignToNames */
   emptyAssignToName?: string;
+  emptyAssignToIds?: number[];
+  emptyAssignToNames?: string[];
   fieldPermissions: Record<string, FieldPermission>;
 }
 

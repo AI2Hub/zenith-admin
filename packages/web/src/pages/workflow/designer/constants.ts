@@ -156,6 +156,7 @@ export const APPROVE_METHOD_OPTIONS: Array<{ value: ApproveMethod; label: string
   { value: 'and',        label: '会签',     description: '需所有人通过' },
   { value: 'sequential', label: '依次审批', description: '按顺序逐一审批' },
   { value: 'ratio',      label: '比例会签', description: '达到指定百分比同意即通过' },
+  { value: 'random',     label: '随机一人', description: '系统在候选人中随机指派一人审批' },
   { value: 'auto',       label: '自动通过', description: '无需人工审批，自动流转' },
 ];
 

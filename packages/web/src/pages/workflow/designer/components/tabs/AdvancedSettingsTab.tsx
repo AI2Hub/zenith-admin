@@ -25,6 +25,7 @@ interface AdvancedSettingsTabProps {
   availableRejectNodes?: Array<{ id: string; key?: string; name: string; type: string }>;
   emptyStrategy: EmptyAssigneeStrategy;
   emptyAssignTo?: number;
+  emptyAssignToIds?: number[];
   sameInitiatorStrategy?: SameInitiatorStrategy;
   deduplicateStrategy?: DeduplicateStrategy;
   timeout?: TimeoutConfig;
@@ -38,6 +39,7 @@ export default function AdvancedSettingsTab({
   availableRejectNodes = [],
   emptyStrategy,
   emptyAssignTo,
+  emptyAssignToIds,
   sameInitiatorStrategy = 'selfApprove',
   deduplicateStrategy = 'autoSkip',
   timeout,
@@ -110,13 +112,22 @@ export default function AdvancedSettingsTab({
         </RadioGroup>
         {emptyStrategy === 'assignTo' && (
           <div style={{ marginTop: 12 }}>
-            <Form.Slot label="转交给">
+            <Form.Slot label="转交给（可多选，多人时生成会签任务）">
               <Select
-                value={emptyAssignTo}
+                value={(emptyAssignToIds && emptyAssignToIds.length > 0)
+                  ? emptyAssignToIds
+                  : (emptyAssignTo ? [emptyAssignTo] : [])}
                 onChange={(v) => {
-                  const user = users.find(u => u.id === v);
-                  onChange({ emptyAssignTo: v, emptyAssignToName: user?.nickname });
+                  const ids = Array.isArray(v) ? (v as number[]) : [];
+                  const names = ids.map(id => users.find(u => u.id === id)?.nickname ?? '').filter(Boolean);
+                  onChange({
+                    emptyAssignToIds: ids,
+                    emptyAssignToNames: names,
+                    emptyAssignTo: ids[0],
+                    emptyAssignToName: names[0],
+                  });
                 }}
+                multiple
                 filter
                 style={{ width: '100%' }}
                 placeholder="请选择转交人员"

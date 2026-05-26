@@ -592,6 +592,7 @@ export type WorkflowApproveMethod =
   | 'or'          // 或签：任一人通过
   | 'sequential'  // 顺序会签：按顺序逐一通过
   | 'ratio'       // 比例会签：达到指定百分比通过即可
+  | 'random'      // 随机挑选一人审批（系统在候选人中随机指派一人）
   | 'auto';       // 自动通过
 
 export type WorkflowApprovalType = 'manual' | 'autoApprove' | 'autoReject';
@@ -689,8 +690,13 @@ export interface WorkflowNodeConfig {
   /** 比例会签阈值（百分比 1-100，仅 approveMethod='ratio' 时生效） */
   approveRatio?: number;
   emptyStrategy?: WorkflowEmptyAssigneeStrategy;
+  /** @deprecated 使用 emptyAssignToIds 替代，保留以兼容旧数据 */
   emptyAssignTo?: number;
+  /** @deprecated 使用 emptyAssignToNames 替代，保留以兼容旧数据 */
   emptyAssignToName?: string;
+  /** 空审批人策略=assignTo 时的转交人 ID 列表（多人时会签） */
+  emptyAssignToIds?: number[] | null;
+  emptyAssignToNames?: string[] | null;
   sameInitiatorStrategy?: WorkflowSameInitiatorStrategy;
   deduplicateStrategy?: WorkflowDeduplicateStrategy;
   operations?: WorkflowOperationPermission[];

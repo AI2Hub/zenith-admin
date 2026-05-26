@@ -527,7 +527,7 @@ export const workflowAssigneeTypeSchema = z.enum([
   'expression',
 ]);
 
-export const workflowApproveMethodSchema = z.enum(['and', 'or', 'sequential', 'ratio', 'auto']);
+export const workflowApproveMethodSchema = z.enum(['and', 'or', 'sequential', 'ratio', 'random', 'auto']);
 export const workflowApprovalTypeSchema = z.enum(['manual', 'autoApprove', 'autoReject']);
 export const workflowEmptyAssigneeStrategySchema = z.enum(['autoApprove', 'assignToAdmin', 'reject', 'assignTo']);
 export const workflowSameInitiatorStrategySchema = z.enum(['selfApprove', 'autoSkip', 'toDirectManager', 'toDeptHead']);
@@ -583,6 +583,8 @@ export const workflowNodeConfigSchema = z.looseObject({
   emptyStrategy: workflowEmptyAssigneeStrategySchema.optional(),
   emptyAssignTo: z.number().int().optional(),
   emptyAssignToName: z.string().optional(),
+  emptyAssignToIds: z.array(z.number().int()).nullable().optional(),
+  emptyAssignToNames: z.array(z.string()).nullable().optional(),
   sameInitiatorStrategy: workflowSameInitiatorStrategySchema.optional(),
   deduplicateStrategy: workflowDeduplicateStrategySchema.optional(),
   operations: z.array(workflowOperationPermissionSchema).optional(),
