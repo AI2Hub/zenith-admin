@@ -377,7 +377,32 @@ export function advanceFlow(
       }
     } else if (nodeType === 'ccNode') {
       // 抄送节点：创建抄送任务（自动完成），继续推进
-      if (node.data.assigneeIds?.length) {
+      // 当 onlyOnApprove=true 时，仅当存在已完成的上游 approve/handler 节点时才创建抄送任务
+      let shouldCreate = true;
+      if (node.data.onlyOnApprove) {
+        const visited = new Set<string>();
+        const stack: string[] = [...(inEdges.get(node.id) ?? [])];
+        let foundApprovedUpstream = false;
+        while (stack.length > 0) {
+          const srcId = stack.pop();
+          if (!srcId || visited.has(srcId)) continue;
+          visited.add(srcId);
+          const srcNode = nodeMap.get(srcId);
+          if (!srcNode) continue;
+          const srcType = srcNode.data.type;
+          if ((srcType === 'approve' || srcType === 'handler') && completedNodeKeys.has(srcNode.data.key)) {
+            foundApprovedUpstream = true;
+            break;
+          }
+          if (srcType !== 'approve' && srcType !== 'handler') {
+            // 透过网关/抄送等节点继续向上追溯
+            const parents = inEdges.get(srcId) ?? [];
+            for (const p of parents) stack.push(p);
+          }
+        }
+        shouldCreate = foundApprovedUpstream;
+      }
+      if (shouldCreate && node.data.assigneeIds?.length) {
         for (const ccId of node.data.assigneeIds) {
           tasksToCreate.push({
             nodeKey: node.data.key,
