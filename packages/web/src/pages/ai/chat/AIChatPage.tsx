@@ -3,6 +3,7 @@ import { AIChatDialogue, AIChatInput, Typography, Button, Tag, RadioGroup, Radio
 import type { Message as AIChatMessage } from '@douyinfe/semi-ui/lib/es/aiChatDialogue';
 import { MessageSquarePlus, Trash2, Globe, AlignLeft, AlignJustify, Bot, Wrench } from 'lucide-react';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
+import { useAuth } from '@/hooks/useAuth';
 
 const { Configure } = AIChatInput;
 const { Title, Text } = Typography;
@@ -17,20 +18,7 @@ type Message = Omit<AIChatMessage, 'role' | 'content' | 'status' | 'createdAt'> 
   status?: 'completed' | 'in_progress' | 'failed';
 };
 
-const roleConfig = {
-  user: {
-    name: '我',
-    avatar: 'https://lf3-static.bytednsdoc.com/obj/eden-cn/ptlz_zlp/ljhwZthlaukjlkulzlp/docs-icon.png',
-  },
-  assistant: {
-    name: 'AI 助手',
-    avatar: 'https://lf3-static.bytednsdoc.com/obj/eden-cn/ptlz_zlp/ljhwZthlaukjlkulzlp/other/logo.png',
-  },
-  system: {
-    name: '系统',
-    avatar: 'https://lf3-static.bytednsdoc.com/obj/eden-cn/ptlz_zlp/ljhwZthlaukjlkulzlp/other/logo.png',
-  },
-};
+const AI_AVATAR = 'https://lf3-static.bytednsdoc.com/obj/eden-cn/ptlz_zlp/ljhwZthlaukjlkulzlp/other/logo.png';
 
 const DEMO_CONVERSATIONS: { id: string; title: string; messages: Message[] }[] = [
   {
@@ -275,6 +263,7 @@ function nextMsgId() {
 }
 
 export default function AIChatPage() {
+  const { user } = useAuth();
   const [conversations, setConversations] = useState(DEMO_CONVERSATIONS);
   const [activeConvId, setActiveConvId] = useState('conv-1');
   const [generating, setGenerating] = useState(false);
@@ -289,6 +278,15 @@ export default function AIChatPage() {
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
   const messages = activeConv?.messages ?? [];
+
+  const roleConfig = {
+    user: {
+      name: user?.nickname || user?.username || '我',
+      avatar: user?.avatar || undefined,
+    },
+    assistant: { name: 'AI 助手', avatar: AI_AVATAR },
+    system: { name: '系统', avatar: AI_AVATAR },
+  };
 
   const updateMessages = useCallback(
     (updater: (prev: Message[]) => Message[]) => {
