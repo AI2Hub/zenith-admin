@@ -1532,23 +1532,39 @@ export async function reduceSignTask(taskId: number, targetTaskIds: number[], co
   return { removed: removed.map((t) => mapTask(t)), message: `已减签 ${removed.length} 人` };
 }
 
-/** 退回：将当前任务驳回到指定前序节点（使用 rejectTaskCore 的 returnToNode 路径） */
-export async function returnTask(taskId: number, targetNodeKey: string, comment: string) {
+/** 退回：将当前任务驳回到一个或多个前序节点（多节点取流程定义中最早出现的节点作为执行目标） */
+export async function returnTask(taskId: number, targetNodeKeys: string[], comment: string) {
   const { task, inst, actor } = await getOwnPendingTask(taskId);
   const flowData = (inst.definitionSnapshot as { flowData?: WorkflowFlowData } | null)?.flowData;
   if (!flowData) throw new HTTPException(500, { message: '流程快照数据异常' });
-  const targetNode = flowData.nodes.find((n) => n.data.key === targetNodeKey)?.data;
-  if (!targetNode) throw new HTTPException(400, { message: '退回目标节点不存在' });
-  if (targetNode.type !== 'approve' && targetNode.type !== 'handler') {
-    throw new HTTPException(400, { message: '只能退回到审批/办理节点' });
+  if (!Array.isArray(targetNodeKeys) || targetNodeKeys.length === 0) {
+    throw new HTTPException(400, { message: '请选择退回节点' });
   }
-  // 临时覆盖快照中当前节点的 rejectStrategy / rejectToNodeKey，使 rejectTaskCore 走 returnToNode 路径
+  const uniqueKeys = Array.from(new Set(targetNodeKeys));
+  const targets = uniqueKeys.map((k) => {
+    const n = flowData.nodes.find((nd) => nd.data.key === k);
+    if (!n) throw new HTTPException(400, { message: `退回目标节点不存在：${k}` });
+    if (n.data.type !== 'approve' && n.data.type !== 'handler') {
+      throw new HTTPException(400, { message: '只能退回到审批/办理节点' });
+    }
+    return n;
+  });
+  // 多节点退回：选择 flowData.nodes 顺序中最早出现的节点作为实际目标（更贴近用户预期：回到最早分歧点）
+  const earliest = targets.reduce((acc, cur) => {
+    const accIdx = flowData.nodes.findIndex((n) => n.data.key === acc.data.key);
+    const curIdx = flowData.nodes.findIndex((n) => n.data.key === cur.data.key);
+    return curIdx < accIdx ? cur : acc;
+  }, targets[0]);
+
   const overriddenSnapshot = structuredClone(inst.definitionSnapshot) as { flowData?: WorkflowFlowData };
   const currentNode = overriddenSnapshot.flowData?.nodes.find((n) => n.data.key === task.nodeKey);
   if (currentNode) {
     currentNode.data.rejectStrategy = 'returnToNode';
-    currentNode.data.rejectToNodeKey = targetNodeKey;
+    currentNode.data.rejectToNodeKey = earliest.data.key;
   }
   const instOverridden = { ...inst, definitionSnapshot: overriddenSnapshot };
-  return rejectTaskCore(task, instOverridden, comment, actor);
+  const mergedComment = targets.length > 1
+    ? `[退回多节点: ${targets.map((t) => t.data.label ?? t.data.key).join('、')}] ${comment}`
+    : comment;
+  return rejectTaskCore(task, instOverridden, mergedComment, actor);
 }

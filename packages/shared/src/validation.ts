@@ -720,7 +720,7 @@ export const reduceSignWorkflowTaskSchema = z.object({
 });
 
 export const returnWorkflowTaskSchema = z.object({
-  targetNodeKey: z.string().min(1, '请选择退回节点'),
+  targetNodeKeys: z.array(z.string().min(1)).min(1, '请选择退回节点').max(20),
   comment: z.string().min(1, '退回原因不能为空').max(500),
 });
 

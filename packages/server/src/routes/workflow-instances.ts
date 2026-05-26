@@ -266,10 +266,10 @@ const returnRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { taskId } = c.req.valid('param');
-    const { targetNodeKey, comment } = c.req.valid('json');
+    const { targetNodeKeys, comment } = c.req.valid('json');
     const before = await getWorkflowTaskBeforeAudit(taskId);
     if (before) setAuditBeforeData(c, before);
-    const r = await returnTask(taskId, targetNodeKey, comment);
+    const r = await returnTask(taskId, targetNodeKeys, comment);
     return c.json(okBody(r, '已退回'), 200);
   },
 });

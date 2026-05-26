@@ -325,7 +325,7 @@ export default function PendingApprovalsPage() {
 
   const handleReturn = async () => {
     try {
-      const values = await returnFormApi.current?.validate() as { targetNodeKey: string; comment: string };
+      const values = await returnFormApi.current?.validate() as { targetNodeKeys: string[]; comment: string };
       await submitSimpleAction('return', values, '已退回', () => setReturnVisible(false));
     } catch { /* validation */ }
   };
@@ -679,12 +679,13 @@ export default function PendingApprovalsPage() {
       >
         <Form
           getFormApi={api => { returnFormApi.current = api; }}
-          initValues={{ targetNodeKey: btnReturn.jumpToNodeKey ?? undefined }}
+          initValues={{ targetNodeKeys: btnReturn.jumpToNodeKey ? [btnReturn.jumpToNodeKey] : [] }}
         >
           <Form.Select
-            field="targetNodeKey"
+            field="targetNodeKeys"
             label="退回到节点"
-            placeholder="请选择退回节点"
+            placeholder="请选择退回节点（可多选）"
+            multiple
             optionList={returnTargetOptions}
             rules={[{ required: true, message: '请选择退回节点' }]}
             style={{ width: '100%' }}

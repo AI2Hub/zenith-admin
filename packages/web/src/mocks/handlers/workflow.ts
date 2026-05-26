@@ -499,23 +499,28 @@ export const workflowHandlers = [
 
   // 退回
   http.post('/api/workflows/tasks/:taskId/return', async ({ params, request }) => {
-    const body = await request.json() as { targetNodeKey: string; comment: string };
+    const body = await request.json() as { targetNodeKeys: string[]; comment: string };
     const taskIdx = mockWorkflowTasks.findIndex(t => t.id === Number(params.taskId));
     if (taskIdx === -1) return err('任务不存在', 404);
     if (mockWorkflowTasks[taskIdx].status !== 'pending') return err('该任务已处理');
+    if (!Array.isArray(body.targetNodeKeys) || body.targetNodeKeys.length === 0) return err('请选择退回节点');
+    const firstNodeKey = body.targetNodeKeys[0];
     const now = mockDateTime();
     const current = mockWorkflowTasks[taskIdx];
+    const tag = body.targetNodeKeys.length > 1
+      ? `[退回多节点: ${body.targetNodeKeys.join('、')}]`
+      : `[退回至 ${firstNodeKey}]`;
     mockWorkflowTasks[taskIdx] = {
       ...current,
       status: 'rejected',
-      comment: `[退回至 ${body.targetNodeKey}] ${body.comment}`,
+      comment: `${tag} ${body.comment}`,
       actionAt: now,
     };
     const instIdx = mockWorkflowInstances.findIndex(i => i.id === current.instanceId);
     if (instIdx !== -1) {
       mockWorkflowInstances[instIdx] = {
         ...mockWorkflowInstances[instIdx],
-        currentNodeKey: body.targetNodeKey,
+        currentNodeKey: firstNodeKey,
         updatedAt: now,
       };
     }
