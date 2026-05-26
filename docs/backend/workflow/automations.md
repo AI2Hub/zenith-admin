@@ -58,6 +58,7 @@
 
 `titleTemplate`、`formMapping` 的 value、`sendMessage` 的 `title`/`content` 均支持 `{{var}}` 占位符。
 
+::: v-pre
 | 变量名                  | 含义                                  |
 | ----------------------- | ------------------------------------- |
 | `{{instanceId}}`        | 当前流程实例 ID                       |
@@ -66,6 +67,7 @@
 | `{{initiator}}`         | 发起人显示名（昵称/用户名）           |
 | `{{initiatorId}}`       | 发起人用户 ID                         |
 | `{{formData.<key>}}`    | 发起人提交的表单字段值                |
+:::
 
 未匹配的占位符将渲染为空字符串。
 
