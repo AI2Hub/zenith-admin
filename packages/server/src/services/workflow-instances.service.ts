@@ -903,11 +903,11 @@ export async function getWorkflowTaskBeforeAudit(taskId: number) {
   return getWorkflowInstanceBeforeAudit(task.instanceId);
 }
 
-export async function createInstance(data: { definitionId: number; title: string; formData?: Record<string, unknown> | null }, actor?: { userId: number; username: string; tenantId: number | null; roles?: string[] }) {
-  const user = actor
-    ? { userId: actor.userId, username: actor.username, roles: actor.roles ?? [], tenantId: actor.tenantId }
+export async function createInstance(data: { definitionId: number; title: string; formData?: Record<string, unknown> | null }, callerOverride?: { userId: number; username: string; tenantId: number | null; roles?: string[] }) {
+  const user = callerOverride
+    ? { userId: callerOverride.userId, username: callerOverride.username, roles: callerOverride.roles ?? [], tenantId: callerOverride.tenantId }
     : currentUser();
-  const skipScopeCheck = !!actor;
+  const skipScopeCheck = !!callerOverride;
   const [def] = await db.select().from(workflowDefinitions).where(and(eq(workflowDefinitions.id, data.definitionId), eq(workflowDefinitions.status, 'published'))).limit(1);
   if (!def) throw new HTTPException(404, { message: '流程定义不存在或未发布' });
   const scopeType = (def.initiatorScopeType ?? 'all') as 'all' | 'users' | 'departments' | 'roles';
