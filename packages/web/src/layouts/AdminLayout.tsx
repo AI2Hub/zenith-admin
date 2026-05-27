@@ -918,7 +918,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
             onKeyDown={handleNavigateHomeKey}
           >
             <AppLogo size={28} />
-            <span className="admin-sidebar__title">Zenith Admin</span>
+            <span className="admin-sidebar__title">{config.appTitle}</span>
           </button>
           <Nav
             className="admin-topbar__nav"
@@ -964,7 +964,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                     style={{ cursor: 'pointer', background: 'transparent', border: 0, padding: 0, font: 'inherit', color: 'inherit' }}
                     onClick={navigateHome}
                     onKeyDown={handleNavigateHomeKey}
-                  >Zenith Admin</button>
+                  >{config.appTitle}</button>
                 ),
               } : undefined}
               footer={{
