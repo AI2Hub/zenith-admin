@@ -418,6 +418,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                   <Form
                     initValues={{ nickname: user.nickname, email: user.email, phone: user.phone ?? '' }}
                     onSubmit={handleUpdateProfile}
+                    allowEmpty
                     labelPosition="left"
                     labelWidth={80}
                   >

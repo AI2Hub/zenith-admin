@@ -109,6 +109,7 @@ export default function OAuthConfigPage() {
                   getFormApi={(api) => {
                     setFormApis((prev) => ({ ...prev, [meta.key]: api }));
                   }}
+                  allowEmpty
                   labelPosition="left"
                   labelWidth={120}
                   style={{ width: '100%' }}

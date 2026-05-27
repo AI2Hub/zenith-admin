@@ -413,6 +413,7 @@ export default function FileStorageConfigsPage() {
         <Form
           getFormApi={(api) => formApi.current = api}
           key={editingConfig?.id ?? 'new-file-storage-config'}
+          allowEmpty
           initValues={initValues}
           labelPosition="left"
           labelWidth={120}

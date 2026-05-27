@@ -176,6 +176,7 @@ export default function CategorySidebar({ categories, selectedId, onSelect, onCh
         <Form
           key={editKey}
           getFormApi={api => setFormApi(api)}
+          allowEmpty
           initValues={{
             name: editing?.name ?? '',
             code: editing?.code ?? '',

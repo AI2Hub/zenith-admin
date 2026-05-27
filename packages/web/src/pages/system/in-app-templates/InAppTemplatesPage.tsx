@@ -159,6 +159,7 @@ export default function InAppTemplatesPage() {
         <Form
           key={editingRecord?.id ?? 'new'}
           getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
+          allowEmpty
           labelPosition="left" labelWidth={120}
           initValues={editingRecord ?? { status: 'enabled', type: 'info' }}
         >

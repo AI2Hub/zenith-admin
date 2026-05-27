@@ -399,6 +399,7 @@ export default function CronJobsPage() {
         <Form
           key={editingJob?.id ?? 'new-job'}
           getFormApi={(api) => { formApi.current = api; }}
+          allowEmpty
           initValues={formInitValues}
           labelPosition="left"
           labelWidth={110}

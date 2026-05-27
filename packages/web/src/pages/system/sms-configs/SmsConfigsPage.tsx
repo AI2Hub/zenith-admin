@@ -170,6 +170,7 @@ export default function SmsConfigsPage() {
         <Form
           key={editingRecord?.id ?? 'new'}
           getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
+          allowEmpty
           labelPosition="left" labelWidth={120}
           initValues={editingRecord
             ? { ...editingRecord, accessKeySecret: '' }
