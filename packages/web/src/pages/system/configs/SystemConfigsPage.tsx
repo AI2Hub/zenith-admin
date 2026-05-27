@@ -121,15 +121,15 @@ export default function SystemConfigsPage() {
   const configTypeOptions = configTypeItems.map((item) => ({ value: item.value, label: item.label }));
 
   const columns: ColumnProps<SystemConfig>[] = [
-    { title: '配置键', dataIndex: 'configKey', width: 220, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
-    { title: '配置值', dataIndex: 'configValue', width: 260, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
+    { title: '配置键', dataIndex: 'configKey', width: 220, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text> },
+    { title: '配置値', dataIndex: 'configValue', width: 260, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text> },
     {
       title: '类型',
       dataIndex: 'configType',
       width: 110,
       render: (v: string) => <DictTag dictCode="system_config_type" value={v} />,
     },
-    { title: '描述', dataIndex: 'description', render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
+    { title: '描述', dataIndex: 'description', render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text> },
     {
       title: '更新时间', dataIndex: 'updatedAt', width: 180,
       render: (v: string) => formatDateTime(v),
