@@ -153,6 +153,16 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
       });
   }, []);
 
+  // ─── 快捷聊天系统开关 ─────────────────────────────────────────────────────
+  const [quickChatEnabled, setQuickChatEnabled] = useState(false);
+
+  useEffect(() => {
+    request.get<{ configValue: string }>('/api/system-configs/public/quick_chat_enabled', { silent: true })
+      .then((res) => {
+        if (res.code === 0) setQuickChatEnabled(res.data?.configValue === 'true');
+      });
+  }, []);
+
   // Fullscreen
   const [isFullscreen, setIsFullscreen] = useState(!!document.fullscreenElement);
   useEffect(() => {
@@ -1166,10 +1176,12 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
               </div>
 
               {/* ── 快捷聊天 ── */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>显示快捷聊天按钮</span>
-                <Switch checked={preferences.showQuickChat ?? true} onChange={(v) => setPreferences({ showQuickChat: v })} />
-              </div>
+              {quickChatEnabled && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>显示快捷聊天按钮</span>
+                  <Switch checked={preferences.showQuickChat ?? true} onChange={(v) => setPreferences({ showQuickChat: v })} />
+                </div>
+              )}
 
               {/* ── 文件默认视图 ── */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1288,7 +1300,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
       </div>
 
       {/* ===== 快捷聊天浮动按钮 ===== */}
-      {(preferences.showQuickChat ?? true) && <QuickChatButton onHide={() => setPreferences({ showQuickChat: false })} />}
+      {quickChatEnabled && (preferences.showQuickChat ?? true) && <QuickChatButton onHide={() => setPreferences({ showQuickChat: false })} />}
 
       {/* ===== 消息详情 Modal ===== */}
       <Modal
