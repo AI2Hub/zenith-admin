@@ -38,11 +38,21 @@ export interface DataScopeOptions {
 export async function getDataScopeCondition(options: DataScopeOptions): Promise<SQL | undefined> {
   const { currentUserId, deptColumn, ownerColumn } = options;
 
-  // ── 1. 查询用户的角色（含 dataScope）及部门，合并为单次 RQB 请求 ──────────────
+  // ── 1. 查询用户的角色（含 dataScope 和 deptScopes）及部门，合并为单次 RQB 请求 ──────────────
   const userData = await db.query.users.findFirst({
     where: eq(users.id, currentUserId),
     columns: { departmentId: true },
-    with: { userRoles: { columns: {}, with: { role: { columns: { dataScope: true, code: true } } } } },
+    with: {
+      userRoles: {
+        columns: {},
+        with: {
+          role: {
+            columns: { dataScope: true, code: true },
+            with: { deptScopes: { columns: { deptId: true } } },
+          },
+        },
+      },
+    },
   });
   const userRoleList = userData?.userRoles.map((ur) => ur.role) ?? [];
 
@@ -68,7 +78,27 @@ export async function getDataScopeCondition(options: DataScopeOptions): Promise<
     // 用户未分配部门：降级为 self
   }
 
-  // ── 4. self 权限：仅本人数据 ──────────────────────────────────────────────────
+  // ── 4. custom 权限：指定部门 ──────────────────────────────────────────────────
+  if (scopeSet.has('custom') && deptColumn) {
+    const customDeptIds = userRoleList
+      .filter((r) => r.dataScope === 'custom')
+      .flatMap((r) => (r.deptScopes ?? []).map((ds) => ds.deptId));
+    const uniqueDeptIds = [...new Set(customDeptIds)];
+    if (uniqueDeptIds.length > 0) {
+      return inArray(deptColumn, uniqueDeptIds);
+    }
+    // 未配置指定部门：降级为 self
+  }
+
+  // ── 5. dept_only 权限：仅本部门（不含子部门） ─────────────────────────────────
+  if (scopeSet.has('dept_only') && deptColumn) {
+    if (userData?.departmentId) {
+      return eq(deptColumn, userData.departmentId);
+    }
+    // 用户未分配部门：降级为 self
+  }
+
+  // ── 6. self 权限：仅本人数据 ──────────────────────────────────────────────────
   if (ownerColumn) {
     return eq(ownerColumn, currentUserId);
   }

@@ -4,7 +4,7 @@ import { relations } from 'drizzle-orm';
 export const statusEnum = pgEnum('status', ['enabled', 'disabled']);
 export const menuTypeEnum = pgEnum('menu_type', ['directory', 'menu', 'button']);
 export const fileStorageProviderEnum = pgEnum('file_storage_provider', ['local', 'oss', 's3', 'cos']);
-export const dataScopeEnum = pgEnum('data_scope', ['all', 'dept', 'self']);
+export const dataScopeEnum = pgEnum('data_scope', ['all', 'custom', 'dept_only', 'dept', 'self']);
 
 /**
  * 通用审计列：`created_by` / `updated_by` 指向 `users.id`（保留 set null）。

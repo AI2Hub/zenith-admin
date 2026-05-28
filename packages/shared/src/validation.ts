@@ -85,7 +85,7 @@ export const createRoleSchema = z.object({
   code: z.string().min(1, '角色编码不能为空').max(64).regex(/^[a-z_]+$/, '角色编码只能包含小写字母和下划线'),
   description: z.string().max(256).optional(),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
-  dataScope: z.enum(['all', 'dept', 'self']).default('all'),
+  dataScope: z.enum(['all', 'custom', 'dept_only', 'dept', 'self']).default('all'),
   deptScopeIds: z.array(z.number().int().positive()).optional().nullable(),
 });
 

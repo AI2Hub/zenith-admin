@@ -10,7 +10,7 @@ export const RoleDTO = z
     name: z.string().openapi({ example: '超级管理员' }),
     code: z.string().openapi({ example: 'super_admin' }),
     description: z.string().nullable().optional(),
-    dataScope: z.enum(['all', 'dept', 'self']).optional().openapi({ example: 'all' }),
+    dataScope: z.enum(['all', 'custom', 'dept_only', 'dept', 'self']).optional().openapi({ example: 'all' }),
     tenantId: z.number().int().nullable().optional(),
     status: z.enum(['enabled', 'disabled']).openapi({ example: 'enabled' }),
     ...auditFields,

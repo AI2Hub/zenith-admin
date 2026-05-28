@@ -10,6 +10,7 @@ import {
   Form,
   Toast,
   Tree,
+  TreeSelect,
   Typography,
   Spin,
   Avatar,
@@ -61,6 +62,8 @@ export default function RolesPage() {
   const [dataScopeModalVisible, setDataScopeModalVisible] = useState(false);
   const [dataScopeRole, setDataScopeRole] = useState<Role | null>(null);
   const [selectedDataScope, setSelectedDataScope] = useState<string>('all');
+  const [selectedDeptScopeIds, setSelectedDeptScopeIds] = useState<number[]>([]);
+  const [dataScopeLoading, setDataScopeLoading] = useState(false);
   const [deptTree, setDeptTree] = useState<Department[]>([]);
 
   const fetchRoles = useCallback(async (params = searchParams, p = page, ps = pageSize) => {
@@ -190,15 +193,27 @@ export default function RolesPage() {
     }
   };
 
-  const openDataScopeModal = (role: Role) => {
+  const openDataScopeModal = async (role: Role) => {
     setDataScopeRole(role);
     setSelectedDataScope(role.dataScope);
+    setSelectedDeptScopeIds([]);
     setDataScopeModalVisible(true);
+    setDataScopeLoading(true);
+    try {
+      const res = await request.get<Role>(`/api/roles/${role.id}`);
+      if (res.code === 0) setSelectedDeptScopeIds(res.data.deptScopeIds ?? []);
+    } finally {
+      setDataScopeLoading(false);
+    }
   };
 
   const handleSaveDataScope = async () => {
     if (!dataScopeRole) return;
-    const res = await request.put(`/api/roles/${dataScopeRole.id}`, { dataScope: selectedDataScope });
+    const body: Record<string, unknown> = { dataScope: selectedDataScope };
+    if (selectedDataScope === 'custom') {
+      body.deptScopeIds = selectedDeptScopeIds;
+    }
+    const res = await request.put(`/api/roles/${dataScopeRole.id}`, body);
     if (res.code === 0) {
       Toast.success('数据权限已更新');
       setDataScopeModalVisible(false);
@@ -243,7 +258,7 @@ export default function RolesPage() {
   const columns: ColumnProps<Role>[] = [
     { title: '角色名称', dataIndex: 'name', width: 160, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
     { title: '角色编码', dataIndex: 'code', width: 160, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
-    { title: '描述', dataIndex: 'description', width: 200, render: (v) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{}</Typography.Text> },
+    { title: '描述', dataIndex: 'description', width: 200, render: (_v, record) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{record.description}</Typography.Text> },
     {
       title: '数据权限',
       dataIndex: 'dataScope',
@@ -459,16 +474,35 @@ export default function RolesPage() {
         width={400}
         bodyStyle={{ paddingBottom: 24 }}
       >
-        <Select
-          value={selectedDataScope}
-          onChange={(v) => setSelectedDataScope(v as string)}
-          style={{ width: '100%' }}
-          optionList={[
-            { value: 'all', label: '全部数据' },
-            { value: 'dept', label: '本部门及以下' },
-            { value: 'self', label: '仅本人数据' },
-          ]}
-        />
+        {dataScopeLoading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}><Spin /></div>
+        ) : (
+          <>
+            <Select
+              value={selectedDataScope}
+              onChange={(v) => setSelectedDataScope(v as string)}
+              style={{ width: '100%' }}
+              optionList={[
+                { value: 'all', label: '全部数据权限' },
+                { value: 'custom', label: '指定部门数据权限' },
+                { value: 'dept_only', label: '本部门数据权限' },
+                { value: 'dept', label: '本部门及以下数据权限' },
+                { value: 'self', label: '仅本人数据权限' },
+              ]}
+            />
+            {selectedDataScope === 'custom' && (
+              <TreeSelect
+                multiple
+                filterTreeNode
+                treeData={deptsToTreeData(deptTree)}
+                value={selectedDeptScopeIds}
+                onChange={(vals) => setSelectedDeptScopeIds((vals as string[]).map(Number))}
+                placeholder="请选择指定部门（可多选）"
+                style={{ width: '100%', marginTop: 12 }}
+              />
+            )}
+          </>
+        )}
       </Modal>
 
       {/* 分配用户 Modal */}

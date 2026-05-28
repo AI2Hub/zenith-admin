@@ -95,7 +95,7 @@ export interface Menu {
 }
 
 // ─── 角色 ─────────────────────────────────────────────────────────────────────
-export type DataScope = 'all' | 'dept' | 'self';
+export type DataScope = 'all' | 'custom' | 'dept_only' | 'dept' | 'self';
 
 export interface Role {
   id: number;
