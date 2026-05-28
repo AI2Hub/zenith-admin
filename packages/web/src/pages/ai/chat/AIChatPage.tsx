@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
-import { AIChatDialogue, AIChatInput, Typography, Button, RadioGroup, Radio, Select, Toast, List as SemiList, Tooltip, Spin } from '@douyinfe/semi-ui';
+import { AIChatDialogue, AIChatInput, Typography, Button, RadioGroup, Radio, Select, Tag, Toast, List as SemiList, Tooltip, Spin } from '@douyinfe/semi-ui';
 import type { Message as AIChatMessage } from '@douyinfe/semi-ui/lib/es/aiChatDialogue';
 import { MessageSquarePlus, Trash2, Globe, AlignLeft, AlignJustify, Bot, Wrench, FileText, Settings } from 'lucide-react';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
@@ -33,7 +33,7 @@ const HINTS = [
   '如何设置定时任务？',
 ];
 
-const DEFAULT_MODEL_OPTIONS: { value: string; label: string }[] = [];
+const DEFAULT_MODEL_OPTIONS: { value: string; label: string; source: 'system' | 'user' }[] = [];
 
 const THINK_MODE_OPTIONS = [
   { label: '极速', value: 'fast' },
@@ -140,7 +140,7 @@ export default function AIChatPage() {
   const [generating, setGenerating] = useState(false);
   const [convsLoading, setConvsLoading] = useState(false);
   const [msgsLoading, setMsgsLoading] = useState(false);
-  const [modelOptions, setModelOptions] = useState<{ value: string; label: string }[]>(DEFAULT_MODEL_OPTIONS);
+  const [modelOptions, setModelOptions] = useState<{ value: string; label: string; source: 'system' | 'user' }[]>(DEFAULT_MODEL_OPTIONS);
   const userConfigRef = useRef<UserAiConfig | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [align, setAlign] = useState<'leftRight' | 'leftAlign'>('leftRight');
@@ -157,10 +157,10 @@ export default function AIChatPage() {
 
   // Load AI provider configs + user config as model options
   const loadModelOptions = useCallback((providers: AiProviderConfig[], uc: UserAiConfig | null) => {
-    const sysOptions = providers.map((p) => ({ value: String(p.id), label: `${p.name} (${p.model})` }));
+    const sysOptions = providers.map((p) => ({ value: String(p.id), label: `${p.name} (${p.model})`, source: 'system' as const }));
     const userOption =
       uc?.isEnabled && uc.model
-        ? [{ value: 'user', label: `我的配置 (${uc.model})` }]
+        ? [{ value: 'user', label: `我的配置 (${uc.model})`, source: 'user' as const }]
         : [];
     const options = [...userOption, ...sysOptions];
     setModelOptions(options);
@@ -608,6 +608,32 @@ export default function AIChatPage() {
                       optionList={modelOptions}
                       style={{ minWidth: 160 }}
                       placeholder="选择模型"
+                      renderOptionItem={(renderProps: {
+                        value: string;
+                        label: React.ReactNode;
+                        style?: React.CSSProperties;
+                        className?: string;
+                        onMouseEnter?: React.MouseEventHandler;
+                        onClick?: React.MouseEventHandler;
+                      }) => {
+                        const isUser = renderProps.value === 'user';
+                        return (
+                          <div
+                            role="menuitem"
+                            tabIndex={0}
+                            style={{ ...renderProps.style, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px' }}
+                            className={renderProps.className}
+                            onMouseEnter={renderProps.onMouseEnter}
+                            onClick={renderProps.onClick}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') renderProps.onClick?.(e as unknown as React.MouseEvent); }}
+                          >
+                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{renderProps.label}</span>
+                            <Tag color={isUser ? 'violet' : 'blue'} size="small" style={{ flexShrink: 0 }}>
+                              {isUser ? '我的' : '系统'}
+                            </Tag>
+                          </div>
+                        );
+                      }}
                     />
                     <Configure.Button
                       field="webSearch"
