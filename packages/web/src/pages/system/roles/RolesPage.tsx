@@ -439,6 +439,7 @@ export default function RolesPage() {
             <Tree
               treeData={menusToTreeData(allMenus)}
               multiple
+              autoMergeValue={false}
               expandedKeys={menuExpandedKeys}
               onExpand={(keys) => setMenuExpandedKeys(keys)}
               value={checkedMenuIds.map(String)}
