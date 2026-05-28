@@ -9,7 +9,7 @@ export const aiConversationsHandlers = [
   // 列表
   http.get('/api/ai/conversations', () => {
     const sorted = [...convStore].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list: sorted } });
+    return HttpResponse.json({ code: 0, message: 'ok', data: sorted });
   }),
 
   // 创建对话
@@ -53,7 +53,7 @@ export const aiConversationsHandlers = [
   http.get('/api/ai/conversations/:id/messages', ({ params }) => {
     const id = Number(params.id);
     const msgs = msgStore[id] ?? [];
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list: msgs } });
+    return HttpResponse.json({ code: 0, message: 'ok', data: msgs });
   }),
 
   // SSE 聊天 (模拟流式响应)

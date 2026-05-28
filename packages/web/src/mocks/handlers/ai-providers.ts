@@ -7,7 +7,7 @@ const store = [...mockAiProviders];
 export const aiProvidersHandlers = [
   // 列表
   http.get('/api/ai/providers', () => {
-    return HttpResponse.json({ code: 0, message: 'ok', data: { list: store } });
+    return HttpResponse.json({ code: 0, message: 'ok', data: store });
   }),
 
   // 单条

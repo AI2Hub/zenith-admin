@@ -171,7 +171,7 @@ export default function AIChatPage() {
 
   useEffect(() => {
     void Promise.all([
-      request.get<{ list: AiProviderConfig[] }>('/api/ai/providers').then((r) => r.data?.list ?? []),
+      request.get<AiProviderConfig[]>('/api/ai/providers').then((r) => r.data ?? []),
       request.get<UserAiConfig | null>('/api/ai/user-config').then((r) => r.data ?? null).catch(() => null),
     ]).then(([providers, uc]) => {
       userConfigRef.current = uc;
@@ -182,8 +182,8 @@ export default function AIChatPage() {
   // Load conversations on mount
   useEffect(() => {
     setConvsLoading(true);
-    void request.get<{ list: AiConversation[] }>('/api/ai/conversations').then((res) => {
-      const list = res.data?.list ?? [];
+    void request.get<AiConversation[]>('/api/ai/conversations').then((res) => {
+      const list = res.data ?? [];
       setConversations(list);
       if (list.length > 0) setActiveConvId(list[0].id);
     }).catch(() => {}).finally(() => setConvsLoading(false));
@@ -196,8 +196,8 @@ export default function AIChatPage() {
       return;
     }
     setMsgsLoading(true);
-    void request.get<{ list: AiMessage[] }>(`/api/ai/conversations/${activeConvId}/messages`).then((res) => {
-      setMessages((res.data?.list ?? []).map(convertApiMessage));
+    void request.get<AiMessage[]>(`/api/ai/conversations/${activeConvId}/messages`).then((res) => {
+      setMessages((res.data ?? []).map(convertApiMessage));
     }).catch(() => {}).finally(() => setMsgsLoading(false));
   }, [activeConvId]);
 
@@ -653,8 +653,8 @@ export default function AIChatPage() {
       onClose={() => setSettingsVisible(false)}
       onSaved={(savedCfg) => {
         userConfigRef.current = savedCfg;
-        void request.get<{ list: AiProviderConfig[] }>('/api/ai/providers').then((r) => {
-          loadModelOptions(r.data?.list ?? [], savedCfg);
+        void request.get<AiProviderConfig[]>('/api/ai/providers').then((r) => {
+          loadModelOptions(r.data ?? [], savedCfg);
         }).catch(() => {});
       }}
     />
