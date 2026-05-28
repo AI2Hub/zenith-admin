@@ -1404,7 +1404,7 @@ export type NewAiMessage = typeof aiMessages.$inferInsert;
 
 export const userAiConfigs = pgTable('user_ai_configs', {
   id: serial('id').primaryKey(),
-  userId: integer('user_id').notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 100 }),
   provider: aiProviderEnum('provider').notNull().default('openai_compatible'),
   baseUrl: varchar('base_url', { length: 500 }),

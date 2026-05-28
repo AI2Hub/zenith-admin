@@ -1,10 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
-import { eq } from 'drizzle-orm';
-import { db } from '../db';
-import { systemConfigs } from '../db/schema';
 import { currentUser } from '../lib/context';
 import { getRawDefaultProviderConfig, getRawProviderConfig } from './ai-providers.service';
-import { getRawUserAiConfig } from './user-ai-config.service';
+import { getRawUserAiConfigById } from './user-ai-config.service';
 import { streamChat } from '../lib/ai/factory';
 import type { StreamChatConfig, ChatMessage, StreamChunk } from '../lib/ai/factory';
 import type { AiProvider } from '@zenith/shared';
@@ -18,34 +15,9 @@ type ResolvedStreamConfig = {
 };
 
 /**
- * 解析当前请求应使用的 AI 配置
- * 优先级：用户自定义 Key（若系统允许 && 用户已启用 && 有效） > 系统默认配置
+ * 解析当前请求应使用的 AI 配置（未指定时使用系统默认配置）
  */
 async function resolveStreamConfig(): Promise<ResolvedStreamConfig> {
-  const user = currentUser();
-
-  // 检查系统是否允许用户自定义 Key
-  const [cfgRow] = await db.select().from(systemConfigs).where(eq(systemConfigs.configKey, 'ai_allow_user_custom_key')).limit(1);
-  const allowUserKey = cfgRow?.configValue === 'true';
-
-  if (allowUserKey) {
-    const userCfg = await getRawUserAiConfig(user.userId);
-    if (userCfg && userCfg.isEnabled && userCfg.apiKey && userCfg.baseUrl && userCfg.model) {
-      return {
-        provider: userCfg.provider,
-        config: {
-          baseUrl: userCfg.baseUrl,
-          apiKey: userCfg.apiKey,
-          model: userCfg.model,
-          maxTokens: 4096,
-          temperature: '0.7',
-          systemPrompt: null,
-        },
-        snapshot: { provider: userCfg.provider, model: userCfg.model },
-      };
-    }
-  }
-
   // 使用系统默认配置
   const sysCfg = await getRawDefaultProviderConfig();
   if (!sysCfg) throw new HTTPException(503, { message: '系统未配置 AI 服务商，请联系管理员' });
@@ -83,10 +55,10 @@ async function resolveStreamConfigById(configId: number): Promise<ResolvedStream
   };
 }
 
-async function resolveStreamConfigForUser(): Promise<ResolvedStreamConfig> {
+async function resolveStreamConfigForUser(userConfigId: number): Promise<ResolvedStreamConfig> {
   const user = currentUser();
-  const userCfg = await getRawUserAiConfig(user.userId);
-  if (!userCfg || !userCfg.isEnabled || !userCfg.apiKey || !userCfg.baseUrl || !userCfg.model) {
+  const userCfg = await getRawUserAiConfigById(userConfigId, user.userId);
+  if (!userCfg?.isEnabled || !userCfg.apiKey || !userCfg.baseUrl || !userCfg.model) {
     throw new HTTPException(400, { message: '用户 AI 配置不完整，请先在设置中填写 API 地址、API Key 和模型名称' });
   }
   return {
@@ -105,11 +77,14 @@ async function resolveStreamConfigForUser(): Promise<ResolvedStreamConfig> {
 
 export async function* streamAiChat(
   messages: ChatMessage[],
-  configId?: number | 'user',
+  configSource?: 'system' | 'user',
+  configId?: number,
 ): AsyncGenerator<StreamChunk & { snapshot?: { provider: string; model: string; configId?: number } }> {
   let resolved: ResolvedStreamConfig;
-  if (configId === 'user') {
-    resolved = await resolveStreamConfigForUser();
+  if (configSource === 'user' && configId) {
+    resolved = await resolveStreamConfigForUser(configId);
+  } else if (configSource === 'system' && configId) {
+    resolved = await resolveStreamConfigById(configId);
   } else if (configId) {
     resolved = await resolveStreamConfigById(configId);
   } else {

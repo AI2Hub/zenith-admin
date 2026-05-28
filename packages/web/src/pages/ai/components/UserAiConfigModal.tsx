@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Collapse, List, SideSheet, Space, Spin, Tag, Typography } from '@douyinfe/semi-ui';
-import { Edit2, Plus } from 'lucide-react';
+import { Button, Collapse, List, Popconfirm, SideSheet, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Plus } from 'lucide-react';
 import type { AiProvider, AiProviderConfig, UserAiConfig } from '@zenith/shared';
 import { request } from '@/utils/request';
 import AiProviderFormModal from './AiProviderFormModal';
@@ -19,7 +19,7 @@ const PROVIDERS_ORDER: AiProvider[] = ['openai_compatible', 'anthropic', 'gemini
 interface UserAiConfigModalProps {
   readonly visible: boolean;
   readonly onClose: () => void;
-  readonly onSaved: (config: UserAiConfig) => void;
+  readonly onSaved: () => void;
 }
 
 interface GroupedItem {
@@ -30,18 +30,20 @@ interface GroupedItem {
 export default function UserAiConfigModal({ visible, onClose, onSaved }: UserAiConfigModalProps) {
   const [loading, setLoading] = useState(false);
   const [systemConfigs, setSystemConfigs] = useState<AiProviderConfig[]>([]);
-  const [userConfig, setUserConfig] = useState<UserAiConfig | null>(null);
+  const [userConfigs, setUserConfigs] = useState<UserAiConfig[]>([]);
   const [formVisible, setFormVisible] = useState(false);
+  const [formTarget, setFormTarget] = useState<UserAiConfig | undefined>(undefined);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const [sysRes, userRes] = await Promise.all([
         request.get<AiProviderConfig[]>('/api/ai/providers'),
-        request.get<UserAiConfig | null>('/api/ai/user-config').catch(() => ({ data: null, code: 0, message: '' })),
+        request.get<UserAiConfig[]>('/api/ai/user-configs').catch(() => ({ data: [], code: 0, message: '' })),
       ]);
       setSystemConfigs(sysRes.data ?? []);
-      setUserConfig(userRes.data ?? null);
+      setUserConfigs(userRes.data ?? []);
     } finally {
       setLoading(false);
     }
@@ -51,27 +53,60 @@ export default function UserAiConfigModal({ visible, onClose, onSaved }: UserAiC
     if (visible) void loadData();
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleDelete = async (id: number) => {
+    setDeletingId(id);
+    try {
+      await request.delete(`/api/ai/user-configs/${id}`);
+      Toast.success('删除成功');
+      setUserConfigs((prev) => prev.filter((c) => c.id !== id));
+      onSaved();
+    } catch {
+      // handled by interceptor
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   // 按供应商类型分组
   const grouped = PROVIDERS_ORDER.reduce<Record<AiProvider, GroupedItem[]>>((acc, pType) => {
     const sys = systemConfigs
       .filter((c) => c.provider === pType)
       .map((c) => ({ type: 'system' as const, config: c }));
-    const user =
-      userConfig?.provider === pType ? [{ type: 'user' as const, config: userConfig }] : [];
+    const user = userConfigs
+      .filter((c) => c.provider === pType)
+      .map((c) => ({ type: 'user' as const, config: c }));
     acc[pType] = [...sys, ...user];
     return acc;
   }, {} as Record<AiProvider, GroupedItem[]>);
 
   const activeProviders = PROVIDERS_ORDER.filter((p) => grouped[p].length > 0);
 
-  const openUserForm = () => {
+  const openCreate = () => {
+    setFormTarget(undefined);
+    setFormVisible(true);
+  };
+
+  const openEdit = (cfg: UserAiConfig) => {
+    setFormTarget(cfg);
     setFormVisible(true);
   };
 
   return (
     <>
       <SideSheet
-        title="AI 配置"
+        title={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 8 }}>
+            <span>AI 配置</span>
+            <Button
+              type="primary"
+              size="small"
+              icon={<Plus size={13} />}
+              onClick={openCreate}
+            >
+              新增我的配置
+            </Button>
+          </div>
+        }
         visible={visible}
         onCancel={onClose}
         width={480}
@@ -83,18 +118,6 @@ export default function UserAiConfigModal({ visible, onClose, onSaved }: UserAiC
           </div>
         ) : (
           <>
-            {/* 操作栏 */}
-            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <Button
-                type="primary"
-                size="small"
-                icon={userConfig ? <Edit2 size={13} /> : <Plus size={13} />}
-                onClick={openUserForm}
-              >
-                {userConfig ? '编辑我的配置' : '新增我的配置'}
-              </Button>
-            </div>
-
             {activeProviders.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 0' }}>
                 <Text type="tertiary">暂无可用配置</Text>
@@ -125,7 +148,7 @@ export default function UserAiConfigModal({ visible, onClose, onSaved }: UserAiC
                         const isEnabled = config.isEnabled;
                         return (
                           <List.Item
-                            key={isUser ? 'user' : `sys-${(config as AiProviderConfig).id}`}
+                            key={isUser ? `user-${config.id}` : `sys-${(config as AiProviderConfig).id}`}
                             main={
                               <Space align="center" style={{ gap: 6 }}>
                                 <Tag color={isUser ? 'violet' : 'blue'} size="small">
@@ -144,7 +167,22 @@ export default function UserAiConfigModal({ visible, onClose, onSaved }: UserAiC
                               </Space>
                             }
                             extra={isUser ? (
-                              <Button theme="borderless" size="small" onClick={openUserForm}>编辑</Button>
+                              <Space>
+                                <Button theme="borderless" size="small" onClick={() => openEdit(config as UserAiConfig)}>编辑</Button>
+                                <Popconfirm
+                                  title="确定删除这个配置吗？"
+                                  onConfirm={() => void handleDelete(config.id)}
+                                >
+                                  <Button
+                                    theme="borderless"
+                                    type="danger"
+                                    size="small"
+                                    loading={deletingId === config.id}
+                                  >
+                                    删除
+                                  </Button>
+                                </Popconfirm>
+                              </Space>
                             ) : null}
                           />
                         );
@@ -163,11 +201,20 @@ export default function UserAiConfigModal({ visible, onClose, onSaved }: UserAiC
         mode="user"
         visible={formVisible}
         onClose={() => setFormVisible(false)}
-        userConfig={userConfig}
+        userConfig={formTarget}
         onSaved={(savedCfg) => {
-          setUserConfig(savedCfg);
           setFormVisible(false);
-          onSaved(savedCfg);
+          // 更新本地状态
+          setUserConfigs((prev) => {
+            const idx = prev.findIndex((c) => c.id === savedCfg.id);
+            if (idx >= 0) {
+              const next = [...prev];
+              next[idx] = savedCfg;
+              return next;
+            }
+            return [...prev, savedCfg];
+          });
+          onSaved();
         }}
       />
     </>

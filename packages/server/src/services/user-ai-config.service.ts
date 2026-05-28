@@ -1,4 +1,5 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
 import { db } from '../db';
 import { userAiConfigs } from '../db/schema';
 import { currentUser } from '../lib/context';
@@ -25,61 +26,82 @@ function mapRow(row: typeof userAiConfigs.$inferSelect) {
   };
 }
 
-export async function getUserAiConfig() {
+/** 获取当前用户所有 AI 配置 */
+export async function getUserAiConfigs() {
   const user = currentUser();
-  const [row] = await db.select().from(userAiConfigs).where(eq(userAiConfigs.userId, user.userId));
-  if (!row) return null;
+  const rows = await db.select().from(userAiConfigs).where(eq(userAiConfigs.userId, user.userId));
+  return rows.map(mapRow);
+}
+
+/** 新增用户 AI 配置 */
+export async function createUserAiConfig(input: SaveUserAiConfigInput) {
+  const user = currentUser();
+  const [row] = await db
+    .insert(userAiConfigs)
+    .values({
+      userId: user.userId,
+      name: input.name ?? null,
+      provider: input.provider ?? 'openai_compatible',
+      baseUrl: input.baseUrl ?? null,
+      apiKey: input.apiKey ?? null,
+      model: input.model ?? null,
+      temperature: input.temperature ?? null,
+      maxTokens: input.maxTokens ?? null,
+      systemPrompt: input.systemPrompt ?? null,
+      isEnabled: input.isEnabled ?? true,
+    })
+    .returning();
   return mapRow(row);
 }
 
-export async function saveUserAiConfig(input: SaveUserAiConfigInput) {
+/** 更新指定 ID 的用户 AI 配置 */
+export async function updateUserAiConfig(id: number, input: SaveUserAiConfigInput) {
   const user = currentUser();
-  const [existing] = await db.select().from(userAiConfigs).where(eq(userAiConfigs.userId, user.userId));
+  const [existing] = await db
+    .select()
+    .from(userAiConfigs)
+    .where(and(eq(userAiConfigs.id, id), eq(userAiConfigs.userId, user.userId)));
+  if (!existing) throw new HTTPException(404, { message: '配置不存在' });
 
-  // 如果 apiKey 是脱敏格式，保留原值
   const apiKey =
     input.apiKey && input.apiKey !== MASKED_KEY && !input.apiKey.includes('...')
       ? input.apiKey
-      : (existing?.apiKey ?? null);
+      : (existing.apiKey ?? null);
 
-  if (existing) {
-    const [row] = await db
-      .update(userAiConfigs)
-      .set({
-        ...(input.name !== undefined && { name: input.name }),
-        ...(input.provider !== undefined && { provider: input.provider }),
-        ...(input.baseUrl !== undefined && { baseUrl: input.baseUrl }),
-        apiKey,
-        ...(input.model !== undefined && { model: input.model }),
-        ...(input.temperature !== undefined && { temperature: input.temperature }),
-        ...(input.maxTokens !== undefined && { maxTokens: input.maxTokens }),
-        ...(input.systemPrompt !== undefined && { systemPrompt: input.systemPrompt }),
-        ...(input.isEnabled !== undefined && { isEnabled: input.isEnabled }),
-      })
-      .where(eq(userAiConfigs.userId, user.userId))
-      .returning();
-    return mapRow(row);
-  } else {
-    const [row] = await db
-      .insert(userAiConfigs)
-      .values({
-        userId: user.userId,
-        name: input.name ?? null,
-        provider: input.provider ?? 'openai_compatible',
-        baseUrl: input.baseUrl ?? null,
-        apiKey,
-        model: input.model ?? null,
-        temperature: input.temperature ?? null,
-        maxTokens: input.maxTokens ?? null,
-        systemPrompt: input.systemPrompt ?? null,
-        isEnabled: input.isEnabled ?? true,
-      })
-      .returning();
-    return mapRow(row);
-  }
+  const [row] = await db
+    .update(userAiConfigs)
+    .set({
+      ...(input.name !== undefined && { name: input.name }),
+      ...(input.provider !== undefined && { provider: input.provider }),
+      ...(input.baseUrl !== undefined && { baseUrl: input.baseUrl }),
+      apiKey,
+      ...(input.model !== undefined && { model: input.model }),
+      ...(input.temperature !== undefined && { temperature: input.temperature }),
+      ...(input.maxTokens !== undefined && { maxTokens: input.maxTokens }),
+      ...(input.systemPrompt !== undefined && { systemPrompt: input.systemPrompt }),
+      ...(input.isEnabled !== undefined && { isEnabled: input.isEnabled }),
+    })
+    .where(and(eq(userAiConfigs.id, id), eq(userAiConfigs.userId, user.userId)))
+    .returning();
+  return mapRow(row);
 }
 
-export async function getRawUserAiConfig(userId: number) {
-  const [row] = await db.select().from(userAiConfigs).where(eq(userAiConfigs.userId, userId));
+/** 删除指定 ID 的用户 AI 配置 */
+export async function deleteUserAiConfig(id: number) {
+  const user = currentUser();
+  const [existing] = await db
+    .select()
+    .from(userAiConfigs)
+    .where(and(eq(userAiConfigs.id, id), eq(userAiConfigs.userId, user.userId)));
+  if (!existing) throw new HTTPException(404, { message: '配置不存在' });
+  await db.delete(userAiConfigs).where(and(eq(userAiConfigs.id, id), eq(userAiConfigs.userId, user.userId)));
+}
+
+/** 内部使用：根据 userId 和配置 id 获取原始配置（用于聊天时校验权限） */
+export async function getRawUserAiConfigById(id: number, userId: number) {
+  const [row] = await db
+    .select()
+    .from(userAiConfigs)
+    .where(and(eq(userAiConfigs.id, id), eq(userAiConfigs.userId, userId)));
   return row ?? null;
 }

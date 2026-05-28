@@ -58,10 +58,9 @@ router.post('/:id/chat', authMiddleware, async (c) => {
       const history = await getHistoryMessages(id, 20);
       const messages = [...history, { role: 'user' as const, content: message }];
 
-      const resolvedConfigId: number | 'user' | undefined =
-        configSource === 'user' ? 'user' : (configId ?? undefined);
+      const resolvedConfigSource = configSource;
 
-      for await (const chunk of streamAiChat(messages, resolvedConfigId)) {
+      for await (const chunk of streamAiChat(messages, resolvedConfigSource, configId)) {
         if (chunk.type === 'delta') {
           assistantContent += chunk.content;
           if ('snapshot' in chunk && chunk.snapshot) {

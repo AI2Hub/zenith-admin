@@ -239,7 +239,7 @@ app.route('/api/in-app-messages', inAppMessagesRoutes);
 app.route('/api/ai/providers', aiProvidersRoutes);
 app.route('/api/ai/conversations', aiConversationsRoutes);
 app.route('/api/ai/conversations', aiChatRoutes);
-app.route('/api/ai/user-config', userAiConfigRoutes);
+app.route('/api/ai/user-configs', userAiConfigRoutes);
 app.route('/api/rate-limit', rateLimitRoutes);
 app.route('/api/ws', createWsRoute(upgradeWebSocket));
 app.route('/api/health', healthRoutes);

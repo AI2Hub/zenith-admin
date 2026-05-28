@@ -141,7 +141,7 @@ export default function AIChatPage() {
   const [convsLoading, setConvsLoading] = useState(false);
   const [msgsLoading, setMsgsLoading] = useState(false);
   const [modelOptions, setModelOptions] = useState<{ value: string; label: string; source: 'system' | 'user' }[]>(DEFAULT_MODEL_OPTIONS);
-  const userConfigRef = useRef<UserAiConfig | null>(null);
+  const userConfigsRef = useRef<UserAiConfig[]>([]);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [align, setAlign] = useState<'leftRight' | 'leftAlign'>('leftRight');
   const [mode, setMode] = useState<'bubble' | 'noBubble' | 'userBubble'>('bubble');
@@ -155,14 +155,13 @@ export default function AIChatPage() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Load AI provider configs + user config as model options
-  const loadModelOptions = useCallback((providers: AiProviderConfig[], uc: UserAiConfig | null) => {
+  // Load AI provider configs + user configs as model options
+  const loadModelOptions = useCallback((providers: AiProviderConfig[], userConfigs: UserAiConfig[]) => {
     const sysOptions = providers.map((p) => ({ value: String(p.id), label: `${p.name} (${p.model})`, source: 'system' as const }));
-    const userOption =
-      uc?.isEnabled && uc.model
-        ? [{ value: 'user', label: `${uc.name ?? '我的配置'} (${uc.model})`, source: 'user' as const }]
-        : [];
-    const options = [...userOption, ...sysOptions];
+    const userOptions = userConfigs
+      .filter((uc) => uc.isEnabled && uc.model)
+      .map((uc) => ({ value: `user-${uc.id}`, label: `${uc.name ?? '我的配置'} (${uc.model})`, source: 'user' as const }));
+    const options = [...userOptions, ...sysOptions];
     setModelOptions(options);
     if (options.length > 0) {
       setConfigureValues({ ...configureValuesRef.current, model: options[0].value });
@@ -172,10 +171,10 @@ export default function AIChatPage() {
   useEffect(() => {
     void Promise.all([
       request.get<AiProviderConfig[]>('/api/ai/providers').then((r) => r.data ?? []),
-      request.get<UserAiConfig | null>('/api/ai/user-config').then((r) => r.data ?? null).catch(() => null),
-    ]).then(([providers, uc]) => {
-      userConfigRef.current = uc;
-      loadModelOptions(providers, uc);
+      request.get<UserAiConfig[]>('/api/ai/user-configs').then((r) => r.data ?? []).catch(() => []),
+    ]).then(([providers, userConfigs]) => {
+      userConfigsRef.current = userConfigs;
+      loadModelOptions(providers, userConfigs);
     }).catch(() => {});
   }, [loadModelOptions]);
 
@@ -293,9 +292,14 @@ export default function AIChatPage() {
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
             body: JSON.stringify(
-              configureValuesRef.current.model === 'user'
-                ? { message: text, configSource: 'user' }
-                : { message: text, configSource: 'system', configId: Number(configureValuesRef.current.model) || undefined }
+              (() => {
+                const selectedModel = configureValuesRef.current.model as string | undefined ?? '';
+                if (selectedModel.startsWith('user-')) {
+                  const userConfigId = Number.parseInt(selectedModel.replace('user-', ''), 10);
+                  return { message: text, configSource: 'user', configId: userConfigId };
+                }
+                return { message: text, configSource: 'system', configId: Number(selectedModel) || undefined };
+              })()
             ),
             signal: abortController.signal,
           }
@@ -677,10 +681,13 @@ export default function AIChatPage() {
     <UserAiConfigModal
       visible={settingsVisible}
       onClose={() => setSettingsVisible(false)}
-      onSaved={(savedCfg) => {
-        userConfigRef.current = savedCfg;
-        void request.get<AiProviderConfig[]>('/api/ai/providers').then((r) => {
-          loadModelOptions(r.data ?? [], savedCfg);
+      onSaved={() => {
+        void Promise.all([
+          request.get<AiProviderConfig[]>('/api/ai/providers').then((r) => r.data ?? []),
+          request.get<UserAiConfig[]>('/api/ai/user-configs').then((r) => r.data ?? []).catch(() => []),
+        ]).then(([providers, userConfigs]) => {
+          userConfigsRef.current = userConfigs;
+          loadModelOptions(providers, userConfigs);
         }).catch(() => {});
       }}
     />

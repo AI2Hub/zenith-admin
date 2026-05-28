@@ -146,17 +146,33 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
     setSubmitLoading(true);
     try {
       if (props.mode === 'user') {
-        const res = await request.put<UserAiConfig>('/api/ai/user-config', {
-          name: values.name || null,
-          provider: values.provider,
-          baseUrl: values.baseUrl || null,
-          apiKey: values.apiKey || null,
-          model: values.model || null,
-          temperature: values.temperature || null,
-          maxTokens: values.maxTokens || null,
-          systemPrompt: values.systemPrompt || null,
-          isEnabled: values.isEnabled,
-        });
+        const uc = props.userConfig;
+        let res: { data?: UserAiConfig; code: number; message: string };
+        if (uc) {
+          res = await request.put<UserAiConfig>(`/api/ai/user-configs/${uc.id}`, {
+            name: values.name || null,
+            provider: values.provider,
+            baseUrl: values.baseUrl || null,
+            apiKey: values.apiKey || null,
+            model: values.model || null,
+            temperature: values.temperature || null,
+            maxTokens: values.maxTokens || null,
+            systemPrompt: values.systemPrompt || null,
+            isEnabled: values.isEnabled,
+          });
+        } else {
+          res = await request.post<UserAiConfig>('/api/ai/user-configs', {
+            name: values.name || null,
+            provider: values.provider,
+            baseUrl: values.baseUrl || null,
+            apiKey: values.apiKey || null,
+            model: values.model || null,
+            temperature: values.temperature || null,
+            maxTokens: values.maxTokens || null,
+            systemPrompt: values.systemPrompt || null,
+            isEnabled: values.isEnabled,
+          });
+        }
         if (res.data) {
           Toast.success('保存成功');
           props.onSaved(res.data);
@@ -185,7 +201,7 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
 
   const isUser = props.mode === 'user';
   const editTarget = isUser ? undefined : props.editTarget;
-  const existingUserConfig = isUser ? (props as { mode: 'user'; userConfig?: import('@zenith/shared').UserAiConfig | null }).userConfig : null;
+  const existingUserConfig = isUser ? (props as { mode: 'user'; userConfig?: UserAiConfig | null }).userConfig ?? null : null;
   const isEditing = isUser ? !!existingUserConfig : !!editTarget;
   let title = '新增服务商';
   if (isUser) title = '我的 AI 配置';

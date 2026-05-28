@@ -1,0 +1,1 @@
+ALTER TABLE "user_ai_configs" DROP CONSTRAINT "user_ai_configs_user_id_unique";
