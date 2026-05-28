@@ -76,6 +76,9 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
               baseUrl: uc.baseUrl ?? '',
               apiKey: uc.apiKey ?? '',
               model: uc.model ?? '',
+              temperature: uc.temperature ?? '0.7',
+              maxTokens: uc.maxTokens ?? 4096,
+              systemPrompt: uc.systemPrompt ?? null,
               isEnabled: uc.isEnabled,
             }
           : SYSTEM_DEFAULTS,
@@ -140,6 +143,9 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
           baseUrl: values.baseUrl || null,
           apiKey: values.apiKey || null,
           model: values.model || null,
+          temperature: values.temperature || null,
+          maxTokens: values.maxTokens || null,
+          systemPrompt: values.systemPrompt || null,
           isEnabled: values.isEnabled,
         });
         if (res.data) {
@@ -179,7 +185,7 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
       onCancel={onClose}
       onOk={() => void handleOk()}
       okButtonProps={{ loading: submitLoading, disabled: detailLoading }}
-      width={isUser ? 600 : 720}
+      width={720}
       destroyOnClose
     >
       {detailLoading ? (
@@ -197,7 +203,15 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
           }}
         >
           {/* 系统模式：名称 + 供应商类型 */}
-          {!isUser && (
+          {isUser ? (
+            <Form.Select
+              field="provider"
+              label="供应商类型"
+              optionList={PROVIDER_OPTIONS}
+              style={{ width: '100%' }}
+              rules={[{ required: true, message: '请选择供应商类型' }]}
+            />
+          ) : (
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Input
@@ -216,16 +230,6 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
               </Col>
             </Row>
           )}
-          {/* 用户模式：供应商类型全宽 */}
-          {isUser && (
-            <Form.Select
-              field="provider"
-              label="供应商类型"
-              optionList={PROVIDER_OPTIONS}
-              style={{ width: '100%' }}
-              rules={[{ required: true, message: '请选择供应商类型' }]}
-            />
-          )}
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input
@@ -239,7 +243,7 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
               <Form.Input
                 field="apiKey"
                 label="API Key"
-                rules={!isUser && !editTarget ? [{ required: true, message: '请输入 API Key' }] : undefined}
+                rules={isUser || editTarget ? undefined : [{ required: true, message: '请输入 API Key' }]}
                 mode="password"
                 placeholder={editTarget ?? isUser ? '留空保留原值' : ''}
               />
@@ -255,39 +259,34 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
               />
             </Col>
             <Col span={12}>
+              <Form.Input field="temperature" label="温度" placeholder="0.7" />
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.InputNumber field="maxTokens" label="最大 Token" min={1} max={128000} />
+            </Col>
+            <Col span={12}>
               {isUser ? (
                 <Form.Switch field="isEnabled" label="启用配置" />
               ) : (
-                <Form.Input field="temperature" label="温度" placeholder="0.7" />
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Switch field="isDefault" label="默认" />
+                  </Col>
+                  <Col span={12}>
+                    <Form.Switch field="isEnabled" label="启用" />
+                  </Col>
+                </Row>
               )}
             </Col>
           </Row>
-          {/* 系统模式专属字段 */}
-          {!isUser && (
-            <>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.InputNumber field="maxTokens" label="最大 Token" min={1} max={128000} />
-                </Col>
-                <Col span={12}>
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Form.Switch field="isDefault" label="默认" />
-                    </Col>
-                    <Col span={12}>
-                      <Form.Switch field="isEnabled" label="启用" />
-                    </Col>
-                  </Row>
-                </Col>
-              </Row>
-              <Form.TextArea
-                field="systemPrompt"
-                label="系统提示词"
-                rows={3}
-                placeholder="可选，为空则使用默认提示词"
-              />
-            </>
-          )}
+          <Form.TextArea
+            field="systemPrompt"
+            label="系统提示词"
+            rows={3}
+            placeholder="可选，为空则使用默认提示词"
+          />
         </Form>
       )}
     </Modal>

@@ -15,6 +15,9 @@ function mapRow(row: typeof userAiConfigs.$inferSelect) {
     baseUrl: row.baseUrl,
     apiKey: row.apiKey ? `${row.apiKey.slice(0, 4)}...${row.apiKey.slice(-4)}` : null,
     model: row.model,
+    temperature: row.temperature,
+    maxTokens: row.maxTokens,
+    systemPrompt: row.systemPrompt,
     isEnabled: row.isEnabled,
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
@@ -46,6 +49,9 @@ export async function saveUserAiConfig(input: SaveUserAiConfigInput) {
         ...(input.baseUrl !== undefined && { baseUrl: input.baseUrl }),
         apiKey,
         ...(input.model !== undefined && { model: input.model }),
+        ...(input.temperature !== undefined && { temperature: input.temperature }),
+        ...(input.maxTokens !== undefined && { maxTokens: input.maxTokens }),
+        ...(input.systemPrompt !== undefined && { systemPrompt: input.systemPrompt }),
         ...(input.isEnabled !== undefined && { isEnabled: input.isEnabled }),
       })
       .where(eq(userAiConfigs.userId, user.userId))
@@ -60,6 +66,9 @@ export async function saveUserAiConfig(input: SaveUserAiConfigInput) {
         baseUrl: input.baseUrl ?? null,
         apiKey,
         model: input.model ?? null,
+        temperature: input.temperature ?? null,
+        maxTokens: input.maxTokens ?? null,
+        systemPrompt: input.systemPrompt ?? null,
         isEnabled: input.isEnabled ?? true,
       })
       .returning();

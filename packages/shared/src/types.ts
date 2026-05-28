@@ -1534,6 +1534,9 @@ export interface UserAiConfig {
   baseUrl: string | null;
   apiKey: string | null;
   model: string | null;
+  temperature: string | null;
+  maxTokens: number | null;
+  systemPrompt: string | null;
   isEnabled: boolean;
   createdAt: string;
   updatedAt: string;

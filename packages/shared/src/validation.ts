@@ -922,6 +922,9 @@ export const saveUserAiConfigSchema = z.object({
   baseUrl: z.url('请输入有效的 URL').max(500).nullable().optional(),
   apiKey: z.string().max(1000).nullable().optional(),
   model: z.string().max(100).nullable().optional(),
+  temperature: z.string().max(10).nullable().optional(),
+  maxTokens: z.number().int().min(1).max(128000).nullable().optional(),
+  systemPrompt: z.string().max(5000).nullable().optional(),
   isEnabled: z.boolean().optional(),
 });
 

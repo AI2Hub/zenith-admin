@@ -3,7 +3,6 @@ import { Button, Collapse, SideSheet, Space, Spin, Tag, Typography } from '@douy
 import { Edit2, Plus } from 'lucide-react';
 import type { AiProvider, AiProviderConfig, UserAiConfig } from '@zenith/shared';
 import { request } from '@/utils/request';
-import { usePermission } from '@/hooks/usePermission';
 import AiProviderFormModal from './AiProviderFormModal';
 
 const { Text } = Typography;
@@ -29,13 +28,10 @@ interface GroupedItem {
 }
 
 export default function UserAiConfigModal({ visible, onClose, onSaved }: UserAiConfigModalProps) {
-  const { hasPermission } = usePermission();
   const [loading, setLoading] = useState(false);
   const [systemConfigs, setSystemConfigs] = useState<AiProviderConfig[]>([]);
   const [userConfig, setUserConfig] = useState<UserAiConfig | null>(null);
   const [formVisible, setFormVisible] = useState(false);
-  const [formMode, setFormMode] = useState<'system' | 'user'>('user');
-  const [editSystemTarget, setEditSystemTarget] = useState<AiProviderConfig | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -69,14 +65,6 @@ export default function UserAiConfigModal({ visible, onClose, onSaved }: UserAiC
   const activeProviders = PROVIDERS_ORDER.filter((p) => grouped[p].length > 0);
 
   const openUserForm = () => {
-    setFormMode('user');
-    setEditSystemTarget(null);
-    setFormVisible(true);
-  };
-
-  const openSystemForm = (target?: AiProviderConfig) => {
-    setFormMode('system');
-    setEditSystemTarget(target ?? null);
     setFormVisible(true);
   };
 
@@ -105,11 +93,6 @@ export default function UserAiConfigModal({ visible, onClose, onSaved }: UserAiC
               >
                 {userConfig ? '编辑我的配置' : '新增我的配置'}
               </Button>
-              {hasPermission('ai:provider:create') && (
-                <Button size="small" icon={<Plus size={13} />} onClick={() => openSystemForm()}>
-                  新增系统配置
-                </Button>
-              )}
             </div>
 
             {activeProviders.length === 0 ? (
@@ -135,8 +118,6 @@ export default function UserAiConfigModal({ visible, onClose, onSaved }: UserAiC
                           <SystemConfigCard
                             key={`sys-${(config as AiProviderConfig).id}`}
                             config={config as AiProviderConfig}
-                            canEdit={hasPermission('ai:provider:edit')}
-                            onEdit={() => openSystemForm(config as AiProviderConfig)}
                           />
                         ) : (
                           <UserConfigCard
@@ -155,31 +136,18 @@ export default function UserAiConfigModal({ visible, onClose, onSaved }: UserAiC
         )}
       </SideSheet>
 
-      {/* 复用 AiProviderFormModal 处理用户配置和系统配置的新增/编辑 */}
-      {formMode === 'user' ? (
-        <AiProviderFormModal
-          mode="user"
-          visible={formVisible}
-          onClose={() => setFormVisible(false)}
-          userConfig={userConfig}
-          onSaved={(savedCfg) => {
-            setUserConfig(savedCfg);
-            setFormVisible(false);
-            onSaved(savedCfg);
-          }}
-        />
-      ) : (
-        <AiProviderFormModal
-          mode="system"
-          visible={formVisible}
-          onClose={() => setFormVisible(false)}
-          editTarget={editSystemTarget}
-          onSaved={() => {
-            setFormVisible(false);
-            void loadData();
-          }}
-        />
-      )}
+      {/* 用户配置表单 */}
+      <AiProviderFormModal
+        mode="user"
+        visible={formVisible}
+        onClose={() => setFormVisible(false)}
+        userConfig={userConfig}
+        onSaved={(savedCfg) => {
+          setUserConfig(savedCfg);
+          setFormVisible(false);
+          onSaved(savedCfg);
+        }}
+      />
     </>
   );
 }
@@ -188,41 +156,28 @@ export default function UserAiConfigModal({ visible, onClose, onSaved }: UserAiC
 
 interface SystemConfigCardProps {
   readonly config: AiProviderConfig;
-  readonly canEdit: boolean;
-  readonly onEdit: () => void;
 }
 
-function SystemConfigCard({ config, canEdit, onEdit }: SystemConfigCardProps) {
+function SystemConfigCard({ config }: SystemConfigCardProps) {
   return (
     <div
       style={{
         border: '1px solid var(--semi-color-border)',
         borderRadius: 6,
         padding: '10px 12px',
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'space-between',
-        gap: 8,
       }}
     >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
-          <Tag color="blue" size="small">系统</Tag>
-          <Text strong style={{ fontSize: 13 }}>{config.name}</Text>
-          {config.isDefault && <Tag color="cyan" size="small">默认</Tag>}
-          <Tag color={config.isEnabled ? 'green' : 'grey'} size="small">
-            {config.isEnabled ? '启用' : '禁用'}
-          </Tag>
-        </div>
-        <Text type="tertiary" style={{ fontSize: 12 }}>
-          {config.model} · {config.baseUrl}
-        </Text>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+        <Tag color="blue" size="small">系统</Tag>
+        <Text strong style={{ fontSize: 13 }}>{config.name}</Text>
+        {config.isDefault && <Tag color="cyan" size="small">默认</Tag>}
+        <Tag color={config.isEnabled ? 'green' : 'grey'} size="small">
+          {config.isEnabled ? '启用' : '禁用'}
+        </Tag>
       </div>
-      {canEdit && (
-        <Button theme="borderless" size="small" onClick={onEdit}>
-          编辑
-        </Button>
-      )}
+      <Text type="tertiary" style={{ fontSize: 12 }}>
+        {config.model} · {config.baseUrl}
+      </Text>
     </div>
   );
 }

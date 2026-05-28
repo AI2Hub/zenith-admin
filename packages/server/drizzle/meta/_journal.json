@@ -512,6 +512,13 @@
       "when": 1779896196416,
       "tag": "0072_illegal_reptil",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1779975182728,
+      "tag": "0073_youthful_butterfly",
+      "breakpoints": true
     }
   ]
 }
