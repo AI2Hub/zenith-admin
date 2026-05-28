@@ -58,11 +58,8 @@ async function seed() {
 
 async function seedRest() {
   // ─── 2. 菜单数据（数据来源：@zenith/shared SEED_MENUS）─────────────────────
-  // 只插入数据库中不存在的种子菜单，不覆盖用户通过 UI 修改的数据
-  const existingMenuIds = new Set(
-    (await db.select({ id: menus.id }).from(menus)).map((r) => r.id),
-  );
-  const newMenuRows = SEED_MENUS.filter((row) => !existingMenuIds.has(row.id)).map((row) => ({
+  // onConflictDoNothing：只插入不存在的菜单，绝不覆盖用户通过 UI 修改的数据
+  const menuRows = SEED_MENUS.map((row) => ({
     id: row.id,
     parentId: row.parentId,
     title: row.title,
@@ -76,13 +73,9 @@ async function seedRest() {
     status: row.status,
     visible: row.visible,
   }));
-  if (newMenuRows.length > 0) {
-    await db.insert(menus).values(newMenuRows).onConflictDoNothing({ target: menus.id });
-    await db.execute(sql`SELECT setval('menus_id_seq', GREATEST((SELECT MAX(id) FROM menus), 1))`);
-    logger.info(`  ✔ Menus seeded — ${newMenuRows.length} new entries`);
-  } else {
-    logger.info('  ✔ Menus up-to-date (no new entries)');
-  }
+  await db.insert(menus).values(menuRows).onConflictDoNothing({ target: menus.id });
+  await db.execute(sql`SELECT setval('menus_id_seq', GREATEST((SELECT MAX(id) FROM menus), 1))`);
+  logger.info('  ✔ Menus seeded (onConflictDoNothing)');
 
   // ─── 3. 角色数据（数据来源：@zenith/shared SEED_ROLES）────────────────────
   const roleRows = SEED_ROLES.map(({ id, name, code, description, status, dataScope }) => ({ id, name, code, description, status, dataScope }));
