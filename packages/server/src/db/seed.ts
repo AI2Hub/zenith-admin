@@ -110,7 +110,11 @@ async function seedRest() {
   logger.info('  ✔ Role-menu bindings seeded');
 
   // ─── 4. 部门数据（数据来源：@zenith/shared SEED_DEPARTMENTS）──────────────
-  const departmentRows = SEED_DEPARTMENTS.map((row) => ({
+  // 只插入不存在的部门，不覆盖用户修改的数据
+  const existingDeptIds = new Set(
+    (await db.select({ id: departments.id }).from(departments)).map((r) => r.id),
+  );
+  const newDeptRows = SEED_DEPARTMENTS.filter((row) => !existingDeptIds.has(row.id)).map((row) => ({
     id: row.id,
     parentId: row.parentId,
     name: row.name,
@@ -120,26 +124,19 @@ async function seedRest() {
     sort: row.sort,
     status: row.status,
   }));
-  if (departmentRows.length > 0) {
-    await db.insert(departments).values(departmentRows).onConflictDoUpdate({
-      target: departments.id,
-      set: {
-        parentId: sql`excluded.parent_id`,
-        name:     sql`excluded.name`,
-        code:     sql`excluded.code`,
-        phone:    sql`excluded.phone`,
-        email:    sql`excluded.email`,
-        sort:     sql`excluded.sort`,
-        status:   sql`excluded.status`,
-        updatedAt: new Date(),
-      },
-    });
+  if (newDeptRows.length > 0) {
+    await db.insert(departments).values(newDeptRows).onConflictDoNothing({ target: departments.id });
+    logger.info(`  ✔ Departments seeded — ${newDeptRows.length} new entries`);
+  } else {
+    logger.info('  ✔ Departments up-to-date');
   }
-  await db.execute(sql`SELECT setval('departments_id_seq', GREATEST((SELECT MAX(id) FROM departments), 1))`);
-  logger.info('  ✔ Departments upserted');
 
   // ─── 5. 岗位数据（数据来源：@zenith/shared SEED_POSITIONS）────────────────
-  const positionRows = SEED_POSITIONS.map((row) => ({
+  // 只插入不存在的岗位，不覆盖用户修改的数据
+  const existingPositionIds = new Set(
+    (await db.select({ id: positions.id }).from(positions)).map((r) => r.id),
+  );
+  const newPositionRows = SEED_POSITIONS.filter((row) => !existingPositionIds.has(row.id)).map((row) => ({
     id: row.id,
     name: row.name,
     code: row.code,
@@ -147,33 +144,33 @@ async function seedRest() {
     status: row.status,
     remark: row.remark ?? null,
   }));
-  if (positionRows.length > 0) {
-    await db.insert(positions).values(positionRows).onConflictDoUpdate({
-      target: positions.id,
-      set: {
-        name:   sql`excluded.name`,
-        code:   sql`excluded.code`,
-        sort:   sql`excluded.sort`,
-        status: sql`excluded.status`,
-        remark: sql`excluded.remark`,
-        updatedAt: new Date(),
-      },
-    });
+  if (newPositionRows.length > 0) {
+    await db.insert(positions).values(newPositionRows).onConflictDoNothing({ target: positions.id });
+    logger.info(`  ✔ Positions seeded — ${newPositionRows.length} new entries`);
+  } else {
+    logger.info('  ✔ Positions up-to-date');
   }
-  await db.execute(sql`SELECT setval('positions_id_seq', GREATEST((SELECT MAX(id) FROM positions), 1))`);
-  logger.info('  ✔ Positions upserted');
 
   // 管理员账号绑定超级管理员角色
   const [adminUser] = await db.select({ id: users.id }).from(users)
     .where(and(eq(users.username, 'admin'), isNull(users.tenantId)))
     .limit(1);
   if (adminUser) {
-    await db.update(users).set({ departmentId: 1, updatedAt: new Date() }).where(eq(users.id, adminUser.id));
+    // 只在管理员尚未设置部门时才设置默认部门（1）
+    const [adminDetail] = await db.select({ departmentId: users.departmentId }).from(users).where(eq(users.id, adminUser.id)).limit(1);
+    if (adminDetail && adminDetail.departmentId === null) {
+      await db.update(users).set({ departmentId: 1, updatedAt: new Date() }).where(eq(users.id, adminUser.id));
+    }
     await db.insert(userRoles).values({ userId: adminUser.id, roleId: 1 }).onConflictDoNothing();
     await db.insert(userPositions).values({ userId: adminUser.id, positionId: 1 }).onConflictDoNothing();
-    // 将种子部门的负责人设置为超管
-    await db.update(departments).set({ leaderId: adminUser.id, updatedAt: new Date() })
-      .where(inArray(departments.id, SEED_DEPARTMENTS.map((d) => d.id)));
+    // 只在种子部门尚未设置负责人时才设置为超管
+    const seedDeptIds = SEED_DEPARTMENTS.map((d) => d.id);
+    const deptsNeedLeader = await db.select({ id: departments.id }).from(departments)
+      .where(and(inArray(departments.id, seedDeptIds), isNull(departments.leaderId)));
+    if (deptsNeedLeader.length > 0) {
+      await db.update(departments).set({ leaderId: adminUser.id, updatedAt: new Date() })
+        .where(inArray(departments.id, deptsNeedLeader.map((d) => d.id)));
+    }
     logger.info('  ✔ Admin user-role binding seeded');
   }
 
@@ -198,20 +195,20 @@ async function seedRest() {
   logger.info('  ✔ File storage configs seeded (onConflictDoNothing)');
 
   // ─── 7. 字典项数据（数据来源：@zenith/shared SEED_DICT_ITEMS）─────────────
-  // 使用 (dict_id, value) 唯一索引，通过 onConflictDoUpdate 保持幂等
-  const dictItemRows = SEED_DICT_ITEMS.map(({ dictId, label, value, color, sort, status }) => ({ dictId, label, value, color, sort, status }));
-  await db.insert(dictItems)
-    .values(dictItemRows)
-    .onConflictDoUpdate({
+  // 只插入不存在的字典项，不覆盖用户修改的数据
+  const existingDictItems = await db.select({ dictId: dictItems.dictId, value: dictItems.value }).from(dictItems);
+  const existingDictItemKeys = new Set(existingDictItems.map((r) => `${r.dictId}:${r.value}`));
+  const newDictItemRows = SEED_DICT_ITEMS
+    .filter(({ dictId, value }) => !existingDictItemKeys.has(`${dictId}:${value}`))
+    .map(({ dictId, label, value, color, sort, status }) => ({ dictId, label, value, color, sort, status }));
+  if (newDictItemRows.length > 0) {
+    await db.insert(dictItems).values(newDictItemRows).onConflictDoNothing({
       target: [dictItems.dictId, dictItems.value],
-      set: {
-        label: sql`excluded.label`,
-        color: sql`excluded.color`,
-        sort: sql`excluded.sort`,
-        updatedAt: new Date(),
-      },
     });
-  logger.info('  ✔ Dict items seeded (onConflictDoUpdate)');
+    logger.info(`  ✔ Dict items seeded — ${newDictItemRows.length} new entries`);
+  } else {
+    logger.info('  ✔ Dict items up-to-date');
+  }
 
   // ─── 8. 系统配置种子数据（数据来源：@zenith/shared SEED_SYSTEM_CONFIGS）────
   // 注意：PostgreSQL 唯一约束中 NULL != NULL，因此 (NULL, key) 无法触发冲突。
