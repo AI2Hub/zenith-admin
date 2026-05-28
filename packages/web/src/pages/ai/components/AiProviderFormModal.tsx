@@ -62,7 +62,7 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [formKey, setFormKey] = useState(0);
   const [initValues, setInitValues] = useState<FormValues>(SYSTEM_DEFAULTS);
-  const formApiRef = useRef<{ getValues: () => FormValues } | null>(null);
+  const formApiRef = useRef<{ getValues: () => FormValues; validate: () => Promise<FormValues> } | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -133,10 +133,16 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
   }, [visible]);
 
   const handleOk = async () => {
+    if (!formApiRef.current) return;
+    let values: FormValues;
+    try {
+      values = await formApiRef.current.validate();
+    } catch {
+      // validation failed, semi design will show field errors
+      return;
+    }
     setSubmitLoading(true);
     try {
-      const values = formApiRef.current?.getValues();
-      if (!values) return;
       if (props.mode === 'user') {
         const res = await request.put<UserAiConfig>('/api/ai/user-config', {
           provider: values.provider,
