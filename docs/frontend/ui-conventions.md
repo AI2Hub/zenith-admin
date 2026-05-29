@@ -26,6 +26,24 @@
 - "操作"列必须右侧固定：`fixed: 'right'`
 - "状态"列必须放在"操作"列左侧（紧靠操作列），并同样添加 `fixed: 'right'`
 
+### 表格公共列工具（`@/utils/table-columns`）
+
+```ts
+import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
+```
+
+- `createdAtColumn`：预置的"创建时间"列对象（`width: 180`，自动 `formatDateTime`），直接放入 `columns` 数组
+- `renderEllipsis`：用于文本溢出省略列的 `render` 函数，自动加 Tooltip、空值显示 `—`
+
+```ts
+const columns = [
+  { title: '描述', dataIndex: 'description', render: renderEllipsis },
+  createdAtColumn,
+];
+```
+
+禁止内联写 `<Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>`。
+
 ### 操作列按钮
 
 - 使用纯文字无图标按钮
