@@ -886,11 +886,9 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
         </button>
       </Dropdown>
       {(preferences.showFullscreen ?? true) && (
-        <Tooltip content={isFullscreen ? '退出全屏' : '全屏显示'} position="bottom">
-          <button className="admin-theme-btn" title={isFullscreen ? '退出全屏' : '全屏显示'} onClick={toggleFullscreen}>
-            {isFullscreen ? <Minimize2 size={16} strokeWidth={1.5} /> : <Maximize2 size={16} strokeWidth={1.5} />}
-          </button>
-        </Tooltip>
+        <button className="admin-theme-btn" title={isFullscreen ? '退出全屏' : '全屏显示'} onClick={toggleFullscreen}>
+          {isFullscreen ? <Minimize2 size={16} strokeWidth={1.5} /> : <Maximize2 size={16} strokeWidth={1.5} />}
+        </button>
       )}
       <div style={{ width: 1, height: 16, backgroundColor: 'var(--color-border)', margin: '0 4px' }} />
       <Dropdown
