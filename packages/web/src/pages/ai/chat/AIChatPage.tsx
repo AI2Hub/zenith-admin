@@ -9,7 +9,7 @@ import UserAiConfigModal from '../components/UserAiConfigModal';
 import { request } from '@/utils/request';
 import { TOKEN_KEY } from '@zenith/shared';
 import { config } from '@/config';
-import type { AiConversation, AiMessage, AiProviderConfig, UserAiConfig } from '@zenith/shared';
+import type { AiConversation, AiMessage, AiProviderConfig, UserAiConfig, SystemConfig } from '@zenith/shared';
 
 const { Configure } = AIChatInput;
 const { Title, Text } = Typography;
@@ -166,6 +166,7 @@ export default function AIChatPage() {
   const [modelOptions, setModelOptions] = useState<{ value: string; label: string; source: 'system' | 'user' }[]>(DEFAULT_MODEL_OPTIONS);
   const userConfigsRef = useRef<UserAiConfig[]>([]);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [allowUserCustomKey, setAllowUserCustomKey] = useState(false);
   const [align, setAlign] = useState<'leftRight' | 'leftAlign'>('leftRight');
   const [mode, setMode] = useState<'bubble' | 'noBubble' | 'userBubble'>('bubble');
   const configureValuesRef = React.useRef<Record<string, unknown>>({ model: '' });
@@ -174,6 +175,7 @@ export default function AIChatPage() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfFileUrl, setPdfFileUrl] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const providersRef = useRef<AiProviderConfig[]>([]);
 
   // Load AI provider configs + user configs as model options
   const loadModelOptions = useCallback((providers: AiProviderConfig[], userConfigs: UserAiConfig[]) => {
@@ -189,13 +191,22 @@ export default function AIChatPage() {
   }, [setConfigureValues]);
 
   useEffect(() => {
-    void Promise.all([
-      request.get<AiProviderConfig[]>('/api/ai/providers').then((r) => r.data ?? []),
-      request.get<UserAiConfig[]>('/api/ai/user-configs').then((r) => r.data ?? []).catch(() => []),
-    ]).then(([providers, userConfigs]) => {
+    void (async () => {
+      const [configsRes, providersRes] = await Promise.all([
+        request.get<{ list: SystemConfig[] }>('/api/system-configs?keys=ai_allow_user_custom_key').catch(() => null),
+        request.get<AiProviderConfig[]>('/api/ai/providers').catch(() => ({ data: [] as AiProviderConfig[] })),
+      ]);
+      const allowCustom = configsRes?.data?.list?.find((c) => c.configKey === 'ai_allow_user_custom_key')?.configValue === 'true';
+      setAllowUserCustomKey(allowCustom);
+      const providers = providersRes?.data ?? [];
+      providersRef.current = providers;
+      let userConfigs: UserAiConfig[] = [];
+      if (allowCustom) {
+        userConfigs = await request.get<UserAiConfig[]>('/api/ai/user-configs').then((r) => r.data ?? []).catch(() => []);
+      }
       userConfigsRef.current = userConfigs;
       loadModelOptions(providers, userConfigs);
-    }).catch(() => {});
+    })();
   }, [loadModelOptions]);
 
   // Load conversations on mount
@@ -576,14 +587,16 @@ export default function AIChatPage() {
                   <Radio value="leftRight"><AlignJustify size={12} /></Radio>
                   <Radio value="leftAlign"><AlignLeft size={12} /></Radio>
                 </RadioGroup>
-                <Tooltip content="我的 AI 配置">
-                  <Button
-                    theme="borderless"
-                    size="small"
-                    icon={<Settings size={14} />}
-                    onClick={() => setSettingsVisible(true)}
-                  />
-                </Tooltip>
+                {allowUserCustomKey && (
+                  <Tooltip content="我的 AI 配置">
+                    <Button
+                      theme="borderless"
+                      size="small"
+                      icon={<Settings size={14} />}
+                      onClick={() => setSettingsVisible(true)}
+                    />
+                  </Tooltip>
+                )}
               </div>
             </div>
 
@@ -686,20 +699,18 @@ export default function AIChatPage() {
         </div>
       )}
     />
-
-    <UserAiConfigModal
-      visible={settingsVisible}
-      onClose={() => setSettingsVisible(false)}
-      onSaved={() => {
-        void Promise.all([
-          request.get<AiProviderConfig[]>('/api/ai/providers').then((r) => r.data ?? []),
-          request.get<UserAiConfig[]>('/api/ai/user-configs').then((r) => r.data ?? []).catch(() => []),
-        ]).then(([providers, userConfigs]) => {
-          userConfigsRef.current = userConfigs;
-          loadModelOptions(providers, userConfigs);
-        }).catch(() => {});
-      }}
-    />
+    {allowUserCustomKey && (
+      <UserAiConfigModal
+        visible={settingsVisible}
+        onClose={() => setSettingsVisible(false)}
+        onSaved={() => {
+          void request.get<UserAiConfig[]>('/api/ai/user-configs').then((r) => {
+            userConfigsRef.current = r.data ?? [];
+            loadModelOptions(providersRef.current, r.data ?? []);
+          }).catch(() => {});
+        }}
+      />
+    )}
     </>
   );
 }
