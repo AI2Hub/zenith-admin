@@ -6,7 +6,7 @@
 
 ## 内置配置项参考
 
-以下是系统预置的 16 个配置项（由 `db:seed` 初始化，源文件：`packages/shared/src/seed-data.ts`）。
+以下是系统预置的 18 个配置项（由 `db:seed` 初始化，源文件：`packages/shared/src/seed-data.ts`）。
 
 ---
 
@@ -154,6 +154,26 @@
 
 ---
 
+### 功能开关
+
+#### `quick_chat_enabled`
+
+| 属性 | 值 |
+|------|----|
+| 类型 | `boolean` |
+| 默认值 | `false` |
+| 说明 | 是否显示快捷聊天悬浮按钮（全局开关）。关闭后，用户偏好设置中的相关选项也同步隐藏，所有用户均看不到该入口。 |
+
+#### `ai_allow_user_custom_key`
+
+| 属性 | 值 |
+|------|----|
+| 类型 | `boolean` |
+| 默认值 | `false` |
+| 说明 | 是否允许用户配置自己的 AI API Key。关闭时所有用户均使用系统默认 AI 服务商；开启后用户可在个人设置中填写自己的 Key，优先级高于系统配置。 |
+
+---
+
 ## 如何在代码中读取配置
 
 后端路由/服务层中通过项目封装的专用 helper 读取配置项，无需手写 Drizzle 查询：
@@ -186,7 +206,7 @@ const maxAttempts = await getConfigNumber('login_max_attempts', 10);
 1. 在 `packages/shared/src/seed-data.ts` 的 `SEED_SYSTEM_CONFIGS` 数组中追加记录：
 
 ```typescript
-{ id: 17, configKey: 'your_key', configValue: 'default', configType: 'string', description: '配置项说明', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+{ id: 19, configKey: 'your_key', configValue: 'default', configType: 'string', description: '配置项说明', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ```
 
 2. 在后端需要读取该配置的路由/中间件中调用 `getConfigValue('your_key')`。
