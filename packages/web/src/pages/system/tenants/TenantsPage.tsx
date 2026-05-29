@@ -7,7 +7,6 @@ import {
   Modal,
   Form,
   Toast,
-  Typography,
   Tag,
   Row,
   Col,
@@ -118,13 +117,13 @@ export default function TenantsPage() {
       title: '到期时间',
       dataIndex: 'expireAt',
       width: 180,
-      render: (v) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ? formatDateTime(v) : '永不过期'}</Typography.Text>,
+      render: (v) => renderEllipsis(v ? formatDateTime(v) : '永不过期'),
     },
     {
       title: '创建时间',
       dataIndex: 'createdAt',
       width: 180,
-      render: (v) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{formatDateTime(v)}</Typography.Text>,
+      render: (v) => renderEllipsis(formatDateTime(v)),
     },
     {
       title: '状态',
@@ -257,7 +256,7 @@ export default function TenantsPage() {
         onOk={handleModalOk}
         okButtonProps={{ disabled: modalDetailLoading }}
         width={660}
-       
+
       >
         <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
         <Form
