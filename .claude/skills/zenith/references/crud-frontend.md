@@ -323,9 +323,8 @@ export default function XxxPage() {
       {/* 新增/编辑弹窗（共用一个） */}
       {/*
         Modal 宽度规则：
-        - 字段较多（≥4 个字段，适合双列）→ width={660}
-        - 字段较少（1~3 个字段，单列即可）→ width={420}
-        bodyStyle={{ paddingBottom: 24 }} 所有弹窗必须加
+        - 有 3 对以上可并排的普通字段 → width={660}，双列布局
+        - 字段较少或含 TreeSelect/TextArea 等宽字段 → width 480-520，单列布局
       */}
       <Modal
         title={editingXxx ? '编辑XXX' : '新增XXX'}
