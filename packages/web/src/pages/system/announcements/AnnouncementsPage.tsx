@@ -460,7 +460,7 @@ export default function AnnouncementsPage() {
 
   const columns: ColumnProps<Announcement>[] = [
     { title: 'ID', dataIndex: 'id', width: 70 },
-    { title: '标题', dataIndex: 'title', width: 220, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
+    { title: '标题', dataIndex: 'title', width: 220, render: (v: string | null | undefined) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text> },
     {
       title: '类型',
       dataIndex: 'type',
