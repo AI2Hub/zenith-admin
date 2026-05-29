@@ -20,8 +20,8 @@ export function GroupGridAvatar({
     : [{ key: `placeholder-${name}`, avatar: null, char: '' }];
 
   const count = cells.length;
-  let cols = 3;
-  let rows = 3;
+  let cols: number;
+  let rows: number;
   if (count <= 1) {
     cols = 1;
     rows = 1;
@@ -34,6 +34,9 @@ export function GroupGridAvatar({
   } else if (count <= 6) {
     cols = 3;
     rows = 2;
+  } else {
+    cols = 3;
+    rows = 3;
   }
 
   const gap = 1;
@@ -83,9 +86,9 @@ export function GroupGridAvatar({
               alt={cell.char || '成员'}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
-          ) : (
-            cell.char ? cell.char.slice(0, 1).toUpperCase() : ''
-          )}
+          ) : cell.char ? (
+            cell.char.slice(0, 1).toUpperCase()
+          ) : null}
         </div>
       ))}
     </div>
