@@ -22,11 +22,11 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus, Trash2 } from 'lucide-react';
+import { Search, RotateCcw, Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { request } from '@/utils/request';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { formatDateTime } from '@/utils/date';
 import { useDictItems } from '@/hooks/useDictItems';
 import { usePermission } from '@/hooks/usePermission';
 import type { Xxx, PaginatedResponse } from '@zenith/shared';
@@ -297,6 +297,7 @@ export default function XxxPage() {
       {/* 数据表格 */}
       <ConfigurableTable
         bordered
+        className="admin-table-nowrap"
         columns={columns}
         dataSource={data?.list ?? []}
         loading={loading}
