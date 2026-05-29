@@ -89,7 +89,7 @@ export function PDFPreviewPanel({ file, onClose, style }: PDFPreviewPanelProps) 
       foreground: {
         primary:   text0,
         secondary: text1,
-        muted:     text2,
+        muted:     text1,
         disabled:  text2,
         onAccent:  '#fff',
       },
