@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  Card, Form, Button, Typography, Toast, Tag, Space, Spin,
+  Form, Button, Typography, Toast, Tag, Space, Spin,
   Modal, Cropper, Input, Tabs, DatePicker, List as SemiList,
 } from '@douyinfe/semi-ui';
 import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle } from 'lucide-react';
@@ -320,7 +320,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
 
   return (
     <div className="page-container">
-      <Card className="profile-content-card" bodyStyle={{ padding: 0 }}>
+      <div className="profile-content-card">
         <Tabs
           activeKey={activeSection}
           onChange={(v) => setActiveSection(v as SectionKey)}
@@ -660,7 +660,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
             </Tabs.TabPane>
 
           </Tabs>
-          </Card>
+      </div>
 
       {/* ── 头像裁剪 Modal ──────────────────────────────────────────────────── */}
       <Modal
