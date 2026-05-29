@@ -406,7 +406,7 @@ export default function TagsPage() {
         okButtonProps={{ disabled: modalDetailLoading }}
         afterClose={() => { setColorValue(''); }}
         width={520}
-        bodyStyle={{ paddingBottom: 24 }}
+       
       >
         <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
         <Form

@@ -685,7 +685,6 @@ export default function UsersPage() {
         okButtonProps={{ disabled: modalDetailLoading }}
         width={660}
         closeOnEsc
-        bodyStyle={{ paddingBottom: 24 }}
       >
         <Form
           key={editingUser?.id ?? 'new-user'}
@@ -806,7 +805,6 @@ export default function UsersPage() {
         }}
         onOk={handlePasswordModalOk}
         width={420}
-        bodyStyle={{ paddingBottom: 24 }}
       >
         <Form
           key={passwordUser?.id ?? 'password-form'}

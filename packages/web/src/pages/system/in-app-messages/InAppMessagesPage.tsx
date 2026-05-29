@@ -211,7 +211,7 @@ export default function InAppMessagesPage() {
         scroll={{ x: 1400 }} />
 
       <Modal title="发送站内信" visible={sendVisible} onOk={handleSend}
-        onCancel={() => setSendVisible(false)} confirmLoading={submitting} width={720} bodyStyle={{ paddingBottom: 24 }}>
+        onCancel={() => setSendVisible(false)} confirmLoading={submitting} width={720}>
         <Form key="send" getFormApi={(api) => { (formRef as { current: FormApi }).current = api; }}
           allowEmpty labelPosition="left" labelWidth={120} initValues={{ type: 'info' }}>
           <Row gutter={16}>

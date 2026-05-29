@@ -335,7 +335,6 @@ export default function XxxPage() {
         okButtonProps={{ loading: submitting, disabled: modalDetailLoading }}
         width={660}
         closeOnEsc
-        bodyStyle={{ paddingBottom: 24 }}
       >
         <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
           <Form
@@ -413,7 +412,7 @@ export default function XxxPage() {
 - 有 **3 对及以上可并排的普通字段**（Input / Select / InputNumber 等）→ 使用双列布局，`width={660}`
 - 字段较少，或主要是 TreeSelect / TextArea 等不适合并排的字段 → 使用单列布局，`width` 在 420–520 之间酌情选取
 
-所有 Modal 必须加 `bodyStyle={{ paddingBottom: 24 }}`（防止末尾表单项截断）和 `closeOnEsc`。
+所有 Modal 必须加 `closeOnEsc`。
 
 **双列布局规则（用 `Row` + `Col`，来自 `@douyinfe/semi-ui`）：**
 

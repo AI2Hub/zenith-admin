@@ -171,7 +171,7 @@ export default function CategorySidebar({ categories, selectedId, onSelect, onCh
         confirmLoading={submitting}
         okText="保存"
         width={520}
-        bodyStyle={{ paddingBottom: 24 }}
+       
       >
         <Form
           key={editKey}

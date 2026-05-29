@@ -164,7 +164,7 @@ export default function SmsTemplatesPage() {
 
       <Modal title={editingRecord ? '编辑短信模板' : '新增短信模板'} visible={modalVisible}
         onOk={handleSubmit} onCancel={() => { setModalVisible(false); setEditingRecord(null); setModalDetailLoading(false); }}
-        confirmLoading={submitting} okButtonProps={{ disabled: modalDetailLoading }} width={720} bodyStyle={{ paddingBottom: 24 }}>
+        confirmLoading={submitting} okButtonProps={{ disabled: modalDetailLoading }} width={720}>
         <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
         <Form
           key={editingRecord?.id ?? 'new'}

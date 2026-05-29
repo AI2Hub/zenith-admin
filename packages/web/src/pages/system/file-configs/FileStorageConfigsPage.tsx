@@ -421,7 +421,7 @@ export default function FileStorageConfigsPage() {
         onOk={handleModalOk}
         okButtonProps={{ disabled: modalDetailLoading }}
         width={720}
-        bodyStyle={{ paddingBottom: 24 }}
+       
       >
         <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
         <Form

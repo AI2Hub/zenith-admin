@@ -350,7 +350,7 @@ export default function MenusPage() {
         onOk={handleMenuModalOk}
         okButtonProps={{ disabled: modalDetailLoading }}
         width={680}
-        bodyStyle={{ paddingBottom: 24 }}
+       
       >
         <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
         <Form

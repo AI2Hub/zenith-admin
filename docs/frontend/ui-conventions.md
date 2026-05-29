@@ -99,7 +99,7 @@ const columns = [
 
 ## 弹窗表单
 
-使用 Semi Design `Modal` + `Form` 组合处理新增/编辑弹窗。所有 `Modal` 必须加 `bodyStyle={{ paddingBottom: 24 }}` 和 `closeOnEsc`。
+使用 Semi Design `Modal` + `Form` 组合处理新增/编辑弹窗。所有 `Modal` 必须加 `closeOnEsc`。
 
 ### 布局选择原则
 

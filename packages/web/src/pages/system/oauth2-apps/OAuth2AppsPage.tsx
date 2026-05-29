@@ -344,7 +344,7 @@ export default function OAuth2AppsPage() {
         width={660}
         closeOnEsc
         maskClosable={false}
-        bodyStyle={{ paddingBottom: 24 }}
+       
       >
         <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
           <Form

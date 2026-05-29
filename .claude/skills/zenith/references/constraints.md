@@ -14,7 +14,7 @@
 
 - **状态列固定**：状态列必须紧靠操作列左侧，并同样设置 `fixed: 'right'`
 
-- **弹窗表单布局**：`Form` 必须加 `labelPosition="left"`；`labelWidth` 按标签字数选取（≤3字→ 72，4-5字→ 90，♥6字→ 110+）；有 3 对以上可并排的普通字段（Input / Select / InputNumber）时用双列布局（`Row gutter={16}` + `Col span={12}`， `Modal width={660}`），否则单列（`width` 480-520 酷情）； TreeSelect / TextArea 等宽字段不包 `Col` 直接全宽占一行；所有 `Modal` 必须加 `bodyStyle={{ paddingBottom: 24 }}` 和 `closeOnEsc`
+- **弹窗表单布局**：`Form` 必须加 `labelPosition="left"`；`labelWidth` 按标签字数选取（≤3字→ 72，4-5字→ 90，♥6字→ 110+）；有 3 对以上可并排的普通字段（Input / Select / InputNumber）时用双列布局（`Row gutter={16}` + `Col span={12}`，`Modal width={660}`），否则单列（`width` 480-520 酌情）；TreeSelect / TextArea 等宽字段不包 `Col` 直接全宽占一行；所有 `Modal` 必须加 `closeOnEsc`
 
 - **树形表格展开控制**：使用 `children` 字段渲染树形表格时，必须在搜索栏添加「全部展开/全部折叠」按钮，使用受控 `expandedRowKeys` + `onExpandedRowsChange`；图标：已展开用 `ChevronsDownUp`，未展开用 `ChevronsUpDown`
 

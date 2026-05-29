@@ -398,7 +398,7 @@ export default function RolesPage() {
         onCancel={() => setModalVisible(false)}
         onOk={handleRoleModalOk}
         width={480}
-        bodyStyle={{ paddingBottom: 24 }}
+       
       >
         <Form
           getFormApi={(api) => formApi.current = api}
@@ -433,7 +433,7 @@ export default function RolesPage() {
         onCancel={() => setMenuModalVisible(false)}
         onOk={handleAssignMenus}
         width={480}
-        bodyStyle={{ paddingBottom: 24 }}
+       
       >
         {menuLoading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
@@ -472,7 +472,7 @@ export default function RolesPage() {
         onCancel={() => setDataScopeModalVisible(false)}
         onOk={handleSaveDataScope}
         width={400}
-        bodyStyle={{ paddingBottom: 24 }}
+       
       >
         {dataScopeLoading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}><Spin /></div>
