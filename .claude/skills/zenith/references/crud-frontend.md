@@ -321,14 +321,21 @@ export default function XxxPage() {
       />
 
       {/* 新增/编辑弹窗（共用一个） */}
+      {/*
+        Modal 宽度规则：
+        - 字段较多（≥4 个字段，适合双列）→ width={660}
+        - 字段较少（1~3 个字段，单列即可）→ width={420}
+        bodyStyle={{ paddingBottom: 24 }} 所有弹窗必须加
+      */}
       <Modal
         title={editingXxx ? '编辑XXX' : '新增XXX'}
         visible={modalVisible}
         onOk={handleModalOk}
         onCancel={closeModal}
         okButtonProps={{ loading: submitting, disabled: modalDetailLoading }}
-        width={520}
-        maskClosable={false}
+        width={660}
+        closeOnEsc
+        bodyStyle={{ paddingBottom: 24 }}
       >
         <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
           <Form
@@ -339,28 +346,51 @@ export default function XxxPage() {
             allowEmpty
             initValues={formInitValues}
             labelPosition="left"
-            labelWidth={80}
+            labelWidth={90}  {/* 短标签（≤3字）用 72，长标签（4字+）用 90 */}
           >
-            <Form.Input
-              field="name"
-              label="名称"
-              placeholder="请输入名称"
-              rules={[{ required: true, message: '名称不能为空' }]}
+            {/* 全宽字段（跨两列，如树形选择、长文本）：直接写，不包裹 Col */}
+            <Form.TreeSelect
+              field="parentId"
+              label="上级"
+              style={{ width: '100%' }}
+              treeData={[]}
+              placeholder="请选择上级"
+              filterTreeNode
+              showClear
             />
-            <Form.TextArea
-              field="description"
-              label="描述"
-              placeholder="请输入描述（可选）"
-            />
-            <Form.Select
-              field="status"
-              label="状态"
-              optionList={statusItems.map((i) => ({
-                value: i.value,
-                label: i.label,
-              }))}
-              rules={[{ required: true, message: '请选择状态' }]}
-            />
+            {/* 双列布局：Row gutter={16} + Col span={12}，每行放 2 个字段 */}
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input
+                  field="name"
+                  label="名称"
+                  placeholder="请输入名称"
+                  rules={[{ required: true, message: '名称不能为空' }]}
+                />
+              </Col>
+              <Col span={12}>
+                <Form.Input
+                  field="code"
+                  label="编码"
+                  placeholder="请输入编码"
+                />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Select
+                  field="status"
+                  label="状态"
+                  style={{ width: '100%' }}
+                  optionList={statusItems.map((i) => ({
+                    value: i.value,
+                    label: i.label,
+                  }))}
+                  rules={[{ required: true, message: '请选择状态' }]}
+                />
+              </Col>
+              {/* 奇数个字段时，最后一个 Col span={12} 单独占左半列 */}
+            </Row>
             {/* 如需关联选择，在此添加 Form.Select 多选等 */}
           </Form>
         </Spin>
@@ -373,6 +403,49 @@ export default function XxxPage() {
 ---
 
 ## 关键规范说明
+
+### 弹窗表单布局规范
+
+**必须在 Form 中加 `labelPosition="left"` 以实现 label 与输入框同行。**
+
+| 场景 | Modal width | Form labelWidth |
+|------|-------------|----------------|
+| 字段较多（≥4 个，双列） | `660` | `72`（短标签）或 `90`（长标签） |
+| 字段较少（≤3 个，单列） | `420` | `72` 或 `90` |
+
+所有 Modal 必须加 `bodyStyle={{ paddingBottom: 24 }}`（防止末尾表单项截断）和 `closeOnEsc`。
+
+**双列布局规则（用 `Row` + `Col`，来自 `@douyinfe/semi-ui`）：**
+
+```tsx
+import { Row, Col } from '@douyinfe/semi-ui';
+
+// 每行两个字段：Row gutter={16} + Col span={12}
+<Row gutter={16}>
+  <Col span={12}>
+    <Form.Input field="name" label="名称" ... />
+  </Col>
+  <Col span={12}>
+    <Form.Input field="code" label="编码" ... />
+  </Col>
+</Row>
+
+// 全宽字段（树形选择、长文本、多行输入等）：不包 Col，直接写
+<Form.TreeSelect field="parentId" label="上级" style={{ width: '100%' }} ... />
+
+// 奇数个字段时最后一个单独占左半列（不强制凑满一行）
+<Row gutter={16}>
+  <Col span={12}>
+    <Form.Select field="status" label="状态" style={{ width: '100%' }} ... />
+  </Col>
+</Row>
+```
+
+**labelWidth 选取原则：**
+
+- 标签文字 ≤3 字（名称、状态、邮箱）→ `labelWidth={72}`
+- 标签文字 ≥4 字（部门名称、联系电话、上级部门）→ `labelWidth={90}`
+- 同一个 Form 内保持统一
 
 ### 状态字段显示
 
