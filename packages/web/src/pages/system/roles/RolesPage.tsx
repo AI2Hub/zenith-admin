@@ -256,8 +256,8 @@ export default function RolesPage() {
   };
 
   const columns: ColumnProps<Role>[] = [
-    { title: '角色名称', dataIndex: 'name', width: 160, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
-    { title: '角色编码', dataIndex: 'code', width: 160, render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
+    { title: '角色名称', dataIndex: 'name', width: 160, render: (v: string | null | undefined) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text> },
+    { title: '角色编码', dataIndex: 'code', width: 160, render: (v: string | null | undefined) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text> },
     { title: '描述', dataIndex: 'description', width: 200, render: (_v, record) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{record.description}</Typography.Text> },
     {
       title: '数据权限',
@@ -541,7 +541,7 @@ export default function RolesPage() {
                   </Space>
                 ),
               },
-              { title: '邮箱', dataIndex: 'email', render: (v: unknown) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v != null ? String(v) : '—'}</Typography.Text> },
+              { title: '邮箱', dataIndex: 'email', render: (v: string | null | undefined) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v ?? '—'}</Typography.Text> },
             ]}
           />
         )}
