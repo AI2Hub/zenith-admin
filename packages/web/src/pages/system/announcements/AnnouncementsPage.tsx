@@ -16,7 +16,6 @@ import {
   Radio,
   Tabs,
   TabPane,
-  Avatar,
   Progress,
   Typography,
 } from '@douyinfe/semi-ui';
@@ -25,6 +24,7 @@ import { Search, Plus, RotateCcw, Download, Trash2 } from 'lucide-react';
 import type { Announcement, AnnouncementRecipient, AnnouncementTargetType, PaginatedResponse, User, Role, Department, AnnouncementReadStats } from '@zenith/shared';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { request } from '@/utils/request';
+import { UserAvatar } from '@/components/UserAvatar';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
@@ -365,9 +365,7 @@ export default function AnnouncementsPage() {
         dataIndex: 'username',
         render: (_: unknown, u: AnnouncementReadStats['list'][number]) => (
           <Space>
-            <Avatar size="extra-extra-small" alt={u.nickname?.[0] ?? 'U'} src={u.avatar ?? undefined} style={{ backgroundColor: u.avatar ? undefined : 'var(--semi-color-primary)', color: '#fff' }}>
-              {u.nickname?.[0] ?? 'U'}
-            </Avatar>
+            <UserAvatar name={u.nickname ?? 'U'} avatar={u.avatar} semiSize="extra-extra-small" size={20} />
             <span>
               {u.nickname}
               <Typography.Text type="tertiary" size="small" style={{ marginLeft: 4 }}>({u.username})</Typography.Text>

@@ -1,4 +1,5 @@
-import { Avatar, Tag, Timeline, Typography, Toast } from '@douyinfe/semi-ui';
+import { Tag, Timeline, Typography, Toast } from '@douyinfe/semi-ui';
+import { UserAvatar } from '@/components/UserAvatar';
 import { CheckCircle2, Clock, CornerUpLeft, Mail, RotateCcw, XCircle, ExternalLink, Copy, Forward, UserCog } from 'lucide-react';
 import type { WorkflowTask } from '@zenith/shared';
 import { formatDateTime } from '@/utils/date';
@@ -106,21 +107,13 @@ export default function ApprovalTimeline({ tasks }: Readonly<{ tasks: WorkflowTa
 
             {/* 审批人 + 时间 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: task.comment ? 6 : 0 }}>
-              {(() => {
-                let avatarBg: string | undefined;
-                if (isSkipped) avatarBg = 'var(--semi-color-fill-2)';
-                else if (!task.assigneeAvatar) avatarBg = 'var(--semi-color-primary)';
-                return (
-                  <Avatar
-                    size="extra-extra-small"
-                    alt={task.assigneeName ?? '成员'}
-                    style={{ backgroundColor: avatarBg, color: '#fff', flexShrink: 0 }}
-                    src={task.assigneeAvatar ?? undefined}
-                  >
-                    {(task.assigneeName ?? '?').charAt(0)}
-                  </Avatar>
-                );
-              })()}
+                <UserAvatar
+                  name={task.assigneeName ?? '?'}
+                  avatar={isSkipped ? null : task.assigneeAvatar}
+                  semiSize="extra-extra-small"
+                  size={20}
+                  style={isSkipped ? { backgroundColor: 'var(--semi-color-fill-2)', color: 'var(--semi-color-text-2)' } : undefined}
+                />
               <Typography.Text size="small" type="tertiary">
                 {task.assigneeName ?? '未指定'}
               </Typography.Text>

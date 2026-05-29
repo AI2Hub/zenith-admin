@@ -1,14 +1,7 @@
-import { Avatar } from '@douyinfe/semi-ui';
-import { getAvatarColor } from '../utils';
+// UserAvatar 已提升为全局公共组件，从这里 re-export 保持聊天页导入路径不变
+export { UserAvatar } from '@/components/UserAvatar';
 
-export function UserAvatar({ name, avatar, size = 36 }: Readonly<{ name: string; avatar?: string | null; size?: number }>) {
-  if (avatar) return <Avatar src={avatar} alt={name} size="small" style={{ width: size, height: size, flexShrink: 0 }} />;
-  return (
-    <Avatar size="small" alt={name} style={{ width: size, height: size, flexShrink: 0, backgroundColor: getAvatarColor(name) }}>
-      {name.slice(0, 1).toUpperCase()}
-    </Avatar>
-  );
-}
+import { getAvatarColor } from '../utils';
 
 export function GroupGridAvatar({
   name,

@@ -8,7 +8,6 @@ import {
   Modal,
   Form,
   Toast,
-  Avatar,
   Tag,
   DatePicker,
   Upload,
@@ -24,6 +23,7 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Plus, RotateCcw, Download, Trash2, FileUp, ChevronsUpDown, ChevronsDownUp, MoreHorizontal } from 'lucide-react';
 import type { User, Role, PaginatedResponse, Department, Position } from '@zenith/shared';
 import { request } from '@/utils/request';
+import { UserAvatar } from '@/components/UserAvatar';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { formatPasswordPolicyHint, type PasswordPolicy } from '@/utils/password-policy';
 import DictTag from '@/components/DictTag';
@@ -392,9 +392,7 @@ export default function UsersPage() {
       ellipsis: { showTitle: false },
       render: (_: unknown, record: User) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <Avatar size="extra-small" alt={record.nickname || record.username} style={{ backgroundColor: record.avatar ? undefined : 'var(--semi-color-primary)', color: '#fff', fontSize: 11 }} src={record.avatar || undefined}>
-            {record.nickname?.charAt(0)?.toUpperCase() || 'U'}
-          </Avatar>
+          <UserAvatar name={record.nickname || record.username} avatar={record.avatar} semiSize="extra-small" size={24} />
           <span className="table-cell-ellipsis" title={`${record.nickname}（${record.username}）`}>
             {record.nickname}（{record.username}）
           </span>

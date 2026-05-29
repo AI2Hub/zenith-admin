@@ -243,7 +243,7 @@ export default function FilesPage() {
   const [batchDeleteLoading, setBatchDeleteLoading] = useState(false);
   const [batchDownloadLoading, setBatchDownloadLoading] = useState(false);
   const [detailFile, setDetailFile] = useState<ManagedFile | null>(null);
-  const [modalDetailLoading, setModalDetailLoading] = useState(false);
+
   const viewMode = preferences.filesViewMode ?? 'list';
 
   const toggleViewMode = (mode: 'list' | 'grid') => {
@@ -277,9 +277,7 @@ export default function FilesPage() {
 
   const handleOpenDetail = async (file: ManagedFile) => {
     setDetailFile(file);
-    setModalDetailLoading(true);
     const res = await request.get<ManagedFile>(`/api/files/${file.id}`);
-    setModalDetailLoading(false);
     if (res.code === 0 && res.data) {
       setDetailFile(res.data);
     } else {
@@ -866,7 +864,7 @@ export default function FilesPage() {
       <Modal
         title="文件详情"
         visible={!!detailFile}
-        onCancel={() => { setDetailFile(null); setModalDetailLoading(false); }}
+        onCancel={() => { setDetailFile(null); }}
         footer={
           <Space>
             <Button onClick={() => detailFile && handleCopyUrl(detailFile)}>复制链接</Button>

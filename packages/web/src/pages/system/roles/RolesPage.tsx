@@ -13,13 +13,13 @@ import {
   TreeSelect,
   Typography,
   Spin,
-  Avatar,
   DatePicker,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Plus, RotateCcw, Download, MoreHorizontal } from 'lucide-react';
 import type { Role, Menu, User, Department, PaginatedResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
+import { UserAvatar } from '@/components/UserAvatar';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
@@ -534,9 +534,7 @@ export default function RolesPage() {
                 title: '用户',
                 render: (_: unknown, u: User) => (
                   <Space>
-                    <Avatar size="extra-small" alt={u.nickname?.charAt(0)?.toUpperCase() || 'U'} style={{ backgroundColor: u.avatar ? undefined : 'var(--semi-color-primary)', color: '#fff', fontSize: 11 }} src={u.avatar || undefined}>
-                      {u.nickname?.charAt(0)?.toUpperCase() || 'U'}
-                    </Avatar>
+                    <UserAvatar name={u.nickname || u.username} avatar={u.avatar} semiSize="extra-small" size={24} />
                     <span>{u.nickname}（{u.username}）</span>
                   </Space>
                 ),

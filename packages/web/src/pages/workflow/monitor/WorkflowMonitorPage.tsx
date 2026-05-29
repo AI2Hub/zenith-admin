@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Avatar,
   Button,
   Card,
   Input,
@@ -15,6 +14,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RotateCcw, Search } from 'lucide-react';
 import type { WorkflowCategory, WorkflowDefinition, WorkflowInstance } from '@zenith/shared';
 import { request } from '@/utils/request';
+import { UserAvatar } from '@/components/UserAvatar';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -202,9 +202,7 @@ export default function WorkflowMonitorPage() {
       width: 120,
       render: (v: string | null, record: WorkflowInstance) => (
         <Space spacing={6}>
-          <Avatar size="extra-extra-small" alt={v ?? '发起人'} src={record.initiatorAvatar ?? undefined} style={{ backgroundColor: record.initiatorAvatar ? undefined : 'var(--semi-color-primary)', color: '#fff' }}>
-            {(v ?? '?').charAt(0)}
-          </Avatar>
+          <UserAvatar name={v ?? '?'} avatar={record.initiatorAvatar} semiSize="extra-extra-small" size={20} />
           <span>{v ?? '—'}</span>
         </Space>
       ),

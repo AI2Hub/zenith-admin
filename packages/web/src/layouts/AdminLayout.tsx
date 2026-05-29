@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { RouteErrorBoundary } from '@/components/PageErrorBoundary';
-import { Avatar, Badge, Breadcrumb, Button, ColorPicker, Dropdown, Empty, List, Notification, Popover, Select, Tooltip, Modal, Nav, Typography, SideSheet, Switch, InputNumber, RadioGroup, Radio, Toast } from '@douyinfe/semi-ui';
+import { UserAvatar } from '@/components/UserAvatar';
+import { Badge, Breadcrumb, Button, ColorPicker, Dropdown, Empty, List, Notification, Popover, Select, Tooltip, Modal, Nav, Typography, SideSheet, Switch, InputNumber, RadioGroup, Radio, Toast } from '@douyinfe/semi-ui';
 import { Bell, Building2, Check, Maximize2, Minimize2, Megaphone, Sun, Moon, Monitor, User as UserIcon, Settings, LogOut, X, Palette, Pin } from 'lucide-react';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
 import type { User, Menu, InAppMessage, Announcement, Tenant, WsMessage, SystemConfig } from '@zenith/shared';
@@ -924,9 +925,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
         }
       >
         <div className="admin-header__user">
-          <Avatar size="small" alt={user.nickname || '用户'} style={{ backgroundColor: user.avatar ? undefined : 'var(--semi-color-primary)', color: '#fff', fontSize: 12, flexShrink: 0 }} src={user.avatar || undefined}>
-            {!user.avatar && (user.nickname?.charAt(0)?.toUpperCase() || 'U')}
-          </Avatar>
+          <UserAvatar name={user.nickname || '用户'} avatar={user.avatar} semiSize="small" size={24} style={{ fontSize: 12 }} />
           <span className="admin-header__username">{user.nickname}</span>
         </div>
       </Dropdown>
