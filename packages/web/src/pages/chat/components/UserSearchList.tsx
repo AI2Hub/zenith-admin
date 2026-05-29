@@ -18,7 +18,7 @@ export function UserSearchList({ onSelect, excludeIds }: Readonly<{ onSelect: (u
     const qs = kw ? `?keyword=${encodeURIComponent(kw)}` : '';
     const res = await request.get<ChatUser[]>(`/api/chat/users${qs}`, { silent: true });
     setLoading(false);
-    const excludeIdSet = new Set(excludeIdKey ? excludeIdKey.split(',').map((id) => Number(id)) : []);
+    const excludeIdSet = new Set(excludeIdKey ? excludeIdKey.split(',').map(Number) : []);
     if (res.code === 0 && res.data) setUlist(res.data.filter((u) => !excludeIdSet.has(u.id)));
   }, [excludeIdKey]);
 
