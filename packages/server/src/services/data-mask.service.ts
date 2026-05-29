@@ -124,7 +124,7 @@ export async function applyEntityMasking<T extends Record<string, unknown>>(
 
     const raw = result[rule.field];
     if (typeof raw !== 'string') continue;
-    result[rule.field] = applyMask(raw, rule.maskType as MaskType, rule.customRule as CustomMaskRule | null) as unknown;
+    (result as Record<string, unknown>)[rule.field] = applyMask(raw, rule.maskType as MaskType, rule.customRule as CustomMaskRule | null) as unknown;
   }
   return result;
 }

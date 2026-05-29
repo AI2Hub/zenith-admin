@@ -28,6 +28,7 @@
  */
 
 import crypto from 'node:crypto';
+import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import redis from '../lib/redis';
 import { config } from '../config';
@@ -65,7 +66,7 @@ export interface IdempotencyOptions {
  * 计算请求体的 SHA-256 指纹（hex 截断为 16 字符）。
  * 对空/无 body 的请求返回固定字符串 'nobody'。
  */
-async function hashBody(c: Parameters<typeof createMiddleware>[0] extends (c: infer C, ...args: unknown[]) => unknown ? C : never): Promise<string> {
+async function hashBody(c: Context): Promise<string> {
   try {
     // 克隆后读，避免消耗原始流导致后续 handler 取不到 body
     const cloned = c.req.raw.clone();
