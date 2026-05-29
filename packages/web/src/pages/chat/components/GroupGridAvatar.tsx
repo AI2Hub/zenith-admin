@@ -62,35 +62,43 @@ export function GroupGridAvatar({
         gap,
       }}
     >
-      {cells.map((cell, idx) => (
-        <div
-          key={cell.key}
-          style={{
-            width: cellSize,
-            height: cellSize,
-            borderRadius: 3,
-            background: cell.char ? getAvatarColor(`${name}-${idx}`) : 'var(--semi-color-fill-1)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontSize: Math.max(8, Math.floor(cellSize * 0.52)),
-            lineHeight: 1,
-            fontWeight: 600,
-            overflow: 'hidden',
-          }}
-        >
-          {cell.avatar ? (
+      {cells.map((cell, idx) => {
+        let cellContent: React.ReactNode;
+        if (cell.avatar) {
+          cellContent = (
             <img
               src={cell.avatar}
               alt={cell.char || '成员'}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
-          ) : cell.char ? (
-            cell.char.slice(0, 1).toUpperCase()
-          ) : null}
-        </div>
-      ))}
+          );
+        } else if (cell.char) {
+          cellContent = cell.char.slice(0, 1).toUpperCase();
+        } else {
+          cellContent = null;
+        }
+        return (
+          <div
+            key={cell.key}
+            style={{
+              width: cellSize,
+              height: cellSize,
+              borderRadius: 3,
+              background: cell.char ? getAvatarColor(`${name}-${idx}`) : 'var(--semi-color-fill-1)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              fontSize: Math.max(8, Math.floor(cellSize * 0.52)),
+              lineHeight: 1,
+              fontWeight: 600,
+              overflow: 'hidden',
+            }}
+          >
+            {cellContent}
+          </div>
+        );
+      })}
     </div>
   );
 }
