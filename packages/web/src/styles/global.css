@@ -108,13 +108,13 @@ body {
   font-weight: 500;
 }
 .semi-card {
-  border-radius: var(--radius);
+  border-radius: var(--semi-border-radius-medium);
   background: var(--semi-color-bg-1);
 }
 .semi-modal-content {
   background: var(--color-layout-bg);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--semi-border-radius-large);
 }
 .semi-modal-header,
 .semi-modal-body,
