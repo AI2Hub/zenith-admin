@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { PDFPreviewPanel } from '@/pages/ai/chat/PDFPreviewPanel';
 import {
   Button,
   Checkbox,
@@ -97,7 +98,7 @@ function FileGridCard({
   canDelete, previewLoading, downloadLoading,
 }: Readonly<FileGridCardProps>) {
   const isImage = file.mimeType?.startsWith('image/');
-  const isPreviewable = isImage || file.mimeType?.startsWith('video/');
+  const isPreviewable = isImage || file.mimeType?.startsWith('video/') || file.mimeType === 'application/pdf';
   const ext = file.originalName.includes('.') ? file.originalName.split('.').pop()?.toUpperCase() : '';
   return (
     <div className={`files-grid-card${selected ? ' files-grid-card--selected' : ''}`}>
@@ -225,6 +226,7 @@ export default function FilesPage() {
   const [previewSrcList, setPreviewSrcList] = useState<string[]>([]);
   const [previewCurrentIndex, setPreviewCurrentIndex] = useState(0);
   const [previewLoadingId, setPreviewLoadingId] = useState<number | null>(null);
+  const [pdfPreviewFile, setPdfPreviewFile] = useState<File | null>(null);
   const [downloadLoadingId, setDownloadLoadingId] = useState<number | null>(null);
   // previewBlobUrlsRef: index-aligned with image list, tracks created blob URLs for cleanup
   const previewBlobUrlsRef = useRef<string[]>([]);
@@ -389,6 +391,21 @@ export default function FilesPage() {
 
   const handlePreview = async (file: ManagedFile) => {
     const isImage = file.mimeType?.startsWith('image/');
+    const isPdf = file.mimeType === 'application/pdf';
+
+    if (isPdf) {
+      setPreviewLoadingId(file.id);
+      try {
+        const blob = await fetchProtectedFile(file.url);
+        const browserFile = new File([blob], file.originalName, { type: 'application/pdf' });
+        setPdfPreviewFile(browserFile);
+      } catch (error) {
+        Toast.error(error instanceof Error ? error.message : '预览文件失败');
+      } finally {
+        setPreviewLoadingId(null);
+      }
+      return;
+    }
 
     if (!isImage) {
       try {
@@ -596,7 +613,7 @@ export default function FilesPage() {
       width: 180,
       align: 'center',
       render: (_: unknown, record: ManagedFile) => {
-        const isPreviewable = record.mimeType?.startsWith('image/') || record.mimeType?.startsWith('video/');
+        const isPreviewable = record.mimeType?.startsWith('image/') || record.mimeType?.startsWith('video/') || record.mimeType === 'application/pdf';
         return (
         <Space>
           <Button theme="borderless" size="small" loading={downloadLoadingId === record.id} onClick={() => handleDownload(record)}>下载</Button>
@@ -835,6 +852,26 @@ export default function FilesPage() {
               { key: '访问链接', value: <Text copyable style={{ fontSize: 12, wordBreak: 'break-all' }}>{getFileFullUrl(detailFile.url)}</Text> },
               { key: '上传时间', value: formatDateTime(detailFile.createdAt) },
             ]}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        visible={!!pdfPreviewFile}
+        onCancel={() => setPdfPreviewFile(null)}
+        title={null}
+        footer={null}
+        width="min(1100px, 92vw)"
+        style={{ top: '4vh' }}
+        bodyStyle={{ padding: 0, height: '88vh', display: 'flex', overflow: 'hidden' }}
+        closable={false}
+        keepDOM={false}
+      >
+        {pdfPreviewFile && (
+          <PDFPreviewPanel
+            file={pdfPreviewFile}
+            onClose={() => setPdfPreviewFile(null)}
+            style={{ width: '100%', borderLeft: 'none' }}
           />
         )}
       </Modal>

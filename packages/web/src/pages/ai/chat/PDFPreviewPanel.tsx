@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { PDFViewer, ZoomMode } from '@embedpdf/react-pdf-viewer';
 import type { PDFViewerRef, PluginRegistry } from '@embedpdf/react-pdf-viewer';
 import { Button, Select, Typography } from '@douyinfe/semi-ui';
@@ -26,9 +27,10 @@ function cssVar(name: string, fallback: string): string {
 interface PDFPreviewPanelProps {
   readonly file: File;
   readonly onClose: () => void;
+  readonly style?: CSSProperties;
 }
 
-export function PDFPreviewPanel({ file, onClose }: PDFPreviewPanelProps) {
+export function PDFPreviewPanel({ file, onClose, style }: PDFPreviewPanelProps) {
   const viewerRef = useRef<PDFViewerRef>(null);
   const registryRef = useRef<PluginRegistry | null>(null);
   const { isDark } = useThemeController();
@@ -144,6 +146,7 @@ export function PDFPreviewPanel({ file, onClose }: PDFPreviewPanelProps) {
         background: 'var(--semi-color-bg-0)',
         overflow: 'hidden',
         flexShrink: 0,
+        ...style,
       }}
     >
       {/* 顶栏：文件名 + 关闭 */}
