@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { RouteErrorBoundary } from '@/components/PageErrorBoundary';
 import { Avatar, Badge, Breadcrumb, Button, ColorPicker, Dropdown, Empty, List, Notification, Popover, Select, Tooltip, Modal, Nav, Typography, SideSheet, Switch, InputNumber, RadioGroup, Radio, Toast } from '@douyinfe/semi-ui';
 import { Bell, Building2, Check, Maximize2, Minimize2, Megaphone, Sun, Moon, Monitor, User as UserIcon, Settings, LogOut, X, Palette, Pin } from 'lucide-react';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
@@ -1161,7 +1162,9 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
             </div>
           )}
           <div className="admin-content" style={{ background: 'var(--color-layout-bg)', overflow: 'auto', position: 'relative' }}>
-            <Outlet key={outletRefreshKey} />
+            <RouteErrorBoundary>
+              <Outlet key={outletRefreshKey} />
+            </RouteErrorBoundary>
           </div>
 
           {/* Preferences SideSheet */}

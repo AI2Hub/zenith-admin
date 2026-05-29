@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Spin } from '@douyinfe/semi-ui';
 import { useAuth } from '@/hooks/useAuth';
+import { PageErrorBoundary } from '@/components/PageErrorBoundary';
 import { PermissionContext } from '@/hooks/usePermission';
 import { PreferencesProvider } from '@/hooks/PreferencesProvider';
 import { ThemeProvider } from '@/providers/ThemeProvider';
@@ -140,6 +141,7 @@ export default function App() {
   }
 
   return (
+    <PageErrorBoundary>
     <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '') || '/'}>
       {user ? (
         <PreferencesProvider>
@@ -158,5 +160,6 @@ export default function App() {
         </ThemeProvider>
       )}
     </BrowserRouter>
+    </PageErrorBoundary>
   );
 }
