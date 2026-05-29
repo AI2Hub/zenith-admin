@@ -538,15 +538,20 @@ body[theme-mode='dark'] .fd-node-picker-panel {
 }
 
 .fd-branch-banner--parallel {
-  background: rgba(113, 141, 255, 0.1);
-  color: #3a52c4;
-  border: 1px solid rgba(113, 141, 255, 0.35);
+  background: var(--semi-color-primary-light-default);
+  color: var(--semi-color-primary-active);
+  border: 1px solid var(--semi-color-primary-light-active);
 }
 
 .fd-branch-banner--inclusive {
+  --fd-inclusive-color: #5a2da3;
   background: rgba(146, 84, 222, 0.1);
-  color: #5a2da3;
+  color: var(--fd-inclusive-color);
   border: 1px solid rgba(146, 84, 222, 0.35);
+}
+
+body[theme-mode='dark'] .fd-branch-banner--inclusive {
+  --fd-inclusive-color: #b083ff;
 }
 
 .fd-branch-title__priority {
