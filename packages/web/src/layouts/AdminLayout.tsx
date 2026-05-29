@@ -1114,6 +1114,14 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                       menu.style.left = `${e.clientX}px`;
                       menu.style.top = `${e.clientY}px`;
                       document.body.appendChild(menu);
+                      // 防止菜单超出视口
+                      const menuRect = menu.getBoundingClientRect();
+                      if (menuRect.right > window.innerWidth) {
+                        menu.style.left = `${e.clientX - menuRect.width}px`;
+                      }
+                      if (menuRect.bottom > window.innerHeight) {
+                        menu.style.top = `${e.clientY - menuRect.height}px`;
+                      }
                       tabContextMenuRef.current = menu;
                       let clickHandler: ((ev: MouseEvent) => void) | null = null;
 
