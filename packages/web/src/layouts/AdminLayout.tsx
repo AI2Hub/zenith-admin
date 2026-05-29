@@ -119,6 +119,8 @@ interface AdminLayoutProps {
 
 export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const autoCollapsedRef = useRef(false);
+  const [isMobile, setIsMobile] = useState(() => typeof globalThis !== 'undefined' && globalThis.matchMedia?.('(max-width: 767px)').matches === true);
   const [menuTree, setMenuTree] = useState<Menu[]>(presetMenus || []);
 
   const flatMenus = useMemo<FlatMenuItem[]>(() => {
@@ -140,6 +142,44 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
   const handleThemeModeChange = useCallback((newMode: ThemeMode) => {
     setThemeMode(newMode);
   }, [setThemeMode]);
+
+  // ─── 响应式侧边栏断点 ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const lgMq = globalThis.matchMedia('(max-width: 991px)');
+    const mdMq = globalThis.matchMedia('(max-width: 767px)');
+
+    const handleLg = (e: MediaQueryList | MediaQueryListEvent) => {
+      if (e.matches) {
+        autoCollapsedRef.current = true;
+        setCollapsed(true);
+      } else if (autoCollapsedRef.current) {
+        autoCollapsedRef.current = false;
+        setCollapsed(false);
+      }
+    };
+
+    const handleMd = (e: MediaQueryList | MediaQueryListEvent) => {
+      setIsMobile(e.matches);
+      if (e.matches) {
+        setCollapsed(true);
+      }
+    };
+
+    handleLg(lgMq);
+    handleMd(mdMq);
+
+    lgMq.addEventListener('change', handleLg);
+    mdMq.addEventListener('change', handleMd);
+    return () => {
+      lgMq.removeEventListener('change', handleLg);
+      mdMq.removeEventListener('change', handleMd);
+    };
+  }, []);
+
+  const handleCollapseChange = useCallback((isCollapsed: boolean) => {
+    autoCollapsedRef.current = false;
+    setCollapsed(isCollapsed);
+  }, []);
 
   // ─── 水印配置 ──────────────────────────────────────────────────────────────
   const [watermarkConfig, setWatermarkConfig] = useState({ enabled: false, content: '', fontSize: 14, opacity: 0.15 });
@@ -904,7 +944,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
   const mixedTopSelectedKeys = effectiveTopKey ? [effectiveTopKey] : [];
   const topNavSelectedKeys = navLayout === 'mixed' ? mixedTopSelectedKeys : currentSelectedKeys;
   const stickyNavClass = preferences.sidebarStickyScroll === false ? '' : ' admin-sidebar--sticky-nav';
-  const sidebarClassName = `admin-sidebar${collapsed ? ' admin-sidebar--collapsed' : ''}${stickyNavClass}`;
+  const sidebarClassName = `admin-sidebar${collapsed ? ' admin-sidebar--collapsed' : ''}${isMobile ? ' admin-sidebar--mobile' : ''}${stickyNavClass}`;
 
   const adminLayoutEl = (
     <div className="admin-layout">
@@ -935,6 +975,14 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
       )}
 
       <div className="admin-body">
+        {/* Mobile overlay backdrop */}
+        {isMobile && !collapsed && showSidebar && (
+          <div
+            className="admin-sidebar-backdrop"
+            onClick={() => setCollapsed(true)}
+            aria-hidden="true"
+          />
+        )}
         {/* Sidebar — always in vertical, conditional in mixed */}
         {showSidebar && (
           <aside className={sidebarClassName}>
@@ -948,7 +996,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
               selectedKeys={currentSelectedKeys}
               openKeys={collapsed ? [] : openKeys}
               onOpenChange={({ openKeys: nextOpenKeys }) => setOpenKeys((nextOpenKeys ?? []).map(String))}
-              onCollapseChange={setCollapsed}
+              onCollapseChange={handleCollapseChange}
               header={navLayout === 'vertical' ? {
                 logo: (
                   <button
