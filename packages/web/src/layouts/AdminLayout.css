@@ -494,6 +494,13 @@
   flex-shrink: 0;
 }
 
+@media (max-width: 639px) {
+  .admin-header {
+    padding: 0 10px;
+    gap: 8px;
+  }
+}
+
 .admin-header__user {
   display: flex;
   align-items: center;

@@ -141,6 +141,14 @@ body {
   border-top-color: var(--color-border);
 }
 
+/* 窄屏 SideSheet 全屏占满，避免抽屉超出视口 */
+@media (max-width: 480px) {
+  .semi-sidesheet-inner {
+    width: 100vw !important;
+    max-width: 100vw !important;
+  }
+}
+
 /*
  * SideSheet 内表格色阶修正（全局）
  * Semi SideSheet inner 默认 background = --semi-color-bg-2（暗色 #35363c）表示弹出面板层级，
