@@ -61,6 +61,7 @@ export default function WorkflowTriggerExecutionsPage() {
   const [instanceId, setInstanceId] = useState<number | undefined>();
   const [nodeKeyInput, setNodeKeyInput] = useState('');
   const [nodeKey, setNodeKey] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const [detail, setDetail] = useState<WorkflowTriggerExecution | null>(null);
 
@@ -83,7 +84,7 @@ export default function WorkflowTriggerExecutionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, status, instanceId, nodeKey]);
+  }, [page, pageSize, status, instanceId, nodeKey, refreshKey]);
 
   useEffect(() => { void fetchData(); }, [fetchData]);
 
@@ -92,12 +93,14 @@ export default function WorkflowTriggerExecutionsPage() {
     setInstanceId(instanceIdInput);
     setNodeKey(nodeKeyInput.trim());
     setPage(1);
+    setRefreshKey((k) => k + 1);
   };
   const handleReset = () => {
     setStatusInput(''); setStatus('');
     setInstanceIdInput(undefined); setInstanceId(undefined);
     setNodeKeyInput(''); setNodeKey('');
     setPage(1);
+    setRefreshKey((k) => k + 1);
   };
 
   const openDetail = async (row: WorkflowTriggerExecution) => {

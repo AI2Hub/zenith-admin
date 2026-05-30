@@ -80,6 +80,7 @@ export default function WorkflowEventSubscriptionsPage() {
   const [keywordInput, setKeywordInput] = useState('');
   const [definitionId, setDefinitionId] = useState<number | ''>('');
   const [enabledFilter, setEnabledFilter] = useState<'' | 'true' | 'false'>('');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const [defs, setDefs] = useState<WorkflowDefinition[]>([]);
 
@@ -115,7 +116,7 @@ export default function WorkflowEventSubscriptionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, definitionId, enabledFilter]);
+  }, [page, pageSize, keyword, definitionId, enabledFilter, refreshKey]);
 
   useEffect(() => { void fetchData(); }, [fetchData]);
 
@@ -127,9 +128,9 @@ export default function WorkflowEventSubscriptionsPage() {
       .catch(() => { /* ignore */ });
   }, []);
 
-  const handleSearch = () => { setKeyword(keywordInput.trim()); setPage(1); };
+  const handleSearch = () => { setKeyword(keywordInput.trim()); setPage(1); setRefreshKey((k) => k + 1); };
   const handleReset = () => {
-    setKeywordInput(''); setKeyword(''); setDefinitionId(''); setEnabledFilter(''); setPage(1);
+    setKeywordInput(''); setKeyword(''); setDefinitionId(''); setEnabledFilter(''); setPage(1); setRefreshKey((k) => k + 1);
   };
 
   const openCreate = () => {
