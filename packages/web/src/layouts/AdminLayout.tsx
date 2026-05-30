@@ -660,17 +660,26 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
   const outletRefreshKey = `${location.pathname}:${tabRefreshVersion[location.pathname] ?? 0}`;
 
   // ─── Render wrappers ──────────────────────────────────────────────────────
+
+  // 预构建 itemKey → isExternal 映射，避免每次 renderWrapper 调用时重复遍历
+  const externalNavKeys = useMemo(() => {
+    const map = new Set<string>();
+    function walk(items: NavItem[]) {
+      for (const item of items) {
+        if (item.isExternal) map.add(item.itemKey);
+        if (item.items) walk(item.items);
+      }
+    }
+    walk(navItems);
+    return map;
+  }, [navItems]);
+
   const renderWrapper = useCallback(
     (args: { itemElement: React.ReactNode; props: { itemKey?: string | number } }) => {
       const { itemElement, props: itemProps } = args;
       const itemKey = String(itemProps.itemKey ?? '');
       if (!itemKey.startsWith('/')) return itemElement;
-      // 查找该 key 对应的导航项，判断是否为外链
-      const flatNavItems = (function flat(items: NavItem[]): NavItem[] {
-        return items.flatMap((i) => [i, ...(i.items ? flat(i.items) : [])]);
-      })(navItems);
-      const navItem = flatNavItems.find((i) => i.itemKey === itemKey);
-      if (navItem?.isExternal) {
+      if (externalNavKeys.has(itemKey)) {
         return (
           <a href={itemKey} target="_blank" rel="noopener noreferrer" className="admin-nav-link-wrapper">
             {itemElement}
@@ -683,7 +692,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
         </NavLink>
       );
     },
-    [],
+    [externalNavKeys],
   );
 
   const mixedTopRenderWrapper = useCallback(
