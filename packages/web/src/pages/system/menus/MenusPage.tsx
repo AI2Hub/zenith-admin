@@ -392,6 +392,13 @@ export default function MenusPage() {
             <Col span={12}>
               <Form.Input field="title" label="菜单名称" placeholder="请输入菜单名称" rules={[{ required: true, message: '请输入菜单名称' }]} />
             </Col>
+            {menuType !== 'button' && (
+              <Col span={12}>
+                <Form.Slot label={{ text: '图标' }}>
+                  <IconPicker value={iconValue} onChange={setIconValue} />
+                </Form.Slot>
+              </Col>
+            )}
             {(menuType === 'menu' || menuType === 'directory') && (
               <Col span={12}>
                 <Form.Input
@@ -438,13 +445,6 @@ export default function MenusPage() {
             {menuType === 'button' && (
               <Col span={12}>
                 <Form.Input field="permission" label="权限标识" placeholder="请输入权限标识" rules={[{ required: true, message: '请输入权限标识' }]} />
-              </Col>
-            )}
-            {menuType !== 'button' && (
-              <Col span={12}>
-                <Form.Slot label={{ text: '图标' }}>
-                  <IconPicker value={iconValue} onChange={setIconValue} />
-                </Form.Slot>
               </Col>
             )}
             <Col span={12}>
