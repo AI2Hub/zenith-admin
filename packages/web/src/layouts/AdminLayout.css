@@ -557,6 +557,16 @@
   z-index: 1;
 }
 
+@media (max-width: 639px) {
+  .admin-breadcrumb-bar {
+    padding: 0 10px;
+  }
+  .admin-tabs-bar {
+    padding: 0 10px;
+    gap: 10px;
+  }
+}
+
 /* Content */
 .admin-content {
   flex: 1;
