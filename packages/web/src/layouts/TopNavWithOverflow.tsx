@@ -9,6 +9,7 @@ export type TopNavItem = {
   icon?: React.ReactNode;
   items?: TopNavItem[];
   badge?: { count: number; overflowCount?: number };
+  isExternal?: boolean;
 };
 
 interface Props {
@@ -69,7 +70,13 @@ function DropdownMenuItems({
           <Dropdown.Item
             key={item.itemKey}
             active={selectedKeys.includes(item.itemKey)}
-            onClick={() => onNavigate(item.itemKey)}
+            onClick={() => {
+              if (item.isExternal && isPath(item.itemKey)) {
+                window.open(item.itemKey, '_blank', 'noopener,noreferrer');
+              } else {
+                onNavigate(item.itemKey);
+              }
+            }}
           >
             <span className="topnav-dd-item">
               {item.icon && <span className="topnav-dd-item__icon">{item.icon}</span>}
@@ -136,6 +143,18 @@ function TopNavButton({
 
   // 路径类：NavLink（支持右键新标签打开）
   if (isPath(item.itemKey)) {
+    if (item.isExternal) {
+      return wrapBadge(
+        <a
+          href={item.itemKey}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`topnav-item`}
+        >
+          {content}
+        </a>,
+      );
+    }
     return wrapBadge(
       <NavLink
         to={item.itemKey}

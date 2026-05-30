@@ -574,7 +574,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
   const effectiveTopKey = manualTopKey ?? autoTopKey;
 
   const mixedTopNavItems = useMemo(
-    () => navItems.map(({ itemKey, text, icon }) => ({ itemKey, text, icon })),
+    () => navItems.map(({ itemKey, text, icon, isExternal }) => ({ itemKey, text, icon, isExternal })),
     [navItems],
   );
 
