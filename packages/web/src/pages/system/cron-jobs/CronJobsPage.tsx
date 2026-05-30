@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useTransition} from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Col,
@@ -51,7 +51,7 @@ const defaultSearchParams: SearchParams = { keyword: '', status: '' };
 export default function CronJobsPage() {
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [data, setData] = useState<CronJob[]>([]);
   const [total, setTotal] = useState(0);
@@ -80,8 +80,9 @@ export default function CronJobsPage() {
   const [switchLoadingIds, setSwitchLoadingIds] = useState<Set<number>>(new Set());
   const [openMoreId, setOpenMoreId] = useState<number | null>(null);
 
-  const fetchData = useCallback((p = page, ps = pageSize, params = searchParams) => {
-    startTransition(async () => {
+  const fetchData = useCallback(async (p = page, ps = pageSize, params = searchParams) => {
+    setLoading(true);
+    try {
       const query = new URLSearchParams({
         page: String(p),
         pageSize: String(ps),
@@ -93,19 +94,21 @@ export default function CronJobsPage() {
         setData(res.data.list);
         setTotal(res.data.total);
       }
-    });
+    } finally {
+      setLoading(false);
+    }
   }, [page, pageSize, searchParams]);
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
     request.get<string[]>('/api/cron-jobs/handlers').then((res) => {
       if (res.code === 0) setHandlers(res.data);
     });
   }, [fetchData]);
 
-  const handleSearch = () => { setPage(1); fetchData(1, pageSize); };
-  const handleReset = () => { setSearchParams(defaultSearchParams); setPage(1); fetchData(1, pageSize, defaultSearchParams); };
-  const handlePageChange = (p: number) => { setPage(p); fetchData(p, pageSize); };
+  const handleSearch = () => { setPage(1); void fetchData(1, pageSize); };
+  const handleReset = () => { setSearchParams(defaultSearchParams); setPage(1); void fetchData(1, pageSize, defaultSearchParams); };
+  const handlePageChange = (p: number) => { setPage(p); void fetchData(p, pageSize); };
 
   const handleExport = async () => {
     setExportLoading(true);
@@ -123,7 +126,7 @@ export default function CronJobsPage() {
         const res = await request.post(`/api/cron-jobs/${id}/run`);
         if (res.code === 0) {
           Toast.success('已触发执行');
-          fetchData();
+          void fetchData();
         }
       },
     });
@@ -142,7 +145,7 @@ export default function CronJobsPage() {
       setModalVisible(false);
       setEditingJob(null);
       setCronExprValue('');
-      fetchData();
+      void fetchData();
     } else {
       throw new Error(res.message);
     }
@@ -152,7 +155,7 @@ export default function CronJobsPage() {
     const res = await request.delete(`/api/cron-jobs/${id}`);
     if (res.code === 0) {
       Toast.success('删除成功');
-      fetchData();
+      void fetchData();
     }
   };
 
@@ -178,7 +181,7 @@ export default function CronJobsPage() {
       const res = await request.put(`/api/cron-jobs/${id}/status`, { status: newStatus });
       if (res.code === 0) {
         Toast.success(newStatus === 'enabled' ? '已启用' : '已禁用');
-        fetchData();
+        void fetchData();
       }
     } finally {
       setSwitchLoadingIds((prev) => {
@@ -227,7 +230,7 @@ export default function CronJobsPage() {
     setLogsData([]);
     setLogsPage(1);
     setLogsDrawerVisible(true);
-    fetchJobLogs(record.id, 1);
+    void fetchJobLogs(record.id, 1);
   };
 
   const formInitValues = editingJob
@@ -378,7 +381,7 @@ export default function CronJobsPage() {
           />
           <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
           <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-          <Button icon={<ScrollText size={14} />} onClick={() => { setAllLogsPage(1); setAllLogsJobFilter(null); setAllLogsDrawerVisible(true); fetchAllLogs(1, null); }}>全部执行日志</Button>
+          <Button icon={<ScrollText size={14} />} onClick={() => { setAllLogsPage(1); setAllLogsJobFilter(null); setAllLogsDrawerVisible(true); void fetchAllLogs(1, null); }}>全部执行日志</Button>
           <Button type="primary" icon={<Download size={14} />} loading={exportLoading} onClick={handleExport}>导出</Button>
           {hasPermission('system:cronjob:create') && (
             <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditingJob(null); setCronExprValue(''); setModalVisible(true); }}>新增</Button>
@@ -389,14 +392,14 @@ export default function CronJobsPage() {
         bordered
         columns={columns}
         dataSource={data}
-        pending={isPending}
+        loading={loading}
         rowKey="id"
         pagination={{
           currentPage: page,
           pageSize,
           total,
           onPageChange: handlePageChange,
-          onPageSizeChange: (size) => { setPageSize(size); fetchData(1, size); },
+          onPageSizeChange: (size) => { setPageSize(size); void fetchData(1, size); },
           showSizeChanger: true,
         }}
         empty="暂无数据"
@@ -516,7 +519,7 @@ export default function CronJobsPage() {
               const jobId = (v as number | undefined) ?? null;
               setAllLogsJobFilter(jobId);
               setAllLogsPage(1);
-              fetchAllLogs(1, jobId);
+              void fetchAllLogs(1, jobId);
             }}
             style={{ width: 220 }}
             showClear
@@ -581,7 +584,7 @@ export default function CronJobsPage() {
             currentPage: allLogsPage,
             pageSize: logsPageSize,
             total: allLogsTotal,
-            onPageChange: (p) => { setAllLogsPage(p); fetchAllLogs(p, allLogsJobFilter); },
+            onPageChange: (p) => { setAllLogsPage(p); void fetchAllLogs(p, allLogsJobFilter); },
             showTotal: true,
           }}
         />
@@ -648,7 +651,7 @@ export default function CronJobsPage() {
             pageSize: logsPageSize,
             total: logsTotal,
             onPageChange: (p) => {
-              if (logsJobId != null) fetchJobLogs(logsJobId, p);
+              if (logsJobId != null) void fetchJobLogs(logsJobId, p);
             },
             showTotal: true,
           }}

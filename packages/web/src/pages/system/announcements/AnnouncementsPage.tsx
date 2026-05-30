@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useCallback, useRef, useTransition } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import {
   Table,
   Button,
@@ -67,7 +67,7 @@ type SearchParams = {
 export default function AnnouncementsPage() {
   const { hasPermission } = usePermission();
   const [data, setData] = useState<Announcement[]>([]);
-  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -106,8 +106,9 @@ export default function AnnouncementsPage() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsTab, setStatsTab] = useState<'read' | 'unread'>('read');
 
-  const fetchData = useCallback((p = page, ps = pageSize, params = submittedParams) => {
-    startTransition(async () => {
+  const fetchData = useCallback(async (p = page, ps = pageSize, params = submittedParams) => {
+    setLoading(true);
+    try {
       const query = new URLSearchParams({
         page: String(p),
         pageSize: String(ps),
@@ -128,7 +129,9 @@ export default function AnnouncementsPage() {
         setPage(res.data.page);
         setPageSize(res.data.pageSize);
       }
-    });
+    } finally {
+      setLoading(false);
+    }
   }, [page, pageSize, submittedParams]);
 
   useEffect(() => {
@@ -136,7 +139,7 @@ export default function AnnouncementsPage() {
   }, [fetchData]);
 
   useEffect(() => {
-    const handler = () => { fetchData(page, pageSize, submittedParams); };
+    const handler = () => { void fetchData(page, pageSize, submittedParams); };
     globalThis.addEventListener('announcement:refresh', handler);
     return () => globalThis.removeEventListener('announcement:refresh', handler);
   }, [fetchData, page, pageSize, submittedParams]);
@@ -172,7 +175,7 @@ export default function AnnouncementsPage() {
     setStatsTab('read');
     setStatsData(null);
     setStatsDrawerVisible(true);
-    fetchStatsData(notice, 1, 'read');
+    void fetchStatsData(notice, 1, 'read');
   };
 
   const loadRecipientOptions = async () => {
@@ -221,7 +224,7 @@ export default function AnnouncementsPage() {
     setSelectedRoleIds([]);
     setSelectedDeptIds([]);
     setUserOptions([]);
-    loadRecipientOptions();
+    void loadRecipientOptions();
     setModalVisible(true);
   };
 
@@ -398,7 +401,7 @@ export default function AnnouncementsPage() {
           onChange={(tab) => {
             const t = tab as 'read' | 'unread';
             setStatsTab(t);
-            if (statsNotice) fetchStatsData(statsNotice, 1, t);
+            if (statsNotice) void fetchStatsData(statsNotice, 1, t);
           }}
         >
           <TabPane tab={`已读 (${statsData.readCount})`} itemKey="read">
@@ -413,7 +416,7 @@ export default function AnnouncementsPage() {
                 currentPage: statsData.page,
                 pageSize: statsData.pageSize,
                 onPageChange: (p: number) => {
-                  if (statsNotice) fetchStatsData(statsNotice, p, 'read');
+                  if (statsNotice) void fetchStatsData(statsNotice, p, 'read');
                 },
               }}
               columns={[
@@ -439,7 +442,7 @@ export default function AnnouncementsPage() {
                 currentPage: statsData.page,
                 pageSize: statsData.pageSize,
                 onPageChange: (p: number) => {
-                  if (statsNotice) fetchStatsData(statsNotice, p, 'unread');
+                  if (statsNotice) void fetchStatsData(statsNotice, p, 'unread');
                 },
               }}
               columns={userColumns}
@@ -641,7 +644,7 @@ export default function AnnouncementsPage() {
         bordered
         columns={columns}
         dataSource={data}
-        pending={isPending}
+        loading={loading}
         rowKey="id"
         scroll={{ x: 1520 }}
         rowSelection={{
@@ -656,12 +659,12 @@ export default function AnnouncementsPage() {
           pageSizeOpts: [10, 20, 50],
           onPageChange: (p: number) => {
             setPage(p);
-            fetchData(p, pageSize, submittedParams);
+            void fetchData(p, pageSize, submittedParams);
           },
           onPageSizeChange: (ps: number) => {
             setPageSize(ps);
             setPage(1);
-            fetchData(1, ps, submittedParams);
+            void fetchData(1, ps, submittedParams);
           },
         }}
       />

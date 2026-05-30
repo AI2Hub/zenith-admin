@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useTransition} from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Button,
   Input,
@@ -60,7 +60,7 @@ export default function OAuth2AppsPage() {
 
   // ─── 状态 ──────────────────────────────────────────────────────────────
   const [data, setData] = useState<PaginatedResponse<OAuth2Client> | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [keyword, setKeyword] = useState('');
@@ -79,7 +79,8 @@ export default function OAuth2AppsPage() {
   // ─── 数据加载 ──────────────────────────────────────────────────────────
   const fetchData = useCallback(
     async (p = page, ps = pageSize, kw = keyword) => {
-      startTransition(async () => {
+      setLoading(true);
+      try {
         const queryObj: Record<string, string> = { page: String(p), pageSize: String(ps) };
         if (kw) queryObj.keyword = kw;
         const qs = new URLSearchParams(queryObj).toString();
@@ -88,26 +89,28 @@ export default function OAuth2AppsPage() {
           setData(res.data);
           setPage(res.data.page);
         }
-      });
+      } finally {
+        setLoading(false);
+      }
     },
     [page, pageSize, keyword],
   );
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ─── 搜索 / 重置 ────────────────────────────────────────────────────────
   function handleSearch() {
     setPage(1);
-    fetchData(1, pageSize, keyword);
+    void fetchData(1, pageSize, keyword);
   }
 
   function handleReset() {
     setKeyword('');
     setPage(1);
-    fetchData(1, pageSize, '');
+    void fetchData(1, pageSize, '');
   }
 
   // ─── 新增 ──────────────────────────────────────────────────────────────
@@ -175,7 +178,7 @@ export default function OAuth2AppsPage() {
         if (res.code === 0) {
           Toast.success('更新成功');
           closeModal();
-          fetchData();
+          void fetchData();
         } else {
           throw new Error(res.message);
         }
@@ -183,7 +186,7 @@ export default function OAuth2AppsPage() {
         const res = await request.post<OAuth2ClientCreated>('/api/oauth2/clients', values);
         if (res.code === 0) {
           closeModal();
-          fetchData();
+          void fetchData();
           if (res.data?.clientSecret) {
             setOneTimeClientId(res.data.clientId);
             setOneTimeSecret(res.data.clientSecret);
@@ -203,7 +206,7 @@ export default function OAuth2AppsPage() {
     const res = await request.delete(`/api/oauth2/clients/${id}`);
     if (res.code === 0) {
       Toast.success('删除成功');
-      fetchData();
+      void fetchData();
     }
   }
 
@@ -305,7 +308,7 @@ export default function OAuth2AppsPage() {
         bordered
         columns={columns}
         dataSource={data?.list ?? []}
-        pending={isPending}
+        loading={loading}
         rowKey="id"
         size="small"
         empty="暂无数据"
@@ -315,11 +318,11 @@ export default function OAuth2AppsPage() {
           total: data?.total ?? 0,
           onPageChange: (p: number) => {
             setPage(p);
-            fetchData(p, pageSize);
+            void fetchData(p, pageSize);
           },
           onPageSizeChange: (s: number) => {
             setPageSize(s);
-            fetchData(1, s);
+            void fetchData(1, s);
           },
           showTotal: true,
           showSizeChanger: true,

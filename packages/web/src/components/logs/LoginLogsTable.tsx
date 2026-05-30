@@ -8,7 +8,6 @@ import { formatDateTime } from '@/utils/date';
 interface LoginLogsTableProps {
   readonly dataSource: LoginLog[];
   readonly loading?: boolean;
-  readonly pending?: boolean;
   readonly pagination?: TableProps<LoginLog>['pagination'];
   readonly columnSettings?: boolean;
   readonly columnSettingsKey?: string;
@@ -25,7 +24,6 @@ function LoginStatusTag({ status, size }: Readonly<{ status: LoginLog['status'];
 export function LoginLogsTable({
   dataSource,
   loading,
-  pending,
   pagination,
   columnSettings,
   columnSettingsKey,
@@ -76,7 +74,6 @@ export function LoginLogsTable({
         columns={columns}
         dataSource={dataSource}
         loading={loading}
-        pending={pending}
         pagination={pagination}
         rowKey="id"
         columnSettings={columnSettings}

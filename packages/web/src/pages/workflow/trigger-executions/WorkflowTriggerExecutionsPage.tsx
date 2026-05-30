@@ -2,7 +2,7 @@
  * 工作流触发器执行记录
  * 列表 + 详情抽屉，支持按状态 / 实例 ID / 节点 key 过滤
  */
-import { useCallback, useEffect, useState, useTransition} from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Input,
@@ -53,7 +53,7 @@ export default function WorkflowTriggerExecutionsPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(false);
 
   const [statusInput, setStatusInput] = useState<WorkflowTriggerExecutionStatus | ''>('');
   const [status, setStatus] = useState<WorkflowTriggerExecutionStatus | ''>('');
@@ -64,8 +64,9 @@ export default function WorkflowTriggerExecutionsPage() {
 
   const [detail, setDetail] = useState<WorkflowTriggerExecution | null>(null);
 
-  const fetchData = useCallback(() => {
-    startTransition(async () => {
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
       const params = new URLSearchParams();
       params.set('page', String(page));
       params.set('pageSize', String(pageSize));
@@ -79,10 +80,12 @@ export default function WorkflowTriggerExecutionsPage() {
         setList(res.data.list);
         setTotal(res.data.total);
       }
-    });
+    } finally {
+      setLoading(false);
+    }
   }, [page, pageSize, status, instanceId, nodeKey]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { void fetchData(); }, [fetchData]);
 
   const handleSearch = () => {
     setStatus(statusInput);
@@ -196,7 +199,7 @@ export default function WorkflowTriggerExecutionsPage() {
       <ConfigurableTable
         bordered
         rowKey="id"
-        pending={isPending}
+        loading={loading}
         dataSource={list}
         columns={columns}
         pagination={{

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo, useTransition } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Table,
   Button,
@@ -34,7 +34,7 @@ export default function DictsPage() {
 
   // ─── 字典列表 ──────────────────────────────────────────────────────────────
   const [dicts, setDicts] = useState<Dict[]>([]);
-  const [isDictsPending, startDictsTransition] = useTransition();
+  const [dictsLoading, setDictsLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
@@ -51,7 +51,7 @@ export default function DictsPage() {
   const [selectedDict, setSelectedDict] = useState<Dict | null>(null);
   const [sideSheetVisible, setSideSheetVisible] = useState(false);
   const [items, setItems] = useState<DictItem[]>([]);
-  const [isItemsPending, startItemsTransition] = useTransition();
+  const [itemsLoading, setItemsLoading] = useState(false);
   const [itemModalVisible, setItemModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<DictItem | null>(null);
   const [itemKeyword, setItemKeyword] = useState('');
@@ -59,8 +59,9 @@ export default function DictsPage() {
   const { items: statusItems } = useDictItems('common_status');
 
   // ─── 数据获取 ──────────────────────────────────────────────────────────────
-  const fetchDicts = useCallback(() => {
-    startDictsTransition(async () => {
+  const fetchDicts = useCallback(async () => {
+    setDictsLoading(true);
+    try {
       const params = new URLSearchParams();
       if (submittedKeyword) params.set('keyword', submittedKeyword);
       if (submittedStatus) params.set('status', submittedStatus);
@@ -79,14 +80,19 @@ export default function DictsPage() {
           setItems([]);
         }
       }
-    });
+    } finally {
+      setDictsLoading(false);
+    }
   }, [submittedKeyword, submittedStatus, submittedTimeRange, selectedDict, page, pageSize]);
 
-  const fetchItems = useCallback((dictId: number) => {
-    startItemsTransition(async () => {
+  const fetchItems = useCallback(async (dictId: number) => {
+    setItemsLoading(true);
+    try {
       const res = await request.get<DictItem[]>(`/api/dicts/${dictId}/items`);
       if (res.code === 0) setItems(res.data);
-    });
+    } finally {
+      setItemsLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchDicts(); }, [fetchDicts]);
@@ -339,7 +345,7 @@ export default function DictsPage() {
         columns={dictColumns}
         dataSource={dicts}
         rowKey="id"
-        loading={isDictsPending}
+        loading={dictsLoading}
         pagination={{
           currentPage: page,
           pageSize,
@@ -410,7 +416,7 @@ export default function DictsPage() {
           columns={itemColumns}
           dataSource={filteredItems}
           rowKey="id"
-          loading={isItemsPending}
+          loading={itemsLoading}
           pagination={{ pageSize: 10, showSizeChanger: true }}
           size="small"
         />

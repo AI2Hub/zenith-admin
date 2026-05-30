@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Button, Tag, Space, Tabs, TabPane, Toast, Empty, Badge, Modal, Popconfirm,
 } from '@douyinfe/semi-ui';
@@ -25,7 +25,7 @@ const TYPE_LABEL: Record<string, string> = {
 
 export default function InboxPage() {
   const [list, setList] = useState<InAppMessage[]>([]);
-  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'read'>('all');
@@ -33,24 +33,24 @@ export default function InboxPage() {
 
   const [selected, setSelected] = useState<InAppMessage | null>(null);
 
-  const fetchList = useCallback((p = 1, tab = activeTab) => {
-    startTransition(async () => {
-      const qs = new URLSearchParams({ page: String(p), pageSize: '10' });
-      if (tab === 'unread') qs.set('isRead', 'false');
-      else if (tab === 'read') qs.set('isRead', 'true');
-      const res = await request.get<{ list: InAppMessage[]; total: number }>(
-        `/api/in-app-messages?${qs.toString()}`,
-      );
-      if (res.code === 0 && res.data) {
-        setList(res.data.list);
-        setTotal(res.data.total);
-        setPage(p);
-      }
-    });
+  const fetchList = useCallback(async (p = 1, tab = activeTab) => {
+    setLoading(true);
+    const qs = new URLSearchParams({ page: String(p), pageSize: '10' });
+    if (tab === 'unread') qs.set('isRead', 'false');
+    else if (tab === 'read') qs.set('isRead', 'true');
+    const res = await request.get<{ list: InAppMessage[]; total: number }>(
+      `/api/in-app-messages?${qs.toString()}`,
+    );
+    setLoading(false);
+    if (res.code === 0 && res.data) {
+      setList(res.data.list);
+      setTotal(res.data.total);
+      setPage(p);
+    }
   }, [activeTab]);
 
   useEffect(() => {
-    fetchList(1, activeTab);
+    void fetchList(1, activeTab);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -68,7 +68,7 @@ export default function InboxPage() {
     setMarkAllLoading(false);
     if (res.code === 0) {
       Toast.success('已全部标记为已读');
-      fetchList(1, activeTab);
+      void fetchList(1, activeTab);
     }
   };
 
@@ -76,7 +76,7 @@ export default function InboxPage() {
     const res = await request.delete(`/api/in-app-messages/${id}`);
     if (res.code === 0) {
       Toast.success('已删除');
-      fetchList(page, activeTab);
+      void fetchList(page, activeTab);
     }
   };
 
@@ -179,7 +179,7 @@ export default function InboxPage() {
           </Button>
         </div>
 
-      {list.length === 0 && !isPending ? (
+      {list.length === 0 && !loading ? (
         <Empty
           image={<Bell size={48} strokeWidth={1} style={{ opacity: 0.3 }} />}
           description={(() => {
@@ -192,7 +192,7 @@ export default function InboxPage() {
       ) : (
         <ConfigurableTable
           bordered
-          pending={isPending}
+          loading={loading}
           dataSource={list}
           rowKey="id"
           columns={columns}
@@ -201,7 +201,7 @@ export default function InboxPage() {
             currentPage: page,
             pageSize: 10,
             showSizeChanger: false,
-            onPageChange: (p) => fetchList(p),
+            onPageChange: (p) => void fetchList(p),
           }}
           onRow={(record) => ({
             style: { opacity: (record as InAppMessage).isRead ? 0.7 : 1 },

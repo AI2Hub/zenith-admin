@@ -3,7 +3,7 @@
  *
  * 提供事件订阅 CRUD + 启用/禁用 + 投递记录查看与重试。
  */
-import { useCallback, useEffect, useRef, useState, useTransition} from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Form,
@@ -71,7 +71,7 @@ interface FormValues {
 
 export default function WorkflowEventSubscriptionsPage() {
   const formApi = useRef<FormApi | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(false);
   const [list, setList] = useState<WorkflowEventSubscription[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -98,8 +98,9 @@ export default function WorkflowEventSubscriptionsPage() {
   const [deliveryLoading, setDeliveryLoading] = useState(false);
   const deliveryPageSize = 20;
 
-  const fetchData = useCallback((p = page, ps = pageSize) => {
-    startTransition(async () => {
+  const fetchData = useCallback(async (p = page, ps = pageSize) => {
+    setLoading(true);
+    try {
       const q = new URLSearchParams({ page: String(p), pageSize: String(ps) });
       if (keyword) q.set('keyword', keyword);
       if (definitionId !== '') q.set('definitionId', String(definitionId));
@@ -111,10 +112,12 @@ export default function WorkflowEventSubscriptionsPage() {
         setList(res.data.list);
         setTotal(res.data.total);
       }
-    });
+    } finally {
+      setLoading(false);
+    }
   }, [page, pageSize, keyword, definitionId, enabledFilter]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { void fetchData(); }, [fetchData]);
 
   // 流程定义下拉
   useEffect(() => {
@@ -236,7 +239,7 @@ export default function WorkflowEventSubscriptionsPage() {
     } finally { setDeliveryLoading(false); }
   }, [deliverySubId, deliveryPage]);
 
-  useEffect(() => { if (deliveryVisible) fetchDeliveries(); }, [deliveryVisible, fetchDeliveries]);
+  useEffect(() => { if (deliveryVisible) void fetchDeliveries(); }, [deliveryVisible, fetchDeliveries]);
 
   const openDeliveries = (row: WorkflowEventSubscription) => {
     setDeliverySubId(row.id); setDeliveryPage(1); setDeliveryVisible(true);
@@ -350,7 +353,7 @@ export default function WorkflowEventSubscriptionsPage() {
 
       <ConfigurableTable<WorkflowEventSubscription>
         bordered
-        pending={isPending}
+        loading={loading}
         rowKey="id"
         dataSource={list}
         columns={columns}

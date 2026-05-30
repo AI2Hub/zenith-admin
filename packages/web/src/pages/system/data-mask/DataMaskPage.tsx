@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useTransition} from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Button,
   Input,
@@ -63,7 +63,7 @@ type FormValues = {
 export default function DataMaskPage() {
   const { hasPermission } = usePermission();
   const [data, setData] = useState<DataMaskConfig[]>([]);
-  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
@@ -74,15 +74,16 @@ export default function DataMaskPage() {
   const [maskTypePreview, setMaskTypePreview] = useState<MaskType>('phone');
   const formRef = useRef<FormApi>(null);
 
-  const fetchData = useCallback(() => {
-    startTransition(async () => {
-      try {
-        const res = await request.get<DataMaskConfig[]>('/api/data-mask-configs');
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await request.get<DataMaskConfig[]>('/api/data-mask-configs');
       setData(res.data ?? []);
     } catch {
       Toast.error('加载脱敏规则失败');
+    } finally {
+      setLoading(false);
     }
-    });
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -254,7 +255,7 @@ export default function DataMaskPage() {
         bordered
         columns={columns}
         dataSource={filtered}
-        pending={isPending}
+        loading={loading}
         rowKey="id"
         pagination={false}
         scroll={{ x: 'max-content' }}

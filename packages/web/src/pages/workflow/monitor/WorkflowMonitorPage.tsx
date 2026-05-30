@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useTransition} from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -91,7 +91,7 @@ function StatCard({
 }
 
 export default function WorkflowMonitorPage() {
-  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(false);
   const [data, setData] = useState<MonitorResponse | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -109,8 +109,9 @@ export default function WorkflowMonitorPage() {
   const [detailDef, setDetailDef] = useState<WorkflowDefinition | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const fetchList = useCallback((p = page, kw = keyword, st = statusFilter, ps = pageSize, cat = categoryFilter, initKw = initiatorFilter) => {
-    startTransition(async () => {
+  const fetchList = useCallback(async (p = page, kw = keyword, st = statusFilter, ps = pageSize, cat = categoryFilter, initKw = initiatorFilter) => {
+    setLoading(true);
+    try {
       const params = new URLSearchParams({ page: String(p), pageSize: String(ps) });
       if (kw) params.set('keyword', kw);
       if (st) params.set('status', st);
@@ -121,17 +122,19 @@ export default function WorkflowMonitorPage() {
         setData(res.data);
         setPage(res.data.page);
       }
-    });
+    } finally {
+      setLoading(false);
+    }
   }, [page, pageSize, keyword, statusFilter, categoryFilter, initiatorFilter]);
 
   useEffect(() => {
-    fetchList();
+    void fetchList();
   }, [fetchList]);
 
   const handleSearch = () => {
     setKeyword(keywordInput);
     setInitiatorFilter(initiatorInput);
-    fetchList(1, keywordInput, statusFilter, pageSize, categoryFilter, initiatorInput);
+    void fetchList(1, keywordInput, statusFilter, pageSize, categoryFilter, initiatorInput);
   };
 
   const handleReset = () => {
@@ -141,13 +144,13 @@ export default function WorkflowMonitorPage() {
     setCategoryFilter('');
     setInitiatorInput('');
     setInitiatorFilter('');
-    fetchList(1, '', '', pageSize, '', '');
+    void fetchList(1, '', '', pageSize, '', '');
   };
 
   const handleStatCardClick = (st: string) => {
     const next = statusFilter === st ? '' : st;
     setStatusFilter(next);
-    fetchList(1, keyword, next, pageSize, categoryFilter, initiatorFilter);
+    void fetchList(1, keyword, next, pageSize, categoryFilter, initiatorFilter);
   };
 
   const openDetail = (item: WorkflowInstance) => {
@@ -294,14 +297,14 @@ export default function WorkflowMonitorPage() {
         columns={columns}
         dataSource={data?.list ?? []}
         rowKey="id"
-        pending={isPending}
+        loading={loading}
         scroll={{ x: 1100 }}
         pagination={{
           currentPage: page,
           pageSize,
           total: data?.total ?? 0,
-          onPageChange: (p) => { fetchList(p); },
-          onPageSizeChange: (ps) => { setPageSize(ps); fetchList(1, keyword, statusFilter, ps); },
+          onPageChange: (p) => { void fetchList(p); },
+          onPageSizeChange: (ps) => { setPageSize(ps); void fetchList(1, keyword, statusFilter, ps); },
           showSizeChanger: true,
         }}
       />

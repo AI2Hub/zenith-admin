@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, useTransition } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Table,
   Button,
@@ -58,7 +58,7 @@ export default function UsersPage() {
   const formApi = useRef<FormApi | null>(null);
   const passwordFormApi = useRef<FormApi | null>(null);
   const [data, setData] = useState<PaginatedResponse<User> | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -119,7 +119,7 @@ export default function UsersPage() {
         if (res.code === 0) {
           Toast.success('批量删除成功');
           setSelectedRowKeys([]);
-          fetchUsers();
+          void fetchUsers();
         }
       },
     });
@@ -214,8 +214,9 @@ export default function UsersPage() {
         status: 'enabled',
       };
 
-  const fetchUsers = useCallback((p = page, ps = pageSize, params = searchParams) => {
-    startTransition(async () => {
+  const fetchUsers = useCallback(async (p = page, ps = pageSize, params = searchParams) => {
+    setLoading(true);
+    try {
       const query = new URLSearchParams({
         page: String(p),
         pageSize: String(ps),
@@ -236,22 +237,24 @@ export default function UsersPage() {
         setPage(res.data.page);
         setPageSize(res.data.pageSize);
       }
-    });
+    } finally {
+      setLoading(false);
+    }
   }, [page, pageSize, searchParams]);
 
   useEffect(() => {
-    fetchUsers();
+    void fetchUsers();
   }, [fetchUsers]);
 
   function handleSearch() {
     setPage(1);
-    fetchUsers(1, pageSize);
+    void fetchUsers(1, pageSize);
   }
 
   function handleReset() {
     setSearchParams(defaultSearchParams);
     setPage(1);
-    fetchUsers(1, pageSize, defaultSearchParams);
+    void fetchUsers(1, pageSize, defaultSearchParams);
   }
 
   const handleModalOk = async () => {
@@ -283,7 +286,7 @@ export default function UsersPage() {
       Toast.success(editingUser ? '更新成功' : '创建成功');
       setModalVisible(false);
       setEditingUser(null);
-      fetchUsers();
+      void fetchUsers();
     } else {
       throw new Error(res.message);
     }
@@ -337,7 +340,7 @@ export default function UsersPage() {
       const res = await request.postForm<ImportResult>('/api/users/import', formData);
       if (res.code === 0) {
         setImportResult(res.data);
-        if (res.data.success > 0) fetchUsers();
+        if (res.data.success > 0) void fetchUsers();
       } else {
         Toast.error(res.message);
       }
@@ -352,7 +355,7 @@ export default function UsersPage() {
     const res = await request.delete(`/api/users/${id}`);
     if (res.code === 0) {
       Toast.success('删除成功');
-      fetchUsers();
+      void fetchUsers();
     }
   };
 
@@ -360,7 +363,7 @@ export default function UsersPage() {
     const res = await request.post(`/api/users/${id}/unlock`, {});
     if (res.code === 0) {
       Toast.success('解锁成功');
-      fetchUsers();
+      void fetchUsers();
     }
   };
 
@@ -555,7 +558,7 @@ export default function UsersPage() {
           const newParams = { ...searchParams, departmentId: newDeptId };
           setSearchParams(newParams);
           setPage(1);
-          fetchUsers(1, pageSize, newParams);
+          void fetchUsers(1, pageSize, newParams);
           setShowDeptTree(false);
         }}
         style={{ width: '100%' }}
@@ -639,13 +642,13 @@ export default function UsersPage() {
         bordered
         columns={columns}
         dataSource={data?.list || []}
-        pending={isPending}
+        loading={loading}
         pagination={{
           currentPage: page,
           pageSize,
           total: data?.total || 0,
-          onPageChange: (currentPage) => { fetchUsers(currentPage, pageSize); },
-          onPageSizeChange: (size) => { fetchUsers(1, size); },
+          onPageChange: (currentPage) => { void fetchUsers(currentPage, pageSize); },
+          onPageSizeChange: (size) => { void fetchUsers(1, size); },
           showTotal: true,
           showSizeChanger: true,
         }}

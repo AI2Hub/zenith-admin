@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useTransition} from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Form,
@@ -33,7 +33,7 @@ export default function SystemConfigsPage() {
   const { hasPermission } = usePermission();
   const { items: configTypeItems, loading: configTypeLoading } = useDictItems('system_config_type');
   const formApi = useRef<FormApi | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [data, setData] = useState<SystemConfig[]>([]);
   const [total, setTotal] = useState(0);
@@ -44,8 +44,9 @@ export default function SystemConfigsPage() {
   const [editingConfig, setEditingConfig] = useState<SystemConfig | null>(null);
   const [modalDetailLoading, setModalDetailLoading] = useState(false);
 
-  const fetchData = useCallback((p = page, ps = pageSize, params = searchParams) => {
-    startTransition(async () => {
+  const fetchData = useCallback(async (p = page, ps = pageSize, params = searchParams) => {
+    setLoading(true);
+    try {
       const query = new URLSearchParams({
         page: String(p),
         pageSize: String(ps),
@@ -57,17 +58,19 @@ export default function SystemConfigsPage() {
         setData(res.data.list);
         setTotal(res.data.total);
       }
-    });
+    } finally {
+      setLoading(false);
+    }
   }, [page, pageSize, searchParams]);
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [fetchData]);
 
-  const handleSearch = () => { setPage(1); fetchData(1); };
-  const handleReset = () => { setSearchParams(defaultSearchParams); setPage(1); fetchData(1, pageSize, defaultSearchParams); };
+  const handleSearch = () => { setPage(1); void fetchData(1); };
+  const handleReset = () => { setSearchParams(defaultSearchParams); setPage(1); void fetchData(1, pageSize, defaultSearchParams); };
 
-  const handlePageChange = (p: number) => { setPage(p); fetchData(p, pageSize); };
+  const handlePageChange = (p: number) => { setPage(p); void fetchData(p, pageSize); };
 
   const handleExport = async () => {
     setExportLoading(true);
@@ -89,7 +92,7 @@ export default function SystemConfigsPage() {
       Toast.success(editingConfig ? '更新成功' : '创建成功');
       setModalVisible(false);
       setEditingConfig(null);
-      fetchData();
+      void fetchData();
     } else {
       throw new Error(res.message);
     }
@@ -112,7 +115,7 @@ export default function SystemConfigsPage() {
     const res = await request.delete(`/api/system-configs/${id}`);
     if (res.code === 0) {
       Toast.success('删除成功');
-      fetchData();
+      void fetchData();
     }
   };
 
@@ -201,14 +204,14 @@ export default function SystemConfigsPage() {
         bordered
         columns={columns}
         dataSource={data}
-        pending={isPending}
+        loading={loading}
         rowKey="id"
         pagination={{
           currentPage: page,
           pageSize,
           total,
           onPageChange: handlePageChange,
-          onPageSizeChange: (size) => { setPageSize(size); fetchData(1, size); },
+          onPageSizeChange: (size) => { setPageSize(size); void fetchData(1, size); },
           showSizeChanger: true,
         }}
         empty="暂无数据"

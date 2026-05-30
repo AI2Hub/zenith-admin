@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useTransition} from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button, Dropdown, Input, Modal, Select, Space, Tag,
   Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -26,7 +26,7 @@ const STATUS_MAP: Record<string, { text: string; color: TagColor }> = {
 export default function WorkflowDefinitionsPage() {
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
-  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(false);
   const [data, setData] = useState<PaginatedResponse<WorkflowDefinition> | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
@@ -39,8 +39,9 @@ export default function WorkflowDefinitionsPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const { categories, refetch: refetchCategories } = useWorkflowCategories();
 
-  const fetchList = useCallback((p = page, kw = searchKeyword, st = searchStatus, cid = selectedCategoryId) => {
-    startTransition(async () => {
+  const fetchList = useCallback(async (p = page, kw = searchKeyword, st = searchStatus, cid = selectedCategoryId) => {
+    setLoading(true);
+    try {
       const query = new URLSearchParams({
         page: String(p),
         pageSize: String(pageSize),
@@ -53,22 +54,24 @@ export default function WorkflowDefinitionsPage() {
         setData(res.data);
         setPage(res.data.page);
       }
-    });
+    } finally {
+      setLoading(false);
+    }
   }, [page, pageSize, searchKeyword, searchStatus, selectedCategoryId]);
 
   useEffect(() => {
-    fetchList();
+    void fetchList();
   }, [fetchList]);
 
   const handleSelectCategory = (id: number | null) => {
     setSelectedCategoryId(id);
-    fetchList(1, searchKeyword, searchStatus, id);
+    void fetchList(1, searchKeyword, searchStatus, id);
   };
 
   const handleSearch = () => {
     setSearchKeyword(keyword);
     setSearchStatus(status);
-    fetchList(1, keyword, status);
+    void fetchList(1, keyword, status);
   };
 
   const handleReset = () => {
@@ -76,14 +79,14 @@ export default function WorkflowDefinitionsPage() {
     setStatus('');
     setSearchKeyword('');
     setSearchStatus('');
-    fetchList(1, '', '');
+    void fetchList(1, '', '');
   };
 
   const handlePublish = async (record: WorkflowDefinition) => {
     const res = await request.post(`/api/workflows/definitions/${record.id}/publish`, {});
     if (res.code === 0) {
       Toast.success('发布成功');
-      fetchList();
+      void fetchList();
     }
   };
 
@@ -91,7 +94,7 @@ export default function WorkflowDefinitionsPage() {
     const res = await request.post(`/api/workflows/definitions/${record.id}/disable`, {});
     if (res.code === 0) {
       Toast.success('已禁用');
-      fetchList();
+      void fetchList();
     }
   };
 
@@ -99,7 +102,7 @@ export default function WorkflowDefinitionsPage() {
     const res = await request.delete(`/api/workflows/definitions/${id}`);
     if (res.code === 0) {
       Toast.success('删除成功');
-      fetchList();
+      void fetchList();
     }
   };
 
@@ -229,7 +232,7 @@ export default function WorkflowDefinitionsPage() {
         categories={categories}
         selectedId={selectedCategoryId}
         onSelect={handleSelectCategory}
-        onChanged={() => { refetchCategories(); fetchList(); }}
+        onChanged={() => { refetchCategories(); void fetchList(); }}
         canManage={hasPermission('workflow:definition:create')}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -269,12 +272,12 @@ export default function WorkflowDefinitionsPage() {
         columns={columns}
         dataSource={data?.list ?? []}
         rowKey="id"
-        pending={isPending}
+        loading={loading}
         pagination={{
           currentPage: page,
           pageSize,
           total: data?.total ?? 0,
-          onPageChange: (p) => { fetchList(p); },
+          onPageChange: (p) => { void fetchList(p); },
         }}
       />
       {historyTarget && (
@@ -284,7 +287,7 @@ export default function WorkflowDefinitionsPage() {
           currentVersion={historyTarget.version}
           currentStatus={historyTarget.status}
           onCancel={() => setHistoryTarget(null)}
-          onRestored={() => { fetchList(); }}
+          onRestored={() => { void fetchList(); }}
         />
       )}
       </div>

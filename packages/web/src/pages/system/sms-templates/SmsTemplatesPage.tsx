@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useTransition} from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Button, Col, Form, Input, Modal, Row, Select, Space, Spin, Typography,
   Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
@@ -21,7 +21,7 @@ export default function SmsTemplatesPage() {
   const { hasPermission: can } = usePermission();
   const { items: statusItems } = useDictItems('common_status');
 
-  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(false);
   const [list, setList] = useState<SmsTemplate[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -38,7 +38,8 @@ export default function SmsTemplatesPage() {
 
   const fetchList = useCallback(
     async (p: number, kw: string, pr: SmsProvider | undefined, st: string | undefined, ps = 10) => {
-      startTransition(async () => {
+      setLoading(true);
+      try {
         const params = new URLSearchParams({ page: String(p), pageSize: String(ps) });
         if (kw) params.set('keyword', kw);
         if (pr) params.set('provider', pr);
@@ -48,17 +49,19 @@ export default function SmsTemplatesPage() {
         setTotal(res.data?.total ?? 0);
         setPage(res.data?.page ?? p);
         setPageSize(res.data?.pageSize ?? ps);
-      });
+      } finally {
+        setLoading(false);
+      }
     },
     [],
   );
 
-  useEffect(() => { fetchList(1, '', undefined, undefined, 10); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => { void fetchList(1, '', undefined, undefined, 10); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  const handleSearch = () => { fetchList(1, keyword, filterProvider, filterStatus, pageSize); };
+  const handleSearch = () => { void fetchList(1, keyword, filterProvider, filterStatus, pageSize); };
   const handleReset = () => {
     setKeyword(''); setFilterProvider(undefined); setFilterStatus(undefined);
-    fetchList(1, '', undefined, undefined, pageSize);
+    void fetchList(1, '', undefined, undefined, pageSize);
   };
 
   const openCreate = () => { setEditingRecord(null); setModalVisible(true); };
@@ -88,7 +91,7 @@ export default function SmsTemplatesPage() {
         Toast.success('创建成功');
       }
       setModalVisible(false);
-      fetchList(page, keyword, filterProvider, filterStatus, pageSize);
+      void fetchList(page, keyword, filterProvider, filterStatus, pageSize);
     } finally {
       setSubmitting(false);
     }
@@ -101,7 +104,7 @@ export default function SmsTemplatesPage() {
       onOk: async () => {
         await request.delete(`/api/sms-templates/${id}`);
         Toast.success('删除成功');
-        fetchList(page, keyword, filterProvider, filterStatus, pageSize);
+        void fetchList(page, keyword, filterProvider, filterStatus, pageSize);
       },
     });
   };
@@ -152,11 +155,11 @@ export default function SmsTemplatesPage() {
         )}
       </SearchToolbar>
 
-      <ConfigurableTable bordered pending={isPending} columns={columns} dataSource={list} rowKey="id"
+      <ConfigurableTable bordered loading={loading} columns={columns} dataSource={list} rowKey="id"
         pagination={{
           total, currentPage: page, pageSize, showTotal: true, showSizeChanger: true,
-          onPageChange: (p: number) => { fetchList(p, keyword, filterProvider, filterStatus, pageSize); },
-          onPageSizeChange: (s: number) => { fetchList(1, keyword, filterProvider, filterStatus, s); },
+          onPageChange: (p: number) => { void fetchList(p, keyword, filterProvider, filterStatus, pageSize); },
+          onPageSizeChange: (s: number) => { void fetchList(1, keyword, filterProvider, filterStatus, s); },
         }}
         scroll={{ x: 1300 }} />
 
