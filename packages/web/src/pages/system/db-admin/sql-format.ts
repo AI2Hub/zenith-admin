@@ -58,3 +58,33 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     return false;
   }
 }
+
+interface DdlColumn {
+  name: string;
+  dataType: string;
+  isNullable: boolean;
+  defaultValue: string | null;
+}
+
+/** 根据表结构信息生成 CREATE TABLE DDL 语句 */
+export function generateCreateTableDdl(
+  schema: string,
+  table: string,
+  columns: DdlColumn[],
+  primaryKey: string[],
+): string {
+  const colLines = columns.map((c) => {
+    let line = `  ${quoteSqlIdent(c.name)} ${c.dataType}`;
+    if (!c.isNullable) line += ' NOT NULL';
+    if (c.defaultValue !== null) line += ` DEFAULT ${c.defaultValue}`;
+    return line;
+  });
+  if (primaryKey.length > 0) {
+    colLines.push(`  PRIMARY KEY (${primaryKey.map(quoteSqlIdent).join(', ')})`);
+  }
+  return (
+    `CREATE TABLE ${quoteSqlIdent(schema)}.${quoteSqlIdent(table)} (\n` +
+    colLines.join(',\n') +
+    '\n);'
+  );
+}

@@ -736,6 +736,38 @@ export async function exportQueryCsv(sqlText: string): Promise<ReadableStream<Ui
   });
 }
 
+// ─── 6b. 导出表数据 CSV ─────────────────────────────────────────────────────────
+/** 将整表数据以流式 CSV 导出，内部复用 exportQueryCsv */
+export async function exportTableDataCsv(
+  schema: string,
+  name: string,
+): Promise<ReadableStream<Uint8Array>> {
+  assertIdent(schema, 'schema');
+  assertIdent(name, 'table');
+  return exportQueryCsv(`SELECT * FROM ${quoteIdent(schema)}.${quoteIdent(name)}`);
+}
+
+// ─── 6c. 截断表 ──────────────────────────────────────────────────────────────────
+const FORBIDDEN_TRUNCATE_SCHEMAS = new Set(['pg_catalog', 'information_schema', 'pg_toast', 'drizzle']);
+const FORBIDDEN_TRUNCATE_TABLES = new Set([
+  'public.db_admin_query_history',
+  'public.audit_logs',
+  'public.__drizzle_migrations',
+]);
+
+/** TRUNCATE TABLE — 清空整张表数据，不可恢复 */
+export async function truncateTable(schema: string, name: string): Promise<void> {
+  assertIdent(schema, 'schema');
+  assertIdent(name, 'table');
+  if (FORBIDDEN_TRUNCATE_SCHEMAS.has(schema)) {
+    throw new HTTPException(403, { message: '禁止操作系统 schema' });
+  }
+  if (FORBIDDEN_TRUNCATE_TABLES.has(`${schema}.${name}`)) {
+    throw new HTTPException(403, { message: '禁止操作该系统表' });
+  }
+  await db.execute(sql.raw(`TRUNCATE TABLE ${quoteIdent(schema)}.${quoteIdent(name)}`));
+}
+
 // ─── 7. SQL 执行历史 ────────────────────────────────────────────────────────────
 export async function listQueryHistory(page: number, pageSize: number): Promise<{
   list: Array<{

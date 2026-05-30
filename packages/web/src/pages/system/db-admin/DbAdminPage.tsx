@@ -36,6 +36,7 @@ import {
   ArrowRight,
   Plus,
   Network,
+  MoreHorizontal,
 } from 'lucide-react';
 import type { editor as MonacoEditor, KeyMod as KeyModT, KeyCode as KeyCodeT, Position } from 'monaco-editor';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -51,7 +52,7 @@ import { formatDateTime } from '@/utils/date';
 import { RowEditModal } from './RowEditModal';
 import { EditableCell } from './EditableCell';
 import { ErDiagram, type ErSchema } from './ErDiagram';
-import { buildInsertSql, buildUpdateSql, copyToClipboard } from './sql-format';
+import { buildInsertSql, buildUpdateSql, copyToClipboard, generateCreateTableDdl } from './sql-format';
 
 async function copyRowSqlAndToast(sql: string, label: string) {
   const ok = await copyToClipboard(sql);
@@ -298,6 +299,7 @@ export default function DbAdminPage() {
   const [tablesLoading, setTablesLoading] = useState(false);
   const [tableFilter, setTableFilter] = useState('');
   const [selected, setSelected] = useState<TableItem | null>(null);
+  const [openMenuKey, setOpenMenuKey] = useState<string | null>(null);
   const [innerTab, setInnerTab] = useState<string>('structure');
   const [structure, setStructure] = useState<TableStructure | null>(null);
   const [structureLoading, setStructureLoading] = useState(false);
@@ -496,6 +498,113 @@ export default function DbAdminPage() {
   const handleOpenInConsole = (t: TableItem) => {
     setSql(`SELECT * FROM ${fullName(t)} LIMIT 50;`);
     setActiveTab('console');
+  };
+
+  // ─── 表右键上下文菜单操作 ────────────────────────────────────────────────────
+  const handleExportTableCsv = async (t: TableItem) => {
+    if (!canExport) return;
+    const token = localStorage.getItem(TOKEN_KEY);
+    try {
+      const res = await fetch(
+        `${config.apiBaseUrl}/api/db-admin/tables/${encodeURIComponent(t.schema)}/${encodeURIComponent(t.name)}/export.csv`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        Toast.error((err as { message?: string })?.message ?? '导出失败');
+        return;
+      }
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${t.schema}_${t.name}_${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      Toast.success(`${fullName(t)} 导出成功`);
+    } catch (err) {
+      Toast.error('导出失败：' + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
+  const handleCopyDdl = async (t: TableItem) => {
+    let str: TableStructure | null =
+      (selected?.schema === t.schema && selected?.name === t.name) ? structure : null;
+    if (!str) {
+      const res = await request.get<TableStructure>(
+        `/api/db-admin/tables/${encodeURIComponent(t.schema)}/${encodeURIComponent(t.name)}/structure`,
+      );
+      if (res.code !== 0 || !res.data) { Toast.error('获取结构失败'); return; }
+      str = res.data;
+    }
+    const ddl = generateCreateTableDdl(t.schema, t.name, str.columns, str.primaryKey);
+    await copyToClipboard(ddl, '已复制 CREATE TABLE DDL');
+  };
+
+  const handleTruncateTable = async (t: TableItem) => {
+    const res = await request.post(
+      `/api/db-admin/tables/${encodeURIComponent(t.schema)}/${encodeURIComponent(t.name)}/truncate`,
+      {},
+    );
+    if (res.code === 0) {
+      Toast.success(`已截断 ${fullName(t)}`);
+      if (selected?.schema === t.schema && selected?.name === t.name) refreshRows();
+    } else {
+      Toast.error(res.message ?? '截断失败');
+    }
+  };
+
+  const renderTableContextMenu = (t: TableItem) => {
+    const isWritable = !SYSTEM_SCHEMAS.has(t.schema) && !SYSTEM_TABLES.has(`${t.schema}.${t.name}`);
+    return (
+      <Dropdown.Menu>
+        <Dropdown.Item onClick={() => { handleSelectTable(t); setInnerTab('structure'); }}>
+          查看结构
+        </Dropdown.Item>
+        <Dropdown.Item onClick={() => { handleSelectTable(t); setInnerTab('data'); }}>
+          查看数据
+        </Dropdown.Item>
+        <Dropdown.Item onClick={() => handleOpenInConsole(t)}>
+          在控制台查询
+        </Dropdown.Item>
+        {canExport && (
+          <>
+            <Dropdown.Divider />
+            <Dropdown.Item icon={<Download size={14} />} onClick={() => void handleExportTableCsv(t)}>
+              导出数据 CSV
+            </Dropdown.Item>
+          </>
+        )}
+        <Dropdown.Divider />
+        <Dropdown.Item onClick={() => void handleCopyName(t)}>复制表名</Dropdown.Item>
+        <Dropdown.Item onClick={() => void handleCopySelect(t)}>复制 SELECT *</Dropdown.Item>
+        <Dropdown.Item
+          onClick={() => void copyToClipboard(`SELECT COUNT(*) FROM ${fullName(t)};`, '已复制 COUNT 语句')}
+        >
+          复制 COUNT 语句
+        </Dropdown.Item>
+        <Dropdown.Item onClick={() => void handleCopyDdl(t)}>
+          复制 CREATE TABLE DDL
+        </Dropdown.Item>
+        {canWrite && isWritable && (
+          <>
+            <Dropdown.Divider />
+            <Dropdown.Item
+              type="danger"
+              onClick={() => {
+                Modal.confirm({
+                  title: `确定截断 ${fullName(t)} 吗？`,
+                  content: '此操作将清空表内所有数据，且不可恢复！',
+                  type: 'error',
+                  onOk: async () => { await handleTruncateTable(t); },
+                });
+              }}
+            >
+              截断表 (TRUNCATE)
+            </Dropdown.Item>
+          </>
+        )}
+      </Dropdown.Menu>
+    );
   };
 
   // ─── SQL 执行 ────────────────────────────────────────────────────────────────
@@ -1018,6 +1127,7 @@ export default function DbAdminPage() {
                           const isActive = selected?.schema === t.schema && selected?.name === t.name;
                           return (
                             <List.Item
+                              className="db-admin-table-item"
                               key={`${t.schema}.${t.name}`}
                               onClick={() => handleSelectTable(t)}
                               style={{
@@ -1028,11 +1138,32 @@ export default function DbAdminPage() {
                               }}
                               main={
                                 <div style={{ minWidth: 0, width: '100%' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
                                     <Text strong={isActive} ellipsis={{ showTooltip: true }} style={{ flex: 1, minWidth: 0 }}>
                                       {t.name}
                                     </Text>
-                                    <Text type="tertiary" size="small">{t.sizeText}</Text>
+                                    <Space spacing={2} style={{ flexShrink: 0, alignItems: 'center' }}>
+                                      <Text type="tertiary" size="small" className="db-admin-table-size">{t.sizeText}</Text>
+                                      <Dropdown
+                                        trigger="custom"
+                                        visible={openMenuKey === `${t.schema}.${t.name}`}
+                                        onVisibleChange={(vis) => { if (!vis) setOpenMenuKey(null); }}
+                                        position="bottomLeft"
+                                        render={renderTableContextMenu(t)}
+                                        getPopupContainer={() => document.body}
+                                        clickToHide
+                                        stopPropagation
+                                      >
+                                        <Button
+                                          className="db-admin-table-more-btn"
+                                          size="small"
+                                          theme="borderless"
+                                          icon={<MoreHorizontal size={14} />}
+                                          onClick={(e) => { e.stopPropagation(); setOpenMenuKey(`${t.schema}.${t.name}`); }}
+                                          style={{ padding: '0 2px', minWidth: 24, height: 22 }}
+                                        />
+                                      </Dropdown>
+                                    </Space>
                                   </div>
                                 </div>
                               }

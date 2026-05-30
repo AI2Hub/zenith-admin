@@ -31,6 +31,8 @@ import {
   executeReadonlyQuery,
   explainQuery,
   exportQueryCsv,
+  exportTableDataCsv,
+  truncateTable,
   listQueryHistory,
   clearQueryHistory,
   deleteQueryHistory,
@@ -270,6 +272,24 @@ const clearHistoryRoute = defineOpenAPIRoute({
   },
 });
 
+const truncateTableRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/tables/{schema}/{name}/truncate', tags: ['DbAdmin'], summary: '截断表 (TRUNCATE)',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'system:db-admin:write',
+      audit: { description: '截断表 TRUNCATE', module: '数据库管理' },
+    })] as const,
+    request: { params: TableNameParam },
+    responses: { ...commonErrorResponses, ...okMsg('已截断') },
+  }),
+  handler: async (c) => {
+    const { schema, name } = c.req.valid('param');
+    await truncateTable(schema, name);
+    return c.json(okBody(null, '已截断'), 200);
+  },
+});
+
 const erDiagramRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/er-diagram', tags: ['DbAdmin'], summary: 'ER 图（所有外键关系）',
@@ -297,6 +317,7 @@ router.openapiRoutes([
   insertRowRoute,
   updateRowRoute,
   deleteRowRoute,
+  truncateTableRoute,
   executeQueryRoute,
   explainRoute,
   historyRoute,
@@ -306,7 +327,26 @@ router.openapiRoutes([
   erSchemaRoute,
 ] as const);
 
-// CSV 导出：流式响应，不在 OpenAPI Spec 中暴露（避免 schema 复杂度）
+// 表数据 CSV 导出：流式响应
+router.get('/tables/:schema/:name/export.csv', authMiddleware, guard({
+  permission: 'system:db-admin:export',
+  audit: { description: '导出表数据 CSV', module: '数据库管理' },
+}), async (c) => {
+  const { schema, name } = c.req.param();
+  const stream = await exportTableDataCsv(schema, name);
+  const filename = `${schema}_${name}_${Date.now()}.csv`;
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+});
+
+// SQL 查询结果 CSV 导出：流式响应，不在 OpenAPI Spec 中暴露（避免 schema 复杂度）
 router.post('/query/export.csv', authMiddleware, guard({
   permission: 'system:db-admin:export',
   audit: { description: '导出 SQL 结果 CSV', module: '数据库管理' },
