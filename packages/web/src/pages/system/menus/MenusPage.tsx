@@ -40,6 +40,7 @@ export default function MenusPage() {
   const [parentId, setParentId] = useState<number | null>(null);
   const [iconValue, setIconValue] = useState('');
   const [menuType, setMenuType] = useState<string>('menu');
+  const [isExternalVal, setIsExternalVal] = useState<boolean>(false);
 
   const [expandedRowKeys, setExpandedRowKeys] = useState<(string | number)[]>([]);
   const [keyword, setKeyword] = useState('');
@@ -142,6 +143,7 @@ export default function MenusPage() {
     setParentId(pid ?? 0);
     setIconValue('');
     setMenuType('menu');
+    setIsExternalVal(false);
     setModalVisible(true);
   };
 
@@ -150,6 +152,7 @@ export default function MenusPage() {
     setParentId(menu.parentId ?? 0);
     setIconValue(menu.icon ?? '');
     setMenuType(menu.type);
+    setIsExternalVal(menu.isExternal ?? false);
     setModalVisible(true);
     setModalDetailLoading(true);
     const res = await request.get<Menu>(`/api/menus/${menu.id}`);
@@ -159,6 +162,7 @@ export default function MenusPage() {
       setParentId(res.data.parentId ?? 0);
       setIconValue(res.data.icon ?? '');
       setMenuType(res.data.type);
+      setIsExternalVal(res.data.isExternal ?? false);
     } else {
       Toast.error(res.message || '获取菜单信息失败');
     }
@@ -398,12 +402,12 @@ export default function MenusPage() {
                 />
               </Col>
             )}
-            {menuType === 'menu' && (
+            {menuType === 'menu' && !isExternalVal && (
               <Col span={12}>
                 <Form.Input field="component" label="组件路径" placeholder="例如: users/UsersPage" rules={[{ required: true, message: '请输入组件路径' }]} />
               </Col>
             )}
-            {menuType === 'menu' && (
+            {menuType === 'menu' && !isExternalVal && (
               <Col span={12}>
                 <Form.Input field="name" label="组件名" placeholder="前端组件Name" />
               </Col>
@@ -424,6 +428,7 @@ export default function MenusPage() {
                   label={<Tooltip content="选择是外链则路由地址需要以 http(s):// 开头">是否外链</Tooltip>}
                   type="button"
                   initValue={false}
+                  onChange={(e) => setIsExternalVal((e.target as HTMLInputElement).value as unknown as boolean)}
                 >
                   <Radio value={true}>是</Radio>
                   <Radio value={false}>否</Radio>
