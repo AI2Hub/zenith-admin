@@ -21,10 +21,10 @@
   --fd-line-color: #cacaca;
   --fd-node-body-color: var(--semi-color-text-1);
   --fd-node-body-arrow: var(--semi-color-text-3);
-  --fd-end-bg: #dbdfe2;
-  --fd-end-color: #666;
-  --fd-tag-bg: #f0f5ff;
-  --fd-tag-color: #1d6cc0;
+  --fd-end-bg: var(--semi-color-fill-2);
+  --fd-end-color: var(--semi-color-text-2);
+  --fd-tag-bg: var(--semi-color-primary-light-default);
+  --fd-tag-color: var(--semi-color-primary);
 }
 
 body[theme-mode='dark'] .fd-canvas {
