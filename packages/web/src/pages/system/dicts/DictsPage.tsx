@@ -55,6 +55,8 @@ export default function DictsPage() {
   const [itemsLoading, setItemsLoading] = useState(false);
   const [itemModalVisible, setItemModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<DictItem | null>(null);
+  const [pendingItemKeyword, setPendingItemKeyword] = useState('');
+  const [pendingItemStatus, setPendingItemStatus] = useState('');
   const [itemKeyword, setItemKeyword] = useState('');
   const [itemStatusFilter, setItemStatusFilter] = useState('');
   const { items: statusItems } = useDictItems('common_status');
@@ -98,6 +100,20 @@ export default function DictsPage() {
 
   useEffect(() => { fetchDicts(); }, [fetchDicts]);
 
+  function handleItemSearch() {
+    setItemKeyword(pendingItemKeyword);
+    setItemStatusFilter(pendingItemStatus);
+    if (selectedDict) fetchItems(selectedDict.id);
+  }
+
+  function handleItemReset() {
+    setPendingItemKeyword('');
+    setPendingItemStatus('');
+    setItemKeyword('');
+    setItemStatusFilter('');
+    if (selectedDict) fetchItems(selectedDict.id);
+  }
+
   function handleSearch() {
     setPage(1);
     setSubmittedKeyword(keyword);
@@ -120,6 +136,8 @@ export default function DictsPage() {
   const selectDict = (dict: Dict) => {
     setSelectedDict(dict);
     fetchItems(dict.id);
+    setPendingItemKeyword('');
+    setPendingItemStatus('');
     setItemKeyword('');
     setItemStatusFilter('');
     setSideSheetVisible(true);
@@ -398,21 +416,24 @@ export default function DictsPage() {
             prefix={<Search size={14} />}
             placeholder="标签/键值"
             showClear
-            value={itemKeyword}
-            onChange={(v) => setItemKeyword(v)}
+            value={pendingItemKeyword}
+            onChange={(v) => setPendingItemKeyword(v)}
+            onEnterPress={handleItemSearch}
             style={{ width: 180 }}
           />
           <Select
             placeholder="状态"
             showClear
-            value={itemStatusFilter || undefined}
-            onChange={(val) => setItemStatusFilter((val as string) ?? '')}
+            value={pendingItemStatus || undefined}
+            onChange={(val) => setPendingItemStatus((val as string) ?? '')}
             style={{ width: 120 }}
           >
             {statusItems.map((i) => (
               <Select.Option key={i.value} value={i.value}>{i.label}</Select.Option>
             ))}
           </Select>
+          <Button type="primary" icon={<Search size={14} />} onClick={handleItemSearch}>查询</Button>
+          <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleItemReset}>重置</Button>
         </Space>
         <Table
           bordered
