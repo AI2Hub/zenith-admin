@@ -21,13 +21,13 @@ interface UserDataPermission {
   roleDeptScopeIds: number[];
 }
 
-interface Props {
+type Props = Readonly<{
   userId: number;
   userName: string;
   visible: boolean;
   deptTree: Department[];
   onClose: () => void;
-}
+}>;
 
 function scopeLabel(scope: string | null): string {
   if (scope === null) return '未设置';
@@ -38,7 +38,7 @@ const SCOPE_PRIORITY: Record<string, number> = { all: 5, dept: 4, dept_only: 3, 
 
 function getMostPermissive(a: string | null, b: string | null): string {
   if (!a && !b) return 'self';
-  if (!a) return b!;
+  if (!a) return b;
   if (!b) return a;
   return (SCOPE_PRIORITY[a] ?? 0) >= (SCOPE_PRIORITY[b] ?? 0) ? a : b;
 }
