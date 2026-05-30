@@ -644,7 +644,6 @@ export default function DbAdminPage() {
                 Modal.confirm({
                   title: `确定截断 ${fullName(t)} 吗？`,
                   content: '此操作将清空表内所有数据，且不可恢复！',
-                  type: 'error',
                   onOk: async () => { await handleTruncateTable(t); },
                 });
               }}
