@@ -65,19 +65,33 @@ async function fetchUserPermissionData(userId: number): Promise<{ permissions: s
           },
         },
       },
+      userMenus: {
+        columns: {},
+        with: {
+          menu: {
+            columns: {
+              id: true,
+              permission: true,
+            },
+          },
+        },
+      },
     },
   });
 
-  if (!user || user.userRoles.length === 0) {
+  if (!user) {
     return { permissions: [], menuIds: [] };
   }
 
-  const menuRows = user.userRoles.flatMap(({ role }) => role.roleMenus.map(({ menu }) => menu));
-  const menuIds = [...new Set(menuRows.map((menu) => menu.id))];
+  const roleMenuRows = user.userRoles.flatMap(({ role }) => role.roleMenus.map(({ menu }) => menu));
+  const directMenuRows = user.userMenus.map(({ menu }) => menu);
+  const allMenuRows = [...roleMenuRows, ...directMenuRows];
+
+  const menuIds = [...new Set(allMenuRows.map((menu) => menu.id))];
 
   const permissions = [
     ...new Set(
-      menuRows
+      allMenuRows
         .map((menu) => menu.permission)
         .filter((permission): permission is string => permission !== null && permission !== '')
     ),

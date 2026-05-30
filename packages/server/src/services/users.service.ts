@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import ExcelJS from 'exceljs';
 import { db } from '../db';
 import type { DbExecutor } from '../db/types';
-import { users, userRoles, roles, departments, positions, userPositions } from '../db/schema';
+import { users, userRoles, roles, departments, positions, userPositions, userMenus, userDeptScopes } from '../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { pageOffset } from '../lib/pagination';
@@ -571,4 +571,152 @@ export async function importUsers(file: File): Promise<ImportUsersResult> {
     }
   }
   return { total: dataRows.length, success, failed: errors.length, errors };
+}
+
+// ─── 用户级菜单权限 ────────────────────────────────────────────────────────────
+
+export async function getUserMenuPermissions(userId: number) {
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: {},
+    with: {
+      userMenus: { columns: { menuId: true } },
+      userRoles: {
+        columns: {},
+        with: {
+          role: {
+            columns: {},
+            with: { roleMenus: { columns: { menuId: true } } },
+          },
+        },
+      },
+    },
+  });
+  if (!user) throw new HTTPException(404, { message: '用户不存在' });
+  const directMenuIds = user.userMenus.map((m) => m.menuId);
+  const roleMenuIds = [...new Set(user.userRoles.flatMap((ur) => ur.role.roleMenus.map((rm) => rm.menuId)))];
+  return { directMenuIds, roleMenuIds };
+}
+
+export async function assignUserMenus(userId: number, menuIds: number[]) {
+  const exists = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { id: true } });
+  if (!exists) throw new HTTPException(404, { message: '用户不存在' });
+  await db.transaction(async (tx) => {
+    await tx.delete(userMenus).where(eq(userMenus.userId, userId));
+    if (menuIds.length > 0) {
+      await tx.insert(userMenus).values(menuIds.map((menuId) => ({ userId, menuId })));
+    }
+  });
+  clearUserPermissionCache(userId);
+}
+
+// ─── 用户级数据权限 ────────────────────────────────────────────────────────────
+
+const SCOPE_PRIORITY: Record<string, number> = { all: 5, dept: 4, dept_only: 3, custom: 2, self: 1 };
+
+function getMostPermissiveScope(scopes: Array<string | null>): string | null {
+  const valid = scopes.filter((s): s is string => s !== null);
+  if (valid.length === 0) return null;
+  return valid.reduce((best, curr) => (SCOPE_PRIORITY[curr] ?? 0) > (SCOPE_PRIORITY[best] ?? 0) ? curr : best);
+}
+
+export async function getUserDataPermission(userId: number) {
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { userDataScope: true },
+    with: {
+      userDeptScopes: { columns: { deptId: true } },
+      userRoles: {
+        columns: {},
+        with: {
+          role: {
+            columns: { dataScope: true },
+            with: { deptScopes: { columns: { deptId: true } } },
+          },
+        },
+      },
+    },
+  });
+  if (!user) throw new HTTPException(404, { message: '用户不存在' });
+  const roleDataScope = getMostPermissiveScope(user.userRoles.map((ur) => ur.role.dataScope));
+  const roleDeptScopeIds = [...new Set(
+    user.userRoles
+      .filter((ur) => ur.role.dataScope === 'custom')
+      .flatMap((ur) => ur.role.deptScopes.map((ds) => ds.deptId))
+  )];
+  return {
+    userDataScope: user.userDataScope ?? null,
+    deptScopeIds: user.userDeptScopes.map((ds) => ds.deptId),
+    roleDataScope,
+    roleDeptScopeIds,
+  };
+}
+
+export async function updateUserDataPermission(userId: number, data: { dataScope: string | null; deptScopeIds: number[] }) {
+  const exists = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { id: true } });
+  if (!exists) throw new HTTPException(404, { message: '用户不存在' });
+  await db.transaction(async (tx) => {
+    await tx.update(users)
+      .set({ userDataScope: data.dataScope as typeof users.$inferInsert['userDataScope'] })
+      .where(eq(users.id, userId));
+    await tx.delete(userDeptScopes).where(eq(userDeptScopes.userId, userId));
+    if (data.dataScope === 'custom' && data.deptScopeIds.length > 0) {
+      await tx.insert(userDeptScopes).values(data.deptScopeIds.map((deptId) => ({ userId, deptId })));
+    }
+  });
+  clearUserPermissionCache(userId);
+}
+
+export async function getUserEffectivePermissions(userId: number) {
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { userDataScope: true },
+    with: {
+      userMenus: { columns: { menuId: true } },
+      userDeptScopes: { columns: { deptId: true } },
+      userRoles: {
+        columns: {},
+        with: {
+          role: {
+            columns: { dataScope: true },
+            with: {
+              roleMenus: { columns: { menuId: true } },
+              deptScopes: { columns: { deptId: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!user) throw new HTTPException(404, { message: '用户不存在' });
+
+  const directMenuIds = user.userMenus.map((m) => m.menuId);
+  const roleMenuIds = [...new Set(user.userRoles.flatMap((ur) => ur.role.roleMenus.map((rm) => rm.menuId)))];
+  const effectiveMenuIds = [...new Set([...directMenuIds, ...roleMenuIds])];
+
+  const userDataScope = user.userDataScope ?? null;
+  const roleDataScope = getMostPermissiveScope(user.userRoles.map((ur) => ur.role.dataScope));
+  const effectiveDataScope = getMostPermissiveScope([userDataScope, roleDataScope]) ?? 'self';
+
+  const userDeptScopeIds = user.userDeptScopes.map((ds) => ds.deptId);
+  const roleDeptScopeIds = [...new Set(
+    user.userRoles
+      .filter((ur) => ur.role.dataScope === 'custom')
+      .flatMap((ur) => ur.role.deptScopes.map((ds) => ds.deptId))
+  )];
+  const effectiveDeptScopeIds = effectiveDataScope === 'custom'
+    ? [...new Set([...(userDataScope === 'custom' ? userDeptScopeIds : []), ...roleDeptScopeIds])]
+    : [];
+
+  return {
+    directMenuIds,
+    roleMenuIds,
+    effectiveMenuIds,
+    userDataScope,
+    roleDataScope,
+    effectiveDataScope,
+    userDeptScopeIds,
+    roleDeptScopeIds,
+    effectiveDeptScopeIds,
+  };
 }

@@ -561,6 +561,13 @@
       "when": 1780132303099,
       "tag": "0079_ancient_norman_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1780138038603,
+      "tag": "0080_slippery_calypso",
+      "breakpoints": true
     }
   ]
 }

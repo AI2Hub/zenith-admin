@@ -43,6 +43,7 @@ import { inAppMessagesHandlers } from './in-app-messages';
 import { ipAccessLogsHandlers } from './ip-access-logs';
 import { dataMaskHandlers } from './data-mask';
 import { dbQueryFavoritesHandlers } from './db-query-favorites';
+import { userPermissionsHandlers } from './user-permissions';
 
 export const handlers = [
   ...authHandlers,
@@ -90,4 +91,5 @@ export const handlers = [
   ...userAiConfigHandlers,
   ...oauth2AppsHandlers,
   ...oauth2AuthHandlers,
+  ...userPermissionsHandlers,
 ];

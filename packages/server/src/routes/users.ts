@@ -5,12 +5,14 @@ import {
   ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody, okExcel, excelBody, excelStreamBody, BatchIdsBody,
 } from '../lib/openapi-schemas';
-import { UserDTO, ImportResultDTO } from '../lib/openapi-dtos';
+import { UserDTO, ImportResultDTO, UserMenuPermissionsDTO, UserDataPermissionDTO, UserEffectivePermissionsDTO } from '../lib/openapi-dtos';
 import {
   listAllUsers, listUsers, createUser, batchDeleteUsers, batchUpdateUserStatus,
   updateUser, deleteUser, updateUserPassword, unlockUserById,
   exportUsers, getUserImportTemplate, importUsersFromFormData, getUserBeforeAudit, getUsersBeforeAudit,
   getUser,
+  getUserMenuPermissions, assignUserMenus,
+  getUserDataPermission, updateUserDataPermission, getUserEffectivePermissions,
 } from '../services/users.service';
 
 const usersRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -270,10 +272,120 @@ const deleteUserRoute = defineOpenAPIRoute({
   },
 });
 
+const getUserMenusRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/menus', tags: ['Users'], summary: '获取用户菜单权限',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:user:assign' })] as const,
+    request: { params: IdParam },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(UserMenuPermissionsDTO, '获取成功'),
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const data = await getUserMenuPermissions(id);
+    return c.json(okBody(data), 200);
+  },
+});
+
+const assignUserMenusRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/{id}/menus', tags: ['Users'], summary: '分配用户菜单权限',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:user:assign' })] as const,
+    request: {
+      params: IdParam,
+      body: { content: { 'application/json': { schema: z.object({ menuIds: z.array(z.number().int()).default([]) }) } }, required: true },
+    },
+    responses: {
+      ...commonErrorResponses,
+      ...okMsg('保存成功'),
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const { menuIds } = c.req.valid('json');
+    await assignUserMenus(id, menuIds);
+    return c.json(okBody(null, '保存成功'), 200);
+  },
+});
+
+const getUserDataPermissionRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/data-permission', tags: ['Users'], summary: '获取用户数据权限',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:user:assign' })] as const,
+    request: { params: IdParam },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(UserDataPermissionDTO, '获取成功'),
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const data = await getUserDataPermission(id);
+    return c.json(okBody(data), 200);
+  },
+});
+
+const updateUserDataPermissionRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/{id}/data-permission', tags: ['Users'], summary: '设置用户数据权限',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:user:assign' })] as const,
+    request: {
+      params: IdParam,
+      body: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              dataScope: z.enum(['all', 'custom', 'dept_only', 'dept', 'self']).nullable().default(null),
+              deptScopeIds: z.array(z.number().int()).default([]),
+            }),
+          },
+        },
+        required: true,
+      },
+    },
+    responses: {
+      ...commonErrorResponses,
+      ...okMsg('保存成功'),
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const data = c.req.valid('json');
+    await updateUserDataPermission(id, data);
+    return c.json(okBody(null, '保存成功'), 200);
+  },
+});
+
+const getUserEffectivePermissionsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/effective-permissions', tags: ['Users'], summary: '获取用户最终有效权限',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:user:assign' })] as const,
+    request: { params: IdParam },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(UserEffectivePermissionsDTO, '获取成功'),
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const data = await getUserEffectivePermissions(id);
+    return c.json(okBody(data), 200);
+  },
+});
+
 usersRouter.openapiRoutes([
   getAllUsersRoute, listUsersRoute, createUserRoute, batchDeleteUsersRoute, batchStatusUsersRoute,
   importTemplateRoute, importUsersRoute, exportUsersRoute, updateUserPasswordRoute, unlockUserRoute,
   getOneUserRoute, updateUserRoute, deleteUserRoute,
+  getUserMenusRoute, assignUserMenusRoute,
+  getUserDataPermissionRoute, updateUserDataPermissionRoute, getUserEffectivePermissionsRoute,
 ] as const);
 
 export default usersRouter;

@@ -41,7 +41,7 @@ export async function getDataScopeCondition(options: DataScopeOptions): Promise<
   // ── 1. 查询用户的角色（含 dataScope 和 deptScopes）及部门，合并为单次 RQB 请求 ──────────────
   const userData = await db.query.users.findFirst({
     where: eq(users.id, currentUserId),
-    columns: { departmentId: true },
+    columns: { departmentId: true, userDataScope: true },
     with: {
       userRoles: {
         columns: {},
@@ -52,13 +52,16 @@ export async function getDataScopeCondition(options: DataScopeOptions): Promise<
           },
         },
       },
+      userDeptScopes: { columns: { deptId: true } },
     },
   });
   const userRoleList = userData?.userRoles.map((ur) => ur.role) ?? [];
+  const userDirectScope = userData?.userDataScope ?? null;
 
-  // ── 2. 计算有效权限（多角色取最宽松原则）─────────────────────────────────────
+  // ── 2. 计算有效权限（多角色 + 用户直接权限取最宽松原则）─────────────────────────────────────
   const isSuperAdmin = userRoleList.some((r) => r.code === 'super_admin');
   const scopeSet = new Set(userRoleList.map((r) => r.dataScope));
+  if (userDirectScope !== null) scopeSet.add(userDirectScope);
 
   if (isSuperAdmin || scopeSet.has('all')) {
     return undefined; // 全量访问，不追加条件
@@ -80,10 +83,13 @@ export async function getDataScopeCondition(options: DataScopeOptions): Promise<
 
   // ── 4. custom 权限：指定部门 ──────────────────────────────────────────────────
   if (scopeSet.has('custom') && deptColumn) {
-    const customDeptIds = userRoleList
+    const roleScopedDeptIds = userRoleList
       .filter((r) => r.dataScope === 'custom')
       .flatMap((r) => (r.deptScopes ?? []).map((ds) => ds.deptId));
-    const uniqueDeptIds = [...new Set(customDeptIds)];
+    const userScopedDeptIds = userDirectScope === 'custom'
+      ? (userData?.userDeptScopes?.map((ds) => ds.deptId) ?? [])
+      : [];
+    const uniqueDeptIds = [...new Set([...roleScopedDeptIds, ...userScopedDeptIds])];
     if (uniqueDeptIds.length > 0) {
       return inArray(deptColumn, uniqueDeptIds);
     }

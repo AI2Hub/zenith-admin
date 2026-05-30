@@ -36,6 +36,8 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import './UsersPage.css';
 import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
+import { UserMenuPermissionModal } from './UserMenuPermissionModal';
+import { UserDataScopeModal } from './UserDataScopeModal';
 
 interface SearchParams {
   keyword: string;
@@ -65,6 +67,10 @@ export default function UsersPage() {
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [passwordUser, setPasswordUser] = useState<User | null>(null);
+  const [menuPermUser, setMenuPermUser] = useState<User | null>(null);
+  const [menuPermVisible, setMenuPermVisible] = useState(false);
+  const [dataPermUser, setDataPermUser] = useState<User | null>(null);
+  const [dataPermVisible, setDataPermVisible] = useState(false);
   const [allRoles, setAllRoles] = useState<Role[]>([]);
   const [allDepartments, setAllDepartments] = useState<Department[]>([]);
   const [allPositions, setAllPositions] = useState<Position[]>([]);
@@ -494,6 +500,12 @@ export default function UsersPage() {
                   {record.isLocked && (
                     <Dropdown.Item onClick={() => handleUnlock(record.id)}>解锁</Dropdown.Item>
                   )}
+                  {hasPermission('system:user:assign') && (
+                    <Dropdown.Item onClick={() => { setMenuPermUser(record); setMenuPermVisible(true); }}>菜单权限</Dropdown.Item>
+                  )}
+                  {hasPermission('system:user:assign') && (
+                    <Dropdown.Item onClick={() => { setDataPermUser(record); setDataPermVisible(true); }}>数据权限</Dropdown.Item>
+                  )}
                 </Dropdown.Menu>
               }
             >
@@ -886,6 +898,27 @@ export default function UsersPage() {
           </div>
         )}
       </Modal>
+
+      {/* 用户菜单权限 */}
+      {menuPermUser && (
+        <UserMenuPermissionModal
+          userId={menuPermUser.id}
+          userName={menuPermUser.nickname || menuPermUser.username}
+          visible={menuPermVisible}
+          onClose={() => setMenuPermVisible(false)}
+        />
+      )}
+
+      {/* 用户数据权限 */}
+      {dataPermUser && (
+        <UserDataScopeModal
+          userId={dataPermUser.id}
+          userName={dataPermUser.nickname || dataPermUser.username}
+          visible={dataPermVisible}
+          deptTree={allDepartments}
+          onClose={() => setDataPermVisible(false)}
+        />
+      )}
     </div>
   );
 }

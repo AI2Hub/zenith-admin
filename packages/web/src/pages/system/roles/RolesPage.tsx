@@ -9,7 +9,6 @@ import {
   Modal,
   Form,
   Toast,
-  Tree,
   TreeSelect,
   Spin,
   DatePicker,
@@ -27,6 +26,8 @@ import DictTag from '@/components/DictTag';
 import { useDictItems } from '@/hooks/useDictItems';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
+import { MenuPermissionPanel } from '@/components/permissions/MenuPermissionPanel';
+import { DataScopePanel } from '@/components/permissions/DataScopePanel';
 
 export default function RolesPage() {
   const { hasPermission } = usePermission();
@@ -53,7 +54,6 @@ export default function RolesPage() {
   const [allMenus, setAllMenus] = useState<Menu[]>([]);
   const [checkedMenuIds, setCheckedMenuIds] = useState<number[]>([]);
   const [menuLoading, setMenuLoading] = useState(false);
-  const [menuExpandedKeys, setMenuExpandedKeys] = useState<string[]>([]);
   const [userModalVisible, setUserModalVisible] = useState(false);
   const [userRole, setUserRole] = useState<Role | null>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -134,22 +134,12 @@ export default function RolesPage() {
       ]);
       if (menusRes.code === 0) {
         setAllMenus(menusRes.data);
-        setMenuExpandedKeys(getAllMenuKeys(menusRes.data));
       }
       if (roleRes.code === 0) setCheckedMenuIds(roleRes.data.menuIds ?? []);
     } finally {
       setMenuLoading(false);
     }
   };
-
-  function menusToTreeData(items: Menu[]): object[] {
-    return items.map((m) => ({
-      label: m.title,
-      key: String(m.id),
-      value: m.id,
-      children: m.children ? menusToTreeData(m.children) : undefined,
-    }));
-  }
 
   function getAllMenuIds(items: Menu[]): number[] {
     return items.flatMap((m) => [m.id, ...(m.children ? getAllMenuIds(m.children) : [])]);
@@ -429,34 +419,12 @@ export default function RolesPage() {
         width={480}
 
       >
-        {menuLoading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
-            <Spin />
-          </div>
-        ) : (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-              <Space>
-                <Button size="small" theme="borderless" onClick={() => setCheckedMenuIds(getAllMenuIds(allMenus))}>全选</Button>
-                <Button size="small" theme="borderless" onClick={() => setCheckedMenuIds([])}>全不选</Button>
-              </Space>
-              <Space>
-                <Button size="small" theme="borderless" onClick={() => setMenuExpandedKeys(getAllMenuKeys(allMenus))}>展开全部</Button>
-                <Button size="small" theme="borderless" onClick={() => setMenuExpandedKeys([])}>折叠全部</Button>
-              </Space>
-            </div>
-            <Tree
-              treeData={menusToTreeData(allMenus)}
-              multiple
-              autoMergeValue={false}
-              expandedKeys={menuExpandedKeys}
-              onExpand={(keys) => setMenuExpandedKeys(keys)}
-              value={checkedMenuIds.map(String)}
-              onChange={(keys) => setCheckedMenuIds((keys as string[]).map(Number))}
-              style={{ maxHeight: 400, overflow: 'auto' }}
-            />
-          </>
-        )}
+        <MenuPermissionPanel
+          allMenus={allMenus}
+          checkedMenuIds={checkedMenuIds}
+          onChange={setCheckedMenuIds}
+          loading={menuLoading}
+        />
       </Modal>
 
       {/* 数据权限 Modal */}
@@ -468,35 +436,14 @@ export default function RolesPage() {
         width={400}
 
       >
-        {dataScopeLoading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}><Spin /></div>
-        ) : (
-          <>
-            <Select
-              value={selectedDataScope}
-              onChange={(v) => setSelectedDataScope(v as string)}
-              style={{ width: '100%' }}
-              optionList={[
-                { value: 'all', label: '全部数据权限' },
-                { value: 'custom', label: '指定部门数据权限' },
-                { value: 'dept_only', label: '本部门数据权限' },
-                { value: 'dept', label: '本部门及以下数据权限' },
-                { value: 'self', label: '仅本人数据权限' },
-              ]}
-            />
-            {selectedDataScope === 'custom' && (
-              <TreeSelect
-                multiple
-                filterTreeNode
-                treeData={deptsToTreeData(deptTree)}
-                value={selectedDeptScopeIds}
-                onChange={(vals) => setSelectedDeptScopeIds((vals as string[]).map(Number))}
-                placeholder="请选择指定部门（可多选）"
-                style={{ width: '100%', marginTop: 12 }}
-              />
-            )}
-          </>
-        )}
+        <DataScopePanel
+          dataScope={selectedDataScope}
+          deptScopeIds={selectedDeptScopeIds}
+          deptTree={deptTree}
+          onScopeChange={(v) => setSelectedDataScope(v ?? 'all')}
+          onDeptIdsChange={setSelectedDeptScopeIds}
+          loading={dataScopeLoading}
+        />
       </Modal>
 
       {/* 分配用户 Modal */}

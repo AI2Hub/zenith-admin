@@ -46,3 +46,35 @@ export const ImportResultDTO = z
       .optional(),
   })
   .openapi('UserImportResult');
+
+const dataScopeValues = ['all', 'custom', 'dept_only', 'dept', 'self'] as const;
+
+export const UserMenuPermissionsDTO = z
+  .object({
+    directMenuIds: z.array(z.number().int()).openapi({ description: '用户直接授权菜单 ID 列表' }),
+    roleMenuIds: z.array(z.number().int()).openapi({ description: '角色继承菜单 ID 列表' }),
+  })
+  .openapi('UserMenuPermissions');
+
+export const UserDataPermissionDTO = z
+  .object({
+    userDataScope: z.enum(dataScopeValues).nullable().openapi({ description: '用户直接数据权限（null 表示未设置）' }),
+    deptScopeIds: z.array(z.number().int()).openapi({ description: '用户直接指定的部门 ID 列表' }),
+    roleDataScope: z.string().nullable().openapi({ description: '角色最宽松数据权限' }),
+    roleDeptScopeIds: z.array(z.number().int()).openapi({ description: '角色指定的部门 ID 列表' }),
+  })
+  .openapi('UserDataPermission');
+
+export const UserEffectivePermissionsDTO = z
+  .object({
+    directMenuIds: z.array(z.number().int()),
+    roleMenuIds: z.array(z.number().int()),
+    effectiveMenuIds: z.array(z.number().int()),
+    userDataScope: z.enum(dataScopeValues).nullable(),
+    roleDataScope: z.string().nullable(),
+    effectiveDataScope: z.string(),
+    userDeptScopeIds: z.array(z.number().int()),
+    roleDeptScopeIds: z.array(z.number().int()),
+    effectiveDeptScopeIds: z.array(z.number().int()),
+  })
+  .openapi('UserEffectivePermissions');

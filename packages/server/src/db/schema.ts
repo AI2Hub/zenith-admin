@@ -87,6 +87,7 @@ export const users = pgTable('users', {
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   status: statusEnum('status').notNull().default('enabled'),
   preferences: jsonb('preferences'),
+  userDataScope: dataScopeEnum('user_data_scope'),
   passwordUpdatedAt: timestamp('password_updated_at').defaultNow().notNull(),
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -188,6 +189,18 @@ export const roleDeptScopes = pgTable('role_dept_scopes', {
   roleId: integer('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
   deptId: integer('dept_id').notNull().references((): AnyPgColumn => departments.id, { onDelete: 'cascade' }),
 }, (t) => [primaryKey({ columns: [t.roleId, t.deptId] })]);
+
+// ─── 用户-菜单直接授权关联表 ──────────────────────────────────────────────────
+export const userMenus = pgTable('user_menus', {
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  menuId: integer('menu_id').notNull().references(() => menus.id, { onDelete: 'cascade' }),
+}, (t) => [primaryKey({ columns: [t.userId, t.menuId] })]);
+
+// ─── 用户数据权限范围（部门）关联表 ───────────────────────────────────────────
+export const userDeptScopes = pgTable('user_dept_scopes', {
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  deptId: integer('dept_id').notNull().references((): AnyPgColumn => departments.id, { onDelete: 'cascade' }),
+}, (t) => [primaryKey({ columns: [t.userId, t.deptId] })]);
 
 // ─── 字典表 ───────────────────────────────────────────────────────────────────
 export const dicts = pgTable('dicts', {
@@ -1168,6 +1181,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   apiTokens: many(userApiTokens),
   passwordResetTokens: many(passwordResetTokens),
   leadingDepartments: many(departments, { relationName: 'departmentLeader' }),
+  userMenus: many(userMenus),
+  userDeptScopes: many(userDeptScopes),
 }));
 
 export const rolesRelations = relations(roles, ({ one, many }) => ({
@@ -1179,6 +1194,7 @@ export const rolesRelations = relations(roles, ({ one, many }) => ({
 
 export const menusRelations = relations(menus, ({ many }) => ({
   roleMenus: many(roleMenus),
+  userMenus: many(userMenus),
 }));
 
 export const userRolesRelations = relations(userRoles, ({ one }) => ({
@@ -1199,6 +1215,16 @@ export const roleMenusRelations = relations(roleMenus, ({ one }) => ({
 export const roleDeptScopesRelations = relations(roleDeptScopes, ({ one }) => ({
   role: one(roles, { fields: [roleDeptScopes.roleId], references: [roles.id] }),
   department: one(departments, { fields: [roleDeptScopes.deptId], references: [departments.id] }),
+}));
+
+export const userMenusRelations = relations(userMenus, ({ one }) => ({
+  user: one(users, { fields: [userMenus.userId], references: [users.id] }),
+  menu: one(menus, { fields: [userMenus.menuId], references: [menus.id] }),
+}));
+
+export const userDeptScopesRelations = relations(userDeptScopes, ({ one }) => ({
+  user: one(users, { fields: [userDeptScopes.userId], references: [users.id] }),
+  department: one(departments, { fields: [userDeptScopes.deptId], references: [departments.id] }),
 }));
 
 export const dictsRelations = relations(dicts, ({ one, many }) => ({
