@@ -252,41 +252,61 @@ export default function DashboardPage() {
   return (
     <div className="page-container dashboard-page">
       {/* ===== 欢迎横幅 ===== */}
-      <div className="dashboard-welcome">
-        <div className="dashboard-welcome__left">
-          <Avatar
-            src={user?.avatar || undefined}
-            color="blue"
-            size="large"
-            style={{ width: 52, height: 52, fontSize: 20, flexShrink: 0 }}
-          >
-            {user?.nickname?.charAt(0).toUpperCase() ?? 'U'}
-          </Avatar>
-          <div className="dashboard-welcome__info">
-            <div className="dashboard-welcome__greeting">
-              欢迎回来，<span className="dashboard-welcome__name">{user?.nickname ?? user?.username ?? '用户'}</span>
-            </div>
-            <div className="dashboard-welcome__meta">
-              {user?.lastLoginAt ? (
-                <>
-                  <span className="dashboard-welcome__meta-item">
-                    <Clock size={12} />
-                    上次登录：{user.lastLoginAt}
-                  </span>
-                  {user.lastLoginIp && (
-                    <span className="dashboard-welcome__meta-item">
-                      <MapPin size={12} />
-                      IP：{user.lastLoginIp}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <span className="dashboard-welcome__meta-item">首次登录，欢迎！</span>
-              )}
+      <Card bodyStyle={{ padding: '16px 20px' }} className="dashboard-welcome-card">
+        <Skeleton active loading={!user} placeholder={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <Skeleton.Avatar style={{ width: 52, height: 52, borderRadius: '50%', flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <Skeleton.Title style={{ width: 180, height: 18, marginBottom: 8 }} />
+              <Skeleton.Paragraph rows={1} style={{ width: 260 }} />
             </div>
           </div>
-        </div>
-      </div>
+        }>
+          <div className="dashboard-welcome">
+            <div className="dashboard-welcome__left">
+              <Avatar
+                src={user?.avatar || undefined}
+                color="blue"
+                size="large"
+                style={{ width: 52, height: 52, fontSize: 20, flexShrink: 0, cursor: 'pointer' }}
+                onClick={() => navigate('/profile')}
+              >
+                {user?.nickname?.charAt(0).toUpperCase() ?? 'U'}
+              </Avatar>
+              <div className="dashboard-welcome__info">
+                <div className="dashboard-welcome__greeting">
+                  {'欢迎回来，'}
+                  <button
+                    type="button"
+                    className="dashboard-welcome__name dashboard-welcome__name--link"
+                    onClick={() => navigate('/profile')}
+                  >
+                    {user?.nickname ?? user?.username ?? '用户'}
+                  </button>
+                </div>
+                <div className="dashboard-welcome__meta">
+                  {user?.lastLoginAt ? (
+                    <>
+                      <span className="dashboard-welcome__meta-item">
+                        <Clock size={12} />
+                        上次登录：{user.lastLoginAt}
+                      </span>
+                      {user.lastLoginIp && (
+                        <span className="dashboard-welcome__meta-item">
+                          <MapPin size={12} />
+                          IP：{user.lastLoginIp}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="dashboard-welcome__meta-item">首次登录，欢迎！</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </Skeleton>
+      </Card>
       {isAdmin && (
         <div className="dashboard-stats-row">
           {statsLoading
