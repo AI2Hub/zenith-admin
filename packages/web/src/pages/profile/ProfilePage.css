@@ -80,25 +80,6 @@
   gap: 4px;
 }
 
-.profile-meta {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 10px 16px;
-  width: 100%;
-  text-align: left;
-}
-
-.profile-meta-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.profile-meta-item > .semi-typography:first-child {
-  flex-shrink: 0;
-}
-
 .section-title {
   font-size: 14px;
   font-weight: 600;
@@ -263,12 +244,4 @@
     align-items: center;
   }
 
-  .profile-meta {
-    grid-template-columns: 1fr;
-  }
-
-  .profile-meta-item {
-    justify-content: center;
-    flex-wrap: wrap;
-  }
 }
