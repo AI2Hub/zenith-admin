@@ -92,6 +92,7 @@ export function mapUser(row: UserWithRelations): User {
     nickname: row.nickname,
     email: row.email,
     phone: row.phone ?? undefined,
+    gender: row.gender ?? null,
     avatar: row.avatar ?? undefined,
     departmentId: row.departmentId,
     departmentName: row.department?.name ?? null,
@@ -226,7 +227,7 @@ export async function listUsers(q: ListUsersQuery) {
 
 export interface CreateUserInput {
   username: string; nickname: string; email: string; password: string;
-  phone?: string; departmentId?: number | null;
+  phone?: string; gender?: string | null; departmentId?: number | null;
   positionIds: number[]; roleIds: number[];
   status: 'enabled' | 'disabled';
 }
@@ -325,7 +326,7 @@ export async function getUserBeforeAudit(id: number) {
 }
 
 export interface UpdateUserInput {
-  username?: string; nickname?: string; email?: string; phone?: string;
+  username?: string; nickname?: string; email?: string; phone?: string; gender?: string | null;
   departmentId?: number | null;
   positionIds?: number[]; roleIds?: number[];
   status?: 'enabled' | 'disabled';

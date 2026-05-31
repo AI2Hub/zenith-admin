@@ -51,6 +51,7 @@ export const mockUsers: MockUser[] = [
         updatedAt: '2024-01-01 00:00:00',
       },
     ],
+    gender: null,
     roles: [superAdminRole],
     passwordUpdatedAt: '2024-01-01 00:00:00',
     status: 'enabled',

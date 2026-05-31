@@ -85,6 +85,7 @@ export const users = pgTable('users', {
   phone: varchar('phone', { length: 20 }),
   departmentId: integer('department_id').references((): AnyPgColumn => departments.id, { onDelete: 'set null' }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  gender: varchar('gender', { length: 20 }),
   status: statusEnum('status').notNull().default('enabled'),
   preferences: jsonb('preferences'),
   userDataScope: dataScopeEnum('user_data_scope'),

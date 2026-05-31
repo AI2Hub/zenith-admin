@@ -77,6 +77,7 @@ export default function UsersPage() {
   const [passwordPolicy, setPasswordPolicy] = useState<PasswordPolicy | null>(null);
 
   const { items: statusItems } = useDictItems('common_status');
+  const { items: genderItems } = useDictItems('user_gender');
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
 
   const [importModalVisible, setImportModalVisible] = useState(false);
@@ -203,6 +204,7 @@ export default function UsersPage() {
         nickname: editingUser.nickname,
         email: editingUser.email,
         phone: editingUser.phone ?? undefined,
+        gender: editingUser.gender ?? undefined,
         departmentId: editingUser.departmentId ?? undefined,
         positionIds: editingUser.positionIds ?? editingUser.positions?.map((item) => item.id) ?? [],
         roleIds: editingUser.roles.map((r) => r.id),
@@ -421,6 +423,12 @@ export default function UsersPage() {
       dataIndex: 'phone',
       width: 150,
       render: renderEllipsis,
+    },
+    {
+      title: '性别',
+      dataIndex: 'gender',
+      width: 80,
+      render: (gender: string | null | undefined) => gender ? <DictTag dictCode="user_gender" value={gender} /> : null,
     },
     {
       title: '部门',
@@ -747,6 +755,18 @@ export default function UsersPage() {
                 rules={[{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码' }]}
               />
             </Col>
+            <Col span={12}>
+              <Form.Select
+                field="gender"
+                label="性别"
+                style={{ width: '100%' }}
+                showClear
+                optionList={genderItems.map((i) => ({ value: i.value, label: i.label }))}
+                placeholder="请选择性别"
+              />
+            </Col>
+          </Row>
+          <Row gutter={16}>
             <Col span={12}>
               <Form.TreeSelect
                 field="departmentId"

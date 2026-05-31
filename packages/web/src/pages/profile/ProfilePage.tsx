@@ -15,6 +15,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { formatPasswordPolicyHint, type PasswordPolicy } from '@/utils/password-policy';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { useDictItems } from '@/hooks/useDictItems';
 import { LoginLogsTable } from '@/components/logs/LoginLogsTable';
 import { OperationLogsTable } from '@/components/logs/OperationLogsTable';
 import './ProfilePage.css';
@@ -125,6 +126,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
 
   // ─── 基本信息 ────────────────────────────────────────────────────────────────
   const [profileLoading, setProfileLoading] = useState(false);
+  const { items: genderItems } = useDictItems('user_gender');
 
   // ─── 头像裁剪 ────────────────────────────────────────────────────────────────
   const cropperRef = useRef<Cropper>(null);
@@ -235,7 +237,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
 
   // ─── 事件处理 ────────────────────────────────────────────────────────────────
 
-  async function handleUpdateProfile(values: { nickname: string; email: string; phone?: string }) {
+  async function handleUpdateProfile(values: { nickname: string; email: string; phone?: string; gender?: string | null }) {
     setProfileLoading(true);
     const res = await request.put<Omit<UserType, 'password'>>('/api/auth/profile', values);
     setProfileLoading(false);
@@ -482,7 +484,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
 
                     <div className="section-title">资料编辑</div>
                   <Form
-                    initValues={{ nickname: user.nickname, email: user.email, phone: user.phone ?? '' }}
+                    initValues={{ nickname: user.nickname, email: user.email, phone: user.phone ?? '', gender: user.gender ?? undefined }}
                     onSubmit={handleUpdateProfile}
                     allowEmpty
                     labelPosition="left"
@@ -513,6 +515,14 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                         { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码' },
                       ]}
                       style={{ width: 320 }}
+                    />
+                    <Form.Select
+                      field="gender"
+                      label="性别"
+                      style={{ width: 320 }}
+                      showClear
+                      optionList={genderItems.map((i) => ({ value: i.value, label: i.label }))}
+                      placeholder="请选择性别（选填）"
                     />
                     <Form.Slot>
                       <Button htmlType="submit" type="primary" loading={profileLoading}>保存修改</Button>
