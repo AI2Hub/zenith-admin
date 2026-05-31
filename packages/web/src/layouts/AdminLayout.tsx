@@ -1160,7 +1160,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
           )}
           {/* Tabs bar — shown above breadcrumb for all layouts */}
           {preferences.enableTabs && tabs.length > 0 && (
-            <div ref={tabsBarRef} className={`admin-tabs-bar${preferences.showBreadcrumb ? ' admin-tabs-bar--with-breadcrumb' : ''}`} data-tab-animation={preferences.tabAnimation}>
+            <div ref={tabsBarRef} className={`admin-tabs-bar${preferences.showBreadcrumb ? ' admin-tabs-bar--with-breadcrumb' : ''}`} data-tab-animation={preferences.tabAnimation} data-tab-style={preferences.tabStyle ?? 'line'}>
               {tabs.map((tab, tabIndex) => {
                   const isEntering = enteringTabKeys.has(tab.key);
                   const isExiting = exitingTabKeys.has(tab.key);
@@ -1487,6 +1487,20 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                       onChange={(v) => setPreferences({ tabsMaxCount: v as number })}
                       style={{ width: 100 }}
                     />
+                  </div>
+
+                  {/* ── 标签页风格 ── */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>标签页风格</span>
+                    <RadioGroup
+                      type="button"
+                      value={preferences.tabStyle ?? 'line'}
+                      onChange={(e) => setPreferences({ tabStyle: e.target.value as 'line' | 'pill' | 'card' })}
+                    >
+                      <Radio value="line">线条</Radio>
+                      <Radio value="pill">胶囊</Radio>
+                      <Radio value="card">卡片</Radio>
+                    </RadioGroup>
                   </div>
 
                   {/* ── 标签页动画 ── */}

@@ -3,12 +3,14 @@ import type { ThemeMode } from '@/hooks/useTheme';
 
 export type NavLayout = 'vertical' | 'horizontal' | 'mixed' | 'double';
 export type TabAnimation = 'none' | 'fade' | 'slide' | 'scale';
+export type TabStyle = 'line' | 'pill' | 'card';
 
 export interface UserPreferences {
   enableTabs: boolean;
   keepTabs: boolean;
   tabsMaxCount: number;
   showTabIcon: boolean;
+  tabStyle: TabStyle;
   navLayout: NavLayout;
   showBreadcrumb: boolean;
   /** 面包屑是否显示图标 */
@@ -31,6 +33,7 @@ export const defaultPreferences: UserPreferences = {
   keepTabs: true,
   tabsMaxCount: 20,
   showTabIcon: true,
+  tabStyle: 'line',
   navLayout: 'vertical',
   showBreadcrumb: false,
   breadcrumbIcon: true,

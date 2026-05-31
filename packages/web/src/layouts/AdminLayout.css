@@ -809,6 +809,66 @@
   border-radius: 2px 2px 0 0;
 }
 
+/* ── 卡片风格 ── */
+.admin-tabs-bar[data-tab-style="card"] {
+  gap: 2px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--semi-color-border);
+  align-items: flex-end;
+}
+
+[data-tab-style="card"] .admin-tab-item {
+  padding: 8px 14px;
+  margin-top: 4px;
+  border-radius: 6px 6px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: var(--semi-color-fill-0);
+  margin-bottom: -1px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+[data-tab-style="card"] .admin-tab-item:hover:not(.admin-tab-item--active) {
+  background: var(--semi-color-fill-1);
+}
+
+[data-tab-style="card"] .admin-tab-item--active::after {
+  display: none;
+}
+
+[data-tab-style="card"] .admin-tab-item--active {
+  background: var(--color-layout-bg);
+  border-color: var(--semi-color-border);
+  color: var(--semi-color-primary);
+  font-weight: 500;
+}
+
+/* ── 胶囊风格 ── */
+.admin-tabs-bar[data-tab-style="pill"] {
+  gap: 4px;
+  padding: 5px 12px;
+}
+
+[data-tab-style="pill"] .admin-tab-item {
+  border-radius: 999px;
+  padding: 6px 14px;
+  transition: background 0.15s, color 0.15s;
+}
+
+[data-tab-style="pill"] .admin-tab-item::after {
+  display: none;
+}
+
+[data-tab-style="pill"] .admin-tab-item--active {
+  background: var(--semi-color-primary);
+  color: #fff;
+  font-weight: 500;
+}
+
+[data-tab-style="pill"] .admin-tab-item:hover:not(.admin-tab-item--active) {
+  background: var(--semi-color-fill-0);
+}
+
 .admin-tab-item__icon {
   display: inline-flex;
   align-items: center;
