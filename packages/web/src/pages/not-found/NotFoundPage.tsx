@@ -6,10 +6,10 @@ export default function NotFoundPage() {
   const navigate = useNavigate();
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+    <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
       <Empty
-        image={<IllustrationNotFound style={{ width: 150, height: 150 }} />}
-        darkModeImage={<IllustrationNotFoundDark style={{ width: 150, height: 150 }} />}
+        image={<IllustrationNotFound style={{ width: 200, height: 200 }} />}
+        darkModeImage={<IllustrationNotFoundDark style={{ width: 200, height: 200 }} />}
         title="页面不存在"
         description="您访问的页面不存在或已被移除，请检查地址是否正确"
       >
