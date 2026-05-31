@@ -537,7 +537,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
   const navLayout: NavLayout = preferences.navLayout ?? 'vertical';
 
   const autoTopKey = useMemo(() => {
-    if (navLayout !== 'mixed') return null;
+    if (navLayout !== 'mixed' && navLayout !== 'double') return null;
     function contains(items: NavItem[], path: string): boolean {
       return items.some((item) =>
         item.itemKey === path || (item.items ? contains(item.items, path) : false),
@@ -550,7 +550,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
   }, [navLayout, navItems, location.pathname]);
 
   useEffect(() => {
-    if (navLayout === 'mixed' && autoTopKey) setManualTopKey(autoTopKey);
+    if ((navLayout === 'mixed' || navLayout === 'double') && autoTopKey) setManualTopKey(autoTopKey);
   }, [navLayout, autoTopKey]);
 
   // 进入消息中心页面时重置聊天未读数
@@ -573,7 +573,13 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
     return top?.items ?? [];
   }, [navLayout, navItems, effectiveTopKey]);
 
-  const showSidebar = navLayout === 'vertical' || (navLayout === 'mixed' && mixedSidebarItems.length > 0);
+  const doubleSubItems = useMemo(() => {
+    if (navLayout !== 'double') return [];
+    const top = navItems.find((i) => i.itemKey === effectiveTopKey);
+    return top?.items ?? [];
+  }, [navLayout, navItems, effectiveTopKey]);
+
+  const showSidebar = navLayout === 'vertical' || (navLayout === 'mixed' && mixedSidebarItems.length > 0) || navLayout === 'double';
 
   useEffect(() => {
     const pageTitle = resolveTitle(location.pathname);
@@ -686,6 +692,27 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
     },
     [externalNavKeys],
   );
+
+  const handleDoubleRailClick = useCallback((item: NavItem) => {
+    setManualTopKey(item.itemKey);
+    if (item.items?.length) {
+      function findFirstLeaf(items: NavItem[]): string | null {
+        for (const i of items) {
+          if (i.items?.length) {
+            const leaf = findFirstLeaf(i.items);
+            if (leaf) return leaf;
+          } else if (i.itemKey.startsWith('/')) {
+            return i.itemKey;
+          }
+        }
+        return null;
+      }
+      const leaf = findFirstLeaf(item.items);
+      if (leaf) navigate(leaf);
+    } else if (item.itemKey.startsWith('/')) {
+      navigate(item.itemKey);
+    }
+  }, [navigate]);
 
   const handleMixedTopSelect = useCallback(
     ({ itemKey: key }: { itemKey: string | number }) => {
@@ -985,7 +1012,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
   const adminLayoutEl = (
     <div className="admin-layout">
       {/* Top bar for horizontal and mixed layouts */}
-      {navLayout !== 'vertical' && (
+      {navLayout !== 'vertical' && navLayout !== 'double' && (
         <header className="admin-topbar">
           {(preferences.showLogo ?? true) && (
             <button
@@ -1011,50 +1038,113 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
 
       <div className="admin-body">
 
-        {/* Sidebar — always in vertical, conditional in mixed */}
+{/* Sidebar — always in vertical, conditional in mixed, always in double */}
         {showSidebar && (
-          <aside className={sidebarClassName}>
-            <Nav
-              className="admin-sidebar__nav"
-              mode="vertical"
-              items={navLayout === 'mixed' ? mixedSidebarItems : navItems}
-              style={{ height: '100%' }}
-              bodyStyle={{ paddingTop: 8 }}
-              isCollapsed={collapsed}
-              selectedKeys={currentSelectedKeys}
-              openKeys={collapsed ? [] : openKeys}
-              onOpenChange={({ openKeys: nextOpenKeys }) => setOpenKeys((nextOpenKeys ?? []).map(String))}
-              onCollapseChange={handleCollapseChange}
-              header={
-                navLayout === 'vertical' && (preferences.showLogo ?? true)
-                  ? {
-                      logo: (
-                        <button
-                          type="button"
-                          style={{ cursor: 'pointer', border: 0, padding: 0, background: 'transparent', display: 'flex' }}
-                          onClick={navigateHome}
-                          onKeyDown={handleNavigateHomeKey}
-                        ><AppLogo size={28} /></button>
-                      ),
-                      text: (
-                        <button
-                          type="button"
-                          className="admin-sidebar__title"
-                          style={{ cursor: 'pointer', background: 'transparent', border: 0, padding: 0, font: 'inherit', color: 'inherit' }}
-                          onClick={navigateHome}
-                          onKeyDown={handleNavigateHomeKey}
-                        >{config.appTitle}</button>
-                      ),
-                    }
-                  : undefined
-              }
-              footer={{
-                collapseButton: true,
-                collapseText: (isCollapsed) => (isCollapsed ? '展开侧边栏' : '收起侧边栏'),
-              }}
-              renderWrapper={renderWrapper}
-            />
-          </aside>
+          navLayout === 'double' ? (
+            <aside className={`admin-sidebar admin-sidebar--double${doubleSubItems.length === 0 ? ' admin-sidebar--double-no-sub' : ''}${stickyNavClass}`}>
+              {/* Left icon rail */}
+              <div className="double-sidebar__rail">
+                {(preferences.showLogo ?? true) && (
+                  <button
+                    type="button"
+                    className="double-sidebar__logo"
+                    onClick={navigateHome}
+                    onKeyDown={handleNavigateHomeKey}
+                  >
+                    <AppLogo size={26} />
+                  </button>
+                )}
+                <div className="double-sidebar__rail-list">
+                  {navItems.map((item) => {
+                    const isActive = effectiveTopKey === item.itemKey;
+                    return (
+                      <button
+                        key={item.itemKey}
+                        type="button"
+                        className={`double-sidebar__rail-item${isActive ? ' double-sidebar__rail-item--active' : ''}`}
+                        onClick={() => handleDoubleRailClick(item)}
+                        title={item.text}
+                      >
+                        <span className="double-sidebar__rail-icon">
+                          {item.badge && item.badge.count > 0 ? (
+                            <Badge count={item.badge.count} overflowCount={item.badge.overflowCount ?? 99}>
+                              {item.icon}
+                            </Badge>
+                          ) : item.icon}
+                        </span>
+                        <span className="double-sidebar__rail-label">{item.text}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {/* Right sub-nav */}
+              <div className="double-sidebar__sub">
+                {doubleSubItems.length > 0 && (
+                  <>
+                    <div className="double-sidebar__sub-title">
+                      {navItems.find((i) => i.itemKey === effectiveTopKey)?.text ?? ''}
+                    </div>
+                    <Nav
+                      className="admin-sidebar__nav double-sidebar__sub-nav"
+                      mode="vertical"
+                      items={doubleSubItems}
+                      style={{ height: 'calc(100% - 48px)', overflow: 'hidden' }}
+                      bodyStyle={{ paddingTop: 8 }}
+                      isCollapsed={false}
+                      selectedKeys={currentSelectedKeys}
+                      openKeys={openKeys}
+                      onOpenChange={({ openKeys: nextOpenKeys }) => setOpenKeys((nextOpenKeys ?? []).map(String))}
+                      renderWrapper={renderWrapper}
+                    />
+                  </>
+                )}
+              </div>
+            </aside>
+          ) : (
+            <aside className={sidebarClassName}>
+              <Nav
+                className="admin-sidebar__nav"
+                mode="vertical"
+                items={navLayout === 'mixed' ? mixedSidebarItems : navItems}
+                style={{ height: '100%' }}
+                bodyStyle={{ paddingTop: 8 }}
+                isCollapsed={collapsed}
+                selectedKeys={currentSelectedKeys}
+                openKeys={collapsed ? [] : openKeys}
+                onOpenChange={({ openKeys: nextOpenKeys }) => setOpenKeys((nextOpenKeys ?? []).map(String))}
+                onCollapseChange={handleCollapseChange}
+                header={
+                  navLayout === 'vertical' && (preferences.showLogo ?? true)
+                    ? {
+                        logo: (
+                          <button
+                            type="button"
+                            style={{ cursor: 'pointer', border: 0, padding: 0, background: 'transparent', display: 'flex' }}
+                            onClick={navigateHome}
+                            onKeyDown={handleNavigateHomeKey}
+                          ><AppLogo size={28} /></button>
+                        ),
+                        text: (
+                          <button
+                            type="button"
+                            className="admin-sidebar__title"
+                            style={{ cursor: 'pointer', background: 'transparent', border: 0, padding: 0, font: 'inherit', color: 'inherit' }}
+                            onClick={navigateHome}
+                            onKeyDown={handleNavigateHomeKey}
+                          >{config.appTitle}</button>
+                        ),
+                      }
+                    : undefined
+                }
+                footer={{
+                  collapseButton: true,
+                  collapseText: (isCollapsed) => (isCollapsed ? '展开侧边栏' : '收起侧边栏'),
+                }}
+                renderWrapper={renderWrapper}
+              />
+            </aside>
+          )
         )}
 
 
@@ -1062,7 +1152,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
         <div className="admin-main">
           <NProgress />
           {/* Vertical mode has its own header bar */}
-          {navLayout === 'vertical' && (
+          {(navLayout === 'vertical' || navLayout === 'double') && (
             <header className="admin-header">
               <div />
               {headerActions}
@@ -1191,11 +1281,12 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
               {/* ── 导航布局 ── */}
               <div>
                 <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>导航布局</div>
-                <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
                   {([
                     { value: 'vertical' as NavLayout, label: '左侧菜单' },
                     { value: 'horizontal' as NavLayout, label: '顶部菜单' },
                     { value: 'mixed' as NavLayout, label: '混合菜单' },
+                    { value: 'double' as NavLayout, label: '双列菜单' },
                   ]).map(({ value, label }) => (
                     <button
                       type="button"

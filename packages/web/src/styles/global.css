@@ -8,6 +8,7 @@
 :root {
   --sidebar-width: 216px;
   --sidebar-collapsed-width: 48px;
+  --sidebar-double-width: 260px;
   --header-height: 48px;
   --color-bg: #f0f1f5;
   --color-surface: #ffffff;

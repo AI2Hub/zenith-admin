@@ -1,7 +1,7 @@
 import { useContext, createContext } from 'react';
 import type { ThemeMode } from '@/hooks/useTheme';
 
-export type NavLayout = 'vertical' | 'horizontal' | 'mixed';
+export type NavLayout = 'vertical' | 'horizontal' | 'mixed' | 'double';
 export type TabAnimation = 'none' | 'fade' | 'slide' | 'scale';
 
 export interface UserPreferences {
