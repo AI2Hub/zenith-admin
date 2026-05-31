@@ -285,7 +285,7 @@ export default function RolesPage() {
           {hasPermission('system:role:assign') && <Button theme="borderless" size="small" onClick={() => openMenuModal(row)}>
             菜单权限
           </Button>}
-          {hasPermission('system:role:delete') && <Button theme="borderless" size="small" type="danger" onClick={() => {
+          {hasPermission('system:role:delete') && <Button theme="borderless" size="small" type="danger" disabled={row.code === 'super_admin'} onClick={() => {
             Modal.confirm({
               title: '确认删除此角色？',
               okButtonProps: { type: 'danger', theme: 'solid' },
@@ -404,6 +404,7 @@ export default function RolesPage() {
             style={{ width: '100%' }}
           />
           <Form.Select field="status" label="状态" style={{ width: '100%' }}
+            disabled={editingRole?.code === 'super_admin'}
             optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
             placeholder="请选择状态"
           />

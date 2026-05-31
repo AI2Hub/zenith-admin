@@ -110,6 +110,11 @@ export async function updateRole(id: number, data: Partial<CreateRoleInput>) {
   const user = currentUser();
   const { deptScopeIds, ...rest } = data;
   return await db.transaction(async (tx) => {
+    const [existing] = await tx.select({ code: roles.code }).from(roles).where(and(eq(roles.id, id), tenantCondition(roles, user))).limit(1);
+    if (!existing) throw new HTTPException(404, { message: '角色不存在' });
+    if (existing.code === 'super_admin' && rest.status === 'disabled') {
+      throw new HTTPException(400, { message: '超级管理员角色不允许禁用' });
+    }
     const [role] = await tx.update(roles).set({ ...rest }).where(and(eq(roles.id, id), tenantCondition(roles, user))).returning();
     if (!role) throw new HTTPException(404, { message: '角色不存在' });
     if (deptScopeIds !== undefined && deptScopeIds !== null) {
@@ -121,6 +126,9 @@ export async function updateRole(id: number, data: Partial<CreateRoleInput>) {
 
 export async function deleteRole(id: number) {
   const user = currentUser();
+  const [existing] = await db.select({ code: roles.code }).from(roles).where(and(eq(roles.id, id), tenantCondition(roles, user))).limit(1);
+  if (!existing) throw new HTTPException(404, { message: '角色不存在' });
+  if (existing.code === 'super_admin') throw new HTTPException(400, { message: '超级管理员角色不允许删除' });
   const [deleted] = await db.delete(roles).where(and(eq(roles.id, id), tenantCondition(roles, user))).returning();
   if (!deleted) throw new HTTPException(404, { message: '角色不存在' });
 }
