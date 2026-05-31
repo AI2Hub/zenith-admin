@@ -330,6 +330,28 @@ export const THEME_COLOR_PRESETS: ThemeColorPreset[] = [
       sidebarActive: 'rgba(56,189,248,0.25)',
     },
   },
+  {
+    key: 'wechat',
+    name: '微信绿',
+    light: {
+      primary: '#07c160',
+      hover: '#06a854',
+      active: '#058f45',
+      lightDefault: 'rgba(7,193,96,0.10)',
+      lightHover: 'rgba(7,193,96,0.15)',
+      lightActive: 'rgba(7,193,96,0.20)',
+      sidebarActive: 'rgba(7,193,96,0.10)',
+    },
+    dark: {
+      primary: '#4ecb71',
+      hover: '#1db95f',
+      active: '#07c160',
+      lightDefault: 'rgba(78,203,113,0.15)',
+      lightHover: 'rgba(78,203,113,0.20)',
+      lightActive: 'rgba(78,203,113,0.25)',
+      sidebarActive: 'rgba(78,203,113,0.25)',
+    },
+  },
 ];
 
 /** 根据颜色 key 快速查找预设，找不到返回 null */
