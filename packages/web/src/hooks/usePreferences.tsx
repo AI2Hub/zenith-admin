@@ -33,7 +33,7 @@ export const defaultPreferences: UserPreferences = {
   showTabIcon: true,
   navLayout: 'vertical',
   showBreadcrumb: false,
-  breadcrumbIcon: false,
+  breadcrumbIcon: true,
   tabAnimation: 'fade',
   colorMode: 'light',
   themeColor: 'blue',
