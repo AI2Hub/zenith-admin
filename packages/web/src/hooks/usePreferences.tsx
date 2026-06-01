@@ -4,6 +4,7 @@ import type { ThemeMode } from '@/hooks/useTheme';
 export type NavLayout = 'vertical' | 'horizontal' | 'mixed' | 'double';
 export type TabAnimation = 'none' | 'fade' | 'slide' | 'scale';
 export type TabStyle = 'line' | 'pill' | 'card';
+export type TableSizePreference = 'small' | 'default' | 'middle';
 
 export interface UserPreferences {
   enableTabs: boolean;
@@ -26,6 +27,9 @@ export interface UserPreferences {
   filesViewMode: 'list' | 'grid';
   sidebarStickyScroll: boolean;
   showTableColumnSettings: boolean;
+  tableBordered: boolean;
+  tableStriped: boolean;
+  tableSize: TableSizePreference;
 }
 
 export const defaultPreferences: UserPreferences = {
@@ -48,6 +52,9 @@ export const defaultPreferences: UserPreferences = {
   filesViewMode: 'list',
   sidebarStickyScroll: true,
   showTableColumnSettings: true,
+  tableBordered: true,
+  tableStriped: false,
+  tableSize: 'default',
 };
 
 export interface PreferencesContextValue {

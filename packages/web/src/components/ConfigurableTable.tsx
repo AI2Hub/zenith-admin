@@ -24,6 +24,12 @@ interface ConfigurableTableProps<RecordType extends TableRecord = TableRecord> e
 
 const DEFAULT_ALWAYS_VISIBLE_KEYS = ['action', 'actions', 'operation', 'operations', 'operate'];
 const DEFAULT_ALWAYS_VISIBLE_TITLES = ['操作'];
+const STRIPED_ROW_CLASS_NAME = 'configurable-table-row--striped';
+
+function joinClassNames(...classNames: Array<string | false | null | undefined>): string | undefined {
+  const next = classNames.filter(Boolean).join(' ');
+  return next || undefined;
+}
 
 function getTitleText(title: ColumnProps<TableRecord>['title']): string | undefined {
   if (typeof title === 'string' || typeof title === 'number') return String(title);
@@ -152,7 +158,11 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
   ...tableProps
 }: ConfigurableTableProps<RecordType>) {
   const { preferences } = usePreferences();
+  const { bordered, className, onRow, size, ...restTableProps } = tableProps;
   const effectiveColumnSettings = (preferences.showTableColumnSettings ?? true) && columnSettings;
+  const effectiveBordered = preferences.tableBordered ?? bordered;
+  const effectiveStriped = preferences.tableStriped ?? false;
+  const effectiveSize = preferences.tableSize ?? size;
   const rawColumns = useMemo(() => (columns ?? []) as ConfigurableColumn<RecordType>[], [columns]);
   const alwaysVisibleKeys = useMemo(
     () => new Set([...DEFAULT_ALWAYS_VISIBLE_KEYS, ...alwaysVisibleColumnKeys].map((key) => key.toLowerCase())),
@@ -189,6 +199,21 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
     () => filterColumns(rawColumns, hiddenKeySet, alwaysVisibleKeys),
     [rawColumns, hiddenKeySet, alwaysVisibleKeys],
   );
+  const effectiveOnRow = useMemo<TableProps<RecordType>['onRow']>(() => {
+    if (!effectiveStriped) return onRow;
+
+    return (record, index, rowStatus) => {
+      const rowProps = onRow?.(record, index, rowStatus) ?? {};
+      if (index === undefined || index % 2 !== 0) return rowProps;
+
+      return {
+        ...rowProps,
+        className: joinClassNames(rowProps.className, STRIPED_ROW_CLASS_NAME),
+      };
+    };
+  }, [effectiveStriped, onRow]);
+  const tableClassName = joinClassNames(className, effectiveStriped && 'configurable-table__table--striped');
+  const effectiveColumns = effectiveColumnSettings ? visibleColumns : columns;
 
   const settingsPanel = (
     <div className="column-settings-popover" onClick={(event) => event.stopPropagation()}>
@@ -235,7 +260,14 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
           </Dropdown>
         </div>
       )}
-      <Table<RecordType> {...tableProps} columns={effectiveColumnSettings ? visibleColumns : columns} />
+      <Table<RecordType>
+        {...restTableProps}
+        bordered={effectiveBordered}
+        className={tableClassName}
+        columns={effectiveColumns}
+        onRow={effectiveOnRow}
+        size={effectiveSize}
+      />
     </div>
   );
 }

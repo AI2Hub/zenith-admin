@@ -8,7 +8,7 @@ import { Bell, Building2, Check, Info, Maximize2, Minimize2, Megaphone, Sun, Moo
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
 import type { User, Menu, InAppMessage, Announcement, Tenant, WsMessage, SystemConfig } from '@zenith/shared';
 import type { ThemeMode } from '@/hooks/useTheme';
-import { usePreferences, type NavLayout } from '@/hooks/usePreferences';
+import { usePreferences, type NavLayout, type TableSizePreference } from '@/hooks/usePreferences';
 import { THEME_COLOR_PRESETS } from '@/lib/theme-color';
 import { useThemeController } from '@/providers/theme-controller';
 import { useTabsStore } from '@/hooks/useTabsStore';
@@ -1451,6 +1451,32 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
               </div>
 
               {/* ── 表格列设置 ── */}
+              <div>
+                <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>表格样式</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>显示表格边框</span>
+                    <Switch checked={preferences.tableBordered ?? true} onChange={(v) => setPreferences({ tableBordered: v })} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>启用斑马纹</span>
+                    <Switch checked={preferences.tableStriped ?? false} onChange={(v) => setPreferences({ tableStriped: v })} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>表格尺寸</span>
+                    <RadioGroup
+                      type="button"
+                      value={preferences.tableSize ?? 'default'}
+                      onChange={(e) => setPreferences({ tableSize: e.target.value as TableSizePreference })}
+                    >
+                      <Radio value="small">紧凑</Radio>
+                      <Radio value="default">默认</Radio>
+                      <Radio value="middle">宽松</Radio>
+                    </RadioGroup>
+                  </div>
+                </div>
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>显示表格列设置按钮</span>
                 <Switch checked={preferences.showTableColumnSettings ?? true} onChange={(v) => setPreferences({ showTableColumnSettings: v })} />

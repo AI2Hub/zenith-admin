@@ -232,6 +232,14 @@ body {
   border-top: 1px solid var(--semi-color-border);
 }
 
+.configurable-table .semi-table-tbody > .semi-table-row.configurable-table-row--striped:not(.semi-table-row-selected) > .semi-table-row-cell {
+  background-color: var(--semi-color-fill-0);
+}
+
+.configurable-table .semi-table-tbody > .semi-table-row.configurable-table-row--striped:not(.semi-table-row-selected):hover > .semi-table-row-cell {
+  background-color: var(--semi-color-fill-1);
+}
+
 .responsive-toolbar {
   display: flex;
   justify-content: space-between;
