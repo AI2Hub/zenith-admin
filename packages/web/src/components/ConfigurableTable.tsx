@@ -23,7 +23,7 @@ interface ConfigurableTableProps<RecordType extends TableRecord = TableRecord> e
 }
 
 const DEFAULT_ALWAYS_VISIBLE_KEYS = ['action', 'actions', 'operation', 'operations', 'operate'];
-const DEFAULT_ALWAYS_VISIBLE_TITLES = ['操作'];
+const DEFAULT_ALWAYS_VISIBLE_TITLES = new Set(['操作']);
 const STRIPED_ROW_CLASS_NAME = 'configurable-table-row--striped';
 
 function joinClassNames(...classNames: Array<string | false | null | undefined>): string | undefined {
@@ -59,7 +59,7 @@ function isAlwaysVisibleColumn<RecordType extends TableRecord>(
   alwaysVisibleKeys: Set<string>,
 ): boolean {
   const titleText = getTitleText(column.title);
-  return alwaysVisibleKeys.has(key.toLowerCase()) || (!!titleText && DEFAULT_ALWAYS_VISIBLE_TITLES.includes(titleText));
+  return alwaysVisibleKeys.has(key.toLowerCase()) || (!!titleText && DEFAULT_ALWAYS_VISIBLE_TITLES.has(titleText));
 }
 
 function getColumnLabel<RecordType extends TableRecord>(
@@ -116,15 +116,15 @@ function filterColumns<RecordType extends TableRecord>(
 }
 
 function getDefaultStorageKey(columnKeys: string[]): string {
-  const pathname = typeof window === 'undefined' ? 'ssr' : window.location.pathname;
+  const pathname = typeof globalThis.window === 'undefined' ? 'ssr' : globalThis.window.location.pathname;
   return `zenith:table-columns:${pathname}:${columnKeys.join('|')}`;
 }
 
 function readHiddenKeys(storageKey: string): string[] {
-  if (typeof window === 'undefined') return [];
+  if (typeof globalThis.window === 'undefined') return [];
 
   try {
-    const raw = window.localStorage.getItem(storageKey);
+    const raw = globalThis.localStorage.getItem(storageKey);
     if (!raw) return [];
 
     const parsed = JSON.parse(raw) as unknown;
@@ -136,17 +136,21 @@ function readHiddenKeys(storageKey: string): string[] {
 }
 
 function writeHiddenKeys(storageKey: string, hiddenKeys: string[]) {
-  if (typeof window === 'undefined') return;
+  if (typeof globalThis.window === 'undefined') return;
 
   try {
     if (hiddenKeys.length === 0) {
-      window.localStorage.removeItem(storageKey);
+      globalThis.localStorage.removeItem(storageKey);
       return;
     }
-    window.localStorage.setItem(storageKey, JSON.stringify(hiddenKeys));
+    globalThis.localStorage.setItem(storageKey, JSON.stringify(hiddenKeys));
   } catch {
     // localStorage may be unavailable in private mode; table rendering should not fail.
   }
+}
+
+function toggleHiddenKey(prev: string[], key: string, checked: boolean): string[] {
+  return checked ? prev.filter((k) => k !== key) : Array.from(new Set([...prev, key]));
 }
 
 export function ConfigurableTable<RecordType extends TableRecord = TableRecord>({
@@ -156,7 +160,7 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
   alwaysVisibleColumnKeys = [],
   columnSettingsLabel = '列设置',
   ...tableProps
-}: ConfigurableTableProps<RecordType>) {
+}: Readonly<ConfigurableTableProps<RecordType>>) {
   const { preferences } = usePreferences();
   const { bordered, className, onRow, size, ...restTableProps } = tableProps;
   const effectiveColumnSettings = (preferences.showTableColumnSettings ?? true) && columnSettings;
@@ -215,8 +219,23 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
   const tableClassName = joinClassNames(className, effectiveStriped && 'configurable-table__table--striped');
   const effectiveColumns = effectiveColumnSettings ? visibleColumns : columns;
 
+  const handleResetColumns = useCallback(() => {
+    updateHiddenKeys(() => []);
+  }, [updateHiddenKeys]);
+
   const settingsPanel = (
-    <div className="column-settings-popover" onClick={(event) => event.stopPropagation()}>
+    <div
+      className="column-settings-popover"
+      role="button"
+      tabIndex={0}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
+    >
       <div className="column-settings-title">列表列配置</div>
       <Space vertical align="start" className="column-settings-list">
         {configurableOptions.map((option) => (
@@ -225,11 +244,7 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
             checked={!hiddenKeySet.has(option.key)}
             onChange={(event) => {
               const checked = !!(event.target as EventTarget & { checked?: boolean }).checked;
-              updateHiddenKeys((prev) => (
-                checked
-                  ? prev.filter((key) => key !== option.key)
-                  : Array.from(new Set([...prev, option.key]))
-              ));
+              updateHiddenKeys((prev) => toggleHiddenKey(prev, option.key, checked));
             }}
           >
             {option.title}
@@ -241,7 +256,7 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
           theme="borderless"
           size="small"
           icon={<RotateCcw size={14} />}
-          onClick={() => updateHiddenKeys(() => [])}
+          onClick={handleResetColumns}
         >
           恢复默认
         </Button>
