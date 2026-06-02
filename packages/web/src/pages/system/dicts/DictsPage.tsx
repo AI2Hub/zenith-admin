@@ -66,8 +66,8 @@ export default function DictsPage() {
       const res = await request.get<DictItem[]>(`/api/dicts/${dictId}/items`);
       if (res.code === 0) {
         setItems(res.data);
-        // 默认展开所有根项目
-        setExpandedRowKeys(res.data.filter((i) => !i.parentId).map((i) => i.id));
+        // 默认展开所有节点
+        setExpandedRowKeys(res.data.map((i) => i.id));
       }
     } finally {
       setItemsLoading(false);
@@ -137,11 +137,10 @@ export default function DictsPage() {
     setItemStatusFilter('');
   }, [fetchItems]);
 
-  // 根项目的 id 集合，用于展开/折叠全部
-  const rootItemIds = useMemo(() => items.filter((i) => !i.parentId).map((i) => i.id), [items]);
-  const isAllExpanded = rootItemIds.length > 0 && expandedRowKeys.length >= rootItemIds.length;
+  const allItemIds = useMemo(() => items.map((i) => i.id), [items]);
+  const isAllExpanded = allItemIds.length > 0 && expandedRowKeys.length >= allItemIds.length;
   function toggleExpandAll() {
-    setExpandedRowKeys(isAllExpanded ? [] : rootItemIds);
+    setExpandedRowKeys(isAllExpanded ? [] : allItemIds);
   }
 
   useEffect(() => { void fetchDicts(); }, [fetchDicts]);
@@ -174,26 +173,56 @@ export default function DictsPage() {
     return flat;
   }, [items, itemKeyword, itemStatusFilter]);
 
-  // 将扁平列表转为两级树结构，用于表格展示
+  // 将扁平列表递归转为树结构，用于表格展示
   const treeItems = useMemo(() => {
     const filteredIds = new Set(filteredItems.map((i) => i.id));
-    const roots = filteredItems.filter((i) => !i.parentId || !filteredIds.has(i.parentId));
-    const childMap = new Map<number, DictItem[]>();
-    filteredItems
-      .filter((i) => i.parentId && filteredIds.has(i.parentId))
-      .forEach((i) => {
-        const arr = childMap.get(i.parentId!) ?? [];
-        arr.push(i);
-        childMap.set(i.parentId!, arr);
+    const buildChildren = (id: number): DictItem[] =>
+      filteredItems
+        .filter((c) => c.parentId === id)
+        .map((c) => {
+          const grandchildren = buildChildren(c.id);
+          return grandchildren.length > 0 ? { ...c, children: grandchildren } : c;
+        });
+    return filteredItems
+      .filter((i) => !i.parentId || !filteredIds.has(i.parentId))
+      .map((item) => {
+        const children = buildChildren(item.id);
+        return children.length > 0 ? { ...item, children } : item;
       });
-    return roots.map((root) => {
-      const children = childMap.get(root.id);
-      return children ? { ...root, children } : root;
-    });
   }, [filteredItems]);
 
-  // 当前字典下的根项目，用作父级选择器的选项
-  const rootItems = useMemo(() => items.filter((i) => !i.parentId), [items]);
+  // 编辑项的子孙节点 id 集合（父级选择器中禁用，避免循环引用）
+  const editingSubtreeIds = useMemo(() => {
+    if (!editingItem) return new Set<number>();
+    const result = new Set<number>([editingItem.id]);
+    const addDescendants = (id: number) => {
+      items.filter((i) => i.parentId === id).forEach((child) => {
+        result.add(child.id);
+        addDescendants(child.id);
+      });
+    };
+    addDescendants(editingItem.id);
+    return result;
+  }, [editingItem, items]);
+
+  // 父级选择器的树形数据（递归构建，排除编辑项及其子孙）
+  const parentSelectorTreeData = useMemo(() => {
+    type SNode = { label: string; value: number; key: string; disabled?: boolean; children?: SNode[] };
+    const buildTree = (parentId: number | null): SNode[] =>
+      items
+        .filter((i) => (i.parentId ?? null) === parentId)
+        .map((item) => ({
+          label: item.label,
+          value: item.id,
+          key: String(item.id),
+          disabled: editingSubtreeIds.has(item.id),
+          children: buildTree(item.id),
+        }));
+    return [
+      { label: '无（根项目）', value: 0, key: '0' },
+      ...buildTree(null),
+    ];
+  }, [items, editingSubtreeIds]);
 
   // ─── 字典 CRUD ─────────────────────────────────────────────────────────────
   const handleDictModalOk = async () => {
@@ -468,7 +497,7 @@ export default function DictsPage() {
         </Select>
         <Button type="primary" icon={<Search size={14} />} onClick={handleItemSearch} disabled={!selectedDict}>查询</Button>
         <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleItemReset} disabled={!selectedDict}>重置</Button>
-        {rootItemIds.length > 0 && (
+        {allItemIds.length > 0 && (
           <Button
             type="primary"
             icon={isAllExpanded ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
@@ -572,18 +601,12 @@ export default function DictsPage() {
           <Form.Input field="value" label="键值" placeholder="请输入键值" style={{ width: '100%' }} rules={[{ required: true, message: '请输入键值' }]} />
           <Form.Slot label={{ text: '父级' }}>
             <TreeSelect
-              treeData={[
-                { label: '无（根项目）', value: null as unknown as number, key: 'null' },
-                ...rootItems
-                  .filter((i) => i.id !== editingItem?.id)
-                  .map((root) => ({ label: root.label, value: root.id, key: String(root.id) })),
-              ]}
-              value={itemParentId ?? undefined}
-              onChange={(val) => setItemParentId((val as number | null) ?? null)}
+              treeData={parentSelectorTreeData}
+              value={itemParentId ?? 0}
+              onChange={(val) => setItemParentId(val === 0 ? null : (val as number))}
               style={{ width: '100%' }}
-              placeholder="无（根项目）"
               filterTreeNode
-              disabled={!!(editingItem && items.some((i) => i.parentId === editingItem.id))}
+              expandAll
             />
           </Form.Slot>
           <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" min={0} style={{ width: '100%' }} />
