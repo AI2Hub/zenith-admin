@@ -10,12 +10,15 @@ import {
   Toast,
   Tooltip,
   Typography,
+  List as SemiList,
 } from '@douyinfe/semi-ui';
 import { Search, RotateCcw, RefreshCw, Trash2 } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { request } from '@/utils/request';
 import { usePermission } from '@/hooks/usePermission';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { MasterDetailLayout } from '@/components/MasterDetailLayout';
+import './CacheManagePage.css';
 
 interface CacheItem {
   key: string;
@@ -106,7 +109,7 @@ export default function CacheManagePage() {
     void fetchData();
   }, [fetchData]);
 
-  // 按分类聚合，动态生成左侧表格
+  // 按分类聚合
   const categoryRows: CategoryRow[] = (() => {
     const map = new Map<string, CategoryRow>();
     data.forEach((item) => {
@@ -119,6 +122,20 @@ export default function CacheManagePage() {
     });
     return [...map.values()].sort((a, b) => a.category.localeCompare(b.category));
   })();
+
+  // 默认选中第一个分类
+  useEffect(() => {
+    if (!loading && data.length > 0) {
+      setSelectedCategory((prev) => {
+        if (prev) {
+          const stillExists = categoryRows.find((r) => r.category === prev.category);
+          if (stillExists) return stillExists;
+        }
+        return categoryRows.length > 0 ? categoryRows[0] : null;
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, data.length]);
 
   // 右侧：当前选中分类的 key 列表，再按关键词过滤
   const displayedItems = data.filter((item) => {
@@ -187,42 +204,6 @@ export default function CacheManagePage() {
       },
     });
   };
-
-  const categoryColumns: ColumnProps<CategoryRow>[] = [
-    {
-      title: '分类',
-      dataIndex: 'category',
-      render: (v: string) => (
-        <Tag color={CATEGORY_COLORS[v] ?? 'grey'} size="small" style={{ whiteSpace: 'nowrap' }}>
-          {v}
-        </Tag>
-      ),
-    },
-    {
-      title: '键数',
-      dataIndex: 'count',
-      width: 60,
-      render: (v: number) => (
-        <Badge count={v} overflowCount={9999} type="primary" />
-      ),
-    },
-    {
-      title: '操作',
-      fixed: 'right' as const,
-      width: 68,
-      render: (_: unknown, record: CategoryRow) =>
-        hasPermission('system:cache:delete') ? (
-          <Button
-            theme="borderless"
-            type="danger"
-            size="small"
-            onClick={(e) => { e.stopPropagation(); handleDeleteCategory(record); }}
-          >
-            删除
-          </Button>
-        ) : null,
-    },
-  ];
 
   const keyColumns: ColumnProps<CacheItem>[] = [
     {
@@ -305,6 +286,118 @@ export default function CacheManagePage() {
     },
   ];
 
+  const cacheMaster = (
+    <div className="cache-master">
+      <div className="cache-master-header">
+        <span className="cache-master-title">缓存分类</span>
+      </div>
+      <div className="cache-master-list">
+        <SemiList<CategoryRow>
+          className="cache-list"
+          size="small"
+          split={false}
+          loading={loading}
+          dataSource={categoryRows}
+          emptyContent={<div className="cache-empty">暂无缓存分类</div>}
+          renderItem={(row) => (
+            <SemiList.Item
+              key={row.category}
+              className={`cache-list-item${selectedCategory?.category === row.category ? ' cache-list-item--active' : ''}`}
+              onClick={() => setSelectedCategory(row)}
+              main={
+                <div className="cache-list-item-main">
+                  <div className="cache-list-item-title">
+                    <Tag color={CATEGORY_COLORS[row.category] ?? 'grey'} size="small" style={{ whiteSpace: 'nowrap' }}>
+                      {row.category}
+                    </Tag>
+                  </div>
+                  <Badge count={row.count} overflowCount={9999} type="primary" />
+                </div>
+              }
+              extra={
+                hasPermission('system:cache:delete') ? (
+                  <Button
+                    theme="borderless"
+                    type="danger"
+                    size="small"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteCategory(row); }}
+                  >
+                    删除
+                  </Button>
+                ) : null
+              }
+            />
+          )}
+        />
+      </div>
+    </div>
+  );
+
+  const cacheDetail = (
+    <div className="cache-detail">
+      <div className="cache-detail-header">
+        {selectedCategory ? (
+          <>
+            <Tag color={CATEGORY_COLORS[selectedCategory.category] ?? 'grey'} size="small" style={{ whiteSpace: 'nowrap' }}>
+              {selectedCategory.category}
+            </Tag>
+            <Badge count={displayedItems.length} overflowCount={9999} type="primary" />
+          </>
+        ) : (
+          <span className="cache-detail-placeholder">请选择缓存分类</span>
+        )}
+      </div>
+      <div className="cache-detail-body">
+        {selectedCategory ? (
+          <>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <Input
+                prefix={<Search size={14} />}
+                placeholder="搜索 Key 名称"
+                value={searchInput}
+                onChange={setSearchInput}
+                onEnterPress={handleSearch}
+                style={{ width: 260 }}
+                showClear
+              />
+              <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
+              <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+              <span style={{ marginLeft: 'auto', lineHeight: '32px', color: 'var(--semi-color-text-2)', fontSize: 13 }}>
+                共 {displayedItems.length} 条
+              </span>
+            </div>
+            <ConfigurableTable<CacheItem>
+              bordered
+              size="small"
+              columns={keyColumns}
+              dataSource={displayedItems}
+              loading={loading}
+              rowKey="key"
+              pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOpts: [20, 50, 100] }}
+              empty="该分类暂无缓存数据"
+              scroll={{ x: 820 }}
+            />
+          </>
+        ) : (
+          <div
+            style={{
+              height: 200,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--semi-color-text-2)',
+              fontSize: 14,
+              border: '1px dashed var(--semi-color-border)',
+              borderRadius: 4,
+            }}
+          >
+            请点击左侧分类查看对应的缓存键
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="page-container">
       {/* 顶部工具栏 */}
@@ -329,89 +422,17 @@ export default function CacheManagePage() {
         )}
       </div>
 
-      {/* 双列主从布局 */}
-      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-        {/* 左侧：分类列表 */}
-        <div style={{ width: 280, flexShrink: 0 }}>
-          <ConfigurableTable<CategoryRow>
-            bordered
-            size="small"
-            columns={categoryColumns}
-            dataSource={categoryRows}
-            loading={loading}
-            rowKey="category"
-            pagination={false}
-            empty="暂无缓存分类"
-            onRow={(record) => ({
-              onClick: () => setSelectedCategory(record ?? null),
-              style: {
-                cursor: 'pointer',
-                background:
-                    record?.category === selectedCategory?.category
-                    ? 'var(--semi-color-primary-light-default)'
-                    : undefined,
-              },
-            })}
-          />
-        </div>
-
-        {/* 右侧：键列表 */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {selectedCategory ? (
-            <>
-              {/* 右侧搜索栏 */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <Input
-                  prefix={<Search size={14} />}
-                  placeholder="搜索 Key 名称"
-                  value={searchInput}
-                  onChange={setSearchInput}
-                  onEnterPress={handleSearch}
-                  style={{ width: 260 }}
-                  showClear
-                />
-                <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-                <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-                <span style={{ marginLeft: 'auto', lineHeight: '32px', color: 'var(--semi-color-text-2)', fontSize: 13 }}>
-                  {selectedCategory.category}
-                  <Badge
-                    count={displayedItems.length}
-                    overflowCount={9999}
-                    type="primary"
-                    style={{ marginLeft: 6 }}
-                  />
-                </span>
-              </div>
-              <ConfigurableTable<CacheItem>
-                bordered
-                size="small"
-                columns={keyColumns}
-                dataSource={displayedItems}
-                loading={loading}
-                rowKey="key"
-                pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOpts: [20, 50, 100] }}
-                empty="该分类暂无缓存数据"
-                scroll={{ x: 820 }}
-              />
-            </>
-          ) : (
-            <div
-              style={{
-                height: 200,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--semi-color-text-2)',
-                fontSize: 14,
-                border: '1px dashed var(--semi-color-border)',
-                borderRadius: 4,
-              }}
-            >
-              请点击左侧分类查看对应的缓存键
-            </div>
-          )}
-        </div>
-      </div>
+      <MasterDetailLayout
+        master={cacheMaster}
+        detail={cacheDetail}
+        defaultSize={300}
+        minSize={260}
+        maxSize={420}
+        persistKey="cache"
+        showDetail={!!selectedCategory}
+        onBack={() => setSelectedCategory(null)}
+        style={{ flex: 1, overflow: 'hidden' }}
+      />
 
       <Modal
         title={
