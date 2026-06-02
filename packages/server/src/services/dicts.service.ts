@@ -1,4 +1,4 @@
-import { eq, asc, and, or, like, gte, lte, type SQL } from 'drizzle-orm';
+import { eq, asc, desc, and, or, like, gte, lte, type SQL } from 'drizzle-orm';
 import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { dicts, dictItems } from '../db/schema';
@@ -44,7 +44,7 @@ export async function listDicts(q: ListDictsQuery) {
   const finalWhere = mergeWhere(where, tc);
   const [total, list] = await Promise.all([
     db.$count(dicts, finalWhere),
-    withPagination(db.select().from(dicts).where(finalWhere).orderBy(dicts.id).$dynamic(), page, pageSize),
+    withPagination(db.select().from(dicts).where(finalWhere).orderBy(desc(dicts.createdAt)).$dynamic(), page, pageSize),
   ]);
   return { list: list.map(mapDict), total, page, pageSize };
 }

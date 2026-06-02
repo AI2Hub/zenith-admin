@@ -12,9 +12,10 @@ import {
   Pagination,
   Spin,
   Toast,
+  TreeSelect,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, RotateCcw, MoreHorizontal, BookOpen } from 'lucide-react';
+import { Search, Plus, RotateCcw, MoreHorizontal, BookOpen, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import type { Dict, DictItem, PaginatedResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -54,7 +55,8 @@ export default function DictsPage() {
   const [pendingItemKeyword, setPendingItemKeyword] = useState('');
   const [pendingItemStatus, setPendingItemStatus] = useState('');
   const [itemKeyword, setItemKeyword] = useState('');
-  const [itemStatusFilter, setItemStatusFilter] = useState('');
+  const [itemStatusFilter, setItemStatusFilter] = useState('');  const [expandedRowKeys, setExpandedRowKeys] = useState<(string | number)[]>([]);
+  const [itemParentId, setItemParentId] = useState<number | null>(null);
   const { items: statusItems } = useDictItems('common_status');
 
   // ─── 数据获取 ──────────────────────────────────────────────────────────────
@@ -62,7 +64,11 @@ export default function DictsPage() {
     setItemsLoading(true);
     try {
       const res = await request.get<DictItem[]>(`/api/dicts/${dictId}/items`);
-      if (res.code === 0) setItems(res.data);
+      if (res.code === 0) {
+        setItems(res.data);
+        // 默认展开所有根项目
+        setExpandedRowKeys(res.data.filter((i) => !i.parentId).map((i) => i.id));
+      }
     } finally {
       setItemsLoading(false);
     }
@@ -130,6 +136,13 @@ export default function DictsPage() {
     setItemKeyword('');
     setItemStatusFilter('');
   }, [fetchItems]);
+
+  // 根项目的 id 集合，用于展开/折叠全部
+  const rootItemIds = useMemo(() => items.filter((i) => !i.parentId).map((i) => i.id), [items]);
+  const isAllExpanded = rootItemIds.length > 0 && expandedRowKeys.length >= rootItemIds.length;
+  function toggleExpandAll() {
+    setExpandedRowKeys(isAllExpanded ? [] : rootItemIds);
+  }
 
   useEffect(() => { void fetchDicts(); }, [fetchDicts]);
 
@@ -236,9 +249,10 @@ export default function DictsPage() {
     } catch {
       throw new Error('validation');
     }
+    const payload = { ...values, parentId: itemParentId ?? undefined };
     const res = editingItem
-      ? await request.put(`/api/dicts/${selectedDict.id}/items/${editingItem.id}`, values)
-      : await request.post(`/api/dicts/${selectedDict.id}/items`, values);
+      ? await request.put(`/api/dicts/${selectedDict.id}/items/${editingItem.id}`, payload)
+      : await request.post(`/api/dicts/${selectedDict.id}/items`, payload);
     if (res.code === 0) {
       Toast.success(editingItem ? '更新成功' : '创建成功');
       setItemModalVisible(false);
@@ -376,16 +390,6 @@ export default function DictsPage() {
   const itemColumns: ColumnProps<DictItem>[] = [
     { title: '标签', dataIndex: 'label', width: 160, render: renderEllipsis },
     { title: '键值', dataIndex: 'value', width: 160, render: renderEllipsis },
-    {
-      title: '父级',
-      dataIndex: 'parentId',
-      width: 120,
-      render: (v: number | null) => {
-        if (!v) return null;
-        const parent = items.find((i) => i.id === v);
-        return parent ? <span style={{ color: 'var(--semi-color-text-2)', fontSize: 12 }}>{parent.label}</span> : null;
-      },
-    },
     { title: '排序', dataIndex: 'sort', width: 70, align: 'center' },
     { title: '备注', dataIndex: 'remark', width: 200, render: renderEllipsis },
     createdAtColumn,
@@ -407,7 +411,7 @@ export default function DictsPage() {
           {hasPermission('system:dict:item') && <Button
             theme="borderless"
             size="small"
-            onClick={() => { setEditingItem(row); setItemModalVisible(true); }}
+            onClick={() => { setEditingItem(row); setItemParentId(row.parentId ?? null); setItemModalVisible(true); }}
           >
             编辑
           </Button>}
@@ -464,11 +468,21 @@ export default function DictsPage() {
         </Select>
         <Button type="primary" icon={<Search size={14} />} onClick={handleItemSearch} disabled={!selectedDict}>查询</Button>
         <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleItemReset} disabled={!selectedDict}>重置</Button>
+        {rootItemIds.length > 0 && (
+          <Button
+            type="primary"
+            icon={isAllExpanded ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
+            onClick={toggleExpandAll}
+            disabled={!selectedDict}
+          >
+            {isAllExpanded ? '全部折叠' : '全部展开'}
+          </Button>
+        )}
         {hasPermission('system:dict:item') && (
           <Button
             type="primary"
             icon={<Plus size={14} />}
-            onClick={() => { setEditingItem(null); setItemModalVisible(true); }}
+            onClick={() => { setEditingItem(null); setItemParentId(null); setItemModalVisible(true); }}
             disabled={!selectedDict}
           >
             新增
@@ -485,6 +499,10 @@ export default function DictsPage() {
         size="small"
         empty={selectedDict ? '暂无数据' : '请选择字典'}
         childrenRecordName="children"
+        expandedRowKeys={expandedRowKeys}
+        onExpandedRowsChange={(rows) =>
+          setExpandedRowKeys((rows ?? []).filter((r): r is DictItem => 'id' in (r as object)).map((r) => (r as DictItem).id))
+        }
       />
     </div>
   );
@@ -552,17 +570,22 @@ export default function DictsPage() {
         >
           <Form.Input field="label" label="标签" placeholder="请输入标签" style={{ width: '100%' }} rules={[{ required: true, message: '请输入标签' }]} />
           <Form.Input field="value" label="键值" placeholder="请输入键值" style={{ width: '100%' }} rules={[{ required: true, message: '请输入键值' }]} />
-          <Form.Select
-            field="parentId"
-            label="父级"
-            style={{ width: '100%' }}
-            showClear
-            placeholder="无（作为根项目）"
-            disabled={!!(editingItem && items.some((i) => i.parentId === editingItem.id))}
-            optionList={rootItems
-              .filter((i) => i.id !== editingItem?.id)
-              .map((i) => ({ value: i.id, label: i.label }))}
-          />
+          <Form.Slot label={{ text: '父级' }}>
+            <TreeSelect
+              treeData={[
+                { label: '无（根项目）', value: null as unknown as number, key: 'null' },
+                ...rootItems
+                  .filter((i) => i.id !== editingItem?.id)
+                  .map((root) => ({ label: root.label, value: root.id, key: String(root.id) })),
+              ]}
+              value={itemParentId ?? undefined}
+              onChange={(val) => setItemParentId((val as number | null) ?? null)}
+              style={{ width: '100%' }}
+              placeholder="无（根项目）"
+              filterTreeNode
+              disabled={!!(editingItem && items.some((i) => i.parentId === editingItem.id))}
+            />
+          </Form.Slot>
           <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" min={0} style={{ width: '100%' }} />
           <Form.Select field="status" label="状态" style={{ width: '100%' }}
             optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
