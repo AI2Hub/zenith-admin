@@ -54,6 +54,8 @@ interface FileAttachmentProps {
   mode?: AttachmentMode;
   /** 最大上传数量，0 表示不限制 */
   limit?: number;
+  /** 是否允许一次选择多个文件，默认允许 */
+  multiple?: boolean;
   /** 最大文件大小（MB），默认 50 */
   maxSizeMB?: number;
   /** 允许的文件类型，如 '.pdf,.doc,.docx' */
@@ -128,6 +130,7 @@ export default function FileAttachment({
   onChange,
   mode = 'view',
   limit = 0,
+  multiple = true,
   maxSizeMB = 50,
   accept,
   title = '附件',
@@ -459,6 +462,13 @@ export default function FileAttachment({
     [],
   );
 
+  /** 超出上传数量限制 */
+  const handleExceed = useCallback(() => {
+    if (limit > 0) {
+      Toast.warning(`最多上传 ${limit} 个文件`);
+    }
+  }, [limit]);
+
   /** 移除文件（通过 onChange 受控） */
   const handleRemove = useCallback(
     (fileItem: FileItem | undefined) => {
@@ -499,11 +509,13 @@ export default function FileAttachment({
         listType="list"
         accept={accept}
         limit={limit > 0 ? limit : undefined}
+        multiple={multiple}
         beforeUpload={isEditMode ? handleBeforeUpload : undefined}
         onProgress={isEditMode ? handleProgress : undefined}
         onSuccess={isEditMode ? handleSuccess : undefined}
         onChange={isEditMode ? handleFileListChange : undefined}
         onError={isEditMode ? handleError : undefined}
+        onExceed={isEditMode ? handleExceed : undefined}
         onRemove={isEditMode ? (_file, _fileList, currentFileItem) => handleRemove(currentFileItem) : undefined}
         renderFileItem={renderFileItem}
         disabled={!isEditMode}
