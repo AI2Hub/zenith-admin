@@ -42,6 +42,7 @@ export default function AnnouncementsPage() {
   const [modalVisible, setModalVisible] = useState(false);
   const [selected, setSelected] = useState<AnnouncementWithRead | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const fetchList = useCallback(async (p = 1, tab = activeTab) => {
     setLoading(true);
@@ -77,18 +78,26 @@ export default function AnnouncementsPage() {
       await request.post(`/api/announcements/${item.id}/read`, undefined, { silent: true });
     }
 
-    // 获取最新的公告详情（包含附件）
-    const res = await request.get<Announcement>(`/api/announcements/${item.id}`);
-    if (res.code === 0 && res.data) {
-      setSelected({ ...res.data, isRead: true });
-      setSelectedIndex(index);
-      setModalVisible(true);
-    } else {
-      Toast.error(res.message || '获取公告详情失败');
-    }
+    // 显示弹窗并开始加载
+    setSelectedIndex(index);
+    setModalVisible(true);
+    setDetailLoading(true);
 
-    // optimistic update
-    setList((prev) => prev.map((n) => n.id === item.id ? { ...n, isRead: true } : n));
+    try {
+      // 获取最新的公告详情（包含附件）
+      const res = await request.get<Announcement>(`/api/announcements/${item.id}`);
+      if (res.code === 0 && res.data) {
+        setSelected({ ...res.data, isRead: true });
+      } else {
+        Toast.error(res.message || '获取公告详情失败');
+        setSelected({ ...item, isRead: true }); // 降级使用列表数据
+      }
+    } catch {
+      Toast.error('网络错误，获取公告详情失败');
+      setSelected({ ...item, isRead: true }); // 降级使用列表数据
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
   const handlePrev = () => {
@@ -245,6 +254,7 @@ export default function AnnouncementsPage() {
       <AnnouncementDetailModal
         visible={modalVisible}
         announcement={selected}
+        loading={detailLoading}
         onClose={() => setModalVisible(false)}
         onPrev={handlePrev}
         onNext={handleNext}

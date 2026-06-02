@@ -1,5 +1,5 @@
 import DOMPurify from 'dompurify';
-import { Button, Tag, Space, Modal, Typography, Divider } from '@douyinfe/semi-ui';
+import { Button, Tag, Space, Modal, Typography, Divider, Spin } from '@douyinfe/semi-ui';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { BookOpen, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Announcement, AnnouncementAttachment } from '@zenith/shared';
@@ -26,6 +26,8 @@ interface AnnouncementDetailModalProps {
   visible: boolean;
   announcement: AnnouncementWithRead | null;
   onClose: () => void;
+  /** 加载状态 */
+  loading?: boolean;
   /** 上一条回调，传入时显示导航按钮 */
   onPrev?: () => void;
   /** 下一条回调，传入时显示导航按钮*/
@@ -40,6 +42,7 @@ export default function AnnouncementDetailModal({
   visible,
   announcement,
   onClose,
+  loading = false,
   onPrev,
   onNext,
   hasPrev,
@@ -94,8 +97,11 @@ export default function AnnouncementDetailModal({
       }
       footer={footer}
       closeOnEsc
+      maskClosable={!loading}
+      destroyOnClose
     >
-      {announcement && (
+      <Spin spinning={loading} tip="加载中..." size="small">
+        {announcement && (
         <div>
           {/* 元信息区 */}
           <div style={{
@@ -138,7 +144,8 @@ export default function AnnouncementDetailModal({
           {/* 附件区 */}
           <FileAttachment value={announcement?.attachments} mode="view" showTitle={false} />
         </div>
-      )}
+        )}
+      </Spin>
     </Modal>
   );
 }
