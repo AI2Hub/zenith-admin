@@ -699,3 +699,274 @@ try {
 - 完整 winston 结构化日志（request / response / retry / error）
 
 > 详细 API 与设计说明：[docs/backend/http-client.md](../../../docs/backend/http-client.md)
+
+---
+
+## 附件功能（业务模块文件关联）
+
+如果某个业务模块需要支持上传附件（如公告、通知、工单等），使用系统统一的 `business_files` 表进行多态关联。
+
+### 架构概览
+
+| 层级 | 文件 | 职责 |
+| --- | --- | --- |
+| DB 表 | `business_files` | 通用业务文件关联表（多态） |
+| DB 表 | `managed_files` | 文件元数据表（已存在） |
+| 枚举 | `business_type` (pgEnum) | 业务类型枚举（如 `announcement`） |
+| Service | `business-files.service.ts` | 通用附件 CRUD 服务 |
+| Route | `business-files.ts` | 通用附件接口（GET / DELETE） |
+| 前端组件 | `FileAttachment` | 统一的附件上传/预览/下载组件 |
+
+### Step 1：添加业务类型枚举
+
+**1.1 在 `packages/server/src/db/schema.ts` 中添加 pgEnum 值**
+
+```ts
+// 找到现有的 businessTypeEnum，添加新的业务类型
+export const businessTypeEnum = pgEnum('business_type', [
+  'announcement',  // 已有的
+  'notice',        // 新增：通知模块
+  'ticket',        // 新增：工单模块
+  // ... 其他业务类型
+]);
+```
+
+**1.2 生成并执行迁移**
+
+```bash
+npm run db:generate
+npm run db:migrate
+```
+
+> **注意**：PostgreSQL 的 pgEnum 添加新值需要 ALTER TYPE 命令，Drizzle 会自动生成。
+
+**1.3 在 `packages/shared/src/constants.ts` 中添加常量**
+
+```ts
+export const BUSINESS_TYPES = ['announcement', 'notice', 'ticket'] as const;
+export type BusinessType = (typeof BUSINESS_TYPES)[number];
+```
+
+### Step 2：Shared 层类型和验证 Schema
+
+**2.1 在 `packages/shared/src/types.ts` 中添加附件接口**
+
+```ts
+export interface NoticeAttachment {
+  id: number;
+  fileId: number;
+  businessType: 'notice';
+  businessId: number;
+  file: {
+    id: number;
+    originalName: string;
+    size: number;
+    mimeType: string | null;
+    extension: string | null;
+    url: string;
+  };
+  sortOrder: number;
+  createdAt: string;
+}
+```
+
+**2.2 在 `packages/shared/src/validation.ts` 中添加 fileIds 字段**
+
+```ts
+export const createNoticeSchema = z.object({
+  // ... 其他字段
+  fileIds: z.array(z.number().int()).optional().default([]), // 附件文件 ID 列表
+});
+
+export const updateNoticeSchema = createNoticeSchema.partial();
+```
+
+### Step 3：Service 层集成附件
+
+**3.1 在业务 Service 中导入附件服务**
+
+```ts
+import {
+  saveBusinessFiles,
+  removeBusinessFile,
+  listBusinessFiles,
+} from '../services/business-files.service';
+```
+
+**3.2 在创建/更新事务中保存附件关联**
+
+```ts
+// 创建接口
+export async function createNotice(data: CreateNoticeInput) {
+  return db.transaction(async (tx) => {
+    // 1. 创建主记录
+    const [created] = await tx.insert(notices).values({
+      title: data.title,
+      content: data.content,
+      // ... 其他字段
+    }).returning();
+
+    // 2. 保存附件关联（如果传了 fileIds）
+    if (data.fileIds?.length > 0) {
+      await saveBusinessFiles(tx, 'notice', created.id, data.fileIds);
+    }
+
+    return mapNotice(created);
+  });
+}
+
+// 更新接口
+export async function updateNotice(id: number, data: UpdateNoticeInput) {
+  return db.transaction(async (tx) => {
+    // 1. 更新主记录
+    await tx.update(notices).set({
+      title: data.title,
+      content: data.content,
+    }).where(eq(notices.id, id));
+
+    // 2. 如果传了 fileIds，替换附件关联（先删后插）
+    if (data.fileIds !== undefined) {
+      await saveBusinessFiles(tx, 'notice', id, data.fileIds);
+    }
+
+    return getNotice(id);
+  });
+}
+```
+
+**3.3 添加获取附件的函数**
+
+```ts
+export async function getNoticeAttachments(noticeId: number) {
+  return listBusinessFiles('notice', noticeId);
+}
+```
+
+### Step 4：Route 层添加附件接口
+
+**4.1 在业务路由中添加附件 GET 接口**
+
+```ts
+// GET /api/notices/{id}/attachments
+const getAttachmentsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get',
+    path: '/{id}/attachments',
+    tags: ['通知管理'],
+    summary: '获取通知附件列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:notice:list' })] as const,
+    request: { params: IdParam },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(NoticeAttachmentDTO, '附件列表'),
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const attachments = await getNoticeAttachments(id);
+    return c.json(okBody(attachments), 200);
+  },
+});
+```
+
+**4.2 在路由注册中包含附件接口**
+
+```ts
+noticeRouter.openapiRoutes([
+  listRoute,
+  getOneRoute,
+  createRoute_,
+  updateRoute_,
+  deleteRoute_,
+  getAttachmentsRoute,  // 新增
+] as const);
+```
+
+### Step 5：DTO 定义
+
+**5.1 在 `packages/server/src/lib/dtos/notices.ts` 中添加附件 DTO**
+
+```ts
+import { auditFields } from './_audit';
+
+export const NoticeAttachmentDTO = z
+  .object({
+    id: z.number().int(),
+    fileId: z.number().int(),
+    businessType: z.literal('notice'),
+    businessId: z.number().int(),
+    file: z.object({
+      id: z.number().int(),
+      originalName: z.string(),
+      size: z.number().int(),
+      mimeType: z.string().nullable(),
+      extension: z.string().nullable(),
+      url: z.string(),
+    }),
+    sortOrder: z.number().int(),
+    createdAt: z.string(),
+  })
+  .openapi('NoticeAttachment');
+```
+
+**5.2 在 `packages/server/src/lib/openapi-dtos.ts` 中导出**
+
+```ts
+export { NoticeAttachmentDTO } from './dtos/notices';
+```
+
+### Step 6：前端集成
+
+**6.1 使用 FileAttachment 组件**
+
+```tsx
+import FileAttachment from '@/components/FileAttachment';
+import type { AttachmentItem } from '@/components/FileAttachment';
+
+// 编辑模式
+<FileAttachment
+  mode="edit"
+  value={formData.attachments}
+  onChange={(items) => setFormData(prev => ({ ...prev, attachments: items }))}
+  title="附件"
+  limit={10}
+  maxSizeMB={50}
+  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+/>
+
+// 查看模式
+<FileAttachment
+  mode="view"
+  value={detail.attachments}
+  title="附件"
+/>
+```
+
+**6.2 表单提交时处理附件**
+
+```tsx
+// 提交表单时，提取 fileIds
+const payload = {
+  title: formData.title,
+  content: formData.content,
+  fileIds: formData.attachments.map(a => a.fileId), // 附件 ID 列表
+};
+
+// 调用 API
+await request.post(`/api/notices/${id}`, payload);
+```
+
+### 前端文件访问注意事项
+
+- **所有文件 URL 都是受保护的**（`/api/files/{id}/content` 需要 Authorization 头）
+- **禁止使用 `window.open(url)`** 打开受保护的文件 URL
+- **使用 `fetchProtectedFile(url)`** 获取 Blob，然后创建 object URL 进行预览或下载
+- `FileAttachment` 组件内部已经处理了认证逻辑，直接使用即可
+
+### 参考实现
+
+- 公告模块：`packages/server/src/routes/announcements.ts`
+- 附件服务：`packages/server/src/services/business-files.service.ts`
+- 前端组件：`packages/web/src/components/FileAttachment/index.tsx`
+- 文件工具：`packages/web/src/utils/file-utils.tsx`
