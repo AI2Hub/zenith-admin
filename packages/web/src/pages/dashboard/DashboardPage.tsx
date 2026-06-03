@@ -98,6 +98,7 @@ export default function DashboardPage() {
   const [notices, setNotices] = useState<AnnouncementWithRead[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedNotice, setSelectedNotice] = useState<AnnouncementWithRead | null>(null);
+  const [noticeDetailLoading, setNoticeDetailLoading] = useState(false);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [charts, setCharts] = useState<DashboardCharts | null>(null);
@@ -147,9 +148,18 @@ export default function DashboardPage() {
     });
   }
 
-  function openNotice(n: AnnouncementWithRead) {
+  async function openNotice(n: AnnouncementWithRead) {
     setSelectedNotice(n);
     if (!n.isRead) markAsRead(n.id);
+    setNoticeDetailLoading(true);
+    try {
+      const res = await request.get<Announcement>(`/api/announcements/${n.id}`, { silent: true });
+      if (res.code === 0 && res.data) {
+        setSelectedNotice({ ...res.data, isRead: true });
+      }
+    } finally {
+      setNoticeDetailLoading(false);
+    }
   }
 
   function renderOperationPie() {
@@ -220,7 +230,7 @@ export default function DashboardPage() {
             <List.Item
               className="notice-item notice-item--clickable"
               style={{ cursor: 'pointer' }}
-              onClick={() => openNotice(n)}
+              onClick={() => void openNotice(n)}
               header={n.isRead ? <div className="notice-read-placeholder" /> : <div className="unread-dot" />}
               main={(
                 <div className="notice-content">
@@ -507,6 +517,7 @@ export default function DashboardPage() {
       <AnnouncementDetailModal
         visible={selectedNotice !== null}
         announcement={selectedNotice}
+        loading={noticeDetailLoading}
         onClose={() => setSelectedNotice(null)}
       />
     </div>

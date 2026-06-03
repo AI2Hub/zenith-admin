@@ -4,6 +4,27 @@
 import { z } from '@hono/zod-openapi';
 import { auditFields } from './_audit';
 
+const AnnouncementRecipientDTO = z.object({
+  recipientType: z.enum(['user', 'role', 'dept']),
+  recipientId: z.number().int(),
+  recipientLabel: z.string().optional(),
+});
+
+const AnnouncementAttachmentDTO = z.object({
+  id: z.number().int(),
+  fileId: z.number().int(),
+  file: z.object({
+    id: z.number().int(),
+    originalName: z.string(),
+    size: z.number().int(),
+    mimeType: z.string().nullable(),
+    extension: z.string().nullable(),
+    url: z.string(),
+  }),
+  sortOrder: z.number().int(),
+  createdAt: z.string(),
+});
+
 export const AnnouncementDTO = z
   .object({
     id: z.number().int(),
@@ -19,6 +40,8 @@ export const AnnouncementDTO = z
     ...auditFields,
     createdAt: z.string(),
     updatedAt: z.string(),
+    recipients: z.array(AnnouncementRecipientDTO).optional(),
+    attachments: z.array(AnnouncementAttachmentDTO).optional(),
     readCount: z.number().int().optional(),
   })
   .openapi('Announcement');
