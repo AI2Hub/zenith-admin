@@ -1199,7 +1199,8 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                     {breadcrumbs.map((crumb, index) => {
                       const isLast = index === breadcrumbs.length - 1;
                       const isHome = index === 0 && crumb.path === '/';
-                      const handleClick = () => {
+                      const handleCrumbClick = (_item: unknown, e: React.MouseEvent) => {
+                        e.preventDefault();
                         if (isHome) { navigateHome(); return; }
                         if (crumb.path) { navigate(crumb.path); return; }
                         if (crumb.menuChildren) {
@@ -1207,27 +1208,17 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                           if (leaf) navigate(leaf);
                         }
                       };
-                      const handleKey = (e: React.KeyboardEvent) => {
-                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); }
-                      };
                       return (
-                        <Breadcrumb.Item key={crumb.title}>
-                          {isLast ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                              {preferences.breadcrumbIcon && crumb.icon && <span style={{ display: 'flex', alignItems: 'center' }}>{renderLucideIcon(crumb.icon, 13)}</span>}
-                              {isHome ? '首页' : crumb.title}
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={handleClick}
-                              onKeyDown={handleKey}
-                              style={{ cursor: 'pointer', background: 'transparent', border: 0, padding: 0, font: 'inherit', color: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                            >
-                              {preferences.breadcrumbIcon && crumb.icon && <span style={{ display: 'flex', alignItems: 'center' }}>{renderLucideIcon(crumb.icon, 13)}</span>}
-                              {isHome ? '首页' : crumb.title}
-                            </button>
-                          )}
+                        <Breadcrumb.Item
+                          key={crumb.title}
+                          href={isLast ? undefined : '#'}
+                          onClick={isLast ? undefined : handleCrumbClick}
+                          noLink={isLast}
+                        >
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            {preferences.breadcrumbIcon && crumb.icon && <span style={{ display: 'flex', alignItems: 'center' }}>{renderLucideIcon(crumb.icon, 13)}</span>}
+                            {isHome ? '首页' : crumb.title}
+                          </span>
                         </Breadcrumb.Item>
                       );
                     })}
