@@ -104,6 +104,9 @@ export default function AnnouncementsPage() {
   const { items: statusItems } = useDictItems('announcement_publish_status');
   const { items: priorityItems } = useDictItems('announcement_priority');
 
+  // ─── 查看详情 ─────────────────────────────────────────────────────────────────────────────
+  const [viewOnly, setViewOnly] = useState(false);
+
   // ─── 已读统计 ─────────────────────────────────────────────────────────────────────────────
   const [statsDrawerVisible, setStatsDrawerVisible] = useState(false);
   const [statsNotice, setStatsNotice] = useState<Announcement | null>(null);
@@ -221,6 +224,7 @@ export default function AnnouncementsPage() {
   };
 
   const openCreateModal = () => {
+    setViewOnly(false);
     setEditingNotice(null);
     setContentHtml('');
     setEditorKey((k) => k + 1);
@@ -235,7 +239,8 @@ export default function AnnouncementsPage() {
     setModalVisible(true);
   };
 
-  const openEditModal = async (record: Announcement) => {
+  const openEditModal = async (record: Announcement, readOnly = false) => {
+    setViewOnly(readOnly);
     setContentHtml(record.content ?? '');
     setEditorKey((k) => k + 1);
     setEditingNotice(record);
@@ -278,6 +283,10 @@ export default function AnnouncementsPage() {
         });
       }
     }
+  };
+
+  const openViewModal = async (record: Announcement) => {
+    await openEditModal(record, true);
   };
 
   const handleDelete = async (id: number) => {
@@ -596,6 +605,11 @@ export default function AnnouncementsPage() {
             {hasPermission('system:announcement:update') && <Button
               theme="borderless"
               size="small"
+              onClick={() => void openViewModal(record)}
+            >查看</Button>}
+            {hasPermission('system:announcement:update') && <Button
+              theme="borderless"
+              size="small"
               type="danger"
               onClick={() => {
                 Modal.confirm({
@@ -744,18 +758,24 @@ export default function AnnouncementsPage() {
       />
 
       <SideSheet
-        title={editingNotice ? '编辑公告' : '新增公告'}
+        title={viewOnly ? '查看公告' : editingNotice ? '编辑公告' : '新增公告'}
         visible={modalVisible}
         onCancel={() => setModalVisible(false)}
         width={860}
         afterVisibleChange={(visible) => { if (!visible) formApi?.reset(); }}
         footer={
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <Button onClick={() => setModalVisible(false)}>取消</Button>
-            <Button type="primary" loading={submitting} onClick={handleSubmit}>
-              {editingNotice ? '保存' : '创建'}
-            </Button>
-          </div>
+          viewOnly ? (
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button onClick={() => setModalVisible(false)}>关闭</Button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <Button onClick={() => setModalVisible(false)}>取消</Button>
+              <Button type="primary" loading={submitting} onClick={handleSubmit}>
+                {editingNotice ? '保存' : '创建'}
+              </Button>
+            </div>
+          )
         }
       >
         <Form
@@ -780,6 +800,7 @@ export default function AnnouncementsPage() {
             label="标题"
             placeholder="请输入公告标题"
             rules={[{ required: true, message: '标题不能为空' }]}
+            disabled={viewOnly}
           />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
             <Form.Select
@@ -788,6 +809,7 @@ export default function AnnouncementsPage() {
               optionList={typeItems.map((i) => ({ label: i.label, value: i.value }))}
               placeholder="请选择类型"
               style={{ width: '100%' }}
+              disabled={viewOnly}
             />
             <Form.Select
               field="publishStatus"
@@ -795,6 +817,7 @@ export default function AnnouncementsPage() {
               optionList={statusItems.filter(i => i.value !== 'scheduled').map((i) => ({ label: i.label, value: i.value }))}
               placeholder="请选择状态"
               style={{ width: '100%' }}
+              disabled={viewOnly}
             />
             <Form.Select
               field="priority"
@@ -802,6 +825,7 @@ export default function AnnouncementsPage() {
               optionList={priorityItems.map((i) => ({ label: i.label, value: i.value }))}
               placeholder="请选择优先级"
               style={{ width: '100%' }}
+              disabled={viewOnly}
             />
           </div>
           <Form.DatePicker
@@ -812,6 +836,7 @@ export default function AnnouncementsPage() {
             disabledDate={(date: Date | undefined) => !!date && date < new Date()}
             style={{ width: '100%' }}
             extraText="提示：填入未来时间后保存将自动切换为「定时发布」状态"
+            disabled={viewOnly}
           />
           <div style={{ marginBottom: 16 }}>
             <div style={{ marginBottom: 8, fontSize: 14, fontWeight: 500 }}>收件对象</div>
@@ -819,6 +844,7 @@ export default function AnnouncementsPage() {
               value={targetType}
               onChange={(e) => setTargetType(e.target.value as AnnouncementTargetType)}
               style={{ marginBottom: targetType === 'specific' ? 12 : 0 }}
+              disabled={viewOnly}
             >
               <Radio value="all">全体用户</Radio>
               <Radio value="specific">指定范围</Radio>
@@ -839,6 +865,7 @@ export default function AnnouncementsPage() {
                     onSearch={handleUserSearch}
                     onChange={(v) => setSelectedUserIds(v as number[])}
                     style={{ width: '100%' }}
+                    disabled={viewOnly}
                   />
                 </div>
                 <div>
@@ -853,6 +880,7 @@ export default function AnnouncementsPage() {
                     optionList={roleOptions}
                     onChange={(v) => setSelectedRoleIds(v as number[])}
                     style={{ width: '100%' }}
+                    disabled={viewOnly}
                   />
                 </div>
                 <div>
@@ -867,6 +895,7 @@ export default function AnnouncementsPage() {
                     optionList={deptOptions}
                     onChange={(v) => setSelectedDeptIds(v as number[])}
                     style={{ width: '100%' }}
+                    disabled={viewOnly}
                   />
                 </div>
               </div>
@@ -883,15 +912,16 @@ export default function AnnouncementsPage() {
                   onChange={setContentHtml}
                   placeholder="请输入公告内容"
                   height={500}
+                  readOnly={viewOnly}
                 />
               </Suspense>
             ) : null}
           </div>
 
-          {/* 附件上传 */}
+          {/* 附件 */}
           <FileAttachment
             value={uploadedAttachments}
-            mode="edit"
+            mode={viewOnly ? 'view' : 'edit'}
             onChange={(items) => {
               setUploadedAttachments(items);
               setAttachmentFileIds(items.map((a) => a.fileId));

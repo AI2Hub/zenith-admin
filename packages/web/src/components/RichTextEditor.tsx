@@ -12,6 +12,7 @@ interface RichTextEditorProps {
   placeholder?: string;
   height?: number;
   disableFullscreen?: boolean;
+  readOnly?: boolean;
 }
 
 export default function RichTextEditor({
@@ -20,6 +21,7 @@ export default function RichTextEditor({
   placeholder = '请输入内容...',
   height = 320,
   disableFullscreen = false,
+  readOnly = false,
 }: Readonly<RichTextEditorProps>) {
   const [editor, setEditor] = useState<IDomEditor | null>(null);
 
@@ -30,6 +32,15 @@ export default function RichTextEditor({
       setEditor(null);
     };
   }, [editor]);
+
+  useEffect(() => {
+    if (!editor) return;
+    if (readOnly) {
+      editor.disable();
+    } else {
+      editor.enable();
+    }
+  }, [editor, readOnly]);
 
   const toolbarConfig: Partial<IToolbarConfig> = {
     excludeKeys: [
@@ -78,6 +89,7 @@ export default function RichTextEditor({
         style={{
           borderBottom: '1px solid var(--semi-color-border)',
           backgroundColor: 'var(--semi-color-fill-0)',
+          display: readOnly ? 'none' : undefined,
         }}
       />
       <Editor
