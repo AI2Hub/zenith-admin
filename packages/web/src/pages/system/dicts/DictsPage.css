@@ -79,10 +79,12 @@
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
+  /* Prevent the extra button from wrapping to the next line */
+  flex-wrap: nowrap !important;
 }
 
-/* Prevent long name/code from pushing the extra button to next line */
-.dict-list-item .semi-list-item-main {
+/* Allow the body to shrink so text truncation works */
+.dict-list-item .semi-list-item-body {
   min-width: 0;
   overflow: hidden;
 }
