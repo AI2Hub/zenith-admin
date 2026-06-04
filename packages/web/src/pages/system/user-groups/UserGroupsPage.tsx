@@ -259,12 +259,11 @@ export default function UserGroupsPage() {
               {preview.map((m) => (
                 <Avatar
                   key={m.id}
-                  size={22}
+                  style={{ width: 22, height: 22, minWidth: 22, lineHeight: '22px', fontSize: 12, cursor: 'default' }}
                   src={m.avatar ?? undefined}
                   alt={m.nickname}
                   color="light-blue"
                   title={m.nickname}
-                  style={{ cursor: 'default' }}
                 >
                   {m.nickname?.[0]}
                 </Avatar>
