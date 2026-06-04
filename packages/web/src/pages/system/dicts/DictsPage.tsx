@@ -15,7 +15,7 @@ import {
   TreeSelect,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, RotateCcw, MoreHorizontal, BookOpen, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Search, Plus, RotateCcw, MoreHorizontal, BookOpen, ChevronsDownUp, ChevronsUpDown, RefreshCw, Download, Pencil, Trash2 } from 'lucide-react';
 import type { Dict, DictItem, PaginatedResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -320,7 +320,11 @@ export default function DictsPage() {
             render={
               <Dropdown.Menu>
                 {hasPermission('system:dict:update') && (
-                  <Dropdown.Item onClick={() => void openEditDict(dict)}>编辑</Dropdown.Item>
+                  <Dropdown.Item onClick={() => void openEditDict(dict)}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Pencil size={14} /> 编辑
+                    </span>
+                  </Dropdown.Item>
                 )}
                 {hasPermission('system:dict:delete') && (
                   <Dropdown.Item
@@ -334,7 +338,9 @@ export default function DictsPage() {
                       });
                     }}
                   >
-                    删除
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Trash2 size={14} /> 删除
+                    </span>
                   </Dropdown.Item>
                 )}
               </Dropdown.Menu>
@@ -362,10 +368,23 @@ export default function DictsPage() {
           clickToHide
           render={
             <Dropdown.Menu>
+              <Dropdown.Item onClick={() => void fetchDicts()}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <RefreshCw size={14} /> 刷新
+                </span>
+              </Dropdown.Item>
               {hasPermission('system:dict:create') && (
-                <Dropdown.Item onClick={() => { setEditingDict(null); setDictModalVisible(true); }}>新增字典</Dropdown.Item>
+                <Dropdown.Item onClick={() => { setEditingDict(null); setDictModalVisible(true); }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Plus size={14} /> 新增字典
+                  </span>
+                </Dropdown.Item>
               )}
-              <Dropdown.Item onClick={() => void handleExport()}>导出字典</Dropdown.Item>
+              <Dropdown.Item onClick={() => void handleExport()}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Download size={14} /> 导出字典
+                </span>
+              </Dropdown.Item>
             </Dropdown.Menu>
           }
         >
