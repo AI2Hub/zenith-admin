@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, Input } from '@douyinfe/semi-ui';
 import { Lock } from 'lucide-react';
+import { Lunar } from 'lunar-typescript';
 import { UserAvatar } from './UserAvatar';
 
 interface LockScreenProps {
@@ -9,7 +10,7 @@ interface LockScreenProps {
   onReLogin: () => void;
 }
 
-export function LockScreen({ user, onUnlock, onReLogin }: LockScreenProps) {
+export function LockScreen({ user, onUnlock, onReLogin }: Readonly<LockScreenProps>) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
   const [shaking, setShaking] = useState(false);
@@ -54,6 +55,10 @@ export function LockScreen({ user, onUnlock, onReLogin }: LockScreenProps) {
     day: 'numeric',
   });
 
+  const lunar = Lunar.fromDate(time);
+  const lunarStr = `农历 ${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`;
+  const solarTerm = lunar.getJieQi();
+
   return (
     <div className="lock-screen">
       <div className="lock-screen__content">
@@ -61,6 +66,7 @@ export function LockScreen({ user, onUnlock, onReLogin }: LockScreenProps) {
           {h}<span className="lock-screen__colon">:</span>{m}<span className="lock-screen__colon">:</span>{s}
         </div>
         <div className="lock-screen__date">{dateStr}</div>
+        <div className="lock-screen__lunar">{lunarStr}{solarTerm && <span className="lock-screen__solar-term">{solarTerm}</span>}</div>
 
         <div className="lock-screen__user">
           <UserAvatar
