@@ -504,6 +504,25 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
     () => findBreadcrumbs(menuTree, location.pathname),
     [menuTree, location.pathname]
   );
+  const displayBreadcrumbs = useMemo(() => {
+    if ((preferences.breadcrumbShowHome ?? true) && location.pathname !== '/') {
+      // 找到首页菜单的图标（findBreadcrumbs 不包含首页）
+      const findHomeIcon = (nodes: Menu[]): string | undefined => {
+        for (const node of nodes) {
+          if (!node.visible || node.type === 'button') continue;
+          if (node.type === 'directory' && node.children?.length) {
+            const icon = findHomeIcon(node.children);
+            if (icon) return icon;
+          } else if (node.path === '/') {
+            return node.icon ?? undefined;
+          }
+        }
+        return undefined;
+      };
+      return [{ title: '首页', path: '/', icon: findHomeIcon(menuTree) }, ...breadcrumbs];
+    }
+    return breadcrumbs;
+  }, [breadcrumbs, preferences.breadcrumbShowHome, location.pathname, menuTree]);
   const [openKeys, setOpenKeys] = useState<string[]>([]);
 
   useEffect(() => {
@@ -1193,12 +1212,12 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
           {(navLayout === 'vertical' || navLayout === 'double') && (
             <header className="admin-header">
               {/* Left: breadcrumb (vertical / double layouts only) */}
-              {preferences.showBreadcrumb && breadcrumbs.length > 0 ? (
+              {preferences.showBreadcrumb && displayBreadcrumbs.length > 0 ? (
                 <div className="admin-header__breadcrumb">
                   <Breadcrumb>
-                    {breadcrumbs.map((crumb, index) => {
-                      const isLast = index === breadcrumbs.length - 1;
-                      const isHome = index === 0 && crumb.path === '/';
+                    {displayBreadcrumbs.map((crumb, index) => {
+                      const isLast = index === displayBreadcrumbs.length - 1;
+                      const isHome = crumb.path === '/';
                       const handleCrumbClick = (_item: unknown, e: React.MouseEvent) => {
                         e.preventDefault();
                         if (isHome) { navigateHome(); return; }
@@ -1453,10 +1472,21 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                 <Switch checked={preferences.showBreadcrumb} onChange={(v) => setPreferences({ showBreadcrumb: v })} />
               </div>
               {preferences.showBreadcrumb && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>面包屑显示图标</span>
-                  <Switch checked={preferences.breadcrumbIcon ?? false} onChange={(v) => setPreferences({ breadcrumbIcon: v })} />
-                </div>
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>面包屑显示图标</span>
+                    <Switch checked={preferences.breadcrumbIcon ?? false} onChange={(v) => setPreferences({ breadcrumbIcon: v })} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      面包屑从首页开始
+                      <Tooltip content="开启后面包屑导航会以「首页」作为第一项，关闭后直接从当前页面的父级路径开始" position="right">
+                        <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+                      </Tooltip>
+                    </span>
+                    <Switch checked={preferences.breadcrumbShowHome ?? true} onChange={(v) => setPreferences({ breadcrumbShowHome: v })} />
+                  </div>
+                </>
               )}
 
               {/* ── 菜单搜索 ── */}

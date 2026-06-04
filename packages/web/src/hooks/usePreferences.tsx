@@ -16,6 +16,8 @@ export interface UserPreferences {
   showBreadcrumb: boolean;
   /** 面包屑是否显示图标 */
   breadcrumbIcon: boolean;
+  /** 面包屑导航是否从首页开始（显示首页作为第一项） */
+  breadcrumbShowHome: boolean;
   tabAnimation: TabAnimation;
   colorMode: ThemeMode;
   themeColor: string;
@@ -43,6 +45,7 @@ export const defaultPreferences: UserPreferences = {
   navLayout: 'vertical',
   showBreadcrumb: true,
   breadcrumbIcon: true,
+  breadcrumbShowHome: true,
   tabAnimation: 'fade',
   colorMode: 'light',
   themeColor: 'blue',
