@@ -47,6 +47,7 @@ export const ManagedFileDTO = z
     mimeType: z.string().nullable().optional(),
     extension: z.string().nullable().optional(),
     url: z.string().openapi({ example: 'https://example.com/files/avatar.png' }),
+    uploaderName: z.string().nullable().optional(),
     ...auditFields,
     createdAt: z.string(),
     updatedAt: z.string(),

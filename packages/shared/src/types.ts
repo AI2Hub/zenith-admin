@@ -232,6 +232,7 @@ export interface ManagedFile {
   mimeType?: string;
   extension?: string;
   url: string;
+  uploaderName?: string | null;
   createdAt: string;
   updatedAt: string;
 }

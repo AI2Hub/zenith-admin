@@ -15,6 +15,7 @@ export const mockManagedFiles: ManagedFile[] = [
     mimeType: 'image/png',
     extension: 'png',
     url: 'https://avatars.githubusercontent.com/u/583231',
+    uploaderName: 'Admin',
     createdAt: '2024-01-01 00:00:00',
     updatedAt: '2024-01-01 00:00:00',
   },
@@ -55,6 +56,7 @@ export const filesHandlers = [
         mimeType: file?.type ?? 'application/octet-stream',
         extension: file?.name?.split('.').pop() ?? '',
         url: `https://via.placeholder.com/200?text=${encodeURIComponent(file?.name ?? 'file')}`,
+        uploaderName: 'Admin',
         createdAt: mockDateTime(),
         updatedAt: mockDateTime(),
       };
@@ -80,6 +82,7 @@ export const filesHandlers = [
       mimeType: file.type || 'application/octet-stream',
       extension: file.name.split('.').pop() ?? '',
       url: `https://via.placeholder.com/200?text=${encodeURIComponent(file.name)}`,
+      uploaderName: 'Admin',
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
     };

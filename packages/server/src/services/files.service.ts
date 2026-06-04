@@ -170,9 +170,15 @@ export async function getManagedFile(id: number) {
   const user = currentUser();
   const tc = tenantCondition(managedFiles, user);
   const where = tc ? and(eq(managedFiles.id, id), tc) : eq(managedFiles.id, id);
-  const [file] = await db.select().from(managedFiles).where(where).limit(1);
+  const file = await db.query.managedFiles.findFirst({
+    where,
+    with: { createdByUser: { columns: { nickname: true, username: true } } },
+  });
   if (!file) throw new HTTPException(404, { message: '文件不存在' });
-  return mapManagedFile(file);
+  return {
+    ...mapManagedFile(file),
+    uploaderName: file.createdByUser?.nickname || file.createdByUser?.username || null,
+  };
 }
 
 export async function getManagedFileBeforeAudit(id: number) {

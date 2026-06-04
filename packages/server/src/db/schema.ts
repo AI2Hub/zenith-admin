@@ -1271,6 +1271,7 @@ export const fileStorageConfigsRelations = relations(fileStorageConfigs, ({ many
 export const managedFilesRelations = relations(managedFiles, ({ one }) => ({
   storageConfig: one(fileStorageConfigs, { fields: [managedFiles.storageConfigId], references: [fileStorageConfigs.id] }),
   tenant: one(tenants, { fields: [managedFiles.tenantId], references: [tenants.id] }),
+  createdByUser: one(users, { fields: [managedFiles.createdBy], references: [users.id] }),
 }));
 
 export const cronJobsRelations = relations(cronJobs, ({ many }) => ({

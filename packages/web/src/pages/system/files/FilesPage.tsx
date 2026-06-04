@@ -825,6 +825,7 @@ export default function FilesPage() {
                 { key: '存储服务', value: detailFile.storageName },
                 { key: 'MIME 类型', value: detailFile.mimeType || '—' },
                 { key: '文件大小', value: formatFileSize(detailFile.size) },
+                { key: '上传人', value: detailFile.uploaderName || '—' },
                 { key: '对象键', value: <Text copyable style={{ fontSize: 12, wordBreak: 'break-all' }}>{detailFile.objectKey}</Text> },
                 { key: '访问链接', value: <Text copyable style={{ fontSize: 12, wordBreak: 'break-all' }}>{getFileFullUrl(detailFile.url)}</Text> },
                 { key: '上传时间', value: formatDateTime(detailFile.createdAt) },
