@@ -53,6 +53,7 @@ export default function MenuSearchInput({ menus }: MenuSearchInputProps) {
           cursor: 'pointer',
           flexShrink: 0,
           transition: 'background 0.15s, color 0.15s',
+          outline: 'none',
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = 'var(--semi-color-fill-0)';
