@@ -58,6 +58,9 @@ export default function XxxPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
+  // ⚠️ ref 同步最新搜索参数，避免 fetchXxxs 将 searchParams 放入 deps 导致输入时自动触发搜索
+  const searchParamsRef = useRef<SearchParams>(defaultSearchParams);
+  searchParamsRef.current = searchParams;
 
   // 弹窗状态
   const [modalVisible, setModalVisible] = useState(false);
@@ -82,20 +85,23 @@ export default function XxxPage() {
   }, []);
 
   // ─── 数据加载 ──────────────────────────────────────────────────────────
+  // params 为可选：不传时从 ref 读取最新值（避免 stale closure）；
+  // 显式传 defaultSearchParams 时用于重置后立即刷新
   const fetchXxxs = useCallback(
-    async (p = page, ps = pageSize, params = searchParams) => {
+    async (p = page, ps = pageSize, params?: SearchParams) => {
+      const activeParams = params ?? searchParamsRef.current;
       setLoading(true);
       try {
         const queryObj: Record<string, string> = {
           page: String(p),
           pageSize: String(ps),
         };
-        if (params.keyword) queryObj.keyword = params.keyword;
-        if (params.status) queryObj.status = params.status;
+        if (activeParams.keyword) queryObj.keyword = activeParams.keyword;
+        if (activeParams.status) queryObj.status = activeParams.status;
         // 如有时间范围：
-        // if (params.timeRange) {
-        //   queryObj.startTime = formatDateTimeForApi(params.timeRange[0]);
-        //   queryObj.endTime = formatDateTimeForApi(params.timeRange[1]);
+        // if (activeParams.timeRange) {
+        //   queryObj.startTime = formatDateTimeForApi(activeParams.timeRange[0]);
+        //   queryObj.endTime = formatDateTimeForApi(activeParams.timeRange[1]);
         // }
 
         const query = new URLSearchParams(queryObj).toString();
@@ -108,7 +114,8 @@ export default function XxxPage() {
         setLoading(false);
       }
     },
-    [page, pageSize, searchParams],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [page, pageSize],  // 不加 searchParams，靠 ref 读取最新值
   );
 
   useEffect(() => {
@@ -119,13 +126,13 @@ export default function XxxPage() {
   // ─── 搜索 / 重置 ────────────────────────────────────────────────────────
   function handleSearch() {
     setPage(1);
-    void fetchXxxs(1, pageSize);  // 直接传参，不等 state 异步更新
+    void fetchXxxs(1, pageSize);  // 从 ref 读取最新 searchParams，无需传参
   }
 
   function handleReset() {
     setSearchParams(defaultSearchParams);
     setPage(1);
-    void fetchXxxs(1, pageSize, defaultSearchParams);
+    void fetchXxxs(1, pageSize, defaultSearchParams);  // 重置后立即传入默认值
   }
 
   // ─── 新增 / 编辑 ──────────────────────────────────────────────────────
