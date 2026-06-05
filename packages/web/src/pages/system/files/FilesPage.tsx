@@ -104,6 +104,8 @@ export default function FilesPage() {
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
   const [uploadProgressVisible, setUploadProgressVisible] = useState(false);
   const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
+  const searchParamsRef = useRef<SearchParams>(defaultSearchParams);
+  searchParamsRef.current = searchParams;
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(
     () => (preferences.filesViewMode ?? 'list') === 'grid' ? FILE_GRID_PAGE_SIZE : FILE_LIST_PAGE_SIZE,
@@ -178,19 +180,20 @@ export default function FilesPage() {
     }
   }, []);
 
-  const fetchFiles = useCallback(async (p = page, ps = pageSize, params = searchParams) => {
+  const fetchFiles = useCallback(async (p = page, ps = pageSize, params?: SearchParams) => {
+    const activeParams = params ?? searchParamsRef.current;
     setLoading(true);
     try {
       const query = new URLSearchParams({
         page: String(p),
         pageSize: String(ps),
-        ...(params.keyword ? { keyword: params.keyword } : {}),
-        ...(params.provider ? { provider: params.provider } : {}),
-        ...(params.fileType ? { fileType: params.fileType } : {}),
-        ...(params.timeRange
+        ...(activeParams.keyword ? { keyword: activeParams.keyword } : {}),
+        ...(activeParams.provider ? { provider: activeParams.provider } : {}),
+        ...(activeParams.fileType ? { fileType: activeParams.fileType } : {}),
+        ...(activeParams.timeRange
           ? {
-            startTime: formatDateTimeForApi(params.timeRange[0]),
-            endTime: formatDateTimeForApi(params.timeRange[1]),
+            startTime: formatDateTimeForApi(activeParams.timeRange[0]),
+            endTime: formatDateTimeForApi(activeParams.timeRange[1]),
           }
           : {}),
       }).toString();
@@ -203,7 +206,8 @@ export default function FilesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, searchParams]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize]);
 
   const fetchFilesRef = useRef(fetchFiles);
 
