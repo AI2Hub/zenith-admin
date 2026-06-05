@@ -386,9 +386,6 @@ export default function CacheManagePage() {
               />
               <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
               <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-              <span style={{ marginLeft: 'auto', lineHeight: '32px', color: 'var(--semi-color-text-2)', fontSize: 13 }}>
-                共 {displayedItems.length} 条
-              </span>
             </div>
             <ConfigurableTable<CacheItem>
               bordered
