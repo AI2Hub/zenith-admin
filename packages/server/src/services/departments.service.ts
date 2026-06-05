@@ -197,7 +197,7 @@ export async function exportDepartments(): Promise<{ stream: ReadableStream; fil
       { header: 'ID', key: 'id', width: 8 },
       { header: '部门名称', key: 'name', width: 20 },
       { header: '部门编码', key: 'code', width: 16 },
-      { header: '类别', key: 'category', width: 10, transform: (v) => ({ group: '集团', company: '公司', department: '部门' }[v] ?? v) },
+      { header: '类别', key: 'category', width: 10, transform: (v) => ({ group: '集团', company: '公司', department: '部门' }[v as string] ?? String(v)) },
       { header: '负责人', key: 'leaderName', width: 14 },
       { header: '电话', key: 'phone', width: 16 },
       { header: '状态', key: 'status', width: 10, transform: (v) => (v === 'enabled' ? '启用' : '禁用') },
