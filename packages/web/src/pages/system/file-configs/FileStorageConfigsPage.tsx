@@ -89,16 +89,96 @@ function buildPayload(provider: FileStorageProvider, isDefault: boolean, values:
   }
 
   // cos
+  if (provider === 'cos') {
+    return {
+      name: values.name?.trim() ?? '',
+      provider,
+      status: values.status ?? 'enabled',
+      isDefault,
+      basePath: normalizeOptional(values.basePath),
+      cosRegion: normalizeOptional(values.cosRegion),
+      cosBucket: normalizeOptional(values.cosBucket),
+      cosSecretId: normalizeOptional(values.cosSecretId),
+      cosSecretKey: normalizeOptional(values.cosSecretKey),
+      remark: normalizeOptional(values.remark),
+    };
+  }
+
+  if (provider === 'obs') {
+    return {
+      name: values.name?.trim() ?? '',
+      provider,
+      status: values.status ?? 'enabled',
+      isDefault,
+      basePath: normalizeOptional(values.basePath),
+      obsEndpoint: normalizeOptional(values.obsEndpoint),
+      obsBucket: normalizeOptional(values.obsBucket),
+      obsAccessKeyId: normalizeOptional(values.obsAccessKeyId),
+      obsSecretAccessKey: normalizeOptional(values.obsSecretAccessKey),
+      remark: normalizeOptional(values.remark),
+    };
+  }
+
+  if (provider === 'kodo') {
+    return {
+      name: values.name?.trim() ?? '',
+      provider,
+      status: values.status ?? 'enabled',
+      isDefault,
+      basePath: normalizeOptional(values.basePath),
+      kodoAccessKey: normalizeOptional(values.kodoAccessKey),
+      kodoSecretKey: normalizeOptional(values.kodoSecretKey),
+      kodoBucket: normalizeOptional(values.kodoBucket),
+      kodoRegion: normalizeOptional(values.kodoRegion),
+      kodoEndpoint: normalizeOptional(values.kodoEndpoint),
+      remark: normalizeOptional(values.remark),
+    };
+  }
+
+  if (provider === 'bos') {
+    return {
+      name: values.name?.trim() ?? '',
+      provider,
+      status: values.status ?? 'enabled',
+      isDefault,
+      basePath: normalizeOptional(values.basePath),
+      bosEndpoint: normalizeOptional(values.bosEndpoint),
+      bosBucket: normalizeOptional(values.bosBucket),
+      bosAccessKeyId: normalizeOptional(values.bosAccessKeyId),
+      bosSecretAccessKey: normalizeOptional(values.bosSecretAccessKey),
+      remark: normalizeOptional(values.remark),
+    };
+  }
+
+  if (provider === 'azure') {
+    return {
+      name: values.name?.trim() ?? '',
+      provider,
+      status: values.status ?? 'enabled',
+      isDefault,
+      basePath: normalizeOptional(values.basePath),
+      azureAccountName: normalizeOptional(values.azureAccountName),
+      azureAccountKey: normalizeOptional(values.azureAccountKey),
+      azureContainerName: normalizeOptional(values.azureContainerName),
+      azureEndpoint: normalizeOptional(values.azureEndpoint),
+      remark: normalizeOptional(values.remark),
+    };
+  }
+
+  // sftp
   return {
     name: values.name?.trim() ?? '',
     provider,
     status: values.status ?? 'enabled',
     isDefault,
     basePath: normalizeOptional(values.basePath),
-    cosRegion: normalizeOptional(values.cosRegion),
-    cosBucket: normalizeOptional(values.cosBucket),
-    cosSecretId: normalizeOptional(values.cosSecretId),
-    cosSecretKey: normalizeOptional(values.cosSecretKey),
+    sftpHost: normalizeOptional(values.sftpHost),
+    sftpPort: values.sftpPort,
+    sftpUsername: normalizeOptional(values.sftpUsername),
+    sftpPassword: normalizeOptional(values.sftpPassword),
+    sftpPrivateKey: values.sftpPrivateKey,
+    sftpRootPath: normalizeOptional(values.sftpRootPath),
+    sftpBaseUrl: normalizeOptional(values.sftpBaseUrl),
     remark: normalizeOptional(values.remark),
   };
 }
@@ -108,6 +188,11 @@ function getStorageSummary(config: FileStorageConfig) {
   if (config.provider === 'oss') return [config.ossBucket, config.ossRegion].filter(Boolean).join(' / ') || '—';
   if (config.provider === 's3') return [config.s3Bucket, config.s3Region].filter(Boolean).join(' / ') || '—';
   if (config.provider === 'cos') return [config.cosBucket, config.cosRegion].filter(Boolean).join(' / ') || '—';
+  if (config.provider === 'obs') return [config.obsBucket, config.obsEndpoint].filter(Boolean).join(' / ') || '—';
+  if (config.provider === 'kodo') return [config.kodoBucket, config.kodoRegion].filter(Boolean).join(' / ') || '—';
+  if (config.provider === 'bos') return [config.bosBucket, config.bosEndpoint].filter(Boolean).join(' / ') || '—';
+  if (config.provider === 'azure') return [config.azureContainerName, config.azureAccountName].filter(Boolean).join(' / ') || '—';
+  if (config.provider === 'sftp') return [config.sftpHost, config.sftpRootPath].filter(Boolean).join(':') || '—';
   return '—';
 }
 
@@ -247,11 +332,16 @@ export default function FileStorageConfigsPage() {
       dataIndex: 'provider',
       width: 120,
       render: (provider: FileStorageProvider) => {
-        const map: Record<FileStorageProvider, { color: 'blue' | 'orange' | 'purple' | 'teal'; label: string }> = {
+        const map: Record<FileStorageProvider, { color: 'blue' | 'orange' | 'purple' | 'teal' | 'red' | 'cyan' | 'indigo' | 'violet' | 'green'; label: string }> = {
           local: { color: 'blue', label: '本地磁盘' },
           oss: { color: 'orange', label: '阿里云 OSS' },
           s3: { color: 'purple', label: 'Amazon S3' },
           cos: { color: 'teal', label: '腾讯云 COS' },
+          obs: { color: 'red', label: '华为云 OBS' },
+          kodo: { color: 'cyan', label: '七牛云 Kodo' },
+          bos: { color: 'indigo', label: '百度云 BOS' },
+          azure: { color: 'violet', label: 'Azure Blob' },
+          sftp: { color: 'green', label: 'SFTP' },
         };
         const { color, label } = map[provider];
         return <Tag color={color} size="small">{label}</Tag>;
@@ -275,6 +365,11 @@ export default function FileStorageConfigsPage() {
           oss: 'Bucket',
           s3: 'Bucket',
           cos: 'Bucket',
+          obs: 'Bucket',
+          kodo: 'Bucket',
+          bos: 'Bucket',
+          azure: 'Container',
+          sftp: '主机',
         };
         const label = labelMap[record.provider] ?? 'Bucket';
         const summary = getStorageSummary(record);
@@ -357,6 +452,30 @@ export default function FileStorageConfigsPage() {
       cosBucket: editingConfig.cosBucket ?? '',
       cosSecretId: editingConfig.cosSecretId ?? '',
       cosSecretKey: editingConfig.cosSecretKey ?? '',
+      obsEndpoint: editingConfig.obsEndpoint ?? '',
+      obsBucket: editingConfig.obsBucket ?? '',
+      obsAccessKeyId: editingConfig.obsAccessKeyId ?? '',
+      obsSecretAccessKey: editingConfig.obsSecretAccessKey ?? '',
+      kodoAccessKey: editingConfig.kodoAccessKey ?? '',
+      kodoSecretKey: editingConfig.kodoSecretKey ?? '',
+      kodoBucket: editingConfig.kodoBucket ?? '',
+      kodoRegion: editingConfig.kodoRegion ?? '',
+      kodoEndpoint: editingConfig.kodoEndpoint ?? '',
+      bosEndpoint: editingConfig.bosEndpoint ?? '',
+      bosBucket: editingConfig.bosBucket ?? '',
+      bosAccessKeyId: editingConfig.bosAccessKeyId ?? '',
+      bosSecretAccessKey: editingConfig.bosSecretAccessKey ?? '',
+      azureAccountName: editingConfig.azureAccountName ?? '',
+      azureAccountKey: editingConfig.azureAccountKey ?? '',
+      azureContainerName: editingConfig.azureContainerName ?? '',
+      azureEndpoint: editingConfig.azureEndpoint ?? '',
+      sftpHost: editingConfig.sftpHost ?? '',
+      sftpPort: editingConfig.sftpPort ?? 22,
+      sftpUsername: editingConfig.sftpUsername ?? '',
+      sftpPassword: editingConfig.sftpPassword ?? '',
+      sftpPrivateKey: editingConfig.sftpPrivateKey ?? '',
+      sftpRootPath: editingConfig.sftpRootPath ?? '',
+      sftpBaseUrl: editingConfig.sftpBaseUrl ?? '',
       remark: editingConfig.remark ?? '',
     }
     : {
@@ -453,8 +572,13 @@ export default function FileStorageConfigsPage() {
               >
                 <Select.Option value="local">本地磁盘</Select.Option>
                 <Select.Option value="oss">阿里云 OSS</Select.Option>
-                <Select.Option value="s3">Amazon S3</Select.Option>
+                <Select.Option value="s3">Amazon S3 / MinIO</Select.Option>
                 <Select.Option value="cos">腾讯云 COS</Select.Option>
+                <Select.Option value="obs">华为云 OBS</Select.Option>
+                <Select.Option value="kodo">七牛云 Kodo</Select.Option>
+                <Select.Option value="bos">百度云 BOS</Select.Option>
+                <Select.Option value="azure">Azure Blob Storage</Select.Option>
+                <Select.Option value="sftp">SFTP</Select.Option>
               </Form.Select>
             </Col>
           </Row>
@@ -576,6 +700,143 @@ export default function FileStorageConfigsPage() {
                     type="password"
                     rules={[{ required: true, message: '请输入 SecretKey' }]}
                   />
+                </Col>
+              </Row>
+            </>
+          )}
+
+          {formProvider === 'obs' && (
+            <>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input field="obsEndpoint" label="Endpoint" placeholder="例如 obs.cn-north-4.myhuaweicloud.com" rules={[{ required: true, message: '请输入 OBS Endpoint' }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input field="obsBucket" label="Bucket" placeholder="请输入 OBS Bucket 名称" rules={[{ required: true, message: '请输入 Bucket' }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input field="obsAccessKeyId" label="Access Key ID" placeholder="请输入 Access Key ID" rules={[{ required: true, message: '请输入 Access Key ID' }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input field="obsSecretAccessKey" label="Secret Access Key" placeholder="请输入 Secret Access Key" type="password" rules={[{ required: true, message: '请输入 Secret Access Key' }]} />
+                </Col>
+              </Row>
+            </>
+          )}
+
+          {formProvider === 'kodo' && (
+            <>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Input field="kodoBucket" label="Bucket" placeholder="请输入 Kodo Bucket" rules={[{ required: true, message: '请输入 Bucket' }]} />
+                </Col>
+                <Col span={12}>
+                  <Form.Input field="kodoRegion" label="Region" placeholder="例如 z0（华东）、z1（华北）" />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input field="kodoEndpoint" label="访问域名" placeholder="用于下载文件的公开域名，例如 cdn.example.com" />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input field="kodoAccessKey" label="Access Key" placeholder="请输入 Access Key" rules={[{ required: true, message: '请输入 Access Key' }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input field="kodoSecretKey" label="Secret Key" placeholder="请输入 Secret Key" type="password" rules={[{ required: true, message: '请输入 Secret Key' }]} />
+                </Col>
+              </Row>
+            </>
+          )}
+
+          {formProvider === 'bos' && (
+            <>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input field="bosEndpoint" label="Endpoint" placeholder="例如 https://bj.bcebos.com" rules={[{ required: true, message: '请输入 BOS Endpoint' }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input field="bosBucket" label="Bucket" placeholder="请输入 BOS Bucket 名称" rules={[{ required: true, message: '请输入 Bucket' }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input field="bosAccessKeyId" label="Access Key ID" placeholder="请输入 Access Key" rules={[{ required: true, message: '请输入 Access Key ID' }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input field="bosSecretAccessKey" label="Secret Access Key" placeholder="请输入 Secret Key" type="password" rules={[{ required: true, message: '请输入 Secret Access Key' }]} />
+                </Col>
+              </Row>
+            </>
+          )}
+
+          {formProvider === 'azure' && (
+            <>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Input field="azureAccountName" label="Account Name" placeholder="存储账户名称" rules={[{ required: true, message: '请输入 Account Name' }]} />
+                </Col>
+                <Col span={12}>
+                  <Form.Input field="azureContainerName" label="Container" placeholder="Blob 容器名称" rules={[{ required: true, message: '请输入 Container Name' }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input field="azureAccountKey" label="Account Key" placeholder="存储账户密钥" type="password" rules={[{ required: true, message: '请输入 Account Key' }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input field="azureEndpoint" label="Endpoint（可选）" placeholder="自定义端点，默认 Azure 全球端点" />
+                </Col>
+              </Row>
+            </>
+          )}
+
+          {formProvider === 'sftp' && (
+            <>
+              <Row gutter={16}>
+                <Col span={16}>
+                  <Form.Input field="sftpHost" label="主机地址" placeholder="IP 或域名" rules={[{ required: true, message: '请输入主机地址' }]} />
+                </Col>
+                <Col span={8}>
+                  <Form.InputNumber field="sftpPort" label="端口" placeholder="22" min={1} max={65535} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Input field="sftpUsername" label="用户名" placeholder="登录用户名" rules={[{ required: true, message: '请输入用户名' }]} />
+                </Col>
+                <Col span={12}>
+                  <Form.Input field="sftpPassword" label="密码" placeholder="密码或私鬥二选一" type="password" />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input field="sftpRootPath" label="远端根目录" placeholder="例如 /data/uploads" />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Input field="sftpBaseUrl" label="访问 Base URL" placeholder="文件公开 URL 前缀，例如 https://static.example.com" />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.TextArea field="sftpPrivateKey" label="SSH 私鬥（可选）" placeholder="如果使用私鬥登录，请将 PEM 内容粘贴至此" rows={4} />
                 </Col>
               </Row>
             </>

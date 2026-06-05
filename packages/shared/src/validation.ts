@@ -169,7 +169,7 @@ export const updateDictItemSchema = createDictItemSchema.partial();
 // ─── 文件管理 Schema ─────────────────────────────────────────────────────────
 const baseFileStorageConfigSchema = z.object({
   name: z.string().min(1, '配置名称不能为空').max(64),
-  provider: z.enum(['local', 'oss', 's3', 'cos']),
+  provider: z.enum(['local', 'oss', 's3', 'cos', 'obs', 'kodo', 'bos', 'azure', 'sftp']),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   isDefault: z.boolean().default(false),
   basePath: z.string().max(256).optional(),
@@ -193,6 +193,35 @@ const baseFileStorageConfigSchema = z.object({
   cosBucket: z.string().max(128).optional(),
   cosSecretId: z.string().max(128).optional(),
   cosSecretKey: z.string().max(256).optional(),
+  // 华为云 OBS
+  obsEndpoint: z.string().max(256).optional(),
+  obsBucket: z.string().max(128).optional(),
+  obsAccessKeyId: z.string().max(128).optional(),
+  obsSecretAccessKey: z.string().max(256).optional(),
+  // 七牛云 Kodo
+  kodoAccessKey: z.string().max(128).optional(),
+  kodoSecretKey: z.string().max(256).optional(),
+  kodoBucket: z.string().max(128).optional(),
+  kodoRegion: z.string().max(64).optional(),
+  kodoEndpoint: z.string().max(256).optional(),
+  // 百度云 BOS
+  bosEndpoint: z.string().max(256).optional(),
+  bosBucket: z.string().max(128).optional(),
+  bosAccessKeyId: z.string().max(128).optional(),
+  bosSecretAccessKey: z.string().max(256).optional(),
+  // Azure Blob Storage
+  azureAccountName: z.string().max(128).optional(),
+  azureAccountKey: z.string().max(256).optional(),
+  azureContainerName: z.string().max(128).optional(),
+  azureEndpoint: z.string().max(256).optional(),
+  // SFTP
+  sftpHost: z.string().max(256).optional(),
+  sftpPort: z.number().int().min(1).max(65535).optional(),
+  sftpUsername: z.string().max(128).optional(),
+  sftpPassword: z.string().max(256).optional(),
+  sftpPrivateKey: z.string().optional(),
+  sftpRootPath: z.string().max(512).optional(),
+  sftpBaseUrl: z.string().max(512).optional(),
   remark: z.string().max(256).optional(),
 });
 
@@ -222,6 +251,36 @@ export const createFileStorageConfigSchema = baseFileStorageConfigSchema.superRe
       if (!data[field]) {
         ctx.addIssue({ code: 'custom', message: '腾讯云 COS 配 置项不能为空', path: [field] });
       }
+    }
+  }
+  if (data.provider === 'obs') {
+    const requiredFields: Array<keyof typeof data> = ['obsEndpoint', 'obsBucket', 'obsAccessKeyId', 'obsSecretAccessKey'];
+    for (const field of requiredFields) {
+      if (!data[field]) ctx.addIssue({ code: 'custom', message: '华为云 OBS 配置项不能为空', path: [field] });
+    }
+  }
+  if (data.provider === 'kodo') {
+    const requiredFields: Array<keyof typeof data> = ['kodoAccessKey', 'kodoSecretKey', 'kodoBucket'];
+    for (const field of requiredFields) {
+      if (!data[field]) ctx.addIssue({ code: 'custom', message: '七牛云 Kodo 配置项不能为空', path: [field] });
+    }
+  }
+  if (data.provider === 'bos') {
+    const requiredFields: Array<keyof typeof data> = ['bosEndpoint', 'bosBucket', 'bosAccessKeyId', 'bosSecretAccessKey'];
+    for (const field of requiredFields) {
+      if (!data[field]) ctx.addIssue({ code: 'custom', message: '百度云 BOS 配置项不能为空', path: [field] });
+    }
+  }
+  if (data.provider === 'azure') {
+    const requiredFields: Array<keyof typeof data> = ['azureAccountName', 'azureAccountKey', 'azureContainerName'];
+    for (const field of requiredFields) {
+      if (!data[field]) ctx.addIssue({ code: 'custom', message: 'Azure Blob 配置项不能为空', path: [field] });
+    }
+  }
+  if (data.provider === 'sftp') {
+    const requiredFields: Array<keyof typeof data> = ['sftpHost', 'sftpUsername'];
+    for (const field of requiredFields) {
+      if (!data[field]) ctx.addIssue({ code: 'custom', message: 'SFTP 配置项不能为空', path: [field] });
     }
   }
 });

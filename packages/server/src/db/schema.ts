@@ -3,7 +3,7 @@ import { relations } from 'drizzle-orm';
 
 export const statusEnum = pgEnum('status', ['enabled', 'disabled']);
 export const menuTypeEnum = pgEnum('menu_type', ['directory', 'menu', 'button']);
-export const fileStorageProviderEnum = pgEnum('file_storage_provider', ['local', 'oss', 's3', 'cos']);
+export const fileStorageProviderEnum = pgEnum('file_storage_provider', ['local', 'oss', 's3', 'cos', 'obs', 'kodo', 'bos', 'azure', 'sftp']);
 export const dataScopeEnum = pgEnum('data_scope', ['all', 'custom', 'dept_only', 'dept', 'self']);
 export const maskTypeEnum = pgEnum('mask_type', ['phone', 'email', 'id_card', 'name', 'bank_card', 'custom']);
 
@@ -269,6 +269,35 @@ export const fileStorageConfigs = pgTable('file_storage_configs', {
   cosBucket: varchar('cos_bucket', { length: 128 }),
   cosSecretId: varchar('cos_secret_id', { length: 128 }),
   cosSecretKey: varchar('cos_secret_key', { length: 256 }),
+  // 华为云 OBS
+  obsEndpoint: varchar('obs_endpoint', { length: 256 }),
+  obsBucket: varchar('obs_bucket', { length: 128 }),
+  obsAccessKeyId: varchar('obs_access_key_id', { length: 128 }),
+  obsSecretAccessKey: varchar('obs_secret_access_key', { length: 256 }),
+  // 七牛云 Kodo
+  kodoAccessKey: varchar('kodo_access_key', { length: 128 }),
+  kodoSecretKey: varchar('kodo_secret_key', { length: 256 }),
+  kodoBucket: varchar('kodo_bucket', { length: 128 }),
+  kodoRegion: varchar('kodo_region', { length: 64 }),
+  kodoEndpoint: varchar('kodo_endpoint', { length: 256 }),
+  // 百度云 BOS
+  bosEndpoint: varchar('bos_endpoint', { length: 256 }),
+  bosBucket: varchar('bos_bucket', { length: 128 }),
+  bosAccessKeyId: varchar('bos_access_key_id', { length: 128 }),
+  bosSecretAccessKey: varchar('bos_secret_access_key', { length: 256 }),
+  // Azure Blob Storage
+  azureAccountName: varchar('azure_account_name', { length: 128 }),
+  azureAccountKey: varchar('azure_account_key', { length: 256 }),
+  azureContainerName: varchar('azure_container_name', { length: 128 }),
+  azureEndpoint: varchar('azure_endpoint', { length: 256 }),
+  // SFTP
+  sftpHost: varchar('sftp_host', { length: 256 }),
+  sftpPort: integer('sftp_port').default(22),
+  sftpUsername: varchar('sftp_username', { length: 128 }),
+  sftpPassword: varchar('sftp_password', { length: 256 }),
+  sftpPrivateKey: text('sftp_private_key'),
+  sftpRootPath: varchar('sftp_root_path', { length: 512 }),
+  sftpBaseUrl: varchar('sftp_base_url', { length: 512 }),
   remark: varchar('remark', { length: 256 }),
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),

@@ -190,7 +190,7 @@ export interface DictItem {
 }
 
 // ─── 文件管理 ─────────────────────────────────────────────────────────────────
-export type FileStorageProvider = 'local' | 'oss' | 's3' | 'cos';
+export type FileStorageProvider = 'local' | 'oss' | 's3' | 'cos' | 'obs' | 'kodo' | 'bos' | 'azure' | 'sftp';
 
 export interface FileStorageConfig {
   id: number;
@@ -218,6 +218,35 @@ export interface FileStorageConfig {
   cosBucket?: string;
   cosSecretId?: string;
   cosSecretKey?: string;
+  // 华为云 OBS
+  obsEndpoint?: string;
+  obsBucket?: string;
+  obsAccessKeyId?: string;
+  obsSecretAccessKey?: string;
+  // 七牛云 Kodo
+  kodoAccessKey?: string;
+  kodoSecretKey?: string;
+  kodoBucket?: string;
+  kodoRegion?: string;
+  kodoEndpoint?: string;
+  // 百度云 BOS
+  bosEndpoint?: string;
+  bosBucket?: string;
+  bosAccessKeyId?: string;
+  bosSecretAccessKey?: string;
+  // Azure Blob Storage
+  azureAccountName?: string;
+  azureAccountKey?: string;
+  azureContainerName?: string;
+  azureEndpoint?: string;
+  // SFTP
+  sftpHost?: string;
+  sftpPort?: number;
+  sftpUsername?: string;
+  sftpPassword?: string;
+  sftpPrivateKey?: string;
+  sftpRootPath?: string;
+  sftpBaseUrl?: string;
   remark?: string;
   createdAt: string;
   updatedAt: string;
