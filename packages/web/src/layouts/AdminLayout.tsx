@@ -545,9 +545,14 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
 
   useEffect(() => {
     if (!collapsed && currentSectionKeys.length > 0) {
-      setOpenKeys((prev) => Array.from(new Set([...prev, ...currentSectionKeys])));
+      if (preferences.sidebarAccordion) {
+        // 手风琴模式：路由切换时仅保留当前路径的祖先链
+        setOpenKeys(currentSectionKeys);
+      } else {
+        setOpenKeys((prev) => Array.from(new Set([...prev, ...currentSectionKeys])));
+      }
     }
-  }, [collapsed, currentSectionKeys]);
+  }, [collapsed, currentSectionKeys, preferences.sidebarAccordion]);
 
   // ─── 锁屏快捷键 Alt+L ──────────────────────────────────────────────────────
   useEffect(() => {
