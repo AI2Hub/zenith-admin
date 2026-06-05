@@ -39,7 +39,7 @@ export default function InAppTemplatesPage() {
   const formRef = useRef<FormApi>(null);
 
   const fetchList = useCallback(
-    async (p: number, kw: string, t: InAppMessageType | undefined, st: string | undefined, ps = 10) => {
+    async (p: number, kw: string, t: InAppMessageType | undefined, st: string | undefined, ps = pageSize) => {
       setLoading(true);
       try {
         const params = new URLSearchParams({ page: String(p), pageSize: String(ps) });
@@ -55,10 +55,10 @@ export default function InAppTemplatesPage() {
         setLoading(false);
       }
     },
-    [],
+    [pageSize, setPage, setPageSize],
   );
 
-  useEffect(() => { void fetchList(1, '', undefined, undefined, 10); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => { void fetchList(1, '', undefined, undefined, pageSize); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const handleSearch = () => { void fetchList(1, keyword, filterType, filterStatus, pageSize); };
   const handleReset = () => {

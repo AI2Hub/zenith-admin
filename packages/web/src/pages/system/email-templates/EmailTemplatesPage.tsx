@@ -31,7 +31,7 @@ export default function EmailTemplatesPage() {
   const formRef = useRef<FormApi>(null);
 
   const fetchList = useCallback(
-    async (p: number, kw: string, st: string | undefined, ps = 10) => {
+    async (p: number, kw: string, st: string | undefined, ps = pageSize) => {
       setLoading(true);
       try {
         const params = new URLSearchParams({ page: String(p), pageSize: String(ps) });
@@ -46,11 +46,11 @@ export default function EmailTemplatesPage() {
         setLoading(false);
       }
     },
-    [],
+    [pageSize, setPage, setPageSize],
   );
 
   useEffect(() => {
-    void fetchList(1, '', undefined, 10);
+    void fetchList(1, '', undefined, pageSize);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
