@@ -95,7 +95,7 @@ export default function WorkflowEventSubscriptionsPage() {
   const [deliverySubId, setDeliverySubId] = useState<number | null>(null);
   const [deliveries, setDeliveries] = useState<WorkflowEventDelivery[]>([]);
   const [deliveriesTotal, setDeliveriesTotal] = useState(0);
-  const { page: deliveryPage, setPage: setDeliveryPage, buildPagination: buildDeliveryPagination } = usePagination();
+  const { page: deliveryPage, pageSize: deliveryPageSize, setPage: setDeliveryPage, buildPagination: buildDeliveryPagination } = usePagination();
   const [deliveryLoading, setDeliveryLoading] = useState(false);
 
   const fetchData = useCallback(async (p = page, ps = pageSize) => {
