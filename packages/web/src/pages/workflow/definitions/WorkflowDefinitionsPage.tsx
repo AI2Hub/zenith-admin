@@ -149,7 +149,7 @@ export default function WorkflowDefinitionsPage() {
     {
       title: '更新时间',
       dataIndex: 'updatedAt',
-      width: 170,
+      width: 180,
       render: (v: string) => formatDateTime(v),
     },
     {
