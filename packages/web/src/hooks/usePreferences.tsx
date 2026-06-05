@@ -53,7 +53,7 @@ export const defaultPreferences: UserPreferences = {
   breadcrumbShowHome: true,
   tabAnimation: 'fade',
   colorMode: 'light',
-  themeColor: 'blue',
+  themeColor: 'wechat',
   sidebarDarkMode: false,
   headerDarkMode: false,
   showMenuSearch: true,
