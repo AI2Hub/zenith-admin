@@ -1,19 +1,14 @@
-.cache-master,
-.cache-detail {
+.cache-master {
   flex: 1;
   min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.cache-master {
   background: var(--semi-color-bg-1);
 }
 
-.cache-master-header,
-.cache-detail-header {
+.cache-master-header {
   flex-shrink: 0;
   min-height: 44px;
   padding: 8px 12px;
@@ -21,11 +16,8 @@
   border-bottom: 1px solid var(--semi-color-border);
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.cache-master-header {
   justify-content: space-between;
+  gap: 8px;
 }
 
 .cache-master-title {
@@ -107,23 +99,7 @@
   font-size: 13px;
 }
 
-.cache-detail {
-  gap: 12px;
-}
-
-.cache-detail-header {
-  background: var(--semi-color-bg-1);
-}
-
 .cache-detail-placeholder {
   color: var(--semi-color-text-2);
   font-size: 13px;
-}
-
-.cache-detail-body {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }

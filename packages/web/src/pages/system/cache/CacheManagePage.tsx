@@ -358,8 +358,8 @@ export default function CacheManagePage() {
   );
 
   const cacheDetail = (
-    <div className="cache-detail">
-      <div className="cache-detail-header">
+    <>
+      <MasterDetailLayout.Header>
         {selectedCategory ? (
           <>
             <Tag color={CATEGORY_COLORS[selectedCategory.category] ?? 'grey'} size="small" style={{ whiteSpace: 'nowrap' }}>
@@ -370,8 +370,8 @@ export default function CacheManagePage() {
         ) : (
           <span className="cache-detail-placeholder">请选择缓存分类</span>
         )}
-      </div>
-      <div className="cache-detail-body">
+      </MasterDetailLayout.Header>
+      <MasterDetailLayout.Body>
         {selectedCategory ? (
           <>
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -420,8 +420,8 @@ export default function CacheManagePage() {
             请点击左侧分类查看对应的缓存键
           </div>
         )}
-      </div>
-    </div>
+      </MasterDetailLayout.Body>
+    </>
   );
 
   return (
