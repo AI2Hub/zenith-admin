@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePreferences } from '@/hooks/usePreferences';
 import { Button, Checkbox, Dropdown, Radio, RadioGroup, Space, Switch, Table } from '@douyinfe/semi-ui';
-import { RotateCcw, Rows3, Settings, Settings2 } from 'lucide-react';
+import { RotateCcw, Rows3, Settings, Settings2, Expand, Shrink } from 'lucide-react';
 import type { ColumnProps, Data, TableProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TableSizePreference } from '@/hooks/usePreferences';
 
@@ -214,6 +214,17 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
 
   const [hiddenKeys, setHiddenKeys] = useState<string[]>(() => readHiddenKeys(storageKey));
   const [tableSettings, setTableSettings] = useState<TableDisplaySettings>(() => readTableDisplaySettings(tableDisplayKey));
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Esc 键退出全屏
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFullscreen(false);
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [isFullscreen]);
 
   useEffect(() => {
     setHiddenKeys(readHiddenKeys(storageKey));
@@ -375,7 +386,7 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
   );
 
   return (
-    <div className="configurable-table">
+    <div className={`configurable-table${isFullscreen ? ' configurable-table--fullscreen' : ''}`}>
       <div className="configurable-table-actions">
         {effectiveColumnSettings && configurableOptions.length > 0 && (
           <Dropdown trigger="click" render={settingsPanel}>
@@ -406,6 +417,14 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
             title="表格显示设置"
           />
         </Dropdown>
+        <Button
+          type="tertiary"
+          theme="borderless"
+          icon={isFullscreen ? <Shrink size={14} /> : <Expand size={14} />}
+          aria-label={isFullscreen ? '退出全屏' : '全屏展示'}
+          title={isFullscreen ? '退出全屏（Esc）' : '全屏展示'}
+          onClick={() => setIsFullscreen((v) => !v)}
+        />
       </div>
       <Table<RecordType>
         {...restTableProps}

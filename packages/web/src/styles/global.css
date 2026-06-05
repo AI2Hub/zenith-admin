@@ -196,6 +196,16 @@ body {
   min-width: 0;
 }
 
+.configurable-table--fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--semi-color-bg-1);
+  padding: 16px;
+  overflow: auto;
+  border-radius: 0;
+}
+
 .configurable-table-actions {
   display: flex;
   justify-content: flex-end;
