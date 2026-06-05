@@ -23,20 +23,25 @@ interface TableDisplaySettings {
 }
 
 function readTableDisplaySettings(key: string): TableDisplaySettings {
-  if (typeof globalThis.window === 'undefined') return {};
+  if (globalThis.window === undefined) return {};
   try {
     const raw = globalThis.localStorage.getItem(key);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== 'object') return {};
-    return parsed as TableDisplaySettings;
+    const settings = parsed as Record<string, unknown>;
+    const result: TableDisplaySettings = {};
+    if ('bordered' in settings && typeof settings.bordered === 'boolean') result.bordered = settings.bordered;
+    if ('striped' in settings && typeof settings.striped === 'boolean') result.striped = settings.striped;
+    if ('size' in settings && typeof settings.size === 'string') result.size = settings.size as TableSizePreference;
+    return result;
   } catch {
     return {};
   }
 }
 
 function writeTableDisplaySettings(key: string, settings: TableDisplaySettings) {
-  if (typeof globalThis.window === 'undefined') return;
+  if (globalThis.window === undefined) return;
   try {
     if (Object.keys(settings).length === 0) {
       globalThis.localStorage.removeItem(key);
@@ -151,12 +156,12 @@ function filterColumns<RecordType extends TableRecord>(
 }
 
 function getDefaultStorageKey(columnKeys: string[]): string {
-  const pathname = typeof globalThis.window === 'undefined' ? 'ssr' : globalThis.window.location.pathname;
+  const pathname = globalThis.window === undefined ? 'ssr' : globalThis.window.location.pathname;
   return `zenith:table-columns:${pathname}:${columnKeys.join('|')}`;
 }
 
 function readHiddenKeys(storageKey: string): string[] {
-  if (typeof globalThis.window === 'undefined') return [];
+  if (globalThis.window === undefined) return [];
 
   try {
     const raw = globalThis.localStorage.getItem(storageKey);
@@ -171,7 +176,7 @@ function readHiddenKeys(storageKey: string): string[] {
 }
 
 function writeHiddenKeys(storageKey: string, hiddenKeys: string[]) {
-  if (typeof globalThis.window === 'undefined') return;
+  if (globalThis.window === undefined) return;
 
   try {
     if (hiddenKeys.length === 0) {
@@ -184,8 +189,12 @@ function writeHiddenKeys(storageKey: string, hiddenKeys: string[]) {
   }
 }
 
-function toggleHiddenKey(prev: string[], key: string, checked: boolean): string[] {
-  return checked ? prev.filter((k) => k !== key) : Array.from(new Set([...prev, key]));
+function removeHiddenKey(prev: string[], key: string): string[] {
+  return prev.filter((k) => k !== key);
+}
+
+function addHiddenKey(prev: string[], key: string): string[] {
+  return Array.from(new Set([...prev, key]));
 }
 
 export function ConfigurableTable<RecordType extends TableRecord = TableRecord>({
@@ -292,22 +301,8 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
     writeTableDisplaySettings(tableDisplayKey, {});
   }, [tableDisplayKey]);
 
-  const stopPropagation = (event: React.MouseEvent | React.KeyboardEvent) => event.stopPropagation();
-  const stopKeyPropagation = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-  };
-
   const settingsPanel = (
-    <div
-      className="column-settings-popover"
-      role="button"
-      tabIndex={0}
-      onClick={stopPropagation}
-      onKeyDown={stopKeyPropagation}
-    >
+    <div className="column-settings-popover">
       <div className="column-settings-title">列表列配置</div>
       <Space vertical align="start" className="column-settings-list">
         {configurableOptions.map((option) => (
@@ -316,7 +311,7 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
             checked={!hiddenKeySet.has(option.key)}
             onChange={(event) => {
               const checked = !!(event.target as EventTarget & { checked?: boolean }).checked;
-              updateHiddenKeys((prev) => toggleHiddenKey(prev, option.key, checked));
+              updateHiddenKeys((prev) => checked ? removeHiddenKey(prev, option.key) : addHiddenKey(prev, option.key));
             }}
           >
             {option.title}
@@ -337,13 +332,7 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
   );
 
   const sizePanelContent = (
-    <div
-      className="table-size-panel"
-      role="button"
-      tabIndex={0}
-      onClick={stopPropagation}
-      onKeyDown={stopKeyPropagation}
-    >
+    <div className="table-size-panel">
       <div className="table-size-panel-title">表格尺寸</div>
       <RadioGroup
         direction="vertical"
@@ -358,13 +347,7 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
   );
 
   const displaySettingsPanelContent = (
-    <div
-      className="table-display-settings-panel"
-      role="button"
-      tabIndex={0}
-      onClick={stopPropagation}
-      onKeyDown={stopKeyPropagation}
-    >
+    <div className="table-display-settings-panel">
       <div className="table-display-settings-title">表格显示</div>
       <div className="table-display-settings-list">
         <div className="table-display-settings-item">
