@@ -260,24 +260,22 @@ export default function StorageFileBrowser({ config, onClose }: Readonly<Storage
       render: (_: unknown, record: ManagedFile | FolderEntry) => {
         if (!('id' in record)) {
           // Folder row
-          const folder = record as FolderEntry;
           return (
             <button
               type="button"
               className="storage-browser__folder-row-btn"
-              onClick={() => navigateToFolder(folder)}
+              onClick={() => navigateToFolder(record)}
             >
               <Folder size={15} className="storage-browser__folder-icon" />
-              <span>{folder.name}</span>
+              <span>{record.name}</span>
             </button>
           );
         }
-        const file = record as ManagedFile;
         return (
           <Space spacing={6} style={{ flexWrap: 'nowrap', overflow: 'hidden' }}>
-            <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{getFileTypeIcon(file.mimeType)}</span>
-            <Tooltip content={file.originalName}>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.originalName}</span>
+            <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{getFileTypeIcon(record.mimeType)}</span>
+            <Tooltip content={record.originalName}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.originalName}</span>
             </Tooltip>
           </Space>
         );
@@ -290,7 +288,7 @@ export default function StorageFileBrowser({ config, onClose }: Readonly<Storage
       align: 'right' as const,
       render: (_: unknown, record: ManagedFile | FolderEntry) => {
         if (!('id' in record)) return <span className="table-cell-placeholder">—</span>;
-        return formatFileSize((record as ManagedFile).size);
+        return formatFileSize(record.size);
       },
     },
     {
@@ -299,7 +297,7 @@ export default function StorageFileBrowser({ config, onClose }: Readonly<Storage
       width: 180,
       render: (_: unknown, record: ManagedFile | FolderEntry) => {
         if (!('id' in record)) return <span className="table-cell-placeholder">—</span>;
-        return renderEllipsis(formatDateTime((record as ManagedFile).createdAt));
+        return renderEllipsis(formatDateTime(record.createdAt));
       },
     },
     {
@@ -309,27 +307,25 @@ export default function StorageFileBrowser({ config, onClose }: Readonly<Storage
       align: 'center' as const,
       render: (_: unknown, record: ManagedFile | FolderEntry) => {
         if (!('id' in record)) {
-          const folder = record as FolderEntry;
           return (
-            <Button theme="borderless" size="small" onClick={() => navigateToFolder(folder)}>
+            <Button theme="borderless" size="small" onClick={() => navigateToFolder(record)}>
               打开
             </Button>
           );
         }
-        const file = record as ManagedFile;
-        const isPreviewable = file.mimeType?.startsWith('image/') || file.mimeType?.startsWith('audio/') || file.mimeType?.startsWith('video/') || file.mimeType === 'application/pdf';
+        const isPreviewable = record.mimeType?.startsWith('image/') || record.mimeType?.startsWith('audio/') || record.mimeType?.startsWith('video/') || record.mimeType === 'application/pdf';
         return (
           <Space>
-            <Button theme="borderless" size="small" loading={downloadLoadingId === file.id} onClick={() => handleDownload(file)}>下载</Button>
-            <Button theme="borderless" size="small" disabled={!isPreviewable} loading={previewLoadingId === file.id} onClick={() => handlePreview(file)}>预览</Button>
+            <Button theme="borderless" size="small" loading={downloadLoadingId === record.id} onClick={() => handleDownload(record)}>下载</Button>
+            <Button theme="borderless" size="small" disabled={!isPreviewable} loading={previewLoadingId === record.id} onClick={() => handlePreview(record)}>预览</Button>
             <Dropdown
               trigger="click"
               position="bottomRight"
               clickToHide
               render={
                 <Dropdown.Menu>
-                  <Dropdown.Item onClick={() => void handleOpenDetail(file)}>详情</Dropdown.Item>
-                  <Dropdown.Item onClick={() => handleCopyUrl(file)}>复制链接</Dropdown.Item>
+                  <Dropdown.Item onClick={() => void handleOpenDetail(record)}>详情</Dropdown.Item>
+                  <Dropdown.Item onClick={() => handleCopyUrl(record)}>复制链接</Dropdown.Item>
                   {hasPermission('system:file:delete') && (
                     <>
                       <Dropdown.Divider />
@@ -340,7 +336,7 @@ export default function StorageFileBrowser({ config, onClose }: Readonly<Storage
                             title: '确认删除此文件？',
                             content: '删除文件记录后，将同步尝试删除实际存储对象。',
                             okButtonProps: { type: 'danger', theme: 'solid' },
-                            onOk: () => handleDelete(file),
+                            onOk: () => handleDelete(record),
                           });
                         }}
                       >删除</Dropdown.Item>
@@ -450,16 +446,19 @@ export default function StorageFileBrowser({ config, onClose }: Readonly<Storage
                 bordered
                 columns={listColumns}
                 dataSource={pagedItems}
-                rowKey={(record) => (record && 'id' in record ? `file-${(record as ManagedFile).id}` : `folder-${(record as FolderEntry).path}`)}
+                rowKey={(record) => {
+                  if (!record) return '';
+                  return 'id' in record ? `file-${record.id}` : `folder-${record.path}`;
+                }}
                 loading={false}
-                onRefresh={() => void fetchBrowseData(config.id, currentPath)}
+                onRefresh={() => config && void fetchBrowseData(config.id, currentPath)}
                 refreshLoading={loading}
                 size="small"
                 pagination={false}
                 onRow={(record) => {
                   if (record && !('id' in record)) {
                     return {
-                      onClick: () => navigateToFolder(record as FolderEntry),
+                      onClick: () => navigateToFolder(record),
                       style: { cursor: 'pointer' },
                     };
                   }
