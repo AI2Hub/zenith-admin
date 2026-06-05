@@ -13,6 +13,7 @@ import {
   getUser,
   getUserMenuPermissions, assignUserMenus,
   getUserDataPermission, updateUserDataPermission, getUserEffectivePermissions,
+  assignRolesToUser,
 } from '../services/users.service';
 
 const usersRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -274,6 +275,32 @@ const deleteUserRoute = defineOpenAPIRoute({
   },
 });
 
+const assignUserRolesRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/{id}/roles', tags: ['Users'], summary: '分配用户角色',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:user:assign', audit: { description: '分配用户角色', module: '用户管理' } })] as const,
+    request: {
+      params: IdParam,
+      body: {
+        content: { 'application/json': { schema: z.object({ roleIds: z.array(z.number().int()).default([]) }) } },
+        required: true,
+      },
+    },
+    responses: {
+      ...commonErrorResponses,
+      ...okMsg('保存成功'),
+      404: { content: jsonContent(ErrorResponse), description: '用户不存在' },
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const { roleIds } = c.req.valid('json');
+    await assignRolesToUser(id, roleIds);
+    return c.json(okBody(null, '保存成功'), 200);
+  },
+});
+
 const getUserMenusRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/{id}/menus', tags: ['Users'], summary: '获取用户菜单权限',
@@ -387,6 +414,7 @@ usersRouter.openapiRoutes([
   importTemplateRoute, importUsersRoute, exportUsersRoute, updateUserPasswordRoute, unlockUserRoute,
   getOneUserRoute, updateUserRoute, deleteUserRoute,
   getUserMenusRoute, assignUserMenusRoute,
+  assignUserRolesRoute,
   getUserDataPermissionRoute, updateUserDataPermissionRoute, getUserEffectivePermissionsRoute,
 ] as const);
 

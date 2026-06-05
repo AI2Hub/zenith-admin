@@ -71,6 +71,10 @@ export default function UsersPage() {
   const [menuPermVisible, setMenuPermVisible] = useState(false);
   const [dataPermUser, setDataPermUser] = useState<User | null>(null);
   const [dataPermVisible, setDataPermVisible] = useState(false);
+  const [roleAssignUser, setRoleAssignUser] = useState<User | null>(null);
+  const [roleAssignVisible, setRoleAssignVisible] = useState(false);
+  const [roleAssignIds, setRoleAssignIds] = useState<number[]>([]);
+  const [roleAssignSubmitting, setRoleAssignSubmitting] = useState(false);
   const [allRoles, setAllRoles] = useState<Role[]>([]);
   const [allDepartments, setAllDepartments] = useState<Department[]>([]);
   const [allPositions, setAllPositions] = useState<Position[]>([]);
@@ -513,6 +517,13 @@ export default function UsersPage() {
                     <Dropdown.Item onClick={() => { setMenuPermUser(record); setMenuPermVisible(true); }}>菜单权限</Dropdown.Item>
                   )}
                   {hasPermission('system:user:assign') && (
+                    <Dropdown.Item onClick={() => {
+                      setRoleAssignUser(record);
+                      setRoleAssignIds(record.roles.map((r) => r.id));
+                      setRoleAssignVisible(true);
+                    }}>分配角色</Dropdown.Item>
+                  )}
+                  {hasPermission('system:user:assign') && (
                     <Dropdown.Item onClick={() => { setDataPermUser(record); setDataPermVisible(true); }}>数据权限</Dropdown.Item>
                   )}
                 </Dropdown.Menu>
@@ -940,6 +951,44 @@ export default function UsersPage() {
           onClose={() => setDataPermVisible(false)}
         />
       )}
+
+      {/* 分配角色 */}
+      <Modal
+        title={`分配角色——${roleAssignUser?.nickname || roleAssignUser?.username || ''}`}
+        visible={roleAssignVisible}
+        onCancel={() => setRoleAssignVisible(false)}
+        confirmLoading={roleAssignSubmitting}
+        onOk={async () => {
+          if (!roleAssignUser) return;
+          setRoleAssignSubmitting(true);
+          try {
+            const res = await request.put(`/api/users/${roleAssignUser.id}/roles`, { roleIds: roleAssignIds });
+            if (res.code === 0) {
+              Toast.success('角色分配成功');
+              setRoleAssignVisible(false);
+              fetchUsers();
+            } else {
+              Toast.error(res.message || '操作失败');
+            }
+          } finally {
+            setRoleAssignSubmitting(false);
+          }
+        }}
+        okText="保存"
+        cancelText="取消"
+        width={480}
+      >
+        <Select
+          multiple
+          filter
+          showClear
+          style={{ width: '100%' }}
+          value={roleAssignIds}
+          onChange={(v) => setRoleAssignIds((v as number[]) ?? [])}
+          optionList={allRoles.map((r) => ({ value: r.id, label: r.name }))}
+          placeholder="请选择要分配的角色"
+        />
+      </Modal>
     </div>
   );
 }

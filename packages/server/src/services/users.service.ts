@@ -611,6 +611,15 @@ export async function assignUserMenus(userId: number, menuIds: number[]) {
   clearUserPermissionCache(userId);
 }
 
+export async function assignRolesToUser(userId: number, roleIds: number[]) {
+  const exists = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { id: true } });
+  if (!exists) throw new HTTPException(404, { message: '用户不存在' });
+  await db.transaction(async (tx) => {
+    await setUserRoles(tx, userId, roleIds);
+  });
+  clearUserPermissionCache(userId);
+}
+
 // ─── 用户级数据权限 ────────────────────────────────────────────────────────────
 
 const SCOPE_PRIORITY: Record<string, number> = { all: 5, dept: 4, dept_only: 3, custom: 2, self: 1 };
