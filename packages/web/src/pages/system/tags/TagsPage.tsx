@@ -370,7 +370,7 @@ export default function TagsPage() {
       <ConfigurableTable
         bordered
         loading={loading}
-        onRefresh={fetchList}
+        onRefresh={() => void fetchList(page, keyword, filterStatus, filterGroup, pageSize)}
         refreshLoading={loading}
         columns={columns}
         dataSource={list}
