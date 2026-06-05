@@ -30,6 +30,7 @@ import { formatDateTime } from '@/utils/date';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { usePermission } from '@/hooks/usePermission';
+import { usePagination } from '@/hooks/usePagination';
 import type { Xxx, PaginatedResponse } from '@zenith/shared';
 
 // ─── 搜索参数类型 ────────────────────────────────────────────────────────
@@ -55,8 +56,7 @@ export default function XxxPage() {
   // ─── 状态 ──────────────────────────────────────────────────────────────
   const [data, setData] = useState<PaginatedResponse<Xxx> | null>(null);
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const { page, pageSize, setPage, setPageSize, buildPagination } = usePagination();
   const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
   // ⚠️ ref 同步最新搜索参数，避免 fetchXxxs 将 searchParams 放入 deps 导致输入时自动触发搜索
   const searchParamsRef = useRef<SearchParams>(defaultSearchParams);
@@ -109,6 +109,7 @@ export default function XxxPage() {
         if (res.code === 0) {
           setData(res.data);
           setPage(res.data.page);
+          setPageSize(res.data.pageSize);
         }
       } finally {
         setLoading(false);
@@ -311,23 +312,9 @@ export default function XxxPage() {
         rowKey="id"
         size="small"
         empty="暂无数据"
-        onRefresh={() => void fetchXxxs(page, pageSize)}
+        onRefresh={() => void fetchXxxs()}
         refreshLoading={loading}
-        pagination={{
-          currentPage: page,
-          pageSize,
-          total: data?.total ?? 0,
-          onPageChange: (p) => {
-            setPage(p);
-            void fetchXxxs(p, pageSize);
-          },
-          onPageSizeChange: (s) => {
-            setPageSize(s);
-            void fetchXxxs(1, s);
-          },
-          showTotal: true,
-          showSizeChanger: true,
-        }}
+        pagination={buildPagination(data?.total ?? 0, fetchXxxs)}
       />
 
       {/* 新增/编辑弹窗（共用一个） */}
@@ -500,20 +487,6 @@ function handleReset() {
   setSearchParams(defaultSearchParams);
   void fetchXxxs(1, pageSize, defaultSearchParams);  // 直接传入重置后的 params
 }
-```
-
-### 翻页处理
-
-```tsx
-// ✅ 正确：翻页时同步更新 page state 并触发请求
-onPageChange: (p) => {
-  setPage(p);
-  void fetchXxxs(p, pageSize);
-},
-onPageSizeChange: (s) => {
-  setPageSize(s);
-  void fetchXxxs(1, s);
-},
 ```
 
 ### 权限控制
