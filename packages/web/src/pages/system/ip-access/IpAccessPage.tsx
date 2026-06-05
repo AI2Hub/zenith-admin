@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button, Card, Switch, TextArea, Toast, Spin, Typography,
-  Tabs, TabPane, Table, Tag, Input, Select,
+  Tabs, TabPane, Tag, Input, Select,
 } from '@douyinfe/semi-ui';
+import { ConfigurableTable } from '@/components/ConfigurableTable';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { IpAccessLog, PaginatedResponse, SystemConfig } from '@zenith/shared';
 import { request } from '@/utils/request';
@@ -125,7 +126,7 @@ function IpAccessLogsTab() {
         <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
         <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
       </SearchToolbar>
-      <Table
+      <ConfigurableTable
         bordered
         columns={columns}
         dataSource={logList}
@@ -138,7 +139,8 @@ function IpAccessLogsTab() {
           showSizeChanger: false,
           onPageChange: (p) => fetchLogs(p, searchIpRef.current, searchBlockTypeRef.current),
         }}
-        scroll={{ x: 900 }}
+        onRefresh={() => fetchLogs(page, searchIpRef.current, searchBlockTypeRef.current)}
+        refreshLoading={tableLoading}
       />
     </>
   );
