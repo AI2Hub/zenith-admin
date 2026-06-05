@@ -35,6 +35,7 @@ export interface User {
   passwordUpdatedAt: string;
   requirePasswordChange?: boolean;
   isLocked?: boolean;
+  isOnline?: boolean;
   lastLoginAt?: string | null;
   lastLoginIp?: string | null;
   lastLoginLocation?: string | null;

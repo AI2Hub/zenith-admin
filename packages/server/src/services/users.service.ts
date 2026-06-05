@@ -10,7 +10,7 @@ import { pageOffset } from '../lib/pagination';
 import { getDataScopeCondition } from '../lib/data-scope';
 import { escapeLike } from '../lib/where-helpers';
 import { getPasswordPolicy, validatePassword } from '../lib/password-policy';
-import { unlockUser as unlockUserSession, batchCheckLoginLock } from '../lib/session-manager';
+import { unlockUser as unlockUserSession, batchCheckLoginLock, getOnlineSessions } from '../lib/session-manager';
 import { streamToExcel, formatDateTimeForExcel } from '../lib/excel-export';
 import { clearUserPermissionCache } from '../lib/permissions';
 import type { JwtPayload } from '../middleware/auth';
@@ -220,8 +220,10 @@ export async function listUsers(q: ListUsersQuery) {
     findUsersWithRelations({ where, limit: pageSize, offset: pageOffset(page, pageSize), orderBy: users.id }),
   ]);
   const lockMap = await batchCheckLoginLock(rawList.map((u) => u.username));
+  const onlineSessions = await getOnlineSessions();
+  const onlineUserIds = new Set(onlineSessions.map((s) => s.userId));
   const mapped = await mapUsersWithMask(rawList, viewerRoleCodes());
-  const list = mapped.map((u) => ({ ...u, isLocked: (lockMap.get(u.username) ?? 0) > 0 }));
+  const list = mapped.map((u) => ({ ...u, isLocked: (lockMap.get(u.username) ?? 0) > 0, isOnline: onlineUserIds.has(u.id) }));
   return { list, total: Number(total), page, pageSize };
 }
 

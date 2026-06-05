@@ -418,6 +418,18 @@ export default function UsersPage() {
           {record.isLocked && (
             <Tag size="small" color="red" style={{ flexShrink: 0 }}>已锁定</Tag>
           )}
+          <span
+            title={record.isOnline ? '在线' : '离线'}
+            style={{
+              flexShrink: 0,
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: record.isOnline ? '#10b981' : 'var(--semi-color-fill-2)',
+              display: 'inline-block',
+              boxShadow: record.isOnline ? '0 0 0 2px #d1fae5' : undefined,
+            }}
+          />
         </div>
       ),
     },

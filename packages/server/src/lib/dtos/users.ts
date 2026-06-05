@@ -26,6 +26,7 @@ export const UserDTO = z
     passwordUpdatedAt: z.string().optional(),
     requirePasswordChange: z.boolean().optional(),
     isLocked: z.boolean().optional().openapi({ description: '账号是否被锁定（登录失败次数过多）' }),
+    isOnline: z.boolean().optional().openapi({ description: '用户是否在线' }),
     ...auditFields,
     createdAt: z.string(),
     updatedAt: z.string(),
