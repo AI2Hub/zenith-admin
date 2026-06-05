@@ -542,6 +542,28 @@ export default function UsersPage() {
                   {hasPermission('system:user:assign') && (
                     <Dropdown.Item onClick={() => { setDataPermUser(record); setDataPermVisible(true); }}>数据权限</Dropdown.Item>
                   )}
+                  {record.isOnline && hasPermission('system:session:forceLogout') && (
+                    <>
+                      <Dropdown.Divider />
+                      <Dropdown.Item
+                        type="danger"
+                        onClick={() => {
+                          Modal.confirm({
+                            title: '强制下线',
+                            content: `确定要强制下线用户「${record.nickname}（${record.username}）」的全部会话吗？`,
+                            okButtonProps: { type: 'danger', theme: 'solid' },
+                            onOk: async () => {
+                              const res = await request.delete(`/api/sessions/user/${record.id}`);
+                              if (res.code === 0) {
+                                Toast.success('已强制下线');
+                                void fetchUsers(page, pageSize);
+                              }
+                            },
+                          });
+                        }}
+                      >强制下线</Dropdown.Item>
+                    </>
+                  )}
                 </Dropdown.Menu>
               }
             >
