@@ -4,6 +4,49 @@
 
 ---
 
+## v0.37.0 - 2026-06-05
+
+### Added
+
+#### 表格刷新按钮
+
+- `ConfigurableTable` 新增 `onRefresh` / `refreshLoading` props，工具栏显示刷新按钮
+- 全站所有使用 `ConfigurableTable` 的页面统一接入刷新功能（含日志子组件、SideSheet 内嵌表格等）
+
+#### 侧栏手风琴排他展开
+
+- 偏好设置新增「侧栏排他展开」开关，开启后展开子菜单时自动折叠同级分组
+- 路由切换时在手风琴模式下同步收起无关分组
+
+#### 用户管理-分配角色
+
+- 用户操作菜单新增「分配角色」入口，支持通过 Modal 多选角色后保存
+- 后端新增 `PUT /api/users/:id/roles` 接口（需 `system:user:assign` 权限）
+
+#### 表格全屏展示
+
+- `ConfigurableTable` 工具栏新增全屏按钮（`Maximize2` / `Minimize2` 图标），支持 Esc 退出
+
+#### 部门管理-类别字段
+
+- 部门新增「类别」字段（集团/公司/部门），支持数据导出
+
+### Changed
+
+- `AdminLayout.css` 主内容区增加 `scrollbar-gutter: stable`，防止滚动条出现/消失导致工具栏换行抖动
+- 文件列表搜索操作按钮组用 `flexShrink: 0` 包裹，避免按钮因容器宽度临界变化跳行
+- CRUD 模板更新：`fetchXxxs` 改用 `searchParamsRef` 读取最新搜索参数，避免输入框输入触发自动搜索
+
+### Fixed
+
+- 修复 `escapeLike` 转义顺序 bug：先转义 `\` 再转义 `%` / `_`，修复含下划线文件名（如 `20251213_095800.mp4`）无法搜索的问题
+- 修复菜单编辑报错 `query: expected string, received null`（`query` 字段改为 `.nullish()`）
+- 修复 `ConfigurableTable` 刷新按钮将 `MouseEvent` 传入 `onRefresh` 导致 `page: NaN` 的问题
+- 修复 9 个列表页（用户/部门/系统配置/租户/文件/用户组/定时任务/岗位/登录日志/地区）输入框触发自动搜索的问题
+- 修复 `departments.service.ts` 导出时 `category` 字段 transform 函数类型错误
+
+---
+
 ## v0.36.0 - 2026-06-10
 
 ### Added
