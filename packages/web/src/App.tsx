@@ -3,6 +3,7 @@ import { BrowserRouter, HashRouter, Routes, Route, Navigate, useLocation } from 
 import { useAuth } from '@/hooks/useAuth';
 import { PageErrorBoundary } from '@/components/PageErrorBoundary';
 import { useGlobalErrorHandler } from '@/hooks/useGlobalErrorHandler';
+import ElectronTitleBar from '@/components/ElectronTitleBar';
 import { PermissionContext } from '@/hooks/usePermission';
 import { PreferencesProvider } from '@/hooks/PreferencesProvider';
 import { ThemeProvider } from '@/providers/ThemeProvider';
@@ -203,6 +204,8 @@ export default function App() {
   const RouterComponent = import.meta.env.VITE_ELECTRON === 'true' ? HashRouter : BrowserRouter;
   return (
     <PageErrorBoundary>
+    {/* Electron 自定义标题栏（登录页和内容页共用） */}
+    <ElectronTitleBar />
     <RouterComponent basename={import.meta.env.VITE_ELECTRON === 'true' ? undefined : (import.meta.env.BASE_URL.replace(/\/$/, '') || '/')}>
       {user ? (
         <PreferencesProvider>

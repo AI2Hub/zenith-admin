@@ -23,7 +23,6 @@ import Watermark from '@/components/Watermark';
 import QuickChatButton from '@/components/QuickChatButton';
 import AppLogo from '@/components/AppLogo';
 import AnnouncementDetailModal from '@/components/AnnouncementDetailModal';
-import ElectronTitleBar from '@/components/ElectronTitleBar';
 import { TopNavWithOverflow } from './TopNavWithOverflow';
 import { LockScreen } from '@/components/LockScreen';
 import { useLockScreen } from '@/hooks/useLockScreen';
@@ -1340,8 +1339,6 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
 
   const adminLayoutEl = (
     <div className={layoutClassName} style={sectionDarkThemeStyle}>
-      {/* Electron 自定义标题栏（仅在 Electron 环境下渲染） */}
-      <ElectronTitleBar />
       {/* Top bar for horizontal and mixed layouts */}
       {navLayout !== 'vertical' && navLayout !== 'double' && (
         <header className="admin-topbar">
