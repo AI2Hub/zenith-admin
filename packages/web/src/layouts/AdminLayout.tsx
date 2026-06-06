@@ -877,6 +877,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
     <div className="admin-header__actions">
       {(preferences.showMenuSearch ?? true) && <div className="admin-menu-search"><MenuSearchInput menus={flatMenus} /></div>}
       {/* 收藏菜单快捷入口 */}
+      {(preferences.showFavorites ?? false) && (
       <Popover
         position="bottomRight"
         trigger="hover"
@@ -957,6 +958,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
           </button>
         </div>
       </Popover>
+      )}
       {isPlatformAdmin && tenantList.length > 0 && (
         <>
           <Select
@@ -1435,7 +1437,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                     })}
                   </Breadcrumb>
                   {/* 收藏当前页按钮 */}
-                  {(() => {
+                  {(preferences.showFavorites ?? false) && (() => {
                     const currentMenu = flatMenus.find((m) => m.path === location.pathname);
                     if (!currentMenu) return null;
                     const faved = isFavorite(currentMenu.id);
@@ -1777,6 +1779,14 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>显示菜单搜索框</span>
                 <Switch checked={preferences.showMenuSearch ?? true} onChange={(v) => setPreferences({ showMenuSearch: v })} />
+              </div>
+              )}
+
+              {/* ── 收藏 ── */}
+              {matchesPref(['收藏', '收藏菜单', '收藏按钮', '显示收藏']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>显示收藏入口</span>
+                <Switch checked={preferences.showFavorites ?? false} onChange={(v) => setPreferences({ showFavorites: v })} />
               </div>
               )}
 

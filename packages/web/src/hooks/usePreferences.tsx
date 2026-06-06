@@ -28,6 +28,8 @@ export interface UserPreferences {
   showFullscreen: boolean;
   showQuickChat: boolean;
   showLogo: boolean;
+  /** 显示收藏快捷入口（面包屑收藏按鈕 + 顶部 Popover） */
+  showFavorites: boolean;
   dynamicTitle: boolean;
   filesViewMode: 'list' | 'grid';
   sidebarStickyScroll: boolean;
@@ -79,6 +81,7 @@ export const defaultPreferences: UserPreferences = {
   showFullscreen: true,
   showQuickChat: true,
   showLogo: true,
+  showFavorites: false,
   dynamicTitle: true,
   filesViewMode: 'list',
   sidebarStickyScroll: true,
