@@ -1662,10 +1662,12 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
               )}
 
               {/* ── 全屏按钮 ── */}
+              {matchesPref(['全屏', '全屏按钮', '显示全屏']) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>显示全屏按钮</span>
                 <Switch checked={preferences.showFullscreen ?? true} onChange={(v) => setPreferences({ showFullscreen: v })} />
               </div>
+              )}
 
               {/* ── 快捷聊天 ── */}
               {quickChatEnabled && matchesPref(['快捷聊天', '聊天', 'AI助手', '聊天按钮', '快捷聊天按钮']) && (
