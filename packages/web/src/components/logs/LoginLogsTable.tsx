@@ -109,7 +109,7 @@ export function LoginLogsTable({
               { key: 'User-Agent', value: detailLog.userAgent ?? '-', span: 2 },
               { key: '登录时间', value: formatDateTime(detailLog.createdAt), span: 2 },
               ...(detailLog.screenWidth && detailLog.screenHeight ? [
-                { key: '屏幕分辨率', value: [detailLog.screenWidth, ' × ', detailLog.screenHeight, detailLog.devicePixelRatio && detailLog.devicePixelRatio !== '1' ? ` (${detailLog.devicePixelRatio}x)` : ''].join('') },
+                { key: '屏幕分辨率', value: [detailLog.screenWidth, ' × ', detailLog.screenHeight, detailLog.devicePixelRatio && detailLog.devicePixelRatio !== '1' ? ` (${detailLog.devicePixelRatio}x)` : ''].join(''), span: 2 },
               ] : []),
               ...(detailLog.gpu ? [{ key: 'GPU', value: detailLog.gpu, span: 2 }] : []),
               ...(detailLog.cpuCores ? [{ key: 'CPU 核心数', value: String(detailLog.cpuCores) }] : []),
