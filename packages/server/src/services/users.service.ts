@@ -397,6 +397,20 @@ export async function deleteUser(id: number) {
   if (!deleted) throw new HTTPException(404, { message: '用户不存在' });
 }
 
+export async function batchResetUsersPassword(ids: number[], password: string) {
+  const user = currentUser();
+  if (ids.length === 0) throw new HTTPException(400, { message: '请选择要操作的用户' });
+  const validIds = ids.filter((id): id is number => typeof id === 'number' && Number.isInteger(id));
+  if (validIds.length === 0) throw new HTTPException(400, { message: '用户ID格式无效' });
+  const policy = await getPasswordPolicy();
+  const policyError = validatePassword(password, policy);
+  if (policyError) throw new HTTPException(400, { message: policyError });
+  const tc = tenantCondition(users, user);
+  await ensureNoProtectedAdminInIds(validIds, '修改密码');
+  const hashed = await bcrypt.hash(password, 10);
+  await db.update(users).set({ password: hashed }).where(tc ? and(inArray(users.id, validIds), tc) : inArray(users.id, validIds));
+}
+
 export async function updateUserPassword(id: number, password: string) {
   const user = currentUser();
   const policy = await getPasswordPolicy();

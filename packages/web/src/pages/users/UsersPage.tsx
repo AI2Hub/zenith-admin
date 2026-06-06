@@ -20,7 +20,7 @@ import {
   Spin,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, RotateCcw, Download, Trash2, FileUp, ChevronsUpDown, ChevronsDownUp, MoreHorizontal, Building2, ArrowLeft } from 'lucide-react';
+import { Search, Plus, RotateCcw, Download, Trash2, FileUp, ChevronsUpDown, ChevronsDownUp, MoreHorizontal, Building2, ArrowLeft, KeyRound } from 'lucide-react';
 import type { User, Role, PaginatedResponse, Department, Position } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -69,6 +69,9 @@ export default function UsersPage() {
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [passwordUser, setPasswordUser] = useState<User | null>(null);
+  const [batchPasswordModalVisible, setBatchPasswordModalVisible] = useState(false);
+  const [batchPasswordSubmitting, setBatchPasswordSubmitting] = useState(false);
+  const batchPasswordFormApi = useRef<FormApi | null>(null);
   const [menuPermUser, setMenuPermUser] = useState<User | null>(null);
   const [menuPermVisible, setMenuPermVisible] = useState(false);
   const [dataPermUser, setDataPermUser] = useState<User | null>(null);
@@ -105,6 +108,12 @@ export default function UsersPage() {
     if (!data?.list?.length) return 0;
     const selectedSet = new Set(selectedRowKeys);
     return data.list.filter((item) => selectedSet.has(item.id) && !isAdminUser(item)).length;
+  }, [data?.list, selectedRowKeys]);
+
+  const selectedNonAdminIds = useMemo(() => {
+    if (!data?.list?.length) return [];
+    const selectedSet = new Set(selectedRowKeys);
+    return data.list.filter((item) => selectedSet.has(item.id) && !isAdminUser(item)).map((item) => item.id);
   }, [data?.list, selectedRowKeys]);
 
   const handleBatchDelete = () => {
@@ -676,6 +685,11 @@ export default function UsersPage() {
               批量删除 ({selectedDeletableCount})
             </Button>
           )}
+          {selectedNonAdminIds.length > 0 && hasPermission('system:user:update') && (
+            <Button theme="light" icon={<KeyRound size={14} />} onClick={() => setBatchPasswordModalVisible(true)}>
+              批量修改密码 ({selectedNonAdminIds.length})
+            </Button>
+          )}
           <Button type="primary" icon={<Download size={14} />} loading={exportLoading} onClick={async () => { setExportLoading(true); try { await request.download('/api/users/export', '用户列表.xlsx'); } finally { setExportLoading(false); } }}>导出</Button>
           {hasPermission('system:user:import') && (
             <Button
@@ -961,6 +975,55 @@ export default function UsersPage() {
             </Upload>
           </div>
         )}
+      </Modal>
+
+      {/* 批量修改密码 */}
+      <Modal
+        title={`批量修改密码（共 ${selectedNonAdminIds.length} 个用户）`}
+        visible={batchPasswordModalVisible}
+        onCancel={() => { setBatchPasswordModalVisible(false); batchPasswordFormApi.current?.setValues({ password: '', confirmPassword: '' }); }}
+        confirmLoading={batchPasswordSubmitting}
+        onOk={async () => {
+          if (!batchPasswordFormApi.current) return;
+          try {
+            const values = await batchPasswordFormApi.current.validate() as unknown as { password: string; confirmPassword: string };
+            if (values.password !== values.confirmPassword) {
+              batchPasswordFormApi.current.setError('confirmPassword', '两次密码输入不一致');
+              return;
+            }
+            setBatchPasswordSubmitting(true);
+            const res = await request.put<null>('/api/users/batch-password', { ids: selectedNonAdminIds, password: values.password });
+            if (res.code === 0) {
+              Toast.success('密码修改成功');
+              setBatchPasswordModalVisible(false);
+              batchPasswordFormApi.current.setValues({ password: '', confirmPassword: '' });
+              setSelectedRowKeys([]);
+            } else {
+              Toast.error(res.message || '操作失败');
+            }
+          } catch {
+            // validation failed
+          } finally {
+            setBatchPasswordSubmitting(false);
+          }
+        }}
+      >
+        <Form getFormApi={(api) => { batchPasswordFormApi.current = api; }}>
+          <Form.Input
+            field="password"
+            label="新密码"
+            type="password"
+            placeholder={passwordPolicy ? formatPasswordPolicyHint(passwordPolicy) : '请输入新密码'}
+            rules={[{ required: true, message: '请输入新密码' }]}
+          />
+          <Form.Input
+            field="confirmPassword"
+            label="确认密码"
+            type="password"
+            placeholder="请再次输入新密码"
+            rules={[{ required: true, message: '请确认密码' }]}
+          />
+        </Form>
       </Modal>
 
       {/* 用户菜单权限 */}

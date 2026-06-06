@@ -7,7 +7,7 @@ import {
 } from '../lib/openapi-schemas';
 import { UserDTO, ImportResultDTO, UserMenuPermissionsDTO, UserDataPermissionDTO, UserEffectivePermissionsDTO } from '../lib/openapi-dtos';
 import {
-  listAllUsers, listUsers, createUser, batchDeleteUsers, batchUpdateUserStatus,
+  listAllUsers, listUsers, createUser, batchDeleteUsers, batchUpdateUserStatus, batchResetUsersPassword,
   updateUser, deleteUser, updateUserPassword, unlockUserById,
   exportUsers, getUserImportTemplate, importUsersFromFormData, getUserBeforeAudit, getUsersBeforeAudit,
   getUser,
@@ -105,6 +105,21 @@ const batchDeleteUsersRoute = defineOpenAPIRoute({
     if (before.length > 0) setAuditBeforeData(c, before);
     const count = await batchDeleteUsers(ids);
     return c.json(okBody(null, `已删除 ${count} 个用户`), 200);
+  },
+});
+
+const batchResetPasswordRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/batch-password', tags: ['Users'], summary: '批量重置用户密码',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:user:update', audit: { description: '批量重置用户密码', module: '用户管理' } })] as const,
+    request: { body: { content: jsonContent(z.object({ ids: z.array(z.number().int()), password: z.string().min(6).max(64) })), required: true } },
+    responses: { ...okMsg('密码重置成功'), ...commonErrorResponses },
+  }),
+  handler: async (c) => {
+    const { ids, password } = c.req.valid('json');
+    await batchResetUsersPassword(ids, password);
+    return c.json(okBody(null, '密码重置成功'), 200);
   },
 });
 
@@ -410,7 +425,7 @@ const getUserEffectivePermissionsRoute = defineOpenAPIRoute({
 });
 
 usersRouter.openapiRoutes([
-  getAllUsersRoute, listUsersRoute, createUserRoute, batchDeleteUsersRoute, batchStatusUsersRoute,
+  getAllUsersRoute, listUsersRoute, createUserRoute, batchDeleteUsersRoute, batchStatusUsersRoute, batchResetPasswordRoute,
   importTemplateRoute, importUsersRoute, exportUsersRoute, updateUserPasswordRoute, unlockUserRoute,
   getOneUserRoute, updateUserRoute, deleteUserRoute,
   getUserMenusRoute, assignUserMenusRoute,
