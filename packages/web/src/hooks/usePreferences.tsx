@@ -46,6 +46,8 @@ export interface UserPreferences {
   breadcrumbClickable: boolean;
   /** 新开标签页插入行为：append 数尾 / insert-next 现当前标签页后插入 */
   openTabBehavior: 'append' | 'insert-next';
+  /** 菜单选中时自动滚动到可视区 */
+  scrollMenuIntoView: boolean;
   /** 路由切换动画 */
   routeAnimation: RouteAnimation;
   /** 最大标签页超限后的关闭策略: fifo 最早打开，lru 最近最少使用 */
@@ -88,6 +90,7 @@ export const defaultPreferences: UserPreferences = {
   sidebarHoverTrigger: false,
   breadcrumbClickable: true,
   openTabBehavior: 'append',
+  scrollMenuIntoView: true,
   tabEvictPolicy: 'fifo',
   routeAnimation: 'fade',
   grayscale: false,

@@ -1130,6 +1130,13 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
   const topNavSelectedKeys = navLayout === 'mixed' ? mixedTopSelectedKeys : currentSelectedKeys;
   const stickyNavClass = preferences.sidebarStickyScroll === false ? '' : ' admin-sidebar--sticky-nav';
   const sidebarClassName = `admin-sidebar${effectiveCollapsed ? ' admin-sidebar--collapsed' : ''}${stickyNavClass}`;
+
+  // 菜单自动滚动至可视区
+  useEffect(() => {
+    if (!(preferences.scrollMenuIntoView ?? true) || effectiveCollapsed) return;
+    const el = document.querySelector('.admin-sidebar__nav .semi-navigation-item-selected');
+    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [currentSelectedKeys, effectiveCollapsed, preferences.scrollMenuIntoView]);
   const layoutClassName = [
     'admin-layout',
     preferences.sidebarDarkMode ? 'admin-layout--sidebar-dark' : '',
@@ -1674,6 +1681,15 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                   </Tooltip>
                 </span>
                 <Switch checked={preferences.sidebarHoverTrigger ?? false} onChange={(v) => setPreferences({ sidebarHoverTrigger: v })} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  菜单自动滚动定位
+                  <Tooltip content="开启后切换菜单时，侧边栏自动平滑滚动使激活项居中可见" position="right">
+                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+                  </Tooltip>
+                </span>
+                <Switch checked={preferences.scrollMenuIntoView ?? true} onChange={(v) => setPreferences({ scrollMenuIntoView: v })} />
               </div>
 
               {/* ── 锁屏 ── */}
