@@ -326,18 +326,24 @@ process.once('SIGINT', () => { void shutdown('SIGINT'); });
 process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
 
 // Initialize cron scheduler after server is up
-try {
-  await initCronScheduler();
-} catch (err) {
-  logger.error('Failed to initialize cron scheduler', err);
-}
+// 仅在 PM2 0 号实例或非 cluster 模式下启动，防止多进程重复调度
+const isMainInstance = process.env.NODE_APP_INSTANCE === undefined || process.env.NODE_APP_INSTANCE === '0';
+if (isMainInstance) {
+  try {
+    await initCronScheduler();
+  } catch (err) {
+    logger.error('Failed to initialize cron scheduler', err);
+  }
 
-// 初始化工作流延迟调度器
-try {
-  const { delayScheduler } = await import('./lib/delay-scheduler');
-  await delayScheduler.initialize();
-} catch (err) {
-  logger.error('Failed to initialize delay scheduler', err);
+  // 初始化工作流延迟调度器
+  try {
+    const { delayScheduler } = await import('./lib/delay-scheduler');
+    await delayScheduler.initialize();
+  } catch (err) {
+    logger.error('Failed to initialize delay scheduler', err);
+  }
+} else {
+  logger.info(`Skipping schedulers on PM2 instance ${process.env.NODE_APP_INSTANCE}`);
 }
 
 // 注册工作流事件总线的内置订阅者
