@@ -39,6 +39,8 @@ export interface UserPreferences {
   enableLockScreen: boolean;
   /** 侧边栏手风琴展开：同级只允许展开一个子菜单 */
   sidebarAccordion: boolean;
+  /** 最大标签页超限后的关闭策略: fifo 最早打开，lru 最近最少使用 */
+  tabEvictPolicy: 'fifo' | 'lru';
   /** 灰色模式（国家公祭日等场景） */
   grayscale: boolean;
   /** 色弱模式（反转色/高对比） */
@@ -74,6 +76,7 @@ export const defaultPreferences: UserPreferences = {
   tablePageSize: 10,
   enableLockScreen: false,
   sidebarAccordion: true,
+  tabEvictPolicy: 'fifo',
   grayscale: false,
   colorBlind: false,
 };

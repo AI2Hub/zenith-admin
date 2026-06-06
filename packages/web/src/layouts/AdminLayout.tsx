@@ -262,6 +262,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
       });
     },
     preferences.enableTabs && (preferences.keepTabs ?? true),
+    preferences.tabEvictPolicy ?? 'fifo',
   );
   const [prefsVisible, setPrefsVisible] = useState(false);
   const [shortcutsVisible, setShortcutsVisible] = useState(false);
@@ -1754,6 +1755,22 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                       onChange={(v) => setPreferences({ tabsMaxCount: v as number })}
                       style={{ width: 100 }}
                     />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      超限关闭策略
+                      <Tooltip content="FIFO: 关闭最早打开的标签；LRU: 关闭最久未使用的标签" position="right">
+                        <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+                      </Tooltip>
+                    </span>
+                    <RadioGroup
+                      type="button"
+                      value={preferences.tabEvictPolicy ?? 'fifo'}
+                      onChange={(e) => setPreferences({ tabEvictPolicy: e.target.value as 'fifo' | 'lru' })}
+                    >
+                      <Radio value="fifo">FIFO</Radio>
+                      <Radio value="lru">LRU</Radio>
+                    </RadioGroup>
                   </div>
 
                   {/* ── 标签页风格 ── */}

@@ -6,6 +6,7 @@ export interface TabItem {
   title: string;
   closable: boolean;
   pinned?: boolean;
+  lastUsedAt?: number;
 }
 
 const HOME_TAB: TabItem = { key: '/', title: '首页', closable: false };
@@ -33,7 +34,12 @@ function sortTabs(tabs: TabItem[]): TabItem[] {
   return [...home, ...pinned, ...regular];
 }
 
-export function useTabsStore(maxCount: number = 20, onEvict?: (evicted: TabItem[]) => void, keepTabs: boolean = false) {
+export function useTabsStore(
+  maxCount: number = 20,
+  onEvict?: (evicted: TabItem[]) => void,
+  keepTabs: boolean = false,
+  evictPolicy: 'fifo' | 'lru' = 'fifo',
+) {
   const [tabs, setTabs] = useState<TabItem[]>(() => {
     if (!keepTabs) return [HOME_TAB];
     return readPersistedTabs()?.tabs ?? [HOME_TAB];
@@ -62,6 +68,23 @@ export function useTabsStore(maxCount: number = 20, onEvict?: (evicted: TabItem[
     }
   }, [tabs, activeKey, keepTabs]);
 
+  // 用 ref 存 evictPolicy，避免加入 useCallback 依赖
+  const evictPolicyRef = useRef(evictPolicy);
+  useEffect(() => { evictPolicyRef.current = evictPolicy; }, [evictPolicy]);
+
+  // 选出要驱逐的标签页索引
+  function pickEvictIdx(arr: TabItem[]): number {
+    const closables = arr.map((t, i) => ({ i, t })).filter(({ t }) => t.closable);
+    if (closables.length === 0) return -1;
+    if (evictPolicyRef.current === 'lru') {
+      // LRU：选 lastUsedAt 最小（最久未使用）
+      closables.sort((a, b) => (a.t.lastUsedAt ?? 0) - (b.t.lastUsedAt ?? 0));
+      return closables[0].i;
+    }
+    // FIFO：选数组中第一个可关闭的
+    return closables[0].i;
+  }
+
   const addTab = useCallback((key: string, title: string) => {
     // 使用 stateRef 读取最新状态，以便在超限时调用 onEvict 回调
     const prev = stateRef.current.tabs;
@@ -69,10 +92,10 @@ export function useTabsStore(maxCount: number = 20, onEvict?: (evicted: TabItem[
       setActiveKey(key);
       return;
     }
-    const next = [...prev, { key, title, closable: true }];
-    // Evict oldest closable tab if exceeding max
+    const next = [...prev, { key, title, closable: true, lastUsedAt: Date.now() }];
+    // Evict tab based on policy if exceeding max
     if (next.length > maxCount) {
-      const idx = next.findIndex((t) => t.closable);
+      const idx = pickEvictIdx(next);
       if (idx >= 0) {
         const [evicted] = next.splice(idx, 1);
         onEvictRef.current?.([evicted]);
@@ -89,7 +112,7 @@ export function useTabsStore(maxCount: number = 20, onEvict?: (evicted: TabItem[
     const next = [...currentTabs];
     const evicted: TabItem[] = [];
     while (next.length > maxCount) {
-      const idx = next.findIndex((t) => t.closable);
+      const idx = pickEvictIdx(next);
       if (idx < 0) break;
       evicted.push(...next.splice(idx, 1));
     }
@@ -99,6 +122,12 @@ export function useTabsStore(maxCount: number = 20, onEvict?: (evicted: TabItem[
     }
     if (evicted.length > 0) onEvictRef.current?.(evicted);
   }, [maxCount]);
+
+  // setActiveKey 时同步更新 lastUsedAt
+  const activateTab = useCallback((key: string) => {
+    setTabs((prev) => prev.map((t) => t.key === key ? { ...t, lastUsedAt: Date.now() } : t));
+    setActiveKey(key);
+  }, []);
 
   const removeTab = useCallback((key: string) => {
     setTabs((prev) => {
@@ -175,5 +204,5 @@ export function useTabsStore(maxCount: number = 20, onEvict?: (evicted: TabItem[
     setTabs((prev) => sortTabs(prev.map((t) => t.key === key ? { ...t, pinned: false, closable: true } : t)));
   }, []);
 
-  return { tabs, activeKey, setActiveKey, addTab, removeTab, closeOthers, closeLeft, closeRight, closeAll, reorderTabs, pinTab, unpinTab };
+  return { tabs, activeKey, setActiveKey: activateTab, addTab, removeTab, closeOthers, closeLeft, closeRight, closeAll, reorderTabs, pinTab, unpinTab };
 }
