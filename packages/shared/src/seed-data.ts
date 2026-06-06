@@ -368,7 +368,7 @@ export const SEED_CRON_JOBS: CronJob[] = [
   {
     id: 3,
     name: '工作流审批超时处理',
-    cronExpression: '0 */5 * * * *',
+    cronExpression: '*/5 * * * *',
     handler: 'processWorkflowTaskTimeouts',
     params: null,
     status: 'enabled',
