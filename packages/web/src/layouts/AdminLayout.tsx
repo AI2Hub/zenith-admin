@@ -555,17 +555,23 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
     }
   }, [collapsed, currentSectionKeys, preferences.sidebarAccordion]);
 
-  // ─── 锁屏快捷键 Alt+L ──────────────────────────────────────────────────────
+  // ─── 锁屏快捷键 Alt+L / 侧边栏 toggle Alt+S ────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return;
       if (e.altKey && e.key === 'l' && (preferences.enableLockScreen ?? false) && hasPassword()) {
         e.preventDefault();
         lock();
       }
+      if (e.altKey && e.key === 's') {
+        e.preventDefault();
+        handleCollapseChange(!collapsed);
+      }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [preferences.enableLockScreen, hasPassword, lock]);
+  }, [preferences.enableLockScreen, hasPassword, lock, collapsed, handleCollapseChange]);
 
   const navItems = useMemo(
     () => menuTree.map(menuToNavItem).filter((item): item is NavItem => item !== null).map((item) => {
@@ -1825,6 +1831,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                 group: '全局',
                 items: [
                   { keys: ['Ctrl / ⌘', 'K'], desc: '打开命令面板' },
+                  { keys: ['Alt', 'S'], desc: '展开/折叠侧边栏' },
                   { keys: ['Alt', 'L'], desc: '锁定屏幕（需开启锁屏功能）' },
                 ],
               },
