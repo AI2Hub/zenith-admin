@@ -157,6 +157,8 @@ interface AdminLayoutProps {
 export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const autoCollapsedRef = useRef(false);
+  // hover 模式：鼠标悬浮时侧边栏临时滑出
+  const [sidebarHovered, setSidebarHovered] = useState(false);
   const [menuTree, setMenuTree] = useState<Menu[]>(presetMenus || []);
 
   const flatMenus = useMemo<FlatMenuItem[]>(() => {
@@ -173,6 +175,8 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
     return result;
   }, [menuTree]);
   const { preferences, setPreferences, resetPreferences } = usePreferences();
+  // hover 模式下实际用于渲染的 collapsed：开启 hover 模式且居用且悬浮内时展开
+  const effectiveCollapsed = (preferences.sidebarHoverTrigger && collapsed && sidebarHovered) ? false : collapsed;
   const { mode, themeColor, isDark, setThemeMode, setThemeColor } = useThemeController();
 
   const handleThemeModeChange = useCallback((newMode: ThemeMode) => {
@@ -1124,7 +1128,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
   const mixedTopSelectedKeys = effectiveTopKey ? [effectiveTopKey] : [];
   const topNavSelectedKeys = navLayout === 'mixed' ? mixedTopSelectedKeys : currentSelectedKeys;
   const stickyNavClass = preferences.sidebarStickyScroll === false ? '' : ' admin-sidebar--sticky-nav';
-  const sidebarClassName = `admin-sidebar${collapsed ? ' admin-sidebar--collapsed' : ''}${stickyNavClass}`;
+  const sidebarClassName = `admin-sidebar${effectiveCollapsed ? ' admin-sidebar--collapsed' : ''}${stickyNavClass}`;
   const layoutClassName = [
     'admin-layout',
     preferences.sidebarDarkMode ? 'admin-layout--sidebar-dark' : '',
@@ -1240,16 +1244,20 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
               </div>
             </aside>
           ) : (
-            <aside className={sidebarClassName}>
+            <aside
+              className={sidebarClassName}
+              onMouseEnter={() => { if (preferences.sidebarHoverTrigger && collapsed) setSidebarHovered(true); }}
+              onMouseLeave={() => { if (preferences.sidebarHoverTrigger) setSidebarHovered(false); }}
+            >
               <Nav
                 className="admin-sidebar__nav"
                 mode="vertical"
                 items={navLayout === 'mixed' ? mixedSidebarItems : navItems}
                 style={{ height: '100%' }}
                 bodyStyle={{ paddingTop: 8 }}
-                isCollapsed={collapsed}
+                isCollapsed={effectiveCollapsed}
                 selectedKeys={currentSelectedKeys}
-                openKeys={collapsed ? [] : openKeys}
+                openKeys={effectiveCollapsed ? [] : openKeys}
                 onOpenChange={handleSidebarOpenChange}
                 onCollapseChange={handleCollapseChange}
                 header={
@@ -1647,6 +1655,15 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                   </Tooltip>
                 </span>
                 <Switch checked={preferences.sidebarAccordion ?? false} onChange={(v) => setPreferences({ sidebarAccordion: v })} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  悬浮展开侧边栏
+                  <Tooltip content="开启后侧边栏收起时，鼠标悬浮即可临时展开，移开后自动收起" position="right">
+                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+                  </Tooltip>
+                </span>
+                <Switch checked={preferences.sidebarHoverTrigger ?? false} onChange={(v) => setPreferences({ sidebarHoverTrigger: v })} />
               </div>
 
               {/* ── 锁屏 ── */}

@@ -40,6 +40,8 @@ export interface UserPreferences {
   enableLockScreen: boolean;
   /** 侧边栏手风琴展开：同级只允许展开一个子菜单 */
   sidebarAccordion: boolean;
+  /** 侧边栏悬浮模式：开启后，侧边栏居按展开，鼠标入内时临时滑出，移开则自动收起 */
+  sidebarHoverTrigger: boolean;
   /** 路由切换动画 */
   routeAnimation: RouteAnimation;
   /** 最大标签页超限后的关闭策略: fifo 最早打开，lru 最近最少使用 */
@@ -79,6 +81,7 @@ export const defaultPreferences: UserPreferences = {
   tablePageSize: 10,
   enableLockScreen: false,
   sidebarAccordion: true,
+  sidebarHoverTrigger: false,
   tabEvictPolicy: 'fifo',
   routeAnimation: 'fade',
   grayscale: false,
