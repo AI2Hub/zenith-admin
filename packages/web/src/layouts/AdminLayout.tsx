@@ -901,8 +901,6 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                     <div
                       key={menuId}
                       style={{ display: 'flex', alignItems: 'center' }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--semi-color-fill-0)'; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
                     >
                       <button
                         type="button"
@@ -911,8 +909,10 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                           display: 'flex', alignItems: 'center', gap: 8, flex: 1,
                           padding: '8px 0 8px 14px', border: 0, background: 'transparent',
                           cursor: 'pointer', textAlign: 'left', color: 'var(--semi-color-text-0)',
-                          fontSize: 13, minWidth: 0,
+                          fontSize: 13, minWidth: 0, borderRadius: 0,
                         }}
+                        onMouseEnter={(e) => { (e.currentTarget.parentElement as HTMLDivElement).style.background = 'var(--semi-color-fill-0)'; }}
+                        onMouseLeave={(e) => { (e.currentTarget.parentElement as HTMLDivElement).style.background = 'transparent'; }}
                       >
                         <span style={{ color: 'var(--semi-color-warning)', flexShrink: 0, display: 'flex' }}>
                           <Star size={13} fill="currentColor" strokeWidth={0} />
