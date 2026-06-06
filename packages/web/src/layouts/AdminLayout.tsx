@@ -4,7 +4,8 @@ import { RouteErrorBoundary } from '@/components/PageErrorBoundary';
 import { UserAvatar } from '@/components/UserAvatar';
 import { Badge, Breadcrumb, Button, ColorPicker, Divider, Dropdown, Empty, Input, List, Notification, Popover, Select, Tooltip, Modal, Nav, Typography, SideSheet, Switch, InputNumber, RadioGroup, Radio, Toast } from '@douyinfe/semi-ui';
 import { IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi-illustrations';
-import { Bell, Building2, Check, Info, Expand, Shrink, Megaphone, Sun, Moon, Monitor, MoreHorizontal, User as UserIcon, Settings, LogOut, X, Palette, Pin, RotateCcw, PinOff, XCircle, ChevronLeft, ChevronRight, Trash2, Lock, Copy, Route, Keyboard } from 'lucide-react';
+import { Bell, Building2, Check, Info, Expand, Shrink, Megaphone, Sun, Moon, Monitor, MoreHorizontal, User as UserIcon, Settings, LogOut, X, Palette, Pin, RotateCcw, PinOff, XCircle, ChevronLeft, ChevronRight, Trash2, Lock, Copy, Route, Keyboard, Search } from 'lucide-react';
+import { match as pinyinMatch } from 'pinyin-pro';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
 import type { User, Menu, InAppMessage, Announcement, Tenant, WsMessage, SystemConfig } from '@zenith/shared';
 import type { ThemeMode } from '@/hooks/useTheme';
@@ -270,6 +271,17 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
     preferences.openTabBehavior ?? 'append',
   );
   const [prefsVisible, setPrefsVisible] = useState(false);
+  const [prefsSearch, setPrefsSearch] = useState('');
+
+  const matchesPref = useCallback((keywords: string[]): boolean => {
+    if (!prefsSearch.trim()) return true;
+    const q = prefsSearch.trim();
+    const lower = q.toLowerCase();
+    return keywords.some((kw) =>
+      kw.toLowerCase().includes(lower) ||
+      pinyinMatch(kw, q, { precision: 'start' }) !== null,
+    );
+  }, [prefsSearch]);
   const [shortcutsVisible, setShortcutsVisible] = useState(false);
   const [isContentFullscreen, setIsContentFullscreen] = useState(false);
   const [lockPasswordModalVisible, setLockPasswordModalVisible] = useState(false);
@@ -1458,12 +1470,22 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
           <SideSheet
             title="偏好设置"
             visible={prefsVisible}
-            onCancel={() => setPrefsVisible(false)}
+            onCancel={() => { setPrefsVisible(false); setPrefsSearch(''); }}
             width={380}
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
+              {/* 搜索设置项 */}
+              <Input
+                prefix={<Search size={14} />}
+                placeholder="搜索设置项…"
+                value={prefsSearch}
+                onChange={(v) => setPrefsSearch(v)}
+                showClear
+              />
+
               {/* ── 导航布局 ── */}
+              {matchesPref(['导航布局', '布局', '左侧菜单', '顶部菜单', '混合菜单', '双列菜单']) && (
               <div>
                 <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>导航布局</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
@@ -1485,8 +1507,10 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                   ))}
                 </div>
               </div>
+              )}
 
               {/* ── 颜色模式 ── */}
+              {matchesPref(['颜色模式', '深色', '浅色', '系统', '主题模式']) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>颜色模式</span>
                 <RadioGroup
@@ -1502,21 +1526,22 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                   <Radio value="system">系统</Radio>
                 </RadioGroup>
               </div>
-
-              {!isDark && (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>侧边栏深色模式</span>
-                    <Switch checked={preferences.sidebarDarkMode ?? false} onChange={(v) => setPreferences({ sidebarDarkMode: v })} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>顶部栏深色模式</span>
-                    <Switch checked={preferences.headerDarkMode ?? false} onChange={(v) => setPreferences({ headerDarkMode: v })} />
-                  </div>
-                </>
+              )}
+              {!isDark && matchesPref(['侧边栏深色', '深色', '深色模式', '侧边栏']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>侧边栏深色模式</span>
+                <Switch checked={preferences.sidebarDarkMode ?? false} onChange={(v) => setPreferences({ sidebarDarkMode: v })} />
+              </div>
+              )}
+              {!isDark && matchesPref(['顶部栏深色', '深色', '深色模式', '顶部栏', '顶部导航']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>顶部栏深色模式</span>
+                <Switch checked={preferences.headerDarkMode ?? false} onChange={(v) => setPreferences({ headerDarkMode: v })} />
+              </div>
               )}
 
               {/* ── 主题色 ── */}
+              {matchesPref(['主题颜色', '主题色', '颜色', '品牌色', '自定义颜色']) && (
               <div>
                 <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>主题颜色</div>
                 <div className="theme-color-picker">
@@ -1564,14 +1589,18 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                   </ColorPicker>
                 </div>
               </div>
+              )}
 
               {/* ── Logo 图标 ── */}
+              {matchesPref(['Logo', 'Logo图标', '图标', '显示Logo']) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>显示 Logo 图标</span>
                 <Switch checked={preferences.showLogo ?? true} onChange={(v) => setPreferences({ showLogo: v })} />
               </div>
+              )}
 
               {/* ── 动态标题 ── */}
+              {matchesPref(['动态标题', '浏览器标题', '页面标题', '标题']) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   动态浏览器标题
@@ -1581,8 +1610,10 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                 </span>
                 <Switch checked={preferences.dynamicTitle ?? true} onChange={(v) => setPreferences({ dynamicTitle: v })} />
               </div>
+              )}
 
               {/* ── 面包屑 ── */}
+              {matchesPref(['面包屑', '面包屑导航', '导航栏', '路径导航']) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   显示面包屑导航
@@ -1592,38 +1623,43 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                 </span>
                 <Switch checked={preferences.showBreadcrumb} onChange={(v) => setPreferences({ showBreadcrumb: v })} />
               </div>
-              {preferences.showBreadcrumb && (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>面包屑显示图标</span>
-                    <Switch checked={preferences.breadcrumbIcon ?? false} onChange={(v) => setPreferences({ breadcrumbIcon: v })} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      面包屑从首页开始
-                      <Tooltip content="开启后面包屑导航会以「首页」作为第一项，关闭后直接从当前页面的父级路径开始" position="right">
-                        <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                      </Tooltip>
-                    </span>
-                    <Switch checked={preferences.breadcrumbShowHome ?? true} onChange={(v) => setPreferences({ breadcrumbShowHome: v })} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      面包屑可点击
-                      <Tooltip content="关闭后面包屑仅展示路径文字，不可点击跳转" position="right">
-                        <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                      </Tooltip>
-                    </span>
-                    <Switch checked={preferences.breadcrumbClickable ?? true} onChange={(v) => setPreferences({ breadcrumbClickable: v })} />
-                  </div>
-                </>
+              )}
+              {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑图标', '图标', '面包屑']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>面包屑显示图标</span>
+                <Switch checked={preferences.breadcrumbIcon ?? false} onChange={(v) => setPreferences({ breadcrumbIcon: v })} />
+              </div>
+              )}
+              {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑首页', '首页', '面包屑']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  面包屑从首页开始
+                  <Tooltip content="开启后面包屑导航会以「首页」作为第一项，关闭后直接从当前页面的父级路径开始" position="right">
+                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+                  </Tooltip>
+                </span>
+                <Switch checked={preferences.breadcrumbShowHome ?? true} onChange={(v) => setPreferences({ breadcrumbShowHome: v })} />
+              </div>
+              )}
+              {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑可点击', '点击', '面包屑跳转', '面包屑']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  面包屑可点击
+                  <Tooltip content="关闭后面包屑仅展示路径文字，不可点击跳转" position="right">
+                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+                  </Tooltip>
+                </span>
+                <Switch checked={preferences.breadcrumbClickable ?? true} onChange={(v) => setPreferences({ breadcrumbClickable: v })} />
+              </div>
               )}
 
               {/* ── 菜单搜索 ── */}
+              {matchesPref(['菜单搜索', '搜索框', '搜索', '搜索菜单']) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>显示菜单搜索框</span>
                 <Switch checked={preferences.showMenuSearch ?? true} onChange={(v) => setPreferences({ showMenuSearch: v })} />
               </div>
+              )}
 
               {/* ── 全屏按钮 ── */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1632,7 +1668,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
               </div>
 
               {/* ── 快捷聊天 ── */}
-              {quickChatEnabled && (
+              {quickChatEnabled && matchesPref(['快捷聊天', '聊天', 'AI助手', '聊天按钮', '快捷聊天按钮']) && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     显示快捷聊天按钮
@@ -1645,6 +1681,7 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
               )}
 
               {/* ── 文件默认视图 ── */}
+              {matchesPref(['文件视图', '文件列表', '文件管理', '列表', '网格', '文件']) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>文件列表默认视图</span>
                 <RadioGroup
@@ -1656,8 +1693,10 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                   <Radio value="grid">网格</Radio>
                 </RadioGroup>
               </div>
+              )}
 
               {/* ── 侧边栏分组标题 sticky ── */}
+              {matchesPref(['侧边栏', '分组标题', '滚动固定', '侧边栏分组']) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   侧边栏分组标题滚动固定
@@ -1667,8 +1706,10 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                 </span>
                 <Switch checked={preferences.sidebarStickyScroll ?? true} onChange={(v) => setPreferences({ sidebarStickyScroll: v })} />
               </div>
+              )}
 
               {/* ── 侧栏手风琴展开 ── */}
+              {matchesPref(['侧边栏', '手风琴', '排他展开', '侧栏排他']) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   侧栏排他展开
@@ -1678,6 +1719,8 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                 </span>
                 <Switch checked={preferences.sidebarAccordion ?? false} onChange={(v) => setPreferences({ sidebarAccordion: v })} />
               </div>
+              )}
+              {matchesPref(['悬浮展开', '侧边栏悬浮', '侧边栏', 'hover']) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   悬浮展开侧边栏
@@ -1687,6 +1730,8 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                 </span>
                 <Switch checked={preferences.sidebarHoverTrigger ?? false} onChange={(v) => setPreferences({ sidebarHoverTrigger: v })} />
               </div>
+              )}
+              {matchesPref(['菜单滚动', '自动定位', '菜单', '滚动定位']) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   菜单自动滚动定位
@@ -1696,8 +1741,10 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                 </span>
                 <Switch checked={preferences.scrollMenuIntoView ?? true} onChange={(v) => setPreferences({ scrollMenuIntoView: v })} />
               </div>
+              )}
 
               {/* ── 锁屏 ── */}
+              {matchesPref(['锁屏', '屏幕锁', '密码', '锁定']) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   开启屏幕锁
@@ -1720,7 +1767,8 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                   }}
                 />
               </div>
-              {(preferences.enableLockScreen ?? false) && hasPassword() && (
+              )}
+              {(preferences.enableLockScreen ?? false) && hasPassword() && matchesPref(['锁屏', '密码', '锁屏密码']) && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>锁屏密码</span>
                   <Button
@@ -1738,9 +1786,10 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                 </div>
               )}
 
-              <Divider style={{ margin: '0 -24px' }} />
+              {!prefsSearch.trim() && <Divider style={{ margin: '0 -24px' }} />}
 
               {/* ── 表格设置 ── */}
+              {matchesPref(['表格', '边框', '斦马纹', '尺寸', '分页', '列设置', '显示表格', '启用斦马纹']) && (
               <div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1778,174 +1827,189 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                   </div>
                 </div>
               </div>
+              )}
 
-              <Divider style={{ margin: '0 -24px' }} />
+              {!prefsSearch.trim() && <Divider style={{ margin: '0 -24px' }} />}
 
               {/* ── 多标签页 ── */}
+              {matchesPref(['多标签页', '标签页', '标签', '启用标签']) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>启用多标签页</span>
                 <Switch checked={preferences.enableTabs} onChange={(v) => setPreferences({ enableTabs: v })} />
               </div>
-              {preferences.enableTabs && (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      保存标签页
-                      <Tooltip content="刷新页面或重新登录后，自动恢复上次打开的标签页" position="right">
-                        <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                      </Tooltip>
-                    </span>
-                    <Switch checked={preferences.keepTabs ?? true} onChange={(v) => setPreferences({ keepTabs: v })} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>标签页显示图标</span>
-                    <Switch checked={preferences.showTabIcon} onChange={(v) => setPreferences({ showTabIcon: v })} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>最大标签数</span>
-                    <InputNumber
-                      min={5}
-                      max={50}
-                      value={preferences.tabsMaxCount}
-                      onChange={(v) => setPreferences({ tabsMaxCount: v as number })}
-                      style={{ width: 100 }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      超限关闭策略
-                      <Tooltip content="FIFO: 关闭最早打开的标签；LRU: 关闭最久未使用的标签" position="right">
-                        <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                      </Tooltip>
-                    </span>
-                    <RadioGroup
-                      type="button"
-                      value={preferences.tabEvictPolicy ?? 'fifo'}
-                      onChange={(e) => setPreferences({ tabEvictPolicy: e.target.value as 'fifo' | 'lru' })}
-                    >
-                      <Radio value="fifo">FIFO</Radio>
-                      <Radio value="lru">LRU</Radio>
-                    </RadioGroup>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      新标签插入位置
-                      <Tooltip content="末尾：新标签始终排在最右侧；当前后方：新标签紧跟在当前标签之后插入" position="right">
-                        <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                      </Tooltip>
-                    </span>
-                    <RadioGroup
-                      type="button"
-                      value={preferences.openTabBehavior ?? 'append'}
-                      onChange={(e) => setPreferences({ openTabBehavior: e.target.value as 'append' | 'insert-next' })}
-                    >
-                      <Radio value="append">末尾</Radio>
-                      <Radio value="insert-next">当前后方</Radio>
-                    </RadioGroup>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>双击标签行为</span>
-                    <RadioGroup
-                      type="button"
-                      value={preferences.tabDoubleClickAction ?? 'refresh'}
-                      onChange={(e) => setPreferences({ tabDoubleClickAction: e.target.value as 'refresh' | 'close' | 'none' })}
-                    >
-                      <Radio value="refresh">刷新</Radio>
-                      <Radio value="close">关闭</Radio>
-                      <Radio value="none">无</Radio>
-                    </RadioGroup>
-                  </div>
-
-                  {/* ── 标签页风格 ── */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>标签页风格</span>
-                    <RadioGroup
-                      type="button"
-                      value={preferences.tabStyle ?? 'line'}
-                      onChange={(e) => setPreferences({ tabStyle: e.target.value as 'line' | 'pill' | 'card' })}
-                    >
-                      <Radio value="line">线条</Radio>
-                      <Radio value="pill">胶囊</Radio>
-                      <Radio value="card">卡片</Radio>
-                    </RadioGroup>
-                  </div>
-
-                  {/* ── 标签页动画 ── */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>标签页动画</span>
-                    <RadioGroup
-                      type="button"
-                      value={preferences.tabAnimation ?? 'none'}
-                      onChange={(e) => setPreferences({ tabAnimation: e.target.value as 'none' | 'fade' | 'slide' | 'scale' })}
-                    >
-                      {(['none', 'fade', 'slide', 'scale'] as const).map((anim) => {
-                        const labels: Record<string, string> = { none: '无', fade: '淡入', slide: '滑入', scale: '缩放' };
-                        const radio = <Radio value={anim}>{labels[anim]}</Radio>;
-                        if (anim === 'none') return radio;
-                        return (
-                          <Popover
-                            key={anim}
-                            trigger="hover"
-                            position="bottom"
-                            mouseEnterDelay={100}
-                            mouseLeaveDelay={100}
-                            content={
-                              <div className="tab-anim-preview" data-anim={anim}>
-                                <span className="tab-anim-preview__pill">首页</span>
-                                <span className="tab-anim-preview__pill tab-anim-preview__pill--active">用户管理</span>
-                                <span className="tab-anim-preview__pill tab-anim-preview__demo">角色管理</span>
-                              </div>
-                            }
-                          >
-                            {radio}
-                          </Popover>
-                        );
-                      })}
-                    </RadioGroup>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>路由切换动画</span>
-                    <RadioGroup
-                      type="button"
-                      value={preferences.routeAnimation ?? 'fade'}
-                      onChange={(e) => setPreferences({ routeAnimation: e.target.value as RouteAnimation })}
-                    >
-                      <Radio value="none">无</Radio>
-                      <Radio value="fade">淡入</Radio>
-                      <Radio value="slide-up">上滑</Radio>
-                      <Radio value="slide-left">左滑</Radio>
-                    </RadioGroup>
-                  </div>
-                </>
+              )}
+              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['保存标签', '恢复标签', '标签页', '标签']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  保存标签页
+                  <Tooltip content="刷新页面或重新登录后，自动恢复上次打开的标签页" position="right">
+                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+                  </Tooltip>
+                </span>
+                <Switch checked={preferences.keepTabs ?? true} onChange={(v) => setPreferences({ keepTabs: v })} />
+              </div>
+              )}
+              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签图标', '图标', '标签页', '标签']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>标签页显示图标</span>
+                <Switch checked={preferences.showTabIcon} onChange={(v) => setPreferences({ showTabIcon: v })} />
+              </div>
+              )}
+              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['最大标签', '标签数量', '标签页', '标签']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>最大标签数</span>
+                <InputNumber
+                  min={5}
+                  max={50}
+                  value={preferences.tabsMaxCount}
+                  onChange={(v) => setPreferences({ tabsMaxCount: v as number })}
+                  style={{ width: 100 }}
+                />
+              </div>
+              )}
+              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['超限策略', 'FIFO', 'LRU', '关闭策略', '标签页', '标签']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  超限关闭策略
+                  <Tooltip content="FIFO: 关闭最早打开的标签；LRU: 关闭最久未使用的标签" position="right">
+                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+                  </Tooltip>
+                </span>
+                <RadioGroup
+                  type="button"
+                  value={preferences.tabEvictPolicy ?? 'fifo'}
+                  onChange={(e) => setPreferences({ tabEvictPolicy: e.target.value as 'fifo' | 'lru' })}
+                >
+                  <Radio value="fifo">FIFO</Radio>
+                  <Radio value="lru">LRU</Radio>
+                </RadioGroup>
+              </div>
+              )}
+              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['插入位置', '新标签位置', '标签插入', '标签页', '标签']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  新标签插入位置
+                  <Tooltip content="末尾：新标签始终排在最右侧；当前后方：新标签紧跟在当前标签之后插入" position="right">
+                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+                  </Tooltip>
+                </span>
+                <RadioGroup
+                  type="button"
+                  value={preferences.openTabBehavior ?? 'append'}
+                  onChange={(e) => setPreferences({ openTabBehavior: e.target.value as 'append' | 'insert-next' })}
+                >
+                  <Radio value="append">末尾</Radio>
+                  <Radio value="insert-next">当前后方</Radio>
+                </RadioGroup>
+              </div>
+              )}
+              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['双击标签', '双击', '标签行为', '标签页', '标签']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>双击标签行为</span>
+                <RadioGroup
+                  type="button"
+                  value={preferences.tabDoubleClickAction ?? 'refresh'}
+                  onChange={(e) => setPreferences({ tabDoubleClickAction: e.target.value as 'refresh' | 'close' | 'none' })}
+                >
+                  <Radio value="refresh">刷新</Radio>
+                  <Radio value="close">关闭</Radio>
+                  <Radio value="none">无</Radio>
+                </RadioGroup>
+              </div>
+              )}
+              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签风格', '风格', '线条', '胶囊', '卡片', '标签页', '标签']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>标签页风格</span>
+                <RadioGroup
+                  type="button"
+                  value={preferences.tabStyle ?? 'line'}
+                  onChange={(e) => setPreferences({ tabStyle: e.target.value as 'line' | 'pill' | 'card' })}
+                >
+                  <Radio value="line">线条</Radio>
+                  <Radio value="pill">胶囊</Radio>
+                  <Radio value="card">卡片</Radio>
+                </RadioGroup>
+              </div>
+              )}
+              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签动画', '动画', '淡入', '滑入', '缩放', '标签页', '标签']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>标签页动画</span>
+                <RadioGroup
+                  type="button"
+                  value={preferences.tabAnimation ?? 'none'}
+                  onChange={(e) => setPreferences({ tabAnimation: e.target.value as 'none' | 'fade' | 'slide' | 'scale' })}
+                >
+                  {(['none', 'fade', 'slide', 'scale'] as const).map((anim) => {
+                    const labels: Record<string, string> = { none: '无', fade: '淡入', slide: '滑入', scale: '缩放' };
+                    const radio = <Radio value={anim}>{labels[anim]}</Radio>;
+                    if (anim === 'none') return radio;
+                    return (
+                      <Popover
+                        key={anim}
+                        trigger="hover"
+                        position="bottom"
+                        mouseEnterDelay={100}
+                        mouseLeaveDelay={100}
+                        content={
+                          <div className="tab-anim-preview" data-anim={anim}>
+                            <span className="tab-anim-preview__pill">首页</span>
+                            <span className="tab-anim-preview__pill tab-anim-preview__pill--active">用户管理</span>
+                            <span className="tab-anim-preview__pill tab-anim-preview__demo">角色管理</span>
+                          </div>
+                        }
+                      >
+                        {radio}
+                      </Popover>
+                    );
+                  })}
+                </RadioGroup>
+              </div>
+              )}
+              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['路由动画', '切换动画', '动画', '淡入', '上滑', '左滑']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>路由切换动画</span>
+                <RadioGroup
+                  type="button"
+                  value={preferences.routeAnimation ?? 'fade'}
+                  onChange={(e) => setPreferences({ routeAnimation: e.target.value as RouteAnimation })}
+                >
+                  <Radio value="none">无</Radio>
+                  <Radio value="fade">淡入</Radio>
+                  <Radio value="slide-up">上滑</Radio>
+                  <Radio value="slide-left">左滑</Radio>
+                </RadioGroup>
+              </div>
               )}
 
               {/* ── 无障碍 ── */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    灰色模式
-                    <Tooltip content="适用于国家公祭日等场景，全局去除色彩" position="right">
-                      <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                    </Tooltip>
-                  </span>
-                  <Switch
-                    checked={preferences.grayscale ?? false}
-                    onChange={(v) => setPreferences({ grayscale: v, ...(v ? { colorBlind: false } : {}) })}
-                  />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    色弱模式
-                    <Tooltip content="提高界面对比度，辅助色觉障碍用户" position="right">
-                      <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-                    </Tooltip>
-                  </span>
-                  <Switch
-                    checked={preferences.colorBlind ?? false}
-                    onChange={(v) => setPreferences({ colorBlind: v, ...(v ? { grayscale: false } : {}) })}
-                  />
-                </div>
+              {matchesPref(['灰色', '灰色模式', '无障碍', '公祭日', '去色']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  灰色模式
+                  <Tooltip content="适用于国家公祭日等场景，全局去除色彩" position="right">
+                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+                  </Tooltip>
+                </span>
+                <Switch
+                  checked={preferences.grayscale ?? false}
+                  onChange={(v) => setPreferences({ grayscale: v, ...(v ? { colorBlind: false } : {}) })}
+                />
               </div>
+              )}
+              {matchesPref(['色弱', '色弱模式', '无障碍', '对比度', '色觉']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  色弱模式
+                  <Tooltip content="提高界面对比度，辅助色觉障碍用户" position="right">
+                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+                  </Tooltip>
+                </span>
+                <Switch
+                  checked={preferences.colorBlind ?? false}
+                  onChange={(v) => setPreferences({ colorBlind: v, ...(v ? { grayscale: false } : {}) })}
+                />
+              </div>
+              )}
 
               {/* ── 重置 ── */}
               <div>
