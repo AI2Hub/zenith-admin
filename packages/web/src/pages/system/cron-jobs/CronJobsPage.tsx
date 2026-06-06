@@ -577,6 +577,7 @@ export default function CronJobsPage() {
             <Dropdown
               trigger="click"
               position="bottomRight"
+              clickToHide
               render={
                 <Dropdown.Menu>
                   {([1, 3, 6, 12] as const).map((m) => (
@@ -670,6 +671,7 @@ export default function CronJobsPage() {
             <Dropdown
               trigger="click"
               position="bottomRight"
+              clickToHide
               render={
                 <Dropdown.Menu>
                   {([1, 3, 6, 12] as const).map((m) => (
