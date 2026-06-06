@@ -370,7 +370,9 @@ export const createCronJobSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('disabled'),
   description: z.string().max(256).default(''),
   retryCount: z.number().int().min(0, '重试次数不能为负').max(10).default(0),
+  /** 重试间隔，单位：秒 */
   retryInterval: z.number().int().min(0, '重试间隔不能为负').default(0),
+  retryBackoff: z.boolean().default(false),
   monitorTimeout: z.number().int().min(0).nullable().optional(),
 });
 

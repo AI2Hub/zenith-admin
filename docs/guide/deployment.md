@@ -141,7 +141,7 @@ pm2 start ecosystem.config.js
 pm2 save
 ```
 
-**Zenith Admin 已内置防重复保障**：定时任务（cron-jobs）和工作流延迟调度器仅在 PM2 **0 号实例**（`NODE_APP_INSTANCE === '0'`）上启动，cluster 模式下不会出现多进程重复执行定时任务的问题。
+**Zenith Admin 定时任务基于 pg-boss（PostgreSQL 队列）**：pg-boss 天然通过 `SKIP LOCKED` 实现多进程安全，任意多个进程可以同时启动而不会重复执行同一任务。工作流延迟调度器仍通过 `NODE_APP_INSTANCE === '0'` 限制在单进程启动。
 :::
 
 ---

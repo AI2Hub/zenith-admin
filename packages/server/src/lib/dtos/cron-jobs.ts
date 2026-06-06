@@ -14,10 +14,11 @@ export const CronJobDTO = z
     status: z.enum(['enabled', 'disabled']),
     description: z.string(),
     retryCount: z.number().int(),
+    /** 重试间隔，单位：秒 */
     retryInterval: z.number().int(),
+    retryBackoff: z.boolean(),
     monitorTimeout: z.number().int().nullable(),
     lastRunAt: z.string().nullable(),
-    nextRunAt: z.string().nullable(),
     lastRunStatus: z.enum(['success', 'fail', 'running']).nullable(),
     lastRunMessage: z.string().nullable(),
     ...auditFields,

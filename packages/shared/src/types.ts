@@ -460,10 +460,11 @@ export interface CronJob {
   status: EntityStatus;
   description: string;
   retryCount: number;
+  /** 重试间隔，单位：秒 */
   retryInterval: number;
+  retryBackoff: boolean;
   monitorTimeout: number | null;
   lastRunAt: string | null;
-  nextRunAt: string | null;
   lastRunStatus: CronRunStatus | null;
   lastRunMessage: string | null;
   createdAt: string;

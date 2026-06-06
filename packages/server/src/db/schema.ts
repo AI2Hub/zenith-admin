@@ -486,10 +486,12 @@ export const cronJobs = pgTable('cron_jobs', {
   status: statusEnum('status').notNull().default('disabled'),
   description: varchar('description', { length: 256 }).notNull().default(''),
   retryCount: integer('retry_count').notNull().default(0),
+  /** 重试间隔，单位：秒 */
   retryInterval: integer('retry_interval').notNull().default(0),
+  /** 是否启用指数退避重试（每次翻倍延迟） */
+  retryBackoff: boolean('retry_backoff').notNull().default(false),
   monitorTimeout: integer('monitor_timeout'),
   lastRunAt: timestamp('last_run_at', { withTimezone: true }),
-  nextRunAt: timestamp('next_run_at', { withTimezone: true }),
   lastRunStatus: cronRunStatusEnum('last_run_status'),
   lastRunMessage: varchar('last_run_message', { length: 1024 }),
   ...auditColumns(),

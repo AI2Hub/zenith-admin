@@ -1,0 +1,293 @@
+/**
+ * pg-boss 调度器
+ * 替代 node-cron，基于 PostgreSQL SKIP LOCKED 实现精确一次执行和多进程安全。
+ *
+ * 对外 API 与原 cron-scheduler.ts 保持一致，以最小化调用方改动。
+ */
+import { PgBoss, type WorkHandler } from 'pg-boss';
+import { eq } from 'drizzle-orm';
+import { db } from '../db';
+import { cronJobs, cronJobLogs, dbBackups } from '../db/schema';
+import logger from './logger';
+import { cleanExpiredCaptchas } from './captcha';
+import { cleanExpiredSessions } from './session-manager';
+import { createPgDumpBackup, createDrizzleExportBackup } from './db-backup';
+import { formatFileTimestamp } from './datetime';
+import { config } from '../config';
+import CronParser from 'cron-parser';
+
+// ─── 队列名工具 ───────────────────────────────────────────────────────────────
+// pg-boss 队列名只允许：字母数字、连字符、句点、斜杠
+// cron_jobs.name 可能包含中文，故改用 "cron-job-{id}" 作为队列名
+
+function queueName(jobId: number): string {
+  return `cron-job-${jobId}`;
+}
+
+// ─── pg-boss 实例（单例）─────────────────────────────────────────────────────
+
+let boss: PgBoss | null = null;
+
+function getBoss(): PgBoss {
+  if (!boss) throw new Error('pg-boss not initialized. Call initCronScheduler() first.');
+  return boss;
+}
+
+// ─── Handler 注册表 ──────────────────────────────────────────────────────────
+
+type HandlerFn = (params?: string | null) => Promise<string>;
+const handlerRegistry = new Map<string, HandlerFn>();
+
+handlerRegistry.set('cleanExpiredCaptchas', async () => {
+  const count = cleanExpiredCaptchas();
+  return `清理了 ${count} 个过期验证码`;
+});
+
+handlerRegistry.set('cleanExpiredSessions', async () => {
+  const count = await cleanExpiredSessions();
+  return `清理了 ${count} 个过期会话（Redis TTL 自动清理）`;
+});
+
+handlerRegistry.set('echo', async (params) => {
+  return `Echo: ${params ?? 'no params'}`;
+});
+
+handlerRegistry.set('databaseBackup', async (params) => {
+  const type = params === 'drizzle_export' ? 'drizzle_export' : 'pg_dump';
+  const timestamp = formatFileTimestamp();
+  const [backup] = await db.insert(dbBackups).values({ name: `cron-${type}-${timestamp}`, type, status: 'pending' }).returning();
+  const run = type === 'pg_dump' ? createPgDumpBackup : createDrizzleExportBackup;
+  await run(backup.id);
+  return `数据库备份完成 (${type}), ID: ${backup.id}`;
+});
+
+handlerRegistry.set('retryWorkflowEventDeliveries', async () => {
+  const { retryWorkflowEventDeliveries } = await import('./workflow-subscribers/webhook');
+  const { retried } = await retryWorkflowEventDeliveries();
+  return `重试了 ${retried} 个事件投递`;
+});
+
+handlerRegistry.set('processWorkflowTaskTimeouts', async () => {
+  const { processWorkflowTaskTimeouts } = await import('./workflow-timeout-processor');
+  const r = await processWorkflowTaskTimeouts();
+  return `扫描 ${r.processed} 个超时任务：提醒 ${r.reminded}，自动通过 ${r.approved}，自动拒绝 ${r.rejected}`;
+});
+
+handlerRegistry.set('publishScheduledAnnouncements', async () => {
+  const { publishScheduledAnnouncements } = await import('../services/announcements.service');
+  const count = await publishScheduledAnnouncements();
+  return `自动发布了 ${count} 条定时公告`;
+});
+
+/** 已注册 handler 名称列表（供前端下拉选择） */
+export function getRegisteredHandlers(): string[] {
+  return Array.from(handlerRegistry.keys());
+}
+
+// ─── pg-boss 通用 Worker ────────────────────────────────────────────────────
+
+interface JobData {
+  handlerName: string;
+  params: string | null;
+  jobId: number;
+}
+
+async function registerWorker(queue: string): Promise<void> {
+  const b = getBoss();
+  await b.work<JobData>(queue, async (jobs: Parameters<WorkHandler<JobData>>[0]) => {
+    const job = jobs[0];
+    const { handlerName, params, jobId } = job.data;
+    const fn = handlerRegistry.get(handlerName);
+    const startedAt = new Date();
+
+    const [jobRow] = await db.select({ name: cronJobs.name }).from(cronJobs).where(eq(cronJobs.id, jobId)).limit(1);
+    const jobName = jobRow?.name ?? `job_${jobId}`;
+    const executionCount = await db.$count(cronJobLogs, eq(cronJobLogs.jobId, jobId)) + 1;
+
+    if (!fn) {
+      const msg = `Handler "${handlerName}" not found`;
+      await Promise.all([
+        db.update(cronJobs).set({ lastRunAt: startedAt, lastRunStatus: 'fail', lastRunMessage: msg }).where(eq(cronJobs.id, jobId)),
+        db.insert(cronJobLogs).values({ jobId, jobName, executionCount, startedAt, endedAt: new Date(), durationMs: 0, status: 'fail', output: msg }),
+      ]);
+      throw new Error(msg);
+    }
+
+    const [logRow] = await db.insert(cronJobLogs).values({
+      jobId, jobName, executionCount, startedAt, status: 'running',
+    }).returning();
+    await db.update(cronJobs).set({ lastRunAt: startedAt, lastRunStatus: 'running', lastRunMessage: null }).where(eq(cronJobs.id, jobId));
+
+    let resultMessage: string;
+    try {
+      resultMessage = await fn(params);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      const endedAt = new Date();
+      const durationMs = endedAt.getTime() - startedAt.getTime();
+      await Promise.all([
+        db.update(cronJobs).set({ lastRunStatus: 'fail', lastRunMessage: errorMessage.slice(0, 1024) }).where(eq(cronJobs.id, jobId)),
+        db.update(cronJobLogs).set({ endedAt, durationMs, status: 'fail', output: errorMessage.slice(0, 2048) }).where(eq(cronJobLogs.id, logRow.id)),
+      ]);
+      logger.error(`Cron job ${jobId} (${jobName}) failed:`, err);
+      throw err;
+    }
+
+    const endedAt = new Date();
+    const durationMs = endedAt.getTime() - startedAt.getTime();
+    await Promise.all([
+      db.update(cronJobs).set({ lastRunStatus: 'success', lastRunMessage: resultMessage.slice(0, 1024) }).where(eq(cronJobs.id, jobId)),
+      db.update(cronJobLogs).set({ endedAt, durationMs, status: 'success', output: resultMessage.slice(0, 2048) }).where(eq(cronJobLogs.id, logRow.id)),
+    ]);
+  });
+}
+
+// ─── 公开 API ────────────────────────────────────────────────────────────────
+
+export async function initCronScheduler(): Promise<void> {
+  boss = new PgBoss({
+    connectionString: config.databaseUrl,
+    schema: 'pgboss',
+    supervise: true,
+    superviseIntervalSeconds: 30,
+  });
+
+  boss.on('error', (err: unknown) => logger.error('pg-boss error:', err));
+
+  logger.info('pg-boss: starting...');
+  await boss.start();
+  logger.info('pg-boss started');
+
+  const jobs = await db.select().from(cronJobs).where(eq(cronJobs.status, 'enabled'));
+  for (const job of jobs) {
+    await _scheduleOne(job);
+  }
+  logger.info(`pg-boss: ${jobs.length} enabled job(s) scheduled`);
+}
+
+async function _scheduleOne(job: typeof cronJobs.$inferSelect): Promise<boolean> {
+  const b = getBoss();
+  const queue = queueName(job.id);
+
+  await b.createQueue(queue, { retentionSeconds: 60 * 60 * 24 * 7 });
+  await registerWorker(queue);
+
+  const retryOptions: { retryLimit?: number; retryDelay?: number; retryBackoff?: boolean } = {};
+  if (job.retryCount > 0) {
+    retryOptions.retryLimit = job.retryCount;
+    retryOptions.retryDelay = Math.max(job.retryInterval, 0);
+    retryOptions.retryBackoff = job.retryBackoff;
+  }
+
+  await b.schedule(queue, job.cronExpression, {
+    handlerName: job.handler,
+    params: job.params,
+    jobId: job.id,
+  } satisfies JobData, {
+    tz: 'Asia/Shanghai',
+    ...retryOptions,
+    ...(job.monitorTimeout ? { expireInSeconds: job.monitorTimeout } : {}),
+  });
+
+  return true;
+}
+
+interface ScheduleOptions {
+  retryCount?: number;
+  retryDelay?: number;
+  retryBackoff?: boolean;
+  monitorTimeout?: number | null;
+}
+
+export async function scheduleJob(
+  jobId: number,
+  _jobName: string,
+  expression: string,
+  handler: string,
+  params: string | null,
+  opts: ScheduleOptions = {},
+): Promise<boolean> {
+  const { retryCount = 0, retryDelay = 0, retryBackoff = false, monitorTimeout } = opts;
+  const b = getBoss();
+  const queue = queueName(jobId);
+
+  await b.createQueue(queue);
+  await registerWorker(queue);
+
+  await b.schedule(queue, expression, {
+    handlerName: handler,
+    params,
+    jobId,
+  } satisfies JobData, {
+    tz: 'Asia/Shanghai',
+    ...(retryCount > 0 ? { retryLimit: retryCount, retryDelay, retryBackoff } : {}),
+    ...(monitorTimeout ? { expireInSeconds: monitorTimeout } : {}),
+  });
+
+  return true;
+}
+
+export async function stopJob(jobId: number, _jobName: string): Promise<void> {
+  try {
+    const b = getBoss();
+    await b.unschedule(queueName(jobId));
+  } catch (err) {
+    logger.warn(`pg-boss: failed to unschedule job ${jobId}:`, err);
+  }
+}
+
+export async function runJobOnce(jobId: number): Promise<{ success: boolean; message: string }> {
+  const [job] = await db.select().from(cronJobs).where(eq(cronJobs.id, jobId)).limit(1);
+  if (!job) return { success: false, message: '任务不存在' };
+
+  const b = getBoss();
+  const queue = queueName(jobId);
+
+  await b.createQueue(queue);
+  await registerWorker(queue);
+
+  await b.send(queue, {
+    handlerName: job.handler,
+    params: job.params,
+    jobId,
+  } satisfies JobData);
+
+  const deadline = Date.now() + 30_000;
+  const logsBefore = await db.$count(cronJobLogs, eq(cronJobLogs.jobId, jobId));
+  while (Date.now() < deadline) {
+    const logsNow = await db.$count(cronJobLogs, eq(cronJobLogs.jobId, jobId));
+    if (logsNow > logsBefore) {
+      const [latestLog] = await db.select()
+        .from(cronJobLogs)
+        .where(eq(cronJobLogs.jobId, jobId))
+        .orderBy(cronJobLogs.id)
+        .limit(1);
+      if (latestLog && latestLog.status !== 'running') {
+        return { success: latestLog.status === 'success', message: latestLog.output ?? '' };
+      }
+    }
+    await new Promise<void>((r) => setTimeout(r, 500));
+  }
+
+  return { success: true, message: '任务已投递，正在后台执行' };
+}
+
+export async function stopAllJobs(): Promise<void> {
+  if (boss) {
+    await boss.stop();
+    boss = null;
+    logger.info('pg-boss stopped');
+  }
+}
+
+/** 校验 cron 表达式（兼容 5 段标准格式和带秒的 6 段格式） */
+export function validateCronExpression(expression: string): boolean {
+  try {
+    const parts = expression.trim().split(/\s+/);
+    const expr = parts.length === 6 ? parts.slice(1).join(' ') : expression;
+    CronParser.parse(expr);
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -717,7 +717,7 @@ export default function DictsPage() {
                         showClear
                         onClear={() => setItemColor(null)}
                         style={{ width: '100%' }}
-                        renderSelectedItem={(option) => (
+                        renderSelectedItem={(option: { value?: unknown; label?: unknown }) => (
                           <Tag color={(option.value as string) as any} size="small" style={{ margin: '2px 0' }}>
                             {option.label as string}
                           </Tag>

@@ -280,9 +280,10 @@ export default function CronJobsPage() {
         description: editingJob.description,
         retryCount: editingJob.retryCount,
         retryInterval: editingJob.retryInterval,
+        retryBackoff: editingJob.retryBackoff,
         monitorTimeout: editingJob.monitorTimeout,
       }
-    : { status: 'enabled', retryCount: 0, retryInterval: 0 };
+    : { status: 'enabled', retryCount: 0, retryInterval: 0, retryBackoff: false };
 
   const runStatusColor: Record<string, import('@douyinfe/semi-ui/lib/es/tag/interface').TagColor> = {
     success: 'green',
@@ -523,12 +524,15 @@ export default function CronJobsPage() {
             <Col span={12}>
               <Form.InputNumber
                 field="retryInterval"
-                label="重试间隔(ms)"
+                label="重试间隔(秒)"
                 rules={[{ required: true, message: '请输入重试间隔' }]}
                 placeholder="0 表示无间隔"
                 min={0}
                 style={{ width: '100%' }}
               />
+            </Col>
+            <Col span={12}>
+              <Form.Switch field="retryBackoff" label="指数退避重试" />
             </Col>
             <Col span={12}>
               <Form.InputNumber

@@ -2,7 +2,7 @@ import { eq, like, and, desc, lt, sql } from 'drizzle-orm';
 import { escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { cronJobs, cronJobLogs } from '../db/schema';
-import { scheduleJob, stopJob, runJobOnce, validateCronExpression } from '../lib/cron-scheduler';
+import { scheduleJob, stopJob, runJobOnce, validateCronExpression } from '../lib/pg-boss-scheduler';
 import { streamToExcel, formatDateTimeForExcel } from '../lib/excel-export';
 import { HTTPException } from 'hono/http-exception';
 import { formatDateTime, formatNullableDateTime } from '../lib/datetime';
@@ -11,7 +11,6 @@ export function mapCronJob(row: typeof cronJobs.$inferSelect) {
   return {
     ...row,
     lastRunAt: formatNullableDateTime(row.lastRunAt),
-    nextRunAt: formatNullableDateTime(row.nextRunAt),
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
@@ -48,7 +47,7 @@ export async function createCronJob(data: typeof cronJobs.$inferInsert) {
   const [existing] = await db.select().from(cronJobs).where(eq(cronJobs.name, data.name)).limit(1);
   if (existing) throw new HTTPException(400, { message: '任务名称已存在' });
   const [row] = await db.insert(cronJobs).values(data).returning();
-  if (row.status === 'enabled') scheduleJob(row.id, row.cronExpression, row.handler, row.params);
+  if (row.status === 'enabled') await scheduleJob(row.id, row.name, row.cronExpression, row.handler, row.params, { retryCount: row.retryCount, retryDelay: row.retryInterval, retryBackoff: row.retryBackoff, monitorTimeout: row.monitorTimeout });
   return mapCronJob(row);
 }
 
@@ -56,15 +55,16 @@ export async function updateCronJob(id: number, data: Partial<typeof cronJobs.$i
   if (data.cronExpression && !validateCronExpression(data.cronExpression)) throw new HTTPException(400, { message: 'Cron 表达式无效' });
   const [row] = await db.update(cronJobs).set({ ...data }).where(eq(cronJobs.id, id)).returning();
   if (!row) throw new HTTPException(404, { message: '任务不存在' });
-  if (row.status === 'enabled') scheduleJob(row.id, row.cronExpression, row.handler, row.params);
-  else stopJob(row.id);
+  if (row.status === 'enabled') await scheduleJob(row.id, row.name, row.cronExpression, row.handler, row.params, { retryCount: row.retryCount, retryDelay: row.retryInterval, retryBackoff: row.retryBackoff, monitorTimeout: row.monitorTimeout });
+  else await stopJob(row.id, row.name);
   return mapCronJob(row);
 }
 
 export async function deleteCronJob(id: number) {
-  stopJob(id);
-  const [row] = await db.delete(cronJobs).where(eq(cronJobs.id, id)).returning();
+  const [row] = await db.select({ id: cronJobs.id, name: cronJobs.name }).from(cronJobs).where(eq(cronJobs.id, id)).limit(1);
   if (!row) throw new HTTPException(404, { message: '任务不存在' });
+  await stopJob(row.id, row.name);
+  await db.delete(cronJobs).where(eq(cronJobs.id, id));
 }
 
 export async function getCronJob(id: number) {
@@ -88,8 +88,8 @@ export async function runCronJob(id: number) {
 export async function setCronJobStatus(id: number, status: 'enabled' | 'disabled') {
   const [row] = await db.update(cronJobs).set({ status }).where(eq(cronJobs.id, id)).returning();
   if (!row) throw new HTTPException(404, { message: '任务不存在' });
-  if (status === 'enabled') scheduleJob(row.id, row.cronExpression, row.handler, row.params);
-  else stopJob(row.id);
+  if (status === 'enabled') await scheduleJob(row.id, row.name, row.cronExpression, row.handler, row.params, { retryCount: row.retryCount, retryDelay: row.retryInterval, retryBackoff: row.retryBackoff, monitorTimeout: row.monitorTimeout });
+  else await stopJob(row.id, row.name);
   return status === 'enabled' ? '已启用' : '已停用';
 }
 

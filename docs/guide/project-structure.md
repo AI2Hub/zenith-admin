@@ -33,7 +33,7 @@ zenith-admin/
 | `session-manager.ts` | Redis 会话管理（在线会话 + 黑名单） |
 | `redis.ts` | ioredis 客户端单例与工具 |
 | `oauth/` | OAuth 提供方抽象（GitHub / 钉钉 / 企业微信） |
-| `cron-scheduler.ts` | 定时任务调度器（基于 node-cron） |
+| `pg-boss-scheduler.ts` | 定时任务调度器（基于 pg-boss，PostgreSQL 多进程安全） |
 | `db-backup.ts` | 基于 pg_dump 的数据库备份 |
 | `file-storage.ts` | 文件存储抽象（本地 / 阿里云 OSS / S3 / COS） |
 | `email.ts` | SMTP 邮件发送 |
