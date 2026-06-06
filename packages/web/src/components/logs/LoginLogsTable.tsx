@@ -107,7 +107,7 @@ export function LoginLogsTable({
               { key: '浏览器', value: detailLog.browser ?? '-' },
               { key: '操作系统', value: detailLog.os ?? '-' },
               { key: 'User-Agent', value: detailLog.userAgent ?? '-', span: 2 },
-              { key: '登录时间', value: formatDateTime(detailLog.createdAt) },
+              { key: '登录时间', value: formatDateTime(detailLog.createdAt), span: 2 },
               ...(detailLog.screenWidth && detailLog.screenHeight ? [
                 { key: '屏幕分辨率', value: [detailLog.screenWidth, ' × ', detailLog.screenHeight, detailLog.devicePixelRatio && detailLog.devicePixelRatio !== '1' ? ` (${detailLog.devicePixelRatio}x)` : ''].join('') },
               ] : []),
