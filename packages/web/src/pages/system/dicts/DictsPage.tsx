@@ -61,6 +61,7 @@ export default function DictsPage() {
   const [itemKeyword, setItemKeyword] = useState('');
   const [itemStatusFilter, setItemStatusFilter] = useState('');  const [expandedRowKeys, setExpandedRowKeys] = useState<(string | number)[]>([]);
   const [itemParentId, setItemParentId] = useState<number | null>(null);
+  const [itemDetailLoading, setItemDetailLoading] = useState(false);
   // metadataStr 仅用于 JsonViewer 的初始值（非受控），提交时通过 ref.getValue() 读取
   const [metadataStr, setMetadataStr] = useState<string>('{}');
   const { items: statusItems } = useDictItems('common_status');
@@ -479,7 +480,21 @@ export default function DictsPage() {
           {hasPermission('system:dict:item') && <Button
             theme="borderless"
             size="small"
-            onClick={() => { setEditingItem(row); setItemParentId(row.parentId ?? null); setMetadataStr(row.metadata ? JSON.stringify(row.metadata, null, 2) : '{}'); setItemModalVisible(true); }}
+            onClick={() => {
+              setEditingItem(row);
+              setItemParentId(row.parentId ?? null);
+              setMetadataStr(row.metadata ? JSON.stringify(row.metadata, null, 2) : '{}');
+              setItemModalVisible(true);
+              // 重新拉取最新数据
+              setItemDetailLoading(true);
+              void request.get<DictItem>(`/api/dicts/${selectedDict!.id}/items/${row.id}`).then((res) => {
+                if (res.code === 0 && res.data) {
+                  setEditingItem(res.data);
+                  setItemParentId(res.data.parentId ?? null);
+                  setMetadataStr(res.data.metadata ? JSON.stringify(res.data.metadata, null, 2) : '{}');
+                }
+              }).finally(() => setItemDetailLoading(false));
+            }}
           >
             编辑
           </Button>}
@@ -630,9 +645,9 @@ export default function DictsPage() {
         onCancel={() => setItemModalVisible(false)}
         onOk={handleItemModalOk}
         width={600}
-
       >
-        <Form
+        <Spin spinning={itemDetailLoading}>
+          <Form
           getFormApi={(api) => itemFormApi.current = api}
           key={editingItem?.id ?? 'new-item'}
           allowEmpty
@@ -668,6 +683,7 @@ export default function DictsPage() {
             />
           </Form.Slot>
         </Form>
+        </Spin>
       </Modal>
     </div>
   );

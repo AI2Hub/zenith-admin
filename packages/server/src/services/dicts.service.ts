@@ -163,6 +163,15 @@ export async function getDict(id: number) {
   return mapDict(row);
 }
 
+export async function getDictItem(dictId: number, itemId: number) {
+  const user = currentUser();
+  const [dict] = await db.select({ id: dicts.id }).from(dicts).where(and(eq(dicts.id, dictId), tenantCondition(dicts, user))).limit(1);
+  if (!dict) throw new HTTPException(404, { message: '字典不存在' });
+  const [row] = await db.select().from(dictItems).where(and(eq(dictItems.id, itemId), eq(dictItems.dictId, dictId))).limit(1);
+  if (!row) throw new HTTPException(404, { message: '字典项不存在' });
+  return mapDictItem(row);
+}
+
 export async function getDictBeforeAudit(id: number) {
   const user = currentUser();
   const tc = tenantCondition(dicts, user);

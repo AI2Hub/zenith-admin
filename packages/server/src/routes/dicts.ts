@@ -18,6 +18,7 @@ import {
   getDictBeforeAudit,
   getDictItemBeforeAudit,
   getDict,
+  getDictItem,
 } from '../services/dicts.service';
 
 const dictsRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -137,6 +138,25 @@ const createItemRoute = defineOpenAPIRoute({
   },
 });
 
+const getItemRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/items/{itemId}', tags: ['Dicts'], summary: '获取字典项详情',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:dict:item' })] as const,
+    request: {
+      params: z.object({
+        id: z.coerce.number().openapi({ param: { name: 'id', in: 'path' }, example: 1, description: '字典 ID' }),
+        itemId: z.coerce.number().openapi({ param: { name: 'itemId', in: 'path' }, example: 1, description: '字典项 ID' }),
+      }),
+    },
+    responses: { ...commonErrorResponses, ...ok(DictItemDTO, '字典项详情') },
+  }),
+  handler: async (c) => {
+    const { id, itemId } = c.req.valid('param');
+    return c.json(okBody(await getDictItem(id, itemId)), 200);
+  },
+});
+
 const updateItemRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'put', path: '/{id}/items/{itemId}', tags: ['Dicts'], summary: '更新字典项',
@@ -194,6 +214,6 @@ const exportRoute = defineOpenAPIRoute({
   },
 });
 
-dictsRouter.openapiRoutes([listDictsRoute, getDictRoute, createDictRoute, updateDictRoute, deleteDictRoute, listItemsRoute, getItemsByCodeRoute, createItemRoute, updateItemRoute, deleteItemRoute, exportRoute] as const);
+dictsRouter.openapiRoutes([listDictsRoute, getDictRoute, createDictRoute, updateDictRoute, deleteDictRoute, listItemsRoute, getItemsByCodeRoute, getItemRoute, createItemRoute, updateItemRoute, deleteItemRoute, exportRoute] as const);
 
 export default dictsRouter;
