@@ -4,11 +4,11 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 function sanitizeChunkName(name: string) {
-  return name.replace(/^@/, '').replace(/[\/]/g, '-');
+  return name.replace(/^@/, '').replaceAll('/', '-');
 }
 
 function getPackageName(id: string) {
-  const packagePath = id.replace(/\\/g, '/').split('/node_modules/').pop();
+  const packagePath = id.replaceAll('\\', '/').split('/node_modules/').pop();
   if (!packagePath) {
     return null;
   }
@@ -88,7 +88,7 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            const normalizedId = id.replace(/\\/g, '/');
+            const normalizedId = id.replaceAll('\\', '/');
 
             if (!normalizedId.includes('node_modules')) {
               return undefined;
