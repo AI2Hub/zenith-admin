@@ -1,6 +1,5 @@
 import React, { useState, useEffect, Suspense, useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Spin } from '@douyinfe/semi-ui';
 import { useAuth } from '@/hooks/useAuth';
 import { PageErrorBoundary } from '@/components/PageErrorBoundary';
 import { useGlobalErrorHandler } from '@/hooks/useGlobalErrorHandler';
@@ -26,7 +25,17 @@ const OAuthCallbackPage = React.lazy(() => import('@/pages/oauth/OAuthCallbackPa
 const OAuth2AuthorizePage = React.lazy(() => import('@/pages/oauth2/OAuth2AuthorizePage'));
 const WorkflowDesignerPage = React.lazy(() => import('@/pages/workflow/designer/WorkflowDesignerPage'));
 
-const routeFallback = <div style={{ padding: 24 }}><Spin /></div>;
+const routeFallback = <div style={{ padding: 24 }}><span className="page-loading__dot" style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--semi-color-primary)' }} /></div>;
+
+const PageLoadingDots = () => (
+  <div className="page-loading">
+    <div className="page-loading__dots">
+      <span className="page-loading__dot" />
+      <span className="page-loading__dot" />
+      <span className="page-loading__dot" />
+    </div>
+  </div>
+);
 
 /** 固定路由路径，不通过菜单动态加载 */
 const FIXED_ROUTES = new Set(['/profile', '/announcements', '/inbox']);
@@ -128,11 +137,7 @@ function AdminRouteLoader({ user, permissions, logout, updateUser }: Readonly<Ad
   const dynamicRoutes = useMemo(() => flattenMenus(menus), [menus]);
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-        <Spin size="large" />
-      </div>
-    );
+    return <PageLoadingDots />;
   }
 
   return (
@@ -191,11 +196,7 @@ export default function App() {
   const { user, permissions, loading, login, register, logout, updateUser } = useAuth();
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-        <Spin size="large" />
-      </div>
-    );
+    return <PageLoadingDots />;
   }
 
   return (
