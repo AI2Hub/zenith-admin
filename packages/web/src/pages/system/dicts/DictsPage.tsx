@@ -16,6 +16,7 @@ import {
   JsonViewer,
   Row,
   Col,
+  Tooltip,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Plus, RotateCcw, MoreHorizontal, BookOpen, ChevronsDownUp, ChevronsUpDown, RefreshCw, Download, Pencil, Trash2 } from 'lucide-react';
@@ -63,6 +64,7 @@ export default function DictsPage() {
   const [itemKeyword, setItemKeyword] = useState('');
   const [itemStatusFilter, setItemStatusFilter] = useState('');  const [expandedRowKeys, setExpandedRowKeys] = useState<(string | number)[]>([]);
   const [itemParentId, setItemParentId] = useState<number | null>(null);
+  const [itemColor, setItemColor] = useState<string | null>(null);
   const [itemDetailLoading, setItemDetailLoading] = useState(false);
   // metadataStr 仅用于 JsonViewer 的初始值（非受控），提交时通过 ref.getValue() 读取
   const [metadataStr, setMetadataStr] = useState<string>('{}');
@@ -297,7 +299,7 @@ export default function DictsPage() {
         throw new Error('invalid metadata json');
       }
     }
-    const payload = { ...values, parentId: itemParentId ?? undefined, metadata };
+    const payload = { ...values, parentId: itemParentId ?? undefined, color: itemColor ?? null, metadata };
     const res = editingItem
       ? await request.put(`/api/dicts/${selectedDict.id}/items/${editingItem.id}`, payload)
       : await request.post(`/api/dicts/${selectedDict.id}/items`, payload);
@@ -459,7 +461,9 @@ export default function DictsPage() {
   );
 
   const itemColumns: ColumnProps<DictItem>[] = [
-    { title: '标签', dataIndex: 'label', width: 160, render: renderEllipsis },
+    { title: '标签', dataIndex: 'label', width: 160, render: (v: string, record: DictItem) =>
+      record.color ? <Tag color={record.color as any} size="small">{v}</Tag> : renderEllipsis(v)
+    },
     { title: '键值', dataIndex: 'value', width: 160, render: renderEllipsis },
     { title: '排序', dataIndex: 'sort', width: 70, align: 'center' },
     { title: '备注', dataIndex: 'remark', width: 200, render: renderEllipsis },
@@ -485,6 +489,7 @@ export default function DictsPage() {
             onClick={() => {
               setEditingItem(row);
               setItemParentId(row.parentId ?? null);
+              setItemColor(row.color ?? null);
               setMetadataStr(row.metadata ? JSON.stringify(row.metadata, null, 2) : '{}');
               setItemModalVisible(true);
               // 重新拉取最新数据
@@ -493,6 +498,7 @@ export default function DictsPage() {
                 if (res.code === 0 && res.data) {
                   setEditingItem(res.data);
                   setItemParentId(res.data.parentId ?? null);
+                  setItemColor(res.data.color ?? null);
                   setMetadataStr(res.data.metadata ? JSON.stringify(res.data.metadata, null, 2) : '{}');
                 }
               }).finally(() => setItemDetailLoading(false));
@@ -568,7 +574,7 @@ export default function DictsPage() {
             <Button
               type="primary"
               icon={<Plus size={14} />}
-              onClick={() => { setEditingItem(null); setItemParentId(null); setMetadataStr('{}'); setItemModalVisible(true); }}
+              onClick={() => { setEditingItem(null); setItemParentId(null); setItemColor(null); setMetadataStr('{}'); setItemModalVisible(true); }}
               disabled={!selectedDict}
             >
               新增
@@ -650,68 +656,96 @@ export default function DictsPage() {
       >
         <Spin spinning={itemDetailLoading}>
           <Form
-          getFormApi={(api) => itemFormApi.current = api}
-          key={editingItem?.id ?? 'new-item'}
-          allowEmpty
-          initValues={editingItem ?? { status: 'enabled', sort: 0 }}
-          labelPosition="left"
-          labelWidth={72}
-        >
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="label" label="标签" placeholder="请输入标签" style={{ width: '100%' }} rules={[{ required: true, message: '请输入标签' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="value" label="键值" placeholder="请输入键值" style={{ width: '100%' }} rules={[{ required: true, message: '请输入键值' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" min={0} style={{ width: '100%' }} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="status" label="状态" style={{ width: '100%' }}
-                optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
-                placeholder="请选择状态"
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Slot label={{ text: '父级' }}>
-                <TreeSelect
-                  treeData={parentSelectorTreeData}
-                  value={itemParentId ?? 0}
-                  onChange={(val) => setItemParentId(val === 0 ? null : (val as number))}
+            getFormApi={(api) => itemFormApi.current = api}
+            key={editingItem?.id ?? 'new-item'}
+            allowEmpty
+            initValues={editingItem ?? { status: 'enabled', sort: 0 }}
+            labelPosition="left"
+            labelWidth={72}
+          >
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="label" label="标签" placeholder="请输入标签" style={{ width: '100%' }} rules={[{ required: true, message: '请输入标签' }]} />
+              </Col>
+              <Col span={12}>
+                <Form.Input field="value" label="键值" placeholder="请输入键值" style={{ width: '100%' }} rules={[{ required: true, message: '请输入键值' }]} />
+              </Col>
+            </Row>
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" min={0} style={{ width: '100%' }} />
+              </Col>
+              <Col span={12}>
+                <Form.Select
+                  field="status"
+                  label="状态"
                   style={{ width: '100%' }}
-                  filterTreeNode
-                  expandAll
+                  optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
+                  placeholder="请选择状态"
                 />
-              </Form.Slot>
-            </Col>
-            <Col span={12}>
-              <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" min={0} style={{ width: '100%' }} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Input field="remark" label="备注" placeholder="请输入备注" style={{ width: '100%' }} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Slot label={{ text: '元数据' }}>
-                <JsonViewer
-                  key={metadataStr}
-                  ref={jsonViewerRef}
-                  value={metadataStr}
-                  height={200}
-                  width="100%"
-                />
-              </Form.Slot>
-            </Col>
-          </Row>
-        </Form>
+              </Col>
+            </Row>
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Slot label={{ text: '父级' }}>
+                  <TreeSelect
+                    treeData={parentSelectorTreeData}
+                    value={itemParentId ?? 0}
+                    onChange={(val) => setItemParentId(val === 0 ? null : (val as number))}
+                    style={{ width: '100%' }}
+                    filterTreeNode
+                    expandAll
+                  />
+                </Form.Slot>
+              </Col>
+              <Col span={12}>
+                <Form.Slot label={{ text: '颜色' }}>
+                  {(() => {
+                    const TAG_COLORS = ['amber', 'blue', 'cyan', 'green', 'grey', 'indigo', 'light-blue', 'light-green', 'lime', 'orange', 'pink', 'purple', 'red', 'teal', 'violet', 'yellow', 'white'];
+                    return (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {TAG_COLORS.map((c) => (
+                          <Tooltip key={c} content={c} position="top">
+                            <Tag
+                              color={c as any}
+                              size="large"
+                              style={{ cursor: 'pointer', outline: itemColor === c ? '2px solid var(--semi-color-primary)' : undefined, outlineOffset: 1 }}
+                              onClick={() => setItemColor(itemColor === c ? null : c)}
+                            >
+                              {'  '}
+                            </Tag>
+                          </Tooltip>
+                        ))}
+                        <Button size="small" type="tertiary" onClick={() => setItemColor(null)}>清空</Button>
+                      </div>
+                    );
+                  })()}
+                </Form.Slot>
+              </Col>
+            </Row>
+
+            <Row gutter={16}>
+              <Col span={24}>
+                <Form.Input field="remark" label="备注" placeholder="请输入备注" style={{ width: '100%' }} />
+              </Col>
+            </Row>
+
+            <Row gutter={16}>
+              <Col span={24}>
+                <Form.Slot label={{ text: '元数据' }}>
+                  <JsonViewer
+                    key={metadataStr}
+                    ref={jsonViewerRef}
+                    value={metadataStr}
+                    height={200}
+                    width="100%"
+                  />
+                </Form.Slot>
+              </Col>
+            </Row>
+          </Form>
         </Spin>
       </Modal>
     </div>

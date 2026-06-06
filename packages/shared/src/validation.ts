@@ -157,7 +157,7 @@ export const updateDictSchema = createDictSchema.partial();
 export const createDictItemSchema = z.object({
   label: z.string().min(1, '标签不能为空').max(64),
   value: z.string().min(1, '键值不能为空').max(64),
-  color: z.string().max(32).optional(),
+  color: z.string().max(32).nullish(),
   sort: z.number().int().default(0),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(256).nullish(),
