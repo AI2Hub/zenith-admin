@@ -952,16 +952,8 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
             type="button"
             className="admin-theme-btn"
             title="我的收藏"
-            style={{ position: 'relative' }}
           >
             <Star size={16} strokeWidth={1.5} />
-            {favorites.length > 0 && (
-              <span style={{
-                position: 'absolute', top: 4, right: 4,
-                width: 6, height: 6, borderRadius: '50%',
-                background: 'var(--semi-color-warning)',
-              }} />
-            )}
           </button>
         </div>
       </Popover>
