@@ -486,6 +486,17 @@ export default function DictsPage() {
             theme="borderless"
             size="small"
             onClick={() => {
+              setEditingItem(null);
+              setItemParentId(row.id);
+              setItemColor(null);
+              setMetadataStr('{}');
+              setItemModalVisible(true);
+            }}
+          >子项</Button>}
+          {hasPermission('system:dict:item') && <Button
+            theme="borderless"
+            size="small"
+            onClick={() => {
               setEditingItem(row);
               setItemParentId(row.parentId ?? null);
               setItemColor(row.color ?? null);
@@ -505,17 +516,6 @@ export default function DictsPage() {
           >
             编辑
           </Button>}
-          {hasPermission('system:dict:item') && <Button
-            theme="borderless"
-            size="small"
-            onClick={() => {
-              setEditingItem(null);
-              setItemParentId(row.id);
-              setItemColor(null);
-              setMetadataStr('{}');
-              setItemModalVisible(true);
-            }}
-          >子项</Button>}
           {hasPermission('system:dict:item') && <Button theme="borderless" size="small" type="danger" onClick={() => {
             Modal.confirm({
               title: '确认删除此字典项？',
