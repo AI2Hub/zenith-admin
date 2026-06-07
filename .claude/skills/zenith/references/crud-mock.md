@@ -2,13 +2,15 @@
 
 本文档适用于需要支持 `VITE_DEMO_MODE=true` 的 Demo 演示场景。当后端不可用时，MSW（Mock Service Worker）拦截所有 API 请求，返回内存中的静态数据。
 
+> **占位符约定**：`xxx` = 小写（表名、API 路径、文件名）；`Xxx` = 大驼峰（TypeScript 类型、组件名）。
+>
 > **仅在用户确认需要 Demo 演示模式时才实现这部分。**
 
 ---
 
 ## 文件清单
 
-```
+```text
 packages/web/src/mocks/
 ├── data/
 │   └── xxxs.ts              # 静态初始数据 + nextId 工具函数

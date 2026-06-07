@@ -1,6 +1,8 @@
-# CRUD 后端实现参考（以「用户管理」为范例）
+# CRUD 后端实现参考（以「xxx管理」为范例）
 
 本文档提供后端各层的代码模板，对照 `packages/server/src/routes/users.ts` 和 `packages/server/src/db/schema.ts` 的实际实现。
+
+> **占位符约定**：`xxx` = 小写（表名、API 路径、文件名）；`Xxx` = 大驼峰（TypeScript 类型、组件名）；替换时请将所有 `xxx`/`Xxx` 替换为实际实体名。
 
 ---
 
