@@ -971,52 +971,37 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                 暂无记录
               </div>
             ) : (
-              <div style={{ overflow: 'auto', maxHeight: 340 }}>
-                {recents.map((menuId) => {
-                  const menu = flatMenus.find((m) => m.id === menuId);
-                  if (!menu) return null;
-                  return (
-                    <div key={menuId} style={{ display: 'flex', alignItems: 'center' }}>
-                      <button
-                        type="button"
-                        onClick={() => navigate(menu.path)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8, flex: 1,
-                          padding: '8px 0 8px 14px', border: 0, background: 'transparent',
-                          cursor: 'pointer', textAlign: 'left', color: 'var(--semi-color-text-0)',
-                          fontSize: 13, minWidth: 0, borderRadius: 0,
-                        }}
-                        onMouseEnter={(e) => { (e.currentTarget.parentElement as HTMLDivElement).style.background = 'var(--semi-color-fill-0)'; }}
-                        onMouseLeave={(e) => { (e.currentTarget.parentElement as HTMLDivElement).style.background = 'transparent'; }}
-                      >
-                        <span style={{ color: 'var(--semi-color-text-2)', flexShrink: 0, display: 'flex' }}>
-                          <Clock size={13} />
-                        </span>
-                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {menu.title}
-                        </span>
-                        <span style={{ fontSize: 11, color: 'var(--semi-color-text-3)', flexShrink: 0, paddingRight: 4 }}>
-                          {menu.breadcrumb.at(-1) ?? ''}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        title="移除记录"
-                        onClick={(e) => { e.stopPropagation(); removeRecent(menu.id); }}
-                        style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          width: 28, height: 28, border: 0, background: 'transparent',
-                          cursor: 'pointer', flexShrink: 0, color: 'var(--semi-color-text-2)',
-                          marginRight: 4,
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--semi-color-danger)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--semi-color-text-2)'; }}
-                      >
-                        <X size={13} />
-                      </button>
-                    </div>
-                  );
-                })}
+              <div style={{ overflow: 'auto', flex: 1 }}>
+                <List
+                  size="small"
+                  dataSource={recents.map((id) => flatMenus.find((m) => m.id === id)).filter(Boolean)}
+                  renderItem={(menu) => (
+                    <List.Item
+                      style={{ padding: '0 4px 0 0' }}
+                      main={
+                        <button
+                          type="button"
+                          onClick={() => navigate(menu!.path)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0 7px 14px', cursor: 'pointer', minWidth: 0, flex: 1, border: 0, background: 'transparent', textAlign: 'left' }}
+                        >
+                          <span style={{ color: 'var(--semi-color-text-2)', display: 'flex', flexShrink: 0 }}><Clock size={13} /></span>
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>{menu!.title}</span>
+                          <span style={{ fontSize: 11, color: 'var(--semi-color-text-3)', flexShrink: 0 }}>{menu!.breadcrumb.at(-1) ?? ''}</span>
+                        </button>
+                      }
+                      extra={
+                        <Button
+                          icon={<X size={13} />}
+                          theme="borderless"
+                          type="tertiary"
+                          size="small"
+                          title="移除记录"
+                          onClick={(e) => { e.stopPropagation(); removeRecent(menu!.id); }}
+                        />
+                      }
+                    />
+                  )}
+                />
               </div>
             )}
           </div>
@@ -1046,55 +1031,39 @@ export default function AdminLayout({ user, onLogout, presetMenus }: AdminLayout
                 暂无收藏，点击面包屑右侧 ⭐ 可收藏当前页
               </div>
             ) : (
-              <div style={{ overflow: 'auto', maxHeight: 320 }}>
-                {favorites.map((menuId) => {
-                  const menu = flatMenus.find((m) => m.id === menuId);
-                  if (!menu) return null;
-                  return (
-                    <div
-                      key={menuId}
-                      style={{ display: 'flex', alignItems: 'center' }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => { navigate(menu.path); }}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8, flex: 1,
-                          padding: '8px 0 8px 14px', border: 0, background: 'transparent',
-                          cursor: 'pointer', textAlign: 'left', color: 'var(--semi-color-text-0)',
-                          fontSize: 13, minWidth: 0, borderRadius: 0,
-                        }}
-                        onMouseEnter={(e) => { (e.currentTarget.parentElement as HTMLDivElement).style.background = 'var(--semi-color-fill-0)'; }}
-                        onMouseLeave={(e) => { (e.currentTarget.parentElement as HTMLDivElement).style.background = 'transparent'; }}
-                      >
-                        <span style={{ color: 'var(--semi-color-warning)', flexShrink: 0, display: 'flex' }}>
-                          <Star size={13} fill="currentColor" strokeWidth={0} />
-                        </span>
-                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {menu.title}
-                        </span>
-                        <span style={{ fontSize: 11, color: 'var(--semi-color-text-3)', flexShrink: 0, paddingRight: 4 }}>
-                          {menu.breadcrumb.at(-1) ?? ''}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        title="移除收藏"
-                        onClick={(e) => { e.stopPropagation(); toggleFavorite(menu.id); }}
-                        style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          width: 28, height: 28, border: 0, background: 'transparent',
-                          cursor: 'pointer', flexShrink: 0, color: 'var(--semi-color-text-2)',
-                          marginRight: 4,
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--semi-color-danger)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--semi-color-text-2)'; }}
-                      >
-                        <X size={13} />
-                      </button>
-                    </div>
-                  );
-                })}
+              <div style={{ overflow: 'auto', flex: 1 }}>
+                <List
+                  size="small"
+                  dataSource={favorites.map((id) => flatMenus.find((m) => m.id === id)).filter(Boolean)}
+                  renderItem={(menu) => (
+                    <List.Item
+                      style={{ padding: '0 4px 0 0' }}
+                      main={
+                        <button
+                          type="button"
+                          onClick={() => { navigate(menu!.path); }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0 7px 14px', cursor: 'pointer', minWidth: 0, flex: 1, border: 0, background: 'transparent', textAlign: 'left' }}
+                        >
+                          <span style={{ color: 'var(--semi-color-warning)', display: 'flex', flexShrink: 0 }}>
+                            <Star size={13} fill="currentColor" strokeWidth={0} />
+                          </span>
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>{menu!.title}</span>
+                          <span style={{ fontSize: 11, color: 'var(--semi-color-text-3)', flexShrink: 0 }}>{menu!.breadcrumb.at(-1) ?? ''}</span>
+                        </button>
+                      }
+                      extra={
+                        <Button
+                          icon={<X size={13} />}
+                          theme="borderless"
+                          type="tertiary"
+                          size="small"
+                          title="移除收藏"
+                          onClick={(e) => { e.stopPropagation(); toggleFavorite(menu!.id); }}
+                        />
+                      }
+                    />
+                  )}
+                />
               </div>
             )}
           </div>
