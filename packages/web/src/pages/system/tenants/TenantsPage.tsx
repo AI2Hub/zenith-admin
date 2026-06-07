@@ -7,12 +7,12 @@ import {
   Modal,
   Form,
   Toast,
-  Tag,
   Row,
   Col,
   Spin,
   SplitButtonGroup,
   Dropdown,
+  Switch,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Plus, RotateCcw, Download, ChevronDown } from 'lucide-react';
@@ -113,6 +113,37 @@ export default function TenantsPage() {
     }
   };
 
+  const [togglingStatusId, setTogglingStatusId] = useState<number | null>(null);
+
+  const handleToggleStatus = useCallback(async (tenant: Tenant, newStatus: 'enabled' | 'disabled') => {
+    if (newStatus === 'disabled') {
+      const confirmed = await new Promise<boolean>((resolve) => {
+        Modal.confirm({
+          title: `确认禁用租户「${tenant.name}」？`,
+          content: '禁用后该租户下的用户将无法登录。',
+          okButtonProps: { type: 'danger', theme: 'solid' },
+          okText: '确认禁用',
+          cancelText: '取消',
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        });
+      });
+      if (!confirmed) return;
+    }
+    setTogglingStatusId(tenant.id);
+    try {
+      const res = await request.put(`/api/tenants/${tenant.id}`, { status: newStatus });
+      if (res.code === 0) {
+        Toast.success(newStatus === 'enabled' ? '已启用' : '已禁用');
+        fetchData();
+      } else {
+        Toast.error(res.message || '操作失败');
+      }
+    } finally {
+      setTogglingStatusId(null);
+    }
+  }, [fetchData]);
+
   const columns: ColumnProps<Tenant>[] = [
     { title: '租户名称', dataIndex: 'name', width: 160, render: renderEllipsis },
     { title: '租户编码', dataIndex: 'code', width: 140, render: renderEllipsis },
@@ -132,10 +163,14 @@ export default function TenantsPage() {
       width: 90,
       align: 'center',
       fixed: 'right',
-      render: (v: string) => (
-        <Tag color={v === 'enabled' ? 'green' : 'red'} type="light">
-          {v === 'enabled' ? '正常' : '停用'}
-        </Tag>
+      render: (v: string, record: Tenant) => (
+        <Switch
+          size="small"
+          checked={v === 'enabled'}
+          loading={togglingStatusId === record.id}
+          disabled={!hasPermission('system:tenant:update')}
+          onChange={(checked: boolean) => void handleToggleStatus(record, checked ? 'enabled' : 'disabled')}
+        />
       ),
     },
     {
