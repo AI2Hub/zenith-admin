@@ -107,7 +107,9 @@ export default function AnnouncementsPage() {
 
   // ─── 查看详情 ─────────────────────────────────────────────────────────────────────────────
   const [viewOnly, setViewOnly] = useState(false);
-  const sideSheetTitle = viewOnly ? '查看公告' : editingNotice ? '编辑公告' : '新增公告';
+  let sideSheetTitle = '新增公告';
+  if (viewOnly) sideSheetTitle = '查看公告';
+  else if (editingNotice) sideSheetTitle = '编辑公告';
 
   // ─── 已读统计 ─────────────────────────────────────────────────────────────────────────────
   const [statsDrawerVisible, setStatsDrawerVisible] = useState(false);
