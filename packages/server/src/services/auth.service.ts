@@ -564,3 +564,11 @@ export async function resetPassword(token: string, newPassword: string) {
     await tx.update(passwordResetTokens).set({ usedAt: now }).where(eq(passwordResetTokens.id, record.id));
   });
 }
+
+export async function verifyMyPassword(password: string) {
+  const userId = currentUser().userId;
+  const [user] = await db.select({ password: users.password }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!user) throw new HTTPException(404, { message: '用户不存在' });
+  const valid = await bcrypt.compare(password, user.password);
+  if (!valid) throw new HTTPException(401, { message: '密码错误' });
+}

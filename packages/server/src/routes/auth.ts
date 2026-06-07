@@ -7,7 +7,7 @@ import { LoginResultDTO, UserProfileDTO, CaptchaDTO, RefreshTokenResultDTO as Re
 import {
   getClientInfo,
   login, register, refreshAccessToken, logoutSession,
-  getMyProfile, updateMyProfile, changeMyPassword,
+  getMyProfile, updateMyProfile, changeMyPassword, verifyMyPassword,
   listMyLoginLogs, listMyOperationLogs, listMySessions, deleteMyOtherSessions, deleteMySession,
   switchTenantView, listSwitchableTenants, forgotPassword, resetPassword,
   getMyPreferences, saveMyPreferences, getMyFavoriteMenus, saveMyFavoriteMenus,
@@ -375,6 +375,20 @@ const saveFavoriteMenusRoute = defineOpenAPIRoute({
   },
 });
 
-auth.openapiRoutes([captchaRoute, loginRoute, registerRoute, refreshRoute, logoutRoute, meRoute, profileRoute, passwordRoute, myLoginLogsRoute, myOperationLogsRoute, mySessionsRoute, deleteOtherSessionsRoute, deleteSessionRoute, switchTenantRoute, authTenantsRoute, forgotPasswordRoute, resetPasswordRoute, getPreferencesRoute, savePreferencesRoute, getFavoriteMenusRoute, saveFavoriteMenusRoute] as const);
+const verifyPasswordRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/verify-password', tags: ['Auth'], summary: '验证当前用户密码',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: { body: { content: jsonContent(z.object({ password: z.string().min(1) })), required: true } },
+    responses: { ...okMsg('验证通过'), ...commonErrorResponses },
+  }),
+  handler: async (c) => {
+    await verifyMyPassword(c.req.valid('json').password);
+    return c.json(okBody(null, '验证通过'), 200);
+  },
+});
+
+auth.openapiRoutes([captchaRoute, loginRoute, registerRoute, refreshRoute, logoutRoute, meRoute, profileRoute, passwordRoute, myLoginLogsRoute, myOperationLogsRoute, mySessionsRoute, deleteOtherSessionsRoute, deleteSessionRoute, switchTenantRoute, authTenantsRoute, forgotPasswordRoute, resetPasswordRoute, getPreferencesRoute, savePreferencesRoute, getFavoriteMenusRoute, saveFavoriteMenusRoute, verifyPasswordRoute] as const);
 
 export default auth;

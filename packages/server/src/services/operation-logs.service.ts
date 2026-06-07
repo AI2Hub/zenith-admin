@@ -167,3 +167,14 @@ export async function exportOperationLogsAsCsv(q: ListOperationLogsQuery = {}): 
   const stream = streamToCsv(EXPORT_COLUMNS, streamExportRows(finalWhere));
   return { stream, filename: 'operation-logs.csv' };
 }
+
+export async function cleanOperationLogs(months: number) {
+  if (months === 0) {
+    const result = await db.delete(operationLogs).returning({ id: operationLogs.id });
+    return result.length;
+  }
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - months);
+  const result = await db.delete(operationLogs).where(lte(operationLogs.createdAt, cutoff)).returning({ id: operationLogs.id });
+  return result.length;
+}

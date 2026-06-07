@@ -1,9 +1,9 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
-import { PaginationQuery, validationHook, commonErrorResponses, ok, okPaginated, okBody, okExcel, excelStreamBody, okCsv, csvStreamBody } from '../lib/openapi-schemas';
+import { PaginationQuery, validationHook, commonErrorResponses, ok, okPaginated, okBody, okExcel, excelStreamBody, okCsv, csvStreamBody, okMsg } from '../lib/openapi-schemas';
 import { OperationLogDTO, OperationLogStatsDTO } from '../lib/openapi-dtos';
-import { listOperationLogs, operationLogStats, exportOperationLogs, exportOperationLogsAsCsv } from '../services/operation-logs.service';
+import { listOperationLogs, operationLogStats, exportOperationLogs, exportOperationLogsAsCsv, cleanOperationLogs } from '../services/operation-logs.service';
 
 const operationLogsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -86,5 +86,22 @@ const exportCsvRoute = defineOpenAPIRoute({
 });
 
 operationLogsRoute.openapiRoutes([listRoute, statsRoute, exportRoute, exportCsvRoute] as const);
+
+const cleanRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/clean', tags: ['OperationLogs'], summary: '清除操作日志',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:log:operation' })] as const,
+    request: { query: z.object({ months: z.coerce.number().int().min(0).default(0) }) },
+    responses: { ...okMsg('清除成功'), ...commonErrorResponses },
+  }),
+  handler: async (c) => {
+    const { months } = c.req.valid('query');
+    const deleted = await cleanOperationLogs(months);
+    return c.json(okBody(null, `共删除 ${deleted} 条操作日志`), 200);
+  },
+});
+
+operationLogsRoute.openapiRoutes([listRoute, statsRoute, exportRoute, exportCsvRoute, cleanRoute] as const);
 
 export default operationLogsRoute;

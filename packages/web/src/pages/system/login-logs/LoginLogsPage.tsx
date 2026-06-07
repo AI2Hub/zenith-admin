@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Input, Button, Select, DatePicker, Tabs, TabPane, SplitButtonGroup, Dropdown } from '@douyinfe/semi-ui';
-import { Search, RotateCcw, Download, ChevronDown } from 'lucide-react';
+import { Input, Button, Select, DatePicker, Tabs, TabPane, SplitButtonGroup, Dropdown, Modal, Toast } from '@douyinfe/semi-ui';
+import { Search, RotateCcw, Download, ChevronDown, Trash2 } from 'lucide-react';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { LoginLogsTable } from '@/components/logs/LoginLogsTable';
@@ -21,6 +21,12 @@ export default function LoginLogsPage() {
   const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportCsvLoading, setExportCsvLoading] = useState(false);
+  const [clearLogsLoading, setClearLogsLoading] = useState(false);
+  const [clearModalVisible, setClearModalVisible] = useState(false);
+  const [clearMonths, setClearMonths] = useState(0);
+  const [clearPassword, setClearPassword] = useState('');
+  const [clearPasswordError, setClearPasswordError] = useState('');
+  const [clearVerifying, setClearVerifying] = useState(false);
   const [total, setTotal] = useState(0);
   const { page, pageSize, setPage, setPageSize, buildPagination } = usePagination();
 
@@ -68,6 +74,40 @@ export default function LoginLogsPage() {
     setSearchParams(defaultParams);
     setPage(1);
     fetchData(1, pageSize, defaultParams);
+  };
+
+  const clearLogsLabels: Record<number, string> = { 0: '全部', 1: '一个月', 3: '三个月', 6: '六个月', 12: '一年' };
+
+  const handleClearLogs = (months: number) => {
+    setClearMonths(months);
+    setClearPassword('');
+    setClearPasswordError('');
+    setClearModalVisible(true);
+  };
+
+  const handleConfirmClear = async () => {
+    if (!clearPassword) { setClearPasswordError('请输入密码'); return; }
+    setClearVerifying(true);
+    try {
+      const verifyRes = await request.post('/api/auth/verify-password', { password: clearPassword });
+      if (verifyRes.code !== 0) { setClearPasswordError('密码错误，请重试'); return; }
+    } catch {
+      setClearPasswordError('密码错误，请重试'); return;
+    } finally {
+      setClearVerifying(false);
+    }
+    setClearModalVisible(false);
+    setClearLogsLoading(true);
+    try {
+      const res = await request.delete(`/api/login-logs/clean?months=${clearMonths}`);
+      if (res.code === 0) {
+        Toast.success(res.message || '清除成功');
+        setPage(1);
+        void fetchData(1, pageSize);
+      }
+    } finally {
+      setClearLogsLoading(false);
+    }
   };
 
   return (
@@ -124,6 +164,25 @@ export default function LoginLogsPage() {
               <Button type="primary" icon={<ChevronDown size={14} />} loading={exportCsvLoading} />
             </Dropdown>
           </SplitButtonGroup>
+          <SplitButtonGroup>
+            <Button type="danger" theme="light" icon={<Trash2 size={14} />} loading={clearLogsLoading} onClick={() => handleClearLogs(1)}>清除日志</Button>
+            <Dropdown
+              trigger="click"
+              position="bottomRight"
+              clickToHide
+              render={(
+                <Dropdown.Menu>
+                  {([1, 3, 6, 12] as const).map((m) => (
+                    <Dropdown.Item key={m} onClick={() => handleClearLogs(m)}>清除{clearLogsLabels[m]}前的日志</Dropdown.Item>
+                  ))}
+                  <Dropdown.Divider />
+                  <Dropdown.Item type="danger" onClick={() => handleClearLogs(0)}>清除全部日志</Dropdown.Item>
+                </Dropdown.Menu>
+              )}
+            >
+              <Button type="danger" theme="light" icon={<ChevronDown size={14} />} />
+            </Dropdown>
+          </SplitButtonGroup>
       </SearchToolbar>
 
           <LoginLogsTable
@@ -140,6 +199,29 @@ export default function LoginLogsPage() {
           </div>
         </TabPane>
       </Tabs>
+      <Modal
+        title={`清除${clearMonths === 0 ? '全部' : clearLogsLabels[clearMonths] + '前的'}登录日志`}
+        visible={clearModalVisible}
+        onCancel={() => setClearModalVisible(false)}
+        okText="确认清除"
+        okButtonProps={{ type: 'danger', loading: clearVerifying }}
+        onOk={handleConfirmClear}
+        maskClosable={false}
+      >
+        <p style={{ marginBottom: 12 }}>
+          此操作将永久删除{clearMonths === 0 ? '所有' : clearLogsLabels[clearMonths] + '前的'}登录日志，不可恢复。
+          <br />请输入您的管理员密码以确认：
+        </p>
+        <Input
+          type="password"
+          placeholder="请输入密码"
+          value={clearPassword}
+          onChange={(v) => { setClearPassword(v); setClearPasswordError(''); }}
+          onEnterPress={handleConfirmClear}
+          validateStatus={clearPasswordError ? 'error' : undefined}
+        />
+        {clearPasswordError && <p style={{ color: 'var(--semi-color-danger)', marginTop: 4, fontSize: 12 }}>{clearPasswordError}</p>}
+      </Modal>
     </div>
   );
 }

@@ -151,3 +151,14 @@ export async function exportLoginLogsAsCsv(): Promise<{ stream: ReadableStream; 
   );
   return { stream, filename: 'login-logs.csv' };
 }
+
+export async function cleanLoginLogs(months: number) {
+  if (months === 0) {
+    const result = await db.delete(loginLogs).returning({ id: loginLogs.id });
+    return result.length;
+  }
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - months);
+  const result = await db.delete(loginLogs).where(lte(loginLogs.createdAt, cutoff)).returning({ id: loginLogs.id });
+  return result.length;
+}
