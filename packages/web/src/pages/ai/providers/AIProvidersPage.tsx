@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Button, Input, Popconfirm, Space, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Input, Modal, Popconfirm, Space, Tag, Toast, Switch } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Search, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
@@ -39,6 +39,31 @@ export default function AIProvidersPage() {
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
   const [editTarget, setEditTarget] = useState<AiProviderConfig | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
+
+  const handleToggleStatus = (record: AiProviderConfig, checked: boolean) => {
+    const doToggle = async () => {
+      setTogglingIds((prev) => new Set(prev).add(record.id));
+      try {
+        await request.put(`/api/ai/providers/${record.id}`, { isEnabled: checked });
+        Toast.success(checked ? '已启用' : '已禁用');
+        void loadData();
+      } catch (err: unknown) {
+        Toast.error((err as { message?: string })?.message || '操作失败');
+      } finally {
+        setTogglingIds((prev) => { const s = new Set(prev); s.delete(record.id); return s; });
+      }
+    };
+    if (checked) {
+      void doToggle();
+    } else {
+      Modal.confirm({
+        title: '确认禁用',
+        content: `禁用后「${record.name}」将无法提供 AI 服务，确认禁用？`,
+        onOk: () => void doToggle(),
+      });
+    }
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -151,11 +176,18 @@ export default function AIProvidersPage() {
       title: '状态',
       dataIndex: 'isEnabled',
       width: 80,
+      fixed: 'right' as const,
       render: (_: unknown, record: TableRow) => {
         if ('_isGroup' in record) return null;
-        return record.isEnabled
-          ? <Tag color="green" size="small">启用</Tag>
-          : <Tag color="grey" size="small">禁用</Tag>;
+        return (
+          <Switch
+            checked={record.isEnabled}
+            loading={togglingIds.has(record.id)}
+            disabled={!hasPermission('ai:provider:edit')}
+            onChange={(checked) => handleToggleStatus(record, checked)}
+            size="small"
+          />
+        );
       },
     },
     {
