@@ -14,6 +14,60 @@ export interface ExcelColumn {
   transform?: (value: unknown) => string;
 }
 
+/** Escape a cell value for CSV output. Wraps in double-quotes when necessary. */
+export function csvEscapeCell(value: unknown): string {
+  if (value == null || typeof value === 'object') return '';
+  const str = `${value as string | number | boolean}`;
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replaceAll('"', '""')}"`;
+  }
+  return str;
+}
+
+/**
+ * Generate a streaming CSV ReadableStream from column definitions and data rows.
+ * Prepends a UTF-8 BOM so Excel opens the file with correct encoding.
+ *
+ * `data` accepts both plain arrays and async iterables (e.g. `batchIterable(...)`).
+ *
+ * @example
+ * const stream = streamToCsv(columns, batchIterable(...));
+ * return csvStreamBody(c, stream, 'report.csv');
+ */
+export function streamToCsv(
+  columns: ExcelColumn[],
+  data: AsyncIterable<Record<string, unknown>> | Iterable<Record<string, unknown>>,
+): ReadableStream {
+  const encoder = new TextEncoder();
+  const headerLine = columns.map((c) => csvEscapeCell(c.header)).join(',') + '\n';
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      // BOM + header
+      controller.enqueue(encoder.encode('\uFEFF' + headerLine));
+      try {
+        const BATCH_SIZE = 500;
+        let batch: string[] = [];
+        for await (const row of data) {
+          batch.push(columns.map((c) => csvEscapeCell(row[c.key])).join(','));
+          if (batch.length >= BATCH_SIZE) {
+            controller.enqueue(encoder.encode(batch.join('\n') + '\n'));
+            batch = [];
+            // Yield to event loop between batches to avoid blocking
+            await new Promise<void>((resolve) => setImmediate(resolve));
+          }
+        }
+        if (batch.length > 0) {
+          controller.enqueue(encoder.encode(batch.join('\n') + '\n'));
+        }
+        controller.close();
+      } catch (err) {
+        controller.error(err);
+      }
+    },
+  });
+}
+
 /** Apply column transforms to a data row, returning a plain object keyed by column key. */
 function applyTransforms(columns: ExcelColumn[], row: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};

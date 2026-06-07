@@ -149,6 +149,28 @@ export function okExcel(description = 'Excel 文件') {
   } as const;
 }
 
+/** CSV 文件下载响应（OpenAPI responses 块） */
+export function okCsv(description = 'CSV 文件') {
+  return {
+    200: {
+      content: {
+        'text/csv; charset=utf-8': {
+          schema: z.string().openapi({ format: 'binary' }),
+        },
+      },
+      description,
+    },
+  } as const;
+}
+
+/** 设置 CSV 响应头并以 ReadableStream 形式返回文件 */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function csvStreamBody(c: Context<any>, stream: ReadableStream, filename: string): never {
+  c.header('Content-Type', 'text/csv; charset=utf-8');
+  c.header('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+  return new Response(stream) as never;
+}
+
 /** 批量 ID 操作请求体（批量删除 / 批量更新等） */
 export const BatchIdsBody = z.object({
   ids: z.array(z.number().int()),
