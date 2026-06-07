@@ -13,6 +13,7 @@ import {
   Row,
   Col,
   Spin,
+  Switch,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Plus, RotateCcw, Search } from 'lucide-react';
@@ -86,6 +87,31 @@ export default function DataMaskPage() {
   const [roleOptions, setRoleOptions] = useState<{ value: string; label: string }[]>([]);
   const [maskTypePreview, setMaskTypePreview] = useState<MaskType>('phone');
   const formRef = useRef<FormApi>(null);
+  const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
+
+  const handleToggleStatus = (record: DataMaskConfig, checked: boolean) => {
+    const doToggle = async () => {
+      setTogglingIds((prev) => new Set(prev).add(record.id));
+      try {
+        await request.put(`/api/data-mask-configs/${record.id}`, { enabled: checked });
+        Toast.success(checked ? '已启用' : '已停用');
+        void fetchData();
+      } catch (err: unknown) {
+        Toast.error((err as { message?: string })?.message || '操作失败');
+      } finally {
+        setTogglingIds((prev) => { const s = new Set(prev); s.delete(record.id); return s; });
+      }
+    };
+    if (checked) {
+      void doToggle();
+    } else {
+      Modal.confirm({
+        title: '确认停用',
+        content: `停用后「${record.label}（${record.entity}.${record.field}）」的脱敏规则将不再生效，确认停用？`,
+        onOk: () => void doToggle(),
+      });
+    }
+  };
 
   const fetchData = useCallback(async (p = page, ps = pageSize, params?: SearchParams) => {
     const params2 = params ?? searchParamsRef.current;
@@ -232,7 +258,15 @@ export default function DataMaskPage() {
     },
     {
       title: '启用状态', dataIndex: 'enabled', width: 90,
-      render: (v: boolean) => <Tag color={v ? 'green' : 'grey'} size="small">{v ? '启用' : '停用'}</Tag>,
+      render: (v: boolean, record: DataMaskConfig) => (
+        <Switch
+          checked={v}
+          loading={togglingIds.has(record.id)}
+          disabled={!hasPermission('system:data-mask:update')}
+          onChange={(checked) => handleToggleStatus(record, checked)}
+          size="small"
+        />
+      ),
     },
     { title: '备注', dataIndex: 'remark', ellipsis: true },
     {
