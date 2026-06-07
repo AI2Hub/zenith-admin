@@ -2,7 +2,7 @@
  * 工作流触发器执行记录
  * 列表 + 详情抽屉，支持按状态 / 实例 ID / 节点 key 过滤
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Input,
@@ -56,21 +56,19 @@ export default function WorkflowTriggerExecutionsPage() {
   const [loading, setLoading] = useState(false);
 
   const [statusInput, setStatusInput] = useState<WorkflowTriggerExecutionStatus | ''>('');
-  const [status, setStatus] = useState<WorkflowTriggerExecutionStatus | ''>('');
   const [instanceIdInput, setInstanceIdInput] = useState<number | undefined>();
-  const [instanceId, setInstanceId] = useState<number | undefined>();
   const [nodeKeyInput, setNodeKeyInput] = useState('');
-  const [nodeKey, setNodeKey] = useState('');
-  const [refreshKey, setRefreshKey] = useState(0);
+  const searchRef = useRef<{ status: WorkflowTriggerExecutionStatus | ''; instanceId: number | undefined; nodeKey: string }>({ status: '', instanceId: undefined, nodeKey: '' });
 
   const [detail, setDetail] = useState<WorkflowTriggerExecution | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (p = page, ps = pageSize) => {
+    const { status, instanceId, nodeKey } = searchRef.current;
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set('page', String(page));
-      params.set('pageSize', String(pageSize));
+      params.set('page', String(p));
+      params.set('pageSize', String(ps));
       if (status) params.set('status', status);
       if (instanceId) params.set('instanceId', String(instanceId));
       if (nodeKey) params.set('nodeKey', nodeKey);
@@ -84,23 +82,24 @@ export default function WorkflowTriggerExecutionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, status, instanceId, nodeKey, refreshKey]);
+  }, [page, pageSize]);
 
   useEffect(() => { void fetchData(); }, [fetchData]);
 
   const handleSearch = () => {
-    setStatus(statusInput);
-    setInstanceId(instanceIdInput);
-    setNodeKey(nodeKeyInput.trim());
+    searchRef.current.status = statusInput;
+    searchRef.current.instanceId = instanceIdInput;
+    searchRef.current.nodeKey = nodeKeyInput.trim();
     setPage(1);
-    setRefreshKey((k) => k + 1);
+    void fetchData(1, pageSize);
   };
   const handleReset = () => {
-    setStatusInput(''); setStatus('');
-    setInstanceIdInput(undefined); setInstanceId(undefined);
-    setNodeKeyInput(''); setNodeKey('');
+    setStatusInput('');
+    setInstanceIdInput(undefined);
+    setNodeKeyInput('');
+    searchRef.current = { status: '', instanceId: undefined, nodeKey: '' };
     setPage(1);
-    setRefreshKey((k) => k + 1);
+    void fetchData(1, pageSize);
   };
 
   const openDetail = async (row: WorkflowTriggerExecution) => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button, Space, Tag, Select, Popconfirm, Toast, Modal, Form } from '@douyinfe/semi-ui';
 import { Search, RotateCcw, Plus } from 'lucide-react';
 import type { DbBackup, BackupType, BackupStatus } from '@zenith/shared';
@@ -16,15 +16,19 @@ export default function DbBackupsPage() {
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterType, setFilterType] = useState<string>('');
+  const filterRef = useRef({ status: '', type: '' });
+  filterRef.current.status = filterStatus;
+  filterRef.current.type = filterType;
   const [createVisible, setCreateVisible] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const { hasPermission } = usePermission();
 
   const fetchList = useCallback(async (p = page, ps = pageSize) => {
+    const { status: fs, type: ft } = filterRef.current;
     setLoading(true);
     const params = new URLSearchParams({ page: String(p), pageSize: String(ps) });
-    if (filterStatus) params.set('status', filterStatus);
-    if (filterType) params.set('type', filterType);
+    if (fs) params.set('status', fs);
+    if (ft) params.set('type', ft);
     const res = await request.get<{ list: DbBackup[]; total: number }>(`/api/db-backups?${params}`);
     setLoading(false);
     if (res.code === 0 && res.data) {
@@ -32,12 +36,18 @@ export default function DbBackupsPage() {
       setTotal(res.data.total);
       setPage(p);
     }
-  }, [page, pageSize, filterStatus, filterType]);
+  }, [page, pageSize]);
 
-  useEffect(() => { fetchList(1); }, [filterStatus, filterType, fetchList]);
+  useEffect(() => { void fetchList(); }, [fetchList]);
 
-  const handleSearch = () => fetchList(1);
-  const handleReset = () => { setFilterStatus(''); setFilterType(''); };
+  const handleSearch = () => { setPage(1); void fetchList(1); };
+  const handleReset = () => {
+    setFilterStatus('');
+    setFilterType('');
+    filterRef.current = { status: '', type: '' };
+    setPage(1);
+    void fetchList(1);
+  };
 
   const handleCreate = async (values: { type: BackupType; name?: string }) => {
     setCreateLoading(true);
