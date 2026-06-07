@@ -21,7 +21,7 @@ export function mapManagedFile(row: typeof managedFiles.$inferSelect) {
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
-import { and, desc, asc, eq, inArray, like, or, gte, lte } from 'drizzle-orm';
+import { and, desc, asc, eq, inArray, like, or, gte, lte, sql } from 'drizzle-orm';
 import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { streamToExcel, formatDateTimeForExcel } from '../lib/excel-export';
@@ -374,4 +374,106 @@ export async function exportManagedFiles(): Promise<{ stream: ReadableStream; fi
     '文件列表',
   );
   return { stream, filename: 'files.xlsx' };
+}
+
+export async function getFileStats() {
+  const user = currentUser();
+  const tc = tenantCondition(managedFiles, user);
+
+  const [
+    summary,
+    allFiles,
+    uploaderRows,
+    monthlyRows,
+  ] = await Promise.all([
+    // 汇总卡片：总数、总大小、图片数、文档数
+    db.select({
+      totalFiles: sql<number>`CAST(COUNT(*) AS int)`,
+      totalSize: sql<number>`CAST(COALESCE(SUM(${managedFiles.size}), 0) AS bigint)`,
+      imageCount: sql<number>`CAST(COUNT(*) FILTER (WHERE ${managedFiles.mimeType} LIKE 'image/%') AS int)`,
+      docCount: sql<number>`CAST(COUNT(*) FILTER (WHERE ${managedFiles.mimeType} LIKE 'text/%' OR ${managedFiles.mimeType} LIKE 'application/pdf%' OR ${managedFiles.mimeType} LIKE '%msword%' OR ${managedFiles.mimeType} LIKE '%wordprocessingml%' OR ${managedFiles.mimeType} LIKE '%spreadsheetml%' OR ${managedFiles.mimeType} LIKE '%presentationml%') AS int)`,
+    }).from(managedFiles).where(tc),
+
+    // 全量文件（用于按类型/provider/大小分区统计）
+    db.select({ mimeType: managedFiles.mimeType, provider: managedFiles.provider, size: managedFiles.size }).from(managedFiles).where(tc),
+
+    // 上传人 Top 10
+    db.select({
+      userId: managedFiles.createdBy,
+      count: sql<number>`CAST(COUNT(*) AS int)`,
+      size: sql<number>`CAST(COALESCE(SUM(${managedFiles.size}), 0) AS bigint)`,
+    }).from(managedFiles).where(tc)
+      .groupBy(managedFiles.createdBy)
+      .orderBy(sql`COUNT(*) DESC`)
+      .limit(10),
+
+    // 近 12 个月每月新增数量
+    db.select({
+      month: sql<string>`to_char(date_trunc('month', ${managedFiles.createdAt}), 'YYYY-MM')`,
+      count: sql<number>`CAST(COUNT(*) AS int)`,
+    }).from(managedFiles)
+      .where(tc ? and(gte(managedFiles.createdAt, sql`NOW() - INTERVAL '12 months'`), tc) : gte(managedFiles.createdAt, sql`NOW() - INTERVAL '12 months'`))
+      .groupBy(sql`date_trunc('month', ${managedFiles.createdAt})`)
+      .orderBy(sql`date_trunc('month', ${managedFiles.createdAt})`),
+  ]);
+
+  // 文件类型分布
+  const typeMap: Record<string, { label: string; count: number; size: number }> = {
+    image: { label: '图片', count: 0, size: 0 },
+    video: { label: '视频', count: 0, size: 0 },
+    audio: { label: '音频', count: 0, size: 0 },
+    document: { label: '文档', count: 0, size: 0 },
+    other: { label: '其他', count: 0, size: 0 },
+  };
+  for (const f of allFiles) {
+    const m = f.mimeType ?? '';
+    const s = f.size ?? 0;
+    if (m.startsWith('image/')) { typeMap.image.count++; typeMap.image.size += s; }
+    else if (m.startsWith('video/')) { typeMap.video.count++; typeMap.video.size += s; }
+    else if (m.startsWith('audio/')) { typeMap.audio.count++; typeMap.audio.size += s; }
+    else if (m.startsWith('text/') || m.includes('pdf') || m.includes('msword') || m.includes('wordprocessingml') || m.includes('spreadsheetml') || m.includes('presentationml')) { typeMap.document.count++; typeMap.document.size += s; }
+    else { typeMap.other.count++; typeMap.other.size += s; }
+  }
+
+  // 存储类型分布
+  const providerMap: Record<string, { count: number; size: number }> = {};
+  for (const f of allFiles) {
+    const p = f.provider;
+    if (!providerMap[p]) providerMap[p] = { count: 0, size: 0 };
+    providerMap[p].count++;
+    providerMap[p].size += f.size ?? 0;
+  }
+
+  // 文件大小区间分布
+  const sizeRanges = [
+    { range: '<1MB', min: 0, max: 1024 * 1024 },
+    { range: '1-10MB', min: 1024 * 1024, max: 10 * 1024 * 1024 },
+    { range: '10-100MB', min: 10 * 1024 * 1024, max: 100 * 1024 * 1024 },
+    { range: '>100MB', min: 100 * 1024 * 1024, max: Infinity },
+  ];
+  const sizeRangeMap: Record<string, number> = {};
+  for (const r of sizeRanges) sizeRangeMap[r.range] = 0;
+  for (const f of allFiles) {
+    const s = f.size ?? 0;
+    for (const r of sizeRanges) {
+      if (s >= r.min && s < r.max) { sizeRangeMap[r.range]++; break; }
+    }
+  }
+
+  // 上传人用户名映射
+  const uploaderIds = uploaderRows.map((r) => r.userId).filter((id): id is number => id !== null);
+  const uploaderUsers = uploaderIds.length > 0
+    ? await db.select({ id: users.id, nickname: users.nickname, username: users.username }).from(users).where(inArray(users.id, uploaderIds))
+    : [];
+  const userMap = new Map(uploaderUsers.map((u) => [u.id, u.nickname || u.username]));
+
+  const s = summary[0] ?? { totalFiles: 0, totalSize: 0, imageCount: 0, docCount: 0 };
+  return {
+    summary: { totalFiles: Number(s.totalFiles), totalSize: Number(s.totalSize), imageCount: Number(s.imageCount), docCount: Number(s.docCount) },
+    typeStats: Object.entries(typeMap).map(([type, v]) => ({ type, label: v.label, count: v.count, size: v.size })),
+    providerStats: Object.entries(providerMap).map(([provider, v]) => ({ provider, count: v.count, size: v.size })).sort((a, b) => b.count - a.count),
+    monthlyStats: monthlyRows.map((r) => ({ month: r.month, count: Number(r.count) })),
+    uploaderStats: uploaderRows.map((r) => ({ username: userMap.get(r.userId ?? 0) ?? '未知', count: Number(r.count), size: Number(r.size) })),
+    sizeRangeStats: sizeRanges.map((r) => ({ range: r.range, count: sizeRangeMap[r.range] })),
+  };
 }

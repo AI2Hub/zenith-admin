@@ -282,6 +282,21 @@ export interface StorageBrowseResult {
   basePath: string;
 }
 
+// ─── File Stats ───────────────────────────────────────────────────────
+export interface FileStats {
+  summary: {
+    totalFiles: number;
+    totalSize: number;
+    imageCount: number;
+    docCount: number;
+  };
+  typeStats: { type: string; label: string; count: number; size: number }[];
+  providerStats: { provider: string; count: number; size: number }[];
+  monthlyStats: { month: string; count: number }[];
+  uploaderStats: { username: string; count: number; size: number }[];
+  sizeRangeStats: { range: string; count: number }[];
+}
+
 // ─── Login Logs ──────────────────────────────────────────
 export interface LoginLog {
   id: number;

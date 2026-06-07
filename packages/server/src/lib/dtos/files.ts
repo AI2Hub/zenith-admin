@@ -35,6 +35,22 @@ export const FileStorageConfigDTO = z
   })
   .openapi('FileStorageConfig');
 
+export const FileStatsDTO = z
+  .object({
+    summary: z.object({
+      totalFiles: z.number().int(),
+      totalSize: z.number().int(),
+      imageCount: z.number().int(),
+      docCount: z.number().int(),
+    }),
+    typeStats: z.array(z.object({ type: z.string(), label: z.string(), count: z.number().int(), size: z.number().int() })),
+    providerStats: z.array(z.object({ provider: z.string(), count: z.number().int(), size: z.number().int() })),
+    monthlyStats: z.array(z.object({ month: z.string(), count: z.number().int() })),
+    uploaderStats: z.array(z.object({ username: z.string(), count: z.number().int(), size: z.number().int() })),
+    sizeRangeStats: z.array(z.object({ range: z.string(), count: z.number().int() })),
+  })
+  .openapi('FileStats');
+
 export const ManagedFileDTO = z
   .object({
     id: z.number().int(),

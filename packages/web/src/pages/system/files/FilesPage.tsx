@@ -14,6 +14,8 @@ import {
   Select,
   Space,
   Spin,
+  Tabs,
+  TabPane,
   Toast,
   Tooltip,
   Typography,
@@ -26,6 +28,7 @@ import { request } from '@/utils/request';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { formatFileSize, getFileTypeIcon, fetchProtectedFile, getFileFullUrl, canPreviewFile } from '@/utils/file-utils';
 import FilePreviewModal from '@/components/FilePreviewModal';
+import FileStatsPanel from './FileStatsPanel';
 import { FileGridCard } from './components/FileGridCard';
 import { config } from '@/config';
 import { usePermission } from '@/hooks/usePermission';
@@ -546,6 +549,9 @@ export default function FilesPage() {
 
   return (
     <div className="page-container">
+      <Tabs defaultActiveKey="list" type="line" style={{ marginBottom: -1 }}>
+        <TabPane tab="文件列表" itemKey="list">
+          <div style={{ paddingTop: 12 }}>
       <SearchToolbar className="files-toolbar">
           <Input
             prefix={<Search size={14} />}
@@ -843,6 +849,14 @@ export default function FilesPage() {
           )}
         </>
       )}
+        </div>
+        </TabPane>
+        <TabPane tab="统计分析" itemKey="stats">
+          <div style={{ paddingTop: 12 }}>
+            <FileStatsPanel />
+          </div>
+        </TabPane>
+      </Tabs>
     </div>
   );
 }
