@@ -1,13 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Button, Col, Form, Input, Modal, Row, Select, Space, Spin, Tag,
-  Toast } from '@douyinfe/semi-ui';
+  Toast, Switch } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, RotateCcw, Search } from 'lucide-react';
 import type { PaginatedResponse, SmsConfig, SmsProvider } from '@zenith/shared';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { request } from '@/utils/request';
-import DictTag from '@/components/DictTag';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
@@ -121,6 +120,40 @@ export default function SmsConfigsPage() {
     });
   };
 
+  const [togglingStatusId, setTogglingStatusId] = useState<number | null>(null);
+
+  const handleToggleStatus = useCallback(async (cfg: SmsConfig, newStatus: 'enabled' | 'disabled') => {
+    if (newStatus === 'disabled') {
+      if (cfg.isDefault) {
+        Toast.warning('默认配置不能禁用，请先将其他配置设为默认');
+        return;
+      }
+      const confirmed = await new Promise<boolean>((resolve) => {
+        Modal.confirm({
+          title: `确认禁用「${cfg.name}」？`,
+          okButtonProps: { type: 'danger', theme: 'solid' },
+          okText: '确认禁用',
+          cancelText: '取消',
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        });
+      });
+      if (!confirmed) return;
+    }
+    setTogglingStatusId(cfg.id);
+    try {
+      const res = await request.put(`/api/sms-configs/${cfg.id}`, { status: newStatus });
+      if (res.code === 0) {
+        Toast.success(newStatus === 'enabled' ? '已启用' : '已禁用');
+        void fetchList();
+      } else {
+        Toast.error(res.message || '操作失败');
+      }
+    } finally {
+      setTogglingStatusId(null);
+    }
+  }, [fetchList]);
+
   const columns = [
     { title: '名称', dataIndex: 'name', width: 160 },
     {
@@ -136,8 +169,16 @@ export default function SmsConfigsPage() {
     },
     createdAtColumn,
     {
-      title: '状态', dataIndex: 'status', width: 90, fixed: 'right' as const,
-      render: (v: string) => <DictTag dictCode="common_status" value={v} />,
+      title: '状态', dataIndex: 'status', width: 90, align: 'center' as const, fixed: 'right' as const,
+      render: (v: string, record: SmsConfig) => (
+        <Switch
+          size="small"
+          checked={v === 'enabled'}
+          loading={togglingStatusId === record.id}
+          disabled={!can('system:sms-config:update')}
+          onChange={(checked: boolean) => void handleToggleStatus(record, checked ? 'enabled' : 'disabled')}
+        />
+      ),
     },
     {
       title: '操作', key: 'actions', width: 200, fixed: 'right' as const,
