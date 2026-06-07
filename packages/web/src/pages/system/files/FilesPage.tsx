@@ -504,6 +504,13 @@ export default function FilesPage() {
       render: (_: string, record: ManagedFile) => renderEllipsis(record.storageName),
     },
     {
+      title: 'MIME 类型',
+      dataIndex: 'mimeType',
+      width: 160,
+      ellipsis: true,
+      render: (v: string | null) => renderEllipsis(v ?? '—'),
+    },
+    {
       title: '大小',
       dataIndex: 'size',
       width: 100,
