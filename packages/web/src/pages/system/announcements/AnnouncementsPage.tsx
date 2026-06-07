@@ -75,7 +75,8 @@ export default function AnnouncementsPage() {
   const { page, pageSize, setPage, setPageSize, buildPagination } = usePagination();
   const defaultSearchParams: SearchParams = { title: '', type: '', publishStatus: '', timeRange: null };
   const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
-  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
+  const searchParamsRef = useRef<SearchParams>(defaultSearchParams);
+  searchParamsRef.current = searchParams;
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingNotice, setEditingNotice] = useState<Announcement | null>(null);
@@ -118,19 +119,20 @@ export default function AnnouncementsPage() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsTab, setStatsTab] = useState<'read' | 'unread'>('read');
 
-  const fetchData = useCallback(async (p = page, ps = pageSize, params = submittedParams) => {
+  const fetchData = useCallback(async (p = page, ps = pageSize, params?: SearchParams) => {
+    const activeParams = params ?? searchParamsRef.current;
     setLoading(true);
     try {
       const query = new URLSearchParams({
         page: String(p),
         pageSize: String(ps),
-        ...(params.title ? { title: params.title } : {}),
-        ...(params.type ? { type: params.type } : {}),
-        ...(params.publishStatus ? { publishStatus: params.publishStatus } : {}),
-        ...(params.timeRange
+        ...(activeParams.title ? { title: activeParams.title } : {}),
+        ...(activeParams.type ? { type: activeParams.type } : {}),
+        ...(activeParams.publishStatus ? { publishStatus: activeParams.publishStatus } : {}),
+        ...(activeParams.timeRange
           ? {
-            startTime: formatDateTimeForApi(params.timeRange[0]),
-            endTime: formatDateTimeForApi(params.timeRange[1]),
+            startTime: formatDateTimeForApi(activeParams.timeRange[0]),
+            endTime: formatDateTimeForApi(activeParams.timeRange[1]),
           }
           : {}),
       }).toString();
@@ -145,28 +147,26 @@ export default function AnnouncementsPage() {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, submittedParams]);
+  }, [page, pageSize]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   useEffect(() => {
-    const handler = () => { void fetchData(page, pageSize, submittedParams); };
+    const handler = () => { void fetchData(); };
     globalThis.addEventListener('announcement:refresh', handler);
     return () => globalThis.removeEventListener('announcement:refresh', handler);
-  }, [fetchData, page, pageSize, submittedParams]);
+  }, [fetchData]);
 
   const handleSearch = () => {
-    setSubmittedParams({ ...searchParams });
     setPage(1);
-    fetchData(1, pageSize, searchParams);
+    fetchData(1, pageSize);
   };
 
   const handleReset = () => {
     const empty = defaultSearchParams;
     setSearchParams(empty);
-    setSubmittedParams(empty);
     setPage(1);
     fetchData(1, pageSize, empty);
   };
@@ -306,7 +306,7 @@ export default function AnnouncementsPage() {
     const res = await request.delete<null>(`/api/announcements/${id}`);
     if (res.code === 0) {
       Toast.success('删除成功');
-      fetchData(page, pageSize, submittedParams);
+      void fetchData();
     }
   };
 
@@ -314,7 +314,7 @@ export default function AnnouncementsPage() {
     const res = await request.put<Announcement>(`/api/announcements/${id}`, { publishStatus: 'published' });
     if (res.code === 0) {
       Toast.success('发布成功');
-      fetchData(page, pageSize, submittedParams);
+      void fetchData();
     }
   };
 
@@ -322,7 +322,7 @@ export default function AnnouncementsPage() {
     const res = await request.put<Announcement>(`/api/announcements/${id}`, { publishStatus: 'recalled' });
     if (res.code === 0) {
       Toast.success('撤回成功');
-      fetchData(page, pageSize, submittedParams);
+      void fetchData();
     }
   };
 
@@ -330,7 +330,7 @@ export default function AnnouncementsPage() {
     const res = await request.put<Announcement>(`/api/announcements/${id}`, { publishStatus: 'draft', publishTime: null });
     if (res.code === 0) {
       Toast.success('已取消定时发布');
-      fetchData(page, pageSize, submittedParams);
+      void fetchData();
     }
   };
 

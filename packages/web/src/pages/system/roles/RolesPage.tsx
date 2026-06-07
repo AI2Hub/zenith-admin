@@ -44,6 +44,8 @@ export default function RolesPage() {
   const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
+  const searchParamsRef = useRef<SearchParams>(defaultSearchParams);
+  searchParamsRef.current = searchParams;
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [total, setTotal] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
@@ -65,16 +67,17 @@ export default function RolesPage() {
   const [dataScopeLoading, setDataScopeLoading] = useState(false);
   const [deptTree, setDeptTree] = useState<Department[]>([]);
 
-  const fetchRoles = useCallback(async (params = searchParams, p = page, ps = pageSize) => {
+  const fetchRoles = useCallback(async (p = page, ps = pageSize, params?: SearchParams) => {
+    const activeParams = params ?? searchParamsRef.current;
     setLoading(true);
     try {
       const query = new URLSearchParams({
-        ...(params.keyword ? { keyword: params.keyword } : {}),
-        ...(params.status ? { status: params.status } : {}),
-        ...(params.timeRange
+        ...(activeParams.keyword ? { keyword: activeParams.keyword } : {}),
+        ...(activeParams.status ? { status: activeParams.status } : {}),
+        ...(activeParams.timeRange
           ? {
-            startTime: formatDateTimeForApi(params.timeRange[0]),
-            endTime: formatDateTimeForApi(params.timeRange[1]),
+            startTime: formatDateTimeForApi(activeParams.timeRange[0]),
+            endTime: formatDateTimeForApi(activeParams.timeRange[1]),
           }
           : {}),
         page: String(p),
@@ -89,7 +92,7 @@ export default function RolesPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchParams, page, pageSize]);
+  }, [page, pageSize]);
 
   useEffect(() => { void fetchRoles(); }, [fetchRoles]);
 
@@ -112,13 +115,13 @@ export default function RolesPage() {
 
   function handleSearch() {
     setPage(1);
-    void fetchRoles(searchParams, 1, pageSize);
+    void fetchRoles(1, pageSize);
   }
 
   function handleReset() {
     setPage(1);
     setSearchParams(defaultSearchParams);
-    void fetchRoles(defaultSearchParams, 1, pageSize);
+    void fetchRoles(1, pageSize, defaultSearchParams);
   }
 
   // 拉取菜单树（用于分配权限）
@@ -358,7 +361,7 @@ export default function RolesPage() {
         loading={loading}
         onRefresh={fetchRoles}
         refreshLoading={loading}
-        pagination={buildPagination(total, (p, ps) => void fetchRoles(searchParams, p, ps))}
+        pagination={buildPagination(total, (p, ps) => void fetchRoles(p, ps))}
       />
 
       {/* 创建/编辑 Modal */}

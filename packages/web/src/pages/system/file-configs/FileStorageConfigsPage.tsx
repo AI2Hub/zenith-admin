@@ -209,6 +209,8 @@ export default function FileStorageConfigsPage() {
   const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
+  const searchParamsRef = useRef<SearchParams>(defaultSearchParams);
+  searchParamsRef.current = searchParams;
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [total, setTotal] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
@@ -218,15 +220,16 @@ export default function FileStorageConfigsPage() {
   const [formIsDefault, setFormIsDefault] = useState(false);
   const [browsingConfig, setBrowsingConfig] = useState<FileStorageConfig | null>(null);
 
-  const fetchConfigs = useCallback(async (params = searchParams, p = page, ps = pageSize) => {
+  const fetchConfigs = useCallback(async (p = page, ps = pageSize, params?: SearchParams) => {
+    const activeParams = params ?? searchParamsRef.current;
     setLoading(true);
     try {
       const query = new URLSearchParams({
-        ...(params.status ? { status: params.status } : {}),
-        ...(params.timeRange
+        ...(activeParams.status ? { status: activeParams.status } : {}),
+        ...(activeParams.timeRange
           ? {
-            startTime: formatDateTimeForApi(params.timeRange[0]),
-            endTime: formatDateTimeForApi(params.timeRange[1]),
+            startTime: formatDateTimeForApi(activeParams.timeRange[0]),
+            endTime: formatDateTimeForApi(activeParams.timeRange[1]),
           }
           : {}),
         page: String(p),
@@ -241,7 +244,7 @@ export default function FileStorageConfigsPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchParams, page, pageSize]);
+  }, [page, pageSize]);
 
   useEffect(() => {
     void fetchConfigs();
@@ -249,13 +252,13 @@ export default function FileStorageConfigsPage() {
 
   const handleSearch = () => {
     setPage(1);
-    void fetchConfigs(searchParams, 1, pageSize);
+    void fetchConfigs(1, pageSize);
   };
 
   const handleReset = () => {
     setPage(1);
     setSearchParams(defaultSearchParams);
-    void fetchConfigs(defaultSearchParams, 1, pageSize);
+    void fetchConfigs(1, pageSize, defaultSearchParams);
   };
 
   const openCreate = () => {
@@ -525,7 +528,7 @@ export default function FileStorageConfigsPage() {
         loading={loading}
         onRefresh={fetchConfigs}
         refreshLoading={loading}
-        pagination={buildPagination(total, (p, ps) => void fetchConfigs(searchParams, p, ps))}
+        pagination={buildPagination(total, (p, ps) => void fetchConfigs(p, ps))}
         size="small"
       />
 
