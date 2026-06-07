@@ -8,7 +8,8 @@ declare global {
       minimize: () => void;
       maximize: () => void;
       close: () => void;
-      isWindowMaximized: () => Promise<boolean>;
+      onMaximizeChange: (cb: (isMaximized: boolean) => void) => void;
+      offMaximizeChange: () => void;
       isElectron: boolean;
     };
   }
@@ -24,16 +25,8 @@ export default function ElectronTitleBar() {
 
   useEffect(() => {
     if (!api) return;
-    // 每次点击按鈕后看起来窗口已变化，穿诺限制结构化克隆的问题。
-    // 通过轮询方式检测最大化状态（每 500ms 刷新一次），避免回调函数跨 contextBridge 边界的序列化错误。
-    let timer: ReturnType<typeof setInterval>;
-    const check = async () => {
-      const maximized = await api.isWindowMaximized();
-      setIsMaximized(maximized);
-    };
-    void check();
-    timer = setInterval(() => { void check(); }, 500);
-    return () => clearInterval(timer);
+    api.onMaximizeChange(setIsMaximized);
+    return () => api.offMaximizeChange();
   }, [api]);
 
   // 非 Electron 环境不渲染
