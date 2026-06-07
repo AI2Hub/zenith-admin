@@ -136,8 +136,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
   const [cropperVisible, setCropperVisible] = useState(false);
   const [cropperSrc, setCropperSrc] = useState('');
   const [cropRotate, setCropRotate] = useState(0);
-  const [avatarLoading, setAvatarLoading] = useState(false);
-
+  const [avatarLoading, setAvatarLoading] = useState(false);  const [presetModalVisible, setPresetModalVisible] = useState(false);
   // ─── 账号安全 ────────────────────────────────────────────────────────────────
   const [pwdLoading, setPwdLoading] = useState(false);
   const [passwordPolicy, setPasswordPolicy] = useState<PasswordPolicy | null>(null);
@@ -376,6 +375,18 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
     avatarInputRef.current?.click();
   }
 
+  async function handleApplyPreset(url: string) {
+    setAvatarLoading(true);
+    setPresetModalVisible(false);
+    const res = await request.put<Omit<UserType, 'password'>>('/api/auth/profile', { avatar: url });
+    setAvatarLoading(false);
+    if (res.code === 0) { onUserUpdate(res.data); Toast.success('头像已更新'); }
+    else Toast.error(res.message ?? '更新失败');
+  }
+
+  // ─── 预设头像 ──────────────────────────────────────────────────────────────
+  const PRESET_AVATARS = Array.from({ length: 12 }, (_, i) => `/avatars/avatar-${String(i + 1).padStart(2, '0')}.svg`);
+
   // ─── 静态配置 ────────────────────────────────────────────────────────────────
 
   const PROVIDER_INFO: Record<OAuthProviderType, { label: string; icon: React.ReactNode }> = {
@@ -424,6 +435,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                           )}
                         </button>
                         <Button size="small" theme="light" loading={avatarLoading} onClick={openAvatarPicker} style={{ width: '100%' }}>更换头像</Button>
+                        <Button size="small" theme="borderless" onClick={() => setPresetModalVisible(true)} style={{ width: '100%' }}>选择预设头像</Button>
                         {user.avatar && (
                           <Button size="small" theme="borderless" type="danger" loading={avatarLoading} onClick={handleRemoveAvatar} style={{ width: '100%' }}>移除头像</Button>
                         )}
@@ -739,6 +751,43 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
 
           </Tabs>
       </div>
+
+      {/* ── 预设头像选择 Modal ─────────────────────────────────────────────── */}
+      <Modal
+        title="选择预设头像"
+        visible={presetModalVisible}
+        onCancel={() => setPresetModalVisible(false)}
+        footer={null}
+        width={460}
+        centered
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: '8px 0 16px' }}>
+          {PRESET_AVATARS.map((url) => (
+            <button
+              key={url}
+              type="button"
+              onClick={() => void handleApplyPreset(url)}
+              style={{
+                border: user.avatar === url ? '2px solid var(--semi-color-primary)' : '2px solid transparent',
+                borderRadius: 8, padding: 4, cursor: 'pointer', background: 'var(--semi-color-fill-0)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'border-color 0.2s, box-shadow 0.2s',
+              }}
+              onMouseEnter={(e) => { if (user.avatar !== url) e.currentTarget.style.borderColor = 'var(--semi-color-primary-light-hover)'; }}
+              onMouseLeave={(e) => { if (user.avatar !== url) e.currentTarget.style.borderColor = 'transparent'; }}
+            >
+              <img
+                src={url}
+                alt="预设头像"
+                width={72}
+                height={72}
+                style={{ borderRadius: 4, display: 'block' }}
+                loading="lazy"
+              />
+            </button>
+          ))}
+        </div>
+      </Modal>
 
       {/* ── 头像裁剪 Modal ──────────────────────────────────────────────────── */}
       <Modal
