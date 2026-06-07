@@ -19,12 +19,12 @@ packages/web/src/pages/xxx/XxxPage.tsx
 ```tsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Button, Form, Input, Select, Space, Spin,
+  Button, Form, Input, Select, Space, Spin, SplitButtonGroup, Dropdown,
   Modal, Toast, Popconfirm,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Search, RotateCcw, Plus, Download, ChevronDown } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { request } from '@/utils/request';
@@ -58,6 +58,8 @@ export default function XxxPage() {
   // ─── 状态 ──────────────────────────────────────────────────────────────
   const [data, setData] = useState<PaginatedResponse<Xxx> | null>(null);
   const [loading, setLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportCsvLoading, setExportCsvLoading] = useState(false);
   const { page, pageSize, setPage, setPageSize, buildPagination } = usePagination();
   const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
   // ⚠️ ref 同步最新搜索参数，避免 fetchXxxs 将 searchParams 放入 deps 导致输入时自动触发搜索
@@ -136,6 +138,25 @@ export default function XxxPage() {
     setSearchParams(defaultSearchParams);
     setPage(1);
     void fetchXxxs(1, pageSize, defaultSearchParams);  // 重置后立即传入默认值
+  }
+
+  // ─── 导出（Excel + CSV）────────────────────────────────────────────────
+  async function handleExportExcel() {
+    setExportLoading(true);
+    try {
+      await request.download('/api/xxxs/export', 'xxx列表.xlsx');
+    } finally {
+      setExportLoading(false);
+    }
+  }
+
+  async function handleExportCsv() {
+    setExportCsvLoading(true);
+    try {
+      await request.download('/api/xxxs/export/csv', 'xxx列表.csv');
+    } finally {
+      setExportCsvLoading(false);
+    }
   }
 
   // ─── 新增 / 编辑 ──────────────────────────────────────────────────────
@@ -300,6 +321,22 @@ export default function XxxPage() {
         />
         <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
         <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+        <SplitButtonGroup>
+          <Button type="primary" icon={<Download size={14} />} loading={exportLoading} onClick={handleExportExcel}>导出</Button>
+          <Dropdown
+            trigger="click"
+            position="bottomRight"
+            clickToHide
+            render={(
+              <Dropdown.Menu>
+                <Dropdown.Item onClick={handleExportExcel}>导出 Excel</Dropdown.Item>
+                <Dropdown.Item onClick={handleExportCsv}>导出 CSV</Dropdown.Item>
+              </Dropdown.Menu>
+            )}
+          >
+            <Button type="primary" icon={<ChevronDown size={14} />} loading={exportCsvLoading} />
+          </Dropdown>
+        </SplitButtonGroup>
         {hasPermission('system:xxx:create') && (
           <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
         )}
@@ -762,3 +799,15 @@ export default function XxxPage() {
 - **不要把 master 的 div 写成 Fragment（`<>`）**：Fragment 无法接受 `height: '100%'`，列表将无高度约束
 - **Tabs 嵌套时不加 `className="tabs-fill-height"`**：会导致 Semi Design 的动画层破坏高度链，列表内容撑满后无滚动
 - **MasterDetailLayout 的 `gap` 默认为 0**：如不需要间距且无边框，保持默认即可
+
+---
+
+## 导出规范（Excel + CSV）
+
+- 若模块需要导出，后端路由默认同时提供：
+  - `GET /api/xxxs/export`（Excel）
+  - `GET /api/xxxs/export/csv`（CSV）
+- 前端导出按钮统一使用 `SplitButtonGroup`：
+  - 主按钮：导出（Excel）
+  - 下拉菜单：导出 Excel / 导出 CSV
+- 若导出需带筛选条件，统一使用“当前提交查询参数”（通常来自 `searchParamsRef.current`）构造 query，避免 stale closure。
