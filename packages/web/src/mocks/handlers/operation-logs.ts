@@ -53,11 +53,17 @@ export const operationLogsHandlers = [
     const username = url.searchParams.get('username') ?? '';
     const module = url.searchParams.get('module') ?? '';
     const ip = url.searchParams.get('ip') ?? '';
+    const minDurationMsRaw = url.searchParams.get('minDurationMs');
+    const maxDurationMsRaw = url.searchParams.get('maxDurationMs');
+    const minDurationMs = minDurationMsRaw === null ? null : Number(minDurationMsRaw);
+    const maxDurationMs = maxDurationMsRaw === null ? null : Number(maxDurationMsRaw);
 
     let list = mockOperationLogs.filter((log) => {
       if (username && log.username && !log.username.includes(username)) return false;
       if (module && log.module && !log.module.includes(module)) return false;
       if (ip && log.ip && !log.ip.includes(ip)) return false;
+      if (minDurationMs !== null && (log.durationMs === null || log.durationMs < minDurationMs)) return false;
+      if (maxDurationMs !== null && (log.durationMs === null || log.durationMs > maxDurationMs)) return false;
       return true;
     });
     const total = list.length;

@@ -69,7 +69,7 @@ export default function OperationLogsPage() {
 
   const handleSearch = () => {
     setPage(1);
-    fetchData(1, pageSize);
+    fetchData(1, pageSize, searchParams);
   };
 
   const handleReset = () => {
