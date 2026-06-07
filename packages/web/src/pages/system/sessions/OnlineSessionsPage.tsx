@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Input,
@@ -29,6 +29,8 @@ export default function OnlineSessionsPage() {
   const [total, setTotal] = useState(0);
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [keyword, setKeyword] = useState('');
+  const keywordRef = useRef('');
+  keywordRef.current = keyword;
 
   // 从本地 JWT 解码当前会话 tokenId（jti），无需额外请求
   const currentTokenId = useMemo<string | null>(() => {
@@ -42,11 +44,12 @@ export default function OnlineSessionsPage() {
     }
   }, []);
 
-  const fetchData = useCallback(async (p = page, ps = pageSize, kw = keyword) => {
+  const fetchData = useCallback(async (p = page, ps = pageSize, kw?: string) => {
+    const activeKw = kw ?? keywordRef.current;
     setLoading(true);
     try {
       const query = new URLSearchParams({ page: String(p), pageSize: String(ps) });
-      if (kw) query.set('keyword', kw);
+      if (activeKw) query.set('keyword', activeKw);
       const res = await request.get<PaginatedResponse<OnlineUser>>(`/api/sessions?${query}`);
       if (res.code === 0) {
         setData(res.data.list);
@@ -55,7 +58,7 @@ export default function OnlineSessionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword]);
+  }, [page, pageSize]);
 
   useEffect(() => {
     void fetchData();

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Card,
@@ -95,12 +95,11 @@ export default function WorkflowMonitorPage() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<MonitorResponse | null>(null);
   const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [keyword, setKeyword] = useState('');
   const [keywordInput, setKeywordInput] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<number | ''>('');
   const [initiatorInput, setInitiatorInput] = useState('');
-  const [initiatorFilter, setInitiatorFilter] = useState('');
+  const searchRef = useRef<{ keyword: string; initiator: string; status: string; categoryId: number | '' }>({ keyword: '', initiator: '', status: '', categoryId: '' });
   const { categories } = useWorkflowCategories();
 
   // 详情弹窗
@@ -109,7 +108,8 @@ export default function WorkflowMonitorPage() {
   const [detailDef, setDetailDef] = useState<WorkflowDefinition | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const fetchList = useCallback(async (p = page, kw = keyword, st = statusFilter, ps = pageSize, cat = categoryFilter, initKw = initiatorFilter) => {
+  const fetchList = useCallback(async (p = page, ps = pageSize) => {
+    const { keyword: kw, status: st, categoryId: cat, initiator: initKw } = searchRef.current;
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(p), pageSize: String(ps) });
@@ -125,32 +125,36 @@ export default function WorkflowMonitorPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, statusFilter, categoryFilter, initiatorFilter]);
+  }, [page, pageSize]);
 
   useEffect(() => {
     void fetchList();
   }, [fetchList]);
 
   const handleSearch = () => {
-    setKeyword(keywordInput);
-    setInitiatorFilter(initiatorInput);
-    void fetchList(1, keywordInput, statusFilter, pageSize, categoryFilter, initiatorInput);
+    searchRef.current.keyword = keywordInput;
+    searchRef.current.initiator = initiatorInput;
+    searchRef.current.status = statusFilter;
+    searchRef.current.categoryId = categoryFilter;
+    setPage(1);
+    void fetchList(1);
   };
 
   const handleReset = () => {
     setKeywordInput('');
-    setKeyword('');
+    setInitiatorInput('');
     setStatusFilter('');
     setCategoryFilter('');
-    setInitiatorInput('');
-    setInitiatorFilter('');
-    void fetchList(1, '', '', pageSize, '', '');
+    searchRef.current = { keyword: '', initiator: '', status: '', categoryId: '' };
+    setPage(1);
+    void fetchList(1);
   };
 
   const handleStatCardClick = (st: string) => {
     const next = statusFilter === st ? '' : st;
     setStatusFilter(next);
-    void fetchList(1, keyword, next, pageSize, categoryFilter, initiatorFilter);
+    searchRef.current.status = next;
+    void fetchList(1);
   };
 
   const openDetail = (item: WorkflowInstance) => {
@@ -301,7 +305,7 @@ export default function WorkflowMonitorPage() {
         onRefresh={() => void fetchList()}
         refreshLoading={loading}
         scroll={{ x: 1100 }}
-        pagination={buildPagination(data?.total ?? 0, (p, ps) => void fetchList(p, keyword, statusFilter, ps, categoryFilter, initiatorFilter))}
+        pagination={buildPagination(data?.total ?? 0, (p, ps) => void fetchList(p, ps))}
       />
 
       {/* 详情弹窗 */}

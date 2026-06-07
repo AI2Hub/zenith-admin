@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Dropdown, Input, Modal, Select, Space, Tag,
   Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -33,14 +33,15 @@ export default function WorkflowDefinitionsPage() {
   const { page, setPage, pageSize, buildPagination } = usePagination();
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState('');
-  const [searchKeyword, setSearchKeyword] = useState('');
-  const [searchStatus, setSearchStatus] = useState('');
-  const [historyTarget, setHistoryTarget] = useState<WorkflowDefinition | null>(null);
-  const [openMoreId, setOpenMoreId] = useState<number | null>(null);
+  const searchRef = useRef({ keyword: '', status: '', selectedCategoryId: null as number | null });
+  searchRef.current.selectedCategoryId = selectedCategoryId;
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const { categories, refetch: refetchCategories } = useWorkflowCategories();
 
-  const fetchList = useCallback(async (p = page, kw = searchKeyword, st = searchStatus, cid = selectedCategoryId) => {
+  const fetchList = useCallback(async (p = page, params?: { keyword?: string; status?: string; selectedCategoryId?: number | null }) => {
+    const kw = params?.keyword ?? searchRef.current.keyword;
+    const st = params?.status ?? searchRef.current.status;
+    const cid = params?.selectedCategoryId !== undefined ? params.selectedCategoryId : searchRef.current.selectedCategoryId;
     setLoading(true);
     try {
       const query = new URLSearchParams({
@@ -58,7 +59,7 @@ export default function WorkflowDefinitionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, searchKeyword, searchStatus, selectedCategoryId]);
+  }, [page, pageSize]);
 
   useEffect(() => {
     void fetchList();
@@ -66,21 +67,24 @@ export default function WorkflowDefinitionsPage() {
 
   const handleSelectCategory = (id: number | null) => {
     setSelectedCategoryId(id);
-    void fetchList(1, searchKeyword, searchStatus, id);
+    searchRef.current.selectedCategoryId = id;
+    void fetchList(1, { selectedCategoryId: id });
   };
 
   const handleSearch = () => {
-    setSearchKeyword(keyword);
-    setSearchStatus(status);
-    void fetchList(1, keyword, status);
+    searchRef.current.keyword = keyword;
+    searchRef.current.status = status;
+    setPage(1);
+    void fetchList(1);
   };
 
   const handleReset = () => {
     setKeyword('');
     setStatus('');
-    setSearchKeyword('');
-    setSearchStatus('');
-    void fetchList(1, '', '');
+    searchRef.current.keyword = '';
+    searchRef.current.status = '';
+    setPage(1);
+    void fetchList(1, { keyword: '', status: '' });
   };
 
   const handlePublish = async (record: WorkflowDefinition) => {

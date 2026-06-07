@@ -233,7 +233,8 @@ export default function MyApplicationsPage() {
   const [data, setData] = useState<PaginatedResponse<WorkflowInstance> | null>(null);
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [statusFilter, setStatusFilter] = useState('');
-  const [searchStatus, setSearchStatus] = useState('');
+  const statusFilterRef = useRef('');
+  statusFilterRef.current = statusFilter;
   const [detailVisible, setDetailVisible] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [applyVisible, setApplyVisible] = useState(false);
@@ -243,13 +244,14 @@ export default function MyApplicationsPage() {
   const [applyCategoryId, setApplyCategoryId] = useState<number | null>(null);
   const { categories } = useWorkflowCategories();
 
-  const fetchList = useCallback(async (p = page, st = searchStatus, ps = pageSize) => {
+  const fetchList = useCallback(async (p = page, ps = pageSize, overrideStatus?: string) => {
+    const activeStatus = overrideStatus ?? statusFilterRef.current;
     setLoading(true);
     try {
       const query = new URLSearchParams({
         page: String(p),
         pageSize: String(ps),
-        ...(st ? { status: st } : {}),
+        ...(activeStatus ? { status: activeStatus } : {}),
       }).toString();
       const res = await request.get<PaginatedResponse<WorkflowInstance>>(`/api/workflows/instances?${query}`);
       if (res.code === 0) {
@@ -259,7 +261,7 @@ export default function MyApplicationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, searchStatus]);
+  }, [page, pageSize]);
 
   useEffect(() => {
     void fetchList();
@@ -271,14 +273,14 @@ export default function MyApplicationsPage() {
   };
 
   const handleSearch = () => {
-    setSearchStatus(statusFilter);
-    void fetchList(1, statusFilter);
+    setPage(1);
+    void fetchList(1);
   };
 
   const handleReset = () => {
     setStatusFilter('');
-    setSearchStatus('');
-    void fetchList(1, '');
+    setPage(1);
+    void fetchList(1, pageSize, '');
   };
 
   const openDetail = (id: number) => {
@@ -389,7 +391,7 @@ export default function MyApplicationsPage() {
         dataSource={data?.list ?? []}
         rowKey="id"
         loading={loading}
-        pagination={buildPagination(data?.total ?? 0, (p, ps) => void fetchList(p, searchStatus, ps))}
+        pagination={buildPagination(data?.total ?? 0, (p, ps) => void fetchList(p, ps))}
         onRefresh={() => void fetchList()}
         refreshLoading={loading}
       />
