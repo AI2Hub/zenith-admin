@@ -513,13 +513,13 @@ export default function UsersPage() {
         </Space>
       ),
     },
-    createdAtColumn,
     {
       title: '最近登录',
       dataIndex: 'lastLoginAt',
-      width: 160,
+      width: 180,
       render: (v: string | null | undefined) => v ?? '—',
     },
+    createdAtColumn,
     {
       title: '状态',
       dataIndex: 'status',
