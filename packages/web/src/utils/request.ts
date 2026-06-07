@@ -6,6 +6,8 @@ import { config } from '@/config';
 export interface RequestOptions {
   /** 静默模式：为 true 时不自动弹出错误提示，由调用方自行处理 */
   silent?: boolean;
+  /** 跳过 401 自动刷新/跳转：为 true 时 401 直接返回响应体，不触发 token 刷新或退出登录（用于密码校验等场景） */
+  skipAuth?: boolean;
 }
 
 class Request {
@@ -59,7 +61,7 @@ class Request {
   }
 
   async request<T>(url: string, options: RequestInit & RequestOptions = {}): Promise<ApiResponse<T>> {
-    const { silent, ...fetchOptions } = options;
+    const { silent, skipAuth, ...fetchOptions } = options;
     let res: Response;
     try {
       res = await fetch(`${this.baseUrl}${url}`, {
@@ -73,6 +75,15 @@ class Request {
     }
 
     if (res.status === 401) {
+      // skipAuth=true 时直接解析响应体返回，不触发刷新/跳转（用于密码校验等场景）
+      if (skipAuth) {
+        try {
+          const data: ApiResponse<T> = await res.json();
+          return data;
+        } catch {
+          return { code: 401, message: '密码错误', data: null as unknown as T };
+        }
+      }
       // Try refresh token before giving up
       const refreshed = await this.tryRefreshToken();
       if (refreshed) {

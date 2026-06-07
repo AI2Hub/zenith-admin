@@ -89,7 +89,7 @@ export default function LoginLogsPage() {
     if (!clearPassword) { setClearPasswordError('请输入密码'); return; }
     setClearVerifying(true);
     try {
-      const verifyRes = await request.post('/api/auth/verify-password', { password: clearPassword });
+      const verifyRes = await request.post('/api/auth/verify-password', { password: clearPassword }, { skipAuth: true });
       if (verifyRes.code !== 0) { setClearPasswordError('密码错误，请重试'); return; }
     } catch {
       setClearPasswordError('密码错误，请重试'); return;
@@ -172,7 +172,7 @@ export default function LoginLogsPage() {
               clickToHide
               render={(
                 <Dropdown.Menu>
-                  {([1, 3, 6, 12] as const).map((m) => (
+                  {([12, 6, 3, 1] as const).map((m) => (
                     <Dropdown.Item key={m} onClick={() => handleClearLogs(m)}>清除{clearLogsLabels[m]}前的日志</Dropdown.Item>
                   ))}
                   <Dropdown.Divider />

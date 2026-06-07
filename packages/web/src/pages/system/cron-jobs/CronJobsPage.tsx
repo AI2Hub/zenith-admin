@@ -613,24 +613,27 @@ export default function CronJobsPage() {
             optionList={data.map((job) => ({ value: job.id, label: job.name }))}
           />
           {hasPermission('system:cronjob:delete') && (
-            <Dropdown
-              trigger="click"
-              position="bottomRight"
-              clickToHide
-              render={
-                <Dropdown.Menu>
-                  {([1, 3, 6, 12] as const).map((m) => (
-                    <Dropdown.Item key={m} onClick={() => handleClearLogs(m, null)}>
-                      清除{clearLogsLabels[m]}前的日志
-                    </Dropdown.Item>
-                  ))}
-                  <Dropdown.Divider />
-                  <Dropdown.Item type="danger" onClick={() => handleClearLogs(0, null)}>清除全部日志</Dropdown.Item>
-                </Dropdown.Menu>
-              }
-            >
-              <Button icon={<Trash2 size={14} />} type="danger" theme="light" loading={clearLogsLoading}>清除日志</Button>
-            </Dropdown>
+            <SplitButtonGroup>
+              <Button icon={<Trash2 size={14} />} type="danger" theme="light" loading={clearLogsLoading} onClick={() => handleClearLogs(12, null)}>清除日志</Button>
+              <Dropdown
+                trigger="click"
+                position="bottomRight"
+                clickToHide
+                render={
+                  <Dropdown.Menu>
+                    {([12, 6, 3, 1] as const).map((m) => (
+                      <Dropdown.Item key={m} onClick={() => handleClearLogs(m, null)}>
+                        清除{clearLogsLabels[m]}前的日志
+                      </Dropdown.Item>
+                    ))}
+                    <Dropdown.Divider />
+                    <Dropdown.Item type="danger" onClick={() => handleClearLogs(0, null)}>清除全部日志</Dropdown.Item>
+                  </Dropdown.Menu>
+                }
+              >
+                <Button type="danger" theme="light" icon={<ChevronDown size={14} />} />
+              </Dropdown>
+            </SplitButtonGroup>
           )}
         </div>
         <Table
@@ -707,24 +710,27 @@ export default function CronJobsPage() {
       >
         {hasPermission('system:cronjob:delete') && (
           <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-end' }}>
-            <Dropdown
-              trigger="click"
-              position="bottomRight"
-              clickToHide
-              render={
-                <Dropdown.Menu>
-                  {([1, 3, 6, 12] as const).map((m) => (
-                    <Dropdown.Item key={m} onClick={() => handleClearLogs(m, logsJobId)}>
-                      清除{clearLogsLabels[m]}前的日志
-                    </Dropdown.Item>
-                  ))}
-                  <Dropdown.Divider />
-                  <Dropdown.Item type="danger" onClick={() => handleClearLogs(0, logsJobId)}>清除全部日志</Dropdown.Item>
-                </Dropdown.Menu>
-              }
-            >
-              <Button icon={<Trash2 size={14} />} type="danger" theme="light" loading={clearLogsLoading}>清除日志</Button>
-            </Dropdown>
+            <SplitButtonGroup>
+              <Button icon={<Trash2 size={14} />} type="danger" theme="light" loading={clearLogsLoading} onClick={() => handleClearLogs(12, logsJobId)}>清除日志</Button>
+              <Dropdown
+                trigger="click"
+                position="bottomRight"
+                clickToHide
+                render={
+                  <Dropdown.Menu>
+                    {([12, 6, 3, 1] as const).map((m) => (
+                      <Dropdown.Item key={m} onClick={() => handleClearLogs(m, logsJobId)}>
+                        清除{clearLogsLabels[m]}前的日志
+                      </Dropdown.Item>
+                    ))}
+                    <Dropdown.Divider />
+                    <Dropdown.Item type="danger" onClick={() => handleClearLogs(0, logsJobId)}>清除全部日志</Dropdown.Item>
+                  </Dropdown.Menu>
+                }
+              >
+                <Button type="danger" theme="light" icon={<ChevronDown size={14} />} />
+              </Dropdown>
+            </SplitButtonGroup>
           </div>
         )}
         <Table
