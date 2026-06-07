@@ -5,7 +5,7 @@ import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErro
 import { WorkflowDefinitionDTO, WorkflowDefinitionVersionDTO } from '../lib/openapi-dtos';
 import {
   listDefinitions, listPublishedDefinitions, getDefinition, createDefinition,
-  updateDefinition, publishDefinition, disableDefinition, deleteDefinition, getWorkflowDefinitionBeforeAudit,
+  updateDefinition, publishDefinition, disableDefinition, enableDefinition, deleteDefinition, getWorkflowDefinitionBeforeAudit,
   listVersions, restoreVersion,
 } from '../services/workflow-definitions.service';
 
@@ -137,6 +137,28 @@ const disableRoute = defineOpenAPIRoute({
   },
 });
 
+const enableRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/enable', tags: ['WorkflowDefinitions'], summary: '启用流程',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:definition:publish', audit: { description: '启用流程定义', module: '工作流管理' } })] as const,
+    request: { params: IdParam },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(WorkflowDefinitionDTO, '启用成功'),
+      400: { content: jsonContent(ErrorResponse), description: '参数错误' },
+      404: { content: jsonContent(ErrorResponse), description: '不存在' },
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const before = await getWorkflowDefinitionBeforeAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    const r = await enableDefinition(id);
+    return c.json(okBody(r, '启用成功'), 200);
+  },
+});
+
 const deleteRouteDef = defineOpenAPIRoute({
   route: createRoute({
     method: 'delete', path: '/{id}', tags: ['WorkflowDefinitions'], summary: '删除流程',
@@ -200,6 +222,6 @@ const restoreVersionRoute = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([listRoute, publishedRoute, detailRoute, createRouteDef, updateRouteDef, publishRoute, disableRoute, deleteRouteDef, listVersionsRoute, restoreVersionRoute] as const);
+router.openapiRoutes([listRoute, publishedRoute, detailRoute, createRouteDef, updateRouteDef, publishRoute, disableRoute, enableRoute, deleteRouteDef, listVersionsRoute, restoreVersionRoute] as const);
 
 export default router;

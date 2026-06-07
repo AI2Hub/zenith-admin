@@ -104,6 +104,14 @@ export default function WorkflowDefinitionsPage() {
     }
   };
 
+  const handleEnable = async (record: WorkflowDefinition) => {
+    const res = await request.post(`/api/workflows/definitions/${record.id}/enable`, {});
+    if (res.code === 0) {
+      Toast.success('已启用');
+      void fetchList();
+    }
+  };
+
   const handleDelete = async (id: number) => {
     const res = await request.delete(`/api/workflows/definitions/${id}`);
     if (res.code === 0) {
@@ -196,6 +204,15 @@ export default function WorkflowDefinitionsPage() {
                 onOk: () => handleDisable(record),
               });
             }}>禁用</Button>
+          )}
+          {record.status === 'disabled' && hasPermission('workflow:definition:publish') && (
+            <Button theme="borderless" size="small" type="primary" onClick={() => {
+              Modal.confirm({
+                title: '确定启用此流程？',
+                content: '启用后该流程将恢复为已发布状态，可正常发起申请。',
+                onOk: () => handleEnable(record),
+              });
+            }}>启用</Button>
           )}
           <Dropdown
             trigger="custom"

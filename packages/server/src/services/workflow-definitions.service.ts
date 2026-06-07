@@ -272,6 +272,13 @@ export async function disableDefinition(id: number) {
   return mapDefinition(updated);
 }
 
+export async function enableDefinition(id: number) {
+  const where = and(findDefinition(id), eq(workflowDefinitions.status, 'disabled'));
+  const [updated] = await db.update(workflowDefinitions).set({ status: 'published' }).where(where).returning();
+  if (!updated) throw new HTTPException(400, { message: '流程定义不存在或不处于禁用状态' });
+  return mapDefinition(updated);
+}
+
 export async function deleteDefinition(id: number) {
   const where = findDefinition(id);
   const [existing] = await db.select().from(workflowDefinitions).where(where).limit(1);
