@@ -20,7 +20,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Plus, RotateCcw, Download, Trash2, ChevronDown, Users } from 'lucide-react';
-import type { Position, PaginatedResponse } from '@zenith/shared';
+import type { Position, PaginatedResponse, Department } from '@zenith/shared';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import DictTag from '@/components/DictTag';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -66,6 +66,7 @@ export default function PositionsPage() {
 
   // 成员管理
   const [allUsers, setAllUsers] = useState<UserTransferUser[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [memberSheetVisible, setMemberSheetVisible] = useState(false);
   const [memberPosition, setMemberPosition] = useState<Position | null>(null);
   const [memberIds, setMemberIds] = useState<number[]>([]);
@@ -95,7 +96,6 @@ export default function PositionsPage() {
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize]);
 
   useEffect(() => {
@@ -104,10 +104,12 @@ export default function PositionsPage() {
 
   useEffect(() => {
     void (async () => {
-      const res = await request.get<UserTransferUser[]>('/api/users/all');
-      if (res.code === 0) {
-        setAllUsers(res.data);
-      }
+      const [uRes, dRes] = await Promise.all([
+        request.get<UserTransferUser[]>('/api/users/all'),
+        request.get<Department[]>('/api/departments/flat'),
+      ]);
+      if (uRes.code === 0) setAllUsers(uRes.data);
+      if (dRes.code === 0) setDepartments(Array.isArray(dRes.data) ? dRes.data : []);
     })();
   }, []);
 
@@ -466,6 +468,7 @@ export default function PositionsPage() {
             dataSource={allUsers}
             value={memberIds}
             onChange={setMemberIds}
+            departments={departments}
           />
         )}
       </SideSheet>

@@ -483,6 +483,7 @@ export default function UserGroupsPage() {
             dataSource={allUsers}
             value={memberIds}
             onChange={setMemberIds}
+            departments={departments}
           />
         )}
       </SideSheet>
