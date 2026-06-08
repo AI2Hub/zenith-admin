@@ -3,6 +3,7 @@ import { Button, Space, Tag, Select, Popconfirm, Toast, Modal, Form } from '@dou
 import { Search, RotateCcw, Plus } from 'lucide-react';
 import type { DbBackup, BackupType, BackupStatus } from '@zenith/shared';
 import { request } from '@/utils/request';
+import { AppModal } from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -182,7 +183,7 @@ export default function DbBackupsPage() {
         pagination={buildPagination(total, fetchList)}
       />
 
-      <Modal
+      <AppModal
         title="创建备份"
         visible={createVisible}
         onCancel={() => setCreateVisible(false)}
@@ -209,7 +210,7 @@ export default function DbBackupsPage() {
             </div>
           </Form.Slot>
         </Form>
-      </Modal>
+      </AppModal>
     </div>
   );
 }

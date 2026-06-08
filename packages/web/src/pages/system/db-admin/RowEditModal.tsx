@@ -194,7 +194,7 @@ export function RowEditModal(props: Readonly<Props>): JSX.Element {
   const restCols = columns.filter((c) => !c.isPrimaryKey);
 
   return (
-    <Modal
+    <AppModal
       visible={open}
       title={mode === 'create' ? `新增行 · ${schema}.${table}` : `编辑行 · ${schema}.${table}`}
       onCancel={onClose}
@@ -224,6 +224,6 @@ export function RowEditModal(props: Readonly<Props>): JSX.Element {
         {pkCols.map(renderField)}
         {restCols.map(renderField)}
       </Form>
-    </Modal>
+    </AppModal>
   );
 }

@@ -53,6 +53,7 @@ import { request } from '@/utils/request';
 import { usePermission } from '@/hooks/usePermission';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
+import { AppModal } from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
 import { RowEditModal } from './RowEditModal';
 import { EditableCell } from './EditableCell';
@@ -1787,7 +1788,7 @@ export default function DbAdminPage() {
       </SideSheet>
 
       {/* 保存 / 编辑收藏对话框 */}
-      <Modal
+      <AppModal
         title={editFav ? '编辑收藏' : '收藏 SQL'}
         visible={saveFavOpen}
         onCancel={() => { setSaveFavOpen(false); setEditFav(null); }}
@@ -1830,7 +1831,7 @@ export default function DbAdminPage() {
             <Button type="primary" htmlType="submit" loading={saveFavLoading}>保存</Button>
           </Space>
         </Form>
-      </Modal>
+      </AppModal>
     </div>
   );
 }
