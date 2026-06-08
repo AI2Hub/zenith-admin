@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 import { PDFViewer, ZoomMode } from '@embedpdf/react-pdf-viewer';
 import type { PDFViewerRef, PluginRegistry } from '@embedpdf/react-pdf-viewer';
 import { Button, Select, Typography } from '@douyinfe/semi-ui';
-import { FileText, X } from 'lucide-react';
+import { FileText, Maximize2, Minimize2, X } from 'lucide-react';
 import { useThemeController } from '@/providers/theme-controller';
 
 const { Text } = Typography;
@@ -27,10 +27,12 @@ function cssVar(name: string, fallback: string): string {
 interface PDFPreviewPanelProps {
   readonly file: File;
   readonly onClose: () => void;
+  readonly fullscreen?: boolean;
+  readonly onToggleFullscreen?: () => void;
   readonly style?: CSSProperties;
 }
 
-export function PDFPreviewPanel({ file, onClose, style }: PDFPreviewPanelProps) {
+export function PDFPreviewPanel({ file, onClose, fullscreen, onToggleFullscreen, style }: PDFPreviewPanelProps) {
   const viewerRef = useRef<PDFViewerRef>(null);
   const registryRef = useRef<PluginRegistry | null>(null);
   const { isDark } = useThemeController();
@@ -176,6 +178,15 @@ export function PDFPreviewPanel({ file, onClose, style }: PDFPreviewPanelProps) 
           style={{ width: 96, flexShrink: 0 }}
           optionList={ZOOM_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
         />
+        {onToggleFullscreen && (
+          <Button
+            theme="borderless"
+            size="small"
+            icon={fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            style={{ flexShrink: 0, color: 'var(--semi-color-text-2)' }}
+            onClick={onToggleFullscreen}
+          />
+        )}
         <Button
           theme="borderless"
           size="small"

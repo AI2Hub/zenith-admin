@@ -219,15 +219,18 @@ export default function FilePreviewModal({
         onCancel={handleClose}
         title={null}
         footer={null}
+        fullScreen={fullscreen}
         width="min(1100px, 92vw)"
         style={{ top: '4vh' }}
-        bodyStyle={{ padding: 0, height: '88vh', display: 'flex', overflow: 'hidden' }}
+        bodyStyle={{ padding: 0, display: 'flex', overflow: 'hidden', height: fullscreen ? '100%' : '88vh' }}
         closable={false}
         keepDOM={false}
       >
         <PDFPreviewPanel
           file={pdfFile}
           onClose={handleClose}
+          fullscreen={fullscreen}
+          onToggleFullscreen={toggleFullscreen}
           style={{ width: '100%', borderLeft: 'none' }}
         />
       </Modal>
