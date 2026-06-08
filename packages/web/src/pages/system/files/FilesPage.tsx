@@ -316,7 +316,7 @@ export default function FilesPage() {
 
   const handlePreview = async (file: ManagedFile) => {
     const isImage = file.mimeType?.startsWith('image/');
-    const isPreviewable = canPreviewFile(file.mimeType, file.originalName);
+    const isPreviewable = canPreviewFile(file.mimeType);
 
     if (!isPreviewable && !isImage) {
       try {
@@ -537,7 +537,7 @@ export default function FilesPage() {
       width: 180,
       align: 'center',
       render: (_: unknown, record: ManagedFile) => {
-        const isPreviewable = canPreviewFile(record.mimeType, record.originalName);
+        const isPreviewable = canPreviewFile(record.mimeType);
         return (
         <Space>
           <Button theme="borderless" size="small" loading={downloadLoadingId === record.id} onClick={() => handleDownload(record)}>下载</Button>

@@ -70,7 +70,7 @@ export default function FilePreviewModal({
     const isPdf = mimeType === 'application/pdf';
     const isAudio = mimeType.startsWith('audio/');
     const isVideo = mimeType.startsWith('video/');
-    const isSpreadsheet = isSpreadsheetFile(mimeType, fileName);
+    const isSpreadsheet = isSpreadsheetFile(mimeType);
 
     if (!isImage && !isPdf && !isAudio && !isVideo && !isSpreadsheet) {
       onFallback?.(fileUrl, fileName, mimeType);
