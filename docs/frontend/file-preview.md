@@ -1,6 +1,6 @@
 # 文件预览组件
 
-`FilePreviewModal` 是全站统一的文件预览弹窗，支持图片、PDF、音频、视频和 Excel 电子表格五种格式。调用方只需传入文件元数据，无需自行判断格式或引入额外组件。
+`FilePreviewModal` 是全站统一的文件预览弹窗，支持图片、PDF、音频、视频、Excel 电子表格和 Word 文档六种格式。调用方只需传入文件元数据，无需自行判断格式或引入额外组件。
 
 **文件位置**：`packages/web/src/components/FilePreviewModal/index.tsx`
 
@@ -15,8 +15,11 @@
 | 音频 | `audio/*` | Semi Design `AudioPlayer` | 否 |
 | 视频 | `video/*` | Semi Design `VideoPlayer` | 否 |
 | Excel | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | Univer 开源版只读渲染（`ExcelPreviewPanel`，懒加载） | **是** |
+| Word | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | `docx-preview` 渲染为 HTML（`DocxPreviewPanel`，懒加载） | 否 |
 
 > **图片**不在 `FilePreviewModal` 内部渲染。遇到 `image/*` 时组件会立即调用 `onClose` 并回退，由调用方自行打开 `ImagePreview`。
+>
+> **Word** 仅支持 `.docx`（OOXML 格式），旧版 `.doc`（二进制格式）不支持预览。
 
 ---
 
@@ -101,6 +104,36 @@ const isPreviewable = canPreviewFile(record.mimeType);
 
 同样通过 `fetchProtectedFile` 下载 Blob，创建 `Object URL` 传给 Semi Design `AudioPlayer` / `VideoPlayer`，关闭时主动调用 `URL.revokeObjectURL` 释放内存。
 
+### Word（.docx）
+
+通过 `fetchProtectedFile(fileUrl)` 携带 Bearer Token 下载 Blob，**懒加载** `DocxPreviewPanel` 后直接将 Blob 交给 `docx-preview` 的 `renderAsync()` 在浏览器端渲染为 HTML。整个过程**无需后端转换**。
+
+`DocxPreviewPanel`（`packages/web/src/components/DocxPreviewPanel.tsx`）关键配置：
+
+```text
+renderAsync(blob, container, undefined, {
+  inWrapper: true,       // 每页包裹独立容器
+  breakPages: true,      // 显示分页
+  renderHeaders: true,   // 渲染页眉
+  renderFooters: true,   // 渲染页脚
+  renderFootnotes: true, // 渲染脚注
+  renderEndnotes: true,  // 渲染尾注
+})
+```
+
+**限制**：
+
+- 仅支持 `.docx`（OOXML），不支持旧版 `.doc`
+- 字体若本地无对应字体，降级到系统默认字体
+- 宏、嵌入对象、复杂 VBA 不渲染
+- 弹窗宽度 `min(960px, 92vw)`，高度 `90vh`，内容区独立滚动
+
+**依赖**（`packages/web`）：
+
+```text
+docx-preview（最新版）
+```
+
 ### Excel（.xlsx）
 
 Excel 预览分为**后端转换**和**前端渲染**两个阶段，后端零新依赖（复用项目内置 `exceljs`）：
@@ -161,14 +194,17 @@ fWorkbook.setEditable(false)   // 设为只读，禁止编辑
 
 ## 判断工具函数
 
-`packages/web/src/utils/file-utils.tsx` 提供两个辅助函数：
+`packages/web/src/utils/file-utils.tsx` 提供三个辅助函数：
 
 ```ts
-/** 判断是否支持预览（覆盖 image / audio / video / PDF / xlsx） */
+/** 判断是否支持预览（覆盖 image / audio / video / PDF / xlsx / docx） */
 canPreviewFile(mimeType: string | null | undefined): boolean
 
 /** 判断是否为 xlsx 表格（仅内部使用） */
 isSpreadsheetFile(mimeType?: string | null): boolean
+
+/** 判断是否为 docx 文档（仅内部使用） */
+isWordFile(mimeType?: string | null): boolean
 ```
 
 ---

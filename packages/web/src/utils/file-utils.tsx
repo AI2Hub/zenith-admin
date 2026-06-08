@@ -72,13 +72,19 @@ export function canPreviewFile(mimeType: string | null | undefined): boolean {
     mimeType.startsWith('audio/') ||
     mimeType.startsWith('video/') ||
     mimeType === 'application/pdf' ||
-    isSpreadsheetFile(mimeType)
+    isSpreadsheetFile(mimeType) ||
+    isWordFile(mimeType)
   );
 }
 
 /** 判断是否为可预览的 Excel(.xlsx) 表格 */
 export function isSpreadsheetFile(mimeType?: string | null): boolean {
   return !!mimeType?.toLowerCase().includes('spreadsheetml');
+}
+
+/** 判断是否为可预览的 Word(.docx) 文档（仅 OOXML 格式，不含旧版 .doc） */
+export function isWordFile(mimeType?: string | null): boolean {
+  return mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 }
 
 /** 使用当前登录 token 获取受保护的文件内容，返回 Blob */
