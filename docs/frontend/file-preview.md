@@ -182,8 +182,6 @@ isSpreadsheetFile(mimeType?: string | null): boolean
 | 文件附件 | `FileAttachment` | `AttachmentItem.file.id` |
 | 消息中心 | `ChatPage` | `ChatAssetMeta.fileId`（发送时从 upload-one 响应写入） |
 
-> 聊天页面的历史消息（`fileId` 为空）不支持 xlsx 在线预览，点击时不会打开弹窗。新发送的文件消息会自动携带 `fileId`，可正常预览。
-
 ---
 
 ## 新页面接入
