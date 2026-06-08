@@ -1,0 +1,131 @@
+/**
+ * Markdown 预览面板样式。
+ * 适配 Semi Design 的亮色/暗色主题，使用 CSS 变量保持一致性。
+ */
+
+/* ── 外层滚动容器 ── */
+.md-preview-body {
+  background: var(--semi-color-bg-0);
+}
+
+/* ── 内容宽度限制，居中显示 ── */
+.md-preview-content {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 32px 40px 48px;
+  color: var(--semi-color-text-0);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+/* ── 标题 ── */
+.md-preview-content h1,
+.md-preview-content h2,
+.md-preview-content h3,
+.md-preview-content h4,
+.md-preview-content h5,
+.md-preview-content h6 {
+  color: var(--semi-color-text-0);
+  font-weight: 600;
+  margin: 1.5em 0 0.5em;
+  line-height: 1.4;
+}
+.md-preview-content h1 { font-size: 1.75em; border-bottom: 1px solid var(--semi-color-border); padding-bottom: 0.3em; }
+.md-preview-content h2 { font-size: 1.4em; border-bottom: 1px solid var(--semi-color-border); padding-bottom: 0.2em; }
+.md-preview-content h3 { font-size: 1.15em; }
+
+/* ── 段落与链接 ── */
+.md-preview-content p { margin: 0.75em 0; }
+.md-preview-content a { color: var(--semi-color-primary); text-decoration: none; }
+.md-preview-content a:hover { text-decoration: underline; }
+
+/* ── 代码块 ── */
+.md-preview-content pre {
+  background: var(--semi-color-fill-0) !important;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 6px;
+  padding: 16px;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+.md-preview-content pre code {
+  background: transparent !important;
+  color: inherit;
+  font-size: 0.88em;
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  padding: 0;
+}
+
+/* ── 行内代码（排除 pre 内的 code）── */
+.md-preview-content code:not(pre code) {
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-danger);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.88em;
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+}
+
+/* ── 暗色模式下代码块用 github-dark.css，已在 tsx 中导入 ── */
+.md-preview-body--dark .md-preview-content pre {
+  background: #161b22 !important;
+  border-color: #30363d;
+}
+
+/* ── 引用 ── */
+.md-preview-content blockquote {
+  border-left: 4px solid var(--semi-color-primary-light-default);
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  color: var(--semi-color-text-2);
+  background: var(--semi-color-fill-0);
+  border-radius: 0 4px 4px 0;
+}
+.md-preview-content blockquote p { margin: 0; }
+
+/* ── 表格 ── */
+.md-preview-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+.md-preview-content th,
+.md-preview-content td {
+  border: 1px solid var(--semi-color-border);
+  padding: 8px 12px;
+  text-align: left;
+}
+.md-preview-content th {
+  background: var(--semi-color-fill-0);
+  font-weight: 600;
+}
+.md-preview-content tr:nth-child(even) td {
+  background: var(--semi-color-fill-0);
+}
+
+/* ── 列表 ── */
+.md-preview-content ul,
+.md-preview-content ol {
+  padding-left: 1.5em;
+  margin: 0.75em 0;
+}
+.md-preview-content li { margin: 0.25em 0; }
+
+/* ── 任务列表（GFM）── */
+.md-preview-content input[type='checkbox'] {
+  margin-right: 6px;
+  accent-color: var(--semi-color-primary);
+}
+
+/* ── 分割线 ── */
+.md-preview-content hr {
+  border: none;
+  border-top: 1px solid var(--semi-color-border);
+  margin: 1.5em 0;
+}
+
+/* ── 图片 ── */
+.md-preview-content img {
+  max-width: 100%;
+  border-radius: 4px;
+}

@@ -73,7 +73,8 @@ export function canPreviewFile(mimeType: string | null | undefined): boolean {
     mimeType.startsWith('video/') ||
     mimeType === 'application/pdf' ||
     isSpreadsheetFile(mimeType) ||
-    isWordFile(mimeType)
+    isWordFile(mimeType) ||
+    isMarkdownFile(mimeType)
   );
 }
 
@@ -85,6 +86,11 @@ export function isSpreadsheetFile(mimeType?: string | null): boolean {
 /** 判断是否为可预览的 Word(.docx) 文档（仅 OOXML 格式，不含旧版 .doc） */
 export function isWordFile(mimeType?: string | null): boolean {
   return mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+}
+
+/** 判断是否为可预览的 Markdown 文件 */
+export function isMarkdownFile(mimeType?: string | null): boolean {
+  return mimeType === 'text/markdown' || mimeType === 'text/x-markdown';
 }
 
 /** 使用当前登录 token 获取受保护的文件内容，返回 Blob */

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { Modal, Spin, Toast, AudioPlayer, VideoPlayer } from '@douyinfe/semi-ui';
 import { useThemeController } from '@/providers/theme-controller';
-import { fetchProtectedFile, isSpreadsheetFile, isWordFile } from '@/utils/file-utils';
+import { fetchProtectedFile, isSpreadsheetFile, isWordFile, isMarkdownFile } from '@/utils/file-utils';
 import { PDFPreviewPanel } from '@/pages/ai/chat/PDFPreviewPanel';
 import { request } from '@/utils/request';
 import type { IWorkbookData } from '@univerjs/presets';
@@ -11,6 +11,8 @@ import type { CSSProperties } from 'react';
 const ExcelPreviewPanel = lazy(() => import('@/components/ExcelPreviewPanel'));
 // docx-preview 懒加载，避免影响首屏
 const DocxPreviewPanel = lazy(() => import('@/components/DocxPreviewPanel'));
+// react-markdown 懒加载
+const MarkdownPreviewPanel = lazy(() => import('@/components/MarkdownPreviewPanel'));
 
 interface FilePreviewModalProps {
   fileUrl: string;
@@ -40,6 +42,7 @@ export default function FilePreviewModal({
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [sheetData, setSheetData] = useState<IWorkbookData | null>(null);
   const [docxBlob, setDocxBlob] = useState<Blob | null>(null);
+  const [markdownText, setMarkdownText] = useState<string | null>(null);
   const { isDark } = useThemeController();
   const abortRef = useRef<AbortController | null>(null);
 
@@ -62,6 +65,7 @@ export default function FilePreviewModal({
       setVideoUrl(null);
       setSheetData(null);
       setDocxBlob(null);
+      setMarkdownText(null);
       return;
     }
 
@@ -76,8 +80,9 @@ export default function FilePreviewModal({
     const isVideo = mimeType.startsWith('video/');
     const isSpreadsheet = isSpreadsheetFile(mimeType);
     const isWord = isWordFile(mimeType);
+    const isMarkdown = isMarkdownFile(mimeType);
 
-    if (!isImage && !isPdf && !isAudio && !isVideo && !isSpreadsheet && !isWord) {
+    if (!isImage && !isPdf && !isAudio && !isVideo && !isSpreadsheet && !isWord && !isMarkdown) {
       onFallback?.(fileUrl, fileName, mimeType);
       onClose();
       return;
@@ -104,6 +109,11 @@ export default function FilePreviewModal({
         const blob = await fetchProtectedFile(fileUrl);
         if (isWord) {
           setDocxBlob(blob);
+          return;
+        }
+        if (isMarkdown) {
+          const text = await blob.text();
+          setMarkdownText(text);
           return;
         }
         if (isPdf) {
@@ -222,6 +232,32 @@ export default function FilePreviewModal({
           }
         >
           <DocxPreviewPanel blob={docxBlob} fileName={fileName} onClose={handleClose} />
+        </Suspense>
+      </Modal>
+    );
+  }
+
+  if (markdownText !== null) {
+    return (
+      <Modal
+        visible
+        onCancel={handleClose}
+        title={null}
+        footer={null}
+        width="min(900px, 92vw)"
+        style={{ top: '3vh' }}
+        bodyStyle={{ padding: 0, height: '90vh', display: 'flex', overflow: 'hidden' }}
+        closable={false}
+        keepDOM={false}
+      >
+        <Suspense
+          fallback={
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+              <Spin size="large" tip="加载预览组件..." />
+            </div>
+          }
+        >
+          <MarkdownPreviewPanel content={markdownText} fileName={fileName} onClose={handleClose} />
         </Suspense>
       </Modal>
     );
