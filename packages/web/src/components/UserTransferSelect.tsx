@@ -158,7 +158,7 @@ export function UserTransferSelect({
   );
 
   // ─── 扁平模式过滤 ─────────────────────────────────────────────
-  const filter = (input: string, item: TransferDataItem) => {
+  const filter = (input: string, item: { _username?: string; label?: string; _departmentName?: string | null; [key: string]: unknown }) => {
     const q = input.toLowerCase();
     return (
       item._username.toLowerCase().includes(q) ||
@@ -280,7 +280,6 @@ export function UserTransferSelect({
           value={viewMode}
           onChange={(e) => setViewMode((e as React.ChangeEvent<HTMLInputElement>).target.value as ViewMode)}
           type="button"
-          size="small"
         >
           <Radio value="flat">列表</Radio>
           <Radio value="tree">部门树</Radio>

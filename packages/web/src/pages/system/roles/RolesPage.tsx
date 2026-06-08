@@ -19,7 +19,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Plus, RotateCcw, Download, MoreHorizontal, ChevronDown } from 'lucide-react';
-import type { Role, Menu, Department, PaginatedResponse } from '@zenith/shared';
+import type { Role, Menu, Department, PaginatedResponse, User } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
 import type { UserTransferUser } from '@/components/UserTransferSelect';
