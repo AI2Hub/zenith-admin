@@ -3,7 +3,6 @@ import {
   Button,
   Card,
   Form,
-  Modal,
   Popconfirm,
   Space,
   Tag,
@@ -16,6 +15,7 @@ import { Gauge, Lock, RotateCcw, ShieldOff, Unlock, Zap } from 'lucide-react';
 import { request } from '@/utils/request';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import {
   CartesianGrid,
@@ -280,7 +280,7 @@ export default function RateLimitPage() {
         ]}
       />
 
-      <Modal
+      <AppModal
         title={editing ? `编辑限流规则：${editing.name}` : ''}
         visible={editing !== null}
         onCancel={() => setEditing(null)}
@@ -310,7 +310,7 @@ export default function RateLimitPage() {
             <Form.Input field="blockedMessage" label="拦截提示文案" placeholder="为空使用默认提示" />
           </Form>
         )}
-      </Modal>
+      </AppModal>
     </div>
   );
 }

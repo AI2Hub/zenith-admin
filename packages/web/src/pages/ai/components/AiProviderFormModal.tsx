@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Col, Form, Modal, Row, Spin, Toast } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Spin, Toast } from '@douyinfe/semi-ui';
 import type { AiProvider, AiProviderConfig, UserAiConfig } from '@zenith/shared';
 import { request } from '@/utils/request';
+import { AppModal } from '@/components/AppModal';
 
 const PROVIDER_OPTIONS: { value: AiProvider; label: string }[] = [
   { value: 'openai_compatible', label: 'OpenAI Compatible' },
@@ -244,7 +245,7 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
   };
 
   return (
-    <Modal
+    <AppModal
       title={title}
       visible={visible}
       onCancel={onClose}
@@ -355,6 +356,6 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
           />
         </Form>
       )}
-    </Modal>
+    </AppModal>
   );
 }
