@@ -15,6 +15,7 @@
 | 音频 | `audio/*` | Semi Design `AudioPlayer` | 否 |
 | 视频 | `video/*` | Semi Design `VideoPlayer` | 否 |
 | Excel | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | Univer 开源版只读渲染（`ExcelPreviewPanel`，懒加载） | **是** |
+| CSV | `text/csv` / `application/csv` | 后端解析转为 IWorkbookData，前端 Univer 渲染（同 Excel 路径） | **是** |
 | Word | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | `docx-preview` 渲染为 HTML（`DocxPreviewPanel`，懒加载） | 否 |
 | Markdown | `text/markdown` / `text/x-markdown` | `react-markdown` 渲染（`MarkdownPreviewPanel`，懒加载） | 否 |
 | 纯文本 | `text/plain` | `<pre>` 原文本展示（复用 `MarkdownPreviewPanel`，`rawText=true`） | 否 |
@@ -190,7 +191,19 @@ Excel 预览分为**后端转换**和**前端渲染**两个阶段，后端零新
 | 公式 | 显示缓存计算值，不重算 |
 | 图表 / 条件格式 / 数据透视 | 不支持 |
 
-**转换器文件**：`packages/server/src/lib/xlsx-to-univer.ts`
+**转换器文件**：`packages/server/src/lib/xlsx-to-univer.ts`（Excel）、`packages/server/src/lib/csv-to-univer.ts`（CSV）
+
+**共同限制**：
+
+| 参数 | 上限 |
+| --- | --- |
+| 文件大小（xlsx） | 10 MB |
+| 工作表数量（xlsx） | 20 张 |
+| 单表行数 | 2000 行 |
+| 单表列数 | 200 列 |
+| CSV 样式 | 无（纯文本） |
+| xlsx 公式 | 显示缓存计算値 |
+| xlsx 图表 / 条件格式 / 数据透视 | 不支持 |
 
 #### 前端：Univer 只读渲染
 
@@ -234,10 +247,10 @@ fWorkbook.setEditable(false)   // 设为只读，禁止编辑
 `packages/web/src/utils/file-utils.tsx` 提供四个辅助函数：
 
 ```ts
-/** 判断是否支持预览（覆盖 image / audio / video / PDF / xlsx / docx / markdown） */
+/** 判断是否支持预览（覆盖 image / audio / video / PDF / xlsx / csv / docx / markdown / text）*/
 canPreviewFile(mimeType: string | null | undefined): boolean
 
-/** 判断是否为 xlsx 表格（仅内部使用） */
+/** 判断是否为可预览的表格（xlsx 或 csv） */
 isSpreadsheetFile(mimeType?: string | null): boolean
 
 /** 判断是否为 docx 文档（仅内部使用） */
