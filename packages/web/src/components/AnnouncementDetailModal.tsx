@@ -99,7 +99,6 @@ export default function AnnouncementDetailModal({
       footer={footer}
       closeOnEsc
       maskClosable={!loading}
-      destroyOnClose
     >
       <Spin spinning={loading} tip="加载中..." size="small">
         {announcement && (
