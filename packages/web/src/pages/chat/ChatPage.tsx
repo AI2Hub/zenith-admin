@@ -20,7 +20,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { request } from '@/utils/request';
 import { formatDateTime, formatConvTime, formatDateTimeForApi } from '@/utils/date';
-import { formatFileSize, getFileTypeIcon, fetchProtectedFile, canPreviewFile } from '@/utils/file-utils';
+import { formatFileSize, getFileTypeIcon, fetchProtectedFile, canPreviewFile, isSpreadsheetFile } from '@/utils/file-utils';
 import FilePreviewModal from '@/components/FilePreviewModal';
 import type {
   ChatConversation, ChatMessage, WsMessage, ChatLinkPreview, ChatAssetMeta, ChatMessageExtra,
@@ -2375,6 +2375,18 @@ export default function ChatPage({
                           onOpenFilePreview={(fileMsg) => {
                             const asset = fileMsg.extra?.asset;
                             if (!asset || !canPreviewFile(asset.mimeType)) return;
+                            // xlsx 历史消息无 fileId，退化为下载避免报错
+                            if (isSpreadsheetFile(asset.mimeType) && !asset.fileId) {
+                              void fetchProtectedFile(fileMsg.content).then((blob) => {
+                                const objectUrl = globalThis.URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = objectUrl;
+                                link.download = asset.name ?? '文件.xlsx';
+                                link.click();
+                                globalThis.setTimeout(() => globalThis.URL.revokeObjectURL(objectUrl), 60_000);
+                              }).catch(() => Toast.error('文件下载失败'));
+                              return;
+                            }
                             setFilePreview({
                               url: fileMsg.content,
                               name: asset.name ?? '文件',
