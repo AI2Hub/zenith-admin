@@ -8,10 +8,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
+  Col,
   Form,
   Input,
-  Modal,
   Popconfirm,
+  Row,
   Select,
   Space,
   Spin,
@@ -366,19 +367,36 @@ export default function WorkflowAutomationsPage() {
         width={780}
       >
         <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form<FormValues> getFormApi={(api) => (formApi.current = api)} onSubmit={handleSubmit} labelPosition="top">
-          <Form.Select
-            field="definitionId" label="所属流程" filter
-            rules={[{ required: true, message: '请选择所属流程' }]}
-            optionList={defOptions}
-          />
-          <Form.Input field="name" label="规则名称" maxLength={64} rules={[{ required: true, message: '请输入规则名称' }]} />
-          <Form.Select field="trigger" label="触发时机" rules={[{ required: true }]} optionList={TRIGGER_OPTIONS} />
-          <Form.Select field="status" label="状态" optionList={[
-            { value: 'enabled', label: '启用' },
-            { value: 'disabled', label: '禁用' },
-          ]} />
-          <Form.InputNumber field="sort" label="排序（越小越先执行）" min={0} max={9999} />
+        <Form<FormValues> getFormApi={(api) => (formApi.current = api)} onSubmit={handleSubmit} labelPosition="left" labelWidth={80}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input field="name" label="规则名称" maxLength={64} rules={[{ required: true, message: '请输入规则名称' }]} />
+            </Col>
+            <Col span={12}>
+              <Form.Select
+                field="definitionId" label="所属流程" filter
+                style={{ width: '100%' }}
+                rules={[{ required: true, message: '请选择所属流程' }]}
+                optionList={defOptions}
+              />
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Select field="trigger" label="触发时机" style={{ width: '100%' }} rules={[{ required: true }]} optionList={TRIGGER_OPTIONS} />
+            </Col>
+            <Col span={12}>
+              <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={[
+                { value: 'enabled', label: '启用' },
+                { value: 'disabled', label: '禁用' },
+              ]} />
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.InputNumber field="sort" label="排序" style={{ width: '100%' }} min={0} max={9999} helpText="越小越先执行" />
+            </Col>
+          </Row>
         </Form>
 
         <Typography.Title heading={6} style={{ marginTop: 16 }}>动作列表</Typography.Title>
