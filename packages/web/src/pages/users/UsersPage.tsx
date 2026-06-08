@@ -1133,6 +1133,7 @@ export default function UsersPage() {
           onUpdated={(updated) => {
             setData((prev) => prev ? { ...prev, list: prev.list.map((u) => (u.id === updated.id ? updated : u)) } : prev);
             setAvatarUser(updated);
+            globalThis.dispatchEvent(new CustomEvent('auth:user-updated', { detail: updated }));
           }}
         />
       )}
