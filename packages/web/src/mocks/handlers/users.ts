@@ -31,6 +31,11 @@ function toUserResponse(user: MockUser) {
 }
 
 export const usersHandlers = [
+  // 全量用户（供下拉/穿梭框使用）
+  http.get('/api/users/all', () => {
+    return HttpResponse.json({ code: 0, message: 'ok', data: mockUsers.map(toUserResponse) });
+  }),
+
   // 用户列表（分页）
   http.get('/api/users', ({ request }) => {
     const url = new URL(request.url);

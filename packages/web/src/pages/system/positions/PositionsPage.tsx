@@ -13,7 +13,6 @@ import {
   Switch,
   Toast,
   SideSheet,
-  Transfer,
   Empty,
   Tag,
   Avatar,
@@ -26,6 +25,8 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import DictTag from '@/components/DictTag';
 import { useDictItems } from '@/hooks/useDictItems';
 import { request } from '@/utils/request';
+import { UserTransferSelect } from '@/components/UserTransferSelect';
+import type { UserTransferUser } from '@/components/UserTransferSelect';
 import { formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -64,7 +65,7 @@ export default function PositionsPage() {
   const { items: statusItems } = useDictItems('common_status');
 
   // 成员管理
-  const [allUsers, setAllUsers] = useState<Array<{ id: number; username: string; nickname: string }>>([]);
+  const [allUsers, setAllUsers] = useState<UserTransferUser[]>([]);
   const [memberSheetVisible, setMemberSheetVisible] = useState(false);
   const [memberPosition, setMemberPosition] = useState<Position | null>(null);
   const [memberIds, setMemberIds] = useState<number[]>([]);
@@ -103,7 +104,7 @@ export default function PositionsPage() {
 
   useEffect(() => {
     void (async () => {
-      const res = await request.get<Array<{ id: number; username: string; nickname: string }>>('/api/users/all');
+      const res = await request.get<UserTransferUser[]>('/api/users/all');
       if (res.code === 0) {
         setAllUsers(res.data);
       }
@@ -461,18 +462,10 @@ export default function PositionsPage() {
         {allUsers.length === 0 ? (
           <Empty title="暂无用户" description="请先创建用户" />
         ) : (
-          <Transfer
-            style={{ width: '100%' }}
-            dataSource={allUsers.map(u => ({
-              key: String(u.id),
-              value: u.id,
-              label: `${u.nickname}（${u.username}）`,
-              disabled: false,
-            }))}
+          <UserTransferSelect
+            dataSource={allUsers}
             value={memberIds}
-            onChange={(values) => setMemberIds((values as number[]) || [])}
-            inputProps={{ placeholder: '搜索用户名、账号' }}
-            emptyContent={{ left: '暂无可选', right: '暂无成员', search: '无匹配' }}
+            onChange={setMemberIds}
           />
         )}
       </SideSheet>

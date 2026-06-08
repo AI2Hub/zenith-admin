@@ -8,7 +8,6 @@ import {
   Space,
   Toast,
   SideSheet,
-  Transfer,
   Empty,
   Tag,
   Row,
@@ -25,6 +24,8 @@ import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import type { UserGroup, PaginatedResponse, User, Department } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { usePermission } from '@/hooks/usePermission';
+import { UserTransferSelect } from '@/components/UserTransferSelect';
+import type { UserTransferUser } from '@/components/UserTransferSelect';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
@@ -35,14 +36,10 @@ interface SearchParams {
   status: string;
 }
 
-interface SimpleUser {
-  id: number;
-  username: string;
-  nickname: string;
+type SimpleUser = UserTransferUser & {
   email?: string | null;
   departmentId?: number | null;
-  departmentName?: string | null;
-}
+};
 
 interface GroupMember extends SimpleUser {
   joinedAt: string;
@@ -104,25 +101,6 @@ export default function UserGroupsPage() {
     return rootNodes;
   }, [departments]);
 
-  // 部门完整路径缓存：deptId → "父级 / 子级 / 本级"
-  const deptFullPathMap = useMemo(() => {
-    const deptById = new Map(departments.map(d => [d.id, d]));
-    const cache = new Map<number, string>();
-    const getPath = (id: number): string => {
-      if (cache.has(id)) return cache.get(id)!;
-      const dept = deptById.get(id);
-      if (!dept) return '';
-      const path = dept.parentId && deptById.has(dept.parentId)
-        ? `${getPath(dept.parentId)} / ${dept.name}`
-        : dept.name;
-      cache.set(id, path);
-      return path;
-    };
-    departments.forEach(d => getPath(d.id));
-    return cache;
-  }, [departments]);
-
-
   const fetchList = useCallback(async (p = page, ps = pageSize, params?: SearchParams) => {
     const activeParams = params ?? searchParamsRef.current;
     setLoading(true);
@@ -141,7 +119,6 @@ export default function UserGroupsPage() {
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize]);
 
   useEffect(() => { void fetchList(); }, [fetchList]);
@@ -155,7 +132,7 @@ export default function UserGroupsPage() {
       if (uRes.code === 0) {
         setAllUsers(uRes.data.map(u => ({
           id: u.id, username: u.username, nickname: u.nickname,
-          email: u.email, departmentId: u.departmentId, departmentName: u.departmentName,
+          avatar: u.avatar, email: u.email, departmentId: u.departmentId, departmentName: u.departmentName,
         })));
       }
       if (dRes.code === 0) setDepartments(Array.isArray(dRes.data) ? dRes.data : []);
@@ -502,23 +479,10 @@ export default function UserGroupsPage() {
         {allUsers.length === 0 ? (
           <Empty title="暂无用户" description="请先创建用户" />
         ) : (
-          <Transfer
-            style={{ width: '100%' }}
-            dataSource={allUsers.map(u => {
-              const deptPath = u.departmentId ? deptFullPathMap.get(u.departmentId) : undefined;
-              return {
-                key: String(u.id),
-                value: u.id,
-                label: deptPath
-                  ? `${u.nickname}（${u.username}） · ${deptPath}`
-                  : `${u.nickname}（${u.username}）`,
-                disabled: false,
-              };
-            })}
+          <UserTransferSelect
+            dataSource={allUsers}
             value={memberIds}
-            onChange={(values) => setMemberIds((values as number[]) || [])}
-            inputProps={{ placeholder: '搜索用户名、账号、部门' }}
-            emptyContent={{ left: '暂无可选', right: '暂无成员', search: '无匹配' }}
+            onChange={setMemberIds}
           />
         )}
       </SideSheet>
