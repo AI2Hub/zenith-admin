@@ -180,6 +180,7 @@ export default function RolesPage() {
     if (res.code === 0) {
       Toast.success('用户分配已更新');
       setUserModalVisible(false);
+      void fetchRoles();
     }
   };
 
