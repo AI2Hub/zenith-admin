@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
-  Table,
   Button,
   Dropdown,
   SplitButtonGroup,
@@ -16,12 +15,14 @@ import {
   Avatar,
   AvatarGroup,
   Tag,
+  SideSheet,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Plus, RotateCcw, Download, MoreHorizontal, ChevronDown } from 'lucide-react';
-import type { Role, Menu, User, Department, PaginatedResponse } from '@zenith/shared';
+import type { Role, Menu, Department, PaginatedResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
-import { UserAvatar } from '@/components/UserAvatar';
+import { UserTransferSelect } from '@/components/UserTransferSelect';
+import type { UserTransferUser } from '@/components/UserTransferSelect';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTimeForApi } from '@/utils/date';
@@ -63,7 +64,7 @@ export default function RolesPage() {
   const [menuLoading, setMenuLoading] = useState(false);
   const [userModalVisible, setUserModalVisible] = useState(false);
   const [userRole, setUserRole] = useState<Role | null>(null);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [allUsers, setAllUsers] = useState<UserTransferUser[]>([]);
   const [assignedUserIds, setAssignedUserIds] = useState<number[]>([]);
   const [userModalLoading, setUserModalLoading] = useState(false);
   const [dataScopeModalVisible, setDataScopeModalVisible] = useState(false);
@@ -157,6 +158,19 @@ export default function RolesPage() {
       setMenuModalVisible(false);
     }
   };
+
+  // 扁平化部门列表（供分配用户组件的树形视图使用）
+  const flatDepts = useMemo<Department[]>(() => {
+    const result: Department[] = [];
+    const flatten = (items: Department[]) => {
+      items.forEach((d) => {
+        result.push(d);
+        if (d.children) flatten(d.children);
+      });
+    };
+    flatten(deptTree);
+    return result;
+  }, [deptTree]);
 
   const openUserModal = async (role: Role) => {
     setUserRole(role);
@@ -526,45 +540,32 @@ export default function RolesPage() {
         />
       </Modal>
 
-      {/* 分配用户 Modal */}
-      <Modal
-        title={`分配用户 — ${userRole?.name}`}
+      {/* 分配用户 SideSheet */}
+      <SideSheet
+        title={<span>分配用户 — {userRole?.name}</span>}
         visible={userModalVisible}
         onCancel={() => setUserModalVisible(false)}
-        onOk={handleAssignUsers}
-        width={560}
-        bodyStyle={{ paddingBottom: 0 }}
+        width={720}
+        footer={
+          <Space>
+            <Button onClick={() => setUserModalVisible(false)}>取消</Button>
+            <Button type="primary" loading={userModalLoading} onClick={handleAssignUsers}>保存</Button>
+          </Space>
+        }
       >
         {userModalLoading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
             <Spin />
           </div>
         ) : (
-          <Table
-            size="small"
-            rowKey="id"
+          <UserTransferSelect
             dataSource={allUsers}
-            pagination={false}
-            rowSelection={{
-              selectedRowKeys: assignedUserIds,
-              onChange: (keys) => setAssignedUserIds(keys as number[]),
-            }}
-            style={{ maxHeight: 400, overflow: 'auto' }}
-            columns={[
-              {
-                title: '用户',
-                render: (_: unknown, u: User) => (
-                  <Space>
-                    <UserAvatar name={u.nickname || u.username} avatar={u.avatar} semiSize="extra-small" size={24} />
-                    <span>{u.nickname}（{u.username}）</span>
-                  </Space>
-                ),
-              },
-              { title: '邮箱', dataIndex: 'email', render: renderEllipsis },
-            ]}
+            value={assignedUserIds}
+            onChange={setAssignedUserIds}
+            departments={flatDepts}
           />
         )}
-      </Modal>
+      </SideSheet>
     </div>
   );
 }
