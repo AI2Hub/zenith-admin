@@ -203,7 +203,6 @@ export function RowEditModal(props: Readonly<Props>): JSX.Element {
       cancelText="取消"
       width={880}
       confirmLoading={submitting}
-      maskClosable={false}
       bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }}
     >
       {mode === 'edit' && primaryKey.length === 0 && (

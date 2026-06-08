@@ -467,7 +467,6 @@ export default function RegionsPage() {
         onCancel={closeModal}
         okButtonProps={{ disabled: modalDetailLoading }}
         width={520}
-        maskClosable={false}
       >
         <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
         <Form

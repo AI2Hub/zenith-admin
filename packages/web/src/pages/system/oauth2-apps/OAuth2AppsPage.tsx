@@ -367,8 +367,6 @@ export default function OAuth2AppsPage() {
         okButtonProps={{ loading: submitting, disabled: modalDetailLoading }}
         width={660}
         closeOnEsc
-        maskClosable={false}
-
       >
         <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
           <Form

@@ -377,7 +377,6 @@ export default function WorkflowEventSubscriptionsPage() {
         confirmLoading={saving}
         okButtonProps={{ disabled: modalDetailLoading }}
         width={680}
-        maskClosable={false}
       >
         <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
         <Form<FormValues> getFormApi={(api) => (formApi.current = api)} onSubmit={handleSubmit} allowEmpty labelPosition="top">

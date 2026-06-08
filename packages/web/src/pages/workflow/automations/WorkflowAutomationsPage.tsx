@@ -364,7 +364,6 @@ export default function WorkflowAutomationsPage() {
         confirmLoading={saving}
         okButtonProps={{ disabled: modalDetailLoading }}
         width={780}
-        maskClosable={false}
       >
         <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
         <Form<FormValues> getFormApi={(api) => (formApi.current = api)} onSubmit={handleSubmit} labelPosition="top">
