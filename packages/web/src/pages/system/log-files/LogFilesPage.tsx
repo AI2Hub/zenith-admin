@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Button, Tag, Space, Modal, Toast, Spin, Typography, Input, List as SemiList } from '@douyinfe/semi-ui';
+import { Button, Input, Tag, Space, Modal, Toast, Spin, Typography } from '@douyinfe/semi-ui';
 import { buildSearchMatchMap, findMatchRanges } from './logFilesSearch';
 import { RefreshCw, FileText, Activity, StopCircle, Download, Trash2, Search } from 'lucide-react';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
+import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { formatFileSize } from '@/utils/file-utils';
@@ -239,9 +240,9 @@ export default function LogFilesPage() {
       showDetail={selected !== null}
       onBack={() => setSelected(null)}
       master={(
-        <>
-          <MasterDetailLayout.Header
-            extra={(
+          <NavListPanel
+            title="日志文件"
+            headerExtra={
               <Button
                 icon={<RefreshCw size={13} />}
                 size="small"
@@ -249,74 +250,35 @@ export default function LogFilesPage() {
                 loading={listLoading}
                 onClick={() => void fetchFiles()}
               />
-            )}
-          >
-            <Typography.Text strong style={{ fontSize: 13 }}>日志文件</Typography.Text>
-          </MasterDetailLayout.Header>
-          <MasterDetailLayout.Body padding={0}>
-          <SemiList
-            dataSource={filteredFiles}
+            }
+            search={{
+              value: keyword,
+              onChange: (value) => setKeyword(value),
+              placeholder: '搜索文件名',
+            }}
             loading={listLoading}
-            header={(
-              <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--semi-color-border)' }}>
-                <Input
-                  prefix={<Search size={14} />}
-                  placeholder="搜索文件名"
-                  value={keyword}
-                  onChange={(value) => setKeyword(value)}
-                  showClear
-                  size="small"
-                />
-              </div>
-            )}
-            emptyContent={(
-              <div style={{ padding: '24px 16px', textAlign: 'center' }}>
-                <Typography.Text type="tertiary" size="small">
-                  {files.length === 0 ? '暂无日志文件' : '未找到匹配的日志文件'}
-                </Typography.Text>
-              </div>
-            )}
-            renderItem={(file: LogFile) => {
+            emptyText={files.length === 0 ? '暂无日志文件' : '未找到匹配的日志文件'}
+          >
+            {filteredFiles.map((file) => {
               const active = selected?.name === file.name;
               return (
-                <SemiList.Item
+                <NavListItem
                   key={file.name}
-                  align="flex-start"
+                  active={active}
                   onClick={() => selectFile(file)}
-                  style={{
-                    padding: '10px 12px',
-                    cursor: 'pointer',
-                    background: active ? 'var(--semi-color-primary-light-default)' : 'transparent',
-                    transition: 'background 0.15s',
-                  }}
-                  header={<FileText size={13} style={{ color: 'var(--semi-color-primary)', flexShrink: 0, marginTop: 2 }} />}
-                  main={(
-                    <div style={{ minWidth: 0 }}>
-                      <span style={{
-                        fontFamily: 'monospace',
-                        fontSize: 12,
-                        fontWeight: active ? 600 : 400,
-                        color: 'var(--semi-color-text-0)',
-                        wordBreak: 'break-all',
-                        lineHeight: 1.4,
-                      }}>
-                        {file.name}
-                      </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                        <Tag color={file.isGzip ? 'grey' : 'blue'} size="small">{file.isGzip ? 'gz' : 'log'}</Tag>
-                        <Typography.Text type="tertiary" size="small">{formatFileSize(file.size)}</Typography.Text>
-                      </div>
-                      <div style={{ marginTop: 2 }}>
-                        <Typography.Text type="tertiary" size="small">{formatDateTime(file.modifiedAt)}</Typography.Text>
-                      </div>
-                    </div>
-                  )}
+                  icon={<FileText size={13} />}
+                  primary={file.name}
+                  meta={
+                    <>
+                      <Tag color={file.isGzip ? 'grey' : 'blue'} size="small">{file.isGzip ? 'gz' : 'log'}</Tag>
+                      <span>{formatFileSize(file.size)}</span>
+                      <span>{formatDateTime(file.modifiedAt)}</span>
+                    </>
+                  }
                 />
               );
-            }}
-          />
-          </MasterDetailLayout.Body>
-        </>
+            })}
+          </NavListPanel>
       )}
       detail={(
         <>

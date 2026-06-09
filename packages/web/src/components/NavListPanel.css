@@ -1,0 +1,171 @@
+/* ─── NavListPanel：左侧导航列表面板容器 ────────────────────────────────── */
+
+.nav-list-panel {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--semi-color-bg-1);
+}
+
+.nav-list-panel__header {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 8px 12px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--semi-color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nav-list-panel__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--semi-color-text-0);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-list-panel__header-extra {
+  flex-shrink: 0;
+}
+
+.nav-list-panel__search {
+  flex-shrink: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.nav-list-panel__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.nav-list-panel__body--no-padding {
+  padding: 0;
+}
+
+.nav-list-panel__footer {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-top: 1px solid var(--semi-color-border);
+  overflow-x: auto;
+}
+
+.nav-list-panel__empty {
+  padding: 28px 0;
+  text-align: center;
+  color: var(--semi-color-text-2);
+  font-size: 13px;
+}
+
+/* ─── NavListItem：导航列表条目（字典管理风格：圆角卡片 + hover/active 状态）── */
+
+.nav-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.nav-list-item:last-child {
+  margin-bottom: 0;
+}
+
+.nav-list-item:hover {
+  background: var(--semi-color-fill-0);
+}
+
+.nav-list-item--active {
+  background: var(--semi-color-primary-light-default) !important;
+}
+
+.nav-list-item__icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--semi-color-primary);
+}
+
+.nav-list-item__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-list-item__row1 {
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+  line-height: 1.4;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.nav-list-item__primary {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--semi-color-text-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.nav-list-item__sep {
+  flex-shrink: 0;
+  margin: 0 4px;
+  font-size: 11px;
+  color: var(--semi-color-text-3);
+}
+
+.nav-list-item__secondary {
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.nav-list-item__meta {
+  font-size: 11px;
+  color: var(--semi-color-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* extra 区域：默认隐藏，hover / 激活时显示 */
+.nav-list-item__extra {
+  flex-shrink: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s, visibility 0.15s;
+}
+
+.nav-list-item:hover .nav-list-item__extra,
+.nav-list-item--active .nav-list-item__extra,
+.nav-list-item .nav-list-item__extra--visible {
+  opacity: 1;
+  visibility: visible;
+}

@@ -32,7 +32,6 @@ import {
   RefreshCw,
   History,
   Trash2,
-  Search,
   Copy,
   ArrowRight,
   Plus,
@@ -53,6 +52,7 @@ import { request } from '@/utils/request';
 import { usePermission } from '@/hooks/usePermission';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
+import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import { AppModal } from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
 import { RowEditModal } from './RowEditModal';
@@ -1171,105 +1171,79 @@ export default function DbAdminPage() {
               showDetail={selected !== null}
               onBack={() => setSelected(null)}
               master={(
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-              <div style={{ padding: 12, borderBottom: '1px solid var(--semi-color-border)', flexShrink: 0 }}>
-                <Space style={{ width: '100%' }}>
-                  <Input
-                    prefix={<Search size={14} />}
-                    placeholder="搜索表名 / schema"
-                    value={tableFilter}
-                    onChange={setTableFilter}
-                    showClear
-                    style={{ flex: 1 }}
-                  />
-                  <Tooltip content="刷新">
-                    <Button icon={<RefreshCw size={14} />} onClick={() => void loadTables()} loading={tablesLoading} />
-                  </Tooltip>
-                </Space>
-                <div style={{ marginTop: 6 }}>
-                  <Text type="tertiary" size="small">{filteredTables.length} / {tables.length} 张表</Text>
-                </div>
-              </div>
-              <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-              {tablesLoading && tables.length === 0 && (
-                <div style={{ padding: 24, textAlign: 'center' }}><Spin /></div>
-              )}
-              {!tablesLoading && filteredTables.length === 0 && (
-                <Empty title="无匹配的表" style={{ padding: 32 }} />
-              )}
-              {filteredTables.length > 0 && (
-                <Collapse
-                  expandIconPosition="left"
-                  defaultActiveKey={groupedTables.map(([s]) => s)}
-                  keepDOM={false}
+                <NavListPanel
+                  title="数据库表"
+                  headerExtra={
+                    <Tooltip content="刷新">
+                      <Button icon={<RefreshCw size={14} />} onClick={() => void loadTables()} loading={tablesLoading} size="small" theme="borderless" />
+                    </Tooltip>
+                  }
+                  search={{
+                    value: tableFilter,
+                    onChange: setTableFilter,
+                    placeholder: '搜索表名 / schema',
+                  }}
+                  loading={tablesLoading && tables.length === 0}
+                  emptyText="无匹配的表"
+                  bodyNoPadding
                 >
-                  {groupedTables.map(([schema, list]) => (
-                    <Collapse.Panel
-                      key={schema}
-                      itemKey={schema}
-                      header={
-                        <Space>
-                          <Text strong>{schema}</Text>
-                          <Text type="tertiary" size="small">{list.length} 张表</Text>
-                        </Space>
-                      }
+                  {filteredTables.length > 0 && (
+                    <Collapse
+                      expandIconPosition="left"
+                      defaultActiveKey={groupedTables.map(([s]) => s)}
+                      keepDOM={false}
                     >
-                      <List
-                        dataSource={list}
-                        split={false}
-                        size="small"
-                        renderItem={(t: TableItem) => {
-                          const isActive = selected?.schema === t.schema && selected?.name === t.name;
-                          return (
-                            <List.Item
-                              className="db-admin-table-item"
-                              key={`${t.schema}.${t.name}`}
-                              onClick={() => handleSelectTable(t)}
-                              style={{
-                                cursor: 'pointer',
-                                padding: '6px 12px',
-                                background: isActive ? 'var(--semi-color-primary-light-default)' : undefined,
-                                borderBottom: '1px solid var(--semi-color-fill-0)',
-                              }}
-                              main={
-                                <div style={{ minWidth: 0, width: '100%' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
-                                    <Text strong={isActive} ellipsis={{ showTooltip: true }} style={{ flex: 1, minWidth: 0 }}>
-                                      {t.name}
-                                    </Text>
-                                    <Space spacing={2} style={{ flexShrink: 0, alignItems: 'center' }}>
-                                      <Text type="tertiary" size="small" className="db-admin-table-size">{t.sizeText}</Text>
-                                      <Dropdown
-                                        trigger="click"
-                                        position="bottomLeft"
-                                        render={renderTableContextMenu(t)}
-                                        getPopupContainer={() => document.body}
-                                        clickToHide
-                                        stopPropagation
-                                      >
-                                        <Button
-                                          className="db-admin-table-more-btn"
-                                          size="small"
-                                          theme="borderless"
-                                          icon={<MoreHorizontal size={14} />}
-                                          onClick={(e) => { e.stopPropagation(); }}
-                                          style={{ padding: '0 2px', minWidth: 24, height: 22 }}
-                                        />
-                                      </Dropdown>
-                                    </Space>
-                                  </div>
-                                </div>
-                              }
-                            />
-                          );
-                        }}
-                      />
-                    </Collapse.Panel>
-                  ))}
-                </Collapse>
-              )}
-              </div>
-                </div>
+                      {groupedTables.map(([schema, list]) => (
+                        <Collapse.Panel
+                          key={schema}
+                          itemKey={schema}
+                          header={
+                            <Space>
+                              <Text strong>{schema}</Text>
+                              <Text type="tertiary" size="small">{list.length} 张表</Text>
+                            </Space>
+                          }
+                        >
+                          <div style={{ padding: '0 8px 8px' }}>
+                            {list.map((t: TableItem) => {
+                              const isActive = selected?.schema === t.schema && selected?.name === t.name;
+                              return (
+                                <NavListItem
+                                  key={`${t.schema}.${t.name}`}
+                                  active={isActive}
+                                  onClick={() => handleSelectTable(t)}
+                                  primary={t.name}
+                                  meta={t.sizeText}
+                                  extra={
+                                    <Dropdown
+                                      trigger="click"
+                                      position="bottomLeft"
+                                      render={renderTableContextMenu(t)}
+                                      getPopupContainer={() => document.body}
+                                      clickToHide
+                                      stopPropagation
+                                    >
+                                      <Button
+                                        size="small"
+                                        theme="borderless"
+                                        icon={<MoreHorizontal size={14} />}
+                                        onClick={(e) => { e.stopPropagation(); }}
+                                        style={{ padding: '0 2px', minWidth: 24, height: 22 }}
+                                      />
+                                    </Dropdown>
+                                  }
+                                />
+                              );
+                            })}
+                          </div>
+                        </Collapse.Panel>
+                      ))}
+                    </Collapse>
+                  )}
+                  {!tablesLoading && filteredTables.length === 0 && tables.length > 0 && (
+                    <Empty title="无匹配的表" style={{ padding: 32 }} />
+                  )}
+                </NavListPanel>
               )}
               detail={(
                 <>

@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Button,
   Dropdown,
-  List as SemiList,
   Input,
   Select,
   Tag,
@@ -28,6 +27,7 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { usePagination } from '@/hooks/usePagination';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
+import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import { useDictItems } from '@/hooks/useDictItems';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { usePermission } from '@/hooks/usePermission';
@@ -393,19 +393,13 @@ export default function DictsPage() {
   const renderDictListItem = (dict: Dict) => {
     const active = selectedDict?.id === dict.id;
     return (
-      <SemiList.Item
-        className={`dict-list-item${active ? ' dict-list-item--active' : ''}`}
+      <NavListItem
+        key={dict.id}
+        active={active}
         onClick={() => selectDict(dict)}
-        main={
-          <div className="dict-list-item-main">
-            <div className="dict-list-item-row1" title={`${dict.name} · ${dict.code}`}>
-              <span className="dict-list-item-title">{dict.name}</span>
-              <span className="dict-list-item-sep">·</span>
-              <span className="dict-list-item-code">{dict.code}</span>
-            </div>
-            <div className="dict-list-item-date">{formatDateTime(dict.createdAt)}</div>
-          </div>
-        }
+        primary={dict.name}
+        secondary={dict.code}
+        meta={formatDateTime(dict.createdAt)}
         extra={
           <Dropdown
             trigger="click"
@@ -453,9 +447,9 @@ export default function DictsPage() {
   };
 
   const dictMaster = (
-    <div className="dict-master">
-      <div className="dict-master-header">
-        <span className="dict-master-title">字典列表</span>
+    <NavListPanel
+      title="字典列表"
+      headerExtra={
         <Dropdown
           trigger="click"
           position="bottomRight"
@@ -494,44 +488,31 @@ export default function DictsPage() {
             loading={exportLoading || exportCsvLoading}
           />
         </Dropdown>
-      </div>
-      <div className="dict-master-list">
-        <SemiList<Dict>
-          className="dict-list"
+      }
+      search={{
+        value: keyword,
+        onChange: (v) => setKeyword(v),
+        placeholder: '名称/编码',
+        onEnterPress: handleSearch,
+      }}
+      loading={dictsLoading}
+      emptyText="暂无字典"
+      footer={
+        <Pagination
           size="small"
-          split={false}
-          loading={dictsLoading}
-          dataSource={dicts}
-          emptyContent={<div className="dict-empty">暂无字典</div>}
-          header={
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="名称/编码"
-              value={keyword}
-              onChange={(v) => setKeyword(v)}
-              onEnterPress={handleSearch}
-              showClear
-            />
-          }
-          footer={
-            <div className="dict-list-pagination">
-              <Pagination
-                size="small"
-                total={total}
-                currentPage={page}
-                pageSize={pageSize}
-                pageSizeOpts={[10, 20, 50, 100]}
-                showSizeChanger
-                showTotal
-                onPageChange={handleDictPageChange}
-                onPageSizeChange={handleDictPageSizeChange}
-              />
-            </div>
-          }
-          renderItem={renderDictListItem}
+          total={total}
+          currentPage={page}
+          pageSize={pageSize}
+          pageSizeOpts={[10, 20, 50, 100]}
+          showSizeChanger
+          showTotal
+          onPageChange={handleDictPageChange}
+          onPageSizeChange={handleDictPageSizeChange}
         />
-      </div>
-    </div>
+      }
+    >
+      {dicts.map(renderDictListItem)}
+    </NavListPanel>
   );
 
   const itemColumns: ColumnProps<DictItem>[] = [
