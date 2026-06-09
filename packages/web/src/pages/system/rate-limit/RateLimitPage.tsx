@@ -378,16 +378,6 @@ export default function RateLimitPage() {
             ]}
           />
           <Form.Input field="description" label="描述" placeholder="可选" />
-          <Form.Switch field="enabled" label="启用" />
-          <Form.InputNumber field="windowMs" label="时间窗口(ms)" min={1000} step={1000} style={{ width: '100%' }} rules={[{ required: true }]} />
-          <Form.InputNumber field="limit" label="窗口内上限" min={1} style={{ width: '100%' }} rules={[{ required: true }]} />
-          <Form.Select
-            field="keyType"
-            label="计数维度"
-            optionList={KEY_TYPE_OPTIONS}
-            style={{ width: '100%' }}
-          />
-          <Form.Input field="blockedMessage" label="拦截提示文案" placeholder="为空使用默认提示" />
           <Form.Select
             field="pathPatterns"
             label="绑定路径"
@@ -398,6 +388,16 @@ export default function RateLimitPage() {
             style={{ width: '100%' }}
             optionList={apiPaths}
           />
+          <Form.Switch field="enabled" label="启用" />
+          <Form.InputNumber field="windowMs" label="时间窗口(ms)" min={1000} step={1000} style={{ width: '100%' }} rules={[{ required: true }]} />
+          <Form.InputNumber field="limit" label="窗口内上限" min={1} style={{ width: '100%' }} rules={[{ required: true }]} />
+          <Form.Select
+            field="keyType"
+            label="计数维度"
+            optionList={KEY_TYPE_OPTIONS}
+            style={{ width: '100%' }}
+          />
+          <Form.Input field="blockedMessage" label="拦截提示文案" placeholder="为空使用默认提示" />
         </Form>
       </AppModal>
 
@@ -425,11 +425,6 @@ export default function RateLimitPage() {
             labelPosition="left"
             labelWidth={130}
           >
-            <Form.Switch field="enabled" label="启用" />
-            <Form.InputNumber field="windowMs" label="时间窗口(ms)" min={1000} step={1000} style={{ width: '100%' }} rules={[{ required: true }]} />
-            <Form.InputNumber field="limit" label="窗口内上限" min={1} style={{ width: '100%' }} rules={[{ required: true }]} />
-            <Form.Select field="keyType" label="计数维度" optionList={KEY_TYPE_OPTIONS} style={{ width: '100%' }} />
-            <Form.Input field="blockedMessage" label="拦截提示文案" placeholder="为空使用默认提示" />
             <Form.Select
               field="pathPatterns"
               label="绑定路径"
@@ -440,6 +435,11 @@ export default function RateLimitPage() {
               style={{ width: '100%' }}
               optionList={apiPaths}
             />
+            <Form.Switch field="enabled" label="启用" />
+            <Form.InputNumber field="windowMs" label="时间窗口(ms)" min={1000} step={1000} style={{ width: '100%' }} rules={[{ required: true }]} />
+            <Form.InputNumber field="limit" label="窗口内上限" min={1} style={{ width: '100%' }} rules={[{ required: true }]} />
+            <Form.Select field="keyType" label="计数维度" optionList={KEY_TYPE_OPTIONS} style={{ width: '100%' }} />
+            <Form.Input field="blockedMessage" label="拦截提示文案" placeholder="为空使用默认提示" />
           </Form>
         )}
       </AppModal>
