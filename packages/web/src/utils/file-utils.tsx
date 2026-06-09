@@ -76,7 +76,8 @@ export function canPreviewFile(mimeType: string | null | undefined): boolean {
     isWordFile(mimeType) ||
     isMarkdownFile(mimeType) ||
     isPlainTextFile(mimeType) ||
-    isZipFile(mimeType)
+    isZipFile(mimeType) ||
+    isJsonFile(mimeType)
   );
 }
 
@@ -100,6 +101,12 @@ export function isMarkdownFile(mimeType?: string | null): boolean {
 /** 判断是否为可预览的纯文本文件（.txt） */
 export function isPlainTextFile(mimeType?: string | null): boolean {
   return mimeType === 'text/plain';
+}
+/** 判断是否为可预览的 JSON 文件 */
+export function isJsonFile(mimeType?: string | null): boolean {
+  if (!mimeType) return false;
+  const mime = mimeType.toLowerCase();
+  return mime === 'application/json' || mime === 'text/json';
 }
 /** 判断是否为可预览的 ZIP 压缩包 */
 export function isZipFile(mimeType?: string | null): boolean {

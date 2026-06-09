@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { Modal, Spin, Toast, AudioPlayer, VideoPlayer, Typography } from '@douyinfe/semi-ui';
 import { useThemeController } from '@/providers/theme-controller';
-import { fetchProtectedFile, isSpreadsheetFile, isWordFile, isMarkdownFile, isPlainTextFile, isZipFile, getFileTypeIcon } from '@/utils/file-utils';
+import { fetchProtectedFile, isSpreadsheetFile, isWordFile, isMarkdownFile, isPlainTextFile, isZipFile, isJsonFile, getFileTypeIcon } from '@/utils/file-utils';
 import { PDFPreviewPanel } from '@/pages/ai/chat/PDFPreviewPanel';
 import { request } from '@/utils/request';
 import AppModal from '@/components/AppModal';
@@ -16,6 +16,8 @@ const DocxPreviewPanel = lazy(() => import('@/components/DocxPreviewPanel'));
 const MarkdownPreviewPanel = lazy(() => import('@/components/MarkdownPreviewPanel'));
 // jszip + Semi Tree 懒加载
 const ZipPreviewPanel = lazy(() => import('@/components/ZipPreviewPanel'));
+// Semi JsonViewer 懒加载
+const JsonPreviewPanel = lazy(() => import('@/components/JsonPreviewPanel'));
 
 interface FilePreviewModalProps {
   fileUrl: string;
@@ -47,6 +49,7 @@ export default function FilePreviewModal({
   const [docxBlob, setDocxBlob] = useState<Blob | null>(null);
   const [markdownText, setMarkdownText] = useState<string | null>(null);
   const [zipBlob, setZipBlob] = useState<Blob | null>(null);
+  const [jsonText, setJsonText] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   // sheetKey 用于全屏切换时重建 Univer，sheetTransitioning 显示过渡 spinner
   const [sheetKey, setSheetKey] = useState(0);
@@ -83,6 +86,7 @@ export default function FilePreviewModal({
       setDocxBlob(null);
       setMarkdownText(null);
       setZipBlob(null);
+      setJsonText(null);
       setFullscreen(false);
       setSheetKey(0);
       setSheetTransitioning(false);
@@ -103,8 +107,9 @@ export default function FilePreviewModal({
     const isMarkdown = isMarkdownFile(mimeType);
     const isPlainText = isPlainTextFile(mimeType);
     const isZip = isZipFile(mimeType);
+    const isJson = isJsonFile(mimeType);
 
-    if (!isImage && !isPdf && !isAudio && !isVideo && !isSpreadsheet && !isWord && !isMarkdown && !isPlainText && !isZip) {
+    if (!isImage && !isPdf && !isAudio && !isVideo && !isSpreadsheet && !isWord && !isMarkdown && !isPlainText && !isZip && !isJson) {
       onFallback?.(fileUrl, fileName, mimeType);
       onClose();
       return;
@@ -146,6 +151,11 @@ export default function FilePreviewModal({
         }
         if (isZip) {
           setZipBlob(blob);
+          return;
+        }
+        if (isJson) {
+          const text = await blob.text();
+          setJsonText(text);
           return;
         }
         if (isPdf) {
@@ -352,6 +362,33 @@ export default function FilePreviewModal({
           }
         >
           <ZipPreviewPanel blob={zipBlob} style={{ flex: 1, minHeight: 0 }} />
+        </Suspense>
+      </AppModal>
+    );
+  }
+
+  if (jsonText !== null) {
+    return (
+      <AppModal
+        visible
+        onCancel={handleClose}
+        title={previewTitle}
+        footer={null}
+        fullscreen={fullscreen}
+        onToggleFullscreen={toggleFullscreen}
+        width="min(900px, 92vw)"
+        style={{ top: '3vh' }}
+        bodyStyle={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: fullscreen ? 'calc(100vh - 40px)' : 'calc(88vh - 40px)' }}
+        keepDOM={false}
+      >
+        <Suspense
+          fallback={
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+              <Spin size="large" tip="加载预览组件..." />
+            </div>
+          }
+        >
+          <JsonPreviewPanel content={jsonText} style={{ flex: 1, minHeight: 0 }} />
         </Suspense>
       </AppModal>
     );
