@@ -1,7 +1,8 @@
 /**
  * 表单预览组件 — 在 Modal 中渲染真实表单控件预览（复用 WorkflowFormRenderer）
  */
-import { Modal, Button } from '@douyinfe/semi-ui';
+import { Button } from '@douyinfe/semi-ui';
+import AppModal from '@/components/AppModal';
 import type { WorkflowFormField } from '@zenith/shared';
 import WorkflowFormRenderer from './WorkflowFormRenderer';
 
@@ -13,7 +14,7 @@ interface FormPreviewProps {
 
 export default function FormPreview({ visible, fields, onClose }: Readonly<FormPreviewProps>) {
   return (
-    <Modal
+    <AppModal
       title="表单预览"
       visible={visible}
       onCancel={onClose}
@@ -28,6 +29,6 @@ export default function FormPreview({ visible, fields, onClose }: Readonly<FormP
       ) : (
         <WorkflowFormRenderer fields={fields} style={{ padding: '0 8px' }} />
       )}
-    </Modal>
+    </AppModal>
   );
 }

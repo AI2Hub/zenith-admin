@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Input, Button, Select, DatePicker, Tabs, TabPane, SplitButtonGroup, Dropdown, Modal, Toast } from '@douyinfe/semi-ui';
+import { Input, Button, Select, DatePicker, Tabs, TabPane, SplitButtonGroup, Dropdown, Toast } from '@douyinfe/semi-ui';
+import AppModal from '@/components/AppModal';
 import { Search, RotateCcw, Download, ChevronDown, Trash2 } from 'lucide-react';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -199,7 +200,7 @@ export default function LoginLogsPage() {
           </div>
         </TabPane>
       </Tabs>
-      <Modal
+      <AppModal
         title={`清除${clearMonths === 0 ? '全部' : clearLogsLabels[clearMonths] + '前的'}登录日志`}
         visible={clearModalVisible}
         onCancel={() => setClearModalVisible(false)}
@@ -221,7 +222,7 @@ export default function LoginLogsPage() {
           validateStatus={clearPasswordError ? 'error' : undefined}
         />
         {clearPasswordError && <p style={{ color: 'var(--semi-color-danger)', marginTop: 4, fontSize: 12 }}>{clearPasswordError}</p>}
-      </Modal>
+      </AppModal>
     </div>
   );
 }
