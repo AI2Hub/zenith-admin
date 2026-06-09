@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { Modal, Spin, Toast, AudioPlayer, VideoPlayer, Typography } from '@douyinfe/semi-ui';
 import { useThemeController } from '@/providers/theme-controller';
-import { fetchProtectedFile, isSpreadsheetFile, isWordFile, isMarkdownFile, isPlainTextFile, isZipFile, isJsonFile, getFileTypeIcon } from '@/utils/file-utils';
+import { fetchProtectedFile, isSpreadsheetFile, isWordFile, isMarkdownFile, isPlainTextFile, isZipFile, isJsonFile, isSvgFile, isCodeFile, getFileTypeIcon } from '@/utils/file-utils';
 import { PDFPreviewPanel } from '@/pages/ai/chat/PDFPreviewPanel';
 import { request } from '@/utils/request';
 import AppModal from '@/components/AppModal';
@@ -50,6 +50,7 @@ export default function FilePreviewModal({
   const [markdownText, setMarkdownText] = useState<string | null>(null);
   const [zipBlob, setZipBlob] = useState<Blob | null>(null);
   const [jsonText, setJsonText] = useState<string | null>(null);
+  const [svgUrl, setSvgUrl] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   // sheetKey 用于全屏切换时重建 Univer，sheetTransitioning 显示过渡 spinner
   const [sheetKey, setSheetKey] = useState(0);
@@ -68,13 +69,10 @@ export default function FilePreviewModal({
   const cleanup = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
-    if (audioUrl) {
-      URL.revokeObjectURL(audioUrl);
-    }
-    if (videoUrl) {
-      URL.revokeObjectURL(videoUrl);
-    }
-  }, [audioUrl, videoUrl]);
+    if (audioUrl) { URL.revokeObjectURL(audioUrl); }
+    if (videoUrl) { URL.revokeObjectURL(videoUrl); }
+    if (svgUrl) { URL.revokeObjectURL(svgUrl); }
+  }, [audioUrl, videoUrl, svgUrl]);
 
   useEffect(() => {
     if (!visible) {
@@ -87,6 +85,7 @@ export default function FilePreviewModal({
       setMarkdownText(null);
       setZipBlob(null);
       setJsonText(null);
+      setSvgUrl(null);
       setFullscreen(false);
       setSheetKey(0);
       setSheetTransitioning(false);
@@ -108,15 +107,17 @@ export default function FilePreviewModal({
     const isPlainText = isPlainTextFile(mimeType);
     const isZip = isZipFile(mimeType);
     const isJson = isJsonFile(mimeType);
+    const isSvg = isSvgFile(mimeType);
+    const isCode = isCodeFile(mimeType);
 
-    if (!isImage && !isPdf && !isAudio && !isVideo && !isSpreadsheet && !isWord && !isMarkdown && !isPlainText && !isZip && !isJson) {
+    if (!isImage && !isPdf && !isAudio && !isVideo && !isSpreadsheet && !isWord && !isMarkdown && !isPlainText && !isZip && !isJson && !isSvg && !isCode) {
       onFallback?.(fileUrl, fileName, mimeType);
       onClose();
       return;
     }
 
-    if (isImage) {
-      // 图片不在这个组件中预览，由调用方自行处理 ImagePreview
+    if (isImage && !isSvg) {
+      // 普通图片不在这个组件中预览，由调用方自行处理 ImagePreview（SVG 归入此分支导公处理）
       onClose();
       return;
     }
@@ -156,6 +157,17 @@ export default function FilePreviewModal({
         if (isJson) {
           const text = await blob.text();
           setJsonText(text);
+          return;
+        }
+        if (isSvg) {
+          const url = URL.createObjectURL(blob);
+          setSvgUrl(url);
+          return;
+        }
+        if (isCode) {
+          // 代码文件与纯文本相同处理，利用 MarkdownPreviewPanel rawText 模式展示
+          const text = await blob.text();
+          setMarkdownText(`\u0000PLAINTEXT\u0000${text}`);
           return;
         }
         if (isPdf) {
@@ -390,6 +402,37 @@ export default function FilePreviewModal({
         >
           <JsonPreviewPanel content={jsonText} style={{ flex: 1, minHeight: 0 }} />
         </Suspense>
+      </AppModal>
+    );
+  }
+
+  if (svgUrl) {
+    return (
+      <AppModal
+        visible
+        onCancel={handleClose}
+        title={previewTitle}
+        footer={null}
+        fullscreen={fullscreen}
+        onToggleFullscreen={toggleFullscreen}
+        width="min(900px, 92vw)"
+        style={{ top: '5vh' }}
+        bodyStyle={{
+          padding: 16,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'auto',
+          height: fullscreen ? 'calc(100vh - 40px)' : 'calc(80vh - 40px)',
+          background: 'var(--semi-color-bg-0)',
+        }}
+        keepDOM={false}
+      >
+        <img
+          src={svgUrl}
+          alt={fileName}
+          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+        />
       </AppModal>
     );
   }

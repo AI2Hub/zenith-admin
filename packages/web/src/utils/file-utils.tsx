@@ -77,7 +77,9 @@ export function canPreviewFile(mimeType: string | null | undefined): boolean {
     isMarkdownFile(mimeType) ||
     isPlainTextFile(mimeType) ||
     isZipFile(mimeType) ||
-    isJsonFile(mimeType)
+    isJsonFile(mimeType) ||
+    isSvgFile(mimeType) ||
+    isCodeFile(mimeType)
   );
 }
 
@@ -107,6 +109,38 @@ export function isJsonFile(mimeType?: string | null): boolean {
   if (!mimeType) return false;
   const mime = mimeType.toLowerCase();
   return mime === 'application/json' || mime === 'text/json';
+}
+/** 判断是否为 SVG 图形文件 */
+export function isSvgFile(mimeType?: string | null): boolean {
+  return mimeType === 'image/svg+xml';
+}
+/**
+ * 判断是否为可预览的代码/配置文件。
+ * 概履： JS/TS、Python、CSS、HTML、XML、YAML、Shell、SQL 等常见文本格式。
+ * JSON 并不包含在此（由 isJsonFile 单独处理）。
+ */
+export function isCodeFile(mimeType?: string | null): boolean {
+  if (!mimeType) return false;
+  const mime = mimeType.toLowerCase();
+  return (
+    mime === 'application/javascript' ||
+    mime === 'text/javascript' ||
+    mime === 'application/typescript' ||
+    mime === 'text/typescript' ||
+    mime === 'text/x-python' ||
+    mime === 'application/x-python-code' ||
+    mime === 'text/css' ||
+    mime === 'text/html' ||
+    mime === 'text/xml' ||
+    mime === 'application/xml' ||
+    mime === 'application/x-yaml' ||
+    mime === 'text/yaml' ||
+    mime === 'text/x-yaml' ||
+    mime === 'application/x-sh' ||
+    mime === 'text/x-shellscript' ||
+    mime === 'application/sql' ||
+    mime === 'text/x-sql'
+  );
 }
 /** 判断是否为可预览的 ZIP 压缩包 */
 export function isZipFile(mimeType?: string | null): boolean {
