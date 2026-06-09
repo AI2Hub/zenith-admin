@@ -22,7 +22,6 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, Plus, RotateCcw, Download, Trash2, ChevronDown, Users } from 'lucide-react';
 import type { Position, PaginatedResponse, Department } from '@zenith/shared';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import DictTag from '@/components/DictTag';
 import { useDictItems } from '@/hooks/useDictItems';
 import { request } from '@/utils/request';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
@@ -257,11 +256,6 @@ export default function PositionsPage() {
     { title: '岗位编码', dataIndex: 'code', width: 180, render: renderEllipsis },
     { title: '排序', dataIndex: 'sort', width: 90 },
     {
-      title: '备注',
-      dataIndex: 'remark',
-      render: renderEllipsis,
-    },
-    {
       title: '成员', dataIndex: 'userPreview', width: 150,
       render: (_: unknown, record: Position) => {
         const preview = record.userPreview ?? [];
@@ -287,6 +281,12 @@ export default function PositionsPage() {
           </Space>
         );
       },
+    },
+    {
+      title: '备注',
+      dataIndex: 'remark',
+      width: 200,
+      render: renderEllipsis,
     },
     createdAtColumn,
     {
@@ -400,6 +400,7 @@ export default function PositionsPage() {
         onRefresh={fetchPositions}
         refreshLoading={loading}
         rowKey="id"
+        size="small"
         pagination={buildPagination(total, fetchPositions)}
         empty="暂无数据"
         rowSelection={{
