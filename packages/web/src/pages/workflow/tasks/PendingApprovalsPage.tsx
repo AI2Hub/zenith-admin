@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppModal } from '@/components/AppModal';
 import {
   Banner,
   Button,
@@ -505,7 +506,7 @@ export default function PendingApprovalsPage() {
       </SideSheet>
 
       {/* 审批通过弹窗 */}
-      <Modal
+      <AppModal
         title={btnApprove.displayName ? `${btnApprove.displayName}` : '审批通过'}
         visible={approveVisible}
         onCancel={() => { setApproveVisible(false); setApproveAttachments([]); setSelectedNextApprovers([]); }}
@@ -560,10 +561,10 @@ export default function PendingApprovalsPage() {
             />
           </div>
         )}
-      </Modal>
+      </AppModal>
 
       {/* 驳回弹窗 */}
-      <Modal
+      <AppModal
         title="驳回申请"
         visible={rejectVisible}
         onCancel={() => {
@@ -592,10 +593,10 @@ export default function PendingApprovalsPage() {
             rows={3}
           />
         </Form>
-      </Modal>
+      </AppModal>
 
       {/* 转办弹窗 */}
-      <Modal
+      <AppModal
         title={btnTransfer.displayName ?? '转办'}
         visible={transferVisible}
         onCancel={() => setTransferVisible(false)}
@@ -616,10 +617,10 @@ export default function PendingApprovalsPage() {
           />
           <Form.TextArea field="comment" label={btnTransfer.opinionName ?? '转办说明'} rows={3} />
         </Form>
-      </Modal>
+      </AppModal>
 
       {/* 委派弹窗 */}
-      <Modal
+      <AppModal
         title={btnDelegate.displayName ?? '委派'}
         visible={delegateVisible}
         onCancel={() => setDelegateVisible(false)}
@@ -640,10 +641,10 @@ export default function PendingApprovalsPage() {
           />
           <Form.TextArea field="comment" label={btnDelegate.opinionName ?? '委派说明'} rows={3} />
         </Form>
-      </Modal>
+      </AppModal>
 
       {/* 加签弹窗 */}
-      <Modal
+      <AppModal
         title={btnAddSign.displayName ?? '加签'}
         visible={addSignVisible}
         onCancel={() => setAddSignVisible(false)}
@@ -670,10 +671,10 @@ export default function PendingApprovalsPage() {
           </Form.RadioGroup>
           <Form.TextArea field="comment" label={btnAddSign.opinionName ?? '加签说明'} rows={3} />
         </Form>
-      </Modal>
+      </AppModal>
 
       {/* 减签弹窗 */}
-      <Modal
+      <AppModal
         title={btnReduceSign.displayName ?? '减签'}
         visible={reduceSignVisible}
         onCancel={() => setReduceSignVisible(false)}
@@ -695,10 +696,10 @@ export default function PendingApprovalsPage() {
           />
           <Form.TextArea field="comment" label={btnReduceSign.opinionName ?? '减签说明'} rows={3} />
         </Form>
-      </Modal>
+      </AppModal>
 
       {/* 退回弹窗 */}
-      <Modal
+      <AppModal
         title={btnReturn.displayName ?? '退回'}
         visible={returnVisible}
         onCancel={() => setReturnVisible(false)}
@@ -728,7 +729,7 @@ export default function PendingApprovalsPage() {
             rows={3}
           />
         </Form>
-      </Modal>
+      </AppModal>
     </div>
   );
 }
