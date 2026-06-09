@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppModal } from '@/components/AppModal';
 import {
   Button,
   Breadcrumb,
@@ -572,7 +573,7 @@ export default function StorageFileBrowser({ config, onClose }: Readonly<Storage
       />
 
       {/* File detail modal */}
-      <Modal
+      <AppModal
         title="文件详情"
         visible={!!detailFile}
         onCancel={() => { setDetailFile(null); setDetailFileLoading(false); }}
@@ -602,7 +603,7 @@ export default function StorageFileBrowser({ config, onClose }: Readonly<Storage
             />
           )}
         </Spin>
-      </Modal>
+      </AppModal>
     </>
   );
 }
