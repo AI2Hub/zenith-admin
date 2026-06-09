@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Button, Input, Tag, Space, Modal, Toast, Spin, Typography } from '@douyinfe/semi-ui';
+import { Button, Input, Tag, Space, Modal, Toast, Spin, Typography, Dropdown } from '@douyinfe/semi-ui';
 import { buildSearchMatchMap, findMatchRanges } from './logFilesSearch';
-import { RefreshCw, FileText, Activity, StopCircle, Download, Trash2, Search } from 'lucide-react';
+import { RefreshCw, FileText, Activity, StopCircle, Download, Trash2, Search, MoreHorizontal } from 'lucide-react';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import { request } from '@/utils/request';
@@ -274,6 +274,41 @@ export default function LogFilesPage() {
                       <span>{formatFileSize(file.size)}</span>
                       <span>{formatDateTime(file.modifiedAt)}</span>
                     </>
+                  }
+                  extra={
+                    <Dropdown
+                      trigger="click"
+                      position="bottomRight"
+                      clickToHide
+                      render={
+                        <Dropdown.Menu>
+                          {hasPermission('system:log:files:download') && (
+                            <Dropdown.Item onClick={() => void handleDownload(file)}>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Download size={14} /> 下载
+                              </span>
+                            </Dropdown.Item>
+                          )}
+                          {hasPermission('system:log:files:delete') && (
+                            <Dropdown.Item
+                              type="danger"
+                              onClick={() => handleDelete(file)}
+                            >
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Trash2 size={14} /> 删除
+                              </span>
+                            </Dropdown.Item>
+                          )}
+                        </Dropdown.Menu>
+                      }
+                    >
+                      <Button
+                        theme="borderless"
+                        size="small"
+                        icon={<MoreHorizontal size={14} />}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </Dropdown>
                   }
                 />
               );
