@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { AppModal } from '@/components/AppModal';
 import { useSearchParams } from 'react-router-dom';
 import {
   Input, Button, Badge, Typography, Empty, Spin, Toast, Tooltip, Modal, Tag, Select, DatePicker, Dropdown, ImagePreview, Popover,
@@ -1577,7 +1578,7 @@ export default function ChatPage({
         </div>
 
         {showNewChat && (
-          <Modal
+          <AppModal
             title="新建对话"
             visible={showNewChat}
             onCancel={() => setShowNewChat(false)}
@@ -1589,7 +1590,7 @@ export default function ChatPage({
               onSelectUser={(u) => { handleNewDirectChat(u); setShowNewChat(false); }}
               onGroupCreated={(c) => { handleGroupCreated(c); setShowNewChat(false); }}
             />
-          </Modal>
+          </AppModal>
         )}
 
         <div style={{ padding: '8px 12px' }}>
@@ -2665,7 +2666,7 @@ export default function ChatPage({
             onClose={() => setFilePreview(null)}
           />
 
-          <Modal
+          <AppModal
             title="群公告历史"
             visible={announcementHistoryVisible}
             onCancel={() => setAnnouncementHistoryVisible(false)}
@@ -2703,7 +2704,7 @@ export default function ChatPage({
                 />
               )}
             />
-          </Modal>
+          </AppModal>
 
           {/* Input area */}
           <div style={{ padding: isQuick ? '6px 8px' : '4px 8px', borderTop: '1px solid var(--semi-color-border)' }}>
@@ -3069,7 +3070,7 @@ export default function ChatPage({
         const conv = conversations.find((c) => c.id === favPreviewMsg.conversationId);
         const convName = conv?.type === 'direct' ? (conv.targetUser?.nickname ?? '私聊') : (conv?.name ?? '群聊');
         return (
-          <Modal
+          <AppModal
             title={
               <div>
                 <div>收藏的消息</div>
@@ -3119,12 +3120,12 @@ export default function ChatPage({
                 onOpenForwardView={handleOpenForwardView}
               />
             </div>
-          </Modal>
+          </AppModal>
         );
       })()}
 
       {/* 聊天记录搜索弹窗 */}
-      <Modal
+      <AppModal
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <MessageSquare size={16} style={{ color: 'var(--semi-color-text-2)' }} />
@@ -3277,7 +3278,7 @@ export default function ChatPage({
             )}
           </div>
         </div>
-      </Modal>
+      </AppModal>
     </div>
   );
 }
