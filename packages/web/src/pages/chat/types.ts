@@ -18,6 +18,18 @@ export interface PendingFile {
   file: File;
 }
 
+export interface UploadingItem {
+  /** 本地唯一 ID（负数 / 前缀字符串） */
+  id: string;
+  type: 'image' | 'file';
+  name: string;
+  size: number;
+  /** 仅 image 类型有效：本地 object URL 用于即时预览 */
+  previewUrl?: string;
+  mimeType?: string | null;
+  convId: number;
+}
+
 export type SearchDatePreset = '' | 'today' | '7d' | '30d';
 
 export const CHAT_MESSAGE_TYPE_OPTIONS: Array<{ value: ChatMessage['type']; label: string }> = [

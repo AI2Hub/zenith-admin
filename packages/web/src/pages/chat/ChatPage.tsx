@@ -32,7 +32,7 @@ import {
   getImageDimensions,
 } from './utils';
 import './ChatPage.css';
-import type { ChatUser, PendingImage, PendingFile, SearchDatePreset, FailedMessage } from './types';
+import type { ChatUser, PendingImage, PendingFile, SearchDatePreset, FailedMessage, UploadingItem } from './types';
 import { CHAT_MESSAGE_TYPE_OPTIONS } from './types';
 import { UserAvatar } from '@/components/UserAvatar';
 import { GroupGridAvatar } from './components/GroupGridAvatar';
@@ -60,6 +60,7 @@ function getNextMentionUnread(
 
 // 模块级 state updater 工厂，避免组件内函数嵌套超过 4 层
 const removeMessageById = (id: number) => (prev: ChatMessage[]) => prev.filter((m) => m.id !== id);
+const removeUploadingItemById = (id: string) => (prev: import('./types').UploadingItem[]) => prev.filter((u) => u.id !== id);
 
 const getReplyPreviewText = (m: ChatMessage): string => {
   if (m.type === 'image') return '[图片]';
@@ -126,7 +127,6 @@ export default function ChatPage({
   const [loadingConvs, setLoadingConvs] = useState(false);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [sending, setSending] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [emojiVisible, setEmojiVisible] = useState(false);
   const [emojiAnchor, setEmojiAnchor] = useState<{ top: number; left: number } | null>(null);
 
@@ -189,6 +189,7 @@ export default function ChatPage({
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [failedMessages, setFailedMessages] = useState<FailedMessage[]>([]);
+  const [uploadingItems, setUploadingItems] = useState<UploadingItem[]>([]);
   const [draftsMap, setDraftsMap] = useState<Record<number, string>>({});
   const [showMediaPanel, setShowMediaPanel] = useState(false);
   const [mediaType, setMediaType] = useState<'image' | 'file' | 'link'>('image');
@@ -647,15 +648,11 @@ export default function ChatPage({
     setDraftsMap((prev) => { const next = { ...prev }; delete next[activeConvId]; return next; });
     setPendingImages([]);
     setPendingFiles([]);
-    imagesToSend.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+    // 注意：image previewUrl 不在这里撤销，上传中 UI 仍需要；等每张图片上传完成后再撤销
 
-    setSending(true);
-    if (imagesToSend.length > 0 || filesToSend.length > 0) setUploading(true);
-
-    let failedImageCount = 0;
-    let failedFileCount = 0;
-
+    // ─── 1. 文字消息（快速，短暂 loading 发送按钮）──────────────────────────
     if (content) {
+      setSending(true);
       const body: Record<string, unknown> = { content, type: 'text' };
       if (replyTo) body.replyToId = replyTo.id;
       const mentions = selectedMentions.filter((item) => content.includes(`@${item.nickname}`));
@@ -673,34 +670,60 @@ export default function ChatPage({
       } else if (res.data) {
         appendMessageOnce(res.data);
       }
-    }
-
-    if (imagesToSend.length > 0) {
-      for (const item of imagesToSend) {
-        const ok = await sendImageFile(item.file);
-        if (!ok) failedImageCount += 1;
-      }
-    }
-
-    if (filesToSend.length > 0) {
-      for (const item of filesToSend) {
-        const ok = await sendFileMessage(item.file);
-        if (!ok) failedFileCount += 1;
-      }
+      setSending(false);
     }
 
     setReplyTo(null);
     setSelectedMentions([]);
-    setUploading(false);
-    setSending(false);
 
-    if (failedImageCount > 0) {
-      Toast.error(`有 ${failedImageCount} 张图片发送失败`);
+    // ─── 2. 图片/文件：立即显示上传中占位，后台非阻塞上传 ─────────────────────
+    if (imagesToSend.length > 0 || filesToSend.length > 0) {
+      const tempItems: UploadingItem[] = [
+        ...imagesToSend.map((item) => ({
+          id: `upload-img-${item.id}`,
+          type: 'image' as const,
+          name: item.file.name,
+          size: item.file.size,
+          previewUrl: item.previewUrl,
+          mimeType: item.file.type || null,
+          convId: activeConvId,
+        })),
+        ...filesToSend.map((item) => ({
+          id: `upload-file-${item.id}`,
+          type: 'file' as const,
+          name: item.file.name,
+          size: item.file.size,
+          mimeType: item.file.type || null,
+          convId: activeConvId,
+        })),
+      ];
+      setUploadingItems((prev) => [...prev, ...tempItems]);
+
+      // 后台上传，不阻塞当前函数，不 loading 发送按钮
+      void (async () => {
+        let failedImageCount = 0;
+        let failedFileCount = 0;
+
+        for (const item of imagesToSend) {
+          const uploadId = `upload-img-${item.id}`;
+          const ok = await sendImageFile(item.file);
+          URL.revokeObjectURL(item.previewUrl);
+          setUploadingItems(removeUploadingItemById(uploadId));
+          if (!ok) failedImageCount += 1;
+        }
+
+        for (const item of filesToSend) {
+          const uploadId = `upload-file-${item.id}`;
+          const ok = await sendFileMessage(item.file);
+          setUploadingItems(removeUploadingItemById(uploadId));
+          if (!ok) failedFileCount += 1;
+        }
+
+        if (failedImageCount > 0) Toast.error(`有 ${failedImageCount} 张图片发送失败`);
+        if (failedFileCount > 0) Toast.error(`有 ${failedFileCount} 个文件发送失败`);
+      })();
     }
-    if (failedFileCount > 0) {
-      Toast.error(`有 ${failedFileCount} 个文件发送失败`);
-    }
-  }, [activeConvId, appendMessageOnce, fetchLinkPreview, input, pendingFiles, pendingImages, replyTo, saveDraft, selectedMentions, sendFileMessage, sendImageFile, sending]);
+  }, [activeConvId, appendMessageOnce, fetchLinkPreview, input, pendingFiles, pendingImages, replyTo, saveDraft, selectedMentions, sendFileMessage, sendImageFile, sending, setUploadingItems]);
 
   const handleSelectImages = useCallback((files: File[]) => {
     const validFiles = files.filter((file) => file.type.startsWith('image/'));
@@ -2763,6 +2786,27 @@ export default function ChatPage({
               </div>
             )}
 
+            {/* 上传中占位（文件/图片后台上传时显示） */}
+            {uploadingItems.some((u) => u.convId === activeConvId) && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                {uploadingItems.filter((u) => u.convId === activeConvId).map((item) => (
+                  item.type === 'image' ? (
+                    <div key={item.id} style={{ position: 'relative', width: 64, height: 64, flexShrink: 0 }}>
+                      <img src={item.previewUrl} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, display: 'block', opacity: 0.6 }} />
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, background: 'rgba(0,0,0,0.3)' }}>
+                        <Spin size="small" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'var(--semi-color-fill-0)', borderRadius: 6, fontSize: 12, color: 'var(--semi-color-text-1)', maxWidth: 180 }}>
+                      <Spin size="small" />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                    </div>
+                  )
+                ))}
+              </div>
+            )}
+
             {pendingImages.length > 0 && (
               <div
                 style={{
@@ -2890,7 +2934,6 @@ export default function ChatPage({
                 <Button
                   size="small" theme="borderless" type="tertiary"
                   icon={<ImagePlus size={16} />}
-                  loading={uploading}
                   onClick={() => fileInputRef.current?.click()}
                 />
               </Tooltip>
