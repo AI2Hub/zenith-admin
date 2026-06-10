@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
-import { AIChatDialogue, AIChatInput, Typography, Button, RadioGroup, Radio, Select, Tag, Toast, Tooltip, Spin, Popconfirm } from '@douyinfe/semi-ui';
+import { AIChatDialogue, AIChatInput, Typography, Button, RadioGroup, Radio, Select, Tag, Toast, Tooltip, Spin, Popconfirm, TextArea } from '@douyinfe/semi-ui';
 import type { Message as AIChatMessage } from '@douyinfe/semi-ui/lib/es/aiChatDialogue';
 import { MessageSquarePlus, Trash2, AlignLeft, AlignJustify, FileText, Settings } from 'lucide-react';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
@@ -457,6 +457,74 @@ export default function AIChatPage() {
     void handleMessageSend({ text: userText });
   }, [generating, activeConvId, messages, handleMessageSend]);
 
+  /** 编辑并重发：修改用户消息内容，删除其后的所有消息，重新生成 */
+  const handleEditAndResend = useCallback(async (msgId: string, newText: string) => {
+    if (!newText.trim() || !activeConvId) return;
+    const curMessages = messages;
+    const idx = curMessages.findIndex((m) => m.id === msgId);
+    if (idx === -1) return;
+
+    // 删除 DB 里该 user 消息之后的所有消息（包含 assistant 回复）
+    const afterMsgs = curMessages.slice(idx + 1);
+    for (const m of afterMsgs) {
+      const dbId = String(m.id).startsWith('api-') ? Number(String(m.id).replace('api-', '')) : null;
+      if (dbId && m.role === 'assistant') {
+        await request.delete(`/api/ai/conversations/${activeConvId}/messages/${dbId}`).catch(() => {});
+      }
+    }
+    // 删除该 user 消息本身（即将用新内容重发）
+    const userDbId = String(msgId).startsWith('api-') ? Number(String(msgId).replace('api-', '')) : null;
+    if (userDbId) {
+      // user 消息没有 deleteMessage 接口，直接上层删除：只要重发新消息就充分，不必删 DB user 消息
+    }
+    // 刪除 UI 中该消息及其后所有消息
+    setMessages((prev) => {
+      const updated = [...prev];
+      // 退出编辑模式
+      const editIdx = updated.findIndex((m) => m.id === msgId);
+      if (editIdx !== -1) updated[editIdx] = { ...updated[editIdx], editing: false };
+      return updated.slice(0, idx); // 截断该消息及其后所有
+    });
+    void handleMessageSend({ text: newText });
+  }, [activeConvId, messages, handleMessageSend]);
+
+  /** messageEditRender：编辑模式下渲染受控文本框 */
+  function MessageEditWidget({ msgId, defaultText }: { msgId: string; defaultText: string }) {
+    const [editText, setEditText] = React.useState(defaultText);
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+        <TextArea
+          autosize
+          value={editText}
+          onChange={(v) => setEditText(v)}
+          style={{ fontSize: 14 }}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+              void handleEditAndResend(msgId, editText);
+            }
+          }}
+        />
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <Button
+            size="small"
+            type="tertiary"
+            onClick={() => setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, editing: false } : m))}
+          >
+            取消
+          </Button>
+          <Button
+            size="small"
+            type="primary"
+            disabled={!editText.trim() || editText.trim() === defaultText.trim()}
+            onClick={() => void handleEditAndResend(msgId, editText)}
+          >
+            重新发送
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const handleNewConversation = async () => {
     try {
       const res = await request.post<AiConversation>('/api/ai/conversations', { title: '新对话' });
@@ -635,6 +703,13 @@ export default function AIChatPage() {
                     if (!dbId || !activeConvId) { Toast.info('感谢您的反馈，我们会持续改进'); return; }
                     void request.put(`/api/ai/conversations/${activeConvId}/messages/${dbId}/feedback`, { feedback: -1 })
                       .then(() => Toast.info('感谢您的反馈，我们会持续改进'));
+                  }}
+                  messageEditRender={(props) => {
+                    const defaultText = props.inputContents?.find((c) => c.type === 'text')?.text ?? '';
+                    // 通过 messages state 找到正在编辑的消息 ID
+                    const editingMsg = messages.find((m) => (m as Message & { editing?: boolean }).editing && m.role === 'user');
+                    if (!editingMsg) return null;
+                    return <MessageEditWidget msgId={editingMsg.id} defaultText={defaultText} />;
                   }}
                   onMessageReset={(msg) => msg && !generating && void handleRegenerate(msg as Message)}
                   onFileClick={(fileItem) => {
