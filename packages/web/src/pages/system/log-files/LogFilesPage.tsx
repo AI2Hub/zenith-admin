@@ -258,8 +258,8 @@ export default function LogFilesPage() {
             }}
             loading={listLoading}
             emptyText={files.length === 0 ? '暂无日志文件' : '未找到匹配的日志文件'}
-          >
-            {filteredFiles.map((file) => {
+            dataSource={filteredFiles}
+            renderItem={(file) => {
               const active = selected?.name === file.name;
               return (
                 <NavListItem
@@ -322,8 +322,8 @@ export default function LogFilesPage() {
                   }
                 />
               );
-            })}
-          </NavListPanel>
+            }}
+          />
       )}
       detail={(
         <>

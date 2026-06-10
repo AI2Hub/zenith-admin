@@ -13,7 +13,7 @@ export interface NavListPanelSearchProps {
   onEnterPress?: () => void;
 }
 
-export interface NavListPanelProps {
+export interface NavListPanelProps<T = unknown> {
   /** 标题栏左侧文字 */
   title?: ReactNode;
   /** 标题栏右侧操作区（按钮/下拉菜单等） */
@@ -26,7 +26,14 @@ export interface NavListPanelProps {
   emptyText?: string;
   /** 底部插槽（分页等） */
   footer?: ReactNode;
-  /** 列表条目 */
+  /**
+   * 数据源（Semi List 原生 `dataSource` + `renderItem` 模式，优先于 `children`）。
+   * 配合 `renderItem` 使用，空数组时自动显示 `emptyText`。
+   */
+  dataSource?: T[];
+  /** 渲染每个条目，配合 `dataSource` 使用 */
+  renderItem?: (item: T, index: number) => ReactNode;
+  /** 列表条目（与 `dataSource` 二选一） */
   children?: ReactNode;
   style?: CSSProperties;
   /** 是否去掉 body 的 padding（用于 Collapse 分组等场景） */
@@ -38,19 +45,23 @@ export interface NavListPanelProps {
   rawBody?: boolean;
 }
 
-export function NavListPanel({
+export function NavListPanel<T = unknown>({
   title,
   headerExtra,
   search,
   loading,
   emptyText = '暂无数据',
   footer,
+  dataSource,
+  renderItem,
   children,
   style,
   bodyNoPadding,
   rawBody,
-}: Readonly<NavListPanelProps>) {
-  const childCount = Children.count(children);
+}: Readonly<NavListPanelProps<T>>) {
+  const usingDataSource = dataSource !== undefined;
+  const childCount = usingDataSource ? 0 : Children.count(children);
+  const childrenContent = childCount > 0 ? children : null;
 
   /** 搜索框节点，复用于 List header 槽（标准模式）或独立 div（rawBody 模式）。 */
   const searchInput = search ? (
@@ -108,10 +119,11 @@ export function NavListPanel({
           emptyContent={<div className="nav-list-panel__empty">{emptyText}</div>}
           header={searchInput ?? undefined}
           footer={footer ?? undefined}
+          dataSource={usingDataSource ? dataSource : undefined}
+          renderItem={usingDataSource ? (renderItem as (item: unknown, index: number) => ReactNode) : undefined}
           className="nav-list-panel__list"
         >
-          {/* 无条目时传 null，触发 List 的 emptyContent（传空数组不触发） */}
-          {childCount > 0 ? children : null}
+          {usingDataSource ? null : childrenContent}
         </List>
       )}
     </div>

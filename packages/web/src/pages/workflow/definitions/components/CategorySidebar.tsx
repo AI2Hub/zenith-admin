@@ -91,8 +91,8 @@ export default function CategorySidebar({ categories, selectedId, onSelect, onCh
             <Button theme="borderless" size="small" icon={<Plus size={14} />} onClick={openNew}>新增</Button>
           ) : undefined
         }
-      >
-        {listData.map((item) => {
+        dataSource={listData}
+        renderItem={(item) => {
           const isAll = item.id === null;
           const isActive = isAll ? selectedId === null : selectedId === item.id;
           const colorDot = item.color
@@ -148,8 +148,8 @@ export default function CategorySidebar({ categories, selectedId, onSelect, onCh
               }
             />
           );
-        })}
-      </NavListPanel>
+        }}
+      />
 
       <AppModal
         title={editing ? '编辑分类' : '新增分类'}

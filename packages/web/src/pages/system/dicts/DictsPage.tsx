@@ -510,9 +510,9 @@ export default function DictsPage() {
           onPageSizeChange={handleDictPageSizeChange}
         />
       }
-    >
-      {dicts.map(renderDictListItem)}
-    </NavListPanel>
+      dataSource={dicts}
+      renderItem={renderDictListItem}
+    />
   );
 
   const itemColumns: ColumnProps<DictItem>[] = [

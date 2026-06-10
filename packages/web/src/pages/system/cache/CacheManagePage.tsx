@@ -319,8 +319,8 @@ export default function CacheManagePage() {
           <Button theme="borderless" size="small" icon={<MoreHorizontal size={14} />} />
         </Dropdown>
       }
-    >
-      {categoryRows.map((row) => (
+      dataSource={categoryRows}
+      renderItem={(row) => (
         <NavListItem
           key={row.category}
           active={selectedCategory?.category === row.category}
@@ -349,8 +349,8 @@ export default function CacheManagePage() {
             ) : undefined
           }
         />
-      ))}
-    </NavListPanel>
+      )}
+    />
   );
 
   const cacheDetail = (
