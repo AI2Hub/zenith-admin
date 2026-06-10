@@ -23,6 +23,7 @@ export const aiConversationsHandlers = [
       title: body.title ?? '新对话',
       providerSnapshot: null,
       isArchived: false,
+      isPinned: false,
       createdAt: now,
       updatedAt: now,
     };
