@@ -42,7 +42,11 @@
   visibility: visible;
 }
 
-/* 悬停时缩小尺寸文字，留出空间给按钮 */
+/* Schema 折叠面板内容区域清零默认 padding，紧凑布局 */
+.db-admin-schema-collapse .semi-collapse-content {
+  padding: 0;
+}
+
 .db-admin-table-item:hover .db-admin-table-size {
   max-width: 52px;
   overflow: hidden;

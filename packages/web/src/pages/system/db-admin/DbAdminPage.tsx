@@ -1190,6 +1190,7 @@ export default function DbAdminPage() {
                 >
                   {filteredTables.length > 0 && (
                     <Collapse
+                      className="db-admin-schema-collapse"
                       expandIconPosition="left"
                       defaultActiveKey={groupedTables.map(([s]) => s)}
                       keepDOM={false}
