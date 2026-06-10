@@ -2775,16 +2775,21 @@ export default function ChatPage({
               >
                 {pendingImages.map((item) => (
                   <div key={item.id} style={{ position: 'relative', width: 64, height: 64 }}>
-                    <img
-                      src={item.previewUrl}
-                      alt={item.file.name}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, display: 'block', cursor: 'pointer' }}
+                    <button
+                      type="button"
                       onClick={() => {
                         setPreviewSrcList([item.previewUrl]);
                         setPreviewCurrentIndex(0);
                         setPreviewVisible(true);
                       }}
-                    />
+                      style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', width: '100%', height: '100%', display: 'block', borderRadius: 6, overflow: 'hidden' }}
+                    >
+                      <img
+                        src={item.previewUrl}
+                        alt={item.file.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+                    </button>
                     <Button
                       size="small"
                       theme="solid"
