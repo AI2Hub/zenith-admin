@@ -27,13 +27,6 @@ type Message = Omit<AIChatMessage, 'role' | 'content' | 'status' | 'createdAt'> 
 
 const AI_AVATAR = 'https://lf3-static.bytednsdoc.com/obj/eden-cn/ptlz_zlp/ljhwZthlaukjlkulzlp/other/logo.png';
 
-const HINTS = [
-  '如何新增一个 CRUD 模块？',
-  '如何配置角色权限？',
-  '如何查看操作日志？',
-  '如何设置定时任务？',
-];
-
 const DEFAULT_MODEL_OPTIONS: { value: string; label: string; source: 'system' | 'user' }[] = [];
 
 let msgIdCounter = 1000;
@@ -460,13 +453,6 @@ export default function AIChatPage() {
     }
   };
 
-  const handleHintClick = useCallback(
-    (hint: string) => {
-      void handleMessageSend({ text: hint });
-    },
-    [handleMessageSend]
-  );
-
   const activeConv = conversations.find((c) => c.id === activeConvId);
 
   return (
@@ -600,14 +586,13 @@ export default function AIChatPage() {
                   ref={dialogueRef}
                   chats={messages}
                   roleConfig={roleConfig}
-                  hints={generating ? [] : HINTS}
+                  hints={[]}
                   align={align}
                   mode={mode}
                   onMessageCopy={() => Toast.success('已复制到剪贴板')}
                   onMessageGoodFeedback={() => Toast.success('感谢您的正向反馈')}
                   onMessageBadFeedback={() => Toast.info('感谢您的反馈，我们会持续改进')}
                   onMessageReset={() => Toast.info('重新生成功能暂不支持')}
-                  onHintClick={handleHintClick}
                   onFileClick={(fileItem) => {
                     const fi = fileItem?.fileInstance;
                     if (fi instanceof File) setPdfFile(fi);
