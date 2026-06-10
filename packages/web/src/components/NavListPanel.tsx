@@ -51,7 +51,19 @@ export function NavListPanel({
   rawBody,
 }: Readonly<NavListPanelProps>) {
   const childCount = Children.count(children);
-  const isEmpty = !loading && childCount === 0;
+
+  /** 搜索框节点，复用于 List header 槽（标准模式）或独立 div（rawBody 模式）。 */
+  const searchInput = search ? (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder={search.placeholder ?? '搜索'}
+      value={search.value}
+      onChange={search.onChange}
+      onEnterPress={search.onEnterPress}
+      showClear
+      size="small"
+    />
+  ) : null;
 
   return (
     <div className="nav-list-panel" style={style}>
@@ -66,39 +78,41 @@ export function NavListPanel({
         </div>
       )}
 
-      {search && (
-        <div className="nav-list-panel__search">
-          <Input
-            prefix={<Search size={14} />}
-            placeholder={search.placeholder ?? '搜索'}
-            value={search.value}
-            onChange={search.onChange}
-            onEnterPress={search.onEnterPress}
-            showClear
-            size="small"
-          />
-        </div>
-      )}
-
-      <div className={`nav-list-panel__body${bodyNoPadding ? ' nav-list-panel__body--no-padding' : ''}`}>
-        {loading && (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
-            <Spin />
+      {rawBody ? (
+        /* rawBody 模式（如 DbAdmin Collapse 分组）：保留 div 布局结构 */
+        <>
+          {searchInput !== null && (
+            <div className="nav-list-panel__search">{searchInput}</div>
+          )}
+          <div className={`nav-list-panel__body${bodyNoPadding ? ' nav-list-panel__body--no-padding' : ''}`}>
+            {loading && (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+                <Spin />
+              </div>
+            )}
+            {!loading && children}
           </div>
-        )}
-        {!loading && rawBody && children}
-        {!loading && !rawBody && isEmpty && (
-          <div className="nav-list-panel__empty">{emptyText}</div>
-        )}
-        {!loading && !rawBody && childCount > 0 && (
-          <List split={false} className="nav-list-panel__list">
-            {children}
-          </List>
-        )}
-      </div>
-
-      {footer && (
-        <div className="nav-list-panel__footer">{footer}</div>
+          {footer != null && (
+            <div className="nav-list-panel__footer">{footer}</div>
+          )}
+        </>
+      ) : (
+        /* 标准模式（Semi 带筛选器最佳实践）：
+         *   - 搜索框 → List header 槽（固定不滚动）
+         *   - 条目列表 → List 主体（Spin wrapper 承载滚动）
+         *   - 分页 footer → List footer 槽（固定不滚动）
+         *   - loading / 空状态 → List 原生 prop */
+        <List
+          split={false}
+          loading={loading}
+          emptyContent={<div className="nav-list-panel__empty">{emptyText}</div>}
+          header={searchInput ?? undefined}
+          footer={footer ?? undefined}
+          className="nav-list-panel__list"
+        >
+          {/* 无条目时传 null，触发 List 的 emptyContent（传空数组不触发） */}
+          {childCount > 0 ? children : null}
+        </List>
       )}
     </div>
   );

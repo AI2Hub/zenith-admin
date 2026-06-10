@@ -54,17 +54,49 @@
   padding: 0;
 }
 
-/* Semi List 容器：去掉 List 默认字体，继承应用字体；条目间不显示分割线 */
-.nav-list-panel__list.semi-list,
-.nav-list-panel__list .semi-list-items {
+/* Semi List 标准模式：flex 列布局，自身为侧栏的可滚动主体 */
+.nav-list-panel__list.semi-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
   font: inherit;
 }
+
+/* 搜索框 header 槽：固定，不随条目滚动 */
+.nav-list-panel__list > .semi-list-header {
+  flex-shrink: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--semi-color-border);
+  box-sizing: border-box;
+}
+
+/* Semi Spin 直接子元素（条目滚动容器）：占满剩余高度，超出时纵向滚动 */
+.nav-list-panel__list > .semi-spin {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* 条目列表区 padding */
 .nav-list-panel__list .semi-list-items {
+  padding: 8px;
+  box-sizing: border-box;
   margin: 0;
-  padding: 0;
   list-style: none;
 }
 
+/* footer 槽（分页等）：固定，不随条目滚动 */
+.nav-list-panel__list > .semi-list-footer {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-top: 1px solid var(--semi-color-border);
+  overflow-x: auto;
+  box-sizing: border-box;
+}
+
+/* rawBody 模式保留的 footer div */
 .nav-list-panel__footer {
   flex-shrink: 0;
   padding: 8px 10px;
