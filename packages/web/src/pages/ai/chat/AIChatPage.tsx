@@ -600,7 +600,7 @@ export default function AIChatPage() {
                   hints={[]}
                   align={align}
                   mode={mode}
-                  onMessageCopy={() => Toast.success('已复制到剪贴板')}
+                  onMessageCopy={() => { /* Semi 内置已弹 Toast，此处不重复 */ }}
                   onMessageGoodFeedback={(msg) => {
                     const dbId = String(msg.id).startsWith('api-') ? Number(String(msg.id).replace('api-', '')) : null;
                     if (!dbId || !activeConvId) { Toast.success('感谢您的正向反馈'); return; }
