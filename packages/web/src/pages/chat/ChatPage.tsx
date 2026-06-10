@@ -1538,44 +1538,49 @@ export default function ChatPage({
         onBack={isQuick ? undefined : () => setActiveConvId(null)}
         master={(
           <>
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--semi-color-border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <MasterDetailLayout.Header
+          extra={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Tooltip content="新建对话">
+                <Button
+                  size="small" theme="borderless" type="primary"
+                  icon={<MessageSquarePlus size={16} />}
+                  onClick={() => setShowNewChat((v) => !v)}
+                />
+              </Tooltip>
+              {isQuick && onOpenFullPage && (
+                <Tooltip content="前往聊天页">
+                  <Button
+                    size="small"
+                    theme="borderless"
+                    type="tertiary"
+                    icon={<ExternalLink size={15} />}
+                    onClick={() => onOpenFullPage(activeConvId)}
+                  />
+                </Tooltip>
+              )}
+              {isQuick && onClose && (
+                <Tooltip content="关闭">
+                  <Button
+                    size="small"
+                    theme="borderless"
+                    type="tertiary"
+                    icon={<X size={15} />}
+                    onClick={onClose}
+                  />
+                </Tooltip>
+              )}
+            </div>
+          }
+        >
           {totalUnread > 0 ? (
-            <Badge count={totalUnread} overflowCount={99} style={{ flex: 1 }}>
+            <Badge count={totalUnread} overflowCount={99}>
               <Title heading={6} style={{ margin: 0 }}>消息</Title>
             </Badge>
           ) : (
-            <Title heading={6} style={{ margin: 0, flex: 1 }}>消息</Title>
+            <Title heading={6} style={{ margin: 0 }}>消息</Title>
           )}
-          <Tooltip content="新建对话">
-            <Button
-              size="small" theme="borderless" type="primary"
-              icon={<MessageSquarePlus size={16} />}
-              onClick={() => setShowNewChat((v) => !v)}
-            />
-          </Tooltip>
-          {isQuick && onOpenFullPage && (
-            <Tooltip content="前往聊天页">
-              <Button
-                size="small"
-                theme="borderless"
-                type="tertiary"
-                icon={<ExternalLink size={15} />}
-                onClick={() => onOpenFullPage(activeConvId)}
-              />
-            </Tooltip>
-          )}
-          {isQuick && onClose && (
-            <Tooltip content="关闭">
-              <Button
-                size="small"
-                theme="borderless"
-                type="tertiary"
-                icon={<X size={15} />}
-                onClick={onClose}
-              />
-            </Tooltip>
-          )}
-        </div>
+        </MasterDetailLayout.Header>
 
         {showNewChat && (
           <AppModal
@@ -2056,7 +2061,99 @@ export default function ChatPage({
         detail={activeConv ? (
           <>
           {/* Header */}
-          <div style={{ padding: isQuick ? '10px 12px' : '10px 20px', borderBottom: '1px solid var(--semi-color-border)', display: 'flex', alignItems: 'center', gap: isQuick ? 6 : 10 }}>
+          <MasterDetailLayout.Header
+            style={isQuick ? undefined : { padding: '8px 20px' }}
+            extra={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                {!isQuick && (
+                  <>
+                    {activeConv.type === 'group' && (
+                      <Tooltip content="群公告历史">
+                        <Button
+                          size="small"
+                          theme="borderless"
+                          type={announcementHistoryVisible ? 'primary' : 'tertiary'}
+                          icon={<History size={15} />}
+                          onClick={() => {
+                            if (!activeConvId) return;
+                            void fetchAnnouncementHistory(activeConvId);
+                            setAnnouncementHistoryVisible(true);
+                          }}
+                        />
+                      </Tooltip>
+                    )}
+                    <Tooltip content={showSearchPanel ? '关闭聊天记录' : '聊天记录'}>
+                      <Button
+                        size="small"
+                        theme="borderless"
+                        type={showSearchPanel ? 'primary' : 'tertiary'}
+                        icon={<Search size={15} />}
+                        onClick={() => {
+                          setShowSearchPanel((v) => {
+                            const next = !v;
+                            if (next) { setShowMembers(false); setShowMediaPanel(false); }
+                            return next;
+                          });
+                        }}
+                      />
+                    </Tooltip>
+                    <Tooltip content={showMediaPanel ? '关闭媒体库' : '图片与文件'}>
+                      <Button
+                        size="small"
+                        theme="borderless"
+                        type={showMediaPanel ? 'primary' : 'tertiary'}
+                        icon={<Images size={15} />}
+                        onClick={() => {
+                          setShowMediaPanel((v) => {
+                            const next = !v;
+                            if (next) { setShowMembers(false); setShowSearchPanel(false); }
+                            return next;
+                          });
+                        }}
+                      />
+                    </Tooltip>
+                    {activeConv.type === 'group' && (
+                      <Tooltip content={showMembers ? '关闭群信息' : '群信息'}>
+                        <Button
+                          size="small" theme="borderless" type={showMembers ? 'primary' : 'tertiary'}
+                          icon={<MoreHorizontal size={15} />}
+                          onClick={() => {
+                            setShowMembers((v) => {
+                              const next = !v;
+                              if (next) { setShowSearchPanel(false); setShowMediaPanel(false); }
+                              return next;
+                            });
+                          }}
+                        />
+                      </Tooltip>
+                    )}
+                  </>
+                )}
+                {isQuick && onOpenFullPage && (
+                  <Tooltip content="前往聊天页">
+                    <Button
+                      size="small"
+                      theme="borderless"
+                      type="tertiary"
+                      icon={<ExternalLink size={15} />}
+                      onClick={() => onOpenFullPage(activeConvId)}
+                    />
+                  </Tooltip>
+                )}
+                {isQuick && onClose && (
+                  <Tooltip content="关闭">
+                    <Button
+                      size="small"
+                      theme="borderless"
+                      type="tertiary"
+                      icon={<X size={15} />}
+                      onClick={onClose}
+                    />
+                  </Tooltip>
+                )}
+              </div>
+            }
+          >
             {isQuick && (
               <Tooltip content="返回会话列表">
                 <Button
@@ -2069,74 +2166,71 @@ export default function ChatPage({
               </Tooltip>
             )}
             {activeConv.type === 'direct' && activeConv.targetUser && (
-              <>
-                <Popover
-                  trigger="click"
-                  position="bottomLeft"
-                  showArrow
-                  content={(
-                    <div style={{ padding: '8px 4px', minWidth: 220 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                        <UserAvatar name={activeConv.targetUser.nickname} avatar={activeConv.targetUser.avatar} size={44} />
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: 15 }}>{activeConv.targetUser.nickname}</div>
-                          {activeConv.targetUser.departmentName && (
-                            <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: 2 }}>{activeConv.targetUser.departmentName}</div>
-                          )}
-                        </div>
+              <Popover
+                trigger="click"
+                position="bottomLeft"
+                showArrow
+                content={(
+                  <div style={{ padding: '8px 4px', minWidth: 220 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                      <UserAvatar name={activeConv.targetUser.nickname} avatar={activeConv.targetUser.avatar} size={44} />
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 15 }}>{activeConv.targetUser.nickname}</div>
+                        {activeConv.targetUser.departmentName && (
+                          <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: 2 }}>{activeConv.targetUser.departmentName}</div>
+                        )}
                       </div>
-                      {(activeConv.targetUser.positionNames ?? []).length > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-                          <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13, minWidth: 52 }}>岗位</span>
-                          <span style={{ fontSize: 13 }}>{(activeConv.targetUser.positionNames ?? []).join('、')}</span>
-                        </div>
-                      )}
-                      {activeConv.targetUser.phone && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                          <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13, minWidth: 52 }}>手机</span>
-                          <span style={{ fontSize: 13 }}>{activeConv.targetUser.phone}</span>
-                        </div>
-                      )}
-                      {activeConv.targetUser.email && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13, minWidth: 52 }}>邮箱</span>
-                          <span style={{ fontSize: 13 }}>{activeConv.targetUser.email}</span>
-                        </div>
-                      )}
                     </div>
-                  )}
-                >
-                  <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: isQuick ? 6 : 8, maxWidth: '40%', minWidth: 0 }}>
-                    <UserAvatar name={activeConv.targetUser.nickname} avatar={activeConv.targetUser.avatar} size={isQuick ? 28 : 32} />
-                    <span style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, overflow: 'hidden' }}>
-                      <Title
-                        heading={6}
-                        style={{
-                          margin: 0,
-                          lineHeight: '1.2',
-                          fontSize: isQuick ? 15 : undefined,
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {activeConv.targetUser.nickname}
-                      </Title>
-                      {activeConv.targetUser.departmentName && (
-                        <Text size="small" type="tertiary" style={{ whiteSpace: 'nowrap', flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {activeConv.targetUser.departmentName}
-                        </Text>
-                      )}
-                    </span>
+                    {(activeConv.targetUser.positionNames ?? []).length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+                        <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13, minWidth: 52 }}>岗位</span>
+                        <span style={{ fontSize: 13 }}>{(activeConv.targetUser.positionNames ?? []).join('、')}</span>
+                      </div>
+                    )}
+                    {activeConv.targetUser.phone && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13, minWidth: 52 }}>手机</span>
+                        <span style={{ fontSize: 13 }}>{activeConv.targetUser.phone}</span>
+                      </div>
+                    )}
+                    {activeConv.targetUser.email && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13, minWidth: 52 }}>邮箱</span>
+                        <span style={{ fontSize: 13 }}>{activeConv.targetUser.email}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              >
+                <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: isQuick ? 6 : 8, maxWidth: '60%', minWidth: 0 }}>
+                  <UserAvatar name={activeConv.targetUser.nickname} avatar={activeConv.targetUser.avatar} size={28} />
+                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, overflow: 'hidden' }}>
+                    <Title
+                      heading={6}
+                      style={{
+                        margin: 0,
+                        lineHeight: '1.2',
+                        fontSize: isQuick ? 15 : undefined,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {activeConv.targetUser.nickname}
+                    </Title>
+                    {activeConv.targetUser.departmentName && (
+                      <Text size="small" type="tertiary" style={{ whiteSpace: 'nowrap', flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {activeConv.targetUser.departmentName}
+                      </Text>
+                    )}
                   </span>
-                </Popover>
-                <span style={{ flex: 1 }} />
-              </>
+                </span>
+              </Popover>
             )}
             {activeConv.type === 'group' && (
               <>
-                <GroupGridAvatar name={activeConv.name ?? '群聊'} size={isQuick ? 28 : 32} members={groupAvatarMap[activeConv.id]} />
+                <GroupGridAvatar name={activeConv.name ?? '群聊'} size={28} members={groupAvatarMap[activeConv.id]} />
                 <Title
                   heading={6}
                   style={{
@@ -2153,94 +2247,8 @@ export default function ChatPage({
                 </Title>
               </>
             )}
-            {!isQuick && (
-              <>
-                {activeConv.type === 'group' && (
-                  <Tooltip content="群公告历史">
-                    <Button
-                      size="small"
-                      theme="borderless"
-                      type={announcementHistoryVisible ? 'primary' : 'tertiary'}
-                      icon={<History size={15} />}
-                      onClick={() => {
-                        if (!activeConvId) return;
-                        void fetchAnnouncementHistory(activeConvId);
-                        setAnnouncementHistoryVisible(true);
-                      }}
-                    />
-                  </Tooltip>
-                )}
-                <Tooltip content={showSearchPanel ? '关闭聊天记录' : '聊天记录'}>
-                  <Button
-                    size="small"
-                    theme="borderless"
-                    type={showSearchPanel ? 'primary' : 'tertiary'}
-                    icon={<Search size={15} />}
-                    onClick={() => {
-                      setShowSearchPanel((v) => {
-                        const next = !v;
-                        if (next) { setShowMembers(false); setShowMediaPanel(false); }
-                        return next;
-                      });
-                    }}
-                  />
-                </Tooltip>
-                <Tooltip content={showMediaPanel ? '关闭媒体库' : '图片与文件'}>
-                  <Button
-                    size="small"
-                    theme="borderless"
-                    type={showMediaPanel ? 'primary' : 'tertiary'}
-                    icon={<Images size={15} />}
-                    onClick={() => {
-                      setShowMediaPanel((v) => {
-                        const next = !v;
-                        if (next) { setShowMembers(false); setShowSearchPanel(false); }
-                        return next;
-                      });
-                    }}
-                  />
-                </Tooltip>
-                {activeConv.type === 'group' && (
-                  <Tooltip content={showMembers ? '关闭群信息' : '群信息'}>
-                    <Button
-                      size="small" theme="borderless" type={showMembers ? 'primary' : 'tertiary'}
-                      icon={<MoreHorizontal size={15} />}
-                      onClick={() => {
-                        setShowMembers((v) => {
-                          const next = !v;
-                          if (next) { setShowSearchPanel(false); setShowMediaPanel(false); }
-                          return next;
-                        });
-                      }}
-                    />
-                  </Tooltip>
-                )}
-              </>
-            )}
-            {isQuick && onOpenFullPage && (
-              <Tooltip content="前往聊天页">
-                <Button
-                  size="small"
-                  theme="borderless"
-                  type="tertiary"
-                  icon={<ExternalLink size={15} />}
-                  onClick={() => onOpenFullPage(activeConvId)}
-                />
-              </Tooltip>
-            )}
-            {isQuick && onClose && (
-              <Tooltip content="关闭">
-                <Button
-                  size="small"
-                  theme="borderless"
-                  type="tertiary"
-                  icon={<X size={15} />}
-                  onClick={onClose}
-                />
-              </Tooltip>
-            )}
-          </div>
-
+          </MasterDetailLayout.Header>
+          <MasterDetailLayout.Body scroll="hidden" style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
             {/* Messages */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative', overflow: 'hidden' }}>
@@ -3013,6 +3021,7 @@ export default function ChatPage({
               </>
             )}
           </div>
+          </MasterDetailLayout.Body>
           </>
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
