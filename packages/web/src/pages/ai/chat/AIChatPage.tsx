@@ -669,24 +669,9 @@ export default function AIChatPage() {
         />
       )}
       detail={(
-        <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
-          {/* 聊天区域 */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-            {/* 顶栏 */}
-            <div
-              style={{
-                padding: '12px 20px',
-                borderBottom: '1px solid var(--semi-color-border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: 'var(--semi-color-bg-1)',
-                flexShrink: 0,
-              }}
-            >
-              <Title heading={6} style={{ margin: 0 }}>
-                {activeConv?.title ?? '智能对话'}
-              </Title>
+        <>
+          <MasterDetailLayout.Header
+            extra={
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {pdfFile && (
                   <Tooltip content={pdfFileUrl ? '点击关闭预览（已上传）' : '点击关闭预览（上传中…）'}>
@@ -733,125 +718,135 @@ export default function AIChatPage() {
                   </Tooltip>
                 )}
               </div>
-            </div>
-
-            {/* 对话内容 */}
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-              {msgsLoading ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                  <Spin size="large" />
+            }
+          >
+            <Title heading={6} style={{ margin: 0 }}>
+              {activeConv?.title ?? '智能对话'}
+            </Title>
+          </MasterDetailLayout.Header>
+          <MasterDetailLayout.Body scroll="hidden">
+            <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+              {/* 聊天区域 */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+                {/* 对话内容 */}
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                  {msgsLoading ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                      <Spin size="large" />
+                    </div>
+                  ) : (
+                    <AIChatDialogue
+                      ref={dialogueRef}
+                      chats={messages}
+                      roleConfig={roleConfig}
+                      hints={[]}
+                      align={align}
+                      mode={mode}
+                      onMessageCopy={() => { /* Semi 内置已弹 Toast，此处不重复 */ }}
+                      onMessageGoodFeedback={(msg) => {
+                        if (!msg) return;
+                        const dbId = String(msg.id).startsWith('api-') ? Number(String(msg.id).replace('api-', '')) : null;
+                        if (!dbId || !activeConvId) { Toast.success('感谢您的正向反馈'); return; }
+                        void request.put(`/api/ai/conversations/${activeConvId}/messages/${dbId}/feedback`, { feedback: 1 })
+                          .then(() => Toast.success('感谢您的正向反馈'));
+                      }}
+                      onMessageBadFeedback={(msg) => {
+                        if (!msg) return;
+                        const dbId = String(msg.id).startsWith('api-') ? Number(String(msg.id).replace('api-', '')) : null;
+                        if (!dbId || !activeConvId) { Toast.info('感谢您的反馈，我们会持续改进'); return; }
+                        void request.put(`/api/ai/conversations/${activeConvId}/messages/${dbId}/feedback`, { feedback: -1 })
+                          .then(() => Toast.info('感谢您的反馈，我们会持续改进'));
+                      }}
+                      messageEditRender={renderMessageEdit}
+                      onMessageDelete={(msg) => {
+                        if (!msg || !activeConvId) return;
+                        const dbId = String(msg.id).startsWith('api-') ? Number(String(msg.id).replace('api-', '')) : null;
+                        // Semi 已在 UI 上删除该消息（onChatsChange）；后台级联删除该消息及之后所有消息
+                        if (dbId) {
+                          void request.delete(`/api/ai/conversations/${activeConvId}/messages/${dbId}/cascade`).catch(() => {});
+                        }
+                      }}
+                      onMessageReset={(msg) => msg && !generating && void handleRegenerate(msg as Message)}
+                      onFileClick={(fileItem) => {
+                        const fi = fileItem?.fileInstance;
+                        if (fi instanceof File) setPdfFile(fi);
+                      }}
+                      dialogueRenderConfig={dialogueRenderConfig}
+                      renderDialogueContentItem={renderDialogueContentItem}
+                      onChatsChange={(chats) => {
+                        setMessages(chats as Message[]);
+                      }}
+                      style={{ height: '100%' }}
+                    />
+                  )}
                 </div>
-              ) : (
-                <AIChatDialogue
-                  ref={dialogueRef}
-                  chats={messages}
-                  roleConfig={roleConfig}
-                  hints={[]}
-                  align={align}
-                  mode={mode}
-                  onMessageCopy={() => { /* Semi 内置已弹 Toast，此处不重复 */ }}
-                  onMessageGoodFeedback={(msg) => {
-                    if (!msg) return;
-                    const dbId = String(msg.id).startsWith('api-') ? Number(String(msg.id).replace('api-', '')) : null;
-                    if (!dbId || !activeConvId) { Toast.success('感谢您的正向反馈'); return; }
-                    void request.put(`/api/ai/conversations/${activeConvId}/messages/${dbId}/feedback`, { feedback: 1 })
-                      .then(() => Toast.success('感谢您的正向反馈'));
-                  }}
-                  onMessageBadFeedback={(msg) => {
-                    if (!msg) return;
-                    const dbId = String(msg.id).startsWith('api-') ? Number(String(msg.id).replace('api-', '')) : null;
-                    if (!dbId || !activeConvId) { Toast.info('感谢您的反馈，我们会持续改进'); return; }
-                    void request.put(`/api/ai/conversations/${activeConvId}/messages/${dbId}/feedback`, { feedback: -1 })
-                      .then(() => Toast.info('感谢您的反馈，我们会持续改进'));
-                  }}
-                  messageEditRender={renderMessageEdit}
-                  onMessageDelete={(msg) => {
-                    if (!msg || !activeConvId) return;
-                    const dbId = String(msg.id).startsWith('api-') ? Number(String(msg.id).replace('api-', '')) : null;
-                    // Semi 已在 UI 上删除该消息（onChatsChange）；后台级联删除该消息及之后所有消息
-                    if (dbId) {
-                      void request.delete(`/api/ai/conversations/${activeConvId}/messages/${dbId}/cascade`).catch(() => {});
-                    }
-                  }}
-                  onMessageReset={(msg) => msg && !generating && void handleRegenerate(msg as Message)}
-                  onFileClick={(fileItem) => {
-                    const fi = fileItem?.fileInstance;
-                    if (fi instanceof File) setPdfFile(fi);
-                  }}
-                  dialogueRenderConfig={dialogueRenderConfig}
-                  renderDialogueContentItem={renderDialogueContentItem}
-                  onChatsChange={(chats) => {
-                    setMessages(chats as Message[]);
-                  }}
-                  style={{ height: '100%' }}
+
+                {/* 输入框 */}
+                <div style={{ padding: '12px 20px', borderTop: '1px solid var(--semi-color-border)', background: 'var(--semi-color-bg-1)', flexShrink: 0 }}>
+                  <AIChatInput
+                    placeholder="向 AI 提问，或点击下方回形针上传 PDF..."
+                    generating={generating}
+                    onMessageSend={(c) => void handleMessageSend(c)}
+                    onStopGenerate={handleStopGenerate}
+                    onConfigureChange={(value) => setConfigureValues(value)}
+                    uploadProps={{
+                      action: '',
+                      accept: '.pdf,application/pdf',
+                      beforeUpload: handleBeforeUpload,
+                    }}
+                    renderConfigureArea={() => (
+                      <Configure>
+                        <Configure.Select
+                          key={modelOptions[0]?.value ?? 'default'}
+                          field="model"
+                          initValue={modelOptions[0]?.value ?? ''}
+                          optionList={modelOptions}
+                          style={{ minWidth: 160 }}
+                          placeholder="选择模型"
+                          renderOptionItem={(renderProps: {
+                            value: string;
+                            label: React.ReactNode;
+                            style?: React.CSSProperties;
+                            className?: string;
+                            onMouseEnter?: React.MouseEventHandler;
+                            onClick?: React.MouseEventHandler;
+                          }) => {
+                            const isUser = renderProps.value === 'user';
+                            return (
+                              <div
+                                role="menuitem"
+                                tabIndex={0}
+                                style={{ ...renderProps.style, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px' }}
+                                className={renderProps.className}
+                                onMouseEnter={renderProps.onMouseEnter}
+                                onClick={renderProps.onClick}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') renderProps.onClick?.(e as unknown as React.MouseEvent); }}
+                              >
+                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{renderProps.label}</span>
+                                <Tag color={isUser ? 'violet' : 'blue'} size="small" style={{ flexShrink: 0 }}>
+                                  {isUser ? '我的' : '系统'}
+                                </Tag>
+                              </div>
+                            );
+                          }}
+                        />
+                      </Configure>
+                    )}
+                    style={{ borderRadius: 12 }}
+                  />
+                </div>
+              </div>
+
+              {/* PDF 预览面板（右侧） */}
+              {pdfFile && (
+                <PDFPreviewPanel
+                  file={pdfFile}
+                  onClose={() => setPdfFile(null)}
                 />
               )}
             </div>
-
-            {/* 输入框 */}
-            <div style={{ padding: '12px 20px', borderTop: '1px solid var(--semi-color-border)', background: 'var(--semi-color-bg-1)', flexShrink: 0 }}>
-              <AIChatInput
-                placeholder="向 AI 提问，或点击下方回形针上传 PDF..."
-                generating={generating}
-                onMessageSend={(c) => void handleMessageSend(c)}
-                onStopGenerate={handleStopGenerate}
-                onConfigureChange={(value) => setConfigureValues(value)}
-                uploadProps={{
-                  action: '',
-                  accept: '.pdf,application/pdf',
-                  beforeUpload: handleBeforeUpload,
-                }}
-                renderConfigureArea={() => (
-                  <Configure>
-                    <Configure.Select
-                      key={modelOptions[0]?.value ?? 'default'}
-                      field="model"
-                      initValue={modelOptions[0]?.value ?? ''}
-                      optionList={modelOptions}
-                      style={{ minWidth: 160 }}
-                      placeholder="选择模型"
-                      renderOptionItem={(renderProps: {
-                        value: string;
-                        label: React.ReactNode;
-                        style?: React.CSSProperties;
-                        className?: string;
-                        onMouseEnter?: React.MouseEventHandler;
-                        onClick?: React.MouseEventHandler;
-                      }) => {
-                        const isUser = renderProps.value === 'user';
-                        return (
-                          <div
-                            role="menuitem"
-                            tabIndex={0}
-                            style={{ ...renderProps.style, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px' }}
-                            className={renderProps.className}
-                            onMouseEnter={renderProps.onMouseEnter}
-                            onClick={renderProps.onClick}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') renderProps.onClick?.(e as unknown as React.MouseEvent); }}
-                          >
-                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{renderProps.label}</span>
-                            <Tag color={isUser ? 'violet' : 'blue'} size="small" style={{ flexShrink: 0 }}>
-                              {isUser ? '我的' : '系统'}
-                            </Tag>
-                          </div>
-                        );
-                      }}
-                    />
-                  </Configure>
-                )}
-                style={{ borderRadius: 12 }}
-              />
-            </div>
-          </div>
-
-          {/* PDF 预览面板（右侧） */}
-          {pdfFile && (
-            <PDFPreviewPanel
-              file={pdfFile}
-              onClose={() => setPdfFile(null)}
-            />
-          )}
-        </div>
+          </MasterDetailLayout.Body>
+        </>
       )}
     />
     {allowUserCustomKey && (
