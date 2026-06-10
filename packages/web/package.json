@@ -15,8 +15,8 @@
     "lint:fix": "eslint src --fix"
   },
   "dependencies": {
-    "@douyinfe/semi-illustrations": "^2.99.3",
-    "@douyinfe/semi-ui": "^2.99.3",
+    "@douyinfe/semi-illustrations": "^2.100.0",
+    "@douyinfe/semi-ui": "^2.100.0",
     "@embedpdf/pdfium": "^2.14.4",
     "@embedpdf/react-pdf-viewer": "^2.14.4",
     "@emoji-mart/data": "^1.2.1",
@@ -35,7 +35,7 @@
     "dagre": "^0.8.5",
     "dayjs": "^1.11.21",
     "docx-preview": "^0.3.7",
-    "dompurify": "^3.4.8",
+    "dompurify": "^3.4.9",
     "emoji-mart": "^5.6.0",
     "fflate": "^0.8.3",
     "jszip": "^3.10.1",
@@ -58,7 +58,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@types/react": "^19.2.16",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
     "china-division": "^2.7.0",
@@ -68,7 +68,7 @@
     "jsdom": "^29.1.1",
     "msw": "^2.14.6",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.60.1",
+    "typescript-eslint": "^8.61.0",
     "vite": "^8.0.16",
     "vite-plugin-pwa": "^1.3.0",
     "vitest": "^4.1.8"
