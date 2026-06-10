@@ -65,8 +65,8 @@ export default function AiFeedbackPage() {
     {
       title: '时间',
       dataIndex: 'createdAt',
-      width: 160,
-      render: (v: string) => formatDateTime(v),
+      width: 180,
+      render: (v: string) => <span style={{ whiteSpace: 'nowrap' }}>{formatDateTime(v)}</span>,
       fixed: 'right',
     },
   ];

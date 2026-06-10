@@ -51,6 +51,9 @@ function convertApiMessage(m: AiMessage): Message {
     content: m.content,
     createdAt: new Date(m.createdAt).getTime(),
     status: 'completed',
+    // 映射 DB feedback 字段到 Semi AIChatDialogue 的 like/dislike 显示状态
+    ...(m.feedback === 1  && { like: true }),
+    ...(m.feedback === -1 && { dislike: true }),
   };
 }
 
