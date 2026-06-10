@@ -317,17 +317,17 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
         justifyContent: 'center',
         padding: 0,
         zIndex: 10,
-        color: 'var(--semi-color-text-3)',
+        color: 'var(--semi-color-primary)',
         transition: 'background 0.15s, color 0.15s, border-color 0.15s',
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.color = 'var(--semi-color-text-1)';
+        e.currentTarget.style.color = 'var(--semi-color-primary-hover)';
         e.currentTarget.style.borderColor = 'transparent';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.color = 'var(--semi-color-text-3)';
+        e.currentTarget.style.color = 'var(--semi-color-primary)';
         e.currentTarget.style.borderColor = 'transparent';
       }}
     >
