@@ -908,14 +908,19 @@ export default function MonitorPage() {
 
           <TabPane tab={<span className="monitor-tab-label"><Activity size={14} />WebSocket</span>} itemKey="ws">
             {wsMetrics ? (<>
-              <div className="monitor-detail-grid">
-                <InfoRow label="当前连接数" value={formatNumber(wsMetrics.currentConnections)} />
-                <InfoRow label="在线用户数" value={formatNumber(wsMetrics.currentUsers)} />
-                <InfoRow label="累计连接" value={formatNumber(wsMetrics.totalConnects)} />
-                <InfoRow label="累计断开" value={formatNumber(wsMetrics.totalDisconnects)} />
-                <InfoRow label="累计发送消息" value={formatNumber(wsMetrics.totalSent)} />
-                <InfoRow label="累计接收消息" value={formatNumber(wsMetrics.totalRecv)} />
-              </div>
+              <Descriptions
+                data={[
+                  { key: '当前连接数', value: formatNumber(wsMetrics.currentConnections) },
+                  { key: '在线用户数', value: formatNumber(wsMetrics.currentUsers) },
+                  { key: '累计连接', value: formatNumber(wsMetrics.totalConnects) },
+                  { key: '累计断开', value: formatNumber(wsMetrics.totalDisconnects) },
+                  { key: '累计发送消息', value: formatNumber(wsMetrics.totalSent) },
+                  { key: '累计接收消息', value: formatNumber(wsMetrics.totalRecv) },
+                ]}
+                column={2}
+                layout="horizontal"
+                align="left"
+              />
               <div className="monitor-section-title">当前在线连接（{wsMetrics.connections.length}）</div>
               <Table
                 size="small"
