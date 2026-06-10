@@ -1,3 +1,7 @@
+<script setup>
+import { withBase } from 'vitepress'
+</script>
+
 ---
 layout: home
 title: Zenith Admin
@@ -65,11 +69,11 @@ features:
 <section class="zn-section">
   <h2 class="zn-title">推荐阅读路径</h2>
   <ul class="zn-navlist">
-    <li><a href="/guide/getting-started">快速开始</a> — 环境准备、安装依赖、启动服务</li>
-    <li><a href="/guide/project-structure">项目结构</a> — 目录职责与关键模块定位</li>
-    <li><a href="/product/features">功能清单</a> — 已实现能力全景扫描</li>
-    <li><a href="/backend/api-conventions">接口规范</a> — 响应结构、错误处理与分页约定</li>
-    <li><a href="/backend/multi-tenant">多租户指南</a> — 如何开启租户、隔离数据与管理平台视角</li>
-    <li><a href="/ai/">AI 辅助开发</a> — 使用 Zenith Skill 加速模块开发</li>
+    <li><a :href="withBase('/guide/getting-started')">快速开始</a> — 环境准备、安装依赖、启动服务</li>
+    <li><a :href="withBase('/guide/project-structure')">项目结构</a> — 目录职责与关键模块定位</li>
+    <li><a :href="withBase('/product/features')">功能清单</a> — 已实现能力全景扫描</li>
+    <li><a :href="withBase('/backend/api-conventions')">接口规范</a> — 响应结构、错误处理与分页约定</li>
+    <li><a :href="withBase('/backend/multi-tenant')">多租户指南</a> — 如何开启租户、隔离数据与管理平台视角</li>
+    <li><a :href="withBase('/ai/')">AI 辅助开发</a> — 使用 Zenith Skill 加速模块开发</li>
   </ul>
 </section>
