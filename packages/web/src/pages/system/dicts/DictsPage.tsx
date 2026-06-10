@@ -400,7 +400,7 @@ export default function DictsPage() {
         primary={dict.name}
         secondary={dict.code}
         meta={dict.status === 'disabled'
-          ? <><Tag size="small" color="grey">停用</Tag>{formatDateTime(dict.createdAt)}</>
+          ? <span style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{formatDateTime(dict.createdAt)}</span><Tag size="small" color="grey">停用</Tag></span>
           : formatDateTime(dict.createdAt)
         }
         style={dict.status === 'disabled' ? { opacity: 0.55 } : undefined}
