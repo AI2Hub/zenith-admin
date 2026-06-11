@@ -2432,7 +2432,29 @@ export default function ChatPage({
                   }}
                 />
               )}
-              {/* ⑥ 发送失败重试 */}
+              {/* ⑥ 上传中（发送后显示在消息列表底部） */}
+              {uploadingItems.some((u) => u.convId === activeConvId) && (
+                <div style={{ padding: isQuick ? '4px 12px' : '4px 20px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {uploadingItems.filter((u) => u.convId === activeConvId).map((item) => (
+                    <div key={item.id} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      {item.type === 'image' ? (
+                        <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
+                          <img src={item.previewUrl} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8, display: 'block', opacity: 0.55 }} />
+                          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, background: 'rgba(0,0,0,0.25)' }}>
+                            <Spin size="middle" />
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: 'var(--semi-color-primary-light-default)', border: '1px solid var(--semi-color-primary-light-active)', borderRadius: 12, maxWidth: 260, fontSize: 13, color: 'var(--semi-color-text-0)' }}>
+                          <Spin size="small" />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* ⑦ 发送失败重试 */}
               {failedMessages.some((m) => m.convId === activeConvId) && (
                 <div style={{ padding: isQuick ? '0 12px 8px' : '0 20px 8px', flexShrink: 0 }}>
                   <SemiList
@@ -2783,27 +2805,6 @@ export default function ChatPage({
                   回复 {replyTo.senderName}：{getReplyPreviewText(replyTo)}
                 </span>
                 <Button size="small" theme="borderless" type="tertiary" onClick={() => setReplyTo(null)} style={{ padding: '0 4px', height: 'auto', minWidth: 'auto' }}>✕</Button>
-              </div>
-            )}
-
-            {/* 上传中占位（文件/图片后台上传时显示） */}
-            {uploadingItems.some((u) => u.convId === activeConvId) && (
-              <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                {uploadingItems.filter((u) => u.convId === activeConvId).map((item) => (
-                  item.type === 'image' ? (
-                    <div key={item.id} style={{ position: 'relative', width: 64, height: 64, flexShrink: 0 }}>
-                      <img src={item.previewUrl} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, display: 'block', opacity: 0.6 }} />
-                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, background: 'rgba(0,0,0,0.3)' }}>
-                        <Spin size="small" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'var(--semi-color-fill-0)', borderRadius: 6, fontSize: 12, color: 'var(--semi-color-text-1)', maxWidth: 180 }}>
-                      <Spin size="small" />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
-                    </div>
-                  )
-                ))}
               </div>
             )}
 
