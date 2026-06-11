@@ -2355,7 +2355,7 @@ export default function ChatPage({
                                 <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
                                   <img src={item.previewUrl} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8, display: 'block', opacity: 0.55 }} />
                                   <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 8, background: 'rgba(0,0,0,0.45)', gap: 6 }}>
-                                    <Progress type="circle" percent={item.progress ?? 0} size="small" showInfo={false} strokeColor="#fff" trailColor="rgba(255,255,255,0.25)" />
+                                    <Progress type="circle" percent={item.progress ?? 0} size="small" showInfo={false} stroke="#fff" orbitStroke="rgba(255,255,255,0.25)" />
                                     <span style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>{item.progress ?? 0}%</span>
                                   </div>
                                 </div>
