@@ -837,6 +837,16 @@ export default function FilesPage() {
                     )}
                   </span>
                 </Checkbox>
+                {selectedRowKeys.length > 0 && (
+                  <Button
+                    size="small"
+                    theme="borderless"
+                    type="tertiary"
+                    onClick={() => setSelectedRowKeys([])}
+                  >
+                    取消全部选择（{selectedRowKeys.length}）
+                  </Button>
+                )}
               </div>
             );
           })()}
