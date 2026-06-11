@@ -15,9 +15,9 @@ interface TerminalTabProps {
   readonly shell: ShellType;
 }
 
-// 深色主题（Catppuccin Mocha）
+// 深色主题（与应用内容区暗色背景 --color-layout-bg 一致）
 const DARK_THEME: ITheme = {
-  background: '#1e1e2e',
+  background: '#232429',
   foreground: '#cdd6f4',
   cursor: '#f5e0dc',
   selectionBackground: '#45475a',

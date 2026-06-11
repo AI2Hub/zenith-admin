@@ -1,8 +1,7 @@
 import { useState, useCallback } from 'react';
-import { Button, Tabs, Typography, Space, Dropdown } from '@douyinfe/semi-ui';
-import { Plus, TerminalSquare, ChevronDown } from 'lucide-react';
+import { Button, Typography, Space, Dropdown } from '@douyinfe/semi-ui';
+import { Plus, TerminalSquare, ChevronDown, X } from 'lucide-react';
 import TerminalTab, { type ShellType } from './TerminalTab';
-import { useThemeController } from '@/providers/theme-controller';
 
 const IS_DEMO = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -41,7 +40,6 @@ function DemoNotice() {
 }
 
 export default function TerminalPage() {
-  const { isDark } = useThemeController();
   const [sessions, setSessions] = useState<Session[]>([
     { id: String(sessionCounter), title: SHELL_LABELS.powershell, shell: 'powershell' },
   ]);
@@ -85,8 +83,8 @@ export default function TerminalPage() {
     </Dropdown.Menu>
   );
 
-  const tabBarExtra = (
-    <Space spacing={2} style={{ paddingRight: 8 }}>
+  const tabBarRight = (
+    <Space spacing={2} style={{ padding: '0 8px', borderLeft: '1px solid var(--semi-color-border)', flexShrink: 0 }}>
       <Button
         icon={<Plus size={13} />}
         size="small"
@@ -113,47 +111,64 @@ export default function TerminalPage() {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        background: isDark ? '#1e1e2e' : '#ffffff',
+        background: 'var(--color-layout-bg)',
         overflow: 'hidden',
       }}
     >
-      <Tabs
-        activeKey={activeId}
-        onChange={setActiveId}
-        onTabClose={removeSession}
-        tabBarExtraContent={tabBarExtra}
-        style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
-        contentStyle={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: 0 }}
-        tabBarStyle={{
-          background: isDark ? '#181825' : '#f3f3f3',
-          borderBottom: `1px solid ${isDark ? '#313244' : '#e0e0e0'}`,
-          padding: '0 8px',
-          margin: 0,
-          flexShrink: 0,
-        }}
-      >
+      {/* 自定义标签栏：复用应用顶部 .admin-tab-item 紧凑 line 风格 */}
+      <div className="admin-tabs-bar" data-tab-style="line" style={{ borderBottom: '1px solid var(--semi-color-border)' }}>
+        <div className="admin-tabs-bar__scroll">
+          {sessions.map((s) => {
+            const isActive = s.id === activeId;
+            return (
+              <div
+                key={s.id}
+                className={`admin-tab-item ${isActive ? 'admin-tab-item--active' : ''}`}
+                role="tab"
+                tabIndex={0}
+                aria-selected={isActive}
+                onClick={() => setActiveId(s.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setActiveId(s.id);
+                  }
+                }}
+              >
+                <span className="admin-tab-item__icon"><TerminalSquare size={13} /></span>
+                <span className="admin-tab-item__text">{s.title}</span>
+                {sessions.length > 1 && (
+                  <button
+                    className="admin-tab-item__close"
+                    aria-label="关闭终端"
+                    onClick={(e) => { e.stopPropagation(); removeSession(s.id); }}
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {tabBarRight}
+      </div>
+
+      {/* 内容区：所有终端保持挂载，用 display 切换，避免切 tab 时销毁会话 */}
+      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
         {sessions.map((s) => (
-          <Tabs.TabPane
+          <div
             key={s.id}
-            itemKey={s.id}
-            tab={
-              <Space spacing={6}>
-                <TerminalSquare size={12} />
-                <span>{s.title}</span>
-              </Space>
-            }
-            closable={sessions.length > 1}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: s.id === activeId ? 'block' : 'none',
+              padding: '8px 4px 4px',
+            }}
           >
-            <div style={{ width: '100%', height: '100%', padding: '8px 4px 4px' }}>
-              <TerminalTab
-                sessionId={s.id}
-                active={activeId === s.id}
-                shell={s.shell}
-              />
-            </div>
-          </Tabs.TabPane>
+            <TerminalTab sessionId={s.id} active={s.id === activeId} shell={s.shell} />
+          </div>
         ))}
-      </Tabs>
+      </div>
     </div>
   );
 }
