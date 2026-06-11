@@ -772,29 +772,33 @@
 }
 .admin-tabs-bar {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 0 16px;
+  align-items: stretch;
   background: var(--color-layout-bg);
-  overflow-x: auto;
   flex-shrink: 0;
   position: relative;
   z-index: 1;
 }
 
+/* 滚动区：承载所有标签项 */
+.admin-tabs-bar__scroll {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  overflow-x: auto;
+  flex: 1;
+  min-width: 0;
+}
 
-.admin-tabs-bar::-webkit-scrollbar {
+.admin-tabs-bar__scroll::-webkit-scrollbar {
   height: 0;
 }
 
-/* TabSwitcher chevron — sticky at the right edge of the scrollable tab bar */
+/* TabSwitcher chevron — fixed at the right edge, never scrolls */
 .admin-tabs-bar__switcher {
-  position: sticky;
-  right: 0;
   height: 100%;
   background: var(--color-layout-bg);
   border-left: 1px solid var(--semi-color-border);
-  margin-left: auto;
   flex-shrink: 0;
 }
 
@@ -843,9 +847,12 @@
 
 /* ── 卡片风格 ── */
 .admin-tabs-bar[data-tab-style="card"] {
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.admin-tabs-bar[data-tab-style="card"] .admin-tabs-bar__scroll {
   gap: 2px;
   padding: 0 8px;
-  border-bottom: 1px solid var(--semi-color-border);
   align-items: flex-end;
 }
 
@@ -876,7 +883,7 @@
 }
 
 /* ── 胶囊风格 ── */
-.admin-tabs-bar[data-tab-style="pill"] {
+.admin-tabs-bar[data-tab-style="pill"] .admin-tabs-bar__scroll {
   gap: 4px;
   padding: 5px 12px;
 }

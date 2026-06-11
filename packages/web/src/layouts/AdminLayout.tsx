@@ -1656,6 +1656,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
           {/* Tabs bar — shown above breadcrumb for all layouts */}
           {preferences.enableTabs && tabs.length > 0 && (
             <div ref={tabsBarRef} className={`admin-tabs-bar${preferences.showBreadcrumb ? ' admin-tabs-bar--with-breadcrumb' : ''}`} data-tab-animation={preferences.tabAnimation} data-tab-style={preferences.tabStyle ?? 'line'}>
+              <div className="admin-tabs-bar__scroll">
               {tabs.map((tab, tabIndex) => {
                   const isEntering = enteringTabKeys.has(tab.key);
                   const isExiting = exitingTabKeys.has(tab.key);
@@ -1756,6 +1757,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
                   </Dropdown>
                   );
               })}
+              </div>
               <TabSwitcher
                 tabs={tabs}
                 activeKey={activeKey}
