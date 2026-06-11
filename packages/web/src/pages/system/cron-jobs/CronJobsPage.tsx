@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   Modal,
+  Popover,
   Select,
   Space,
   Spin,
@@ -20,12 +21,14 @@ import {
   Tooltip,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, RotateCcw, Download, ScrollText, MoreHorizontal, Trash2, ChevronDown } from 'lucide-react';
+import { Search, Plus, RotateCcw, Download, ScrollText, MoreHorizontal, Trash2, ChevronDown, HelpCircle } from 'lucide-react';
 import type { CronJob, PaginatedResponse } from '@zenith/shared';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
+import { CronExpressionParser } from 'cron-parser';
+import dayjs from 'dayjs';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -106,7 +109,6 @@ export default function CronJobsPage() {
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize]);
 
   useEffect(() => {
@@ -322,12 +324,45 @@ export default function CronJobsPage() {
   const columns: ColumnProps<CronJob>[] = [
     { title: '任务名称', dataIndex: 'name', width: 180, render: renderEllipsis },
     {
-      title: 'Cron 表达式', dataIndex: 'cronExpression', width: 180,
-      render: (v: string) => (
-        <Tooltip content={v} position="top">
-          <span style={{ fontFamily: 'monospace', cursor: 'default' }}>{v}</span>
-        </Tooltip>
-      ),
+      title: 'Cron 表达式', dataIndex: 'cronExpression', width: 200,
+      render: (v: string) => {
+        let scheduleContent: React.ReactNode = '表达式无效';
+        try {
+          const interval = CronExpressionParser.parse(v);
+          const times = Array.from({ length: 5 }, () => {
+            const d = dayjs(interval.next().toDate());
+            const dateStr = d.format('YYYY-MM-DD');
+            const today = dayjs().format('YYYY-MM-DD');
+            const tomorrow = dayjs().add(1, 'day').format('YYYY-MM-DD');
+            let prefix: string;
+            if (dateStr === today) prefix = '今天';
+            else if (dateStr === tomorrow) prefix = '明天';
+            else prefix = d.format('MM-DD');
+            return `${prefix} ${d.format('HH:mm:ss')}`;
+          });
+          scheduleContent = (
+            <div style={{ fontSize: 12, lineHeight: 1.8 }}>
+              <div style={{ marginBottom: 4, color: 'var(--semi-color-text-2)' }}>最近 5 次执行时间：</div>
+              {times.map((t) => <div key={t} style={{ fontVariantNumeric: 'tabular-nums' }}>{t}</div>)}
+            </div>
+          );
+        } catch { /* invalid */ }
+        return (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <Tooltip content={v} position="top">
+              <span style={{ fontFamily: 'monospace', cursor: 'default' }}>{v}</span>
+            </Tooltip>
+            <Popover
+              content={scheduleContent}
+              position="right"
+              showArrow
+              style={{ padding: '10px 14px', minWidth: 180 }}
+            >
+              <HelpCircle size={13} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0, cursor: 'help' }} />
+            </Popover>
+          </span>
+        );
+      },
     },
     { title: '处理器', dataIndex: 'handler', width: 220, render: renderEllipsis },
     {
@@ -347,6 +382,32 @@ export default function CronJobsPage() {
             )}
           </span>
         );
+      },
+    },
+    {
+      title: '下次执行',
+      dataIndex: 'cronExpression',
+      width: 160,
+      render: (expr: string, record: CronJob) => {
+        if (record.status !== 'enabled') return <span style={{ color: 'var(--semi-color-text-2)', fontSize: 12 }}>已停用</span>;
+        try {
+          const next = CronExpressionParser.parse(expr).next().toDate();
+          const t = dayjs(next);
+          const dateStr = t.format('YYYY-MM-DD');
+          const today = dayjs().format('YYYY-MM-DD');
+          const tomorrow = dayjs().add(1, 'day').format('YYYY-MM-DD');
+          let prefix: string;
+          if (dateStr === today) prefix = '今天';
+          else if (dateStr === tomorrow) prefix = '明天';
+          else prefix = t.format('MM-DD');
+          return (
+            <span style={{ fontSize: 12, color: 'var(--semi-color-text-1)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+              {prefix} {t.format('HH:mm:ss')}
+            </span>
+          );
+        } catch {
+          return <span style={{ color: 'var(--semi-color-text-2)', fontSize: 12 }}>表达式无效</span>;
+        }
       },
     },
     { title: '描述', dataIndex: 'description', width: 200, render: renderEllipsis },
