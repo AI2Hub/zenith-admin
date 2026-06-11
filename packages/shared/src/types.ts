@@ -543,6 +543,15 @@ export type WsMessage =
   | { type: 'workflow:taskFinished'; payload: { instanceId: number; taskId: number; decision: 'approved' | 'rejected' | 'skipped' } }
   | { type: 'workflow:instanceFinished'; payload: { instanceId: number; status: WorkflowInstanceStatus; title: string } };
 
+/** Terminal WebSocket 消息（独立端点 /api/ws/terminal） */
+export type TerminalMessage =
+  | { type: 'terminal:input'; data: string }
+  | { type: 'terminal:output'; data: string }
+  | { type: 'terminal:resize'; cols: number; rows: number }
+  | { type: 'terminal:close' }
+  | { type: 'terminal:exit' }
+  | { type: 'terminal:error'; message: string };
+
 // ─── 地区管理 ──────────────────────────────────────────────
 export type RegionLevel = 'province' | 'city' | 'county';
 
