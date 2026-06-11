@@ -2308,13 +2308,38 @@ export default function ChatPage({
                   data={displayMessages}
                   firstItemIndex={firstItemIndex}
                   initialTopMostItemIndex={Math.max(displayMessages.length - 1, 0)}
-                  followOutput={false}
+                  followOutput={uploadingItems.some((u) => u.convId === activeConvId) ? 'smooth' : false}
                   startReached={handleStartReached}
                   atBottomStateChange={handleAtBottomStateChange}
                   atBottomThreshold={120}
                   increaseViewportBy={{ top: 600, bottom: 200 }}
                   computeItemKey={(_idx, msg) => msg.id}
                   components={{
+                    Footer: () => { // NOSONAR
+                      const items = uploadingItems.filter((u) => u.convId === activeConvId);
+                      if (items.length === 0) return null;
+                      return (
+                        <div style={{ padding: isQuick ? '4px 12px 8px' : '4px 20px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {items.map((item) => (
+                            <div key={item.id} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                              {item.type === 'image' ? (
+                                <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
+                                  <img src={item.previewUrl} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8, display: 'block', opacity: 0.55 }} />
+                                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, background: 'rgba(0,0,0,0.25)' }}>
+                                    <Spin size="middle" />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: 'var(--semi-color-primary-light-default)', border: '1px solid var(--semi-color-primary-light-active)', borderRadius: 12, maxWidth: 260, fontSize: 13, color: 'var(--semi-color-text-0)' }}>
+                                  <Spin size="small" />
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    },
                     Header: () => ( // NOSONAR
                       <div style={{ padding: isQuick ? '8px 12px 0' : '12px 20px 0' }}>
                         {!wsConnected && (
@@ -2432,29 +2457,7 @@ export default function ChatPage({
                   }}
                 />
               )}
-              {/* ⑥ 上传中（发送后显示在消息列表底部） */}
-              {uploadingItems.some((u) => u.convId === activeConvId) && (
-                <div style={{ padding: isQuick ? '4px 12px' : '4px 20px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {uploadingItems.filter((u) => u.convId === activeConvId).map((item) => (
-                    <div key={item.id} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      {item.type === 'image' ? (
-                        <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
-                          <img src={item.previewUrl} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8, display: 'block', opacity: 0.55 }} />
-                          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, background: 'rgba(0,0,0,0.25)' }}>
-                            <Spin size="middle" />
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: 'var(--semi-color-primary-light-default)', border: '1px solid var(--semi-color-primary-light-active)', borderRadius: 12, maxWidth: 260, fontSize: 13, color: 'var(--semi-color-text-0)' }}>
-                          <Spin size="small" />
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {/* ⑦ 发送失败重试 */}
+              {/* ⑥ 发送失败重试 */}
               {failedMessages.some((m) => m.convId === activeConvId) && (
                 <div style={{ padding: isQuick ? '0 12px 8px' : '0 20px 8px', flexShrink: 0 }}>
                   <SemiList
