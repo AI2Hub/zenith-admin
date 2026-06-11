@@ -8,6 +8,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button, Input, List, Popover, Typography } from '@douyinfe/semi-ui';
 import { ChevronDown, Search, X } from 'lucide-react';
 import { match as pinyinMatch } from 'pinyin-pro';
+import { renderLucideIcon } from '@/utils/icons';
 import type { TabItem } from '@/hooks/useTabsStore';
 
 interface TabSwitcherProps {
@@ -15,9 +16,10 @@ interface TabSwitcherProps {
   readonly activeKey: string;
   readonly onNavigate: (key: string) => void;
   readonly onClose: (key: string) => void;
+  readonly pathIconMap?: Record<string, string>;
 }
 
-export function TabSwitcher({ tabs, activeKey, onNavigate, onClose }: TabSwitcherProps) {
+export function TabSwitcher({ tabs, activeKey, onNavigate, onClose, pathIconMap }: TabSwitcherProps) {
   const [visible, setVisible] = useState(false);
   const [search, setSearch] = useState('');
   const [focusedIdx, setFocusedIdx] = useState(0);
@@ -117,18 +119,25 @@ export function TabSwitcher({ tabs, activeKey, onNavigate, onClose }: TabSwitche
                   onMouseEnter={() => setFocusedIdx(idx)}
                   onClick={() => { onNavigate(tab.key); setVisible(false); }}
                   main={
-                    <Typography.Text
-                      ellipsis={{ showTooltip: false }}
-                      strong={isActive}
-                      style={{
-                        flex: 1,
-                        minWidth: 0,
-                        fontSize: 13,
-                        color: isActive ? 'var(--semi-color-primary)' : undefined,
-                      }}
-                    >
-                      {tab.title}
-                    </Typography.Text>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                      {pathIconMap?.[tab.key] && (
+                        <span style={{ display: 'inline-flex', flexShrink: 0, opacity: 0.6 }}>
+                          {renderLucideIcon(pathIconMap[tab.key], 13)}
+                        </span>
+                      )}
+                      <Typography.Text
+                        ellipsis={{ showTooltip: false }}
+                        strong={isActive}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          fontSize: 13,
+                          color: isActive ? 'var(--semi-color-primary)' : undefined,
+                        }}
+                      >
+                        {tab.title}
+                      </Typography.Text>
+                    </span>
                   }
                   extra={
                     tab.closable ? (

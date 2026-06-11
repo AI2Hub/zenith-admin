@@ -1762,6 +1762,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
               <TabSwitcher
                 tabs={tabs}
                 activeKey={activeKey}
+                pathIconMap={pathIconMap}
                 onNavigate={(key) => { setActiveKey(key); navigate(key); }}
                 onClose={(key) => handleTabClose(key)}
               />
