@@ -11,9 +11,13 @@
 import { spawn, spawnSync } from 'node:child_process';
 
 const env = { ...process.env };
-// 移除 auto-attach 注入的变量：NODE_OPTIONS 含 --require .../bootloader.js
-delete env.NODE_OPTIONS;
-delete env.VSCODE_INSPECTOR_OPTIONS;
+// node-pty 与 Node Inspector 的死锁是 Windows ConPTY 特有问题（microsoft/node-pty#640）；
+// 仅在 Windows 剥离 auto-attach 注入的调试器变量（NODE_OPTIONS 含 --require .../bootloader.js）。
+// Linux/macOS 使用 forkpty，不受该死锁影响，保留 `npm run dev` 的可调试性。
+if (process.platform === 'win32') {
+  delete env.NODE_OPTIONS;
+  delete env.VSCODE_INSPECTOR_OPTIONS;
+}
 
 /** 顺序执行（相当于原来的 `&&` 链中的一步），失败则退出。 */
 function runSync(command) {
