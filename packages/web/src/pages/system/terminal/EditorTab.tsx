@@ -3,6 +3,8 @@ import Editor, { type OnMount } from '@monaco-editor/react';
 import { Button, Toast, Spin, Typography } from '@douyinfe/semi-ui';
 import { Save } from 'lucide-react';
 import type { editor } from 'monaco-editor';
+import { TOKEN_KEY } from '@zenith/shared';
+import { config } from '@/config';
 import { request } from '@/utils/request';
 import { useThemeController } from '@/providers/theme-controller';
 import { useTerminalPreferences } from './useTerminalPreferences';
@@ -29,6 +31,68 @@ const LANGUAGE_MAP: Record<string, string> = {
   toml: 'ini', ini: 'ini', conf: 'ini', env: 'ini', vue: 'html', svelte: 'html',
 };
 
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tiff', 'tif', 'avif']);
+
+function isImageFile(filePath: string): boolean {
+  const ext = (filePath.split(/[\\/]/).pop() ?? '').split('.').pop()?.toLowerCase() ?? '';
+  return IMAGE_EXTS.has(ext);
+}
+
+/** 带鉴权获取图片 blob URL */
+async function fetchImageBlobUrl(filePath: string): Promise<string> {
+  const token = localStorage.getItem(TOKEN_KEY) ?? '';
+  const base = config.apiBaseUrl || '';
+  const url = `${base}/api/terminal-files/download?path=${encodeURIComponent(filePath)}`;
+  const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
+/** 图片预览面板 */
+function ImagePreview({ filePath }: { readonly filePath: string }) {
+  const [imgUrl, setImgUrl] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+  const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
+
+  useEffect(() => {
+    let revoke = '';
+    setImgUrl(null);
+    setError(false);
+    fetchImageBlobUrl(filePath)
+      .then((url) => { revoke = url; setImgUrl(url); })
+      .catch(() => setError(true));
+    return () => { if (revoke) URL.revokeObjectURL(revoke); };
+  }, [filePath]);
+
+  let body: React.ReactNode;
+  if (error) {
+    body = (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+        <Typography.Text type="danger">图片加载失败</Typography.Text>
+        <Typography.Text size="small" type="tertiary">{fileName}</Typography.Text>
+      </div>
+    );
+  } else if (imgUrl) {
+    body = <img src={imgUrl} alt={fileName} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', userSelect: 'none' }} />;
+  } else {
+    body = <Spin size="large" />;
+  }
+
+  return (
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--semi-color-bg-1)' }}>
+      <div style={{ padding: '4px 8px', borderBottom: '1px solid var(--semi-color-border)', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+        <Typography.Text size="small" type="tertiary" ellipsis={{ showTooltip: true }} style={{ flex: 1 }}>
+          {filePath}
+        </Typography.Text>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        {body}
+      </div>
+    </div>
+  );
+}
+
 function detectLanguage(filePath: string): string {
   const name = (filePath.split(/[\\/]/).pop() ?? '').toLowerCase();
   if (name === 'dockerfile') return 'dockerfile';
@@ -38,6 +102,8 @@ function detectLanguage(filePath: string): string {
 }
 
 export default function EditorTab({ filePath, active, onDirtyChange }: EditorTabProps) {
+  const isImg = isImageFile(filePath);
+
   const { isDark } = useThemeController();
   const { terminal } = useTerminalPreferences();
 
@@ -58,8 +124,9 @@ export default function EditorTab({ filePath, active, onDirtyChange }: EditorTab
   const onDirtyChangeRef = useRef(onDirtyChange);
   onDirtyChangeRef.current = onDirtyChange;
 
-  // 加载文件内容（仅依赖 filePath）
+  // 加载文件内容（仅依赖 filePath，图片文件跳过）
   useEffect(() => {
+    if (isImg) return;
     let cancelled = false;
     setLoading(true);
     request
@@ -78,7 +145,7 @@ export default function EditorTab({ filePath, active, onDirtyChange }: EditorTab
     return () => {
       cancelled = true;
     };
-  }, [filePath]);
+  }, [filePath, isImg]);
 
   // 注册并应用自定义主题（与终端配色一致）
   useEffect(() => {
@@ -130,6 +197,11 @@ export default function EditorTab({ filePath, active, onDirtyChange }: EditorTab
       onDirtyChangeRef.current?.(d);
     }
   };
+
+  // 图片文件：直接渲染预览，跳过 Monaco
+  if (isImg) {
+    return <ImagePreview filePath={filePath} />;
+  }
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
