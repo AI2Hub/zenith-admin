@@ -1,74 +1,57 @@
-import { useEffect, useRef } from 'react';
-import { Terminal, type ITheme } from '@xterm/xterm';
+import { useEffect, useRef, useMemo } from 'react';
+import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { TOKEN_KEY } from '@zenith/shared';
 import { config } from '@/config';
 import { useThemeController } from '@/providers/theme-controller';
+import { useTerminalPreferences } from './useTerminalPreferences';
+import { resolveTheme, toXtermTheme } from './themes';
 import '@xterm/xterm/css/xterm.css';
-
-export type ShellType = 'powershell' | 'cmd' | 'bash';
 
 interface TerminalTabProps {
   readonly sessionId: string;
   readonly active: boolean;
-  readonly shell: ShellType;
+  readonly shell: string;
+  readonly cwd?: string;
 }
 
-// 深色主题（与应用内容区暗色背景 --color-layout-bg 一致）
-const DARK_THEME: ITheme = {
-  background: '#232429',
-  foreground: '#cdd6f4',
-  cursor: '#f5e0dc',
-  selectionBackground: '#45475a',
-  black: '#45475a',
-  red: '#f38ba8',
-  green: '#a6e3a1',
-  yellow: '#f9e2af',
-  blue: '#89b4fa',
-  magenta: '#cba6f7',
-  cyan: '#94e2d5',
-  white: '#bac2de',
-};
-
-// 浅色主题（VS Code Light 风格）
-const LIGHT_THEME: ITheme = {
-  background: '#ffffff',
-  foreground: '#383a42',
-  cursor: '#000000',
-  selectionBackground: '#add6ff',
-  black: '#000000',
-  red: '#cd3131',
-  green: '#00bc00',
-  yellow: '#949800',
-  blue: '#0451a5',
-  magenta: '#bc05bc',
-  cyan: '#0598bc',
-  white: '#555555',
-};
-
-function getTheme(isDark: boolean): ITheme {
-  return isDark ? DARK_THEME : LIGHT_THEME;
-}
-
-function buildWsUrl(shell: ShellType): string {
+function buildWsUrl(shell: string, cwd?: string): string {
   const token = localStorage.getItem(TOKEN_KEY) ?? '';
   let wsBase = config.wsBaseUrl;
   if (!wsBase) {
     const base = config.apiBaseUrl || location.origin;
     wsBase = base.replace(/^http/, 'ws');
   }
-  return `${wsBase}/api/ws/terminal?token=${encodeURIComponent(token)}&shell=${encodeURIComponent(shell)}`;
+  const cwdPart = cwd ? `&cwd=${encodeURIComponent(cwd)}` : '';
+  return `${wsBase}/api/ws/terminal?token=${encodeURIComponent(token)}&shell=${encodeURIComponent(shell)}${cwdPart}`;
 }
 
-export default function TerminalTab({ sessionId, active, shell }: TerminalTabProps) {
+export default function TerminalTab({ sessionId, active, shell, cwd }: TerminalTabProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const { isDark } = useThemeController();
-  // 用 ref 持有最新 isDark，供仅在 mount 时执行的初始化闭包读取
-  const isDarkRef = useRef(isDark);
-  isDarkRef.current = isDark;
+  const { terminal } = useTerminalPreferences();
+
+  const currentTheme = useMemo(
+    () => resolveTheme(isDark ? terminal.themeDark : terminal.themeLight, isDark ? 'dark' : 'light'),
+    [isDark, terminal.themeDark, terminal.themeLight],
+  );
+
+  // 用 ref 持有最新配置，供仅在 mount 时执行的初始化闭包读取
+  const initCfgRef = useRef({
+    theme: currentTheme,
+    fontSize: terminal.fontSize,
+    fontFamily: terminal.fontFamily,
+    lineHeight: terminal.lineHeight,
+  });
+  initCfgRef.current = {
+    theme: currentTheme,
+    fontSize: terminal.fontSize,
+    fontFamily: terminal.fontFamily,
+    lineHeight: terminal.lineHeight,
+  };
 
   // 初始化 xterm + WebSocket（仅在 mount 时执行一次）
   useEffect(() => {
@@ -76,10 +59,10 @@ export default function TerminalTab({ sessionId, active, shell }: TerminalTabPro
     if (!container) return;
 
     const term = new Terminal({
-      theme: getTheme(isDarkRef.current),
-      fontFamily: '"Cascadia Code", "JetBrains Mono", Menlo, Monaco, "Courier New", monospace',
-      fontSize: 14,
-      lineHeight: 1.2,
+      theme: toXtermTheme(initCfgRef.current.theme),
+      fontFamily: initCfgRef.current.fontFamily,
+      fontSize: initCfgRef.current.fontSize,
+      lineHeight: initCfgRef.current.lineHeight,
       cursorBlink: true,
       cursorStyle: 'block',
       scrollback: 5000,
@@ -96,7 +79,7 @@ export default function TerminalTab({ sessionId, active, shell }: TerminalTabPro
     fitRef.current = fitAddon;
 
     // 建立 WebSocket 连接
-    const ws = new WebSocket(buildWsUrl(shell));
+    const ws = new WebSocket(buildWsUrl(shell, cwd));
 
     ws.onopen = () => {
       // 连接后立即同步当前终端大小
@@ -170,12 +153,16 @@ export default function TerminalTab({ sessionId, active, shell }: TerminalTabPro
     }
   }, [active]);
 
-  // 明暗模式切换时更新终端配色（不重建终端，保留会话内容）
+  // 主题 / 字体 / 字号 / 行高变化时更新终端（不重建实例，保留会话内容）
   useEffect(() => {
-    if (termRef.current) {
-      termRef.current.options.theme = getTheme(isDark);
-    }
-  }, [isDark]);
+    const term = termRef.current;
+    if (!term) return;
+    term.options.theme = toXtermTheme(currentTheme);
+    term.options.fontSize = terminal.fontSize;
+    term.options.fontFamily = terminal.fontFamily;
+    term.options.lineHeight = terminal.lineHeight;
+    fitRef.current?.fit();
+  }, [currentTheme, terminal.fontSize, terminal.fontFamily, terminal.lineHeight]);
 
   return (
     <div

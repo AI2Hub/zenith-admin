@@ -19,3 +19,30 @@ export const TerminalDirListingDTO = z
     entries: z.array(TerminalFileEntryDTO),
   })
   .openapi('TerminalDirListing');
+
+/** 终端：单个可用 shell */
+export const TerminalShellInfoDTO = z
+  .object({
+    id: z.string(),
+    label: z.string(),
+    path: z.string(),
+  })
+  .openapi('TerminalShellInfo');
+
+/** 终端：当前平台可用 shell 列表 */
+export const TerminalShellsDTO = z
+  .object({
+    platform: z.string(),
+    shells: z.array(TerminalShellInfoDTO),
+    defaultShell: z.string(),
+  })
+  .openapi('TerminalShells');
+
+/** 终端：文本文件内容 */
+export const TerminalFileContentDTO = z
+  .object({
+    path: z.string(),
+    content: z.string(),
+    size: z.number(),
+  })
+  .openapi('TerminalFileContent');

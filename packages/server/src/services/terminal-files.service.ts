@@ -1,4 +1,4 @@
-import { promises as fs, createReadStream } from 'node:fs';
+import { promises as fs, createReadStream, existsSync, readFileSync } from 'node:fs';
 import { Readable } from 'node:stream';
 import * as os from 'node:os';
 import path from 'node:path';
@@ -96,4 +96,200 @@ export async function saveUploadedFile(dirPath: string, file: File): Promise<Ter
 
   const s = await fs.stat(dest);
   return { name: file.name, path: dest, type: 'file', size: s.size, mtime: formatDateTime(s.mtime) };
+}
+
+// ---------- Shell 检测 ----------
+
+export interface TerminalShellInfo {
+  id: string;
+  label: string;
+  path: string;
+}
+
+export interface TerminalShellListing {
+  platform: string;
+  shells: TerminalShellInfo[];
+  defaultShell: string;
+}
+
+function existsSyncSafe(p: string): boolean {
+  try {
+    return existsSync(p);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 探测当前运行平台可用的 shell 列表与默认 shell。
+ * - Windows：PowerShell / CMD / Git Bash（探测安装路径）
+ * - POSIX（Linux/macOS/WSL）：读取 /etc/shells 并探测 bash/zsh/fish/sh 常见路径，$SHELL 优先作为默认
+ */
+export function listShells(): TerminalShellListing {
+  const platform = os.platform();
+
+  if (platform === 'win32') {
+    const shells: TerminalShellInfo[] = [
+      { id: 'powershell', label: 'PowerShell', path: 'powershell.exe' },
+      { id: 'cmd', label: 'Command Prompt', path: process.env.COMSPEC ?? 'cmd.exe' },
+    ];
+    const gitBash = [
+      process.env.ProgramFiles && path.join(process.env.ProgramFiles, 'Git', 'bin', 'bash.exe'),
+      process.env['ProgramFiles(x86)'] && path.join(process.env['ProgramFiles(x86)'], 'Git', 'bin', 'bash.exe'),
+      process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Programs', 'Git', 'bin', 'bash.exe'),
+    ]
+      .filter((p): p is string => Boolean(p))
+      .find((p) => existsSyncSafe(p));
+    if (gitBash) shells.push({ id: 'bash', label: 'Git Bash', path: gitBash });
+    return { platform, shells, defaultShell: 'powershell' };
+  }
+
+  const known: { id: string; label: string; candidates: string[] }[] = [
+    { id: 'bash', label: 'Bash', candidates: ['/bin/bash', '/usr/bin/bash', '/usr/local/bin/bash'] },
+    { id: 'zsh', label: 'Zsh', candidates: ['/bin/zsh', '/usr/bin/zsh', '/usr/local/bin/zsh', '/opt/homebrew/bin/zsh'] },
+    { id: 'fish', label: 'Fish', candidates: ['/usr/bin/fish', '/usr/local/bin/fish', '/opt/homebrew/bin/fish'] },
+    { id: 'sh', label: 'sh', candidates: ['/bin/sh', '/usr/bin/sh'] },
+  ];
+
+  let etcShells: string[] = [];
+  try {
+    etcShells = readFileSync('/etc/shells', 'utf-8')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#'));
+  } catch {
+    // /etc/shells 不存在时忽略
+  }
+
+  const shells: TerminalShellInfo[] = [];
+  for (const k of known) {
+    const found = k.candidates.find((p) => existsSyncSafe(p)) ?? etcShells.find((p) => p.endsWith(`/${k.id}`));
+    if (found) shells.push({ id: k.id, label: k.label, path: found });
+  }
+  if (shells.length === 0) {
+    shells.push({ id: 'sh', label: 'sh', path: '/bin/sh' });
+  }
+
+  let defaultShell = shells[0].id;
+  const envShell = process.env.SHELL;
+  if (envShell) {
+    const match = shells.find((s) => s.path === envShell || envShell.endsWith(`/${s.id}`));
+    if (match) defaultShell = match.id;
+  } else if (shells.some((s) => s.id === 'bash')) {
+    defaultShell = 'bash';
+  }
+
+  return { platform, shells, defaultShell };
+}
+
+// ---------- 文本文件读写 / 增删改 ----------
+
+const MAX_EDIT_SIZE = 5 * 1024 * 1024; // 5MB
+
+export interface TerminalFileContent {
+  path: string;
+  content: string;
+  size: number;
+}
+
+function isBinaryBuffer(buf: Buffer): boolean {
+  const len = Math.min(buf.length, 8000);
+  for (let i = 0; i < len; i += 1) {
+    if (buf[i] === 0) return true;
+  }
+  return false;
+}
+
+/** 读取文本文件内容（校验存在、非目录、大小、非二进制）。 */
+export async function readTextFile(filePath: string): Promise<TerminalFileContent> {
+  if (!filePath?.trim()) throw new HTTPException(400, { message: '缺少文件路径' });
+  const resolved = path.resolve(filePath);
+  let stat;
+  try {
+    stat = await fs.stat(resolved);
+  } catch {
+    throw new HTTPException(404, { message: '文件不存在' });
+  }
+  if (stat.isDirectory()) throw new HTTPException(400, { message: '不能读取目录内容' });
+  if (stat.size > MAX_EDIT_SIZE) throw new HTTPException(400, { message: '文件过大，无法在线编辑（上限 5MB）' });
+  const buffer = await fs.readFile(resolved);
+  if (isBinaryBuffer(buffer)) throw new HTTPException(400, { message: '二进制文件无法在线编辑' });
+  return { path: resolved, content: buffer.toString('utf-8'), size: stat.size };
+}
+
+/** 写入文本文件内容（父目录须存在，不能覆盖目录）。 */
+export async function writeTextFile(filePath: string, content: string): Promise<TerminalFileEntry> {
+  if (!filePath?.trim()) throw new HTTPException(400, { message: '缺少文件路径' });
+  const resolved = path.resolve(filePath);
+  const dir = path.dirname(resolved);
+  try {
+    const dstat = await fs.stat(dir);
+    if (!dstat.isDirectory()) throw new HTTPException(400, { message: '父路径不是目录' });
+  } catch (err) {
+    if (err instanceof HTTPException) throw err;
+    throw new HTTPException(404, { message: '父目录不存在' });
+  }
+  try {
+    const stat = await fs.stat(resolved);
+    if (stat.isDirectory()) throw new HTTPException(400, { message: '目标是目录，无法写入' });
+  } catch (err) {
+    if (err instanceof HTTPException) throw err;
+    // 文件不存在 → 视为新建
+  }
+  await fs.writeFile(resolved, content, 'utf-8');
+  const s = await fs.stat(resolved);
+  return { name: path.basename(resolved), path: resolved, type: 'file', size: s.size, mtime: formatDateTime(s.mtime) };
+}
+
+/** 新建文件或目录（同名已存在则拒绝）。 */
+export async function createEntry(targetPath: string, type: 'file' | 'dir'): Promise<TerminalFileEntry> {
+  if (!targetPath?.trim()) throw new HTTPException(400, { message: '缺少路径' });
+  const resolved = path.resolve(targetPath);
+  if (existsSyncSafe(resolved)) throw new HTTPException(400, { message: '同名文件或目录已存在' });
+  if (type === 'dir') {
+    await fs.mkdir(resolved, { recursive: true });
+  } else {
+    await fs.mkdir(path.dirname(resolved), { recursive: true });
+    await fs.writeFile(resolved, '', { flag: 'wx' });
+  }
+  const s = await fs.stat(resolved);
+  return { name: path.basename(resolved), path: resolved, type, size: s.size, mtime: formatDateTime(s.mtime) };
+}
+
+/** 删除文件或目录（目录递归删除）。禁止删除根目录与用户主目录本身。 */
+export async function deleteEntry(targetPath: string): Promise<void> {
+  if (!targetPath?.trim()) throw new HTTPException(400, { message: '缺少路径' });
+  const resolved = path.resolve(targetPath);
+  if (resolved === path.parse(resolved).root || resolved === os.homedir()) {
+    throw new HTTPException(400, { message: '禁止删除该路径' });
+  }
+  try {
+    await fs.stat(resolved);
+  } catch {
+    throw new HTTPException(404, { message: '路径不存在' });
+  }
+  await fs.rm(resolved, { recursive: true, force: false });
+}
+
+/** 重命名 / 移动文件或目录（目标已存在则拒绝）。 */
+export async function renameEntry(from: string, to: string): Promise<TerminalFileEntry> {
+  if (!from?.trim() || !to?.trim()) throw new HTTPException(400, { message: '缺少路径参数' });
+  const src = path.resolve(from);
+  const dst = path.resolve(to);
+  try {
+    await fs.stat(src);
+  } catch {
+    throw new HTTPException(404, { message: '源路径不存在' });
+  }
+  if (existsSyncSafe(dst)) throw new HTTPException(400, { message: '目标已存在' });
+  await fs.mkdir(path.dirname(dst), { recursive: true });
+  await fs.rename(src, dst);
+  const s = await fs.stat(dst);
+  return {
+    name: path.basename(dst),
+    path: dst,
+    type: s.isDirectory() ? 'dir' : 'file',
+    size: s.size,
+    mtime: formatDateTime(s.mtime),
+  };
 }

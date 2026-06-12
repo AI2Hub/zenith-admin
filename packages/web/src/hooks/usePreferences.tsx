@@ -7,6 +7,32 @@ export type TabStyle = 'line' | 'pill' | 'card';
 export type TableSizePreference = 'small' | 'default' | 'middle';
 export type RouteAnimation = 'none' | 'fade' | 'slide-up' | 'slide-left';
 
+/** Web 终端文件夹收藏项 */
+export interface TerminalFavorite {
+  /** 目录绝对路径 */
+  path: string;
+  /** 展示名称 */
+  name: string;
+}
+
+/** Web 终端个性化配置 */
+export interface TerminalPreferences {
+  /** 默认 shell id（空字符串表示用服务端探测到的默认值） */
+  defaultShell: string;
+  /** 暗色模式下使用的主题 id */
+  themeDark: string;
+  /** 亮色模式下使用的主题 id */
+  themeLight: string;
+  /** 字号 */
+  fontSize: number;
+  /** 字体 */
+  fontFamily: string;
+  /** 行高 */
+  lineHeight: number;
+  /** 文件夹收藏列表 */
+  favorites: TerminalFavorite[];
+}
+
 export interface UserPreferences {
   enableTabs: boolean;
   keepTabs: boolean;
@@ -70,6 +96,8 @@ export interface UserPreferences {
   showBackTop: boolean;
   /** 标签栏右侧显示标签切换器（chevron 下拉列表） */
   showTabSwitcher: boolean;
+  /** Web 终端个性化配置（主题/字体/默认 shell/文件夹收藏） */
+  terminal: TerminalPreferences;
 }
 
 export const defaultPreferences: UserPreferences = {
@@ -116,6 +144,15 @@ export const defaultPreferences: UserPreferences = {
   sidebarWidth: 216,
   showBackTop: true,
   showTabSwitcher: true,
+  terminal: {
+    defaultShell: '',
+    themeDark: 'catppuccin-mocha',
+    themeLight: 'vscode-light',
+    fontSize: 14,
+    fontFamily: '"Cascadia Code", "JetBrains Mono", Menlo, Monaco, "Courier New", monospace',
+    lineHeight: 1.2,
+    favorites: [],
+  },
 };
 
 export interface PreferencesContextValue {

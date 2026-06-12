@@ -3,9 +3,19 @@ import { Readable } from 'node:stream';
 import { HTTPException } from 'hono/http-exception';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
-import { validationHook, commonErrorResponses, ok, okBody, jsonContent, ErrorResponse } from '../lib/openapi-schemas';
-import { TerminalDirListingDTO, TerminalFileEntryDTO } from '../lib/openapi-dtos';
-import { listDirectory, openDownloadStream, saveUploadedFile } from '../services/terminal-files.service';
+import { validationHook, commonErrorResponses, ok, okMsg, okBody, jsonContent, ErrorResponse } from '../lib/openapi-schemas';
+import { TerminalDirListingDTO, TerminalFileEntryDTO, TerminalShellsDTO, TerminalFileContentDTO } from '../lib/openapi-dtos';
+import {
+  listDirectory,
+  openDownloadStream,
+  saveUploadedFile,
+  listShells,
+  readTextFile,
+  writeTextFile,
+  createEntry,
+  deleteEntry,
+  renameEntry,
+} from '../services/terminal-files.service';
 
 /**
  * Web 终端文件浏览/传输路由
@@ -88,6 +98,93 @@ const uploadRoute = defineOpenAPIRoute({
   },
 });
 
-terminalFilesRouter.openapiRoutes([listRoute, downloadRoute, uploadRoute] as const);
+const shellsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/shells', tags: ['TerminalFiles'], summary: '获取可用 shell 列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: TERMINAL_PERM })] as const,
+    responses: { ...commonErrorResponses, ...ok(TerminalShellsDTO, '可用 shell 列表') },
+  }),
+  handler: (c) => c.json(okBody(listShells()), 200),
+});
+
+const readContentRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/content', tags: ['TerminalFiles'], summary: '读取文本文件内容',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: TERMINAL_PERM })] as const,
+    request: { query: z.object({ path: z.string().min(1) }) },
+    responses: { ...commonErrorResponses, ...ok(TerminalFileContentDTO, '文件内容') },
+  }),
+  handler: async (c) => c.json(okBody(await readTextFile(c.req.valid('query').path)), 200),
+});
+
+const writeContentRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/content', tags: ['TerminalFiles'], summary: '保存文本文件内容',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: TERMINAL_PERM, audit: { description: '终端保存文件', module: 'Web 终端', recordBody: false } })] as const,
+    request: { body: { content: jsonContent(z.object({ path: z.string().min(1), content: z.string() })), required: true } },
+    responses: { ...commonErrorResponses, ...ok(TerminalFileEntryDTO, '保存成功') },
+  }),
+  handler: async (c) => {
+    const { path: filePath, content } = c.req.valid('json');
+    return c.json(okBody(await writeTextFile(filePath, content), '保存成功'), 200);
+  },
+});
+
+const createEntryRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/create', tags: ['TerminalFiles'], summary: '新建文件或目录',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: TERMINAL_PERM, audit: { description: '终端新建文件/目录', module: 'Web 终端' } })] as const,
+    request: { body: { content: jsonContent(z.object({ path: z.string().min(1), type: z.enum(['file', 'dir']) })), required: true } },
+    responses: { ...commonErrorResponses, ...ok(TerminalFileEntryDTO, '创建成功') },
+  }),
+  handler: async (c) => {
+    const { path: targetPath, type } = c.req.valid('json');
+    return c.json(okBody(await createEntry(targetPath, type), '创建成功'), 200);
+  },
+});
+
+const renameEntryRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/rename', tags: ['TerminalFiles'], summary: '重命名 / 移动文件或目录',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: TERMINAL_PERM, audit: { description: '终端重命名/移动', module: 'Web 终端' } })] as const,
+    request: { body: { content: jsonContent(z.object({ from: z.string().min(1), to: z.string().min(1) })), required: true } },
+    responses: { ...commonErrorResponses, ...ok(TerminalFileEntryDTO, '操作成功') },
+  }),
+  handler: async (c) => {
+    const { from, to } = c.req.valid('json');
+    return c.json(okBody(await renameEntry(from, to), '操作成功'), 200);
+  },
+});
+
+const deleteEntryRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/entry', tags: ['TerminalFiles'], summary: '删除文件或目录',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: TERMINAL_PERM, audit: { description: '终端删除文件/目录', module: 'Web 终端' } })] as const,
+    request: { query: z.object({ path: z.string().min(1) }) },
+    responses: { ...commonErrorResponses, ...okMsg('删除成功') },
+  }),
+  handler: async (c) => {
+    await deleteEntry(c.req.valid('query').path);
+    return c.json(okBody(null, '删除成功'), 200);
+  },
+});
+
+terminalFilesRouter.openapiRoutes([
+  listRoute,
+  downloadRoute,
+  uploadRoute,
+  shellsRoute,
+  readContentRoute,
+  writeContentRoute,
+  createEntryRoute,
+  renameEntryRoute,
+  deleteEntryRoute,
+] as const);
 
 export default terminalFilesRouter;

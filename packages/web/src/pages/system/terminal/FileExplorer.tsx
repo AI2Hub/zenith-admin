@@ -1,8 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Tree, Button, Upload, Toast, Typography, Tooltip } from '@douyinfe/semi-ui';
-import { Upload as UploadIcon, RotateCcw } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Tree, Button, Upload, Toast, Typography, Tooltip, Dropdown, Modal, Input } from '@douyinfe/semi-ui';
+import {
+  Upload as UploadIcon,
+  RotateCcw,
+  MoreHorizontal,
+  Star,
+  FolderPlus,
+  FilePlus,
+  Trash2,
+  Pencil,
+  Download,
+  SquareTerminal,
+  X,
+} from 'lucide-react';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { request } from '@/utils/request';
+import { useTerminalPreferences } from './useTerminalPreferences';
 
 interface FileEntry {
   name: string;
@@ -47,15 +60,41 @@ function setChildren(nodes: FileNode[], key: string, children: FileNode[]): File
   });
 }
 
-interface FileExplorerProps {
-  readonly active: boolean;
+function parentOf(p: string): string {
+  const idx = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+  return idx > 0 ? p.slice(0, idx) : p;
 }
 
-export default function FileExplorer({ active }: FileExplorerProps) {
+function joinPath(dir: string, name: string): string {
+  const sep = dir.includes('\\') && !dir.includes('/') ? '\\' : '/';
+  return `${dir.replace(/[/\\]+$/, '')}${sep}${name}`;
+}
+
+type DialogState =
+  | { mode: 'createFile' | 'createDir'; baseDir: string; value: string }
+  | { mode: 'rename'; baseDir: string; oldPath: string; value: string };
+
+function dialogTitleOf(mode: DialogState['mode'] | undefined): string {
+  if (mode === 'rename') return '重命名';
+  if (mode === 'createDir') return '新建文件夹';
+  return '新建文件';
+}
+
+interface FileExplorerProps {
+  readonly active: boolean;
+  readonly onOpenFile: (path: string) => void;
+  readonly onOpenTerminalAt: (path: string) => void;
+}
+
+export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: FileExplorerProps) {
+  const { terminal, setTerminalPref } = useTerminalPreferences();
+  const favorites = terminal.favorites;
+
   const [treeData, setTreeData] = useState<FileNode[]>([]);
   const [rootPath, setRootPath] = useState('');
   const [selectedDir, setSelectedDir] = useState('');
   const [loading, setLoading] = useState(false);
+  const [dialog, setDialog] = useState<DialogState | null>(null);
   const loadedRef = useRef(false);
 
   const loadRoot = useCallback(async () => {
@@ -86,24 +125,143 @@ export default function FileExplorer({ active }: FileExplorerProps) {
       .get<DirListing>(`/api/terminal-files/list?path=${encodeURIComponent(dir)}`)
       .then((res) => {
         if (res.code === 0 && res.data) {
-          setTreeData((prev) => setChildren(prev, key, res.data!.entries.map(entryToNode)));
+          setTreeData((prev) => setChildren(prev, key, res.data.entries.map(entryToNode)));
         }
       });
   }, []);
 
-  // 选中：文件 → 下载；目录 → 设为上传目标
-  const handleSelect = (_value: string, _selected: boolean, node: TreeNodeData) => {
-    const fileType = (node as FileNode).fileType;
-    const value = String(node.value);
-    if (fileType === 'file') {
-      const fileName = value.split(/[\\/]/).pop() ?? 'download';
-      request
-        .download(`/api/terminal-files/download?path=${encodeURIComponent(value)}`, fileName)
-        .catch(() => undefined);
+  // 刷新指定目录（根目录走 loadRoot）
+  const refreshDir = useCallback(
+    (dirPath: string) => {
+      if (!dirPath || dirPath === rootPath) {
+        void loadRoot();
+        return;
+      }
+      void request
+        .get<DirListing>(`/api/terminal-files/list?path=${encodeURIComponent(dirPath)}`)
+        .then((res) => {
+          if (res.code === 0 && res.data) {
+            setTreeData((prev) => setChildren(prev, dirPath, res.data.entries.map(entryToNode)));
+          }
+        });
+    },
+    [rootPath, loadRoot],
+  );
+
+  const isFavorite = (path: string) => favorites.some((f) => f.path === path);
+
+  const toggleFavorite = (path: string, name: string) => {
+    const next = isFavorite(path) ? favorites.filter((f) => f.path !== path) : [...favorites, { path, name }];
+    setTerminalPref({ favorites: next });
+  };
+
+  const downloadFile = (path: string) => {
+    const fileName = path.split(/[\\/]/).pop() ?? 'download';
+    request.download(`/api/terminal-files/download?path=${encodeURIComponent(path)}`, fileName).catch(() => undefined);
+  };
+
+  const confirmDelete = (node: FileNode) => {
+    Modal.confirm({
+      title: `删除${node.fileType === 'dir' ? '目录' : '文件'}`,
+      content: `确定删除「${node.label}」吗？${node.fileType === 'dir' ? '目录及其全部内容将被永久删除，' : ''}此操作不可恢复。`,
+      okType: 'danger',
+      okText: '删除',
+      cancelText: '取消',
+      onOk: async () => {
+        const res = await request.delete(`/api/terminal-files/entry?path=${encodeURIComponent(node.value)}`);
+        if (res.code === 0) {
+          Toast.success('已删除');
+          if (isFavorite(node.value)) toggleFavorite(node.value, node.label);
+          refreshDir(parentOf(node.value));
+        }
+      },
+    });
+  };
+
+  const confirmDialog = async () => {
+    if (!dialog) return;
+    const name = dialog.value.trim();
+    if (!name) {
+      Toast.warning('请输入名称');
+      return;
+    }
+    const target = joinPath(dialog.baseDir, name);
+    if (dialog.mode === 'rename') {
+      const res = await request.post('/api/terminal-files/rename', { from: dialog.oldPath, to: target });
+      if (res.code === 0) {
+        Toast.success('已重命名');
+        setDialog(null);
+        refreshDir(dialog.baseDir);
+      }
     } else {
-      setSelectedDir(value);
+      const type = dialog.mode === 'createDir' ? 'dir' : 'file';
+      const res = await request.post<FileEntry>('/api/terminal-files/create', { path: target, type });
+      if (res.code === 0) {
+        Toast.success('已创建');
+        setDialog(null);
+        refreshDir(dialog.baseDir);
+        if (type === 'file' && res.data) onOpenFile(res.data.path);
+      }
     }
   };
+
+  // 选中：文件 → 打开编辑 tab；目录 → 设为上传目标
+  const handleSelect = (_value: string, _selected: boolean, node: TreeNodeData) => {
+    const n = node as unknown as FileNode;
+    if (n.fileType === 'file') onOpenFile(String(node.value));
+    else setSelectedDir(String(node.value));
+  };
+
+  const nodeMenu = (node: FileNode) => {
+    if (node.fileType === 'file') {
+      return (
+        <Dropdown.Menu>
+          <Dropdown.Item icon={<FilePlus size={14} />} onClick={() => onOpenFile(node.value)}>打开编辑</Dropdown.Item>
+          <Dropdown.Item icon={<Download size={14} />} onClick={() => downloadFile(node.value)}>下载</Dropdown.Item>
+          <Dropdown.Item icon={<Pencil size={14} />} onClick={() => setDialog({ mode: 'rename', baseDir: parentOf(node.value), oldPath: node.value, value: node.label })}>重命名</Dropdown.Item>
+          <Dropdown.Divider />
+          <Dropdown.Item type="danger" icon={<Trash2 size={14} />} onClick={() => confirmDelete(node)}>删除</Dropdown.Item>
+        </Dropdown.Menu>
+      );
+    }
+    const fav = isFavorite(node.value);
+    return (
+      <Dropdown.Menu>
+        <Dropdown.Item icon={<SquareTerminal size={14} />} onClick={() => onOpenTerminalAt(node.value)}>在此打开终端</Dropdown.Item>
+        <Dropdown.Item icon={<Star size={14} />} onClick={() => toggleFavorite(node.value, node.label)}>{fav ? '取消收藏' : '收藏'}</Dropdown.Item>
+        <Dropdown.Divider />
+        <Dropdown.Item icon={<FilePlus size={14} />} onClick={() => setDialog({ mode: 'createFile', baseDir: node.value, value: '' })}>新建文件</Dropdown.Item>
+        <Dropdown.Item icon={<FolderPlus size={14} />} onClick={() => setDialog({ mode: 'createDir', baseDir: node.value, value: '' })}>新建文件夹</Dropdown.Item>
+        <Dropdown.Item icon={<Pencil size={14} />} onClick={() => setDialog({ mode: 'rename', baseDir: parentOf(node.value), oldPath: node.value, value: node.label })}>重命名</Dropdown.Item>
+        <Dropdown.Divider />
+        <Dropdown.Item type="danger" icon={<Trash2 size={14} />} onClick={() => confirmDelete(node)}>删除</Dropdown.Item>
+      </Dropdown.Menu>
+    );
+  };
+
+  const renderLabel = (label?: ReactNode, item?: TreeNodeData) => {
+    const node = item as unknown as FileNode;
+    const fav = node.fileType === 'dir' && isFavorite(node.value);
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 4 }}>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {label}
+          {fav ? ' ★' : ''}
+        </span>
+        <Dropdown trigger="click" clickToHide position="bottomRight" render={nodeMenu(node)}>
+          <Button
+            size="small"
+            theme="borderless"
+            type="tertiary"
+            icon={<MoreHorizontal size={13} />}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </Dropdown>
+      </div>
+    );
+  };
+
+  const dialogTitle = dialogTitleOf(dialog?.mode);
 
   return (
     <div
@@ -139,7 +297,7 @@ export default function FileExplorer({ active }: FileExplorerProps) {
                 if (res.code === 0) {
                   Toast.success('上传成功');
                   onSuccess?.(res.data ?? {});
-                  void loadRoot();
+                  refreshDir(selectedDir || rootPath);
                 } else {
                   onError?.({ status: 0 });
                 }
@@ -163,11 +321,63 @@ export default function FileExplorer({ active }: FileExplorerProps) {
         </Tooltip>
       </div>
 
+      {favorites.length > 0 && (
+        <div
+          style={{
+            borderBottom: '1px solid var(--semi-color-border)',
+            padding: '4px 0',
+            flexShrink: 0,
+            maxHeight: 132,
+            overflow: 'auto',
+          }}
+        >
+          {favorites.map((f) => (
+            <div
+              key={f.path}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 10px' }}
+              title={f.path}
+            >
+              <button
+                type="button"
+                onClick={() => onOpenTerminalAt(f.path)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  flex: 1,
+                  minWidth: 0,
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  color: 'inherit',
+                  font: 'inherit',
+                  textAlign: 'left',
+                }}
+              >
+                <Star size={12} style={{ color: 'var(--semi-color-warning)', flexShrink: 0 }} />
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>
+                  {f.name}
+                </span>
+              </button>
+              <Button
+                size="small"
+                theme="borderless"
+                type="tertiary"
+                icon={<X size={11} />}
+                onClick={() => toggleFavorite(f.path, f.name)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '4px 0' }}>
         <Tree
           treeData={treeData}
           loadData={loadData}
           onSelect={handleSelect}
+          renderLabel={renderLabel}
           expandAction="click"
           directory
           motion={false}
@@ -181,6 +391,22 @@ export default function FileExplorer({ active }: FileExplorerProps) {
           {selectedDir || rootPath}
         </Typography.Text>
       </div>
+
+      <Modal
+        title={dialogTitle}
+        visible={!!dialog}
+        onCancel={() => setDialog(null)}
+        onOk={() => void confirmDialog()}
+        closeOnEsc
+        width={400}
+      >
+        <Input
+          value={dialog?.value ?? ''}
+          onChange={(v) => setDialog((d) => (d ? { ...d, value: v } : d))}
+          onEnterPress={() => void confirmDialog()}
+          placeholder="请输入名称"
+        />
+      </Modal>
     </div>
   );
 }
