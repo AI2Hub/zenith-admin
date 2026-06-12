@@ -131,8 +131,8 @@ export function closePane(
 
   const nextActiveLeafId = (leaves[idx + 1] ?? leaves[idx - 1]).id;
 
-  // 追踪叶子 id 重命名（仅层叠 split 折叠时发生）
-  let renamedPaneId: { from: string; to: string } | null = null;
+  // 用对象属性记录重命名信息（TypeScript 不对对象属性做控制流窄化，避免被平干为 never）
+  const renameState: { id: { from: string; to: string } | null } = { id: null };
 
   function recur(node: PaneNode, isRoot = false): PaneNode | null {
     if (node.type === 'leaf') return node.id === targetId ? null : node;
@@ -150,7 +150,7 @@ export function closePane(
       }
       // 层叠折叠：继承 split 节点的 id，保证父级 PanelGroup 中该 Panel key 不变。
       if (child.id !== node.id && child.type === 'leaf') {
-        renamedPaneId = { from: child.id, to: node.id };
+        renameState.id = { from: child.id, to: node.id };
       }
       return { ...child, id: node.id };
     }
@@ -158,9 +158,9 @@ export function closePane(
   }
 
   const newRoot = recur(root, true);
+  const renamedPaneId = renameState.id;
 
   // 若 nextActiveId 所指的叶子 id 被重命名，同步更新
-  // 用局部变量引用 renamedPaneId 避免 TypeScript 闭包追踪问题
   const rp = renamedPaneId;
   const finalNextActiveId =
     rp !== null && rp.from === nextActiveLeafId
