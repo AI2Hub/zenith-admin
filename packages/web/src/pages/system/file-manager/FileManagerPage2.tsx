@@ -13,7 +13,7 @@ import {
   Search, RotateCcw, LayoutGrid, List as ListIcon,
   FolderPlus, FilePlus, Upload as UploadIcon,
   Trash2, Copy, Scissors, Archive, Home,
-  MoreHorizontal, FolderOpen,
+  MoreHorizontal, FolderOpen, Eye,
 } from 'lucide-react';
 import { request } from '@/utils/request';
 import { TOKEN_KEY } from '@zenith/shared';
@@ -111,6 +111,24 @@ function uploadOneXhrFM(
   });
 }
 
+// ── 文件预览辅助 ──────────────────────────────────────────────────────────────
+
+const IMAGE_EXTS_FM = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tiff', 'tif', 'avif']);
+const PDF_EXTS_FM = new Set(['pdf']);
+const VIDEO_EXTS_FM = new Set(['mp4', 'webm', 'ogv', 'mov', 'mkv', 'avi']);
+const AUDIO_EXTS_FM = new Set(['mp3', 'wav', 'ogg', 'oga', 'flac', 'aac', 'm4a', 'opus']);
+
+type BinaryPreviewType = 'image' | 'pdf' | 'video' | 'audio';
+
+function getBinaryPreviewType(name: string): BinaryPreviewType | null {
+  const ext = (name.split('.').pop() ?? '').toLowerCase();
+  if (IMAGE_EXTS_FM.has(ext)) return 'image';
+  if (PDF_EXTS_FM.has(ext)) return 'pdf';
+  if (VIDEO_EXTS_FM.has(ext)) return 'video';
+  if (AUDIO_EXTS_FM.has(ext)) return 'audio';
+  return null;
+}
+
 // ── 网格卡片 ─────────────────────────────────────────────────────────────────
 
 interface GridCardProps {
@@ -171,6 +189,13 @@ export default function FileManagerPage() {
   const ctxUploadDirRef = useRef('');
   const ctxUploadInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState<{ name: string; progress: number }[]>([]);
+  const [preview, setPreview] = useState<{
+    name: string; path: string;
+    type: BinaryPreviewType | 'text';
+    blobUrl?: string; content?: string;
+  } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const previewBlobRef = useRef<string | null>(null);
 
   // ── 初始化 ────────────────────────────────────────────────────────────────
 
@@ -255,6 +280,46 @@ export default function FileManagerPage() {
       })
       .catch(() => Toast.error('下载失败'));
   };
+
+  const closePreview = () => {
+    if (previewBlobRef.current) { URL.revokeObjectURL(previewBlobRef.current); previewBlobRef.current = null; }
+    setPreview(null);
+  };
+
+  const handlePreview = useCallback(async (entry: FsEntry) => {
+    if (entry.type === 'dir') return;
+    const btype = getBinaryPreviewType(entry.name);
+    setPreviewLoading(true);
+    try {
+      if (btype) {
+        const token = localStorage.getItem(TOKEN_KEY) ?? '';
+        const base = appConfig.apiBaseUrl || '';
+        const resp = await fetch(
+          `${base}/api/terminal-files/download?path=${encodeURIComponent(entry.path)}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const blob = await resp.blob();
+        if (previewBlobRef.current) URL.revokeObjectURL(previewBlobRef.current);
+        const blobUrl = URL.createObjectURL(blob);
+        previewBlobRef.current = blobUrl;
+        setPreview({ name: entry.name, path: entry.path, type: btype, blobUrl });
+      } else {
+        const res = await request.get<{ path: string; content: string; size: number }>(
+          `/api/terminal-files/content?path=${encodeURIComponent(entry.path)}`,
+        );
+        if (res.code === 0 && res.data) {
+          setPreview({ name: entry.name, path: entry.path, type: 'text', content: res.data.content });
+        } else {
+          Toast.warning('该文件不支持预览，请下载后查看');
+        }
+      }
+    } catch (err) {
+      Toast.error(err instanceof Error ? err.message : '文件预览失败');
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, []);
 
   const handlePaste = async () => {
     if (!clipboard || !currentPath) return;
@@ -355,6 +420,7 @@ export default function FileManagerPage() {
           closeCtxMenu();
         },
       },
+      ...(entry.type !== 'dir' ? [{ label: '预览', fn: () => { void handlePreview(entry); closeCtxMenu(); } }] : []),
       { label: '重命名', fn: () => { setDialog({ mode: 'rename', entry, value: entry.name }); closeCtxMenu(); } },
       { label: '复制到…', fn: () => { setDialog({ mode: 'copy', entry, value: entry.path }); closeCtxMenu(); } },
       { label: '移动到…', fn: () => { setDialog({ mode: 'move', entry, value: entry.path }); closeCtxMenu(); } },
@@ -396,13 +462,16 @@ export default function FileManagerPage() {
     {
       title: '操作',
       fixed: 'right' as const,
-      width: 180,
+      width: 220,
       render: (_: unknown, r: FsEntry) => (
         <Space>
           {r.type === 'dir' ? (
             <Button size="small" theme="borderless" onClick={() => void navigateTo(r.path)}>打开</Button>
           ) : (
-            <Button size="small" theme="borderless" onClick={() => handleDownload(r)}>下载</Button>
+            <>
+              <Button size="small" theme="borderless" icon={<Eye size={12} />} onClick={() => void handlePreview(r)}>预览</Button>
+              <Button size="small" theme="borderless" onClick={() => handleDownload(r)}>下载</Button>
+            </>
           )}
           <Popconfirm title="确定要删除吗？" okType="danger" onConfirm={() => void handleDelete([r.path])}>
             <Button size="small" theme="borderless" type="danger">删除</Button>
@@ -449,7 +518,7 @@ export default function FileManagerPage() {
               entry={e}
               selected={selectedPaths.has(e.path)}
               onSelect={() => toggleSelect(e.path)}
-              onOpen={() => { if (e.type === 'dir') void navigateTo(e.path); else handleDownload(e); }}
+              onOpen={() => { if (e.type === 'dir') void navigateTo(e.path); else void handlePreview(e); }}
               onContextMenu={(ev) => openCtxMenu(ev, e)}
             />
           ))}
@@ -694,6 +763,53 @@ export default function FileManagerPage() {
           <Typography.Text size="small" type="tertiary" style={{ display: 'block', marginTop: 8 }}>
             将压缩到当前目录下，输入 ZIP 文件名（含 .zip 扩展名）
           </Typography.Text>
+        )}
+      </Modal>
+
+      {/* ── 文件预览 ── */}
+      <Modal
+        title={preview?.name ?? '文件预览'}
+        visible={!!preview || previewLoading}
+        onCancel={closePreview}
+        footer={null}
+        width="80vw"
+        closeOnEsc
+        bodyStyle={{ padding: 0, overflow: 'hidden' }}
+      >
+        {previewLoading && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300 }}>
+            <Spin size="large" />
+          </div>
+        )}
+        {!previewLoading && preview?.type === 'image' && (
+          <div style={{ textAlign: 'center', padding: 8, background: 'var(--semi-color-fill-0)', overflow: 'auto', maxHeight: '75vh' }}>
+            <img src={preview.blobUrl} alt={preview.name} style={{ maxWidth: '100%', maxHeight: '74vh', objectFit: 'contain', display: 'block', margin: '0 auto' }} />
+          </div>
+        )}
+        {!previewLoading && preview?.type === 'pdf' && (
+          <iframe src={preview.blobUrl} title={preview.name} style={{ width: '100%', height: '75vh', border: 'none', display: 'block' }} />
+        )}
+        {!previewLoading && preview?.type === 'video' && (
+          <div style={{ background: '#000', display: 'flex', justifyContent: 'center' }}>
+            <video src={preview.blobUrl} controls style={{ maxWidth: '100%', maxHeight: '75vh' }} />
+          </div>
+        )}
+        {!previewLoading && preview?.type === 'audio' && (
+          <div style={{ padding: '24px 16px' }}>
+            <audio src={preview.blobUrl} controls style={{ width: '100%' }} />
+          </div>
+        )}
+        {!previewLoading && preview?.type === 'text' && (
+          <pre style={{
+            maxHeight: '75vh', overflow: 'auto', fontSize: 12, lineHeight: 1.6,
+            padding: '12px 16px', margin: 0,
+            background: 'var(--semi-color-fill-0)',
+            color: 'var(--semi-color-text-0)',
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+            whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+          }}>
+            {preview.content}
+          </pre>
         )}
       </Modal>
     </div>
