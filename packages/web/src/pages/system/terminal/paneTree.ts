@@ -87,11 +87,15 @@ export function splitPane(
   function recur(node: PaneNode): PaneNode {
     if (node.type === 'leaf') {
       if (node.id !== targetId) return node;
+      // 关键：新 split 复用被拆分叶子的 id，使父级看到的子节点 id 保持稳定，
+      // 避免 react-resizable-panels 因 Panel id 突变而丢失布局状态、导致嵌套分屏错乱。
+      // 原叶子下移进 split 并分配新 id。
+      const movedOriginal: PaneLeaf = { ...node, id: nextPaneId() };
       return {
         type: 'split',
-        id: nextPaneId('split'),
+        id: targetId,
         direction,
-        children: [node, newLeaf],
+        children: [movedOriginal, newLeaf],
       };
     }
     const idx = node.children.findIndex((c) => c.type === 'leaf' && c.id === targetId);
