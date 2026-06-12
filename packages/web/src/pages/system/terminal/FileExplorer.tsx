@@ -267,7 +267,7 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
   };
 
   const handleDrop = useCallback(
-    async (e: React.DragEvent<HTMLDivElement>) => {
+    async (e: React.DragEvent<HTMLElement>) => {
       dragCounterRef.current = 0;
       setIsDragOver(false);
       const finalTarget = dropTargetDirRef.current;
