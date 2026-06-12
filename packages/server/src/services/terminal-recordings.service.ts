@@ -62,8 +62,7 @@ export async function listRecordings(userId: number, page: number, pageSize: num
         duration: terminalRecordings.duration,
         createdAt: terminalRecordings.createdAt,
         updatedAt: terminalRecordings.updatedAt,
-      })
-      .from(terminalRecordings)
+      })      .from(terminalRecordings)
       .where(where)
       .orderBy(desc(terminalRecordings.createdAt))
       .limit(pageSize)

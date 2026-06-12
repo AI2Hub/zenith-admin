@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { authMiddleware, type AuthUser } from '../middleware/auth';
+import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
+import { currentUser } from '../lib/context';
 import {
   validationHook,
   commonErrorResponses,
@@ -42,7 +43,7 @@ const listRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okPaginated(TerminalRecordingDTO, '录屏列表') },
   }),
   handler: async (c) => {
-    const user = c.var.user as AuthUser;
+    const user = currentUser();
     const { page = 1, pageSize = 20 } = c.req.valid('query');
     return c.json(okBody(await listRecordings(user.userId, Number(page), Number(pageSize))), 200);
   },
@@ -57,7 +58,7 @@ const createRoute_ = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(TerminalRecordingDTO, '保存成功') },
   }),
   handler: async (c) => {
-    const user = c.var.user as AuthUser;
+    const user = currentUser();
     const body = c.req.valid('json');
     const result = await createRecording(user.userId, user.tenantId ?? null, {
       title: body.title,
@@ -80,7 +81,7 @@ const getRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(TerminalRecordingDetailDTO, '录屏详情') },
   }),
   handler: async (c) => {
-    const user = c.var.user as AuthUser;
+    const user = currentUser();
     const id = Number(c.req.valid('param').id);
     return c.json(okBody(await getRecording(id, user.userId)), 200);
   },
@@ -95,7 +96,7 @@ const deleteRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okMsg('删除成功') },
   }),
   handler: async (c) => {
-    const user = c.var.user as AuthUser;
+    const user = currentUser();
     await deleteRecording(Number(c.req.valid('param').id), user.userId);
     return c.json(okBody(null, '删除成功'), 200);
   },

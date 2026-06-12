@@ -226,7 +226,7 @@ export default function RecordingPlayer({ cols, rows, duration, events }: Record
           step={0.1}
           value={elapsed}
           onChange={(v) => {
-              const num = Array.isArray(v) ? v[0] : v;
+              const num = Array.isArray(v) ? (v[0] ?? 0) : (v ?? 0);
               handleSeek(num);
             }}
           style={{ flex: 1 }}
