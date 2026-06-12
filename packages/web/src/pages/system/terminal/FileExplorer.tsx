@@ -102,6 +102,7 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
   const [isDragOver, setIsDragOver] = useState(false);
   const loadedRef = useRef(false);
   const dragCounterRef = useRef(0);
+  const treeContainerRef = useRef<HTMLElement | null>(null);
 
   const loadRoot = useCallback(async () => {
     setLoading(true);
@@ -154,19 +155,15 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
     [rootPath, loadRoot],
   );
 
-  const ensureLoaded = useCallback(async (dir: string) => {
-    const res = await request.get<DirListing>(`/api/terminal-files/list?path=${encodeURIComponent(dir)}`, { silent: true });
-    if (res.code === 0 && res.data) {
-      const entries = res.data.entries.map(entryToNode);
-      setTreeData((prev) => setChildren(prev, dir, entries));
-    }
-  }, []);
-
   // 在文件树中逐级展开并定位到指定目录
   const locateInTree = useCallback(
     async (target: string) => {
       const root = rootPath;
-      const inRoot = !!root && (target === root || target.startsWith(`${root}/`) || target.startsWith(`${root}\\`));
+      if (!root) {
+        Toast.warning('文件树尚未加载，请稍候再试');
+        return;
+      }
+      const inRoot = target === root || target.startsWith(`${root}/`) || target.startsWith(`${root}\\`);
       if (!inRoot) {
         Toast.warning('该目录不在当前文件树范围内');
         return;
@@ -180,13 +177,41 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
         levelPaths.push(cur);
       }
       const ancestors = levelPaths.slice(0, -1);
-      for (const dir of ancestors) {
-        await ensureLoaded(dir);
+
+      // 逐级加载祖先目录内容，汇总所有结果后一次性更新 treeData（避免分批更新导致嵌套节点找不到的问题）
+      if (ancestors.length > 0) {
+        const results: { dir: string; entries: FileNode[] }[] = [];
+        for (const dir of ancestors) {
+          const res = await request.get<DirListing>(
+            `/api/terminal-files/list?path=${encodeURIComponent(dir)}`,
+            { silent: true },
+          );
+          if (res.code === 0 && res.data) {
+            results.push({ dir, entries: res.data.entries.map(entryToNode) });
+          }
+        }
+        if (results.length > 0) {
+          setTreeData((prev) => {
+            let tree = prev;
+            for (const { dir, entries } of results) {
+              tree = setChildren(tree, dir, entries);
+            }
+            return tree;
+          });
+        }
       }
+
       setExpandedKeys((prev) => Array.from(new Set([...prev, ...ancestors])));
       setSelectedKey(target);
+
+      // 等待 React 重新渲染后滚动到选中节点
+      setTimeout(() => {
+        const container = treeContainerRef.current;
+        const el = container?.querySelector('.semi-tree-option-selected');
+        el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }, 150);
     },
-    [rootPath, ensureLoaded],
+    [rootPath],
   );
 
   const isFavorite = (path: string) => favorites.some((f) => f.path === path);
@@ -427,6 +452,7 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
       </div>
 
       <section
+        ref={treeContainerRef}
         aria-label="文件树（支持从本地拖入文件上传）"
         style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '4px 0', position: 'relative' }}
         onDragEnter={handleDragEnter}
