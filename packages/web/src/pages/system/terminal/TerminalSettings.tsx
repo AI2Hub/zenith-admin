@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { SideSheet, Select, InputNumber, Button, Typography, Divider } from '@douyinfe/semi-ui';
+import { SideSheet, Select, InputNumber, Button, Typography, Divider, Switch } from '@douyinfe/semi-ui';
 import { RotateCcw } from 'lucide-react';
 import { useTerminalPreferences, defaultTerminalPreferences } from './useTerminalPreferences';
 import { DARK_THEMES, LIGHT_THEMES, FONT_FAMILY_PRESETS } from './themes';
@@ -45,6 +45,29 @@ export default function TerminalSettings({ visible, onClose, shells }: TerminalS
           ))}
         </Select>
       </Field>
+
+      <Divider margin="12px" />
+
+      <Field label="标签栏位置">
+        <Select
+          value={terminal.tabPosition ?? 'top'}
+          onChange={(v) => setTerminalPref({ tabPosition: (v as 'top' | 'right' | 'bottom') ?? 'top' })}
+          style={{ width: '100%' }}
+        >
+          <Select.Option value="top">顶部（默认）</Select.Option>
+          <Select.Option value="right">右侧（VS Code 风格）</Select.Option>
+          <Select.Option value="bottom">底部</Select.Option>
+        </Select>
+      </Field>
+
+      {terminal.tabPosition === 'right' && (
+        <Field label="右侧标签栏折叠为图标">
+          <Switch
+            checked={terminal.tabCollapsed ?? false}
+            onChange={(v) => setTerminalPref({ tabCollapsed: v })}
+          />
+        </Field>
+      )}
 
       <Divider margin="12px" />
 

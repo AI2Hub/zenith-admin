@@ -10,6 +10,8 @@ export const defaultTerminalPreferences: TerminalPreferences = {
   fontFamily: DEFAULT_FONT_FAMILY,
   lineHeight: 1.2,
   favorites: [],
+  tabPosition: 'top',
+  tabCollapsed: false,
 };
 
 /**

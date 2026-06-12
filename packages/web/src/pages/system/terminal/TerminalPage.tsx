@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button, Typography, Space, Dropdown, Tooltip } from '@douyinfe/semi-ui';
-import { Plus, TerminalSquare, ChevronDown, X, PanelLeft, Settings } from 'lucide-react';
+import { Plus, TerminalSquare, ChevronDown, ChevronLeft, ChevronRight, X, PanelLeft, Settings } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import FileExplorer from './FileExplorer';
 import TerminalSettings from './TerminalSettings';
@@ -67,7 +67,9 @@ function DemoNotice() {
 }
 
 export default function TerminalPage() {
-  const { terminal } = useTerminalPreferences();
+  const { terminal, setTerminalPref } = useTerminalPreferences();
+  const tabPosition = terminal.tabPosition ?? 'top';
+  const tabCollapsed = terminal.tabCollapsed ?? false;
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeId, setActiveId] = useState('');
   const [showExplorer, setShowExplorer] = useState(false);
@@ -325,35 +327,232 @@ export default function TerminalPage() {
     </Dropdown.Menu>
   );
 
-  const tabBarRight = (
-    <Space spacing={2} style={{ padding: '0 8px', borderLeft: '1px solid var(--semi-color-border)', flexShrink: 0 }}>
-      <Button
-        icon={<Plus size={13} />}
-        size="small"
-        theme="borderless"
-        type="tertiary"
-        onClick={() => addTerminal()}
-        title="新建终端"
-      />
-      <Dropdown trigger="click" position="bottomRight" render={shellMenu}>
+  /** 渲染单个 tab 的图标+标题+脏标记 */
+  const renderTabInfo = (s: Session) => {
+    const leaf = activeLeafOf(s);
+    const tabDirty = collectLeaves(s.root).some((l) => dirtyIds.has(l.id));
+    return { leaf, tabDirty };
+  };
+
+  /** 横向标签栏（top / bottom） */
+  const horizontalTabBar = (
+    <div
+      className="admin-tabs-bar"
+      data-tab-style="line"
+      style={{
+        borderBottom: tabPosition === 'top' ? '1px solid var(--semi-color-border)' : undefined,
+        borderTop: tabPosition === 'bottom' ? '1px solid var(--semi-color-border)' : undefined,
+      }}
+    >
+      <Tooltip content={showExplorer ? '隐藏文件浏览器' : '显示文件浏览器'}>
         <Button
-          icon={<ChevronDown size={13} />}
+          icon={<PanelLeft size={14} />}
           size="small"
           theme="borderless"
-          type="tertiary"
-          title="选择 Shell 类型"
-        />
-      </Dropdown>
-      <Tooltip content="终端设置">
-        <Button
-          icon={<Settings size={13} />}
-          size="small"
-          theme="borderless"
-          type="tertiary"
-          onClick={() => setShowSettings(true)}
+          type={showExplorer ? 'primary' : 'tertiary'}
+          onClick={() => setShowExplorer((v) => !v)}
+          style={{ margin: '0 4px', flexShrink: 0, alignSelf: 'center' }}
         />
       </Tooltip>
-    </Space>
+      <div className="admin-tabs-bar__scroll">
+        {sessions.map((s) => {
+          const isActive = s.id === activeId;
+          const { leaf, tabDirty } = renderTabInfo(s);
+          return (
+            <div
+              key={s.id}
+              className={`admin-tab-item ${isActive ? 'admin-tab-item--active' : ''}`}
+              role="tab"
+              tabIndex={0}
+              aria-selected={isActive}
+              draggable
+              onDragStart={() => { dragIdRef.current = s.id; }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => { reorderSessions(dragIdRef.current ?? '', s.id); dragIdRef.current = null; }}
+              onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ id: s.id, x: e.clientX, y: e.clientY }); }}
+              onClick={() => setActiveId(s.id)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveId(s.id); } }}
+            >
+              <span className="admin-tab-item__icon">
+                {leaf.kind === 'editor' ? (
+                  <Icon icon={getFileIcon(leaf.title)} width={13} height={13} />
+                ) : (
+                  <Icon icon={getShellIcon(leaf.shell)} width={13} height={13} />
+                )}
+              </span>
+              <span className="admin-tab-item__text">
+                {tabDirty ? '● ' : ''}
+                {leaf.title}
+              </span>
+              <button
+                className="admin-tab-item__close"
+                aria-label="关闭标签"
+                onClick={(e) => { e.stopPropagation(); removeSession(s.id); }}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {/* 右侧操作按钮 */}
+      <Space spacing={2} style={{ padding: '0 8px', borderLeft: '1px solid var(--semi-color-border)', flexShrink: 0 }}>
+        <Button icon={<Plus size={13} />} size="small" theme="borderless" type="tertiary" onClick={() => addTerminal()} title="新建终端" />
+        <Dropdown trigger="click" position="bottomRight" render={shellMenu}>
+          <Button icon={<ChevronDown size={13} />} size="small" theme="borderless" type="tertiary" title="选择 Shell 类型" />
+        </Dropdown>
+        <Tooltip content="终端设置">
+          <Button icon={<Settings size={13} />} size="small" theme="borderless" type="tertiary" onClick={() => setShowSettings(true)} />
+        </Tooltip>
+      </Space>
+    </div>
+  );
+
+  /** 右侧竖向标签栏 */
+  const verticalSidebar = (
+    <div
+      className={`terminal-sidebar ${tabCollapsed ? 'terminal-sidebar--collapsed' : 'terminal-sidebar--expanded'}`}
+      style={{ width: tabCollapsed ? 44 : 200 }}
+    >
+      {/* 工具行 */}
+      <div className="terminal-sidebar__tools">
+        {tabCollapsed ? (
+          /* 折叠态：折叠按钮 */
+          <Tooltip content="展开标签栏" position="left">
+            <Button
+              icon={<ChevronLeft size={13} />}
+              size="small"
+              theme="borderless"
+              type="tertiary"
+              onClick={() => setTerminalPref({ tabCollapsed: false })}
+            />
+          </Tooltip>
+        ) : (
+          /* 展开态：横排按钮 */
+          <>
+            <Tooltip content={showExplorer ? '隐藏文件浏览器' : '显示文件浏览器'}>
+              <Button
+                icon={<PanelLeft size={14} />}
+                size="small"
+                theme="borderless"
+                type={showExplorer ? 'primary' : 'tertiary'}
+                onClick={() => setShowExplorer((v) => !v)}
+              />
+            </Tooltip>
+            <div style={{ flex: 1 }} />
+            <Button icon={<Plus size={13} />} size="small" theme="borderless" type="tertiary" onClick={() => addTerminal()} title="新建终端" />
+            <Dropdown trigger="click" position="bottomLeft" render={shellMenu}>
+              <Button icon={<ChevronDown size={13} />} size="small" theme="borderless" type="tertiary" title="选择 Shell 类型" />
+            </Dropdown>
+            <Tooltip content="终端设置">
+              <Button icon={<Settings size={13} />} size="small" theme="borderless" type="tertiary" onClick={() => setShowSettings(true)} />
+            </Tooltip>
+            <Tooltip content="折叠标签栏">
+              <Button
+                icon={<ChevronRight size={13} />}
+                size="small"
+                theme="borderless"
+                type="tertiary"
+                onClick={() => setTerminalPref({ tabCollapsed: true })}
+              />
+            </Tooltip>
+          </>
+        )}
+      </div>
+
+      {/* 标签列表 */}
+      <div className="terminal-sidebar__list">
+        {sessions.map((s) => {
+          const isActive = s.id === activeId;
+          const { leaf, tabDirty } = renderTabInfo(s);
+          const title = `${tabDirty ? '● ' : ''}${leaf.title}`;
+          return (
+            <Tooltip key={s.id} content={tabCollapsed ? title : undefined} position="left">
+              <div
+                className={`terminal-sidebar__item ${isActive ? 'terminal-sidebar__item--active' : ''}`}
+                role="tab"
+                tabIndex={0}
+                aria-selected={isActive}
+                onClick={() => setActiveId(s.id)}
+                onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ id: s.id, x: e.clientX, y: e.clientY }); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveId(s.id); } }}
+              >
+                <span className="terminal-sidebar__item__icon">
+                  {leaf.kind === 'editor' ? (
+                    <Icon icon={getFileIcon(leaf.title)} width={14} height={14} />
+                  ) : (
+                    <Icon icon={getShellIcon(leaf.shell)} width={14} height={14} />
+                  )}
+                </span>
+                {!tabCollapsed && (
+                  <>
+                    <span className="terminal-sidebar__item__text">{title}</span>
+                    <button
+                      className="terminal-sidebar__item__close"
+                      aria-label="关闭标签"
+                      onClick={(e) => { e.stopPropagation(); removeSession(s.id); }}
+                    >
+                      <X size={12} />
+                    </button>
+                  </>
+                )}
+              </div>
+            </Tooltip>
+          );
+        })}
+      </div>
+
+      {/* 折叠态底部操作 */}
+      {tabCollapsed && (
+        <div style={{ padding: '4px 0', borderTop: '1px solid var(--semi-color-border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+          <Tooltip content={showExplorer ? '隐藏文件浏览器' : '显示文件浏览器'} position="left">
+            <Button icon={<PanelLeft size={14} />} size="small" theme="borderless" type={showExplorer ? 'primary' : 'tertiary'} onClick={() => setShowExplorer((v) => !v)} />
+          </Tooltip>
+          <Tooltip content="新建终端" position="left">
+            <Button icon={<Plus size={13} />} size="small" theme="borderless" type="tertiary" onClick={() => addTerminal()} />
+          </Tooltip>
+          <Tooltip content="终端设置" position="left">
+            <Button icon={<Settings size={13} />} size="small" theme="borderless" type="tertiary" onClick={() => setShowSettings(true)} />
+          </Tooltip>
+        </div>
+      )}
+    </div>
+  );
+
+  /** 内容区：文件浏览器 + 终端面板 */
+  const contentArea = (
+    <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex' }}>
+      {showExplorer && (
+        <div style={{ width: 260, flexShrink: 0, borderRight: '1px solid var(--semi-color-border)' }}>
+          <FileExplorer active={showExplorer} onOpenFile={openEditor} onOpenTerminalAt={openTerminalAt} />
+        </div>
+      )}
+      <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+        {sessions.map((s) => (
+          <div
+            key={s.id}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              visibility: s.id === activeId ? 'visible' : 'hidden',
+              zIndex: s.id === activeId ? 1 : 0,
+              padding: '8px 4px 4px',
+            }}
+          >
+            <PaneTreeView
+              root={s.root}
+              sessionActive={s.id === activeId}
+              activePaneId={s.activePaneId}
+              dirtyIds={dirtyIds}
+              onFocusPane={(pid) => handleFocusPane(s.id, pid)}
+              onSplitPane={(pid, dir) => handleSplitPane(s.id, pid, dir)}
+              onClosePane={(pid) => handleClosePane(s.id, pid)}
+              onDirtyChange={setDirty}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 
   return (
@@ -361,117 +560,23 @@ export default function TerminalPage() {
       style={{
         height: '100%',
         display: 'flex',
-        flexDirection: 'column',
+        flexDirection: tabPosition === 'right' ? 'row' : 'column',
         background: 'var(--color-layout-bg)',
         overflow: 'hidden',
       }}
     >
-      {/* 自定义标签栏：复用应用顶部 .admin-tab-item 紧凑 line 风格 */}
-      <div className="admin-tabs-bar" data-tab-style="line" style={{ borderBottom: '1px solid var(--semi-color-border)' }}>
-        <Tooltip content={showExplorer ? '隐藏文件浏览器' : '显示文件浏览器'}>
-          <Button
-            icon={<PanelLeft size={14} />}
-            size="small"
-            theme="borderless"
-            type={showExplorer ? 'primary' : 'tertiary'}
-            onClick={() => setShowExplorer((v) => !v)}
-            style={{ margin: '0 4px', flexShrink: 0, alignSelf: 'center' }}
-          />
-        </Tooltip>
-        <div className="admin-tabs-bar__scroll">
-          {sessions.map((s) => {
-            const isActive = s.id === activeId;
-            const leaf = activeLeafOf(s);
-            const tabDirty = collectLeaves(s.root).some((l) => dirtyIds.has(l.id));
-            return (
-              <div
-                key={s.id}
-                className={`admin-tab-item ${isActive ? 'admin-tab-item--active' : ''}`}
-                role="tab"
-                tabIndex={0}
-                aria-selected={isActive}
-                draggable
-                onDragStart={() => {
-                  dragIdRef.current = s.id;
-                }}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => {
-                  reorderSessions(dragIdRef.current ?? '', s.id);
-                  dragIdRef.current = null;
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setCtxMenu({ id: s.id, x: e.clientX, y: e.clientY });
-                }}
-                onClick={() => setActiveId(s.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setActiveId(s.id);
-                  }
-                }}
-              >
-                <span className="admin-tab-item__icon">
-                  {leaf.kind === 'editor' ? (
-                    <Icon icon={getFileIcon(leaf.title)} width={13} height={13} />
-                  ) : (
-                    <Icon icon={getShellIcon(leaf.shell)} width={13} height={13} />
-                  )}
-                </span>
-                <span className="admin-tab-item__text">
-                  {tabDirty ? '● ' : ''}
-                  {leaf.title}
-                </span>
-                <button
-                  className="admin-tab-item__close"
-                  aria-label="关闭标签"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeSession(s.id);
-                  }}
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        {tabBarRight}
-      </div>
+      {tabPosition === 'top' && horizontalTabBar}
 
-      {/* 内容区：左侧文件浏览器（可收起）+ 右侧终端/编辑器 */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-        {showExplorer && (
-          <div style={{ width: 260, flexShrink: 0, borderRight: '1px solid var(--semi-color-border)' }}>
-            <FileExplorer active={showExplorer} onOpenFile={openEditor} onOpenTerminalAt={openTerminalAt} />
-          </div>
-        )}
-        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-          {sessions.map((s) => (
-            <div
-              key={s.id}
-              style={{
-                position: 'absolute',
-                inset: 0,
-                visibility: s.id === activeId ? 'visible' : 'hidden',
-                zIndex: s.id === activeId ? 1 : 0,
-                padding: '8px 4px 4px',
-              }}
-            >
-              <PaneTreeView
-                root={s.root}
-                sessionActive={s.id === activeId}
-                activePaneId={s.activePaneId}
-                dirtyIds={dirtyIds}
-                onFocusPane={(pid) => handleFocusPane(s.id, pid)}
-                onSplitPane={(pid, dir) => handleSplitPane(s.id, pid, dir)}
-                onClosePane={(pid) => handleClosePane(s.id, pid)}
-                onDirtyChange={setDirty}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
+      {tabPosition === 'right' ? (
+        <>
+          {contentArea}
+          {verticalSidebar}
+        </>
+      ) : (
+        contentArea
+      )}
+
+      {tabPosition === 'bottom' && horizontalTabBar}
 
       <TerminalSettings visible={showSettings} onClose={() => setShowSettings(false)} shells={shells} />
 
@@ -510,10 +615,7 @@ export default function TerminalPage() {
               <button
                 key={it.label}
                 type="button"
-                onClick={() => {
-                  it.fn();
-                  setCtxMenu(null);
-                }}
+                onClick={() => { it.fn(); setCtxMenu(null); }}
                 style={{
                   display: 'block',
                   width: '100%',

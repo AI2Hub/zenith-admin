@@ -1,5 +1,131 @@
 /* 终端分屏布局样式 */
 
+/* ── 右侧 / 底部标签栏 ── */
+
+/** 右侧竖向标签栏容器 */
+.terminal-sidebar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  background: var(--color-layout-bg);
+  border-left: 1px solid var(--semi-color-border);
+  overflow: hidden;
+  transition: width 0.2s ease;
+}
+
+/** 右侧标签栏工具区（含新建、设置、折叠按钮） */
+.terminal-sidebar__tools {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--semi-color-border);
+  flex-shrink: 0;
+}
+
+.terminal-sidebar--expanded .terminal-sidebar__tools {
+  flex-direction: row;
+  padding: 4px 6px;
+}
+
+/** 右侧标签列表（可滚动） */
+.terminal-sidebar__list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0;
+}
+
+.terminal-sidebar__list::-webkit-scrollbar {
+  width: 4px;
+}
+
+/** 右侧单个标签 item */
+.terminal-sidebar__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  user-select: none;
+  transition: color 0.15s, background 0.15s;
+  position: relative;
+  min-width: 0;
+}
+
+.terminal-sidebar__item:hover {
+  color: var(--color-text);
+  background: var(--semi-color-fill-0);
+}
+
+.terminal-sidebar__item--active {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.terminal-sidebar__item--active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 2px 0 0 2px;
+}
+
+/* 折叠态下居中图标 */
+.terminal-sidebar--collapsed .terminal-sidebar__item {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.terminal-sidebar__item__icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.terminal-sidebar__item__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+}
+
+.terminal-sidebar__item__close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--semi-color-text-2);
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+  padding: 0;
+}
+
+.terminal-sidebar__item__close:hover {
+  background: var(--semi-color-fill-1);
+  color: var(--semi-color-text-0);
+}
+
+/* stylelint-disable-next-line no-descending-specificity */
+.terminal-sidebar__item:hover .terminal-sidebar__item__close,
+/* stylelint-disable-next-line no-descending-specificity */
+.terminal-sidebar__item--active .terminal-sidebar__item__close {
+  opacity: 1;
+}
+
 .terminal-pane-tree {
   width: 100%;
   height: 100%;

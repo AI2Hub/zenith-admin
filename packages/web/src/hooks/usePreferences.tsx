@@ -15,6 +15,8 @@ export interface TerminalFavorite {
   name: string;
 }
 
+export type TerminalTabPosition = 'top' | 'right' | 'bottom';
+
 /** Web 终端个性化配置 */
 export interface TerminalPreferences {
   /** 默认 shell id（空字符串表示用服务端探测到的默认值） */
@@ -31,6 +33,10 @@ export interface TerminalPreferences {
   lineHeight: number;
   /** 文件夹收藏列表 */
   favorites: TerminalFavorite[];
+  /** 标签栏位置（top / right / bottom），默认 top */
+  tabPosition: TerminalTabPosition;
+  /** 右侧标签栏是否折叠为仅图标模式（仅 tabPosition=right 时生效） */
+  tabCollapsed: boolean;
 }
 
 export interface UserPreferences {
