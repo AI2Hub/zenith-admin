@@ -27,12 +27,60 @@ function resolveShell(type: string | undefined): { file: string; args: string[] 
 }
 
 /**
+/**
  * Web 终端 WebSocket 路由
  *
- * 端点：GET /api/ws/terminal?token=<accessToken>
- * 每个连接启动一个独立 pty 进程，连接断开时自动 kill，防止进程泄漏。
- * 权限：需要 `system:terminal:execute`（超级管理员自动拥有）。
+ * 端点：GET /api/ws/terminal?token=<accessToken>&sessionId=<id>
+ *
+ * 支持断线重连（Session Persistence）：
+ * - 客户端每个终端拥有唯一 sessionId，首次连接时携带该 id。
+ * - WS 断开后 PTY 进程保活 PTY_IDLE_TIMEOUT_MS 毫秒，等待重连。
+ * - 重连时携带相同 sessionId，服务端将新 WS 附接到存活的 PTY，并回放输出缓冲区。
+ * - 若客户端发送 terminal:close 消息，或 PTY 进程自行退出，则立即清理会话。
  */
+
+/** PTY 会话的输出缓冲区上限（字节），用于断线重连后回放 */
+const OUTPUT_BUFFER_MAX = 50 * 1024;
+/** PTY 进程无客户端连接时的最大保活时长（毫秒） */
+const PTY_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+
+interface PtySession {
+  ptyProcess: pty.IPty;
+  /** 当前连接的 WebSocket（无连接时为 null） */
+  currentWs: { send: (data: string) => void; close: (code: number, reason: string) => void } | null;
+  /** 近期输出缓冲，断线重连后回放 */
+  outputBuffer: string;
+  /** 进程保活计时器 */
+  idleTimer: ReturnType<typeof setTimeout> | null;
+  /** 会话归属用户，防止越权重连 */
+  userId: number;
+}
+
+/** 模块级 PTY 会话表（sessionId → PtySession） */
+const ptySessions = new Map<string, PtySession>();
+
+function appendBuffer(session: PtySession, data: string): void {
+  session.outputBuffer += data;
+  if (session.outputBuffer.length > OUTPUT_BUFFER_MAX) {
+    session.outputBuffer = session.outputBuffer.slice(-OUTPUT_BUFFER_MAX);
+  }
+}
+
+function clearIdleTimer(session: PtySession): void {
+  if (session.idleTimer !== null) {
+    clearTimeout(session.idleTimer);
+    session.idleTimer = null;
+  }
+}
+
+function destroySession(sessionId: string): void {
+  const s = ptySessions.get(sessionId);
+  if (!s) return;
+  clearIdleTimer(s);
+  try { s.ptyProcess.kill(); } catch { /* ignore */ }
+  ptySessions.delete(sessionId);
+}
+
 export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {
   const wsApp = new Hono();
 
@@ -42,6 +90,7 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {
       const token = c.req.query('token');
       const shellType = c.req.query('shell');
       const cwdParam = c.req.query('cwd');
+      const sessionId = c.req.query('sessionId') ?? '';
       let payload: JwtPayload | null = null;
 
       if (token) {
@@ -51,8 +100,6 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {
           payload = null;
         }
       }
-
-      let ptyProcess: pty.IPty | null = null;
 
       return {
         async onOpen(_evt, ws) {
@@ -102,7 +149,20 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {
             return;
           }
 
-          // 启动 pty 进程（按前端选择的 shell 类型解析可执行文件）
+          // ── 尝试重连已有 PTY 会话 ──
+          const existing = sessionId ? ptySessions.get(sessionId) : undefined;
+          if (existing?.userId === payload.userId) {
+            // 合法重连：附接到已有 PTY，回放缓冲区
+            clearIdleTimer(existing);
+            existing.currentWs = ws;
+            ws.send(JSON.stringify({ type: 'terminal:reconnected' }));
+            if (existing.outputBuffer) {
+              ws.send(JSON.stringify({ type: 'terminal:output', data: existing.outputBuffer }));
+            }
+            return;
+          }
+
+          // ── 创建新 PTY 进程 ──
           const { file: shellFile, args: shellArgs } = resolveShell(shellType);
 
           // 解析工作目录：优先使用前端传入的 cwd（须为已存在目录），否则回退用户主目录
@@ -115,6 +175,7 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {
             } catch { /* 无效路径回退默认 */ }
           }
 
+          let ptyProcess: pty.IPty;
           try {
             ptyProcess = pty.spawn(shellFile, shellArgs, {
               name: 'xterm-256color',
@@ -123,53 +184,67 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {
               cwd,
               env: process.env,
             });
-
-            ptyProcess.onData((data) => {
-              try {
-                ws.send(JSON.stringify({ type: 'terminal:output', data }));
-              } catch { /* ws 可能已关闭 */ }
-            });
-
-            ptyProcess.onExit(() => {
-              try {
-                ws.send(JSON.stringify({ type: 'terminal:exit' }));
-                ws.close(1000, 'Process exited');
-              } catch { /* ignore */ }
-              ptyProcess = null;
-            });
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             ws.send(JSON.stringify({ type: 'terminal:error', message: `启动终端失败: ${msg}` }));
             ws.close(1011, 'Failed to start terminal');
+            return;
           }
+
+          const session: PtySession = {
+            ptyProcess,
+            currentWs: ws,
+            outputBuffer: '',
+            idleTimer: null,
+            userId: payload.userId,
+          };
+          if (sessionId) ptySessions.set(sessionId, session);
+
+          ptyProcess.onData((data) => {
+            appendBuffer(session, data);
+            try {
+              session.currentWs?.send(JSON.stringify({ type: 'terminal:output', data }));
+            } catch { /* ws 可能已关闭 */ }
+          });
+
+          ptyProcess.onExit(() => {
+            try {
+              session.currentWs?.send(JSON.stringify({ type: 'terminal:exit' }));
+              session.currentWs?.close(1000, 'Process exited');
+            } catch { /* ignore */ }
+            if (sessionId) destroySession(sessionId);
+          });
         },
 
         onMessage(evt, _ws) {
-          if (!ptyProcess) return;
+          // 路由到对应 PTY 会话
+          const session = sessionId ? ptySessions.get(sessionId) : undefined;
+          if (!session) return;
           try {
             const raw: unknown = typeof evt.data === 'string' ? JSON.parse(evt.data) : null;
             if (!raw || typeof raw !== 'object') return;
             const msg = raw as { type: string; data?: string; cols?: number; rows?: number };
 
             if (msg.type === 'terminal:input' && typeof msg.data === 'string') {
-              ptyProcess.write(msg.data);
+              session.ptyProcess.write(msg.data);
             } else if (msg.type === 'terminal:resize' && msg.cols && msg.rows) {
-              ptyProcess.resize(
-                Math.max(1, msg.cols),
-                Math.max(1, msg.rows),
-              );
+              session.ptyProcess.resize(Math.max(1, msg.cols), Math.max(1, msg.rows));
             } else if (msg.type === 'terminal:close') {
-              ptyProcess.kill();
-              ptyProcess = null;
+              // 客户端明确要求关闭：立即销毁
+              if (sessionId) destroySession(sessionId);
             }
           } catch { /* ignore malformed */ }
         },
 
         onClose() {
-          if (ptyProcess) {
-            ptyProcess.kill();
-            ptyProcess = null;
-          }
+          const session = sessionId ? ptySessions.get(sessionId) : undefined;
+          if (!session) return;
+
+          // WS 断开时不立即 kill PTY：保活等待重连
+          session.currentWs = null;
+          session.idleTimer = setTimeout(() => {
+            destroySession(sessionId);
+          }, PTY_IDLE_TIMEOUT_MS);
         },
       };
     }),
