@@ -408,19 +408,20 @@ export default function TerminalPage() {
     </div>
   );
 
-  /** 右侧竖向标签栏 */
+  /** 右侧 / 左侧竖向标签栏 */
+  const isLeft = tabPosition === 'left';
   const verticalSidebar = (
     <div
-      className={`terminal-sidebar ${tabCollapsed ? 'terminal-sidebar--collapsed' : 'terminal-sidebar--expanded'}`}
+      className={`terminal-sidebar ${isLeft ? 'terminal-sidebar--left' : ''} ${tabCollapsed ? 'terminal-sidebar--collapsed' : 'terminal-sidebar--expanded'}`}
       style={{ width: tabCollapsed ? 44 : 200 }}
     >
       {/* 工具行 */}
       <div className="terminal-sidebar__tools">
         {tabCollapsed ? (
-          /* 折叠态：折叠按钮 */
-          <Tooltip content="展开标签栏" position="left">
+          /* 折叠态：折叠按鈕 */
+          <Tooltip content="展开标签栏" position={isLeft ? 'right' : 'left'}>
             <Button
-              icon={<ChevronLeft size={13} />}
+              icon={isLeft ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
               size="small"
               theme="borderless"
               type="tertiary"
@@ -449,7 +450,7 @@ export default function TerminalPage() {
             </Tooltip>
             <Tooltip content="折叠标签栏">
               <Button
-                icon={<ChevronRight size={13} />}
+                icon={isLeft ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
                 size="small"
                 theme="borderless"
                 type="tertiary"
@@ -467,7 +468,7 @@ export default function TerminalPage() {
           const { leaf, tabDirty } = renderTabInfo(s);
           const title = `${tabDirty ? '● ' : ''}${leaf.title}`;
           return (
-            <Tooltip key={s.id} content={tabCollapsed ? title : undefined} position="left">
+            <Tooltip key={s.id} content={tabCollapsed ? title : undefined} position={isLeft ? 'right' : 'left'}>
               <div
                 className={`terminal-sidebar__item ${isActive ? 'terminal-sidebar__item--active' : ''}`}
                 role="tab"
@@ -502,20 +503,32 @@ export default function TerminalPage() {
         })}
       </div>
 
-      {/* 折叠态底部操作 */}
-      {tabCollapsed && (
-        <div style={{ padding: '4px 0', borderTop: '1px solid var(--semi-color-border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-          <Tooltip content={showExplorer ? '隐藏文件浏览器' : '显示文件浏览器'} position="left">
-            <Button icon={<PanelLeft size={14} />} size="small" theme="borderless" type={showExplorer ? 'primary' : 'tertiary'} onClick={() => setShowExplorer((v) => !v)} />
-          </Tooltip>
-          <Tooltip content="新建终端" position="left">
-            <Button icon={<Plus size={13} />} size="small" theme="borderless" type="tertiary" onClick={() => addTerminal()} />
-          </Tooltip>
-          <Tooltip content="终端设置" position="left">
-            <Button icon={<Settings size={13} />} size="small" theme="borderless" type="tertiary" onClick={() => setShowSettings(true)} />
-          </Tooltip>
-        </div>
-      )}
+        {(tabCollapsed && !isLeft) && (
+          <div style={{ padding: '4px 0', borderTop: '1px solid var(--semi-color-border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <Tooltip content={showExplorer ? '隐藏文件浏览器' : '显示文件浏览器'} position="left">
+              <Button icon={<PanelLeft size={14} />} size="small" theme="borderless" type={showExplorer ? 'primary' : 'tertiary'} onClick={() => setShowExplorer((v) => !v)} />
+            </Tooltip>
+            <Tooltip content="新建终端" position="left">
+              <Button icon={<Plus size={13} />} size="small" theme="borderless" type="tertiary" onClick={() => addTerminal()} />
+            </Tooltip>
+            <Tooltip content="终端设置" position="left">
+              <Button icon={<Settings size={13} />} size="small" theme="borderless" type="tertiary" onClick={() => setShowSettings(true)} />
+            </Tooltip>
+          </div>
+        )}
+        {(tabCollapsed && isLeft) && (
+          <div style={{ padding: '4px 0', borderTop: '1px solid var(--semi-color-border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <Tooltip content={showExplorer ? '隐藏文件浏览器' : '显示文件浏览器'} position="right">
+              <Button icon={<PanelLeft size={14} />} size="small" theme="borderless" type={showExplorer ? 'primary' : 'tertiary'} onClick={() => setShowExplorer((v) => !v)} />
+            </Tooltip>
+            <Tooltip content="新建终端" position="right">
+              <Button icon={<Plus size={13} />} size="small" theme="borderless" type="tertiary" onClick={() => addTerminal()} />
+            </Tooltip>
+            <Tooltip content="终端设置" position="right">
+              <Button icon={<Settings size={13} />} size="small" theme="borderless" type="tertiary" onClick={() => setShowSettings(true)} />
+            </Tooltip>
+          </div>
+        )}
     </div>
   );
 
@@ -560,21 +573,26 @@ export default function TerminalPage() {
       style={{
         height: '100%',
         display: 'flex',
-        flexDirection: tabPosition === 'right' ? 'row' : 'column',
+        flexDirection: (tabPosition === 'right' || tabPosition === 'left') ? 'row' : 'column',
         background: 'var(--color-layout-bg)',
         overflow: 'hidden',
       }}
     >
       {tabPosition === 'top' && horizontalTabBar}
 
-      {tabPosition === 'right' ? (
+      {tabPosition === 'left' && (
+        <>
+          {verticalSidebar}
+          {contentArea}
+        </>
+      )}
+      {tabPosition === 'right' && (
         <>
           {contentArea}
           {verticalSidebar}
         </>
-      ) : (
-        contentArea
       )}
+      {(tabPosition === 'top' || tabPosition === 'bottom') && contentArea}
 
       {tabPosition === 'bottom' && horizontalTabBar}
 

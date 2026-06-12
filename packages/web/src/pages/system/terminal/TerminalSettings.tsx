@@ -55,12 +55,13 @@ export default function TerminalSettings({ visible, onClose, shells }: TerminalS
           style={{ width: '100%' }}
         >
           <Select.Option value="top">顶部（默认）</Select.Option>
+          <Select.Option value="left">左侧</Select.Option>
           <Select.Option value="right">右侧（VS Code 风格）</Select.Option>
           <Select.Option value="bottom">底部</Select.Option>
         </Select>
       </Field>
 
-      {terminal.tabPosition === 'right' && (
+      {(terminal.tabPosition === 'right' || terminal.tabPosition === 'left') && (
         <Field label="右侧标签栏折叠为图标">
           <Switch
             checked={terminal.tabCollapsed ?? false}

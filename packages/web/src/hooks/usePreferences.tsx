@@ -15,7 +15,7 @@ export interface TerminalFavorite {
   name: string;
 }
 
-export type TerminalTabPosition = 'top' | 'right' | 'bottom';
+export type TerminalTabPosition = 'top' | 'left' | 'right' | 'bottom';
 
 /** Web 终端个性化配置 */
 export interface TerminalPreferences {

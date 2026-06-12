@@ -2,7 +2,7 @@
 
 /* ── 右侧 / 底部标签栏 ── */
 
-/** 右侧竖向标签栏容器 */
+/** 右侧 / 左侧竖向标签栏容器 */
 .terminal-sidebar {
   display: flex;
   flex-direction: column;
@@ -218,4 +218,17 @@
 .terminal-resize-handle:hover,
 .terminal-resize-handle[data-resize-handle-active] {
   background: var(--semi-color-primary);
+}
+
+/* ── 左侧标签栏特殊覆盖（必须在通用规则之后以保证 specificity 顺序） ── */
+.terminal-sidebar--left {
+  border-left: none;
+  border-right: 1px solid var(--semi-color-border);
+}
+
+/* stylelint-disable-next-line no-descending-specificity */
+.terminal-sidebar--left .terminal-sidebar__item--active::before {
+  left: 0;
+  right: auto;
+  border-radius: 0 2px 2px 0;
 }
