@@ -45,7 +45,12 @@ const listRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const user = currentUser();
     const { page = 1, pageSize = 20, keyword } = c.req.valid('query');
-    return c.json(okBody(await listRecordings(user.userId, Number(page), Number(pageSize), keyword)), 200);
+    return c.json(okBody(await listRecordings({
+      page: Number(page),
+      pageSize: Number(pageSize),
+      keyword,
+      operatorUserId: user.userId,
+    })), 200);
   },
 });
 
@@ -81,9 +86,8 @@ const getRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(TerminalRecordingDetailDTO, '录屏详情') },
   }),
   handler: async (c) => {
-    const user = currentUser();
     const id = Number(c.req.valid('param').id);
-    return c.json(okBody(await getRecording(id, user.userId)), 200);
+    return c.json(okBody(await getRecording(id)), 200);
   },
 });
 
@@ -96,8 +100,7 @@ const deleteRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okMsg('删除成功') },
   }),
   handler: async (c) => {
-    const user = currentUser();
-    await deleteRecording(Number(c.req.valid('param').id), user.userId);
+    await deleteRecording(Number(c.req.valid('param').id));
     return c.json(okBody(null, '删除成功'), 200);
   },
 });
