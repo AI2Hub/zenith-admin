@@ -106,3 +106,118 @@ export async function getContainerStats(id: string): Promise<{ cpuPercent: numbe
     memLimit: stats.memory_stats.limit,
   };
 }
+
+// ─── Images ──────────────────────────────────────────────────────────────────
+
+export interface ImageInfo {
+  id: string;
+  shortId: string;
+  repoTags: string[];
+  size: number;
+  created: number;
+  containers: number;
+}
+
+export async function listImages(): Promise<ImageInfo[]> {
+  const docker = getDocker();
+  const images = await docker.listImages({ all: false });
+  return images.map((img) => ({
+    id: img.Id,
+    shortId: img.Id.replace('sha256:', '').slice(0, 12),
+    repoTags: img.RepoTags?.filter((t) => t !== '<none>:<none>') ?? [],
+    size: img.Size,
+    created: img.Created,
+    containers: img.Containers ?? 0,
+  }));
+}
+
+export async function removeImage(id: string): Promise<void> {
+  await getDocker().getImage(id).remove({ force: false });
+}
+
+export async function pullImage(repoTag: string): Promise<void> {
+  const docker = getDocker();
+  await new Promise<void>((resolve, reject) => {
+    docker.pull(repoTag, (err: Error | null, stream: NodeJS.ReadableStream) => {
+      if (err) { reject(err); return; }
+      docker.modem.followProgress(stream, (err2: Error | null) => {
+        if (err2) reject(err2); else resolve();
+      });
+    });
+  });
+}
+
+// ─── Networks ─────────────────────────────────────────────────────────────────
+
+export interface NetworkInfo {
+  id: string;
+  name: string;
+  driver: string;
+  scope: string;
+  ipam: { driver: string; subnet?: string; gateway?: string };
+  internal: boolean;
+  created: string;
+  containers: number;
+}
+
+export async function listNetworks(): Promise<NetworkInfo[]> {
+  const docker = getDocker();
+  const nets = await docker.listNetworks();
+  return nets.map((n) => {
+    const ipamConfig = n.IPAM?.Config?.[0] ?? {};
+    return {
+      id: n.Id,
+      name: n.Name,
+      driver: n.Driver,
+      scope: n.Scope,
+      ipam: {
+        driver: n.IPAM?.Driver ?? 'default',
+        subnet: ipamConfig.Subnet,
+        gateway: ipamConfig.Gateway,
+      },
+      internal: n.Internal,
+      created: n.Created,
+      containers: Object.keys(n.Containers ?? {}).length,
+    };
+  });
+}
+
+export async function removeNetwork(id: string): Promise<void> {
+  await getDocker().getNetwork(id).remove();
+}
+
+export async function createNetwork(name: string, driver: string, internal: boolean): Promise<void> {
+  await getDocker().createNetwork({ Name: name, Driver: driver, Internal: internal });
+}
+
+// ─── Volumes ──────────────────────────────────────────────────────────────────
+
+export interface VolumeInfo {
+  name: string;
+  driver: string;
+  mountpoint: string;
+  scope: string;
+  created: string;
+  labels: Record<string, string>;
+}
+
+export async function listVolumes(): Promise<VolumeInfo[]> {
+  const docker = getDocker();
+  const result = await docker.listVolumes();
+  return (result.Volumes ?? []).map((v) => ({
+    name: v.Name,
+    driver: v.Driver,
+    mountpoint: v.Mountpoint,
+    scope: v.Scope,
+    created: (v as unknown as { CreatedAt?: string }).CreatedAt ?? '',
+    labels: (v.Labels ?? {}) as Record<string, string>,
+  }));
+}
+
+export async function removeVolume(name: string): Promise<void> {
+  await getDocker().getVolume(name).remove();
+}
+
+export async function createVolume(name: string, driver: string): Promise<void> {
+  await getDocker().createVolume({ Name: name, Driver: driver });
+}
