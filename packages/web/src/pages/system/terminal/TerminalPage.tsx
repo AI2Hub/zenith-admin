@@ -16,6 +16,7 @@ import {
   findLeaf,
   firstLeaf,
   splitPane,
+  updateLeafTitle,
   type PaneLeaf,
   type PaneNode,
   type SplitDirection,
@@ -171,6 +172,12 @@ export default function TerminalPage() {
 
   const handleFocusPane = (tabId: string, paneId: string) => {
     setSessions((prev) => prev.map((s) => (s.id === tabId ? { ...s, activePaneId: paneId } : s)));
+  };
+
+  const handleTitleChange = (tabId: string, paneId: string, newTitle: string) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === tabId ? { ...s, root: updateLeafTitle(s.root, paneId, newTitle) } : s)),
+    );
   };
 
   const handleSplitPane = (tabId: string, paneId: string, direction: SplitDirection) => {
@@ -561,6 +568,7 @@ export default function TerminalPage() {
               onSplitPane={(pid, dir) => handleSplitPane(s.id, pid, dir)}
               onClosePane={(pid) => handleClosePane(s.id, pid)}
               onDirtyChange={setDirty}
+              onTitleChange={(pid, title) => handleTitleChange(s.id, pid, title)}
             />
           </div>
         ))}

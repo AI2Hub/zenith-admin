@@ -78,6 +78,14 @@ export function collectLeaves(node: PaneNode): PaneLeaf[] {
   return node.children.flatMap(collectLeaves);
 }
 
+/** 更新指定叶子的标题，返回新树（不可变更新）。 */
+export function updateLeafTitle(root: PaneNode, paneId: string, newTitle: string): PaneNode {
+  if (root.type === 'leaf') {
+    return root.id === paneId ? { ...root, title: newTitle } : root;
+  }
+  return { ...root, children: root.children.map((c) => updateLeafTitle(c, paneId, newTitle)) };
+}
+
 /**
  * 在目标叶子处分屏：用一个 split 节点替换该叶子，包含 [原叶子, 新叶子]。
  * 若目标叶子恰好是某 split 的直接子节点且方向一致，则直接插入以保持树扁平，避免无谓嵌套。

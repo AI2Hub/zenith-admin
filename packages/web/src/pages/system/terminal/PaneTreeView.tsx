@@ -20,6 +20,7 @@ interface PaneTreeViewProps {
   readonly onSplitPane: (id: string, direction: SplitDirection) => void;
   readonly onClosePane: (id: string) => void;
   readonly onDirtyChange: (id: string, dirty: boolean) => void;
+  readonly onTitleChange?: (paneId: string, newTitle: string) => void;
 }
 
 export default function PaneTreeView({
@@ -31,6 +32,7 @@ export default function PaneTreeView({
   onSplitPane,
   onClosePane,
   onDirtyChange,
+  onTitleChange,
 }: PaneTreeViewProps) {
   const leafCount = collectLeaves(root).length;
   const showFocus = leafCount > 1;
@@ -79,7 +81,7 @@ export default function PaneTreeView({
         </div>
         <div className="terminal-pane__body">
           {leaf.kind === 'terminal' ? (
-            <TerminalTab sessionId={leaf.stableSessionId} active={sessionActive} shell={leaf.shell ?? ''} cwd={leaf.cwd} />
+            <TerminalTab sessionId={leaf.stableSessionId} active={sessionActive} shell={leaf.shell ?? ''} cwd={leaf.cwd} onTitleChange={onTitleChange ? (t) => onTitleChange(leaf.id, t) : undefined} />
           ) : (
             <EditorTab
               filePath={leaf.filePath ?? ''}

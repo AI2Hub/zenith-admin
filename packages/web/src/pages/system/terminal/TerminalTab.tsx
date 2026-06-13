@@ -11,9 +11,11 @@ interface TerminalTabProps {
   readonly active: boolean;
   readonly shell: string;
   readonly cwd?: string;
+  /** CWD 变化时回调（OSC 7），用于更新 Tab 标题 */
+  readonly onTitleChange?: (newTitle: string) => void;
 }
 
-export default function TerminalTab({ sessionId, active, shell, cwd }: TerminalTabProps) {
+export default function TerminalTab({ sessionId, active, shell, cwd, onTitleChange }: TerminalTabProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { isDark } = useThemeController();
   const { terminal } = useTerminalPreferences();
@@ -117,7 +119,20 @@ export default function TerminalTab({ sessionId, active, shell, cwd }: TerminalT
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
+  // OSC 7：CWD 变化 → 更新 Tab 标题
+  useEffect(() => {
+    if (!onTitleChange) return;
+    const baseLabel = shell || 'bash';
+    const handler = (cwd: string) => {
+      const dir = cwd.split(/[\\/]/).findLast(Boolean) ?? cwd;
+      onTitleChange(`${baseLabel}: ${dir}`);
+    };
+    terminalSessionStore.onCwdChange(sessionId, handler);
+    return () => terminalSessionStore.offCwdChange(sessionId);
+  }, [sessionId, shell, onTitleChange]);
+
   // tab 切换激活时重新 fit
+
   useEffect(() => {
     if (active) {
       terminalSessionStore.refit(sessionId);
