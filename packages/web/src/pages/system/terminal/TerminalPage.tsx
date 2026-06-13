@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button, Typography, Space, Dropdown, Tooltip } from '@douyinfe/semi-ui';
-import { Plus, TerminalSquare, ChevronDown, ChevronLeft, ChevronRight, X, PanelLeft, Settings } from 'lucide-react';
+import { Plus, TerminalSquare, ChevronDown, ChevronLeft, ChevronRight, X, PanelLeft, Settings, Server } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import FileExplorer from './FileExplorer';
 import TerminalSettings from './TerminalSettings';
 import PaneTreeView from './PaneTreeView';
+import SshProfilesManager, { type SshProfile } from './SshProfilesManager';
 import { useTerminalPreferences } from './useTerminalPreferences';
 import { request } from '@/utils/request';
 import { getFileIcon, getShellIcon } from './fileIcons';
@@ -74,6 +75,7 @@ export default function TerminalPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeId, setActiveId] = useState('');
   const [showExplorer, setShowExplorer] = useState(false);
+  const [showSshProfiles, setShowSshProfiles] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [shells, setShells] = useState<ShellInfo[]>([]);
   const [serverDefaultShell, setServerDefaultShell] = useState('');
@@ -178,6 +180,16 @@ export default function TerminalPage() {
     setSessions((prev) =>
       prev.map((s) => (s.id === tabId ? { ...s, root: updateLeafTitle(s.root, paneId, newTitle) } : s)),
     );
+  };
+
+  const handleSshConnect = (profile: SshProfile) => {
+    const shellId = `ssh:${profile.id}`;
+    const title = `SSH: ${profile.name}`;
+    const leaf = createLeaf({ kind: 'terminal', shell: shellId, title });
+    const tabId = nextTabId();
+    setSessions((prev) => [...prev, { id: tabId, root: leaf, activePaneId: leaf.id }]);
+    setActiveId(tabId);
+    setShowSshProfiles(false);
   };
 
   const handleSplitPane = (tabId: string, paneId: string, direction: SplitDirection) => {
@@ -357,8 +369,18 @@ export default function TerminalPage() {
           size="small"
           theme="borderless"
           type={showExplorer ? 'primary' : 'tertiary'}
-          onClick={() => setShowExplorer((v) => !v)}
-          style={{ margin: '0 4px', flexShrink: 0, alignSelf: 'center' }}
+          onClick={() => { setShowExplorer((v) => !v); setShowSshProfiles(false); }}
+          style={{ margin: '0 2px 0 4px', flexShrink: 0, alignSelf: 'center' }}
+        />
+      </Tooltip>
+      <Tooltip content={showSshProfiles ? '隐藏 SSH 连接' : '管理 SSH 连接'}>
+        <Button
+          icon={<Server size={14} />}
+          size="small"
+          theme="borderless"
+          type={showSshProfiles ? 'primary' : 'tertiary'}
+          onClick={() => { setShowSshProfiles((v) => !v); setShowExplorer(false); }}
+          style={{ marginRight: 4, flexShrink: 0, alignSelf: 'center' }}
         />
       </Tooltip>
       <div className="admin-tabs-bar__scroll">
@@ -444,7 +466,16 @@ export default function TerminalPage() {
                 size="small"
                 theme="borderless"
                 type={showExplorer ? 'primary' : 'tertiary'}
-                onClick={() => setShowExplorer((v) => !v)}
+                onClick={() => { setShowExplorer((v) => !v); setShowSshProfiles(false); }}
+              />
+            </Tooltip>
+            <Tooltip content={showSshProfiles ? '隐藏 SSH 连接' : '管理 SSH 连接'}>
+              <Button
+                icon={<Server size={14} />}
+                size="small"
+                theme="borderless"
+                type={showSshProfiles ? 'primary' : 'tertiary'}
+                onClick={() => { setShowSshProfiles((v) => !v); setShowExplorer(false); }}
               />
             </Tooltip>
             <div style={{ flex: 1 }} />
@@ -539,12 +570,17 @@ export default function TerminalPage() {
     </div>
   );
 
-  /** 内容区：文件浏览器 + 终端面板 */
+  /** 内容区：文件浏览器 + SSH 面板 + 终端面板 */
   const contentArea = (
     <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex' }}>
       {showExplorer && (
         <div style={{ width: 260, flexShrink: 0, borderRight: '1px solid var(--semi-color-border)' }}>
           <FileExplorer active={showExplorer} onOpenFile={openEditor} onOpenTerminalAt={openTerminalAt} />
+        </div>
+      )}
+      {showSshProfiles && (
+        <div style={{ width: 240, flexShrink: 0, borderRight: '1px solid var(--semi-color-border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <SshProfilesManager onConnect={handleSshConnect} />
         </div>
       )}
       <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>

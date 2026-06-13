@@ -1744,3 +1744,34 @@ export const terminalRecordings = pgTable('terminal_recordings', {
 
 export type TerminalRecordingRow = typeof terminalRecordings.$inferSelect;
 export type NewTerminalRecording = typeof terminalRecordings.$inferInsert;
+
+// ─── SSH 连接配置表 ────────────────────────────────────────────────────────────
+
+export const sshAuthTypeEnum = pgEnum('ssh_auth_type', ['password', 'key_path', 'key_content', 'agent']);
+
+export const sshProfiles = pgTable('ssh_profiles', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  name: varchar('name', { length: 128 }).notNull(),
+  host: varchar('host', { length: 255 }).notNull(),
+  port: integer('port').notNull().default(22),
+  username: varchar('username', { length: 128 }).notNull(),
+  authType: sshAuthTypeEnum('auth_type').notNull().default('password'),
+  /** 加密存储的密码（authType=password 时使用） */
+  passwordEncrypted: text('password_encrypted'),
+  /** 服务端私钥文件路径（authType=key_path 时使用，如 ~/.ssh/id_rsa） */
+  keyPath: text('key_path'),
+  /** 加密存储的私钥内容（authType=key_content 时使用） */
+  keyContentEncrypted: text('key_content_encrypted'),
+  /** 加密存储的私钥口令（authType=key_path|key_content 时可选） */
+  keyPassphraseEncrypted: text('key_passphrase_encrypted'),
+  /** 连接后自动设置的环境变量 */
+  envVars: jsonb('env_vars').$type<Record<string, string>>().notNull().default({}),
+  /** 列表排序权重（数字越小越靠前） */
+  orderNum: integer('order_num').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+
+export type SshProfileRow = typeof sshProfiles.$inferSelect;
+export type NewSshProfile = typeof sshProfiles.$inferInsert;
