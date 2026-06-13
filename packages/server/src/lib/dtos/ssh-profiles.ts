@@ -19,7 +19,7 @@ export const SshProfileDTO = z
     hasKeyContent: z.boolean(),
     /** 口令（仅返回是否已设置） */
     hasKeyPassphrase: z.boolean(),
-    envVars: z.record(z.string()),
+    envVars: z.record(z.string(), z.string()),
     orderNum: z.number().int(),
     createdAt: z.string(),
     updatedAt: z.string(),

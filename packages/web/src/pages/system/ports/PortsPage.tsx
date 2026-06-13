@@ -67,7 +67,7 @@ export default function PortsPage() {
       title: '端口',
       dataIndex: 'localPort',
       width: 100,
-      sorter: (a, b) => a.localPort - b.localPort,
+      sorter: (a, b) => (a?.localPort ?? 0) - (b?.localPort ?? 0),
       render: (v: number) => <strong>{v}</strong>,
     },
     {
@@ -109,7 +109,7 @@ export default function PortsPage() {
 
       <ConfigurableTable
         bordered
-        rowKey={(r) => `${r.protocol}-${r.localAddress}-${r.localPort}`}
+        rowKey={(r) => `${r?.protocol}-${r?.localAddress}-${r?.localPort}`}
         dataSource={data}
         columns={columns}
         loading={loading}

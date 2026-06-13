@@ -16,6 +16,7 @@ import {
   restartContainer,
   getContainerLogs,
   getContainerStats,
+  inspectContainer,
 } from '../services/docker.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -36,6 +37,8 @@ const ContainerDTO = z.object({
     publicPort: z.number().optional(),
     type: z.string(),
   })),
+  composeProject: z.string().nullable(),
+  composeService: z.string().nullable(),
 });
 
 const ContainerIdParam = z.object({ id: z.string().min(1) });
@@ -132,6 +135,20 @@ const statsRoute = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([listRoute, startRoute, stopRoute, restartRoute, logsRoute, statsRoute] as const);
+const inspectRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/:id/inspect', tags: ['Docker'], summary: '容器详情（docker inspect）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: PERM })] as const,
+    request: { params: ContainerIdParam },
+    responses: { ...commonErrorResponses, ...ok(z.record(z.string(), z.unknown()), '容器详情') },
+  }),
+  handler: async (c) => {
+    const info = await inspectContainer(c.req.valid('param').id);
+    return c.json(okBody(info as unknown as Record<string, unknown>), 200);
+  },
+});
+
+router.openapiRoutes([listRoute, startRoute, stopRoute, restartRoute, logsRoute, statsRoute, inspectRoute] as const);
 
 export default router;

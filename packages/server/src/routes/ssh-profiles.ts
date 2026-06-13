@@ -33,7 +33,7 @@ const SshProfileBody = z.object({
   keyPath: z.string().max(512).nullable().optional(),
   keyContent: z.string().max(16384).nullable().optional(),
   keyPassphrase: z.string().max(512).nullable().optional(),
-  envVars: z.record(z.string()).optional(),
+  envVars: z.record(z.string(), z.string()).optional(),
   orderNum: z.coerce.number().int().optional(),
 });
 

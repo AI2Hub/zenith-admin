@@ -159,7 +159,7 @@ export default function SshProfilesManager({ onConnect }: Readonly<SshProfilesMa
           </div>
         )}
         {profiles.map((p, idx) => {
-          const colorMap: Record<SshAuthType, string> = { password: 'orange', agent: 'purple', key_path: 'green', key_content: 'green' };
+          const colorMap: Record<SshAuthType, 'orange' | 'purple' | 'green'> = { password: 'orange', agent: 'purple', key_path: 'green', key_content: 'green' };
           const textMap: Record<SshAuthType, string> = { password: 'PWD', agent: 'AGENT', key_path: 'KEY', key_content: 'KEY' };
           const authTagColor = colorMap[p.authType];
           const authTagText = textMap[p.authType];

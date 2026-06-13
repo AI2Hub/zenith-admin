@@ -173,6 +173,11 @@ export const defaultPreferences: UserPreferences = {
     favorites: [],
     tabPosition: 'top' as const,
     tabCollapsed: false,
+    cursorStyle: 'block' as const,
+    cursorBlink: true,
+    copyOnSelect: true,
+    rendererType: 'canvas' as const,
+    fastScrollSensitivity: 5,
   },
 };
 

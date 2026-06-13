@@ -20,6 +20,10 @@ export interface ContainerInfo {
   state: string;
   status: string;
   ports: Array<{ privatePort: number; publicPort: number | undefined; type: string }>;
+  /** Docker Compose project label */
+  composeProject: string | null;
+  /** Docker Compose service label */
+  composeService: string | null;
 }
 
 export async function listContainers(): Promise<ContainerInfo[]> {
@@ -40,7 +44,14 @@ export async function listContainers(): Promise<ContainerInfo[]> {
       publicPort: p.PublicPort,
       type: p.Type,
     })),
+    composeProject: c.Labels?.['com.docker.compose.project'] ?? null,
+    composeService: c.Labels?.['com.docker.compose.service'] ?? null,
   }));
+}
+
+export async function inspectContainer(id: string) {
+  const container = getDocker().getContainer(id);
+  return container.inspect();
 }
 
 export async function startContainer(id: string): Promise<void> {
