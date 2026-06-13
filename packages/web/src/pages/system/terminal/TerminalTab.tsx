@@ -62,7 +62,15 @@ export default function TerminalTab({ sessionId, active, shell, cwd }: TerminalT
     terminalSessionStore.clearSearch(sessionId);
   }, [sessionId]);
 
-  // mount / sessionId 变化时：创建或复用 session，然后 attach
+  // refs 用于在闭包中访问最新的回调/状态（避免 stale closure）
+  const openSearchRef = useRef(openSearch);
+  openSearchRef.current = openSearch;
+  const closeSearchRef = useRef(closeSearch);
+  closeSearchRef.current = closeSearch;
+  const searchVisibleRef = useRef(searchVisible);
+  searchVisibleRef.current = searchVisible;
+
+  // mount / sessionId 变化时：创建或复用 session → attach → 注册 Ctrl+F 拦截器
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -74,41 +82,29 @@ export default function TerminalTab({ sessionId, active, shell, cwd }: TerminalT
       }
       if (!cancelled) {
         terminalSessionStore.attach(sessionId, container);
+        // 拦截器必须在 session 创建后才能注册
+        terminalSessionStore.attachCustomKeyEventHandler(sessionId, (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            e.preventDefault(); // 阻止浏览器原生 Ctrl+F
+            openSearchRef.current();
+            return false;
+          }
+          if (e.key === 'Escape' && searchVisibleRef.current) {
+            closeSearchRef.current();
+            return false;
+          }
+          return true;
+        });
       }
     };
     void setupSession();
 
     return () => {
       cancelled = true;
+      terminalSessionStore.attachCustomKeyEventHandler(sessionId, () => true);
       terminalSessionStore.detach(sessionId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]);
-
-  // 使用 xterm 内置钩子拦截 Ctrl+F，避免 ^F 被发送到终端
-  const openSearchRef = useRef(openSearch);
-  openSearchRef.current = openSearch;
-  const closeSearchRef = useRef(closeSearch);
-  closeSearchRef.current = closeSearch;
-  const searchVisibleRef = useRef(searchVisible);
-  searchVisibleRef.current = searchVisible;
-
-  useEffect(() => {
-    terminalSessionStore.attachCustomKeyEventHandler(sessionId, (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-        openSearchRef.current();
-        return false; // xterm 不再处理此键
-      }
-      if (e.key === 'Escape' && searchVisibleRef.current) {
-        closeSearchRef.current();
-        return false;
-      }
-      return true;
-    });
-    return () => {
-      // 组件卸载时移除拦截器
-      terminalSessionStore.attachCustomKeyEventHandler(sessionId, () => true);
-    };
   }, [sessionId]);
 
   // tab 切换激活时重新 fit
