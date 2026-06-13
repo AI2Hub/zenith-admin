@@ -21,6 +21,8 @@ import dayjs from 'dayjs';
 import { FileInput, Plus, RotateCcw, Search } from 'lucide-react';
 import type { WorkflowDefinition, WorkflowInstance, PaginatedResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
+import { usePageTracker } from '@/hooks/usePageTracker';
+import { trackFeature } from '@/utils/tracker';
 import { useAuth } from '@/hooks/useAuth';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -227,6 +229,7 @@ function InstanceDetailDrawer({
 }
 
 export default function MyApplicationsPage() {
+  usePageTracker('我的申请');
   const { user } = useAuth();
   const formApi = useRef<FormApi | null>(null);
   const dynamicFormApi = useRef<FormApi | null>(null);
@@ -380,9 +383,9 @@ export default function MyApplicationsPage() {
               <Select.Option key={k} value={k}>{s.text}</Select.Option>
             ))}
           </Select>
-          <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-          <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-          <Button type="primary" icon={<Plus size={14} />} onClick={() => void openApply()}>
+          <Button type="primary" icon={<Search size={14} />} onClick={() => { trackFeature('search-btn', '查询', 'search-toolbar'); handleSearch(); }}>查询</Button>
+          <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { trackFeature('reset-btn', '重置', 'search-toolbar'); handleReset(); }}>重置</Button>
+          <Button type="primary" icon={<Plus size={14} />} onClick={() => { trackFeature('create-btn', '发起申请', 'search-toolbar'); void openApply(); }}>
             发起申请
           </Button>
       </SearchToolbar>

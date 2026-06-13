@@ -394,6 +394,55 @@ export interface LoginLogStats {
   hourlyStats: { hour: number; count: number }[];
 }
 
+// ─── 用户行为分析 ────────────────────────────────────────────
+export type UserBehaviorEventType = 'page_view' | 'page_leave' | 'feature_use' | 'area_click';
+
+export interface PageStatItem {
+  pagePath: string;
+  pageTitle: string | null;
+  visits: number;
+  avgMs: number | null;
+  medianMs: number | null;
+  p90Ms: number | null;
+}
+
+export interface PageStats {
+  items: PageStatItem[];
+  totalVisits: number;
+}
+
+export interface FeatureStatItem {
+  pagePath: string;
+  elementKey: string;
+  elementLabel: string | null;
+  componentArea: string | null;
+  count: number;
+}
+
+export interface FeatureStats {
+  items: FeatureStatItem[];
+  totalEvents: number;
+}
+
+export interface HeatmapPoint {
+  x: number;
+  y: number;
+  value: number;
+}
+
+export interface HeatmapData {
+  pagePath: string;
+  componentArea: string;
+  points: HeatmapPoint[];
+  total: number;
+}
+
+export interface HeatmapPageListItem {
+  pagePath: string;
+  pageTitle: string | null;
+  areas: string[];
+}
+
 // ─── 公告 ──────────────────────────────────────────────────
 export type AnnouncementPublishStatus = 'draft' | 'published' | 'recalled' | 'scheduled';
 export type AnnouncementType = 'notice' | 'announcement' | 'warning';

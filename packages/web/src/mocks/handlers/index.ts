@@ -45,6 +45,7 @@ import { dataMaskHandlers } from './data-mask';
 import { dbQueryFavoritesHandlers } from './db-query-favorites';
 import { userPermissionsHandlers } from './user-permissions';
 import { maintenanceHandlers } from './maintenance';
+import { analyticsHandlers } from './analytics';
 
 export const handlers = [
   ...authHandlers,
@@ -94,4 +95,5 @@ export const handlers = [
   ...oauth2AuthHandlers,
   ...userPermissionsHandlers,
   ...maintenanceHandlers,
+  ...analyticsHandlers,
 ];

@@ -19,6 +19,8 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RotateCcw, Search } from 'lucide-react';
 import type { WorkflowInstance, WorkflowDefinition, PaginatedResponse, WorkflowTask, WorkflowActionButtonKey, WorkflowActionButtonConfig } from '@zenith/shared';
 import { request } from '@/utils/request';
+import { usePageTracker } from '@/hooks/usePageTracker';
+import { trackFeature } from '@/utils/tracker';
 import { config } from '@/config';
 import { formatDateTime } from '@/utils/date';
 import { resolveRejectTargetHint } from '@/utils/workflow-reject';
@@ -59,6 +61,7 @@ function resolveButton(
 interface UploadedFile { name: string; url: string; size?: number }
 
 export default function PendingApprovalsPage() {
+  usePageTracker('待我审批');
   const approveFormApi = useRef<FormApi | null>(null);
   const rejectFormApi = useRef<FormApi | null>(null);
   const transferFormApi = useRef<FormApi | null>(null);
@@ -393,7 +396,7 @@ export default function PendingApprovalsPage() {
             theme="borderless"
             size="small"
             type="primary"
-            onClick={() => { setSelectedItem(record); setApproveVisible(true); }}
+            onClick={() => { trackFeature('approve-btn', '通过', 'table-actions'); setSelectedItem(record); setApproveVisible(true); }}
           >
             通过
           </Button>
@@ -401,7 +404,7 @@ export default function PendingApprovalsPage() {
             theme="borderless"
             size="small"
             type="danger"
-            onClick={() => { void openReject(record); }}
+            onClick={() => { trackFeature('reject-btn', '驳回', 'table-actions'); void openReject(record); }}
           >
             驳回
           </Button>
@@ -433,8 +436,8 @@ export default function PendingApprovalsPage() {
             <Select.Option key={d.id} value={d.id}>{d.name}</Select.Option>
           ))}
         </Select>
-        <Button type="primary" icon={<Search size={14} />} onClick={() => { setPage(1); void fetchList(1, pageSize); }}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { setSearchParams(defaultSearchParams); setPage(1); void fetchList(1, pageSize, defaultSearchParams); }}>重置</Button>
+        <Button type="primary" icon={<Search size={14} />} onClick={() => { trackFeature('search-btn', '查询', 'search-toolbar'); setPage(1); void fetchList(1, pageSize); }}>查询</Button>
+        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { trackFeature('reset-btn', '重置', 'search-toolbar'); setSearchParams(defaultSearchParams); setPage(1); void fetchList(1, pageSize, defaultSearchParams); }}>重置</Button>
       </SearchToolbar>
       <ConfigurableTable
         bordered

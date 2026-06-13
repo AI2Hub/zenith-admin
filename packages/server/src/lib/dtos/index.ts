@@ -38,4 +38,5 @@ export * from './maintenance';
 export * from './terminal-files';
 export * from './terminal-recordings';
 export * from './processes';
+export * from './analytics';
 export * from './ssh-profiles';

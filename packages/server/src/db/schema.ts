@@ -399,6 +399,30 @@ export const ipAccessLogs = pgTable('ip_access_logs', {
 export type IpAccessLogRow = typeof ipAccessLogs.$inferSelect;
 export type NewIpAccessLog = typeof ipAccessLogs.$inferInsert;
 
+// ─── 用户行为事件表 ─────────────────────────────────────────────────────────────
+export const userBehaviorEventTypeEnum = pgEnum('user_behavior_event_type', ['page_view', 'page_leave', 'feature_use', 'area_click']);
+
+export const userEvents = pgTable('user_events', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id'),
+  username: varchar('username', { length: 64 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  sessionId: varchar('session_id', { length: 36 }),
+  eventType: userBehaviorEventTypeEnum('event_type').notNull(),
+  pagePath: varchar('page_path', { length: 256 }).notNull(),
+  pageTitle: varchar('page_title', { length: 128 }),
+  elementKey: varchar('element_key', { length: 128 }),
+  elementLabel: varchar('element_label', { length: 128 }),
+  componentArea: varchar('component_area', { length: 64 }),
+  clickX: real('click_x'),
+  clickY: real('click_y'),
+  durationMs: integer('duration_ms'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type UserEventRow = typeof userEvents.$inferSelect;
+export type NewUserEvent = typeof userEvents.$inferInsert;
+
 // ─── 公告表 ─────────────────────────────────────────────────────────────────
 export const announcements = pgTable('announcements', {
   id: serial('id').primaryKey(),

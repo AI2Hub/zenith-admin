@@ -132,6 +132,7 @@ export default defineConfig({
           { text: '公共组件', link: '/frontend/components' },
           { text: '文件预览组件', link: '/frontend/file-preview' },
           { text: '路由与菜单', link: '/frontend/routing' },
+          { text: '用户行为埋点分析', link: '/frontend/user-analytics' },
         ],
       },
       {

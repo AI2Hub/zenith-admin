@@ -715,6 +715,13 @@
       "when": 1781357343592,
       "tag": "0101_overconfident_blur",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1781369115537,
+      "tag": "0102_lame_newton_destine",
+      "breakpoints": true
     }
   ]
 }
