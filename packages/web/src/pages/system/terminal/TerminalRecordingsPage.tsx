@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Button, Input, Modal, Tag, Toast, Popconfirm, Dropdown, SplitButtonGroup } from '@douyinfe/semi-ui';
+import { Button, Input, Modal, Tag, Toast, Popconfirm, Dropdown, SplitButtonGroup, Typography, Space } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, RotateCcw, Trash2, ChevronDown } from 'lucide-react';
+import { Search, RotateCcw, Trash2, ChevronDown, Copy, Terminal } from 'lucide-react';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -18,6 +18,7 @@ interface Recording {
   cols: number;
   rows: number;
   duration: number;
+  commandCount: number;
   createdAt: string;
 }
 
@@ -31,6 +32,63 @@ function formatDuration(secs: number): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
+/** 从录屏事件中还原用户执行的命令列表（按行切割 'i' 输入事件，处理退格和 ANSI 转义序列）。 */
+function extractCommands(events: RecordingEvent[]): Array<{ time: number; cmd: string }> {
+  const commands: Array<{ time: number; cmd: string }> = [];
+  let buf = '';
+  let cmdStart = 0;
+  // 简单 VT100 转义序列状态机：normal → esc → csi|ss3
+  let escState: 'normal' | 'esc' | 'csi' | 'ss3' = 'normal';
+
+  for (const [time, type, data] of events) {
+    if (type !== 'i') continue;
+    for (const ch of data) {
+      const cp = ch.codePointAt(0) ?? 0;
+
+      if (escState === 'esc') {
+        if (ch === '[') { escState = 'csi'; }
+        else if (ch === 'O') { escState = 'ss3'; }
+        else { escState = 'normal'; }
+        continue;
+      }
+      if (escState === 'csi') {
+        // CSI 序列以 0x40–0x7E 的字母结束
+        if (cp >= 0x40 && cp <= 0x7e) escState = 'normal';
+        continue;
+      }
+      if (escState === 'ss3') {
+        // SS3 序列 = ESC O + 单字节，忽略后立即回到 normal
+        escState = 'normal';
+        continue;
+      }
+
+      // normal 状态
+      if (cp === 0x1b) {
+        escState = 'esc';
+      } else if (ch === '\r' || ch === '\n') {
+        const cmd = buf.trim();
+        if (cmd) commands.push({ time: cmdStart, cmd });
+        buf = '';
+        cmdStart = time;
+      } else if (ch === '\x7f' || ch === '\b') {
+        buf = buf.slice(0, -1);
+      } else if (cp >= 0x20 || ch === '\t') {
+        if (!buf) cmdStart = time;
+        buf += ch;
+      }
+    }
+  }
+  const remaining = buf.trim();
+  if (remaining) commands.push({ time: cmdStart, cmd: remaining });
+  return commands;
+}
+
+function formatTimestamp(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 export default function TerminalRecordingsPage() {
   const [list, setList] = useState<Recording[]>([]);
   const [total, setTotal] = useState(0);
@@ -39,6 +97,8 @@ export default function TerminalRecordingsPage() {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [playRec, setPlayRec] = useState<RecordingDetail | null>(null);
   const [playLoading, setPlayLoading] = useState(false);
+  const [detailRec, setDetailRec] = useState<RecordingDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [clearLoading, setClearLoading] = useState(false);
 
   const { page, pageSize, resetPage, buildPagination } = usePagination();
@@ -79,6 +139,13 @@ export default function TerminalRecordingsPage() {
     const res = await request.get<RecordingDetail>(`/api/terminal-recordings/${id}`);
     setPlayLoading(false);
     if (res.code === 0 && res.data) setPlayRec(res.data);
+  };
+
+  const handleDetail = async (id: number) => {
+    setDetailLoading(true);
+    const res = await request.get<RecordingDetail>(`/api/terminal-recordings/${id}`);
+    setDetailLoading(false);
+    if (res.code === 0 && res.data) setDetailRec(res.data);
   };
 
   const handleDelete = async (id: number) => {
@@ -137,6 +204,12 @@ export default function TerminalRecordingsPage() {
       render: (v: number) => formatDuration(v),
     },
     {
+      title: '命令数',
+      dataIndex: 'commandCount',
+      width: 80,
+      render: (v: number) => (v > 0 ? <Tag color="green" size="small">{v}</Tag> : <span style={{ color: 'var(--semi-color-text-2)' }}>—</span>),
+    },
+    {
       title: '操作人',
       dataIndex: 'username',
       width: 110,
@@ -149,12 +222,15 @@ export default function TerminalRecordingsPage() {
     },
     {
       title: '操作',
-      width: 150,
+      width: 200,
       fixed: 'right' as const,
       render: (_: unknown, r: Recording) => (
         <div style={{ display: 'flex', gap: 4 }}>
           <Button size="small" theme="borderless" loading={playLoading} onClick={() => void handlePlay(r.id)}>
             播放
+          </Button>
+          <Button size="small" theme="borderless" loading={detailLoading} onClick={() => void handleDetail(r.id)}>
+            详情
           </Button>
           <Popconfirm title="确定删除这条录屏吗？" okType="danger" onConfirm={() => void handleDelete(r.id)}>
             <Button size="small" theme="borderless" type="danger">删除</Button>
@@ -240,6 +316,75 @@ export default function TerminalRecordingsPage() {
           />
         )}
       </Modal>
+
+      {/* 命令详情弹窗 */}
+      {detailRec && (() => {
+        const cmds = extractCommands(detailRec.events);
+        const copyAll = () => {
+          void navigator.clipboard.writeText(cmds.map((c) => c.cmd).join('\n'));
+          Toast.success('已复制全部命令');
+        };
+        return (
+          <Modal
+            title={
+              <Space>
+                <Terminal size={15} />
+                <span>{detailRec.title || '命令详情'}</span>
+                <Tag color="blue" size="small">{detailRec.username}</Tag>
+                <Tag size="small">{formatDuration(detailRec.duration)}</Tag>
+              </Space>
+            }
+            visible
+            onCancel={() => setDetailRec(null)}
+            footer={null}
+            closeOnEsc
+            width={700}
+            style={{ top: '5vh' }}
+            bodyStyle={{ padding: 0, display: 'flex', flexDirection: 'column', maxHeight: '75vh' }}
+          >
+            <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--semi-color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography.Text type="tertiary" size="small">
+                共 {cmds.length} 条命令
+              </Typography.Text>
+              {cmds.length > 0 && (
+                <Button size="small" theme="borderless" icon={<Copy size={12} />} onClick={copyAll}>
+                  复制全部
+                </Button>
+              )}
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', padding: '8px 0' }}>
+              {cmds.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--semi-color-text-2)' }}>
+                  未检测到命令输入
+                </div>
+              ) : (
+                cmds.map((c) => (
+                  <div
+                    key={`${c.time}-${c.cmd}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      gap: 12,
+                      padding: '5px 16px',
+                      borderRadius: 4,
+                    }}
+                  >
+                    <Typography.Text type="tertiary" size="small" style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums', width: 36 }}>
+                      {formatTimestamp(c.time)}
+                    </Typography.Text>
+                    <Typography.Text
+                      copyable={{ content: c.cmd }}
+                      style={{ fontFamily: 'monospace', fontSize: 13, wordBreak: 'break-all' }}
+                    >
+                      {c.cmd}
+                    </Typography.Text>
+                  </div>
+                ))
+              )}
+            </div>
+          </Modal>
+        );
+      })()}
     </div>
   );
 }

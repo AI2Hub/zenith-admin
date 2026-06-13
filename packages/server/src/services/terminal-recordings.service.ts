@@ -21,6 +21,7 @@ type RecordingRow = {
   createdAt: Date; updatedAt: Date;
   nickname?: string | null;
   sizeBytes?: number | string | null;
+  commandCount?: number | null;
 };
 
 function mapRow(r: RecordingRow) {
@@ -34,6 +35,7 @@ function mapRow(r: RecordingRow) {
     rows: r.rows,
     duration: r.duration,
     sizeBytes: Number(r.sizeBytes ?? 0),
+    commandCount: Number(r.commandCount ?? 0),
     createdAt: formatDateTime(r.createdAt),
     updatedAt: formatDateTime(r.updatedAt),
   };
@@ -92,6 +94,12 @@ export async function listRecordings(params: ListRecordingsParams) {
       rows: terminalRecordings.rows,
       duration: terminalRecordings.duration,
       sizeBytes: sizeExpr,
+      commandCount: sql<number>`(
+        select count(*)::int
+        from jsonb_array_elements(${terminalRecordings.events}) as e
+        where (e->>1) = 'i'
+          and (position(chr(13) in (e->>2)) > 0 or position(chr(10) in (e->>2)) > 0)
+      )`,
       createdAt: terminalRecordings.createdAt,
       updatedAt: terminalRecordings.updatedAt,
     })

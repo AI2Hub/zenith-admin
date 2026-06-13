@@ -17,6 +17,7 @@ export const TerminalRecordingDTO = z
     rows: z.number().int(),
     duration: z.number(),
     sizeBytes: z.number().int(),
+    commandCount: z.number().int(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
