@@ -146,9 +146,6 @@
   transition: background 0.15s;
   position: relative;
   border: 2px solid transparent;
-  /* 浏览器原生优化：跳过屏幕外元素的布局与绘制 */
-  content-visibility: auto;
-  contain-intrinsic-size: 0 110px;
 }
 
 .fm-grid-card:hover {

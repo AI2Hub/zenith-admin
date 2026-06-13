@@ -3,6 +3,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Button, Input, Space, Tooltip, Dropdown, Modal, Toast,
   Typography, Tag, Spin, Breadcrumb, Popconfirm, ImagePreview,
@@ -177,6 +178,86 @@ function FsGridCard({ entry, selected, onSelect, onOpen, onContextMenu }: Readon
       {!isDir && (
         <div className="fm-grid-card__meta">{formatSize(entry.size)}</div>
       )}
+    </div>
+  );
+}
+
+// ── 虚拟网格 ─────────────────────────────────────────────────────────────────
+
+const VG_CARD_MIN_W = 128; // 每卡最小宽（px）
+const VG_CARD_H = 120;    // 每卡高度（px）
+const VG_GAP = 8;          // 横纵间距
+const VG_PAD = 12;         // 容器内边距
+
+interface VirtualGridProps {
+  readonly entries: FsEntry[];
+  readonly selectedPaths: Set<string>;
+  readonly onSelect: (path: string) => void;
+  readonly onOpen: (entry: FsEntry) => void;
+  readonly onContextMenu: (e: React.MouseEvent, entry: FsEntry) => void;
+}
+
+function VirtualGrid({ entries, selectedPaths, onSelect, onOpen, onContextMenu }: Readonly<VirtualGridProps>) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [colCount, setColCount] = useState(4);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ob = new ResizeObserver((resizeEntries) => {
+      for (const re of resizeEntries) {
+        const w = re.contentRect.width;
+        setColCount(Math.max(1, Math.floor((w - VG_PAD * 2 + VG_GAP) / (VG_CARD_MIN_W + VG_GAP))));
+      }
+    });
+    ob.observe(el);
+    return () => ob.disconnect();
+  }, []);
+
+  const rowCount = Math.ceil(entries.length / colCount);
+
+  const virtualizer = useVirtualizer({
+    count: rowCount,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => VG_CARD_H + VG_GAP,
+    overscan: 3,
+  });
+
+  return (
+    <div ref={containerRef} style={{ height: '100%', overflowY: 'auto' }}>
+      <div style={{ height: virtualizer.getTotalSize() + VG_PAD * 2, position: 'relative' }}>
+        {virtualizer.getVirtualItems().map((vRow) => (
+          <div
+            key={vRow.key}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: VG_PAD,
+              right: VG_PAD,
+              transform: `translateY(${vRow.start + VG_PAD}px)`,
+              display: 'grid',
+              gridTemplateColumns: `repeat(${colCount}, 1fr)`,
+              gap: VG_GAP,
+            }}
+          >
+            {Array.from({ length: colCount }, (_, ci) => {
+              const idx = vRow.index * colCount + ci;
+              if (idx >= entries.length) return <div key={`empty-${ci}`} />;
+              const e = entries[idx];
+              return (
+                <FsGridCard
+                  key={e.path}
+                  entry={e}
+                  selected={selectedPaths.has(e.path)}
+                  onSelect={() => onSelect(e.path)}
+                  onOpen={() => onOpen(e)}
+                  onContextMenu={(ev) => onContextMenu(ev, e)}
+                />
+              );
+            })}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -573,18 +654,13 @@ export default function FileManagerPage() {
     }
     if (viewMode === 'grid') {
       return (
-        <div className="fm-grid">
-          {filteredEntries.map((e) => (
-            <FsGridCard
-              key={e.path}
-              entry={e}
-              selected={selectedPaths.has(e.path)}
-              onSelect={() => toggleSelect(e.path)}
-              onOpen={() => { if (e.type === 'dir') void navigateTo(e.path); else void handlePreview(e); }}
-              onContextMenu={(ev) => openCtxMenu(ev, e)}
-            />
-          ))}
-        </div>
+        <VirtualGrid
+          entries={filteredEntries}
+          selectedPaths={selectedPaths}
+          onSelect={(path) => toggleSelect(path)}
+          onOpen={(e) => { if (e.type === 'dir') void navigateTo(e.path); else void handlePreview(e); }}
+          onContextMenu={(ev, e) => openCtxMenu(ev, e)}
+        />
       );
     }
     return (
