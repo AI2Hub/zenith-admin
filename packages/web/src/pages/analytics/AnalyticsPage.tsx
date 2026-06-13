@@ -49,9 +49,9 @@ function PageDwellTab() {
       dataIndex: 'pagePath',
       key: 'pagePath',
       render: (_: unknown, record: PageStatItem) => (
-        <div>
-          <div style={{ fontWeight: 500 }}>{record.pageTitle ?? record.pagePath}</div>
-          <Text type="tertiary" size="small">{record.pagePath}</Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }}>
+          <span style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{record.pageTitle ?? record.pagePath}</span>
+          {record.pageTitle && <Text type="tertiary" size="small" style={{ whiteSpace: 'nowrap' }}>{record.pagePath}</Text>}
         </div>
       ),
     },
@@ -147,9 +147,9 @@ function FeatureUsageTab() {
       dataIndex: 'elementKey',
       key: 'elementKey',
       render: (_: unknown, record: FeatureStatItem) => (
-        <div>
-          <div style={{ fontWeight: 500 }}>{record.elementLabel ?? record.elementKey}</div>
-          <Text type="tertiary" size="small">{record.elementKey}</Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }}>
+          <span style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{record.elementLabel ?? record.elementKey}</span>
+          {record.elementLabel && <Text type="tertiary" size="small" style={{ whiteSpace: 'nowrap' }}>{record.elementKey}</Text>}
         </div>
       ),
     },
