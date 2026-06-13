@@ -22,8 +22,18 @@ function resolveShell(type: string | undefined): { file: string; args: string[] 
   if (type?.startsWith('docker-exec:')) {
     const cid = type.slice('docker-exec:'.length);
     // 仅允许合法容器 ID/名称字符，防止命令注入
-    if (/^[a-zA-Z0-9_\-]{1,128}$/.test(cid)) {
-      return { file: 'docker', args: ['exec', '-i', cid, '/bin/sh', '-i'] };
+    if (/^[a-zA-Z0-9_-]{1,128}$/.test(cid)) {
+      // -i 保持 stdin 开启，-t 在容器内分配 TTY（修复 job control 警告）
+      // 显式设置 PATH 和 TERM，避免非登录 shell 环境变量缺失
+      return {
+        file: 'docker',
+        args: [
+          'exec', '-it',
+          '-e', 'TERM=xterm-256color',
+          '-e', 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+          cid, '/bin/sh',
+        ],
+      };
     }
   }
   const { shells, defaultShell } = listShells();
