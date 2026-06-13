@@ -317,7 +317,7 @@ export default function AnalyticsPage() {
   usePageTracker('行为分析');
 
   return (
-    <div style={{ padding: '0 0 24px' }}>
+    <div className="page-container">
       <div style={{ marginBottom: 16 }}>
         <Title heading={5} style={{ margin: 0 }}>行为分析</Title>
         <Text type="tertiary" size="small">分析用户在系统中的页面停留时长、功能使用频率和点击热力图</Text>
