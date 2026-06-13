@@ -212,6 +212,19 @@ export default function FileManagerPage() {
   const [previewLoadingEntry, setPreviewLoadingEntry] = useState<string | null>(null);
   const previewBlobUrlsRef = useRef<string[]>([]);
   const previewSessionRef = useRef(0);
+  // 内容区高度（用于 Table 虚拟滚动）
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [contentHeight, setContentHeight] = useState(0);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const ob = new ResizeObserver((entries) => {
+      for (const entry of entries) setContentHeight(Math.floor(entry.contentRect.height));
+    });
+    ob.observe(el);
+    return () => ob.disconnect();
+  }, []);
 
   // ── 初始化 ────────────────────────────────────────────────────────────────
 
@@ -542,7 +555,12 @@ export default function FileManagerPage() {
   ];
 
   // ── 渲染内容区 ────────────────────────────────────────────────────────────
-
+  // Table 虚拟滚动：ConfigurableTable 有工具栏（约36px）+ 表头（约37px）= 73px
+  const VIRTUAL_ITEM_HEIGHT = 40;
+  const TABLE_OVERHEAD = 73;
+  const tableScrollY = contentHeight > TABLE_OVERHEAD + VIRTUAL_ITEM_HEIGHT * 2
+    ? contentHeight - TABLE_OVERHEAD
+    : undefined;
   const renderContent = () => {
     if (loading) return <div className="fm-content__loading"><Spin size="large" /></div>;
     if (filteredEntries.length === 0) {
@@ -580,6 +598,8 @@ export default function FileManagerPage() {
         size="small"
         onRefresh={refresh}
         refreshLoading={loading}
+        scroll={tableScrollY ? { y: tableScrollY } : undefined}
+        virtualized={tableScrollY ? { itemSize: VIRTUAL_ITEM_HEIGHT } : undefined}
         rowSelection={{
           selectedRowKeys: [...selectedPaths],
           onChange: (keys) => setSelectedPaths(new Set(keys as string[])),
@@ -734,7 +754,7 @@ export default function FileManagerPage() {
           </MasterDetailLayout.Header>
 
           <MasterDetailLayout.Body scroll="hidden" style={{ display: 'flex', flexDirection: 'column' }}>
-            <div className="fm-content">
+            <div className="fm-content" ref={contentRef}>
               {renderContent()}
               {uploading.length > 0 && (
                 <div className="fm-upload-progress">
