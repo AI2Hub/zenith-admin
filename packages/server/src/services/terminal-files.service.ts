@@ -181,8 +181,8 @@ export function listShells(): TerminalShellListing {
     // WSL 发行版
     const wslDistros = detectWslDistros();
     for (const distro of wslDistros) {
-      // 明确使用 bash 作为入口 shell，防止部分 WSL 发行版默认 shell 配置异常
-      shells.push({ id: `wsl:${distro}`, label: `WSL: ${distro}`, path: 'wsl.exe', args: ['-d', distro, '--exec', 'bash', '-l'] });
+      // --cd ~ 确保 WSL 从 Linux 用户主目录启动，--exec bash -l 避免默认 shell 异常
+      shells.push({ id: `wsl:${distro}`, label: `WSL: ${distro}`, path: 'wsl.exe', args: ['-d', distro, '--cd', '~', '--exec', 'bash', '-l'] });
     }
     return { platform, shells, defaultShell: 'powershell' };
   }
