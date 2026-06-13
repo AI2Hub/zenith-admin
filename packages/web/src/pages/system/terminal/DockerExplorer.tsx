@@ -169,31 +169,51 @@ export default function DockerExplorer({ active, onOpenFile, onAttachShell }: Do
   }, [active, fetchContainers]);
 
   const loadData = useCallback(async (node: DockerTreeNode): Promise<void> => {
-    const { nodeType, containerId, filePath } = node;
-    if (!containerId) return;
+    const key = String(node.key ?? '');
 
-    if (nodeType === 'container') {
-      const res = await request.get<FileEntry[]>(`/api/docker/${containerId}/files?path=/`, { silent: true });
-      if (res.code === 0 && res.data) {
-        const children = buildFileNodes(res.data, containerId);
-        setTreeData((prev) => patchTreeChildren(prev, node.key as string, children));
+    if (key.startsWith('container:')) {
+      const containerId = key.slice('container:'.length);
+      if (!containerId) return;
+      try {
+        const res = await request.get<FileEntry[]>(`/api/docker/${containerId}/files?path=/`, { silent: true });
+        const children = res.code === 0 && res.data ? buildFileNodes(res.data, containerId) : [];
+        setTreeData((prev) => patchTreeChildren(prev, key, children));
+      } catch {
+        setTreeData((prev) => patchTreeChildren(prev, key, []));
       }
-    } else if (nodeType === 'dir' && filePath) {
-      const res = await request.get<FileEntry[]>(
-        `/api/docker/${containerId}/files?path=${encodeURIComponent(filePath)}`,
-        { silent: true },
-      );
-      if (res.code === 0 && res.data) {
-        const children = buildFileNodes(res.data, containerId);
-        setTreeData((prev) => patchTreeChildren(prev, node.key as string, children));
+    } else if (key.startsWith('dir:')) {
+      // key: "dir:<containerId>:<filePath>" — path 本身不含冒号
+      const withoutPrefix = key.slice('dir:'.length);
+      const firstColon = withoutPrefix.indexOf(':');
+      if (firstColon < 0) return;
+      const containerId = withoutPrefix.slice(0, firstColon);
+      const filePath = withoutPrefix.slice(firstColon + 1);
+      if (!containerId || !filePath) return;
+      try {
+        const res = await request.get<FileEntry[]>(
+          `/api/docker/${containerId}/files?path=${encodeURIComponent(filePath)}`,
+          { silent: true },
+        );
+        const children = res.code === 0 && res.data ? buildFileNodes(res.data, containerId) : [];
+        setTreeData((prev) => patchTreeChildren(prev, key, children));
+      } catch {
+        setTreeData((prev) => patchTreeChildren(prev, key, []));
       }
     }
   }, []);
 
   const handleSelect = useCallback((_keys: unknown, info: { node: DockerTreeNode }) => {
-    const node = info.node;
-    if (node.nodeType === 'file' && node.containerId && node.filePath) {
-      onOpenFile(`docker://${node.containerId}${node.filePath}`);
+    const key = String(info.node.key ?? '');
+    if (key.startsWith('file:')) {
+      const withoutPrefix = key.slice('file:'.length);
+      const firstColon = withoutPrefix.indexOf(':');
+      if (firstColon >= 0) {
+        const containerId = withoutPrefix.slice(0, firstColon);
+        const filePath = withoutPrefix.slice(firstColon + 1);
+        if (containerId && filePath) {
+          onOpenFile(`docker://${containerId}${filePath}`);
+        }
+      }
     }
   }, [onOpenFile]);
 

@@ -237,15 +237,22 @@ export interface ContainerFileEntry {
 export async function execInContainer(containerId: string, cmd: string[]): Promise<string> {
   const docker = getDocker();
   const container = docker.getContainer(containerId);
-  const exec = await container.exec({ Cmd: cmd, AttachStdout: true, AttachStderr: true });
-  const stream = await exec.start({ Detach: false });
+  const exec = await container.exec({
+    Cmd: cmd,
+    AttachStdout: true,
+    AttachStderr: true,
+    Tty: false, // 非 TTY 模式，输出为标准多路复用流（8 字节头）
+  });
+  // hijack: true 使 exec 直接使用 socket，stdin: false 不需要写入
+  const stream = await exec.start({ hijack: true, stdin: false });
   return new Promise<string>((resolve, reject) => {
-    let output = '';
+    const chunks: Buffer[] = [];
     const pt = new PassThrough();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    pt.on('data', (d: Buffer) => chunks.push(d));
     (container.modem as unknown as { demuxStream: (...a: unknown[]) => void }).demuxStream(stream, pt, pt);
-    pt.on('data', (chunk: Buffer) => { output += chunk.toString(); });
-    pt.on('end', () => resolve(output));
+    // 必须监听原始 stream 的 end（demuxStream 不自动传播 end 事件到 passthrough）
+    stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    stream.on('error', reject);
     pt.on('error', reject);
   });
 }
