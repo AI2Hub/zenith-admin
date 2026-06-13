@@ -124,15 +124,24 @@ export default function TerminalTab({ sessionId, active, shell, cwd }: TerminalT
     }
   }, [active, sessionId]);
 
-  // 主题 / 字体 / 字号 / 行高变化时更新（不重建连接）
+  // 主题 / 字体 / 字号 / 行高 / 光标 / 滚动 变化时更新（不重建连接）
   useEffect(() => {
     terminalSessionStore.updateOptions(sessionId, {
       theme: currentTheme,
       fontSize: terminal.fontSize,
       fontFamily: terminal.fontFamily,
       lineHeight: terminal.lineHeight,
+      cursorStyle: terminal.cursorStyle,
+      cursorBlink: terminal.cursorBlink,
+      copyOnSelect: terminal.copyOnSelect,
+      fastScrollSensitivity: terminal.fastScrollSensitivity,
     });
-  }, [currentTheme, terminal.fontSize, terminal.fontFamily, terminal.lineHeight, sessionId]);
+  }, [
+    currentTheme,
+    terminal.fontSize, terminal.fontFamily, terminal.lineHeight,
+    terminal.cursorStyle, terminal.cursorBlink, terminal.copyOnSelect, terminal.fastScrollSensitivity,
+    sessionId,
+  ]);
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column' }}>

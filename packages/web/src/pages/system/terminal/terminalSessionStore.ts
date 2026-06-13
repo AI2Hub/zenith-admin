@@ -390,6 +390,10 @@ class TerminalSessionStore {
       fontSize?: number;
       fontFamily?: string;
       lineHeight?: number;
+      cursorStyle?: 'block' | 'underline' | 'bar';
+      cursorBlink?: boolean;
+      copyOnSelect?: boolean;
+      fastScrollSensitivity?: number;
     },
   ): void {
     const session = this.sessions.get(sessionId);
@@ -398,6 +402,10 @@ class TerminalSessionStore {
     if (opts.fontSize !== undefined) session.term.options.fontSize = opts.fontSize;
     if (opts.fontFamily !== undefined) session.term.options.fontFamily = opts.fontFamily;
     if (opts.lineHeight !== undefined) session.term.options.lineHeight = opts.lineHeight;
+    if (opts.cursorStyle !== undefined) session.term.options.cursorStyle = opts.cursorStyle;
+    if (opts.cursorBlink !== undefined) session.term.options.cursorBlink = opts.cursorBlink;
+    if (opts.copyOnSelect !== undefined) session.term.options.copyOnSelection = opts.copyOnSelect;
+    if (opts.fastScrollSensitivity !== undefined) session.term.options.fastScrollSensitivity = opts.fastScrollSensitivity;
     session.fitAddon.fit();
   }
 
