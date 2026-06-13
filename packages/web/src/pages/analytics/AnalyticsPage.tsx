@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Button, Select, Spin, Tabs, TabPane, Typography, Empty } from '@douyinfe/semi-ui';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Button, Select, Spin, Tabs, TabPane, Typography, Empty, Table, Tag, Progress } from '@douyinfe/semi-ui';
 import { Clock, MousePointerClick, Flame, RefreshCcw } from 'lucide-react';
 import { request } from '@/utils/request';
 import type { PageStats, PageStatItem, FeatureStats, FeatureStatItem, HeatmapData, HeatmapPageListItem } from '@zenith/shared';
 import { usePageTracker } from '@/hooks/usePageTracker';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -22,8 +21,6 @@ const DAYS_OPTIONS = [
   { label: '近 30 天', value: 30 },
   { label: '近 90 天', value: 90 },
 ];
-
-const CHART_COLORS = ['#4f8df9', '#67d9c2', '#f5a623', '#e86b6b', '#a06ee1', '#63c96b', '#ffd166', '#ef476f'];
 
 // ─── Page Dwell Time Tab ─────────────────────────────────────────────────────
 
@@ -44,17 +41,57 @@ function PageDwellTab() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const chartData = (data?.items ?? []).map((item: PageStatItem) => ({
-    name: item.pageTitle ?? item.pagePath,
-    path: item.pagePath,
-    avg: item.avgMs,
-    median: item.medianMs,
-    p90: item.p90Ms,
-    visits: item.visits,
-  }));
+  const maxAvg = Math.max(...(data?.items ?? []).map((i) => i.avgMs ?? 0), 1);
+
+  const columns = [
+    {
+      title: '页面',
+      dataIndex: 'pagePath',
+      key: 'pagePath',
+      render: (_: unknown, record: PageStatItem) => (
+        <div>
+          <div style={{ fontWeight: 500 }}>{record.pageTitle ?? record.pagePath}</div>
+          <Text type="tertiary" size="small">{record.pagePath}</Text>
+        </div>
+      ),
+    },
+    {
+      title: '访问次数',
+      dataIndex: 'visits',
+      key: 'visits',
+      width: 100,
+      render: (v: number) => <Tag color="blue" size="small">{v.toLocaleString()}</Tag>,
+    },
+    {
+      title: '平均停留',
+      dataIndex: 'avgMs',
+      key: 'avgMs',
+      width: 220,
+      render: (v: number | null) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Progress percent={Math.round(((v ?? 0) / maxAvg) * 100)} showInfo={false} style={{ width: 80 }} size="small" />
+          <Text size="small">{msToReadable(v)}</Text>
+        </div>
+      ),
+    },
+    {
+      title: '中位数',
+      dataIndex: 'medianMs',
+      key: 'medianMs',
+      width: 100,
+      render: (v: number | null) => <Text size="small">{msToReadable(v)}</Text>,
+    },
+    {
+      title: 'P90',
+      dataIndex: 'p90Ms',
+      key: 'p90Ms',
+      width: 100,
+      render: (v: number | null) => <Text size="small">{msToReadable(v)}</Text>,
+    },
+  ];
 
   return (
-    <div style={{ padding: '0 4px' }}>
+    <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <Select value={days} onChange={(v) => setDays(v as number)} style={{ width: 120 }}>
           {DAYS_OPTIONS.map((o) => <Select.Option key={o.value} value={o.value}>{o.label}</Select.Option>)}
@@ -62,35 +99,15 @@ function PageDwellTab() {
         <Button icon={<RefreshCcw size={14} />} onClick={load} loading={loading}>刷新</Button>
         {data && <Text type="tertiary">共 {data.totalVisits.toLocaleString()} 次访问，{data.items.length} 个页面</Text>}
       </div>
-
-      <Spin spinning={loading}>
-        {chartData.length === 0 && !loading
-          ? <Empty description="暂无数据" style={{ padding: 60 }} />
-          : (
-            <ResponsiveContainer width="100%" height={380}>
-              <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 40, left: 120, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" tickFormatter={(v) => msToReadable(v as number)} tick={{ fontSize: 12 }} />
-                <YAxis type="category" dataKey="name" width={115} tick={{ fontSize: 12 }} />
-                <Tooltip
-                  formatter={(value, name) => {
-                    let label = 'P90';
-                    if (name === 'avg') label = '均值';
-                    else if (name === 'median') label = '中位数';
-                    return [msToReadable(value as number), label];
-                  }}
-                  labelFormatter={(label, payload) => {
-                    const visits = payload?.[0]?.payload?.visits;
-                    return `${label as string}（${visits ?? 0} 次访问）`;
-                  }}
-                />
-                <Bar dataKey="avg" name="avg" fill="#4f8df9" maxBarSize={16} radius={[0, 4, 4, 0]} />
-                <Bar dataKey="median" name="median" fill="#67d9c2" maxBarSize={16} radius={[0, 4, 4, 0]} />
-                <Bar dataKey="p90" name="p90" fill="#f5a623" maxBarSize={16} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-      </Spin>
+      <Table
+        columns={columns}
+        dataSource={data?.items ?? []}
+        loading={loading}
+        rowKey="pagePath"
+        bordered
+        empty={<Empty description="暂无停留时长数据" style={{ padding: 60 }} />}
+        pagination={false}
+      />
     </div>
   );
 }
@@ -114,16 +131,59 @@ function FeatureUsageTab() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const chartData = (data?.items ?? []).map((item: FeatureStatItem, i: number) => ({
-    name: item.elementLabel ?? item.elementKey,
-    page: item.pagePath,
-    area: item.componentArea ?? '–',
-    count: item.count,
-    fill: CHART_COLORS[i % CHART_COLORS.length],
-  }));
+  const maxCount = Math.max(...(data?.items ?? []).map((i) => i.count), 1);
+
+  const columns = [
+    {
+      title: '排名',
+      key: 'rank',
+      width: 60,
+      render: (_: unknown, __: unknown, index: number) => (
+        <Text type={index < 3 ? 'warning' : 'tertiary'} strong={index < 3}>{index + 1}</Text>
+      ),
+    },
+    {
+      title: '功能名称',
+      dataIndex: 'elementKey',
+      key: 'elementKey',
+      render: (_: unknown, record: FeatureStatItem) => (
+        <div>
+          <div style={{ fontWeight: 500 }}>{record.elementLabel ?? record.elementKey}</div>
+          <Text type="tertiary" size="small">{record.elementKey}</Text>
+        </div>
+      ),
+    },
+    {
+      title: 'UI 区域',
+      dataIndex: 'componentArea',
+      key: 'componentArea',
+      width: 140,
+      render: (v: string | null) => v ? <Tag size="small">{v}</Tag> : <Text type="tertiary">–</Text>,
+    },
+    {
+      title: '所在页面',
+      dataIndex: 'pagePath',
+      key: 'pagePath',
+      width: 200,
+      render: (v: string) => <Text size="small" type="tertiary">{v}</Text>,
+    },
+    {
+      title: '使用次数',
+      dataIndex: 'count',
+      key: 'count',
+      width: 220,
+      render: (v: number) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Progress percent={Math.round((v / maxCount) * 100)} showInfo={false} style={{ width: 80 }} size="small" stroke="var(--semi-color-success)" />
+          <Text strong>{v.toLocaleString()}</Text>
+          <Text type="tertiary" size="small">次</Text>
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <div style={{ padding: '0 4px' }}>
+    <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <Select value={days} onChange={(v) => setDays(v as number)} style={{ width: 120 }}>
           {DAYS_OPTIONS.map((o) => <Select.Option key={o.value} value={o.value}>{o.label}</Select.Option>)}
@@ -131,33 +191,15 @@ function FeatureUsageTab() {
         <Button icon={<RefreshCcw size={14} />} onClick={load} loading={loading}>刷新</Button>
         {data && <Text type="tertiary">共 {data.totalEvents.toLocaleString()} 次操作，{data.items.length} 个功能</Text>}
       </div>
-
-      <Spin spinning={loading}>
-        {chartData.length === 0 && !loading
-          ? <Empty description="暂无数据" style={{ padding: 60 }} />
-          : (
-            <ResponsiveContainer width="100%" height={380}>
-              <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 40, left: 130, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 12 }} />
-                <YAxis type="category" dataKey="name" width={125} tick={{ fontSize: 12 }} />
-                <Tooltip
-                  formatter={(value) => [`${(value as number).toLocaleString()} 次`, '使用次数']}
-                  labelFormatter={(label, payload) => {
-                    const item = payload?.[0]?.payload;
-                    return item ? `${label as string}（${item.page as string} · ${item.area as string}）` : (label as string);
-                  }}
-                />
-                <Bar
-                  dataKey="count"
-                  maxBarSize={18}
-                  radius={[0, 4, 4, 0]}
-                  fill="#4f8df9"
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-      </Spin>
+      <Table
+        columns={columns}
+        dataSource={data?.items ?? []}
+        loading={loading}
+        rowKey={(r: FeatureStatItem) => `${r.pagePath}_${r.elementKey}`}
+        bordered
+        empty={<Empty description="暂无功能使用数据" style={{ padding: 60 }} />}
+        pagination={false}
+      />
     </div>
   );
 }
@@ -201,8 +243,7 @@ function HeatmapCanvas({ data }: Readonly<{ data: HeatmapData }>) {
   }
 
   return (
-    <div style={{ position: 'relative', display: 'inline-block', border: '1px solid var(--semi-color-border)', borderRadius: 6, overflow: 'hidden', width: '100%' }}>
-      {/* Background grid to represent the component area */}
+    <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, overflow: 'hidden' }}>
       <div style={{ width: '100%', paddingBottom: '45%', background: 'var(--semi-color-fill-0)', position: 'relative' }}>
         <canvas
           ref={canvasRef}
@@ -211,9 +252,9 @@ function HeatmapCanvas({ data }: Readonly<{ data: HeatmapData }>) {
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
         />
       </div>
-      <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ padding: '8px 12px', borderTop: '1px solid var(--semi-color-border)' }}>
         <Text size="small" type="tertiary">
-          {data.total.toLocaleString()} 次点击 · {data.pagePath} · {data.componentArea}
+          {data.total.toLocaleString()} 次点击 · 页面：{data.pagePath} · 区域：{data.componentArea}
         </Text>
       </div>
     </div>
@@ -266,7 +307,7 @@ function HeatmapTab() {
   useEffect(() => { void loadHeatmap(); }, [loadHeatmap]);
 
   return (
-    <div style={{ padding: '0 4px' }}>
+    <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <Select value={days} onChange={(v) => setDays(v as number)} style={{ width: 120 }}>
           {DAYS_OPTIONS.map((o) => <Select.Option key={o.value} value={o.value}>{o.label}</Select.Option>)}
@@ -303,7 +344,10 @@ function HeatmapTab() {
 
       <Spin spinning={loading}>
         {(!selectedPage || !selectedArea) && (
-          <Empty description={pages.length === 0 ? '暂无热力图数据，请先在页面中接入区域点击追踪' : '请选择页面和组件区域'} style={{ padding: 60 }} />
+          <Empty
+            description={pages.length === 0 ? '暂无热力图数据，请先在页面中接入区域点击追踪' : '请选择页面和组件区域'}
+            style={{ padding: 60 }}
+          />
         )}
         {selectedPage && selectedArea && heatmapData && <HeatmapCanvas data={heatmapData} />}
       </Spin>
@@ -318,11 +362,6 @@ export default function AnalyticsPage() {
 
   return (
     <div className="page-container">
-      <div style={{ marginBottom: 16 }}>
-        <Title heading={5} style={{ margin: 0 }}>行为分析</Title>
-        <Text type="tertiary" size="small">分析用户在系统中的页面停留时长、功能使用频率和点击热力图</Text>
-      </div>
-
       <Tabs type="line" defaultActiveKey="dwell">
         <TabPane
           tab={<span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Clock size={14} />页面停留时长</span>}
