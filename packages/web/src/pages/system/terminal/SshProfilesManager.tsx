@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Button, Modal, Form, Toast, Typography, Tag, Space, Popconfirm,
+  Button, Form, Toast, Typography, Tag, Space, Popconfirm,
   Select,
 } from '@douyinfe/semi-ui';
+import { AppModal } from '@/components/AppModal';
 import { Plus, Pencil, Trash2, Server, ChevronUp, ChevronDown } from 'lucide-react';
 import { request } from '@/utils/request';
 
@@ -200,12 +201,12 @@ export default function SshProfilesManager({ onConnect }: Readonly<SshProfilesMa
       </div>
 
       {/* 新建/编辑弹窗 */}
-      <Modal
+      <AppModal
         title={editingProfile ? '编辑 SSH 配置' : '新建 SSH 配置'}
         visible={modalVisible}
         onCancel={() => setModalVisible(false)}
         footer={null}
-        closeOnEsc
+        fullscreenable={false}
         width={520}
         style={{ top: '5vh' }}
         keepDOM={false}
@@ -278,7 +279,7 @@ export default function SshProfilesManager({ onConnect }: Readonly<SshProfilesMa
             <Button type="primary" htmlType="submit" loading={saving}>保存</Button>
           </div>
         </Form>
-      </Modal>
+      </AppModal>
     </div>
   );
 }
