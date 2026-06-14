@@ -4,6 +4,34 @@
 
 ---
 
+## v0.57.0 - 2026-06-14
+
+### Added
+
+#### 数据脱敏
+
+- 新增「扫描敏感字段」功能：自动扫描数据库 `information_schema.columns`，识别字段名含 `phone`、`mobile`、`email`、`id_card`、`idCard`、`certNo`、`bank`、`bankCard`、`real_name`、`realName` 等关键字的敏感列
+- 扫描结果以表格形式展示，支持内联编辑实体名、字段标签和脱敏类型，默认勾选未配置规则的字段
+- 支持一键批量生成脱敏规则（`POST /api/data-mask-configs/batch-create`），重复规则自动跳过
+- 新增 `GET /api/data-mask-configs/scan` 接口，同步覆盖 MSW Demo Mock
+
+#### 行为分析
+
+- 新增用户行为分析页面（页面停留时长、功能使用频率、点击热力图统计）
+- 新增用户行为统计接口及 `UserStatsDTO`、`UserStatItemDTO`
+- 新增埋点事件列表与清除数据功能
+
+#### 前端错误监控
+
+- 新增前端错误上报功能及错误列表管理页面
+
+### Fixed
+
+- 修复功能使用统计表格行键类型导致的类型错误
+- 修复事件列表接口返回类型（`EventListDTO` → `EventListItemDTO`）
+
+---
+
 ## v0.56.0 - 2026-06-14
 
 ### Added
