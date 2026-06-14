@@ -9,7 +9,7 @@ import {
   HeatmapDataDTO,
   HeatmapPageListDTO,
   UserStatsDTO,
-  EventListDTO,
+  EventListItemDTO,
 } from '../lib/openapi-dtos';
 import {
   batchInsertEvents,
@@ -177,7 +177,7 @@ const eventListRoute = defineOpenAPIRoute({
         pagePath: z.string().optional(),
       }),
     },
-    responses: { ...okPaginated(EventListDTO, '事件列表'), ...commonErrorResponses },
+    responses: { ...okPaginated(EventListItemDTO, '事件列表'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await listAnalyticsEvents(c.req.valid('query'))), 200),
 });
