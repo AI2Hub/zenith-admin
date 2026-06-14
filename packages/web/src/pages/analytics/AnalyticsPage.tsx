@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Button, Select, Spin, Tabs, TabPane, Typography, Empty, Tag, Progress } from '@douyinfe/semi-ui';
-import { Clock, MousePointerClick, Flame, RefreshCcw } from 'lucide-react';
+import { Button, Select, Spin, Tabs, TabPane, Typography, Empty, Tag, Progress, Card } from '@douyinfe/semi-ui';
+import { Clock, MousePointerClick, Flame, RefreshCcw, TrendingUp, BarChart3, Target, Activity } from 'lucide-react';
 import { request } from '@/utils/request';
 import type { PageStats, PageStatItem, FeatureStats, FeatureStatItem, HeatmapData, HeatmapPageListItem } from '@zenith/shared';
 import { usePageTracker } from '@/hooks/usePageTracker';
@@ -17,11 +17,48 @@ function msToReadable(ms: number | null): string {
   return `${Math.floor(ms / 60_000)}m ${Math.floor((ms % 60_000) / 1000)}s`;
 }
 
+/** Returns a CSS rgba color for heatmap cells: blue(cold) → red(hot) based on 0-1 intensity */
+function heatColor(intensity: number, alpha = 0.18): string {
+  if (intensity <= 0.33) {
+    return `rgba(79, 141, 249, ${alpha + intensity * alpha})`; // blue
+  } else if (intensity <= 0.66) {
+    return `rgba(245, 166, 35, ${alpha + intensity * alpha})`; // yellow-orange
+  }
+  return `rgba(232, 107, 107, ${alpha + intensity * alpha})`; // red
+}
+
 const DAYS_OPTIONS = [
   { label: '近 7 天', value: 7 },
   { label: '近 30 天', value: 30 },
   { label: '近 90 天', value: 90 },
 ];
+
+// ─── Stat Card ───────────────────────────────────────────────────────────────
+
+interface StatCardProps {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  sub?: string;
+  color?: string;
+}
+
+function StatCard({ icon, label, value, sub, color = 'var(--semi-color-primary)' }: Readonly<StatCardProps>) {
+  return (
+    <Card style={{ flex: '1 1 180px', minWidth: 0 }} bodyStyle={{ padding: '12px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 8, background: `${color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', color, flexShrink: 0 }}>
+          {icon}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <Text type="tertiary" size="small">{label}</Text>
+          <div style={{ fontSize: 20, fontWeight: 700, lineHeight: '1.3', color: 'var(--semi-color-text-0)' }}>{value}</div>
+          {sub && <Text type="tertiary" size="small">{sub}</Text>}
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 // ─── Page Dwell Time Tab ─────────────────────────────────────────────────────
 
@@ -43,6 +80,8 @@ function PageDwellTab() {
   useEffect(() => { void load(); }, [load]);
 
   const maxAvg = Math.max(...(data?.items ?? []).map((i) => i.avgMs ?? 0), 1);
+  const totalPages = data?.items.length ?? 0;
+  const longestPage = data?.items[0];
 
   const columns = [
     {
@@ -68,12 +107,15 @@ function PageDwellTab() {
       dataIndex: 'avgMs',
       key: 'avgMs',
       width: 220,
-      render: (v: number | null) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Progress percent={Math.round(((v ?? 0) / maxAvg) * 100)} showInfo={false} style={{ width: 80 }} size="small" />
-          <Text size="small">{msToReadable(v)}</Text>
-        </div>
-      ),
+      render: (v: number | null) => {
+        const intensity = (v ?? 0) / maxAvg;
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 6px', borderRadius: 4, background: heatColor(intensity) }}>
+            <Progress percent={Math.round(intensity * 100)} showInfo={false} style={{ width: 70 }} size="small" />
+            <Text size="small" strong>{msToReadable(v)}</Text>
+          </div>
+        );
+      },
     },
     {
       title: '中位数',
@@ -93,11 +135,16 @@ function PageDwellTab() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+      {/* Summary cards */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+        <StatCard icon={<Clock size={18} />} label="总访问次数" value={(data?.totalVisits ?? 0).toLocaleString()} sub={`${totalPages} 个页面`} />
+        <StatCard icon={<TrendingUp size={18} />} label="最长停留页面" value={longestPage ? msToReadable(longestPage.avgMs) : '–'} sub={longestPage?.pageTitle ?? longestPage?.pagePath ?? '暂无数据'} color="var(--semi-color-success)" />
+        <StatCard icon={<BarChart3 size={18} />} label="整体均值" value={data ? msToReadable(Math.round(data.items.reduce((s, i) => s + (i.avgMs ?? 0), 0) / Math.max(data.items.length, 1))) : '–'} sub="各页面平均停留时长均值" color="var(--semi-color-warning)" />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
         <Select value={days} onChange={(v) => setDays(v as number)} style={{ width: 120 }}>
           {DAYS_OPTIONS.map((o) => <Select.Option key={o.value} value={o.value}>{o.label}</Select.Option>)}
         </Select>
-        {data && <Text type="tertiary">共 {data.totalVisits.toLocaleString()} 次访问，{data.items.length} 个页面</Text>}
       </div>
       <ConfigurableTable
         columns={columns}
@@ -134,6 +181,7 @@ function FeatureUsageTab() {
   useEffect(() => { void load(); }, [load]);
 
   const maxCount = Math.max(...(data?.items ?? []).map((i) => i.count), 1);
+  const topFeature = data?.items[0];
 
   const columns = [
     {
@@ -174,23 +222,31 @@ function FeatureUsageTab() {
       dataIndex: 'count',
       key: 'count',
       width: 220,
-      render: (v: number) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Progress percent={Math.round((v / maxCount) * 100)} showInfo={false} style={{ width: 80 }} size="small" stroke="var(--semi-color-success)" />
-          <Text strong>{v.toLocaleString()}</Text>
-          <Text type="tertiary" size="small">次</Text>
-        </div>
-      ),
+      render: (v: number) => {
+        const intensity = v / maxCount;
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 6px', borderRadius: 4, background: heatColor(intensity) }}>
+            <Progress percent={Math.round(intensity * 100)} showInfo={false} style={{ width: 70 }} size="small" stroke="var(--semi-color-success)" />
+            <Text strong>{v.toLocaleString()}</Text>
+            <Text type="tertiary" size="small">次</Text>
+          </div>
+        );
+      },
     },
   ];
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+      {/* Summary cards */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+        <StatCard icon={<MousePointerClick size={18} />} label="总操作次数" value={(data?.totalEvents ?? 0).toLocaleString()} sub={`${data?.items.length ?? 0} 个功能`} />
+        <StatCard icon={<Target size={18} />} label="最高频功能" value={topFeature ? (topFeature.elementLabel ?? topFeature.elementKey) : '–'} sub={topFeature ? `${topFeature.count.toLocaleString()} 次` : '暂无数据'} color="var(--semi-color-success)" />
+        <StatCard icon={<Activity size={18} />} label="功能人均使用" value={data && data.items.length > 0 ? `${Math.round(data.totalEvents / data.items.length)} 次` : '–'} sub="每个功能平均被使用次数" color="var(--semi-color-warning)" />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
         <Select value={days} onChange={(v) => setDays(v as number)} style={{ width: 120 }}>
           {DAYS_OPTIONS.map((o) => <Select.Option key={o.value} value={o.value}>{o.label}</Select.Option>)}
         </Select>
-        {data && <Text type="tertiary">共 {data.totalEvents.toLocaleString()} 次操作，{data.items.length} 个功能</Text>}
       </div>
       <ConfigurableTable
         columns={columns}
@@ -345,10 +401,38 @@ function HeatmapTab() {
         <Button icon={<RefreshCcw size={14} />} onClick={loadPages} loading={pagesLoading}>刷新</Button>
       </div>
 
+      {pages.length > 0 && (
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+          {pages.map((p) => (
+            <Card
+              key={p.pagePath}
+              style={{ flex: '0 0 auto', cursor: 'pointer', border: selectedPage === p.pagePath ? '1px solid var(--semi-color-primary)' : undefined }}
+              bodyStyle={{ padding: '8px 14px' }}
+              onClick={() => { setSelectedPage(p.pagePath); setSelectedArea(null); }}
+            >
+              <Text strong size="small">{p.pageTitle ?? p.pagePath}</Text>
+              <div>
+                {p.areas.map((area) => (
+                  <Tag
+                    key={area}
+                    size="small"
+                    color={selectedPage === p.pagePath && selectedArea === area ? 'blue' : 'grey'}
+                    style={{ marginRight: 4, marginTop: 4, cursor: 'pointer' }}
+                    onClick={(e) => { e.stopPropagation(); setSelectedPage(p.pagePath); setSelectedArea(area); }}
+                  >
+                    {area}
+                  </Tag>
+                ))}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
       <Spin spinning={loading}>
         {(!selectedPage || !selectedArea) && (
           <Empty
-            description={pages.length === 0 ? '暂无热力图数据，请先在页面中接入区域点击追踪' : '请选择页面和组件区域'}
+            description={pages.length === 0 ? '暂无热力图数据，请先在页面中接入区域点击追踪' : '请在上方选择页面和区域'}
             style={{ padding: 60 }}
           />
         )}
