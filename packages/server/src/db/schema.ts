@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, unique, text, uniqueIndex, jsonb, smallint, real, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, unique, text, uniqueIndex, index, jsonb, smallint, real, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 export const statusEnum = pgEnum('status', ['enabled', 'disabled']);
@@ -1249,6 +1249,155 @@ export const chatMessageReactions = pgTable('chat_message_reactions', {
 ]);
 
 export type ChatMessageReactionRow = typeof chatMessageReactions.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 支付中心（Payment Center）
+// ═══════════════════════════════════════════════════════════════════════════
+export const paymentChannelEnum = pgEnum('payment_channel', ['wechat', 'alipay']);
+export const paymentMethodEnum = pgEnum('payment_method', [
+  'wechat_native', 'wechat_jsapi', 'wechat_h5',
+  'alipay_page', 'alipay_wap', 'alipay_app',
+]);
+export const paymentOrderStatusEnum = pgEnum('payment_order_status', [
+  'pending', 'paying', 'success', 'closed', 'refunding', 'refunded', 'failed',
+]);
+export const paymentRefundStatusEnum = pgEnum('payment_refund_status', [
+  'pending', 'processing', 'success', 'failed',
+]);
+
+// ─── 支付渠道配置表（密钥字段以 encryptField 加密存储）─────────────────────────
+export const paymentChannelConfigs = pgTable('payment_channel_configs', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 64 }).notNull(),
+  channel: paymentChannelEnum('channel').notNull(),
+  status: statusEnum('status').notNull().default('enabled'),
+  isDefault: boolean('is_default').notNull().default(false),
+  sandbox: boolean('sandbox').notNull().default(false),
+  notifyUrl: varchar('notify_url', { length: 512 }),
+  // 微信支付 v3
+  wechatAppId: varchar('wechat_app_id', { length: 64 }),
+  wechatMchId: varchar('wechat_mch_id', { length: 64 }),
+  wechatApiV3KeyEncrypted: text('wechat_api_v3_key_encrypted'),
+  wechatPrivateKeyEncrypted: text('wechat_private_key_encrypted'),
+  wechatSerialNo: varchar('wechat_serial_no', { length: 128 }),
+  wechatPlatformCert: text('wechat_platform_cert'),
+  // 支付宝
+  alipayAppId: varchar('alipay_app_id', { length: 64 }),
+  alipayPrivateKeyEncrypted: text('alipay_private_key_encrypted'),
+  alipayPublicKey: text('alipay_public_key'),
+  alipaySignType: varchar('alipay_sign_type', { length: 16 }).default('RSA2'),
+  alipayGateway: varchar('alipay_gateway', { length: 256 }),
+  remark: varchar('remark', { length: 256 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+
+export type PaymentChannelConfigRow = typeof paymentChannelConfigs.$inferSelect;
+export type NewPaymentChannelConfig = typeof paymentChannelConfigs.$inferInsert;
+
+// ─── 支付订单表（核心交易表）──────────────────────────────────────────────────
+export const paymentOrders = pgTable('payment_orders', {
+  id: serial('id').primaryKey(),
+  orderNo: varchar('order_no', { length: 64 }).notNull().unique(),
+  outTradeNo: varchar('out_trade_no', { length: 64 }).notNull(),
+  channelTradeNo: varchar('channel_trade_no', { length: 128 }),
+  bizType: varchar('biz_type', { length: 64 }).notNull(),
+  bizId: varchar('biz_id', { length: 128 }).notNull(),
+  subject: varchar('subject', { length: 256 }).notNull(),
+  body: varchar('body', { length: 512 }),
+  amount: integer('amount').notNull(),
+  currency: varchar('currency', { length: 8 }).notNull().default('CNY'),
+  channel: paymentChannelEnum('channel').notNull(),
+  channelConfigId: integer('channel_config_id').references(() => paymentChannelConfigs.id, { onDelete: 'set null' }),
+  payMethod: paymentMethodEnum('pay_method').notNull(),
+  status: paymentOrderStatusEnum('status').notNull().default('pending'),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  openId: varchar('open_id', { length: 128 }),
+  clientIp: varchar('client_ip', { length: 64 }),
+  departmentId: integer('department_id').references(() => departments.id, { onDelete: 'set null' }),
+  paidAmount: integer('paid_amount'),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  expiredAt: timestamp('expired_at', { withTimezone: true }),
+  notifyData: text('notify_data'),
+  errorMessage: varchar('error_message', { length: 512 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  unique('payment_orders_channel_out_trade_no_uq').on(t.channel, t.outTradeNo),
+  index('payment_orders_biz_idx').on(t.bizType, t.bizId),
+  index('payment_orders_status_idx').on(t.status),
+  index('payment_orders_expired_idx').on(t.expiredAt),
+]);
+
+export type PaymentOrderRow = typeof paymentOrders.$inferSelect;
+export type NewPaymentOrder = typeof paymentOrders.$inferInsert;
+
+// ─── 支付退款表 ───────────────────────────────────────────────────────────────
+export const paymentRefunds = pgTable('payment_refunds', {
+  id: serial('id').primaryKey(),
+  refundNo: varchar('refund_no', { length: 64 }).notNull().unique(),
+  outRefundNo: varchar('out_refund_no', { length: 64 }).notNull(),
+  orderNo: varchar('order_no', { length: 64 }).notNull(),
+  orderId: integer('order_id').references(() => paymentOrders.id, { onDelete: 'cascade' }),
+  channelRefundNo: varchar('channel_refund_no', { length: 128 }),
+  channel: paymentChannelEnum('channel').notNull(),
+  refundAmount: integer('refund_amount').notNull(),
+  totalAmount: integer('total_amount').notNull(),
+  reason: varchar('reason', { length: 256 }),
+  status: paymentRefundStatusEnum('status').notNull().default('pending'),
+  operatorId: integer('operator_id').references(() => users.id, { onDelete: 'set null' }),
+  refundedAt: timestamp('refunded_at', { withTimezone: true }),
+  notifyData: text('notify_data'),
+  errorMessage: varchar('error_message', { length: 512 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  index('payment_refunds_order_no_idx').on(t.orderNo),
+  index('payment_refunds_status_idx').on(t.status),
+]);
+
+export type PaymentRefundRow = typeof paymentRefunds.$inferSelect;
+export type NewPaymentRefund = typeof paymentRefunds.$inferInsert;
+
+// ─── 支付回调日志表（追加型，不含审计列）──────────────────────────────────────
+export const paymentNotifyLogs = pgTable('payment_notify_logs', {
+  id: serial('id').primaryKey(),
+  channel: paymentChannelEnum('channel').notNull(),
+  scene: varchar('scene', { length: 16 }).notNull().default('payment'),
+  orderNo: varchar('order_no', { length: 64 }),
+  rawBody: text('raw_body'),
+  headers: text('headers'),
+  signatureValid: boolean('signature_valid').notNull().default(false),
+  result: varchar('result', { length: 32 }),
+  message: varchar('message', { length: 512 }),
+  ip: varchar('ip', { length: 64 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('payment_notify_logs_order_no_idx').on(t.orderNo),
+]);
+
+export type PaymentNotifyLogRow = typeof paymentNotifyLogs.$inferSelect;
+export type NewPaymentNotifyLog = typeof paymentNotifyLogs.$inferInsert;
+
+// ─── 支付中心关系声明 ─────────────────────────────────────────────────────────
+export const paymentChannelConfigsRelations = relations(paymentChannelConfigs, ({ many }) => ({
+  orders: many(paymentOrders),
+}));
+export const paymentOrdersRelations = relations(paymentOrders, ({ one, many }) => ({
+  channelConfig: one(paymentChannelConfigs, { fields: [paymentOrders.channelConfigId], references: [paymentChannelConfigs.id] }),
+  user: one(users, { fields: [paymentOrders.userId], references: [users.id] }),
+  refunds: many(paymentRefunds),
+}));
+export const paymentRefundsRelations = relations(paymentRefunds, ({ one }) => ({
+  order: one(paymentOrders, { fields: [paymentRefunds.orderId], references: [paymentOrders.id] }),
+}));
 
 // ─── 关系声明（Drizzle Relational Query API）──────────────────────────────────
 // 声明后可使用 db.query.xxx.findMany({ with: { ... } }) 进行关联查询

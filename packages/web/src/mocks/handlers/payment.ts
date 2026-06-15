@@ -1,0 +1,181 @@
+import { http, HttpResponse } from 'msw';
+import {
+  mockPaymentChannels,
+  getNextPaymentChannelId,
+  mockPaymentOrders,
+  getNextPaymentOrderId,
+  mockPaymentRefunds,
+  getNextPaymentRefundId,
+  mockPaymentLogs,
+} from '@/mocks/data/payment';
+import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
+import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared';
+import type { PaymentChannelConfig, PaymentMethod, PaymentOrder, PaymentRefund } from '@zenith/shared';
+
+function paginate<T>(list: T[], url: URL) {
+  const page = Number(url.searchParams.get('page')) || 1;
+  const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+  return { list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize };
+}
+
+export const paymentHandlers = [
+  // ── 渠道配置 ──
+  http.get('/api/payment/channels/all', () => HttpResponse.json({ code: 0, message: 'ok', data: mockPaymentChannels })),
+  http.get('/api/payment/channels', ({ request }) => {
+    const url = new URL(request.url);
+    const keyword = url.searchParams.get('keyword') ?? '';
+    const channel = url.searchParams.get('channel') ?? '';
+    const status = url.searchParams.get('status') ?? '';
+    const filtered = mockPaymentChannels.filter(
+      (c) => (!keyword || c.name.includes(keyword)) && (!channel || c.channel === channel) && (!status || c.status === status),
+    );
+    return HttpResponse.json({ code: 0, message: 'ok', data: paginate(filtered, url) });
+  }),
+  http.get('/api/payment/channels/:id', ({ params }) => {
+    const c = mockPaymentChannels.find((x) => x.id === Number(params.id));
+    return c ? HttpResponse.json({ code: 0, message: 'ok', data: c }) : HttpResponse.json({ code: 404, message: '不存在', data: null });
+  }),
+  http.post('/api/payment/channels', async ({ request }) => {
+    const body = (await request.json()) as Partial<PaymentChannelConfig> & { wechatApiV3Key?: string; wechatPrivateKey?: string; alipayPrivateKey?: string };
+    const now = mockDateTime();
+    const item: PaymentChannelConfig = {
+      id: getNextPaymentChannelId(),
+      name: body.name ?? '',
+      channel: body.channel ?? 'wechat',
+      status: body.status ?? 'enabled',
+      isDefault: body.isDefault ?? false,
+      sandbox: body.sandbox ?? false,
+      notifyUrl: body.notifyUrl ?? null,
+      wechatAppId: body.wechatAppId ?? null,
+      wechatMchId: body.wechatMchId ?? null,
+      wechatSerialNo: body.wechatSerialNo ?? null,
+      wechatPlatformCert: body.wechatPlatformCert ?? null,
+      hasWechatApiV3Key: Boolean(body.wechatApiV3Key),
+      hasWechatPrivateKey: Boolean(body.wechatPrivateKey),
+      alipayAppId: body.alipayAppId ?? null,
+      alipayPublicKey: body.alipayPublicKey ?? null,
+      alipaySignType: body.alipaySignType ?? 'RSA2',
+      alipayGateway: body.alipayGateway ?? null,
+      hasAlipayPrivateKey: Boolean(body.alipayPrivateKey),
+      remark: body.remark ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    mockPaymentChannels.push(item);
+    return HttpResponse.json({ code: 0, message: '创建成功', data: item });
+  }),
+  http.put('/api/payment/channels/:id', async ({ params, request }) => {
+    const c = mockPaymentChannels.find((x) => x.id === Number(params.id));
+    if (!c) return HttpResponse.json({ code: 404, message: '不存在', data: null });
+    const body = (await request.json()) as Record<string, unknown>;
+    Object.assign(c, body, { updatedAt: mockDateTime() });
+    return HttpResponse.json({ code: 0, message: '更新成功', data: c });
+  }),
+  http.delete('/api/payment/channels/:id', ({ params }) => {
+    const i = mockPaymentChannels.findIndex((x) => x.id === Number(params.id));
+    if (i === -1) return HttpResponse.json({ code: 404, message: '不存在', data: null });
+    mockPaymentChannels.splice(i, 1);
+    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+  }),
+
+  // ── 支付订单 ──
+  http.get('/api/payment/orders', ({ request }) => {
+    const url = new URL(request.url);
+    const keyword = url.searchParams.get('keyword') ?? '';
+    const channel = url.searchParams.get('channel') ?? '';
+    const status = url.searchParams.get('status') ?? '';
+    const bizType = url.searchParams.get('bizType') ?? '';
+    const filtered = mockPaymentOrders.filter(
+      (o) =>
+        (!keyword || o.orderNo.includes(keyword) || o.subject.includes(keyword)) &&
+        (!channel || o.channel === channel) &&
+        (!status || o.status === status) &&
+        (!bizType || o.bizType === bizType),
+    );
+    return HttpResponse.json({ code: 0, message: 'ok', data: paginate(filtered, url) });
+  }),
+  http.post('/api/payment/orders', async ({ request }) => {
+    const body = (await request.json()) as { bizType: string; bizId: string; subject: string; amount: number; payMethod: PaymentMethod; openId?: string };
+    const channel = PAYMENT_METHOD_CHANNEL[body.payMethod];
+    const orderNo = `PAY${Date.now()}`;
+    const now = mockDateTime();
+    const order: PaymentOrder = {
+      id: getNextPaymentOrderId(), orderNo, outTradeNo: orderNo, channelTradeNo: null, bizType: body.bizType, bizId: body.bizId,
+      subject: body.subject, body: null, amount: body.amount, currency: 'CNY', channel, channelConfigId: channel === 'wechat' ? 1 : 2,
+      payMethod: body.payMethod, status: 'paying', userId: 1, openId: body.openId ?? null, clientIp: '127.0.0.1', departmentId: null,
+      paidAmount: null, paidAt: null, expiredAt: mockDateTimeOffset(30 * 60 * 1000), errorMessage: null, createdAt: now, updatedAt: now,
+    };
+    mockPaymentOrders.unshift(order);
+    const payParams = {
+      orderNo,
+      channel,
+      payMethod: body.payMethod,
+      codeUrl: channel === 'wechat' ? `weixin://wxpay/bizpayurl?pr=${orderNo}` : undefined,
+      payUrl: channel === 'alipay' ? `https://openapi.alipaydev.com/gateway.do?out_trade_no=${orderNo}` : undefined,
+    };
+    return HttpResponse.json({ code: 0, message: '下单成功', data: { orderNo, payParams } });
+  }),
+  http.get('/api/payment/orders/:id', ({ params }) => {
+    const o = mockPaymentOrders.find((x) => x.id === Number(params.id));
+    return o ? HttpResponse.json({ code: 0, message: 'ok', data: o }) : HttpResponse.json({ code: 404, message: '不存在', data: null });
+  }),
+  http.post('/api/payment/orders/:id/query', ({ params }) => {
+    const o = mockPaymentOrders.find((x) => x.id === Number(params.id));
+    if (!o) return HttpResponse.json({ code: 404, message: '不存在', data: null });
+    if (o.status === 'paying') {
+      o.status = 'success';
+      o.paidAmount = o.amount;
+      o.paidAt = mockDateTime();
+      o.updatedAt = mockDateTime();
+    }
+    return HttpResponse.json({ code: 0, message: '已同步', data: o });
+  }),
+  http.post('/api/payment/orders/:id/close', ({ params }) => {
+    const o = mockPaymentOrders.find((x) => x.id === Number(params.id));
+    if (!o) return HttpResponse.json({ code: 404, message: '不存在', data: null });
+    o.status = 'closed';
+    o.updatedAt = mockDateTime();
+    return HttpResponse.json({ code: 0, message: '订单已关闭', data: null });
+  }),
+
+  // ── 退款 ──
+  http.post('/api/payment/refunds', async ({ request }) => {
+    const body = (await request.json()) as { orderNo: string; refundAmount: number; reason?: string };
+    const order = mockPaymentOrders.find((o) => o.orderNo === body.orderNo);
+    if (!order) return HttpResponse.json({ code: 404, message: '订单不存在', data: null });
+    const refundNo = `REF${Date.now()}`;
+    const now = mockDateTime();
+    const refund: PaymentRefund = {
+      id: getNextPaymentRefundId(), refundNo, outRefundNo: refundNo, orderNo: order.orderNo, orderId: order.id, channelRefundNo: `5000${Date.now()}`,
+      channel: order.channel, refundAmount: body.refundAmount, totalAmount: order.amount, reason: body.reason ?? null, status: 'success',
+      operatorId: 1, refundedAt: now, errorMessage: null, createdAt: now, updatedAt: now,
+    };
+    mockPaymentRefunds.unshift(refund);
+    order.status = body.refundAmount >= order.amount ? 'refunded' : 'success';
+    order.updatedAt = now;
+    return HttpResponse.json({ code: 0, message: '退款已发起', data: { refundNo, status: 'success' } });
+  }),
+  http.get('/api/payment/refunds', ({ request }) => {
+    const url = new URL(request.url);
+    const keyword = url.searchParams.get('keyword') ?? '';
+    const channel = url.searchParams.get('channel') ?? '';
+    const status = url.searchParams.get('status') ?? '';
+    const filtered = mockPaymentRefunds.filter(
+      (r) => (!keyword || r.refundNo.includes(keyword) || r.orderNo.includes(keyword)) && (!channel || r.channel === channel) && (!status || r.status === status),
+    );
+    return HttpResponse.json({ code: 0, message: 'ok', data: paginate(filtered, url) });
+  }),
+  http.get('/api/payment/refunds/:id', ({ params }) => {
+    const r = mockPaymentRefunds.find((x) => x.id === Number(params.id));
+    return r ? HttpResponse.json({ code: 0, message: 'ok', data: r }) : HttpResponse.json({ code: 404, message: '不存在', data: null });
+  }),
+
+  // ── 回调日志 ──
+  http.get('/api/payment/logs', ({ request }) => {
+    const url = new URL(request.url);
+    const keyword = url.searchParams.get('keyword') ?? '';
+    const channel = url.searchParams.get('channel') ?? '';
+    const filtered = mockPaymentLogs.filter((l) => (!keyword || (l.orderNo ?? '').includes(keyword)) && (!channel || l.channel === channel));
+    return HttpResponse.json({ code: 0, message: 'ok', data: paginate(filtered, url) });
+  }),
+];

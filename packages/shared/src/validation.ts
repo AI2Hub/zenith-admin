@@ -1070,3 +1070,55 @@ export const updateDbQueryFavoriteSchema = createDbQueryFavoriteSchema.partial()
 
 export type CreateDbQueryFavoriteInput = z.infer<typeof createDbQueryFavoriteSchema>;
 export type UpdateDbQueryFavoriteInput = z.infer<typeof updateDbQueryFavoriteSchema>;
+
+// ─── 支付中心 ────────────────────────────────────────────────────────
+export const createPaymentChannelConfigSchema = z.object({
+  name: z.string().min(1, '名称不能为空').max(64),
+  channel: z.enum(['wechat', 'alipay']),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  isDefault: z.boolean().default(false),
+  sandbox: z.boolean().default(false),
+  notifyUrl: z.string().max(512).optional(),
+  // 微信（明文入参，service 层加密后入库）
+  wechatAppId: z.string().max(64).optional(),
+  wechatMchId: z.string().max(64).optional(),
+  wechatApiV3Key: z.string().max(128).optional(),
+  wechatPrivateKey: z.string().optional(),
+  wechatSerialNo: z.string().max(128).optional(),
+  wechatPlatformCert: z.string().optional(),
+  // 支付宝
+  alipayAppId: z.string().max(64).optional(),
+  alipayPrivateKey: z.string().optional(),
+  alipayPublicKey: z.string().optional(),
+  alipaySignType: z.enum(['RSA2', 'RSA']).default('RSA2'),
+  alipayGateway: z.string().max(256).optional(),
+  remark: z.string().max(256).optional(),
+});
+
+export const updatePaymentChannelConfigSchema = createPaymentChannelConfigSchema.partial();
+
+/** 业务/后台发起支付下单 */
+export const createPaymentSchema = z.object({
+  bizType: z.string().min(1).max(64),
+  bizId: z.string().min(1).max(128),
+  subject: z.string().min(1).max(256),
+  body: z.string().max(512).optional(),
+  amount: z.number().int().positive('金额必须大于 0'), // 分
+  payMethod: z.enum(['wechat_native', 'wechat_jsapi', 'wechat_h5', 'alipay_page', 'alipay_wap', 'alipay_app']),
+  channelConfigId: z.number().int().positive().optional(),
+  openId: z.string().max(128).optional(),
+  userId: z.number().int().positive().optional(),
+  expireMinutes: z.number().int().positive().max(1440).default(30),
+});
+
+/** 发起退款 */
+export const createRefundSchema = z.object({
+  orderNo: z.string().min(1).max(64),
+  refundAmount: z.number().int().positive('退款金额必须大于 0'), // 分
+  reason: z.string().max(256).optional(),
+});
+
+export type CreatePaymentChannelConfigInput = z.infer<typeof createPaymentChannelConfigSchema>;
+export type UpdatePaymentChannelConfigInput = z.infer<typeof updatePaymentChannelConfigSchema>;
+export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
+export type CreateRefundInput = z.infer<typeof createRefundSchema>;

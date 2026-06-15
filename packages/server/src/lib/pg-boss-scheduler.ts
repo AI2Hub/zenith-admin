@@ -85,6 +85,18 @@ handlerRegistry.set('cleanupTerminalRecordings', async () => {
   return `清理终端录屏：按保留天数删除 ${r.deletedByAge} 条、按容量删除 ${r.deletedBySize} 条，释放约 ${(r.freedBytes / 1024 / 1024).toFixed(2)} MB`;
 });
 
+handlerRegistry.set('closeExpiredPaymentOrders', async () => {
+  const { closeExpiredOrders } = await import('../services/payment-reconciliation.service');
+  const count = await closeExpiredOrders();
+  return `关闭过期支付订单 ${count} 笔`;
+});
+
+handlerRegistry.set('paymentReconciliation', async () => {
+  const { runReconciliation } = await import('../services/payment-reconciliation.service');
+  const r = await runReconciliation();
+  return `支付对账完成：核对 ${r.checked} 笔，纠正 ${r.fixed} 笔`;
+});
+
 /** 已注册 handler 名称列表（供前端下拉选择） */
 export function getRegisteredHandlers(): string[] {
   return Array.from(handlerRegistry.keys());

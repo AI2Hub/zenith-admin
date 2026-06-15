@@ -1,3 +1,5 @@
+import type { PaymentChannel, PaymentMethod, PaymentOrderStatus, PaymentRefundStatus } from './constants';
+
 export type EntityStatus = 'enabled' | 'disabled';
 
 // ─── 租户 ─────────────────────────────────────────────────────────────────────
@@ -628,7 +630,9 @@ export type WsMessage =
   | { type: 'chat:vote-update'; payload: { conversationId: number; messageId: number; voteData: ChatVoteData } }
   | { type: 'workflow:taskCreated'; payload: { instanceId: number; taskId: number; instanceTitle: string; nodeName: string } }
   | { type: 'workflow:taskFinished'; payload: { instanceId: number; taskId: number; decision: 'approved' | 'rejected' | 'skipped' } }
-  | { type: 'workflow:instanceFinished'; payload: { instanceId: number; status: WorkflowInstanceStatus; title: string } };
+  | { type: 'workflow:instanceFinished'; payload: { instanceId: number; status: WorkflowInstanceStatus; title: string } }
+  | { type: 'payment:success'; payload: { orderNo: string; bizType: string; bizId: string; amount: number } }
+  | { type: 'payment:refunded'; payload: { orderNo: string; refundNo: string; refundAmount: number } };
 
 /** Terminal WebSocket 消息（独立端点 /api/ws/terminal） */
 export type TerminalMessage =
@@ -1943,4 +1947,107 @@ export interface DbQueryFavorite {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+// ─── 支付中心 ────────────────────────────────────────────────────────
+export interface PaymentChannelConfig {
+  id: number;
+  name: string;
+  channel: PaymentChannel;
+  status: EntityStatus;
+  isDefault: boolean;
+  sandbox: boolean;
+  notifyUrl?: string | null;
+  // 微信（密钥字段以掩码/布尔位返回，永不返回明文）
+  wechatAppId?: string | null;
+  wechatMchId?: string | null;
+  wechatSerialNo?: string | null;
+  wechatPlatformCert?: string | null;
+  hasWechatApiV3Key?: boolean;
+  hasWechatPrivateKey?: boolean;
+  // 支付宝
+  alipayAppId?: string | null;
+  alipayPublicKey?: string | null;
+  alipaySignType?: string | null;
+  alipayGateway?: string | null;
+  hasAlipayPrivateKey?: boolean;
+  remark?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentOrder {
+  id: number;
+  orderNo: string;
+  outTradeNo: string;
+  channelTradeNo?: string | null;
+  bizType: string;
+  bizId: string;
+  subject: string;
+  body?: string | null;
+  amount: number; // 分
+  currency: string;
+  channel: PaymentChannel;
+  channelConfigId?: number | null;
+  payMethod: PaymentMethod;
+  status: PaymentOrderStatus;
+  userId?: number | null;
+  openId?: string | null;
+  clientIp?: string | null;
+  departmentId?: number | null;
+  paidAmount?: number | null;
+  paidAt?: string | null;
+  expiredAt?: string | null;
+  errorMessage?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentRefund {
+  id: number;
+  refundNo: string;
+  outRefundNo: string;
+  orderNo: string;
+  orderId?: number | null;
+  channelRefundNo?: string | null;
+  channel: PaymentChannel;
+  refundAmount: number; // 分
+  totalAmount: number; // 分
+  reason?: string | null;
+  status: PaymentRefundStatus;
+  operatorId?: number | null;
+  refundedAt?: string | null;
+  errorMessage?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentNotifyLog {
+  id: number;
+  channel: PaymentChannel;
+  scene: string;
+  orderNo?: string | null;
+  signatureValid: boolean;
+  result?: string | null;
+  message?: string | null;
+  ip?: string | null;
+  createdAt: string;
+}
+
+/** 下单返回给前端的支付参数（按支付方式不同而不同） */
+export interface CreatePaymentResult {
+  orderNo: string;
+  payMethod: PaymentMethod;
+  channel: PaymentChannel;
+  /** 微信 native：二维码内容 */
+  codeUrl?: string;
+  /** 跳转链接（支付宝 page/wap、微信 h5） */
+  payUrl?: string;
+  /** 支付宝 page 可返回自动提交表单 HTML */
+  formHtml?: string;
+  /** 微信 JSAPI：调起支付所需参数 */
+  jsapiParams?: Record<string, string>;
+  /** APP 支付：客户端调起字符串 */
+  appOrderStr?: string;
+  expiredAt?: string;
 }

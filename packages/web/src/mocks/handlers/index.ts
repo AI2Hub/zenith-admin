@@ -46,6 +46,7 @@ import { dbQueryFavoritesHandlers } from './db-query-favorites';
 import { userPermissionsHandlers } from './user-permissions';
 import { maintenanceHandlers } from './maintenance';
 import { analyticsHandlers } from './analytics';
+import { paymentHandlers } from './payment';
 
 export const handlers = [
   ...authHandlers,
@@ -96,4 +97,5 @@ export const handlers = [
   ...userPermissionsHandlers,
   ...maintenanceHandlers,
   ...analyticsHandlers,
+  ...paymentHandlers,
 ];

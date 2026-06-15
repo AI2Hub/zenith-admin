@@ -44,3 +44,60 @@ export const OAUTH2_TOKEN_EXPIRY = {
   refreshToken: 30 * 24 * 60 * 60, // 30 天（秒）
   authorizationCode: 10 * 60, // 10 分钟（秒）
 } as const;
+
+// ─── 支付中心 ────────────────────────────────────────────────────────
+export const PAYMENT_CHANNELS = ['wechat', 'alipay'] as const;
+export type PaymentChannel = typeof PAYMENT_CHANNELS[number];
+
+export const PAYMENT_METHODS = [
+  'wechat_native', 'wechat_jsapi', 'wechat_h5',
+  'alipay_page', 'alipay_wap', 'alipay_app',
+] as const;
+export type PaymentMethod = typeof PAYMENT_METHODS[number];
+
+export const PAYMENT_ORDER_STATUSES = ['pending', 'paying', 'success', 'closed', 'refunding', 'refunded', 'failed'] as const;
+export type PaymentOrderStatus = typeof PAYMENT_ORDER_STATUSES[number];
+
+export const PAYMENT_REFUND_STATUSES = ['pending', 'processing', 'success', 'failed'] as const;
+export type PaymentRefundStatus = typeof PAYMENT_REFUND_STATUSES[number];
+
+/** 各支付方式所属渠道映射 */
+export const PAYMENT_METHOD_CHANNEL: Record<PaymentMethod, PaymentChannel> = {
+  wechat_native: 'wechat',
+  wechat_jsapi: 'wechat',
+  wechat_h5: 'wechat',
+  alipay_page: 'alipay',
+  alipay_wap: 'alipay',
+  alipay_app: 'alipay',
+};
+
+export const PAYMENT_CHANNEL_LABELS: Record<PaymentChannel, string> = {
+  wechat: '微信支付',
+  alipay: '支付宝',
+};
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  wechat_native: '微信扫码',
+  wechat_jsapi: '微信 JSAPI',
+  wechat_h5: '微信 H5',
+  alipay_page: '支付宝电脑网站',
+  alipay_wap: '支付宝手机网站',
+  alipay_app: '支付宝 APP',
+};
+
+export const PAYMENT_ORDER_STATUS_LABELS: Record<PaymentOrderStatus, string> = {
+  pending: '待支付',
+  paying: '支付中',
+  success: '支付成功',
+  closed: '已关闭',
+  refunding: '退款中',
+  refunded: '已退款',
+  failed: '支付失败',
+};
+
+export const PAYMENT_REFUND_STATUS_LABELS: Record<PaymentRefundStatus, string> = {
+  pending: '待处理',
+  processing: '退款中',
+  success: '退款成功',
+  failed: '退款失败',
+};
