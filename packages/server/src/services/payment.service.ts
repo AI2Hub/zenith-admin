@@ -5,7 +5,7 @@
  * 内部负责：解析渠道配置、解密密钥组装 AdapterContext、订单状态机、事务落库、
  * 回调验签后处理、发支付事件。所有渠道差异封装在适配器内，业务层无感知。
  */
-import { and, desc, eq, gte, like, lte, notInArray, or } from 'drizzle-orm';
+import { and, desc, eq, gte, like, lte, ne, notInArray, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import { db } from '../db';
@@ -393,9 +393,11 @@ async function applyNotify(channel: PaymentChannel, result: NotifyResult): Promi
   if (result.scene === 'refund') {
     if (!result.outRefundNo) return;
     const [refundRow] = await db.select().from(paymentRefunds).where(eq(paymentRefunds.outRefundNo, result.outRefundNo)).limit(1);
-    if (!refundRow || refundRow.status === 'success') return; // 幂等
+    if (!refundRow) return;
     if (result.tradeStatus === 'refunded') {
-      await db
+      // 原子条件更新：仅当退款单尚未成功时才置为 success，
+      // 确保 finalizeRefund（发 refund.succeeded 事件）在并发退款回调下息恰执行一次。
+      const updated = await db
         .update(paymentRefunds)
         .set({
           status: 'success',
@@ -403,13 +405,15 @@ async function applyNotify(channel: PaymentChannel, result: NotifyResult): Promi
           channelRefundNo: result.channelRefundNo ?? refundRow.channelRefundNo,
           notifyData: result.raw ? JSON.stringify(result.raw).slice(0, 8000) : null,
         })
-        .where(eq(paymentRefunds.id, refundRow.id));
+        .where(and(eq(paymentRefunds.id, refundRow.id), ne(paymentRefunds.status, 'success')))
+        .returning({ id: paymentRefunds.id });
+      if (updated.length === 0) return; // 已被并发处理，幂等跳过
       if (refundRow.orderId) {
         const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.id, refundRow.orderId)).limit(1);
         if (order) await finalizeRefund(order, refundRow.refundNo, refundRow.refundAmount);
       }
     } else {
-      await db.update(paymentRefunds).set({ status: 'failed' }).where(eq(paymentRefunds.id, refundRow.id));
+      await db.update(paymentRefunds).set({ status: 'failed' }).where(and(eq(paymentRefunds.id, refundRow.id), ne(paymentRefunds.status, 'success')));
     }
     return;
   }
