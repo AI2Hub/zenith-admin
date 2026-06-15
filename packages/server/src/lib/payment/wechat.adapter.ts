@@ -11,6 +11,7 @@ import { formatDateTime } from '../datetime';
 import logger from '../logger';
 import type { CreatePaymentResult } from '@zenith/shared';
 import { rsaSign, rsaVerify, aesGcmDecrypt, ensurePem } from './signing';
+import { getPlatformCert } from './wechat-certs';
 import type {
   AdapterContext,
   NotifyResult,
@@ -215,8 +216,17 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
     const timestamp = headers.get('Wechatpay-Timestamp') ?? '';
     const nonce = headers.get('Wechatpay-Nonce') ?? '';
     const signature = headers.get('Wechatpay-Signature') ?? '';
+    const serial = headers.get('Wechatpay-Serial') ?? '';
     const message = `${timestamp}\n${nonce}\n${rawBody}\n`;
-    const platformCert = ctx.config.wechatPlatformCert ? ensurePem(ctx.config.wechatPlatformCert, 'CERTIFICATE') : '';
+    // 优先按回调头 Wechatpay-Serial 选用自动下载的平台证书（应对证书轮换）；回退到手工配置的证书
+    let platformCert = '';
+    if (serial) {
+      const downloaded = await getPlatformCert(ctx, serial);
+      if (downloaded) platformCert = downloaded;
+    }
+    if (!platformCert && ctx.config.wechatPlatformCert) {
+      platformCert = ensurePem(ctx.config.wechatPlatformCert, 'CERTIFICATE');
+    }
     const valid = platformCert ? rsaVerify(message, signature, platformCert, 'RSA-SHA256') : false;
     const ack = valid
       ? { body: JSON.stringify({ code: 'SUCCESS', message: '成功' }), contentType: 'application/json', status: 200 }
