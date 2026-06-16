@@ -97,6 +97,7 @@ export default defineConfig({
           { text: '系统内置配置', link: '/backend/system-configs' },
           { text: '操作日志与变更记录', link: '/backend/audit-log-changes' },
           { text: '安全体系', link: '/backend/security' },
+          { text: '幂等防重复提交', link: '/backend/idempotency' },
           { text: 'OAuth 第三方登录', link: '/backend/oauth' },
           { text: '外呼 HTTP 客户端', link: '/backend/http-client' },
           { text: 'HTTP 流量日志', link: '/backend/http-logging' },

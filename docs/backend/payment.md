@@ -147,7 +147,7 @@ closePayment(orderNo: string): Promise<void>;
 
 - 业务模块直接 `import { createPayment } from '../services/payment.service'`，无需 HTTP 往返；
 - 同时提供后台 HTTP 路由 `/api/payment/*`（发起、查询、手动退款）；
-- 下单接口挂 `idempotencyGuard`，用 `bizType + bizId` 防重复下单。
+- 下单 / 退款接口挂 [`idempotencyGuard`](./idempotency)（15s 窗口，自动指纹或客户端 `X-Idempotency-Key`）防重复提交。
 
 ---
 
@@ -165,8 +165,7 @@ sequenceDiagram
     CH->>EP: POST 回调(异步)
     EP->>EP: 1.读原始 body  c.req.raw.clone().text()
     EP->>EP: 2.adapter.verifyNotify() 验签 + 解密
-    EP->>EP: 3.idempotencyGuard 去重(渠道交易号)
-    EP->>SVC: 4.事务更新订单 status + 写 notify_logs
+    EP->>SVC: 3.原子条件更新订单 status + 写 notify_logs
     EP-->>CH: 5.返回渠道 ACK(微信 SUCCESS / 支付宝 success)
     SVC->>BUS: 6.setImmediate emit 'payment.succeeded'
     BUS->>BIZ: 履约 / 发货 / 开通会员
@@ -186,7 +185,7 @@ sequenceDiagram
 | 密钥存储 | API V3 Key / 商户私钥 / 支付宝应用私钥一律 `encryptField()` 存密文，字段名 `xxxEncrypted` |
 | 响应脱敏 | 列表/详情 DTO 用 `'******'` 掩码 + 哨兵检测（仿 `mapOauthConfig`），**永不返回明文** |
 | 回调验签 | 微信:按 `Wechatpay-Serial` 自动下载平台证书(12h 缓存,应对轮换) RSA-SHA256 验签;支付宝:RSA2 验签 + 同步响应验签。处理幂等+原子，重放无害 |
-| 幂等 | 下单 + 回调均挂 `idempotencyGuard`，回调以渠道交易号为 key |
+| 幂等 | 下单 / 退款挂 [`idempotencyGuard`](./idempotency)（Redis `SET NX EX`）；回调去重靠 `markOrderPaid` / `finalizeRefund` 的**原子条件更新**（非中间件），保证 exactly-once 履约 |
 | 金额 | 全链路整数分；退款金额 ≤ 原单金额校验 |
 | 外呼 | 全部走 `http-client`（熔断 + Header 脱敏 + 结构化日志） |
 | 权限/审计 | `payment:channel:*` / `payment:order:*` / `payment:refund:*` 权限码；写操作经 `guard({ audit })` 进操作日志；退款为高危操作需二次确认 |
