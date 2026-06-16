@@ -537,7 +537,7 @@ export async function listOrders(q: ListOrdersQuery) {
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const tc = tenantCondition(paymentOrders, user);
-  const scope = await getDataScopeCondition({ currentUserId: user.userId, deptColumn: paymentOrders.departmentId, ownerColumn: paymentOrders.userId });
+  const scope = await getDataScopeCondition({ currentUserId: user.userId, deptColumn: paymentOrders.departmentId, ownerColumn: paymentOrders.createdBy });
   const finalWhere = mergeWhere(mergeWhere(where, tc), scope);
 
   const [total, list] = await Promise.all([
