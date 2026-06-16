@@ -2031,6 +2031,8 @@ export interface PaymentNotifyLog {
   result?: string | null;
   message?: string | null;
   ip?: string | null;
+  /** 原始回调 body（最多 8000 字节），用于排查验签/对账争议 */
+  rawBody?: string | null;
   createdAt: string;
 }
 

@@ -12,7 +12,7 @@ import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared';
-import type { PaymentChannel, PaymentMethod, PaymentOrder, PaymentOrderStatus, CreatePaymentResult, PaginatedResponse } from '@zenith/shared';
+import type { PaymentChannel, PaymentMethod, PaymentOrder, PaymentOrderStatus, PaymentRefund, CreatePaymentResult, PaginatedResponse } from '@zenith/shared';
 
 const STATUS_COLOR = {
   pending: 'grey', paying: 'blue', success: 'green', closed: 'grey', refunding: 'amber', refunded: 'orange', failed: 'red',
@@ -50,6 +50,7 @@ export default function PaymentOrdersPage() {
 
   const [detail, setDetail] = useState<PaymentOrder | null>(null);
   const [refundTarget, setRefundTarget] = useState<PaymentOrder | null>(null);
+  const [refundedAmount, setRefundedAmount] = useState(0); // 已锁定退款总额（分）
   const [refundSubmitting, setRefundSubmitting] = useState(false);
   const [stats, setStats] = useState<PaymentStatsData | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
@@ -86,6 +87,37 @@ export default function PaymentOrdersPage() {
 
   useEffect(() => { void fetchList(); void fetchStats(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
+  // ─── 支付状态轮询（QR 展示时每 3s 查单，付款成功/失败自动关闭）────────────────
+  useEffect(() => {
+    if (!payResult) return;
+    const orderNo = payResult.orderNo;
+    let stopped = false;
+    const poll = async () => {
+      if (stopped) return;
+      const res = await request.get<PaymentOrder>(`/api/payment/orders/${orderNo}`);
+      if (stopped) return;
+      if (res.code === 0) {
+        const { status } = res.data;
+        if (status === 'success') {
+          Toast.success('支付成功！');
+          setPayResult(null);
+          void fetchList();
+          void fetchStats();
+        } else if (status === 'failed' || status === 'closed') {
+          Toast.error(`支付${status === 'closed' ? '已关闭' : '失败'}`);
+          setPayResult(null);
+        } else {
+          setTimeout(() => { void poll(); }, 3000);
+        }
+      } else {
+        setTimeout(() => { void poll(); }, 3000);
+      }
+    };
+    setTimeout(() => { void poll(); }, 3000);
+    return () => { stopped = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payResult?.orderNo]);
+
   function handleSearch() { setPage(1); void fetchList(1, pageSize); }
   function handleReset() { setSearchParams(defaultSearch); setPage(1); void fetchList(1, pageSize, defaultSearch); }
 
@@ -101,6 +133,21 @@ export default function PaymentOrdersPage() {
         if (res.code === 0) { Toast.success('订单已关闭'); void fetchList(); }
       },
     });
+  }
+
+  async function openRefundModal(order: PaymentOrder) {
+    setRefundedAmount(0);
+    setRefundTarget(order);
+    // 获取该订单已递交 / 处理中的退款总额，作为退款表单 max
+    const res = await request.get<PaginatedResponse<PaymentRefund>>(
+      `/api/payment/refunds?keyword=${encodeURIComponent(order.orderNo)}&pageSize=100`,
+    );
+    if (res.code === 0) {
+      const locked = res.data.list
+        .filter((r) => r.status === 'success' || r.status === 'processing')
+        .reduce((s, r) => s + r.refundAmount, 0);
+      setRefundedAmount(locked);
+    }
   }
 
   async function submitRefund() {
@@ -184,7 +231,7 @@ export default function PaymentOrdersPage() {
             <Button theme="borderless" size="small" onClick={() => handleClose(r)}>关闭</Button>
           )}
           {hasPermission('payment:order:refund') && (r.status === 'success' || r.status === 'refunding') && (
-            <Button theme="borderless" type="danger" size="small" onClick={() => setRefundTarget(r)}>退款</Button>
+            <Button theme="borderless" type="danger" size="small" onClick={() => void openRefundModal(r)}>退款</Button>
           )}
         </Space>
       ),
@@ -257,10 +304,12 @@ export default function PaymentOrdersPage() {
 
       <AppModal title="发起退款" visible={!!refundTarget} onOk={submitRefund} onCancel={() => setRefundTarget(null)} okButtonProps={{ loading: refundSubmitting, type: 'danger' }} width={480} closeOnEsc>
         {refundTarget && (
-          <Form key={refundTarget.id} getFormApi={(api) => { refundFormApi.current = api; }} labelPosition="left" labelWidth={90} initValues={{ amountYuan: refundTarget.amount / 100 }}>
+          <Form key={refundTarget.id} getFormApi={(api) => { refundFormApi.current = api; }} labelPosition="left" labelWidth={90} initValues={{ amountYuan: (refundTarget.amount - refundedAmount) / 100 }}>
             <Form.Slot label="订单号">{refundTarget.orderNo}</Form.Slot>
-            <Form.Slot label="可退金额">{yuan(refundTarget.amount)}</Form.Slot>
-            <Form.InputNumber field="amountYuan" label="退款金额(元)" min={0.01} max={refundTarget.amount / 100} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入退款金额' }]} />
+            <Form.Slot label="订单金额">{yuan(refundTarget.amount)}</Form.Slot>
+            {refundedAmount > 0 && <Form.Slot label="已退金额"><Typography.Text type="warning">{yuan(refundedAmount)}</Typography.Text></Form.Slot>}
+            <Form.Slot label="剩余可退"><Typography.Text type="success">{yuan(refundTarget.amount - refundedAmount)}</Typography.Text></Form.Slot>
+            <Form.InputNumber field="amountYuan" label="退款金额(元)" min={0.01} max={(refundTarget.amount - refundedAmount) / 100} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入退款金额' }]} />
             <Form.TextArea field="reason" label="退款原因" autosize rows={2} maxCount={256} placeholder="可选" />
           </Form>
         )}

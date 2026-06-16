@@ -196,6 +196,7 @@ export function mapNotifyLog(row: PaymentNotifyLogRow): PaymentNotifyLog {
     result: row.result ?? null,
     message: row.message ?? null,
     ip: row.ip ?? null,
+    rawBody: row.rawBody ?? null,
     createdAt: formatDateTime(row.createdAt),
   };
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Button, Input, Select, Tag, Typography } from '@douyinfe/semi-ui';
+import { Button, Input, Modal, Select, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, RotateCcw } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -13,6 +13,11 @@ import type { PaymentChannel, PaymentNotifyLog, PaginatedResponse } from '@zenit
 interface SearchParams { keyword: string; channel: string; }
 const defaultSearch: SearchParams = { keyword: '', channel: '' };
 
+function formatRawBody(raw: string | null | undefined): string {
+  if (!raw) return '';
+  try { return JSON.stringify(JSON.parse(raw), null, 2); } catch { return raw; }
+}
+
 export default function PaymentLogsPage() {
   const [data, setData] = useState<PaginatedResponse<PaymentNotifyLog> | null>(null);
   const [loading, setLoading] = useState(false);
@@ -20,6 +25,7 @@ export default function PaymentLogsPage() {
   const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearch);
   const searchRef = useRef<SearchParams>(defaultSearch);
   searchRef.current = searchParams;
+  const [rawBodyLog, setRawBodyLog] = useState<PaymentNotifyLog | null>(null);
 
   const fetchList = useCallback(
     async (p = page, ps = pageSize, params?: SearchParams) => {
@@ -53,7 +59,13 @@ export default function PaymentLogsPage() {
     { title: '结果', dataIndex: 'result', width: 120, render: (v: string | null) => v || '-' },
     { title: '说明', dataIndex: 'message', width: 220, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>{v || '-'}</Typography.Text> },
     { title: 'IP', dataIndex: 'ip', width: 140, render: (v: string | null) => v || '-' },
-    { title: '时间', dataIndex: 'createdAt', width: 170, fixed: 'right', render: (t: string) => formatDateTime(t) },
+    { title: '时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
+    {
+      title: '操作', fixed: 'right', width: 80,
+      render: (_: unknown, r: PaymentNotifyLog) => (
+        <Button theme="borderless" size="small" disabled={!r.rawBody} onClick={() => setRawBodyLog(r)}>详情</Button>
+      ),
+    },
   ];
 
   return (
@@ -70,6 +82,21 @@ export default function PaymentLogsPage() {
         bordered columns={columns} dataSource={data?.list ?? []} loading={loading} rowKey="id" size="small" empty="暂无数据"
         onRefresh={() => void fetchList()} refreshLoading={loading} pagination={buildPagination(data?.total ?? 0, fetchList)}
       />
+
+      <Modal
+        title={`回调原始 Body（#${rawBodyLog?.id ?? ''}）`}
+        visible={!!rawBodyLog}
+        onCancel={() => setRawBodyLog(null)}
+        footer={null}
+        width={680}
+        closeOnEsc
+      >
+        {rawBodyLog && (
+          <pre style={{ maxHeight: 480, overflow: 'auto', fontSize: 12, background: 'var(--semi-color-fill-0)', padding: 12, borderRadius: 4, wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>
+            {formatRawBody(rawBodyLog.rawBody)}
+          </pre>
+        )}
+      </Modal>
     </div>
   );
 }

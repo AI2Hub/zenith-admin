@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button, Form, Input, Select, Space, Spin, Toast, Popconfirm, Switch, Tag, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Search, RotateCcw, Plus, Wifi } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -37,6 +37,7 @@ export default function PaymentChannelsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [formChannel, setFormChannel] = useState<PaymentChannel>('wechat');
   const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
+  const [testingIds, setTestingIds] = useState<Set<number>>(new Set());
 
   const fetchList = useCallback(
     async (p = page, ps = pageSize, params?: SearchParams) => {
@@ -163,6 +164,26 @@ export default function PaymentChannelsPage() {
       .finally(() => setTogglingIds((prev) => { const s = new Set(prev); s.delete(record.id); return s; }));
   }
 
+  function handleTest(record: PaymentChannelConfig) {
+    setTestingIds((prev) => new Set(prev).add(record.id));
+    request
+      .post<{ success: boolean; message: string; latencyMs: number }>(`/api/payment/channels/${record.id}/test`, {})
+      .then((res) => {
+        if (res.code === 0) {
+          const { success, message, latencyMs } = res.data;
+          if (success) {
+            Toast.success(`连通性测试通过（${latencyMs}ms）：${message}`);
+          } else {
+            Toast.error(`连通性测试失败：${message}`);
+          }
+        } else {
+          Toast.error(`测试失败：${res.message}`);
+        }
+      })
+      .catch((err: unknown) => Toast.error(`测试异常：${err instanceof Error ? err.message : '未知错误'}`))
+      .finally(() => setTestingIds((prev) => { const s = new Set(prev); s.delete(record.id); return s; }));
+  }
+
   const columns: ColumnProps<PaymentChannelConfig>[] = [
     { title: '名称', dataIndex: 'name', width: 180 },
     { title: '渠道', dataIndex: 'channel', width: 110, render: (v: PaymentChannel) => <Tag color={v === 'wechat' ? 'green' : 'blue'}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
@@ -176,9 +197,10 @@ export default function PaymentChannelsPage() {
       ),
     },
     {
-      title: '操作', fixed: 'right', width: 140,
+      title: '操作', fixed: 'right', width: 180,
       render: (_: unknown, r: PaymentChannelConfig) => (
         <Space>
+          {hasPermission('payment:channel:update') && <Button theme="borderless" size="small" icon={<Wifi size={12} />} loading={testingIds.has(r.id)} onClick={() => handleTest(r)}>测试</Button>}
           {hasPermission('payment:channel:update') && <Button theme="borderless" size="small" onClick={() => openEdit(r)}>编辑</Button>}
           {hasPermission('payment:channel:delete') && (
             <Popconfirm title="确定要删除吗？" content="删除后不可恢复" onConfirm={() => handleDelete(r.id)}>
