@@ -11,6 +11,10 @@ import {
   okMsg,
   IdParam,
   okBody,
+  okExcel,
+  okCsv,
+  excelStreamBody,
+  csvStreamBody,
 } from '../lib/openapi-schemas';
 import {
   PaymentChannelConfigDTO,
@@ -19,6 +23,7 @@ import {
   PaymentNotifyLogDTO,
   CreatePaymentResponseDTO,
   PaymentRefundResultDTO,
+  PaymentStatsDTO,
 } from '../lib/openapi-dtos';
 import { getClientIp } from '../lib/request-helpers';
 import {
@@ -40,6 +45,7 @@ import {
   getRefundDetail,
   listNotifyLogs,
 } from '../services/payment.service';
+import { getPaymentStats, exportOrders, exportOrdersCsv, exportRefunds, exportRefundsCsv } from '../services/payment-stats.service';
 
 const paymentRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -94,6 +100,12 @@ const listQuery = PaginationQuery.extend({
   bizType: z.string().optional(),
   startTime: z.string().optional(),
   endTime: z.string().optional(),
+});
+
+const refundsQuery = z.object({
+  keyword: z.string().optional(),
+  channel: channelEnum.optional(),
+  status: z.enum(['pending', 'processing', 'success', 'failed']).optional(),
 });
 
 // ─── 渠道配置 ───────────────────────────────────────────────────────────────────
@@ -279,7 +291,64 @@ const logsListRoute = defineOpenAPIRoute({
   handler: async (c) => c.json(okBody(await listNotifyLogs(c.req.valid('query'))), 200),
 });
 
+// ─── 统计与导出 ───────────────────────────────────────────────────
+const statsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/stats', tags: ['支付中心'], summary: '支付统计概览',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'payment:order:list' })] as const,
+    request: {},
+    responses: { ...ok(PaymentStatsDTO, '统计概览'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await getPaymentStats()), 200),
+});
+
+const ordersExportRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/orders/export', tags: ['支付中心'], summary: '导出支付订单(Excel)',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'payment:order:list' })] as const,
+    request: { query: listQuery },
+    responses: { ...okExcel('支付订单.xlsx'), ...commonErrorResponses },
+  }),
+  handler: async (c) => excelStreamBody(c, await exportOrders(c.req.valid('query')), '支付订单.xlsx'),
+});
+
+const ordersExportCsvRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/orders/export/csv', tags: ['支付中心'], summary: '导出支付订单(CSV)',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'payment:order:list' })] as const,
+    request: { query: listQuery },
+    responses: { ...okCsv('支付订单.csv'), ...commonErrorResponses },
+  }),
+  handler: async (c) => csvStreamBody(c, await exportOrdersCsv(c.req.valid('query')), '支付订单.csv'),
+});
+
+const refundsExportRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/refunds/export', tags: ['支付中心'], summary: '导出退款记录(Excel)',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'payment:refund:list' })] as const,
+    request: { query: refundsQuery },
+    responses: { ...okExcel('退款记录.xlsx'), ...commonErrorResponses },
+  }),
+  handler: async (c) => excelStreamBody(c, await exportRefunds(c.req.valid('query')), '退款记录.xlsx'),
+});
+
+const refundsExportCsvRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/refunds/export/csv', tags: ['支付中心'], summary: '导出退款记录(CSV)',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'payment:refund:list' })] as const,
+    request: { query: refundsQuery },
+    responses: { ...okCsv('退款记录.csv'), ...commonErrorResponses },
+  }),
+  handler: async (c) => csvStreamBody(c, await exportRefundsCsv(c.req.valid('query')), '退款记录.csv'),
+});
+
 paymentRouter.openapiRoutes([
+  statsRoute,
   channelsAllRoute,
   channelsListRoute,
   channelGetRoute,
@@ -288,11 +357,15 @@ paymentRouter.openapiRoutes([
   channelDeleteRoute,
   ordersListRoute,
   orderCreateRoute,
+  ordersExportRoute,
+  ordersExportCsvRoute,
   orderGetRoute,
   orderQueryRoute,
   orderCloseRoute,
   refundCreateRoute,
   refundsListRoute,
+  refundsExportRoute,
+  refundsExportCsvRoute,
   refundGetRoute,
   logsListRoute,
 ] as const);

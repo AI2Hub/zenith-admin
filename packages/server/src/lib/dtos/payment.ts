@@ -125,3 +125,15 @@ export const PaymentRefundResultDTO = z
     status: z.string(),
   })
   .openapi('PaymentRefundResult');
+
+export const PaymentStatsDTO = z
+  .object({
+    totalAmount: z.number().openapi({ description: '累计成功金额（分）' }),
+    todayAmount: z.number().openapi({ description: '今日成功金额（分）' }),
+    orderCount: z.number(),
+    successCount: z.number(),
+    refundAmount: z.number().openapi({ description: '累计退款金额（分）' }),
+    byChannel: z.array(z.object({ channel: z.string(), count: z.number(), amount: z.number() })),
+    byStatus: z.array(z.object({ status: z.string(), count: z.number() })),
+  })
+  .openapi('PaymentStats');

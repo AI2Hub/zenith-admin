@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Button, Form, Input, Select, Space, Toast, Tag, Modal, Descriptions, InputNumber } from '@douyinfe/semi-ui';
+import { Button, Card, Dropdown, Form, Input, Select, Space, SplitButtonGroup, Toast, Tag, Typography, Modal, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw } from 'lucide-react';
+import { Search, RotateCcw, Plus, Download, ChevronDown } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -11,7 +12,7 @@ import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared';
-import type { PaymentChannel, PaymentMethod, PaymentOrder, PaymentOrderStatus, PaginatedResponse } from '@zenith/shared';
+import type { PaymentChannel, PaymentMethod, PaymentOrder, PaymentOrderStatus, CreatePaymentResult, PaginatedResponse } from '@zenith/shared';
 
 const STATUS_COLOR = {
   pending: 'grey', paying: 'blue', success: 'green', closed: 'grey', refunding: 'amber', refunded: 'orange', failed: 'red',
@@ -20,6 +21,21 @@ const yuan = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
 
 interface SearchParams { keyword: string; channel: string; status: string; bizType: string; }
 const defaultSearch: SearchParams = { keyword: '', channel: '', status: '', bizType: '' };
+
+interface PaymentStatsData {
+  totalAmount: number; todayAmount: number; orderCount: number; successCount: number; refundAmount: number;
+  byChannel: { channel: string; count: number; amount: number }[];
+  byStatus: { status: string; count: number }[];
+}
+
+function StatCard({ label, value }: Readonly<{ label: string; value: string }>) {
+  return (
+    <Card style={{ flex: '1 1 150px', minWidth: 130 }} bodyStyle={{ padding: '10px 14px' }}>
+      <Typography.Text type="tertiary" size="small">{label}</Typography.Text>
+      <div style={{ fontSize: 20, fontWeight: 600, marginTop: 4 }}>{value}</div>
+    </Card>
+  );
+}
 
 export default function PaymentOrdersPage() {
   const { hasPermission } = usePermission();
@@ -35,6 +51,13 @@ export default function PaymentOrdersPage() {
   const [detail, setDetail] = useState<PaymentOrder | null>(null);
   const [refundTarget, setRefundTarget] = useState<PaymentOrder | null>(null);
   const [refundSubmitting, setRefundSubmitting] = useState(false);
+  const [stats, setStats] = useState<PaymentStatsData | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportCsvLoading, setExportCsvLoading] = useState(false);
+  const [createVisible, setCreateVisible] = useState(false);
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [payResult, setPayResult] = useState<CreatePaymentResult | null>(null);
+  const createFormApi = useRef<FormApi | null>(null);
 
   const fetchList = useCallback(
     async (p = page, ps = pageSize, params?: SearchParams) => {
@@ -56,7 +79,12 @@ export default function PaymentOrdersPage() {
     [page, pageSize],
   );
 
-  useEffect(() => { void fetchList(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  const fetchStats = useCallback(async () => {
+    const res = await request.get<PaymentStatsData>('/api/payment/stats');
+    if (res.code === 0) setStats(res.data);
+  }, []);
+
+  useEffect(() => { void fetchList(); void fetchStats(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   function handleSearch() { setPage(1); void fetchList(1, pageSize); }
   function handleReset() { setSearchParams(defaultSearch); setPage(1); void fetchList(1, pageSize, defaultSearch); }
@@ -95,6 +123,42 @@ export default function PaymentOrdersPage() {
     }
   }
 
+  function buildExportQuery(): string {
+    const a = searchRef.current;
+    const q: Record<string, string> = {};
+    if (a.keyword) q.keyword = a.keyword;
+    if (a.channel) q.channel = a.channel;
+    if (a.status) q.status = a.status;
+    if (a.bizType) q.bizType = a.bizType;
+    return new URLSearchParams(q).toString();
+  }
+  async function handleExport() {
+    setExportLoading(true);
+    try { await request.download(`/api/payment/orders/export?${buildExportQuery()}`, '支付订单.xlsx'); } finally { setExportLoading(false); }
+  }
+  async function handleExportCsv() {
+    setExportCsvLoading(true);
+    try { await request.download(`/api/payment/orders/export/csv?${buildExportQuery()}`, '支付订单.csv'); } finally { setExportCsvLoading(false); }
+  }
+
+  async function submitCreate() {
+    const api = createFormApi.current;
+    if (!api) return;
+    let values: { subject: string; amount: number; bizType: string; bizId: string; payMethod: PaymentMethod; openId?: string };
+    try { values = await api.validate(); } catch { throw new Error('validation'); }
+    setCreateSubmitting(true);
+    try {
+      const res = await request.post<{ orderNo: string; payParams: CreatePaymentResult }>('/api/payment/orders', {
+        bizType: values.bizType, bizId: values.bizId, subject: values.subject,
+        amount: Math.round(values.amount * 100), payMethod: values.payMethod, openId: values.openId,
+      });
+      if (res.code === 0) { Toast.success('下单成功'); setCreateVisible(false); setPayResult(res.data.payParams); void fetchList(); void fetchStats(); }
+      else throw new Error(res.message);
+    } finally {
+      setCreateSubmitting(false);
+    }
+  }
+
   const columns: ColumnProps<PaymentOrder>[] = [
     { title: '订单号', dataIndex: 'orderNo', width: 200 },
     { title: '标题', dataIndex: 'subject', width: 180, render: (v: string) => v || '-' },
@@ -129,6 +193,15 @@ export default function PaymentOrdersPage() {
 
   return (
     <div className="page-container">
+      {stats && (
+        <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+          <StatCard label="累计成功金额" value={yuan(stats.totalAmount)} />
+          <StatCard label="今日成功金额" value={yuan(stats.todayAmount)} />
+          <StatCard label="订单总数" value={String(stats.orderCount)} />
+          <StatCard label="成功订单" value={String(stats.successCount)} />
+          <StatCard label="累计退款" value={yuan(stats.refundAmount)} />
+        </div>
+      )}
       <SearchToolbar>
         <Input prefix={<Search size={14} />} placeholder="订单号/标题..." value={searchParams.keyword} onChange={(v) => setSearchParams((p) => ({ ...p, keyword: v }))} showClear style={{ width: 200 }} onEnterPress={handleSearch} />
         <Input placeholder="业务类型" value={searchParams.bizType} onChange={(v) => setSearchParams((p) => ({ ...p, bizType: v }))} showClear style={{ width: 140 }} onEnterPress={handleSearch} />
@@ -138,6 +211,18 @@ export default function PaymentOrdersPage() {
           optionList={Object.entries(PAYMENT_ORDER_STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
         <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
         <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+        <SplitButtonGroup>
+          <Button type="primary" icon={<Download size={14} />} loading={exportLoading} onClick={handleExport}>导出</Button>
+          <Dropdown trigger="click" position="bottomRight" clickToHide render={(
+            <Dropdown.Menu>
+              <Dropdown.Item onClick={handleExport}>导出 Excel</Dropdown.Item>
+              <Dropdown.Item onClick={handleExportCsv}>导出 CSV</Dropdown.Item>
+            </Dropdown.Menu>
+          )}>
+            <Button type="primary" icon={<ChevronDown size={14} />} loading={exportCsvLoading} />
+          </Dropdown>
+        </SplitButtonGroup>
+        {hasPermission('payment:order:create') && <Button type="primary" icon={<Plus size={14} />} onClick={() => setCreateVisible(true)}>手动下单</Button>}
       </SearchToolbar>
 
       <ConfigurableTable
@@ -178,6 +263,43 @@ export default function PaymentOrdersPage() {
             <Form.InputNumber field="amountYuan" label="退款金额(元)" min={0.01} max={refundTarget.amount / 100} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入退款金额' }]} />
             <Form.TextArea field="reason" label="退款原因" autosize rows={2} maxCount={256} placeholder="可选" />
           </Form>
+        )}
+      </AppModal>
+
+      <AppModal title="手动下单" visible={createVisible} onOk={submitCreate} onCancel={() => setCreateVisible(false)} okButtonProps={{ loading: createSubmitting }} width={520} closeOnEsc>
+        <Form key={createVisible ? 'c' : 'x'} getFormApi={(api) => { createFormApi.current = api; }} labelPosition="left" labelWidth={90} initValues={{ payMethod: 'wechat_native', amount: 1 }}>
+          <Form.Input field="subject" label="商品标题" placeholder="如 会员充值" rules={[{ required: true, message: '请输入标题' }]} />
+          <Form.InputNumber field="amount" label="金额(元)" min={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入金额' }]} />
+          <Form.Select field="payMethod" label="支付方式" style={{ width: '100%' }} optionList={Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => ({ value, label }))} rules={[{ required: true }]} />
+          <Form.Input field="bizType" label="业务类型" placeholder="如 membership" rules={[{ required: true, message: '请输入业务类型' }]} />
+          <Form.Input field="bizId" label="业务ID" placeholder="业务方订单ID" rules={[{ required: true, message: '请输入业务ID' }]} />
+          <Form.Input field="openId" label="OpenID" placeholder="仅微信 JSAPI 需要" />
+        </Form>
+      </AppModal>
+
+      <AppModal title="支付下单结果" visible={!!payResult} onCancel={() => setPayResult(null)} footer={null} width={420} closeOnEsc>
+        {payResult && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ marginBottom: 8 }}>订单号：{payResult.orderNo}</div>
+            {payResult.codeUrl && (
+              <>
+                <QRCodeSVG value={payResult.codeUrl} size={200} style={{ margin: '12px auto', display: 'block' }} />
+                <Typography.Text type="tertiary">请使用微信扫码支付</Typography.Text>
+              </>
+            )}
+            {payResult.payUrl && (
+              <div style={{ margin: '16px 0' }}>
+                <Button type="primary" onClick={() => window.open(payResult.payUrl, '_blank', 'noopener')}>打开支付页</Button>
+                <div style={{ marginTop: 8, wordBreak: 'break-all', fontSize: 12 }}><Typography.Text type="tertiary">{payResult.payUrl}</Typography.Text></div>
+              </div>
+            )}
+            {payResult.appOrderStr && (
+              <div style={{ margin: '12px 0', wordBreak: 'break-all', fontSize: 12, textAlign: 'left' }}>
+                <Typography.Text type="tertiary">APP 调起参数（复制给客户端 SDK）：</Typography.Text>
+                <div style={{ marginTop: 4 }}>{payResult.appOrderStr}</div>
+              </div>
+            )}
+          </div>
         )}
       </AppModal>
     </div>

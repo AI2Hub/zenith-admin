@@ -19,6 +19,36 @@ function paginate<T>(list: T[], url: URL) {
 }
 
 export const paymentHandlers = [
+  // ── 统计 ──
+  http.get('/api/payment/stats', () => {
+    const isPaid = (s: string) => s === 'success' || s === 'refunding' || s === 'refunded';
+    const paid = mockPaymentOrders.filter((o) => isPaid(o.status));
+    const totalAmount = paid.reduce((s, o) => s + o.amount, 0);
+    const refundAmount = mockPaymentRefunds.filter((r) => r.status === 'success').reduce((s, r) => s + r.refundAmount, 0);
+    const byChannel = ['wechat', 'alipay']
+      .map((channel) => {
+        const list = mockPaymentOrders.filter((o) => o.channel === channel);
+        const amount = list.filter((o) => isPaid(o.status)).reduce((s, o) => s + o.amount, 0);
+        return { channel, count: list.length, amount };
+      })
+      .filter((c) => c.count > 0);
+    const statusMap = new Map<string, number>();
+    for (const o of mockPaymentOrders) statusMap.set(o.status, (statusMap.get(o.status) ?? 0) + 1);
+    return HttpResponse.json({
+      code: 0,
+      message: 'ok',
+      data: {
+        totalAmount,
+        todayAmount: 0,
+        orderCount: mockPaymentOrders.length,
+        successCount: paid.length,
+        refundAmount,
+        byChannel,
+        byStatus: [...statusMap].map(([status, count]) => ({ status, count })),
+      },
+    });
+  }),
+
   // ── 渠道配置 ──
   http.get('/api/payment/channels/all', () => HttpResponse.json({ code: 0, message: 'ok', data: mockPaymentChannels })),
   http.get('/api/payment/channels', ({ request }) => {
@@ -115,6 +145,8 @@ export const paymentHandlers = [
     };
     return HttpResponse.json({ code: 0, message: '下单成功', data: { orderNo, payParams } });
   }),
+  http.get('/api/payment/orders/export', () => new HttpResponse('\uFEFF订单号,金额(元)\nPAY1700000000001,99.00\n', { headers: { 'Content-Type': 'text/csv; charset=utf-8' } })),
+  http.get('/api/payment/orders/export/csv', () => new HttpResponse('\uFEFF订单号,金额(元)\nPAY1700000000001,99.00\n', { headers: { 'Content-Type': 'text/csv; charset=utf-8' } })),
   http.get('/api/payment/orders/:id', ({ params }) => {
     const o = mockPaymentOrders.find((x) => x.id === Number(params.id));
     return o ? HttpResponse.json({ code: 0, message: 'ok', data: o }) : HttpResponse.json({ code: 404, message: '不存在', data: null });
@@ -165,6 +197,8 @@ export const paymentHandlers = [
     );
     return HttpResponse.json({ code: 0, message: 'ok', data: paginate(filtered, url) });
   }),
+  http.get('/api/payment/refunds/export', () => new HttpResponse('\uFEFF退款单号,金额(元)\nREF1700000000003,19.00\n', { headers: { 'Content-Type': 'text/csv; charset=utf-8' } })),
+  http.get('/api/payment/refunds/export/csv', () => new HttpResponse('\uFEFF退款单号,金额(元)\nREF1700000000003,19.00\n', { headers: { 'Content-Type': 'text/csv; charset=utf-8' } })),
   http.get('/api/payment/refunds/:id', ({ params }) => {
     const r = mockPaymentRefunds.find((x) => x.id === Number(params.id));
     return r ? HttpResponse.json({ code: 0, message: 'ok', data: r }) : HttpResponse.json({ code: 404, message: '不存在', data: null });

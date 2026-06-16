@@ -525,9 +525,7 @@ export interface ListOrdersQuery {
   endTime?: string;
 }
 
-export async function listOrders(q: ListOrdersQuery) {
-  const page = q.page ?? 1;
-  const pageSize = q.pageSize ?? 10;
+export async function buildOrdersWhere(q: ListOrdersQuery) {
   const user = currentUser();
   const conditions = [];
   if (q.keyword) {
@@ -546,12 +544,16 @@ export async function listOrders(q: ListOrdersQuery) {
   const endTime = parseDateTimeInput(q.endTime);
   if (startTime) conditions.push(gte(paymentOrders.createdAt, startTime));
   if (endTime) conditions.push(lte(paymentOrders.createdAt, endTime));
-
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const tc = tenantCondition(paymentOrders, user);
   const scope = await getDataScopeCondition({ currentUserId: user.userId, deptColumn: paymentOrders.departmentId, ownerColumn: paymentOrders.createdBy });
-  const finalWhere = mergeWhere(mergeWhere(where, tc), scope);
+  return mergeWhere(mergeWhere(where, tc), scope);
+}
 
+export async function listOrders(q: ListOrdersQuery) {
+  const page = q.page ?? 1;
+  const pageSize = q.pageSize ?? 10;
+  const finalWhere = await buildOrdersWhere(q);
   const [total, list] = await Promise.all([
     db.$count(paymentOrders, finalWhere),
     withPagination(db.select().from(paymentOrders).where(finalWhere).orderBy(desc(paymentOrders.id)).$dynamic(), page, pageSize),
@@ -588,9 +590,7 @@ export interface ListRefundsQuery {
   channel?: PaymentChannel;
 }
 
-export async function listRefunds(q: ListRefundsQuery) {
-  const page = q.page ?? 1;
-  const pageSize = q.pageSize ?? 10;
+export function buildRefundsWhere(q: ListRefundsQuery) {
   const conditions = [];
   if (q.keyword) {
     conditions.push(or(like(paymentRefunds.refundNo, `%${escapeLike(q.keyword)}%`), like(paymentRefunds.orderNo, `%${escapeLike(q.keyword)}%`)));
@@ -598,7 +598,13 @@ export async function listRefunds(q: ListRefundsQuery) {
   if (q.status) conditions.push(eq(paymentRefunds.status, q.status));
   if (q.channel) conditions.push(eq(paymentRefunds.channel, q.channel));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
-  const finalWhere = mergeWhere(where, tenantCondition(paymentRefunds, currentUser()));
+  return mergeWhere(where, tenantCondition(paymentRefunds, currentUser()));
+}
+
+export async function listRefunds(q: ListRefundsQuery) {
+  const page = q.page ?? 1;
+  const pageSize = q.pageSize ?? 10;
+  const finalWhere = buildRefundsWhere(q);
   const [total, list] = await Promise.all([
     db.$count(paymentRefunds, finalWhere),
     withPagination(db.select().from(paymentRefunds).where(finalWhere).orderBy(desc(paymentRefunds.id)).$dynamic(), page, pageSize),

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Button, Input, Select, Tag, Descriptions } from '@douyinfe/semi-ui';
+import { Button, Dropdown, Input, Select, SplitButtonGroup, Tag, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, RotateCcw } from 'lucide-react';
+import { Search, RotateCcw, Download, ChevronDown } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -25,6 +25,8 @@ export default function PaymentRefundsPage() {
   const searchRef = useRef<SearchParams>(defaultSearch);
   searchRef.current = searchParams;
   const [detail, setDetail] = useState<PaymentRefund | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportCsvLoading, setExportCsvLoading] = useState(false);
 
   const fetchList = useCallback(
     async (p = page, ps = pageSize, params?: SearchParams) => {
@@ -50,6 +52,23 @@ export default function PaymentRefundsPage() {
   function handleSearch() { setPage(1); void fetchList(1, pageSize); }
   function handleReset() { setSearchParams(defaultSearch); setPage(1); void fetchList(1, pageSize, defaultSearch); }
 
+  function buildExportQuery(): string {
+    const a = searchRef.current;
+    const q: Record<string, string> = {};
+    if (a.keyword) q.keyword = a.keyword;
+    if (a.channel) q.channel = a.channel;
+    if (a.status) q.status = a.status;
+    return new URLSearchParams(q).toString();
+  }
+  async function handleExport() {
+    setExportLoading(true);
+    try { await request.download(`/api/payment/refunds/export?${buildExportQuery()}`, '退款记录.xlsx'); } finally { setExportLoading(false); }
+  }
+  async function handleExportCsv() {
+    setExportCsvLoading(true);
+    try { await request.download(`/api/payment/refunds/export/csv?${buildExportQuery()}`, '退款记录.csv'); } finally { setExportCsvLoading(false); }
+  }
+
   const columns: ColumnProps<PaymentRefund>[] = [
     { title: '退款单号', dataIndex: 'refundNo', width: 200 },
     { title: '原订单号', dataIndex: 'orderNo', width: 200 },
@@ -72,6 +91,17 @@ export default function PaymentRefundsPage() {
           optionList={Object.entries(PAYMENT_REFUND_STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
         <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
         <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+        <SplitButtonGroup>
+          <Button type="primary" icon={<Download size={14} />} loading={exportLoading} onClick={handleExport}>导出</Button>
+          <Dropdown trigger="click" position="bottomRight" clickToHide render={(
+            <Dropdown.Menu>
+              <Dropdown.Item onClick={handleExport}>导出 Excel</Dropdown.Item>
+              <Dropdown.Item onClick={handleExportCsv}>导出 CSV</Dropdown.Item>
+            </Dropdown.Menu>
+          )}>
+            <Button type="primary" icon={<ChevronDown size={14} />} loading={exportCsvLoading} />
+          </Dropdown>
+        </SplitButtonGroup>
       </SearchToolbar>
 
       <ConfigurableTable
