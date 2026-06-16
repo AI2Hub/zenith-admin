@@ -108,6 +108,13 @@ export const paymentHandlers = [
     return HttpResponse.json({ code: 0, message: '删除成功', data: null });
   }),
 
+  // 渠道连通性测试（Demo 模式模拟 50ms 探测延迟，返回成功）
+  http.post('/api/payment/channels/:id/test', ({ params }) => {
+    const c = mockPaymentChannels.find((x) => x.id === Number(params.id));
+    if (!c) return HttpResponse.json({ code: 404, message: '渠道配置不存在', data: null });
+    return HttpResponse.json({ code: 0, message: '操作成功', data: { success: true, message: '连通性测试通过（演示模式）', latencyMs: 48 } });
+  }),
+
   // ── 支付订单 ──
   http.get('/api/payment/orders', ({ request }) => {
     const url = new URL(request.url);
