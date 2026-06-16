@@ -1386,6 +1386,24 @@ export const paymentNotifyLogs = pgTable('payment_notify_logs', {
 export type PaymentNotifyLogRow = typeof paymentNotifyLogs.$inferSelect;
 export type NewPaymentNotifyLog = typeof paymentNotifyLogs.$inferInsert;
 
+// ─── 支付事件 Outbox 表（保证支付/退款成功事件可靠投递，进程崩溃后由 cron 补投）─────
+export const paymentEventStatusEnum = pgEnum('payment_event_status', ['pending', 'done', 'failed']);
+export const paymentEvents = pgTable('payment_events', {
+  id: serial('id').primaryKey(),
+  type: varchar('type', { length: 32 }).notNull(),
+  orderNo: varchar('order_no', { length: 64 }).notNull(),
+  payload: text('payload').notNull(),
+  status: paymentEventStatusEnum('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  lastError: varchar('last_error', { length: 512 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  processedAt: timestamp('processed_at', { withTimezone: true }),
+}, (t) => [index('payment_events_status_idx').on(t.status)]);
+
+export type PaymentEventRow = typeof paymentEvents.$inferSelect;
+export type NewPaymentEvent = typeof paymentEvents.$inferInsert;
+
 // ─── 支付中心关系声明 ─────────────────────────────────────────────────────────
 export const paymentChannelConfigsRelations = relations(paymentChannelConfigs, ({ many }) => ({
   orders: many(paymentOrders),

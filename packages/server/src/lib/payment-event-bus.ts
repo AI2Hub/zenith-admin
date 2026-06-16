@@ -91,6 +91,22 @@ class PaymentEventBus {
       }
     });
   }
+
+  /** 同步等待所有 handler 执行完成（供 outbox 可靠投递使用，任一 handler 抛错会向上传播以触发重试）。 */
+  async dispatch(event: Omit<PaymentEvent, 'eventId' | 'occurredAt'> & { eventId?: string; occurredAt?: string }): Promise<void> {
+    const full: PaymentEvent = {
+      ...event,
+      eventId: event.eventId ?? randomUUID(),
+      occurredAt: event.occurredAt ?? formatDateTime(new Date()),
+    };
+    const handlers = [
+      ...this.emitter.listeners(full.type),
+      ...this.emitter.listeners(ANY_CHANNEL),
+    ];
+    for (const h of handlers) {
+      await (h as PaymentEventHandler)(full);
+    }
+  }
 }
 
 export const paymentEventBus = new PaymentEventBus();

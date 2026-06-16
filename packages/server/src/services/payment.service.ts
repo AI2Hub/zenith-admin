@@ -40,7 +40,8 @@ import type {
 } from '@zenith/shared';
 import { getAdapter } from '../lib/payment';
 import type { AdapterContext, DecryptedSecrets, NotifyResult } from '../lib/payment';
-import { paymentEventBus, type PaymentEventType } from '../lib/payment-event-bus';
+import { paymentEventBus, type PaymentEvent, type PaymentEventType } from '../lib/payment-event-bus';
+import { recordEvent, processEvent } from './payment-outbox.service';
 
 // ─── 工具 ─────────────────────────────────────────────────────────────────────
 
@@ -113,8 +114,8 @@ async function getOrderRowByNo(orderNo: string): Promise<PaymentOrderRow> {
   return row;
 }
 
-function emitPaymentEvent(type: PaymentEventType, order: PaymentOrderRow, extra?: { refundNo?: string; refundAmount?: number }): void {
-  paymentEventBus.emit({
+function buildEventPayload(type: PaymentEventType, order: PaymentOrderRow, extra?: { refundNo?: string; refundAmount?: number }): Omit<PaymentEvent, 'eventId' | 'occurredAt'> {
+  return {
     type,
     orderNo: order.orderNo,
     outTradeNo: order.outTradeNo,
@@ -126,7 +127,11 @@ function emitPaymentEvent(type: PaymentEventType, order: PaymentOrderRow, extra?
     tenantId: order.tenantId,
     refundNo: extra?.refundNo,
     refundAmount: extra?.refundAmount,
-  });
+  };
+}
+
+function emitPaymentEvent(type: PaymentEventType, order: PaymentOrderRow, extra?: { refundNo?: string; refundAmount?: number }): void {
+  paymentEventBus.emit(buildEventPayload(type, order, extra));
 }
 
 // ─── 映射 ─────────────────────────────────────────────────────────────────────
@@ -256,21 +261,25 @@ export async function markOrderPaid(
   order: PaymentOrderRow,
   info: { channelTradeNo?: string; paidAmount?: number; paidAt?: Date; notifyData?: string },
 ): Promise<boolean> {
-  // 原子条件更新：仅当订单尚未进入成功/退款态时才置为 success，
-  // 确保并发回调（渠道重试）下「标记成功 + 发事件」息恰好执行一次，避免重复履约。
-  const updated = await db
-    .update(paymentOrders)
-    .set({
-      status: 'success',
-      channelTradeNo: info.channelTradeNo ?? order.channelTradeNo,
-      paidAmount: info.paidAmount ?? order.amount,
-      paidAt: info.paidAt ?? new Date(),
-      notifyData: info.notifyData ?? order.notifyData,
-    })
-    .where(and(eq(paymentOrders.id, order.id), notInArray(paymentOrders.status, ['success', 'refunding', 'refunded'])))
-    .returning({ id: paymentOrders.id });
-  if (updated.length === 0) return false; // 已被并发处理，幂等跳过
-  emitPaymentEvent('payment.succeeded', order);
+  // 原子条件更新 + outbox 事件同事务持久化：确保「标记成功 + 可靠发事件」exactly-once，
+  // 即使进程在发事件前崩溃，cron 也会从 outbox 补投，杜绝漏履约。
+  const eventId = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(paymentOrders)
+      .set({
+        status: 'success',
+        channelTradeNo: info.channelTradeNo ?? order.channelTradeNo,
+        paidAmount: info.paidAmount ?? order.amount,
+        paidAt: info.paidAt ?? new Date(),
+        notifyData: info.notifyData ?? order.notifyData,
+      })
+      .where(and(eq(paymentOrders.id, order.id), notInArray(paymentOrders.status, ['success', 'refunding', 'refunded'])))
+      .returning({ id: paymentOrders.id });
+    if (updated.length === 0) return null; // 已被并发处理，幂等跳过
+    return recordEvent(tx, { type: 'payment.succeeded', orderNo: order.orderNo, tenantId: order.tenantId, payload: buildEventPayload('payment.succeeded', order) });
+  });
+  if (eventId == null) return false;
+  setImmediate(() => { void processEvent(eventId); }); // 低延迟即时投递；崩溃由 cron 兜底
   return true;
 }
 
@@ -324,14 +333,17 @@ export async function closePayment(orderNo: string): Promise<void> {
 // ─── 退款 ─────────────────────────────────────────────────────────────────────
 
 async function finalizeRefund(order: PaymentOrderRow, refundNo: string, refundAmount: number): Promise<void> {
-  const rows = await db
-    .select({ amount: paymentRefunds.refundAmount, status: paymentRefunds.status })
-    .from(paymentRefunds)
-    .where(eq(paymentRefunds.orderId, order.id));
-  const successTotal = rows.filter((r) => r.status === 'success').reduce((s, r) => s + r.amount, 0);
-  const newStatus: PaymentOrderStatus = successTotal >= order.amount ? 'refunded' : 'success';
-  await db.update(paymentOrders).set({ status: newStatus }).where(eq(paymentOrders.id, order.id));
-  emitPaymentEvent('refund.succeeded', order, { refundNo, refundAmount });
+  const eventId = await db.transaction(async (tx) => {
+    const rows = await tx
+      .select({ amount: paymentRefunds.refundAmount, status: paymentRefunds.status })
+      .from(paymentRefunds)
+      .where(eq(paymentRefunds.orderId, order.id));
+    const successTotal = rows.filter((r) => r.status === 'success').reduce((s, r) => s + r.amount, 0);
+    const newStatus: PaymentOrderStatus = successTotal >= order.amount ? 'refunded' : 'success';
+    await tx.update(paymentOrders).set({ status: newStatus }).where(eq(paymentOrders.id, order.id));
+    return recordEvent(tx, { type: 'refund.succeeded', orderNo: order.orderNo, tenantId: order.tenantId, payload: buildEventPayload('refund.succeeded', order, { refundNo, refundAmount }) });
+  });
+  setImmediate(() => { void processEvent(eventId); });
 }
 
 export async function refund(input: CreateRefundInput & { operatorId?: number }): Promise<{ refundNo: string; status: string }> {
