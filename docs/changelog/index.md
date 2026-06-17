@@ -4,6 +4,52 @@
 
 ---
 
+## v0.60.0 - 2026-06-17
+
+### Added
+
+#### 系统运维工具箱（Ops Toolbox）
+
+- 新增"系统运维"子菜单（系统设置下），提供一站式服务器运维能力，无需离开管理后台
+- **Web 终端**：基于 WebSocket 的全功能 SSH 终端，支持多分屏、实时输入输出、分辨率自适应
+- **终端录屏**：自动录制终端操作并支持回放，可按时间/大小筛选，支持自动清理策略
+- **文件管理器**：服务器文件系统浏览、上传/下载、重命名、删除、权限查看
+- **进程管理**：进程列表与实时资源占用、结束进程、调整优先级（nice）
+- **端口监听**：当前监听端口列表、进程关联、内外网标识
+- **Docker 管理**：容器/镜像列表、启停/重启/删除、实时日志查看
+- **网络诊断**：ping、traceroute、DNS 转换、端口连通性检测
+- **服务管理**：systemd 服务列表、状态查看、启停/重启/设置开机自启
+- **日志查看器**：实时流式日志浏览，支持内容书签标记与内容加载
+
+#### 数据分析与前端错误监控
+
+- 新增"数据分析"一级菜单，权限码 `analytics:*` / `monitor:error:*`
+- **行为分析**：PV/UV、停留时长、点击事件等埋点指标采集与大盘展示，支持时间范围、设备、操作系统多维筛选
+- **前端错误监控**：自动采集 JS 异常与 Promise 拒绝并上报，错误列表 + 堆栈详情查看，支持按错误类型/页面/异常信息筛选
+- **分析数据管理**：请求历史列表与按条件清除
+
+### Changed
+
+#### 种子数据统一来源（shared/seed-data.ts）
+
+- 将原散落在 `seed.ts` 的业务实体数据迁移至 `packages/shared/src/seed-data.ts`，新增 8 个 SEED 常量：`SEED_TAGS`、`SEED_DATA_MASK_CONFIGS`、`SEED_MEMBER_LEVELS`、`SEED_COUPONS`、`SEED_EMAIL_TEMPLATES`、`SEED_SMS_TEMPLATES`、`SEED_INAPP_TEMPLATES`、`SEED_TENANTS`
+- `seed.ts` 改为 import 并使用这些常量；MSW mock data 文件同步改为 `import + spread`，彻底消除前端 Demo 模式与 DB 种子数据的重复定义（之前数据脱敏规则 mock 少一条 idCard 规则的问题也一并修复）
+- 邮件/短信/站内信模板统一为 3 条，模板内容与 code 在 Demo 模式和真实 DB 中完全一致
+- `users.ts` mock 中的 `superAdminRole`、`normalUserRole`、管理员岗位改为直接从 `SEED_ROLES`/`SEED_POSITIONS` 派生，消除重复定义
+- 更新 `crud-mock.md` 与 `seed-config.md` Skill 模板，规范新模块的 SEED 常量声明步骤
+
+### Fixed
+
+- 修复 `db:seed` 因 `email_templates` 表 PK 冲突（`id=1` 已被旧模板占用）导致种子数据执行失败的问题；对 email/sms/inapp 模板及 tags 去掉显式 `id` 插入，改为 DB 自动分配，与 `onConflictDoNothing({ target: code/name })` 策略匹配
+- 修复 `MemberLayout.tsx` 的两处预存类型错误：`NAV_ITEMS as const` 导致 readonly 不兼容，以及 `collapseText` 回调参数 `boolean` 未声明为可选
+
+### Docs
+
+- 文档站首页 features 卡片从 6 → 9，新增「支付中心」「会员中心」「数据分析与错误监控」，更新「运维与可观测」补充系统运维工具箱描述
+- 核心能力矩阵（`FeatureMatrixFlow`）新增 19 个条目：系统运维 8 项 + 数据分析 3 项 + 支付中心 3 项 + 会员中心 5 项
+- `docs/product/features.md` 补充「系统运维」独立章节（9 项）+ 新增「数据分析」「支付中心」「会员中心」三个完整章节
+- `docs/product/overview.md` 产品价值新增 4 项：支付中心、会员体系、数据分析/错误监控、一站式系统运维
+
 ## v0.59.0 - 2026-06-17
 
 ### Added

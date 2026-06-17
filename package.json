@@ -1,41 +1,41 @@
 {
-  "name": "zenith-admin",
-  "version": "0.59.0",
-  "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
-  "scripts": {
-    "dev": "concurrently \"npm run dev -w @zenith/server\" \"npm run dev -w @zenith/web\"",
-    "dev:server": "npm run dev -w @zenith/server",
-    "dev:web": "npm run dev -w @zenith/web",
-    "dev:electron": "npm run dev -w @zenith/electron",
-    "build:electron": "env VITE_ELECTRON=true npm run build -w @zenith/web && npm run build -w @zenith/electron",
-    "build:electron:win": "env VITE_ELECTRON=true npm run build -w @zenith/web && npm run build:win -w @zenith/electron",
-    "build:electron:mac": "env VITE_ELECTRON=true npm run build -w @zenith/web && npm run build:mac -w @zenith/electron",
-    "build:electron:linux": "env VITE_ELECTRON=true npm run build -w @zenith/web && npm run build:linux -w @zenith/electron",
-    "dev:demo": "npm run dev:demo -w @zenith/web",
-    "docs:dev": "vitepress dev docs --host 0.0.0.0 --port 4177",
-    "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs --host 0.0.0.0 --port 4178",
-    "build": "npm run build -w @zenith/shared && npm run build -w @zenith/server && npm run build -w @zenith/web",
-    "build:demo": "npm run build -w @zenith/shared && npm run build:demo -w @zenith/web",
-    "db:generate": "npm run db:generate -w @zenith/server",
-    "db:migrate": "npm run db:migrate -w @zenith/server",
-    "db:seed": "npm run db:seed -w @zenith/server",
-    "test": "npm run test -w @zenith/server && npm run test -w @zenith/web",
-    "test:server": "npm run test -w @zenith/server",
-    "test:web": "npm run test -w @zenith/web",
-    "lint": "npm run lint -w @zenith/server && npm run lint -w @zenith/web",
-    "lint:fix": "npm run lint:fix -w @zenith/server && npm run lint:fix -w @zenith/web"
-  },
-  "devDependencies": {
-    "concurrently": "^10.0.3",
-    "gsap": "^3.15.0",
-    "jsdom": "^29.1.1",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "typescript": "^6.0.3",
-    "vitepress": "^1.6.4"
-  }
+	"name": "zenith-admin",
+	"version": "0.60.0",
+	"private": true,
+	"workspaces": [
+		"packages/*"
+	],
+	"scripts": {
+		"dev": "concurrently \"npm run dev -w @zenith/server\" \"npm run dev -w @zenith/web\"",
+		"dev:server": "npm run dev -w @zenith/server",
+		"dev:web": "npm run dev -w @zenith/web",
+		"dev:electron": "npm run dev -w @zenith/electron",
+		"build:electron": "env VITE_ELECTRON=true npm run build -w @zenith/web && npm run build -w @zenith/electron",
+		"build:electron:win": "env VITE_ELECTRON=true npm run build -w @zenith/web && npm run build:win -w @zenith/electron",
+		"build:electron:mac": "env VITE_ELECTRON=true npm run build -w @zenith/web && npm run build:mac -w @zenith/electron",
+		"build:electron:linux": "env VITE_ELECTRON=true npm run build -w @zenith/web && npm run build:linux -w @zenith/electron",
+		"dev:demo": "npm run dev:demo -w @zenith/web",
+		"docs:dev": "vitepress dev docs --host 0.0.0.0 --port 4177",
+		"docs:build": "vitepress build docs",
+		"docs:preview": "vitepress preview docs --host 0.0.0.0 --port 4178",
+		"build": "npm run build -w @zenith/shared && npm run build -w @zenith/server && npm run build -w @zenith/web",
+		"build:demo": "npm run build -w @zenith/shared && npm run build:demo -w @zenith/web",
+		"db:generate": "npm run db:generate -w @zenith/server",
+		"db:migrate": "npm run db:migrate -w @zenith/server",
+		"db:seed": "npm run db:seed -w @zenith/server",
+		"test": "npm run test -w @zenith/server && npm run test -w @zenith/web",
+		"test:server": "npm run test -w @zenith/server",
+		"test:web": "npm run test -w @zenith/web",
+		"lint": "npm run lint -w @zenith/server && npm run lint -w @zenith/web",
+		"lint:fix": "npm run lint:fix -w @zenith/server && npm run lint:fix -w @zenith/web"
+	},
+	"devDependencies": {
+		"concurrently": "^10.0.3",
+		"gsap": "^3.15.0",
+		"jsdom": "^29.1.1",
+		"react": "^19.2.7",
+		"react-dom": "^19.2.7",
+		"typescript": "^6.0.3",
+		"vitepress": "^1.6.4"
+	}
 }
