@@ -60,6 +60,11 @@ vi.mock('../lib/redis', () => ({
     exists: vi.fn(),
     expire: vi.fn(),
     scan: vi.fn(),
+    // rate-limit 中间件（hono-rate-limiter）在模块加载时构造 RedisStore → 调用 script('LOAD')；
+    // 新版会在构造期即加载脚本，故 mock 必须提供这些方法，否则 RedisStore 构造抛错导致路由 import 失败。
+    script: vi.fn().mockResolvedValue('mock-sha'),
+    evalsha: vi.fn().mockResolvedValue([1, 60]),
+    decr: vi.fn().mockResolvedValue(0),
   },
 }));
 
@@ -94,6 +99,17 @@ vi.mock('../lib/logger', () => ({
 vi.mock('../middleware/logger', () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   httpLogger: async (_c: any, next: () => Promise<void>) => next(),
+}));
+
+// 限流中间件依赖 hono-rate-limiter 的 RedisStore（构造期加载 Lua 脚本 + 请求期 evalsha）。
+// 单测聚焦认证逻辑本身，将三个限流器 mock 为 passthrough，避免脚本行为与 redis mock 漂移导致 500。
+vi.mock('../middleware/rate-limit', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  authRateLimit: async (_c: any, next: () => Promise<void>) => next(),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  captchaRateLimit: async (_c: any, next: () => Promise<void>) => next(),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sensitiveRateLimit: async (_c: any, next: () => Promise<void>) => next(),
 }));
 
 vi.mock('../lib/permissions', () => ({
@@ -274,11 +290,16 @@ describe('GET /api/auth/me - 认证中间件', () => {
       updatedAt: now,
     };
 
-    dbMock.select.mockReturnValueOnce(createChain([mockUser])); // users 查询
-    // getUserRoles 使用 RQB（db.query.users.findFirst）
+    // getMyProfile 第一个查询走 RQB（db.query.users.findFirst，with department/userPositions/userRoles）；
+    // 必须提供 userPositions/department，否则 user.userPositions.map(...) 在 undefined 上抛错 → 500。
     (dbMock.query.users.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ...mockUser,
       userRoles: [],
+      userPositions: [],
+      department: null,
     });
+    // getMyProfile 末尾查询最近登录日志（db.select），返回空数组即可（prevLogin = null）
+    dbMock.select.mockReturnValueOnce(createChain([]));
 
     const app = buildApp();
     const res = await app.request('/api/auth/me', {
