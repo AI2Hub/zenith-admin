@@ -71,6 +71,30 @@ export interface ChangePointsInput {
   operatorId?: number;
 }
 
+export interface PointChangeResult {
+  newBalance: number;
+  newTotalEarned: number;
+  newTotalSpent: number;
+}
+
+/**
+ * 计算积分账户变动后的新值（纯函数，无 DB 依赖，便于单测）。
+ * - earn/refund(正)累加 totalEarned；redeem/expire(负)累加 totalSpent
+ * - 余额不足（变动后 < 0）抛 400
+ */
+export function computePointChange(
+  acc: { balance: number; totalEarned: number; totalSpent: number },
+  amount: number,
+): PointChangeResult {
+  const newBalance = acc.balance + amount;
+  if (newBalance < 0) throw new HTTPException(400, { message: '积分余额不足' });
+  return {
+    newBalance,
+    newTotalEarned: amount > 0 ? acc.totalEarned + amount : acc.totalEarned,
+    newTotalSpent: amount < 0 ? acc.totalSpent + Math.abs(amount) : acc.totalSpent,
+  };
+}
+
 export async function changePoints(input: ChangePointsInput): Promise<MemberPointAccountRow> {
   if (input.amount === 0) throw new HTTPException(400, { message: '积分变动量不能为 0' });
 
@@ -83,15 +107,14 @@ export async function changePoints(input: ChangePointsInput): Promise<MemberPoin
         .limit(1);
       if (!acc) throw new HTTPException(404, { message: '积分账户不存在' });
 
-      const newBalance = acc.balance + input.amount;
-      if (newBalance < 0) throw new HTTPException(400, { message: '积分余额不足' });
+      const { newBalance, newTotalEarned, newTotalSpent } = computePointChange(acc, input.amount);
 
       const updated = await tx
         .update(memberPointAccounts)
         .set({
           balance: newBalance,
-          totalEarned: input.amount > 0 ? acc.totalEarned + input.amount : acc.totalEarned,
-          totalSpent: input.amount < 0 ? acc.totalSpent + Math.abs(input.amount) : acc.totalSpent,
+          totalEarned: newTotalEarned,
+          totalSpent: newTotalSpent,
           version: acc.version + 1,
         })
         .where(and(eq(memberPointAccounts.id, acc.id), eq(memberPointAccounts.version, acc.version)))

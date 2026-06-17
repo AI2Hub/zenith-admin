@@ -5,6 +5,7 @@ import { MemberAuthProvider, useMemberAuth } from './hooks/useMemberAuth';
 import MemberLayout from './layouts/MemberLayout';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import HomePage from './pages/home/HomePage';
 import PointsPage from './pages/points/PointsPage';
 import WalletPage from './pages/wallet/WalletPage';
@@ -37,6 +38,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route
         element={
           <RequireMember>

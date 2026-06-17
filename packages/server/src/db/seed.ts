@@ -1,5 +1,5 @@
 import { db } from './index';
-import { users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, systemConfigs, cronJobs, regions, tenants, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskConfigs } from './schema';
+import { users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, systemConfigs, cronJobs, regions, tenants, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskConfigs, memberLevels, members, memberPointAccounts, memberPointTransactions, memberWallets, coupons, memberCoupons } from './schema';
 import bcrypt from 'bcryptjs';
 import { and, eq, isNull, inArray, sql } from 'drizzle-orm';
 import { createRequire } from 'node:module';
@@ -391,6 +391,57 @@ async function seedRest() {
     },
   ]).onConflictDoNothing();
   logger.info('  ✔ Data mask configs seeded (onConflictDoNothing)');
+
+  // ── 会员等级 ──────────────────────────────────────────────────
+  const existingLevels = await db.select({ id: memberLevels.id }).from(memberLevels).limit(1);
+  if (existingLevels.length === 0) {
+    await db.insert(memberLevels).values([
+      { name: '普通会员', level: 1, growthThreshold: 0, discount: 100, benefits: ['基础积分权益'], sort: 1, status: 'enabled' },
+      { name: '银卡会员', level: 2, growthThreshold: 1000, discount: 98, benefits: ['98 折优惠', '生日积分翻倍'], sort: 2, status: 'enabled' },
+      { name: '金卡会员', level: 3, growthThreshold: 5000, discount: 95, benefits: ['95 折优惠', '生日积分翻倍', '专属客服'], sort: 3, status: 'enabled' },
+      { name: '钻石会员', level: 4, growthThreshold: 20000, discount: 90, benefits: ['9 折优惠', '积分翻倍', '专属客服', '优先发货'], sort: 4, status: 'enabled' },
+    ]);
+    logger.info('  ✔ Member levels seeded');
+  }
+
+  // ── 优惠券模板 ────────────────────────────────────────────────
+  const existingCoupons = await db.select({ id: coupons.id }).from(coupons).limit(1);
+  if (existingCoupons.length === 0) {
+    await db.insert(coupons).values([
+      { name: '新人满100减10', type: 'amount', faceValue: 1000, threshold: 10000, totalQuantity: 1000, perLimit: 1, validType: 'relative', validDays: 30, status: 'active', description: '新人专享满减券' },
+      { name: '全场9折券', type: 'percent', faceValue: 90, threshold: 0, maxDiscount: 5000, totalQuantity: 500, perLimit: 1, validType: 'relative', validDays: 15, status: 'active', description: '限时9折，最高减50元' },
+    ]);
+    logger.info('  ✔ Coupons seeded');
+  }
+
+  // ── 演示会员（手机号 13800138000 / 密码 123456）────────────────────────
+  const existingDemoMember = await db.select({ id: members.id }).from(members).where(eq(members.phone, '13800138000')).limit(1);
+  if (existingDemoMember.length === 0) {
+    const memberPwd = await bcrypt.hash('123456', 10);
+    const [normalLevel] = await db.select({ id: memberLevels.id }).from(memberLevels).where(eq(memberLevels.level, 1)).limit(1);
+    const [demoMember] = await db.insert(members).values({
+      phone: '13800138000',
+      nickname: '演示会员',
+      password: memberPwd,
+      status: 'active',
+      levelId: normalLevel?.id ?? null,
+      growthValue: 0,
+      registerSource: 'seed',
+    }).returning({ id: members.id });
+    // 初始化积分账户（赠送 100 积分）+ 流水
+    await db.insert(memberPointAccounts).values({ memberId: demoMember.id, balance: 100, totalEarned: 100 });
+    await db.insert(memberPointTransactions).values({ memberId: demoMember.id, type: 'earn', amount: 100, balanceAfter: 100, bizType: 'register', remark: '注册赠送积分' });
+    // 初始化钱包
+    await db.insert(memberWallets).values({ memberId: demoMember.id, balance: 0 });
+    // 发放一张优惠券
+    const [firstCoupon] = await db.select({ id: coupons.id, validDays: coupons.validDays }).from(coupons).limit(1);
+    if (firstCoupon) {
+      const expireAt = firstCoupon.validDays ? new Date(Date.now() + firstCoupon.validDays * 86_400_000) : null;
+      await db.insert(memberCoupons).values({ couponId: firstCoupon.id, memberId: demoMember.id, code: 'SEEDCOUPON0001', status: 'unused', expireAt });
+      await db.update(coupons).set({ issuedQuantity: sql`${coupons.issuedQuantity} + 1` }).where(eq(coupons.id, firstCoupon.id));
+    }
+    logger.info('  ✔ Demo member seeded (13800138000 / 123456)');
+  }
 }
 
 try {

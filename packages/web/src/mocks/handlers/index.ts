@@ -47,6 +47,8 @@ import { userPermissionsHandlers } from './user-permissions';
 import { maintenanceHandlers } from './maintenance';
 import { analyticsHandlers } from './analytics';
 import { paymentHandlers } from './payment';
+import { memberFrontHandlers } from './member-front';
+import { memberAdminHandlers } from './member-admin';
 
 export const handlers = [
   ...authHandlers,
@@ -98,4 +100,6 @@ export const handlers = [
   ...maintenanceHandlers,
   ...analyticsHandlers,
   ...paymentHandlers,
+  ...memberFrontHandlers,
+  ...memberAdminHandlers,
 ];

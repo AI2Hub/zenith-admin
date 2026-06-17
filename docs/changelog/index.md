@@ -4,6 +4,28 @@
 
 ---
 
+## v0.59.0 - 2026-06-17
+
+### Added
+
+#### 前台会员体系（Members）
+
+- 新增面向 C 端普通用户的**前台会员体系**，与后台管理员体系**完全隔离**：独立 `members` 表、独立 JWT（payload 带 `type:'member'`，`memberAuthMiddleware` 强制校验，杜绝与管理员 token 互窜）、独立 Redis 会话前缀（`member-session:`）
+- **会员认证**（`/api/member/auth/*`）：支持手机号+短信验证码、手机号+密码、邮箱+密码、用户名+密码 4 种登录方式；含注册、登录、刷新、登出、改资料、改密码、短信重置密码；验证码存 Redis + 发码限流；密码 `bcryptjs` 加密
+- **会员自助**（`/api/member/*`，按 `currentMemberId()` 过滤防越权）：积分账户与流水、钱包与流水、发起充值、会员等级权益、我的优惠券、领券中心、领取优惠券
+- **积分系统**：积分账户（`version` 乐观锁）+ 追加型流水，统一记账 API `changePoints()`（事务 + 乐观锁 + 原子写流水，防并发超扣），封装 earn/redeem/adjust/refund，预留供未来订单系统接入
+- **会员等级**：等级配置（成长值门槛、折扣、权益）+ 按成长值自动定级
+- **钱包余额**：余额账户（单位分，`version` 乐观锁）+ 流水；充值接入已有支付中心（`bizType='member_recharge'`），监听支付成功事件原子入账，充值接口幂等
+- **优惠券**：模板（满减 / 折扣）+ 券码，支持发券 / 领取 / 核销 / 作废 / 过期，原子防超发；核销预留统一 API
+- **后台管理**：新增"会员中心"一级菜单（会员管理、会员等级、积分管理、钱包管理、优惠券管理、领券记录 6 个页面），权限码 `member:*`，全部带操作审计；含会员 CRUD / 启禁 / 重置密码 / 导出、积分钱包手动调整 / 退款、优惠券模板管理与发券核销
+- **前台 SPA**：Vite 多入口新增 `member.html` 独立入口（独立 React 根、HashRouter、移动优先 UI、底部 TabBar），独立请求实例 `member-request`；含登录/注册、个人中心、积分、钱包充值、优惠券、等级权益、资料/密码页
+- 新增 8 张表（`members` / `member_levels` / `member_point_accounts` / `member_point_transactions` / `member_wallets` / `member_wallet_transactions` / `coupons` / `member_coupons`）及迁移；同步覆盖 MSW Demo Mock（前台 + 后台）与种子数据（4 级会员等级、演示会员 `13800138000 / 123456`、示例优惠券）
+
+### Security
+
+- 前后台双用户体系严格隔离：会员 token 与管理员 token 通过 `type:'member'` 双向拒绝互窜；所有 `/api/member/*` 自助接口强制按会员自身 ID 过滤，防止越权访问他人数据
+- 短信发码限流 + Redis 存码，防爆破 / 防刷；钱包充值幂等（`idempotencyGuard`）；积分 / 钱包记账事务 + 乐观锁防并发超扣
+
 ## v0.58.1 - 2026-06-16
 
 ### Added

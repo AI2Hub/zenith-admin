@@ -105,9 +105,9 @@ export default function RegisterPage() {
 
       <div className="m-auth-footer">
         已有账户？
-        <span className="m-auth-link" onClick={() => navigate('/login')}>
+        <button type="button" className="m-auth-link" onClick={() => navigate('/login')}>
           返回登录
-        </span>
+        </button>
       </div>
     </div>
   );

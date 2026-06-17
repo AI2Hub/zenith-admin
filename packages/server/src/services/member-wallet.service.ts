@@ -76,6 +76,31 @@ export interface ChangeWalletInput {
   operatorId?: number;
 }
 
+export interface WalletChangeResult {
+  newBalance: number;
+  newTotalRecharge: number;
+  newTotalConsume: number;
+}
+
+/**
+ * 计算钱包账户变动后的新值（纯函数，无 DB 依赖，单位分）。
+ * - 仅 recharge 类型且正额累加 totalRecharge；仅 consume 类型且负额累加 totalConsume
+ * - 余额不足（变动后 < 0）抛 400，防超扣
+ */
+export function computeWalletChange(
+  w: { balance: number; totalRecharge: number; totalConsume: number },
+  type: WalletTxType,
+  amount: number,
+): WalletChangeResult {
+  const newBalance = w.balance + amount;
+  if (newBalance < 0) throw new HTTPException(400, { message: '余额不足' });
+  return {
+    newBalance,
+    newTotalRecharge: type === 'recharge' && amount > 0 ? w.totalRecharge + amount : w.totalRecharge,
+    newTotalConsume: type === 'consume' && amount < 0 ? w.totalConsume + Math.abs(amount) : w.totalConsume,
+  };
+}
+
 export async function changeWallet(input: ChangeWalletInput): Promise<MemberWalletRow> {
   if (input.amount === 0) throw new HTTPException(400, { message: '金额变动不能为 0' });
 
@@ -84,15 +109,14 @@ export async function changeWallet(input: ChangeWalletInput): Promise<MemberWall
       const [w] = await tx.select().from(memberWallets).where(eq(memberWallets.memberId, input.memberId)).limit(1);
       if (!w) throw new HTTPException(404, { message: '钱包不存在' });
 
-      const newBalance = w.balance + input.amount;
-      if (newBalance < 0) throw new HTTPException(400, { message: '余额不足' });
+      const { newBalance, newTotalRecharge, newTotalConsume } = computeWalletChange(w, input.type, input.amount);
 
       const updated = await tx
         .update(memberWallets)
         .set({
           balance: newBalance,
-          totalRecharge: input.type === 'recharge' && input.amount > 0 ? w.totalRecharge + input.amount : w.totalRecharge,
-          totalConsume: input.type === 'consume' && input.amount < 0 ? w.totalConsume + Math.abs(input.amount) : w.totalConsume,
+          totalRecharge: newTotalRecharge,
+          totalConsume: newTotalConsume,
           version: w.version + 1,
         })
         .where(and(eq(memberWallets.id, w.id), eq(memberWallets.version, w.version)))

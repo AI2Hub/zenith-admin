@@ -54,12 +54,12 @@ export default function LoginPage() {
       </div>
 
       <div className="m-auth-tabs">
-        <div className={`m-auth-tab${tab === 'password' ? ' active' : ''}`} onClick={() => setTab('password')}>
+        <button type="button" className={`m-auth-tab${tab === 'password' ? ' active' : ''}`} onClick={() => setTab('password')}>
           密码登录
-        </div>
-        <div className={`m-auth-tab${tab === 'sms' ? ' active' : ''}`} onClick={() => setTab('sms')}>
+        </button>
+        <button type="button" className={`m-auth-tab${tab === 'sms' ? ' active' : ''}`} onClick={() => setTab('sms')}>
           验证码登录
-        </div>
+        </button>
       </div>
 
       {tab === 'password' ? (
@@ -106,6 +106,12 @@ export default function LoginPage() {
         </>
       )}
 
+      <div style={{ textAlign: 'right', marginTop: 12 }}>
+        <button type="button" className="m-auth-link" onClick={() => navigate('/forgot-password')}>
+          忘记密码？
+        </button>
+      </div>
+
       <Button
         size="large"
         theme="solid"
@@ -119,9 +125,9 @@ export default function LoginPage() {
 
       <div className="m-auth-footer">
         还没有账户？
-        <span className="m-auth-link" onClick={() => navigate('/register')}>
+        <button type="button" className="m-auth-link" onClick={() => navigate('/register')}>
           立即注册
-        </span>
+        </button>
       </div>
     </div>
   );

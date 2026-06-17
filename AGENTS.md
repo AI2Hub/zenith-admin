@@ -87,6 +87,45 @@ npm run db:seed        # 填充初始种子数据
 
 主要表：`users`, `menus`, `roles`, `role_menus`, `dicts`, `dict_items`, `file_storage_configs`, `managed_files`
 
+会员体系表：`members`, `member_levels`, `member_point_accounts`, `member_point_transactions`, `member_wallets`, `member_wallet_transactions`, `coupons`, `member_coupons`
+
+---
+
+## 前台会员体系（Members）
+
+系统采用**前台 / 后台双用户体系**，彻底隔离：
+
+- **管理员**（后台）：`users` 表 + `/api/auth/*` + JWT(`roles[]`/`tenantId`/`jti`) + `AdminLayout`（`index.html`）
+- **会员**（前台 C 端）：`members` 表 + `/api/member/auth/*` + 独立 JWT(`memberId`/`type:'member'`/`jti`) + 独立 SPA（`member.html`）
+
+### 认证隔离（安全关键）
+
+- 会员 JWT payload **必须**带 `type:'member'`，`memberAuthMiddleware`（`middleware/member-auth.ts`）强制校验；管理员 `authMiddleware` 反向拒绝 `type:'member'` 的 token，杜绝两套 token 互窜
+- 会员会话走独立 Redis key 前缀（`member-session:`，见 `lib/member-session-manager.ts`），与管理员 `session:` 隔离
+- 会员上下文用 `lib/member-context.ts` 的 `currentMember()` / `currentMemberId()`（与管理员 `currentUser()` 并存）
+- 登录支持 4 种方式：手机号+短信验证码、手机号+密码、邮箱+密码、用户名+密码；验证码存 Redis（`member:smscode:{phone}`）+ 发码限流；密码同样 `bcryptjs` hash(10)；**第一期不含第三方/微信登录**
+
+### 后端落点
+
+- 前台认证：`services/member-auth.service.ts` + `routes/member-auth.ts`（`/api/member/auth/*`）
+- 前台自助：`routes/member-self.ts`（`/api/member/*`，全部按 `currentMemberId()` 过滤防越权）
+- 后台管理：`routes/{members,member-levels,member-points,member-wallets,coupons}.ts`（`authMiddleware` + `guard('member:*')` + 审计），权限码 `member:member:*` / `member:level:*` / `member:point:list|adjust` / `member:wallet:list|adjust|refund` / `member:coupon:*`；会员中心菜单在 `seed-data.ts`（id 800 段），超管自动绑定
+- DTO 统一在 `lib/dtos/member.ts`
+
+### 积分 / 钱包 / 优惠券（资金一致性）
+
+- 积分、钱包账户均带 `version` 乐观锁；记账走**事务 + 乐观锁 + 原子写流水**（`member-points.service.ts` 的 `changePoints()`、`member-wallet.service.ts`），防并发超扣，预留为统一记账/核销 API 供未来订单系统调用
+- **金额单位统一为分**（整数），积分为整数
+- 钱包充值接入已有支付中心：下单 `bizType='member_recharge'`，监听 `paymentEventBus` 支付成功事件入账（`services/payment-subscribers.ts`），充值接口 `idempotencyGuard` 幂等
+- 会员全局唯一（`members` 保留 `tenant_id` 备用，默认 null，第一期不分租户）
+
+### 前台 SPA（`packages/web/src/member/`）
+
+- Vite 多入口：`vite.config.ts` 的 `rollupOptions.input` 含 `main`（index.html）+ `member`（member.html）
+- 独立请求实例 `utils/member-request.ts`（`MEMBER_TOKEN_KEY`，401 刷新 `/api/member/auth/refresh`，跳 `/member.html#/login`），**勿与 admin `utils/request.ts` 混用**
+- 路由用 **HashRouter**（多入口零 rewrite）；认证 Provider `hooks/useMemberAuth.tsx`；移动优先样式 `styles/member.css`（主题色 `#07c160`）；底部 TabBar `layouts/MemberLayout.tsx`
+- MSW Mock：`mocks/handlers/member-front.ts`（前台）+ `member-admin.ts`（后台），数据 `mocks/data/members.ts`
+
 ---
 
 ## Redis 说明

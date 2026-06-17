@@ -291,4 +291,16 @@ describe('GET /api/auth/me - 认证中间件', () => {
     expect(body.data.username).toBe('admin');
     expect(body.data).not.toHaveProperty('password'); // 密码字段不应暴露
   });
+
+  it('会员 token（type=member）访问管理端 → 401 无效的访问令牌（反向隔离）', async () => {
+    const token = await makeToken({ type: 'member', memberId: 1 });
+    const app = buildApp();
+    const res = await app.request('/api/auth/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(401);
+    expect(body.message).toBe('无效的访问令牌');
+  });
 });
