@@ -7,4 +7,3 @@ let nextId = Math.max(...mockSmsTemplates.map((t) => t.id)) + 1;
 export function getNextSmsTemplateId() {
   return nextId++;
 }
-}
