@@ -276,16 +276,14 @@ async function seedRest() {
 
   // ─── 邮件模板示例数据（数据来源：@zenith/shared SEED_EMAIL_TEMPLATES）─────────────────────────
   await db.insert(emailTemplates).values(
-    SEED_EMAIL_TEMPLATES.map(({ id, name, code, subject, content, variables, status, remark }) => ({ id, name, code, subject, content, variables, status, remark })),
+    SEED_EMAIL_TEMPLATES.map(({ name, code, subject, content, variables, status, remark }) => ({ name, code, subject, content, variables, status, remark })),
   ).onConflictDoNothing({ target: emailTemplates.code });
-  await db.execute(sql`SELECT setval('email_templates_id_seq', GREATEST((SELECT MAX(id) FROM email_templates), 1))`);
   logger.info('  ✔ Email templates seeded (onConflictDoNothing)');
 
   // ─── 短信模板示例数据（数据来源：@zenith/shared SEED_SMS_TEMPLATES）──────────────────────
   await db.insert(smsTemplates).values(
-    SEED_SMS_TEMPLATES.map(({ id, name, code, templateCode, signName, content, variables, provider, status, remark }) => ({ id, name, code, templateCode, signName, content, variables, provider, status, remark })),
+    SEED_SMS_TEMPLATES.map(({ name, code, templateCode, signName, content, variables, provider, status, remark }) => ({ name, code, templateCode, signName, content, variables, provider, status, remark })),
   ).onConflictDoNothing({ target: smsTemplates.code });
-  await db.execute(sql`SELECT setval('sms_templates_id_seq', GREATEST((SELECT MAX(id) FROM sms_templates), 1))`);
   logger.info('  ✔ SMS templates seeded (onConflictDoNothing)');
 
   // ─── 短信服务商配置示例 ─────────────────────────────────────────────────────
@@ -309,16 +307,14 @@ async function seedRest() {
 
   // ─── 站内信模板示例数据（数据来源：@zenith/shared SEED_INAPP_TEMPLATES）─────────────────────
   await db.insert(inAppTemplates).values(
-    SEED_INAPP_TEMPLATES.map(({ id, name, code, title, content, type, variables, status, remark }) => ({ id, name, code, title, content, type, variables, status, remark })),
+    SEED_INAPP_TEMPLATES.map(({ name, code, title, content, type, variables, status, remark }) => ({ name, code, title, content, type, variables, status, remark })),
   ).onConflictDoNothing({ target: inAppTemplates.code });
-  await db.execute(sql`SELECT setval('in_app_templates_id_seq', GREATEST((SELECT MAX(id) FROM in_app_templates), 1))`);
   logger.info('  ✔ In-app templates seeded (onConflictDoNothing)');
 
   // ── 标签 ────────────────────────────────────────────────────────────────────
   await db.insert(tags).values(
-    SEED_TAGS.map(({ id, name, color, groupName, description, status, sortOrder }) => ({ id, name, color, groupName, description, status, sortOrder })),
+    SEED_TAGS.map(({ name, color, groupName, description, status, sortOrder }) => ({ name, color, groupName, description, status, sortOrder })),
   ).onConflictDoNothing({ target: tags.name });
-  await db.execute(sql`SELECT setval('tags_id_seq', GREATEST((SELECT MAX(id) FROM tags), 1))`);
   logger.info('  ✔ Tags seeded (onConflictDoNothing)');
 
   // ── 数据脱敏规则 ──────────────────────────────────────────────────────────────
