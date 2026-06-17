@@ -16,6 +16,7 @@ export interface MockMember {
   levelId: number | null;
   levelName: string | null;
   growthValue: number;
+  experience: number;
   registerSource: string;
   registerIp: string | null;
   lastLoginAt: string | null;
@@ -41,9 +42,9 @@ export const mockMemberLevels = SEED_MEMBER_LEVELS.map((l, i) => ({
 }));
 
 export const mockMembers: MockMember[] = [
-  { id: 1, username: null, phone: '13800138000', email: 'demo@member.dev', nickname: '演示会员', avatar: null, gender: 'male', birthday: null, status: 'active', levelId: 2, levelName: '银卡会员', growthValue: 1280, registerSource: 'seed', registerIp: '127.0.0.1', lastLoginAt: now, remark: null, hasPassword: true, pointBalance: 1280, walletBalance: 5000, createdAt: now, updatedAt: now, password: '123456' },
-  { id: 2, username: 'alice', phone: '13900139001', email: 'alice@member.dev', nickname: 'Alice', avatar: null, gender: 'female', birthday: null, status: 'active', levelId: 1, levelName: '普通会员', growthValue: 320, registerSource: 'web', registerIp: '127.0.0.1', lastLoginAt: now, remark: null, hasPassword: true, pointBalance: 320, walletBalance: 0, createdAt: now, updatedAt: now, password: '123456' },
-  { id: 3, username: null, phone: '13700137002', email: null, nickname: '老用户', avatar: null, gender: null, birthday: null, status: 'inactive', levelId: 3, levelName: '金卡会员', growthValue: 6200, registerSource: 'h5', registerIp: '127.0.0.1', lastLoginAt: null, remark: '长期未登录', hasPassword: false, pointBalance: 80, walletBalance: 19900, createdAt: now, updatedAt: now, password: '' },
+  { id: 1, username: null, phone: '13800138000', email: 'demo@member.dev', nickname: '演示会员', avatar: null, gender: 'male', birthday: null, status: 'active', levelId: 2, levelName: '银卡会员', growthValue: 1280, experience: 520, registerSource: 'seed', registerIp: '127.0.0.1', lastLoginAt: now, remark: null, hasPassword: true, pointBalance: 1280, walletBalance: 5000, createdAt: now, updatedAt: now, password: '123456' },
+  { id: 2, username: 'alice', phone: '13900139001', email: 'alice@member.dev', nickname: 'Alice', avatar: null, gender: 'female', birthday: null, status: 'active', levelId: 1, levelName: '普通会员', growthValue: 320, experience: 120, registerSource: 'web', registerIp: '127.0.0.1', lastLoginAt: now, remark: null, hasPassword: true, pointBalance: 320, walletBalance: 0, createdAt: now, updatedAt: now, password: '123456' },
+  { id: 3, username: null, phone: '13700137002', email: null, nickname: '老用户', avatar: null, gender: null, birthday: null, status: 'inactive', levelId: 3, levelName: '金卡会员', growthValue: 6200, experience: 1880, registerSource: 'h5', registerIp: '127.0.0.1', lastLoginAt: null, remark: '长期未登录', hasPassword: false, pointBalance: 80, walletBalance: 19900, createdAt: now, updatedAt: now, password: '' },
 ];
 
 export const mockMemberPointAccount = { memberId: 1, balance: 1280, frozen: 0, totalEarned: 1500, totalSpent: 220 };

@@ -17,3 +17,4 @@ export * from './sms-templates';
 export * from './sms-send-logs';
 export * from './in-app-templates';
 export * from './in-app-messages';
+export * from './checkin';

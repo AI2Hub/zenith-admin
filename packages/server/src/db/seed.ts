@@ -1,5 +1,5 @@
 import { db } from './index';
-import { users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, systemConfigs, cronJobs, regions, tenants, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskConfigs, memberLevels, members, memberPointAccounts, memberPointTransactions, memberWallets, coupons, memberCoupons } from './schema';
+import { users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, systemConfigs, cronJobs, regions, tenants, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskConfigs, memberLevels, members, memberPointAccounts, memberPointTransactions, memberWallets, coupons, memberCoupons, checkinRules } from './schema';
 import bcrypt from 'bcryptjs';
 import { and, eq, isNull, inArray, sql } from 'drizzle-orm';
 import { createRequire } from 'node:module';
@@ -336,6 +336,18 @@ async function seedRest() {
   ).onConflictDoNothing({ target: coupons.id });
   await db.execute(sql`SELECT setval('coupons_id_seq', GREATEST((SELECT MAX(id) FROM coupons), 1))`);
   logger.info('  ✔ Coupons seeded (onConflictDoNothing)');
+
+  // ── 签到规则 ──────────────────────────────────────────────────
+  await db.insert(checkinRules).values([
+    { dayNumber: 1, points: 10, experience: 5, remark: '第1天签到' },
+    { dayNumber: 2, points: 10, experience: 5, remark: '第2天签到' },
+    { dayNumber: 3, points: 15, experience: 8, remark: '第3天签到' },
+    { dayNumber: 4, points: 15, experience: 8, remark: '第4天签到' },
+    { dayNumber: 5, points: 20, experience: 10, remark: '第5天签到' },
+    { dayNumber: 6, points: 20, experience: 10, remark: '第6天签到' },
+    { dayNumber: 7, points: 50, experience: 30, remark: '连续7天签到（周奖励）' },
+  ]).onConflictDoNothing();
+  logger.info('  ✔ Checkin rules seeded (onConflictDoNothing)');
 
   // ── 演示会员（手机号 13800138000 / 密码 123456）────────────────────────
   const existingDemoMember = await db.select({ id: members.id }).from(members).where(eq(members.phone, '13800138000')).limit(1);

@@ -52,6 +52,7 @@ export function mapMember(
     levelId: row.levelId ?? null,
     levelName: extra?.levelName ?? null,
     growthValue: row.growthValue,
+    experience: row.experience,
     registerSource: row.registerSource,
     registerIp: row.registerIp ?? null,
     lastLoginAt: formatNullableDateTime(row.lastLoginAt),

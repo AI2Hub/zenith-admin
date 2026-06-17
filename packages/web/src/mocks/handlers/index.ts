@@ -49,6 +49,7 @@ import { analyticsHandlers } from './analytics';
 import { paymentHandlers } from './payment';
 import { memberFrontHandlers } from './member-front';
 import { memberAdminHandlers } from './member-admin';
+import { checkinHandlers } from './checkin';
 
 export const handlers = [
   ...authHandlers,
@@ -102,4 +103,5 @@ export const handlers = [
   ...paymentHandlers,
   ...memberFrontHandlers,
   ...memberAdminHandlers,
+  ...checkinHandlers,
 ];

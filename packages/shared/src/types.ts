@@ -2097,6 +2097,7 @@ export interface Member {
   levelId?: number | null;
   levelName?: string | null;
   growthValue: number;
+  experience: number;
   registerSource: string;
   registerIp?: string | null;
   lastLoginAt?: string | null;
@@ -2194,4 +2195,36 @@ export interface MemberCoupon {
 export interface MemberLoginResult {
   member: Member;
   token: { accessToken: string; refreshToken: string };
+}
+
+export interface CheckinRule {
+  id: number;
+  dayNumber: number;
+  points: number;
+  experience: number;
+  remark?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MemberCheckin {
+  id: number;
+  memberId: number;
+  memberNickname?: string | null;
+  checkinDate: string;
+  consecutiveDays: number;
+  pointsAwarded: number;
+  experienceAwarded: number;
+  createdAt: string;
+}
+
+export interface MemberCheckinStatus {
+  checkedToday: boolean;
+  consecutiveDays: number;
+  totalDays: number;
+  todayPoints: number;
+  todayExperience: number;
+  nextDayPoints: number;
+  nextDayExperience: number;
+  thisMonthDates: string[];
 }

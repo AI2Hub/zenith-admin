@@ -19,6 +19,7 @@ export const MemberDTO = z
     levelId: z.number().int().nullable().optional(),
     levelName: z.string().nullable().optional(),
     growthValue: z.number().int(),
+    experience: z.number().int(),
     registerSource: z.string(),
     registerIp: z.string().nullable().optional(),
     lastLoginAt: z.string().nullable().optional(),
@@ -192,3 +193,41 @@ export const MemberOverviewDTO = z
     loginLogCount: z.number().int(),
   })
   .openapi('MemberOverview');
+
+export const CheckinRuleDTO = z
+  .object({
+    id: z.number().int(),
+    dayNumber: z.number().int(),
+    points: z.number().int(),
+    experience: z.number().int(),
+    remark: z.string().nullable().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('CheckinRule');
+
+export const MemberCheckinDTO = z
+  .object({
+    id: z.number().int(),
+    memberId: z.number().int(),
+    memberNickname: z.string().nullable().optional(),
+    checkinDate: z.string(),
+    consecutiveDays: z.number().int(),
+    pointsAwarded: z.number().int(),
+    experienceAwarded: z.number().int(),
+    createdAt: z.string(),
+  })
+  .openapi('MemberCheckin');
+
+export const MemberCheckinStatusDTO = z
+  .object({
+    checkedToday: z.boolean(),
+    consecutiveDays: z.number().int(),
+    totalDays: z.number().int(),
+    todayPoints: z.number().int(),
+    todayExperience: z.number().int(),
+    nextDayPoints: z.number().int(),
+    nextDayExperience: z.number().int(),
+    thisMonthDates: z.array(z.string()),
+  })
+  .openapi('MemberCheckinStatus');

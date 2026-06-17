@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, unique, text, uniqueIndex, index, jsonb, smallint, real, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, unique, text, uniqueIndex, index, jsonb, smallint, real, date, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 export const statusEnum = pgEnum('status', ['enabled', 'disabled']);
@@ -2049,6 +2049,7 @@ export const members = pgTable('members', {
   levelId: integer('level_id').references((): AnyPgColumn => memberLevels.id, { onDelete: 'set null' }),
   /** 成长值（决定会员等级）*/
   growthValue: integer('growth_value').notNull().default(0),
+  experience: integer('experience').notNull().default(0),
   /** 注册来源：web / h5 / app / admin */
   registerSource: varchar('register_source', { length: 32 }).notNull().default('web'),
   registerIp: varchar('register_ip', { length: 64 }),
@@ -2224,15 +2225,6 @@ export type NewMemberCoupon = typeof memberCoupons.$inferInsert;
 export const memberLevelsRelations = relations(memberLevels, ({ many }) => ({
   members: many(members),
 }));
-export const membersRelations = relations(members, ({ one, many }) => ({
-  level: one(memberLevels, { fields: [members.levelId], references: [memberLevels.id] }),
-  tenant: one(tenants, { fields: [members.tenantId], references: [tenants.id] }),
-  pointAccount: one(memberPointAccounts, { fields: [members.id], references: [memberPointAccounts.memberId] }),
-  wallet: one(memberWallets, { fields: [members.id], references: [memberWallets.memberId] }),
-  pointTransactions: many(memberPointTransactions),
-  walletTransactions: many(memberWalletTransactions),
-  memberCoupons: many(memberCoupons),
-}));
 export const memberPointAccountsRelations = relations(memberPointAccounts, ({ one }) => ({
   member: one(members, { fields: [memberPointAccounts.memberId], references: [members.id] }),
 }));
@@ -2269,3 +2261,49 @@ export const memberLoginLogs = pgTable('member_login_logs', {
 });
 export type MemberLoginLogRow = typeof memberLoginLogs.$inferSelect;
 export type NewMemberLoginLog = typeof memberLoginLogs.$inferInsert;
+
+// ─── 签到规则 ──────────────────────────────────────────────────────────────────
+export const checkinRules = pgTable('checkin_rules', {
+  id: serial('id').primaryKey(),
+  dayNumber: integer('day_number').notNull(),
+  points: integer('points').notNull().default(0),
+  experience: integer('experience').notNull().default(0),
+  remark: varchar('remark', { length: 256 }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  unique().on(t.dayNumber),
+]);
+export type CheckinRuleRow = typeof checkinRules.$inferSelect;
+export type NewCheckinRule = typeof checkinRules.$inferInsert;
+
+// ─── 会员签到记录 ───────────────────────────────────────────────────────────────
+export const memberCheckins = pgTable('member_checkins', {
+  id: serial('id').primaryKey(),
+  memberId: integer('member_id').notNull().references(() => members.id, { onDelete: 'cascade' }),
+  checkinDate: date('checkin_date').notNull(),
+  consecutiveDays: integer('consecutive_days').notNull().default(1),
+  pointsAwarded: integer('points_awarded').notNull().default(0),
+  experienceAwarded: integer('experience_awarded').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  unique().on(t.memberId, t.checkinDate),
+]);
+export type MemberCheckinRow = typeof memberCheckins.$inferSelect;
+export type NewMemberCheckin = typeof memberCheckins.$inferInsert;
+
+export const memberCheckinsRelations = relations(memberCheckins, ({ one }) => ({
+  member: one(members, { fields: [memberCheckins.memberId], references: [members.id] }),
+}));
+
+export const membersRelations = relations(members, ({ one, many }) => ({
+  level: one(memberLevels, { fields: [members.levelId], references: [memberLevels.id] }),
+  tenant: one(tenants, { fields: [members.tenantId], references: [tenants.id] }),
+  pointAccount: one(memberPointAccounts, { fields: [members.id], references: [memberPointAccounts.memberId] }),
+  wallet: one(memberWallets, { fields: [members.id], references: [memberWallets.memberId] }),
+  pointTransactions: many(memberPointTransactions),
+  walletTransactions: many(memberWalletTransactions),
+  memberCoupons: many(memberCoupons),
+  checkins: many(memberCheckins),
+}));

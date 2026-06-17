@@ -14,6 +14,7 @@ import HomePage from './pages/home/HomePage';
 import PointsPage from './pages/points/PointsPage';
 import WalletPage from './pages/wallet/WalletPage';
 import CouponsPage from './pages/coupons/CouponsPage';
+import CheckinPage from './pages/checkin/CheckinPage';
 import LevelPage from './pages/level/LevelPage';
 import ProfilePage from './pages/profile/ProfilePage';
 import EditProfilePage from './pages/profile/EditProfilePage';
@@ -69,6 +70,7 @@ function AppRoutes() {
         <Route path="/points" element={<PointsPage />} />
         <Route path="/wallet" element={<WalletPage />} />
         <Route path="/coupons" element={<CouponsPage />} />
+        <Route path="/checkin" element={<CheckinPage />} />
         <Route path="/level" element={<LevelPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/profile/edit" element={<EditProfilePage />} />

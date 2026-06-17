@@ -14,6 +14,8 @@ import {
   MemberCouponDTO,
   CouponDTO,
   MemberLoginLogDTO,
+  MemberCheckinStatusDTO,
+  MemberCheckinDTO,
 } from '../lib/openapi-dtos';
 import { currentMemberId } from '../lib/member-context';
 import { getClientInfo } from '../services/auth.service';
@@ -21,6 +23,7 @@ import { getMyPointAccount, listMyPointTransactions } from '../services/member-p
 import { getMyWallet, listMyWalletTransactions, rechargeWallet } from '../services/member-wallet.service';
 import { getEnabledLevels } from '../services/member-levels.service';
 import { listMyCoupons, getAvailableCoupons, receiveCoupon } from '../services/coupons.service';
+import { doCheckin, getMemberCheckinStatus, getMyCheckinHistory } from '../services/member-checkin.service';
 import { db } from '../db';
 import { memberLoginLogs } from '../db/schema';
 import { desc, eq } from 'drizzle-orm';
@@ -39,6 +42,12 @@ const rechargeSchema = z.object({
   payMethod: payMethodEnum,
 });
 const receiveCouponSchema = z.object({ couponId: z.number().int().positive() });
+const checkinResultSchema = z.object({
+  consecutiveDays: z.number().int(),
+  points: z.number().int(),
+  experience: z.number().int(),
+  checkinDate: z.string(),
+});
 
 // ─── GET /points/account — 我的积分账户 ──────────────────────────────────────
 const pointAccountRoute = defineOpenAPIRoute({
@@ -153,6 +162,40 @@ const receiveCouponRoute = defineOpenAPIRoute({
   },
 });
 
+// ─── GET /checkin/status — 今日签到状态 ────────────────────────────────────────
+const checkinStatusRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/checkin/status', tags: ['MemberSelf'], summary: '今日签到状态',
+    security: [{ BearerAuth: [] }],
+    middleware: [memberAuthMiddleware] as const,
+    responses: { ...commonErrorResponses, ...ok(MemberCheckinStatusDTO, 'ok') },
+  }),
+  handler: async (c) => c.json(okBody(await getMemberCheckinStatus()), 200),
+});
+
+// ─── POST /checkin — 执行签到 ────────────────────────────────────────────────
+const checkinRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/checkin', tags: ['MemberSelf'], summary: '执行签到',
+    security: [{ BearerAuth: [] }],
+    middleware: [memberAuthMiddleware, idempotencyGuard({ ttlSeconds: 5 })] as const,
+    responses: { ...commonErrorResponses, ...ok(checkinResultSchema, '签到成功') },
+  }),
+  handler: async (c) => c.json(okBody(await doCheckin(), '签到成功'), 200),
+});
+
+// ─── GET /checkin/history — 我的签到历史 ──────────────────────────────────────
+const checkinHistoryRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/checkin/history', tags: ['MemberSelf'], summary: '我的签到历史',
+    security: [{ BearerAuth: [] }],
+    middleware: [memberAuthMiddleware] as const,
+    request: { query: PaginationQuery },
+    responses: { ...commonErrorResponses, ...okPaginated(MemberCheckinDTO, '签到历史') },
+  }),
+  handler: async (c) => c.json(okBody(await getMyCheckinHistory(c.req.valid('query'))), 200),
+});
+
 // ─── GET /login-logs — 我的登录历史 ──────────────────────────────────────────
 const loginLogsRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -200,6 +243,9 @@ memberSelf.openapiRoutes([
   walletTxRoute,
   rechargeRoute,
   levelsRoute,
+  checkinStatusRoute,
+  checkinRoute,
+  checkinHistoryRoute,
   availableCouponsRoute,
   myCouponsRoute,
   receiveCouponRoute,
