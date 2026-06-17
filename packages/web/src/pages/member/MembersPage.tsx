@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Input, Select, Space, Modal, Form, Toast, Tag, Spin, Row, Col, Dropdown, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, Plus, RotateCcw, Download, KeyRound, ChevronDown, Eye } from 'lucide-react';
+import { Search, Plus, RotateCcw, Download, KeyRound, ChevronDown } from 'lucide-react';
 import type { Member, MemberLevel, PaginatedResponse } from '@zenith/shared';
 import { MEMBER_STATUS_LABELS } from '@zenith/shared';
 import { request } from '@/utils/request';
@@ -164,13 +164,28 @@ export default function MembersPage() {
       render: (v: string) => <Tag color={STATUS_COLORS[v]}>{MEMBER_STATUS_LABELS[v as keyof typeof MEMBER_STATUS_LABELS]}</Tag>,
     },
     {
-      title: '操作', fixed: 'right', width: 240,
+      title: '操作', fixed: 'right', width: 200,
       render: (_: unknown, record: Member) => (
         <Space>
-          <Button theme="borderless" size="small" icon={<Eye size={13} />} onClick={() => setDetailMemberId(record.id)}>详情</Button>
+          <Button theme="borderless" size="small" onClick={() => setDetailMemberId(record.id)}>详情</Button>
           {hasPermission('member:member:update') && <Button theme="borderless" size="small" onClick={() => openEdit(record)}>编辑</Button>}
-          {hasPermission('member:member:update') && <Button theme="borderless" size="small" onClick={() => openResetPwd(record)}>重置密码</Button>}
-          {hasPermission('member:member:delete') && <Button theme="borderless" type="danger" size="small" onClick={() => handleDelete(record)}>删除</Button>}
+          {(hasPermission('member:member:update') || hasPermission('member:member:delete')) && (
+            <Dropdown
+              trigger="click"
+              render={
+                <Dropdown.Menu>
+                  {hasPermission('member:member:update') && (
+                    <Dropdown.Item onClick={() => openResetPwd(record)}>重置密码</Dropdown.Item>
+                  )}
+                  {hasPermission('member:member:delete') && (
+                    <Dropdown.Item type="danger" onClick={() => handleDelete(record)}>删除</Dropdown.Item>
+                  )}
+                </Dropdown.Menu>
+              }
+            >
+              <Button theme="borderless" size="small" icon={<ChevronDown size={13} />} iconPosition="right">更多</Button>
+            </Dropdown>
+          )}
         </Space>
       ),
     },

@@ -48,10 +48,10 @@ const walletTxCols: ColumnProps<MemberWalletTransaction>[] = [
 
 function StatCard({ label, value, sub }: Readonly<{ label: string; value: React.ReactNode; sub?: string }>) {
   return (
-    <div style={{ flex: 1, background: '#f8f9fa', borderRadius: 8, padding: '12px 16px', minWidth: 0 }}>
-      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a', lineHeight: 1.2 }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>{sub}</div>}
+    <div style={{ flex: 1, background: 'var(--semi-color-fill-0)', borderRadius: 8, padding: '12px 16px', minWidth: 0 }}>
+      <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--semi-color-text-0)', lineHeight: 1.2 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: 'var(--semi-color-text-3)', marginTop: 4 }}>{sub}</div>}
     </div>
   );
 }
@@ -82,7 +82,7 @@ export function MemberDetailDrawer({ memberId, onClose }: Readonly<Props>) {
         {overview && (
           <div style={{ padding: '20px 24px' }}>
             {/* 会员头像 + 基本信息 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, padding: '16px 20px', background: '#f8f9fa', borderRadius: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, padding: '16px 20px', background: 'var(--semi-color-fill-0)', borderRadius: 10 }}>
               <Avatar size="extra-large" src={m?.avatar ?? undefined} style={{ flexShrink: 0, background: '#07c160', fontSize: 22 }}>
                 {!m?.avatar && (m?.nickname?.charAt(0) ?? '?')}
               </Avatar>
@@ -113,7 +113,7 @@ export function MemberDetailDrawer({ memberId, onClose }: Readonly<Props>) {
 
             {/* 最近积分流水 */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: '#374151' }}>最近积分记录</div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: 'var(--semi-color-text-0)' }}>最近积分记录</div>
               <Table
                 columns={pointTxCols}
                 dataSource={overview.recentPointTxs}
@@ -127,7 +127,7 @@ export function MemberDetailDrawer({ memberId, onClose }: Readonly<Props>) {
 
             {/* 最近钱包流水 */}
             <div>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: '#374151' }}>最近钱包记录</div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: 'var(--semi-color-text-0)' }}>最近钱包记录</div>
               <Table
                 columns={walletTxCols}
                 dataSource={overview.recentWalletTxs}
