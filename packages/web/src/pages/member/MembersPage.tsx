@@ -118,7 +118,7 @@ export default function MembersPage() {
       render: (v: string) => <Tag color={STATUS_COLORS[v]}>{MEMBER_STATUS_LABELS[v as keyof typeof MEMBER_STATUS_LABELS]}</Tag>,
     },
     {
-      title: '操作', fixed: 'right', width: 190,
+      title: '操作', fixed: 'right', width: 220,
       render: (_: unknown, record: Member) => (
         <Space>
           {hasPermission('member:member:update') && <Button theme="borderless" size="small" onClick={() => openEdit(record)}>编辑</Button>}

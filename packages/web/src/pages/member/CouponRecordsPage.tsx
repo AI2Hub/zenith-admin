@@ -59,9 +59,9 @@ export default function CouponRecordsPage() {
     { title: '会员', dataIndex: 'memberName', width: 140, render: (v?: string, r?: MemberCoupon) => v || `#${r?.memberId}` },
     { title: '优惠券', dataIndex: 'coupon', width: 160, render: (_: unknown, r: MemberCoupon) => renderEllipsis(r.coupon?.name ?? `#${r.couponId}`) },
     { title: '状态', dataIndex: 'status', width: 100, render: (v: MemberCouponStatus) => <Tag color={STATUS_COLORS[v] as 'blue'}>{MEMBER_COUPON_STATUS_LABELS[v]}</Tag> },
-    { title: '领取时间', dataIndex: 'receivedAt', width: 160 },
-    { title: '使用时间', dataIndex: 'usedAt', width: 160, render: (v: string | null) => v || '-' },
-    { title: '过期时间', dataIndex: 'expireAt', width: 160, render: (v: string | null) => v || '-' },
+    { title: '领取时间', dataIndex: 'receivedAt', width: 180 },
+    { title: '使用时间', dataIndex: 'usedAt', width: 180, render: (v: string | null) => v || '-' },
+    { title: '过期时间', dataIndex: 'expireAt', width: 180, render: (v: string | null) => v || '-' },
     ...(canRevoke ? [{
       title: '操作', dataIndex: 'ops', width: 90, fixed: 'right' as const,
       render: (_: unknown, r: MemberCoupon) => (

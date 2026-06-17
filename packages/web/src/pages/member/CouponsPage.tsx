@@ -158,7 +158,8 @@ export default function CouponsPage() {
     { title: '已发/总量', dataIndex: 'totalQuantity', width: 110, render: (_: number, r: Coupon) => renderQuantity(r) },
     { title: '每人限领', dataIndex: 'perLimit', width: 90, render: (v: number) => (v > 0 ? v : '不限') },
     { title: '有效期', dataIndex: 'validType', width: 200, render: (_: string, r: Coupon) => <span style={{ fontSize: 12 }}>{renderValid(r)}</span> },
-    { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: CouponTemplateStatus) => <Tag color={STATUS_COLORS[v] as 'green'}>{COUPON_TEMPLATE_STATUS_LABELS[v]}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 90, render: (v: CouponTemplateStatus) => <Tag color={STATUS_COLORS[v] as 'green'}>{COUPON_TEMPLATE_STATUS_LABELS[v]}</Tag> },
+    createdAtColumn,
     ...(hasOps ? [{
       title: '操作', dataIndex: 'ops', width: 170, fixed: 'right' as const,
       render: (_: unknown, r: Coupon) => (
@@ -173,7 +174,6 @@ export default function CouponsPage() {
         </span>
       ),
     }] : []),
-    createdAtColumn,
   ];
 
   return (
