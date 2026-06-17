@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Outlet, useLocation, useNavigate, NavLink } from 'react-router-dom';
 import { Nav, Avatar, Modal } from '@douyinfe/semi-ui';
-import { Crown, House, Coins, Wallet, Ticket, UserCog, Lock, LogOut } from 'lucide-react';
+import { Crown, House, Coins, Wallet, Ticket, UserCog, Lock, LogOut, ArrowLeft } from 'lucide-react';
 import { useMemberAuth } from '../hooks/useMemberAuth';
 
 const NAV_ITEMS = [
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { itemKey: '/level', text: '等级权益', icon: <Crown size={15} /> },
   { itemKey: '/profile/edit', text: '编辑资料', icon: <UserCog size={15} /> },
   { itemKey: '/profile/password', text: '修改密码', icon: <Lock size={15} /> },
+  { itemKey: '__home__', text: '返回前台', icon: <ArrowLeft size={15} /> },
   { itemKey: '__logout__', text: '退出登录', icon: <LogOut size={15} /> },
 ];
 
@@ -51,14 +52,18 @@ export default function MemberLayout() {
       handleLogout();
       return;
     }
+    if (key === '__home__') {
+      navigate('/', { replace: false });
+      return;
+    }
     navigate(key);
   };
 
   const renderWrapper = useCallback(
     ({ itemElement, props }: { itemElement: React.ReactNode; props: { itemKey?: string | number } }) => {
       const key = String(props.itemKey ?? '');
-      if (key === '__logout__') {
-        return <div className="mc-nav-logout-wrapper">{itemElement}</div>;
+      if (key === '__logout__' || key === '__home__') {
+        return <div className={key === '__logout__' ? 'mc-nav-logout-wrapper' : 'mc-nav-home-wrapper'}>{itemElement}</div>;
       }
       if (!key.startsWith('/')) return itemElement;
       return (

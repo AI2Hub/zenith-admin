@@ -513,6 +513,15 @@ body {
   color: var(--m-danger);
 }
 
+/* 返回前台项颜色 */
+.mc-nav-home-wrapper .semi-navigation-item .semi-navigation-item-text {
+  color: var(--m-text-secondary);
+}
+
+.mc-nav-home-wrapper .semi-navigation-item .semi-navigation-item-icon {
+  color: var(--m-text-secondary);
+}
+
 /* 会员等级徽标 */
 .mc-member-level {
   display: inline-flex;

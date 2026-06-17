@@ -46,6 +46,14 @@ export const memberFrontHandlers = [
     Object.assign(demo, body);
     return ok(memberView(demo), '资料已更新');
   }),
+  // Avatar upload (returns a preset URL for demo)
+  http.post('/api/member/files/avatar', async ({ request }) => {
+    const form = await request.formData();
+    const file = form.get('file') as File | null;
+    if (!file) return ok({ url: '/avatars/avatar-01.svg' });
+    const idx = Math.floor(Math.random() * 12) + 1;
+    return ok({ url: `/avatars/avatar-${String(idx).padStart(2, '0')}.svg` }, '上传成功');
+  }),
   http.put('/api/member/auth/password', () => ok(null, '密码已修改')),
 
   // ── 自助：积分 ────────────────────────────────────────────────────────────
