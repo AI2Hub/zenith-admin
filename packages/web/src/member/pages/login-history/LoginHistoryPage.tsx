@@ -47,7 +47,7 @@ export default function LoginHistoryPage() {
     {
       title: '登录时间',
       dataIndex: 'createdAt',
-      width: 180,
+      width: 200,
       render: (v: string) => (
         <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <Clock size={13} color="var(--m-text-secondary)" />
