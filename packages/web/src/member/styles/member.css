@@ -1,12 +1,12 @@
 /* ============================================================
    会员前台（C 端）PC 端样式
-   主题色：绿色 #07c160；左侧边栏（Semi Nav）+ 内容区布局
+   主题色：由 --m-primary CSS 变量控制（默认 #07c160）；左侧边栏（Semi Nav）+ 内容区布局
    ============================================================ */
 
 :root {
   --m-primary: #07c160;
-  --m-primary-dark: #06ad56;
-  --m-primary-light: #e8f9f0;
+  --m-primary-dark: color-mix(in srgb, var(--m-primary) 88%, black);
+  --m-primary-light: color-mix(in srgb, var(--m-primary) 10%, white);
   --m-warning: #ff9f0a;
   --m-danger: #fa5151;
   --m-text: #1a1a1a;
@@ -206,7 +206,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f0fdf4 0%, #e8f9f0 40%, #f5f6f8 100%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--m-primary) 5%, white) 0%, var(--m-primary-light) 40%, var(--m-bg) 100%);
   padding: 24px;
 }
 
@@ -642,7 +642,7 @@ body {
 
 /* Hero 区域 */
 .mc-hero {
-  background: linear-gradient(135deg, #07c160 0%, #0aab54 60%, #08974d 100%);
+  background: linear-gradient(135deg, var(--m-primary) 0%, var(--m-primary-dark) 60%, color-mix(in srgb, var(--m-primary) 75%, black) 100%);
   padding: 100px 40px;
   display: flex;
   align-items: center;
@@ -732,7 +732,7 @@ body {
 }
 
 .mc-feature-card:hover {
-  box-shadow: 0 8px 24px rgba(7, 193, 96, 0.12);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--m-primary) 15%, transparent);
   transform: translateY(-3px);
 }
 
@@ -765,7 +765,7 @@ body {
 /* CTA 区域 */
 .mc-cta-section {
   padding: 80px 40px;
-  background: linear-gradient(135deg, #07c160 0%, #0aab54 100%);
+  background: linear-gradient(135deg, var(--m-primary) 0%, var(--m-primary-dark) 100%);
   text-align: center;
 }
 
