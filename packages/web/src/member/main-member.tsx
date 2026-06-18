@@ -5,6 +5,10 @@ import MemberApp from './App-member';
 import '../styles/global.css';
 import './styles/member.css';
 import { enableMocking } from '../mocks';
+import { initMemberTheme } from './hooks/useMemberTheme';
+
+// 提前应用主题色，避免页面闪烁
+initMemberTheme();
 
 async function bootstrap() {
   await enableMocking();

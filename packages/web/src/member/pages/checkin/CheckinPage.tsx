@@ -113,7 +113,7 @@ export default function CheckinPage() {
   return (
     <MemberPage title="每日签到">
       <div style={{
-        background: 'linear-gradient(135deg, #07c160 0%, #19be6b 100%)',
+        background: 'linear-gradient(135deg, var(--m-primary-dark) 0%, var(--m-primary) 100%)',
         borderRadius: 16,
         color: '#fff',
         padding: 24,
@@ -140,7 +140,7 @@ export default function CheckinPage() {
               loading={loading}
               disabled={status?.checkedToday}
               onClick={handleCheckin}
-              style={{ background: '#fff', color: '#07c160', borderColor: '#fff' }}
+              style={{ background: '#fff', color: 'var(--m-primary)', borderColor: '#fff' }}
             >
               {status?.checkedToday ? '今日已签到' : '立即签到'}
             </Button>
@@ -187,7 +187,7 @@ export default function CheckinPage() {
                   width: 8,
                   height: 8,
                   borderRadius: '50%',
-                  background: '#07c160',
+                  background: 'var(--m-primary)',
                 }}
                 />
               );

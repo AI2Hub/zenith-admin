@@ -1,8 +1,9 @@
 import { useNavigate, Navigate } from 'react-router-dom';
 import { Avatar, Button, Modal } from '@douyinfe/semi-ui';
-import { Crown, LogOut } from 'lucide-react';
+import { Crown, LogOut, Palette } from 'lucide-react';
 import { useMemberAuth } from '../../hooks/useMemberAuth';
 import { MemberPage } from '../../components/MemberPage';
+import { ThemeColorPicker } from '../../components/ThemeColorPicker';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -52,6 +53,23 @@ export default function ProfilePage() {
             {member.levelName}
           </span>
         )}
+      </div>
+
+      <div
+        style={{
+          background: '#fff',
+          borderRadius: 12,
+          border: '1px solid var(--m-border)',
+          padding: '20px 24px',
+          marginBottom: 16,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 600, marginBottom: 16 }}>
+          <Palette size={16} color="var(--m-primary)" />
+          个性化设置
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 10, color: 'var(--m-text)' }}>主题颜色</div>
+        <ThemeColorPicker />
       </div>
 
       <Button
