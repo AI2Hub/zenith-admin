@@ -3,6 +3,7 @@ import { SideSheet, Select, InputNumber, Button, Typography, Divider, Switch } f
 import { RotateCcw } from 'lucide-react';
 import { useTerminalPreferences, defaultTerminalPreferences } from './useTerminalPreferences';
 import { DARK_THEMES, LIGHT_THEMES, FONT_FAMILY_PRESETS } from './themes';
+import ThemePicker from './ThemePicker';
 
 interface ShellOption {
   id: string;
@@ -30,7 +31,7 @@ export default function TerminalSettings({ visible, onClose, shells }: TerminalS
   const { terminal, setTerminalPref } = useTerminalPreferences();
 
   return (
-    <SideSheet title="终端设置" visible={visible} onCancel={onClose} width={360} placement="right">
+    <SideSheet title="终端设置" visible={visible} onCancel={onClose} width={400} placement="right">
       <Field label="默认 Shell">
         <Select
           value={shells.some((s) => s.id === terminal.defaultShell) ? terminal.defaultShell : ''}
@@ -73,31 +74,19 @@ export default function TerminalSettings({ visible, onClose, shells }: TerminalS
       <Divider margin="12px" />
 
       <Field label="暗色模式主题">
-        <Select
+        <ThemePicker
+          themes={DARK_THEMES}
           value={terminal.themeDark}
-          onChange={(v) => setTerminalPref({ themeDark: typeof v === 'string' ? v : terminal.themeDark })}
-          style={{ width: '100%' }}
-        >
-          {DARK_THEMES.map((t) => (
-            <Select.Option key={t.id} value={t.id}>
-              {t.name}
-            </Select.Option>
-          ))}
-        </Select>
+          onChange={(id) => setTerminalPref({ themeDark: id })}
+        />
       </Field>
 
       <Field label="亮色模式主题">
-        <Select
+        <ThemePicker
+          themes={LIGHT_THEMES}
           value={terminal.themeLight}
-          onChange={(v) => setTerminalPref({ themeLight: typeof v === 'string' ? v : terminal.themeLight })}
-          style={{ width: '100%' }}
-        >
-          {LIGHT_THEMES.map((t) => (
-            <Select.Option key={t.id} value={t.id}>
-              {t.name}
-            </Select.Option>
-          ))}
-        </Select>
+          onChange={(id) => setTerminalPref({ themeLight: id })}
+        />
       </Field>
 
       <Typography.Text size="small" type="quaternary" style={{ display: 'block', marginTop: -8, marginBottom: 12 }}>
