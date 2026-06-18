@@ -29,7 +29,6 @@ import {
   Search,
   Info,
   Plus,
-  Trash2 as _Trash2,
   Download,
   MoreHorizontal,
 } from 'lucide-react';
