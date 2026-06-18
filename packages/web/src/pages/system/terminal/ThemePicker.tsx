@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { TerminalThemeDef } from './themes';
 
 function Line({ w, color, op = 0.85 }: { w: number; color: string; op?: number }) {
@@ -48,6 +48,7 @@ function ThemeCard({
     <div
       role="button"
       tabIndex={0}
+      data-selected={selected ? 'true' : undefined}
       onClick={onClick}
       onKeyDown={(e) => e.key === 'Enter' && onClick()}
       onMouseEnter={() => setHovered(true)}
@@ -160,16 +161,40 @@ interface ThemePickerProps {
 }
 
 export default function ThemePicker({ themes, value, onChange }: ThemePickerProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Scroll selected theme into view on mount
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const selected = container.querySelector<HTMLElement>('[data-selected="true"]');
+    if (selected) {
+      const top = selected.offsetTop - container.clientHeight / 2 + selected.clientHeight / 2;
+      container.scrollTop = Math.max(0, top);
+    }
+  }, []);
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-      {themes.map((theme) => (
-        <ThemeCard
-          key={theme.id}
-          theme={theme}
-          selected={theme.id === value}
-          onClick={() => onChange(theme.id)}
-        />
-      ))}
+    <div
+      ref={scrollRef}
+      style={{
+        maxHeight: 220,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        paddingRight: 2,
+        marginRight: -2,
+      }}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {themes.map((theme) => (
+          <ThemeCard
+            key={theme.id}
+            theme={theme}
+            selected={theme.id === value}
+            onClick={() => onChange(theme.id)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
