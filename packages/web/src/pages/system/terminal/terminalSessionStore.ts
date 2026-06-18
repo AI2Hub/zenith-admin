@@ -10,7 +10,7 @@
  * 但底层 xterm + WebSocket 实例依然存活，用户不会断线。
  */
 
-import { Terminal } from '@xterm/xterm';
+import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { SearchAddon } from '@xterm/addon-search';
@@ -38,6 +38,16 @@ export interface SessionCreateOptions {
   rendererType?: 'canvas' | 'webgl';
   /** Alt 快速滚动倍率 */
   fastScrollSensitivity?: number;
+  /** 字母间距（px） */
+  letterSpacing?: number;
+  /** 字体粗细 */
+  fontWeight?: string;
+  /** 响铃方式 */
+  bellStyle?: 'none' | 'visual' | 'sound';
+  /** 右键是否选词 */
+  rightClickSelectsWord?: boolean;
+  /** 最小对比度 */
+  minimumContrastRatio?: number;
 }
 
 interface SessionState {
@@ -128,6 +138,11 @@ class TerminalSessionStore {
       cursorStyle: options.cursorStyle ?? 'block',
       scrollback: options.scrollback ?? 5000,
       fastScrollSensitivity: options.fastScrollSensitivity ?? 5,
+      letterSpacing: options.letterSpacing ?? 0,
+      fontWeight: (options.fontWeight ?? 'normal') as ITerminalOptions['fontWeight'],
+      bellStyle: options.bellStyle ?? 'none',
+      rightClickSelectsWord: options.rightClickSelectsWord ?? false,
+      minimumContrastRatio: options.minimumContrastRatio ?? 1,
     });
 
     const fitAddon = new FitAddon();
@@ -403,6 +418,11 @@ class TerminalSessionStore {
       cursorBlink?: boolean;
       copyOnSelect?: boolean;
       fastScrollSensitivity?: number;
+      letterSpacing?: number;
+      fontWeight?: string;
+      bellStyle?: 'none' | 'visual' | 'sound';
+      rightClickSelectsWord?: boolean;
+      minimumContrastRatio?: number;
     },
   ): void {
     const session = this.sessions.get(sessionId);
@@ -415,6 +435,11 @@ class TerminalSessionStore {
     if (opts.cursorBlink !== undefined) session.term.options.cursorBlink = opts.cursorBlink;
     if (opts.copyOnSelect !== undefined) session.copyOnSelect = opts.copyOnSelect;
     if (opts.fastScrollSensitivity !== undefined) session.term.options.fastScrollSensitivity = opts.fastScrollSensitivity;
+    if (opts.letterSpacing !== undefined) session.term.options.letterSpacing = opts.letterSpacing;
+    if (opts.fontWeight !== undefined) session.term.options.fontWeight = opts.fontWeight as ITerminalOptions['fontWeight'];
+    if (opts.bellStyle !== undefined) session.term.options.bellStyle = opts.bellStyle;
+    if (opts.rightClickSelectsWord !== undefined) session.term.options.rightClickSelectsWord = opts.rightClickSelectsWord;
+    if (opts.minimumContrastRatio !== undefined) session.term.options.minimumContrastRatio = opts.minimumContrastRatio;
     session.fitAddon.fit();
   }
 

@@ -188,6 +188,11 @@ export const defaultPreferences: UserPreferences = {
     copyOnSelect: true,
     rendererType: 'canvas' as const,
     fastScrollSensitivity: 5,
+    letterSpacing: 0,
+    fontWeight: 'normal',
+    bellStyle: 'none' as const,
+    rightClickSelectsWord: false,
+    minimumContrastRatio: 1,
   },
 };
 
