@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Input, Select, Space, Modal, Form, Toast, Tag, Spin, Row, Col, Dropdown, Typography, SplitButtonGroup } from '@douyinfe/semi-ui';
+import { Button, Input, Select, Space, Modal, Form, Toast, Tag, Spin, Row, Col, Dropdown, SplitButtonGroup } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, Plus, RotateCcw, Download, KeyRound, MoreHorizontal, ChevronDown } from 'lucide-react';
@@ -8,6 +8,7 @@ import { MEMBER_STATUS_LABELS } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
+import { UserAvatar } from '@/components/UserAvatar';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -143,14 +144,15 @@ export default function MembersPage() {
 
   const columns: ColumnProps<Member>[] = [
     {
-      title: '昵称', dataIndex: 'nickname', width: 140,
+      title: '昵称', dataIndex: 'nickname', width: 180,
       render: (v: string, record: Member) => (
-        <Typography.Text
-          link onClick={() => setDetailMemberId(record.id)}
-          style={{ cursor: 'pointer' }}
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', minWidth: 0 }}
+          onClick={() => setDetailMemberId(record.id)}
         >
-          {v}
-        </Typography.Text>
+          <UserAvatar name={v || record.username || '?'} avatar={record.avatar} semiSize="extra-small" size={24} />
+          <span className="table-cell-ellipsis" title={v}>{v}</span>
+        </div>
       ),
     },
     { title: '用户名', dataIndex: 'username', width: 120, render: (v: string | null) => v || '-' },
