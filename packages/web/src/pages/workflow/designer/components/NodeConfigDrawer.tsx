@@ -9,7 +9,8 @@
  * - 延迟器/触发器/子流程：基础配置
  */
 import { useEffect, useState } from 'react';
-import { SideSheet, Tabs, TabPane, Input, TextArea, Typography, Form, Select, InputNumber, Switch } from '@douyinfe/semi-ui';
+import { SideSheet, Tabs, TabPane, Input, TextArea, Typography, Form, Select, InputNumber, Switch, RadioGroup, Radio, Button } from '@douyinfe/semi-ui';
+import { Plus, Trash2 } from 'lucide-react';
 import type { FlowNode, FlowNodeType, AssigneeType, ApproveMethod, ApprovalType, RejectStrategy, EmptyAssigneeStrategy, OperationPermission, FieldPermission, TimeoutConfig, SameInitiatorStrategy, DeduplicateStrategy, ActionButtonsConfig } from '../types';
 import type { NodeListenerConfig } from '@zenith/shared';
 import { ADDABLE_NODE_TYPES, DEFAULT_APPROVER_OPERATIONS, DELAY_UNIT_OPTIONS, TRIGGER_TYPE_OPTIONS } from '../constants';
@@ -25,13 +26,104 @@ interface UserGroupOption { id: number; name: string; }
 interface PositionOption { id: number; name: string; }
 interface DepartmentOption { id: number; name: string; parentId?: number | null; }
 interface FormField { key: string; label: string; type?: string }
-interface SubProcessOption { value: number; label: string }
+interface SubProcessOption { value: number; label: string; fields?: Array<{ key: string; label: string; type?: string }> }
 
 function stringifyHeadersOrBody(v: unknown): string {
   if (typeof v === 'string') return v;
   if (v == null) return '';
   try { return JSON.stringify(v, null, 2); } catch { return ''; }
 }
+
+/** 将映射值（可能是对象或 JSON 字符串）规整为有序的键值对数组 */
+function asMappingPairs(v: unknown): Array<[string, string]> {
+  let obj: Record<string, unknown> | null = null;
+  if (typeof v === 'string' && v.trim()) {
+    try { obj = JSON.parse(v); } catch { obj = null; }
+  } else if (v && typeof v === 'object') {
+    obj = v as Record<string, unknown>;
+  }
+  if (!obj || typeof obj !== 'object') return [];
+  return Object.entries(obj).map(([k, val]) => [k, val == null ? '' : String(val)]);
+}
+
+interface MappingOption { key: string; label: string }
+
+/**
+ * 子流程字段映射编辑器（结构化键值对）。
+ * - leftOptions / rightOptions 为可选下拉项；allowCreate 允许自定义输入
+ * - 通过 onChange 回传 Record<string,string>
+ */
+function MappingEditor({
+  value,
+  onChange,
+  leftOptions,
+  rightOptions,
+  leftPlaceholder,
+  rightPlaceholder,
+  addText,
+}: Readonly<{
+  value: unknown;
+  onChange: (next: Record<string, string>) => void;
+  leftOptions: MappingOption[];
+  rightOptions: MappingOption[];
+  leftPlaceholder: string;
+  rightPlaceholder: string;
+  addText: string;
+}>) {
+  const pairs = asMappingPairs(value);
+  const emit = (next: Array<[string, string]>) => {
+    const obj: Record<string, string> = {};
+    for (const [k, val] of next) {
+      if (k && k.trim()) obj[k.trim()] = val;
+    }
+    onChange(obj);
+  };
+  const updateAt = (idx: number, side: 0 | 1, v: string) => {
+    const next = pairs.map((p) => [...p] as [string, string]);
+    if (!next[idx]) return;
+    next[idx][side] = v;
+    emit(next);
+  };
+  const removeAt = (idx: number) => emit(pairs.filter((_, i) => i !== idx));
+  const add = () => emit([...pairs, ['', '']]);
+  const toOptionList = (opts: MappingOption[]) => opts.map((o) => ({ value: o.key, label: o.label === o.key ? o.key : `${o.label} (${o.key})` }));
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {pairs.length === 0 && (
+        <Typography.Text type="tertiary" size="small">暂无映射，点击下方按钮添加</Typography.Text>
+      )}
+      {pairs.map(([k, val], idx) => (
+        // eslint-disable-next-line react/no-array-index-key
+        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Select
+            value={k || undefined}
+            onChange={(v) => updateAt(idx, 0, (v as string) ?? '')}
+            placeholder={leftPlaceholder}
+            optionList={toOptionList(leftOptions)}
+            style={{ flex: 1 }}
+            filter
+            allowCreate
+            size="small"
+          />
+          <Typography.Text type="tertiary">←</Typography.Text>
+          <Select
+            value={val || undefined}
+            onChange={(v) => updateAt(idx, 1, (v as string) ?? '')}
+            placeholder={rightPlaceholder}
+            optionList={toOptionList(rightOptions)}
+            style={{ flex: 1 }}
+            filter
+            allowCreate
+            size="small"
+          />
+          <Button theme="borderless" type="danger" size="small" icon={<Trash2 size={14} />} onClick={() => removeAt(idx)} />
+        </div>
+      ))}
+      <Button theme="borderless" size="small" icon={<Plus size={14} />} onClick={add} style={{ alignSelf: 'flex-start' }}>{addText}</Button>
+    </div>
+  );
+}
+
 
 function formatFieldKeys(fieldKeys: unknown): string {
   if (Array.isArray(fieldKeys)) {
@@ -576,53 +668,212 @@ export default function NodeConfigDrawer({
       )}
 
       {/* 子流程配置 */}
-      {isSubProcess && (
+      {isSubProcess && (() => {
+        const childOpt = subProcessOptions.find((o) => o.value === props.subProcessId);
+        const childFields = childOpt?.fields ?? [];
+        const mode = (props.subProcessMode as string) ?? 'single';
+        const isMulti = mode === 'multi';
+        const waitChild = (props.subProcessWaitChild as boolean | undefined) !== false;
+        const initiator = (props.subProcessInitiator as string) ?? 'parentInitiator';
+        const ignoreReject = props.subProcessIgnoreReject === true;
+        const arrayFieldTypes = new Set(['multiSelect', 'checkbox', 'tags', 'userSelect', 'deptSelect']);
+        const loopSourceFields = formFields.filter((f) => arrayFieldTypes.has(f.type ?? ''));
+        const childFieldOptions: MappingOption[] = childFields.map((f) => ({ key: f.key, label: f.label }));
+        const parentFieldOptions: MappingOption[] = formFields.map((f) => ({ key: f.key, label: f.label }));
+        const inputRightOptions: MappingOption[] = [
+          ...formFields.map((f) => ({ key: `{{form.${f.key}}}`, label: f.label })),
+          ...(isMulti ? [{ key: '{{item}}', label: '当前循环项' }] : []),
+        ];
+        return (
         <div className="fd-drawer-tab-content">
           <Typography.Title heading={6} style={{ marginBottom: 16 }}>子流程配置</Typography.Title>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <Form.Slot label="子流程">
               <Select
                 value={(props.subProcessId as number) ?? undefined}
                 onChange={(v) => handlePropsChange({ subProcessId: v, subProcessName: subProcessOptions.find((o) => o.value === v)?.label })}
                 placeholder={subProcessOptions.length === 0 ? '暂无已发布的流程定义' : '请选择子流程定义'}
                 style={{ width: '100%' }}
-                optionList={subProcessOptions}
+                optionList={subProcessOptions.map((o) => ({ value: o.value, label: o.label }))}
                 showClear
                 filter
                 emptyContent="暂无已发布的流程"
               />
             </Form.Slot>
+
+            <Form.Slot label="调用模式">
+              <RadioGroup
+                type="button"
+                value={mode}
+                onChange={(e) => handlePropsChange({ subProcessMode: e.target.value })}
+              >
+                <Radio value="single">单实例</Radio>
+                <Radio value="multi">多实例</Radio>
+              </RadioGroup>
+            </Form.Slot>
+
+            {isMulti && (
+              <>
+                <Form.Slot label="循环数据源（数组型字段，逐项发起一个子流程）">
+                  <Select
+                    value={(props.subProcessMultiSource as string) ?? undefined}
+                    onChange={(v) => handlePropsChange({ subProcessMultiSource: v })}
+                    placeholder={loopSourceFields.length === 0 ? '表单中暂无数组型字段（多选/复选/标签/人员/部门）' : '请选择循环字段'}
+                    style={{ width: '100%' }}
+                    optionList={loopSourceFields.map((f) => ({ value: f.key, label: `${f.label} (${f.key})` }))}
+                    showClear
+                    filter
+                    emptyContent="暂无可循环字段"
+                  />
+                </Form.Slot>
+                <Form.Slot label="执行方式">
+                  <RadioGroup
+                    value={(props.subProcessMultiExecution as string) ?? 'parallel'}
+                    onChange={(e) => handlePropsChange({ subProcessMultiExecution: e.target.value })}
+                  >
+                    <Radio value="parallel">并行（同时发起全部，全部完成后继续）</Radio>
+                    <Radio value="serial">串行（依次发起，前一个结束再发起下一个）</Radio>
+                  </RadioGroup>
+                </Form.Slot>
+                <Form.Slot label="某个子实例被驳回时">
+                  <RadioGroup
+                    value={(props.subProcessOnChildReject as string) ?? 'abort'}
+                    onChange={(e) => handlePropsChange({ subProcessOnChildReject: e.target.value })}
+                  >
+                    <Radio value="abort">中止整个节点</Radio>
+                    <Radio value="continue">忽略并继续其余实例</Radio>
+                  </RadioGroup>
+                </Form.Slot>
+                <Form.Slot label="当前循环项写入子表单字段（可选）">
+                  <Select
+                    value={(props.subProcessMultiItemKey as string) ?? undefined}
+                    onChange={(v) => handlePropsChange({ subProcessMultiItemKey: v })}
+                    placeholder="选择子流程字段（亦可在映射中用 {{item}} 引用）"
+                    style={{ width: '100%' }}
+                    optionList={childFieldOptions.map((o) => ({ value: o.key, label: o.label === o.key ? o.key : `${o.label} (${o.key})` }))}
+                    showClear
+                    filter
+                    allowCreate
+                    emptyContent="子流程暂无字段"
+                  />
+                </Form.Slot>
+              </>
+            )}
+
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Typography.Text>等待子流程完成</Typography.Text>
               <Switch
-                checked={(props.subProcessWaitChild as boolean | undefined) !== false}
+                checked={waitChild}
                 onChange={(v) => handlePropsChange({ subProcessWaitChild: v, isAsync: !v })}
               />
             </div>
             <Typography.Text type="tertiary" size="small">
-              {(props.subProcessWaitChild as boolean | undefined) === false
-                ? '父流程不等待子流程，立即继续下游节点（fire-and-forget）'
-                : '父流程在子流程结束（通过 / 驳回）后继续执行下游节点'}
+              {waitChild
+                ? '父流程在子流程结束（通过 / 驳回）后继续执行下游节点'
+                : '父流程不等待子流程，立即继续下游节点（fire-and-forget）'}
             </Typography.Text>
-            <Form.Slot label="父 → 子 表单字段映射（JSON，值支持 {{form.字段key}} 占位）">
-              <TextArea
-                value={stringifyHeadersOrBody(props.subProcessFieldMapping)}
-                onChange={(v: string) => handlePropsChange({ subProcessFieldMapping: v })}
-                placeholder={'{\n  "childTitle": "{{form.title}}",\n  "childAmount": "{{form.amount}}"\n}'}
-                autosize={{ minRows: 2, maxRows: 6 }}
+
+            <Form.Slot label="子实例发起人">
+              <RadioGroup
+                value={initiator}
+                onChange={(e) => handlePropsChange({ subProcessInitiator: e.target.value })}
+              >
+                <Radio value="parentInitiator">父流程发起人</Radio>
+                <Radio value="formField">取表单字段</Radio>
+                <Radio value="specifiedUser">指定成员</Radio>
+              </RadioGroup>
+            </Form.Slot>
+            {initiator === 'formField' && (
+              <Form.Slot label="发起人字段（存放用户 ID）">
+                <Select
+                  value={(props.subProcessInitiatorField as string) ?? undefined}
+                  onChange={(v) => handlePropsChange({ subProcessInitiatorField: v })}
+                  placeholder="请选择存放用户 ID 的表单字段"
+                  style={{ width: '100%' }}
+                  optionList={formFields.map((f) => ({ value: f.key, label: `${f.label} (${f.key})` }))}
+                  showClear
+                  filter
+                />
+              </Form.Slot>
+            )}
+            {initiator === 'specifiedUser' && (
+              <Form.Slot label="指定成员">
+                <Select
+                  value={(props.subProcessInitiatorUserId as number) ?? undefined}
+                  onChange={(v) => handlePropsChange({ subProcessInitiatorUserId: v })}
+                  placeholder="请选择成员"
+                  style={{ width: '100%' }}
+                  optionList={users.map((u) => ({ value: u.id, label: u.nickname }))}
+                  showClear
+                  filter
+                />
+              </Form.Slot>
+            )}
+
+            <Form.Slot label="入参映射（父 → 子）">
+              <MappingEditor
+                value={props.subProcessFieldMapping}
+                onChange={(m) => handlePropsChange({ subProcessFieldMapping: m })}
+                leftOptions={childFieldOptions}
+                rightOptions={inputRightOptions}
+                leftPlaceholder="子流程字段"
+                rightPlaceholder="父表单取值"
+                addText="添加入参映射"
               />
             </Form.Slot>
-            <Form.Slot label="子 → 父 输出字段映射（JSON，key 为父字段，value 为子字段）">
-              <TextArea
-                value={stringifyHeadersOrBody(props.subProcessOutputMapping)}
-                onChange={(v: string) => handlePropsChange({ subProcessOutputMapping: v })}
-                placeholder={'{\n  "parentResult": "childResult"\n}'}
-                autosize={{ minRows: 2, maxRows: 6 }}
+            <Form.Slot label="出参映射（子 → 父）">
+              <MappingEditor
+                value={props.subProcessOutputMapping}
+                onChange={(m) => handlePropsChange({ subProcessOutputMapping: m })}
+                leftOptions={parentFieldOptions}
+                rightOptions={childFieldOptions}
+                leftPlaceholder="父表单字段"
+                rightPlaceholder="子流程字段"
+                addText="添加出参映射"
               />
+            </Form.Slot>
+            {isMulti && (
+              <Typography.Text type="tertiary" size="small">多实例下，出参映射会按子实例完成顺序聚合为数组写回父字段。</Typography.Text>
+            )}
+
+            <Form.Slot label="子流程被驳回后">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Switch
+                    checked={ignoreReject}
+                    onChange={(v) => handlePropsChange({ subProcessIgnoreReject: v })}
+                  />
+                  <Typography.Text>忽略驳回，按通过继续父流程</Typography.Text>
+                </div>
+                {!ignoreReject && (
+                  <Select
+                    value={(props.rejectStrategy as string) ?? 'terminate'}
+                    onChange={(v) => handlePropsChange({ rejectStrategy: v })}
+                    style={{ width: '100%' }}
+                    optionList={[
+                      { value: 'terminate', label: '终止流程（驳回）' },
+                      { value: 'returnPrev', label: '退回上一审批节点' },
+                      { value: 'returnStart', label: '退回发起人（重走流程）' },
+                      { value: 'returnToNode', label: '退回指定节点' },
+                    ]}
+                  />
+                )}
+                {!ignoreReject && (props.rejectStrategy as string) === 'returnToNode' && (
+                  <Select
+                    value={(props.rejectToNodeKey as string) ?? undefined}
+                    onChange={(v) => handlePropsChange({ rejectToNodeKey: v })}
+                    placeholder="请选择退回目标节点"
+                    style={{ width: '100%' }}
+                    optionList={rejectableAncestorNodes.map((n) => ({ value: n.key ?? n.id, label: n.name }))}
+                    emptyContent="无可退回的前序节点"
+                  />
+                )}
+              </div>
             </Form.Slot>
           </div>
         </div>
-      )}
+        );
+      })()}
       {/* 路由分支节点配置 */}
       {isRouteBranch && (() => {
         const routableFields = formFields.filter(f => f.type === 'select' || f.type === 'radio');
@@ -716,6 +967,11 @@ function getDefaultProps(type: FlowNodeType): Record<string, unknown> {
       return {
         subProcessWaitChild: true,
         isAsync: false,
+        subProcessMode: 'single',
+        subProcessMultiExecution: 'parallel',
+        subProcessOnChildReject: 'abort',
+        subProcessInitiator: 'parentInitiator',
+        subProcessIgnoreReject: false,
       };
     default:
       return {};

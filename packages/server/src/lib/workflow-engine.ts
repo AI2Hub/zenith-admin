@@ -8,7 +8,8 @@
  * - parallelGateway     —— 并行网关：fork 时创建多个任务，join 时等待全部完成
  * - inclusiveGateway    —— 包容网关：fork 时激活所有匹配条件的分支，join 等同 parallel join
  * - ccNode              —— 抄送节点，非阻塞，自动创建抄送任务后继续推进
- * - delay / trigger / subProcess —— 当前作为非阻塞自动节点（占位实现），P2 由调度器接管
+ * - delay / trigger —— 当前作为非阻塞自动节点（占位实现），P2 由调度器接管
+ * - subProcess —— 创建 subProcess 任务；实际子实例的发起 / 多实例展开 / 汇聚由 workflow-instances.service 接管
  */
 import type {
   WorkflowFlowData,
@@ -597,6 +598,14 @@ export function validateFlowData(flowData: WorkflowFlowData): { valid: boolean; 
       const outs = outEdges.get(node.id) ?? [];
       if (outs.length === 0) {
         errors.push(`并行网关"${node.data.label}"缺少出边`);
+      }
+    }
+    if (gwType === 'subProcess') {
+      if (!node.data.subProcessId) {
+        errors.push(`子流程"${node.data.label}"未选择要调用的流程定义`);
+      }
+      if (node.data.subProcessMode === 'multi' && !node.data.subProcessMultiSource) {
+        errors.push(`子流程"${node.data.label}"为多实例模式但未指定循环数据源字段`);
       }
     }
   }

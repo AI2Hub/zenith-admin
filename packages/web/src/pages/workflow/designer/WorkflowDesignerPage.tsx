@@ -68,7 +68,7 @@ export default function WorkflowDesignerPage() {
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [userGroups, setUserGroups] = useState<Array<{ id: number; name: string }>>([]);
   const [positions, setPositions] = useState<Array<{ id: number; name: string }>>([]);
-  const [subProcessOptions, setSubProcessOptions] = useState<Array<{ value: number; label: string }>>([]);
+  const [subProcessOptions, setSubProcessOptions] = useState<Array<{ value: number; label: string; fields?: Array<{ key: string; label: string; type?: string }> }>>([]);
 
   // 节点编辑抽屉
   const [editingNode, setEditingNode] = useState<FlowNode | null>(null);
@@ -183,7 +183,15 @@ export default function WorkflowDesignerPage() {
         setSubProcessOptions(
           res.data
             .filter((d) => d.id !== currentId)
-            .map((d) => ({ value: d.id, label: d.name })),
+            .map((d) => ({
+              value: d.id,
+              label: d.name,
+              fields: Array.isArray(d.formFields)
+                ? (d.formFields as Array<{ key?: string; label?: string; type?: string }>)
+                    .filter((f) => f && typeof f.key === 'string' && f.key)
+                    .map((f) => ({ key: f.key as string, label: f.label ?? (f.key as string), type: f.type }))
+                : [],
+            })),
         );
       }
     });

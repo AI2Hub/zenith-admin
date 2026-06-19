@@ -173,11 +173,10 @@ export default function WorkflowMonitorPage() {
     void fetchList(1, pageSize, newParams);
   };
 
-  const openDetail = (item: WorkflowInstance) => {
+  const loadDetail = (instanceId: number) => {
     setDetailLoading(true);
-    setDetailVisible(true);
     setDetailDef(null);
-    const p = request.get<WorkflowInstance>(`/api/workflows/instances/${item.id}`)
+    const p = request.get<WorkflowInstance>(`/api/workflows/instances/${instanceId}`)
       .then(res => {
         if (res.code === 0) {
           setDetail(res.data);
@@ -188,6 +187,11 @@ export default function WorkflowMonitorPage() {
       .then(defRes => { if (defRes?.code === 0) setDetailDef(defRes.data); })
       .finally(() => setDetailLoading(false));
     p.catch(() => undefined);
+  };
+
+  const openDetail = (item: WorkflowInstance) => {
+    setDetailVisible(true);
+    loadDetail(item.id);
   };
 
   const handleCancel = (record: WorkflowInstance) => {
@@ -408,7 +412,7 @@ export default function WorkflowMonitorPage() {
         {detailLoading ? (
           <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
         ) : (
-          <WorkflowInstanceDetailPanel instance={detail} definition={detailDef} loading={detailLoading} />
+          <WorkflowInstanceDetailPanel instance={detail} definition={detailDef} loading={detailLoading} onOpenInstance={loadDetail} />
         )}
       </SideSheet>
     </div>

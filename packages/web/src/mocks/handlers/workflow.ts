@@ -317,7 +317,11 @@ export const workflowHandlers = [
     if (!inst) return err('流程实例不存在', 404);
     const tasks = mockWorkflowTasks.filter(t => t.instanceId === inst.id)
       .sort((a, b) => a.id - b.id);
-    return ok({ ...inst, tasks });
+    // 子流程：聚合本实例发起的子实例摘要
+    const childInstances = mockWorkflowInstances
+      .filter(i => i.parentInstanceId === inst.id)
+      .map(c => ({ id: c.id, title: c.title, status: c.status, parentTaskNodeKey: null, createdAt: c.createdAt }));
+    return ok({ ...inst, tasks, childInstances });
   }),
 
   // 发起流程申请

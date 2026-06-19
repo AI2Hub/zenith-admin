@@ -378,7 +378,45 @@ describe('validateFlowData', () => {
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('条件'))).toBe(true);
   });
+
+  it('reports subProcess node without a selected definition', () => {
+    const flow = makeSubProcessFlow({});
+    const result = validateFlowData(flow);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('未选择要调用的流程定义'))).toBe(true);
+  });
+
+  it('reports multi-instance subProcess without a loop source', () => {
+    const flow = makeSubProcessFlow({ subProcessId: 7, subProcessMode: 'multi' });
+    const result = validateFlowData(flow);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('循环数据源'))).toBe(true);
+  });
+
+  it('accepts a valid single subProcess and a valid multi subProcess', () => {
+    const single = validateFlowData(makeSubProcessFlow({ subProcessId: 7 }));
+    expect(single.errors.some(e => e.includes('子流程'))).toBe(false);
+    const multi = validateFlowData(makeSubProcessFlow({ subProcessId: 7, subProcessMode: 'multi', subProcessMultiSource: 'items' }));
+    expect(multi.errors.some(e => e.includes('子流程'))).toBe(false);
+  });
 });
+
+/** 构造一个含 subProcess 节点的最小可校验流程 */
+function makeSubProcessFlow(spData: Record<string, unknown>): WorkflowFlowData {
+  return {
+    nodes: [
+      { id: 'n1', position: { x: 0, y: 0 }, data: { key: 'start', type: 'start', label: '发起' } },
+      { id: 'n2', position: { x: 1, y: 0 }, data: { key: 'sp', type: 'subProcess', label: '子流程', ...spData } },
+      { id: 'n3', position: { x: 2, y: 0 }, data: { key: 'a1', type: 'approve', label: '审批', assigneeId: 1 } },
+      { id: 'n4', position: { x: 3, y: 0 }, data: { key: 'end', type: 'end', label: '结束' } },
+    ],
+    edges: [
+      { id: 'e1', source: 'n1', target: 'n2' },
+      { id: 'e2', source: 'n2', target: 'n3' },
+      { id: 'e3', source: 'n3', target: 'n4' },
+    ],
+  };
+}
 
 // ─── 测试 handler 节点（办理节点） ─────────────────────────────────────────────
 
@@ -580,6 +618,16 @@ describe('advanceFlow - auto nodes (delay/trigger/subProcess)', () => {
     expect(subTask).toBeDefined();
     expect(subTask?.nodeType).toBe('subProcess');
     expect(result.tasksToCreate.find(task => task.nodeKey === 'a1')).toBeUndefined();
+  });
+
+  // subProcess 异步（waitChild=false）：不阻塞，BFS 继续推进至后续 approve
+  it('async subProcess node (waitChild=false) does not halt BFS and reaches next approve', () => {
+    const flow = makeAutoFlow('subProcess');
+    const sub = flow.nodes.find(n => n.data.key === 'auto');
+    if (sub) sub.data.subProcessWaitChild = false;
+    const result = advanceFlow(flow, 'start', {}, new Set(['start']));
+    expect(result.tasksToCreate.find(task => task.nodeKey === 'auto')?.nodeType).toBe('subProcess');
+    expect(result.tasksToCreate.find(task => task.nodeKey === 'a1')).toBeDefined();
   });
 });
 

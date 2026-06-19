@@ -61,12 +61,18 @@ function InstanceDetailDrawer({
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<WorkflowInstance | null>(null);
   const [definition, setDefinition] = useState<WorkflowDefinition | null>(null);
+  // 当前查看的实例 id（支持在父 / 子流程之间跳转）
+  const [viewId, setViewId] = useState<number | null>(instanceId);
 
   useEffect(() => {
-    if (!visible || !instanceId) return;
+    if (visible) setViewId(instanceId);
+  }, [visible, instanceId]);
+
+  useEffect(() => {
+    if (!visible || !viewId) return;
     setLoading(true);
     setDefinition(null);
-    const p = request.get<WorkflowInstance>(`/api/workflows/instances/${instanceId}`)
+    const p = request.get<WorkflowInstance>(`/api/workflows/instances/${viewId}`)
       .then(res => {
         if (res.code === 0) {
           setData(res.data);
@@ -77,11 +83,11 @@ function InstanceDetailDrawer({
       .then(defRes => { if (defRes?.code === 0) setDefinition(defRes.data); })
       .finally(() => setLoading(false));
     p.catch(() => undefined);
-  }, [visible, instanceId]);
+  }, [visible, viewId]);
 
   const handleWithdraw = async () => {
-    if (!instanceId) return;
-    const res = await request.post(`/api/workflows/instances/${instanceId}/withdraw`, {});
+    if (!viewId) return;
+    const res = await request.post(`/api/workflows/instances/${viewId}/withdraw`, {});
     if (res.code === 0) {
       Toast.success('已撤回');
       onRefresh();
@@ -93,10 +99,10 @@ function InstanceDetailDrawer({
   const [urgeMessage, setUrgeMessage] = useState('');
   const [urgeLoading, setUrgeLoading] = useState(false);
   const handleUrge = async () => {
-    if (!instanceId) return;
+    if (!viewId) return;
     setUrgeLoading(true);
     try {
-      const res = await request.post<unknown>(`/api/workflows/instances/${instanceId}/urge`, { message: urgeMessage || undefined });
+      const res = await request.post<unknown>(`/api/workflows/instances/${viewId}/urge`, { message: urgeMessage || undefined });
       if (res.code === 0) {
         Toast.success(res.message || '已催办');
         setUrgeVisible(false);
@@ -132,13 +138,13 @@ function InstanceDetailDrawer({
     }
   };
   const handleAddCc = async () => {
-    if (!instanceId || !ccNodeKey || ccUserIds.length === 0) {
+    if (!viewId || !ccNodeKey || ccUserIds.length === 0) {
       Toast.warning('请选择抄送节点与抄送人');
       return;
     }
     setCcLoading(true);
     try {
-      const res = await request.post<unknown>(`/api/workflows/instances/${instanceId}/cc/add`, { nodeKey: ccNodeKey, userIds: ccUserIds });
+      const res = await request.post<unknown>(`/api/workflows/instances/${viewId}/cc/add`, { nodeKey: ccNodeKey, userIds: ccUserIds });
       if (res.code === 0) {
         Toast.success(res.message || '已补加抄送');
         setCcVisible(false);
@@ -173,7 +179,7 @@ function InstanceDetailDrawer({
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
       ) : (
-        <WorkflowInstanceDetailPanel instance={data} definition={definition} loading={loading} />
+        <WorkflowInstanceDetailPanel instance={data} definition={definition} loading={loading} onOpenInstance={(id) => setViewId(id)} />
       )}
       <AppModal
         title="催办"

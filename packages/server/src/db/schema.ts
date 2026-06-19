@@ -1101,6 +1101,10 @@ export const workflowTasks = pgTable('workflow_tasks', {
   externalDispatchStatus: workflowTaskExternalDispatchStatusEnum('external_dispatch_status'),
   /** delay 节点的唤醒时间（status='waiting' 期间有效，由调度器扫描） */
   wakeAt: timestamp('wake_at', { withTimezone: true }),
+  /** 子流程（multi 多实例）：期望子实例总数（仅 subProcess 多实例 waiting 任务有值；单实例/非子流程为 null） */
+  subTotal: integer('sub_total'),
+  /** 子流程（multi 多实例）：已结束的子实例数（用于汇聚 join 判定） */
+  subDone: integer('sub_done').default(0).notNull(),
   /** 审批超时截止时间（仅 pending 任务，由调度器扫描；waiting/已完成任务为 null） */
   timeoutAt: timestamp('timeout_at', { withTimezone: true }),
   /** 已发送的超时提醒次数（用于 action='remind' 时限制提醒上限） */

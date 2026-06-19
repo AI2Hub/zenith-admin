@@ -4,8 +4,9 @@
  */
 import type { ReactNode } from 'react';
 import {
-  Descriptions, Empty, Spin, Tabs, TabPane, Tag, Typography,
+  Descriptions, Empty, Spin, Tabs, TabPane, Tag, Typography, Button,
 } from '@douyinfe/semi-ui';
+import { CornerUpLeft } from 'lucide-react';
 import type { WorkflowDefinition, WorkflowInstance, WorkflowFormField } from '@zenith/shared';
 import { formatDateTime } from '@/utils/date';
 import ApprovalTimeline from '@/components/ApprovalTimeline';
@@ -29,10 +30,12 @@ interface Props {
   definition?: WorkflowDefinition | null;
   loading?: boolean;
   extraActions?: ReactNode;
+  /** 跳转到关联的父 / 子流程实例详情 */
+  onOpenInstance?: (id: number) => void;
 }
 
 export default function WorkflowInstanceDetailPanel({
-  instance, definition, loading, extraActions,
+  instance, definition, loading, extraActions, onOpenInstance,
 }: Readonly<Props>) {
   if (loading) {
     return <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>;
@@ -45,6 +48,7 @@ export default function WorkflowInstanceDetailPanel({
   const formFields: WorkflowFormField[] = instance.formSnapshot ?? definition?.formFields ?? [];
   const hasFormFields = formFields.length > 0;
   const flowData = (definition?.flowData ?? null) as { process?: import('@/pages/workflow/designer/types').FlowProcess } | null;
+  const childInstances = instance.childInstances ?? [];
 
   const renderFormData = () => {
     if (hasFormFields) {
@@ -103,6 +107,20 @@ export default function WorkflowInstanceDetailPanel({
         </div>
       </div>
 
+      {instance.parentInstanceId ? (
+        <div style={{ marginBottom: 8 }}>
+          <Button
+            theme="borderless"
+            size="small"
+            icon={<CornerUpLeft size={14} />}
+            disabled={!onOpenInstance}
+            onClick={() => onOpenInstance?.(instance.parentInstanceId as number)}
+          >
+            来自父流程实例 #{instance.parentInstanceId}
+          </Button>
+        </div>
+      ) : null}
+
       {extraActions ? (
         <div style={{ marginBottom: 8 }}>{extraActions}</div>
       ) : null}
@@ -123,6 +141,38 @@ export default function WorkflowInstanceDetailPanel({
             finishedAt={instance.updatedAt}
           />
         </TabPane>
+        {childInstances.length > 0 && (
+          <TabPane tab={`子流程 (${childInstances.length})`} itemKey="children">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {childInstances.map((c) => {
+                const ci = INSTANCE_STATUS_MAP[c.status];
+                return (
+                  <div
+                    key={c.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                      padding: '8px 12px', border: '1px solid var(--semi-color-border)', borderRadius: 6,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      {ci ? <Tag color={ci.color} size="small">{ci.text}</Tag> : <Tag size="small">{c.status}</Tag>}
+                      <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 320 }}>{c.title}</Typography.Text>
+                      <Typography.Text type="tertiary" size="small">#{c.id} · {formatDateTime(c.createdAt)}</Typography.Text>
+                    </div>
+                    <Button
+                      theme="borderless"
+                      size="small"
+                      disabled={!onOpenInstance}
+                      onClick={() => onOpenInstance?.(c.id)}
+                    >
+                      查看
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </TabPane>
+        )}
       </Tabs>
 
       {definition?.description ? (

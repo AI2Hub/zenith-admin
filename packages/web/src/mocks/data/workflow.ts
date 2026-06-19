@@ -374,6 +374,26 @@ export const mockWorkflowInstances: WorkflowInstance[] = [
     createdAt: '2026-03-21 09:00:00',
     updatedAt: '2026-03-22 11:00:00',
   },
+  {
+    // 子流程演示：由实例 #2（差旅报销）的子流程节点发起的子实例
+    id: 5,
+    definitionId: 1,
+    definitionName: '请假申请',
+    title: '张三的差旅报销申请 - ¥1,280 / 用印子流程',
+    formData: { leaveType: '用印', reason: '差旅报销用印审批', days: 1 },
+    formSnapshot: cloneWorkflowFormFields(1),
+    status: 'running',
+    currentNodeKey: 'approve_1',
+    initiatorId: 1,
+    initiatorName: '张三',
+    initiatorAvatar: null,
+    tenantId: 1,
+    parentInstanceId: 2,
+    parentTaskId: null,
+    tasks: mockWorkflowTasks.filter(t => t.instanceId === 5),
+    createdAt: '2026-03-28 14:05:00',
+    updatedAt: '2026-03-28 14:05:00',
+  },
 ];
 
 // 下一个 ID（用于创建新实例）

@@ -123,10 +123,13 @@ function getBodySummary(node: FlowNode): string {
 
     case 'subProcess': {
       const subName = p.subProcessName as string | undefined;
-      const isAsync = p.isAsync as boolean | undefined;
+      const isAsync = (p.isAsync as boolean | undefined) || p.subProcessWaitChild === false;
       const parts: string[] = [];
       const idStr = typeof p.subProcessId === 'number' ? String(p.subProcessId) : '';
       parts.push(subName ?? `流程#${idStr}`);
+      if (p.subProcessMode === 'multi') {
+        parts.push(p.subProcessMultiExecution === 'serial' ? '多实例·串行' : '多实例·并行');
+      }
       if (isAsync) parts.push('异步');
       return parts.join(' · ') || '请选择子流程';
     }

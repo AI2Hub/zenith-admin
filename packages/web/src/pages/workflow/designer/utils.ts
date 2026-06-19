@@ -719,7 +719,7 @@ function flattenNode(
       ...(p.callbackSecret ? { callbackSecret: p.callbackSecret } : {}),
     };
   }
-  // 子流程节点：解析 mapping 字符串为对象，并将 waitChild / mapping 放到 data 顶层
+  // 子流程节点：解析 mapping 字符串为对象，并将 waitChild / 多实例 / 发起人 / 映射放到 data 顶层
   if (node.type === 'subProcess') {
     const p = node.props ?? {};
     let fieldMapping: unknown = p.subProcessFieldMapping;
@@ -733,8 +733,30 @@ function flattenNode(
     if (p.subProcessId != null) dataExtra.subProcessId = p.subProcessId;
     if (p.subProcessName) dataExtra.subProcessName = p.subProcessName;
     dataExtra.subProcessWaitChild = p.subProcessWaitChild !== false;
+    dataExtra.isAsync = p.subProcessWaitChild === false;
     if (fieldMapping && typeof fieldMapping === 'object') dataExtra.subProcessFieldMapping = fieldMapping;
     if (outputMapping && typeof outputMapping === 'object') dataExtra.subProcessOutputMapping = outputMapping;
+    // 调用模式 / 多实例
+    const mode = p.subProcessMode === 'multi' ? 'multi' : 'single';
+    dataExtra.subProcessMode = mode;
+    if (mode === 'multi') {
+      if (p.subProcessMultiSource) dataExtra.subProcessMultiSource = p.subProcessMultiSource;
+      dataExtra.subProcessMultiExecution = p.subProcessMultiExecution === 'serial' ? 'serial' : 'parallel';
+      dataExtra.subProcessOnChildReject = p.subProcessOnChildReject === 'continue' ? 'continue' : 'abort';
+      if (p.subProcessMultiItemKey) dataExtra.subProcessMultiItemKey = p.subProcessMultiItemKey;
+    }
+    // 子实例发起人
+    const initiator = p.subProcessInitiator === 'formField' || p.subProcessInitiator === 'specifiedUser'
+      ? p.subProcessInitiator : 'parentInitiator';
+    dataExtra.subProcessInitiator = initiator;
+    if (initiator === 'formField' && p.subProcessInitiatorField) dataExtra.subProcessInitiatorField = p.subProcessInitiatorField;
+    if (initiator === 'specifiedUser' && p.subProcessInitiatorUserId != null) dataExtra.subProcessInitiatorUserId = p.subProcessInitiatorUserId;
+    // 驳回处理
+    dataExtra.subProcessIgnoreReject = p.subProcessIgnoreReject === true;
+    if (!p.subProcessIgnoreReject && p.rejectStrategy) {
+      dataExtra.rejectStrategy = p.rejectStrategy;
+      if (p.rejectStrategy === 'returnToNode' && p.rejectToNodeKey) dataExtra.rejectToNodeKey = p.rejectToNodeKey;
+    }
   }
   // 审批节点：将外部审批相关 props 收敛到 externalApproval
   if (node.type === 'approver') {

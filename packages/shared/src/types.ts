@@ -793,6 +793,15 @@ export type WorkflowNodeType =
   | 'subProcess';
 export type WorkflowConditionOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'notIn' | 'contains' | 'isEmpty' | 'isNotEmpty';
 
+/** 子流程调用模式 */
+export type WorkflowSubProcessMode = 'single' | 'multi';
+/** 子流程多实例执行方式 */
+export type WorkflowSubProcessExecution = 'parallel' | 'serial';
+/** 子流程多实例下，某个子实例驳回时的处理策略 */
+export type WorkflowSubProcessChildRejectPolicy = 'abort' | 'continue';
+/** 子流程子实例发起人来源 */
+export type WorkflowSubProcessInitiator = 'parentInitiator' | 'formField' | 'specifiedUser';
+
 // 连线条件表达式（排他网关出边使用）
 export interface WorkflowEdgeCondition {
   field: string;         // source='form' 时为表单字段 key；source='starter' 时为 'user'|'dept'|'role'|'post'
@@ -992,12 +1001,30 @@ export interface WorkflowNodeConfig {
   onlyOnApprove?: boolean;
   subProcessId?: number;
   subProcessName?: string;
-  /** 子流程：父实例字段映射到子实例 formData（key=子字段 key，value 支持 {{form.x}} 模板，引用父实例 formData） */
+  /** 子流程：父实例字段映射到子实例 formData（key=子字段 key，value 支持 {{form.x}} / {{item}} 模板） */
   subProcessFieldMapping?: Record<string, string>;
-  /** 子流程：子实例审批通过后回填父实例 formData（key=父字段 key，value=子字段 key） */
+  /** 子流程：子实例结束后回填父实例 formData（key=父字段 key，value=子字段 key；多实例时聚合为数组） */
   subProcessOutputMapping?: Record<string, string>;
   /** 子流程：是否等待子实例结束才推进父流程（默认 true） */
   subProcessWaitChild?: boolean;
+  /** 子流程：调用模式 —— single 单实例（默认） / multi 多实例（遍历集合字段，逐项发起子流程） */
+  subProcessMode?: WorkflowSubProcessMode;
+  /** 子流程（multi）：循环数据源 —— 父表单中数组型字段 key（multiSelect/checkbox/tags/userSelect/deptSelect 等） */
+  subProcessMultiSource?: string;
+  /** 子流程（multi）：多实例执行方式 —— parallel 并行（默认） / serial 串行 */
+  subProcessMultiExecution?: WorkflowSubProcessExecution;
+  /** 子流程（multi）：将当前循环项的值写入子实例 formData 的字段 key（亦可在映射中用 {{item}} 引用） */
+  subProcessMultiItemKey?: string;
+  /** 子流程（multi）：某个子实例被驳回时 —— abort 中止整个节点（默认） / continue 忽略并继续其余实例 */
+  subProcessOnChildReject?: WorkflowSubProcessChildRejectPolicy;
+  /** 子流程：子实例发起人 —— parentInitiator 父流程发起人（默认） / formField 取表单字段 / specifiedUser 指定成员 */
+  subProcessInitiator?: WorkflowSubProcessInitiator;
+  /** 子流程：subProcessInitiator='formField' 时，存放用户 ID 的父表单字段 key */
+  subProcessInitiatorField?: string;
+  /** 子流程：subProcessInitiator='specifiedUser' 时，指定的用户 ID */
+  subProcessInitiatorUserId?: number;
+  /** 子流程：子实例被驳回时是否忽略并按通过继续父流程（默认 false，遵循 rejectStrategy） */
+  subProcessIgnoreReject?: boolean;
   isAsync?: boolean;
   /** 延迟节点：延迟类型 */
   delayType?: 'fixed' | 'toDate';
@@ -1396,9 +1423,25 @@ export interface WorkflowInstance {
   initiatorName?: string | null;
   initiatorAvatar?: string | null;
   tenantId: number | null;
+  /** 子流程：父实例 ID（本实例由父实例 subProcess 节点发起时填充） */
+  parentInstanceId?: number | null;
+  /** 子流程：父实例中触发本子流程的任务 ID */
+  parentTaskId?: number | null;
+  /** 子流程：本实例发起的子实例摘要列表（仅详情场景填充） */
+  childInstances?: WorkflowChildInstanceSummary[] | null;
   tasks?: WorkflowTask[];
   createdAt: string;
   updatedAt: string;
+}
+
+/** 子流程子实例摘要（用于父实例详情展示与跳转） */
+export interface WorkflowChildInstanceSummary {
+  id: number;
+  title: string;
+  status: WorkflowInstanceStatus;
+  /** 触发该子实例的父任务节点 key */
+  parentTaskNodeKey?: string | null;
+  createdAt: string;
 }
 
 // ─── 流程事件总线 ─────────────────────────────────────────────────────────────

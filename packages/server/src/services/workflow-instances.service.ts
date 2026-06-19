@@ -39,6 +39,7 @@ export function mapInstance(
     initiatorAvatar?: string | null;
     currentNodeName?: string | null;
     tasks?: ReturnType<typeof mapTask>[];
+    childInstances?: Array<{ id: number; title: string; status: typeof workflowInstances.$inferSelect['status']; parentTaskNodeKey?: string | null; createdAt: string }>;
   } = {},
 ) {
   return {
@@ -57,6 +58,9 @@ export function mapInstance(
     initiatorName: extras.initiatorName ?? null,
     initiatorAvatar: extras.initiatorAvatar ?? null,
     tenantId: row.tenantId,
+    parentInstanceId: row.parentInstanceId ?? null,
+    parentTaskId: row.parentTaskId ?? null,
+    childInstances: extras.childInstances ?? null,
     tasks: extras.tasks ?? null,
     createdBy: row.createdBy ?? null,
     updatedBy: row.updatedBy ?? null,
@@ -73,7 +77,7 @@ function resolveNodeNameFromSnapshot(snapshot: unknown, nodeKey: string | null):
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
-import { count, countDistinct, eq, and, desc, ilike, or, inArray } from 'drizzle-orm';
+import { count, countDistinct, eq, and, desc, ilike, or, inArray, sql, isNotNull } from 'drizzle-orm';
 import { escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { pageOffset } from '../lib/pagination';
@@ -235,24 +239,37 @@ function computeDelayWakeAt(nodeConfig: TaskAction['nodeConfig'], formData: Reco
 
 /**
  * 根据子流程节点配置的 subProcessFieldMapping，构造子实例 formData。
- * value 支持 `{{form.x}}` 模板，引用父实例 formData 字段。
+ * value 支持模板占位：
+ * - `{{form.x}}` / `{{x}}` 引用父实例 formData 字段
+ * - `{{item}}` 引用当前循环项的值（多实例）；`{{item.prop}}` 取循环项对象的属性
  */
-function buildChildFormData(
+export function buildChildFormData(
   mapping: Record<string, string> | undefined,
   parentFormData: Record<string, unknown>,
+  item?: unknown,
 ): Record<string, unknown> {
   if (!mapping) return {};
+  const resolveSingle = (rawKey: string): unknown => {
+    const k = rawKey.trim();
+    if (k === 'item') return item;
+    if (k.startsWith('item.')) {
+      const prop = k.slice(5).trim();
+      return item && typeof item === 'object' ? (item as Record<string, unknown>)[prop] : undefined;
+    }
+    if (k.startsWith('form.')) return parentFormData[k.slice(5).trim()];
+    return parentFormData[k];
+  };
   const out: Record<string, unknown> = {};
   for (const [childKey, expr] of Object.entries(mapping)) {
     if (typeof expr !== 'string') continue;
     if (expr.includes('{{')) {
-      const tplMatch = expr.match(/^\{\{form\.([^}]+)\}\}$/);
+      const tplMatch = expr.match(/^\{\{\s*([^}]+?)\s*\}\}$/);
       if (tplMatch) {
         // 整段就是单个引用：保留原值类型
-        out[childKey] = parentFormData[tplMatch[1].trim()];
+        out[childKey] = resolveSingle(tplMatch[1]);
       } else {
-        out[childKey] = expr.replace(/\{\{form\.([^}]+)\}\}/g, (_, k) => {
-          const v = parentFormData[k.trim()];
+        out[childKey] = expr.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_, k) => {
+          const v = resolveSingle(k);
           if (v == null || typeof v === 'object') return '';
           return String(v);
         });
@@ -264,42 +281,69 @@ function buildChildFormData(
   return out;
 }
 
-/**
- * 启动子流程实例。由父实例的 subProcess 节点触发，事务外调用。
- * - 不进行发起人范围校验（受父实例信任）
- * - 父实例 initiatorId / tenantId 透传到子实例
- * - 子实例 status='running'，并写入 parentInstanceId / parentTaskId
- * - 内部递归 materialize 初始任务、发射事件
- */
-async function spawnSubProcessChild(
-  parentInst: typeof workflowInstances.$inferSelect,
-  parentTask: typeof workflowTasks.$inferSelect,
-  nodeCfg: TaskAction['nodeConfig'],
-  actor: WorkflowEventActor,
-): Promise<void> {
-  const subProcessId = nodeCfg.subProcessId;
-  if (!subProcessId) {
-    return;
-  }
+/** 从实例的 definitionSnapshot 中按 nodeKey 解析节点配置 */
+function snapshotNodeCfg(
+  inst: typeof workflowInstances.$inferSelect,
+  nodeKey: string,
+): TaskAction['nodeConfig'] | null {
+  return (inst.definitionSnapshot as { flowData?: WorkflowFlowData } | null)?.flowData?.nodes
+    .find((n) => n.data.key === nodeKey)?.data ?? null;
+}
+
+/** 查找已发布的子流程定义 */
+async function loadPublishedSubProcessDef(subProcessId?: number) {
+  if (!subProcessId) return null;
   const [def] = await db.select().from(workflowDefinitions)
     .where(and(eq(workflowDefinitions.id, subProcessId), eq(workflowDefinitions.status, 'published')))
     .limit(1);
-  if (!def) {
-    // 子流程定义不存在或未发布，直接驳回父任务以终止流程
-    await rejectTaskCore(parentTask, parentInst, '子流程定义不存在或未发布', actor);
-    return;
+  return def ?? null;
+}
+
+/**
+ * 解析子实例发起人：
+ * - parentInitiator（默认）：沿用父流程发起人
+ * - formField：取父表单字段中的用户 ID
+ * - specifiedUser：取节点指定的用户 ID
+ * 解析失败时回退父流程发起人。
+ */
+async function resolveChildInitiator(
+  nodeCfg: TaskAction['nodeConfig'],
+  parentInst: typeof workflowInstances.$inferSelect,
+): Promise<number> {
+  const fallback = parentInst.initiatorId;
+  const mode = nodeCfg.subProcessInitiator ?? 'parentInitiator';
+  let candidate: number | null = null;
+  if (mode === 'specifiedUser') {
+    candidate = nodeCfg.subProcessInitiatorUserId ?? null;
+  } else if (mode === 'formField' && nodeCfg.subProcessInitiatorField) {
+    const raw = (parentInst.formData as Record<string, unknown> | null)?.[nodeCfg.subProcessInitiatorField];
+    const n = Array.isArray(raw) ? Number(raw[0]) : Number(raw);
+    candidate = Number.isFinite(n) && n > 0 ? n : null;
+  } else {
+    return fallback;
   }
+  if (candidate == null) return fallback;
+  const [u] = await db.select({ id: users.id }).from(users).where(eq(users.id, candidate)).limit(1);
+  return u ? u.id : fallback;
+}
+
+/**
+ * 创建并初始化一个子流程实例（事务内插入 + materialize 初始任务），发射事件、调度延迟任务、
+ * 递归展开子实例内部的子流程节点。返回创建后的子实例（含最终状态）。
+ * 注意：不在此处发射 instance.approved/rejected（由调用方根据是否即时完结决定）。
+ */
+async function createChildInstanceAndMaterialize(
+  parentInst: typeof workflowInstances.$inferSelect,
+  parentTask: typeof workflowTasks.$inferSelect,
+  def: typeof workflowDefinitions.$inferSelect,
+  childFormData: Record<string, unknown>,
+  childInitiatorId: number,
+  childTitle: string,
+  actor: WorkflowEventActor,
+): Promise<typeof workflowInstances.$inferSelect> {
   const flowData = def.flowData as WorkflowFlowData;
-  const validation = validateFlowData(flowData);
-  if (!validation.valid) {
-    await rejectTaskCore(parentTask, parentInst, `子流程定义无效：${validation.errors[0]}`, actor);
-    return;
-  }
-  const parentFormData = (parentInst.formData ?? {}) as Record<string, unknown>;
-  const childFormData = buildChildFormData(nodeCfg.subProcessFieldMapping, parentFormData);
-  const childTitle = `${parentInst.title} / ${nodeCfg.label ?? nodeCfg.subProcessName ?? '子流程'}`;
   const childFormSnapshot = await resolveFormSnapshot(def.formId);
-  const childStarter = await buildStarterContext(parentInst.initiatorId);
+  const childStarter = await buildStarterContext(childInitiatorId);
   const initialResult = getInitialTasks(flowData, childFormData, childStarter);
 
   const { instance: childInst, createdTasks } = await db.transaction(async (tx) => {
@@ -311,14 +355,14 @@ async function spawnSubProcessChild(
       formSnapshot: childFormSnapshot?.fields ?? null,
       status: 'running',
       currentNodeKey: null,
-      initiatorId: parentInst.initiatorId,
+      initiatorId: childInitiatorId,
       tenantId: parentInst.tenantId,
       parentInstanceId: parentInst.id,
       parentTaskId: parentTask.id,
     }).returning();
     const materialized = await materializeAdvanceResult(initialResult, {
       instanceId: created.id,
-      initiatorId: parentInst.initiatorId,
+      initiatorId: childInitiatorId,
       executor: tx,
       flowData,
       formData: childFormData,
@@ -345,21 +389,280 @@ async function spawnSubProcessChild(
     if (t.nodeType === 'delay' && t.status === 'waiting' && t.wakeAt) {
       delayScheduler.scheduleAt(t.id, t.wakeAt);
     }
-    if (t.nodeType === 'subProcess' && t.status === 'waiting') {
-      // 子实例内部又遇到 subProcess：递归 spawn
-      const childNodeCfg = (childInst.definitionSnapshot as { flowData?: WorkflowFlowData } | null)?.flowData?.nodes.find((n) => n.data.key === t.nodeKey)?.data;
-      if (childNodeCfg) {
-        await spawnSubProcessChild(childInst, t, childNodeCfg, actor);
-      }
+    if (t.nodeType === 'subProcess') {
+      // 子实例内部又遇到 subProcess：递归 spawn（支持嵌套单/多实例）
+      void maybeSpawnSubProcessChild(childInst, t, actor).catch((err) => {
+        logger.error('[subProcess] nested spawn failed', { instanceId: childInst.id, taskId: t.id, err });
+      });
     }
   }
-  // 子实例初始化即已完结：立即唤醒父任务
+  return childInst;
+}
+
+/**
+ * 子流程节点入口：根据节点 subProcessWaitChild / subProcessMode 决定是否等待、单实例 / 多实例。
+ * - 同步（waitChild!==false）：parentTask 须为 waiting，子实例结束后唤醒父任务
+ * - 异步（waitChild===false）：fire-and-forget，仅发起子实例，不汇聚结果
+ */
+async function spawnSubProcessChild(
+  parentInst: typeof workflowInstances.$inferSelect,
+  parentTask: typeof workflowTasks.$inferSelect,
+  nodeCfg: TaskAction['nodeConfig'],
+  actor: WorkflowEventActor,
+  opts?: { detached?: boolean },
+): Promise<void> {
+  if (nodeCfg.subProcessMode === 'multi') {
+    await spawnMultiSubProcess(parentInst, parentTask, nodeCfg, actor, opts);
+  } else {
+    await spawnSingleSubProcessChild(parentInst, parentTask, nodeCfg, actor, opts);
+  }
+}
+
+/** 单实例子流程：发起一个子实例，结束后回写出参并唤醒父任务 */
+async function spawnSingleSubProcessChild(
+  parentInst: typeof workflowInstances.$inferSelect,
+  parentTask: typeof workflowTasks.$inferSelect,
+  nodeCfg: TaskAction['nodeConfig'],
+  actor: WorkflowEventActor,
+  opts?: { detached?: boolean },
+): Promise<void> {
+  const def = await loadPublishedSubProcessDef(nodeCfg.subProcessId);
+  if (!def) {
+    if (!opts?.detached) await rejectTaskCore(parentTask, parentInst, '子流程定义不存在或未发布', actor);
+    else logger.warn('[subProcess] async child def missing', { parentInstanceId: parentInst.id, subProcessId: nodeCfg.subProcessId });
+    return;
+  }
+  const validation = validateFlowData(def.flowData as WorkflowFlowData);
+  if (!validation.valid) {
+    if (!opts?.detached) await rejectTaskCore(parentTask, parentInst, `子流程定义无效：${validation.errors[0]}`, actor);
+    return;
+  }
+  const parentFormData = (parentInst.formData ?? {}) as Record<string, unknown>;
+  const childFormData = buildChildFormData(nodeCfg.subProcessFieldMapping, parentFormData);
+  const childInitiatorId = await resolveChildInitiator(nodeCfg, parentInst);
+  const childTitle = `${parentInst.title} / ${nodeCfg.label ?? nodeCfg.subProcessName ?? '子流程'}`;
+  const childInst = await createChildInstanceAndMaterialize(parentInst, parentTask, def, childFormData, childInitiatorId, childTitle, actor);
+  if (opts?.detached) return;
   if (childInst.status === 'approved') {
     emitInstanceEvent('instance.approved', mapInstance(childInst), actor);
     await applySubProcessOutputAndResume(parentInst, parentTask, childInst, 'approved', actor);
   } else if (childInst.status === 'rejected') {
     emitInstanceEvent('instance.rejected', mapInstance(childInst), actor);
     await applySubProcessOutputAndResume(parentInst, parentTask, childInst, 'rejected', actor);
+  }
+}
+
+/** 解析多实例循环数据源为数组 */
+export function resolveMultiItems(nodeCfg: TaskAction['nodeConfig'], parentFormData: Record<string, unknown>): unknown[] {
+  const raw = nodeCfg.subProcessMultiSource ? parentFormData[nodeCfg.subProcessMultiSource] : undefined;
+  if (Array.isArray(raw)) return raw;
+  if (raw == null || raw === '') return [];
+  return [raw];
+}
+
+/** 创建多实例中第 index 个子实例，并在即时完结时触发汇聚 */
+async function spawnMultiInstanceChild(
+  parentInst: typeof workflowInstances.$inferSelect,
+  parentTask: typeof workflowTasks.$inferSelect,
+  nodeCfg: TaskAction['nodeConfig'],
+  def: typeof workflowDefinitions.$inferSelect,
+  items: unknown[],
+  index: number,
+  childInitiatorId: number,
+  actor: WorkflowEventActor,
+): Promise<void> {
+  const item = items[index];
+  const parentFormData = (parentInst.formData ?? {}) as Record<string, unknown>;
+  const childFormData = buildChildFormData(nodeCfg.subProcessFieldMapping, parentFormData, item);
+  if (nodeCfg.subProcessMultiItemKey) childFormData[nodeCfg.subProcessMultiItemKey] = item;
+  const childTitle = `${parentInst.title} / ${nodeCfg.label ?? nodeCfg.subProcessName ?? '子流程'} #${index + 1}`;
+  const childInst = await createChildInstanceAndMaterialize(parentInst, parentTask, def, childFormData, childInitiatorId, childTitle, actor);
+  if (childInst.status === 'approved') {
+    emitInstanceEvent('instance.approved', mapInstance(childInst), actor);
+    await handleMultiChildSettled(childInst, 'approved', actor);
+  } else if (childInst.status === 'rejected') {
+    emitInstanceEvent('instance.rejected', mapInstance(childInst), actor);
+    await handleMultiChildSettled(childInst, 'rejected', actor);
+  }
+}
+
+/**
+ * 多实例子流程：遍历循环数据源，逐项发起子实例。
+ * - parallel：一次性发起全部子实例，全部结束后推进父流程
+ * - serial：先发起第一个，前一个结束后再发起下一个
+ * - 出参映射在汇聚时聚合为数组写回父 formData
+ */
+async function spawnMultiSubProcess(
+  parentInst: typeof workflowInstances.$inferSelect,
+  parentTask: typeof workflowTasks.$inferSelect,
+  nodeCfg: TaskAction['nodeConfig'],
+  actor: WorkflowEventActor,
+  opts?: { detached?: boolean },
+): Promise<void> {
+  const def = await loadPublishedSubProcessDef(nodeCfg.subProcessId);
+  if (!def) {
+    if (!opts?.detached) await rejectTaskCore(parentTask, parentInst, '子流程定义不存在或未发布', actor);
+    return;
+  }
+  const validation = validateFlowData(def.flowData as WorkflowFlowData);
+  if (!validation.valid) {
+    if (!opts?.detached) await rejectTaskCore(parentTask, parentInst, `子流程定义无效：${validation.errors[0]}`, actor);
+    return;
+  }
+  const parentFormData = (parentInst.formData ?? {}) as Record<string, unknown>;
+  const items = resolveMultiItems(nodeCfg, parentFormData);
+  if (items.length === 0) {
+    if (!opts?.detached) await approveTaskCore(parentTask, parentInst, '子流程多实例数据源为空，自动通过', actor);
+    return;
+  }
+  const childInitiatorId = await resolveChildInitiator(nodeCfg, parentInst);
+
+  if (opts?.detached) {
+    // 异步：fire-and-forget，全部发起，不汇聚
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const childFormData = buildChildFormData(nodeCfg.subProcessFieldMapping, parentFormData, item);
+      if (nodeCfg.subProcessMultiItemKey) childFormData[nodeCfg.subProcessMultiItemKey] = item;
+      const childTitle = `${parentInst.title} / ${nodeCfg.label ?? nodeCfg.subProcessName ?? '子流程'} #${i + 1}`;
+      await createChildInstanceAndMaterialize(parentInst, parentTask, def, childFormData, childInitiatorId, childTitle, actor)
+        .catch((err) => logger.error('[subProcess] async multi child failed', { parentInstanceId: parentInst.id, index: i, err }));
+    }
+    return;
+  }
+
+  // 同步：先固化期望子实例总数，再发起
+  await db.update(workflowTasks).set({ subTotal: items.length, subDone: 0 }).where(eq(workflowTasks.id, parentTask.id));
+  const serial = nodeCfg.subProcessMultiExecution === 'serial';
+  try {
+    if (serial) {
+      await spawnMultiInstanceChild(parentInst, parentTask, nodeCfg, def, items, 0, childInitiatorId, actor);
+    } else {
+      for (let i = 0; i < items.length; i++) {
+        await spawnMultiInstanceChild(parentInst, parentTask, nodeCfg, def, items, i, childInitiatorId, actor);
+      }
+    }
+  } catch (err) {
+    logger.error('[subProcess] multi spawn failed, rejecting parent', { parentInstanceId: parentInst.id, taskId: parentTask.id, err });
+    const [pt] = await db.select().from(workflowTasks).where(eq(workflowTasks.id, parentTask.id)).limit(1);
+    const [pi] = await db.select().from(workflowInstances).where(eq(workflowInstances.id, parentInst.id)).limit(1);
+    if (pt && pi && pt.status === 'waiting' && pi.status === 'running') {
+      await rejectTaskCore(pt, pi, '子流程多实例发起失败', actor);
+    }
+  }
+}
+
+/**
+ * 多实例子实例结束时的汇聚处理（原子递增 sub_done + 抢占式 claim 防并发重复推进）。
+ */
+async function handleMultiChildSettled(
+  childInst: typeof workflowInstances.$inferSelect,
+  outcome: 'approved' | 'rejected',
+  actor: WorkflowEventActor,
+): Promise<void> {
+  if (!childInst.parentInstanceId || !childInst.parentTaskId) return;
+  const parentTaskId = childInst.parentTaskId;
+  const parentInstId = childInst.parentInstanceId;
+
+  type Decision =
+    | { action: 'approve' | 'reject'; parentTaskId: number; parentInstId: number }
+    | { action: 'spawnNext'; index: number; parentTaskId: number; parentInstId: number }
+    | { action: 'wait' }
+    | null;
+
+  const decision: Decision = await db.transaction(async (tx) => {
+    // 原子递增已结束子实例数（仅当父任务仍 waiting 且为多实例时）
+    const [pt] = await tx.update(workflowTasks)
+      .set({ subDone: sql`${workflowTasks.subDone} + 1` })
+      .where(and(eq(workflowTasks.id, parentTaskId), eq(workflowTasks.status, 'waiting'), isNotNull(workflowTasks.subTotal)))
+      .returning();
+    if (!pt || pt.subTotal == null) return null;
+    const [pi] = await tx.select().from(workflowInstances).where(eq(workflowInstances.id, parentInstId)).limit(1);
+    if (!pi || pi.status !== 'running') return null;
+    const nodeCfg = snapshotNodeCfg(pi, pt.nodeKey);
+
+    // 出参映射：聚合为数组写回父 formData
+    const outputMapping = nodeCfg?.subProcessOutputMapping;
+    if (outputMapping && Object.keys(outputMapping).length > 0) {
+      const childFormData = (childInst.formData ?? {}) as Record<string, unknown>;
+      const parentFormData = { ...((pi.formData ?? {}) as Record<string, unknown>) };
+      let changed = false;
+      for (const [parentKey, childKey] of Object.entries(outputMapping)) {
+        if (childKey in childFormData) {
+          const prev = parentFormData[parentKey];
+          const arr = Array.isArray(prev) ? [...prev] : [];
+          arr.push(childFormData[childKey]);
+          parentFormData[parentKey] = arr;
+          changed = true;
+        }
+      }
+      if (changed) await tx.update(workflowInstances).set({ formData: parentFormData }).where(eq(workflowInstances.id, pi.id));
+    }
+
+    const newDone = pt.subDone;
+    const ignoreReject = nodeCfg?.subProcessIgnoreReject === true;
+    const abortOnReject = (nodeCfg?.subProcessOnChildReject ?? 'abort') === 'abort';
+    const wantReject = outcome === 'rejected' && abortOnReject && !ignoreReject;
+    const wantApprove = !wantReject && newDone >= pt.subTotal;
+
+    if (wantReject || wantApprove) {
+      // 抢占式 claim：将父任务移出 waiting，确保只有一个 settler 推进父流程
+      const [claimed] = await tx.update(workflowTasks)
+        .set({ status: 'pending' })
+        .where(and(eq(workflowTasks.id, pt.id), eq(workflowTasks.status, 'waiting')))
+        .returning();
+      if (!claimed) return null;
+      return { action: wantReject ? 'reject' : 'approve', parentTaskId: pt.id, parentInstId: pi.id };
+    }
+
+    if (nodeCfg?.subProcessMultiExecution === 'serial') {
+      const spawnedCount = await tx.$count(workflowInstances, eq(workflowInstances.parentTaskId, pt.id));
+      if (spawnedCount < pt.subTotal && newDone >= spawnedCount) {
+        return { action: 'spawnNext', index: spawnedCount, parentTaskId: pt.id, parentInstId: pi.id };
+      }
+    }
+    return { action: 'wait' };
+  });
+
+  if (!decision || decision.action === 'wait') return;
+
+  const [pt] = await db.select().from(workflowTasks).where(eq(workflowTasks.id, decision.parentTaskId)).limit(1);
+  const [pi] = await db.select().from(workflowInstances).where(eq(workflowInstances.id, decision.parentInstId)).limit(1);
+  if (!pt || !pi || pi.status !== 'running') return;
+
+  if (decision.action === 'approve') {
+    await approveTaskCore(pt, pi, '子流程全部完成', actor);
+  } else if (decision.action === 'reject') {
+    await rejectTaskCore(pt, pi, '子流程存在被驳回的实例', actor);
+  } else if (decision.action === 'spawnNext') {
+    if (pt.status !== 'waiting') return;
+    const nodeCfg = snapshotNodeCfg(pi, pt.nodeKey);
+    if (!nodeCfg) return;
+    const def = await loadPublishedSubProcessDef(nodeCfg.subProcessId);
+    if (!def) return;
+    const items = resolveMultiItems(nodeCfg, (pi.formData ?? {}) as Record<string, unknown>);
+    if (decision.index >= items.length) return;
+    const childInitiatorId = await resolveChildInitiator(nodeCfg, pi);
+    await spawnMultiInstanceChild(pi, pt, nodeCfg, def, items, decision.index, childInitiatorId, actor);
+  }
+}
+
+/**
+ * 子流程节点的统一发起入口：在任务创建后调用，自动区分同步 / 异步、单 / 多实例。
+ */
+async function maybeSpawnSubProcessChild(
+  instance: typeof workflowInstances.$inferSelect,
+  task: typeof workflowTasks.$inferSelect,
+  actor: WorkflowEventActor,
+): Promise<void> {
+  if (task.nodeType !== 'subProcess') return;
+  const nodeCfg = snapshotNodeCfg(instance, task.nodeKey);
+  if (!nodeCfg) return;
+  const sync = nodeCfg.subProcessWaitChild !== false;
+  if (sync) {
+    if (task.status !== 'waiting') return;
+    await spawnSubProcessChild(instance, task, nodeCfg, actor);
+  } else {
+    await spawnSubProcessChild(instance, task, nodeCfg, actor, { detached: true });
   }
 }
 
@@ -398,12 +701,19 @@ export async function applySubProcessOutputAndResume(
     }
     await approveTaskCore(latestTask, latestParent, `子流程 #${childInst.id} 已通过`, actor);
   } else {
-    await rejectTaskCore(latestTask, latestParent, `子流程 #${childInst.id} 已驳回`, actor);
+    // 子流程被驳回：默认按节点 rejectStrategy 处理；若配置忽略驳回则按通过继续
+    const nodeCfg = snapshotNodeCfg(latestParent, latestTask.nodeKey);
+    if (nodeCfg?.subProcessIgnoreReject) {
+      await approveTaskCore(latestTask, latestParent, `子流程 #${childInst.id} 已驳回（已忽略，继续流程）`, actor);
+    } else {
+      await rejectTaskCore(latestTask, latestParent, `子流程 #${childInst.id} 已驳回`, actor);
+    }
   }
 }
 
 /**
  * 子实例结束后唤醒父任务的入口：根据 child.parentInstanceId / parentTaskId 找到父实例/任务并恢复。
+ * 自动区分单实例（直接回写出参 + 推进）与多实例（汇聚 join）。
  */
 export async function resumeParentSubProcess(
   childInst: typeof workflowInstances.$inferSelect,
@@ -411,10 +721,15 @@ export async function resumeParentSubProcess(
   actor: WorkflowEventActor,
 ): Promise<void> {
   if (!childInst.parentInstanceId || !childInst.parentTaskId) return;
-  const [parentInst] = await db.select().from(workflowInstances).where(eq(workflowInstances.id, childInst.parentInstanceId)).limit(1);
-  if (!parentInst) return;
   const [parentTask] = await db.select().from(workflowTasks).where(eq(workflowTasks.id, childInst.parentTaskId)).limit(1);
   if (!parentTask) return;
+  if (parentTask.subTotal != null) {
+    // 多实例：走汇聚处理
+    await handleMultiChildSettled(childInst, outcome, actor);
+    return;
+  }
+  const [parentInst] = await db.select().from(workflowInstances).where(eq(workflowInstances.id, childInst.parentInstanceId)).limit(1);
+  if (!parentInst) return;
   await applySubProcessOutputAndResume(parentInst, parentTask, childInst, outcome, actor);
 }
 
@@ -913,18 +1228,50 @@ export async function getInstanceDetail(id: number) {
   if (!row) throw new HTTPException(404, { message: '流程实例不存在' });
   const isInitiator = row.initiatorId === user.userId;
   const isAssignee = row.tasks.some((t) => t.assigneeId === user.userId);
-  if (!isInitiator && !isAssignee) throw new HTTPException(403, { message: '无权查看' });
+  let allowed = isInitiator || isAssignee;
+  if (!allowed && row.parentInstanceId) {
+    // 子流程实例：若用户是任一祖先实例的发起人，允许查看（支持嵌套子流程）
+    let pid: number | null = row.parentInstanceId;
+    for (let i = 0; i < 10 && pid; i++) {
+      const [anc]: Array<{ initiatorId: number; parentInstanceId: number | null }> = await db
+        .select({ initiatorId: workflowInstances.initiatorId, parentInstanceId: workflowInstances.parentInstanceId })
+        .from(workflowInstances).where(eq(workflowInstances.id, pid)).limit(1);
+      if (!anc) break;
+      if (anc.initiatorId === user.userId) { allowed = true; break; }
+      pid = anc.parentInstanceId;
+    }
+  }
+  if (!allowed) throw new HTTPException(403, { message: '无权查看' });
   const snapshot = row.definitionSnapshot as { flowData?: WorkflowFlowData } | null;
   const tasks = row.tasks.map((t) => {
     const cfg = snapshot?.flowData?.nodes.find((n) => n.data.key === t.nodeKey)?.data;
     const actionButtons = cfg?.actionButtons;
     return mapTask(t, t.assignee?.nickname, t.assignee?.avatar, actionButtons ?? null);
   });
+  // 子流程：查询本实例发起的子实例（按父任务关联到节点 key）
+  const childRows = await db.select({
+    id: workflowInstances.id,
+    title: workflowInstances.title,
+    status: workflowInstances.status,
+    parentTaskId: workflowInstances.parentTaskId,
+    createdAt: workflowInstances.createdAt,
+  }).from(workflowInstances)
+    .where(eq(workflowInstances.parentInstanceId, id))
+    .orderBy(workflowInstances.id);
+  const taskNodeKeyById = new Map(row.tasks.map((t) => [t.id, t.nodeKey]));
+  const childInstances = childRows.map((c) => ({
+    id: c.id,
+    title: c.title,
+    status: c.status,
+    parentTaskNodeKey: c.parentTaskId != null ? (taskNodeKeyById.get(c.parentTaskId) ?? null) : null,
+    createdAt: formatDateTime(c.createdAt),
+  }));
   return mapInstance(row, {
     definitionName: row.definition?.name ?? null,
     initiatorName: row.initiator?.nickname ?? null,
     initiatorAvatar: row.initiator?.avatar ?? null,
     tasks,
+    childInstances,
   });
 }
 
@@ -1029,13 +1376,10 @@ export async function createInstance(data: { definitionId: number; title: string
     if (t.nodeType === 'delay' && t.status === 'waiting' && t.wakeAt) {
       delayScheduler.scheduleAt(t.id, t.wakeAt);
     }
-    if (t.nodeType === 'subProcess' && t.status === 'waiting') {
-      const nodeCfg = flowData.nodes.find((n) => n.data.key === t.nodeKey)?.data;
-      if (nodeCfg) {
-        void spawnSubProcessChild(instance, t, nodeCfg, actor).catch((err) => {
-          logger.error('[subProcess] spawn child failed', { instanceId: instance.id, taskId: t.id, err });
-        });
-      }
+    if (t.nodeType === 'subProcess') {
+      void maybeSpawnSubProcessChild(instance, t, actor).catch((err) => {
+        logger.error('[subProcess] spawn child failed', { instanceId: instance.id, taskId: t.id, err });
+      });
     }
   }
   if (instance.status === 'approved') emitInstanceEvent('instance.approved', instanceDto, actor);
@@ -1245,13 +1589,10 @@ export async function approveTaskCore(
     if (t.nodeType === 'delay' && t.status === 'waiting' && t.wakeAt) {
       delayScheduler.scheduleAt(t.id, t.wakeAt);
     }
-    if (t.nodeType === 'subProcess' && t.status === 'waiting') {
-      const childCfg = (updated.row.definitionSnapshot as { flowData?: WorkflowFlowData } | null)?.flowData?.nodes.find((n) => n.data.key === t.nodeKey)?.data;
-      if (childCfg) {
-        void spawnSubProcessChild(updated.row, t, childCfg, actor).catch((err) => {
-          logger.error('[subProcess] spawn child failed', { instanceId: updated.row.id, taskId: t.id, err });
-        });
-      }
+    if (t.nodeType === 'subProcess') {
+      void maybeSpawnSubProcessChild(updated.row, t, actor).catch((err) => {
+        logger.error('[subProcess] spawn child failed', { instanceId: updated.row.id, taskId: t.id, err });
+      });
     }
   }
   if (updated.finished) {
@@ -1491,13 +1832,10 @@ export async function rejectTaskCore(
       if (t.nodeType === 'delay' && t.status === 'waiting' && t.wakeAt) {
         delayScheduler.scheduleAt(t.id, t.wakeAt);
       }
-      if (t.nodeType === 'subProcess' && t.status === 'waiting') {
-        const childCfg = (updated.row.definitionSnapshot as { flowData?: WorkflowFlowData } | null)?.flowData?.nodes.find((n) => n.data.key === t.nodeKey)?.data;
-        if (childCfg) {
-          void spawnSubProcessChild(updated.row, t, childCfg, actor).catch((err) => {
-            logger.error('[subProcess] spawn child failed', { instanceId: updated.row.id, taskId: t.id, err });
-          });
-        }
+      if (t.nodeType === 'subProcess') {
+        void maybeSpawnSubProcessChild(updated.row, t, actor).catch((err) => {
+          logger.error('[subProcess] spawn child failed', { instanceId: updated.row.id, taskId: t.id, err });
+        });
       }
     }
     if (updated.finished) {
