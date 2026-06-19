@@ -15,7 +15,7 @@ import { db, pgClient } from '../db';
 import type { DbExecutor } from '../db/types';
 import { dbAdminQueryHistory, dbQueryFavorites } from '../db/schema';
 import { currentUserId } from '../lib/context';
-import { formatDateTime } from '../lib/datetime';
+import { formatDateTime, formatNullableDateTime } from '../lib/datetime';
 import logger from '../lib/logger';
 
 const QUERY_TIMEOUT = '60s';
@@ -30,6 +30,7 @@ const HIDDEN_SCHEMAS = new Set([
 export interface TableItem {
   schema: string;
   name: string;
+  kind: 'table' | 'view' | 'matview';
   rowEstimate: number;
   sizeBytes: number;
   sizeText: string;
@@ -93,29 +94,35 @@ function quoteIdent(value: string): string {
 }
 
 // ─── 1. 表列表 ──────────────────────────────────────────────────────────────────
+const RELKIND_TO_KIND: Record<string, TableItem['kind']> = {
+  r: 'table', p: 'table', v: 'view', m: 'matview',
+};
+
 export async function listTables(): Promise<TableItem[]> {
   const hidden = Array.from(HIDDEN_SCHEMAS).map((s) => `'${s}'`).join(', ');
   const rows = await db.execute(sql.raw(`
     SELECT n.nspname AS schema,
            c.relname AS name,
-           COALESCE(c.reltuples, 0)::bigint AS row_estimate,
+           c.relkind AS relkind,
+           GREATEST(COALESCE(c.reltuples, 0), 0)::bigint AS row_estimate,
            pg_total_relation_size(c.oid)::bigint AS size_bytes,
            pg_size_pretty(pg_total_relation_size(c.oid)) AS size_text,
            obj_description(c.oid, 'pg_class') AS comment
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
-    WHERE c.relkind IN ('r', 'p')
+    WHERE c.relkind IN ('r', 'p', 'v', 'm')
       AND n.nspname NOT IN (${hidden})
       AND n.nspname NOT LIKE 'pg_temp_%'
       AND n.nspname NOT LIKE 'pg_toast_temp_%'
     ORDER BY n.nspname, c.relname
   `));
   return (rows as unknown as Array<{
-    schema: string; name: string; row_estimate: string | number;
+    schema: string; name: string; relkind: string; row_estimate: string | number;
     size_bytes: string | number; size_text: string; comment: string | null;
   }>).map((r) => ({
     schema: r.schema,
     name: r.name,
+    kind: RELKIND_TO_KIND[r.relkind] ?? 'table',
     rowEstimate: Number(r.row_estimate),
     sizeBytes: Number(r.size_bytes),
     sizeText: r.size_text,
@@ -123,7 +130,99 @@ export async function listTables(): Promise<TableItem[]> {
   }));
 }
 
-// ─── 2. 表结构 ──────────────────────────────────────────────────────────────────
+// ─── 1b. 数据库总览 ──────────────────────────────────────────────────────────────
+export interface OverviewTopTable {
+  schema: string;
+  name: string;
+  sizeBytes: number;
+  sizeText: string;
+  rowEstimate: number;
+}
+
+export interface DbOverview {
+  version: string;
+  databaseName: string;
+  databaseSize: number;
+  databaseSizeText: string;
+  schemaCount: number;
+  tableCount: number;
+  viewCount: number;
+  indexCount: number;
+  totalRowEstimate: number;
+  activeConnections: number;
+  maxConnections: number;
+  startedAt: string | null;
+  uptimeSeconds: number;
+  topTables: OverviewTopTable[];
+}
+
+/** 数据库总览：版本、容量、对象计数、连接数、Top 表 */
+export async function getOverview(): Promise<DbOverview> {
+  const hidden = Array.from(HIDDEN_SCHEMAS).map((s) => `'${s}'`).join(', ');
+  const [summaryRows, topRows] = await Promise.all([
+    db.execute(sql.raw(`
+      SELECT
+        current_setting('server_version') AS version,
+        current_database() AS database_name,
+        pg_database_size(current_database())::bigint AS database_size,
+        pg_size_pretty(pg_database_size(current_database())) AS database_size_text,
+        current_setting('max_connections')::int AS max_connections,
+        (SELECT count(*) FROM pg_stat_activity WHERE datname = current_database())::int AS active_connections,
+        EXTRACT(EPOCH FROM (now() - pg_postmaster_start_time()))::bigint AS uptime_seconds,
+        pg_postmaster_start_time() AS started_at,
+        (SELECT count(*) FROM pg_namespace n
+           WHERE n.nspname NOT IN (${hidden})
+             AND n.nspname NOT LIKE 'pg_temp_%' AND n.nspname NOT LIKE 'pg_toast_temp_%')::int AS schema_count,
+        (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+           WHERE c.relkind IN ('r','p') AND n.nspname NOT IN (${hidden}))::int AS table_count,
+        (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+           WHERE c.relkind IN ('v','m') AND n.nspname NOT IN (${hidden}))::int AS view_count,
+        (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+           WHERE c.relkind = 'i' AND n.nspname NOT IN (${hidden}))::int AS index_count,
+        (SELECT COALESCE(sum(GREATEST(c.reltuples, 0)), 0) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+           WHERE c.relkind IN ('r','p') AND n.nspname NOT IN (${hidden}))::bigint AS total_row_estimate
+    `)),
+    db.execute(sql.raw(`
+      SELECT n.nspname AS schema, c.relname AS name,
+             pg_total_relation_size(c.oid)::bigint AS size_bytes,
+             pg_size_pretty(pg_total_relation_size(c.oid)) AS size_text,
+             GREATEST(COALESCE(c.reltuples, 0), 0)::bigint AS row_estimate
+      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE c.relkind IN ('r','p','m') AND n.nspname NOT IN (${hidden})
+      ORDER BY pg_total_relation_size(c.oid) DESC
+      LIMIT 10
+    `)),
+  ]);
+
+  const s = (summaryRows as unknown as Array<Record<string, unknown>>)[0] ?? {};
+  const startedAtRaw = s.started_at;
+  const topTables: OverviewTopTable[] = (topRows as unknown as Array<{
+    schema: string; name: string; size_bytes: string | number; size_text: string; row_estimate: string | number;
+  }>).map((r) => ({
+    schema: r.schema,
+    name: r.name,
+    sizeBytes: Number(r.size_bytes),
+    sizeText: r.size_text,
+    rowEstimate: Number(r.row_estimate),
+  }));
+
+  return {
+    version: String(s.version ?? ''),
+    databaseName: String(s.database_name ?? ''),
+    databaseSize: Number(s.database_size ?? 0),
+    databaseSizeText: String(s.database_size_text ?? ''),
+    schemaCount: Number(s.schema_count ?? 0),
+    tableCount: Number(s.table_count ?? 0),
+    viewCount: Number(s.view_count ?? 0),
+    indexCount: Number(s.index_count ?? 0),
+    totalRowEstimate: Number(s.total_row_estimate ?? 0),
+    activeConnections: Number(s.active_connections ?? 0),
+    maxConnections: Number(s.max_connections ?? 0),
+    startedAt: startedAtRaw instanceof Date ? formatDateTime(startedAtRaw) : formatNullableDateTime(startedAtRaw as string | null),
+    uptimeSeconds: Number(s.uptime_seconds ?? 0),
+    topTables,
+  };
+}
 export interface ErDiagramFk {
   schema: string;
   table: string;
@@ -374,6 +473,8 @@ export interface RowsParams {
   orderDir?: 'asc' | 'desc';
   /** 列名 -> 关键字（使用 col::text ILIKE %kw% 匹配） */
   filters?: Record<string, string>;
+  /** 全列模糊搜索关键字（对所有列 col::text ILIKE %kw% 取 OR） */
+  search?: string;
 }
 
 export async function getTableRows(params: RowsParams): Promise<{
@@ -382,7 +483,7 @@ export async function getTableRows(params: RowsParams): Promise<{
   page: number;
   pageSize: number;
 }> {
-  const { schema, name, page, pageSize, orderBy, orderDir = 'asc', filters } = params;
+  const { schema, name, page, pageSize, orderBy, orderDir = 'asc', filters, search } = params;
   assertIdent(schema, 'schema');
   assertIdent(name, 'table');
 
@@ -440,6 +541,22 @@ export async function getTableRows(params: RowsParams): Promise<{
   }
   const orderClause = effectiveOrderClause;
 
+  // 全列模糊搜索：对该表所有列做 col::text ILIKE %kw% 的 OR 组合
+  let searchCond: ReturnType<typeof sql> | null = null;
+  const searchKw = search?.trim();
+  if (searchKw) {
+    const allColsRows = await db.execute(sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = ${schema} AND table_name = ${name}
+      ORDER BY ordinal_position
+    `);
+    const allCols = (allColsRows as unknown as Array<{ column_name: string }>).map((r) => r.column_name);
+    if (allCols.length > 0) {
+      const ors = allCols.map((col) => sql`${sql.raw(quoteIdent(col))}::text ILIKE ${'%' + searchKw + '%'}`);
+      searchCond = sql`(${sql.join(ors, sql.raw(' OR '))})`;
+    }
+  }
+
   const whereSql = (() => {
     const OP_RE = /^(eq|neq|gt|gte|lt|lte|like|ilike|isnull|notnull)\|([\s\S]*)$/;
     const parsed = filterEntries
@@ -452,7 +569,6 @@ export async function getTableRows(params: RowsParams): Promise<{
         if (f.op === 'isnull' || f.op === 'notnull') return true;
         return f.val.length > 0;
       });
-    if (parsed.length === 0) return sql.raw('');
     const conds = parsed.map(({ col, op, val }) => {
       const c = sql.raw(quoteIdent(col));
       switch (op) {
@@ -468,6 +584,8 @@ export async function getTableRows(params: RowsParams): Promise<{
         case 'notnull': return sql`${c} IS NOT NULL`;
       }
     });
+    if (searchCond) conds.push(searchCond);
+    if (conds.length === 0) return sql.raw('');
     return sql`WHERE ${sql.join(conds, sql.raw(' AND '))}`;
   })();
 
@@ -670,20 +788,28 @@ export async function executeReadonlyQuery(sqlText: string): Promise<QueryResult
 }
 
 // ─── 5. EXPLAIN ────────────────────────────────────────────────────────────────
-export async function explainQuery(sqlText: string): Promise<{ plan: unknown; durationMs: number }> {
+export async function explainQuery(
+  sqlText: string,
+  analyze = false,
+): Promise<{ plan: unknown; durationMs: number; analyzed: boolean }> {
   const trimmed = sqlText.trim().replace(/;\s*$/, '');
   if (!trimmed) throw new HTTPException(400, { message: 'SQL 不能为空' });
+
+  // EXPLAIN ANALYZE 会真正执行查询；只读事务会拒绝任何写操作，SELECT 安全
+  const options = analyze
+    ? 'ANALYZE, BUFFERS, FORMAT JSON'
+    : 'FORMAT JSON';
 
   const start = Date.now();
   try {
     const plan = await runReadOnly(async (tx) => {
-      const rows = await tx.execute(sql.raw(`EXPLAIN (FORMAT JSON) ${trimmed}`));
+      const rows = await tx.execute(sql.raw(`EXPLAIN (${options}) ${trimmed}`));
       const first = (rows as unknown as Array<Record<string, unknown>>)[0];
       // PostgreSQL 返回的字段名是 'QUERY PLAN'，是个数组
       const planValue = first?.['QUERY PLAN'] ?? first?.['query plan'] ?? first;
       return Array.isArray(planValue) ? planValue[0] : planValue;
     });
-    return { plan, durationMs: Date.now() - start };
+    return { plan, durationMs: Date.now() - start, analyzed: analyze };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new HTTPException(400, { message: `EXPLAIN 失败：${msg}` });
@@ -745,6 +871,45 @@ export async function exportTableDataCsv(
   assertIdent(schema, 'schema');
   assertIdent(name, 'table');
   return exportQueryCsv(`SELECT * FROM ${quoteIdent(schema)}.${quoteIdent(name)}`);
+}
+
+// ─── 6a. 导出查询结果 JSON ───────────────────────────────────────────────────────
+/** 将查询结果以流式 JSON 数组导出，分批游标读取避免内存峰值 */
+export async function exportQueryJson(sqlText: string): Promise<ReadableStream<Uint8Array>> {
+  const trimmed = sqlText.trim().replace(/;\s*$/, '');
+  if (!trimmed) throw new HTTPException(400, { message: 'SQL 不能为空' });
+
+  const encoder = new TextEncoder();
+  const BATCH_SIZE = 1000;
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let first = true;
+      try {
+        controller.enqueue(encoder.encode('['));
+        await pgClient.begin(async (tx) => {
+          await tx.unsafe(`SET LOCAL TRANSACTION READ ONLY`);
+          await tx.unsafe(`SET LOCAL statement_timeout = '${QUERY_TIMEOUT}'`);
+          await tx.unsafe(`SET LOCAL idle_in_transaction_session_timeout = '${QUERY_TIMEOUT}'`);
+          const cursor = tx.unsafe(trimmed).cursor(BATCH_SIZE);
+          for await (const rows of cursor) {
+            if (!Array.isArray(rows) || rows.length === 0) continue;
+            const chunk: string[] = [];
+            for (const row of rows as Array<Record<string, unknown>>) {
+              chunk.push(JSON.stringify(serializeRow(row)));
+            }
+            controller.enqueue(encoder.encode((first ? '' : ',') + chunk.join(',')));
+            first = false;
+          }
+        });
+        controller.enqueue(encoder.encode(']'));
+        controller.close();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        controller.error(new HTTPException(400, { message: `导出失败：${msg}` }));
+      }
+    },
+  });
 }
 
 // ─── 6c. 导出表 SQL (DDL / INSERT / 完整) ────────────────────────────────────────

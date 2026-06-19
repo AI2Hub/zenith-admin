@@ -7,12 +7,43 @@ export const DbAdminTableItemDTO = z
   .object({
     schema: z.string(),
     name: z.string(),
+    /** table=普通表, view=视图, matview=物化视图 */
+    kind: z.enum(['table', 'view', 'matview']),
     rowEstimate: z.number(),
     sizeBytes: z.number(),
     sizeText: z.string(),
     comment: z.string().nullable(),
   })
   .openapi('DbAdminTableItem');
+
+export const DbAdminOverviewTopTableDTO = z
+  .object({
+    schema: z.string(),
+    name: z.string(),
+    sizeBytes: z.number(),
+    sizeText: z.string(),
+    rowEstimate: z.number(),
+  })
+  .openapi('DbAdminOverviewTopTable');
+
+export const DbAdminOverviewDTO = z
+  .object({
+    version: z.string(),
+    databaseName: z.string(),
+    databaseSize: z.number(),
+    databaseSizeText: z.string(),
+    schemaCount: z.number(),
+    tableCount: z.number(),
+    viewCount: z.number(),
+    indexCount: z.number(),
+    totalRowEstimate: z.number(),
+    activeConnections: z.number(),
+    maxConnections: z.number(),
+    startedAt: z.string().nullable(),
+    uptimeSeconds: z.number(),
+    topTables: z.array(DbAdminOverviewTopTableDTO),
+  })
+  .openapi('DbAdminOverview');
 
 export const DbAdminColumnDTO = z
   .object({
@@ -78,6 +109,7 @@ export const DbAdminExplainResultDTO = z
   .object({
     plan: z.unknown(),
     durationMs: z.number(),
+    analyzed: z.boolean(),
   })
   .openapi('DbAdminExplainResult');
 

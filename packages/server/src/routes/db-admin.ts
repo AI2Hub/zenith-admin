@@ -20,10 +20,12 @@ import {
   DbAdminQueryHistoryItemDTO,
   DbAdminErDiagramFkDTO,
   DbAdminErSchemaDTO,
+  DbAdminOverviewDTO,
   DbQueryFavoriteDTO,
 } from '../lib/openapi-dtos';
 import {
   listTables,
+  getOverview,
   getTableStructure,
   getTableRows,
   insertTableRow,
@@ -32,6 +34,7 @@ import {
   executeReadonlyQuery,
   explainQuery,
   exportQueryCsv,
+  exportQueryJson,
   exportTableDataCsv,
   exportTableSql,
   truncateTable,
@@ -58,7 +61,12 @@ const RowsQuery = PaginationQuery.extend({
   orderDir: z.enum(['asc', 'desc']).optional(),
   /** JSON 字符串：{ 列名: 关键字 }，每列做 ILIKE 模糊匹配 */
   filters: z.string().optional(),
+  /** 全列模糊搜索关键字 */
+  search: z.string().optional(),
 });
+
+const sqlBodySchema = z.object({ sql: z.string().min(1, 'SQL 不能为空').max(50000) });
+const explainBodySchema = sqlBodySchema.extend({ analyze: z.boolean().optional() });
 
 const TableRowsDTO = z
   .object({
@@ -69,8 +77,6 @@ const TableRowsDTO = z
   })
   .openapi('DbAdminTableRows');
 
-const sqlBodySchema = z.object({ sql: z.string().min(1, 'SQL 不能为空').max(50000) });
-
 // ─── 路由 ──────────────────────────────────────────────────────────────────────
 const listTablesRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -80,6 +86,16 @@ const listTablesRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(z.array(DbAdminTableItemDTO), '表列表') },
   }),
   handler: async (c) => c.json(okBody(await listTables()), 200),
+});
+
+const overviewRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/overview', tags: ['DbAdmin'], summary: '数据库总览',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:db-admin:view' })] as const,
+    responses: { ...commonErrorResponses, ...ok(DbAdminOverviewDTO, '数据库总览') },
+  }),
+  handler: async (c) => c.json(okBody(await getOverview()), 200),
 });
 
 const tableStructureRoute = defineOpenAPIRoute({
@@ -106,7 +122,7 @@ const tableRowsRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { schema, name } = c.req.valid('param');
-    const { page, pageSize, orderBy, orderDir, filters: filtersStr } = c.req.valid('query');
+    const { page, pageSize, orderBy, orderDir, filters: filtersStr, search } = c.req.valid('query');
     let filters: Record<string, string> | undefined;
     if (filtersStr) {
       try {
@@ -121,7 +137,7 @@ const tableRowsRoute = defineOpenAPIRoute({
         // ignore invalid JSON; fall through with undefined filters
       }
     }
-    const data = await getTableRows({ schema, name, page, pageSize, orderBy, orderDir, filters });
+    const data = await getTableRows({ schema, name, page, pageSize, orderBy, orderDir, filters, search });
     return c.json(okBody(data), 200);
   },
 });
@@ -221,12 +237,12 @@ const explainRoute = defineOpenAPIRoute({
       permission: 'system:db-admin:query',
       audit: { description: 'EXPLAIN SQL', module: '数据库管理' },
     })] as const,
-    request: { body: { content: jsonContent(sqlBodySchema), required: true } },
+    request: { body: { content: jsonContent(explainBodySchema), required: true } },
     responses: { ...commonErrorResponses, ...ok(DbAdminExplainResultDTO, '查询计划') },
   }),
   handler: async (c) => {
-    const { sql } = c.req.valid('json');
-    return c.json(okBody(await explainQuery(sql)), 200);
+    const { sql, analyze } = c.req.valid('json');
+    return c.json(okBody(await explainQuery(sql, analyze ?? false)), 200);
   },
 });
 
@@ -318,6 +334,7 @@ const erSchemaRoute = defineOpenAPIRoute({
 
 router.openapiRoutes([
   listTablesRoute,
+  overviewRoute,
   tableStructureRoute,
   tableRowsRoute,
   insertRowRoute,
@@ -396,6 +413,25 @@ router.post('/query/export.csv', authMiddleware, guard({
   });
 });
 
+// SQL 查询结果 JSON 导出：流式响应
+router.post('/query/export.json', authMiddleware, guard({
+  permission: 'system:db-admin:export',
+  audit: { description: '导出 SQL 结果 JSON', module: '数据库管理' },
+}), async (c) => {
+  const body = await c.req.json<{ sql?: string }>();
+  const stream = await exportQueryJson(body.sql ?? '');
+  const filename = `query_${Date.now()}.json`;
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+});
+
 // ─── SQL 收藏夹 CRUD ─────────────────────────────────────────────────────────
 
 const favoritesCreateBody = z.object({
@@ -412,7 +448,7 @@ const listFavoritesRoute = defineOpenAPIRoute({
     method: 'get', path: '/query-favorites',
     tags: ['数据库管理'], summary: '获取 SQL 收藏夹列表',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:db-admin:use' })] as const,
+    middleware: [authMiddleware, guard({ permission: 'system:db-admin:view' })] as const,
     request: {},
     responses: {
       ...commonErrorResponses,
@@ -433,7 +469,7 @@ const createFavoriteRoute = defineOpenAPIRoute({
     method: 'post', path: '/query-favorites',
     tags: ['数据库管理'], summary: '新增 SQL 收藏',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:db-admin:use' })] as const,
+    middleware: [authMiddleware, guard({ permission: 'system:db-admin:view' })] as const,
     request: { body: { content: { 'application/json': { schema: favoritesCreateBody } }, required: true } },
     responses: {
       ...commonErrorResponses,
@@ -452,7 +488,7 @@ const updateFavoriteRoute = defineOpenAPIRoute({
     method: 'put', path: '/query-favorites/{id}',
     tags: ['数据库管理'], summary: '更新 SQL 收藏',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:db-admin:use' })] as const,
+    middleware: [authMiddleware, guard({ permission: 'system:db-admin:view' })] as const,
     request: {
       params: IdParam,
       body: { content: { 'application/json': { schema: favoritesUpdateBody } }, required: true },
@@ -475,7 +511,7 @@ const deleteFavoriteRoute = defineOpenAPIRoute({
     method: 'delete', path: '/query-favorites/{id}',
     tags: ['数据库管理'], summary: '删除 SQL 收藏',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:db-admin:use' })] as const,
+    middleware: [authMiddleware, guard({ permission: 'system:db-admin:view' })] as const,
     request: { params: IdParam },
     responses: {
       ...commonErrorResponses,

@@ -1,19 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Badge,
-  Banner,
   Button,
   Collapse,
   Dropdown,
   Empty,
-  Form,
   Input,
-  JsonViewer,
   List,
   Modal,
   Popconfirm,
   Select,
-  SideSheet,
   Space,
   Spin,
   Tabs,
@@ -27,7 +23,6 @@ import {
   Database,
   Table as TableIcon,
   Play,
-  Eye,
   Download,
   RefreshCw,
   History,
@@ -37,15 +32,11 @@ import {
   Plus,
   Network,
   MoreHorizontal,
-  Bookmark,
-  BookmarkPlus,
-  Pencil,
+  Search,
+  Gauge,
 } from 'lucide-react';
-import type { editor as MonacoEditor, KeyMod as KeyModT, KeyCode as KeyCodeT, Position } from 'monaco-editor';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import Editor from '@monaco-editor/react';
 import { TOKEN_KEY } from '@zenith/shared';
-import type { DbQueryFavorite } from '@zenith/shared';
 import { config } from '@/config';
 import { useThemeController } from '@/providers/theme-controller';
 import { request } from '@/utils/request';
@@ -53,12 +44,13 @@ import { usePermission } from '@/hooks/usePermission';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
-import { AppModal } from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
 import { RowEditModal } from './RowEditModal';
 import { EditableCell } from './EditableCell';
 import { ErDiagram, type ErSchema } from './ErDiagram';
 import { buildInsertSql, buildUpdateSql, copyToClipboard, generateCreateTableDdl } from './sql-format';
+import { OverviewPanel, KindTag } from './OverviewPanel';
+import { SqlConsole, type SqlConsoleHandle } from './SqlConsole';
 
 async function copyRowSqlAndToast(sql: string, label: string) {
   const ok = await copyToClipboard(sql);
@@ -213,6 +205,7 @@ function ColumnFilterDropdown(props: Readonly<ColumnFilterDropdownProps>) {
 interface TableItem {
   schema: string;
   name: string;
+  kind: 'table' | 'view' | 'matview';
   rowEstimate: number;
   sizeBytes: number;
   sizeText: string;
@@ -245,14 +238,6 @@ interface TableStructure {
   primaryKey: string[];
 }
 
-interface QueryResult {
-  columns: Array<{ name: string; dataType: string }>;
-  rows: Array<Record<string, unknown>>;
-  rowCount: number;
-  durationMs: number;
-  truncated: boolean;
-}
-
 interface HistoryItem {
   id: number;
   sqlText: string;
@@ -277,8 +262,6 @@ interface PaginatedResponse<T> {
   pageSize: number;
 }
 
-const DEFAULT_SQL = '-- 只读模式：仅允许 SELECT / EXPLAIN 等查询语句\nSELECT * FROM users LIMIT 50;';
-
 const SYSTEM_SCHEMAS = new Set(['pg_catalog', 'information_schema', 'pg_toast', 'drizzle']);
 const SYSTEM_TABLES = new Set([
   'public.db_admin_query_history',
@@ -294,7 +277,8 @@ export default function DbAdminPage() {
   const { isDark } = useThemeController();
   const monacoTheme = isDark ? 'vs-dark' : 'light';
 
-  const [activeTab, setActiveTab] = useState<string>('browse');
+  const [activeTab, setActiveTab] = useState<string>('overview');
+  const sqlConsoleRef = useRef<SqlConsoleHandle | null>(null);
 
   // ER 图
   const [erSchema, setErSchema] = useState<ErSchema | null>(null);
@@ -304,6 +288,7 @@ export default function DbAdminPage() {
   const [tables, setTables] = useState<TableItem[]>([]);
   const [tablesLoading, setTablesLoading] = useState(false);
   const [tableFilter, setTableFilter] = useState('');
+  const [kindFilter, setKindFilter] = useState<'all' | 'table' | 'view'>('all');
   const [selected, setSelected] = useState<TableItem | null>(null);
 
   const [innerTab, setInnerTab] = useState<string>('structure');
@@ -316,17 +301,10 @@ export default function DbAdminPage() {
   const [rowsOrderBy, setRowsOrderBy] = useState<string | undefined>(undefined);
   const [rowsOrderDir, setRowsOrderDir] = useState<'asc' | 'desc' | undefined>(undefined);
   const [rowsFilters, setRowsFilters] = useState<Record<string, string>>({});
+  const [rowsSearch, setRowsSearch] = useState('');
+  const [rowsSearchInput, setRowsSearchInput] = useState('');
   const [selectedRowKeys, setSelectedRowKeys] = useState<Array<string | number>>([]);
   const [batchDeleting, setBatchDeleting] = useState(false);
-
-  // SQL 控制台
-  const [sql, setSql] = useState<string>(DEFAULT_SQL);
-  const [queryLoading, setQueryLoading] = useState(false);
-  const [exportCsvLoading, setExportCsvLoading] = useState(false);
-  const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
-  const [queryError, setQueryError] = useState<string | null>(null);
-  const [explainOpen, setExplainOpen] = useState(false);
-  const [explainData, setExplainData] = useState<unknown>(null);
 
   // 历史
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -334,14 +312,6 @@ export default function DbAdminPage() {
   const [historyPage, setHistoryPage] = useState(1);
   const [historyPageSize, setHistoryPageSize] = useState(20);
   const [historyLoading, setHistoryLoading] = useState(false);
-
-  // SQL 收藏夹
-  const [favOpen, setFavOpen] = useState(false);
-  const [favorites, setFavorites] = useState<DbQueryFavorite[]>([]);
-  const [favLoading, setFavLoading] = useState(false);
-  const [saveFavOpen, setSaveFavOpen] = useState(false);
-  const [saveFavLoading, setSaveFavLoading] = useState(false);
-  const [editFav, setEditFav] = useState<DbQueryFavorite | null>(null);
 
   // 行编辑 Modal
   const [rowModalOpen, setRowModalOpen] = useState(false);
@@ -351,12 +321,14 @@ export default function DbAdminPage() {
 
   const filteredTables = useMemo(() => {
     const kw = tableFilter.trim().toLowerCase();
-    if (!kw) return tables;
-    return tables.filter((t) =>
-      `${t.schema}.${t.name}`.toLowerCase().includes(kw)
-      || (t.comment ?? '').toLowerCase().includes(kw),
-    );
-  }, [tables, tableFilter]);
+    return tables.filter((t) => {
+      if (kindFilter === 'table' && t.kind !== 'table') return false;
+      if (kindFilter === 'view' && t.kind === 'table') return false;
+      if (!kw) return true;
+      return `${t.schema}.${t.name}`.toLowerCase().includes(kw)
+        || (t.comment ?? '').toLowerCase().includes(kw);
+    });
+  }, [tables, tableFilter, kindFilter]);
 
   const groupedTables = useMemo(() => {
     const map = new Map<string, TableItem[]>();
@@ -368,11 +340,10 @@ export default function DbAdminPage() {
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [filteredTables]);
 
-  // 列名缓存：用于 Monaco SQL 自动补全；按需在 loadStructure 后追加
+  // 列名缓存：用于 SQL 控制台自动补全；按需在 loadStructure 后追加，透传给 SqlConsole
   const structureColumnsCacheRef = useRef<Map<string, string[]>>(new Map());
-  // 表名引用：在 Monaco completionProvider 闭包中读最新值
-  const tablesRef = useRef<TableItem[]>([]);
-  useEffect(() => { tablesRef.current = tables; }, [tables]);
+  // 全列搜索关键字引用：在 loadRows 闭包中读最新值，避免逐处透传
+  const rowsSearchRef = useRef('');
 
   const loadTables = useCallback(async () => {
     setTablesLoading(true);
@@ -417,6 +388,9 @@ export default function DbAdminPage() {
       : {};
     if (Object.keys(activeFilters).length > 0) {
       qs.set('filters', JSON.stringify(activeFilters));
+    }
+    if (rowsSearchRef.current.trim()) {
+      qs.set('search', rowsSearchRef.current.trim());
     }
     const res = await request.get<TableRowsResponse>(
       `/api/db-admin/tables/${encodeURIComponent(item.schema)}/${encodeURIComponent(item.name)}/rows?${qs.toString()}`,
@@ -471,6 +445,9 @@ export default function DbAdminPage() {
     setRowsOrderBy(undefined);
     setRowsOrderDir(undefined);
     setRowsFilters({});
+    setRowsSearch('');
+    setRowsSearchInput('');
+    rowsSearchRef.current = '';
     setSelectedRowKeys([]);
   };
 
@@ -489,8 +466,20 @@ export default function DbAdminPage() {
     setRowsOrderBy(undefined);
     setRowsOrderDir(undefined);
     setRowsFilters({});
+    setRowsSearch('');
+    setRowsSearchInput('');
+    rowsSearchRef.current = '';
     setRowsPage(1);
     void loadRows(selected, 1, rowsPageSize, undefined, undefined, {});
+  };
+
+  const handleRunSearch = (kw: string) => {
+    if (!selected) return;
+    const trimmed = kw.trim();
+    setRowsSearch(trimmed);
+    rowsSearchRef.current = trimmed;
+    setRowsPage(1);
+    void loadRows(selected, 1, rowsPageSize, rowsOrderBy, rowsOrderDir, rowsFilters);
   };
 
   // ─── 表名右侧快捷操作 ─────────────────────────────────────────────────────
@@ -503,8 +492,8 @@ export default function DbAdminPage() {
   const handleCopySelect = (t: TableItem) =>
     copyToClipboard(`SELECT * FROM ${fullName(t)} LIMIT 50;`, '已复制 SELECT 语句');
   const handleOpenInConsole = (t: TableItem) => {
-    setSql(`SELECT * FROM ${fullName(t)} LIMIT 50;`);
     setActiveTab('console');
+    sqlConsoleRef.current?.loadSql(`SELECT * FROM ${fullName(t)} LIMIT 50;`, { newTab: true });
   };
 
   // ─── 表右键上下文菜单操作 ────────────────────────────────────────────────────
@@ -649,79 +638,10 @@ export default function DbAdminPage() {
     );
   };
 
-  // ─── SQL 执行 ────────────────────────────────────────────────────────────────
-  const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
-  const runQueryRef = useRef<() => void>(() => undefined);
-
-  const runQuery = async () => {
-    const text = editorRef.current?.getValue() ?? sql;
-    if (!text.trim()) { Toast.warning('请输入 SQL'); return; }
-    setQueryLoading(true);
-    setQueryError(null);
-    setQueryResult(null);
-    const res = await request.post<QueryResult>('/api/db-admin/query', { sql: text }, { silent: true });
-    setQueryLoading(false);
-    if (res.code === 0 && res.data) {
-      setQueryResult(res.data);
-      if (res.data.truncated) {
-        Toast.warning(`结果超出 5000 行已截断`);
-      } else {
-        Toast.success(`返回 ${res.data.rowCount} 行 / ${res.data.durationMs}ms`);
-      }
-    } else {
-      setQueryError(res.message ?? '执行失败');
-    }
-  };
-
-  const runExplain = async () => {
-    const text = editorRef.current?.getValue() ?? sql;
-    if (!text.trim()) { Toast.warning('请输入 SQL'); return; }
-    const res = await request.post<{ plan: unknown; durationMs: number }>(
-      '/api/db-admin/explain', { sql: text }, { silent: true },
-    );
-    if (res.code === 0 && res.data) {
-      setExplainData(res.data.plan);
-      setExplainOpen(true);
-    } else {
-      Toast.error(res.message ?? 'EXPLAIN 失败');
-    }
-  };
-
-  const exportCsv = async () => {
-    const text = editorRef.current?.getValue() ?? sql;
-    if (!text.trim()) { Toast.warning('请输入 SQL'); return; }
-    const token = localStorage.getItem(TOKEN_KEY);
-    setExportCsvLoading(true);
-    try {
-      const res = await fetch(`${config.apiBaseUrl}/api/db-admin/query/export.csv`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ sql: text }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        Toast.error(err?.message ?? '导出失败');
-        return;
-      }
-      const blob = await res.blob();
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `query_${Date.now()}.csv`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    } catch (err) {
-      Toast.error('导出失败：' + (err instanceof Error ? err.message : String(err)));
-    } finally {
-      setExportCsvLoading(false);
-    }
-  };
-
+  // ─── 查询历史 ────────────────────────────────────────────────────────────────
   const applyHistorySql = (text: string) => {
-    setSql(text);
     setActiveTab('console');
+    sqlConsoleRef.current?.loadSql(text, { newTab: true });
   };
 
   const deleteHistoryItem = async (id: number) => {
@@ -740,62 +660,6 @@ export default function DbAdminPage() {
       void loadHistory(1, historyPageSize);
     }
   };
-
-  // ─── SQL 收藏夹 ────────────────────────────────────────────────────────────────
-  const loadFavorites = async () => {
-    setFavLoading(true);
-    const res = await request.get<DbQueryFavorite[]>('/api/db-admin/query-favorites');
-    if (res.code === 0) setFavorites(res.data ?? []);
-    setFavLoading(false);
-  };
-
-  const openFavorites = () => {
-    setFavOpen(true);
-    void loadFavorites();
-  };
-
-  const handleSaveFavorite = async (values: { name: string; description?: string; tags?: string }) => {
-    setSaveFavLoading(true);
-    const tags = values.tags ? values.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [];
-    if (editFav) {
-      const res = await request.put<DbQueryFavorite>(`/api/db-admin/query-favorites/${editFav.id}`, {
-        name: values.name,
-        description: values.description,
-        tags,
-        sql: editFav.sql,
-      });
-      if (res.code === 0) { Toast.success('已更新'); setSaveFavOpen(false); setEditFav(null); void loadFavorites(); }
-    } else {
-      const res = await request.post<DbQueryFavorite>('/api/db-admin/query-favorites', {
-        name: values.name,
-        sql,
-        description: values.description,
-        tags,
-      });
-      if (res.code === 0) { Toast.success('已收藏'); setSaveFavOpen(false); void loadFavorites(); }
-    }
-    setSaveFavLoading(false);
-  };
-
-  const handleDeleteFavorite = async (id: number) => {
-    const res = await request.delete(`/api/db-admin/query-favorites/${id}`);
-    if (res.code === 0) { Toast.success('已删除'); void loadFavorites(); }
-  };
-
-  const loadFavoriteToEditor = (fav: DbQueryFavorite) => {
-    setSql(fav.sql);
-    setFavOpen(false);
-    setActiveTab('console');
-    Toast.success(`已加载「${fav.name}」`);
-  };
-
-  const openEditFav = (fav: DbQueryFavorite) => {
-    setEditFav(fav);
-    setSaveFavOpen(true);
-  };
-
-  // 让 Monaco 快捷键始终调用最新版 runQuery
-  useEffect(() => { runQueryRef.current = () => { void runQuery(); }; });
 
   // ─── 渲染辅助 ────────────────────────────────────────────────────────────────
   const structureColumns: ColumnProps<ColumnInfo>[] = [
@@ -1154,6 +1018,7 @@ export default function DbAdminPage() {
         activeKey={activeTab}
         onChange={setActiveTab}
         type="line"
+        lazyRender={false}
         className="tabs-fill-height"
         style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
         contentStyle={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
@@ -1161,6 +1026,15 @@ export default function DbAdminPage() {
           marginBottom: 8,
         }}
       >
+        <TabPane tab={<span><Gauge size={14} style={{ verticalAlign: -2, marginRight: 4 }} />总览</span>} itemKey="overview" style={{ height: '100%' }}>
+          <OverviewPanel
+            onSelectTable={(s, n) => {
+              const t = tables.find((x) => x.schema === s && x.name === n);
+              if (t) { setActiveTab('browse'); handleSelectTable(t); setInnerTab('data'); }
+            }}
+          />
+        </TabPane>
+
         <TabPane tab={<span><TableIcon size={14} style={{ verticalAlign: -2, marginRight: 4 }} />表浏览</span>} itemKey="browse" style={{ height: '100%' }}>
           <div style={{ height: '100%' }}>
             <MasterDetailLayout
@@ -1174,9 +1048,22 @@ export default function DbAdminPage() {
                 <NavListPanel
                   title="数据库表"
                   headerExtra={
-                    <Tooltip content="刷新">
-                      <Button icon={<RefreshCw size={14} />} onClick={() => void loadTables()} loading={tablesLoading} size="small" theme="borderless" />
-                    </Tooltip>
+                    <Space spacing={4}>
+                      <Select
+                        size="small"
+                        value={kindFilter}
+                        onChange={(v) => setKindFilter(v as 'all' | 'table' | 'view')}
+                        style={{ width: 96 }}
+                        optionList={[
+                          { label: '全部', value: 'all' },
+                          { label: '表', value: 'table' },
+                          { label: '视图', value: 'view' },
+                        ]}
+                      />
+                      <Tooltip content="刷新">
+                        <Button icon={<RefreshCw size={14} />} onClick={() => void loadTables()} loading={tablesLoading} size="small" theme="borderless" />
+                      </Tooltip>
+                    </Space>
                   }
                   search={{
                     value: tableFilter,
@@ -1215,7 +1102,9 @@ export default function DbAdminPage() {
                                   active={isActive}
                                   onClick={() => handleSelectTable(t)}
                                   primary={t.name}
-                                  secondary={t.sizeText}
+                                  secondary={t.kind === 'table'
+                                    ? t.sizeText
+                                    : `${t.kind === 'view' ? '视图' : '物化视图'} · ${t.sizeText}`}
                                   extra={
                                     <Dropdown
                                       trigger="click"
@@ -1253,7 +1142,8 @@ export default function DbAdminPage() {
                 <>
                   <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--semi-color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                     <Title heading={6} style={{ margin: 0, minWidth: 0, flex: 1 }} ellipsis={{ showTooltip: true }}>
-                      {selected.schema}.{selected.name}
+                      <KindTag kind={selected.kind} />
+                      <span style={{ marginLeft: 6 }}>{selected.schema}.{selected.name}</span>
                       {selected.comment && (
                         <Text type="tertiary" size="small" style={{ marginLeft: 8 }}>
                           {selected.comment}
@@ -1293,11 +1183,12 @@ export default function DbAdminPage() {
                       {!rows && rowsLoading && <Spin />}
                       {rows && (
                         <div style={{ width: '100%' }}>
-                          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                             <Text type="tertiary" size="small">
                               共 {rows.total.toLocaleString()} 行
                               {rowsOrderBy && (<> · 排序：<Text code>{rowsOrderBy} {rowsOrderDir}</Text></>)}
                               {Object.keys(rowsFilters).length > 0 && (<> · 筛选：<Text code>{Object.keys(rowsFilters).join(', ')}</Text></>)}
+                              {rowsSearch && (<> · 搜索：<Text code>{rowsSearch}</Text></>)}
                               {!hasPrimaryKey && isWritableTable && (
                                 <> · <Text type="warning">无主键，仅可插入与查看</Text></>
                               )}
@@ -1305,7 +1196,19 @@ export default function DbAdminPage() {
                                 <> · <Text type="tertiary">系统表只读</Text></>
                               )}
                             </Text>
-                            <Space>
+                            <Space wrap>
+                              <Input
+                                size="small"
+                                prefix={<Search size={14} />}
+                                placeholder="全列搜索…"
+                                value={rowsSearchInput}
+                                onChange={setRowsSearchInput}
+                                onEnterPress={() => handleRunSearch(rowsSearchInput)}
+                                showClear
+                                onClear={() => { setRowsSearchInput(''); handleRunSearch(''); }}
+                                style={{ width: 200 }}
+                              />
+                              <Button size="small" onClick={() => handleRunSearch(rowsSearchInput)}>搜索</Button>
                               {canWrite && isWritableTable && (
                                 <Button
                                   size="small"
@@ -1316,7 +1219,7 @@ export default function DbAdminPage() {
                                   disabled={!structure}
                                 >新增行</Button>
                               )}
-                              {(rowsOrderBy || Object.keys(rowsFilters).length > 0) && (
+                              {(rowsOrderBy || Object.keys(rowsFilters).length > 0 || rowsSearch) && (
                                 <Button size="small" theme="borderless" onClick={handleRowsResetAll}>重置排序 / 筛选</Button>
                               )}
                             </Space>
@@ -1456,153 +1359,17 @@ export default function DbAdminPage() {
           </div>
         </TabPane>
 
-        <TabPane tab={<span><Play size={14} style={{ verticalAlign: -2, marginRight: 4 }} />SQL 控制台</span>} itemKey="console">
-          <Space vertical align="start" style={{ width: '100%' }}>
-            <div style={{ width: '100%', border: '1px solid var(--semi-color-border)', borderRadius: 6, overflow: 'hidden' }}>
-              <Editor
-                height="240px"
-                defaultLanguage="sql"
-                theme={monacoTheme}
-                value={sql}
-                onChange={(v) => setSql(v ?? '')}
-                onMount={(ed, monaco) => {
-                  editorRef.current = ed;
-                  const KeyMod = monaco.KeyMod as typeof KeyModT;
-                  const KeyCode = monaco.KeyCode as typeof KeyCodeT;
-                  ed.addCommand(KeyMod.CtrlCmd | KeyCode.Enter, () => runQueryRef.current());
-                  monaco.languages.registerCompletionItemProvider('sql', {
-                    triggerCharacters: ['.', ' '],
-                    provideCompletionItems: (model: MonacoEditor.ITextModel, position: Position) => {
-                      const word = model.getWordUntilPosition(position);
-                      const range = {
-                        startLineNumber: position.lineNumber,
-                        endLineNumber: position.lineNumber,
-                        startColumn: word.startColumn,
-                        endColumn: word.endColumn,
-                      };
-                      const lineUpToCursor = model.getValueInRange({
-                        startLineNumber: position.lineNumber,
-                        startColumn: 1,
-                        endLineNumber: position.lineNumber,
-                        endColumn: position.column,
-                      });
-                      // 触发字符为 '.'，尝试取前一个 token 作为表名（含/不含 schema）
-                      const dotMatch = /([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)?)\.$/.exec(lineUpToCursor);
-                      if (dotMatch) {
-                        const ref = dotMatch[1];
-                        const cache = structureColumnsCacheRef.current;
-                        let cols: string[] | undefined;
-                        if (ref.includes('.')) {
-                          cols = cache.get(ref);
-                        } else {
-                          cols = cache.get(`public.${ref}`) ?? cache.get(ref);
-                          // 兜底：在所有 schema 中找同名表
-                          if (!cols) {
-                            for (const [k, v] of cache.entries()) {
-                              if (k.endsWith(`.${ref}`)) { cols = v; break; }
-                            }
-                          }
-                        }
-                        if (cols && cols.length > 0) {
-                          return {
-                            suggestions: cols.map((c) => ({
-                              label: c,
-                              kind: monaco.languages.CompletionItemKind.Field,
-                              insertText: c,
-                              detail: `${ref} 字段`,
-                              range,
-                            })),
-                          };
-                        }
-                      }
-                      // 默认：补全所有表名
-                      const ts = tablesRef.current;
-                      const suggestions = ts.flatMap((t) => {
-                        const full = `${t.schema}.${t.name}`;
-                        const detail = t.comment ? `${t.sizeText} · ${t.comment}` : t.sizeText;
-                        const items = [
-                          {
-                            label: full,
-                            kind: monaco.languages.CompletionItemKind.Class,
-                            insertText: full,
-                            detail,
-                            range,
-                          },
-                        ];
-                        if (t.schema === 'public') {
-                          items.push({
-                            label: t.name,
-                            kind: monaco.languages.CompletionItemKind.Class,
-                            insertText: t.name,
-                            detail,
-                            range,
-                          });
-                        }
-                        return items;
-                      });
-                      return { suggestions };
-                    },
-                  });
-                }}
-                options={{ minimap: { enabled: false }, fontSize: 13, automaticLayout: true, wordWrap: 'on' }}
-              />
-            </div>
-            <Space>
-              <Tooltip content="只读模式，仅允许 SELECT / EXPLAIN 等查询语句">
-                <Button
-                  type="primary"
-                  icon={<Play size={14} />}
-                  onClick={runQuery}
-                  loading={queryLoading}
-                  disabled={!canQuery}
-                >执行</Button>
-              </Tooltip>
-              <Button icon={<Eye size={14} />} onClick={runExplain} disabled={!canQuery}>EXPLAIN</Button>
-              <Button icon={<Download size={14} />} onClick={exportCsv} disabled={!canExport} loading={exportCsvLoading}>导出 CSV</Button>
-              <Button
-                icon={<BookmarkPlus size={14} />}
-                onClick={() => { setEditFav(null); setSaveFavOpen(true); }}
-                disabled={!canQuery}
-              >收藏</Button>
-              <Button
-                icon={<Bookmark size={14} />}
-                onClick={openFavorites}
-              >收藏夹{favorites.length > 0 ? ` (${favorites.length})` : ''}</Button>
-              <Text type="tertiary" size="small">Ctrl+Enter 执行 · 硬上限 5000 行 / 60 秒</Text>
-            </Space>
-
-            {queryError && <Text type="danger" style={{ whiteSpace: 'pre-wrap' }}>{queryError}</Text>}
-
-            {queryResult && (
-              <div style={{ width: '100%' }}>
-                {queryResult.truncated && (
-                  <Banner
-                    type="warning"
-                    fullMode={false}
-                    closeIcon={null}
-                    description={`结果已截断为前 ${queryResult.rowCount} 行，请在 SQL 中加 LIMIT 或缩窄筛选条件以查看完整数据。`}
-                    style={{ marginBottom: 8 }}
-                  />
-                )}
-                <Space style={{ marginBottom: 8 }}>
-                  <Tag color="blue">{queryResult.rowCount} 行</Tag>
-                  <Tag color="grey">{queryResult.durationMs}ms</Tag>
-                  {queryResult.truncated && <Tag color="orange">已截断</Tag>}
-                </Space>
-                {queryResult.rows.length === 0 ? <Empty title="无结果" /> : (
-                  <ConfigurableTable
-                    bordered
-                    columns={buildDataColumns(queryResult.columns)}
-                    dataSource={queryResult.rows.map((r, i) => ({ ...r, __key: i }))}
-                    rowKey="__key"
-                    pagination={{ pageSize: 20, pageSizeOpts: [20, 50, 100] }}
-                    size="small"
-                    scroll={{ x: 'max-content' }}
-                  />
-                )}
-              </div>
-            )}
-          </Space>
+        <TabPane tab={<span><Play size={14} style={{ verticalAlign: -2, marginRight: 4 }} />SQL 控制台</span>} itemKey="console" style={{ height: '100%' }}>
+          <div style={{ height: '100%', padding: 4 }}>
+            <SqlConsole
+              ref={sqlConsoleRef}
+              tables={tables}
+              structureColumnsCache={structureColumnsCacheRef}
+              canQuery={canQuery}
+              canExport={canExport}
+              monacoTheme={monacoTheme}
+            />
+          </div>
         </TabPane>
 
         <TabPane tab={<span><History size={14} style={{ verticalAlign: -2, marginRight: 4 }} />查询历史</span>} itemKey="history" style={{ height: '100%', overflow: 'auto' }}>
@@ -1662,16 +1429,6 @@ export default function DbAdminPage() {
         </TabPane>
       </Tabs>
 
-      <AppModal
-        title="查询计划 (EXPLAIN)"
-        visible={explainOpen}
-        onCancel={() => setExplainOpen(false)}
-        footer={null}
-        width={800}
-      >
-        <JsonViewer value={JSON.stringify(explainData, null, 2)} height={500} width="100%" />
-      </AppModal>
-
       {selected && structure && (
         <RowEditModal
           open={rowModalOpen}
@@ -1690,124 +1447,6 @@ export default function DbAdminPage() {
           }}
         />
       )}
-
-      {/* SQL 收藏夹管理面板 */}
-      <SideSheet
-        title={
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 8 }}>
-            <Space><Bookmark size={16} /><span>SQL 收藏夹</span></Space>
-            <Button
-              type="primary"
-              size="small"
-              icon={<BookmarkPlus size={13} />}
-              onClick={() => { setEditFav(null); setSaveFavOpen(true); }}
-            >收藏当前 SQL</Button>
-          </div>
-        }
-        visible={favOpen}
-        onCancel={() => setFavOpen(false)}
-        width={500}
-      >
-        <Spin spinning={favLoading}>
-          {favorites.length === 0 && !favLoading && (
-            <Empty title="暂无收藏" description="在控制台执行 SQL 后可点击「收藏」保存常用语句" />
-          )}
-          <List
-            dataSource={favorites}
-            renderItem={(fav) => (
-              <List.Item
-                key={fav.id}
-                style={{ padding: '10px 4px', borderBottom: '1px solid var(--semi-color-border)' }}
-                main={
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fav.name}</span>
-                      {fav.tags.map((tag: string) => <Tag key={tag} size="small" color="blue">{tag}</Tag>)}
-                    </div>
-                    {fav.description && (
-                      <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>
-                        {fav.description}
-                      </Typography.Text>
-                    )}
-                    <Typography.Text
-                      ellipsis={{ rows: 2 }}
-                      style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--semi-color-text-2)', whiteSpace: 'pre' }}
-                    >
-                      {fav.sql}
-                    </Typography.Text>
-                  </div>
-                }
-                extra={
-                  <Space style={{ flexShrink: 0, marginLeft: 8 }}>
-                    <Button
-                      size="small"
-                      type="primary"
-                      theme="borderless"
-                      icon={<ArrowRight size={14} />}
-                      onClick={() => loadFavoriteToEditor(fav)}
-                    >加载</Button>
-                    <Button
-                      size="small"
-                      theme="borderless"
-                      icon={<Pencil size={14} />}
-                      onClick={() => openEditFav(fav)}
-                    />
-                    <Popconfirm title="确定删除这条收藏？" onConfirm={() => void handleDeleteFavorite(fav.id)}>
-                      <Button size="small" theme="borderless" type="danger" icon={<Trash2 size={14} />} />
-                    </Popconfirm>
-                  </Space>
-                }
-              />
-            )}
-          />
-        </Spin>
-      </SideSheet>
-
-      {/* 保存 / 编辑收藏对话框 */}
-      <AppModal
-        title={editFav ? '编辑收藏' : '收藏 SQL'}
-        visible={saveFavOpen}
-        onCancel={() => { setSaveFavOpen(false); setEditFav(null); }}
-        footer={null}
-        width={480}
-      >
-        <Form
-          onSubmit={(values) => void handleSaveFavorite(values)}
-          layout="vertical"
-          initValues={editFav ? { name: editFav.name, description: editFav.description ?? '', tags: editFav.tags.join(', ') } : {
-            name: formatDateTime(new Date()),
-          }}
-        >
-          <Form.Input
-            field="name"
-            label="名称"
-            rules={[{ required: true, message: '请输入名称' }]}
-            placeholder="为这条 SQL 起个名字"
-            style={{ width: '100%' }}
-          />
-          <Form.TextArea
-            field="description"
-            label="备注"
-            placeholder="可选，描述这条 SQL 的用途"
-            style={{ width: '100%' }}
-          />
-          <Form.Input
-            field="tags"
-            label="标签"
-            placeholder="多个标签用逗号分隔，如：报表, 监控"
-            style={{ width: '100%' }}
-          />
-          {!editFav && (
-            <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 12 }}>
-              将收藏当前编辑器中的 SQL 内容
-            </Typography.Text>
-          )}
-          <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
-            <Button onClick={() => { setSaveFavOpen(false); setEditFav(null); }}>取消</Button>
-            <Button type="primary" htmlType="submit" loading={saveFavLoading}>保存</Button>
-          </Space>
-        </Form>
-      </AppModal>
     </div>
   );
 }
