@@ -15,6 +15,17 @@ import './FormDesigner.css';
 interface FormDesignerProps {
   fields: WorkflowFormField[];
   onChange: (fields: WorkflowFormField[]) => void;
+  /** 是否显示内置的撤销/重做工具栏（默认 true）。外部接管工具栏时传 false 并使用 onHistoryChange */
+  showToolbar?: boolean;
+  /** 撤销/重做状态变化回调，供外部工具栏渲染按钮 */
+  onHistoryChange?: (controls: FormHistoryControls) => void;
+}
+
+export interface FormHistoryControls {
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 let fieldCounter = 0;
@@ -168,7 +179,7 @@ interface HistoryState {
 
 const MAX_HISTORY = 100;
 
-export default function FormDesigner({ fields, onChange }: Readonly<FormDesignerProps>) {
+export default function FormDesigner({ fields, onChange, showToolbar = true, onHistoryChange }: Readonly<FormDesignerProps>) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   // 撤销/重做历史栈（快照为不可变字段数组，所有变更走 commit 统一入栈）
   const historyRef = useRef<HistoryState>({ stack: [fields], pointer: 0, lastTag: null });
@@ -231,6 +242,11 @@ export default function FormDesigner({ fields, onChange }: Readonly<FormDesigner
   const canUndo = hist.pointer > 0;
   const canRedo = hist.pointer < hist.stack.length - 1;
 
+  // 向外部上报撤销/重做状态（供外部工具栏渲染按钮）
+  useEffect(() => {
+    onHistoryChange?.({ undo, redo, canUndo, canRedo });
+  }, [onHistoryChange, undo, redo, canUndo, canRedo]);
+
   // 点击左侧面板添加字段
   const handleAddField = useCallback((type: WorkflowFormFieldType) => {
     const newField = createField(type);
@@ -277,32 +293,34 @@ export default function FormDesigner({ fields, onChange }: Readonly<FormDesigner
 
   return (
     <div className="fd-form-designer-shell">
-      {/* 顶部工具栏：撤销 / 重做 */}
-      <div className="fd-form-designer__toolbar">
-        <Tooltip content="撤销 (Ctrl+Z)">
-          <Button
-            size="small"
-            theme="borderless"
-            type="tertiary"
-            icon={<Undo2 size={15} />}
-            disabled={!canUndo}
-            onClick={undo}
-            aria-label="撤销"
-          />
-        </Tooltip>
-        <Tooltip content="重做 (Ctrl+Shift+Z)">
-          <Button
-            size="small"
-            theme="borderless"
-            type="tertiary"
-            icon={<Redo2 size={15} />}
-            disabled={!canRedo}
-            onClick={redo}
-            aria-label="重做"
-          />
-        </Tooltip>
-        <span className="fd-form-designer__toolbar-hint">点击或拖拽左侧控件添加字段 · Ctrl+Z 撤销 / Ctrl+Shift+Z 重做</span>
-      </div>
+      {/* 顶部工具栏：撤销 / 重做（外部接管时隐藏） */}
+      {showToolbar && (
+        <div className="fd-form-designer__toolbar">
+          <Tooltip content="撤销 (Ctrl+Z)">
+            <Button
+              size="small"
+              theme="borderless"
+              type="tertiary"
+              icon={<Undo2 size={15} />}
+              disabled={!canUndo}
+              onClick={undo}
+              aria-label="撤销"
+            />
+          </Tooltip>
+          <Tooltip content="重做 (Ctrl+Shift+Z)">
+            <Button
+              size="small"
+              theme="borderless"
+              type="tertiary"
+              icon={<Redo2 size={15} />}
+              disabled={!canRedo}
+              onClick={redo}
+              aria-label="重做"
+            />
+          </Tooltip>
+          <span className="fd-form-designer__toolbar-hint">点击或拖拽左侧控件添加字段 · Ctrl+Z 撤销 / Ctrl+Shift+Z 重做</span>
+        </div>
+      )}
 
       <div className="fd-form-designer">
         {/* 左侧：控件面板 */}
