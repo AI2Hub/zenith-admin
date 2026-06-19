@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import { Button, Input, Select, SideSheet, Typography } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
 import type { ConditionGroup, ConditionRule, ConditionOperator, FlowBranch } from '../types';
-import { OPERATOR_LABELS } from '../constants';
+import { OPERATOR_LABELS, STARTER_CONDITION_FIELDS } from '../constants';
 
 interface FormField {
   key: string;
@@ -19,15 +19,29 @@ interface FormField {
   options?: string[];
 }
 
+interface UserOption { id: number; nickname: string; }
+interface RoleOption { id: number; name: string; }
+interface DeptOption { id: number; name: string; }
+interface PositionOption { id: number; name: string; }
+
 interface ConditionEditorProps {
   visible: boolean;
   branch: FlowBranch | null;
   formFields: FormField[];
+  users?: UserOption[];
+  roles?: RoleOption[];
+  departments?: DeptOption[];
+  positions?: PositionOption[];
   onSave: (branchId: string, updates: { name: string; conditions: ConditionGroup[] }) => void;
   onCancel: () => void;
 }
 
 const operatorOptions = Object.entries(OPERATOR_LABELS).map(([value, label]) => ({ value, label }));
+/** 发起人维度仅支持 属于/不属于 */
+const STARTER_OPERATOR_OPTIONS = [
+  { value: 'in', label: '属于' },
+  { value: 'notIn', label: '不属于' },
+];
 
 const EMPTY_RULE: ConditionRule = { field: '', operator: 'eq', value: '' };
 const DEFAULT_GROUP: ConditionGroup = { type: 'and', rules: [{ ...EMPTY_RULE }] };
@@ -69,6 +83,10 @@ export default function ConditionEditor({
   visible,
   branch,
   formFields,
+  users = [],
+  roles = [],
+  departments = [],
+  positions = [],
   onSave,
   onCancel,
 }: Readonly<ConditionEditorProps>) {
@@ -118,6 +136,16 @@ export default function ConditionEditor({
     ));
   };
 
+  /** 字段选择变化：解析 form:/starter: 前缀，切换来源时重置运算符与值 */
+  const handleFieldChange = (groupIndex: number, ruleIndex: number, val: string) => {
+    if (val.startsWith('starter:')) {
+      updateRule(groupIndex, ruleIndex, { source: 'starter', field: val.slice('starter:'.length), operator: 'in', value: '' });
+    } else {
+      const key = val.startsWith('form:') ? val.slice('form:'.length) : val;
+      updateRule(groupIndex, ruleIndex, { source: 'form', field: key, operator: 'eq', value: '' });
+    }
+  };
+
   const handleAddGroup = () => {
     setGroups(prev => [...prev, { ...DEFAULT_GROUP, rules: [{ ...EMPTY_RULE }] }]);
     setGroupKeys(prev => [...prev, nextGroupKey()]);
@@ -151,8 +179,6 @@ export default function ConditionEditor({
     const trimmedName = name.trim() || branch.name;
     onSave(branch.id, { name: trimmedName, conditions: cleaned });
   };
-
-  const fieldOptions = formFields.map(f => ({ value: f.key, label: f.label }));
 
   return (
     <SideSheet
@@ -215,23 +241,36 @@ export default function ConditionEditor({
               {group.rules.map((rule, ri) => (
                 <div key={ruleKeys[gi]?.[ri] ?? ri} className="fd-condition-rule">
                   <Select
-                    value={rule.field || undefined}
-                    onChange={(v) => updateRule(gi, ri, { field: v as string })}
+                    value={rule.source === 'starter'
+                      ? `starter:${rule.field}`
+                      : (rule.field ? `form:${rule.field}` : undefined)}
+                    onChange={(v) => handleFieldChange(gi, ri, v as string)}
                     placeholder="选择字段"
-                    optionList={fieldOptions}
-                    style={{ width: 140 }}
+                    style={{ width: 150 }}
                     size="small"
-                    emptyContent="暂无表单字段"
-                  />
+                  >
+                    {formFields.length > 0 && (
+                      <Select.OptGroup label="表单字段">
+                        {formFields.map(f => (
+                          <Select.Option key={`form:${f.key}`} value={`form:${f.key}`}>{f.label}</Select.Option>
+                        ))}
+                      </Select.OptGroup>
+                    )}
+                    <Select.OptGroup label="发起人维度">
+                      {STARTER_CONDITION_FIELDS.map(s => (
+                        <Select.Option key={`starter:${s.value}`} value={`starter:${s.value}`}>{s.label}</Select.Option>
+                      ))}
+                    </Select.OptGroup>
+                  </Select>
                   <Select
                     value={rule.operator}
                     onChange={(v) => updateRule(gi, ri, { operator: v as ConditionOperator })}
-                    optionList={operatorOptions}
+                    optionList={rule.source === 'starter' ? STARTER_OPERATOR_OPTIONS : operatorOptions}
                     placeholder="选择条件"
-                    style={{ width: 100 }}
+                    style={{ width: 92 }}
                     size="small"
                   />
-                  {renderValueInput(rule, formFields, (v) => updateRule(gi, ri, { value: v }))}
+                  {renderValueInput(rule, formFields, { users, roles, departments, positions }, (v) => updateRule(gi, ri, { value: v }))}
                   <button
                     type="button"
                     className="fd-condition-rule__remove"
@@ -273,12 +312,63 @@ export default function ConditionEditor({
   );
 }
 
+/** 解析逗号分隔的 ID 字符串为 number[] */
+function parseIdValue(value: string | number | boolean): number[] {
+  if (typeof value === 'number') return [value];
+  if (typeof value === 'string') {
+    return value.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n));
+  }
+  return [];
+}
+
+interface EntityLists {
+  users: UserOption[];
+  roles: RoleOption[];
+  departments: DeptOption[];
+  positions: PositionOption[];
+}
+
+/** 发起人维度：渲染对应实体的多选 */
+function renderStarterValueInput(
+  rule: ConditionRule,
+  lists: EntityLists,
+  onChange: (value: string) => void,
+) {
+  let options: Array<{ value: number; label: string }> = [];
+  let placeholder = '选择';
+  switch (rule.field) {
+    case 'user': options = lists.users.map((u) => ({ value: u.id, label: u.nickname })); placeholder = '选择成员'; break;
+    case 'dept': options = lists.departments.map((d) => ({ value: d.id, label: d.name })); placeholder = '选择部门'; break;
+    case 'role': options = lists.roles.map((r) => ({ value: r.id, label: r.name })); placeholder = '选择角色'; break;
+    case 'post': options = lists.positions.map((p) => ({ value: p.id, label: p.name })); placeholder = '选择岗位'; break;
+  }
+  return (
+    <Select
+      multiple
+      filter
+      value={parseIdValue(rule.value)}
+      onChange={(v) => onChange((Array.isArray(v) ? (v as number[]) : []).join(','))}
+      optionList={options}
+      placeholder={placeholder}
+      style={{ flex: 1, minWidth: 150 }}
+      size="small"
+      maxTagCount={2}
+    />
+  );
+}
+
 /** 根据字段类型渲染值输入组件 */
 function renderValueInput(
   rule: ConditionRule,
   formFields: FormField[],
+  lists: EntityLists,
   onChange: (value: string | number | boolean) => void,
 ) {
+  // 发起人维度：渲染对应实体多选（值存为逗号分隔 ID 字符串）
+  if (rule.source === 'starter') {
+    return renderStarterValueInput(rule, lists, onChange);
+  }
+
   const field = formFields.find(f => f.key === rule.field);
 
   if (field?.type === 'select' && field.options) {

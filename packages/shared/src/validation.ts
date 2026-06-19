@@ -566,12 +566,13 @@ export type CreateTagInput = z.infer<typeof createTagSchema>;
 export type UpdateTagInput = z.infer<typeof updateTagSchema>;
 
 // ─── 工作流引擎 Schema ────────────────────────────────────────────────────────
-export const workflowConditionOperatorSchema = z.enum(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'contains']);
+export const workflowConditionOperatorSchema = z.enum(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'notIn', 'contains']);
 
 export const workflowEdgeConditionSchema = z.object({
   field: z.string().min(1),
   operator: workflowConditionOperatorSchema,
   value: z.union([z.string(), z.number(), z.boolean()]),
+  source: z.enum(['form', 'starter']).optional(),
 });
 
 export const workflowConditionGroupSchema = z.object({
@@ -628,6 +629,8 @@ export const workflowTimeoutConfigSchema = z.object({
   unit: z.enum(['minutes', 'hours', 'days']).optional(),
   action: z.enum(['remind', 'autoApprove', 'autoReject']),
   remindCount: z.number().int().min(1).optional(),
+  escalateAction: z.enum(['none', 'autoApprove', 'autoReject', 'transferToManager']).optional(),
+  escalateManagerLevel: z.number().int().min(1).optional(),
 });
 
 export const workflowNodeConfigSchema = z.looseObject({

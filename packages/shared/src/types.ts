@@ -790,13 +790,26 @@ export type WorkflowNodeType =
   | 'delay'
   | 'trigger'
   | 'subProcess';
-export type WorkflowConditionOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'contains';
+export type WorkflowConditionOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'notIn' | 'contains';
 
 // 连线条件表达式（排他网关出边使用）
 export interface WorkflowEdgeCondition {
-  field: string;         // 表单字段 key
+  field: string;         // source='form' 时为表单字段 key；source='starter' 时为 'user'|'dept'|'role'|'post'
   operator: WorkflowConditionOperator;
   value: string | number | boolean;
+  /** 条件来源：'form'(默认)=按表单字段；'starter'=按发起人维度（本人/部门/角色/岗位） */
+  source?: 'form' | 'starter';
+}
+
+/**
+ * 发起人运行时上下文快照，供条件分支「发起人维度」求值。
+ * deptIds 含发起人所在部门及其全部上级部门（实现「选父部门即覆盖子部门」语义）。
+ */
+export interface WorkflowStarterContext {
+  userId: number;
+  deptIds: number[];
+  roleIds: number[];
+  postIds: number[];
 }
 
 export interface WorkflowConditionGroup {
@@ -882,6 +895,14 @@ export interface WorkflowTimeoutConfig {
   unit?: 'minutes' | 'hours' | 'days';
   action: 'remind' | 'autoApprove' | 'autoReject';
   remindCount?: number;
+  /**
+   * 当 action='remind' 且提醒次数耗尽仍未处理时的升级动作。
+   * 'none'(默认)=保持挂起；'autoApprove'/'autoReject'=自动同意/拒绝；
+   * 'transferToManager'=转交给当前处理人的上级（按 escalateManagerLevel 取上级层级）。
+   */
+  escalateAction?: 'none' | 'autoApprove' | 'autoReject' | 'transferToManager';
+  /** escalateAction='transferToManager' 时的上级层级（1=直属上级，默认 1） */
+  escalateManagerLevel?: number;
 }
 
 /** 审批节点被驳回时的处理策略 */

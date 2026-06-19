@@ -125,8 +125,17 @@ export const OPERATOR_LABELS: Record<string, string> = {
   lt: '小于',
   lte: '小于等于',
   in: '包含在',
+  notIn: '不包含在',
   contains: '包含',
 };
+
+/** 发起人维度条件可选字段（source='starter'） */
+export const STARTER_CONDITION_FIELDS: Array<{ value: 'user' | 'dept' | 'role' | 'post'; label: string }> = [
+  { value: 'user', label: '发起人本人' },
+  { value: 'dept', label: '发起人部门' },
+  { value: 'role', label: '发起人角色' },
+  { value: 'post', label: '发起人岗位' },
+];
 
 // ─── 审批人策略选项 ──────────────────────────────────────────────────
 

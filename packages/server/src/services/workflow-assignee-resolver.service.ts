@@ -5,7 +5,7 @@
  * 用于在创建审批任务时展开为多个 workflow_tasks 行。
  */
 import { and, eq, inArray, isNotNull } from 'drizzle-orm';
-import type { WorkflowAssigneeType, WorkflowNodeConfig } from '@zenith/shared';
+import type { WorkflowAssigneeType, WorkflowNodeConfig, WorkflowStarterContext } from '@zenith/shared';
 import { db } from '../db';
 import {
   departments,
@@ -74,6 +74,62 @@ async function collectDeptWithChildren(exec: DbExecutor, rootIds: number[]): Pro
     frontier = next;
   }
   return [...all];
+}
+
+/** 收集部门及其所有上级部门 ID（含自身）；用于发起人维度条件「选父部门覆盖子部门」语义 */
+async function getDeptAncestors(exec: DbExecutor, deptId: number): Promise<number[]> {
+  const chain: number[] = [];
+  const seen = new Set<number>();
+  let current: number | null = deptId;
+  while (current !== null && current !== 0 && !seen.has(current)) {
+    seen.add(current);
+    chain.push(current);
+    const [row] = await exec.select({ parentId: departments.parentId })
+      .from(departments).where(eq(departments.id, current)).limit(1);
+    current = row?.parentId ?? null;
+  }
+  return chain;
+}
+
+/**
+ * 构建发起人运行时上下文快照（部门祖先链 + 角色 + 岗位），
+ * 供条件分支「发起人维度」（user/dept/role/post）求值。
+ */
+export async function buildStarterContext(
+  initiatorId: number,
+  executor?: DbExecutor,
+): Promise<WorkflowStarterContext> {
+  const exec = executor ?? db;
+  const deptId = await getUserDept(exec, initiatorId);
+  const [deptIds, roleRows, postRows] = await Promise.all([
+    deptId ? getDeptAncestors(exec, deptId) : Promise.resolve<number[]>([]),
+    exec.select({ roleId: userRoles.roleId }).from(userRoles).where(eq(userRoles.userId, initiatorId)),
+    exec.select({ positionId: userPositions.positionId }).from(userPositions).where(eq(userPositions.userId, initiatorId)),
+  ]);
+  return {
+    userId: initiatorId,
+    deptIds,
+    roleIds: roleRows.map((r) => r.roleId),
+    postIds: postRows.map((r) => r.positionId),
+  };
+}
+
+/**
+ * 解析指定用户的上级（部门负责人）。level=1 取所在部门负责人，level>1 沿部门链向上。
+ * 用于超时升级「转交给上级」。找不到返回 null。
+ */
+export async function resolveUserManagerId(
+  userId: number,
+  level = 1,
+  executor?: DbExecutor,
+): Promise<number | null> {
+  const exec = executor ?? db;
+  const startDeptId = await getUserDept(exec, userId);
+  if (!startDeptId) return null;
+  const lv = Math.max(1, level);
+  const targetDeptId = lv === 1 ? startDeptId : await walkDeptUp(exec, startDeptId, lv - 1);
+  if (!targetDeptId) return null;
+  return getDeptLeader(exec, targetDeptId);
 }
 
 /**

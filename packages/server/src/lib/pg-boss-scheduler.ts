@@ -70,7 +70,7 @@ handlerRegistry.set('retryWorkflowEventDeliveries', async () => {
 handlerRegistry.set('processWorkflowTaskTimeouts', async () => {
   const { processWorkflowTaskTimeouts } = await import('./workflow-timeout-processor');
   const r = await processWorkflowTaskTimeouts();
-  return `扫描 ${r.processed} 个超时任务：提醒 ${r.reminded}，自动通过 ${r.approved}，自动拒绝 ${r.rejected}`;
+  return `扫描 ${r.processed} 个超时任务：提醒 ${r.reminded}，自动通过 ${r.approved}，自动拒绝 ${r.rejected}，升级转交 ${r.escalated}`;
 });
 
 handlerRegistry.set('publishScheduledAnnouncements', async () => {

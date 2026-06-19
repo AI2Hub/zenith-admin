@@ -114,6 +114,10 @@ export interface TimeoutConfig {
   unit?: 'minutes' | 'hours' | 'days';
   action: 'remind' | 'autoApprove' | 'autoReject';
   remindCount?: number;   // 提醒次数（action='remind' 时）
+  /** 提醒耗尽仍未处理时的升级动作（仅 action='remind' 时生效） */
+  escalateAction?: 'none' | 'autoApprove' | 'autoReject' | 'transferToManager';
+  /** escalateAction='transferToManager' 时的上级层级（1=直属上级，默认 1） */
+  escalateManagerLevel?: number;
 }
 
 // ─── 节点 Props 类型 ─────────────────────────────────────────────────
@@ -240,12 +244,14 @@ export interface InitiatorNodeProps {
 
 // ─── 条件 ────────────────────────────────────────────────────────────
 
-export type ConditionOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'contains';
+export type ConditionOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'notIn' | 'contains';
 
 export interface ConditionRule {
   field: string;
   operator: ConditionOperator;
   value: string | number | boolean;
+  /** 条件来源：'form'(默认)=表单字段；'starter'=发起人维度（field 取 'user'|'dept'|'role'|'post'） */
+  source?: 'form' | 'starter';
 }
 
 export interface ConditionGroup {

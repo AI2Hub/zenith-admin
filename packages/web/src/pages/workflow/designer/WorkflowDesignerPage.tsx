@@ -707,6 +707,10 @@ export default function WorkflowDesignerPage() {
         visible={conditionEditorVisible}
         branch={editingBranch}
         formFields={formFields}
+        users={users}
+        roles={roles}
+        departments={departments}
+        positions={positions}
         onSave={handleSaveBranchConditions}
         onCancel={() => { setConditionEditorVisible(false); setEditingBranch(null); setEditingBranchParent(null); }}
       />

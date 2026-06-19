@@ -16,6 +16,7 @@ import type {
   WorkflowEdge,
   WorkflowEdgeCondition,
   WorkflowConditionGroup,
+  WorkflowStarterContext,
 } from '@zenith/shared';
 
 // ─── 图遍历工具 ───────────────────────────────────────────────────────────────
@@ -50,11 +51,45 @@ function buildAdjacency(flowData: WorkflowFlowData) {
   return { nodeMap, outEdges, inEdges };
 }
 
+/** 将条件值解析为 ID 数组（支持数字 / 逗号分隔字符串） */
+function parseIdList(value: string | number | boolean): number[] {
+  if (typeof value === 'number') return Number.isFinite(value) ? [value] : [];
+  if (typeof value === 'string') {
+    return value.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n));
+  }
+  return [];
+}
+
+/** 求值「发起人维度」条件（source='starter'，field=user|dept|role|post，operator=in|notIn） */
+function evaluateStarterCondition(
+  condition: WorkflowEdgeCondition,
+  starter: WorkflowStarterContext | undefined,
+): boolean {
+  if (!starter) return false;
+  const targetIds = parseIdList(condition.value);
+  let actual: number[];
+  switch (condition.field) {
+    case 'user': actual = [starter.userId]; break;
+    case 'dept': actual = starter.deptIds; break;
+    case 'role': actual = starter.roleIds; break;
+    case 'post': actual = starter.postIds; break;
+    default: return false;
+  }
+  const hit = actual.some((id) => targetIds.includes(id));
+  return condition.operator === 'notIn' ? !hit : hit;
+}
+
 /** 求值条件表达式 */
 export function evaluateCondition(
   condition: WorkflowEdgeCondition,
   formData: Record<string, unknown>,
+  starter?: WorkflowStarterContext,
 ): boolean {
+  // 发起人维度条件：与表单数据无关，按发起人上下文求值
+  if (condition.source === 'starter') {
+    return evaluateStarterCondition(condition, starter);
+  }
+
   const fieldValue = formData[condition.field];
   const target = condition.value;
 
@@ -81,12 +116,16 @@ export function evaluateCondition(
       return Number(fv) < Number(target);
     case 'lte':
       return Number(fv) <= Number(target);
-    case 'in': {
+    case 'in':
+    case 'notIn': {
+      let inList: boolean;
       if (typeof target === 'string') {
-        const arr = target.split(',').map(s => s.trim());
-        return arr.includes(String(fv ?? ''));
+        const arr = target.split(',').map((s) => s.trim());
+        inList = arr.includes(String(fv ?? ''));
+      } else {
+        inList = false;
       }
-      return false;
+      return condition.operator === 'notIn' ? !inList : inList;
     }
     case 'contains':
       return typeof fv === 'string' && fv.includes(String(target));
@@ -98,29 +137,35 @@ export function evaluateCondition(
 export function evaluateConditionGroup(
   group: WorkflowConditionGroup,
   formData: Record<string, unknown>,
+  starter?: WorkflowStarterContext,
 ): boolean {
   if (group.rules.length === 0) return false;
   if (group.type === 'or') {
-    return group.rules.some((rule) => evaluateCondition(rule, formData));
+    return group.rules.some((rule) => evaluateCondition(rule, formData, starter));
   }
-  return group.rules.every((rule) => evaluateCondition(rule, formData));
+  return group.rules.every((rule) => evaluateCondition(rule, formData, starter));
 }
 
 export function evaluateConditionGroups(
   groups: WorkflowConditionGroup[],
   formData: Record<string, unknown>,
+  starter?: WorkflowStarterContext,
 ): boolean {
   if (groups.length === 0) return false;
-  return groups.some((group) => evaluateConditionGroup(group, formData));
+  return groups.some((group) => evaluateConditionGroup(group, formData, starter));
 }
 
 function edgeHasCondition(edge: WorkflowEdge): boolean {
   return !!edge.condition || !!edge.conditions?.length;
 }
 
-function edgeMatchesCondition(edge: WorkflowEdge, formData: Record<string, unknown>): boolean {
-  if (edge.conditions?.length) return evaluateConditionGroups(edge.conditions, formData);
-  if (edge.condition) return evaluateCondition(edge.condition, formData);
+function edgeMatchesCondition(
+  edge: WorkflowEdge,
+  formData: Record<string, unknown>,
+  starter?: WorkflowStarterContext,
+): boolean {
+  if (edge.conditions?.length) return evaluateConditionGroups(edge.conditions, formData, starter);
+  if (edge.condition) return evaluateCondition(edge.condition, formData, starter);
   return false;
 }
 
@@ -137,6 +182,7 @@ function isDefaultEdge(edge: WorkflowEdge, targetNode?: FlowNode): boolean {
 function computeReachableNodeIds(
   flowData: WorkflowFlowData,
   formData: Record<string, unknown>,
+  starter?: WorkflowStarterContext,
 ): Set<string> {
   const { nodeMap, outEdges } = buildAdjacency(flowData);
   const startNode = flowData.nodes.find(n => n.data.type === 'start');
@@ -162,7 +208,7 @@ function computeReachableNodeIds(
         const tgtNode = nodeMap.get(target);
         if (!tgtNode) continue;
         if (edgeHasCondition(edge)) {
-          if (edgeMatchesCondition(edge, formData)) { chosen = target; break; }
+          if (edgeMatchesCondition(edge, formData, starter)) { chosen = target; break; }
         } else if (isDefaultEdge(edge, tgtNode) || !fallback) {
           fallback = target;
         }
@@ -176,7 +222,7 @@ function computeReachableNodeIds(
         const tgtNode = nodeMap.get(target);
         if (!tgtNode) continue;
         if (edgeHasCondition(edge)) {
-          if (edgeMatchesCondition(edge, formData)) { queue.push(target); matched++; }
+          if (edgeMatchesCondition(edge, formData, starter)) { queue.push(target); matched++; }
         } else if (isDefaultEdge(edge, tgtNode) || !fallback) {
           fallback = target;
         }
@@ -226,6 +272,7 @@ export function advanceFlow(
   currentNodeKey: string,
   formData: Record<string, unknown> = {},
   completedNodeKeys: Set<string> = new Set(),
+  starter?: WorkflowStarterContext,
 ): AdvanceResult {
   const { nodeMap, outEdges, inEdges } = buildAdjacency(flowData);
 
@@ -319,7 +366,7 @@ export function advanceFlow(
         if (!targetNode) continue;
 
         if (edgeHasCondition(edge)) {
-          if (edgeMatchesCondition(edge, formData)) {
+          if (edgeMatchesCondition(edge, formData, starter)) {
             chosenTarget = target;
             break;
           }
@@ -344,7 +391,7 @@ export function advanceFlow(
             const targetNode = nodeMap.get(target);
             if (!targetNode) continue;
             if (edgeHasCondition(edge)) {
-              if (edgeMatchesCondition(edge, formData)) {
+              if (edgeMatchesCondition(edge, formData, starter)) {
                 enqueueNext(target, queue);
                 matched++;
               }
@@ -362,7 +409,7 @@ export function advanceFlow(
         // 包容网关 join：仅等待"实际被 fork 激活"的入边（基于 formData 重算可达性）。
         const inSources = inEdges.get(nodeId) ?? [];
         const reachable = nodeType === 'inclusiveGateway'
-          ? computeReachableNodeIds(flowData, formData)
+          ? computeReachableNodeIds(flowData, formData, starter)
           : null;
         const allCompleted = inSources.every(srcId => {
           if (reachable && !reachable.has(srcId)) return true; // 未激活分支，视为已完成
@@ -463,12 +510,13 @@ export function advanceFlow(
 export function getInitialTasks(
   flowData: WorkflowFlowData,
   formData: Record<string, unknown> = {},
+  starter?: WorkflowStarterContext,
 ): AdvanceResult {
   const startNode = flowData.nodes.find(n => n.data.type === 'start');
   if (!startNode) {
     return { finished: false, rejected: false, tasksToCreate: [], currentNodeKeys: [] };
   }
-  return advanceFlow(flowData, startNode.data.key, formData, new Set(['start']));
+  return advanceFlow(flowData, startNode.data.key, formData, new Set(['start']), starter);
 }
 
 /**

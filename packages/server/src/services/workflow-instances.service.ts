@@ -71,10 +71,10 @@ import { pageOffset } from '../lib/pagination';
 import { workflowInstances, workflowTasks, workflowTaskUrges, workflowDefinitions, workflowCategories, users, userRoles } from '../db/schema';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { advanceFlow, getInitialTasks, validateFlowData, type AdvanceResult, type TaskAction } from '../lib/workflow-engine';
-import type { WorkflowApproveMethod, WorkflowFlowData, WorkflowTask as WorkflowTaskDto, WorkflowEventActor, WorkflowActionButtonKey, WorkflowActionButtonConfig, WorkflowFormField } from '@zenith/shared';
+import type { WorkflowApproveMethod, WorkflowFlowData, WorkflowTask as WorkflowTaskDto, WorkflowEventActor, WorkflowActionButtonKey, WorkflowActionButtonConfig, WorkflowFormField, WorkflowStarterContext } from '@zenith/shared';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
-import { resolveAssigneeIds } from './workflow-assignee-resolver.service';
+import { resolveAssigneeIds, buildStarterContext } from './workflow-assignee-resolver.service';
 import { resolveFormSnapshot } from './workflow-forms.service';
 import type { DbExecutor } from '../db/types';
 import { workflowEventBus } from '../lib/workflow-event-bus';
@@ -290,7 +290,8 @@ async function spawnSubProcessChild(
   const childFormData = buildChildFormData(nodeCfg.subProcessFieldMapping, parentFormData);
   const childTitle = `${parentInst.title} / ${nodeCfg.label ?? nodeCfg.subProcessName ?? '子流程'}`;
   const childFormSnapshot = await resolveFormSnapshot(def.formId);
-  const initialResult = getInitialTasks(flowData, childFormData);
+  const childStarter = await buildStarterContext(parentInst.initiatorId);
+  const initialResult = getInitialTasks(flowData, childFormData, childStarter);
 
   const { instance: childInst, createdTasks } = await db.transaction(async (tx) => {
     const [created] = await tx.insert(workflowInstances).values({
@@ -313,6 +314,7 @@ async function spawnSubProcessChild(
       flowData,
       formData: childFormData,
       settings: flowData.settings,
+      starter: childStarter,
     });
     const [updated] = await tx.update(workflowInstances).set({
       status: materialized.rejected ? 'rejected' : (materialized.finished ? 'approved' : 'running'),
@@ -620,7 +622,7 @@ async function getCompletedNodeKeys(exec: DbExecutor, instanceId: number): Promi
 
 async function materializeAdvanceResult(
   initial: AdvanceResult,
-  ctx: { instanceId: number; initiatorId: number; executor: DbExecutor; flowData: WorkflowFlowData; formData: Record<string, unknown>; settings?: WorkflowFlowData['settings']; selectedNextApprovers?: number[] },
+  ctx: { instanceId: number; initiatorId: number; executor: DbExecutor; flowData: WorkflowFlowData; formData: Record<string, unknown>; settings?: WorkflowFlowData['settings']; selectedNextApprovers?: number[]; starter?: WorkflowStarterContext },
 ): Promise<{ createdTasks: typeof workflowTasks.$inferSelect[]; finished: boolean; rejected: boolean; currentNodeKeys: string[] }> {
   const createdTasks: typeof workflowTasks.$inferSelect[] = [];
   const pendingResults: AdvanceResult[] = [initial];
@@ -636,7 +638,7 @@ async function materializeAdvanceResult(
       if (!autoNodeKey || processedAutoKeys.has(autoNodeKey)) continue;
       processedAutoKeys.add(autoNodeKey);
       const completedKeys = await getCompletedNodeKeys(ctx.executor, ctx.instanceId);
-      pendingResults.push(advanceFlow(ctx.flowData, autoNodeKey, ctx.formData, completedKeys));
+      pendingResults.push(advanceFlow(ctx.flowData, autoNodeKey, ctx.formData, completedKeys, ctx.starter));
       continue;
     }
 
@@ -968,7 +970,8 @@ export async function createInstance(data: { definitionId: number; title: string
   if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
   const formData: Record<string, unknown> = data.formData ?? {};
   const formSnapshot = await resolveFormSnapshot(def.formId);
-  const initialResult = getInitialTasks(flowData, formData);
+  const starter = await buildStarterContext(user.userId);
+  const initialResult = getInitialTasks(flowData, formData, starter);
   if (initialResult.tasksToCreate.length === 0 && !initialResult.finished && !initialResult.rejected) {
     throw new HTTPException(400, { message: '流程定义中无可执行节点' });
   }
@@ -991,6 +994,7 @@ export async function createInstance(data: { definitionId: number; title: string
       flowData,
       formData,
       settings: flowData.settings,
+      starter,
     });
     const [updatedInstance] = await tx.update(workflowInstances).set({
       status: materialized.rejected ? 'rejected' : (materialized.finished ? 'approved' : 'running'),
@@ -1136,7 +1140,8 @@ export async function approveTaskCore(
     const completedKeys = new Set(allTasks.map((t) => t.nodeKey));
     completedKeys.add('start');
     const formData = (inst.formData ?? {}) as Record<string, unknown>;
-    const advanceResult = advanceFlow(flowData, task.nodeKey, formData, completedKeys);
+    const starter = await buildStarterContext(inst.initiatorId, tx);
+    const advanceResult = advanceFlow(flowData, task.nodeKey, formData, completedKeys, starter);
     const materialized = await materializeAdvanceResult(advanceResult, {
       instanceId: inst.id,
       initiatorId: inst.initiatorId,
@@ -1145,6 +1150,7 @@ export async function approveTaskCore(
       formData,
       settings: flowData.settings,
       selectedNextApprovers: options?.selectedNextApprovers,
+      starter,
     });
 
     if (materialized.rejected) {
@@ -1343,10 +1349,11 @@ export async function rejectTaskCore(
 
     // 回退：实例保持 running，在目标节点重新生成任务
     const formData = (inst.formData ?? {}) as Record<string, unknown>;
+    const starter = await buildStarterContext(inst.initiatorId, tx);
     let advanceResult: AdvanceResult | null = null;
 
     if (strategy === 'returnStart') {
-      advanceResult = getInitialTasks(flowData, formData);
+      advanceResult = getInitialTasks(flowData, formData, starter);
     } else {
       const targetCfg = flowData.nodes.find((n) => n.data.key === targetNodeKey)?.data;
       if (targetCfg && (targetCfg.type === 'approve' || targetCfg.type === 'handler')) {
@@ -1380,6 +1387,7 @@ export async function rejectTaskCore(
       flowData,
       formData,
       settings: flowData.settings,
+      starter,
     });
 
     if (materialized.rejected) {
@@ -1550,6 +1558,40 @@ export async function transferTask(taskId: number, targetUserId: number, comment
   emitTaskEvent('task.transferred', mapTask(updated, target.nickname),
     { definitionId: inst.definitionId, tenantId: inst.tenantId, actor, comment: transferComment });
   return mapTask(updated, target.nickname);
+}
+
+/**
+ * 系统级转交（超时升级专用）：将任务转交给上级，重置提醒计数并按超时配置重新计时。
+ * 不做归属校验，由超时处理器以系统身份调用；上级解析失败时由调用方兜底。
+ */
+export async function systemTransferTaskToManager(
+  task: typeof workflowTasks.$inferSelect,
+  inst: typeof workflowInstances.$inferSelect,
+  managerId: number,
+  newTimeoutAt: Date | null,
+  comment: string,
+): Promise<void> {
+  const [target] = await db.select({ nickname: users.nickname })
+    .from(users).where(eq(users.id, managerId)).limit(1);
+  const chain: number[] = Array.isArray(task.transferChain) ? task.transferChain : [];
+  const nextChain = task.assigneeId ? [...new Set([...chain, task.assigneeId])] : chain;
+  const [updated] = await db.update(workflowTasks)
+    .set({
+      assigneeId: managerId,
+      comment,
+      transferChain: nextChain,
+      originalAssigneeId: task.originalAssigneeId ?? task.assigneeId ?? null,
+      timeoutRemindCount: 0,
+      timeoutAt: newTimeoutAt,
+    })
+    .where(eq(workflowTasks.id, task.id))
+    .returning();
+  emitTaskEvent('task.transferred', mapTask(updated, target?.nickname ?? null), {
+    definitionId: inst.definitionId,
+    tenantId: inst.tenantId,
+    actor: { userId: 0, name: 'system:timeout' },
+    comment,
+  });
 }
 
 /** 委派：与转办类似，但语义为"临时代办"，反馈后原 assignee 会接到回执确认任务 */

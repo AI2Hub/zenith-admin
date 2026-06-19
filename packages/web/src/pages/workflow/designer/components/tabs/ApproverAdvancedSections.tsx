@@ -214,6 +214,39 @@ export default function ApproverAdvancedSections({
               />
             </div>
           )}
+
+          {timeoutAction === 'remind' && (
+            <div>
+              <Typography.Text size="small" style={{ display: 'block', marginBottom: 8, color: 'var(--semi-color-text-1)' }}>
+                提醒耗尽后
+              </Typography.Text>
+              <Select
+                value={timeout?.escalateAction ?? 'none'}
+                onChange={(v) => handleTimeoutChange({ escalateAction: v as TimeoutConfig['escalateAction'] })}
+                style={{ width: '100%' }}
+                optionList={[
+                  { value: 'none', label: '不处理（保持挂起，等待人工）' },
+                  { value: 'autoApprove', label: '自动同意' },
+                  { value: 'autoReject', label: '自动拒绝' },
+                  { value: 'transferToManager', label: '转交给上级处理' },
+                ]}
+              />
+              {timeout?.escalateAction === 'transferToManager' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                  <span style={{ fontSize: 13 }}>上级层级</span>
+                  <InputNumber
+                    value={timeout?.escalateManagerLevel ?? 1}
+                    onChange={(v) => handleTimeoutChange({ escalateManagerLevel: Number(v) || 1 })}
+                    min={1}
+                    max={10}
+                    style={{ width: 110 }}
+                    suffix="级"
+                  />
+                  <Typography.Text type="tertiary" size="small">1 = 直属上级</Typography.Text>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

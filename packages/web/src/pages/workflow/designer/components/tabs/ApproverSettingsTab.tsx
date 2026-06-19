@@ -126,7 +126,7 @@ export default function ApproverSettingsTab({
   const approverNodes = allNodes.filter(n => n.type === 'approver' || n.type === 'handler');
 
   // 自选范围的可选项（共用：initiatorSelectScope / approverSelect）
-  let selectScopeOptions: Array<{ value: number; label: string }> = [];
+  let selectScopeOptions: Array<{ value: number; label: string }>;
   if (selectScopeType === 'user') selectScopeOptions = users.map(u => ({ value: u.id, label: u.nickname }));
   else if (selectScopeType === 'role') selectScopeOptions = roles.map(r => ({ value: r.id, label: r.name }));
   else if (selectScopeType === 'department') selectScopeOptions = departments.map(d => ({ value: d.id, label: d.name }));

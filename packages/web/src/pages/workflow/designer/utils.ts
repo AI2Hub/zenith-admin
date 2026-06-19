@@ -436,6 +436,7 @@ interface FlatEdge {
     field: string;
     operator: string;
     value: string | number | boolean;
+    source?: 'form' | 'starter';
   } | null;
   conditions?: Array<{
     type: 'and' | 'or';
@@ -443,6 +444,7 @@ interface FlatEdge {
       field: string;
       operator: string;
       value: string | number | boolean;
+      source?: 'form' | 'starter';
     }>;
   }> | null;
   isDefault?: boolean;
