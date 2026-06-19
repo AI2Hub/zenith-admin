@@ -55,7 +55,11 @@ function buildAdjacency(flowData: WorkflowFlowData) {
 function parseIdList(value: string | number | boolean): number[] {
   if (typeof value === 'number') return Number.isFinite(value) ? [value] : [];
   if (typeof value === 'string') {
-    return value.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n));
+    return value.split(',')
+      .map((s) => s.trim())
+      .filter((s) => s !== '')
+      .map(Number)
+      .filter((n) => Number.isFinite(n));
   }
   return [];
 }

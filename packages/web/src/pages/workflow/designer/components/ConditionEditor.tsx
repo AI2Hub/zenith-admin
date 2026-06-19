@@ -314,9 +314,13 @@ export default function ConditionEditor({
 
 /** 解析逗号分隔的 ID 字符串为 number[] */
 function parseIdValue(value: string | number | boolean): number[] {
-  if (typeof value === 'number') return [value];
+  if (typeof value === 'number') return Number.isFinite(value) ? [value] : [];
   if (typeof value === 'string') {
-    return value.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n));
+    return value.split(',')
+      .map((s) => s.trim())
+      .filter((s) => s !== '')
+      .map(Number)
+      .filter((n) => Number.isFinite(n));
   }
   return [];
 }
