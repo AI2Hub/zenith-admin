@@ -1129,6 +1129,135 @@ button.fd-node-card {
   padding: 4px 0;
 }
 
+/* ─── 钉钉式分区分割线（短线 + 标题 + 长线） ───────────────────────── */
+
+.fd-section-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 14px;
+}
+
+.fd-section-divider::before {
+  content: '';
+  width: 28px;
+  height: 1px;
+  background: var(--semi-color-border);
+  flex-shrink: 0;
+}
+
+.fd-section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--semi-color-border);
+}
+
+.fd-section-divider__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--semi-color-text-0);
+  white-space: nowrap;
+}
+
+/* ─── 必填字段标签 ─────────────────────────────────────────────────── */
+
+.fd-field-label {
+  font-size: 13px;
+  color: var(--semi-color-text-0);
+  margin-bottom: 8px;
+}
+
+.fd-field-label__req {
+  color: var(--semi-color-danger);
+  margin-right: 4px;
+}
+
+/* ─── 开关行（关闭 / 开关 / 开启） ─────────────────────────────────── */
+
+.fd-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fd-switch-row__txt {
+  font-size: 14px;
+  color: var(--semi-color-text-2);
+  transition: color 0.15s;
+}
+
+.fd-switch-row__txt--active {
+  color: var(--semi-color-primary);
+  font-weight: 500;
+}
+
+/* ─── 超时时间内联（当超过 N 单位 未处理） ─────────────────────────── */
+
+.fd-timeout-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--semi-color-text-0);
+}
+
+/* ─── 满宽分段按钮（执行动作） ─────────────────────────────────────── */
+
+.fd-segmented-full {
+  display: flex;
+  width: 100%;
+}
+
+.fd-segmented-full .semi-radio {
+  flex: 1;
+}
+
+.fd-segmented-full .semi-radio .semi-radio-addon {
+  display: block;
+  text-align: center;
+}
+
+/* ─── 横向步进器 −/[n]/+ ───────────────────────────────────────────── */
+
+.fd-stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 6px;
+  overflow: hidden;
+  height: 32px;
+}
+
+.fd-stepper__btn {
+  width: 36px;
+  height: 100%;
+  border: none;
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.fd-stepper__btn:hover:not(:disabled) {
+  background: var(--semi-color-fill-1);
+}
+
+.fd-stepper__btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.fd-stepper__value {
+  min-width: 56px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--semi-color-text-0);
+}
+
 /* ─── 第二步·表单选择面板 ─────────────────────────────────────────── */
 
 .fd-form-selector {

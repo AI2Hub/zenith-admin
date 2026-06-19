@@ -4,13 +4,24 @@
  * 连续多级上级、连续多级部门负责人、节点审批人、用户组、表单内部门
  */
 import { Form, Select, InputNumber, Typography, RadioGroup, Radio, Tooltip, Checkbox, TextArea } from '@douyinfe/semi-ui';
-import type { AssigneeType, ApproveMethod, ApprovalType, FlowNodeType } from '../../types';
+import type {
+  AssigneeType,
+  ApproveMethod,
+  ApprovalType,
+  FlowNodeType,
+  RejectStrategy,
+  EmptyAssigneeStrategy,
+  TimeoutConfig,
+  SameInitiatorStrategy,
+  DeduplicateStrategy,
+} from '../../types';
 import {
   ASSIGNEE_TYPE_OPTIONS,
   APPROVE_METHOD_OPTIONS,
   APPROVAL_TYPE_OPTIONS,
 } from '../../constants';
 import { CircleHelp } from 'lucide-react';
+import ApproverAdvancedSections from './ApproverAdvancedSections';
 
 interface UserOption { id: number; nickname: string; }
 interface RoleOption { id: number; name: string; }
@@ -44,6 +55,16 @@ interface ApproverSettingsTabProps {
   selectScopeType?: SelectScopeType;
   selectScopeIds?: number[];
   assigneeExpression?: string;
+  // ── 高级（仅审批人）：拒绝 / 超时 / 为空 / 同一人 / 去重 ──
+  rejectStrategy?: RejectStrategy;
+  rejectToNodeKey?: string;
+  availableRejectNodes?: Array<{ id: string; key?: string; name: string; type: string }>;
+  emptyStrategy?: EmptyAssigneeStrategy;
+  emptyAssignTo?: number;
+  emptyAssignToIds?: number[];
+  sameInitiatorStrategy?: SameInitiatorStrategy;
+  deduplicateStrategy?: DeduplicateStrategy;
+  timeout?: TimeoutConfig;
   users: UserOption[];
   roles: RoleOption[];
   userGroups?: UserGroupOption[];
@@ -78,6 +99,15 @@ export default function ApproverSettingsTab({
   selectScopeType = 'user',
   selectScopeIds = [],
   assigneeExpression = '',
+  rejectStrategy = 'terminate',
+  rejectToNodeKey,
+  availableRejectNodes = [],
+  emptyStrategy = 'autoApprove',
+  emptyAssignTo,
+  emptyAssignToIds,
+  sameInitiatorStrategy = 'selfApprove',
+  deduplicateStrategy = 'autoSkip',
+  timeout,
   users,
   roles,
   userGroups = [],
@@ -554,6 +584,23 @@ export default function ApproverSettingsTab({
                 </Form.Slot>
               )}
             </>
+          )}
+
+          {/* 高级分区（仅审批人节点）：拒绝 / 超时 / 为空 / 同一人 / 去重 */}
+          {isApprover && (
+            <ApproverAdvancedSections
+              rejectStrategy={rejectStrategy}
+              rejectToNodeKey={rejectToNodeKey}
+              availableRejectNodes={availableRejectNodes}
+              emptyStrategy={emptyStrategy}
+              emptyAssignTo={emptyAssignTo}
+              emptyAssignToIds={emptyAssignToIds}
+              sameInitiatorStrategy={sameInitiatorStrategy}
+              deduplicateStrategy={deduplicateStrategy}
+              timeout={timeout}
+              users={users}
+              onChange={onChange}
+            />
           )}
         </>
       )}

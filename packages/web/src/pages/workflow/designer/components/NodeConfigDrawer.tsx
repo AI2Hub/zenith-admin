@@ -17,7 +17,6 @@ import ApproverSettingsTab from './tabs/ApproverSettingsTab';
 import FormPermissionTab from './tabs/FormPermissionTab';
 import OperationPermissionTab from './tabs/OperationPermissionTab';
 import ActionButtonsTab from './tabs/ActionButtonsTab';
-import AdvancedSettingsTab from './tabs/AdvancedSettingsTab';
 import NodeListenersTab from './tabs/NodeListenersTab';
 
 interface UserOption { id: number; nickname: string; }
@@ -139,7 +138,6 @@ export default function NodeConfigDrawer({
   const hasAssigneeSettings = isApprover || isHandler || isCc;
   const hasFormPermission = isApprover || isHandler || isCc || isInitiator;
   const hasOperationPermission = isApprover;
-  const hasAdvancedSettings = isApprover;
 
   return (
     <SideSheet
@@ -220,6 +218,15 @@ export default function NodeConfigDrawer({
                   selectScopeType={(props.selectScopeType as 'user' | 'role' | 'department' | 'userGroup') ?? 'user'}
                   selectScopeIds={(props.selectScopeIds as number[]) ?? []}
                   assigneeExpression={(props.assigneeExpression as string) ?? ''}
+                  rejectStrategy={(props.rejectStrategy as RejectStrategy) ?? 'terminate'}
+                  rejectToNodeKey={props.rejectToNodeKey as string | undefined}
+                  availableRejectNodes={rejectableAncestorNodes}
+                  emptyStrategy={(props.emptyStrategy as EmptyAssigneeStrategy) ?? 'autoApprove'}
+                  emptyAssignTo={props.emptyAssignTo as number | undefined}
+                  emptyAssignToIds={props.emptyAssignToIds as number[] | undefined}
+                  sameInitiatorStrategy={(props.sameInitiatorStrategy as SameInitiatorStrategy) ?? 'selfApprove'}
+                  deduplicateStrategy={(props.deduplicateStrategy as DeduplicateStrategy) ?? 'autoSkip'}
+                  timeout={props.timeout as TimeoutConfig | undefined}
                   users={users}
                   roles={roles}
                   userGroups={userGroups}
@@ -363,25 +370,6 @@ export default function NodeConfigDrawer({
                 value={props.actionButtons as ActionButtonsConfig | undefined}
                 onChange={(next) => handlePropsChange({ actionButtons: next })}
                 jumpTargetNodes={rejectableAncestorNodes}
-              />
-            </TabPane>
-          )}
-
-          {/* 高级设置 Tab（仅审批人） */}
-          {hasAdvancedSettings && (
-            <TabPane tab="高级设置" itemKey="advanced">
-              <AdvancedSettingsTab
-                rejectStrategy={(props.rejectStrategy as RejectStrategy) ?? 'terminate'}
-                rejectToNodeKey={props.rejectToNodeKey as string | undefined}
-                availableRejectNodes={rejectableAncestorNodes}
-                emptyStrategy={(props.emptyStrategy as EmptyAssigneeStrategy) ?? 'autoApprove'}
-                emptyAssignTo={props.emptyAssignTo as number | undefined}
-                emptyAssignToIds={props.emptyAssignToIds as number[] | undefined}
-                sameInitiatorStrategy={(props.sameInitiatorStrategy as SameInitiatorStrategy) ?? 'selfApprove'}
-                deduplicateStrategy={(props.deduplicateStrategy as DeduplicateStrategy) ?? 'autoSkip'}
-                timeout={props.timeout as TimeoutConfig | undefined}
-                users={users}
-                onChange={handlePropsChange}
               />
             </TabPane>
           )}
