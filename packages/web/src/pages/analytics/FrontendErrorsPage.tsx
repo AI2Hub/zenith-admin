@@ -71,7 +71,6 @@ import type {
 } from '@zenith/shared';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { usePageTracker } from '@/hooks/usePageTracker';
 import { usePagination } from '@/hooks/usePagination';
 import { formatDateTime } from '@/utils/date';
 import { request } from '@/utils/request';
@@ -345,7 +344,6 @@ function BreadcrumbTimeline({ breadcrumbs }: { readonly breadcrumbs: ErrorBreadc
 }
 
 export default function FrontendErrorsPage() {
-  usePageTracker('前端错误监控');
 
   const [activeTab, setActiveTab] = useState<TabKey>('issues');
 

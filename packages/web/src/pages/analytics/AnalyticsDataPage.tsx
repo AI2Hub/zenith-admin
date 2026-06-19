@@ -28,7 +28,6 @@ import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { Search, RotateCcw, Plus, Download, Trash2, ChevronDown } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { usePageTracker } from '@/hooks/usePageTracker';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { request } from '@/utils/request';
 import type {
@@ -202,8 +201,6 @@ function MetaStatusTag({ value }: Readonly<{ value: AnalyticsEventMeta['status']
 }
 
 export default function AnalyticsDataPage() {
-  usePageTracker('埋点数据管理');
-
   const [activeTab, setActiveTab] = useState<'events' | 'meta' | 'rollup' | 'settings'>('events');
 
   const [events, setEvents] = useState<EventListItem[]>([]);

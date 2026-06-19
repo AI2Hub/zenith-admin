@@ -37,7 +37,6 @@ import {
 } from 'recharts';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { usePageTracker } from '@/hooks/usePageTracker';
 import { formatDateTime } from '@/utils/date';
 import { request } from '@/utils/request';
 import type {
@@ -1127,8 +1126,6 @@ function HeatmapTab() {
 }
 
 export default function AnalyticsPage() {
-  usePageTracker('行为分析');
-
   return (
     <div className="page-container">
       <Tabs type="line" lazyRender>
