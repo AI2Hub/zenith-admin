@@ -12,8 +12,6 @@ import {
   DollarSign,
   Paperclip,
   ImageIcon,
-  User,
-  Building2,
   Table,
   FileText,
   ListOrdered,
@@ -30,6 +28,14 @@ import {
   Clock,
   PenTool,
   TextQuote,
+  Circle,
+  SquareCheck,
+  ToggleRight,
+  SlidersHorizontal,
+  Tags,
+  Users,
+  Network,
+  BookMarked,
   type LucideIcon,
 } from 'lucide-react';
 import type { WorkflowFormFieldType } from '@zenith/shared';
@@ -50,11 +56,18 @@ export const FORM_FIELD_TYPES: FormFieldTypeInfo[] = [
   { type: 'textarea',     label: '多行文本', icon: AlignLeft,     group: '基础控件', description: '多行文本输入' },
   { type: 'number',       label: '数字',     icon: Hash,          group: '基础控件', description: '数字输入' },
   { type: 'amount',       label: '金额',     icon: DollarSign,    group: '基础控件', description: '金额，支持币种设置' },
-  { type: 'select',       label: '单选',     icon: CircleDot,     group: '基础控件', description: '单选下拉' },
-  { type: 'multiSelect',  label: '多选',     icon: ListChecks,    group: '基础控件', description: '多选下拉' },
   { type: 'date',         label: '日期',     icon: Calendar,      group: '基础控件', description: '日期选择' },
   { type: 'dateRange',    label: '日期区间', icon: CalendarRange,  group: '基础控件', description: '起止日期选择' },
   { type: 'time',         label: '时间',     icon: Clock,         group: '基础控件', description: '时间选择' },
+
+  // 选择控件
+  { type: 'select',       label: '下拉单选', icon: CircleDot,     group: '选择控件', description: '下拉单选' },
+  { type: 'multiSelect',  label: '下拉多选', icon: ListChecks,    group: '选择控件', description: '下拉多选' },
+  { type: 'radio',        label: '单选框组', icon: Circle,        group: '选择控件', description: '单选框（横向排列）' },
+  { type: 'checkbox',     label: '复选框组', icon: SquareCheck,   group: '选择控件', description: '复选框（横向排列）' },
+  { type: 'switch',       label: '开关',     icon: ToggleRight,   group: '选择控件', description: '是 / 否 开关' },
+  { type: 'slider',       label: '滑块',     icon: SlidersHorizontal, group: '选择控件', description: '滑块数值选择' },
+  { type: 'tags',         label: '标签',     icon: Tags,          group: '选择控件', description: '多标签录入' },
 
   // 格式化控件
   { type: 'phone',        label: '手机号',   icon: Phone,         group: '格式化控件', description: '手机号码，含格式校验' },
@@ -64,11 +77,14 @@ export const FORM_FIELD_TYPES: FormFieldTypeInfo[] = [
   { type: 'rate',         label: '评分',     icon: Star,          group: '格式化控件', description: '星级评分' },
   { type: 'formula',      label: '公式',     icon: Sigma,         group: '格式化控件', description: '从其他字段自动计算' },
 
+  // 系统组件（与当前系统集成）
+  { type: 'userSelect',   label: '用户选择器', icon: Users,       group: '系统组件', description: '选择系统用户（人员）' },
+  { type: 'deptSelect',   label: '部门选择器', icon: Network,     group: '系统组件', description: '选择组织部门' },
+  { type: 'dictSelect',   label: '字典选择器', icon: BookMarked,  group: '系统组件', description: '选择数据字典项' },
+
   // 高级控件
   { type: 'attachment',   label: '附件',     icon: Paperclip,     group: '高级控件', description: '上传附件' },
   { type: 'image',        label: '图片',     icon: ImageIcon,     group: '高级控件', description: '上传图片' },
-  { type: 'contact',      label: '联系人',   icon: User,          group: '高级控件', description: '选择人员' },
-  { type: 'department',   label: '部门',     icon: Building2,     group: '高级控件', description: '选择部门' },
   { type: 'region',       label: '省市区',   icon: MapPin,        group: '高级控件', description: '省市区联动选择' },
   { type: 'signature',    label: '手写签名', icon: PenTool,       group: '高级控件', description: '手写签名板' },
   { type: 'richtext',     label: '富文本',   icon: TextQuote,     group: '高级控件', description: '富文本编辑器' },

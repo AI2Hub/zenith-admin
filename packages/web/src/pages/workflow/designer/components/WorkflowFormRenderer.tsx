@@ -11,6 +11,9 @@ import type { WorkflowFormField, WorkflowFormFieldColumn, WorkflowFieldVisibilit
 import { CURRENCY_OPTIONS } from '../form-types';
 import RegionSelect from '@/components/RegionSelect';
 import RichTextEditor from '@/components/RichTextEditor';
+import UserSelect from '@/components/UserSelect';
+import DepartmentSelect from '@/components/DepartmentSelect';
+import DictSelect from '@/components/DictSelect';
 
 const PHONE_REGEX = /^1[3-9]\d{9}$/;
 const EMAIL_REGEX = /^[\w.+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
@@ -137,6 +140,9 @@ function SignaturePad({ value, onChange, disabled, width = 360, height = 150 }: 
 const FormRegion = withField(RegionSelect);
 const FormRichText = withField(RichTextEditor);
 const FormSignature = withField(SignaturePad);
+const FormUserSelect = withField(UserSelect);
+const FormDeptSelect = withField(DepartmentSelect);
+const FormDictSelect = withField(DictSelect);
 
 export function flattenFields(fields: WorkflowFormField[]): WorkflowFormField[] {
   const out: WorkflowFormField[] = [];
@@ -587,6 +593,76 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
       );
     }
 
+    case 'radio': {
+      let options = field.options ?? [];
+      if (field.optionsFrom) {
+        const pv = values[field.optionsFrom.sourceKey];
+        options = typeof pv === 'string' ? (field.optionsFrom.mapping[pv] ?? []) : [];
+      }
+      return (
+        <Form.RadioGroup
+          field={field.key} label={field.label}
+          initValue={field.defaultValue} rules={rules} disabled={disabled}
+          options={options.map(opt => ({ label: opt, value: opt }))}
+          {...extraProps}
+        />
+      );
+    }
+
+    case 'checkbox': {
+      let options = field.options ?? [];
+      if (field.optionsFrom) {
+        const pv = values[field.optionsFrom.sourceKey];
+        options = typeof pv === 'string' ? (field.optionsFrom.mapping[pv] ?? []) : [];
+      }
+      return (
+        <Form.CheckboxGroup
+          field={field.key} label={field.label}
+          direction="horizontal"
+          rules={rules} disabled={disabled}
+          options={options.map(opt => ({ label: opt, value: opt }))}
+          {...extraProps}
+        />
+      );
+    }
+
+    case 'switch':
+      return (
+        <Form.Switch
+          field={field.key} label={field.label}
+          initValue={field.defaultValue === true}
+          disabled={disabled}
+          {...extraProps}
+        />
+      );
+
+    case 'slider': {
+      const sMin = field.min ?? 0;
+      const sMax = field.max ?? 100;
+      return (
+        <Form.Slider
+          field={field.key} label={numberLabel}
+          min={sMin} max={sMax} step={field.step ?? 1}
+          marks={field.sliderMarks ? { [sMin]: String(sMin), [sMax]: String(sMax) } : undefined}
+          initValue={field.defaultValue}
+          disabled={disabled}
+          {...extraProps}
+        />
+      );
+    }
+
+    case 'tags':
+      return (
+        <Form.TagInput
+          field={field.key} label={field.label}
+          placeholder={field.placeholder ?? `请输入${field.label}后回车`}
+          max={field.maxCount}
+          initValue={field.defaultValue}
+          rules={rules} disabled={disabled}
+          {...extraProps}
+        />
+      );
+
     case 'attachment':
     case 'image':
       return (
@@ -607,26 +683,41 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
         </div>
       );
 
-    case 'contact':
+    case 'userSelect':
       return (
-        <Form.Select
+        <FormUserSelect
           field={field.key} label={field.label}
-          placeholder="请选择联系人" style={{ width: '100%' }}
-          rules={rules} disabled
-        >
-          <Select.Option value="demo">（联系人选择器）</Select.Option>
-        </Form.Select>
+          multiple={field.multiple}
+          placeholder={field.placeholder ?? '请选择人员'}
+          initValue={field.defaultValue}
+          rules={rules} disabled={disabled}
+          {...extraProps}
+        />
       );
 
-    case 'department':
+    case 'deptSelect':
       return (
-        <Form.Select
+        <FormDeptSelect
           field={field.key} label={field.label}
-          placeholder="请选择部门" style={{ width: '100%' }}
-          rules={rules} disabled
-        >
-          <Select.Option value="demo">（部门选择器）</Select.Option>
-        </Form.Select>
+          multiple={field.multiple}
+          placeholder={field.placeholder ?? '请选择部门'}
+          initValue={field.defaultValue}
+          rules={rules} disabled={disabled}
+          {...extraProps}
+        />
+      );
+
+    case 'dictSelect':
+      return (
+        <FormDictSelect
+          field={field.key} label={field.label}
+          dictCode={field.dictCode}
+          multiple={field.multiple}
+          placeholder={field.placeholder ?? '请选择'}
+          initValue={field.defaultValue}
+          rules={rules} disabled={disabled}
+          {...extraProps}
+        />
       );
 
     case 'description':

@@ -102,7 +102,7 @@ export default function ApproverSettingsTab({
   else if (selectScopeType === 'department') selectScopeOptions = departments.map(d => ({ value: d.id, label: d.name }));
   else selectScopeOptions = userGroups.map(g => ({ value: g.id, label: g.name }));
   // 部门类型字段（用于"表单内部门"类型）
-  const deptFields = formFields.filter(f => f.type === 'department');
+  const deptFields = formFields.filter(f => f.type === 'deptSelect');
 
   return (
     <div className="fd-drawer-tab-content">

@@ -1,10 +1,11 @@
 /**
  * 右侧字段属性配置面板
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button, Input, InputNumber, Select, Switch, Typography, TextArea, TagInput, RadioGroup, Radio } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
-import type { WorkflowFormField, WorkflowFormFieldType, WorkflowFieldVisibilityCondition } from '@zenith/shared';
+import type { WorkflowFormField, WorkflowFormFieldType, WorkflowFieldVisibilityCondition, Dict, PaginatedResponse } from '@zenith/shared';
+import { request } from '@/utils/request';
 import { CURRENCY_OPTIONS, DATE_FORMAT_OPTIONS, TIME_FORMAT_OPTIONS, REGION_LEVEL_OPTIONS, COLUMN_SPAN_OPTIONS, FORM_FIELD_TYPES } from '../form-types';
 
 interface FieldConfigPanelProps {
@@ -37,7 +38,8 @@ export default function FieldConfigPanel({
     f => f.key !== field.key && (f.type === 'select' || f.type === 'multiSelect' || f.type === 'number' || f.type === 'text')
   );
 
-  const hasOptions = field.type === 'select' || field.type === 'multiSelect';
+  const hasOptions = field.type === 'select' || field.type === 'multiSelect' || field.type === 'radio' || field.type === 'checkbox';
+  const supportsCascade = field.type === 'select' || field.type === 'multiSelect';
   const hasChildren = field.type === 'detail';
   const isDescription = field.type === 'description';
   const isSerialNumber = field.type === 'serialNumber';
@@ -54,10 +56,17 @@ export default function FieldConfigPanel({
   const isRegion = field.type === 'region';
   const isSignature = field.type === 'signature';
   const isRichText = field.type === 'richtext';
-  const isSpecialInput = isTime || isRegion || isSignature || isRichText;
+  const isSwitch = field.type === 'switch';
+  const isSlider = field.type === 'slider';
+  const isTags = field.type === 'tags';
+  const isUserSelect = field.type === 'userSelect';
+  const isDeptSelect = field.type === 'deptSelect';
+  const isDictSelect = field.type === 'dictSelect';
+  const isSystemSelect = isUserSelect || isDeptSelect || isDictSelect;
+  const isSpecialInput = isTime || isRegion || isSignature || isRichText || isSwitch || isSlider || isTags || isSystemSelect;
   // 支持响应式列宽 / 只读 / 隐藏的普通输入字段（排除布局类与纯展示类）
   const supportsLayoutState = !isLayout && !isDescription && !isSerialNumber;
-  const showValidationTab = !isDescription && !isSerialNumber && !isLayout && !isFileType && field.type !== 'contact' && field.type !== 'department' && field.type !== 'detail' && !isFormula && !isRate && !isDate && !isSpecialInput;
+  const showValidationTab = !isDescription && !isSerialNumber && !isLayout && !isFileType && field.type !== 'detail' && !isFormula && !isRate && !isDate && !isSpecialInput;
 
   return (
     <div className="fd-form-config">
@@ -111,8 +120,8 @@ export default function FieldConfigPanel({
             />
           </div>
 
-          {/* 占位文字（非说明文字、流水号、布局类型） */}
-          {!isDescription && !isSerialNumber && !isLayout && (
+          {/* 占位文字（非说明文字、流水号、布局类型、开关、滑块） */}
+          {!isDescription && !isSerialNumber && !isLayout && !isSwitch && !isSlider && (
             <div className="fd-form-config__field">
               <Typography.Text strong size="small">提示文字</Typography.Text>
               <Input
@@ -123,8 +132,8 @@ export default function FieldConfigPanel({
             </div>
           )}
 
-          {/* 必填开关（非说明文字、流水号、布局类型） */}
-          {!isDescription && !isSerialNumber && !isLayout && !isFormula && (
+          {/* 必填开关（非说明文字、流水号、布局类型、公式、开关） */}
+          {!isDescription && !isSerialNumber && !isLayout && !isFormula && !isSwitch && (
             <div className="fd-form-config__field fd-form-config__field--inline">
               <Typography.Text strong size="small">必填</Typography.Text>
               <Switch
@@ -182,7 +191,7 @@ export default function FieldConfigPanel({
           )}
 
           {/* 级联：选项依赖父字段 */}
-          {hasOptions && (
+          {supportsCascade && (
             <CascadeEditor
               field={field}
               allFields={allFields}
@@ -328,6 +337,97 @@ export default function FieldConfigPanel({
                 placeholder="请选择层级"
                 style={{ width: '100%' }}
                 optionList={REGION_LEVEL_OPTIONS}
+              />
+            </div>
+          )}
+
+          {/* 开关默认值 */}
+          {isSwitch && (
+            <div className="fd-form-config__field fd-form-config__field--inline">
+              <Typography.Text strong size="small">默认开启</Typography.Text>
+              <Switch
+                checked={field.defaultValue === true}
+                onChange={(v) => onChange({ defaultValue: v })}
+                size="small"
+              />
+            </div>
+          )}
+
+          {/* 滑块范围 */}
+          {isSlider && (
+            <>
+              <div className="fd-form-config__field">
+                <Typography.Text strong size="small">最小值</Typography.Text>
+                <InputNumber
+                  value={field.min ?? 0}
+                  onChange={(v) => onChange({ min: v === undefined || v === '' ? 0 : Number(v) })}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div className="fd-form-config__field">
+                <Typography.Text strong size="small">最大值</Typography.Text>
+                <InputNumber
+                  value={field.max ?? 100}
+                  onChange={(v) => onChange({ max: v === undefined || v === '' ? 100 : Number(v) })}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div className="fd-form-config__field">
+                <Typography.Text strong size="small">步长</Typography.Text>
+                <InputNumber
+                  value={field.step ?? 1}
+                  onChange={(v) => onChange({ step: v === undefined || v === '' ? 1 : Number(v) })}
+                  min={0}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div className="fd-form-config__field fd-form-config__field--inline">
+                <Typography.Text strong size="small">显示刻度</Typography.Text>
+                <Switch
+                  checked={field.sliderMarks ?? false}
+                  onChange={(v) => onChange({ sliderMarks: v || undefined })}
+                  size="small"
+                />
+              </div>
+            </>
+          )}
+
+          {/* 标签最大数量 */}
+          {isTags && (
+            <div className="fd-form-config__field">
+              <Typography.Text strong size="small">最大标签数</Typography.Text>
+              <InputNumber
+                value={field.maxCount}
+                onChange={(v) => onChange({ maxCount: v === undefined || v === '' ? undefined : Number(v) })}
+                min={1}
+                placeholder="不限"
+                style={{ width: '100%' }}
+              />
+            </div>
+          )}
+
+          {/* 数据字典绑定 */}
+          {isDictSelect && (
+            <div className="fd-form-config__field">
+              <Typography.Text strong size="small">数据字典</Typography.Text>
+              <DictCodePicker
+                value={field.dictCode}
+                onChange={(code) => onChange({ dictCode: code })}
+              />
+              <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 4 }}>
+                运行时将展示所选字典的全部启用项
+              </Typography.Text>
+            </div>
+          )}
+
+          {/* 系统选择器：是否多选 */}
+          {isSystemSelect && (
+            <div className="fd-form-config__field fd-form-config__field--inline">
+              <Typography.Text strong size="small">允许多选</Typography.Text>
+              <Switch
+                checked={field.multiple ?? false}
+                onChange={(v) => onChange({ multiple: v || undefined })}
+                size="small"
               />
             </div>
           )}
@@ -594,6 +694,46 @@ export default function FieldConfigPanel({
         </div>
       )}
     </div>
+  );
+}
+
+// ─── 数据字典选择器（设计态：选择绑定哪个字典 code） ──────────────────
+
+interface DictOption { code: string; name: string }
+let dictListCache: DictOption[] | null = null;
+
+function DictCodePicker({
+  value,
+  onChange,
+}: Readonly<{ value?: string; onChange: (code: string | undefined) => void }>) {
+  const [dicts, setDicts] = useState<DictOption[]>(dictListCache ?? []);
+  const [loading, setLoading] = useState(!dictListCache);
+
+  useEffect(() => {
+    if (dictListCache) return;
+    setLoading(true);
+    request.get<PaginatedResponse<Dict>>('/api/dicts?page=1&pageSize=200', { silent: true })
+      .then((res) => {
+        if (res.code === 0 && res.data) {
+          const list = res.data.list.map((d) => ({ code: d.code, name: d.name }));
+          dictListCache = list;
+          setDicts(list);
+        }
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <Select
+      value={value || undefined}
+      onChange={(v) => onChange((v as string) || undefined)}
+      placeholder={loading ? '加载中...' : '请选择数据字典'}
+      filter
+      showClear
+      disabled={loading}
+      style={{ width: '100%' }}
+      optionList={dicts.map((d) => ({ value: d.code, label: `${d.name}（${d.code}）` }))}
+    />
   );
 }
 

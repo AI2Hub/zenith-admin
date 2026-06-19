@@ -1075,8 +1075,14 @@ export type WorkflowFormFieldType =
   | 'number'        // 数字
   | 'date'          // 日期
   | 'dateRange'     // 日期区间
-  | 'select'        // 单选
-  | 'multiSelect'   // 多选
+  | 'time'          // 时间
+  | 'select'        // 单选下拉
+  | 'multiSelect'   // 多选下拉
+  | 'radio'         // 单选框组
+  | 'checkbox'      // 复选框组
+  | 'switch'        // 开关
+  | 'slider'        // 滑块
+  | 'tags'          // 标签录入
   | 'amount'        // 金额
   | 'phone'         // 手机号
   | 'email'         // 邮箱
@@ -1086,12 +1092,12 @@ export type WorkflowFormFieldType =
   | 'formula'       // 公式计算
   | 'attachment'    // 附件
   | 'image'         // 图片
-  | 'contact'       // 联系人（人员选择）
-  | 'department'    // 部门选择
   | 'region'        // 省市区联动
-  | 'time'          // 时间
   | 'signature'     // 手写签名
   | 'richtext'      // 富文本
+  | 'userSelect'    // 用户选择器（系统集成）
+  | 'deptSelect'    // 部门选择器（系统集成）
+  | 'dictSelect'    // 数据字典选择器（系统集成）
   | 'detail'        // 明细/表格
   | 'description'   // 说明文字
   | 'serialNumber'  // 流水号
@@ -1165,6 +1171,11 @@ export interface WorkflowFormField {
   // 类型特定
   timeFormat?: string;                  // time 字段时间格式（默认 HH:mm）
   regionLevel?: 'province' | 'city' | 'district';  // region 字段选择层级深度
+  // 系统集成选择器（userSelect/deptSelect/dictSelect）
+  dictCode?: string;                    // dictSelect：绑定的数据字典 code
+  multiple?: boolean;                   // userSelect/deptSelect/dictSelect：是否允许多选
+  // slider 滑块
+  sliderMarks?: boolean;                // 是否显示刻度标记
 }
 
 // ─── 表单库 ─────────────────────────────────────────────────────────────────
