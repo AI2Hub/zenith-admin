@@ -244,7 +244,7 @@ export interface InitiatorNodeProps {
 
 // ─── 条件 ────────────────────────────────────────────────────────────
 
-export type ConditionOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'notIn' | 'contains';
+export type ConditionOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'notIn' | 'contains' | 'isEmpty' | 'isNotEmpty';
 
 export interface ConditionRule {
   field: string;

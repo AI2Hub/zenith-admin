@@ -19,6 +19,7 @@ interface FlowRendererProps {
   onAddBranch?: (branchNodeId: string) => void;
   onRemoveBranch?: (branchNodeId: string, branchId: string) => void;
   onEditBranch?: (branch: FlowBranch, branchNodeId: string) => void;
+  onMoveBranch?: (branchNodeId: string, branchId: string, direction: 'up' | 'down') => void;
   formFields?: ReadonlyArray<{ key: string; label: string; type?: string }>;
   readOnly?: boolean;
 }
@@ -35,6 +36,7 @@ export default function FlowRenderer({
   onAddBranch,
   onRemoveBranch,
   onEditBranch,
+  onMoveBranch,
   formFields,
   readOnly = false,
 }: Readonly<FlowRendererProps>) {
@@ -46,6 +48,7 @@ export default function FlowRenderer({
   const addBranch = onAddBranch ?? noop;
   const removeBranch = onRemoveBranch ?? noop;
   const editBranch = onEditBranch ?? noop;
+  const moveBranch = onMoveBranch ?? noop;
 
   function renderNodeChain(node: FlowNode | undefined, _parentId: string): React.ReactNode {
     if (!node) return null;
@@ -60,6 +63,7 @@ export default function FlowRenderer({
             onEditBranch={editBranch}
             onAddNodeInBranch={addInBranch}
             onDeleteNode={deleteNode}
+            onMoveBranch={moveBranch}
             onEditNode={editNode}
             formFields={formFields}
             renderChildren={(childNode, key) => renderNodeChain(childNode, key)}

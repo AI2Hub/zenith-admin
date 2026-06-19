@@ -594,6 +594,38 @@ body[theme-mode='dark'] .fd-branch-banner--inclusive {
   opacity: 1;
 }
 
+/* ─── 分支上移/下移（条件分支优先级调整） ─────────────────────────── */
+
+.fd-branch-move {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.fd-branch-move__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  color: var(--semi-color-text-2);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.fd-branch-move__btn:hover {
+  background: var(--semi-color-primary-light-default);
+  color: var(--semi-color-primary);
+}
+
+.fd-branch-move__btn--disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 /* ─── 汇聚连接线 ──────────────────────────────────────────────────── */
 
 .fd-merge-line {

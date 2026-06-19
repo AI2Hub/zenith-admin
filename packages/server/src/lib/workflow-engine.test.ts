@@ -235,6 +235,32 @@ describe('advanceFlow - parallel gateway', () => {
     const result = advanceFlow(flow, 'a-legal', {}, new Set(['start', 'fork1', 'a-finance', 'a-legal']));
     expect(result.finished).toBe(true);
   });
+
+  it('does not block the join when one parallel branch is empty (fork→join direct)', () => {
+    // 一条分支有节点(a-finance)，另一条为空（fork-p1 直连 join-p1）
+    const flow: WorkflowFlowData = {
+      nodes: [
+        { id: 'n1', position: { x: 0, y: 0 }, data: { key: 'start', type: 'start', label: '发起' } },
+        { id: 'n-fork', position: { x: 1, y: 0 }, data: { key: 'fork-p1', type: 'parallelGateway', label: '并行分叉' } },
+        { id: 'n-finance', position: { x: 2, y: 0 }, data: { key: 'a-finance', type: 'approve', label: '财务审批', assigneeId: 30 } },
+        { id: 'n-join', position: { x: 3, y: 0 }, data: { key: 'join-p1', type: 'parallelGateway', label: '并行汇聚' } },
+        { id: 'n-end', position: { x: 4, y: 0 }, data: { key: 'end', type: 'end', label: '结束' } },
+      ],
+      edges: [
+        { id: 'e1', source: 'n1', target: 'n-fork' },
+        { id: 'e2', source: 'n-fork', target: 'n-finance' },
+        { id: 'e3', source: 'n-fork', target: 'n-join' }, // 空分支
+        { id: 'e4', source: 'n-finance', target: 'n-join' },
+        { id: 'e5', source: 'n-join', target: 'n-end' },
+      ],
+    };
+    const init = getInitialTasks(flow);
+    expect(init.tasksToCreate.map(t => t.nodeKey)).toContain('a-finance');
+    expect(init.finished).toBe(false);
+    // 财务审批完成后应能汇聚并结束（空分支不卡死）
+    const result = advanceFlow(flow, 'a-finance', {}, new Set(['start', 'a-finance']));
+    expect(result.finished).toBe(true);
+  });
 });
 
 // ─── 测试抄送节点 ────────────────────────────────────────────────────────────
@@ -337,6 +363,17 @@ describe('validateFlowData', () => {
     const flow = makeExclusiveFlow();
     // Remove condition from edges
     flow.edges = flow.edges.map(e => ({ ...e, condition: undefined }));
+    const result = validateFlowData(flow);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('条件'))).toBe(true);
+  });
+
+  it('reports gateway with multiple condition-less (default-like) branches', () => {
+    const flow = makeExclusiveFlow();
+    // 追加一个"无条件且非默认"的分支 → 出现两个默认分支（静默坑）
+    flow.nodes.push({ id: 'n6', position: { x: 2, y: 2 }, data: { key: 'a-extra', type: 'approve', label: '额外审批', assigneeId: 50 } });
+    flow.edges.push({ id: 'e6', source: 'n2', target: 'n6' }); // 无条件、非默认
+    flow.edges.push({ id: 'e7', source: 'n6', target: 'n5' });
     const result = validateFlowData(flow);
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('条件'))).toBe(true);

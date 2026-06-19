@@ -286,6 +286,30 @@ export function addBranch(process: FlowProcess, branchNodeId: string, newBranch:
   return cloned;
 }
 
+/** 上移/下移分支（仅在非默认分支之间交换；默认分支始终保持末尾） */
+export function moveBranch(
+  process: FlowProcess,
+  branchNodeId: string,
+  branchId: string,
+  direction: 'up' | 'down',
+): FlowProcess {
+  const cloned = deepClone(process);
+  const node = findNodeById(cloned.initiator, branchNodeId);
+  if (!node?.branches) return cloned;
+  const branches = node.branches;
+  const idx = branches.findIndex(b => b.id === branchId);
+  if (idx < 0 || branches[idx].isDefault) return cloned;
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= branches.length) return cloned;
+  if (branches[swapIdx].isDefault) return cloned; // 不与默认分支交换位置
+  [branches[idx], branches[swapIdx]] = [branches[swapIdx], branches[idx]];
+  // 重新编号 priority（保持与展示一致）
+  branches.forEach((b, i) => {
+    if (node.type !== 'parallelBranch') b.priority = i + 1;
+  });
+  return cloned;
+}
+
 /** 删除分支 */
 export function removeBranch(process: FlowProcess, branchNodeId: string, branchId: string): FlowProcess {
   const cloned = deepClone(process);
@@ -522,6 +546,48 @@ export function validateRouteBranches(process: FlowProcess): string[] {
       }
     }
     if (!hasNonDefault) errors.push(`「${label}」至少需要一个非默认分支`);
+  });
+  return errors;
+}
+
+/**
+ * 校验条件 / 包容分支：每个非默认分支必须配置至少一个条件，
+ * 否则该分支会被当成默认分支抢先命中（静默坑）。
+ */
+export function validateConditionBranches(process: FlowProcess): string[] {
+  const errors: string[] = [];
+  traverseAll(process.initiator, (node) => {
+    if ((node.type !== 'conditionBranch' && node.type !== 'inclusiveBranch') || !node.branches) return;
+    const label = node.name || (node.type === 'conditionBranch' ? '条件分支' : '包容分支');
+    for (const b of node.branches) {
+      if (b.isDefault) continue;
+      const ruleCount = (b.conditions ?? []).reduce(
+        (sum, g) => sum + g.rules.filter(r => r.field !== '').length,
+        0,
+      );
+      if (ruleCount === 0) {
+        errors.push(`「${label} / ${b.name}」未配置任何条件`);
+      }
+    }
+  });
+  return errors;
+}
+
+/**
+ * 校验并行 / 包容分支：分支不能为空（无任何节点），否则运行时汇聚会卡死。
+ * 包容分支的默认分支允许为空（作为"无操作"兜底）。
+ */
+export function validateBranchChildren(process: FlowProcess): string[] {
+  const errors: string[] = [];
+  traverseAll(process.initiator, (node) => {
+    if ((node.type !== 'parallelBranch' && node.type !== 'inclusiveBranch') || !node.branches) return;
+    const label = node.name || (node.type === 'parallelBranch' ? '并行分支' : '包容分支');
+    for (const b of node.branches) {
+      if (node.type === 'inclusiveBranch' && b.isDefault) continue; // 包容默认分支可为空
+      if (!b.children) {
+        errors.push(`「${label} / ${b.name}」分支为空，请至少添加一个节点`);
+      }
+    }
   });
   return errors;
 }

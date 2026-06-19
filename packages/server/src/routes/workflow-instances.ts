@@ -6,7 +6,8 @@ import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErro
 import { WorkflowInstanceDTO, WorkflowInstanceListItemDTO, WorkflowInstanceAllDTO, WorkflowTaskDTO, WorkflowTaskUrgeDTO } from '../lib/openapi-dtos';
 import {
   listMyInstances, listPendingMine, listAllInstances, getInstanceDetail,
-  createInstance, withdrawInstance, approveTask, rejectTask, getWorkflowInstanceBeforeAudit, getWorkflowTaskBeforeAudit,
+  createInstance, withdrawInstance, cancelInstance, deleteInstance, getInstanceForAdminAudit,
+  approveTask, rejectTask, getWorkflowInstanceBeforeAudit, getWorkflowTaskBeforeAudit,
   transferTask, delegateTask, addSignTask, reduceSignTask, returnTask,
   urgeTask, listTaskUrges, listInstanceUrges, urgeInstance, addInstanceCc,
 } from '../services/workflow-instances.service';
@@ -101,6 +102,50 @@ const withdrawRoute = defineOpenAPIRoute({
     if (before) setAuditBeforeData(c, before);
     const r = await withdrawInstance(id);
     return c.json(okBody(r, '已撤回'), 200);
+  },
+});
+
+const cancelInstanceRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/instances/{id}/cancel', tags: ['WorkflowInstances'], summary: '取消流程（管理员强制终止）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:instance:cancel', audit: { description: '取消流程', module: '工作流管理' } })] as const,
+    request: { params: IdParam },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(WorkflowInstanceDTO, '已取消'),
+      400: { content: jsonContent(ErrorResponse), description: '不能取消' },
+      404: { content: jsonContent(ErrorResponse), description: '不存在' },
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const before = await getInstanceForAdminAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    const r = await cancelInstance(id);
+    return c.json(okBody(r, '已取消'), 200);
+  },
+});
+
+const deleteInstanceRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/instances/{id}', tags: ['WorkflowInstances'], summary: '删除流程实例',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:instance:delete', audit: { description: '删除流程实例', module: '工作流管理' } })] as const,
+    request: { params: IdParam },
+    responses: {
+      ...commonErrorResponses,
+      ...okMsg('已删除'),
+      400: { content: jsonContent(ErrorResponse), description: '不能删除' },
+      404: { content: jsonContent(ErrorResponse), description: '不存在' },
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const before = await getInstanceForAdminAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    await deleteInstance(id);
+    return c.json(okBody(null, '已删除'), 200);
   },
 });
 
@@ -364,6 +409,6 @@ const addInstanceCcRoute = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([listRoute, pendingMineRoute, allRoute, detailRoute, createInstanceRoute, withdrawRoute, approveRoute, rejectRoute, transferRoute, delegateRoute, addSignRoute, reduceSignRoute, returnRoute, urgeRoute, listTaskUrgesRoute, listInstanceUrgesRoute, urgeInstanceRoute, addInstanceCcRoute] as const);
+router.openapiRoutes([listRoute, pendingMineRoute, allRoute, detailRoute, createInstanceRoute, withdrawRoute, cancelInstanceRoute, deleteInstanceRoute, approveRoute, rejectRoute, transferRoute, delegateRoute, addSignRoute, reduceSignRoute, returnRoute, urgeRoute, listTaskUrgesRoute, listInstanceUrgesRoute, urgeInstanceRoute, addInstanceCcRoute] as const);
 
 export default router;

@@ -129,6 +129,13 @@ export function evaluateCondition(
     }
     case 'contains':
       return typeof fv === 'string' && fv.includes(String(target));
+    case 'isEmpty':
+    case 'isNotEmpty': {
+      const empty = fieldValue == null
+        || fieldValue === ''
+        || (Array.isArray(fieldValue) && fieldValue.length === 0);
+      return condition.operator === 'isEmpty' ? empty : !empty;
+    }
     default:
       return false;
   }
@@ -411,10 +418,15 @@ export function advanceFlow(
         const reachable = nodeType === 'inclusiveGateway'
           ? computeReachableNodeIds(flowData, formData, starter)
           : null;
+        // 空分支：fork 直连 join（该分支无任何节点），其入边来自配对 fork，无需等待
+        const joinKey = node.data.key;
+        const pairedForkKey = joinKey.startsWith('join-') ? `fork-${joinKey.slice('join-'.length)}` : null;
         const allCompleted = inSources.every(srcId => {
           if (reachable && !reachable.has(srcId)) return true; // 未激活分支，视为已完成
           const srcNode = nodeMap.get(srcId);
-          return srcNode ? completedNodeKeys.has(srcNode.data.key) : true;
+          if (!srcNode) return true;
+          if (pairedForkKey && srcNode.data.key === pairedForkKey) return true; // 空分支直连，无需等待
+          return completedNodeKeys.has(srcNode.data.key);
         });
 
         if (allCompleted) {
@@ -543,37 +555,44 @@ export function validateFlowData(flowData: WorkflowFlowData): { valid: boolean; 
     keys.add(node.data.key);
   }
 
-  // 检查排他/路由网关出边是否配置了条件
+  // 检查条件型网关（排他/路由/包容）出边的条件与默认分支配置
   const { nodeMap, outEdges, inEdges } = buildAdjacency(flowData);
   for (const node of flowData.nodes) {
-    if (node.data.type === 'exclusiveGateway' || node.data.type === 'routeGateway') {
+    const gwType = node.data.type;
+    if (gwType === 'exclusiveGateway' || gwType === 'routeGateway' || gwType === 'inclusiveGateway') {
       const outs = outEdges.get(node.id) ?? [];
       const ins = inEdges.get(node.id) ?? [];
-      // 合流型（多入单出）：作为 merge 使用，无需条件/默认分支
+      // 合流型（多入单出）：作为 merge/join 使用，无需条件/默认分支
       const isMerge = outs.length <= 1 && ins.length >= 2;
       if (isMerge) {
         if (outs.length === 0) {
-          errors.push(`排他/路由网关"${node.data.label}"缺少出边`);
+          errors.push(`网关"${node.data.label}"缺少出边`);
         }
         continue;
       }
-      // 分流型（单入多出）：必须 ≥2 出边、有条件、有默认分支
+      // 分流型（单入多出）：必须 ≥2 出边、有条件、且至多保留一个"无条件（默认）分支"
       if (outs.length < 2) {
-        errors.push(`排他/路由网关"${node.data.label}"至少需要2条出边`);
+        errors.push(`网关"${node.data.label}"至少需要2条出边`);
       }
-      const hasCondition = outs.some(o => edgeHasCondition(o.edge));
-      if (!hasCondition && outs.length > 1) {
-        errors.push(`排他/路由网关"${node.data.label}"的出边需要配置条件`);
-      }
-      const hasDefault = outs.some(o => isDefaultEdge(o.edge, nodeMap.get(o.target)));
-      if (!hasDefault && outs.length > 1) {
-        errors.push(`排他/路由网关"${node.data.label}"需要保留一个默认分支`);
+      if (outs.length > 1) {
+        const hasCondition = outs.some(o => edgeHasCondition(o.edge));
+        if (!hasCondition) {
+          errors.push(`网关"${node.data.label}"的出边需要配置条件`);
+        }
+        // isDefaultEdge 对"显式默认"与"未配置条件"的分支均为 true；
+        // 正常情况下应恰好保留一个默认分支，出现多个即存在未配置条件的分支。
+        const defaultLike = outs.filter(o => isDefaultEdge(o.edge, nodeMap.get(o.target)));
+        if (defaultLike.length === 0) {
+          errors.push(`网关"${node.data.label}"需要保留一个默认分支`);
+        } else if (defaultLike.length > 1) {
+          errors.push(`网关"${node.data.label}"存在未配置条件的分支，请补全条件（最多保留一个默认分支）`);
+        }
       }
     }
-    if (node.data.type === 'parallelGateway' || node.data.type === 'inclusiveGateway') {
+    if (gwType === 'parallelGateway') {
       const outs = outEdges.get(node.id) ?? [];
       if (outs.length === 0) {
-        errors.push(`并行/包容网关"${node.data.label}"缺少出边`);
+        errors.push(`并行网关"${node.data.label}"缺少出边`);
       }
     }
   }

@@ -566,7 +566,7 @@ export type CreateTagInput = z.infer<typeof createTagSchema>;
 export type UpdateTagInput = z.infer<typeof updateTagSchema>;
 
 // ─── 工作流引擎 Schema ────────────────────────────────────────────────────────
-export const workflowConditionOperatorSchema = z.enum(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'notIn', 'contains']);
+export const workflowConditionOperatorSchema = z.enum(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'notIn', 'contains', 'isEmpty', 'isNotEmpty']);
 
 export const workflowEdgeConditionSchema = z.object({
   field: z.string().min(1),

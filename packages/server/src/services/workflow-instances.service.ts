@@ -37,6 +37,7 @@ export function mapInstance(
     categoryName?: string | null;
     initiatorName?: string | null;
     initiatorAvatar?: string | null;
+    currentNodeName?: string | null;
     tasks?: ReturnType<typeof mapTask>[];
   } = {},
 ) {
@@ -51,6 +52,7 @@ export function mapInstance(
     formSnapshot: (row.formSnapshot ?? null) as WorkflowFormField[] | null,
     status: row.status,
     currentNodeKey: row.currentNodeKey,
+    currentNodeName: extras.currentNodeName ?? resolveNodeNameFromSnapshot(row.definitionSnapshot, row.currentNodeKey),
     initiatorId: row.initiatorId,
     initiatorName: extras.initiatorName ?? null,
     initiatorAvatar: extras.initiatorAvatar ?? null,
@@ -61,6 +63,13 @@ export function mapInstance(
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
+}
+
+/** 从流程定义快照中解析节点 key 对应的节点名称 */
+function resolveNodeNameFromSnapshot(snapshot: unknown, nodeKey: string | null): string | null {
+  if (!nodeKey) return null;
+  const flowData = (snapshot as { flowData?: WorkflowFlowData } | null)?.flowData;
+  return flowData?.nodes?.find((n) => n.data.key === nodeKey)?.data.label ?? null;
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
@@ -1061,6 +1070,52 @@ export async function withdrawInstance(id: number) {
   }
   emitInstanceEvent('instance.withdrawn', instanceDto, actor);
   return instanceDto;
+}
+
+export async function cancelInstance(id: number) {
+  const user = currentUser();
+  const tc = tenantCondition(workflowInstances, user);
+  const conditions = [eq(workflowInstances.id, id)];
+  if (tc) conditions.push(tc);
+  const [inst] = await db.select().from(workflowInstances).where(and(...conditions)).limit(1);
+  if (!inst) throw new HTTPException(404, { message: '流程实例不存在' });
+  if (inst.status !== 'running') throw new HTTPException(400, { message: '只能取消进行中的流程' });
+  const { row: updated, cancelledTasks } = await db.transaction(async (tx) => {
+    const cancelled = await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date() })
+      .where(and(eq(workflowTasks.instanceId, id), inArray(workflowTasks.status, ['pending', 'waiting'])))
+      .returning();
+    const [row] = await tx.update(workflowInstances).set({ status: 'cancelled', currentNodeKey: null }).where(and(...conditions)).returning();
+    return { row, cancelledTasks: cancelled };
+  });
+  const instanceDto = mapInstance(updated);
+  const actor = { userId: user.userId, name: user.username };
+  for (const t of cancelledTasks) {
+    emitTaskEvent('task.skipped', mapTask(t), { definitionId: updated.definitionId, tenantId: updated.tenantId, actor });
+  }
+  return instanceDto;
+}
+
+export async function deleteInstance(id: number) {
+  const user = currentUser();
+  const tc = tenantCondition(workflowInstances, user);
+  const conditions = [eq(workflowInstances.id, id)];
+  if (tc) conditions.push(tc);
+  const [inst] = await db.select().from(workflowInstances).where(and(...conditions)).limit(1);
+  if (!inst) throw new HTTPException(404, { message: '流程实例不存在' });
+  if (inst.status === 'running' || inst.status === 'draft') {
+    throw new HTTPException(400, { message: '请先取消进行中的流程再删除' });
+  }
+  await db.delete(workflowInstances).where(and(...conditions));
+}
+
+/** 监控页管理员操作的审计前置快照（不做发起人/审批人权限校验） */
+export async function getInstanceForAdminAudit(id: number) {
+  const user = currentUser();
+  const tc = tenantCondition(workflowInstances, user);
+  const conditions = [eq(workflowInstances.id, id)];
+  if (tc) conditions.push(tc);
+  const [inst] = await db.select().from(workflowInstances).where(and(...conditions)).limit(1);
+  return inst ? mapInstance(inst) : null;
 }
 
 export interface ApproveResult {

@@ -3,7 +3,7 @@
  *
  * 渲染多列分支布局，每列内部可递归渲染子节点。
  */
-import { Pencil, X } from 'lucide-react';
+import { Pencil, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { Popconfirm } from '@douyinfe/semi-ui';
 import type { FlowNode, FlowBranch, FlowNodeType, BranchNodeType } from '../types';
 import { NODE_COLOR_MAP, BRANCH_ADD_LABEL } from '../constants';
@@ -16,6 +16,8 @@ interface BranchContainerProps {
   onEditBranch: (branch: FlowBranch, branchNodeId: string) => void;
   onAddNodeInBranch: (branchNodeId: string, branchId: string, nodeType: FlowNodeType) => void;
   onDeleteNode?: (nodeId: string) => void;
+  /** 条件分支专用：上移/下移分支以调整优先级（匹配顺序） */
+  onMoveBranch?: (branchNodeId: string, branchId: string, direction: 'up' | 'down') => void;
   /** 点击路由分支头部提示行时打开节点配置抽屉 */
   onEditNode?: (node: FlowNode) => void;
   renderChildren: (childNode: FlowNode | undefined, parentId: string) => React.ReactNode;
@@ -71,6 +73,7 @@ export default function BranchContainer({
   onEditBranch,
   onAddNodeInBranch,
   onDeleteNode,
+  onMoveBranch,
   onEditNode,
   renderChildren,
   formFields,
@@ -80,6 +83,9 @@ export default function BranchContainer({
   const color = NODE_COLOR_MAP[node.type];
   const branchType = node.type as BranchNodeType;
   const addLabel = BRANCH_ADD_LABEL[branchType] ?? '添加分支';
+  // 仅条件分支的优先级（匹配顺序）有意义，提供上移/下移
+  const showReorder = !readOnly && branchType === 'conditionBranch' && !!onMoveBranch;
+  const nonDefaultCount = branches.filter(b => !b.isDefault).length;
   // 非默认分支始终可关闭；当剩余分支 ≤ 2 时点击 X 改为删除整个网关节点
   const handleBranchClose = (branchId: string) => {
     if (branches.length > 2) {
@@ -146,6 +152,26 @@ export default function BranchContainer({
                 {branch.priority != null && (
                   <span className="fd-branch-title__priority">
                     优先级{branch.priority}
+                  </span>
+                )}
+                {showReorder && !branch.isDefault && nonDefaultCount > 1 && (
+                  <span className="fd-branch-move" role="none" onClick={(e) => e.stopPropagation()}>
+                    <span
+                      className={`fd-branch-move__btn ${index === 0 ? 'fd-branch-move__btn--disabled' : ''}`}
+                      role="none"
+                      title="上移（提高优先级）"
+                      onClick={index === 0 ? undefined : () => onMoveBranch?.(node.id, branch.id, 'up')}
+                    >
+                      <ChevronUp size={12} />
+                    </span>
+                    <span
+                      className={`fd-branch-move__btn ${index >= nonDefaultCount - 1 ? 'fd-branch-move__btn--disabled' : ''}`}
+                      role="none"
+                      title="下移（降低优先级）"
+                      onClick={index >= nonDefaultCount - 1 ? undefined : () => onMoveBranch?.(node.id, branch.id, 'down')}
+                    >
+                      <ChevronDown size={12} />
+                    </span>
                   </span>
                 )}
               </div>

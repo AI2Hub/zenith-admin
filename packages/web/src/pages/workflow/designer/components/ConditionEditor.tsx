@@ -369,6 +369,11 @@ function renderValueInput(
     return renderStarterValueInput(rule, lists, onChange);
   }
 
+  // 为空 / 不为空：无需值输入，占位保持布局
+  if (rule.operator === 'isEmpty' || rule.operator === 'isNotEmpty') {
+    return <span style={{ flex: 1 }} />;
+  }
+
   const field = formFields.find(f => f.key === rule.field);
 
   if (field?.type === 'select' && field.options) {

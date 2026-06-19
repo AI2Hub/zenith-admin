@@ -774,7 +774,7 @@ export interface UserApiTokenCreated {
 
 // ─── 工作流引擎 ───────────────────────────────────────────────────────────────
 export type WorkflowDefinitionStatus = 'draft' | 'published' | 'disabled';
-export type WorkflowInstanceStatus = 'draft' | 'running' | 'approved' | 'rejected' | 'withdrawn';
+export type WorkflowInstanceStatus = 'draft' | 'running' | 'approved' | 'rejected' | 'withdrawn' | 'cancelled';
 export type WorkflowTaskStatus = 'pending' | 'approved' | 'rejected' | 'skipped' | 'waiting';
 export type WorkflowTaskExternalDispatchStatus = 'pending' | 'dispatched' | 'failed' | 'fallback';
 export type WorkflowNodeType =
@@ -790,7 +790,7 @@ export type WorkflowNodeType =
   | 'delay'
   | 'trigger'
   | 'subProcess';
-export type WorkflowConditionOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'notIn' | 'contains';
+export type WorkflowConditionOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'notIn' | 'contains' | 'isEmpty' | 'isNotEmpty';
 
 // 连线条件表达式（排他网关出边使用）
 export interface WorkflowEdgeCondition {
@@ -1389,6 +1389,8 @@ export interface WorkflowInstance {
   formSnapshot?: WorkflowFormField[] | null;
   status: WorkflowInstanceStatus;
   currentNodeKey: string | null;
+  /** 当前所处节点名称（由流程快照解析，仅列表/监控场景填充） */
+  currentNodeName?: string | null;
   initiatorId: number;
   initiatorName?: string | null;
   initiatorAvatar?: string | null;

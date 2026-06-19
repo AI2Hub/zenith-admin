@@ -127,6 +127,8 @@ export const OPERATOR_LABELS: Record<string, string> = {
   in: '包含在',
   notIn: '不包含在',
   contains: '包含',
+  isEmpty: '为空',
+  isNotEmpty: '不为空',
 };
 
 /** 发起人维度条件可选字段（source='starter'） */

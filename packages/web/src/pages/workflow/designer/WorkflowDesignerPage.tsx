@@ -22,8 +22,11 @@ import {
   updateBranch,
   addBranch as addBranchToProcess,
   removeBranch as removeBranchFromProcess,
+  moveBranch as moveBranchInProcess,
   resetRouteCaseValues,
   validateRouteBranches,
+  validateConditionBranches,
+  validateBranchChildren,
   treeToFlat,
   deepClone,
   collectAllNodes,
@@ -281,6 +284,10 @@ export default function WorkflowDesignerPage() {
     setProcess(prev => removeBranchFromProcess(prev, branchNodeId, branchId));
   }, [setProcess]);
 
+  const handleMoveBranch = useCallback((branchNodeId: string, branchId: string, direction: 'up' | 'down') => {
+    setProcess(prev => moveBranchInProcess(prev, branchNodeId, branchId, direction));
+  }, [setProcess]);
+
   const handleEditBranch = useCallback((branch: FlowBranch, branchNodeId: string) => {
     // 根据父节点类型分流到对应编辑器
     const findNode = (n: FlowNode | undefined): FlowNode | undefined => {
@@ -386,6 +393,18 @@ export default function WorkflowDesignerPage() {
     const routeErrors = validateRouteBranches(process);
     if (routeErrors.length > 0) {
       Toast.warning(`路由分支配置不完整：${routeErrors[0]}`);
+      setCurrentStep(3);
+      return;
+    }
+    const conditionErrors = validateConditionBranches(process);
+    if (conditionErrors.length > 0) {
+      Toast.warning(`条件分支配置不完整：${conditionErrors[0]}`);
+      setCurrentStep(3);
+      return;
+    }
+    const emptyBranchErrors = validateBranchChildren(process);
+    if (emptyBranchErrors.length > 0) {
+      Toast.warning(`分支配置不完整：${emptyBranchErrors[0]}`);
       setCurrentStep(3);
       return;
     }
@@ -664,6 +683,7 @@ export default function WorkflowDesignerPage() {
               onAddBranch={handleAddBranch}
               onRemoveBranch={handleRemoveBranch}
               onEditBranch={handleEditBranch}
+              onMoveBranch={handleMoveBranch}
               formFields={formFields}
             />
           </div>
