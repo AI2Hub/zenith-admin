@@ -312,7 +312,7 @@ async function resolveChildInitiator(
 ): Promise<number> {
   const fallback = parentInst.initiatorId;
   const mode = nodeCfg.subProcessInitiator ?? 'parentInitiator';
-  let candidate: number | null = null;
+  let candidate: number | null;
   if (mode === 'specifiedUser') {
     candidate = nodeCfg.subProcessInitiatorUserId ?? null;
   } else if (mode === 'formField' && nodeCfg.subProcessInitiatorField) {
