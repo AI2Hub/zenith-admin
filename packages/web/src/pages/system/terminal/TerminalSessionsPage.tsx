@@ -200,7 +200,7 @@ export default function TerminalSessionsPage() {
     { title: '客户端 IP', dataIndex: 'clientIp', width: 140, render: (v: string) => v || '-' },
     { title: '尺寸', dataIndex: 'cols', width: 90, render: (_: number, r) => `${r.cols}×${r.rows}` },
     {
-      title: '开始时间', dataIndex: 'startedAt', width: 170,
+      title: '开始时间', dataIndex: 'startedAt', width: 190,
     },
     {
       title: '空闲', dataIndex: 'idleSeconds', width: 90,
@@ -217,7 +217,7 @@ export default function TerminalSessionsPage() {
       ),
     },
     {
-      title: '操作', fixed: 'right', width: 140,
+      title: '操作', fixed: 'right', width: 180,
       render: (_: unknown, record: TerminalSessionItem) => (
         <Space>
           <Button theme="borderless" size="small" onClick={() => openWatch(record)}>监控</Button>
