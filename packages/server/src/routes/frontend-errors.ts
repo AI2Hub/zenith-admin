@@ -52,9 +52,9 @@ const groupListRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'monitor:error:list' })] as const,
     request: {
       query: PaginationQuery.extend({
-        status: z.enum(['unresolved', 'resolved', 'ignored', 'muted']).optional(),
-        errorType: z.enum(['js_error', 'promise_rejection', 'resource_error', 'console_error', 'http_error', 'white_screen', 'crash']).optional(),
-        level: z.enum(['fatal', 'error', 'warning', 'info']).optional(),
+        status: z.enum(['unresolved', 'resolved', 'ignored', 'muted']).or(z.literal('')).optional(),
+        errorType: z.enum(['js_error', 'promise_rejection', 'resource_error', 'console_error', 'http_error', 'white_screen', 'crash']).or(z.literal('')).optional(),
+        level: z.enum(['fatal', 'error', 'warning', 'info']).or(z.literal('')).optional(),
         keyword: z.string().optional(),
         assigneeId: z.coerce.number().int().optional(),
       }),

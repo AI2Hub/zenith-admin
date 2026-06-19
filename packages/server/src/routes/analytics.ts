@@ -139,7 +139,7 @@ const sessionsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/sessions', tags: ['Analytics'], summary: '会话列表', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: PaginationQuery.extend({ username: z.string().optional(), deviceType: z.enum(['desktop', 'mobile', 'tablet', 'bot', 'unknown']).optional() }) },
+    request: { query: PaginationQuery.extend({ username: z.string().optional(), deviceType: z.enum(['desktop', 'mobile', 'tablet', 'bot', 'unknown']).or(z.literal('')).optional() }) },
     responses: { ...okPaginated(SessionListItemDTO, '会话列表'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await listSessions(c.req.valid('query'))), 200),
@@ -205,11 +205,11 @@ const perfRoute = defineOpenAPIRoute({
 
 // ─── 事件数据管理 ─────────────────────────────────────────────────────────────
 const eventListQuery = PaginationQuery.extend({
-  eventType: z.enum(['page_view', 'page_leave', 'feature_use', 'area_click', 'custom', 'perf', 'api_request', 'identify']).optional(),
+  eventType: z.enum(['page_view', 'page_leave', 'feature_use', 'area_click', 'custom', 'perf', 'api_request', 'identify']).or(z.literal('')).optional(),
   eventName: z.string().optional(),
   username: z.string().optional(),
   pagePath: z.string().optional(),
-  deviceType: z.enum(['desktop', 'mobile', 'tablet', 'bot', 'unknown']).optional(),
+  deviceType: z.enum(['desktop', 'mobile', 'tablet', 'bot', 'unknown']).or(z.literal('')).optional(),
   startTime: z.string().optional(),
   endTime: z.string().optional(),
 });
@@ -217,6 +217,8 @@ const eventListQuery = PaginationQuery.extend({
 function parseEventQuery(q: z.infer<typeof eventListQuery>) {
   return {
     ...q,
+    eventType: q.eventType || undefined,
+    deviceType: q.deviceType || undefined,
     startTime: q.startTime ? new Date(q.startTime) : undefined,
     endTime: q.endTime ? new Date(q.endTime) : undefined,
   };
