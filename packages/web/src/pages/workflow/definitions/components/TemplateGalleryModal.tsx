@@ -50,6 +50,7 @@ export function TemplateGalleryModal({ visible, onCancel, onCreated }: Props) {
       onCancel={onCancel}
       footer={null}
       width={760}
+      bodyStyle={{ paddingBottom: 24 }}
       closeOnEsc
     >
       <Spin spinning={loading}>
