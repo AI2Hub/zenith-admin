@@ -102,8 +102,16 @@ export const DbAdminQueryResultDTO = z
     rowCount: z.number(),
     durationMs: z.number(),
     truncated: z.boolean(),
+    paginated: z.boolean(),
+    total: z.number().nullable(),
+    page: z.number().nullable(),
+    pageSize: z.number().nullable(),
   })
   .openapi('DbAdminQueryResult');
+
+export const DbAdminImportResultDTO = z
+  .object({ inserted: z.number() })
+  .openapi('DbAdminImportResult');
 
 export const DbAdminExplainResultDTO = z
   .object({

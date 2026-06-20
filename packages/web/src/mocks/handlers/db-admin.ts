@@ -286,9 +286,8 @@ function applyRowsQuery(
 function runMockQuery(sqlText: string): {
   columns: Array<{ name: string; dataType: string }>;
   rows: Array<Record<string, unknown>>;
-  rowCount: number;
   durationMs: number;
-  truncated: boolean;
+  paginatable: boolean;
 } {
   const durationMs = 5 + Math.floor(Math.random() * 30);
   const lower = sqlText.toLowerCase();
@@ -300,20 +299,18 @@ function runMockQuery(sqlText: string): {
     return {
       columns: [{ name: 'count', dataType: 'int8' }],
       rows: [{ count: t.rows.length }],
-      rowCount: 1, durationMs, truncated: false,
+      durationMs, paginatable: false,
     };
   }
 
   if (t) {
     const limitMatch = /limit\s+(\d+)/i.exec(lower);
-    const limit = limitMatch ? Number(limitMatch[1]) : 100;
-    const rows = t.rows.slice(0, Math.min(limit, 5000));
+    const rows = limitMatch ? t.rows.slice(0, Number(limitMatch[1])) : [...t.rows];
     return {
       columns: t.columns.map((c) => ({ name: c.name, dataType: c.dataType.split(' ')[0] })),
       rows,
-      rowCount: rows.length,
       durationMs,
-      truncated: false,
+      paginatable: /^\s*(select|with)\b/i.test(sqlText) && !/;/.test(sqlText.trim().replace(/;\s*$/, '')),
     };
   }
 
@@ -321,7 +318,7 @@ function runMockQuery(sqlText: string): {
   return {
     columns: [{ name: 'result', dataType: 'text' }],
     rows: [{ result: 'Demo 模式：仅支持对内置示例表的简单 SELECT 查询' }],
-    rowCount: 1, durationMs, truncated: false,
+    durationMs, paginatable: false,
   };
 }
 
@@ -444,10 +441,44 @@ export const dbAdminHandlers = [
 
   // 执行 SQL
   http.post(`${API}/api/db-admin/query`, async ({ request }) => {
-    const body = await request.json() as { sql: string };
-    const result = runMockQuery(body.sql ?? '');
-    recordHistory(body.sql ?? '', result.durationMs, result.rowCount, true, null);
-    return ok(result);
+    const body = await request.json() as { sql: string; page?: number; pageSize?: number };
+    const r = runMockQuery(body.sql ?? '');
+    const wantPage = body.page != null && body.pageSize != null && body.pageSize > 0 && r.paginatable;
+    if (wantPage) {
+      const total = r.rows.length;
+      const start = (body.page! - 1) * body.pageSize!;
+      const rows = r.rows.slice(start, start + body.pageSize!);
+      recordHistory(body.sql ?? '', r.durationMs, rows.length, true, null);
+      return ok({
+        columns: r.columns, rows, rowCount: rows.length, durationMs: r.durationMs,
+        truncated: false, paginated: true, total, page: body.page!, pageSize: body.pageSize!,
+      });
+    }
+    const rows = r.rows.slice(0, 5000);
+    recordHistory(body.sql ?? '', r.durationMs, rows.length, true, null);
+    return ok({
+      columns: r.columns, rows, rowCount: rows.length, durationMs: r.durationMs,
+      truncated: r.rows.length > 5000, paginated: false, total: null, page: null, pageSize: null,
+    });
+  }),
+
+  // 取消查询（Demo 模式下查询瞬时返回，恒为已结束）
+  http.post(`${API}/api/db-admin/query/cancel`, () => ok({ ok: false })),
+
+  // 批量导入
+  http.post(`${API}/api/db-admin/tables/:schema/:name/import`, async ({ params, request }) => {
+    const t = findTable(String(params.schema), String(params.name));
+    if (!t) return HttpResponse.json({ code: 404, message: '表不存在', data: null }, { status: 404 });
+    const body = await request.json() as { rows: Array<Record<string, unknown>> };
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+    const pk = t.columns.find((c) => c.isPrimaryKey)?.name ?? 'id';
+    let maxId = t.rows.reduce((m, r) => Math.max(m, Number(r[pk]) || 0), 0);
+    for (const row of rows) {
+      const next = { ...row };
+      if (next[pk] == null) next[pk] = ++maxId;
+      t.rows.push(next);
+    }
+    return ok({ inserted: rows.length });
   }),
 
   // EXPLAIN

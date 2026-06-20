@@ -7,7 +7,7 @@ import {
 } from '@douyinfe/semi-ui';
 import {
   Play, Eye, Download, Plus, X, Bookmark, BookmarkPlus, ArrowRight, Pencil, Trash2,
-  Sparkles, Copy, Code,
+  Sparkles, Copy, Code, Ban, BarChart3,
 } from 'lucide-react';
 import type { editor as MonacoEditor, KeyMod as KeyModT, KeyCode as KeyCodeT, Position } from 'monaco-editor';
 import Editor from '@monaco-editor/react';
@@ -20,8 +20,16 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { AppModal } from '@/components/AppModal';
 import { formatDateTime } from '@/utils/date';
 import { ExplainView } from './ExplainView';
+import { ResultChart } from './ResultChart';
 import { rowsToJson, rowsToMarkdown } from './result-format';
 import { copyToClipboard } from './sql-format';
+
+const PAGE_SIZE = 100;
+
+function genQueryId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `q-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 const { Text } = Typography;
 
@@ -31,6 +39,10 @@ interface QueryResult {
   rowCount: number;
   durationMs: number;
   truncated: boolean;
+  paginated: boolean;
+  total: number | null;
+  page: number | null;
+  pageSize: number | null;
 }
 
 interface ConsoleTableRef {
@@ -47,6 +59,8 @@ interface ConsoleTab {
   sql: string;
   result: QueryResult | null;
   error: string | null;
+  /** 产生当前结果的 SQL（服务端分页翻页时复用） */
+  executedSql: string | null;
 }
 
 export interface SqlConsoleHandle {
@@ -85,12 +99,15 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
   const { tables, structureColumnsCache, canQuery, canExport, monacoTheme } = props;
 
   const [tabs, setTabs] = useState<ConsoleTab[]>([
-    { id: 1, title: '查询 1', sql: DEFAULT_SQL, result: null, error: null },
+    { id: 1, title: '查询 1', sql: DEFAULT_SQL, result: null, error: null, executedSql: null },
   ]);
   const [activeId, setActiveId] = useState(1);
   const nextIdRef = useRef(2);
 
   const [queryLoading, setQueryLoading] = useState(false);
+  const [runningQueryId, setRunningQueryId] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [showChart, setShowChart] = useState(false);
   const [exportCsvLoading, setExportCsvLoading] = useState(false);
   const [exportJsonLoading, setExportJsonLoading] = useState(false);
 
@@ -123,7 +140,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
 
   const addTab = useCallback((sql = DEFAULT_SQL, title?: string) => {
     const id = nextIdRef.current++;
-    setTabs((prev) => [...prev, { id, title: title ?? `查询 ${id}`, sql, result: null, error: null }]);
+    setTabs((prev) => [...prev, { id, title: title ?? `查询 ${id}`, sql, result: null, error: null, executedSql: null }]);
     setActiveId(id);
     return id;
   }, []);
@@ -152,21 +169,48 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
     },
   }), [activeId, addTab]);
 
+  const runPage = useCallback(async (sqlText: string, page: number, resetView: boolean) => {
+    const queryId = genQueryId();
+    setRunningQueryId(queryId);
+    setQueryLoading(true);
+    if (resetView) { patchActive({ error: null, result: null }); setShowChart(false); }
+    const res = await request.post<QueryResult>(
+      '/api/db-admin/query',
+      { sql: sqlText, queryId, page, pageSize: PAGE_SIZE },
+      { silent: true },
+    );
+    setQueryLoading(false);
+    setRunningQueryId(null);
+    if (res.code === 0 && res.data) {
+      patchActive({ result: res.data, error: null, executedSql: sqlText });
+      if (resetView) {
+        if (res.data.paginated) Toast.success(`共 ${res.data.total?.toLocaleString()} 行 · 第 ${res.data.page} 页 / ${res.data.durationMs}ms`);
+        else if (res.data.truncated) Toast.warning('结果超出 5000 行已截断');
+        else Toast.success(`返回 ${res.data.rowCount} 行 / ${res.data.durationMs}ms`);
+      }
+    } else {
+      patchActive({ error: res.message ?? '执行失败', result: resetView ? null : activeTab.result });
+    }
+  }, [patchActive, activeTab.result]);
+
   const runQuery = useCallback(async () => {
     const text = editorRef.current?.getValue() ?? activeTab.sql;
     if (!text.trim()) { Toast.warning('请输入 SQL'); return; }
-    setQueryLoading(true);
-    patchActive({ error: null, result: null });
-    const res = await request.post<QueryResult>('/api/db-admin/query', { sql: text }, { silent: true });
-    setQueryLoading(false);
-    if (res.code === 0 && res.data) {
-      patchActive({ result: res.data, error: null });
-      if (res.data.truncated) Toast.warning('结果超出 5000 行已截断');
-      else Toast.success(`返回 ${res.data.rowCount} 行 / ${res.data.durationMs}ms`);
-    } else {
-      patchActive({ error: res.message ?? '执行失败', result: null });
-    }
-  }, [activeTab.sql, patchActive]);
+    await runPage(text, 1, true);
+  }, [activeTab.sql, runPage]);
+
+  const loadPage = useCallback(async (page: number) => {
+    if (!activeTab.executedSql) return;
+    await runPage(activeTab.executedSql, page, false);
+  }, [activeTab.executedSql, runPage]);
+
+  const cancelRunning = useCallback(async () => {
+    if (!runningQueryId) return;
+    setCancelling(true);
+    await request.post('/api/db-admin/query/cancel', { queryId: runningQueryId }, { silent: true });
+    setCancelling(false);
+    Toast.info('已请求取消查询');
+  }, [runningQueryId]);
 
   useEffect(() => { runQueryRef.current = () => { void runQuery(); }; });
 
@@ -416,6 +460,9 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
         <Tooltip content="只读模式，仅允许 SELECT / EXPLAIN 等查询语句">
           <Button type="primary" icon={<Play size={14} />} onClick={() => void runQuery()} loading={queryLoading} disabled={!canQuery}>执行</Button>
         </Tooltip>
+        {queryLoading && runningQueryId && (
+          <Button type="danger" theme="solid" icon={<Ban size={14} />} onClick={() => void cancelRunning()} loading={cancelling}>取消</Button>
+        )}
         <Dropdown
           trigger="click"
           render={(
@@ -443,7 +490,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
         </Dropdown>
         <Button icon={<BookmarkPlus size={14} />} onClick={() => { setEditFav(null); setSaveFavOpen(true); }} disabled={!canQuery}>收藏</Button>
         <Button icon={<Bookmark size={14} />} onClick={openFavorites}>收藏夹{favorites.length > 0 ? ` (${favorites.length})` : ''}</Button>
-        <Text type="tertiary" size="small">Ctrl+Enter 执行 · Ctrl+Shift+F 格式化 · 硬上限 5000 行 / 60 秒</Text>
+        <Text type="tertiary" size="small">Ctrl+Enter 执行 · Ctrl+Shift+F 格式化 · SELECT 自动服务端分页</Text>
       </Space>
 
       {error && <Text type="danger" style={{ whiteSpace: 'pre-wrap', marginTop: 8 }}>{error}</Text>}
@@ -459,34 +506,53 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
               style={{ marginBottom: 8 }}
             />
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <Space>
-              <Tag color="blue">{result.rowCount} 行</Tag>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
+            <Space wrap>
+              {result.paginated
+                ? <Tag color="blue">共 {result.total?.toLocaleString()} 行</Tag>
+                : <Tag color="blue">{result.rowCount} 行</Tag>}
               <Tag color="grey">{result.durationMs}ms</Tag>
+              {result.paginated && <Tag color="green">服务端分页</Tag>}
               {result.truncated && <Tag color="orange">已截断</Tag>}
             </Space>
             {result.rows.length > 0 && (
-              <Dropdown
-                trigger="click"
-                position="bottomRight"
-                render={(
-                  <Dropdown.Menu>
-                    <Dropdown.Item icon={<Copy size={14} />} onClick={() => void copyResultAs('json')}>复制为 JSON</Dropdown.Item>
-                    <Dropdown.Item icon={<Copy size={14} />} onClick={() => void copyResultAs('markdown')}>复制为 Markdown 表格</Dropdown.Item>
-                  </Dropdown.Menu>
-                )}
-              >
-                <Button size="small" icon={<Copy size={14} />}>复制</Button>
-              </Dropdown>
+              <Space>
+                <Button size="small" icon={<BarChart3 size={14} />} type={showChart ? 'primary' : 'tertiary'} onClick={() => setShowChart((v) => !v)}>
+                  图表
+                </Button>
+                <Dropdown
+                  trigger="click"
+                  position="bottomRight"
+                  render={(
+                    <Dropdown.Menu>
+                      <Dropdown.Item icon={<Copy size={14} />} onClick={() => void copyResultAs('json')}>复制为 JSON</Dropdown.Item>
+                      <Dropdown.Item icon={<Copy size={14} />} onClick={() => void copyResultAs('markdown')}>复制为 Markdown 表格</Dropdown.Item>
+                    </Dropdown.Menu>
+                  )}
+                >
+                  <Button size="small" icon={<Copy size={14} />}>复制</Button>
+                </Dropdown>
+              </Space>
             )}
           </div>
+          {showChart && result.rows.length > 0 && (
+            <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 12, marginBottom: 8 }}>
+              <ResultChart columns={result.columns} rows={result.rows} />
+            </div>
+          )}
           {result.rows.length === 0 ? <Empty title="无结果" /> : (
             <ConfigurableTable
               bordered
               columns={resultColumns}
               dataSource={result.rows.map((r, i) => ({ ...r, __key: i }))}
               rowKey="__key"
-              pagination={{ pageSize: 20, pageSizeOpts: [20, 50, 100] }}
+              loading={queryLoading}
+              pagination={result.paginated ? {
+                currentPage: result.page ?? 1,
+                pageSize: result.pageSize ?? PAGE_SIZE,
+                total: result.total ?? 0,
+                onPageChange: (p: number) => void loadPage(p),
+              } : { pageSize: 20, pageSizeOpts: [20, 50, 100] }}
               size="small"
               scroll={{ x: 'max-content' }}
             />

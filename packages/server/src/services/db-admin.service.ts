@@ -78,6 +78,12 @@ export interface QueryResult {
   rowCount: number;
   durationMs: number;
   truncated: boolean;
+  /** 是否服务端分页（单条 SELECT/WITH 自动启用）；false 时为整段执行 + 5000 行硬截断 */
+  paginated: boolean;
+  /** 分页时的总行数；非分页为 null */
+  total: number | null;
+  page: number | null;
+  pageSize: number | null;
 }
 
 // ─── 工具：标识符白名单校验 ────────────────────────────────────────────────────
@@ -758,20 +764,125 @@ export async function deleteTableRow(
   }
 }
 
-// ─── 4. 执行只读 SQL ────────────────────────────────────────────────────────────
-export async function executeReadonlyQuery(sqlText: string): Promise<QueryResult> {
+// ─── 3.6. 批量数据导入（CSV / JSON） ────────────────────────────────────────────
+const MAX_IMPORT_ROWS = 100_000;
+
+export async function importTableData(
+  schema: string,
+  name: string,
+  rows: Array<Record<string, unknown>>,
+): Promise<{ inserted: number }> {
+  assertIdent(schema, 'schema');
+  assertIdent(name, 'table');
+  assertWritable(schema, name);
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw new HTTPException(400, { message: '没有可导入的数据' });
+  }
+  if (rows.length > MAX_IMPORT_ROWS) {
+    throw new HTTPException(400, { message: `单次导入最多 ${MAX_IMPORT_ROWS} 行` });
+  }
+
+  const struct = await getTableStructure(schema, name);
+  const colMap = new Map(struct.columns.map((c) => [c.name, c]));
+  // 收集所有行出现过且属于该表的列
+  const usedCols = Array.from(new Set(rows.flatMap((r) => Object.keys(r)))).filter((c) => colMap.has(c));
+  if (usedCols.length === 0) {
+    throw new HTTPException(400, { message: '导入数据的列与表结构不匹配' });
+  }
+  for (const c of usedCols) assertIdent(c, '列名');
+
+  const full = sql.raw(`${quoteIdent(schema)}.${quoteIdent(name)}`);
+  const colList = sql.join(usedCols.map((c) => sql.raw(quoteIdent(c))), sql.raw(', '));
+  // 控制单条 INSERT 的绑定参数数量（PG 上限 65535）
+  const batchSize = Math.max(1, Math.min(500, Math.floor(60000 / usedCols.length)));
+
+  let inserted = 0;
+  try {
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const slice = rows.slice(i, i + batchSize);
+        const valuesSql = slice.map((row) => {
+          const cells = usedCols.map((c) =>
+            toBoundSql(row[c] === undefined ? null : row[c], colMap.get(c)!.dataType),
+          );
+          return sql`(${sql.join(cells, sql.raw(', '))})`;
+        });
+        await tx.execute(sql`INSERT INTO ${full} (${colList}) VALUES ${sql.join(valuesSql, sql.raw(', '))}`);
+        inserted += slice.length;
+      }
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new HTTPException(400, { message: `导入失败（已回滚，未写入任何数据）：${msg}` });
+  }
+  return { inserted };
+}
+
+
+/** 运行中查询的 backend pid 注册表：queryId -> pid，用于取消 */
+const runningQueries = new Map<string, number>();
+
+/** 判断是否为可分页的单条 SELECT/WITH 查询（无内部分号、无尾分号） */
+function isPaginatableSelect(trimmed: string): boolean {
+  if (/;/.test(trimmed)) return false;
+  return /^(select|with)\b/i.test(trimmed);
+}
+
+export interface QueryOptions {
+  queryId?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export async function executeReadonlyQuery(sqlText: string, options: QueryOptions = {}): Promise<QueryResult> {
   const trimmed = sqlText.trim().replace(/;\s*$/, '');
   if (!trimmed) {
     throw new HTTPException(400, { message: 'SQL 不能为空' });
   }
 
+  const { queryId, page, pageSize } = options;
+  const wantPagination = page != null && pageSize != null && pageSize > 0 && isPaginatableSelect(trimmed);
+
   const start = Date.now();
   let success = false;
   let errorMessage: string | null = null;
-  let result: QueryResult = { columns: [], rows: [], rowCount: 0, durationMs: 0, truncated: false };
+  let result: QueryResult = {
+    columns: [], rows: [], rowCount: 0, durationMs: 0, truncated: false,
+    paginated: false, total: null, page: null, pageSize: null,
+  };
 
   try {
-    result = await runReadOnly(async (tx) => {
+    result = await db.transaction(async (tx) => {
+      await tx.execute(sql.raw(`SET LOCAL TRANSACTION READ ONLY`));
+      await tx.execute(sql.raw(`SET LOCAL statement_timeout = '${QUERY_TIMEOUT}'`));
+      await tx.execute(sql.raw(`SET LOCAL idle_in_transaction_session_timeout = '${QUERY_TIMEOUT}'`));
+      // 记录当前事务连接的 backend pid，用于取消
+      if (queryId) {
+        const pidRows = await tx.execute(sql`SELECT pg_backend_pid() AS pid`);
+        const pid = Number((pidRows as unknown as Array<{ pid: number }>)[0]?.pid);
+        if (pid) runningQueries.set(queryId, pid);
+      }
+
+      if (wantPagination) {
+        const offset = (page! - 1) * pageSize!;
+        const [listRows, countRows] = await Promise.all([
+          tx.execute(sql.raw(`SELECT * FROM (${trimmed}) AS _sub LIMIT ${pageSize} OFFSET ${offset}`)),
+          tx.execute(sql.raw(`SELECT count(*)::bigint AS c FROM (${trimmed}) AS _sub`)),
+        ]);
+        const total = Number((countRows as unknown as Array<{ c: string | number }>)[0]?.c ?? 0);
+        const built = buildQueryResult(listRows);
+        return {
+          ...built,
+          rowCount: built.rows.length,
+          truncated: false,
+          paginated: true,
+          total,
+          page: page!,
+          pageSize: pageSize!,
+        };
+      }
+
       const rows = await tx.execute(sql.raw(trimmed));
       return buildQueryResult(rows);
     });
@@ -779,12 +890,26 @@ export async function executeReadonlyQuery(sqlText: string): Promise<QueryResult
     return result;
   } catch (err) {
     errorMessage = err instanceof Error ? err.message : String(err);
+    // 取消导致的错误：PG 原始信息常位于 error.cause 链中
+    const causeMsg = err instanceof Error && err.cause instanceof Error ? err.cause.message : '';
+    if (/canceling statement due to user request/i.test(`${errorMessage} ${causeMsg}`)) {
+      throw new HTTPException(400, { message: '查询已取消' });
+    }
     throw new HTTPException(400, { message: `SQL 执行失败：${errorMessage}` });
   } finally {
+    if (queryId) runningQueries.delete(queryId);
     const durationMs = Date.now() - start;
     result.durationMs = durationMs;
     await recordHistory({ sqlText: trimmed, durationMs, rowCount: result.rowCount, success, errorMessage });
   }
+}
+
+/** 取消正在执行的查询（按客户端提交的 queryId 定位 backend pid） */
+export async function cancelQuery(queryId: string): Promise<boolean> {
+  const pid = runningQueries.get(queryId);
+  if (!pid) return false;
+  const rows = await db.execute(sql`SELECT pg_cancel_backend(${pid}) AS ok`);
+  return Boolean((rows as unknown as Array<{ ok: boolean }>)[0]?.ok);
 }
 
 // ─── 5. EXPLAIN ────────────────────────────────────────────────────────────────
@@ -1191,7 +1316,7 @@ function buildQueryResult(rawRows: unknown): QueryResult {
   } else {
     columns = [];
   }
-  return { columns, rows, rowCount: arr.length, durationMs: 0, truncated };
+  return { columns, rows, rowCount: arr.length, durationMs: 0, truncated, paginated: false, total: null, page: null, pageSize: null };
 }
 
 /** 行序列化：将 Date/Buffer/复杂对象转为可 JSON 化的形式。 */

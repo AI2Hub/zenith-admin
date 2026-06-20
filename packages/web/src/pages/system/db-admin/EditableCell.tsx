@@ -274,7 +274,6 @@ export function EditableCell(props: Readonly<Props>): JSX.Element {
         position="bottom"
         onClickOutSide={() => { if (!saving && !jsonError) void save(); }}
         content={(
-          // eslint-disable-next-line sonarjs/no-static-element-interactions, jsx-a11y/no-static-element-interactions
           <div
             style={{ width: 420 }}
             className={jsonError ? 'db-admin-json-invalid' : undefined}

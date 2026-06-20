@@ -36,6 +36,7 @@ import {
   Gauge,
   Boxes,
   Server,
+  Upload,
 } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { TOKEN_KEY } from '@zenith/shared';
@@ -55,6 +56,7 @@ import { OverviewPanel, KindTag } from './OverviewPanel';
 import { SqlConsole, type SqlConsoleHandle } from './SqlConsole';
 import { OpsPanel } from './OpsPanel';
 import { ObjectsPanel } from './ObjectsPanel';
+import { ImportModal } from './ImportModal';
 
 async function copyRowSqlAndToast(sql: string, label: string) {
   const ok = await copyToClipboard(sql);
@@ -323,6 +325,7 @@ export default function DbAdminPage() {
   const [rowModalMode, setRowModalMode] = useState<'create' | 'edit'>('create');
   const [rowModalInitial, setRowModalInitial] = useState<Record<string, unknown> | undefined>(undefined);
   const [rowModalFocusField, setRowModalFocusField] = useState<string | undefined>(undefined);
+  const [importOpen, setImportOpen] = useState(false);
 
   const filteredTables = useMemo(() => {
     const kw = tableFilter.trim().toLowerCase();
@@ -1243,6 +1246,14 @@ export default function DbAdminPage() {
                                   disabled={!structure}
                                 >新增行</Button>
                               )}
+                              {canWrite && isWritableTable && (
+                                <Button
+                                  size="small"
+                                  icon={<Upload size={14} />}
+                                  onClick={() => setImportOpen(true)}
+                                  disabled={!structure}
+                                >导入</Button>
+                              )}
                               {(rowsOrderBy || Object.keys(rowsFilters).length > 0 || rowsSearch) && (
                                 <Button size="small" theme="borderless" onClick={handleRowsResetAll}>重置排序 / 筛选</Button>
                               )}
@@ -1477,6 +1488,17 @@ export default function DbAdminPage() {
             Toast.success(rowModalMode === 'create' ? '已插入新行' : '已更新');
             refreshRows();
           }}
+        />
+      )}
+
+      {selected && structure && isWritableTable && (
+        <ImportModal
+          open={importOpen}
+          schema={selected.schema}
+          table={selected.name}
+          columns={structure.columns}
+          onClose={() => setImportOpen(false)}
+          onSuccess={() => { setImportOpen(false); refreshRows(); }}
         />
       )}
     </div>

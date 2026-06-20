@@ -28,6 +28,7 @@ import {
   DbAdminObjectsDTO,
   DbAdminSchemaDriftDTO,
   DbAdminOpResultDTO,
+  DbAdminImportResultDTO,
 } from '../lib/openapi-dtos';
 import {
   listTables,
@@ -37,7 +38,9 @@ import {
   insertTableRow,
   updateTableRow,
   deleteTableRow,
+  importTableData,
   executeReadonlyQuery,
+  cancelQuery,
   explainQuery,
   exportQueryCsv,
   exportQueryJson,
@@ -85,6 +88,11 @@ const RowsQuery = PaginationQuery.extend({
 
 const sqlBodySchema = z.object({ sql: z.string().min(1, 'SQL 不能为空').max(50000) });
 const explainBodySchema = sqlBodySchema.extend({ analyze: z.boolean().optional() });
+const queryBodySchema = sqlBodySchema.extend({
+  queryId: z.string().max(64).optional(),
+  page: z.number().int().positive().optional(),
+  pageSize: z.number().int().positive().max(1000).optional(),
+});
 
 const TableRowsDTO = z
   .object({
@@ -230,6 +238,27 @@ const deleteRowRoute = defineOpenAPIRoute({
   },
 });
 
+const importRowsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/tables/{schema}/{name}/import', tags: ['DbAdmin'], summary: '批量导入数据 (CSV/JSON)',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'system:db-admin:write',
+      audit: { description: '批量导入表数据', module: '数据库管理', recordBody: false },
+    })] as const,
+    request: {
+      params: TableNameParam,
+      body: { content: jsonContent(z.object({ rows: z.array(z.record(z.string(), z.unknown())).max(100000) })), required: true },
+    },
+    responses: { ...commonErrorResponses, ...ok(DbAdminImportResultDTO, '导入结果') },
+  }),
+  handler: async (c) => {
+    const { schema, name } = c.req.valid('param');
+    const { rows } = c.req.valid('json');
+    return c.json(okBody(await importTableData(schema, name, rows)), 200);
+  },
+});
+
 const executeQueryRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/query', tags: ['DbAdmin'], summary: '执行只读 SQL',
@@ -238,12 +267,26 @@ const executeQueryRoute = defineOpenAPIRoute({
       permission: 'system:db-admin:query',
       audit: { description: '执行 SQL 查询', module: '数据库管理' },
     })] as const,
-    request: { body: { content: jsonContent(sqlBodySchema), required: true } },
+    request: { body: { content: jsonContent(queryBodySchema), required: true } },
     responses: { ...commonErrorResponses, ...ok(DbAdminQueryResultDTO, '查询结果') },
   }),
   handler: async (c) => {
-    const { sql } = c.req.valid('json');
-    return c.json(okBody(await executeReadonlyQuery(sql)), 200);
+    const { sql, queryId, page, pageSize } = c.req.valid('json');
+    return c.json(okBody(await executeReadonlyQuery(sql, { queryId, page, pageSize })), 200);
+  },
+});
+
+const cancelQueryRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/query/cancel', tags: ['DbAdmin'], summary: '取消正在执行的查询',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:db-admin:query' })] as const,
+    request: { body: { content: jsonContent(z.object({ queryId: z.string().min(1).max(64) })), required: true } },
+    responses: { ...commonErrorResponses, ...ok(DbAdminOpResultDTO, '取消结果') },
+  }),
+  handler: async (c) => {
+    const { queryId } = c.req.valid('json');
+    return c.json(okBody({ ok: await cancelQuery(queryId) }), 200);
   },
 });
 
@@ -358,8 +401,10 @@ router.openapiRoutes([
   insertRowRoute,
   updateRowRoute,
   deleteRowRoute,
+  importRowsRoute,
   truncateTableRoute,
   executeQueryRoute,
+  cancelQueryRoute,
   explainRoute,
   historyRoute,
   deleteHistoryRoute,
