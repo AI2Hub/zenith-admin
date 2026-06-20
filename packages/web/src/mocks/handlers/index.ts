@@ -59,6 +59,8 @@ import { memberAdminHandlers } from './member-admin';
 import { checkinHandlers } from './checkin';
 import { terminalSessionsHandlers } from './terminal-sessions';
 import { terminalFilesHandlers } from './terminal-files';
+import { portsHandlers } from './ports';
+import { fallbackHandlers } from './fallback';
 
 export const handlers = [
   ...authHandlers,
@@ -122,4 +124,7 @@ export const handlers = [
   ...checkinHandlers,
   ...terminalSessionsHandlers,
   ...terminalFilesHandlers,
+  ...portsHandlers,
+  // 兜底 handler 必须放在最后：拦截所有未实现的 /api/* 请求，避免 dev:demo 下被代理到后端返回 401 跳转登录页
+  ...fallbackHandlers,
 ];

@@ -93,4 +93,17 @@ export const terminalFilesHandlers = [
   http.delete('/api/terminal-recordings/clean', () => {
     return HttpResponse.json({ code: 403, message: '演示模式下不支持清理录屏', data: null }, { status: 403 });
   }),
+
+  // ── 日志文件（演示模式返回空列表）────────────────────────────────────────
+  http.get('/api/log-files', () => {
+    return HttpResponse.json({ code: 0, message: 'ok', data: [] });
+  }),
+
+  http.get('/api/log-files/:name/content', () => {
+    return HttpResponse.json({ code: 0, message: 'ok', data: { lines: ['[INFO] 演示模式：日志内容不可访问'] } });
+  }),
+
+  http.delete('/api/log-files/:name', () => {
+    return HttpResponse.json({ code: 403, message: '演示模式下不支持删除日志', data: null }, { status: 403 });
+  }),
 ];
