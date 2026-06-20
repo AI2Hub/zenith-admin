@@ -22,7 +22,7 @@
 
 - **多维筛选**：订单号 / 标题关键字、业务类型、渠道、支付方式、订单状态、金额区间（元）、创建时间范围；
 - **行操作**：详情、查单（主动同步状态）、关闭、手动退款（按权限与状态显隐）；
-- **手动下单**：后台直接发起支付，弹窗展示二维码 / 跳转链接 / APP 调起串，并每 3s 轮询查单、付款成功自动关闭；
+- **手动下单**：后台直接发起支付，弹窗展示二维码 / 跳转链接 / APP 调起串，并每 3s 轮询订单详情；
 - **订单详情**：复制订单号 / 商户单号 / 渠道交易号；**交易时间轴**（创建 → 支付 → 退款 → 关闭）；**关联退款明细**表；
 - **统计分析 Tab**：收款趋势看板（见下）。
 
@@ -45,8 +45,8 @@
 | `GET /api/payment/trend?days=N` | 收款趋势：近 N 天（默认 30，最大 365）按天聚合成功金额 / 笔数 / 退款金额，无数据日期补 0 |
 | `POST /api/payment/channels/{id}/default` | 设为该渠道默认（同租户同渠道互斥，自动启用） |
 | `POST /api/payment/refunds/{id}/query` | 退款主动查单并同步本地状态 |
-| `GET /api/payment/orders/export[/csv]` | 导出支付订单 Excel / CSV（随当前筛选条件） |
-| `GET /api/payment/refunds/export[/csv]` | 导出退款记录 Excel / CSV（随当前筛选条件） |
+| `GET /api/payment/orders/export` / `GET /api/payment/orders/export/csv` | 导出支付订单 Excel / CSV（随当前筛选条件） |
+| `GET /api/payment/refunds/export` / `GET /api/payment/refunds/export/csv` | 导出退款记录 Excel / CSV（随当前筛选条件） |
 
 ### 收款趋势看板
 

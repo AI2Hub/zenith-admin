@@ -22,7 +22,7 @@ Zenith Skill 是针对 Zenith Admin 的专属开发辅助工作流，内置于 `
 
 ### Step 0：信息收集与确认
 
-AI 会在生成代码之前，主动向你确认以下信息：
+AI 会在生成代码之前，按照 `references/step0-checklist.md` 主动向你确认以下信息：
 
 | 信息项 | 说明 |
 | --- | --- |
@@ -32,9 +32,9 @@ AI 会在生成代码之前，主动向你确认以下信息：
 | 主要字段列表 | 字段名、类型、是否必填 |
 | 父菜单 ID | 菜单挂载位置（如系统管理 = id:2） |
 | 是否需要 MSW Mock | 是否支持 Demo 演示无后端运行 |
-| 关联实体 / 特殊枚举 | 外键、多对多、状态字段等 |
+| 可选能力 | 状态字段、关联实体、特殊枚举、数据权限、租户隔离、批量操作、数据导出等 |
 
-### Step 1–11：自动生成
+### Step 1–11：自动代码生成
 
 | 步骤 | 生成内容 | 文件位置 |
 | --- | --- | --- |
@@ -74,6 +74,14 @@ AI 会在生成代码之前，主动向你确认以下信息：
 - **明确关联**：外键关联（如关联部门、用户）需要提前说明
 - **说清菜单位置**：告知页面挂载在哪个一级菜单下
 
+### 修改现有模块
+
+给已有模块加字段、修改接口、添加关联、调整枚举或删除字段时，Skill 会读取 `references/module-modification.md`，按对应场景同步检查 Schema、迁移、共享类型、DTO、Service、路由、前端页面与 MSW Mock。
+
+### 发布新版本
+
+发布版本时，Skill 会读取 `references/release.md`，按版本号确认、package 版本同步、lock 文件同步、构建验证、Changelog、提交与 tag 推送、GitHub Actions 检查的流程执行。
+
 ---
 
 ## 后端路由规范
@@ -93,9 +101,10 @@ AI 会在生成代码之前，主动向你确认以下信息：
 
 生成的列表页遵循统一布局约定（详见 [UI 规范](/frontend/ui-conventions)）：
 
-- 搜索区与操作按钮位于同一行，左侧搜索，右侧「新增」按钮
-- 使用 `<Table bordered>` 数据表格
+- 搜索区统一使用 `SearchToolbar`，搜索、重置与操作按钮同栏展示
+- 使用 `<ConfigurableTable bordered ... />` 数据表格
 - 操作列使用纯文字 borderless 按钮，右侧固定（`fixed: 'right'`）
+- 状态列紧靠操作列左侧并右侧固定
 - 新增/编辑使用 `Modal` 弹窗，删除使用 `Popconfirm` 二次确认
 
 ---
@@ -111,7 +120,9 @@ AI 会在生成代码之前，主动向你确认以下信息：
     ├── crud-mock.md       # MSW Mock handler 代码模板
     ├── seed-config.md     # 菜单与种子数据配置参考
     ├── constraints.md     # 核心规范约束清单
+    ├── module-modification.md # 修改现有模块流程
     ├── release.md         # 版本发布流程
+    ├── troubleshooting.md # 调试与排错指南
     └── step0-checklist.md # 信息收集问卷
 ```
 

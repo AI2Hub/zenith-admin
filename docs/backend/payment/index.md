@@ -32,7 +32,7 @@ flowchart TB
         AR{{"adapterRegistry<br/>Map&lt;channel, Adapter&gt;"}}
         WX["WechatPayAdapter"]
         ALI["AlipayAdapter"]
-        EXT["…未来渠道"]
+        EXT["…扩展渠道"]
     end
 
     subgraph SEC["安全 / 外呼"]
@@ -69,10 +69,10 @@ flowchart TB
 ## 2. 关键工程决策
 
 1. **不引入官方 SDK**。项目硬性约定「所有外呼必须走 [`http-client`](../http-client)，禁止裸 `fetch()`」。`alipay-sdk` / `wechatpay-node-v3` 会用各自的 HTTP 客户端绕过该约定（同时绕过熔断、Header 脱敏、结构化日志）。因此用 Node 原生 `crypto` 实现真实签名/验签，HTTP 调用统一走 `lib/http-client.ts`：
-   - **支付宝**：RSA2（`SHA256withRSA`）`crypto.createSign` 生成签名、`crypto.createVerify` 验签。
+   - **支付宝**：`RSA2`（`SHA256withRSA`）/ `RSA`（`SHA1withRSA`）`crypto.createSign` 生成签名、`crypto.createVerify` 验签。
    - **微信支付 v3**：`RSA-SHA256` 请求签名（Authorization 头）+ `AES-256-GCM` 解密回调 `resource` + 平台证书验签。
 2. **适配层用接口 + 注册表**，而非 `file-storage.ts` 的平铺 if-else——支付每渠道有约 6 个操作，接口更清晰、扩展更稳。配置表则沿用 `file_storage_configs` 的「大平铺」风格保持一致。
-3. **进程内事件总线**，照搬 `lib/workflow-event-bus.ts`。配合 **Outbox 表**保证「崩溃不丢履约事件」，详见 [异步通知与对账](./callback)。
+3. **进程内事件总线**，照搬 `lib/workflow-event-bus.ts`。配合 **Outbox 表**保证支付 / 退款成功履约事件「崩溃不丢」，详见 [异步通知与对账](./callback)。
 4. **回调 + 主动查单双保险**：不盲信回调，cron 兜底查单，保证状态最终一致。
 5. **金额全链路整数分**（`integer`），杜绝浮点误差。
 
@@ -93,12 +93,12 @@ stateDiagram-v2
     [*] --> pending: 创建订单
     pending --> paying: 调起支付
     paying --> success: 回调验签成功
-    paying --> failed: 支付失败
     pending --> closed: 超时关单(cron)
     paying --> closed: 超时关单(cron)
+    pending --> failed: 调起渠道失败
     success --> refunding: 发起退款
-    refunding --> refunded: 退款回调成功
-    refunding --> success: 退款失败(回滚)
+    refunding --> refunded: 退款成功且累计退满
+    refunding --> success: 退款失败或部分退款
 ```
 
 ### 枚举
@@ -113,3 +113,12 @@ stateDiagram-v2
 | `payment_refund_status` | `pending` / `processing` / `success` / `failed` |
 
 `PAYMENT_METHOD_CHANNEL`（`@zenith/shared`）维护「支付方式 → 渠道」映射，门面据此自动选择适配器。
+
+## 4. 会员钱包充值联动
+
+会员钱包通过支付中心完成充值闭环：
+
+1. 前台接口 `POST /api/member/wallet/recharge` 使用 `idempotencyGuard({ ttlSeconds: 10 })` 防重复提交；
+2. `rechargeWallet()` 调用 `createPayment()`，固定使用 `bizType='member_recharge'`，`bizId` 为会员 ID；
+3. `registerPaymentSubscribers()` 订阅 `payment.succeeded`，识别 `member_recharge` 后调用 `creditWalletOnRecharge()`；
+4. 入账流水写入 `member_wallet_transactions`，并以支付单号作为 `bizId` 做幂等去重，Outbox 补投不会重复入账。

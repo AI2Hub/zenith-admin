@@ -106,14 +106,17 @@ HTTP 状态码为 `429`，`message` 取自 `message` 配置项。
 
 ---
 
-## 在支付中心的应用
+## 已接入的接口
 
-支付中心的两个高危写接口已启用幂等防护（窗口 15s）：
+以下高危写接口已启用幂等防护：
 
 | 接口 | 中间件 | 说明 |
 | --- | --- | --- |
-| `POST /api/payment/orders` | `idempotencyGuard({ ttlSeconds: 15 })` | 防止重复下单。前端可额外携带 `X-Idempotency-Key` 进一步保证 |
-| `POST /api/payment/refunds` | `idempotencyGuard({ ttlSeconds: 15 })` | 防止重复退款 |
+| `POST /api/payment/orders` | `idempotencyGuard({ ttlSeconds: 15, message: '下单处理中，请勿重复提交' })` | 防止重复下单。前端可额外携带 `X-Idempotency-Key` 进一步保证 |
+| `POST /api/payment/refunds` | `idempotencyGuard({ ttlSeconds: 15, message: '退款处理中，请勿重复提交' })` | 防止重复退款 |
+| `POST /api/member/wallet/recharge` | `idempotencyGuard({ ttlSeconds: 10 })` | 防止会员钱包重复发起充值 |
+| `POST /api/member/coupons/receive` | `idempotencyGuard({ ttlSeconds: 5 })` | 防止重复领取优惠券 |
+| `POST /api/member/checkin` | `idempotencyGuard({ ttlSeconds: 5 })` | 防止重复签到 |
 
 > **支付回调的去重是另一套机制**：渠道异步回调（`/api/public/payment/notify/{channel}`）**不使用** `idempotencyGuard`，而是在 `markOrderPaid` / `finalizeRefund` 中用「**原子条件更新**」（`UPDATE ... WHERE status NOT IN (...)` + `.returning()`）保证 exactly-once 履约——仅当真正更新到行时才发出 `payment.succeeded` / `refund.succeeded` 事件。即便微信/支付宝重发回调，也不会重复履约。详见[支付中心](./payment/index.md)。
 

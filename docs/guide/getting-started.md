@@ -6,7 +6,7 @@ Zenith Admin 是一个基于 **Hono + React 19 + Drizzle ORM** 的 npm monorepo 
 
 ## 环境要求
 
-- Node.js >= 18
+- Node.js >= 24（与 CI / Docker 构建环境一致）
 - npm
 - PostgreSQL
 - Redis（用于会话持久化，默认连接本地 `127.0.0.1:6379`）
@@ -41,7 +41,9 @@ REDIS_URL=redis://127.0.0.1:6379
 VITE_API_BASE_URL=
 VITE_WS_BASE_URL=
 VITE_API_PROXY_TARGET=http://localhost:3300
+VITE_PORT=5373
 VITE_APP_TITLE=Zenith Admin
+VITE_BASE_URL=
 ```
 
 > `VITE_API_PROXY_TARGET` 仅在开发模式的 Vite Dev Server 中生效，不会暴露到客户端 bundle。生产部署时通过 `VITE_API_BASE_URL` 指定后端地址，详见 [部署文档](./deployment.md)。
@@ -63,6 +65,8 @@ npm run dev
 npm run dev:server
 npm run dev:web
 ```
+
+前端开发服务器默认地址为 `http://localhost:5373`，后端默认地址为 `http://localhost:3300`。
 
 ## 启动文档站
 

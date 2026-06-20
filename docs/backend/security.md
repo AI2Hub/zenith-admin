@@ -26,7 +26,8 @@ Zenith Admin 内置了多层安全防护能力，涵盖 IP 访问控制、账号
   │
   ├── 免检路径（直接放行）：
   │   /api/auth/login、/api/auth/captcha、/api/auth/register
-  │   /api/auth/refresh、/api/oauth/*
+  │   /api/auth/refresh、/api/auth/forgot-password、/api/auth/reset-password
+  │   /api/oauth/*、/api/auth/oauth/*
   │
   ├── 两者均未启用 → 直接放行
   │
@@ -35,9 +36,10 @@ Zenith Admin 内置了多层安全防护能力，涵盖 IP 访问控制、账号
   └── 白名单已启用 → 未命中则 403
 ```
 
-- IP 来源优先从 `X-Forwarded-For` 请求头中读取（取第一个值），其次读取 `X-Real-IP`
+- IP 来源优先从 `X-Forwarded-For` 请求头中读取（取第一个值），其次读取 `X-Real-IP`，再从 TCP 连接信息读取，兜底为 `127.0.0.1`
 - 支持 CIDR 网段匹配（如 `192.168.1.0/24`），基于 `ip-range-check` 库实现
 - 配置缓存 **30 秒**，修改后台配置后最多延迟 30 秒生效
+- 命中黑名单或未命中白名单时写入 `ip_access_logs`，可通过 `GET /api/ip-access-logs` 分页查询拦截记录
 
 > **Nginx 反代注意**：确保 Nginx 已正确设置 `X-Real-IP` 或 `X-Forwarded-For`，否则后端收到的将是内网 IP。
 
@@ -45,18 +47,18 @@ Zenith Admin 内置了多层安全防护能力，涵盖 IP 访问控制、账号
 
 ## 账号锁定
 
-连续登录失败超过阈值后，账号会被自动锁定一段时间，有效防止暴力破解。
+连续登录失败达到阈值后，账号会被自动锁定一段时间，有效防止暴力破解。
 
 ### 相关配置项
 
 | 配置 Key | 类型 | 默认值 | 说明 |
 |----------|------|--------|------|
-| `login_max_attempts` | `number` | `10` | 最大失败次数，超过后自动锁定 |
+| `login_max_attempts` | `number` | `10` | 最大失败次数，达到后自动锁定 |
 | `login_lock_duration_minutes` | `number` | `30` | 锁定持续时长（分钟） |
 
 ### 工作机制
 
-- 失败计数以 `loginAttempts:{username}` 为 key 存储于 **Redis**，服务重启后不重置
+- 失败计数以 `{REDIS_KEY_PREFIX}login_attempt:{username}` 为 key 存储于 **Redis**，锁定标记为 `{REDIS_KEY_PREFIX}login_lock:{username}`，服务重启后不重置
 - 锁定到期后自动解除
 - 管理员可在「用户管理」列表中点击「解除锁定」按钮，提前解除指定账号的锁定状态（调用 `POST /api/users/:id/unlock`）
 
@@ -64,7 +66,7 @@ Zenith Admin 内置了多层安全防护能力，涵盖 IP 访问控制、账号
 
 ## 密码策略
 
-从 v0.1.4 起，支持通过系统配置控制密码复杂度要求与过期策略。
+系统支持通过系统配置控制密码复杂度要求与过期策略。
 
 ### 复杂度配置项
 
@@ -74,10 +76,7 @@ Zenith Admin 内置了多层安全防护能力，涵盖 IP 访问控制、账号
 | `password_require_uppercase` | `boolean` | `false` | 是否必须包含大写字母 |
 | `password_require_special_char` | `boolean` | `false` | 是否必须包含特殊字符（`!@#$%^&*` 等）|
 
-密码复杂度在以下场景触发校验：
-- 用户创建（管理员操作）
-- 用户修改个人密码
-- 重置密码
+密码复杂度由 `packages/server/src/lib/password-policy.ts` 读取并校验，后端在用户管理的创建用户、管理员修改指定用户密码、批量重置密码、导入用户等场景触发校验；前端通过 `GET /api/system-configs/password-policy` 读取策略并展示输入提示。
 
 ### 密码过期
 
@@ -89,9 +88,9 @@ Zenith Admin 内置了多层安全防护能力，涵盖 IP 访问控制、账号
 **过期流程**：
 
 1. 用户登录时，若 `password_expiry_enabled = true`，后端计算 `passwordUpdatedAt + password_expiry_days` 是否早于当前时间
-2. 若已过期，登录接口不返回 token，而是返回特殊 code（`password_expired`）和临时 token
-3. 前端检测到特殊 code 后，弹出「强制修改密码」弹窗
-4. 用户通过临时 token 完成密码修改后，方可正常使用系统
+2. 若已过期，登录响应中的 `requirePasswordChange` 为 `true`
+3. 前端检测到 `requirePasswordChange` 后，弹出「强制修改密码」弹窗
+4. 用户完成密码修改后，`password_updated_at` 更新，过期状态解除
 
 ---
 
@@ -101,7 +100,10 @@ Zenith Admin 内置了多层安全防护能力，涵盖 IP 访问控制、账号
 |----------|------|--------|
 | `captcha_enabled` | `boolean` | `false` |
 
-启用后，登录页自动显示图形验证码输入框。验证码通过 `GET /api/auth/captcha` 获取（返回 Base64 图片 + captchaId），登录时需同时提交 `captchaId` 和用户输入的验证码文本，后端校验后自动失效。
+启用后，登录页自动显示图形验证码输入框。验证码通过 `GET /api/auth/captcha` 获取（返回 SVG + captchaId），登录时需同时提交 `captchaId` 和用户输入的验证码文本，后端校验后自动失效。
+
+- 验证码为数学表达式 SVG，5 分钟有效
+- 验证码存储在服务端内存 Map 中，校验后一次性删除
 
 ---
 
@@ -122,7 +124,7 @@ Zenith Admin 内置了多层安全防护能力，涵盖 IP 访问控制、账号
 
 | 接口 | 说明 |
 |------|------|
-| `GET /api/auth/captcha` | 获取验证码（返回 Base64 图片 + captchaId）|
+| `GET /api/auth/captcha` | 获取验证码（返回 SVG + captchaId）|
 | `POST /api/auth/register` | 开放注册（受 `allow_registration` 控制）|
 | `POST /api/users/{id}/unlock` | 管理员解除账号锁定 |
 | `PUT /api/auth/password` | 当前用户修改密码 |
@@ -159,19 +161,65 @@ ALLOWED_ORIGINS=https://admin.example.com,https://app.example.com
 
 ---
 
+## 请求体大小限制
+
+通过环境变量 `REQUEST_BODY_LIMIT` 配置全局请求体大小上限，单位为字节：
+
+```dotenv
+# 0 = 不启用 bodyLimit 中间件，使用运行时默认行为
+REQUEST_BODY_LIMIT=0
+```
+
+当值大于 `0` 时，所有请求都会经过 `hono/body-limit` 校验；超出限制返回：
+
+```json
+{
+  "code": 413,
+  "message": "请求体超出大小限制",
+  "data": null
+}
+```
+
+---
+
+## 请求超时
+
+通过环境变量 `REQUEST_TIMEOUT_MS` 配置 `/api/*` 请求超时时间，单位为毫秒：
+
+```dotenv
+# 0 = 不启用 timeout 中间件
+REQUEST_TIMEOUT_MS=0
+```
+
+超时返回：
+
+```json
+{
+  "code": 408,
+  "message": "请求处理超时（30000ms）",
+  "data": null
+}
+```
+
+以下长耗时路径不应用超时中间件：`/api/ws`、`/api/files`、`/api/db-backups`、`/api/db-admin`、`/api/log-files`、`/api/monitor/stream`、`/api/ai/conversations`，以及所有以 `/export` 结尾的导出接口。
+
+---
+
 ## 接口限流
 
 基于 `hono-rate-limiter` + Redis 对高危接口进行限流，防止暴力破解和滥用。
 
 ### 当前限流策略
 
-- `POST /api/auth/login`：15 分钟内最多 10 次，用于防暴力破解密码
-- `GET /api/auth/captcha`：1 分钟内最多 30 次，用于防验证码刷取
-- `POST /api/auth/register`：1 小时内最多 5 次，用于防滥用注册
-- `POST /api/auth/forgot-password`：1 小时内最多 5 次，用于防账号枚举
-- `POST /api/auth/reset-password`：1 小时内最多 5 次，用于防重置密码滥用
+内置三组规则，启动时从 `rate_limit_rules` 表加载到内存；数据库为空时内存使用代码默认值，后台规则列表接口会将默认规则落库：
 
-超过限制时返回：
+| 规则名 | 默认绑定接口 | 窗口 | 限制 | 默认启用 | keyType | 提示文案 |
+|--------|--------------|------|------|----------|---------|----------|
+| `auth` | `POST /api/auth/login` | 3 分钟 | 20 次 | `false` | `ip` | `登录尝试过于频繁，请 3 分钟后再试` |
+| `captcha` | `GET /api/auth/captcha` | 60 秒 | 30 次 | `true` | `ip` | `验证码请求过于频繁，请稍后再试` |
+| `sensitive` | `POST /api/auth/register`、`POST /api/auth/forgot-password`、`POST /api/auth/reset-password` | 60 分钟 | 5 次 | `true` | `ip` | `操作过于频繁，请 1 小时后重试` |
+
+超过限制时返回，`message` 以具体规则的 `blockedMessage` 为准：
 
 ```json
 {
@@ -183,8 +231,12 @@ ALLOWED_ORIGINS=https://admin.example.com,https://app.example.com
 
 ### 实现细节
 
-- 限流计数以 **IP 地址**为 key（`X-Forwarded-For` 优先，其次 `X-Real-IP`，fallback `0.0.0.0`）
-- 计数器存储在 **Redis**（key 格式：`{prefix}rl:{ip}`），服务重启后持续计数
+- `keyType` 支持 `ip`、`user`、`ip_path`：分别按客户端 IP、登录用户（未登录回退 IP）、`IP + path` 计数
+- 计数器存储在 **Redis**（key 前缀：`{REDIS_KEY_PREFIX}rl:`），服务重启后持续计数
+- 命中与拦截统计存储在 Redis（key 前缀：`{REDIS_KEY_PREFIX}rlstats:`），保留命中数、拦截数、最近拦截记录与 24 小时小时序列
+- 后台「系统设置 → 接口限流」通过 `GET /api/rate-limit/rules`、`PATCH /api/rate-limit/rules/{id}`、`POST /api/rate-limit/rules` 动态管理规则，保存后立即热更新
+- 自定义规则可通过 `pathPatterns` 绑定路径，支持精确路径与 `/*` 前缀匹配；全局 `pathBoundRateLimit` 会自动应用匹配规则
+- 支持 `POST /api/rate-limit/unblock` 解封指定 key，以及 `POST /api/rate-limit/reset-stats` 清空指定规则统计
 - 实现位置：`packages/server/src/middleware/rate-limit.ts`
 
-> **反代注意**：确保 Nginx 正确透传 `X-Forwarded-For` 或 `X-Real-IP`，否则所有请求将共享同一计数（fallback `0.0.0.0`），导致正常请求被误限。
+> **反代注意**：确保 Nginx 正确透传 `X-Forwarded-For` 或 `X-Real-IP`，否则计数可能落在反向代理或连接层 IP 上，导致正常请求被误限。

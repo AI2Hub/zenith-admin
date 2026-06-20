@@ -30,7 +30,7 @@ MSW Handler 匹配路径和方法
 VITE_DEMO_MODE=true
 ```
 
-启动后，页面右下角会有一个 MSW 激活提示（开发模式），终端日志中也会出现 `[MSW] Mocking enabled` 字样。
+启动后，前端请求会由 `mockServiceWorker.js` 按已注册的 handlers 处理。
 
 ---
 
@@ -47,7 +47,10 @@ npm run build:demo
 ```ini
 # packages/web/.env.demo 的关键变量
 VITE_DEMO_MODE=true
-VITE_APP_TITLE=Zenith Admin Demo
+VITE_APP_TITLE=Zenith Admin
+VITE_API_BASE_URL=
+VITE_WS_BASE_URL=
+VITE_BASE_URL=
 ```
 
 Demo 站与文档站通过 `.github/workflows/pages.yml` 一同部署到 GitHub Pages。
@@ -58,48 +61,104 @@ Demo 站与文档站通过 `.github/workflows/pages.yml` 一同部署到 GitHub 
 
 ```text
 packages/web/src/mocks/
-├── data/               # 静态 Mock 数据（与 seed.ts 对齐）
-│   ├── users.ts
-│   ├── roles.ts
-│   ├── menus.ts
-│   ├── departments.ts
-│   ├── positions.ts
-│   ├── dicts.ts
-│   ├── system.ts
+├── data/               # 静态 Mock 数据（与 seed-data.ts / seed.ts 对齐）
+│   ├── ai.ts
 │   ├── announcements.ts
-│   ├── logs.ts
+│   ├── chat.ts
+│   ├── chat-bots.ts
+│   ├── checkin.ts
+│   ├── data-mask.ts
+│   ├── departments.ts
+│   ├── dicts.ts
 │   ├── email-config.ts
-│   ├── message-templates.ts
+│   ├── email-send-logs.ts
+│   ├── email-templates.ts
+│   ├── in-app-messages.ts
+│   ├── in-app-templates.ts
+│   ├── logs.ts
+│   ├── members.ts
+│   ├── menus.ts
+│   ├── payment.ts
+│   ├── positions.ts
 │   ├── regions.ts
+│   ├── roles.ts
+│   ├── sms-configs.ts
+│   ├── sms-send-logs.ts
+│   ├── sms-templates.ts
+│   ├── system.ts
+│   ├── tags.ts
 │   ├── tenants.ts
+│   ├── user-groups.ts
+│   ├── users.ts
+│   ├── workflow-categories.ts
+│   ├── workflow-forms.ts
 │   ├── workflow.ts
 │   └── index.ts        # 汇总导出
 ├── handlers/           # MSW Handler 定义（每个模块一个文件）
-│   ├── auth.ts
-│   ├── users.ts
-│   ├── roles.ts
-│   ├── menus.ts
-│   ├── departments.ts
-│   ├── positions.ts
-│   ├── dicts.ts
-│   ├── system-configs.ts
-│   ├── announcements.ts
-│   ├── files.ts
-│   ├── sessions.ts
-│   ├── login-logs.ts
-│   ├── operation-logs.ts
-│   ├── cron-jobs.ts
-│   ├── monitor.ts
-│   ├── dashboard.ts
+│   ├── ai-conversations.ts
+│   ├── ai-prompt-templates.ts
+│   ├── ai-providers.ts
+│   ├── ai-usage.ts
+│   ├── analytics.ts
 │   ├── api-tokens.ts
+│   ├── announcements.ts
+│   ├── auth.ts
 │   ├── cache.ts
+│   ├── chat.ts
+│   ├── chat-bots.ts
+│   ├── checkin.ts
+│   ├── cron-jobs.ts
+│   ├── dashboard.ts
+│   ├── data-mask.ts
+│   ├── db-admin.ts
 │   ├── db-backups.ts
+│   ├── db-query-favorites.ts
+│   ├── departments.ts
+│   ├── dicts.ts
 │   ├── email-config.ts
-│   ├── message-templates.ts
-│   ├── oauth-config.ts
+│   ├── email-send-logs.ts
+│   ├── email-templates.ts
+│   ├── fallback.ts
+│   ├── files.ts
+│   ├── frontend-errors.ts
+│   ├── in-app-messages.ts
+│   ├── in-app-templates.ts
+│   ├── ip-access-logs.ts
+│   ├── login-logs.ts
+│   ├── maintenance.ts
+│   ├── member-admin.ts
+│   ├── member-front.ts
+│   ├── menus.ts
+│   ├── monitor-alerts.ts
+│   ├── monitor.ts
 │   ├── oauth.ts
+│   ├── oauth-config.ts
+│   ├── oauth2-apps.ts
+│   ├── oauth2-auth.ts
+│   ├── operation-logs.ts
+│   ├── payment.ts
+│   ├── ports.ts
+│   ├── positions.ts
+│   ├── rate-limit.ts
 │   ├── regions.ts
+│   ├── roles.ts
+│   ├── sessions.ts
+│   ├── sms-configs.ts
+│   ├── sms-send-logs.ts
+│   ├── sms-templates.ts
+│   ├── system-configs.ts
+│   ├── tags.ts
 │   ├── tenants.ts
+│   ├── terminal-files.ts
+│   ├── terminal-sessions.ts
+│   ├── user-ai-config.ts
+│   ├── user-groups.ts
+│   ├── user-permissions.ts
+│   ├── users.ts
+│   ├── workflow-automations.ts
+│   ├── workflow-categories.ts
+│   ├── workflow-extra.ts
+│   ├── workflow-forms.ts
 │   ├── workflow.ts
 │   └── index.ts        # 汇总所有 handlers
 ├── utils/              # 辅助工具
@@ -114,10 +173,12 @@ packages/web/src/mocks/
 
 ### 新增业务模块时
 
-1. 在 `data/` 下创建对应数据文件（模拟真实 seed 数据）
-2. 在 `handlers/` 下创建对应的 Handler 文件，实现 CRUD 接口模拟
-3. 在 `handlers/index.ts` 中导入并注册新 Handler
-4. 在 `data/index.ts` 中导出新数据
+1. 若模块有初始种子数据，先在 `packages/shared/src/seed-data.ts` 中声明对应 `SEED_XXXS` 常量
+2. 在 `packages/server/src/db/seed.ts` 中导入并写入数据库
+3. 在 `data/` 下创建对应数据文件，导入共享种子数据并按 Demo 需要展开
+4. 在 `handlers/` 下创建对应的 Handler 文件，实现接口模拟
+5. 在 `handlers/index.ts` 中导入并注册新 Handler
+6. 在 `data/index.ts` 中导出新数据
 
 ### 修改 API 接口格式时
 
@@ -130,19 +191,24 @@ packages/web/src/mocks/
 ```typescript
 // packages/web/src/mocks/handlers/positions.ts
 import { http, HttpResponse } from 'msw';
-import { mockPositions } from '../data';
+import { mockPositions } from '@/mocks/data/positions';
 
-export const positionHandlers = [
+export const positionsHandlers = [
   http.get('/api/positions', ({ request }) => {
     const url = new URL(request.url);
-    const page = Number(url.searchParams.get('page') ?? 1);
-    const pageSize = Number(url.searchParams.get('pageSize') ?? 10);
-    const list = mockPositions.slice((page - 1) * pageSize, page * pageSize);
-    return HttpResponse.json({
-      code: 0,
-      message: 'success',
-      data: { list, total: mockPositions.length, page, pageSize },
+    const keyword = url.searchParams.get('keyword') ?? '';
+    const status = url.searchParams.get('status') ?? '';
+    const page = Number(url.searchParams.get('page')) || 1;
+    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+
+    const filtered = mockPositions.filter((p) => {
+      if (keyword && !p.name.includes(keyword) && !p.code.includes(keyword)) return false;
+      if (status && p.status !== status) return false;
+      return true;
     });
+    const total = filtered.length;
+    const list = filtered.slice((page - 1) * pageSize, page * pageSize);
+    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
   }),
 ];
 ```

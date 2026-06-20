@@ -8,7 +8,8 @@ zenith-admin/
 ├── packages/
 │   ├── server/           # Hono 后端服务
 │   ├── shared/           # 共享类型、常量、Zod schema
-│   └── web/              # React 管理后台
+│   ├── web/              # React 管理后台与会员前台
+│   └── electron/         # Electron 桌面客户端
 ├── package.json          # 根脚本与工作区配置
 └── README.md
 ```
@@ -19,11 +20,12 @@ zenith-admin/
 
 关注这些目录：
 
-- `packages/server/src/routes/`：API 路由（认证、用户、部门、岗位、角色、菜单、字典、通知、日志、监控、会话、定时任务等）
+- `packages/server/src/routes/`：API 路由（认证、用户、部门、岗位、角色、菜单、字典、通知、日志、监控、会话、定时任务、会员、支付、工作流、AI、运维等）
 - `packages/server/src/services/`：Service 层（业务逻辑、数据映射 `mapXxx`、前置校验 `ensureXxx`；所有路由均已完成提取）
 - `packages/server/src/db/`：Drizzle schema、统一数据库类型别名、迁移与 seed
 - `packages/server/src/middleware/`：认证（`auth.ts`）、IP 访问控制（`ip-access.ts`）、权限守卫（`guard.ts`）、接口限流（`rate-limit.ts`）
 - `packages/server/src/lib/`：通用能力封装，详见下方列表
+- `packages/server/src/types/`：后端全局类型声明
 - `packages/server/drizzle/`：生成的迁移文件
 
 `src/lib/` 主要模块：
@@ -35,7 +37,7 @@ zenith-admin/
 | `oauth/` | OAuth 提供方抽象（GitHub / 钉钉 / 企业微信） |
 | `pg-boss-scheduler.ts` | 定时任务调度器（基于 pg-boss，PostgreSQL 多进程安全） |
 | `db-backup.ts` | 基于 pg_dump 的数据库备份 |
-| `file-storage.ts` | 文件存储抽象（本地 / 阿里云 OSS / S3 / COS） |
+| `file-storage.ts` | 文件存储抽象（本地 / 阿里云 OSS / S3 / COS / OBS / Kodo / BOS / Azure Blob / SFTP） |
 | `email.ts` | SMTP 邮件发送 |
 | `password-policy.ts` | 密码复杂度校验与过期策略 |
 | `system-config.ts` | 系统配置读取封装 |
@@ -58,7 +60,13 @@ zenith-admin/
 - `packages/web/src/layouts/`：后台主布局
 - `packages/web/src/components/`：公共组件
 - `packages/web/src/hooks/`：认证、主题等逻辑
+- `packages/web/src/lib/`：前端通用库封装
+- `packages/web/src/member/`：会员前台独立 SPA
+- `packages/web/src/mocks/`：MSW Demo 模式数据与 handlers
 - `packages/web/src/utils/`：请求封装、日期处理等工具
+- `packages/web/src/providers/`：全局 Provider
+- `packages/web/src/styles/`：全局样式
+- `packages/web/src/webrtc/`：音视频通话相关逻辑
 
 ## `packages/shared`
 
@@ -67,13 +75,15 @@ zenith-admin/
 - `packages/shared/src/types.ts`：实体类型、分页类型、接口响应类型
 - `packages/shared/src/validation.ts`：Zod 校验 schema
 - `packages/shared/src/constants.ts`：常量与枚举
+- `packages/shared/src/seed-data.ts`：前后端共用初始种子数据
+- `packages/shared/src/index.ts`：共享包导出入口
 
 ## `docs`
 
 文档站使用 **VitePress** 构建，当前按以下思路组织：
 
 - `index.md`：Landing Page
-- `guide/`：快速开始、开发、结构、部署
+- `guide/`：快速开始、开发、结构、部署、Docker、PWA、Electron、Demo
 - `product/`：产品概览与功能模块
 - `backend/`：接口规范、数据库说明
 - `frontend/`：UI 规范、认证与请求

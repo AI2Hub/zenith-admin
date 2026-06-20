@@ -110,7 +110,7 @@ const createXxxRoute = defineOpenAPIRoute({
 xxxRouter.openapiRoutes([createXxxRoute, /* 其他路由 */] as const);
 ```
 
-> `validationHook` 将 Zod 校验失败自动转为 `{ code: 400, message, data: null }` 标准格式，**创建 `OpenAPIHono` 实例时必须传入 `{ defaultHook: validationHook }`**。`commonErrorResponses` 已包含 400/401/403/404/500 标准错误码，所有路由的 `responses:` 块均需通过 `...commonErrorResponses` 展开。Zod schema 可直接从 `@zenith/shared/src/validation.ts` 导入（shared 使用 Zod v4），或在路由文件内本地声明。共享的辅助类型与工具函数位于 `packages/server/src/lib/openapi-schemas.ts`。
+> `validationHook` 将 Zod 校验失败自动转为 `{ code: 400, message, data: null }` 标准格式，**创建 `OpenAPIHono` 实例时必须传入 `{ defaultHook: validationHook }`**。`commonErrorResponses` 已包含 400/401/403/404/500 标准错误码，所有路由的 `responses:` 块均需通过 `...commonErrorResponses` 展开。Zod schema 可直接从 `@zenith/shared/src/validation.ts` 导入（shared 使用 Zod v4），或在路由文件内本地声明。共享的辅助类型与工具函数位于 `packages/server/src/lib/openapi-schemas.ts`，文件下载类响应使用 `okExcel()` / `okCsv()` / `okFile()` 声明，handler 中配合 `excelBody()` / `excelStreamBody()` / `csvStreamBody()` / `fileBody()` 返回内容。
 >
 > **响应体构造**：handler 内部统一使用 `okBody(data, msg?)` / `errBody(msg, code?)` 构造响应体，禁止内联写字面量对象：
 >
@@ -171,7 +171,7 @@ try {
 
 ## 响应实体 DTO（中心化）
 
-所有响应实体 DTO 按业务域拆分在 `packages/server/src/lib/dtos/` 下，`openapi-dtos.ts` 作为向后兼容的 re-export 入口。各路由通过 `import { XxxDTO } from '../lib/openapi-dtos'` 引用（无需修改），**新增实体请直接在对应子文件中维护**：
+所有响应实体 DTO 按业务域拆分在 `packages/server/src/lib/dtos/` 下，`openapi-dtos.ts` 作为 re-export 入口。各路由通过 `import { XxxDTO } from '../lib/openapi-dtos'` 引用，**新增实体请直接在对应子文件中维护**：
 
 ```typescript
 import { UserDTO, RoleDTO, MenuDTO } from '../lib/openapi-dtos';
@@ -191,7 +191,7 @@ const listXxxRoute = defineOpenAPIRoute({
 **约束：**
 
 - ❌ **禁止**在路由文件中本地声明带 `.openapi('EntityName')` 的实体 DTO（会导致 Swagger Components 重复或冲突）
-- ✅ 所有实体（`UserDTO` / `RoleDTO` / `MenuDTO` / `DepartmentDTO` / `TenantDTO` / `DictDTO` 等 50+）按业务域拆分在 `packages/server/src/lib/dtos/` 子目录，`packages/server/src/lib/openapi-dtos.ts` 为 re-export barrel
+- ✅ 所有实体 DTO 按业务域拆分在 `packages/server/src/lib/dtos/` 子目录，当前导出文件包括：`roles.ts`、`positions.ts`、`user-groups.ts`、`users.ts`、`menus.ts`、`departments.ts`、`tenants.ts`、`api-tokens.ts`、`auth.ts`、`dict.ts`、`files.ts`、`business-files.ts`、`logs.ts`、`announcements.ts`、`system-configs.ts`、`cron-jobs.ts`、`email-config.ts`、`cache.ts`、`db-backups.ts`、`db-admin.ts`、`monitor.ts`、`sessions.ts`、`workflow.ts`、`workflow-events.ts`、`dashboard.ts`、`region.ts`、`sms.ts`、`email.ts`、`in-app.ts`、`chat.ts`、`tags.ts`、`rate-limit.ts`、`ai.ts`、`data-mask.ts`、`oauth2.ts`、`maintenance.ts`、`terminal-files.ts`、`terminal-recordings.ts`、`processes.ts`、`analytics.ts`、`ssh-profiles.ts`、`ssh-sftp.ts`、`terminal-sessions.ts`、`frontend-errors.ts`、`payment.ts`、`member.ts`；`_audit.ts` 供 DTO 审计字段复用，`index.ts` 统一 re-export
 - ✅ 内联使用的 request body schema、不作为 Component 的一次性匿名对象无需搬到中心文件
 - ✅ 新增实体模块时，先在 `packages/server/src/lib/dtos/` 下对应的子文件（或新建子文件）中添加 `export const XxxDTO = z.object({...}).openapi('Xxx');`，再在路由中从 `'../lib/openapi-dtos'` 导入
 
@@ -285,13 +285,14 @@ Server-Timing: total;dur=45.2;desc="Total Response Time"
 ```typescript
 import { startTime, endTime } from 'hono/timing';
 import type { TimingVariables } from 'hono/timing';
+import { okBody } from '../lib/openapi-schemas';
 
 // 路由 handler 中使用
 app.get('/api/heavy', async (c) => {
   startTime(c, 'db');
   const data = await db.query.users.findMany();
   endTime(c, 'db');
-  return c.json({ code: 0, data });
+  return c.json(okBody(data), 200);
 });
 ```
 
@@ -323,6 +324,10 @@ Server-Timing: total;dur=45.2;desc="Total Response Time", db;dur=12.3
   - `/api/ws` — WebSocket 连接
   - `/api/files/*` — 文件上传/下载
   - `/api/db-backups/*` — 数据库备份
+  - `/api/db-admin/*` — 数据库管理
+  - `/api/log-files/*` — 日志文件读取
+  - `/api/monitor/stream/*` — 监控流
+  - `/api/ai/conversations/*` — AI 对话流
   - 所有以 `/export` 结尾的导出接口（如 `/api/users/export`、`/api/operation-logs/export` 等）
 - 超时后返回：`{ code: 408, message: '请求处理超时（Xms）', data: null }`（HTTP 408）。
 

@@ -66,7 +66,7 @@ Zenith Admin 采用 **tag 触发 Release** 的自动化发布流程：
 1. 更新四个 `package.json` 中的版本号（根 / server / web / shared）
 2. 在项目根目录执行 `npm install --package-lock-only`，同步 `package-lock.json`
 3. 在 `docs/changelog/index.md` 顶部追加当前版本的变更记录
-4. 本地执行 `npm run build` 做发布前构建校验
+4. 使用 Node.js 24 执行 `npm run build` 做发布前构建校验
 5. 提交并推送到 `master`
 6. 本地打 tag 并推送，触发 Release 工作流
 

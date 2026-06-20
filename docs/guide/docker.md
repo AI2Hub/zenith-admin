@@ -60,14 +60,16 @@ redis    ─┤──→  api (Node.js :3300)  ──→  web (Nginx :80)
 | --- | --- | --- |
 | `JWT_SECRET` | *(必须修改)* | JWT 签名密钥，生产环境使用 ≥ 32 字符强随机字符串 |
 | `POSTGRES_PASSWORD` | `postgres` | PostgreSQL 密码 |
+| `POSTGRES_PORT` | `5432` | PostgreSQL 宿主机映射端口 |
 | `REDIS_PASSWORD` | *(空，无认证)* | Redis 密码，留空则不启用 `requirepass` |
-| `REDIS_URL` | `redis://redis:6379` | 覆盖完整 Redis 连接 URL（外部 Redis 时使用） |
+| `REDIS_PORT` | `6379` | Redis 宿主机映射端口 |
+| `REDIS_URL` | `redis://redis:6379` | 覆盖完整 Redis 连接 URL（外部 Redis 或 Redis 密码场景使用） |
 | `WEB_PORT` | `80` | 前端对外端口 |
 | `API_PORT` | `3300` | 后端 API 对外端口 |
 | `ALLOWED_ORIGINS` | *(空)* | CSRF 白名单，生产环境设置为前端域名 |
 | `CORS_ORIGIN` | `*` | CORS 允许来源，同域部署无需修改 |
 | `LOG_LEVEL` | `info` | 日志级别（`debug` / `info` / `warn` / `error`） |
-| `TAG` | `latest` | 镜像标签，多版本管理时使用（如 `0.18.0`） |
+| `TAG` | `latest` | 镜像标签，多版本管理时使用（如 `0.63.0`） |
 
 ::: warning 生产环境安全提示
 `JWT_SECRET` 务必修改为强随机字符串。推荐使用：
@@ -76,7 +78,7 @@ redis    ─┤──→  api (Node.js :3300)  ──→  web (Nginx :80)
 openssl rand -base64 32
 ```
 
-同时建议设置 `ALLOWED_ORIGINS` 防止 CSRF 攻击。
+同时建议设置 `ALLOWED_ORIGINS` 防止 CSRF 攻击。若设置 `REDIS_PASSWORD`，请同步将 `REDIS_URL` 配置为带密码的连接串，例如 `redis://:your_password@redis:6379/0`。
 :::
 
 ---
@@ -145,7 +147,7 @@ npm run dev
 
 | 阶段 | 目标镜像 | 基础 | 说明 |
 | --- | --- | --- | --- |
-| `builder` | *(中间层)* | `node:22-alpine` | 安装全量依赖、编译 shared + server + web |
+| `builder` | *(中间层)* | `node:24-alpine` | 安装全量依赖、编译 shared + server + web |
 | `server` | `zenith-admin-api` | `node:22-alpine` | 仅含生产依赖 + 编译产物，约 300MB |
 | `web` | `zenith-admin-web` | `nginx:1.27-alpine` | 静态文件 + nginx 配置，约 30MB |
 

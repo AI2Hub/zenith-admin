@@ -1,6 +1,6 @@
 # OAuth 第三方登录
 
-Zenith Admin 从 v0.1.4 起支持 OAuth 第三方登录，用户可通过 GitHub、钉钉或企业微信账号直接认证。系统会优先复用已绑定账号；若第三方返回的邮箱可匹配现有本地账号，则自动完成绑定；若无法匹配，则提示用户先登录本地账号后在个人中心完成绑定。
+Zenith Admin 支持作为 OAuth 客户端接入第三方登录，用户可通过 GitHub、钉钉或企业微信账号直接认证。系统会优先复用已绑定账号；若第三方返回的邮箱可匹配现有本地账号，则自动完成绑定；若无法匹配，则提示用户先登录本地账号后在个人中心完成绑定。
 
 ---
 
@@ -18,9 +18,19 @@ Zenith Admin 从 v0.1.4 起支持 OAuth 第三方登录，用户可通过 GitHub
 
 - `Client ID`：OAuth 应用的客户端 ID
 - `Client Secret`：OAuth 应用的客户端密钥
+- `Agent ID`：企业微信应用 AgentId（企业微信使用）
+- `Corp ID`：企业微信企业 ID（企业微信使用）
 - `是否启用`：关闭后对应提供方不出现在登录页
 
 配置完成后，登录页会自动显示已启用提供方的快捷登录图标。
+
+第三方回调地址由服务端环境变量 `OAUTH_CALLBACK_BASE_URL` 拼接生成，默认值为 `http://localhost:5373`。各提供方实际回调路径分别为：
+
+| 提供方 | 回调地址 |
+|--------|----------|
+| GitHub | `{OAUTH_CALLBACK_BASE_URL}/oauth/callback/github` |
+| 钉钉 | `{OAUTH_CALLBACK_BASE_URL}/oauth/callback/dingtalk` |
+| 企业微信 | `{OAUTH_CALLBACK_BASE_URL}/oauth/callback/wechat_work` |
 
 ---
 
@@ -98,7 +108,35 @@ JWT token 存入 localStorage，跳转至仪表盘
 
 1. 打开企业微信后台 → 应用管理 → 创建应用
 2. 在「网页授权及 JS-SDK」中配置授权域名与回调地址，例如 `https://your-domain.com/oauth/callback/wechat_work`
-3. 获取 CorpID（企业 ID）和 AgentSecret（应用 Secret）
+3. 获取 CorpID（企业 ID）、AgentId（应用 ID）和 AgentSecret（应用 Secret）
+
+---
+
+## OAuth2 服务端
+
+除第三方登录外，Zenith Admin 也提供 OAuth2 服务端能力，可在「系统设置 → OAuth2 应用」（菜单路径：`/system/oauth2-apps`）管理本系统对外签发令牌的客户端应用。
+
+### 应用管理接口
+
+- `GET /api/oauth2/clients`：获取 OAuth2 应用列表
+- `POST /api/oauth2/clients`：创建 OAuth2 应用，`client_secret` 仅返回一次
+- `GET /api/oauth2/clients/{id}`：获取应用详情
+- `PUT /api/oauth2/clients/{id}`：更新应用
+- `DELETE /api/oauth2/clients/{id}`：删除应用
+- `POST /api/oauth2/clients/{id}/regenerate-secret`：重置应用密钥
+- `GET /api/oauth2/clients/tokens?clientId=...`：获取应用令牌列表
+- `DELETE /api/oauth2/clients/tokens/{id}`：撤销令牌
+
+### 标准 OAuth2 端点
+
+- `GET /api/oauth2/authorize/info`：查询应用授权信息，用于前端同意页面
+- `POST /api/oauth2/authorize`：用户确认授权，支持授权码模式与 implicit
+- `POST /api/oauth2/token`：令牌端点，支持 `authorization_code`、`client_credentials`、`refresh_token`
+- `POST /api/oauth2/token/revoke`：撤销令牌（RFC 7009）
+- `POST /api/oauth2/token/introspect`：令牌自省（RFC 7662）
+- `GET /api/oauth2/userinfo`：UserInfo（OIDC Core）
+
+OAuth2 服务端使用 opaque token，数据库只保存 SHA-256 哈希；授权码有效期 10 分钟，授权码单次使用后标记为已使用。公开客户端可使用 PKCE，机密客户端通过 `client_secret` 校验。
 
 ---
 
@@ -106,3 +144,7 @@ JWT token 存入 localStorage，跳转至仪表盘
 
 - `oauth_configs`：各提供方的 Client ID / Secret 及启用状态
 - `user_oauth_accounts`：用户与第三方账号的绑定关系（openId、nickname、avatar）
+- `oauth2_clients`：OAuth2 服务端客户端应用
+- `oauth2_authorization_codes`：OAuth2 授权码
+- `oauth2_tokens`：OAuth2 access token / refresh token 哈希
+- `oauth2_user_grants`：用户对 OAuth2 应用的授权记录

@@ -19,7 +19,7 @@
 
 | 依赖          | 版本要求 | 说明                         |
 | ------------- | -------- | ---------------------------- |
-| Node.js       | >= 18    | 运行后端服务                 |
+| Node.js       | >= 22    | 运行后端服务                 |
 | PostgreSQL    | >= 14    | 持久化业务数据               |
 | Redis         | >= 6     | 持久化在线会话与黑名单状态   |
 | Nginx（可选） | 任意     | 托管前端静态文件 + 反向代理  |
@@ -28,7 +28,7 @@
 
 ## 获取发布产物
 
-在 [GitHub Releases](https://github.com/iwangbowen/zenith-admin/releases) 页面下载最新版本的两个压缩包：
+在 [GitHub Releases](https://github.com/iwangbowen/zenith-admin/releases) 页面下载对应版本的两个压缩包：
 
 - `zenith-admin-server-vX.Y.Z.zip`：后端构建产物（`dist/` + `drizzle/` + `package.json`）
 - `zenith-admin-web-vX.Y.Z.zip`：前端静态文件（直接托管即可）
@@ -69,7 +69,7 @@ LOG_DIR=./logs
 # 请求防护（可选，默认均不启用）
 # 请求体大小上限（字节），0 = 不限制。建议生产环境至少开启一个合理值
 # REQUEST_BODY_LIMIT=10485760
-# 请求超时（毫秒），0 = 不启用。启用后自动排除 /api/ws、/api/files、/api/db-backups 及 /export 接口
+# 请求超时（毫秒），0 = 不启用。启用后自动排除长耗时接口
 # REQUEST_TIMEOUT_MS=30000
 
 # Prometheus 指标默认暴露在 GET /metrics
@@ -141,7 +141,7 @@ pm2 start ecosystem.config.js
 pm2 save
 ```
 
-**Zenith Admin 定时任务基于 pg-boss（PostgreSQL 队列）**：pg-boss 天然通过 `SKIP LOCKED` 实现多进程安全，任意多个进程可以同时启动而不会重复执行同一任务。工作流延迟调度器仍通过 `NODE_APP_INSTANCE === '0'` 限制在单进程启动。
+**Zenith Admin 定时任务基于 pg-boss（PostgreSQL 队列）**：pg-boss 天然通过 `SKIP LOCKED` 实现多进程安全，任意多个进程可以同时启动而不会重复执行同一任务。工作流延迟调度器在 `NODE_APP_INSTANCE` 未设置或等于 `0` 的进程中启动。
 :::
 
 ---
@@ -279,10 +279,10 @@ OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
 
 ## 升级版本
 
-1. 在 [GitHub Releases](https://github.com/iwangbowen/zenith-admin/releases) 下载新版本产物
+1. 在 [GitHub Releases](https://github.com/iwangbowen/zenith-admin/releases) 下载目标版本产物
 2. 停止当前后端进程（`pm2 stop zenith-server`）
 3. 替换 `dist/` 目录内容
-4. 执行数据库迁移（新版本可能包含 schema 变更）
+4. 执行数据库迁移（发布产物包含 schema 变更时会应用对应迁移）
 
    ```bash
    node dist/db/migrate.js

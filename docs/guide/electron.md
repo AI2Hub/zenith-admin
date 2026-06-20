@@ -21,6 +21,7 @@ Electron 模式下，前端通过 `VITE_API_BASE_URL` 指定后端地址。在 `
 
 ```ini
 VITE_API_BASE_URL=https://your-server.com
+VITE_WS_BASE_URL=wss://your-server.com
 ```
 
 若前端和后端同域（如通过 Nginx 代理），无需设置。
@@ -28,6 +29,9 @@ VITE_API_BASE_URL=https://your-server.com
 ### 2. 执行构建命令
 
 ```bash
+# 构建当前平台安装包
+npm run build:electron
+
 # 构建 Windows 安装包（.exe）
 npm run build:electron:win
 
@@ -50,10 +54,10 @@ npm run build:electron:linux
 
 ```
 dist/electron/
-├── Zenith Admin Setup x.y.z.exe        # Windows NSIS 安装包
+├── Zenith Admin Setup x.y.z.exe          # Windows NSIS 安装包
 ├── Zenith Admin Setup x.y.z.exe.blockmap
 └── win-unpacked/                         # 免安装版本（可直接运行）
-    ├── @zenithelectron.exe
+    ├── Zenith Admin.exe
     └── resources/
         ├── app.asar                      # 主进程代码
         └── web/                          # 前端静态资源
@@ -75,7 +79,7 @@ Electron 开发模式会连接本地 `http://localhost:5373` 的 Vite dev server
 | `contextIsolation` | `true` | 渲染进程与 Node 环境隔离 |
 | `nodeIntegration` | `false` | 渲染进程无法直接访问 Node.js API |
 | `webSecurity` | `true` | 保持默认 Web 安全策略 |
-| Preload 脚本 | 受限 API | 通过 `contextBridge` 仅暴露 `minimize/maximize/close` 窗口控制 |
+| Preload 脚本 | 受限 API | 通过 `contextBridge` 暴露窗口控制、最大化状态监听和 `isElectron` 标识 |
 
 ## 升级版本
 
@@ -83,5 +87,5 @@ Electron 开发模式会连接本地 `http://localhost:5373` 的 Vite dev server
 2. 将新安装包分发给用户安装（覆盖安装即可）
 
 ::: tip 自动更新
-当前版本暂不包含自动更新功能。如需实现，可接入 `electron-updater` 配合 GitHub Releases 实现 Delta 更新。
+自动更新功能未接入。如需实现，可接入 `electron-updater` 配合 GitHub Releases 实现 Delta 更新。
 :::

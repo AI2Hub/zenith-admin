@@ -7,7 +7,7 @@
 ```ts
 // services/payment.service.ts —— 业务模块唯一入口
 createPayment(input: {
-  bizType: string; bizId: string; amount: number; subject: string;
+  bizType: string; bizId: string; amount: number; subject: string; body?: string;
   payMethod: PayMethod; channelConfigId?: number;   // 不传则用 isDefault 渠道
   userId?: number; openId?: string; clientIp: string; expireMinutes?: number;
 }): Promise<{ orderNo: string; payParams: CreatePaymentResult }>;
@@ -25,26 +25,38 @@ closePayment(orderNo: string): Promise<void>;
 
 | 字段 | 说明 |
 | --- | --- |
-| `bizType` | 业务类型标识（如 `membership` / `order` / `member_recharge`），事件回调据此路由 |
+| `bizType` | 业务类型标识，支付中心不做枚举限制；内置会员钱包充值使用 `member_recharge`，事件订阅者据此路由 |
 | `bizId` | 业务方主键（字符串），用于回填业务状态 |
 | `amount` | 金额，**整数分**（如 `9900` = 99.00 元） |
 | `payMethod` | 支付方式，门面据 `PAYMENT_METHOD_CHANNEL` 自动选渠道 |
 | `openId` | 微信 JSAPI 必填 |
 | `expireMinutes` | 订单过期分钟数，默认 30，超时由 cron 关单 |
 
+### HTTP 路由
+
+| 路由 | 说明 | 幂等 |
+| --- | --- | --- |
+| `POST /api/payment/orders` | 后台发起支付下单，返回二维码 URL / 跳转链接 / JSAPI 参数 / APP 调起串 | `idempotencyGuard` 15s，支持 `X-Idempotency-Key` |
+| `GET /api/payment/orders/{id}` | 支付订单详情 | - |
+| `POST /api/payment/orders/{id}/query` | 主动查单并同步本地订单状态 | - |
+| `POST /api/payment/orders/{id}/close` | 关闭待支付订单 | - |
+| `POST /api/payment/refunds` | 发起退款 | `idempotencyGuard` 15s，支持 `X-Idempotency-Key` |
+| `POST /api/payment/refunds/{id}/query` | 主动查询退款状态并同步本地退款单 | - |
+| `POST /api/member/wallet/recharge` | 会员钱包充值下单，固定接入 `bizType='member_recharge'` | `idempotencyGuard` 10s，支持 `X-Idempotency-Key` |
+
 ## 2. 监听支付结果（事件总线）
 
 支付 / 退款结果通过 **`paymentEventBus`** 进程内事件总线广播，业务模块订阅对应事件完成履约（发货、开通会员、入账等），与支付中心解耦。
 
-### 事件类型
+### 事件类型定义
 
-| 事件 | 触发时机 |
+| 事件 | 说明 |
 | --- | --- |
-| `payment.succeeded` | 支付成功（回调验签成功或主动查单确认） |
-| `payment.closed` | 订单关闭（超时关单 / 主动关闭） |
-| `payment.failed` | 支付失败 |
-| `refund.succeeded` | 退款成功 |
-| `refund.failed` | 退款失败 |
+| `payment.succeeded` | 支付成功（回调验签成功或主动查单确认），通过 Outbox 投递 |
+| `payment.closed` | 主动查单确认渠道侧关闭时直接广播 |
+| `payment.failed` | 支付失败事件类型 |
+| `refund.succeeded` | 退款成功，通过 Outbox 投递 |
+| `refund.failed` | 退款失败事件类型 |
 
 ### 事件载荷
 
@@ -69,23 +81,24 @@ interface PaymentEvent {
 ### 订阅示例
 
 ```ts
-import { createPayment } from '../services/payment.service';
 import { paymentEventBus } from '../lib/payment-event-bus';
+import { createPayment } from '../services/payment.service';
+import { creditWalletOnRecharge, WALLET_RECHARGE_BIZ_TYPE } from '../services/member-wallet.service';
 
 // 1) 下单（拿到二维码 / 跳转链接给前端）
 const { orderNo, payParams } = await createPayment({
-  bizType: 'membership',
-  bizId: String(membershipOrder.id),
+  bizType: WALLET_RECHARGE_BIZ_TYPE,
+  bizId: String(memberId),
   amount: 9900,                 // 99.00 元
-  subject: '会员充值-年度套餐',
+  subject: '会员钱包充值',
   payMethod: 'wechat_native',
   clientIp: c.req.header('x-forwarded-for') ?? '',
 });
 
 // 2) 监听支付成功，履约
 paymentEventBus.on('payment.succeeded', async (e) => {
-  if (e.bizType === 'membership') {
-    await activateMembership(e.bizId);
+  if (e.bizType === WALLET_RECHARGE_BIZ_TYPE) {
+    await creditWalletOnRecharge({ bizId: e.bizId, orderNo: e.orderNo, amount: e.amount });
   }
 });
 ```
@@ -94,7 +107,7 @@ paymentEventBus.on('payment.succeeded', async (e) => {
 
 ## 3. 幂等要求（重要）
 
-业务订阅者**必须自身幂等**：同一笔支付成功事件可能被**实时路径**与 **Outbox 兜底**各投递一次（at-least-once）。处理时应：
+业务订阅者**必须自身幂等**：同一笔支付成功事件可能被**低延迟投递**与 **cron 兜底补投**重复投递（at-least-once）。处理时应：
 
 - 用 `eventId` 或 `orderNo` 去重；
 - 或让履约操作天然幂等（如「若已开通会员则跳过」）。

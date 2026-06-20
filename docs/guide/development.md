@@ -10,6 +10,24 @@
 npm run dev
 npm run dev:server
 npm run dev:web
+npm run dev:demo
+npm run dev:electron
+```
+
+### 构建与校验
+
+```bash
+npm run build
+npm run build:demo
+npm run build:electron
+npm run build:electron:win
+npm run build:electron:mac
+npm run build:electron:linux
+npm run test
+npm run test:server
+npm run test:web
+npm run lint
+npm run lint:fix
 ```
 
 ### 数据库相关
@@ -39,6 +57,7 @@ npm run docs:preview
 
 - `packages/server`：后端服务与数据库操作
 - `packages/web`：管理后台前端
+- `packages/electron`：Electron 桌面客户端
 - `packages/shared`：共享类型、常量、Zod schema
 
 共享层直接引用 TypeScript 源文件，无需额外编译流程。
@@ -57,6 +76,6 @@ npm run docs:preview
 
 前端页面与操作入口统一使用 `lucide-react`，不要引入 `@douyinfe/semi-icons`。
 
-## 发布新版本
+## 版本发布
 
 发布流程详见 [贡献指南 → 版本发布](./contributing#版本发布)。

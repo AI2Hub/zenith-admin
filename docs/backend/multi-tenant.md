@@ -1,6 +1,6 @@
 # 多租户指南
 
-Zenith Admin 内置了可选的多租户（Multi-Tenant）能力，默认关闭。开启后，各业务表按 `tenant_id` 自动隔离数据，适用于 SaaS 场景。
+Zenith Admin 内置了可选的多租户（Multi-Tenant）能力，默认关闭。开启后，已接入的业务表按 `tenant_id` 隔离数据，适用于 SaaS 场景。
 
 ---
 
@@ -31,7 +31,7 @@ VITE_MULTI_TENANT_MODE=true
 
 两端都需要设置，开关**必须保持一致**。设置完成后重启服务即可生效。
 
-> 关闭时（默认），系统与以前完全兼容，所有数据均无 `tenant_id` 过滤。
+> 关闭时（默认），系统不追加 `tenant_id` 过滤。
 
 ---
 
@@ -49,6 +49,8 @@ CREATE TABLE tenants (
   expire_at   TIMESTAMPTZ,                    -- 到期时间（NULL = 永不到期）
   max_users   INTEGER,                        -- 最大用户数限制（NULL = 不限）
   remark      TEXT,
+  created_by  INTEGER,
+  updated_by  INTEGER,
   created_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
   updated_at  TIMESTAMP    NOT NULL DEFAULT NOW()
 );
@@ -60,14 +62,19 @@ CREATE TABLE tenants (
 
 ## 数据隔离机制
 
-多租户模式下，以下业务表均增加了 `tenant_id` 字段（外键关联 `tenants.id`，`ON DELETE CASCADE`）：
+多租户模式下，已接入租户隔离的表通过 `tenant_id` 字段与 `tenantCondition()` / `tenantScope()` 查询条件实现行级隔离。常用表包括：
 
 - `departments`（部门）
 - `positions`（岗位）
 - `users`（用户）
-- 其他后续新增的业务表（参见「为新模块添加租户隔离」章节）
+- `roles`（角色）
+- `dicts`（字典）
+- `managed_files`（文件记录）
+- `system_configs`（系统配置）
+- `login_logs` / `operation_logs`（日志）
+- 支付、通知、工作流、数据分析等业务表（参见 `packages/server/src/db/schema.ts` 中带 `tenant_id` 的表）
 
-删除租户时，所有关联的业务数据将**级联删除**。
+多数租户业务表的 `tenant_id` 外键使用 `ON DELETE CASCADE`，删除租户时关联业务数据会随租户删除；少数记录类表按业务语义使用 `SET NULL` 或非外键字段。
 
 ### 过滤工具函数
 
@@ -126,7 +133,7 @@ export async function listBusinessRows() {
 4. 验证用户名密码，要求用户的 `tenant_id` 与租户 ID 一致
 5. 将 `tenantId` 签入 JWT，后续所有请求自动携带
 
-> 不传 `tenantCode` 时，系统不进行租户过滤，平台超管可直接以平台身份登录。
+> 不传 `tenantCode` 时，多租户模式只匹配 `tenant_id IS NULL` 的平台用户，平台超管可直接以平台身份登录。
 
 ### 前端登录页
 
@@ -225,10 +232,10 @@ export async function createOrder(validatedData: CreateOrderInput) {
 
 ### 注意事项
 
-- `tenantCondition` 在多租户模式关闭时返回 `undefined`，不添加任何过滤，与旧逻辑完全兼容
+- `tenantCondition` 在多租户模式关闭时返回 `undefined`，不添加任何过滤
 - 平台超管在「平台视角」（`viewingTenantId = null`）时，`tenantCondition` 同样返回 `undefined`，可查看全量数据
 - 超管切换至某租户视角后，`tenantCondition` 返回 `eq(table.tenantId, viewingTenantId)`
-- **配置类数据**（角色、菜单、字典等）通常无需租户隔离，保持全局共享
+- `menus` 菜单表保持全局共享；`roles`、`dicts`、`system_configs` 已支持租户级数据
 - **业务数据**（用户、部门、订单等）需要隔离，在 Step 0 信息收集时明确确认
 
 ---

@@ -136,21 +136,63 @@ const rows = await db.query.users.findMany({
 // ❌ 避免：先查 users，再写 getUserRolesMap()/getUserPositionsMap() 二次聚合
 ```
 
-**已声明的关联关系（可直接使用）**：
+**常用已声明的关联关系（可直接使用）**：
 
 | 表 | 可用 `with` 字段 |
 | --- | --- |
-| `users` | `department`, `userRoles`, `userPositions`, `oauthAccounts`, `apiTokens` |
-| `roles` | `userRoles`, `roleMenus` |
+| `tenants` | `departments`, `positions`, `users`, `roles`, `dicts`, `userGroups`, `managedFiles`, `announcements`, `systemConfigs`, `workflowDefinitions`, `workflowInstances` |
+| `departments` | `tenant`, `users`, `leader`, `userGroups` |
+| `positions` | `tenant`, `userPositions` |
+| `userGroups` | `tenant`, `owner`, `department`, `members` |
+| `userGroupMembers` | `group`, `user` |
+| `users` | `department`, `tenant`, `userRoles`, `userPositions`, `userGroupMembers`, `ownedUserGroups`, `oauthAccounts`, `apiTokens`, `passwordResetTokens`, `leadingDepartments`, `userMenus`, `userDeptScopes` |
+| `roles` | `tenant`, `userRoles`, `roleMenus`, `deptScopes` |
+| `menus` | `roleMenus`, `userMenus` |
 | `userRoles` | `user`, `role` |
 | `userPositions` | `user`, `position` |
-| `dicts` | `items` |
-| `workflowDefinitions` | `createdByUser`, `instances` |
-| `workflowInstances` | `definition`, `initiator`, `tasks` |
-| `workflowTasks` | `instance`, `assignee` |
+| `roleMenus` | `role`, `menu` |
+| `roleDeptScopes` | `role`, `department` |
+| `userMenus` | `user`, `menu` |
+| `userDeptScopes` | `user`, `department` |
+| `dicts` | `tenant`, `items` |
+| `dictItems` | `dict`, `parent`, `children` |
+| `fileStorageConfigs` | `files` |
+| `managedFiles` | `storageConfig`, `tenant`, `createdByUser` |
 | `dbBackups` | `file`, `createdByUser` |
 | `cronJobs` | `logs` |
-| `announcements` | `reads`, `recipients` |
+| `cronJobLogs` | `job` |
+| `announcements` | `tenant`, `reads`, `recipients`, `attachments` |
+| `businessFiles` | `file`, `tenant` |
+| `workflowCategories` | `tenant`, `definitions`, `forms` |
+| `workflowForms` | `tenant`, `createdByUser`, `category`, `definitions` |
+| `workflowDefinitions` | `tenant`, `createdByUser`, `category`, `form`, `instances`, `versions`, `automations` |
+| `workflowInstances` | `definition`, `initiator`, `tenant`, `tasks` |
+| `workflowTasks` | `instance`, `assignee`, `urges` |
+| `workflowComments` | `instance`, `task`, `user` |
+| `workflowDelegations` | `principal`, `delegate`, `definition`, `tenant` |
+| `workflowTaskConsults` | `task`, `instance`, `inviter`, `consultee` |
+| `chatConversations` | `createdByUser`, `tenant`, `members`, `messages` |
+| `chatMessages` | `conversation`, `sender`, `reactions` |
+| `emailTemplates` | `tenant`, `logs` |
+| `emailSendLogs` | `template`, `user`, `tenant` |
+| `smsConfigs` | `tenant`, `logs` |
+| `smsTemplates` | `tenant`, `logs` |
+| `smsSendLogs` | `config`, `template`, `user`, `tenant` |
+| `inAppTemplates` | `tenant`, `messages` |
+| `inAppMessages` | `template`, `user`, `sender`, `tenant` |
+| `paymentChannelConfigs` | `orders` |
+| `paymentOrders` | `channelConfig`, `user`, `refunds` |
+| `paymentRefunds` | `order` |
+| `aiProviderConfigs` | `createdByUser` |
+| `aiConversations` | `user`, `tenant`, `messages` |
+| `aiMessages` | `conversation` |
+| `oauth2Clients` | `owner` |
+| `memberLevels` | `members` |
+| `members` | `level`, `tenant`, `pointAccount`, `wallet`, `pointTransactions`, `walletTransactions`, `memberCoupons`, `checkins` |
+| `memberWalletTransactions` | `member`, `paymentOrder` |
+| `coupons` | `memberCoupons` |
+| `monitorAlertRules` | `events` |
+| `monitorAlertEvents` | `rule` |
 
 > **保留手动 JOIN 的场景**：聚合计数需要跨表过滤（如 `countDistinct` + 反向遍历联结表）；keyword 搜索同时过滤主表和关联表字段（WHERE 依赖 JOIN 列）。
 

@@ -9,7 +9,7 @@
 
 | 特性 | 支持情况 |
 |---|---|
-| 请求 + 响应关联（correlation ID） | ✅ 复用 `hono/request-id` |
+| 请求 + 响应关联（correlation ID） | ✅ 入站复用 `hono/request-id`，出站生成 `out-{timestamp}-{attempt}` |
 | 5 档精细日志级别 | ✅ off / access / headers / body / full |
 | 全局级别 + 方法级别覆盖 | ✅ 独立配置每个 HTTP Method |
 | 3 种输出格式 | ✅ json / text / curl |
@@ -37,11 +37,13 @@
 | `maxBodyBytes` | `65536`（64KB）| `4096`（4KB）|
 | `logResponseBody` | `false`（不记录响应体）| `true`（记录响应体）|
 | `excludePaths` | 空（仅内置排除生效）| 不适用 |
-| `separateFile` | `false`（写入 app-*.log）| 不适用（始终写入 app-*.log）|
+| `separateFile` | `false`（写入 app-*.log）| `false`（写入 app-*.log）|
 
 **内置排除路径**（始终跳过，不受配置影响）：
 
 `/api/health`、`/api/ws`、`/api/metrics`、`/docs`、`/api/ui`、`/favicon.ico`
+
+当前 HTTP 流量日志不做随机采样：启用后按日志级别、方法覆盖和排除路径决定是否记录。
 
 ## 日志级别（Level）
 
@@ -148,6 +150,18 @@ HTTP_LOG_INCOMING_METHOD_DELETE=headers
 
 日志文件每日滚动，默认保留 30 天，超过自动压缩归档（由 `LOG_MAX_FILES` 控制）。
 
+### 查询接口
+
+HTTP 流量日志以文件形式存储，不写入业务数据库表。后台日志查看器通过以下接口读取日志文件：
+
+| 接口 | 说明 |
+|---|---|
+| `GET /api/log-viewer/content?path=...&lines=500` | 读取指定日志文件末尾内容，最多 5000 行 |
+| `GET /api/log-viewer/stream?path=...` | 流式追踪日志文件新增内容 |
+| `GET /api/log-viewer/download?path=...` | 下载日志文件，单文件上限 100MB |
+
+IP 黑白名单拦截日志是独立的数据库持久化能力，写入 `ip_access_logs` 表，字段包括 `ip`、`path`、`method`、`block_type`、`user_agent`、`created_at`。查询接口为 `GET /api/ip-access-logs`，支持 `ip`、`blockType`、`startTime`、`endTime` 与分页参数。
+
 ## 安全说明
 
 ### 自动脱敏的 Header 字段
@@ -164,7 +178,7 @@ HTTP_LOG_INCOMING_METHOD_DELETE=headers
 
 ### 注意事项
 
-- 响应体记录（`logResponseBody=true`）会将响应完整内容写入日志，**若响应包含用户敏感数据，请谨慎开启**
+- 响应体记录（`logResponseBody=true`）会在 body/full 级别下记录 JSON 响应体；出站日志还会记录 `text/*` 响应体，**若响应包含用户敏感数据，请谨慎开启**
 - `body` / `full` 级别在高并发场景下会增加内存和 I/O 开销，建议仅在需要时临时开启
 - 出站日志的 `correlation` 字段格式为 `out-{timestamp}-{attempt}`，与入站的 `request-id` 不同
 
@@ -248,7 +262,7 @@ Client → [requestId 中间件] → correlation = X-Request-Id
 
 ### 出站日志中的重试处理
 
-`http-client.ts` 内置指数退避重试（`retries` 参数）。每次重试都会产生独立的请求/响应/错误条目，通过 `attempt` 字段区分（`attempt=1` 时不显示该字段）：
+`http-client.ts` 内置指数退避重试（`retries` 参数）。headers/body/full 级别会记录出站请求条目，所有非 off 级别都会记录响应或错误条目；每次重试通过 `attempt` 字段区分（`attempt=1` 时不显示该字段）：
 
 ```json
 {"correlation":"out-1748600000000-1","direction":"outgoing","phase":"request","method":"POST","url":"https://api.example.com/send","timestamp":"..."}

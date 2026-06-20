@@ -74,8 +74,8 @@
 
 | 事件名 | 触发方 | 监听方 | 携带数据 |
 |--------|--------|--------|----------|
-| `maintenance:enabled` | `request.ts`（503 拦截） | `App.tsx`、`AdminLayout` | `{ message, estimatedEndAt, startedAt }` |
-| `maintenance:statusChanged` | `MaintenancePage`、`AdminLayout` | 对方 | `{ enabled, message }` 或空 |
+| `maintenance:enabled` | `request.ts`（503 拦截） | `App.tsx`、`AdminLayout` | 503 响应体中的 `data`；维护中间件返回 `null` 时为空对象 |
+| `maintenance:statusChanged` | `MaintenancePage`、`AdminLayout` | 对方 | 更新后的状态对象或空 |
 
 ---
 
@@ -136,10 +136,9 @@
 |------|------|------|
 | `id` | `integer` | 固定为 1 |
 | `enabled` | `boolean` | 是否开启 |
-| `message` | `text` | 维护提示语 |
+| `message` | `varchar(512)` | 维护提示语 |
 | `estimated_end_at` | `timestamp` | 预计结束时间（可选） |
 | `started_at` | `timestamp` | 最近一次开启时间 |
-| `started_by` | `integer` | 开启人用户 ID |
 | `started_by_name` | `varchar` | 开启人用户名（快照） |
 | `updated_at` | `timestamp` | 最后更新时间 |
 

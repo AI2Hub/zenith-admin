@@ -9,7 +9,7 @@
 - **可观测**：每次请求/响应/重试/错误均写入 winston 日志，敏感 Header 自动脱敏。
 - **可靠**：可选指数退避重试、按 host 维度的熔断器，防止单一故障域拖垮整个进程。
 - **可控**：超时、代理、重试次数由调用方在代码中显式声明，**不从环境变量读取**，避免隐式行为。
-- **统一错误**：失败一律抛出 `HttpClientError`，便于上层精确捕获与映射为业务错误。
+- **统一错误**：网络错误、超时与熔断统一抛出 `HttpClientError`，HTTP 非 2xx 响应由调用方按业务语义处理。
 
 ## API
 
@@ -35,7 +35,12 @@ interface HttpRequestOptions extends Omit<RequestInit, 'signal' | 'body'> {
   retryDelay?: number;       // 指数退避基准毫秒，默认 300
   proxy?: string;            // 仅由调用方代码传入，不读环境变量
   signal?: AbortSignal;      // 与超时信号合并
-  logBodyLimit?: number;     // 日志中 body 截断长度，默认 2048；设 0 关闭 body 日志
+  logBodyLimit?: number;     // 重试/错误诊断片段截断长度，默认 2048；设 0 不记录片段
+  httpLog?: {                // 本次调用的出站 HTTP 流量日志覆盖项
+    level?: HttpLogLevel;    // off / access / headers / body / full
+    format?: HttpLogFormat;  // json / text / curl
+    logResponseBody?: boolean;
+  };
 }
 ```
 
@@ -126,11 +131,11 @@ await httpGet('/v1.0/users/me', {
 
 ## 错误处理
 
-所有失败都抛出 `HttpClientError`：
+网络错误、超时、熔断器打开且重试耗尽时会抛出 `HttpClientError`。HTTP 非 2xx 响应不会自动抛错，而是返回 `HttpResponse`，调用方通过 `resp.ok` / `resp.status` 判断并按业务需要自行抛错。
 
 ```ts
 class HttpClientError extends Error {
-  readonly status: number;          // 0 = 网络/熔断/超时；非 0 = HTTP 状态码
+  readonly status: number;          // 0 = 网络/熔断/超时；调用方自行构造时也可传 HTTP 状态码
   readonly url: string;
   readonly headers: Record<string, string>;
   readonly bodySnippet: string;     // 最多 2KB 响应正文片段，便于诊断
@@ -161,7 +166,7 @@ try {
 ## 熔断器
 
 - **粒度**：按目标 URL 的 host。
-- **触发**：滚动窗口内连续 **5 次失败**（5xx 或网络错误）。
+- **触发**：按 host 连续 **5 次失败**（非 2xx 响应或网络错误）。
 - **冷却**：默认 **30s**，期间所有命中该 host 的请求直接抛 `HttpClientError`（`status: 0`），不会发起真实请求。
 - **恢复**：冷却后进入半开状态，下一次成功则关闭熔断。
 
@@ -186,7 +191,7 @@ resetHttpCircuitBreakers();
 - 精确匹配：`authorization`、`cookie`、`set-cookie`、`proxy-authorization`、`x-auth-token`
 - 模糊匹配：包含 `token` / `secret` / `password` / `api[_-]?key`（大小写不敏感）
 
-响应正文按 `logBodyLimit`（默认 2048 字节）截断后写入日志，避免大对象污染日志文件。
+基础 winston 日志中的 5xx 重试响应片段按 `logBodyLimit`（默认 2048 字节）截断；完整出站 HTTP 流量日志是否记录请求/响应 body、截断阈值与输出格式由 `config.httpLog.outgoing` 和单次调用的 `httpLog` 覆盖项控制。
 
 ## 代理策略
 

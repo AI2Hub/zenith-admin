@@ -13,8 +13,8 @@
      └──────────────────────────────────────────────▶ 浏览器 B
 ```
 
-- **信令**：`offer` / `answer` / `ICE candidate` 通过 WebSocket 中继。事件清单见 [WebSocket 事件 · rtc](./websocket-events.md#音视频通话信令-rtc)。
-- **媒体**：浏览器间 P2P。服务端**不经手媒体流**，仅做信令转发与群通话房间登记。
+- **信令**：`invite` / `accept` / `offer` / `answer` / `ICE candidate` 等通过 WebSocket 中继。事件清单见 [WebSocket 事件 · rtc](./websocket-events.md#音视频通话信令-rtc)。
+- **媒体**：浏览器间 P2P。服务端**不经手媒体流**，仅做信令转发、群通话 `join` 房间登记和断线清理。
 - **关键文件**：
   - 服务端：`routes/ws.ts`（信令中继）、`lib/rtc-manager.ts`（群通话房间）、`services/chat.service.ts`（`getRtcConfig` / `postCallRecord`）。
   - 前端：`webrtc/callManager.ts`（单例通话管理器）、`webrtc/CallOverlayHost.tsx`（全局来电/通话宿主，挂载于 `AdminLayout`）、`CallWindow.tsx` / `MediaTile.tsx`。
@@ -52,25 +52,27 @@ WEBRTC_TURN_CREDENTIAL=your_turn_password
 
 ### 1v1（p2p）
 
-1. 呼叫方点击「语音/视频通话」→ 获取本地媒体 → 广播 `rtc:invite`（定向被叫）。
-2. 被叫弹出来电窗口；**接听** → 获取本地媒体 → 回 `rtc:accept`；**拒绝** → 回 `rtc:reject`；已在通话中 → 自动回 `rtc:busy`。
-3. 呼叫方收到 `accept` 后建连并发 `rtc:offer`，被叫 `rtc:answer`，双方交换 `rtc:ice` → 连通。
-4. 任一方挂断发 `rtc:leave`（呼叫前取消发 `rtc:cancel`）→ 结束并写入**通话记录系统消息**（时长 / 未接听 / 已拒绝）。
+1. 呼叫方点击「语音/视频通话」→ 获取本地媒体 → 发送 `rtc:invite`（`to` 为被叫用户）。
+2. 被叫弹出来电窗口；**接听** → 获取本地媒体 → 回 `rtc:accept`；**拒绝** → 回 `rtc:reject`；已在 1v1 通话中 → 自动回 `rtc:busy`。
+3. 呼叫方收到 `accept` 后创建 `RTCPeerConnection` 并发 `rtc:offer`，被叫 `rtc:answer`，双方交换 `rtc:ice` → 连通。
+4. 呼叫方等待接听最长 35 秒，超时发送 `rtc:cancel` 并写入未接听通话记录。
+5. 任一方挂断发 `rtc:leave`（呼叫前取消发 `rtc:cancel`）→ 前端清理 peer，并写入**通话记录系统消息**（时长 / 未接听 / 已拒绝 / 已取消）。
 
 ### 群语音（group，mesh）
 
-1. 发起者建立房间，广播 `rtc:invite`（会话内所有成员）并 `rtc:join`。
-2. 成员接听后 `rtc:join`；服务端回 `rtc:room-participants`（房间现有成员），**加入者主动向每个现有成员建连发 offer**（现有成员仅应答），因此天然无 glare。
-3. 成员离开发 `rtc:leave`；**断线由服务端自动清理房间并通知其余成员**。
+1. 发起者广播 `rtc:invite`（会话内其他成员）并发送 `rtc:join` 登记房间。
+2. 成员接听后发送 `rtc:join`；服务端回 `rtc:room-participants`（房间现有成员），**加入者主动向每个现有成员建连发 offer**（现有成员仅应答），因此天然无 glare。
+3. 成员离开发 `rtc:leave`，服务端按会话转发给其他成员；前端收到后移除对应 peer。
+4. WebSocket 断线时服务端调用 `leaveAllRooms()` 清理该用户所在房间，并向剩余成员发送 `rtc:leave`。
 
-> 屏幕共享、纯语音升级为含视频轨等 renegotiation 场景，采用 **perfect-negotiation**（按 userId 决定 polite/impolite）处理协商冲突。
+> 屏幕共享、纯语音添加视频轨等 renegotiation 场景，采用 **perfect-negotiation**（按 userId 决定 polite/impolite）处理协商冲突。
 
 ## 通话能力
 
 | 能力 | 说明 |
 | --- | --- |
-| 语音 / 视频 | 单聊支持语音与视频；群聊为群语音 |
-| 屏幕共享 | 通话中切换；有视频轨用 `replaceTrack`，纯语音用 `addTrack` + 重新协商 |
+| 语音 / 视频 | 单聊支持语音与视频；群聊入口提供群语音 |
+| 屏幕共享 | 通话中切换；有视频 sender 时用 `replaceTrack`，没有视频 sender 时 `addTrack` 并触发重新协商 |
 | 静音 / 关摄像头 | 切换本地轨道 `enabled` |
 | 最小化 | 通话窗口可最小化为悬浮条，**远端音频持续播放**（独立 `<audio>` 元素） |
 | 来电提示音 | WebAudio 合成，无需音频资源 |

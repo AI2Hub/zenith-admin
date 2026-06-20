@@ -67,7 +67,7 @@ OpenAPI Spec **自动生成**，由 `@hono/zod-openapi` 在运行时从每个路
 - **Spec 生成**：`packages/server/src/index.ts` 中的 `app.doc31('/api/openapi.json', { openapi: '3.1.0', ... })`（`doc31()` 才能生成真正的 OpenAPI 3.1 格式 schema）
 - **路由定义**：`packages/server/src/routes/*.ts` 中每个路由使用 `defineOpenAPIRoute({ route: createRoute({...}), handler })` 定义为命名常量，再通过 `xxxRouter.openapiRoutes([...] as const)` 统一注册（参考 `packages/server/src/routes/api-tokens.ts`）
 - **公共 Schema 辅助**：`packages/server/src/lib/openapi-schemas.ts`（响应辅助函数 `ok(DTO, desc)` / `okPaginated(DTO, desc)` / `okMsg(desc)`；公共 schema `IdParam` / `PaginationQuery` / `BatchIdsBody`；底层工具 `jsonContent` / `validationHook` / `commonErrorResponses` / `ErrorResponse`）
-- **实体 DTO 中心仓库**：按业务域拆分至 `packages/server/src/lib/dtos/`（`iam` / `auth` / `dict` / `files` / `logs` / `announcements` / `system` / `workflow` / `dashboard` / `region` / `messages`），`packages/server/src/lib/openapi-dtos.ts` 为 re-export barrel —— 所有路由统一从 `'../lib/openapi-dtos'` 导入，保证 Swagger Components 单一来源，**禁止在路由文件内本地重复声明 `.openapi('EntityName')` 的实体 DTO**
+- **实体 DTO 中心仓库**：按业务域拆分至 `packages/server/src/lib/dtos/`（如 `users.ts` / `roles.ts` / `menus.ts` / `auth.ts` / `dict.ts` / `files.ts` / `business-files.ts` / `logs.ts` / `announcements.ts` / `system-configs.ts` / `workflow.ts` / `workflow-events.ts` / `dashboard.ts` / `region.ts` / `sms.ts` / `email.ts` / `in-app.ts` / `chat.ts` / `ai.ts` / `analytics.ts` / `payment.ts` / `member.ts` / `terminal-sessions.ts` 等），`packages/server/src/lib/openapi-dtos.ts` 为 re-export barrel —— 所有路由统一从 `'../lib/openapi-dtos'` 导入，保证 Swagger Components 单一来源，**禁止在路由文件内本地重复声明 `.openapi('EntityName')` 的实体 DTO**
 - **认证方案**：`BearerAuth` 在 `packages/server/src/index.ts` 中一次性注册到 `app.openAPIRegistry`
 - **健康检查**：`packages/server/src/routes/health.ts` 提供 `GET /api/health`，无需认证，可用于容器编排平台健康探针
 
@@ -75,7 +75,7 @@ OpenAPI Spec **自动生成**，由 `@hono/zod-openapi` 在运行时从每个路
 
 ## 接口分组
 
-> 以下仅列出核心分组，完整 Tag 列表请以 `/api/doc` Swagger UI 为准。
+> 以下仅列出核心分组，完整 Tag 列表请以 `/api/docs` Swagger UI 为准。
 
 | 标签 | 说明 |
 | --- | --- |
@@ -85,17 +85,33 @@ OpenAPI Spec **自动生成**，由 `@hono/zod-openapi` 在运行时从每个路
 | 菜单管理 | 菜单 / 按钮权限树管理 |
 | 部门管理 | 组织架构 CRUD |
 | 岗位管理 | 岗位 CRUD |
+| 用户组 | 用户组与成员管理 |
 | 字典管理 | 数据字典及字典项 CRUD |
 | 操作日志 | 系统操作日志查询（含变更 diff） |
 | 登录日志 | 登录历史查询 |
+| IP 访问日志 | IP 访问控制命中记录 |
+| 限流规则 | 接口级限流规则管理 |
 | 系统配置 | 内置系统配置项的读写 |
 | 定时任务 | 定时任务管理及执行历史 |
 | 文件管理 | 文件上传、下载及存储配置 |
+| 业务附件 | 业务文件附件关联 |
 | 通知公告 | 通知发布与已读状态 |
 | 会话管理 | 在线会话查询与强制下线 |
-| 数据库备份 | 备份创建、下载及历史 |
-| 消息模板 | 消息模板 CRUD 及预览 |
+| 数据库备份 | 备份任务创建、状态查询及删除 |
+| 数据库管理 | SQL 查询、元数据与收藏 |
+| 邮件 / 短信 / 站内信 | 模板、通道配置与发送日志 |
 | 工作流 | 流程定义、实例及待办 |
 | 租户管理 | 多租户 CRUD（开启多租户模式时可见） |
+| 支付中心 | 支付渠道、订单、退款与回调 |
+| 会员体系 | 会员、等级、积分、钱包、优惠券与签到 |
+| 聊天 | 会话、消息、机器人与 Webhook |
+| AI | AI 提供方、对话、提示词与用量 |
+| 埋点分析 | 用户行为事件、会话与统计聚合 |
+| 前端错误 | 错误聚合、事件、告警与 Source Map |
+| OAuth2 | OAuth2 客户端、授权与 Token |
+| 终端 / SSH / SFTP | 终端会话、录屏、文件与 SSH/SFTP 配置 |
+| 维护模式 | 维护开关与公开维护信息 |
+| 运维工具 | 进程、端口、Docker、网络诊断、systemd 与日志查看 |
+| 缓存管理 | Redis 缓存查看与清理 |
 | 仪表盘 | 统计数据汇总接口 |
 | 服务状态 | 健康检查，无需认证 |

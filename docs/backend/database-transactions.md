@@ -181,6 +181,32 @@ try {
 
 `rethrowPgUniqueViolation` 定义在 `packages/server/src/lib/db-errors.ts`：如果是 PG 唯一约束错误（`23505`）则抛 `HTTPException(400)`，否则原样重新抛出。
 
+## 乐观锁与重试
+
+积分、钱包等资金一致性场景使用 `version` 字段做乐观锁。`member_point_accounts` 与 `member_wallets` 均带 `version` 列，更新时同时校验主键与当前版本号，成功后 `version + 1`：
+
+```ts
+import { withOptimisticRetry, OptimisticLockError } from '../lib/optimistic';
+
+return withOptimisticRetry(() =>
+  db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(memberWallets)
+      .set({
+        balance: nextBalance,
+        version: wallet.version + 1,
+      })
+      .where(and(eq(memberWallets.id, wallet.id), eq(memberWallets.version, wallet.version)))
+      .returning();
+
+    if (!updated) throw new OptimisticLockError();
+    return updated;
+  }),
+);
+```
+
+`withOptimisticRetry(fn, retries = 3)` 定义在 `packages/server/src/lib/optimistic.ts`。遇到 `OptimisticLockError` 时会重试整个操作，重试耗尽后抛出 `HTTPException(409, { message: '操作过于频繁，请稍后重试' })`。
+
 ## 注意事项
 
 - 事务内**不要** `await Promise.all()` 并发执行多条写语句，PostgreSQL 的 `postgres.js` 驱动在同一连接上串行执行事务 SQL，并发会导致连接竞争。需要并行时，把并行逻辑放在事务外。

@@ -25,14 +25,15 @@ npm run build -w @zenith/web
 | 策略 | 说明 |
 | --- | --- |
 | API 请求 `/api/*` | Network Only — 数据始终实时，不缓存 |
-| 静态资源 JS/CSS/字体 | Cache First — 预缓存，首屏加载更快 |
-| Service Worker 更新 | 新版本检测到时自动弹出提示，用户确认后刷新 |
+| 静态资源 JS/CSS/字体/图片 | Precache — 预缓存 Vite 构建产物，首屏加载更快 |
+| Service Worker 更新 | `autoUpdate` — Service Worker 自动更新 |
 
 ## 注意事项
 
 ::: tip
 - **需要 HTTPS**：Service Worker 要求在 HTTPS 下运行（`localhost` 除外）
 - **自定义图标**：可将品牌图标替换 `packages/web/public/icons/icon-192.png` 和 `icon-512.png`（需 192×192 和 512×512 像素）
+- **开发模式**：PWA 开发模式 Service Worker 未启用，需通过生产构建产物验证
 :::
 
 ## 图标生成

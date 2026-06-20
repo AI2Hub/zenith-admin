@@ -6,7 +6,7 @@
 
 ## 内置配置项参考
 
-以下是系统预置的 18 个配置项（由 `db:seed` 初始化，源文件：`packages/shared/src/seed-data.ts`）。
+以下是系统预置的 23 个配置项（由 `db:seed` 初始化，源文件：`packages/shared/src/seed-data.ts`）。
 
 ---
 
@@ -18,7 +18,7 @@
 |------|----|
 | 类型 | `string` |
 | 默认值 | `Zenith Admin` |
-| 说明 | 站点名称，显示在浏览器标签页标题中。前端通过 `GET /api/system-configs/public` 读取并更新页面 `<title>`。 |
+| 说明 | 站点名称，显示在浏览器标签页标题中。可通过 `GET /api/system-configs/public/site_name` 公开读取。 |
 
 ---
 
@@ -74,7 +74,7 @@
 |------|----|
 | 类型 | `string` |
 | 默认值 | `123456` |
-| 说明 | 新增用户时系统自动设置的初始密码。后端在创建用户时读取此配置，经 bcrypt 加密后存入数据库。**建议在生产环境修改为高强度密码。** |
+| 说明 | 系统预置的默认密码配置项，可在后台配置页面维护。用户管理创建接口的密码以请求参数为准。**建议在生产环境维护为高强度密码。** |
 
 #### `password_min_length`
 
@@ -82,7 +82,7 @@
 |------|----|
 | 类型 | `number` |
 | 默认值 | `6` |
-| 说明 | 密码的最小长度限制。修改密码或重置密码时，前后端均会校验此规则。 |
+| 说明 | 密码的最小长度限制。后端用户管理的创建用户、管理员修改指定用户密码、批量重置密码、导入用户等场景会校验此规则；前端会读取策略并展示输入提示。 |
 
 #### `password_require_uppercase`
 
@@ -106,7 +106,7 @@
 |------|----|
 | 类型 | `boolean` |
 | 默认值 | `false` |
-| 说明 | 是否开启密码过期强制重置。开启后，当用户密码超过 `password_expiry_days` 天未修改，登录时会被强制跳转至修改密码页。 |
+| 说明 | 是否开启密码过期强制重置。开启后，当用户密码超过 `password_expiry_days` 天未修改，登录响应会携带 `requirePasswordChange: true`，前端据此弹出强制修改密码弹窗。 |
 
 #### `password_expiry_days`
 
@@ -174,6 +174,54 @@
 
 ---
 
+### 文件上传安全
+
+#### `file_upload_validate_type`
+
+| 属性 | 值 |
+|------|----|
+| 类型 | `boolean` |
+| 默认值 | `true` |
+| 说明 | 上传文件时是否基于 magic bytes 校验真实文件类型，防止伪造 MIME type 绕过校验。 |
+
+#### `file_upload_allowed_types`
+
+| 属性 | 值 |
+|------|----|
+| 类型 | `string` |
+| 默认值 | `image/*,video/*,audio/*,application/pdf,text/plain,application/zip,application/x-zip-compressed,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-excel,application/msword,application/vnd.ms-powerpoint` |
+| 说明 | 允许上传的文件 MIME 类型，逗号分隔，支持通配符（如 `image/*`）；设为 `*/*` 或 `*` 则允许所有类型。 |
+
+---
+
+### Web 终端录屏
+
+#### `terminal_recording_enabled`
+
+| 属性 | 值 |
+|------|----|
+| 类型 | `boolean` |
+| 默认值 | `false` |
+| 说明 | 是否启用 Web 终端录屏。关闭后终端操作不再自动录制。 |
+
+#### `terminal_recording_retain_days`
+
+| 属性 | 值 |
+|------|----|
+| 类型 | `number` |
+| 默认值 | `30` |
+| 说明 | 终端录屏保留天数，超过此天数的录屏将在每日清理任务中删除；`0` 表示不按天数清理。 |
+
+#### `terminal_recording_max_size_mb`
+
+| 属性 | 值 |
+|------|----|
+| 类型 | `number` |
+| 默认值 | `500` |
+| 说明 | 终端录屏总容量上限，单位 MB。超出上限后按时间从旧到新删除；`0` 表示不限制容量。 |
+
+---
+
 ## 如何在代码中读取配置
 
 后端路由/服务层中通过项目封装的专用 helper 读取配置项，无需手写 Drizzle 查询：
@@ -206,7 +254,7 @@ const maxAttempts = await getConfigNumber('login_max_attempts', 10);
 1. 在 `packages/shared/src/seed-data.ts` 的 `SEED_SYSTEM_CONFIGS` 数组中追加记录：
 
 ```typescript
-{ id: 19, configKey: 'your_key', configValue: 'default', configType: 'string', description: '配置项说明', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+{ id: 24, configKey: 'your_key', configValue: 'default', configType: 'string', description: '配置项说明', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ```
 
 2. 在后端需要读取该配置的路由/中间件中调用 `getConfigValue('your_key')`。

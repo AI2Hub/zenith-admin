@@ -2,6 +2,11 @@
 
 支付中心通过**渠道适配层**屏蔽各支付渠道的差异。每个渠道实现统一的 `PaymentChannelAdapter` 接口，注册到 `adapterRegistry` 后即可被门面调用。新增渠道对业务层与门面**零侵入**。
 
+| 渠道 | 适配器 | 支付方式 |
+| --- | --- | --- |
+| 微信支付 | `wechatPayAdapter` | `wechat_native`（Native 扫码）/ `wechat_jsapi` / `wechat_h5` |
+| 支付宝 | `alipayAdapter` | `alipay_page`（电脑网站）/ `alipay_wap`（手机网站）/ `alipay_app` |
+
 ## 1. 适配器接口（需求 ①⑤）
 
 ```ts
@@ -40,7 +45,7 @@ interface AdapterContext {
 ```ts
 // lib/payment/index.ts
 const adapterRegistry = new Map<PaymentChannel, PaymentChannelAdapter>();
-registerAdapter(wechatAdapter);
+registerAdapter(wechatPayAdapter);
 registerAdapter(alipayAdapter);
 
 export function getAdapter(channel: PaymentChannel): PaymentChannelAdapter { /* ... */ }
@@ -71,8 +76,8 @@ export function getAdapter(channel: PaymentChannel): PaymentChannelAdapter { /* 
 | `notifyUrl` | 回调基址（留空则用 `PAYMENT_NOTIFY_BASE_URL` / `PUBLIC_BASE_URL` 环境变量） |
 | `wechatAppId` / `wechatMchId` / `wechatSerialNo` | 微信 AppID / 商户号 / 证书序列号 |
 | `wechatApiV3KeyEncrypted` / `wechatPrivateKeyEncrypted` | 微信 APIv3 Key / 商户私钥（加密） |
-| `wechatPlatformCert` | 微信支付平台证书（验签用） |
-| `alipayAppId` / `alipaySignType` / `alipayGateway` | 支付宝 AppID / 签名算法 / 网关地址 |
+| `wechatPlatformCert` | 微信支付平台证书（验签回退用；优先按 `Wechatpay-Serial` 自动下载平台证书） |
+| `alipayAppId` / `alipaySignType` / `alipayGateway` | 支付宝 AppID / 签名算法（`RSA2` / `RSA`）/ 网关地址 |
 | `alipayPrivateKeyEncrypted` | 支付宝应用私钥（加密） |
 | `alipayPublicKey` | 支付宝公钥（验签用） |
 

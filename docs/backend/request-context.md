@@ -22,12 +22,72 @@
 import { currentUser } from '../lib/context';
 
 const user = currentUser();
-// { userId, username, roles: string[], tenantId, ... }
+// { userId, username, roles: string[], tenantId, viewingTenantId?, jti? }
 ```
 
 ### `currentUserOrNull()`
 
 与 `currentUser()` 相同，但未登录时返回 `undefined`，适用于匿名可访问接口。
+
+管理员 JWT Payload 来自 `packages/server/src/middleware/auth.ts`：
+
+```ts
+interface JwtPayload {
+  userId: number;
+  username: string;
+  roles: string[];
+  tenantId: number | null;
+  viewingTenantId?: number | null;
+  jti?: string;
+}
+```
+
+管理员 `authMiddleware` 会拒绝会员 token（`type: 'member'`），避免后台接口被会员身份访问。
+
+---
+
+## 会员上下文函数
+
+会员前台使用独立的 `packages/server/src/lib/member-context.ts`，与管理员 `currentUser()` 并存。会员路由经 `memberAuthMiddleware` 注入 `c.set('member', payload)` 后，Service 层可零参读取当前会员。
+
+### `currentMember()`
+
+获取当前已登录会员的 JWT Payload，若不存在则抛出错误。
+
+```ts
+import { currentMember } from '../lib/member-context';
+
+const member = currentMember();
+// { memberId, identifier, type: 'member', tenantId, jti? }
+```
+
+### `currentMemberOrNull()`
+
+与 `currentMember()` 相同，但未登录时返回 `undefined`。
+
+### `currentMemberId()`
+
+快捷获取当前登录会员 ID。
+
+```ts
+import { currentMemberId } from '../lib/member-context';
+
+const memberId = currentMemberId(); // 等价于 currentMember().memberId
+```
+
+会员 JWT Payload 来自 `packages/server/src/middleware/member-auth.ts`：
+
+```ts
+interface MemberJwtPayload {
+  memberId: number;
+  identifier: string;
+  type: 'member';
+  tenantId: number | null;
+  jti?: string;
+}
+```
+
+`memberAuthMiddleware` 强制校验 `type: 'member'`，管理员 token 不能访问会员接口。
 
 ---
 
@@ -145,7 +205,7 @@ const tId = currentTenantId(); // number | null
 
 ### `currentViewingTenantId()`
 
-超管切换租户视角时，返回目标租户 ID；未切换时返回 `undefined`。
+超管切换租户视角时，返回目标租户 ID；未切换时返回 `undefined` 或 `null`。
 
 ### `effectiveTenantId()`
 
@@ -224,6 +284,9 @@ await updateUser(id, body);
 
 ```ts
 import {
+  getCtx,
+  currentUser,
+  currentUserOrNull,
   currentUserId,
   currentUsername,
   currentUserRoles,
@@ -240,4 +303,10 @@ import {
   isInDepartment,
   setAuditBefore,
 } from '../lib/context';
+
+import {
+  currentMember,
+  currentMemberOrNull,
+  currentMemberId,
+} from '../lib/member-context';
 ```
