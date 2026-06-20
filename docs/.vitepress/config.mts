@@ -107,6 +107,18 @@ export default defineConfig({
           { text: '定时任务', link: '/backend/cron-jobs' },
           { text: '维护模式', link: '/backend/maintenance-mode' },
           { text: 'WebSocket 事件清单', link: '/backend/websocket-events' },
+          {
+            text: '支付中心',
+            collapsed: true,
+            items: [
+              { text: '总览', link: '/backend/payment/' },
+              { text: '渠道适配与配置', link: '/backend/payment/channels' },
+              { text: '业务接入', link: '/backend/payment/integration' },
+              { text: '异步通知与对账', link: '/backend/payment/callback' },
+              { text: '安全设计', link: '/backend/payment/security' },
+              { text: '后台管理页面', link: '/backend/payment/admin' },
+            ],
+          },
         ],
       },
       {
