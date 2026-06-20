@@ -159,14 +159,13 @@ function FsGridCard({ entry, selected, onSelect, onOpen, onContextMenu }: Readon
   const isDir = entry.type === 'dir';
   const iconId = isDir ? getFolderIcon(entry.name, false) : getFileIcon(entry.name);
   return (
-    <div
+    <button
+      type="button"
       className={`fm-grid-card${selected ? ' fm-grid-card--selected' : ''}`}
       onClick={onSelect}
       onDoubleClick={onOpen}
       onContextMenu={onContextMenu}
-      role="button"
       aria-pressed={selected}
-      tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
     >
       <div className="fm-grid-card__icon">
@@ -176,7 +175,7 @@ function FsGridCard({ entry, selected, onSelect, onOpen, onContextMenu }: Readon
         <div className="fm-grid-card__name">{entry.name}</div>
       </Tooltip>
       <div className="fm-grid-card__meta">{isDir ? '—' : formatSize(entry.size)}</div>
-    </div>
+    </button>
   );
 }
 
@@ -754,12 +753,9 @@ export default function FileManagerPage() {
     const base = appConfig.apiBaseUrl || '';
     setUploading(files.map((f) => ({ name: f.name, progress: 0 })));
 
+    const makeProgressHandler = (i: number) => (pct: number) => setUploading((prev) => updateUploadPct(prev, i, pct));
     Promise.allSettled(
-      files.map((f, i) =>
-        uploadOneXhrFM(f, dir, base, token, (pct) => {
-          setUploading((prev) => updateUploadPct(prev, i, pct));
-        }),
-      ),
+      files.map((f, i) => uploadOneXhrFM(f, dir, base, token, makeProgressHandler(i))),
     ).then((results) => {
       const success = results.filter((r) => r.status === 'fulfilled').length;
       Toast.success(`已上传 ${success}/${files.length} 个文件`);
@@ -840,16 +836,26 @@ export default function FileManagerPage() {
       dataIndex: 'name',
       render: (v: string, r: FsEntry) => {
         const iconId = r.type === 'dir' ? getFolderIcon(v, false) : getFileIcon(v);
-        return (
-          <div
-            style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: r.type === 'dir' ? 'pointer' : 'default' }}
-            onClick={() => { if (r.type === 'dir') void navigateTo(r.path); }}
-            role={r.type === 'dir' ? 'button' : undefined}
-            tabIndex={r.type === 'dir' ? 0 : undefined}
-            onKeyDown={r.type === 'dir' ? (e) => { if (e.key === 'Enter') void navigateTo(r.path); } : undefined}
-          >
+        const inner = (
+          <>
             <Icon icon={iconId} width={16} height={16} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300 }}>{v}</span>
+          </>
+        );
+        if (r.type === 'dir') {
+          return (
+            <button
+              type="button"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', textAlign: 'left', width: '100%', overflow: 'hidden' }}
+              onClick={() => void navigateTo(r.path)}
+            >
+              {inner}
+            </button>
+          );
+        }
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {inner}
           </div>
         );
       },

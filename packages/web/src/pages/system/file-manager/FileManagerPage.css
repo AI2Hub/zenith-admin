@@ -147,6 +147,13 @@
   transition: background 0.15s;
   position: relative;
   border: 2px solid transparent;
+  /* 作为 <button> 渲染时重置浏览器默认样式（保持与原 div 外观一致） */
+  appearance: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  width: 100%;
   /* 固定高度：与 FileManagerPage2.tsx 中 VG_CARD_H 必须保持一致 */
   height: 110px;
   overflow: hidden;
