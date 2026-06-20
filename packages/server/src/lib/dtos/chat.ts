@@ -250,3 +250,17 @@ export const ChatWebhookDTO = z
     updatedAt: z.string(),
   })
   .openapi('ChatWebhook');
+
+export const RtcIceServerDTO = z
+  .object({
+    urls: z.union([z.string(), z.array(z.string())]),
+    username: z.string().optional(),
+    credential: z.string().optional(),
+  })
+  .openapi('RtcIceServer');
+
+export const RtcConfigDTO = z
+  .object({
+    iceServers: z.array(RtcIceServerDTO),
+  })
+  .openapi('RtcConfig');

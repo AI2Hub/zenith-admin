@@ -1210,6 +1210,17 @@ export const chatWebhookPayloadSchema = z.object({
 
 export type ChatWebhookPayloadInput = z.infer<typeof chatWebhookPayloadSchema>;
 
+// ── 通话记录（结束后写入会话系统消息）──
+export const chatCallRecordSchema = z.object({
+  callType: z.enum(['audio', 'video']),
+  mode: z.enum(['p2p', 'group']),
+  status: z.enum(['completed', 'missed', 'canceled', 'rejected']),
+  /** 通话时长（秒），completed 时有效 */
+  durationSec: z.number().int().nonnegative().default(0),
+});
+
+export type ChatCallRecordInput = z.infer<typeof chatCallRecordSchema>;
+
 // ─── AI 对话模块 ──────────────────────────────────────────────────────────────
 
 export const aiProviderEnum = z.enum(['openai_compatible', 'anthropic', 'gemini', 'baidu']);

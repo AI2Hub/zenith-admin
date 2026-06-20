@@ -4,10 +4,47 @@ import { verifyToken } from '../lib/jwt';
 import type { JwtPayload } from '../middleware/auth';
 import { isTokenBlacklisted } from '../lib/session-manager';
 import { registerConnection, removeConnection, sendToUser, incWsRecv } from '../lib/ws-manager';
+import { joinRoom, leaveAllRooms } from '../lib/rtc-manager';
 import { db } from '../db';
 import { chatConversationMembers } from '../db/schema';
 import { eq, ne, and } from 'drizzle-orm';
 import type { WsMessage } from '@zenith/shared';
+
+/** 转发给会话内其他成员 */
+async function relayToConversation(conversationId: number, senderId: number, msg: WsMessage): Promise<void> {
+  const members = await db
+    .select({ userId: chatConversationMembers.userId })
+    .from(chatConversationMembers)
+    .where(and(
+      eq(chatConversationMembers.conversationId, conversationId),
+      ne(chatConversationMembers.userId, senderId),
+    ));
+  for (const { userId } of members) {
+    sendToUser(userId, msg);
+  }
+}
+
+const RTC_TYPES = new Set([
+  'rtc:invite', 'rtc:accept', 'rtc:reject', 'rtc:busy', 'rtc:cancel',
+  'rtc:leave', 'rtc:offer', 'rtc:answer', 'rtc:ice',
+]);
+
+/** 处理 WebRTC 信令中继：定向(payload.to) 优先，否则按会话广播 */
+async function handleRtcSignal(senderId: number, msg: WsMessage): Promise<void> {
+  // 群通话加入：登记房间并把现有成员回送给加入者
+  if (msg.type === 'rtc:join') {
+    const existing = joinRoom(msg.payload.callId, msg.payload.from);
+    sendToUser(senderId, { type: 'rtc:room-participants', payload: { callId: msg.payload.callId, participants: existing } });
+    return;
+  }
+  if (!RTC_TYPES.has(msg.type)) return;
+  const payload = msg.payload as { to?: number; conversationId?: number };
+  if (typeof payload.to === 'number') {
+    sendToUser(payload.to, msg);
+  } else if (typeof payload.conversationId === 'number') {
+    await relayToConversation(payload.conversationId, senderId, msg);
+  }
+}
 
 /**
  * Create the WebSocket route.
@@ -61,23 +98,23 @@ export function createWsRoute(upgradeWebSocket: UpgradeWebSocket) {
               return;
             }
             if (msg?.type === 'chat:typing') {
-              const { conversationId } = msg.payload;
-              // 转发给会话内其他成员
-              const members = await db
-                .select({ userId: chatConversationMembers.userId })
-                .from(chatConversationMembers)
-                .where(and(
-                  eq(chatConversationMembers.conversationId, conversationId),
-                  ne(chatConversationMembers.userId, payload.userId),
-                ));
-              for (const { userId } of members) {
-                sendToUser(userId, msg);
-              }
+              await relayToConversation(msg.payload.conversationId, payload.userId, msg);
+              return;
+            }
+            if (typeof msg?.type === 'string' && msg.type.startsWith('rtc:')) {
+              await handleRtcSignal(payload.userId, msg as WsMessage);
             }
           } catch { /* ignore malformed */ }
         },
         onClose(evt, _ws) {
           if (payload) {
+            // 断线：离开所有群通话房间并通知其余成员
+            const left = leaveAllRooms(payload.userId);
+            for (const { callId, remaining } of left) {
+              for (const userId of remaining) {
+                sendToUser(userId, { type: 'rtc:leave', payload: { callId, conversationId: 0, from: payload.userId, to: userId } });
+              }
+            }
             const reason = evt && typeof evt === 'object' && 'reason' in evt && typeof (evt as { reason: unknown }).reason === 'string'
               ? ((evt as { reason: string }).reason || 'close')
               : 'close';

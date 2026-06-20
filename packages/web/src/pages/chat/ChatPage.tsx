@@ -14,7 +14,7 @@ import Picker from '@emoji-mart/react';
 import {
   Search, MessageSquarePlus, Send, CornerDownLeft, RotateCcw, Smile, ImagePlus, MoreHorizontal,
   Pin, PinOff, Star, X, Paperclip, Bookmark, History, Forward, Trash2, BellOff, Images, AlertCircle,
-  ArrowLeft, ExternalLink, BarChart3, MessageSquare, Eye, Download, Mic, Bell,
+  ArrowLeft, ExternalLink, BarChart3, MessageSquare, Eye, Download, Mic, Bell, Phone, Video,
 } from 'lucide-react';
 import { useWebSocket, sendWsMessage, useWsConnected } from '@/hooks/useWebSocket';
 import { useAuth } from '@/hooks/useAuth';
@@ -47,6 +47,7 @@ import { MessageBubble } from './components/MessageBubble';
 import { MessageContent } from './components/MessageContent';
 import { useVoiceRecorder } from './useVoiceRecorder';
 import { getChatNotifyPrefs, setChatNotifyPrefs } from './notifyPrefs';
+import { callManager } from '@/webrtc/useCallManager';
 
 const { Text, Title } = Typography;
 
@@ -630,6 +631,24 @@ export default function ChatPage({
       else window.open(action.url, '_blank', 'noopener,noreferrer');
     }
   }, [handleCardApprove, navigate]);
+
+  // ── 音视频通话 ──
+  const handleStartCall = useCallback((callType: 'audio' | 'video') => {
+    if (!activeConv) return;
+    if (activeConv.type === 'direct') {
+      const t = activeConv.targetUser;
+      if (!t) return;
+      void callManager.startDirectCall(
+        { userId: t.id, nickname: t.nickname, avatar: t.avatar ?? null },
+        activeConv.id,
+        t.nickname,
+        callType,
+      ).catch((e) => Toast.error(e instanceof Error ? e.message : '无法发起通话'));
+    } else {
+      void callManager.startGroupCall(activeConv.id, activeConv.name ?? '群通话', callType)
+        .catch((e) => Toast.error(e instanceof Error ? e.message : '无法发起通话'));
+    }
+  }, [activeConv]);
 
   useEffect(() => {
     if (leftPaneMode === 'favorites') {
@@ -2329,6 +2348,26 @@ export default function ChatPage({
                             void fetchAnnouncementHistory(activeConvId);
                             setAnnouncementHistoryVisible(true);
                           }}
+                        />
+                      </Tooltip>
+                    )}
+                    <Tooltip content={activeConv.type === 'group' ? '群语音通话' : '语音通话'}>
+                      <Button
+                        size="small"
+                        theme="borderless"
+                        type="tertiary"
+                        icon={<Phone size={15} />}
+                        onClick={() => handleStartCall('audio')}
+                      />
+                    </Tooltip>
+                    {activeConv.type === 'direct' && (
+                      <Tooltip content="视频通话">
+                        <Button
+                          size="small"
+                          theme="borderless"
+                          type="tertiary"
+                          icon={<Video size={15} />}
+                          onClick={() => handleStartCall('video')}
                         />
                       </Tooltip>
                     )}

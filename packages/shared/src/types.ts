@@ -1041,6 +1041,48 @@ export interface CaptchaResponse {
   captchaImage: string;
 }
 
+// ─── WebRTC 音视频通话 ───────────────────────────────────────────────────────
+export type RtcCallType = 'audio' | 'video';
+export type RtcCallMode = 'p2p' | 'group';
+
+/** 通话参与者基本信息 */
+export interface RtcPeerInfo {
+  userId: number;
+  nickname: string;
+  avatar: string | null;
+}
+
+/** 与 RTCIceCandidateInit 对齐的可序列化 ICE candidate（避免 DOM 类型依赖） */
+export interface RtcIceCandidateInit {
+  candidate?: string;
+  sdpMid?: string | null;
+  sdpMLineIndex?: number | null;
+  usernameFragment?: string | null;
+}
+
+export interface RtcInvitePayload {
+  callId: string;
+  conversationId: number;
+  callType: RtcCallType;
+  mode: RtcCallMode;
+  from: RtcPeerInfo;
+  /** 单聊定向邀请的目标用户；群聊为空（广播给会话成员） */
+  to?: number;
+  /** 会话展示名（来电界面用） */
+  conversationName?: string | null;
+}
+
+/** ICE 服务器配置（前端 RTCPeerConnection 用） */
+export interface RtcIceServerConfig {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
+
+export interface RtcConfig {
+  iceServers: RtcIceServerConfig[];
+}
+
 // ─── WebSocket 消息类型 ──────────────────────────────────────────────────────
 export type WsMessage =
   | { type: 'announcement:new'; payload: Announcement }
@@ -1064,6 +1106,17 @@ export type WsMessage =
   | { type: 'chat:edit'; payload: ChatMessage }
   | { type: 'chat:vote-update'; payload: { conversationId: number; messageId: number; voteData: ChatVoteData } }
   | { type: 'chat:presence'; payload: { userId: number; online: boolean; lastSeen: string | null } }
+  | { type: 'rtc:invite'; payload: RtcInvitePayload }
+  | { type: 'rtc:accept'; payload: { callId: string; to: number; from: RtcPeerInfo } }
+  | { type: 'rtc:reject'; payload: { callId: string; to: number; reason?: string } }
+  | { type: 'rtc:busy'; payload: { callId: string; to: number } }
+  | { type: 'rtc:cancel'; payload: { callId: string; conversationId: number; to?: number } }
+  | { type: 'rtc:join'; payload: { callId: string; conversationId: number; from: RtcPeerInfo } }
+  | { type: 'rtc:room-participants'; payload: { callId: string; participants: RtcPeerInfo[] } }
+  | { type: 'rtc:leave'; payload: { callId: string; conversationId: number; from: number; to?: number } }
+  | { type: 'rtc:offer'; payload: { callId: string; to: number; from: number; sdp: string } }
+  | { type: 'rtc:answer'; payload: { callId: string; to: number; from: number; sdp: string } }
+  | { type: 'rtc:ice'; payload: { callId: string; to: number; from: number; candidate: RtcIceCandidateInit } }
   | { type: 'workflow:taskCreated'; payload: { instanceId: number; taskId: number; instanceTitle: string; nodeName: string } }
   | { type: 'workflow:taskFinished'; payload: { instanceId: number; taskId: number; decision: 'approved' | 'rejected' | 'skipped' } }
   | { type: 'workflow:instanceFinished'; payload: { instanceId: number; status: WorkflowInstanceStatus; title: string } }

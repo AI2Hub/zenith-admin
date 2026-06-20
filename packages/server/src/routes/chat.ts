@@ -6,8 +6,9 @@ import {
 } from '../lib/openapi-schemas';
 import {
   ChatMessageDTO, ChatConversationDTO, ChatUserDTO, ChatGroupMemberDTO, ChatLinkPreviewDTO, ChatMessageExtraDTO,
-  ChatMessageSearchItemDTO, ChatMessageContextDTO, ChatReactionGroupDTO, ChatReadStateDTO, ChatPresenceDTO,
+  ChatMessageSearchItemDTO, ChatMessageContextDTO, ChatReactionGroupDTO, ChatReadStateDTO, ChatPresenceDTO, RtcConfigDTO,
 } from '../lib/openapi-dtos';
+import { chatCallRecordSchema } from '@zenith/shared';
 import {
   listConversations, getOrCreateDirectConversation, listMessages,
   searchConversationMessages, searchGlobalMessages, getMessageContext,
@@ -17,7 +18,7 @@ import {
   pinConversation, starConversation, muteConversation, removeConversation,
   getLinkPreview, listPinnedMessages, listFavoriteMessages, listGlobalFavoriteMessages,
   toggleMessageFavorite, toggleMessagePin, listAnnouncementHistory, deleteAnnouncementHistory, forwardMessages, deleteMessagesForUser, toggleReaction, submitVote,
-  getConversationReadStates, getPresenceForUsers,
+  getConversationReadStates, getPresenceForUsers, getRtcConfig, postCallRecord,
 } from '../services/chat.service';
 
 const chatRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -61,6 +62,35 @@ chatRouter.openapi(
       .filter((n) => Number.isInteger(n) && n > 0);
     const list = getPresenceForUsers(ids);
     return c.json(okBody(list), 200);
+  },
+);
+
+// ─── WebRTC 音视频通话 ───────────────────────────────────────────────────────
+
+chatRouter.openapi(
+  createRoute({
+    method: 'get', path: '/rtc/config', tags: ['Chat'], summary: '获取 WebRTC ICE 服务器配置',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    responses: { ...commonErrorResponses, ...ok(RtcConfigDTO, 'ICE 配置') },
+  }),
+  async (c) => {
+    return c.json(okBody(getRtcConfig()), 200);
+  },
+);
+
+chatRouter.openapi(
+  createRoute({
+    method: 'post', path: '/conversations/{id}/call-record', tags: ['Chat'], summary: '写入通话记录（系统消息）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: { params: IdParam, body: { content: jsonContent(chatCallRecordSchema) } },
+    responses: { ...commonErrorResponses, ...okMsg('已记录') },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    await postCallRecord(id, c.req.valid('json'));
+    return c.json(okBody(null), 200);
   },
 );
 

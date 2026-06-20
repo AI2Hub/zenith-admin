@@ -22,6 +22,7 @@ import { renderLucideIcon } from '@/utils/icons';
 import NProgress from '@/components/NProgress';
 import Watermark from '@/components/Watermark';
 import QuickChatButton from '@/components/QuickChatButton';
+import CallOverlayHost from '@/webrtc/CallOverlayHost';
 import { useChatNotifier } from '@/pages/chat/useChatNotifier';
 import AppLogo from '@/components/AppLogo';
 import AnnouncementDetailModal from '@/components/AnnouncementDetailModal';
@@ -2588,6 +2589,9 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
 
       {/* ===== 快捷聊天浮动按钮 ===== */}
       {quickChatEnabled && (preferences.showQuickChat ?? true) && <QuickChatButton onHide={() => setPreferences({ showQuickChat: false })} />}
+
+      {/* ===== 音视频通话全局宿主 ===== */}
+      <CallOverlayHost />
 
       {/* ===== 消息详情 Modal ===== */}
       <AppModal

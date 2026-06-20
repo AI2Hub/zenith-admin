@@ -81,6 +81,11 @@ const envSchema = z.object({
   OAUTH_WECHAT_WORK_AGENT_ID: z.string().default(''),
   OAUTH_WECHAT_WORK_SECRET: z.string().default(''),
   OAUTH_CALLBACK_BASE_URL: z.string().default('http://localhost:5373'),
+  // WebRTC 音视频通话 ICE 服务器配置
+  WEBRTC_STUN_URLS: z.string().default('stun:stun.l.google.com:19302'),
+  WEBRTC_TURN_URLS: z.string().default(''),
+  WEBRTC_TURN_USERNAME: z.string().default(''),
+  WEBRTC_TURN_CREDENTIAL: z.string().default(''),
   // npm 运行时自动注入
   npm_package_version: z.string().optional(),
 }).loose(); // 允许其他未声明的环境变量透传（如 NODE_APP_INSTANCE）
@@ -197,5 +202,11 @@ export const config = {
       secret: env.OAUTH_WECHAT_WORK_SECRET,
     },
     callbackBaseUrl: env.OAUTH_CALLBACK_BASE_URL,
+  },
+  webrtc: {
+    stunUrls: env.WEBRTC_STUN_URLS.split(',').map((s) => s.trim()).filter(Boolean),
+    turnUrls: env.WEBRTC_TURN_URLS.split(',').map((s) => s.trim()).filter(Boolean),
+    turnUsername: env.WEBRTC_TURN_USERNAME,
+    turnCredential: env.WEBRTC_TURN_CREDENTIAL,
   },
 };
