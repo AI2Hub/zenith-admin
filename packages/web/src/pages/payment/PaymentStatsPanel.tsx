@@ -109,7 +109,7 @@ export default function PaymentStatsPanel() {
 
   return (
     <Spin spinning={loading}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '8px 0' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* 汇总卡片 */}
         <Row gutter={[16, 16]} type="flex">
           <Col xs={24} sm={12} xl={4}>
