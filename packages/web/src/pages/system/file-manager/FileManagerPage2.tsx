@@ -184,6 +184,18 @@ function FsGridCard({ entry, selected, onSelect, onOpen, onContextMenu }: Readon
 
 function modeToOctal(mode: number) { return mode.toString(8).padStart(3, '0'); }
 function octalToMode(v: string) { const n = Number.parseInt(v, 8); return Number.isNaN(n) ? 0 : n; }
+
+/** 上传进度更新（纯函数，提取到组件外避免每次渲染重建） */
+function updateUploadPct(prev: { name: string; progress: number }[], idx: number, pct: number) {
+  return prev.map((u, i) => (i === idx ? { ...u, progress: pct } : u));
+}
+
+/** 深度搜索结果弹窗标题（避免内联嵌套三元 / 嵌套模板字符串） */
+function searchResultTitle(results: FsEntry[] | null): string {
+  if (!results) return '搜索结果';
+  const suffix = results.length >= 200 ? '+' : '';
+  return `搜索结果（${results.length}${suffix}）`;
+}
 function modeToSymbolic(mode: number) {
   const bits = ['r', 'w', 'x'];
   return [0o400, 0o200, 0o100, 0o040, 0o020, 0o010, 0o004, 0o002, 0o001]
@@ -734,10 +746,6 @@ export default function FileManagerPage() {
 
   // ── 上传 ─────────────────────────────────────────────────────────────────
 
-  function updateUploadPct(prev: { name: string; progress: number }[], idx: number, pct: number) {
-    return prev.map((u, i) => (i === idx ? { ...u, progress: pct } : u));
-  }
-
   const handleUploadChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
@@ -1249,7 +1257,7 @@ export default function FileManagerPage() {
 
           {/* ── 深度搜索结果 ── */}
           <Modal
-            title={`搜索结果${searchResults ? `（${searchResults.length}${searchResults.length >= 200 ? '+' : ''}）` : ''}`}
+            title={searchResultTitle(searchResults)}
             visible={searchResults !== null}
             onCancel={() => setSearchResults(null)}
             footer={null}
