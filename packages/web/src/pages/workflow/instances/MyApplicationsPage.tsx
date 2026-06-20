@@ -503,6 +503,8 @@ export default function MyApplicationsPage() {
         definitionId: values.definitionId,
         title: values.title,
         formData,
+        priority: values.priority ?? 'normal',
+        ccUserIds: Array.isArray(values.ccUserIds) ? values.ccUserIds : undefined,
       });
       if (res.code === 0) {
         Toast.success('申请已提交');
@@ -524,6 +526,8 @@ export default function MyApplicationsPage() {
         definitionId: values.definitionId,
         title: values.title,
         formData,
+        priority: values.priority ?? 'normal',
+        ccUserIds: Array.isArray(values.ccUserIds) ? values.ccUserIds : undefined,
         asDraft: true,
       });
       if (res.code === 0) {
@@ -775,6 +779,14 @@ export default function MyApplicationsPage() {
               <Select.Option key={k} value={k}>{s.text}</Select.Option>
             ))}
           </Select>
+          <Select
+            placeholder="全部优先级"
+            value={priorityFilter || undefined}
+            onChange={v => setPriorityFilter(typeof v === 'string' ? v : '')}
+            showClear
+            style={{ width: 130 }}
+            optionList={WORKFLOW_PRIORITY_OPTIONS}
+          />
           <Button type="primary" icon={<Search size={14} />} onClick={() => { handleSearch(); }}>查询</Button>
           <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { handleReset(); }}>重置</Button>
           <Button type="tertiary" icon={<Undo2 size={14} />} disabled={selectedRunningIds.length === 0} onClick={openBatchWithdraw}>批量撤回</Button>
