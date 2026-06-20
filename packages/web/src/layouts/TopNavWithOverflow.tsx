@@ -1,7 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { Badge, Dropdown } from '@douyinfe/semi-ui';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Badge, Nav } from '@douyinfe/semi-ui';
 
 export type TopNavItem = {
   itemKey: string;
@@ -12,307 +10,196 @@ export type TopNavItem = {
   isExternal?: boolean;
 };
 
+/** 与 Semi Nav 的 renderWrapper 签名兼容（额外字段被忽略） */
+type RenderWrapper = (args: {
+  itemElement: React.ReactNode;
+  isSubNav?: boolean;
+  isInSubNav?: boolean;
+  props: { itemKey?: string | number };
+}) => React.ReactNode;
+
+type SemiNavItem = {
+  itemKey: string;
+  text: React.ReactNode;
+  icon?: React.ReactNode;
+  items?: SemiNavItem[];
+};
+
 type Props = Readonly<{
   items: TopNavItem[];
   selectedKeys: string[];
+  /** 复用 AdminLayout 的 renderWrapper：内链包 NavLink、外链包 a */
+  renderWrapper: RenderWrapper;
   className?: string;
-  style?: React.CSSProperties;
-  /** 导航地标的无障碍标签（screen reader 朗读） */
+  /** 导航地标的无障碍标签 */
   ariaLabel?: string;
-  /** 覆盖默认导航行为（用于 mixed 模式） */
+  /** mixed 模式：点击顶部分类项的回调（非路径项由此处理） */
   onItemClick?: (key: string) => void;
 }>;
 
-function isPath(key: string) {
-  return key.startsWith('/');
+const MORE_KEY = '__topnav_more__';
+const MORE_TEXT = '更多';
+
+function decorateText(text: React.ReactNode, badge?: TopNavItem['badge']): React.ReactNode {
+  if (!badge || badge.count <= 0) return text;
+  return (
+    <span className="topnav-badge-text">
+      <span>{text}</span>
+      <Badge count={badge.count} overflowCount={badge.overflowCount ?? 99} type="danger" />
+    </span>
+  );
 }
 
-function isItemActive(item: TopNavItem, selectedKeys: string[]): boolean {
-  if (selectedKeys.includes(item.itemKey)) return true;
-  return (item.items ?? []).some((child) => isItemActive(child, selectedKeys));
+/** TopNavItem 树 → Semi Nav items，把徽标注入 text 节点 */
+function toSemiItems(items: TopNavItem[]): SemiNavItem[] {
+  return items.map((item) => {
+    const node: SemiNavItem = {
+      itemKey: item.itemKey,
+      text: decorateText(item.text, item.badge),
+    };
+    if (item.icon != null) node.icon = item.icon;
+    if (item.items?.length) node.items = toSemiItems(item.items);
+    return node;
+  });
 }
 
-// ─── 递归 Dropdown 菜单项 ──────────────────────────────────────────────────────
+/** 溢出项中是否有被选中（含后代），用于高亮「更多」 */
+function anyKeySelected(items: SemiNavItem[], selected: Set<string>): boolean {
+  return items.some(
+    (it) => selected.has(it.itemKey) || (it.items ? anyKeySelected(it.items, selected) : false),
+  );
+}
 
-function DropdownMenuItems({
+/**
+ * 顶部水平导航：基于 Semi `Nav mode="horizontal"` 渲染可见项，
+ * 仅对放不下的项用一个合成的「更多」Sub 收纳（Semi 原生下拉）。
+ * 通过隐藏的探测 Nav 测量各项宽度，配合 ResizeObserver 实现响应式收纳。
+ */
+export function TopNavWithOverflow({
   items,
   selectedKeys,
-  onNavigate,
-}: Readonly<{
-  items: TopNavItem[];
-  selectedKeys: string[];
-  onNavigate: (key: string) => void;
-}>) {
-  return (
-    <>
-      {items.map((item) => {
-        if (item.items?.length) {
-          return (
-            <Dropdown
-              key={item.itemKey}
-              position="rightTop"
-              trigger="hover"
-              render={
-                <Dropdown.Menu>
-                  <DropdownMenuItems items={item.items} selectedKeys={selectedKeys} onNavigate={onNavigate} />
-                </Dropdown.Menu>
-              }
-            >
-              <Dropdown.Item active={isItemActive(item, selectedKeys)}>
-                <span className="topnav-dd-item">
-                  {item.icon && <span className="topnav-dd-item__icon">{item.icon}</span>}
-                  <span className="topnav-dd-item__text">{item.text}</span>
-                  <ChevronRight size={12} className="topnav-dd-item__arrow" />
-                </span>
-              </Dropdown.Item>
-            </Dropdown>
-          );
-        }
-        return (
-          <Dropdown.Item
-            key={item.itemKey}
-            active={selectedKeys.includes(item.itemKey)}
-            onClick={() => {
-              if (item.isExternal && isPath(item.itemKey)) {
-                window.open(item.itemKey, '_blank', 'noopener,noreferrer');
-              } else {
-                onNavigate(item.itemKey);
-              }
-            }}
-          >
-            <span className="topnav-dd-item">
-              {item.icon && <span className="topnav-dd-item__icon">{item.icon}</span>}
-              <span className="topnav-dd-item__text">{item.text}</span>
-            </span>
-          </Dropdown.Item>
-        );
-      })}
-    </>
-  );
-}
-
-// ─── 单个顶部导航按钮 ──────────────────────────────────────────────────────────
-
-function TopNavButton({
-  item,
-  selectedKeys,
-  onNavigate,
-}: {
-  item: TopNavItem;
-  selectedKeys: string[];
-  onNavigate: (key: string) => void;
-}) {
-  const active = isItemActive(item, selectedKeys);
-  const cls = `topnav-item${active ? ' topnav-item--active' : ''}`;
-
-  const content = (
-    <>
-      {item.icon && <span className="topnav-item__icon">{item.icon}</span>}
-      <span>{item.text}</span>
-      {item.items?.length ? <ChevronDown size={11} className="topnav-item__arrow" /> : null}
-    </>
-  );
-
-  const badgeCount = item.badge?.count ?? 0;
-
-  const wrapBadge = (el: React.ReactNode) =>
-    badgeCount > 0 ? (
-      <Badge count={badgeCount} overflowCount={item.badge?.overflowCount ?? 99} style={{ zIndex: 1 }}>
-        {el}
-      </Badge>
-    ) : (
-      el
-    );
-
-  // 目录类：Dropdown 触发显示子菜单
-  if (item.items?.length) {
-    return wrapBadge(
-      <Dropdown
-        trigger="hover"
-        position="bottomLeft"
-        render={
-          <Dropdown.Menu>
-            <DropdownMenuItems items={item.items} selectedKeys={selectedKeys} onNavigate={onNavigate} />
-          </Dropdown.Menu>
-        }
-      >
-        <button type="button" className={cls} aria-current={active ? 'page' : undefined}>
-          {content}
-        </button>
-      </Dropdown>,
-    );
-  }
-
-  // 路径类：NavLink（支持右键新标签打开）
-  if (isPath(item.itemKey)) {
-    if (item.isExternal) {
-      return wrapBadge(
-        <a
-          href={item.itemKey}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`topnav-item`}
-        >
-          {content}
-        </a>,
-      );
-    }
-    return wrapBadge(
-      <NavLink
-        to={item.itemKey}
-        className={({ isActive: a }) => `topnav-item${a ? ' topnav-item--active' : ''}`}
-      >
-        {content}
-      </NavLink>,
-    );
-  }
-
-  // 非路径非目录（如 mixed 模式的分类 key）：普通按钮
-  return wrapBadge(
-    <button type="button" className={cls} aria-current={active ? 'page' : undefined} onClick={() => onNavigate(item.itemKey)}>
-      {content}
-    </button>,
-  );
-}
-
-// ─── 主组件 ────────────────────────────────────────────────────────────────────
-
-export function TopNavWithOverflow({ items, selectedKeys, className, style, ariaLabel, onItemClick }: Props) {
-  const navigate = useNavigate();
+  renderWrapper,
+  className,
+  ariaLabel,
+  onItemClick,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const probeRef = useRef<HTMLDivElement>(null);
-  const moreBtnProbeRef = useRef<HTMLButtonElement>(null);
   const [visibleCount, setVisibleCount] = useState(items.length);
 
-  const handleNavigate = useCallback(
-    (key: string) => {
-      if (onItemClick) {
-        onItemClick(key);
-        return;
-      }
-      if (isPath(key)) navigate(key);
-    },
-    [navigate, onItemClick],
+  const semiItems = useMemo(() => toSemiItems(items), [items]);
+
+  // 隐藏探测 Nav：渲染全部项 + 一个「更多」Sub（带占位子项以带出展开箭头），仅用于测量
+  const probeItems = useMemo<SemiNavItem[]>(
+    () => [
+      ...semiItems,
+      { itemKey: MORE_KEY, text: MORE_TEXT, items: [{ itemKey: `${MORE_KEY}__probe`, text: ' ' }] },
+    ],
+    [semiItems],
   );
 
   const measure = useCallback(() => {
     const container = containerRef.current;
     const probe = probeRef.current;
     if (!container || !probe) return;
-
+    const list = probe.querySelector('.semi-navigation-list');
+    if (!list) return;
+    const children = Array.from(list.children) as HTMLElement[];
+    // children = [...全部顶级项, 更多]
+    if (children.length < 2) {
+      setVisibleCount(items.length);
+      return;
+    }
     const containerW = container.clientWidth;
-    const probeChildren = Array.from(probe.children) as HTMLElement[];
-    const n = probeChildren.length;
-    if (n === 0) return;
+    const moreEl = children[children.length - 1];
+    const itemEls = children.slice(0, -1);
+    const n = itemEls.length;
 
-    const moreBtnW = (moreBtnProbeRef.current?.offsetWidth ?? 64) + 4;
+    // 用相邻两项的间隙估算项间距（含 margin）
+    const r0 = children[0].getBoundingClientRect();
+    const r1 = children[1].getBoundingClientRect();
+    const gap = Math.max(0, Math.round(r1.left - r0.right));
+    const moreW = moreEl.getBoundingClientRect().width + gap;
 
     let sum = 0;
     let count = 0;
-
     for (let i = 0; i < n; i++) {
-      const w = probeChildren[i].offsetWidth + 4; // 4px gap
-      const isLast = i === n - 1;
-
-      if (isLast) {
-        // 最后一项：不需要"更多"按钮，直接检查是否放得下
+      const w = itemEls[i].getBoundingClientRect().width + (i > 0 ? gap : 0);
+      if (i === n - 1) {
+        // 最后一项无需为「更多」预留空间
         if (sum + w <= containerW) count = n;
         break;
       }
-
-      // 非最后一项：需要为"更多"按钮预留空间
-      if (sum + w + moreBtnW <= containerW) {
+      if (sum + w + moreW <= containerW) {
         sum += w;
         count++;
       } else {
         break;
       }
     }
+    setVisibleCount(Math.max(1, Math.min(count, n)));
+  }, [items.length]);
 
-    // 至少显示 1 项，避免全空
-    setVisibleCount(Math.max(1, count));
-  }, []);
-
-  // 首次渲染后立即测量（同步，避免闪烁）
+  // 首帧同步测量，避免闪烁
   useLayoutEffect(() => {
     measure();
-  }, [items, measure]);
+  }, [measure, probeItems]);
 
-  // 监听容器宽度变化
+  // 容器宽度变化时重新测量
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const ro = new ResizeObserver(measure);
+    const ro = new ResizeObserver(() => measure());
     ro.observe(container);
     return () => ro.disconnect();
   }, [measure]);
 
-  const visible = items.slice(0, visibleCount);
-  const overflow = items.slice(visibleCount);
+  const hasOverflow = visibleCount < semiItems.length;
+
+  const displayItems = useMemo<SemiNavItem[]>(() => {
+    if (!hasOverflow) return semiItems;
+    const visible = semiItems.slice(0, visibleCount);
+    const overflow = semiItems.slice(visibleCount);
+    return [...visible, { itemKey: MORE_KEY, text: MORE_TEXT, items: overflow }];
+  }, [semiItems, visibleCount, hasOverflow]);
+
+  // 溢出项被选中时，额外把「更多」标记为选中
+  const effectiveSelectedKeys = useMemo(() => {
+    if (!hasOverflow) return selectedKeys;
+    const overflow = semiItems.slice(visibleCount);
+    return anyKeySelected(overflow, new Set(selectedKeys)) ? [...selectedKeys, MORE_KEY] : selectedKeys;
+  }, [selectedKeys, semiItems, visibleCount, hasOverflow]);
+
+  const handleClick = useCallback(
+    (data: { itemKey?: string | number }) => {
+      const key = String(data.itemKey ?? '');
+      if (!key || key === MORE_KEY) return;
+      onItemClick?.(key);
+    },
+    [onItemClick],
+  );
 
   return (
     <div
       ref={containerRef}
-      className={`topnav-overflow${className ? ' ' + className : ''}`}
-      style={style}
+      className={`admin-topnav${className ? ' ' + className : ''}`}
       role="navigation"
       aria-label={ariaLabel ?? '主导航'}
     >
-      {/* 隐藏探测容器：仅用于测量各项宽度 */}
-      <div ref={probeRef} className="topnav-overflow__probe" aria-hidden="true">
-        {items.map((item) => (
-          <div key={item.itemKey}>
-            <button type="button" className="topnav-item" tabIndex={-1}>
-              {item.icon && <span className="topnav-item__icon">{item.icon}</span>}
-              <span>{item.text}</span>
-              {item.items?.length ? <ChevronDown size={11} className="topnav-item__arrow" /> : null}
-            </button>
-          </div>
-        ))}
+      {/* 隐藏探测：渲染全部项用于宽度测量 */}
+      <div ref={probeRef} className="admin-topnav__probe" aria-hidden="true">
+        <Nav mode="horizontal" items={probeItems} selectedKeys={[]} />
       </div>
-      {/* 隐藏"更多"按钮：用于测量其宽度 */}
-      <div className="topnav-overflow__probe" aria-hidden="true">
-        <button ref={moreBtnProbeRef} type="button" className="topnav-item" tabIndex={-1}>
-          <span>更多</span>
-          <ChevronDown size={11} className="topnav-item__arrow" />
-        </button>
-      </div>
-
-      {/* 实际显示项 + 更多按钮 */}
-      <div className="topnav-overflow__items">
-        {visible.map((item) => (
-          <TopNavButton
-            key={item.itemKey}
-            item={item}
-            selectedKeys={selectedKeys}
-            onNavigate={handleNavigate}
-          />
-        ))}
-
-        {overflow.length > 0 && (
-          <Dropdown
-            trigger="hover"
-            position="bottomRight"
-            render={
-              <Dropdown.Menu>
-                <DropdownMenuItems
-                  items={overflow}
-                  selectedKeys={selectedKeys}
-                  onNavigate={handleNavigate}
-                />
-              </Dropdown.Menu>
-            }
-          >
-            <button
-              type="button"
-              className={`topnav-item${overflow.some((i) => isItemActive(i, selectedKeys)) ? ' topnav-item--active' : ''}`}
-            >
-              <span>更多</span>
-              <ChevronDown size={11} className="topnav-item__arrow" />
-            </button>
-          </Dropdown>
-        )}
-      </div>
+      {/* 实际显示项 + 溢出「更多」 */}
+      <Nav
+        className="admin-topnav__nav"
+        mode="horizontal"
+        items={displayItems}
+        selectedKeys={effectiveSelectedKeys}
+        renderWrapper={renderWrapper}
+        onClick={handleClick}
+        subNavCloseDelay={150}
+      />
     </div>
   );
 }

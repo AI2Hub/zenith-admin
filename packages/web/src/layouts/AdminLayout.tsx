@@ -1372,7 +1372,15 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
   }, [navigate]);
 
   const mixedTopSelectedKeys = effectiveTopKey ? [effectiveTopKey] : [];
-  const topNavSelectedKeys = navLayout === 'mixed' ? mixedTopSelectedKeys : currentSelectedKeys;
+  // 水平布局：把当前路径的祖先目录 key 一并加入 selectedKeys，
+  // 以便顶级目录（Semi Nav 的 sub-title）在子页面时也高亮（sub-title-selected 只看自身 itemKey）
+  const horizontalSelectedKeys = (() => {
+    const path = currentSelectedKeys[0];
+    if (!path) return currentSelectedKeys;
+    const ancestors = findNavItemAncestorKeys(navItems, path);
+    return ancestors && ancestors.length ? [path, ...ancestors] : currentSelectedKeys;
+  })();
+  const topNavSelectedKeys = navLayout === 'mixed' ? mixedTopSelectedKeys : horizontalSelectedKeys;
   const stickyNavClass = preferences.sidebarStickyScroll === false ? '' : ' admin-sidebar--sticky-nav';
   const sidebarClassName = `admin-sidebar${effectiveCollapsed ? ' admin-sidebar--collapsed' : ''}${stickyNavClass}`;
 
@@ -1455,6 +1463,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
             ariaLabel={navLayout === 'mixed' ? '分类导航' : '主导航'}
             items={navLayout === 'mixed' ? mixedTopNavItems : navItems}
             selectedKeys={topNavSelectedKeys}
+            renderWrapper={renderWrapper}
             onItemClick={navLayout === 'mixed' ? (key) => handleMixedTopSelect({ itemKey: key }) : undefined}
           />
           {headerActions}

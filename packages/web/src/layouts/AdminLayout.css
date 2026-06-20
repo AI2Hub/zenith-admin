@@ -43,96 +43,74 @@
   position: relative;
 }
 
-/* ===== TopNavWithOverflow 组件样式 ===== */
+/* ===== 顶部水平导航（基于 Semi Nav mode="horizontal"）===== */
 
-/* 探测容器：不可见，仅用于宽度测量 */
-.topnav-overflow__probe {
+.admin-topnav {
+  height: 100%;
+}
+
+/* 隐藏探测 Nav：仅用于宽度测量，不可见、不占位、不换行 */
+.admin-topnav__probe {
   position: absolute;
   visibility: hidden;
   pointer-events: none;
   top: 0;
   left: 0;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 4px;
-  white-space: nowrap;
 }
 
-/* 实际渲染的菜单项容器 */
-.topnav-overflow__items {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.admin-topnav__probe .semi-navigation-list {
+  flex-wrap: nowrap;
+}
+
+/* 可见 Nav 充满顶栏高度、透明背景、去掉默认底边 */
+.admin-topnav__nav.semi-navigation-horizontal {
+  height: 100%;
+  background: transparent;
+  border-bottom: none;
   padding: 0 4px;
+}
+
+.admin-topnav__nav .semi-navigation-inner,
+.admin-topnav__nav .semi-navigation-header-list-outer,
+.admin-topnav__nav .semi-navigation-list-wrapper {
   height: 100%;
 }
 
-/* 单个顶部菜单按钮 / NavLink */
-.topnav-item {
+.admin-topnav__nav .semi-navigation-list {
+  height: 100%;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+/* 顶级项：胶囊式样式 */
+.admin-topbar__nav .semi-navigation-item,
+.admin-topbar__nav .semi-navigation-sub-title {
   height: 36px;
+  padding: 0 12px;
+  margin: 0 2px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--color-sidebar-text);
+}
+
+/* renderWrapper 在水平方向需 inline-flex（默认 block/100% 会破坏行布局）*/
+.admin-topbar__nav .admin-nav-link-wrapper {
+  display: inline-flex;
+  width: auto;
+  align-items: center;
+}
+
+/* 去除 Semi 水平导航选中项默认的底部指示条 */
+.admin-topbar__nav .semi-navigation-item::after,
+.admin-topbar__nav .semi-navigation-sub-title::after {
+  display: none;
+}
+
+/* 徽标文案（如聊天未读）：与文字并排 */
+.topnav-badge-text {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 0 12px;
-  border-radius: 6px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: 13px;
-  font-family: inherit;
-  white-space: nowrap;
-  color: var(--color-sidebar-text);
-  text-decoration: none;
-  transition: background 0.15s;
-  flex-shrink: 0;
-}
-
-.topnav-item:hover {
-  background: var(--color-sidebar-hover);
-  color: var(--color-sidebar-text);
-  text-decoration: none;
-}
-
-.topnav-item--active,
-.topnav-item.active {
-  background: var(--color-sidebar-active);
-}
-
-.topnav-item__icon {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.topnav-item__arrow {
-  opacity: 0.55;
-  flex-shrink: 0;
-}
-
-/* Dropdown 内的菜单项内容布局 */
-.topnav-dd-item {
-  display: flex;
-  align-items: center;
   gap: 8px;
-  min-width: 120px;
-}
-
-.topnav-dd-item__icon {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  opacity: 0.7;
-}
-
-.topnav-dd-item__text {
-  flex: 1;
-}
-
-.topnav-dd-item__arrow {
-  opacity: 0.4;
-  flex-shrink: 0;
 }
 
 /* ===== Body (sidebar + main side by side) ===== */
@@ -309,6 +287,19 @@
 .admin-topbar__nav .semi-navigation-item-normal:hover,
 .admin-topbar__nav .semi-navigation-sub-title:hover {
   background: var(--color-sidebar-hover);
+}
+
+/* 顶部导航选中：叶子项与目录标题统一用底色高亮（覆盖 Semi 默认下划线样式）*/
+.admin-topbar__nav .semi-navigation-item-selected,
+.admin-topbar__nav .semi-navigation-sub-title-selected {
+  background: var(--color-sidebar-active) !important;
+  color: var(--color-sidebar-text-active, var(--color-primary));
+  font-weight: 600;
+}
+
+/* 顶部目录容器不响应 hover 背景 */
+.admin-topbar__nav .semi-navigation-sub-wrap:hover {
+  background: transparent;
 }
 
 /* 避免 semi-navigation-sub-wrap 容器和 ul 响应 hover 背景 */
@@ -1455,13 +1446,17 @@
   color: var(--color-sidebar-text-active) !important;
 }
 
-.admin-layout--header-dark .topnav-item {
+.admin-layout--header-dark .admin-topbar__nav .semi-navigation-item,
+.admin-layout--header-dark .admin-topbar__nav .semi-navigation-sub-title,
+.admin-layout--header-dark .admin-topbar__nav .semi-navigation-item-icon,
+.admin-layout--header-dark .admin-topbar__nav .semi-navigation-item-text {
   color: var(--color-sidebar-text);
 }
 
-.admin-layout--header-dark .topnav-item:hover,
-.admin-layout--header-dark .topnav-item--active,
-.admin-layout--header-dark .topnav-item.active {
+.admin-layout--header-dark .admin-topbar__nav .semi-navigation-item-selected,
+.admin-layout--header-dark .admin-topbar__nav .semi-navigation-sub-title-selected,
+.admin-layout--header-dark .admin-topbar__nav .semi-navigation-item-selected .semi-navigation-item-icon,
+.admin-layout--header-dark .admin-topbar__nav .semi-navigation-item-selected .semi-navigation-item-text {
   color: var(--color-sidebar-text-active);
 }
 
