@@ -326,7 +326,7 @@ export const workflowHandlers = [
 
   // 发起流程申请（支持保存草稿 asDraft）
   http.post('/api/workflows/instances', async ({ request }) => {
-    const body = await request.json() as { definitionId: number; title: string; formData: Record<string, unknown>; asDraft?: boolean };
+    const body = await request.json() as { definitionId: number; title: string; formData: Record<string, unknown>; asDraft?: boolean; priority?: 'low' | 'normal' | 'high' | 'urgent'; ccUserIds?: number[] };
     const def = mockWorkflowDefinitions.find(d => d.id === body.definitionId);
     if (!def) return err('流程定义不存在');
     if (def.status !== 'published') return err('该流程未发布，无法发起申请');
@@ -368,6 +368,7 @@ export const workflowHandlers = [
       definitionName: def.name,
       title: body.title,
       serialNo,
+      priority: body.priority ?? 'normal',
       formData: body.formData,
       formSnapshot: resolveDefinitionFormFields(def),
       status: isDraft ? 'draft' : 'running',

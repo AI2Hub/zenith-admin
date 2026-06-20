@@ -11,6 +11,7 @@ import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowF
 import WorkflowGraphView from '@/components/workflow/WorkflowGraphView';
 import WorkflowNodeListView from '@/components/workflow/WorkflowNodeListView';
 import WorkflowApproverPreview from '@/components/workflow/WorkflowApproverPreview';
+import { WORKFLOW_PRIORITY_OPTIONS } from '@/components/workflow/WorkflowPriorityTag';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 
 const UNCATEGORIZED = -1;
@@ -30,6 +31,7 @@ export default function WorkflowLaunchpadPage() {
   const [submitting, setSubmitting] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [formKey, setFormKey] = useState(0);
+  const [userOptions, setUserOptions] = useState<Array<{ label: string; value: number }>>([]);
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -39,6 +41,15 @@ export default function WorkflowLaunchpadPage() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (userOptions.length === 0) {
+      void request.get<Array<{ id: number; nickname: string; username: string }>>('/api/users/all').then((res) => {
+        if (res.code === 0 && res.data) setUserOptions(res.data.map((u) => ({ label: u.nickname ?? u.username, value: u.id })));
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -109,6 +120,8 @@ export default function WorkflowLaunchpadPage() {
         definitionId: selectedDef.id,
         title: values.title,
         formData,
+        priority: values.priority ?? 'normal',
+        ccUserIds: Array.isArray(values.ccUserIds) ? values.ccUserIds : undefined,
         ...(asDraft ? { asDraft: true } : {}),
       });
       if (res.code === 0) {
@@ -202,6 +215,23 @@ export default function WorkflowLaunchpadPage() {
             label="申请标题"
             placeholder="自动生成，可手动修改"
             rules={[{ required: true, message: '请填写申请标题' }]}
+          />
+          <Form.Select
+            field="priority"
+            label="优先级"
+            style={{ width: '100%' }}
+            initValue="normal"
+            optionList={WORKFLOW_PRIORITY_OPTIONS}
+          />
+          <Form.Select
+            field="ccUserIds"
+            label="抄送人"
+            placeholder="可选，提交后立即抄送给所选成员"
+            multiple
+            filter
+            showClear
+            style={{ width: '100%' }}
+            optionList={userOptions}
           />
         </Form>
         {selectedDef && (

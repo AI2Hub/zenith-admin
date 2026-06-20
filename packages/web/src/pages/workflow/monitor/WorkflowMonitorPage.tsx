@@ -26,6 +26,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import SavedViewsBar from '@/components/workflow/SavedViewsBar';
+import WorkflowPriorityTag, { WORKFLOW_PRIORITY_OPTIONS } from '@/components/workflow/WorkflowPriorityTag';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
@@ -122,8 +123,8 @@ export default function WorkflowMonitorPage() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<MonitorResponse | null>(null);
   const { page, pageSize, setPage, buildPagination } = usePagination();
-  interface SearchParams { keyword: string; initiator: string; status: string; categoryId: number | '' }
-  const defaultSearchParams: SearchParams = { keyword: '', initiator: '', status: '', categoryId: '' };
+  interface SearchParams { keyword: string; initiator: string; status: string; categoryId: number | ''; priority: string }
+  const defaultSearchParams: SearchParams = { keyword: '', initiator: '', status: '', categoryId: '', priority: '' };
   const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
   const searchParamsRef = useRef<SearchParams>(defaultSearchParams);
   searchParamsRef.current = searchParams;
@@ -154,7 +155,7 @@ export default function WorkflowMonitorPage() {
   const canAdmin = hasPermission('workflow:instance:cancel');
 
   const fetchList = useCallback(async (p = page, ps = pageSize, params?: SearchParams) => {
-    const { keyword: kw, status: st, categoryId: cat, initiator: initKw } = params ?? searchParamsRef.current;
+    const { keyword: kw, status: st, categoryId: cat, initiator: initKw, priority: pr } = params ?? searchParamsRef.current;
     setLoading(true);
     try {
       const qs = new URLSearchParams({ page: String(p), pageSize: String(ps) });
@@ -162,6 +163,7 @@ export default function WorkflowMonitorPage() {
       if (st) qs.set('status', st);
       if (cat !== '') qs.set('categoryId', String(cat));
       if (initKw) qs.set('initiatorKeyword', initKw);
+      if (pr) qs.set('priority', pr);
       const res = await request.get<MonitorResponse>(`/api/workflows/instances/all?${qs.toString()}`);
       if (res.code === 0) {
         setData(res.data);
@@ -345,6 +347,12 @@ export default function WorkflowMonitorPage() {
       render: renderEllipsis,
     },
     {
+      title: '优先级',
+      dataIndex: 'priority',
+      width: 80,
+      render: (v: WorkflowInstance['priority']) => <WorkflowPriorityTag priority={v} />,
+    },
+    {
       title: '流程名称',
       dataIndex: 'definitionName',
       width: 160,
@@ -506,6 +514,14 @@ export default function WorkflowMonitorPage() {
               { label: '已撤回', value: 'withdrawn' },
               { label: '已取消', value: 'cancelled' },
             ]}
+          />
+          <Select
+            placeholder="所有优先级"
+            showClear
+            value={searchParams.priority || undefined}
+            onChange={v => setSearchParams(prev => ({ ...prev, priority: (v as string) ?? '' }))}
+            style={{ width: 130 }}
+            optionList={WORKFLOW_PRIORITY_OPTIONS}
           />
           <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
           <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>

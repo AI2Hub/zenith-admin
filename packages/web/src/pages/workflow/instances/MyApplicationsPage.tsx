@@ -272,9 +272,14 @@ function InstanceDetailDrawer({
   };
 
   const printAction = data ? (
-    <Button theme="borderless" size="small" onClick={handlePrint}>
-      打印审批单
-    </Button>
+    <>
+      <Button theme="borderless" size="small" onClick={handlePrint}>
+        打印审批单
+      </Button>
+      <Button theme="borderless" size="small" onClick={handlePrint}>
+        导出 PDF
+      </Button>
+    </>
   ) : null;
 
   return (
@@ -443,6 +448,8 @@ export default function MyApplicationsPage() {
 
   const handleReset = () => {
     setSearchParams({ status: '' });
+    setPriorityFilter('');
+    priorityFilterRef.current = '';
     setPage(1);
     void fetchList(1, pageSize, { status: '' });
   };
@@ -690,6 +697,12 @@ export default function MyApplicationsPage() {
       render: (v: string | null) => v ?? '—',
     },
     {
+      title: '优先级',
+      dataIndex: 'priority',
+      width: 80,
+      render: (v: WorkflowInstance['priority']) => <WorkflowPriorityTag priority={v} />,
+    },
+    {
       title: '流程名称',
       dataIndex: 'definitionName',
       width: 160,
@@ -877,6 +890,25 @@ export default function MyApplicationsPage() {
             rules={[{ required: true, message: '请填写申请标题' }]}
             initValue={editingDraft?.title}
           />
+          <Form.Select
+            field="priority"
+            label="优先级"
+            style={{ width: '100%' }}
+            initValue={editingDraft?.priority ?? 'normal'}
+            optionList={WORKFLOW_PRIORITY_OPTIONS}
+          />
+          {!editingDraft && (
+            <Form.Select
+              field="ccUserIds"
+              label="抄送人"
+              placeholder="可选，提交后立即抄送给所选成员"
+              multiple
+              filter
+              showClear
+              style={{ width: '100%' }}
+              optionList={userOptions}
+            />
+          )}
           {selectedDef?.description && (
             <div style={{ padding: '8px 0', color: 'var(--semi-color-text-2)', fontSize: 13 }}>
               <FileInput size={13} style={{ verticalAlign: 'middle', marginRight: 4 }} />

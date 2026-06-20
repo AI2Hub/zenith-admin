@@ -26,6 +26,7 @@ import { formatDateTime } from '@/utils/date';
 import { resolveRejectTargetHint } from '@/utils/workflow-reject';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import WorkflowPriorityTag from '@/components/workflow/WorkflowPriorityTag';
 import { usePagination } from '@/hooks/usePagination';
 import WorkflowInstanceDetailPanel from '@/components/workflow/WorkflowInstanceDetailPanel';
 import SignaturePad from '@/components/SignaturePad';
@@ -526,6 +527,12 @@ export default function PendingApprovalsPage() {
       dataIndex: 'title',
       width: 200,
       render: renderEllipsis,
+    },
+    {
+      title: '优先级',
+      dataIndex: 'priority',
+      width: 80,
+      render: (v: PendingItem['priority']) => <WorkflowPriorityTag priority={v} />,
     },
     {
       title: '流程名称',

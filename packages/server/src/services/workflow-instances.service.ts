@@ -1774,28 +1774,32 @@ export async function createInstance(data: { definitionId: number; title: string
   const instanceDto = mapInstance(instance);
   const actor = { userId: user.userId, name: user.username };
   emitInstanceStartEvents(instanceDto, instance, createdTasks, actor);
-  // 发起时自选抄送：插入 ccNode 任务（去重，跳过已存在的抄送人）
+  // 发起时自选抄送：插入 ccNode 任务（best-effort，失败不影响发起结果；接收人通过「抄送我的」查看）
   const ccIds = Array.from(new Set((data.ccUserIds ?? []).filter((v) => Number.isInteger(v) && v > 0)));
   if (ccIds.length > 0) {
-    const existing = await db.select({ assigneeId: workflowTasks.assigneeId }).from(workflowTasks)
-      .where(and(eq(workflowTasks.instanceId, instance.id), eq(workflowTasks.nodeType, 'ccNode')));
-    const existingSet = new Set(existing.map((r) => r.assigneeId).filter((v): v is number => typeof v === 'number'));
-    const toAdd = ccIds.filter((uid) => !existingSet.has(uid));
-    if (toAdd.length > 0) {
-      const ccRows = toAdd.map((uid) => ({
-        instanceId: instance.id,
-        nodeKey: '__initiator_cc__',
-        nodeName: '发起抄送',
-        nodeType: 'ccNode' as const,
-        assigneeId: uid,
-        status: 'skipped' as const,
-        comment: `[发起抄送] 由 ${user.username ?? '系统'} 指定`,
-        actionAt: null,
-      }));
-      const insertedCc = await db.insert(workflowTasks).values(ccRows).returning();
-      for (const t of insertedCc) {
-        emitTaskEvent('task.created', mapTask(t), { definitionId: instance.definitionId, tenantId: instance.tenantId, actor });
+    try {
+      const [validUsers, existing] = await Promise.all([
+        db.select({ id: users.id }).from(users).where(inArray(users.id, ccIds)),
+        db.select({ assigneeId: workflowTasks.assigneeId }).from(workflowTasks)
+          .where(and(eq(workflowTasks.instanceId, instance.id), eq(workflowTasks.nodeType, 'ccNode'))),
+      ]);
+      const validSet = new Set(validUsers.map((u) => u.id));
+      const existingSet = new Set(existing.map((r) => r.assigneeId).filter((v): v is number => typeof v === 'number'));
+      const toAdd = ccIds.filter((uid) => validSet.has(uid) && !existingSet.has(uid));
+      if (toAdd.length > 0) {
+        await db.insert(workflowTasks).values(toAdd.map((uid) => ({
+          instanceId: instance.id,
+          nodeKey: '__initiator_cc__',
+          nodeName: '发起抄送',
+          nodeType: 'ccNode' as const,
+          assigneeId: uid,
+          status: 'skipped' as const,
+          comment: `[发起抄送] 由 ${user.username ?? '系统'} 指定`,
+          actionAt: null,
+        })));
       }
+    } catch (err) {
+      logger.error('[workflow] 发起时自选抄送写入失败', { instanceId: instance.id, err });
     }
   }
   return instanceDto;
