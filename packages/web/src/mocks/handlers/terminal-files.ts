@@ -1,9 +1,9 @@
 /**
- * MSW handler for /api/terminal-files/*
+ * MSW handler for /api/terminal-files/* and /api/terminal-recordings/*
  *
  * In demo mode, the real filesystem is not accessible.
- * This handler provides a minimal virtual filesystem so the File Manager
- * page can load without triggering a 401 that causes a hard logout.
+ * These handlers provide minimal virtual filesystem and empty recordings
+ * so the pages can load without triggering a 401 that causes a hard logout.
  */
 import { http, HttpResponse } from 'msw';
 
@@ -73,4 +73,24 @@ export const terminalFilesHandlers = [
 
   // 上传
   http.post('/api/terminal-files/upload', demoErr),
+
+  // ── 终端录屏（演示模式返回空列表）─────────────────────────────────────────
+  http.get('/api/terminal-recordings', ({ request: req }) => {
+    const url = new URL(req.url);
+    const page = Number(url.searchParams.get('page')) || 1;
+    const pageSize = Number(url.searchParams.get('pageSize')) || 20;
+    return HttpResponse.json({ code: 0, message: 'ok', data: { list: [], total: 0, page, pageSize } });
+  }),
+
+  http.get('/api/terminal-recordings/:id', ({ params }) => {
+    return HttpResponse.json({ code: 404, message: '录屏记录不存在', data: null }, { status: 404 });
+  }),
+
+  http.delete('/api/terminal-recordings/:id', () => {
+    return HttpResponse.json({ code: 403, message: '演示模式下不支持删除录屏', data: null }, { status: 403 });
+  }),
+
+  http.delete('/api/terminal-recordings/clean', () => {
+    return HttpResponse.json({ code: 403, message: '演示模式下不支持清理录屏', data: null }, { status: 403 });
+  }),
 ];
