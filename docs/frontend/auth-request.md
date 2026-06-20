@@ -128,7 +128,7 @@ VITE_WS_BASE_URL=wss://api.yourdomain.com
 
 :::
 
-> **注意**：`VITE_API_PROXY_TARGET` 不带 `VITE_` 前缀以外的特殊声明，Vite 不会将它注入到客户端 bundle 中（因为 `loadEnv` 在 `vite.config.ts` 中以非 `import.meta.env` 方式读取），后端地址不会泄露到生产包。
+> **注意**：`VITE_API_PROXY_TARGET` 只在 `vite.config.ts` 中通过 `loadEnv` 读取，用于 Dev Server 代理配置；业务代码不通过 `import.meta.env` 读取它，后端代理地址不会进入生产包。
 
 ## 会员端独立请求实例
 
