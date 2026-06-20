@@ -437,6 +437,7 @@ export default function WorkflowDefinitionsPage() {
   ];
 
   return (
+    <div className="page-container">
     <MasterDetailLayout
       defaultSize={220}
       minSize={180}
@@ -452,7 +453,7 @@ export default function WorkflowDefinitionsPage() {
         />
       }
       detail={
-        <MasterDetailLayout.Body>
+        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <SearchToolbar>
             <input
               ref={importInputRef}
@@ -656,8 +657,9 @@ export default function WorkflowDefinitionsPage() {
               <div style={{ color: 'var(--semi-color-text-2)' }}>请选择两个版本并点击「对比」。</div>
             )}
           </Modal>
-        </MasterDetailLayout.Body>
+        </div>
       }
     />
+    </div>
   );
 }
