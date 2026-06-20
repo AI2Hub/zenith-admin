@@ -805,24 +805,26 @@ export default function FileManagerPage() {
   const buildCtxMenuItems = (ce: typeof ctxEntry) => {
     if (!ce) return [];
     const { entry } = ce;
+    const isDir = entry.type === 'dir';
+    const isFile = !isDir;
     const items: { label: string; fn: () => void; danger?: boolean }[] = [
       {
-        label: entry.type === 'dir' ? '打开' : '下载',
+        label: isDir ? '打开' : '下载',
         fn: () => {
-          if (entry.type === 'dir') void navigateTo(entry.path);
+          if (isDir) void navigateTo(entry.path);
           else handleDownload(entry);
           closeCtxMenu();
         },
       },
-      ...(entry.type !== 'dir' ? [{ label: '预览', fn: () => { void handlePreview(entry); closeCtxMenu(); } }] : []),
+      ...(isFile ? [{ label: '预览', fn: () => { void handlePreview(entry); closeCtxMenu(); } }] : []),
       { label: '重命名', fn: () => { setDialog({ mode: 'rename', entry, value: entry.name }); closeCtxMenu(); } },
       { label: '复制到…', fn: () => { setFolderPicker({ mode: 'copy', entries: [entry] }); closeCtxMenu(); } },
       { label: '移动到…', fn: () => { setFolderPicker({ mode: 'move', entries: [entry] }); closeCtxMenu(); } },
       { label: '压缩为 ZIP', fn: () => { setDialog({ mode: 'compress', selEntries: [entry], value: `${entry.name}.zip` }); closeCtxMenu(); } },
-      ...(entry.type !== 'dir' && isArchive(entry.name) ? [{ label: '解压到此处', fn: () => { void handleExtract(entry); closeCtxMenu(); } }] : []),
-      ...(entry.type !== 'dir' ? [{ label: '校验和', fn: () => { void fetchChecksum(entry, 'sha256'); closeCtxMenu(); } }] : []),
+      ...(isFile && isArchive(entry.name) ? [{ label: '解压到此处', fn: () => { void handleExtract(entry); closeCtxMenu(); } }] : []),
+      ...(isFile ? [{ label: '校验和', fn: () => { void fetchChecksum(entry, 'sha256'); closeCtxMenu(); } }] : []),
       { label: '修改权限', fn: () => { setDialog({ mode: 'chmod', entry, value: permStringToOctal(entry.permissions) }); closeCtxMenu(); } },
-      ...(entry.type === 'dir' ? [{ label: '上传到此目录', fn: () => { ctxUploadDirRef.current = entry.path; ctxUploadInputRef.current?.click(); closeCtxMenu(); } }] : []),
+      ...(isDir ? [{ label: '上传到此目录', fn: () => { ctxUploadDirRef.current = entry.path; ctxUploadInputRef.current?.click(); closeCtxMenu(); } }] : []),
       { label: '删除', fn: () => { Modal.confirm({ title: '确定删除此项吗？', okType: 'danger', onOk: () => handleDelete([entry.path]) }); closeCtxMenu(); }, danger: true },
     ];
     return items;
