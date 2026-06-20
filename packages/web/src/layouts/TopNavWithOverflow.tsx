@@ -110,13 +110,17 @@ export function TopNavWithOverflow({
       setVisibleCount(items.length);
       return;
     }
-    // 可用宽度 = 容器宽度 - 实际可见 Nav 的左右内边距（padding:0 4px）
-    const realNav = container.querySelector<HTMLElement>('.admin-topnav__nav');
+    // 可用宽度 = 容器宽度 - 真实可见 Nav 的左右内边距（padding:0 4px）- 安全余量
+    // 真实 Nav 与探测 Nav 同 class，取「不在探测容器内」的那个
+    const navs = Array.from(container.querySelectorAll<HTMLElement>('.admin-topnav__nav'));
+    const realNav = navs.find((el) => !el.closest('.admin-topnav__probe')) ?? navs[0] ?? null;
     const navStyle = realNav ? getComputedStyle(realNav) : null;
     const padX = navStyle
       ? (Number.parseFloat(navStyle.paddingLeft) || 0) + (Number.parseFloat(navStyle.paddingRight) || 0)
       : 0;
-    const containerW = container.clientWidth - padX;
+    // 安全余量：防止亚像素取整 / 字体回流 / 选中加粗等因素导致「更多」被裁切
+    const SAFETY = 6;
+    const containerW = container.clientWidth - padX - SAFETY;
 
     const moreEl = children[children.length - 1];
     const itemEls = children.slice(0, -1);
@@ -154,15 +158,30 @@ export function TopNavWithOverflow({
   // 首帧同步测量，避免闪烁
   useLayoutEffect(() => {
     measure();
+    // items/probe 变化后，Semi Nav 内部可能异步渲染列表项，下一帧再测一次以校正
+    const raf = requestAnimationFrame(measure);
+    return () => cancelAnimationFrame(raf);
   }, [measure, probeItems]);
 
-  // 容器宽度变化时重新测量
+  // 容器宽度变化（含相邻 header 操作区宽度变化挤压 flex 容器）时重新测量
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     const ro = new ResizeObserver(() => measure());
     ro.observe(container);
-    return () => ro.disconnect();
+    // 同时观察父级 topbar：相邻区域（品牌/操作区）宽度变化也会改变可用空间
+    const topbar = container.closest('.admin-topbar');
+    if (topbar) ro.observe(topbar);
+    // 窗口缩放兜底
+    const onResize = () => measure();
+    window.addEventListener('resize', onResize);
+    // Web 字体加载完成后文字宽度变化，重新测量
+    const fonts = (document as Document & { fonts?: { ready?: Promise<unknown> } }).fonts;
+    fonts?.ready?.then(() => measure()).catch(() => {});
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', onResize);
+    };
   }, [measure]);
 
   const hasOverflow = visibleCount < semiItems.length;
