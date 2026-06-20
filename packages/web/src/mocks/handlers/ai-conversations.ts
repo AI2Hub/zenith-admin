@@ -124,4 +124,37 @@ export const aiConversationsHandlers = [
       },
     });
   }),
+
+  // ── 管理员反馈列表（/api/ai/conversations/admin/feedback）────────────────
+  // 注意：必须在 /:id 路由之前注册，以避免 "admin" 被当成 id
+  http.get('/api/ai/conversations/admin/feedback', ({ request }) => {
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get('page')) || 1;
+    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const feedbackParam = url.searchParams.get('feedback');
+
+    // 收集所有带反馈的消息
+    let allMsgs: AiMessage[] = Object.values(msgStore).flat().filter((m) => m.feedback !== null);
+    if (feedbackParam !== null && feedbackParam !== '') {
+      const fb = Number(feedbackParam);
+      allMsgs = allMsgs.filter((m) => m.feedback === fb);
+    }
+
+    const total = allMsgs.length;
+    const list = allMsgs.slice((page - 1) * pageSize, page * pageSize);
+    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+  }),
+
+  // 消息反馈（点赞/点踩）
+  http.post('/api/ai/conversations/:convId/messages/:msgId/feedback', async ({ params, request }) => {
+    const convId = Number(params.convId);
+    const msgId = Number(params.msgId);
+    const body = await request.json() as { feedback: number | null };
+    const msgs = msgStore[convId];
+    if (!msgs) return HttpResponse.json({ code: 404, message: '对话不存在', data: null }, { status: 404 });
+    const msg = msgs.find((m) => m.id === msgId);
+    if (!msg) return HttpResponse.json({ code: 404, message: '消息不存在', data: null }, { status: 404 });
+    msg.feedback = body.feedback ?? null;
+    return HttpResponse.json({ code: 0, message: 'ok', data: msg });
+  }),
 ];

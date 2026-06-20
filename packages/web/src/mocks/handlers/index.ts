@@ -28,6 +28,7 @@ import { cacheHandlers } from './cache';
 import { workflowHandlers } from './workflow';
 import { workflowExtraHandlers } from './workflow-extra';
 import { workflowFormsHandlers } from './workflow-forms';
+import { workflowCategoriesHandlers } from './workflow-categories';
 import { workflowAutomationsHandlers } from './workflow-automations';
 import { chatHandlers } from './chat';
 import { chatBotsHandlers } from './chat-bots';
@@ -57,6 +58,7 @@ import { memberFrontHandlers } from './member-front';
 import { memberAdminHandlers } from './member-admin';
 import { checkinHandlers } from './checkin';
 import { terminalSessionsHandlers } from './terminal-sessions';
+import { terminalFilesHandlers } from './terminal-files';
 
 export const handlers = [
   ...authHandlers,
@@ -87,6 +89,7 @@ export const handlers = [
   ...tenantsHandlers,
   ...cacheHandlers,
   ...workflowExtraHandlers,
+  ...workflowCategoriesHandlers,
   ...workflowHandlers,
   ...workflowFormsHandlers,
   ...workflowAutomationsHandlers,
@@ -118,4 +121,5 @@ export const handlers = [
   ...memberAdminHandlers,
   ...checkinHandlers,
   ...terminalSessionsHandlers,
+  ...terminalFilesHandlers,
 ];
