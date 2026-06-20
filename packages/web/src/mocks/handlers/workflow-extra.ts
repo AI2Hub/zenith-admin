@@ -1,9 +1,10 @@
 import { http, HttpResponse } from 'msw';
 import type {
   WorkflowComment, WorkflowQuickPhrase, WorkflowDelegation, WorkflowAnalytics,
-  WorkflowInstanceStatus, WorkflowOverdueTask,
+  WorkflowInstanceStatus, WorkflowOverdueTask, WorkflowTemplate, WorkflowTaskConsult,
 } from '@zenith/shared';
-import { mockWorkflowInstances, mockWorkflowTasks, getNextInstanceId } from '@/mocks/data/workflow';
+import { mockWorkflowInstances, mockWorkflowTasks, getNextInstanceId, getNextDefinitionId } from '@/mocks/data/workflow';
+import { mockWorkflowDefinitions } from '@/mocks/data/workflow';
 import { mockDateTime } from '@/mocks/utils/date';
 
 function ok<T>(data: T, message = 'ok') {
@@ -26,6 +27,25 @@ let nextPhraseId = 100;
 
 const mockDelegations: WorkflowDelegation[] = [];
 let nextDelegationId = 1;
+
+const mockTemplates: WorkflowTemplate[] = [
+  {
+    id: 1, name: '请假申请（示例模板）', code: 'tpl_leave', description: '员工请假，直属主管审批',
+    categoryName: '人事', icon: 'CalendarDays', color: '#3370ff',
+    flowData: (mockWorkflowDefinitions[0]?.flowData ?? null), formSchema: null,
+    sort: 0, builtin: true, createdAt: mockDateTime(), updatedAt: mockDateTime(),
+  },
+  {
+    id: 2, name: '费用报销（示例模板）', code: 'tpl_expense', description: '报销单，按金额分级审批',
+    categoryName: '财务', icon: 'Receipt', color: '#0dc87c',
+    flowData: (mockWorkflowDefinitions[0]?.flowData ?? null), formSchema: null,
+    sort: 1, builtin: true, createdAt: mockDateTime(), updatedAt: mockDateTime(),
+  },
+];
+let nextTemplateId = 100;
+
+const mockConsults: WorkflowTaskConsult[] = [];
+let nextConsultId = 1;
 
 function buildAnalytics(): WorkflowAnalytics {
   const insts = mockWorkflowInstances;
@@ -119,6 +139,69 @@ function buildOverdueList(): WorkflowOverdueTask[] {
 export const workflowExtraHandlers = [
   // ── 数据分析（必须在 /instances/:id 之前注册）──
   http.get('/api/workflows/instances/analytics', () => ok(buildAnalytics())),
+
+  // ── 我的协办（必须在 /instances/:id 之前注册）──
+  http.get('/api/workflows/instances/consults/mine', ({ request }) => {
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get('page') ?? 1);
+    const pageSize = Number(url.searchParams.get('pageSize') ?? 20);
+    const all = mockConsults.filter((c) => c.consulteeId === 1);
+    return ok({ list: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize });
+  }),
+  http.post('/api/workflows/instances/consults/:id/reply', async ({ params, request }) => {
+    const body = await request.json() as { opinion: string };
+    const c = mockConsults.find((x) => x.id === Number(params.id));
+    if (!c) return err('协办记录不存在', 404);
+    c.opinion = body.opinion; c.status = 'replied'; c.repliedAt = mockDateTime();
+    return ok(c, '已回复');
+  }),
+
+  // ── 流程模板 ──
+  http.get('/api/workflows/templates', () => ok(mockTemplates)),
+  http.post('/api/workflows/templates/save-as', async ({ request }) => {
+    const body = await request.json() as { name: string; description?: string; icon?: string; color?: string };
+    const now = mockDateTime();
+    const tpl: WorkflowTemplate = { id: nextTemplateId++, name: body.name, code: null, description: body.description ?? null, categoryName: null, icon: body.icon ?? null, color: body.color ?? null, flowData: mockWorkflowDefinitions[0]?.flowData ?? null, formSchema: null, sort: 0, builtin: false, createdAt: now, updatedAt: now };
+    mockTemplates.push(tpl);
+    return ok(tpl, '已保存为模板');
+  }),
+  http.post('/api/workflows/templates/:id/clone', async ({ params, request }) => {
+    const tpl = mockTemplates.find((t) => t.id === Number(params.id));
+    if (!tpl) return err('模板不存在', 404);
+    let name = tpl.name;
+    try { const b = await request.json() as { name?: string }; if (b?.name) name = b.name; } catch { /* no body */ }
+    const now = mockDateTime();
+    const def = { ...(mockWorkflowDefinitions[0] ?? {}), id: getNextDefinitionId(), name, status: 'draft' as const, version: 1, flowData: tpl.flowData, createdAt: now, updatedAt: now };
+    mockWorkflowDefinitions.push(def as typeof mockWorkflowDefinitions[number]);
+    return ok(def, '已创建');
+  }),
+  http.delete('/api/workflows/templates/:id', ({ params }) => {
+    const idx = mockTemplates.findIndex((t) => t.id === Number(params.id));
+    if (idx === -1) return err('模板不存在', 404);
+    if (mockTemplates[idx].builtin) return err('系统内置模板不可删除');
+    mockTemplates.splice(idx, 1);
+    return ok(null, '已删除');
+  }),
+
+  // ── 协办 / 撤回 ──
+  http.post('/api/workflows/tasks/:taskId/consult', async ({ params, request }) => {
+    const body = await request.json() as { consulteeIds: number[]; question?: string };
+    const task = mockWorkflowTasks.find((t) => t.id === Number(params.taskId));
+    const created = (body.consulteeIds ?? []).map((cid) => {
+      const c: WorkflowTaskConsult = { id: nextConsultId++, taskId: Number(params.taskId), instanceId: task?.instanceId ?? 0, nodeName: task?.nodeName ?? null, inviterId: 1, inviterName: '张三', consulteeId: cid, consulteeName: `用户#${cid}`, question: body.question ?? null, opinion: null, status: 'pending', repliedAt: null, createdAt: mockDateTime() };
+      mockConsults.push(c);
+      return c;
+    });
+    return ok(created, '已发起协办');
+  }),
+  http.post('/api/workflows/tasks/:taskId/recall', ({ params }) => {
+    const task = mockWorkflowTasks.find((t) => t.id === Number(params.taskId));
+    if (!task) return err('任务不存在', 404);
+    task.status = 'pending'; task.comment = null; task.signature = null; task.actionAt = null;
+    const inst = mockWorkflowInstances.find((i) => i.id === task.instanceId);
+    if (inst) { inst.status = 'running'; inst.updatedAt = mockDateTime(); return ok(inst, '已撤回'); }
+    return err('流程数据异常', 500);
+  }),
 
   // ── 超时待办预警 ──
   http.get('/api/workflows/instances/overdue', ({ request }) => {

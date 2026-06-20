@@ -641,7 +641,7 @@ const consultRoute = defineOpenAPIRoute({
 
 const myConsultsRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'get', path: '/consults/mine', tags: ['WorkflowInstances'], summary: '我的协办列表',
+    method: 'get', path: '/instances/consults/mine', tags: ['WorkflowInstances'], summary: '我的协办列表',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'workflow:task:handle' })] as const,
     request: { query: PaginationQuery.extend({ status: z.string().optional() }) },
@@ -652,7 +652,7 @@ const myConsultsRoute = defineOpenAPIRoute({
 
 const replyConsultRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'post', path: '/consults/{id}/reply', tags: ['WorkflowInstances'], summary: '回复协办意见',
+    method: 'post', path: '/instances/consults/{id}/reply', tags: ['WorkflowInstances'], summary: '回复协办意见',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'workflow:task:handle', audit: { description: '回复协办意见', module: '工作流管理' } })] as const,
     request: { params: IdParam, body: { content: jsonContent(replyWorkflowConsultSchema), required: true } },
