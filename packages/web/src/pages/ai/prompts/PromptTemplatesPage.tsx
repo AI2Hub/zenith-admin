@@ -168,7 +168,7 @@ export default function PromptTemplatesPage() {
     const payload: CreateAiPromptTemplateInput = {
       name: values.name.trim(),
       content: values.content.trim(),
-      description: editingTemplate?.description ?? null,
+      description: normalizeNullable(values.description),
       category: normalizeNullable(values.category),
       scope: values.scope ?? 'system',
       sort: Number(values.sort ?? 0),
@@ -329,6 +329,7 @@ export default function PromptTemplatesPage() {
                 <Form.Switch field="isEnabled" label="启用" />
               </Col>
             </Row>
+            <Form.Input field="description" label="描述" placeholder="请输入描述（可选）" maxLength={300} />
             <Form.TextArea
               field="content"
               label="内容"
