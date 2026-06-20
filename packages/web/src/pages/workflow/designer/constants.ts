@@ -129,6 +129,9 @@ export const OPERATOR_LABELS: Record<string, string> = {
   contains: '包含',
   isEmpty: '为空',
   isNotEmpty: '不为空',
+  between: '区间',
+  withinDays: 'N天内',
+  beforeDays: '早于N天前',
 };
 
 /** 发起人维度条件可选字段（source='starter'） */

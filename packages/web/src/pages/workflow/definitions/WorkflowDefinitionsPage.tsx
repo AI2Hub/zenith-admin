@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Dropdown, Input, Modal, Select, Space, Tag,
+import { Button, Dropdown, Form, Input, Modal, Select, Space, Tag,
   Toast } from '@douyinfe/semi-ui';
+import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { MoreHorizontal, Plus, RotateCcw, Search } from 'lucide-react';
+import { LayoutTemplate, MoreHorizontal, Plus, RotateCcw, Save, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkflowDefinition, PaginatedResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
@@ -13,6 +14,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import WorkflowVersionsModal from '../components/WorkflowVersionsModal';
 import CategorySidebar from './components/CategorySidebar';
+import { TemplateGalleryModal } from './components/TemplateGalleryModal';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 import { renderEllipsis } from '../../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
@@ -44,6 +46,10 @@ export default function WorkflowDefinitionsPage() {
   searchParamsRef.current = searchParams;
   const [openMoreId, setOpenMoreId] = useState<number | null>(null);
   const [historyTarget, setHistoryTarget] = useState<WorkflowDefinition | null>(null);
+  const [templateGalleryVisible, setTemplateGalleryVisible] = useState(false);
+  const [saveAsTarget, setSaveAsTarget] = useState<WorkflowDefinition | null>(null);
+  const [saveAsLoading, setSaveAsLoading] = useState(false);
+  const saveAsFormRef = useRef<FormApi | null>(null);
   const { categories, refetch: refetchCategories } = useWorkflowCategories();
 
   const fetchList = useCallback(async (p = page, ps = pageSize, params?: SearchParams) => {
@@ -117,6 +123,23 @@ export default function WorkflowDefinitionsPage() {
     if (res.code === 0) {
       Toast.success('删除成功');
       void fetchList();
+    }
+  };
+
+  const handleSaveAsTemplate = async (values: { name: string; code?: string; description?: string; icon?: string; color?: string }) => {
+    if (!saveAsTarget) return;
+    setSaveAsLoading(true);
+    try {
+      const res = await request.post('/api/workflows/templates/save-as', {
+        definitionId: saveAsTarget.id,
+        ...values,
+      });
+      if (res.code === 0) {
+        Toast.success('已保存为模板');
+        setSaveAsTarget(null);
+      }
+    } finally {
+      setSaveAsLoading(false);
     }
   };
 
@@ -222,6 +245,9 @@ export default function WorkflowDefinitionsPage() {
             render={
               <Dropdown.Menu>
                 <Dropdown.Item onClick={() => { setOpenMoreId(null); setHistoryTarget(record); }}>历史版本</Dropdown.Item>
+                {hasPermission('workflow:definition:create') && (
+                  <Dropdown.Item onClick={() => { setOpenMoreId(null); setSaveAsTarget(record); }}>另存为模板</Dropdown.Item>
+                )}
                 {record.status !== 'published' && hasPermission('workflow:definition:delete') && (
                   <Dropdown.Item
                     type="danger"
@@ -297,6 +323,11 @@ export default function WorkflowDefinitionsPage() {
                 新建流程
               </Button>
             )}
+            {hasPermission('workflow:definition:create') && (
+              <Button type="tertiary" icon={<LayoutTemplate size={14} />} onClick={() => setTemplateGalleryVisible(true)}>
+                从模板新建
+              </Button>
+            )}
           </SearchToolbar>
           <ConfigurableTable
             bordered
@@ -318,6 +349,61 @@ export default function WorkflowDefinitionsPage() {
               onRestored={() => { void fetchList(); }}
             />
           )}
+          <TemplateGalleryModal
+            visible={templateGalleryVisible}
+            onCancel={() => setTemplateGalleryVisible(false)}
+            onCreated={(id) => {
+              setTemplateGalleryVisible(false);
+              navigate(`/workflow/designer/${id}`);
+            }}
+          />
+          <Modal
+            title="另存为模板"
+            visible={!!saveAsTarget}
+            onCancel={() => setSaveAsTarget(null)}
+            closeOnEsc
+            okText="保存"
+            okButtonProps={{ loading: saveAsLoading, icon: <Save size={14} /> }}
+            onOk={() => {
+              saveAsFormRef.current?.validate().then((values) => {
+                void handleSaveAsTemplate(values as { name: string; code?: string; description?: string; icon?: string; color?: string });
+              });
+            }}
+          >
+            <Form
+              labelPosition="left"
+              labelWidth={70}
+              getFormApi={(api) => { saveAsFormRef.current = api; }}
+              initValues={{ name: saveAsTarget?.name ?? '' }}
+            >
+              <Form.Input
+                field="name"
+                label="模板名称"
+                placeholder="请输入模板名称"
+                rules={[{ required: true, message: '请输入模板名称' }]}
+              />
+              <Form.Input
+                field="code"
+                label="模板编码"
+                placeholder="选填，唯一标识"
+              />
+              <Form.Input
+                field="description"
+                label="描述"
+                placeholder="选填"
+              />
+              <Form.Input
+                field="icon"
+                label="图标"
+                placeholder="选填，lucide 图标名"
+              />
+              <Form.Input
+                field="color"
+                label="颜色"
+                placeholder="选填，如 #1677ff"
+              />
+            </Form>
+          </Modal>
         </MasterDetailLayout.Body>
       }
     />

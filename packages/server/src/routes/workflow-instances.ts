@@ -1,9 +1,9 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
-import { approveWorkflowTaskSchema, rejectWorkflowTaskSchema, createWorkflowInstanceWithDraftSchema, updateWorkflowInstanceSchema, transferWorkflowTaskSchema, delegateWorkflowTaskSchema, addSignWorkflowTaskSchema, reduceSignWorkflowTaskSchema, returnWorkflowTaskSchema, urgeWorkflowTaskSchema, addInstanceCcSchema, batchApproveWorkflowTaskSchema, batchRejectWorkflowTaskSchema, createWorkflowCommentSchema, jumpWorkflowInstanceSchema, reassignWorkflowTaskSchema } from '@zenith/shared';
+import { approveWorkflowTaskSchema, rejectWorkflowTaskSchema, createWorkflowInstanceWithDraftSchema, updateWorkflowInstanceSchema, transferWorkflowTaskSchema, delegateWorkflowTaskSchema, addSignWorkflowTaskSchema, reduceSignWorkflowTaskSchema, returnWorkflowTaskSchema, urgeWorkflowTaskSchema, addInstanceCcSchema, batchApproveWorkflowTaskSchema, batchRejectWorkflowTaskSchema, createWorkflowCommentSchema, jumpWorkflowInstanceSchema, reassignWorkflowTaskSchema, createWorkflowConsultSchema, replyWorkflowConsultSchema, recallWorkflowTaskSchema } from '@zenith/shared';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okMsg, okPaginated, IdParam, okBody, okExcel, excelStreamBody } from '../lib/openapi-schemas';
-import { WorkflowInstanceDTO, WorkflowInstanceListItemDTO, WorkflowInstanceAllDTO, WorkflowTaskDTO, WorkflowTaskUrgeDTO, WorkflowCommentDTO, WorkflowBatchActionResponseDTO, WorkflowAnalyticsDTO, WorkflowOverdueTaskDTO } from '../lib/openapi-dtos';
+import { WorkflowInstanceDTO, WorkflowInstanceListItemDTO, WorkflowInstanceAllDTO, WorkflowTaskDTO, WorkflowTaskUrgeDTO, WorkflowCommentDTO, WorkflowBatchActionResponseDTO, WorkflowAnalyticsDTO, WorkflowOverdueTaskDTO, WorkflowTaskConsultDTO } from '../lib/openapi-dtos';
 import {
   listMyInstances, listPendingMine, listAllInstances, getInstanceDetail,
   createInstance, withdrawInstance, cancelInstance, deleteInstance, getInstanceForAdminAudit,
@@ -11,9 +11,10 @@ import {
   transferTask, delegateTask, addSignTask, reduceSignTask, returnTask,
   urgeTask, listTaskUrges, listInstanceUrges, urgeInstance, addInstanceCc,
   updateInstanceDraft, submitDraftInstance, resubmitInstance,
-  batchApproveTasks, batchRejectTasks, jumpInstance, reassignTask,
+  batchApproveTasks, batchRejectTasks, jumpInstance, reassignTask, recallTask,
 } from '../services/workflow-instances.service';
 import { listInstanceComments, addInstanceComment } from '../services/workflow-comments.service';
+import { createConsult, replyConsult, listMyConsults } from '../services/workflow-consults.service';
 import { getWorkflowAnalytics, listOverdueTasks, exportInstances } from '../services/workflow-analytics.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -602,6 +603,69 @@ const reassignRoute = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([listRoute, pendingMineRoute, allRoute, analyticsRoute, overdueRoute, exportRoute, detailRoute, listCommentsRoute, addCommentRoute, createInstanceRoute, updateDraftRoute, submitDraftRoute, resubmitRoute, withdrawRoute, cancelInstanceRoute, jumpInstanceRoute, deleteInstanceRoute, batchApproveRoute, batchRejectRoute, approveRoute, rejectRoute, transferRoute, reassignRoute, delegateRoute, addSignRoute, reduceSignRoute, returnRoute, urgeRoute, listTaskUrgesRoute, listInstanceUrgesRoute, urgeInstanceRoute, addInstanceCcRoute] as const);
+const recallRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/tasks/{taskId}/recall', tags: ['WorkflowInstances'], summary: '撤回已办',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:task:handle', audit: { description: '撤回已办', module: '工作流管理' } })] as const,
+    request: { params: taskIdParam, body: { content: jsonContent(recallWorkflowTaskSchema), required: false } },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(WorkflowInstanceDTO, '已撤回'),
+      400: { content: jsonContent(ErrorResponse), description: '参数错误' },
+      404: { content: jsonContent(ErrorResponse), description: '不存在' },
+    },
+  }),
+  handler: async (c) => {
+    const { taskId } = c.req.valid('param');
+    const body = c.req.valid('json');
+    return c.json(okBody(await recallTask(taskId, body?.comment), '已撤回'), 200);
+  },
+});
+
+const consultRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/tasks/{taskId}/consult', tags: ['WorkflowInstances'], summary: '发起协办',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:task:handle', audit: { description: '发起协办', module: '工作流管理' } })] as const,
+    request: { params: taskIdParam, body: { content: jsonContent(createWorkflowConsultSchema), required: true } },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(z.array(WorkflowTaskConsultDTO), '已发起协办'),
+      403: { content: jsonContent(ErrorResponse), description: '无权操作' },
+      404: { content: jsonContent(ErrorResponse), description: '不存在' },
+    },
+  }),
+  handler: async (c) => c.json(okBody(await createConsult(c.req.valid('param').taskId, c.req.valid('json')), '已发起协办'), 200),
+});
+
+const myConsultsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/consults/mine', tags: ['WorkflowInstances'], summary: '我的协办列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:task:handle' })] as const,
+    request: { query: PaginationQuery.extend({ status: z.string().optional() }) },
+    responses: { ...commonErrorResponses, ...okPaginated(WorkflowTaskConsultDTO, 'ok') },
+  }),
+  handler: async (c) => c.json(okBody(await listMyConsults(c.req.valid('query'))), 200),
+});
+
+const replyConsultRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/consults/{id}/reply', tags: ['WorkflowInstances'], summary: '回复协办意见',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:task:handle', audit: { description: '回复协办意见', module: '工作流管理' } })] as const,
+    request: { params: IdParam, body: { content: jsonContent(replyWorkflowConsultSchema), required: true } },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(WorkflowTaskConsultDTO, '已回复'),
+      400: { content: jsonContent(ErrorResponse), description: '参数错误' },
+      403: { content: jsonContent(ErrorResponse), description: '无权操作' },
+    },
+  }),
+  handler: async (c) => c.json(okBody(await replyConsult(c.req.valid('param').id, c.req.valid('json')), '已回复'), 200),
+});
+
+router.openapiRoutes([listRoute, pendingMineRoute, allRoute, analyticsRoute, overdueRoute, exportRoute, myConsultsRoute, detailRoute, listCommentsRoute, addCommentRoute, createInstanceRoute, updateDraftRoute, submitDraftRoute, resubmitRoute, withdrawRoute, cancelInstanceRoute, jumpInstanceRoute, deleteInstanceRoute, batchApproveRoute, batchRejectRoute, approveRoute, rejectRoute, transferRoute, reassignRoute, recallRoute, consultRoute, replyConsultRoute, delegateRoute, addSignRoute, reduceSignRoute, returnRoute, urgeRoute, listTaskUrgesRoute, listInstanceUrgesRoute, urgeInstanceRoute, addInstanceCcRoute] as const);
 
 export default router;

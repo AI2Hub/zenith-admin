@@ -1206,6 +1206,7 @@ export const workflowNodeTypeEnum = pgEnum('workflow_node_type', [
   'delay',
   'trigger',
   'subProcess',
+  'catchNode',
 ]);
 
 // 流程分类
@@ -1385,6 +1386,8 @@ export const workflowTasks = pgTable('workflow_tasks', {
   transferChain: jsonb('transfer_chain').$type<number[]>().default([]).notNull(),
   /** 委派来源（仅委派时设置，原 assignee 接手时清空） */
   delegatedFromId: integer('delegated_from_id').references(() => users.id, { onDelete: 'set null' }),
+  /** 退回模式 backToOrigin：被退回任务记录发起退回的来源节点 key，通过后直接跳回该节点 */
+  returnOriginNodeKey: varchar('return_origin_node_key', { length: 64 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -1550,6 +1553,53 @@ export const workflowSerialCounters = pgTable('workflow_serial_counters', {
 
 export type WorkflowSerialCounterRow = typeof workflowSerialCounters.$inferSelect;
 export type NewWorkflowSerialCounter = typeof workflowSerialCounters.$inferInsert;
+
+// ─── 流程模板库 ───────────────────────────────────────────────────────────────
+export const workflowTemplates = pgTable('workflow_templates', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 64 }).notNull(),
+  code: varchar('code', { length: 64 }),
+  description: text('description'),
+  categoryName: varchar('category_name', { length: 64 }),
+  icon: varchar('icon', { length: 64 }),
+  color: varchar('color', { length: 16 }),
+  /** 流程图数据（React Flow / process JSON），克隆时写入新流程定义的 flowData */
+  flowData: jsonb('flow_data'),
+  /** 表单结构（{ fields, settings }），克隆时创建对应表单 */
+  formSchema: jsonb('form_schema'),
+  sort: integer('sort').default(0).notNull(),
+  /** 系统内置模板（不可删除） */
+  builtin: boolean('builtin').default(false).notNull(),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [unique('workflow_templates_code_uniq').on(t.code)]);
+
+export type WorkflowTemplateRow = typeof workflowTemplates.$inferSelect;
+export type NewWorkflowTemplate = typeof workflowTemplates.$inferInsert;
+
+// ─── 审批协办 / 邀请处理意见 ──────────────────────────────────────────────────
+export const workflowTaskConsultStatusEnum = pgEnum('workflow_task_consult_status', ['pending', 'replied', 'revoked']);
+
+export const workflowTaskConsults = pgTable('workflow_task_consults', {
+  id: serial('id').primaryKey(),
+  taskId: integer('task_id').notNull().references(() => workflowTasks.id, { onDelete: 'cascade' }),
+  instanceId: integer('instance_id').notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),
+  /** 发起协办的审批人 */
+  inviterId: integer('inviter_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** 被邀请协办的人 */
+  consulteeId: integer('consultee_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  question: varchar('question', { length: 500 }),
+  opinion: text('opinion'),
+  status: workflowTaskConsultStatusEnum('status').default('pending').notNull(),
+  repliedAt: timestamp('replied_at', { withTimezone: true }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export type WorkflowTaskConsultRow = typeof workflowTaskConsults.$inferSelect;
+export type NewWorkflowTaskConsult = typeof workflowTaskConsults.$inferInsert;
 
 // ─── 聊天会话表 ───────────────────────────────────────────────────────────────
 export const chatConversationTypeEnum = pgEnum('chat_conversation_type', ['direct', 'group']);
@@ -1995,6 +2045,13 @@ export const workflowDelegationsRelations = relations(workflowDelegations, ({ on
   delegate: one(users, { fields: [workflowDelegations.delegateId], references: [users.id], relationName: 'delegationDelegate' }),
   definition: one(workflowDefinitions, { fields: [workflowDelegations.definitionId], references: [workflowDefinitions.id] }),
   tenant: one(tenants, { fields: [workflowDelegations.tenantId], references: [tenants.id] }),
+}));
+
+export const workflowTaskConsultsRelations = relations(workflowTaskConsults, ({ one }) => ({
+  task: one(workflowTasks, { fields: [workflowTaskConsults.taskId], references: [workflowTasks.id] }),
+  instance: one(workflowInstances, { fields: [workflowTaskConsults.instanceId], references: [workflowInstances.id] }),
+  inviter: one(users, { fields: [workflowTaskConsults.inviterId], references: [users.id], relationName: 'consultInviter' }),
+  consultee: one(users, { fields: [workflowTaskConsults.consulteeId], references: [users.id], relationName: 'consultConsultee' }),
 }));
 
 export const workflowInstancesRelations = relations(workflowInstances, ({ one, many }) => ({

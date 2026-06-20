@@ -32,6 +32,8 @@ interface ApproverAdvancedSectionsProps {
   emptyAssignToIds?: number[];
   sameInitiatorStrategy?: SameInitiatorStrategy;
   deduplicateStrategy?: DeduplicateStrategy;
+  returnMode?: 'reexecute' | 'backToOrigin';
+  catchAction?: 'toAdmin' | 'notify' | 'terminate';
   timeout?: TimeoutConfig;
   users: UserOption[];
   onChange: (updates: Record<string, unknown>) => void;
@@ -95,6 +97,8 @@ export default function ApproverAdvancedSections({
   emptyAssignToIds,
   sameInitiatorStrategy = 'selfApprove',
   deduplicateStrategy = 'autoSkip',
+  returnMode = 'reexecute',
+  catchAction,
   timeout,
   users,
   onChange,
@@ -148,6 +152,20 @@ export default function ApproverAdvancedSections({
           <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 6 }}>
             仅能选当前节点之前同一执行路径上的审批、办理节点
           </Typography.Text>
+        </div>
+      )}
+      {(rejectStrategy === 'returnPrev' || rejectStrategy === 'returnToNode') && (
+        <div style={{ marginTop: 4, marginBottom: 8 }}>
+          <div className="fd-field-label">退回后</div>
+          <RadioGroup
+            value={returnMode}
+            onChange={(e) => onChange({ returnMode: e.target.value })}
+            direction="vertical"
+            className="fd-radio-list"
+          >
+            <Radio value="reexecute">重新执行后续路径（默认）</Radio>
+            <Radio value="backToOrigin">去而复返（被退回节点通过后直接回到本节点）</Radio>
+          </RadioGroup>
         </div>
       )}
 
@@ -288,6 +306,25 @@ export default function ApproverAdvancedSections({
           </Form.Slot>
         </div>
       )}
+
+      <div style={{ marginTop: 8 }}>
+        <div className="fd-field-label">异常兜底（审批人为空时的额外处理）</div>
+        <Select
+          value={catchAction ?? ''}
+          onChange={(v) => onChange({ catchAction: v === '' ? undefined : v })}
+          style={{ width: '100%' }}
+          placeholder="不启用（按上方策略处理）"
+          optionList={[
+            { value: '', label: '不启用（按上方策略处理）' },
+            { value: 'toAdmin', label: '转交管理员处理' },
+            { value: 'notify', label: '通知相关人并自动通过' },
+            { value: 'terminate', label: '终止流程' },
+          ]}
+        />
+        <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 6 }}>
+          启用后，当审批人解析为空时优先执行此异常处理。
+        </Typography.Text>
+      </div>
 
       {/* ─── 审批人与提交人为同一人时 ─────────────────────────── */}
       <SectionDivider>审批人与提交人为同一人时</SectionDivider>

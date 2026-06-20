@@ -7,7 +7,7 @@
  * - 运算符选择 + 值输入
  */
 import { useEffect, useState } from 'react';
-import { Button, Input, Select, SideSheet, Typography } from '@douyinfe/semi-ui';
+import { Button, Input, InputNumber, Select, SideSheet, Typography } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
 import type { ConditionGroup, ConditionRule, ConditionOperator, FlowBranch } from '../types';
 import { OPERATOR_LABELS, STARTER_CONDITION_FIELDS } from '../constants';
@@ -41,6 +41,13 @@ const operatorOptions = Object.entries(OPERATOR_LABELS).map(([value, label]) => 
 const STARTER_OPERATOR_OPTIONS = [
   { value: 'in', label: '属于' },
   { value: 'notIn', label: '不属于' },
+];
+
+const AGGREGATE_OPTIONS = [
+  { value: 'none',  label: '无' },
+  { value: 'sum',   label: '合计' },
+  { value: 'count', label: '计数' },
+  { value: 'avg',   label: '平均' },
 ];
 
 const EMPTY_RULE: ConditionRule = { field: '', operator: 'eq', value: '' };
@@ -239,46 +246,77 @@ export default function ConditionEditor({
 
               {/* 条件规则列表 */}
               {group.rules.map((rule, ri) => (
-                <div key={ruleKeys[gi]?.[ri] ?? ri} className="fd-condition-rule">
-                  <Select
-                    value={rule.source === 'starter'
-                      ? `starter:${rule.field}`
-                      : (rule.field ? `form:${rule.field}` : undefined)}
-                    onChange={(v) => handleFieldChange(gi, ri, v as string)}
-                    placeholder="选择字段"
-                    style={{ width: 150 }}
-                    size="small"
-                  >
-                    {formFields.length > 0 && (
-                      <Select.OptGroup label="表单字段">
-                        {formFields.map(f => (
-                          <Select.Option key={`form:${f.key}`} value={`form:${f.key}`}>{f.label}</Select.Option>
+                <div key={ruleKeys[gi]?.[ri] ?? ri} className="fd-condition-rule" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+                  {/* 主控件行 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Select
+                      value={rule.source === 'starter'
+                        ? `starter:${rule.field}`
+                        : (rule.field ? `form:${rule.field}` : undefined)}
+                      onChange={(v) => handleFieldChange(gi, ri, v as string)}
+                      placeholder="选择字段"
+                      style={{ width: 150 }}
+                      size="small"
+                    >
+                      {formFields.length > 0 && (
+                        <Select.OptGroup label="表单字段">
+                          {formFields.map(f => (
+                            <Select.Option key={`form:${f.key}`} value={`form:${f.key}`}>{f.label}</Select.Option>
+                          ))}
+                        </Select.OptGroup>
+                      )}
+                      <Select.OptGroup label="发起人维度">
+                        {STARTER_CONDITION_FIELDS.map(s => (
+                          <Select.Option key={`starter:${s.value}`} value={`starter:${s.value}`}>{s.label}</Select.Option>
                         ))}
                       </Select.OptGroup>
-                    )}
-                    <Select.OptGroup label="发起人维度">
-                      {STARTER_CONDITION_FIELDS.map(s => (
-                        <Select.Option key={`starter:${s.value}`} value={`starter:${s.value}`}>{s.label}</Select.Option>
-                      ))}
-                    </Select.OptGroup>
-                  </Select>
-                  <Select
-                    value={rule.operator}
-                    onChange={(v) => updateRule(gi, ri, { operator: v as ConditionOperator })}
-                    optionList={rule.source === 'starter' ? STARTER_OPERATOR_OPTIONS : operatorOptions}
-                    placeholder="选择条件"
-                    style={{ width: 92 }}
-                    size="small"
-                  />
-                  {renderValueInput(rule, formFields, { users, roles, departments, positions }, (v) => updateRule(gi, ri, { value: v }))}
-                  <button
-                    type="button"
-                    className="fd-condition-rule__remove"
-                    onClick={() => handleRemoveRule(gi, ri)}
-                    title="删除条件"
-                  >
-                    <Trash2 size={12} />
-                  </button>
+                    </Select>
+                    <Select
+                      value={rule.operator}
+                      onChange={(v) => updateRule(gi, ri, { operator: v as ConditionOperator })}
+                      optionList={rule.source === 'starter' ? STARTER_OPERATOR_OPTIONS : operatorOptions}
+                      placeholder="选择条件"
+                      style={{ width: 100 }}
+                      size="small"
+                    />
+                    {renderValueInput(rule, formFields, { users, roles, departments, positions }, (v) => updateRule(gi, ri, { value: v }))}
+                    <button
+                      type="button"
+                      className="fd-condition-rule__remove"
+                      onClick={() => handleRemoveRule(gi, ri)}
+                      title="删除条件"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                  {/* 聚合控件行 — 仅表单来源规则 */}
+                  {rule.source !== 'starter' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 2 }}>
+                      <span style={{ fontSize: 12, color: 'var(--semi-color-text-2)', flexShrink: 0 }}>聚合</span>
+                      <Select
+                        value={rule.aggregate ?? 'none'}
+                        onChange={(v) => {
+                          if (v === 'none') {
+                            updateRule(gi, ri, { aggregate: undefined, aggregateField: undefined });
+                          } else {
+                            updateRule(gi, ri, { aggregate: v as 'sum' | 'count' | 'avg' });
+                          }
+                        }}
+                        optionList={AGGREGATE_OPTIONS}
+                        style={{ width: 90 }}
+                        size="small"
+                      />
+                      {rule.aggregate && rule.aggregate !== 'count' && (
+                        <Input
+                          value={rule.aggregateField ?? ''}
+                          onChange={(v) => updateRule(gi, ri, { aggregateField: v })}
+                          placeholder="聚合列"
+                          style={{ flex: 1 }}
+                          size="small"
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -376,6 +414,49 @@ function renderValueInput(
   // 为空 / 不为空：无需值输入，占位保持布局
   if (rule.operator === 'isEmpty' || rule.operator === 'isNotEmpty') {
     return <span style={{ flex: 1 }} />;
+  }
+
+  // 区间：两个数值输入，存为 "min,max" 字符串
+  if (rule.operator === 'between') {
+    const parts = String(rule.value ?? '').split(',');
+    const minVal = parts[0] !== '' ? Number(parts[0]) : undefined;
+    const maxVal = parts[1] !== '' ? Number(parts[1]) : undefined;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
+        <InputNumber
+          value={minVal}
+          onChange={(v) => onChange(`${v ?? ''},${parts[1] ?? ''}`)}
+          placeholder="最小值"
+          style={{ width: 80 }}
+          size="small"
+        />
+        <span style={{ fontSize: 12, color: 'var(--semi-color-text-2)', flexShrink: 0 }}>~</span>
+        <InputNumber
+          value={maxVal}
+          onChange={(v) => onChange(`${parts[0] ?? ''},${v ?? ''}`)}
+          placeholder="最大值"
+          style={{ width: 80 }}
+          size="small"
+        />
+      </div>
+    );
+  }
+
+  // 相对日期：N 天内 / 早于 N 天前
+  if (rule.operator === 'withinDays' || rule.operator === 'beforeDays') {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <InputNumber
+          value={rule.value !== '' ? Number(rule.value) : undefined}
+          onChange={(v) => onChange(v !== null ? Number(v) : 0)}
+          placeholder="天数"
+          min={0}
+          style={{ width: 110 }}
+          size="small"
+        />
+        <span style={{ fontSize: 12, color: 'var(--semi-color-text-2)', flexShrink: 0 }}>天</span>
+      </div>
+    );
   }
 
   const field = formFields.find(f => f.key === rule.field);

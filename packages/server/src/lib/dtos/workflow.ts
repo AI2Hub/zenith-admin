@@ -144,6 +144,25 @@ export const WorkflowCommentDTO = z
   })
   .openapi('WorkflowComment');
 
+export const WorkflowTaskConsultDTO = z
+  .object({
+    id: z.number().int(),
+    taskId: z.number().int(),
+    instanceId: z.number().int(),
+    nodeName: z.string().nullable().optional(),
+    inviterId: z.number().int(),
+    inviterName: z.string().nullable().optional(),
+    consulteeId: z.number().int(),
+    consulteeName: z.string().nullable().optional(),
+    consulteeAvatar: z.string().nullable().optional(),
+    question: z.string().nullable(),
+    opinion: z.string().nullable(),
+    status: z.enum(['pending', 'replied', 'revoked']),
+    repliedAt: z.string().nullable().optional(),
+    createdAt: z.string(),
+  })
+  .openapi('WorkflowTaskConsult');
+
 export const WorkflowInstanceDTO = z
   .object({
     id: z.number().int(),
@@ -173,6 +192,7 @@ export const WorkflowInstanceDTO = z
     })).nullable().optional(),
     tasks: z.array(WorkflowTaskDTO).nullable().optional(),
     comments: z.array(WorkflowCommentDTO).optional(),
+    consults: z.array(WorkflowTaskConsultDTO).optional(),
     ...auditFields,
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -184,6 +204,7 @@ export const WorkflowInstanceListItemDTO = WorkflowInstanceDTO.omit({
   formSnapshot: true,
   tasks: true,
   comments: true,
+  consults: true,
 }).extend({ pendingTaskId: z.number().int().optional(), pendingSignatureRequired: z.boolean().optional() }).openapi('WorkflowInstanceListItem');
 
 export const WorkflowInstanceAllDTO = z
@@ -212,6 +233,24 @@ export const WorkflowAutomationDTO = z
     updatedAt: z.string(),
   })
   .openapi('WorkflowAutomation');
+
+export const WorkflowTemplateDTO = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    code: z.string().nullable(),
+    description: z.string().nullable(),
+    categoryName: z.string().nullable(),
+    icon: z.string().nullable(),
+    color: z.string().nullable(),
+    flowData: z.unknown().nullable(),
+    formSchema: z.unknown().nullable(),
+    sort: z.number().int(),
+    builtin: z.boolean(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('WorkflowTemplate');
 
 export const WorkflowQuickPhraseDTO = z
   .object({

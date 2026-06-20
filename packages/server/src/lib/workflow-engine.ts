@@ -19,6 +19,7 @@ import type {
   WorkflowConditionGroup,
   WorkflowStarterContext,
 } from '@zenith/shared';
+import dayjs from 'dayjs';
 
 // ─── 图遍历工具 ───────────────────────────────────────────────────────────────
 
@@ -40,6 +41,10 @@ function buildAdjacency(flowData: WorkflowFlowData) {
   const inEdges = new Map<string, string[]>();
 
   for (const edge of flowData.edges) {
+    // 异常边（isException 或指向 catchNode）不参与正常流转，仅由运行时异常路由使用
+    const targetNode = nodeMap.get(edge.target);
+    if (edge.isException || targetNode?.data.type === 'catchNode') continue;
+
     const out = outEdges.get(edge.source) ?? [];
     out.push({ target: edge.target, edge });
     outEdges.set(edge.source, out);
@@ -84,6 +89,31 @@ function evaluateStarterCondition(
   return condition.operator === 'notIn' ? !hit : hit;
 }
 
+/** 解析区间值 "a,b" / "a~b" → [min, max] */
+function parseRange(value: string | number | boolean): [number, number] | null {
+  if (typeof value !== 'string') return null;
+  const parts = value.split(/[,~]/).map((s) => Number(s.trim()));
+  if (parts.length === 2 && parts.every((n) => Number.isFinite(n))) {
+    return [Math.min(parts[0], parts[1]), Math.max(parts[0], parts[1])];
+  }
+  return null;
+}
+
+/** 数值比较（供聚合结果复用） */
+function compareNumber(fv: number, operator: WorkflowEdgeCondition['operator'], target: string | number | boolean): boolean {
+  const t = Number(target);
+  switch (operator) {
+    case 'eq': return fv === t;
+    case 'neq': return fv !== t;
+    case 'gt': return fv > t;
+    case 'gte': return fv >= t;
+    case 'lt': return fv < t;
+    case 'lte': return fv <= t;
+    case 'between': { const r = parseRange(target); return r ? fv >= r[0] && fv <= r[1] : false; }
+    default: return false;
+  }
+}
+
 /** 求值条件表达式 */
 export function evaluateCondition(
   condition: WorkflowEdgeCondition,
@@ -97,6 +127,33 @@ export function evaluateCondition(
 
   const fieldValue = formData[condition.field];
   const target = condition.value;
+
+  // 明细子表聚合：对数组型字段按 aggregateField 列聚合后比较
+  if (condition.aggregate) {
+    const arr = Array.isArray(fieldValue) ? fieldValue : [];
+    let agg: number;
+    if (condition.aggregate === 'count') {
+      agg = arr.length;
+    } else {
+      const nums = arr
+        .map((row) => Number(condition.aggregateField ? (row as Record<string, unknown>)?.[condition.aggregateField] : row))
+        .filter((n) => Number.isFinite(n));
+      const sum = nums.reduce((a, b) => a + b, 0);
+      agg = condition.aggregate === 'sum' ? sum : (nums.length ? sum / nums.length : 0);
+    }
+    return compareNumber(agg, condition.operator, target);
+  }
+
+  // 相对日期：withinDays 距今 N 天内；beforeDays 早于 N 天前
+  if (condition.operator === 'withinDays' || condition.operator === 'beforeDays') {
+    if (fieldValue == null || fieldValue === '') return false;
+    const d = dayjs(fieldValue as string);
+    if (!d.isValid()) return false;
+    const days = Number(target);
+    if (!Number.isFinite(days)) return false;
+    const diff = dayjs().diff(d, 'day'); // 正数 = field 在过去
+    return condition.operator === 'withinDays' ? Math.abs(diff) <= days : diff > days;
+  }
 
   // Normalize to primitive for safe comparison
   let fv: string | number | boolean | null;
@@ -121,6 +178,10 @@ export function evaluateCondition(
       return Number(fv) < Number(target);
     case 'lte':
       return Number(fv) <= Number(target);
+    case 'between': {
+      const r = parseRange(target);
+      return r ? Number(fv) >= r[0] && Number(fv) <= r[1] : false;
+    }
     case 'in':
     case 'notIn': {
       let inList: boolean;

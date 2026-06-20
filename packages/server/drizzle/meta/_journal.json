@@ -841,6 +841,20 @@
       "when": 1781914783999,
       "tag": "0119_special_landau",
       "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1781916602755,
+      "tag": "0120_fat_spirit",
+      "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1781917269162,
+      "tag": "0121_fine_slayback",
+      "breakpoints": true
     }
   ]
 }

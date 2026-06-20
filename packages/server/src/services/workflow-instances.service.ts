@@ -44,6 +44,7 @@ export function mapInstance(
     tasks?: ReturnType<typeof mapTask>[];
     childInstances?: Array<{ id: number; title: string; status: typeof workflowInstances.$inferSelect['status']; parentTaskNodeKey?: string | null; createdAt: string }>;
     comments?: import('@zenith/shared').WorkflowComment[];
+    consults?: import('@zenith/shared').WorkflowTaskConsult[];
   } = {},
 ) {
   return {
@@ -68,6 +69,7 @@ export function mapInstance(
     childInstances: extras.childInstances ?? null,
     tasks: extras.tasks ?? null,
     comments: extras.comments,
+    consults: extras.consults,
     createdBy: row.createdBy ?? null,
     updatedBy: row.updatedBy ?? null,
     createdAt: formatDateTime(row.createdAt),
@@ -83,11 +85,11 @@ function resolveNodeNameFromSnapshot(snapshot: unknown, nodeKey: string | null):
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
-import { count, countDistinct, eq, and, desc, ilike, or, inArray, sql, isNotNull } from 'drizzle-orm';
+import { count, countDistinct, eq, and, desc, ilike, or, inArray, sql, isNotNull, gt } from 'drizzle-orm';
 import { escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { pageOffset } from '../lib/pagination';
-import { workflowInstances, workflowTasks, workflowTaskUrges, workflowDefinitions, workflowCategories, users, userRoles } from '../db/schema';
+import { workflowInstances, workflowTasks, workflowTaskUrges, workflowDefinitions, workflowCategories, inAppMessages, users, userRoles } from '../db/schema';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { advanceFlow, getInitialTasks, validateFlowData, type AdvanceResult, type TaskAction } from '../lib/workflow-engine';
 import type { WorkflowApproveMethod, WorkflowFlowData, WorkflowTask as WorkflowTaskDto, WorkflowEventActor, WorkflowActionButtonKey, WorkflowActionButtonConfig, WorkflowFormField, WorkflowStarterContext, WorkflowBatchActionResult } from '@zenith/shared';
@@ -103,6 +105,7 @@ import { workflowEventBus } from '../lib/workflow-event-bus';
 import { generateSerialNo } from './workflow-serial.service';
 import { resolveActiveDelegate } from './workflow-delegations.service';
 import { loadInstanceCommentsForDetail } from './workflow-comments.service';
+import { loadInstanceConsultsForDetail } from './workflow-consults.service';
 import dayjs from 'dayjs';
 import logger from '../lib/logger';
 
@@ -744,7 +747,7 @@ export async function resumeParentSubProcess(
 
 async function expandTasksToRows(
   tasks: TaskAction[],
-  ctx: { instanceId: number; initiatorId: number; executor: DbExecutor; formData?: Record<string, unknown>; settings?: WorkflowFlowData['settings']; selectedNextApprovers?: number[] },
+  ctx: { instanceId: number; initiatorId: number; executor: DbExecutor; formData?: Record<string, unknown>; settings?: WorkflowFlowData['settings']; selectedNextApprovers?: number[]; flowData?: WorkflowFlowData },
 ): Promise<ExpandedTaskRows> {
   const rows: Array<typeof workflowTasks.$inferInsert> = [];
   const autoApprovedNodeKeys: string[] = [];
@@ -775,6 +778,21 @@ async function expandTasksToRows(
       result.push({ assigneeId: finalId, delegatedFromId: delegate ? uid : null });
     }
     return result;
+  };
+
+  // T3-2 异常捕获：查找节点的异常出边目标（catchNode）
+  const findExceptionCatch = (nodeKey: string): TaskAction['nodeConfig'] | null => {
+    const flow = ctx.flowData;
+    if (!flow) return null;
+    const node = flow.nodes.find((n) => n.data.key === nodeKey);
+    if (!node) return null;
+    for (const e of flow.edges) {
+      if (e.source !== node.id) continue;
+      const tgt = flow.nodes.find((n) => n.id === e.target);
+      if (!tgt) continue;
+      if (e.isException || tgt.data.type === 'catchNode') return tgt.data;
+    }
+    return null;
   };
 
   const pushAutoRow = (task: TaskAction, status: 'approved' | 'rejected') => {
@@ -898,6 +916,98 @@ async function expandTasksToRows(
 
     const userIds = await applyAssigneeRuntimeStrategies(t, resolvedUserIds, ctx);
     if (userIds.length === 0) {
+      // T3-2 节点级异常处理：审批人解析为空时，优先按本节点 catchAction 兜底
+      const nodeCatch = t.nodeConfig.catchAction;
+      if (nodeCatch) {
+        if (nodeCatch === 'terminate') {
+          pushAutoRow(t, 'rejected');
+        } else if (nodeCatch === 'toAdmin') {
+          const adminId = await resolveAdminAssigneeId(ctx.executor);
+          if (adminId) {
+            rows.push({
+              instanceId: ctx.instanceId,
+              nodeKey: t.nodeKey,
+              nodeName: t.nodeName,
+              nodeType: t.nodeType,
+              assigneeId: adminId,
+              status: 'pending' as const,
+            });
+          } else {
+            pushAutoRow(t, 'rejected');
+          }
+        } else {
+          // notify：自动通过本节点并继续 + 通知相关人
+          pushAutoRow(t, 'approved');
+          const adminId = await resolveAdminAssigneeId(ctx.executor);
+          const recipients = t.nodeConfig.catchNotifyUserIds && t.nodeConfig.catchNotifyUserIds.length > 0
+            ? t.nodeConfig.catchNotifyUserIds
+            : [ctx.initiatorId, adminId].filter((v): v is number => typeof v === 'number');
+          if (recipients.length > 0) {
+            try {
+              await ctx.executor.insert(inAppMessages).values([...new Set(recipients)].map((uid) => ({
+                userId: uid,
+                title: '流程异常提醒',
+                content: `流程节点「${t.nodeName}」审批人解析为空，已按异常处理自动通过`,
+                type: 'warning' as const,
+                source: 'system' as const,
+                tenantId: null,
+              })));
+            } catch { /* 通知失败不影响流转 */ }
+          }
+        }
+        continue;
+      }
+      // T3-2 异常捕获（React Flow 异常边）：节点存在指向 catchNode 的异常出边时，按 catchAction 兜底
+      const catchCfg = findExceptionCatch(t.nodeKey);
+      if (catchCfg) {
+        const action = catchCfg.catchAction ?? 'notify';
+        if (action === 'terminate') {
+          pushAutoRow(t, 'rejected');
+        } else if (action === 'toAdmin') {
+          const adminId = await resolveAdminAssigneeId(ctx.executor);
+          if (adminId) {
+            rows.push({
+              instanceId: ctx.instanceId,
+              nodeKey: catchCfg.key,
+              nodeName: catchCfg.label,
+              nodeType: 'catchNode',
+              assigneeId: adminId,
+              status: 'pending' as const,
+            });
+          } else {
+            pushAutoRow(t, 'rejected');
+          }
+        } else {
+          // notify：记录跳过的异常节点 + 继续后续路径 + 通知相关人
+          rows.push({
+            instanceId: ctx.instanceId,
+            nodeKey: catchCfg.key,
+            nodeName: catchCfg.label,
+            nodeType: 'catchNode',
+            assigneeId: null,
+            status: 'skipped' as const,
+            actionAt: new Date(),
+          });
+          autoApprovedNodeKeys.push(catchCfg.key);
+          const adminId = await resolveAdminAssigneeId(ctx.executor);
+          const recipients = catchCfg.catchNotifyUserIds && catchCfg.catchNotifyUserIds.length > 0
+            ? catchCfg.catchNotifyUserIds
+            : [ctx.initiatorId, adminId].filter((v): v is number => typeof v === 'number');
+          if (recipients.length > 0) {
+            try {
+              await ctx.executor.insert(inAppMessages).values([...new Set(recipients)].map((uid) => ({
+                userId: uid,
+                title: '流程异常提醒',
+                content: `流程节点「${t.nodeName}」审批人解析为空，已触发异常处理（${catchCfg.label}）`,
+                type: 'warning' as const,
+                source: 'system' as const,
+                tenantId: null,
+              })));
+            } catch { /* 通知失败不影响流转 */ }
+          }
+        }
+        continue;
+      }
       const emptyStrategy = t.nodeConfig.emptyStrategy ?? 'autoApprove';
       let emptyAssignIds: number[] = [];
       if (t.nodeConfig.emptyAssignToIds && t.nodeConfig.emptyAssignToIds.length > 0) {
@@ -1311,6 +1421,7 @@ export async function getInstanceDetail(id: number) {
     createdAt: formatDateTime(c.createdAt),
   }));
   const comments = await loadInstanceCommentsForDetail(id);
+  const consults = await loadInstanceConsultsForDetail(id);
   return mapInstance(row, {
     definitionName: row.definition?.name ?? null,
     initiatorName: row.initiator?.nickname ?? null,
@@ -1318,6 +1429,7 @@ export async function getInstanceDetail(id: number) {
     tasks,
     childInstances,
     comments,
+    consults,
   });
 }
 
@@ -1620,7 +1732,27 @@ export async function approveTaskCore(
     completedKeys.add('start');
     const formData = (inst.formData ?? {}) as Record<string, unknown>;
     const starter = await buildStarterContext(inst.initiatorId, tx);
-    const advanceResult = advanceFlow(flowData, task.nodeKey, formData, completedKeys, starter);
+    // 退回模式 backToOrigin：被退回任务通过后，直接跳回发起退回的来源节点（而非继续后续路径）
+    let advanceResult: AdvanceResult;
+    const originCfg = task.returnOriginNodeKey
+      ? flowData.nodes.find((n) => n.data.key === task.returnOriginNodeKey)?.data
+      : undefined;
+    if (originCfg && (originCfg.type === 'approve' || originCfg.type === 'handler')) {
+      advanceResult = {
+        finished: false,
+        rejected: false,
+        tasksToCreate: [{
+          nodeKey: originCfg.key,
+          nodeName: originCfg.label,
+          nodeType: originCfg.type,
+          assigneeId: originCfg.assigneeId ?? null,
+          nodeConfig: originCfg,
+        }],
+        currentNodeKeys: [originCfg.key],
+      };
+    } else {
+      advanceResult = advanceFlow(flowData, task.nodeKey, formData, completedKeys, starter);
+    }
     const materialized = await materializeAdvanceResult(advanceResult, {
       instanceId: inst.id,
       initiatorId: inst.initiatorId,
@@ -1865,6 +1997,15 @@ export async function rejectTaskCore(
       settings: flowData.settings,
       starter,
     });
+
+    // 退回模式 backToOrigin：给目标节点新任务打上来源节点标记，通过后直接跳回本节点
+    if ((strategy === 'returnPrev' || strategy === 'returnToNode')
+      && currentNodeCfg?.returnMode === 'backToOrigin' && targetNodeKey) {
+      const ids = materialized.createdTasks.filter((t) => t.nodeKey === targetNodeKey).map((t) => t.id);
+      if (ids.length > 0) {
+        await tx.update(workflowTasks).set({ returnOriginNodeKey: task.nodeKey }).where(inArray(workflowTasks.id, ids));
+      }
+    }
 
     if (materialized.rejected) {
       const [row] = await tx.update(workflowInstances)
@@ -2608,4 +2749,48 @@ export async function reassignTask(taskId: number, targetUserId: number, comment
   const actor = { userId: user.userId, name: user.username };
   emitTaskEvent('task.transferred', mapTask(updated), { definitionId: inst.definitionId, tenantId: inst.tenantId, actor });
   return mapTask(updated);
+}
+
+// ─── 撤回已办（T3-7）──────────────────────────────────────────────────────────
+/** 审批人撤回刚做的通过/驳回：要求后续节点均未被处理，流程仍可回退 */
+export async function recallTask(taskId: number, comment?: string) {
+  const user = currentUser();
+  const [task] = await db.select().from(workflowTasks).where(eq(workflowTasks.id, taskId)).limit(1);
+  if (!task) throw new HTTPException(404, { message: '任务不存在' });
+  if (task.assigneeId !== user.userId) throw new HTTPException(403, { message: '只能撤回自己处理的任务' });
+  if (task.status !== 'approved' && task.status !== 'rejected') {
+    throw new HTTPException(400, { message: '只有已处理的任务可撤回' });
+  }
+  const [inst] = await db.select().from(workflowInstances).where(eq(workflowInstances.id, task.instanceId)).limit(1);
+  if (!inst) throw new HTTPException(500, { message: '流程数据异常' });
+  if (inst.status === 'withdrawn' || inst.status === 'cancelled') {
+    throw new HTTPException(400, { message: '流程已结束，无法撤回' });
+  }
+  // 本任务之后创建的任务：若已有被处理（approved/rejected）的，则不允许撤回
+  const laterTasks = await db.select().from(workflowTasks)
+    .where(and(eq(workflowTasks.instanceId, task.instanceId), gt(workflowTasks.id, task.id)));
+  const actionedLater = laterTasks.filter((t) => t.status === 'approved' || t.status === 'rejected');
+  if (actionedLater.length > 0) {
+    throw new HTTPException(400, { message: '后续节点已被处理，无法撤回' });
+  }
+
+  const reopened = await db.transaction(async (tx) => {
+    if (laterTasks.length > 0) {
+      await tx.delete(workflowTasks).where(and(eq(workflowTasks.instanceId, task.instanceId), gt(workflowTasks.id, task.id)));
+    }
+    const [row] = await tx.update(workflowTasks).set({
+      status: 'pending',
+      comment: comment ? `[撤回重审] ${comment}` : null,
+      signature: null,
+      actionAt: null,
+    }).where(eq(workflowTasks.id, task.id)).returning();
+    await tx.update(workflowInstances).set({ status: 'running', currentNodeKey: task.nodeKey }).where(eq(workflowInstances.id, task.instanceId));
+    return row;
+  });
+
+  const actor = { userId: user.userId, name: user.username };
+  const meta = { definitionId: inst.definitionId, tenantId: inst.tenantId, actor };
+  emitTaskEvent('task.created', mapTask(reopened), meta);
+  if (reopened.assigneeId) emitTaskEvent('task.assigned', mapTask(reopened), meta);
+  return getInstanceDetail(task.instanceId);
 }

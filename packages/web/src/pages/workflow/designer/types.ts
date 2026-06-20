@@ -174,6 +174,11 @@ export interface ApproverNodeProps {
   emptyAssignToNames?: string[];
   sameInitiatorStrategy?: SameInitiatorStrategy;  // 审批人=发起人时
   deduplicateStrategy?: DeduplicateStrategy;      // 审批人去重
+  /** 退回模式：reexecute 重新执行后续路径（默认）/ backToOrigin 被退回节点通过后跳回本节点 */
+  returnMode?: 'reexecute' | 'backToOrigin';
+  /** 审批人为空异常处理：toAdmin 转管理员 / notify 通知并自动通过 / terminate 终止 */
+  catchAction?: 'toAdmin' | 'notify' | 'terminate';
+  catchNotifyUserIds?: number[];
   operations: OperationPermission[];
   actionButtons?: ActionButtonsConfig;
   fieldPermissions: Record<string, FieldPermission>;
@@ -266,7 +271,11 @@ export interface InitiatorNodeProps {
 
 // ─── 条件 ────────────────────────────────────────────────────────────
 
-export type ConditionOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'notIn' | 'contains' | 'isEmpty' | 'isNotEmpty';
+export type ConditionOperator =
+  | 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte'
+  | 'in' | 'notIn' | 'contains'
+  | 'isEmpty' | 'isNotEmpty'
+  | 'between' | 'withinDays' | 'beforeDays';
 
 export interface ConditionRule {
   field: string;
@@ -274,6 +283,10 @@ export interface ConditionRule {
   value: string | number | boolean;
   /** 条件来源：'form'(默认)=表单字段；'starter'=发起人维度（field 取 'user'|'dept'|'role'|'post'） */
   source?: 'form' | 'starter';
+  /** 聚合函数（仅 form 来源；field 指向明细/数组字段） */
+  aggregate?: 'sum' | 'count' | 'avg';
+  /** 聚合列字段 key（count 时可省略） */
+  aggregateField?: string;
 }
 
 export interface ConditionGroup {

@@ -105,6 +105,14 @@ export default function PendingApprovalsPage() {
   const [quickPhrases, setQuickPhrases] = useState<WorkflowQuickPhrase[]>([]);
   const [phraseManageVisible, setPhraseManageVisible] = useState(false);
   const [newPhrase, setNewPhrase] = useState('');
+  // 协办（T3-5）
+  const [consultVisible, setConsultVisible] = useState(false);
+  const [consultTaskId, setConsultTaskId] = useState<number | null>(null);
+  const [consultUserIds, setConsultUserIds] = useState<number[]>([]);
+  const [consultQuestion, setConsultQuestion] = useState('');
+  const [myConsultsVisible, setMyConsultsVisible] = useState(false);
+  const [myConsults, setMyConsults] = useState<import('@zenith/shared').WorkflowTaskConsult[]>([]);
+  const [replyDraft, setReplyDraft] = useState<Record<number, string>>({});
 
   const currentTask: WorkflowTask | null = useMemo(() => {
     if (!detail || !selectedItem) return null;
@@ -240,6 +248,36 @@ export default function PendingApprovalsPage() {
       <Button theme="borderless" size="small" onClick={() => setPhraseManageVisible(true)}>管理常用语</Button>
     </div>
   );
+
+  const openConsult = (record: PendingItem) => {
+    setConsultTaskId(record.pendingTaskId);
+    setConsultUserIds([]);
+    setConsultQuestion('');
+    void loadUserOptions();
+    setConsultVisible(true);
+  };
+  const submitConsult = async () => {
+    if (!consultTaskId) return;
+    if (consultUserIds.length === 0) { Toast.warning('请选择协办人'); return; }
+    setSubmitting(true);
+    try {
+      const res = await request.post(`/api/workflows/tasks/${consultTaskId}/consult`, { consulteeIds: consultUserIds, question: consultQuestion || undefined });
+      if (res.code === 0) { Toast.success('已发起协办'); setConsultVisible(false); }
+      else Toast.error(res.message || '发起失败');
+    } finally { setSubmitting(false); }
+  };
+  const loadMyConsults = useCallback(async () => {
+    const res = await request.get<PaginatedResponse<import('@zenith/shared').WorkflowTaskConsult>>('/api/workflows/instances/consults/mine?pageSize=50');
+    if (res.code === 0) setMyConsults(res.data.list ?? []);
+  }, []);
+  const openMyConsults = () => { setMyConsultsVisible(true); void loadMyConsults(); };
+  const submitReply = async (id: number) => {
+    const opinion = (replyDraft[id] ?? '').trim();
+    if (!opinion) { Toast.warning('请填写协办意见'); return; }
+    const res = await request.post(`/api/workflows/instances/consults/${id}/reply`, { opinion });
+    if (res.code === 0) { Toast.success('已回复'); void loadMyConsults(); }
+    else Toast.error(res.message || '回复失败');
+  };
 
   const fetchList = useCallback(async (p = page, ps = pageSize, params?: SearchParams) => {
     const { keyword: kw, definitionId: did } = params ?? searchParamsRef.current;
@@ -494,6 +532,9 @@ export default function PendingApprovalsPage() {
           >
             驳回
           </Button>
+          <Button theme="borderless" size="small" onClick={() => openConsult(record)}>
+            协办
+          </Button>
         </Space>
       ),
     },
@@ -524,6 +565,7 @@ export default function PendingApprovalsPage() {
         </Select>
         <Button type="primary" icon={<Search size={14} />} onClick={() => { setPage(1); void fetchList(1, pageSize); }}>查询</Button>
         <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { setSearchParams(defaultSearchParams); setPage(1); void fetchList(1, pageSize, defaultSearchParams); }}>重置</Button>
+        <Button type="tertiary" onClick={openMyConsults}>我的协办</Button>
         {selectedRowKeys.length > 0 && (
           <>
             <Button type="primary" theme="solid" icon={<Plus size={14} />} onClick={() => { setBatchComment(''); setBatchMode('approve'); }}>
@@ -876,8 +918,7 @@ export default function PendingApprovalsPage() {
         onCancel={() => setPhraseManageVisible(false)}
         footer={null}
         style={{ width: 480 }}
-      >
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+      >        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <Input
             value={newPhrase}
             onChange={setNewPhrase}
@@ -904,6 +945,78 @@ export default function PendingApprovalsPage() {
           ))}
         </div>
       </AppModal>
+
+      {/* 发起协办弹窗 */}
+      <AppModal
+        title="邀请协办"
+        visible={consultVisible}
+        onCancel={() => setConsultVisible(false)}
+        onOk={() => void submitConsult()}
+        okButtonProps={{ loading: submitting, type: 'primary' }}
+        okText="发起协办"
+        style={{ width: 480 }}
+      >
+        <Typography.Text type="tertiary" style={{ display: 'block', marginBottom: 8 }}>
+          邀请他人就本单据给出协办意见（不代替你审批，你仍需自行决策）。
+        </Typography.Text>
+        <Select
+          multiple
+          filter
+          style={{ width: '100%', marginBottom: 8 }}
+          placeholder="选择协办人"
+          optionList={userOptions}
+          value={consultUserIds}
+          onChange={(v) => setConsultUserIds((v as number[]) ?? [])}
+        />
+        <TextArea
+          value={consultQuestion}
+          onChange={setConsultQuestion}
+          placeholder="协办说明（可选）"
+          autosize={{ minRows: 2, maxRows: 4 }}
+          maxCount={500}
+        />
+      </AppModal>
+
+      {/* 我的协办 */}
+      <SideSheet
+        title="我的协办"
+        visible={myConsultsVisible}
+        onCancel={() => setMyConsultsVisible(false)}
+        width={560}
+        bodyStyle={{ padding: 16 }}
+      >
+        {myConsults.length === 0 ? (
+          <Typography.Text type="tertiary">暂无协办邀请。</Typography.Text>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {myConsults.map((c) => (
+              <div key={c.id} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                  <Typography.Text strong>{c.inviterName ?? `用户#${c.inviterId}`}</Typography.Text>
+                  <Typography.Text type="tertiary" size="small">邀请你协办</Typography.Text>
+                  {c.nodeName && <Tag size="small" color="grey">{c.nodeName}</Tag>}
+                  {c.status === 'pending' ? <Tag size="small" color="amber">待回复</Tag> : <Tag size="small" color="green">已回复</Tag>}
+                </div>
+                {c.question && <div style={{ marginBottom: 6, color: 'var(--semi-color-text-2)' }}>问题：{c.question}</div>}
+                {c.status === 'replied'
+                  ? <div>我的意见：{c.opinion}</div>
+                  : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <TextArea
+                        value={replyDraft[c.id] ?? ''}
+                        onChange={(v) => setReplyDraft((prev) => ({ ...prev, [c.id]: v }))}
+                        placeholder="填写协办意见"
+                        autosize={{ minRows: 2, maxRows: 4 }}
+                        maxCount={1000}
+                      />
+                      <div><Button type="primary" size="small" onClick={() => void submitReply(c.id)}>回复</Button></div>
+                    </div>
+                  )}
+              </div>
+            ))}
+          </div>
+        )}
+      </SideSheet>
     </div>
   );
 }

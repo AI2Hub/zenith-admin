@@ -1212,8 +1212,9 @@ export type WorkflowNodeType =
   | 'ccNode'
   | 'delay'
   | 'trigger'
-  | 'subProcess';
-export type WorkflowConditionOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'notIn' | 'contains' | 'isEmpty' | 'isNotEmpty';
+  | 'subProcess'
+  | 'catchNode';
+export type WorkflowConditionOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'notIn' | 'contains' | 'isEmpty' | 'isNotEmpty' | 'between' | 'withinDays' | 'beforeDays';
 
 /** 子流程调用模式 */
 export type WorkflowSubProcessMode = 'single' | 'multi';
@@ -1231,6 +1232,10 @@ export interface WorkflowEdgeCondition {
   value: string | number | boolean;
   /** 条件来源：'form'(默认)=按表单字段；'starter'=按发起人维度（本人/部门/角色/岗位） */
   source?: 'form' | 'starter';
+  /** 明细子表聚合：对 field（数组型明细字段）按 aggregateField 列做聚合后再比较 */
+  aggregate?: 'sum' | 'count' | 'avg';
+  /** 聚合列 key（aggregate 设置时生效；count 可不填） */
+  aggregateField?: string;
 }
 
 /**
@@ -1458,6 +1463,12 @@ export interface WorkflowNodeConfig {
   targetDate?: string;
   /** 节点级事件监听器（独立于定义级订阅，按节点配置在设计器中维护） */
   nodeListeners?: NodeListenerConfig[];
+  /** 退回模式（approve/handler）：reexecute 重新执行后续路径（默认）/ backToOrigin 被退回节点通过后直接跳回发起退回的节点 */
+  returnMode?: 'reexecute' | 'backToOrigin';
+  /** 异常捕获节点（type='catchNode'）的动作 */
+  catchAction?: 'toAdmin' | 'notify' | 'terminate';
+  /** catchAction='notify' 时额外通知的用户 ID（默认通知发起人+管理员） */
+  catchNotifyUserIds?: number[] | null;
 }
 
 /** 节点监听器触发事件 */
@@ -1516,6 +1527,8 @@ export interface WorkflowEdge {
   condition?: WorkflowEdgeCondition | null;  // 排他网关出边的条件
   conditions?: WorkflowConditionGroup[] | null;
   isDefault?: boolean;
+  /** 异常边：当 source 节点执行异常时走向 target（通常指向 catchNode） */
+  isException?: boolean;
 }
 
 /** 业务编号 / 流水号生成规则 */
@@ -1889,6 +1902,8 @@ export interface WorkflowInstance {
   tasks?: WorkflowTask[];
   /** 沟通评论（仅详情场景填充） */
   comments?: WorkflowComment[];
+  /** 协办意见（仅详情场景填充） */
+  consults?: WorkflowTaskConsult[];
   createdAt: string;
   updatedAt: string;
 }
@@ -1919,6 +1934,44 @@ export interface WorkflowQuickPhrase {
   sort: number;
   createdAt: string;
   updatedAt: string;
+}
+
+/** 流程模板 */
+export interface WorkflowTemplate {
+  id: number;
+  name: string;
+  code: string | null;
+  description: string | null;
+  categoryName: string | null;
+  icon: string | null;
+  color: string | null;
+  flowData: WorkflowFlowData | null;
+  formSchema: WorkflowFormSchema | null;
+  sort: number;
+  builtin: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 审批协办状态 */
+export type WorkflowTaskConsultStatus = 'pending' | 'replied' | 'revoked';
+
+/** 审批协办 / 邀请处理意见 */
+export interface WorkflowTaskConsult {
+  id: number;
+  taskId: number;
+  instanceId: number;
+  nodeName?: string | null;
+  inviterId: number;
+  inviterName?: string | null;
+  consulteeId: number;
+  consulteeName?: string | null;
+  consulteeAvatar?: string | null;
+  question: string | null;
+  opinion: string | null;
+  status: WorkflowTaskConsultStatus;
+  repliedAt?: string | null;
+  createdAt: string;
 }
 
 /** 审批代理 / 离岗委托规则 */

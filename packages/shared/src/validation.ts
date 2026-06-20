@@ -566,13 +566,15 @@ export type CreateTagInput = z.infer<typeof createTagSchema>;
 export type UpdateTagInput = z.infer<typeof updateTagSchema>;
 
 // ─── 工作流引擎 Schema ────────────────────────────────────────────────────────
-export const workflowConditionOperatorSchema = z.enum(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'notIn', 'contains', 'isEmpty', 'isNotEmpty']);
+export const workflowConditionOperatorSchema = z.enum(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'notIn', 'contains', 'isEmpty', 'isNotEmpty', 'between', 'withinDays', 'beforeDays']);
 
 export const workflowEdgeConditionSchema = z.object({
   field: z.string().min(1),
   operator: workflowConditionOperatorSchema,
   value: z.union([z.string(), z.number(), z.boolean()]),
   source: z.enum(['form', 'starter']).optional(),
+  aggregate: z.enum(['sum', 'count', 'avg']).optional(),
+  aggregateField: z.string().optional(),
 });
 
 export const workflowConditionGroupSchema = z.object({
@@ -593,6 +595,7 @@ export const workflowNodeTypeSchema = z.enum([
   'delay',
   'trigger',
   'subProcess',
+  'catchNode',
 ]);
 
 export const workflowAssigneeTypeSchema = z.enum([
@@ -983,6 +986,47 @@ export const reassignWorkflowTaskSchema = z.object({
   comment: z.string().max(500).optional(),
 });
 
+// ── 流程模板 ──
+export const createWorkflowTemplateSchema = z.object({
+  name: z.string().min(1, '模板名称不能为空').max(64),
+  code: z.string().max(64).nullable().optional(),
+  description: z.string().max(500).nullable().optional(),
+  categoryName: z.string().max(64).nullable().optional(),
+  icon: z.string().max(64).nullable().optional(),
+  color: z.string().max(16).nullable().optional(),
+  flowData: z.record(z.string(), z.unknown()).nullable().optional(),
+  formSchema: z.record(z.string(), z.unknown()).nullable().optional(),
+  sort: z.number().int().nonnegative().default(0),
+});
+export const updateWorkflowTemplateSchema = createWorkflowTemplateSchema.partial();
+/** 从现有流程定义另存为模板 */
+export const saveAsTemplateSchema = z.object({
+  definitionId: z.number().int().positive('请选择流程定义'),
+  name: z.string().min(1, '模板名称不能为空').max(64),
+  code: z.string().max(64).nullable().optional(),
+  description: z.string().max(500).nullable().optional(),
+  icon: z.string().max(64).nullable().optional(),
+  color: z.string().max(16).nullable().optional(),
+});
+/** 从模板创建流程定义 */
+export const cloneFromTemplateSchema = z.object({
+  name: z.string().min(1, '流程名称不能为空').max(64).optional(),
+});
+
+// ── 审批协办 ──
+export const createWorkflowConsultSchema = z.object({
+  consulteeIds: z.array(z.number().int().positive()).min(1, '请选择协办人').max(20),
+  question: z.string().max(500).optional(),
+});
+export const replyWorkflowConsultSchema = z.object({
+  opinion: z.string().min(1, '协办意见不能为空').max(1000),
+});
+
+// ── 撤回已办 ──
+export const recallWorkflowTaskSchema = z.object({
+  comment: z.string().max(500).optional(),
+});
+
 export type CreateWorkflowDefinitionInput = z.infer<typeof createWorkflowDefinitionSchema>;
 export type UpdateWorkflowDefinitionInput = z.infer<typeof updateWorkflowDefinitionSchema>;
 export type CreateWorkflowInstanceInput = z.infer<typeof createWorkflowInstanceSchema>;
@@ -1006,6 +1050,13 @@ export type CreateWorkflowDelegationInput = z.infer<typeof createWorkflowDelegat
 export type UpdateWorkflowDelegationInput = z.infer<typeof updateWorkflowDelegationSchema>;
 export type JumpWorkflowInstanceInput = z.infer<typeof jumpWorkflowInstanceSchema>;
 export type ReassignWorkflowTaskInput = z.infer<typeof reassignWorkflowTaskSchema>;
+export type CreateWorkflowTemplateInput = z.infer<typeof createWorkflowTemplateSchema>;
+export type UpdateWorkflowTemplateInput = z.infer<typeof updateWorkflowTemplateSchema>;
+export type SaveAsTemplateInput = z.infer<typeof saveAsTemplateSchema>;
+export type CloneFromTemplateInput = z.infer<typeof cloneFromTemplateSchema>;
+export type CreateWorkflowConsultInput = z.infer<typeof createWorkflowConsultSchema>;
+export type ReplyWorkflowConsultInput = z.infer<typeof replyWorkflowConsultSchema>;
+export type RecallWorkflowTaskInput = z.infer<typeof recallWorkflowTaskSchema>;
 
 // ─── 聊天 ─────────────────────────────────────────────────────────────────────
 export const chatLinkPreviewSchema = z.object({

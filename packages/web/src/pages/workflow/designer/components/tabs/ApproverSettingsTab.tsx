@@ -64,6 +64,8 @@ interface ApproverSettingsTabProps {
   emptyAssignToIds?: number[];
   sameInitiatorStrategy?: SameInitiatorStrategy;
   deduplicateStrategy?: DeduplicateStrategy;
+  returnMode?: 'reexecute' | 'backToOrigin';
+  catchAction?: 'toAdmin' | 'notify' | 'terminate';
   timeout?: TimeoutConfig;
   users: UserOption[];
   roles: RoleOption[];
@@ -107,6 +109,8 @@ export default function ApproverSettingsTab({
   emptyAssignToIds,
   sameInitiatorStrategy = 'selfApprove',
   deduplicateStrategy = 'autoSkip',
+  returnMode = 'reexecute',
+  catchAction,
   timeout,
   users,
   roles,
@@ -597,6 +601,8 @@ export default function ApproverSettingsTab({
               emptyAssignToIds={emptyAssignToIds}
               sameInitiatorStrategy={sameInitiatorStrategy}
               deduplicateStrategy={deduplicateStrategy}
+              returnMode={returnMode}
+              catchAction={catchAction}
               timeout={timeout}
               users={users}
               onChange={onChange}

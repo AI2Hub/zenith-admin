@@ -6,11 +6,12 @@ import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import {
   Descriptions, Empty, Spin, Tabs, TabPane, Tag, Typography, Button,
-  Avatar, TextArea, Select, Toast,
+  Avatar, TextArea, Select, Toast, Popconfirm,
 } from '@douyinfe/semi-ui';
-import { CornerUpLeft, Send } from 'lucide-react';
-import type { WorkflowDefinition, WorkflowInstance, WorkflowFormField, WorkflowComment } from '@zenith/shared';
+import { CornerUpLeft, Send, Undo2 } from 'lucide-react';
+import type { WorkflowDefinition, WorkflowInstance, WorkflowFormField, WorkflowComment, WorkflowTaskConsult } from '@zenith/shared';
 import { request } from '@/utils/request';
+import { useAuth } from '@/hooks/useAuth';
 import { formatDateTime } from '@/utils/date';
 import ApprovalTimeline from '@/components/ApprovalTimeline';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
@@ -35,6 +36,8 @@ interface Props {
   extraActions?: ReactNode;
   /** 跳转到关联的父 / 子流程实例详情 */
   onOpenInstance?: (id: number) => void;
+  /** 撤回已办成功后的回调（刷新详情） */
+  onRecalled?: () => void;
 }
 
 /** 流程沟通时间线（自由评论 + @提及），自管理状态与请求 */
@@ -133,8 +136,9 @@ function InstanceComments({ instance }: Readonly<{ instance: WorkflowInstance }>
 }
 
 export default function WorkflowInstanceDetailPanel({
-  instance, definition, loading, extraActions, onOpenInstance,
+  instance, definition, loading, extraActions, onOpenInstance, onRecalled,
 }: Readonly<Props>) {
+  const { user } = useAuth();
   if (loading) {
     return <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>;
   }
@@ -142,6 +146,19 @@ export default function WorkflowInstanceDetailPanel({
     return <Empty title="暂无数据" />;
   }
   const statusInfo = INSTANCE_STATUS_MAP[instance.status];
+  // 撤回已办：当前用户在运行中实例上最近一次已通过/驳回的任务
+  const myRecallableTask = instance.status === 'running' && user
+    ? [...(instance.tasks ?? [])].reverse().find((t) => t.assigneeId === user.id && (t.status === 'approved' || t.status === 'rejected'))
+    : null;
+  const handleRecall = async () => {
+    if (!myRecallableTask) return;
+    try {
+      const res = await request.post(`/api/workflows/tasks/${myRecallableTask.id}/recall`, {});
+      if (res.code === 0) { Toast.success('已撤回'); onRecalled?.(); }
+      else Toast.error(res.message || '撤回失败');
+    } catch { Toast.error('撤回失败'); }
+  };
+  const consults = instance.consults ?? [];
   // 历史实例渲染冻结快照（发起时绑定），不受表单后续修改影响；无快照时回退到当前表单
   const formFields: WorkflowFormField[] = instance.formSnapshot ?? definition?.formFields ?? [];
   const hasFormFields = formFields.length > 0;
@@ -229,6 +246,14 @@ export default function WorkflowInstanceDetailPanel({
         <div style={{ marginBottom: 8 }}>{extraActions}</div>
       ) : null}
 
+      {myRecallableTask ? (
+        <div style={{ marginBottom: 8 }}>
+          <Popconfirm title="撤回我刚做的处理？" content="后续节点已处理时无法撤回。" onConfirm={() => void handleRecall()}>
+            <Button theme="borderless" size="small" type="warning" icon={<Undo2 size={14} />}>撤回我的处理</Button>
+          </Popconfirm>
+        </div>
+      ) : null}
+
       <Tabs type="line" style={{ marginTop: 8 }}>
         <TabPane tab="表单内容" itemKey="form">{renderFormData()}</TabPane>
         <TabPane tab="流程图" itemKey="graph">
@@ -248,6 +273,28 @@ export default function WorkflowInstanceDetailPanel({
         <TabPane tab={`沟通${instance.comments && instance.comments.length > 0 ? ` (${instance.comments.length})` : ''}`} itemKey="comments">
           <InstanceComments key={instance.id} instance={instance} />
         </TabPane>
+        {consults.length > 0 && (
+          <TabPane tab={`协办 (${consults.length})`} itemKey="consults">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {consults.map((c: WorkflowTaskConsult) => (
+                <div key={c.id} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: '8px 12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <Typography.Text strong>{c.inviterName ?? `用户#${c.inviterId}`}</Typography.Text>
+                    <Typography.Text type="tertiary" size="small">邀请</Typography.Text>
+                    <Typography.Text strong>{c.consulteeName ?? `用户#${c.consulteeId}`}</Typography.Text>
+                    <Typography.Text type="tertiary" size="small">协办</Typography.Text>
+                    {c.nodeName && <Tag size="small" color="grey">{c.nodeName}</Tag>}
+                    {c.status === 'pending'
+                      ? <Tag size="small" color="amber">待回复</Tag>
+                      : <Tag size="small" color="green">已回复</Tag>}
+                  </div>
+                  {c.question && <div style={{ marginTop: 4, color: 'var(--semi-color-text-2)' }}>问题：{c.question}</div>}
+                  {c.opinion && <div style={{ marginTop: 4 }}>意见：{c.opinion}</div>}
+                </div>
+              ))}
+            </div>
+          </TabPane>
+        )}
         {childInstances.length > 0 && (
           <TabPane tab={`子流程 (${childInstances.length})`} itemKey="children">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
