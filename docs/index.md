@@ -81,7 +81,9 @@ import { withBase } from 'vitepress'
     <li><a :href="withBase('/guide/project-structure')">项目结构</a> — 目录职责与关键模块定位</li>
     <li><a :href="withBase('/product/features')">功能清单</a> — 已实现能力全景扫描</li>
     <li><a :href="withBase('/backend/api-conventions')">接口规范</a> — 响应结构、错误处理与分页约定</li>
-    <li><a :href="withBase('/backend/multi-tenant')">多租户指南</a> — 如何开启租户、隔离数据与管理平台视角</li>
+    <li><a :href="withBase('/iam/')">权限与组织</a> — RBAC 角色、动态菜单、数据权限范围</li>
+    <li><a :href="withBase('/member/')">会员中心</a> — 前台 C 端 + 后台管理双体系</li>
+    <li><a :href="withBase('/ops/')">系统运维</a> — Web 终端、进程、Docker、网络诊断</li>
     <li><a :href="withBase('/ai/')">AI 辅助开发</a> — 使用 Zenith Skill 加速模块开发</li>
   </ul>
 </section>
