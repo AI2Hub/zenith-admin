@@ -446,7 +446,7 @@ export const workflowHandlers = [
 
   // 审批通过
   http.post('/api/workflows/tasks/:taskId/approve', async ({ params, request }) => {
-    const body = await request.json() as { comment?: string; attachments?: Array<{ name: string; url: string; size?: number }> };
+    const body = await request.json() as { comment?: string; signature?: string; attachments?: Array<{ name: string; url: string; size?: number }> };
     const taskIdx = mockWorkflowTasks.findIndex(t => t.id === Number(params.taskId));
     if (taskIdx === -1) return err('任务不存在', 404);
     if (mockWorkflowTasks[taskIdx].status !== 'pending') return err('该任务已处理');
@@ -486,6 +486,7 @@ export const workflowHandlers = [
       ...current,
       status: 'approved',
       comment: (body.comment ?? '') + attachSuffix || null,
+      signature: body.signature ?? null,
       actionAt: now,
     };
 

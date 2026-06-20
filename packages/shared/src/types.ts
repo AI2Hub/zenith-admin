@@ -1541,6 +1541,18 @@ export interface WorkflowAdvancedSettings {
   allowComment?: boolean;
   /** 业务编号生成规则 */
   serialNo?: WorkflowSerialNoConfig;
+  /** 待办/结果的多渠道通知（站内信始终开启；email/sms 可选） */
+  notifyChannels?: WorkflowNotifyChannels;
+}
+
+/** 多渠道通知配置 */
+export interface WorkflowNotifyChannels {
+  /** 邮件通知（向处理人/发起人发送自由内容邮件） */
+  email?: boolean;
+  /** 短信通知（需指定短信模板 ID） */
+  sms?: boolean;
+  /** 短信模板 ID（sms=true 时生效） */
+  smsTemplateId?: number;
 }
 
 export interface WorkflowFlowData {
@@ -1819,6 +1831,10 @@ export interface WorkflowTask {
   assigneeAvatar?: string | null;
   status: WorkflowTaskStatus;
   comment: string | null;
+  /** 手写签名（data URL / 图片地址） */
+  signature?: string | null;
+  /** 该任务所属节点是否要求手写签名（派生字段，由节点 operations 计算） */
+  signatureRequired?: boolean;
   actionAt: string | null;
   /** 任务原始处理人（创建时快照，转办/委派不会修改） */
   originalAssigneeId?: number | null;
@@ -1976,12 +1992,31 @@ export interface WorkflowAnalytics {
   avgDurationSec: number | null;
   /** 当前挂起任务总数 */
   pendingTaskCount: number;
+  /** 已超时（timeoutAt < now）仍挂起的任务数 */
+  overdueTaskCount: number;
+  /** 即将超时（24h 内到期）的挂起任务数 */
+  dueSoonTaskCount: number;
   /** 近 7 天发起数 */
   recentCreated: number;
   definitionStats: WorkflowAnalyticsDefinitionStat[];
   nodeBottlenecks: WorkflowAnalyticsNodeBottleneck[];
   approverWorkloads: WorkflowAnalyticsApproverWorkload[];
   trend: WorkflowAnalyticsTrendPoint[];
+}
+
+/** 超时待办预警条目 */
+export interface WorkflowOverdueTask {
+  taskId: number;
+  instanceId: number;
+  instanceTitle: string;
+  serialNo?: string | null;
+  definitionName: string;
+  nodeName: string;
+  assigneeId: number | null;
+  assigneeName: string | null;
+  timeoutAt: string;
+  /** 已超时秒数（正数=已超时；负数=距到期剩余） */
+  overdueSec: number;
 }
 
 /** 批量审批结果（逐条返回成功/失败） */
@@ -2672,6 +2707,10 @@ export interface ProcessInfo {
   ports: string | null;
   /** Full connection list (only populated in detail view) */
   connections: ProcessNetConn[] | null;
+  /** Working directory (Linux only, detail view, may be null if no permission) */
+  cwd?: string | null;
+  /** Environment variables (Linux only, detail view, may be null if no permission) */
+  env?: Record<string, string> | null;
 }
 
 export interface ProcessListResponse {

@@ -867,6 +867,8 @@ export const createWorkflowInstanceSchema = z.object({
 
 export const approveWorkflowTaskSchema = z.object({
   comment: z.string().max(500).optional(),
+  /** 手写签名（data URL，节点要求签名时必填） */
+  signature: z.string().max(2_000_000).optional(),
   attachments: z.array(z.object({
     name: z.string().max(255),
     url: z.string().max(1024),

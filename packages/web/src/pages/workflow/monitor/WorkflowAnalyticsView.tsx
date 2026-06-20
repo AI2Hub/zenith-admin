@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Card, Empty, Spin, Typography, Select } from '@douyinfe/semi-ui';
+import { Card, Empty, Spin, Typography, Select, Tag } from '@douyinfe/semi-ui';
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
-import type { WorkflowAnalytics, WorkflowDefinition } from '@zenith/shared';
+import type { WorkflowAnalytics, WorkflowDefinition, WorkflowOverdueTask, PaginatedResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
 
 const STATUS_META: Record<string, { text: string; color: string }> = {
@@ -27,11 +27,12 @@ function fmtDuration(sec: number | null): string {
   return `${d}天${hh}小时`;
 }
 
-function Kpi({ label, value }: Readonly<{ label: string; value: string | number }>) {
+function Kpi({ label, value, danger, warn }: Readonly<{ label: string; value: string | number; danger?: boolean; warn?: boolean }>) {
+  const color = danger ? '#ff4d4f' : warn ? '#faad14' : undefined;
   return (
-    <Card style={{ flex: '1 1 180px', minWidth: 160 }} bodyStyle={{ padding: '14px 16px' }}>
+    <Card style={{ flex: '1 1 150px', minWidth: 140 }} bodyStyle={{ padding: '14px 16px' }}>
       <Typography.Text type="tertiary" size="small">{label}</Typography.Text>
-      <div style={{ fontSize: 24, fontWeight: 600, marginTop: 4 }}>{value}</div>
+      <div style={{ fontSize: 24, fontWeight: 600, marginTop: 4, color }}>{value}</div>
     </Card>
   );
 }
@@ -48,6 +49,7 @@ function ChartCard({ title, children }: Readonly<{ title: string; children: Reac
 export default function WorkflowAnalyticsView({ definitions }: Readonly<{ definitions: WorkflowDefinition[] }>) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<WorkflowAnalytics | null>(null);
+  const [overdue, setOverdue] = useState<WorkflowOverdueTask[]>([]);
   const [definitionId, setDefinitionId] = useState<number | ''>('');
 
   useEffect(() => {
@@ -57,6 +59,9 @@ export default function WorkflowAnalyticsView({ definitions }: Readonly<{ defini
     request.get<WorkflowAnalytics>(`/api/workflows/instances/analytics${qs}`)
       .then((res) => { if (!cancelled && res.code === 0) setData(res.data); })
       .finally(() => { if (!cancelled) setLoading(false); });
+    const oqs = definitionId === '' ? '?pageSize=50' : `?pageSize=50&definitionId=${definitionId}`;
+    request.get<PaginatedResponse<WorkflowOverdueTask>>(`/api/workflows/instances/overdue${oqs}`)
+      .then((res) => { if (!cancelled && res.code === 0) setOverdue(res.data.list ?? []); });
     return () => { cancelled = true; };
   }, [definitionId]);
 
@@ -89,8 +94,46 @@ export default function WorkflowAnalyticsView({ definitions }: Readonly<{ defini
         <Kpi label="流程实例总数" value={data.total} />
         <Kpi label="平均审批耗时" value={fmtDuration(data.avgDurationSec)} />
         <Kpi label="当前待办总数" value={data.pendingTaskCount} />
+        <Kpi label="已超时待办" value={data.overdueTaskCount} danger={data.overdueTaskCount > 0} />
+        <Kpi label="24h内即将超时" value={data.dueSoonTaskCount} warn={data.dueSoonTaskCount > 0} />
         <Kpi label="近 7 天发起" value={data.recentCreated} />
       </div>
+
+      {/* 超时待办预警 */}
+      <ChartCard title={`超时待办预警${overdue.length > 0 ? `（${overdue.length}）` : ''}`}>
+        {overdue.length === 0 ? <Empty title="暂无超时待办" style={{ padding: 32 }} /> : (
+          <div style={{ maxHeight: 300, overflow: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ textAlign: 'left', color: 'var(--semi-color-text-2)' }}>
+                  <th style={{ padding: '6px 8px' }}></th>
+                  <th style={{ padding: '6px 8px' }}>申请</th>
+                  <th style={{ padding: '6px 8px' }}>节点</th>
+                  <th style={{ padding: '6px 8px' }}>处理人</th>
+                  <th style={{ padding: '6px 8px' }}>应处理时限</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>已超时</th>
+                </tr>
+              </thead>
+              <tbody>
+                {overdue.map((o) => {
+                  const days = o.overdueSec / 86400;
+                  const lamp = days >= 1 ? '#ff4d4f' : '#faad14';
+                  return (
+                    <tr key={o.taskId} style={{ borderTop: '1px solid var(--semi-color-border)' }}>
+                      <td style={{ padding: '6px 8px' }}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: lamp }} /></td>
+                      <td style={{ padding: '6px 8px' }}>{o.serialNo ? <Tag size="small" color="grey" style={{ marginRight: 4 }}>{o.serialNo}</Tag> : null}{o.instanceTitle}</td>
+                      <td style={{ padding: '6px 8px' }}>{o.nodeName}</td>
+                      <td style={{ padding: '6px 8px' }}>{o.assigneeName ?? '—'}</td>
+                      <td style={{ padding: '6px 8px', color: 'var(--semi-color-text-2)' }}>{o.timeoutAt}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', color: lamp, fontWeight: 600 }}>{fmtDuration(o.overdueSec)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </ChartCard>
 
       {/* 趋势 + 状态分布 */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>

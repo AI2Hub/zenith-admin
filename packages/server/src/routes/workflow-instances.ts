@@ -2,8 +2,8 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
 import { approveWorkflowTaskSchema, rejectWorkflowTaskSchema, createWorkflowInstanceWithDraftSchema, updateWorkflowInstanceSchema, transferWorkflowTaskSchema, delegateWorkflowTaskSchema, addSignWorkflowTaskSchema, reduceSignWorkflowTaskSchema, returnWorkflowTaskSchema, urgeWorkflowTaskSchema, addInstanceCcSchema, batchApproveWorkflowTaskSchema, batchRejectWorkflowTaskSchema, createWorkflowCommentSchema, jumpWorkflowInstanceSchema, reassignWorkflowTaskSchema } from '@zenith/shared';
-import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okMsg, okPaginated, IdParam, okBody } from '../lib/openapi-schemas';
-import { WorkflowInstanceDTO, WorkflowInstanceListItemDTO, WorkflowInstanceAllDTO, WorkflowTaskDTO, WorkflowTaskUrgeDTO, WorkflowCommentDTO, WorkflowBatchActionResponseDTO, WorkflowAnalyticsDTO } from '../lib/openapi-dtos';
+import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okMsg, okPaginated, IdParam, okBody, okExcel, excelStreamBody } from '../lib/openapi-schemas';
+import { WorkflowInstanceDTO, WorkflowInstanceListItemDTO, WorkflowInstanceAllDTO, WorkflowTaskDTO, WorkflowTaskUrgeDTO, WorkflowCommentDTO, WorkflowBatchActionResponseDTO, WorkflowAnalyticsDTO, WorkflowOverdueTaskDTO } from '../lib/openapi-dtos';
 import {
   listMyInstances, listPendingMine, listAllInstances, getInstanceDetail,
   createInstance, withdrawInstance, cancelInstance, deleteInstance, getInstanceForAdminAudit,
@@ -14,7 +14,7 @@ import {
   batchApproveTasks, batchRejectTasks, jumpInstance, reassignTask,
 } from '../services/workflow-instances.service';
 import { listInstanceComments, addInstanceComment } from '../services/workflow-comments.service';
-import { getWorkflowAnalytics } from '../services/workflow-analytics.service';
+import { getWorkflowAnalytics, listOverdueTasks, exportInstances } from '../services/workflow-analytics.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -173,10 +173,10 @@ const approveRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { taskId } = c.req.valid('param');
-    const { comment, attachments, selectedNextApprovers } = c.req.valid('json');
+    const { comment, attachments, selectedNextApprovers, signature } = c.req.valid('json');
     const before = await getWorkflowTaskBeforeAudit(taskId);
     if (before) setAuditBeforeData(c, before);
-    const result = await approveTask(taskId, comment, attachments, selectedNextApprovers);
+    const result = await approveTask(taskId, comment, attachments, selectedNextApprovers, signature);
     return c.json(okBody(result.instance, result.message), 200);
   },
 });
@@ -425,6 +425,31 @@ const analyticsRoute = defineOpenAPIRoute({
   handler: async (c) => c.json(okBody(await getWorkflowAnalytics(c.req.valid('query'))), 200),
 });
 
+const overdueRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/instances/overdue', tags: ['WorkflowInstances'], summary: '超时待办预警列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:instance:monitor' })] as const,
+    request: { query: PaginationQuery.extend({ definitionId: z.coerce.number().int().optional() }) },
+    responses: { ...commonErrorResponses, ...okPaginated(WorkflowOverdueTaskDTO, 'ok') },
+  }),
+  handler: async (c) => c.json(okBody(await listOverdueTasks(c.req.valid('query'))), 200),
+});
+
+const exportRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/instances/export', tags: ['WorkflowInstances'], summary: '导出流程实例 Excel',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:instance:monitor' })] as const,
+    request: { query: z.object({ status: z.string().optional(), keyword: z.string().optional(), categoryId: z.coerce.number().int().optional(), initiatorKeyword: z.string().optional() }) },
+    responses: { ...okExcel('Excel 文件') },
+  }),
+  handler: async (c) => {
+    const { stream, filename } = await exportInstances(c.req.valid('query'));
+    return excelStreamBody(c, stream, filename);
+  },
+});
+
 const listCommentsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/instances/{id}/comments', tags: ['WorkflowInstances'], summary: '流程评论列表',
@@ -577,6 +602,6 @@ const reassignRoute = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([listRoute, pendingMineRoute, allRoute, analyticsRoute, detailRoute, listCommentsRoute, addCommentRoute, createInstanceRoute, updateDraftRoute, submitDraftRoute, resubmitRoute, withdrawRoute, cancelInstanceRoute, jumpInstanceRoute, deleteInstanceRoute, batchApproveRoute, batchRejectRoute, approveRoute, rejectRoute, transferRoute, reassignRoute, delegateRoute, addSignRoute, reduceSignRoute, returnRoute, urgeRoute, listTaskUrgesRoute, listInstanceUrgesRoute, urgeInstanceRoute, addInstanceCcRoute] as const);
+router.openapiRoutes([listRoute, pendingMineRoute, allRoute, analyticsRoute, overdueRoute, exportRoute, detailRoute, listCommentsRoute, addCommentRoute, createInstanceRoute, updateDraftRoute, submitDraftRoute, resubmitRoute, withdrawRoute, cancelInstanceRoute, jumpInstanceRoute, deleteInstanceRoute, batchApproveRoute, batchRejectRoute, approveRoute, rejectRoute, transferRoute, reassignRoute, delegateRoute, addSignRoute, reduceSignRoute, returnRoute, urgeRoute, listTaskUrgesRoute, listInstanceUrgesRoute, urgeInstanceRoute, addInstanceCcRoute] as const);
 
 export default router;

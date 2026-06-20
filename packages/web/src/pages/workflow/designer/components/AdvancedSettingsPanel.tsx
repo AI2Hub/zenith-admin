@@ -3,7 +3,7 @@
  */
 import dayjs from 'dayjs';
 import { Divider, Form, Input, InputNumber, Select, Switch, Typography } from '@douyinfe/semi-ui';
-import type { WorkflowSerialNoConfig } from '@zenith/shared';
+import type { WorkflowSerialNoConfig, WorkflowNotifyChannels } from '@zenith/shared';
 import type { AdvancedSettingsData } from './advanced-settings';
 import { DEFAULT_SERIAL_NO } from './advanced-settings';
 
@@ -19,6 +19,11 @@ export default function AdvancedSettingsPanel({ settings, onChange }: Readonly<A
 
   const updateSerialNo = (patch: Partial<WorkflowSerialNoConfig>) => {
     onChange({ ...settings, serialNo: { ...serialNo, ...patch } });
+  };
+
+  const notify: WorkflowNotifyChannels = settings.notifyChannels ?? {};
+  const updateNotify = (patch: Partial<WorkflowNotifyChannels>) => {
+    onChange({ ...settings, notifyChannels: { ...notify, ...patch } });
   };
 
   const datePart = serialNo.dateFormat !== 'none' ? dayjs().format(serialNo.dateFormat) : '';
@@ -112,6 +117,33 @@ export default function AdvancedSettingsPanel({ settings, onChange }: Readonly<A
               </Form.Slot>
             </>
           )}
+
+          {/* 多渠道通知 */}
+          <Form.Slot>
+            <Divider margin="8px 0" />
+          </Form.Slot>
+          <Form.Slot label="邮件通知">
+            <Switch checked={!!notify.email} onChange={(checked) => updateNotify({ email: checked })} />
+          </Form.Slot>
+          <Form.Slot label="短信通知">
+            <Switch checked={!!notify.sms} onChange={(checked) => updateNotify({ sms: checked })} />
+          </Form.Slot>
+          {notify.sms && (
+            <Form.Slot label="短信模板 ID">
+              <InputNumber
+                value={notify.smsTemplateId}
+                min={1}
+                style={{ width: '100%' }}
+                placeholder="短信模板库中的模板 ID"
+                onChange={(v) => updateNotify({ smsTemplateId: typeof v === 'number' ? v : undefined })}
+              />
+            </Form.Slot>
+          )}
+          <Form.Slot>
+            <Typography.Text type="tertiary" size="small">
+              站内信始终发送；开启后额外向处理人/发起人发送邮件 / 短信（需先在系统中配置邮件服务 / 短信服务商）。
+            </Typography.Text>
+          </Form.Slot>
         </Form>
       </div>
     </div>

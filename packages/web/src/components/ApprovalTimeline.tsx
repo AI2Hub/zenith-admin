@@ -191,6 +191,13 @@ export default function ApprovalTimeline({ tasks, initiator, instanceStatus, fin
               </div>
             )}
 
+            {task.signature && (
+              <div style={{ marginTop: 6 }}>
+                <Typography.Text size="small" type="tertiary" style={{ display: 'block', marginBottom: 2 }}>手写签名</Typography.Text>
+                <img src={task.signature} alt="签名" style={{ maxHeight: 80, border: '1px solid var(--semi-color-border)', borderRadius: 4, background: '#fff' }} />
+              </div>
+            )}
+
             {/* 转办链路 / 委派提示 */}
             {((task.transferChain?.length ?? 0) > 0 || task.delegatedFromId) && (
               <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 12, color: 'var(--semi-color-text-2)' }}>

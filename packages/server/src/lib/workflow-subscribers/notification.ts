@@ -1,28 +1,40 @@
 /**
- * 工作流事件 → 站内信（持久化待办通知）订阅者
+ * 工作流事件 → 多渠道通知订阅者
  *
- * 与 ws.ts（瞬时 WebSocket 推送）互补：本订阅者将关键事件落库到 in_app_messages，
- * 使待办、催办、审批结果在消息中心留痕，离线用户登录后仍可见。
- * - task.created（pending 审批任务）→ 通知处理人「待办提醒」
- * - task.created（ccNode 抄送任务）  → 通知抄送人「抄送通知」
- * - task.urged                       → 通知处理人「催办提醒」
- * - instance.approved/rejected/withdrawn → 通知发起人「审批结果」
+ * 站内信始终落库（in_app_messages）；当流程的高级设置开启 email/sms 渠道时，
+ * 额外向处理人/发起人发送邮件 / 短信（均通过上下文无关的底层 transport，
+ * 因事件订阅者运行在请求上下文之外）。
+ * - task.created（pending 审批任务）→ 通知处理人（站内信 + 邮件/短信）
+ * - task.created（ccNode 抄送任务）  → 通知抄送人（站内信）
+ * - task.urged                       → 通知处理人（站内信）
+ * - task.transferred                 → 通知新处理人（站内信）
+ * - instance.approved/rejected/withdrawn → 通知发起人（站内信 + 邮件/短信）
  */
 import { eq } from 'drizzle-orm';
 import { db } from '../../db';
-import { inAppMessages, workflowInstances } from '../../db/schema';
-import type { InAppMessageType } from '@zenith/shared';
+import { inAppMessages, workflowInstances, users, smsTemplates } from '../../db/schema';
+import type { InAppMessageType, WorkflowNotifyChannels, WorkflowFlowData } from '@zenith/shared';
 import { workflowEventBus } from '../workflow-event-bus';
+import { sendMail } from '../email';
+import { sendSmsByProvider, renderTemplate } from '../sms-sender';
+import { findDefaultSmsConfig } from '../../services/sms-configs.service';
 import logger from '../logger';
 
-async function resolveInstanceLabel(instanceId: number): Promise<string> {
+interface NotifyContext {
+  label: string;
+  channels: WorkflowNotifyChannels | undefined;
+}
+
+async function loadNotifyContext(instanceId: number): Promise<NotifyContext> {
   const [row] = await db
-    .select({ title: workflowInstances.title, serialNo: workflowInstances.serialNo })
+    .select({ title: workflowInstances.title, serialNo: workflowInstances.serialNo, snapshot: workflowInstances.definitionSnapshot })
     .from(workflowInstances)
     .where(eq(workflowInstances.id, instanceId))
     .limit(1);
-  if (!row) return `#${instanceId}`;
-  return row.serialNo ? `${row.title}（${row.serialNo}）` : row.title;
+  if (!row) return { label: `#${instanceId}`, channels: undefined };
+  const label = row.serialNo ? `${row.title}（${row.serialNo}）` : row.title;
+  const channels = (row.snapshot as { flowData?: WorkflowFlowData } | null)?.flowData?.settings?.notifyChannels;
+  return { label, channels };
 }
 
 async function insertMessage(input: {
@@ -42,7 +54,46 @@ async function insertMessage(input: {
       tenantId: input.tenantId,
     });
   } catch (err) {
-    logger.error('[workflow notification] insert failed', { err, userId: input.userId, title: input.title });
+    logger.error('[workflow notification] in-app insert failed', { err, userId: input.userId });
+  }
+}
+
+/** 通过邮件/短信渠道通知用户（上下文无关，失败仅记录日志） */
+async function notifyExternalChannels(
+  userId: number,
+  channels: WorkflowNotifyChannels | undefined,
+  subject: string,
+  text: string,
+  smsVariables: Record<string, string>,
+): Promise<void> {
+  if (!channels || (!channels.email && !channels.sms)) return;
+  const [user] = await db
+    .select({ email: users.email, phone: users.phone })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!user) return;
+
+  if (channels.email && user.email) {
+    try {
+      await sendMail(user.email, subject, `<p>${text}</p>`);
+    } catch (err) {
+      logger.error('[workflow notification] email failed', { err, userId });
+    }
+  }
+
+  if (channels.sms && channels.smsTemplateId && user.phone) {
+    try {
+      const config = await findDefaultSmsConfig();
+      if (!config) { logger.warn('[workflow notification] sms skipped: no default config'); return; }
+      const [tpl] = await db.select().from(smsTemplates).where(eq(smsTemplates.id, channels.smsTemplateId)).limit(1);
+      if (!tpl || tpl.status !== 'enabled') { logger.warn('[workflow notification] sms skipped: template missing/disabled'); return; }
+      if (config.provider !== tpl.provider) { logger.warn('[workflow notification] sms skipped: provider mismatch'); return; }
+      const renderedContent = renderTemplate(tpl.content, smsVariables);
+      await sendSmsByProvider({ config, template: tpl, phone: user.phone, variables: smsVariables, renderedContent });
+    } catch (err) {
+      logger.error('[workflow notification] sms failed', { err, userId });
+    }
   }
 }
 
@@ -51,9 +102,8 @@ export function registerNotificationWorkflowSubscriber(): void {
     const task = event.task;
     if (!task.assigneeId) return;
     const isCc = task.nodeType === 'ccNode';
-    // 仅在 pending（激活的人工审批）或抄送时通知；waiting（顺序会签未激活）不打扰
     if (!isCc && task.status !== 'pending') return;
-    const label = await resolveInstanceLabel(event.instanceId);
+    const { label, channels } = await loadNotifyContext(event.instanceId);
     await insertMessage({
       userId: task.assigneeId,
       title: isCc ? '流程抄送通知' : '待办审批提醒',
@@ -63,12 +113,21 @@ export function registerNotificationWorkflowSubscriber(): void {
       type: 'info',
       tenantId: event.tenantId,
     });
+    if (!isCc) {
+      await notifyExternalChannels(
+        task.assigneeId,
+        channels,
+        `【待办提醒】${label}`,
+        `你有一条新的待办：流程「${label}」（节点：${task.nodeName}），请及时处理。`,
+        { title: label, node: task.nodeName },
+      );
+    }
   });
 
   workflowEventBus.on('task.urged', async (event) => {
     const task = event.task;
     if (!task.assigneeId) return;
-    const label = await resolveInstanceLabel(event.instanceId);
+    const { label } = await loadNotifyContext(event.instanceId);
     const extra = event.comment ? `：${event.comment}` : '';
     await insertMessage({
       userId: task.assigneeId,
@@ -82,7 +141,7 @@ export function registerNotificationWorkflowSubscriber(): void {
   workflowEventBus.on('task.transferred', async (event) => {
     const task = event.task;
     if (!task.assigneeId || task.status !== 'pending') return;
-    const label = await resolveInstanceLabel(event.instanceId);
+    const { label } = await loadNotifyContext(event.instanceId);
     await insertMessage({
       userId: task.assigneeId,
       title: '待办转交提醒',
@@ -104,6 +163,8 @@ export function registerNotificationWorkflowSubscriber(): void {
     };
     const m = map[status];
     await insertMessage({ userId: inst.initiatorId, title: m.title, content: m.content, type: m.type, tenantId: event.tenantId });
+    const { channels } = await loadNotifyContext(event.instanceId);
+    await notifyExternalChannels(inst.initiatorId, channels, `【${m.title}】${label}`, m.content, { title: label, status: m.title });
   };
 
   workflowEventBus.on('instance.approved', notifyInitiator('approved'));

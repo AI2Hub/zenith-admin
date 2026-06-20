@@ -28,6 +28,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { usePagination } from '@/hooks/usePagination';
 import WorkflowInstanceDetailPanel from '@/components/workflow/WorkflowInstanceDetailPanel';
+import SignaturePad from '@/components/SignaturePad';
 import { renderEllipsis } from '../../../utils/table-columns';
 
 interface SearchParams {
@@ -37,7 +38,7 @@ interface SearchParams {
 
 const defaultSearchParams: SearchParams = { keyword: '', definitionId: null };
 
-type PendingItem = WorkflowInstance & { pendingTaskId: number };
+type PendingItem = WorkflowInstance & { pendingTaskId: number; pendingSignatureRequired?: boolean };
 
 const DEFAULT_BUTTONS: Record<WorkflowActionButtonKey, WorkflowActionButtonConfig> = {
   approve: { enabled: true, displayName: '同意', opinionName: '审批意见' },
@@ -92,6 +93,7 @@ export default function PendingApprovalsPage() {
   const [rejectDef, setRejectDef] = useState<WorkflowDefinition | null>(null);
   const [rejectHintLoading, setRejectHintLoading] = useState(false);
   const [approveAttachments, setApproveAttachments] = useState<UploadedFile[]>([]);
+  const [approveSignature, setApproveSignature] = useState('');
   const [userOptions, setUserOptions] = useState<Array<{ label: string; value: number }>>([]);
   const [selectedNextApprovers, setSelectedNextApprovers] = useState<number[]>([]);
   // 批量审批
@@ -294,10 +296,15 @@ export default function PendingApprovalsPage() {
 
   const handleApprove = async () => {
     if (!selectedItem) return;
+    const needSignature = currentTask?.signatureRequired ?? selectedItem.pendingSignatureRequired ?? false;
     try {
       const values = await approveFormApi.current?.validate();
       if (btnApprove.uploadRequired && approveAttachments.length === 0) {
         Toast.error('请上传附件后再提交');
+        return;
+      }
+      if (needSignature && !approveSignature) {
+        Toast.error('该节点要求手写签名，请先签名');
         return;
       }
       setSubmitting(true);
@@ -306,6 +313,7 @@ export default function PendingApprovalsPage() {
         {
           comment: values?.comment ?? '',
           attachments: approveAttachments.length > 0 ? approveAttachments : undefined,
+          signature: approveSignature || undefined,
           selectedNextApprovers: hasApproverSelectDownstream && selectedNextApprovers.length > 0 ? selectedNextApprovers : undefined,
         }
       );
@@ -313,6 +321,7 @@ export default function PendingApprovalsPage() {
         Toast.success('审批通过');
         setApproveVisible(false);
         setApproveAttachments([]);
+        setApproveSignature('');
         setSelectedNextApprovers([]);
         void fetchList();
       }
@@ -603,7 +612,7 @@ export default function PendingApprovalsPage() {
       <AppModal
         title={btnApprove.displayName ? `${btnApprove.displayName}` : '审批通过'}
         visible={approveVisible}
-        onCancel={() => { setApproveVisible(false); setApproveAttachments([]); setSelectedNextApprovers([]); }}
+        onCancel={() => { setApproveVisible(false); setApproveAttachments([]); setApproveSignature(''); setSelectedNextApprovers([]); }}
         onOk={() => void handleApprove()}
         okButtonProps={{ loading: submitting, type: 'primary' }}
         okText="确认"
@@ -639,6 +648,16 @@ export default function PendingApprovalsPage() {
             }}
           />
         </div>
+        {(currentTask?.signatureRequired ?? selectedItem?.pendingSignatureRequired) && (
+          <div style={{ marginTop: 12 }}>
+            <Typography.Text strong>
+              手写签名<span style={{ color: 'var(--semi-color-danger)' }}> *</span>
+            </Typography.Text>
+            <div style={{ marginTop: 6 }}>
+              <SignaturePad value={approveSignature} onChange={setApproveSignature} />
+            </div>
+          </div>
+        )}
         {hasApproverSelectDownstream && (
           <div style={{ marginTop: 12 }}>
             <Typography.Text strong>下一节点审批人</Typography.Text>

@@ -95,6 +95,8 @@ export const WorkflowTaskDTO = z
     assigneeAvatar: z.string().nullable().optional(),
     status: z.enum(['pending', 'approved', 'rejected', 'skipped', 'waiting']),
     comment: z.string().nullable(),
+    signature: z.string().nullable().optional(),
+    signatureRequired: z.boolean().optional(),
     actionAt: z.string().nullable(),
     originalAssigneeId: z.number().int().nullable().optional(),
     transferChain: z.array(z.number().int()).optional(),
@@ -182,7 +184,7 @@ export const WorkflowInstanceListItemDTO = WorkflowInstanceDTO.omit({
   formSnapshot: true,
   tasks: true,
   comments: true,
-}).extend({ pendingTaskId: z.number().int().optional() }).openapi('WorkflowInstanceListItem');
+}).extend({ pendingTaskId: z.number().int().optional(), pendingSignatureRequired: z.boolean().optional() }).openapi('WorkflowInstanceListItem');
 
 export const WorkflowInstanceAllDTO = z
   .object({
@@ -266,6 +268,8 @@ export const WorkflowAnalyticsDTO = z
     total: z.number().int(),
     avgDurationSec: z.number().nullable(),
     pendingTaskCount: z.number().int(),
+    overdueTaskCount: z.number().int(),
+    dueSoonTaskCount: z.number().int(),
     recentCreated: z.number().int(),
     definitionStats: z.array(z.object({
       definitionId: z.number().int(),
@@ -298,3 +302,18 @@ export const WorkflowAnalyticsDTO = z
     })),
   })
   .openapi('WorkflowAnalytics');
+
+export const WorkflowOverdueTaskDTO = z
+  .object({
+    taskId: z.number().int(),
+    instanceId: z.number().int(),
+    instanceTitle: z.string(),
+    serialNo: z.string().nullable().optional(),
+    definitionName: z.string(),
+    nodeName: z.string(),
+    assigneeId: z.number().int().nullable(),
+    assigneeName: z.string().nullable(),
+    timeoutAt: z.string(),
+    overdueSec: z.number(),
+  })
+  .openapi('WorkflowOverdueTask');

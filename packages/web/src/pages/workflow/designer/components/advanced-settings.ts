@@ -1,4 +1,4 @@
-import type { WorkflowSerialNoConfig } from '@zenith/shared';
+import type { WorkflowSerialNoConfig, WorkflowNotifyChannels } from '@zenith/shared';
 
 export interface AdvancedSettingsData {
   allowWithdraw: boolean;
@@ -8,6 +8,7 @@ export interface AdvancedSettingsData {
   timeoutAction: 'none' | 'auto-approve' | 'auto-reject' | 'notify';
   allowComment?: boolean;
   serialNo?: WorkflowSerialNoConfig;
+  notifyChannels?: WorkflowNotifyChannels;
 }
 
 export const DEFAULT_SERIAL_NO: Required<WorkflowSerialNoConfig> = {

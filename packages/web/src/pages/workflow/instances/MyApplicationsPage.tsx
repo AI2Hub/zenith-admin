@@ -92,6 +92,7 @@ function buildPrintHtml(instance: WorkflowInstance): string {
       <td style="padding:8px 12px;border:1px solid #ddd;">${TASK_STATUS_TEXT[t.status] ?? t.status}</td>
       <td style="padding:8px 12px;border:1px solid #ddd;">${escapeHtml(t.comment ?? '')}</td>
       <td style="padding:8px 12px;border:1px solid #ddd;">${t.actionAt ? formatDateTime(t.actionAt) : '—'}</td>
+      <td style="padding:8px 12px;border:1px solid #ddd;">${t.signature ? `<img src="${t.signature}" alt="签名" style="max-height:48px;" />` : '—'}</td>
     </tr>`
   ).join('');
 
@@ -134,7 +135,7 @@ function buildPrintHtml(instance: WorkflowInstance): string {
   ${tasks.length > 0
     ? `<table>
         <thead><tr>
-          <th>节点</th><th>处理人</th><th>状态</th><th>审批意见</th><th>处理时间</th>
+          <th>节点</th><th>处理人</th><th>状态</th><th>审批意见</th><th>处理时间</th><th>签名</th>
         </tr></thead>
         <tbody>${taskRows}</tbody>
       </table>`

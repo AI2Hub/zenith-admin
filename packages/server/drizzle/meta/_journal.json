@@ -834,6 +834,13 @@
       "when": 1781903422908,
       "tag": "0118_fearless_paladin",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1781914783999,
+      "tag": "0119_special_landau",
+      "breakpoints": true
     }
   ]
 }

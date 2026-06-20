@@ -1,13 +1,18 @@
-import { and, eq, gte, desc, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gte, desc, ilike, or, inArray, sql, type SQL } from 'drizzle-orm';
 import dayjs from 'dayjs';
 import { db } from '../db';
-import { workflowInstances, workflowTasks, workflowDefinitions, users } from '../db/schema';
+import { workflowInstances, workflowTasks, workflowDefinitions, workflowCategories, users } from '../db/schema';
 import { currentUser } from '../lib/context';
 import { tenantCondition } from '../lib/tenant';
+import { pageOffset } from '../lib/pagination';
+import { escapeLike } from '../lib/where-helpers';
+import { streamToExcel, type ExcelColumn } from '../lib/excel-export';
+import { formatDateTime } from '../lib/datetime';
 import type {
   WorkflowAnalytics,
   WorkflowInstanceStatus,
   WorkflowAnalyticsTrendPoint,
+  WorkflowOverdueTask,
 } from '@zenith/shared';
 
 const FINISHED: WorkflowInstanceStatus[] = ['approved', 'rejected', 'withdrawn', 'cancelled'];
@@ -37,6 +42,8 @@ export async function getWorkflowAnalytics(query: { definitionId?: number } = {}
     approverRows,
     createdTrend,
     completedTrend,
+    overdueRow,
+    dueSoonRow,
   ] = await Promise.all([
     // 1. 各状态计数
     db.select({ status: workflowInstances.status, count: sql<number>`count(*)::int` })
@@ -111,6 +118,16 @@ export async function getWorkflowAnalytics(query: { definitionId?: number } = {}
       .from(workflowInstances)
       .where(and(...instConds, inArray(workflowInstances.status, FINISHED), gte(workflowInstances.updatedAt, since14)))
       .groupBy(sql`to_char(${workflowInstances.updatedAt}, 'YYYY-MM-DD')`),
+    // 9. 已超时挂起任务数
+    db.select({ count: sql<number>`count(*)::int` })
+      .from(workflowTasks)
+      .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
+      .where(and(...instConds, eq(workflowTasks.status, 'pending'), sql`${workflowTasks.timeoutAt} is not null and ${workflowTasks.timeoutAt} < now()`)),
+    // 10. 24h 内即将超时的挂起任务数
+    db.select({ count: sql<number>`count(*)::int` })
+      .from(workflowTasks)
+      .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
+      .where(and(...instConds, eq(workflowTasks.status, 'pending'), sql`${workflowTasks.timeoutAt} is not null and ${workflowTasks.timeoutAt} >= now() and ${workflowTasks.timeoutAt} < now() + interval '24 hours'`)),
   ]);
 
   const statusCounts = statusRows.map((r) => ({ status: r.status, count: r.count }));
@@ -131,6 +148,8 @@ export async function getWorkflowAnalytics(query: { definitionId?: number } = {}
     total,
     avgDurationSec: round(avgRow[0]?.avg),
     pendingTaskCount: pendingRow[0]?.count ?? 0,
+    overdueTaskCount: overdueRow[0]?.count ?? 0,
+    dueSoonTaskCount: dueSoonRow[0]?.count ?? 0,
     recentCreated: recentRow[0]?.count ?? 0,
     definitionStats: definitionRows.map((r) => ({
       definitionId: r.definitionId,
@@ -160,4 +179,119 @@ export async function getWorkflowAnalytics(query: { definitionId?: number } = {}
       })),
     trend,
   };
+}
+
+/** 超时待办预警列表（已超时仍 pending 的任务，按到期时间正序） */
+export async function listOverdueTasks(query: { page?: number; pageSize?: number; definitionId?: number } = {}): Promise<{ list: WorkflowOverdueTask[]; total: number; page: number; pageSize: number }> {
+  const user = currentUser();
+  const page = query.page ?? 1;
+  const pageSize = query.pageSize ?? 20;
+  const instTenant = tenantCondition(workflowInstances, user);
+  const conds: SQL[] = [
+    eq(workflowTasks.status, 'pending'),
+    sql`${workflowTasks.timeoutAt} is not null and ${workflowTasks.timeoutAt} < now()`,
+  ];
+  if (instTenant) conds.push(instTenant);
+  if (query.definitionId) conds.push(eq(workflowInstances.definitionId, query.definitionId));
+  const where = and(...conds);
+  const assignee = users;
+  const [countRows, rows] = await Promise.all([
+    db.select({ c: sql<number>`count(*)::int` })
+      .from(workflowTasks)
+      .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
+      .where(where),
+    db.select({
+      taskId: workflowTasks.id,
+      instanceId: workflowInstances.id,
+      instanceTitle: workflowInstances.title,
+      serialNo: workflowInstances.serialNo,
+      definitionName: workflowDefinitions.name,
+      nodeName: workflowTasks.nodeName,
+      assigneeId: workflowTasks.assigneeId,
+      assigneeName: assignee.nickname,
+      timeoutAt: workflowTasks.timeoutAt,
+    })
+      .from(workflowTasks)
+      .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
+      .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
+      .leftJoin(assignee, eq(workflowTasks.assigneeId, assignee.id))
+      .where(where)
+      .orderBy(asc(workflowTasks.timeoutAt))
+      .limit(pageSize)
+      .offset(pageOffset(page, pageSize)),
+  ]);
+  const now = Date.now();
+  const list: WorkflowOverdueTask[] = rows.map((r) => ({
+    taskId: r.taskId,
+    instanceId: r.instanceId,
+    instanceTitle: r.instanceTitle,
+    serialNo: r.serialNo ?? null,
+    definitionName: r.definitionName ?? '—',
+    nodeName: r.nodeName,
+    assigneeId: r.assigneeId ?? null,
+    assigneeName: r.assigneeName ?? null,
+    timeoutAt: r.timeoutAt ? formatDateTime(r.timeoutAt) : '',
+    overdueSec: r.timeoutAt ? Math.round((now - r.timeoutAt.getTime()) / 1000) : 0,
+  }));
+  return { list, total: countRows[0]?.c ?? 0, page, pageSize };
+}
+
+const INSTANCE_STATUS_TEXT: Record<string, string> = {
+  draft: '草稿', running: '审批中', approved: '已通过', rejected: '已驳回', withdrawn: '已撤回', cancelled: '已取消',
+};
+
+/** 导出流程实例列表为 Excel（与监控筛选一致，最多 10000 行） */
+export async function exportInstances(query: { status?: string; keyword?: string; categoryId?: number; initiatorKeyword?: string } = {}): Promise<{ stream: ReadableStream; filename: string }> {
+  const user = currentUser();
+  const conds: SQL[] = [];
+  const tc = tenantCondition(workflowInstances, user);
+  if (tc) conds.push(tc);
+  if (query.status) conds.push(eq(workflowInstances.status, query.status as WorkflowInstanceStatus));
+  if (query.keyword) {
+    const lk = `%${escapeLike(query.keyword)}%`;
+    conds.push(or(ilike(workflowInstances.title, lk), ilike(workflowDefinitions.name, lk))!);
+  }
+  if (query.categoryId) conds.push(eq(workflowDefinitions.categoryId, query.categoryId));
+  if (query.initiatorKeyword) conds.push(ilike(users.nickname, `%${escapeLike(query.initiatorKeyword)}%`));
+  const where = conds.length ? and(...conds) : undefined;
+  const rows = await db.select({
+    serialNo: workflowInstances.serialNo,
+    title: workflowInstances.title,
+    definitionName: workflowDefinitions.name,
+    categoryName: workflowCategories.name,
+    initiatorName: users.nickname,
+    status: workflowInstances.status,
+    createdAt: workflowInstances.createdAt,
+    updatedAt: workflowInstances.updatedAt,
+  })
+    .from(workflowInstances)
+    .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
+    .leftJoin(workflowCategories, eq(workflowDefinitions.categoryId, workflowCategories.id))
+    .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
+    .where(where)
+    .orderBy(desc(workflowInstances.id))
+    .limit(10000);
+
+  const columns: ExcelColumn[] = [
+    { header: '业务编号', key: 'serialNo', width: 20 },
+    { header: '申请标题', key: 'title', width: 30 },
+    { header: '流程', key: 'definitionName', width: 22 },
+    { header: '分类', key: 'categoryName', width: 14 },
+    { header: '发起人', key: 'initiatorName', width: 14 },
+    { header: '状态', key: 'status', width: 10 },
+    { header: '发起时间', key: 'createdAt', width: 20 },
+    { header: '最后更新', key: 'updatedAt', width: 20 },
+  ];
+  const data = rows.map((r) => ({
+    serialNo: r.serialNo ?? '',
+    title: r.title,
+    definitionName: r.definitionName ?? '',
+    categoryName: r.categoryName ?? '',
+    initiatorName: r.initiatorName ?? '',
+    status: INSTANCE_STATUS_TEXT[r.status] ?? r.status,
+    createdAt: formatDateTime(r.createdAt),
+    updatedAt: formatDateTime(r.updatedAt),
+  }));
+  const stream = await streamToExcel(columns, data, '流程实例');
+  return { stream, filename: `workflow-instances-${dayjs().format('YYYYMMDD-HHmmss')}.xlsx` };
 }

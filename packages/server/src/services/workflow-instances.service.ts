@@ -6,6 +6,7 @@ export function mapTask(
   assigneeName?: string | null,
   assigneeAvatar?: string | null,
   actionButtons?: Partial<Record<WorkflowActionButtonKey, WorkflowActionButtonConfig>> | null,
+  signatureRequired?: boolean,
 ) {
   return {
     id: row.id,
@@ -18,6 +19,8 @@ export function mapTask(
     assigneeAvatar: assigneeAvatar ?? null,
     status: row.status,
     comment: row.comment,
+    signature: row.signature ?? null,
+    signatureRequired: signatureRequired ?? false,
     actionAt: formatNullableDateTime(row.actionAt),
     originalAssigneeId: row.originalAssigneeId ?? null,
     transferChain: Array.isArray(row.transferChain) ? row.transferChain : [],
@@ -1185,7 +1188,12 @@ export async function listPendingMine(query: { page?: number; pageSize?: number;
     ),
   ]);
   return {
-    list: rows.map((r) => ({ ...mapInstance(r.inst, r), pendingTaskId: r.task.id })),
+    list: rows.map((r) => {
+      const flow = (r.inst.definitionSnapshot as { flowData?: WorkflowFlowData } | null)?.flowData;
+      const node = flow?.nodes.find((n) => n.data.key === r.task.nodeKey)?.data;
+      const pendingSignatureRequired = node?.operations?.includes('signature') ?? false;
+      return { ...mapInstance(r.inst, r), pendingTaskId: r.task.id, pendingSignatureRequired };
+    }),
     total: Number(total),
     page,
     pageSize,
@@ -1281,7 +1289,8 @@ export async function getInstanceDetail(id: number) {
   const tasks = row.tasks.map((t) => {
     const cfg = snapshot?.flowData?.nodes.find((n) => n.data.key === t.nodeKey)?.data;
     const actionButtons = cfg?.actionButtons;
-    return mapTask(t, t.assignee?.nickname, t.assignee?.avatar, actionButtons ?? null);
+    const signatureRequired = cfg?.operations?.includes('signature') ?? false;
+    return mapTask(t, t.assignee?.nickname, t.assignee?.avatar, actionButtons ?? null, signatureRequired);
   });
   // 子流程：查询本实例发起的子实例（按父任务关联到节点 key）
   const childRows = await db.select({
@@ -1534,7 +1543,7 @@ export interface ApproveResult {
   message: string;
 }
 
-export async function approveTask(taskId: number, comment?: string, attachments?: Array<{ name: string; url: string; size?: number }>, selectedNextApprovers?: number[]): Promise<ApproveResult> {
+export async function approveTask(taskId: number, comment?: string, attachments?: Array<{ name: string; url: string; size?: number }>, selectedNextApprovers?: number[], signature?: string): Promise<ApproveResult> {
   const user = currentUser();
   const [task] = await db.select().from(workflowTasks).where(and(eq(workflowTasks.id, taskId), eq(workflowTasks.assigneeId, user.userId))).limit(1);
   if (!task) throw new HTTPException(404, { message: '任务不存在或无权操作' });
@@ -1552,6 +1561,9 @@ export async function approveTask(taskId: number, comment?: string, attachments?
   if (nodeCfg?.operations?.includes('opinionRequired') && !comment?.trim()) {
     throw new HTTPException(400, { message: '请填写审批意见后再提交' });
   }
+  if (nodeCfg?.operations?.includes('signature') && !signature?.trim()) {
+    throw new HTTPException(400, { message: '该节点要求手写签名，请先完成签名' });
+  }
   const enrichedComment = attachments && attachments.length > 0
     ? `${comment ?? ''}\n[附件]${attachments.map((a) => a.name).join(', ')}`.trim()
     : comment;
@@ -1559,7 +1571,7 @@ export async function approveTask(taskId: number, comment?: string, attachments?
   if (task.delegatedFromId && task.delegatedFromId !== user.userId) {
     return processDelegatedReceipt(task, inst, 'approved', enrichedComment, { userId: user.userId, name: user.username });
   }
-  return approveTaskCore(task, inst, enrichedComment, { userId: user.userId, name: user.username }, { selectedNextApprovers });
+  return approveTaskCore(task, inst, enrichedComment, { userId: user.userId, name: user.username }, { selectedNextApprovers, signature });
 }
 
 /** 外部审批回调：根据 callbackId 找到 waiting 任务并审批通过 */
@@ -1578,7 +1590,7 @@ export async function approveTaskCore(
   inst: typeof workflowInstances.$inferSelect,
   comment: string | undefined,
   actor: WorkflowEventActor,
-  options?: { selectedNextApprovers?: number[] },
+  options?: { selectedNextApprovers?: number[]; signature?: string },
 ): Promise<ApproveResult> {
   const taskId = task.id;
   const snapshot = inst.definitionSnapshot as { flowData?: WorkflowFlowData };
@@ -1589,6 +1601,7 @@ export async function approveTaskCore(
     const [approvedTask] = await tx.update(workflowTasks).set({
       status: 'approved',
       comment: comment ?? null,
+      signature: options?.signature ?? null,
       actionAt: new Date(),
     }).where(eq(workflowTasks.id, taskId)).returning();
 

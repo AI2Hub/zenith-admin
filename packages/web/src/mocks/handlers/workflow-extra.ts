@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import type {
   WorkflowComment, WorkflowQuickPhrase, WorkflowDelegation, WorkflowAnalytics,
-  WorkflowInstanceStatus,
+  WorkflowInstanceStatus, WorkflowOverdueTask,
 } from '@zenith/shared';
 import { mockWorkflowInstances, mockWorkflowTasks, getNextInstanceId } from '@/mocks/data/workflow';
 import { mockDateTime } from '@/mocks/utils/date';
@@ -85,6 +85,8 @@ function buildAnalytics(): WorkflowAnalytics {
     total: insts.length,
     avgDurationSec: 3600 * 8,
     pendingTaskCount: pending.length,
+    overdueTaskCount: Math.min(pending.length, 2),
+    dueSoonTaskCount: pending.length > 2 ? 1 : 0,
     recentCreated: insts.length,
     definitionStats,
     nodeBottlenecks,
@@ -93,9 +95,51 @@ function buildAnalytics(): WorkflowAnalytics {
   };
 }
 
+function buildOverdueList(): WorkflowOverdueTask[] {
+  return mockWorkflowTasks
+    .filter((t) => t.status === 'pending')
+    .slice(0, 2)
+    .map((t, idx) => {
+      const inst = mockWorkflowInstances.find((i) => i.id === t.instanceId);
+      return {
+        taskId: t.id,
+        instanceId: t.instanceId,
+        instanceTitle: inst?.title ?? `实例#${t.instanceId}`,
+        serialNo: inst?.serialNo ?? null,
+        definitionName: inst?.definitionName ?? '—',
+        nodeName: t.nodeName,
+        assigneeId: t.assigneeId ?? null,
+        assigneeName: t.assigneeName ?? null,
+        timeoutAt: mockDateTime(),
+        overdueSec: (idx + 1) * 3600 * 26,
+      };
+    });
+}
+
 export const workflowExtraHandlers = [
   // ── 数据分析（必须在 /instances/:id 之前注册）──
   http.get('/api/workflows/instances/analytics', () => ok(buildAnalytics())),
+
+  // ── 超时待办预警 ──
+  http.get('/api/workflows/instances/overdue', ({ request }) => {
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get('page') ?? 1);
+    const pageSize = Number(url.searchParams.get('pageSize') ?? 20);
+    const all = buildOverdueList();
+    return ok({ list: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize });
+  }),
+
+  // ── 导出（Demo 下返回占位 CSV）──
+  http.get('/api/workflows/instances/export', () => {
+    const header = '业务编号,申请标题,流程,发起人,状态\n';
+    const body = mockWorkflowInstances.map((i) => `${i.serialNo ?? ''},${i.title},${i.definitionName ?? ''},${i.initiatorName ?? ''},${i.status}`).join('\n');
+    return new HttpResponse(`\uFEFF${header}${body}`, {
+      headers: {
+        'Content-Type': 'text/csv;charset=utf-8',
+        'Content-Disposition': 'attachment; filename="workflow-instances.csv"',
+      },
+    });
+  }),
 
   // ── 流程评论 ──
   http.get('/api/workflows/instances/:id/comments', ({ params }) => {
