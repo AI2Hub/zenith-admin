@@ -1885,6 +1885,11 @@ export async function cancelInstance(id: number) {
   if (!inst) throw new HTTPException(404, { message: '流程实例不存在' });
   if (inst.status !== 'running') throw new HTTPException(400, { message: '只能取消进行中的流程' });
   const { row: updated, cancelledTasks } = await db.transaction(async (tx) => {
+    const [locked] = await tx.select({ status: workflowInstances.status })
+      .from(workflowInstances).where(and(...conditions)).for('update').limit(1);
+    if (!locked || locked.status !== 'running') {
+      throw new HTTPException(400, { message: '只能取消进行中的流程' });
+    }
     const cancelled = await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date() })
       .where(and(eq(workflowTasks.instanceId, id), inArray(workflowTasks.status, ['pending', 'waiting'])))
       .returning();
@@ -1982,12 +1987,20 @@ export async function approveTaskCore(
   if (!flowData) throw new HTTPException(500, { message: '流程快照数据异常' });
 
   const updated = await db.transaction(async (tx) => {
+    // 实例行级锁：序列化同一实例上的并发审批，避免会签末位并发各自读不到对方已审批而都不推进（节点卡死）
+    const [lockedInst] = await tx.select({ status: workflowInstances.status })
+      .from(workflowInstances).where(eq(workflowInstances.id, inst.id)).for('update').limit(1);
+    if (!lockedInst || lockedInst.status !== 'running') {
+      throw new HTTPException(409, { message: '流程实例状态已变化，请刷新后重试' });
+    }
+    // 乐观并发保护：仅当任务仍处于读取时的状态才能推进，防止并发重复审批导致流程重复前进
     const [approvedTask] = await tx.update(workflowTasks).set({
       status: 'approved',
       comment: comment ?? null,
       signature: options?.signature ?? null,
       actionAt: new Date(),
-    }).where(eq(workflowTasks.id, taskId)).returning();
+    }).where(and(eq(workflowTasks.id, taskId), eq(workflowTasks.status, task.status))).returning();
+    if (!approvedTask) throw new HTTPException(409, { message: '任务已被处理，请刷新后重试' });
 
     // 检查当前节点是否已足够推进（会签/或签/顺序会签）
     const { completed } = await checkNodeCompletion(tx, inst.id, task.nodeKey, flowData);
@@ -2156,8 +2169,9 @@ export async function rejectTaskCore(
     if (maxPossibleApproved >= required) {
       const [rejectedTask] = await db.update(workflowTasks)
         .set({ status: 'rejected', comment, actionAt: new Date() })
-        .where(eq(workflowTasks.id, taskId))
+        .where(and(eq(workflowTasks.id, taskId), eq(workflowTasks.status, task.status)))
         .returning();
+      if (!rejectedTask) throw new HTTPException(409, { message: '任务已被处理，请刷新后重试' });
       const meta = { definitionId: inst.definitionId, tenantId: inst.tenantId, actor };
       emitTaskEvent('task.rejected', mapTask(rejectedTask), { ...meta, comment });
       return { instance: mapInstance(inst), message: '已驳回' };
@@ -2203,11 +2217,18 @@ export async function rejectTaskCore(
   }
 
   const updated = await db.transaction(async (tx) => {
-    // 当前任务 → rejected
+    // 实例行级锁：序列化同一实例上的并发审批/驳回，避免与并发审批互相覆盖推进
+    const [lockedInst] = await tx.select({ status: workflowInstances.status })
+      .from(workflowInstances).where(eq(workflowInstances.id, inst.id)).for('update').limit(1);
+    if (!lockedInst || lockedInst.status !== 'running') {
+      throw new HTTPException(409, { message: '流程实例状态已变化，请刷新后重试' });
+    }
+    // 当前任务 → rejected（乐观并发保护：状态变更则中止，防止并发重复驳回）
     const [rejectedTask] = await tx.update(workflowTasks)
       .set({ status: 'rejected', comment, actionAt: new Date() })
-      .where(eq(workflowTasks.id, taskId))
+      .where(and(eq(workflowTasks.id, taskId), eq(workflowTasks.status, task.status)))
       .returning();
+    if (!rejectedTask) throw new HTTPException(409, { message: '任务已被处理，请刷新后重试' });
     // 同节点其他 pending / waiting 任务跳过
     const skipped = await tx.update(workflowTasks)
       .set({ status: 'skipped', actionAt: new Date() })
@@ -2439,8 +2460,9 @@ export async function transferTask(taskId: number, targetUserId: number, comment
       transferChain: nextChain,
       originalAssigneeId: task.originalAssigneeId ?? task.assigneeId ?? null,
     })
-    .where(eq(workflowTasks.id, task.id))
+    .where(and(eq(workflowTasks.id, task.id), eq(workflowTasks.status, 'pending')))
     .returning();
+  if (!updated) throw new HTTPException(409, { message: '任务状态已变化，无法转办' });
   emitTaskEvent('task.transferred', mapTask(updated, target.nickname),
     { definitionId: inst.definitionId, tenantId: inst.tenantId, actor, comment: transferComment });
   return mapTask(updated, target.nickname);
@@ -2507,8 +2529,9 @@ export async function delegateTask(taskId: number, targetUserId: number, comment
       originalAssigneeId: task.originalAssigneeId ?? task.assigneeId ?? null,
       delegatedFromId,
     })
-    .where(eq(workflowTasks.id, task.id))
+    .where(and(eq(workflowTasks.id, task.id), eq(workflowTasks.status, 'pending')))
     .returning();
+  if (!updated) throw new HTTPException(409, { message: '任务状态已变化，无法委派' });
   emitTaskEvent('task.transferred', mapTask(updated, target.nickname),
     { definitionId: inst.definitionId, tenantId: inst.tenantId, actor, comment: delegateComment });
   return mapTask(updated, target.nickname);
@@ -2538,6 +2561,17 @@ export async function addSignTask(
   const addSignComment = `[加签-${posLabel}${modeLabel}] 由 ${actor.name ?? '系统'} 发起${addSignSuffix}`;
 
   const created = await db.transaction(async (tx) => {
+    // 实例行级锁 + 锁内重校验：避免与并发审批（节点已完成/任务被跳过）竞态产生悬挂加签任务
+    const [lockedInst] = await tx.select({ status: workflowInstances.status })
+      .from(workflowInstances).where(eq(workflowInstances.id, inst.id)).for('update').limit(1);
+    if (!lockedInst || lockedInst.status !== 'running') {
+      throw new HTTPException(409, { message: '流程状态已变化，无法加签' });
+    }
+    const [freshTask] = await tx.select({ status: workflowTasks.status })
+      .from(workflowTasks).where(eq(workflowTasks.id, task.id)).limit(1);
+    if (!freshTask || freshTask.status !== 'pending') {
+      throw new HTTPException(409, { message: '任务状态已变化，无法加签' });
+    }
     // before：原任务先转为 waiting，加签任务为 pending；待加签人审批通过后由完成回调推进
     // after / parallel：原任务保持 pending，加签任务以 pending 与之并行（共享 approveMethod 判定完成）
     if (position === 'before') {
@@ -2602,23 +2636,87 @@ export async function reduceSignTask(taskId: number, targetTaskIds: number[], co
   const suffix = comment ? `：${comment}` : '';
   const reduceComment = `[减签] 由 ${actor.name ?? '系统'} 发起${suffix}`;
 
-  const removed = await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
+    // 实例行级锁：序列化与并发审批/驳回，确保减签后的节点完成判定与推进原子一致
+    const [lockedInst] = await tx.select({ status: workflowInstances.status })
+      .from(workflowInstances).where(eq(workflowInstances.id, inst.id)).for('update').limit(1);
+    if (!lockedInst || lockedInst.status !== 'running') {
+      throw new HTTPException(409, { message: '流程状态已变化，无法减签' });
+    }
     const updated = await tx.update(workflowTasks).set({
       status: 'skipped',
       actionAt: new Date(),
       comment: reduceComment,
-    }).where(inArray(workflowTasks.id, targetTaskIds)).returning();
-    // 复核节点完成状态（例如 and 会签减后可能已足）
-    await checkNodeCompletion(tx, inst.id, task.nodeKey, flowData);
-    return updated;
+    }).where(and(
+      inArray(workflowTasks.id, targetTaskIds),
+      eq(workflowTasks.instanceId, inst.id),
+      eq(workflowTasks.nodeKey, task.nodeKey),
+      inArray(workflowTasks.status, ['pending', 'waiting']),
+    )).returning();
+    if (updated.length !== targetTaskIds.length) {
+      throw new HTTPException(409, { message: '部分任务状态已变化，无法减签' });
+    }
+    // 复核节点完成状态（例如 ratio 比例会签减签后阈值已达成，需跳过余下任务并推进流程）
+    const { completed } = await checkNodeCompletion(tx, inst.id, task.nodeKey, flowData);
+    if (!completed || !flowData) {
+      return { removed: updated, advanced: false, finished: false, rejected: false, row: inst, newTasks: [] as typeof workflowTasks.$inferSelect[] };
+    }
+    // 减签触发节点完成：推进流程（checkNodeCompletion 已跳过本节点剩余 pending/waiting 任务）
+    const allApproved = await tx.select().from(workflowTasks)
+      .where(and(eq(workflowTasks.instanceId, inst.id), eq(workflowTasks.status, 'approved')));
+    const completedKeys = new Set(allApproved.map((t) => t.nodeKey));
+    completedKeys.add('start');
+    const formData = (inst.formData ?? {}) as Record<string, unknown>;
+    const starter = await buildStarterContext(inst.initiatorId, tx);
+    const advanceResult = advanceFlow(flowData, task.nodeKey, formData, completedKeys, starter);
+    const materialized = await materializeAdvanceResult(advanceResult, {
+      instanceId: inst.id,
+      initiatorId: inst.initiatorId,
+      executor: tx,
+      flowData,
+      formData,
+      settings: flowData.settings,
+      starter,
+    });
+    if (materialized.rejected) {
+      const [row] = await tx.update(workflowInstances).set({ status: 'rejected', currentNodeKey: null }).where(eq(workflowInstances.id, inst.id)).returning();
+      return { removed: updated, advanced: true, finished: false, rejected: true, row, newTasks: materialized.createdTasks };
+    }
+    if (materialized.finished) {
+      const [row] = await tx.update(workflowInstances).set({ status: 'approved', currentNodeKey: null }).where(eq(workflowInstances.id, inst.id)).returning();
+      return { removed: updated, advanced: true, finished: true, rejected: false, row, newTasks: materialized.createdTasks };
+    }
+    const [row] = await tx.update(workflowInstances)
+      .set({ currentNodeKey: materialized.currentNodeKeys[0] ?? null })
+      .where(eq(workflowInstances.id, inst.id))
+      .returning();
+    return { removed: updated, advanced: true, finished: false, rejected: false, row, newTasks: materialized.createdTasks };
   });
 
+  const { removed, row: instRow } = result;
   const meta = { definitionId: inst.definitionId, tenantId: inst.tenantId, actor };
   for (const t of removed) {
     emitTaskEvent('task.skipped', mapTask(t), meta);
     emitTaskEvent('task.reduceSigned', mapTask(t), { ...meta, comment: reduceComment });
   }
-  return { removed: removed.map((t) => mapTask(t)), message: `已减签 ${removed.length} 人` };
+  if (result.advanced) {
+    emitNodeEvent('node.left', { instanceId: inst.id, ...meta, nodeKey: task.nodeKey, nodeName: task.nodeName, nodeType: task.nodeType });
+    for (const t of result.newTasks) {
+      emitNodeEvent('node.entered', { instanceId: inst.id, ...meta, nodeKey: t.nodeKey, nodeName: t.nodeName, nodeType: t.nodeType });
+      emitTaskEvent('task.created', mapTask(t), meta);
+      if (t.assigneeId && t.status === 'pending') emitTaskEvent('task.assigned', mapTask(t), meta);
+      if (t.nodeType === 'delay' && t.status === 'waiting' && t.wakeAt) delayScheduler.scheduleAt(t.id, t.wakeAt);
+      if (t.nodeType === 'subProcess') {
+        void maybeSpawnSubProcessChild(instRow, t, actor).catch((err) => {
+          logger.error('[subProcess] spawn child failed', { instanceId: inst.id, taskId: t.id, err });
+        });
+      }
+    }
+    if (result.finished) emitInstanceEvent('instance.approved', mapInstance(instRow), actor);
+    if (result.rejected) emitInstanceEvent('instance.rejected', mapInstance(instRow), actor);
+  }
+  const advanceNote = result.finished ? '，流程已完成' : (result.advanced ? '，流程已推进' : '');
+  return { removed: removed.map((t) => mapTask(t)), message: `已减签 ${removed.length} 人${advanceNote}` };
 }
 
 // ─── 催办 ─────────────────────────────────────────────────────────────────────
@@ -3020,6 +3118,11 @@ export async function jumpInstance(id: number, targetNodeKey: string, comment?: 
   const fakeResult: AdvanceResult = { finished: false, rejected: false, tasksToCreate: [taskAction], currentNodeKeys: [targetNode.data.key] };
   const note = `[管理员强制跳转至「${targetNode.data.label}」]${comment ? ' ' + comment : ''}`;
   const { instance, createdTasks } = await db.transaction(async (tx) => {
+    const [locked] = await tx.select({ status: workflowInstances.status })
+      .from(workflowInstances).where(eq(workflowInstances.id, id)).for('update').limit(1);
+    if (!locked || locked.status !== 'running') {
+      throw new HTTPException(409, { message: '流程状态已变化，无法跳转' });
+    }
     await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date(), comment: note })
       .where(and(eq(workflowTasks.instanceId, id), inArray(workflowTasks.status, ['pending', 'waiting'])));
     const materialized = await materializeAdvanceResult(fakeResult, {
@@ -3062,7 +3165,8 @@ export async function reassignTask(taskId: number, targetUserId: number, comment
     delegatedFromId: null,
     transferChain: [...new Set([...chain, task.assigneeId].filter((v): v is number => v != null))],
     comment: note,
-  }).where(eq(workflowTasks.id, taskId)).returning();
+  }).where(and(eq(workflowTasks.id, taskId), inArray(workflowTasks.status, ['pending', 'waiting']))).returning();
+  if (!updated) throw new HTTPException(409, { message: '任务状态已变化，无法改派' });
   const actor = { userId: user.userId, name: user.username };
   emitTaskEvent('task.transferred', mapTask(updated), { definitionId: inst.definitionId, tenantId: inst.tenantId, actor });
   return mapTask(updated);
@@ -3092,7 +3196,22 @@ export async function recallTask(taskId: number, comment?: string) {
   }
 
   const reopened = await db.transaction(async (tx) => {
-    if (laterTasks.length > 0) {
+    // 实例行级锁 + 锁内重校验：防止与并发审批/驳回竞态（撤回时后续任务正被处理）
+    const [lockedInst] = await tx.select({ status: workflowInstances.status })
+      .from(workflowInstances).where(eq(workflowInstances.id, task.instanceId)).for('update').limit(1);
+    if (!lockedInst || lockedInst.status === 'withdrawn' || lockedInst.status === 'cancelled') {
+      throw new HTTPException(400, { message: '流程已结束，无法撤回' });
+    }
+    const [freshTask] = await tx.select().from(workflowTasks).where(eq(workflowTasks.id, task.id)).limit(1);
+    if (!freshTask || (freshTask.status !== 'approved' && freshTask.status !== 'rejected')) {
+      throw new HTTPException(409, { message: '任务状态已变化，无法撤回' });
+    }
+    const laterInTx = await tx.select().from(workflowTasks)
+      .where(and(eq(workflowTasks.instanceId, task.instanceId), gt(workflowTasks.id, task.id)));
+    if (laterInTx.some((t) => t.status === 'approved' || t.status === 'rejected')) {
+      throw new HTTPException(400, { message: '后续节点已被处理，无法撤回' });
+    }
+    if (laterInTx.length > 0) {
       await tx.delete(workflowTasks).where(and(eq(workflowTasks.instanceId, task.instanceId), gt(workflowTasks.id, task.id)));
     }
     const [row] = await tx.update(workflowTasks).set({

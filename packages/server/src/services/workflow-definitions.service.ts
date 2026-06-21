@@ -178,6 +178,8 @@ export async function createDefinition(data: {
   const scopeType = data.initiatorScopeType ?? 'all';
   const scopeIds = scopeType === 'all' ? null : normalizeScopeIds(data.initiatorScopeIds);
   if (data.formId != null) await ensureFormExists(data.formId);
+  // 禁止经 create 直接发布：发布必须走 publishDefinition（含 validateFlowData 校验与版本快照）
+  const initialStatus = (data.status ?? 'draft') === 'published' ? 'draft' : (data.status ?? 'draft');
   const [row] = await db.insert(workflowDefinitions).values({
     name: data.name,
     description: data.description ?? null,
@@ -186,7 +188,7 @@ export async function createDefinition(data: {
     initiatorScopeIds: scopeIds,
     flowData: data.flowData ?? null,
     formId: data.formId ?? null,
-    status: data.status ?? 'draft',
+    status: initialStatus,
     tenantId: getCreateTenantId(user),
   }).returning();
   return getDefinition(row.id);
@@ -202,6 +204,8 @@ export async function updateDefinition(id: number, data: Partial<{
   const updateData: Record<string, unknown> = { ...data };
   if (data.flowData !== undefined) updateData.flowData = data.flowData;
   if (data.formId !== undefined) updateData.formId = data.formId;
+  // 禁止经 update 直接发布：发布必须走 publishDefinition（含校验与版本快照），避免绕过校验上线无效流程
+  if (updateData.status === 'published') updateData.status = 'draft';
   if (data.initiatorScopeType !== undefined) {
     const scopeType = data.initiatorScopeType;
     updateData.initiatorScopeType = scopeType;
@@ -232,17 +236,20 @@ export async function publishDefinition(id: number) {
   const validation = validateFlowData(flowData);
   if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
   const user = currentUser();
-  const newVersion = existing.version + 1;
   const updated = await db.transaction(async (tx) => {
+    // 行级锁 + 锁内重算版本号：避免并发发布同一定义争用 (definitionId, version) 唯一约束
+    const [locked] = await tx.select().from(workflowDefinitions).where(where).for('update').limit(1);
+    if (!locked) throw new HTTPException(404, { message: '流程定义不存在' });
+    const newVersion = locked.version + 1;
     await tx.insert(workflowDefinitionVersions).values({
-      definitionId: existing.id,
+      definitionId: locked.id,
       version: newVersion,
-      name: existing.name,
-      description: existing.description,
-      flowData: existing.flowData,
-      formId: existing.formId,
+      name: locked.name,
+      description: locked.description,
+      flowData: locked.flowData,
+      formId: locked.formId,
       publishedBy: user?.userId ?? null,
-      tenantId: existing.tenantId,
+      tenantId: locked.tenantId,
     });
     const [u] = await tx
       .update(workflowDefinitions)

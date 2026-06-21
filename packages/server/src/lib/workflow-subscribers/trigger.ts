@@ -83,22 +83,29 @@ async function executeDataMutation(
   formData: Record<string, unknown>,
 ): Promise<{ status: 'success' | 'failed'; responseBody: string | null; errorMessage: string | null; durationMs: number; requestBody: string }> {
   const t0 = Date.now();
-  const next: Record<string, unknown> = { ...formData };
   const fieldKeys = cfg.fieldKeys ?? [];
-  if (cfg.triggerType === 'updateData') {
-    const values = cfg.fieldValues ?? {};
-    for (const key of fieldKeys) {
-      const template = values[key];
-      next[key] = template === undefined ? null : renderTemplate(template, formData);
-    }
-  } else if (cfg.triggerType === 'deleteData') {
-    for (const key of fieldKeys) {
-      delete next[key];
-    }
-  }
   const requestBody = JSON.stringify({ fieldKeys, fieldValues: cfg.fieldValues ?? null });
   try {
-    await db.update(workflowInstances).set({ formData: next }).where(eq(workflowInstances.id, instanceId));
+    // 事务 + 行级锁内重读 formData，避免并发触发器（如并行网关多分支）各自基于陈旧快照整体覆盖 jsonb 造成字段丢失
+    const next = await db.transaction(async (tx) => {
+      const [locked] = await tx.select({ formData: workflowInstances.formData })
+        .from(workflowInstances).where(eq(workflowInstances.id, instanceId)).for('update').limit(1);
+      const base = (locked?.formData ?? formData ?? {}) as Record<string, unknown>;
+      const merged: Record<string, unknown> = { ...base };
+      if (cfg.triggerType === 'updateData') {
+        const values = cfg.fieldValues ?? {};
+        for (const key of fieldKeys) {
+          const template = values[key];
+          merged[key] = template === undefined ? null : renderTemplate(template, base);
+        }
+      } else if (cfg.triggerType === 'deleteData') {
+        for (const key of fieldKeys) {
+          delete merged[key];
+        }
+      }
+      await tx.update(workflowInstances).set({ formData: merged }).where(eq(workflowInstances.id, instanceId));
+      return merged;
+    });
     return {
       status: 'success',
       responseBody: JSON.stringify(next).slice(0, 4096),

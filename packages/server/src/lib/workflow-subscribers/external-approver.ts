@@ -6,7 +6,7 @@
  * 外部系统收到后通过 /api/public/workflow/external-callback/:callbackId 回调审批结果。
  */
 import { createHmac } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { workflowInstances, workflowTasks } from '../../db/schema';
 import { workflowEventBus } from '../workflow-event-bus';
@@ -44,7 +44,12 @@ async function applyFallback(
 async function dispatchExternalApproval(taskId: number): Promise<void> {
   const [task] = await db.select().from(workflowTasks).where(eq(workflowTasks.id, taskId)).limit(1);
   if (!task?.externalCallbackId) return;
-  if (task.externalDispatchStatus === 'dispatched') return;
+  // 原子声明：仅 pending→dispatched 的唯一赢家继续派发，防止并发/重复 task.created 事件重复调用外部审批服务
+  const claimed = await db.update(workflowTasks)
+    .set({ externalDispatchStatus: 'dispatched' })
+    .where(and(eq(workflowTasks.id, taskId), eq(workflowTasks.externalDispatchStatus, 'pending')))
+    .returning({ id: workflowTasks.id });
+  if (claimed.length === 0) return;
 
   const [inst] = await db.select().from(workflowInstances).where(eq(workflowInstances.id, task.instanceId)).limit(1);
   if (!inst) return;
