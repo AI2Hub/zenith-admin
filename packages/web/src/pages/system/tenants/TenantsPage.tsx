@@ -49,6 +49,7 @@ export default function TenantsPage() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [modalDetailLoading, setModalDetailLoading] = useState(false);
+  const [packageOptions, setPackageOptions] = useState<{ value: number; label: string }[]>([]);
 
   const fetchData = useCallback(async (p = page, ps = pageSize, params?: SearchParams) => {
     const activeParams = params ?? searchParamsRef.current;
@@ -72,6 +73,15 @@ export default function TenantsPage() {
 
   useEffect(() => { void fetchData(); }, [fetchData]);
 
+  useEffect(() => {
+    void (async () => {
+      const res = await request.get<{ id: number; name: string; status: string }[]>('/api/tenant-packages/all');
+      if (res.code === 0) {
+        setPackageOptions(res.data.map((p) => ({ value: p.id, label: p.name })));
+      }
+    })();
+  }, []);
+
   function handleSearch() {
     setPage(1);
     void fetchData(1, pageSize);
@@ -93,6 +103,7 @@ export default function TenantsPage() {
     const payload = {
       ...values,
       expireAt: values.expireAt ? formatDateTimeForApi(values.expireAt) : null,
+      packageId: values.packageId ?? null,
     };
     const res = editingTenant
       ? await request.put(`/api/tenants/${editingTenant.id}`, payload)
@@ -151,6 +162,7 @@ export default function TenantsPage() {
     { title: '联系人', dataIndex: 'contactName', width: 120, render: renderEllipsis },
     { title: '联系电话', dataIndex: 'contactPhone', width: 140, render: renderEllipsis },
     { title: '最大用户数', dataIndex: 'maxUsers', width: 120, align: 'center', render: (v) => v ?? '不限' },
+    { title: '套餐', dataIndex: 'packageName', width: 140, render: (v) => renderEllipsis(v || '未分配') },
     {
       title: '到期时间',
       dataIndex: 'expireAt',
@@ -349,6 +361,17 @@ export default function TenantsPage() {
           <Row gutter={16}>
             <Col span={12}>
               <Form.DatePicker field="expireAt" label="到期时间" type="dateTime" placeholder="不填则永不过期" style={{ width: '100%' }} />
+            </Col>
+            <Col span={12}>
+              <Form.Select
+                field="packageId"
+                label="租户套餐"
+                style={{ width: '100%' }}
+                placeholder="不绑定则不限制功能"
+                optionList={packageOptions}
+                showClear
+                filter
+              />
             </Col>
           </Row>
           <Row gutter={16}>

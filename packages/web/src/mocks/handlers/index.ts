@@ -24,6 +24,7 @@ import { dbBackupsHandlers } from './db-backups';
 import { dbAdminHandlers } from './db-admin';
 import { apiTokensHandlers } from './api-tokens';
 import { tenantsHandlers } from './tenants';
+import { tenantPackagesHandlers } from './tenant-packages';
 import { cacheHandlers } from './cache';
 import { workflowHandlers } from './workflow';
 import { workflowExtraHandlers } from './workflow-extra';
@@ -91,6 +92,7 @@ export const handlers = [
   ...dbAdminHandlers,
   ...apiTokensHandlers,
   ...tenantsHandlers,
+  ...tenantPackagesHandlers,
   ...cacheHandlers,
   ...workflowExtraHandlers,
   ...workflowCategoriesHandlers,

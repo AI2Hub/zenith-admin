@@ -41,6 +41,7 @@ const createTenantSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   expireAt: dateTimeStringSchema.optional().nullable(),
   maxUsers: z.number().int().positive().optional().nullable(),
+  packageId: z.number().int().positive().optional().nullable(),
   remark: z.string().max(500).optional(),
 });
 const updateTenantSchema = createTenantSchema.partial();

@@ -29,6 +29,8 @@ export const tenants = pgTable('tenants', {
   status: statusEnum('status').notNull().default('enabled'),
   expireAt: timestamp('expire_at', { withTimezone: true }),
   maxUsers: integer('max_users'),
+  /** 租户套餐（菜单白名单）；为空表示不限制 */
+  packageId: integer('package_id').references((): AnyPgColumn => tenantPackages.id, { onDelete: 'set null' }),
   remark: text('remark'),
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -37,6 +39,27 @@ export const tenants = pgTable('tenants', {
 
 export type TenantRow = typeof tenants.$inferSelect;
 export type NewTenant = typeof tenants.$inferInsert;
+
+// ─── 租户套餐表 ───────────────────────────────────────────────────────────────
+// 套餐 = 一组菜单白名单。租户绑定套餐即圈定其可用功能范围（SaaS 标配）。
+export const tenantPackages = pgTable('tenant_packages', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull().unique(),
+  status: statusEnum('status').notNull().default('enabled'),
+  remark: text('remark'),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+
+export type TenantPackageRow = typeof tenantPackages.$inferSelect;
+export type NewTenantPackage = typeof tenantPackages.$inferInsert;
+
+// ─── 租户套餐-菜单关联表 ──────────────────────────────────────────────────────
+export const tenantPackageMenus = pgTable('tenant_package_menus', {
+  packageId: integer('package_id').notNull().references(() => tenantPackages.id, { onDelete: 'cascade' }),
+  menuId: integer('menu_id').notNull().references((): AnyPgColumn => menus.id, { onDelete: 'cascade' }),
+}, (t) => [primaryKey({ columns: [t.packageId, t.menuId] })]);
 
 // ─── 部门表 ───────────────────────────────────────────────────────────────────
 export const departments = pgTable('departments', {
@@ -2051,7 +2074,8 @@ export const paymentWebhookDeliveriesRelations = relations(paymentWebhookDeliver
 // ─── 关系声明（Drizzle Relational Query API）──────────────────────────────────
 // 声明后可使用 db.query.xxx.findMany({ with: { ... } }) 进行关联查询
 
-export const tenantsRelations = relations(tenants, ({ many }) => ({
+export const tenantsRelations = relations(tenants, ({ one, many }) => ({
+  package: one(tenantPackages, { fields: [tenants.packageId], references: [tenantPackages.id] }),
   departments: many(departments),
   positions: many(positions),
   users: many(users),
@@ -2063,6 +2087,16 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   systemConfigs: many(systemConfigs),
   workflowDefinitions: many(workflowDefinitions),
   workflowInstances: many(workflowInstances),
+}));
+
+export const tenantPackagesRelations = relations(tenantPackages, ({ many }) => ({
+  packageMenus: many(tenantPackageMenus),
+  tenants: many(tenants),
+}));
+
+export const tenantPackageMenusRelations = relations(tenantPackageMenus, ({ one }) => ({
+  package: one(tenantPackages, { fields: [tenantPackageMenus.packageId], references: [tenantPackages.id] }),
+  menu: one(menus, { fields: [tenantPackageMenus.menuId], references: [menus.id] }),
 }));
 
 export const departmentsRelations = relations(departments, ({ one, many }) => ({
@@ -2114,6 +2148,7 @@ export const rolesRelations = relations(roles, ({ one, many }) => ({
 export const menusRelations = relations(menus, ({ many }) => ({
   roleMenus: many(roleMenus),
   userMenus: many(userMenus),
+  tenantPackageMenus: many(tenantPackageMenus),
 }));
 
 export const userRolesRelations = relations(userRoles, ({ one }) => ({

@@ -13,7 +13,24 @@ export interface Tenant {
   status: EntityStatus;
   expireAt?: string | null;
   maxUsers?: number | null;
+  packageId?: number | null;
+  packageName?: string | null;
   remark?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantPackage {
+  id: number;
+  name: string;
+  status: EntityStatus;
+  remark?: string | null;
+  /** 关联的菜单 ID（详情接口返回）*/
+  menuIds?: number[];
+  /** 已关联菜单数量（列表接口返回）*/
+  menuCount?: number;
+  createdBy?: number | null;
+  updatedBy?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -3173,6 +3190,24 @@ export interface PaymentLedgerEntry {
   bizType?: string | null;
   remark?: string | null;
   createdAt: string;
+}
+
+export interface PaymentLedgerSummary {
+  inAmount: number;
+  outAmount: number;
+  netAmount: number;
+  count: number;
+}
+
+export interface PaymentOutboxEvent {
+  id: number;
+  type: string;
+  orderNo: string;
+  status: 'pending' | 'done' | 'failed';
+  attempts: number;
+  lastError?: string | null;
+  createdAt: string;
+  processedAt?: string | null;
 }
 
 export interface PaymentNotifyLog {

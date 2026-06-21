@@ -6,7 +6,15 @@ export const PG_ERROR_CODES = {
 } as const;
 
 export function getPgErrorCode(error: unknown): string | undefined {
-  return (error as { code?: unknown } | null)?.code as string | undefined;
+  // Drizzle 将底层 pg 错误包装为 DrizzleQueryError，真实错误码位于 cause 链上，
+  // 故沿 cause 链向下查找第一个字符串型 code。
+  let current: unknown = error;
+  for (let depth = 0; current != null && depth < 5; depth++) {
+    const code = (current as { code?: unknown }).code;
+    if (typeof code === 'string') return code;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return undefined;
 }
 
 export function isPgError(error: unknown, code: string): boolean {

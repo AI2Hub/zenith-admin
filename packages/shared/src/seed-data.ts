@@ -8,7 +8,7 @@
  * 修改数据时只需改这一处，两端自动同步。
  */
 
-import type { Menu, Role, Department, Position, Dict, DictItem, SystemConfig, CronJob, WorkflowForm, WorkflowCategory, Tag, DataMaskConfig, MemberLevel, Coupon, EmailTemplate, SmsTemplate, InAppTemplate, Tenant, AiPromptTemplate } from './types';
+import type { Menu, Role, Department, Position, Dict, DictItem, SystemConfig, CronJob, WorkflowForm, WorkflowCategory, Tag, DataMaskConfig, MemberLevel, Coupon, EmailTemplate, SmsTemplate, InAppTemplate, Tenant, TenantPackage, AiPromptTemplate } from './types';
 
 const SEED_DATE = '2024-01-01 00:00:00';
 
@@ -53,6 +53,11 @@ export const SEED_MENUS: Menu[] = [
   { id: 211, parentId: 210, title: '新增租户',   name: undefined,             path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'system:tenant:create',         createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 212, parentId: 210, title: '编辑租户',   name: undefined,             path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 2,  status: 'enabled', visible: true,  permission: 'system:tenant:update',         createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 213, parentId: 210, title: '删除租户',   name: undefined,             path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 3,  status: 'enabled', visible: true,  permission: 'system:tenant:delete',         createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 890, parentId: 2,   title: '租户套餐',   name: 'SystemTenantPackages', path: '/system/tenant-packages',    component: 'system/tenant-packages/TenantPackagesPage',      icon: 'Package',           type: 'menu',      sort: 7,  status: 'enabled', visible: true,  permission: 'system:tenant-package:list',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 891, parentId: 890, title: '新增套餐',   name: undefined,             path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'system:tenant-package:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 892, parentId: 890, title: '编辑套餐',   name: undefined,             path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 2,  status: 'enabled', visible: true,  permission: 'system:tenant-package:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 893, parentId: 890, title: '删除套餐',   name: undefined,             path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 3,  status: 'enabled', visible: true,  permission: 'system:tenant-package:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 894, parentId: 890, title: '分配菜单',   name: undefined,             path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 4,  status: 'enabled', visible: true,  permission: 'system:tenant-package:assign', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 100, parentId: 2, title: '地区管理',  name: 'SystemRegions',       path: '/system/regions',            component: 'system/regions/RegionsPage',                     icon: 'MapPin',            type: 'menu',      sort: 8,  status: 'enabled', visible: true,  permission: 'system:region:list',           createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 101, parentId: 100, title: '新增地区', name: undefined,            path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'system:region:create',         createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 102, parentId: 100, title: '编辑地区', name: undefined,            path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 2,  status: 'enabled', visible: true,  permission: 'system:region:update',         createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -265,6 +270,16 @@ export const SEED_MENUS: Menu[] = [
   { id: 713, parentId: 710, title: '发起退款', name: undefined,         path: undefined,            component: undefined,                     icon: undefined,    type: 'button',    sort: 3,  status: 'enabled', visible: true,  permission: 'payment:order:refund',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 720, parentId: 700, title: '退款记录', name: 'PaymentRefunds',  path: '/payment/refunds',   component: 'payment/PaymentRefundsPage',  icon: 'Undo2',      type: 'menu',      sort: 3,  status: 'enabled', visible: true,  permission: 'payment:refund:list',    createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 730, parentId: 700, title: '回调日志', name: 'PaymentLogs',     path: '/payment/logs',      component: 'payment/PaymentLogsPage',     icon: 'FileClock',  type: 'menu',      sort: 4,  status: 'enabled', visible: true,  permission: 'payment:log:list',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 740, parentId: 700, title: '对账中心', name: 'PaymentRecon',    path: '/payment/recon',     component: 'payment/PaymentReconPage',    icon: 'FileCheck',  type: 'menu',      sort: 5,  status: 'enabled', visible: true,  permission: 'payment:recon:list',     createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 741, parentId: 740, title: '新建对账', name: undefined,         path: undefined,            component: undefined,                     icon: undefined,    type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'payment:recon:create',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 742, parentId: 740, title: '删除对账', name: undefined,         path: undefined,            component: undefined,                     icon: undefined,    type: 'button',    sort: 2,  status: 'enabled', visible: true,  permission: 'payment:recon:delete',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 745, parentId: 700, title: '资金台账', name: 'PaymentLedger',   path: '/payment/ledger',    component: 'payment/PaymentLedgerPage',   icon: 'BookOpen',   type: 'menu',      sort: 6,  status: 'enabled', visible: true,  permission: 'payment:ledger:list',    createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 750, parentId: 700, title: 'Webhook',  name: 'PaymentWebhooks', path: '/payment/webhooks',  component: 'payment/PaymentWebhooksPage', icon: 'Webhook',    type: 'menu',      sort: 7,  status: 'enabled', visible: true,  permission: 'payment:webhook:list',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 751, parentId: 750, title: '新建端点', name: undefined,         path: undefined,            component: undefined,                     icon: undefined,    type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'payment:webhook:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 752, parentId: 750, title: '编辑端点', name: undefined,         path: undefined,            component: undefined,                     icon: undefined,    type: 'button',    sort: 2,  status: 'enabled', visible: true,  permission: 'payment:webhook:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 753, parentId: 750, title: '删除端点', name: undefined,         path: undefined,            component: undefined,                     icon: undefined,    type: 'button',    sort: 3,  status: 'enabled', visible: true,  permission: 'payment:webhook:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 760, parentId: 700, title: '支付事件', name: 'PaymentEvents',   path: '/payment/events',    component: 'payment/PaymentEventsPage',   icon: 'Activity',   type: 'menu',      sort: 8,  status: 'enabled', visible: true,  permission: 'payment:ops:manage',     createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 770, parentId: 720, title: '退款审批', name: undefined,         path: undefined,            component: undefined,                     icon: undefined,    type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'payment:refund:approve', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 
   // ── 会员中心 ─────────────────────────────────────────────────────────────────
   { id: 800, parentId: 0,   title: '会员中心', name: 'MemberCenter',   path: undefined,                 component: undefined,                    icon: 'Crown',       type: 'directory', sort: 10, status: 'enabled', visible: true,  createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -1090,8 +1105,15 @@ export const SEED_INAPP_TEMPLATES: InAppTemplate[] = [
 // ─── 租户示例 ───────────────────────────────────────────────────────────────────
 
 export const SEED_TENANTS: Tenant[] = [
-  { id: 1, name: '示例租户A', code: 'tenant_a', logo: null, contactName: '张三', contactPhone: '13800001111', status: 'enabled', expireAt: null, maxUsers: 50,   remark: '演示用租户A', createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 2, name: '示例租户B', code: 'tenant_b', logo: null, contactName: '李四', contactPhone: '13800002222', status: 'enabled', expireAt: null, maxUsers: null, remark: '演示用租户B', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1, name: '示例租户A', code: 'tenant_a', logo: null, contactName: '张三', contactPhone: '13800001111', status: 'enabled', expireAt: null, maxUsers: 50,   packageId: 2, remark: '演示用租户A', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2, name: '示例租户B', code: 'tenant_b', logo: null, contactName: '李四', contactPhone: '13800002222', status: 'enabled', expireAt: null, maxUsers: null, packageId: 1, remark: '演示用租户B', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+];
+
+// ─── 租户套餐 ─────────────────────────────────────────────────────────────────
+// 套餐 = 一组菜单白名单，租户绑定套餐圈定其可用功能范围。menuIds 引用 SEED_MENUS 中的菜单 ID。
+export const SEED_TENANT_PACKAGES: TenantPackage[] = [
+  { id: 1, name: '基础版', status: 'enabled', remark: '基础功能套餐：仪表盘 + 用户/角色/字典', menuIds: [1, 2, 3, 5, 6], createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2, name: '标准版', status: 'enabled', remark: '标准功能套餐：含部门/岗位/菜单管理', menuIds: [1, 2, 3, 4, 5, 6, 36, 40], createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── 工作流分类 ─────────────────────────────────────────────────────────────────

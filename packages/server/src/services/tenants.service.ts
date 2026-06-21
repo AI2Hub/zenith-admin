@@ -1,14 +1,16 @@
 import { eq, like, and, ne, desc } from 'drizzle-orm';
-import { escapeLike, withPagination } from '../lib/where-helpers';
+import { escapeLike } from '../lib/where-helpers';
+import { pageOffset } from '../lib/pagination';
 import { db } from '../db';
 import { tenants } from '../db/schema';
 import { streamToExcel, streamToCsv, formatDateTimeForExcel } from '../lib/excel-export';
 import { HTTPException } from 'hono/http-exception';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../lib/datetime';
 
-export function mapTenant(row: typeof tenants.$inferSelect) {
+export function mapTenant(row: typeof tenants.$inferSelect, packageName: string | null = null) {
   return {
     ...row,
+    packageName,
     expireAt: formatNullableDateTime(row.expireAt),
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
@@ -30,9 +32,20 @@ export async function listTenants(q: ListTenantsQuery) {
   const where = and(...conditions);
   const [total, rows] = await Promise.all([
     db.$count(tenants, where),
-    withPagination(db.select().from(tenants).where(where).orderBy(desc(tenants.id)).$dynamic(), page, pageSize),
+    db.query.tenants.findMany({
+      where,
+      orderBy: desc(tenants.id),
+      limit: pageSize,
+      offset: pageOffset(page, pageSize),
+      with: { package: { columns: { name: true } } },
+    }),
   ]);
-  return { list: rows.map(mapTenant), total, page, pageSize };
+  return {
+    list: rows.map(({ package: pkg, ...row }) => mapTenant(row, pkg?.name ?? null)),
+    total,
+    page,
+    pageSize,
+  };
 }
 
 export async function listAllTenants() {
@@ -40,9 +53,13 @@ export async function listAllTenants() {
 }
 
 export async function getTenant(id: number) {
-  const [row] = await db.select().from(tenants).where(eq(tenants.id, id)).limit(1);
+  const row = await db.query.tenants.findFirst({
+    where: eq(tenants.id, id),
+    with: { package: { columns: { name: true } } },
+  });
   if (!row) throw new HTTPException(404, { message: '租户不存在' });
-  return mapTenant(row);
+  const { package: pkg, ...rest } = row;
+  return mapTenant(rest, pkg?.name ?? null);
 }
 
 interface TenantInput {
@@ -54,6 +71,7 @@ interface TenantInput {
   status: 'enabled' | 'disabled';
   expireAt?: string | null;
   maxUsers?: number | null;
+  packageId?: number | null;
   remark?: string;
 }
 
@@ -61,7 +79,7 @@ export async function createTenant(data: TenantInput) {
   const [existing] = await db.select().from(tenants).where(eq(tenants.code, data.code)).limit(1);
   if (existing) throw new HTTPException(400, { message: '租户编码已存在' });
   const [row] = await db.insert(tenants).values({ ...data, expireAt: parseDateTimeInput(data.expireAt) }).returning();
-  return mapTenant(row);
+  return getTenant(row.id);
 }
 
 export async function updateTenant(id: number, data: Partial<TenantInput>) {
@@ -76,7 +94,7 @@ export async function updateTenant(id: number, data: Partial<TenantInput>) {
   };
   const [row] = await db.update(tenants).set(values).where(eq(tenants.id, id)).returning();
   if (!row) throw new HTTPException(404, { message: '租户不存在' });
-  return mapTenant(row);
+  return getTenant(id);
 }
 
 export async function deleteTenant(id: number) {

@@ -438,6 +438,7 @@ export const createTenantSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   expireAt: dateTimeStringSchema.optional().nullable(),
   maxUsers: z.number().int().positive().optional().nullable(),
+  packageId: z.number().int().positive().optional().nullable(),
   remark: z.string().max(500).optional(),
 });
 
@@ -450,6 +451,23 @@ export const switchTenantSchema = z.object({
 export type CreateTenantInput = z.infer<typeof createTenantSchema>;
 export type UpdateTenantInput = z.infer<typeof updateTenantSchema>;
 export type SwitchTenantInput = z.infer<typeof switchTenantSchema>;
+
+// ─── 租户套餐 ────────────────────────────────────────────────────────────────
+export const createTenantPackageSchema = z.object({
+  name: z.string().min(1, '套餐名称不能为空').max(100),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  remark: z.string().max(500).optional(),
+});
+
+export const updateTenantPackageSchema = createTenantPackageSchema.partial();
+
+export const assignTenantPackageMenusSchema = z.object({
+  menuIds: z.array(z.number().int()).default([]),
+});
+
+export type CreateTenantPackageInput = z.infer<typeof createTenantPackageSchema>;
+export type UpdateTenantPackageInput = z.infer<typeof updateTenantPackageSchema>;
+export type AssignTenantPackageMenusInput = z.infer<typeof assignTenantPackageMenusSchema>;
 export type UpdateOauthConfigInput = z.infer<typeof updateOauthConfigSchema>;
 
 // ─── 通知模块（邮件 / 短信 / 站内信）─────────────────────────────────────────

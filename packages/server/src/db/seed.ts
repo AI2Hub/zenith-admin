@@ -1,12 +1,12 @@
 import { db } from './index';
-import { users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, systemConfigs, cronJobs, regions, tenants, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskConfigs, memberLevels, members, memberPointAccounts, memberPointTransactions, memberWallets, coupons, memberCoupons, checkinRules, workflowForms, workflowTemplates, aiPromptTemplates } from './schema';
+import { users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, systemConfigs, cronJobs, regions, tenants, tenantPackages, tenantPackageMenus, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskConfigs, memberLevels, members, memberPointAccounts, memberPointTransactions, memberWallets, coupons, memberCoupons, checkinRules, workflowForms, workflowTemplates, aiPromptTemplates } from './schema';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
 import { and, eq, isNull, inArray, sql } from 'drizzle-orm';
 import { createRequire } from 'node:module';
 import logger from '../lib/logger';
 import { runAsUser } from '../lib/audit-context';
-import { SEED_MENUS, SEED_ROLES, SEED_DEPARTMENTS, SEED_POSITIONS, SEED_DICTS, SEED_DICT_ITEMS, SEED_SYSTEM_CONFIGS, SEED_CRON_JOBS, SEED_TAGS, SEED_DATA_MASK_CONFIGS, SEED_MEMBER_LEVELS, SEED_COUPONS, SEED_EMAIL_TEMPLATES, SEED_SMS_TEMPLATES, SEED_INAPP_TEMPLATES, SEED_TENANTS, SEED_WORKFLOW_FORMS, SEED_WORKFLOW_TEMPLATES, SEED_AI_PROMPT_TEMPLATES } from '@zenith/shared';
+import { SEED_MENUS, SEED_ROLES, SEED_DEPARTMENTS, SEED_POSITIONS, SEED_DICTS, SEED_DICT_ITEMS, SEED_SYSTEM_CONFIGS, SEED_CRON_JOBS, SEED_TAGS, SEED_DATA_MASK_CONFIGS, SEED_MEMBER_LEVELS, SEED_COUPONS, SEED_EMAIL_TEMPLATES, SEED_SMS_TEMPLATES, SEED_INAPP_TEMPLATES, SEED_TENANTS, SEED_TENANT_PACKAGES, SEED_WORKFLOW_FORMS, SEED_WORKFLOW_TEMPLATES, SEED_AI_PROMPT_TEMPLATES } from '@zenith/shared';
 
 const require = createRequire(import.meta.url);
 
@@ -286,9 +286,20 @@ async function seedRest() {
   }
   logger.info(`  ✔ Regions seeded (onConflictDoNothing) — ${inserted} records`);
 
+  // ─── 租户套餐示例数据（数据来源：@zenith/shared SEED_TENANT_PACKAGES）─────────────────────────
+  await db.insert(tenantPackages).values(
+    SEED_TENANT_PACKAGES.map(({ id, name, status, remark }) => ({ id, name, status, remark })),
+  ).onConflictDoNothing({ target: tenantPackages.id });
+  await db.execute(sql`SELECT setval('tenant_packages_id_seq', GREATEST((SELECT MAX(id) FROM tenant_packages), 1))`);
+  const pkgMenuRows = SEED_TENANT_PACKAGES.flatMap((p) => (p.menuIds ?? []).map((menuId) => ({ packageId: p.id, menuId })));
+  if (pkgMenuRows.length > 0) {
+    await db.insert(tenantPackageMenus).values(pkgMenuRows).onConflictDoNothing();
+  }
+  logger.info('  ✔ Tenant packages seeded (onConflictDoNothing)');
+
   // ─── 租户示例数据（数据来源：@zenith/shared SEED_TENANTS）───────────────────────────────────
   await db.insert(tenants).values(
-    SEED_TENANTS.map(({ name, code, contactName, contactPhone, status, maxUsers, remark }) => ({ name, code, contactName, contactPhone, status, maxUsers, remark })),
+    SEED_TENANTS.map(({ name, code, contactName, contactPhone, status, maxUsers, packageId, remark }) => ({ name, code, contactName, contactPhone, status, maxUsers, packageId, remark })),
   ).onConflictDoNothing({ target: tenants.code });
   logger.info('  ✔ Tenants seeded (onConflictDoNothing)');
 

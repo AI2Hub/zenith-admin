@@ -1,7 +1,15 @@
 import { http, HttpResponse } from 'msw';
 import { mockTenants, getNextTenantId } from '@/mocks/data/tenants';
+import { mockTenantPackages } from '@/mocks/data/tenant-packages';
 import { mockDateTime } from '@/mocks/utils/date';
 import type { Tenant } from '@zenith/shared';
+
+function withPackageName(t: Tenant): Tenant {
+  return {
+    ...t,
+    packageName: t.packageId ? (mockTenantPackages.find((p) => p.id === t.packageId)?.name ?? null) : null,
+  };
+}
 
 export const tenantsHandlers = [
   // 租户列表（分页）
@@ -20,7 +28,7 @@ export const tenantsHandlers = [
 
     const total = filtered.length;
     const start = (page - 1) * pageSize;
-    const list = filtered.slice(start, start + pageSize);
+    const list = filtered.slice(start, start + pageSize).map(withPackageName);
 
     return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
   }),
@@ -29,7 +37,7 @@ export const tenantsHandlers = [
   http.get('/api/tenants/:id', ({ params }) => {
     const tenant = mockTenants.find((t) => t.id === Number(params.id));
     if (!tenant) return HttpResponse.json({ code: 404, message: '租户不存在', data: null });
-    return HttpResponse.json({ code: 0, message: 'ok', data: tenant });
+    return HttpResponse.json({ code: 0, message: 'ok', data: withPackageName(tenant) });
   }),
 
   // 新增租户
@@ -45,12 +53,13 @@ export const tenantsHandlers = [
       status: body.status ?? 'enabled',
       expireAt: body.expireAt ?? null,
       maxUsers: body.maxUsers ?? null,
+      packageId: body.packageId ?? null,
       remark: body.remark ?? null,
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
     };
     mockTenants.push(newTenant);
-    return HttpResponse.json({ code: 0, message: '新增成功', data: newTenant });
+    return HttpResponse.json({ code: 0, message: '新增成功', data: withPackageName(newTenant) });
   }),
 
   // 更新租户
@@ -59,7 +68,7 @@ export const tenantsHandlers = [
     if (!tenant) return HttpResponse.json({ code: 404, message: '租户不存在', data: null });
     const body = await request.json() as Partial<Tenant>;
     Object.assign(tenant, body, { updatedAt: mockDateTime() });
-    return HttpResponse.json({ code: 0, message: '更新成功', data: tenant });
+    return HttpResponse.json({ code: 0, message: '更新成功', data: withPackageName(tenant) });
   }),
 
   // 删除租户
