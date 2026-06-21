@@ -1530,6 +1530,82 @@ export type UpdatePaymentChannelConfigInput = z.infer<typeof updatePaymentChanne
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 export type CreateRefundInput = z.infer<typeof createRefundSchema>;
 
+// ─── 支付中心扩展 · B 档（费率 / 分账 / 支付链接 / 风控 / 支付方式）──────────────
+const paymentChannelZ = z.enum(['wechat', 'alipay']);
+const paymentMethodZ = z.enum(['wechat_native', 'wechat_jsapi', 'wechat_h5', 'alipay_page', 'alipay_wap', 'alipay_app']);
+
+/** 手续费/费率规则 */
+export const createPaymentFeeRuleSchema = z.object({
+  name: z.string().min(1).max(64),
+  channel: paymentChannelZ,
+  payMethod: paymentMethodZ.optional(),
+  rateBps: z.number().int().min(0).max(100000).default(0), // 万分比
+  fixedFee: z.number().int().min(0).default(0), // 分
+  minFee: z.number().int().min(0).optional(),
+  maxFee: z.number().int().min(0).optional(),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  priority: z.number().int().min(0).max(9999).default(0),
+  remark: z.string().max(256).optional(),
+});
+export const updatePaymentFeeRuleSchema = createPaymentFeeRuleSchema.partial();
+
+/** 分账接收方 */
+export const createPaymentSharingReceiverSchema = z.object({
+  name: z.string().min(1).max(64),
+  receiverType: z.enum(['merchant', 'personal']).default('merchant'),
+  account: z.string().min(1).max(128),
+  ratioBps: z.number().int().min(0).max(10000).optional(), // 万分比
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  remark: z.string().max(256).optional(),
+});
+export const updatePaymentSharingReceiverSchema = createPaymentSharingReceiverSchema.partial();
+
+/** 支付链接 */
+export const createPaymentLinkSchema = z.object({
+  subject: z.string().min(1).max(256),
+  amount: z.number().int().positive().optional(), // 分，留空=用户填写
+  payMethod: paymentMethodZ.optional(),
+  bizType: z.string().min(1).max(64),
+  maxUses: z.number().int().positive().optional(),
+  expiredAt: z.string().max(32).optional(),
+  status: z.enum(['active', 'disabled']).default('active'),
+  remark: z.string().max(256).optional(),
+});
+export const updatePaymentLinkSchema = createPaymentLinkSchema.partial();
+
+/** 风控限额规则 */
+export const createPaymentRiskRuleSchema = z.object({
+  name: z.string().min(1).max(64),
+  scope: z.enum(['global', 'channel', 'bizType']).default('global'),
+  channel: paymentChannelZ.optional(),
+  bizType: z.string().max(64).optional(),
+  singleLimit: z.number().int().min(0).optional(), // 分
+  dailyLimit: z.number().int().min(0).optional(), // 分
+  dailyCountLimit: z.number().int().min(0).optional(),
+  blocklist: z.array(z.string().max(128)).default([]),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  remark: z.string().max(256).optional(),
+});
+export const updatePaymentRiskRuleSchema = createPaymentRiskRuleSchema.partial();
+
+/** 支付方式配置（仅更新展示/启停/排序） */
+export const updatePaymentMethodConfigSchema = z.object({
+  label: z.string().min(1).max(64).optional(),
+  icon: z.string().max(128).optional(),
+  enabled: z.boolean().optional(),
+  sort: z.number().int().min(0).max(9999).optional(),
+});
+
+export type CreatePaymentFeeRuleInput = z.infer<typeof createPaymentFeeRuleSchema>;
+export type UpdatePaymentFeeRuleInput = z.infer<typeof updatePaymentFeeRuleSchema>;
+export type CreatePaymentSharingReceiverInput = z.infer<typeof createPaymentSharingReceiverSchema>;
+export type UpdatePaymentSharingReceiverInput = z.infer<typeof updatePaymentSharingReceiverSchema>;
+export type CreatePaymentLinkInput = z.infer<typeof createPaymentLinkSchema>;
+export type UpdatePaymentLinkInput = z.infer<typeof updatePaymentLinkSchema>;
+export type CreatePaymentRiskRuleInput = z.infer<typeof createPaymentRiskRuleSchema>;
+export type UpdatePaymentRiskRuleInput = z.infer<typeof updatePaymentRiskRuleSchema>;
+export type UpdatePaymentMethodConfigInput = z.infer<typeof updatePaymentMethodConfigSchema>;
+
 // ─── 会员中心（Member Center）────────────────────────────────────────
 const memberPhoneSchema = z.string().regex(/^1[3-9]\d{9}$/, '请输入正确的手机号码');
 

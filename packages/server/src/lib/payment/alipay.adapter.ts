@@ -15,6 +15,8 @@ import type {
   NotifyResult,
   PaymentChannelAdapter,
   PaymentQueryResult,
+  ProfitShareReceiver,
+  ProfitShareResult,
   RefundQueryResult,
   RefundResult,
 } from './types';
@@ -287,5 +289,12 @@ export const alipayAdapter: PaymentChannelAdapter = {
       if (msg.includes('TRADE_NOT_EXIST') || msg.includes('交易不存在')) return;
       throw err; // 签名错误 / 权限未授权 / 其他鉴权失败
     }
+  },
+
+  async profitShare(_ctx: AdapterContext, order, receiver: ProfitShareReceiver): Promise<ProfitShareResult> {
+    // 模拟实现：支付宝「分账请求」(alipay.trade.order.settle) 需签约分账协议，此处生成渠道分账单号即时返回成功。
+    logger.info('[alipay] simulate profit share', { orderNo: order.orderNo, account: receiver.account, amount: receiver.amount });
+    await Promise.resolve();
+    return { channelSharingNo: `ALISHARE${Date.now()}${Math.floor(Math.random() * 1e6)}`, status: 'success' };
   },
 };

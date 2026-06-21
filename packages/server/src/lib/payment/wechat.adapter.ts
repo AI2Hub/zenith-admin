@@ -17,6 +17,8 @@ import type {
   NotifyResult,
   PaymentChannelAdapter,
   PaymentQueryResult,
+  ProfitShareReceiver,
+  ProfitShareResult,
   RefundQueryResult,
   RefundResult,
 } from './types';
@@ -288,5 +290,12 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
       if (msg.includes('ORDER_NOT_EXIST') || msg.includes('RESOURCE_NOT_EXISTS')) return;
       throw err; // 签名错误 / 商户号不存在 / 其他鉴权失败
     }
+  },
+
+  async profitShare(_ctx: AdapterContext, order, receiver: ProfitShareReceiver): Promise<ProfitShareResult> {
+    // 模拟实现：微信「请求分账」需商户开通分账权限并添加分账接收方，此处生成渠道分账单号即时返回成功。
+    logger.info('[wechat-pay] simulate profit share', { orderNo: order.orderNo, account: receiver.account, amount: receiver.amount });
+    await Promise.resolve();
+    return { channelSharingNo: `WXSHARE${Date.now()}${randomBytes(3).toString('hex')}`, status: 'success' };
   },
 };

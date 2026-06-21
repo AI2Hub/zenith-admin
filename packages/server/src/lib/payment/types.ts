@@ -45,6 +45,25 @@ export interface RefundQueryResult {
   raw?: unknown;
 }
 
+/** 分账接收方（单笔分账目标） */
+export interface ProfitShareReceiver {
+  /** 接收方账号（商户号 / 个人 openid 等） */
+  account: string;
+  /** 分账金额（分） */
+  amount: number;
+  /** 接收方名称（备注用） */
+  name?: string;
+  /** 接收方类型 */
+  receiverType?: 'merchant' | 'personal';
+}
+
+export interface ProfitShareResult {
+  /** 渠道分账单号 */
+  channelSharingNo?: string;
+  status: 'processing' | 'success' | 'failed';
+  raw?: unknown;
+}
+
 /** 回调验签 + 解析后的标准化结果 */
 export interface NotifyResult {
   /** 验签是否通过 */
@@ -83,6 +102,12 @@ export interface PaymentChannelAdapter {
   queryRefund(ctx: AdapterContext, refund: PaymentRefundRow, order: PaymentOrderRow): Promise<RefundQueryResult>;
   /** 验签 + 解析异步回调 */
   verifyNotify(ctx: AdapterContext, rawBody: string, headers: Headers): Promise<NotifyResult>;
+  /**
+   * 发起单笔分账（可选）。
+   * 渠道侧真实分账 API（微信「请求分账」、支付宝「分账请求」）需商户开通分账权限并签约接收方，
+   * 此处提供模拟实现：生成渠道分账单号并即时返回成功，便于联调与演示。
+   */
+  profitShare?(ctx: AdapterContext, order: PaymentOrderRow, receiver: ProfitShareReceiver): Promise<ProfitShareResult>;
   /**
    * 连通性测试（可选）。
    * 向渠道发起一个轻量的探测请求（如查询一个不存在的订单号），

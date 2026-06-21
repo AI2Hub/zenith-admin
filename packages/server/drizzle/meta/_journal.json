@@ -911,6 +911,13 @@
       "when": 1782000547233,
       "tag": "0129_mature_dakota_north",
       "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1782019295827,
+      "tag": "0130_large_starhawk",
+      "breakpoints": true
     }
   ]
 }

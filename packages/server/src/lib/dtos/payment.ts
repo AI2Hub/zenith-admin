@@ -61,6 +61,8 @@ export const PaymentOrderDTO = z
     clientIp: z.string().nullable().optional(),
     departmentId: z.number().int().nullable().optional(),
     paidAmount: z.number().int().nullable().optional(),
+    feeAmount: z.number().int().nullable().optional(),
+    netAmount: z.number().int().nullable().optional(),
     paidAt: z.string().nullable().optional(),
     expiredAt: z.string().nullable().optional(),
     errorMessage: z.string().nullable().optional(),
@@ -280,3 +282,167 @@ export const PaymentOutboxEventDTO = z
     processedAt: z.string().nullable().optional(),
   })
   .openapi('PaymentOutboxEvent');
+
+// ─── B 档：费率 / 结算 / 分账 / 支付链接 / 风控 / 支付方式 / 报表 ────────────────
+const settlementStatusEnum = z.enum(['pending', 'settling', 'settled', 'failed']);
+const sharingReceiverTypeEnum = z.enum(['merchant', 'personal']);
+const sharingOrderStatusEnum = z.enum(['pending', 'processing', 'success', 'failed']);
+const linkStatusEnum = z.enum(['active', 'disabled', 'expired']);
+const riskScopeEnum = z.enum(['global', 'channel', 'bizType']);
+
+export const PaymentFeeRuleDTO = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    channel: channelEnum,
+    payMethod: payMethodEnum.nullable().optional(),
+    rateBps: z.number().int().openapi({ description: '费率（万分比）' }),
+    fixedFee: z.number().int().openapi({ description: '固定手续费（分）' }),
+    minFee: z.number().int().nullable().optional(),
+    maxFee: z.number().int().nullable().optional(),
+    status: z.enum(['enabled', 'disabled']),
+    priority: z.number().int(),
+    remark: z.string().nullable().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('PaymentFeeRule');
+
+export const PaymentSettlementBatchDTO = z
+  .object({
+    id: z.number().int(),
+    batchNo: z.string(),
+    channel: channelEnum,
+    periodStart: z.string(),
+    periodEnd: z.string(),
+    status: settlementStatusEnum,
+    orderCount: z.number().int(),
+    grossAmount: z.number().int(),
+    feeAmount: z.number().int(),
+    refundAmount: z.number().int(),
+    netAmount: z.number().int(),
+    settledAt: z.string().nullable().optional(),
+    remark: z.string().nullable().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('PaymentSettlementBatch');
+
+export const PaymentSharingReceiverDTO = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    receiverType: sharingReceiverTypeEnum,
+    account: z.string(),
+    ratioBps: z.number().int().nullable().optional(),
+    status: z.enum(['enabled', 'disabled']),
+    remark: z.string().nullable().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('PaymentSharingReceiver');
+
+export const PaymentSharingOrderDTO = z
+  .object({
+    id: z.number().int(),
+    sharingNo: z.string(),
+    orderNo: z.string(),
+    receiverId: z.number().int(),
+    receiverName: z.string().nullable().optional(),
+    amount: z.number().int(),
+    status: sharingOrderStatusEnum,
+    channelSharingNo: z.string().nullable().optional(),
+    finishedAt: z.string().nullable().optional(),
+    remark: z.string().nullable().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('PaymentSharingOrder');
+
+export const PaymentLinkDTO = z
+  .object({
+    id: z.number().int(),
+    linkNo: z.string(),
+    token: z.string(),
+    subject: z.string(),
+    amount: z.number().int().nullable().optional(),
+    payMethod: payMethodEnum.nullable().optional(),
+    bizType: z.string(),
+    maxUses: z.number().int().nullable().optional(),
+    usedCount: z.number().int(),
+    expiredAt: z.string().nullable().optional(),
+    status: linkStatusEnum,
+    remark: z.string().nullable().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('PaymentLink');
+
+export const PaymentLinkPublicDTO = z
+  .object({
+    token: z.string(),
+    subject: z.string(),
+    amount: z.number().int().nullable().optional(),
+    payMethod: payMethodEnum.nullable().optional(),
+    bizType: z.string(),
+    status: linkStatusEnum,
+    expiredAt: z.string().nullable().optional(),
+    remainingUses: z.number().int().nullable().optional(),
+  })
+  .openapi('PaymentLinkPublic');
+
+export const PaymentRiskRuleDTO = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    scope: riskScopeEnum,
+    channel: channelEnum.nullable().optional(),
+    bizType: z.string().nullable().optional(),
+    singleLimit: z.number().int().nullable().optional(),
+    dailyLimit: z.number().int().nullable().optional(),
+    dailyCountLimit: z.number().int().nullable().optional(),
+    blocklist: z.array(z.string()),
+    status: z.enum(['enabled', 'disabled']),
+    remark: z.string().nullable().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('PaymentRiskRule');
+
+export const PaymentMethodConfigDTO = z
+  .object({
+    id: z.number().int(),
+    method: payMethodEnum,
+    channel: channelEnum,
+    label: z.string(),
+    icon: z.string().nullable().optional(),
+    enabled: z.boolean(),
+    sort: z.number().int(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('PaymentMethodConfig');
+
+export const PaymentReportRowDTO = z
+  .object({
+    key: z.string(),
+    label: z.string(),
+    gross: z.number().int().openapi({ description: '成功收款总额（分）' }),
+    fee: z.number().int().openapi({ description: '手续费总额（分）' }),
+    refund: z.number().int().openapi({ description: '退款总额（分）' }),
+    net: z.number().int().openapi({ description: '净额（分）' }),
+    count: z.number().int(),
+  })
+  .openapi('PaymentReportRow');
+
+export const PaymentReportSummaryDTO = z
+  .object({
+    groupBy: z.enum(['bizType', 'channel', 'day']),
+    rows: z.array(PaymentReportRowDTO),
+    totalGross: z.number().int(),
+    totalFee: z.number().int(),
+    totalRefund: z.number().int(),
+    totalNet: z.number().int(),
+    totalCount: z.number().int(),
+  })
+  .openapi('PaymentReportSummary');

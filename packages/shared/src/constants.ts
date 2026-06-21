@@ -139,6 +139,43 @@ export const PAYMENT_LEDGER_TYPE_LABELS: Record<PaymentLedgerType, string> = {
   payment: '收款', refund: '退款', fee: '手续费', settlement: '结算', adjust: '调整',
 };
 
+// ─── 支付中心扩展 · B 档（费率 / 结算 / 分账 / 支付链接 / 风控 / 支付方式 / 报表）──
+export const PAYMENT_SETTLEMENT_STATUSES = ['pending', 'settling', 'settled', 'failed'] as const;
+export type PaymentSettlementStatus = typeof PAYMENT_SETTLEMENT_STATUSES[number];
+export const PAYMENT_SETTLEMENT_STATUS_LABELS: Record<PaymentSettlementStatus, string> = {
+  pending: '待结算', settling: '结算中', settled: '已结算', failed: '结算失败',
+};
+
+export const PAYMENT_SHARING_RECEIVER_TYPES = ['merchant', 'personal'] as const;
+export type PaymentSharingReceiverType = typeof PAYMENT_SHARING_RECEIVER_TYPES[number];
+export const PAYMENT_SHARING_RECEIVER_TYPE_LABELS: Record<PaymentSharingReceiverType, string> = {
+  merchant: '商户', personal: '个人',
+};
+
+export const PAYMENT_SHARING_ORDER_STATUSES = ['pending', 'processing', 'success', 'failed'] as const;
+export type PaymentSharingOrderStatus = typeof PAYMENT_SHARING_ORDER_STATUSES[number];
+export const PAYMENT_SHARING_ORDER_STATUS_LABELS: Record<PaymentSharingOrderStatus, string> = {
+  pending: '待分账', processing: '分账中', success: '分账成功', failed: '分账失败',
+};
+
+export const PAYMENT_LINK_STATUSES = ['active', 'disabled', 'expired'] as const;
+export type PaymentLinkStatus = typeof PAYMENT_LINK_STATUSES[number];
+export const PAYMENT_LINK_STATUS_LABELS: Record<PaymentLinkStatus, string> = {
+  active: '生效中', disabled: '已停用', expired: '已过期',
+};
+
+export const PAYMENT_RISK_SCOPES = ['global', 'channel', 'bizType'] as const;
+export type PaymentRiskScope = typeof PAYMENT_RISK_SCOPES[number];
+export const PAYMENT_RISK_SCOPE_LABELS: Record<PaymentRiskScope, string> = {
+  global: '全局', channel: '按渠道', bizType: '按业务类型',
+};
+
+export const PAYMENT_REPORT_GROUP_BYS = ['bizType', 'channel', 'day'] as const;
+export type PaymentReportGroupBy = typeof PAYMENT_REPORT_GROUP_BYS[number];
+export const PAYMENT_REPORT_GROUP_BY_LABELS: Record<PaymentReportGroupBy, string> = {
+  bizType: '业务类型', channel: '支付渠道', day: '按日',
+};
+
 // ─── 会员中心（Member Center）────────────────────────────────────────
 /** 会员前台 token 的 localStorage key（与管理员 zenith_token 隔离）*/
 export const MEMBER_TOKEN_KEY = 'zenith_member_token';

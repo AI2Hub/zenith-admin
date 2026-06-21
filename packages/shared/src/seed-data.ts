@@ -280,6 +280,28 @@ export const SEED_MENUS: Menu[] = [
   { id: 753, parentId: 750, title: '删除端点', name: undefined,         path: undefined,            component: undefined,                     icon: undefined,    type: 'button',    sort: 3,  status: 'enabled', visible: true,  permission: 'payment:webhook:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 760, parentId: 700, title: '支付事件', name: 'PaymentEvents',   path: '/payment/events',    component: 'payment/PaymentEventsPage',   icon: 'Activity',   type: 'menu',      sort: 8,  status: 'enabled', visible: true,  permission: 'payment:ops:manage',     createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 770, parentId: 720, title: '退款审批', name: undefined,         path: undefined,            component: undefined,                     icon: undefined,    type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'payment:refund:approve', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  // 支付中心 · B 档（费率 / 结算 / 分账 / 支付链接 / 风控 / 支付方式 / 报表）
+  { id: 765, parentId: 700, title: '费率管理', name: 'PaymentFeeRules',  path: '/payment/fee-rules',   component: 'payment/PaymentFeeRulesPage',    icon: 'Percent',      type: 'menu',   sort: 9,  status: 'enabled', visible: true,  permission: 'payment:fee:list',          createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 766, parentId: 765, title: '新增费率', name: undefined,          path: undefined,              component: undefined,                        icon: undefined,      type: 'button', sort: 1,  status: 'enabled', visible: true,  permission: 'payment:fee:create',        createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 767, parentId: 765, title: '编辑费率', name: undefined,          path: undefined,              component: undefined,                        icon: undefined,      type: 'button', sort: 2,  status: 'enabled', visible: true,  permission: 'payment:fee:update',        createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 768, parentId: 765, title: '删除费率', name: undefined,          path: undefined,              component: undefined,                        icon: undefined,      type: 'button', sort: 3,  status: 'enabled', visible: true,  permission: 'payment:fee:delete',        createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 772, parentId: 700, title: '结算管理', name: 'PaymentSettlements', path: '/payment/settlements', component: 'payment/PaymentSettlementsPage', icon: 'Banknote',     type: 'menu',   sort: 10, status: 'enabled', visible: true,  permission: 'payment:settlement:list',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 773, parentId: 772, title: '生成结算', name: undefined,          path: undefined,              component: undefined,                        icon: undefined,      type: 'button', sort: 1,  status: 'enabled', visible: true,  permission: 'payment:settlement:generate', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 774, parentId: 772, title: '标记结算', name: undefined,          path: undefined,              component: undefined,                        icon: undefined,      type: 'button', sort: 2,  status: 'enabled', visible: true,  permission: 'payment:settlement:settle', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 775, parentId: 700, title: '分账管理', name: 'PaymentSharing',   path: '/payment/sharing',     component: 'payment/PaymentSharingPage',     icon: 'Split',        type: 'menu',   sort: 11, status: 'enabled', visible: true,  permission: 'payment:sharing:list',      createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 776, parentId: 775, title: '接收方管理', name: undefined,        path: undefined,              component: undefined,                        icon: undefined,      type: 'button', sort: 1,  status: 'enabled', visible: true,  permission: 'payment:sharing:manage',    createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 777, parentId: 775, title: '发起分账', name: undefined,          path: undefined,              component: undefined,                        icon: undefined,      type: 'button', sort: 2,  status: 'enabled', visible: true,  permission: 'payment:sharing:dispatch',  createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 780, parentId: 700, title: '支付链接', name: 'PaymentLinks',     path: '/payment/links',       component: 'payment/PaymentLinksPage',       icon: 'Link',         type: 'menu',   sort: 12, status: 'enabled', visible: true,  permission: 'payment:link:list',         createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 781, parentId: 780, title: '新增链接', name: undefined,          path: undefined,              component: undefined,                        icon: undefined,      type: 'button', sort: 1,  status: 'enabled', visible: true,  permission: 'payment:link:create',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 782, parentId: 780, title: '编辑链接', name: undefined,          path: undefined,              component: undefined,                        icon: undefined,      type: 'button', sort: 2,  status: 'enabled', visible: true,  permission: 'payment:link:update',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 783, parentId: 780, title: '删除链接', name: undefined,          path: undefined,              component: undefined,                        icon: undefined,      type: 'button', sort: 3,  status: 'enabled', visible: true,  permission: 'payment:link:delete',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 785, parentId: 700, title: '风控限额', name: 'PaymentRiskRules', path: '/payment/risk-rules',  component: 'payment/PaymentRiskRulesPage',   icon: 'ShieldAlert',  type: 'menu',   sort: 13, status: 'enabled', visible: true,  permission: 'payment:risk:list',         createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 786, parentId: 785, title: '新增规则', name: undefined,          path: undefined,              component: undefined,                        icon: undefined,      type: 'button', sort: 1,  status: 'enabled', visible: true,  permission: 'payment:risk:create',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 787, parentId: 785, title: '编辑规则', name: undefined,          path: undefined,              component: undefined,                        icon: undefined,      type: 'button', sort: 2,  status: 'enabled', visible: true,  permission: 'payment:risk:update',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 788, parentId: 785, title: '删除规则', name: undefined,          path: undefined,              component: undefined,                        icon: undefined,      type: 'button', sort: 3,  status: 'enabled', visible: true,  permission: 'payment:risk:delete',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 790, parentId: 700, title: '支付方式', name: 'PaymentMethods',   path: '/payment/methods',     component: 'payment/PaymentMethodsPage',     icon: 'Wallet',       type: 'menu',   sort: 14, status: 'enabled', visible: true,  permission: 'payment:method:list',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 791, parentId: 790, title: '编辑方式', name: undefined,          path: undefined,              component: undefined,                        icon: undefined,      type: 'button', sort: 1,  status: 'enabled', visible: true,  permission: 'payment:method:update',     createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 795, parentId: 700, title: '财务报表', name: 'PaymentReports',   path: '/payment/reports',     component: 'payment/PaymentReportsPage',     icon: 'ChartColumn',  type: 'menu',   sort: 15, status: 'enabled', visible: true,  permission: 'payment:report:view',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
 
   // ── 会员中心 ─────────────────────────────────────────────────────────────────
   { id: 800, parentId: 0,   title: '会员中心', name: 'MemberCenter',   path: undefined,                 component: undefined,                    icon: 'Crown',       type: 'directory', sort: 10, status: 'enabled', visible: true,  createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -1133,4 +1155,24 @@ export const SEED_AI_PROMPT_TEMPLATES: AiPromptTemplate[] = [
   { id: 3, name: '编程助手', content: '你是一名资深软件工程师。请提供清晰、可运行、符合最佳实践的代码，并对关键部分给出简要说明。优先考虑可读性、性能与安全性，必要时指出潜在的边界情况。', description: '代码编写与排错', category: '编程', scope: 'system', userId: null, isBuiltin: true, sort: 3, isEnabled: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 4, name: '文案写作', content: '你是一名专业的中文文案策划。请根据用户的主题创作富有吸引力、结构清晰、符合目标受众语气的文案，可提供多个备选标题或版本。', description: '营销与内容创作', category: '写作', scope: 'system', userId: null, isBuiltin: true, sort: 4, isEnabled: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 5, name: '内容总结', content: '你是一名擅长信息提炼的助手。请将用户提供的内容总结为要点清晰的摘要，突出关键信息与结论，使用简洁的分点表达，避免冗余。', description: '长文本摘要提炼', category: '总结', scope: 'system', userId: null, isBuiltin: true, sort: 5, isEnabled: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+];
+
+// ─── 支付方式配置（支付中心 · B 档）─────────────────────────────────────────────
+export interface SeedPaymentMethodConfig {
+  id: number;
+  method: string;
+  channel: string;
+  label: string;
+  icon: string | null;
+  enabled: boolean;
+  sort: number;
+}
+
+export const SEED_PAYMENT_METHOD_CONFIGS: SeedPaymentMethodConfig[] = [
+  { id: 1, method: 'wechat_native', channel: 'wechat', label: '微信扫码', icon: 'QrCode', enabled: true, sort: 1 },
+  { id: 2, method: 'wechat_jsapi', channel: 'wechat', label: '微信 JSAPI', icon: 'MessageCircle', enabled: true, sort: 2 },
+  { id: 3, method: 'wechat_h5', channel: 'wechat', label: '微信 H5', icon: 'Smartphone', enabled: true, sort: 3 },
+  { id: 4, method: 'alipay_page', channel: 'alipay', label: '支付宝电脑网站', icon: 'Monitor', enabled: true, sort: 4 },
+  { id: 5, method: 'alipay_wap', channel: 'alipay', label: '支付宝手机网站', icon: 'Smartphone', enabled: true, sort: 5 },
+  { id: 6, method: 'alipay_app', channel: 'alipay', label: '支付宝 APP', icon: 'AppWindow', enabled: true, sort: 6 },
 ];

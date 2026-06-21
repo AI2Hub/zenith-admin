@@ -1,4 +1,4 @@
-import type { PaymentChannel, PaymentMethod, PaymentOrderStatus, PaymentRefundStatus, PaymentRefundApprovalStatus, PaymentReconStatus, PaymentReconResult, PaymentWebhookDeliveryStatus, PaymentLedgerDirection, PaymentLedgerType, MemberStatus, PointTxType, WalletTxType, CouponType, CouponValidType, CouponTemplateStatus, MemberCouponStatus } from './constants';
+import type { PaymentChannel, PaymentMethod, PaymentOrderStatus, PaymentRefundStatus, PaymentRefundApprovalStatus, PaymentReconStatus, PaymentReconResult, PaymentWebhookDeliveryStatus, PaymentLedgerDirection, PaymentLedgerType, PaymentSettlementStatus, PaymentSharingReceiverType, PaymentSharingOrderStatus, PaymentLinkStatus, PaymentRiskScope, MemberStatus, PointTxType, WalletTxType, CouponType, CouponValidType, CouponTemplateStatus, MemberCouponStatus } from './constants';
 
 export type EntityStatus = 'enabled' | 'disabled';
 
@@ -3087,6 +3087,8 @@ export interface PaymentOrder {
   clientIp?: string | null;
   departmentId?: number | null;
   paidAmount?: number | null;
+  feeAmount?: number | null;
+  netAmount?: number | null;
   paidAt?: string | null;
   expiredAt?: string | null;
   errorMessage?: string | null;
@@ -3208,6 +3210,135 @@ export interface PaymentOutboxEvent {
   lastError?: string | null;
   createdAt: string;
   processedAt?: string | null;
+}
+
+// ─── 支付中心扩展 · B 档 ──────────────────────────────────────────────────────
+export interface PaymentFeeRule {
+  id: number;
+  name: string;
+  channel: PaymentChannel;
+  payMethod?: PaymentMethod | null;
+  rateBps: number; // 万分比
+  fixedFee: number; // 分
+  minFee?: number | null; // 分
+  maxFee?: number | null; // 分
+  status: 'enabled' | 'disabled';
+  priority: number;
+  remark?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentSettlementBatch {
+  id: number;
+  batchNo: string;
+  channel: PaymentChannel;
+  periodStart: string;
+  periodEnd: string;
+  status: PaymentSettlementStatus;
+  orderCount: number;
+  grossAmount: number; // 分
+  feeAmount: number; // 分
+  refundAmount: number; // 分
+  netAmount: number; // 分
+  settledAt?: string | null;
+  remark?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentSharingReceiver {
+  id: number;
+  name: string;
+  receiverType: PaymentSharingReceiverType;
+  account: string;
+  ratioBps?: number | null; // 万分比
+  status: 'enabled' | 'disabled';
+  remark?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentSharingOrder {
+  id: number;
+  sharingNo: string;
+  orderNo: string;
+  receiverId: number;
+  receiverName?: string | null;
+  amount: number; // 分
+  status: PaymentSharingOrderStatus;
+  channelSharingNo?: string | null;
+  finishedAt?: string | null;
+  remark?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentLink {
+  id: number;
+  linkNo: string;
+  token: string;
+  subject: string;
+  amount?: number | null; // 分，null=用户填写
+  payMethod?: PaymentMethod | null;
+  bizType: string;
+  maxUses?: number | null;
+  usedCount: number;
+  expiredAt?: string | null;
+  status: PaymentLinkStatus;
+  remark?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 支付链接公开视图（C 端展示，不含敏感/审计字段） */
+export interface PaymentLinkPublic {
+  token: string;
+  subject: string;
+  amount?: number | null; // 分
+  payMethod?: PaymentMethod | null;
+  bizType: string;
+  status: PaymentLinkStatus;
+  expiredAt?: string | null;
+  remainingUses?: number | null;
+}
+
+export interface PaymentRiskRule {
+  id: number;
+  name: string;
+  scope: PaymentRiskScope;
+  channel?: PaymentChannel | null;
+  bizType?: string | null;
+  singleLimit?: number | null; // 分
+  dailyLimit?: number | null; // 分
+  dailyCountLimit?: number | null;
+  blocklist: string[];
+  status: 'enabled' | 'disabled';
+  remark?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentMethodConfig {
+  id: number;
+  method: PaymentMethod;
+  channel: PaymentChannel;
+  label: string;
+  icon?: string | null;
+  enabled: boolean;
+  sort: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentReportRow {
+  key: string;
+  label: string;
+  gross: number; // 分
+  fee: number; // 分
+  refund: number; // 分
+  net: number; // 分
+  count: number;
 }
 
 export interface PaymentNotifyLog {

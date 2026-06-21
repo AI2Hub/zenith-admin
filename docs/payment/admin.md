@@ -1,6 +1,6 @@
 # 后台管理页面
 
-支付中心提供四个后台管理页面，覆盖渠道配置、订单管理、退款管理与回调排查，并内置收款趋势统计看板。所有列表页遵循统一布局规范（`SearchToolbar` + `ConfigurableTable`，操作列右固定）。
+支付中心提供覆盖渠道配置、订单管理、退款管理、回调排查的后台管理页面，并内置收款趋势统计看板；B 档进一步扩展费率、结算、分账、支付链接、风控、支付方式与财务报表。所有列表页遵循统一布局规范（`SearchToolbar` + `ConfigurableTable`，操作列右固定）。
 
 ## 页面一览
 
@@ -57,3 +57,75 @@
 - **渠道成功金额分布**（柱状）+ **订单状态分布**（环图）。
 
 > 趋势按天聚合时使用 `to_char(timezone(APP_TIME_ZONE, paid_at), 'YYYY-MM-DD')` 并 `GROUP BY 1`（按序号分组），与后端 `formatDate` 时区一致、缺口补 0。
+
+## 支付中心扩展 · B 档
+
+在基础支付能力之上，B 档补齐对标主流支付平台的运营与资金能力：手续费、结算、分账、支付链接、风控、支付方式与财务报表。所有页面遵循统一布局规范，金额一律以「分」为单位存储、以「元」展示与录入，时间统一 `YYYY-MM-DD HH:mm:ss`。
+
+### 页面一览（B 档）
+
+| 页面 | 路径 | 权限码 | 功能 |
+| --- | --- | --- | --- |
+| 费率管理 | `/payment/fee-rules` | `payment:fee:list` | 费率规则 CRUD（按渠道 / 支付方式匹配，万分比 + 固定费，可设上下限与优先级）；支付成功自动算费 |
+| 结算管理 | `/payment/settlements` | `payment:settlement:list` | 按渠道 + 账期聚合成功订单生成结算批次；状态机流转（待结算→结算中→已结算/失败） |
+| 分账管理 | `/payment/sharing` | `payment:sharing:list` | 分账接收方管理 + 针对成功订单发起单笔分账，留存渠道分账单号与状态 |
+| 支付链接 | `/payment/links` | `payment:link:list` | 生成可分享收款链接 / 收款码（固定或用户填写金额，可限次 / 限时），公开页下单 |
+| 风控限额 | `/payment/risk-rules` | `payment:risk:list` | 全局 / 按渠道 / 按业务类型限额规则（单笔上限、当日累计、当日笔数、黑名单），下单前拦截 |
+| 支付方式 | `/payment/methods` | `payment:method:list` | 管理可用支付方式（启停 / 排序 / 名称 / 图标），控制下单可选项 |
+| 财务报表 | `/payment/reports` | `payment:report:view` | 按业务类型 / 渠道 / 日聚合收款·手续费·退款·净额·笔数，`recharts` 可视化 |
+
+### 手续费 / 费率
+
+- 规则按 **渠道 + 支付方式**（方式可留空表示该渠道全部方式）匹配，命中多条时取 **优先级最高** 且方式更精确者；
+- 手续费 = `费率(万分比) × 实付 / 10000 + 固定费`，再按 `[最低, 最高]` 截断；
+- 订阅 `payment.succeeded` 事件后自动结算：回写订单 `feeAmount` / `netAmount`，并记一条资金台账（`type=fee`, `direction=out`）。订单详情新增「手续费」「净额」展示。
+
+### 结算管理
+
+- **生成批次**：聚合指定渠道、账期内成功订单，`净额 = 收款(gross) − 手续费(fee) − 退款(refund)`；
+- **状态机**：`pending → settling → settled / failed`，仅允许声明的合法流转；标记到账（settled）时记一条结算资金台账（`type=settlement`）。
+
+### 分账 / 分润
+
+- **接收方**：商户 / 个人两类，记录账号与默认分账比例（万分比，可在发起时覆盖）；
+- **发起分账**：校验订单已支付成功、接收方启用，创建分账单（`processing`）后调用渠道适配器 `profitShare()`（微信 / 支付宝提供与现有 adapter 同档次的模拟实现），落地 `success / failed` 与渠道分账单号；状态机 `pending → processing → success / failed`。
+
+### 支付链接 / 收款码
+
+- 后台 CRUD，自动生成唯一 `token`；金额留空表示由用户填写，支持限制使用次数与失效时间；
+- 列表内「收款码」按钮基于 `qrcode.react` 展示二维码并可复制链接；
+- **公开端点**（无需登录，`security:[]`）：
+
+| 接口 | 说明 |
+| --- | --- |
+| `GET /api/public/payment/link/{token}` | 获取链接展示信息（标题 / 金额 / 状态 / 剩余次数） |
+| `POST /api/public/payment/link/{token}/pay` | 按链接下单，复用 `payment.service.createPayment`，校验有效期 / 次数后原子自增使用次数 |
+
+### 风控限额
+
+- 规则作用域：`global`（全局）/ `channel`（按渠道）/ `bizType`（按业务类型）；
+- 下单前（`createPayment` 内）逐条校验命中规则：**单笔上限**、**当日累计金额**、**当日笔数**、**黑名单**（`openId` / `userId`），任一超限即抛 `HTTPException(400)` 拦截下单。
+
+### 支付方式管理
+
+- 管理 6 种内置支付方式的 **启停 / 排序 / 展示名称 / 图标**（`method` 全局唯一，种子数据预置）；
+- `createPayment` 下单时校验方式是否启用（未配置则放行，向后兼容）；
+- `GET /api/payment/methods/enabled` 提供启用方式列表，供下单选择。
+
+### 财务报表
+
+- `GET /api/payment/reports/summary?groupBy=bizType|channel|day&startTime&endTime`：基于资金台账聚合，返回每组 `{ key, label, gross, fee, refund, net, count }` 及总计；
+- 前端以 KPI 卡 + `recharts` 柱状图（收款 / 净额）+ 明细表呈现。
+
+### 接口一览（B 档）
+
+| 接口 | 说明 |
+| --- | --- |
+| `GET/POST /api/payment/fee-rules`，`GET/PUT/DELETE /api/payment/fee-rules/{id}` | 费率规则 CRUD |
+| `GET /api/payment/settlements`，`POST /api/payment/settlements/generate`，`POST /api/payment/settlements/{id}/status`，`DELETE /api/payment/settlements/{id}` | 结算批次：列表 / 生成 / 状态流转 / 删除 |
+| `GET/POST /api/payment/sharing/receivers`，`GET/PUT/DELETE /api/payment/sharing/receivers/{id}`，`GET/POST /api/payment/sharing/orders` | 分账接收方 CRUD 与分账单列表 / 发起 |
+| `GET/POST /api/payment/links`，`GET/PUT/DELETE /api/payment/links/{id}` | 支付链接 CRUD |
+| `GET/POST /api/payment/risk-rules`，`GET/PUT/DELETE /api/payment/risk-rules/{id}` | 风控规则 CRUD |
+| `GET /api/payment/methods`，`GET /api/payment/methods/enabled`，`PUT /api/payment/methods/{id}` | 支付方式配置列表 / 可用列表 / 编辑 |
+| `GET /api/payment/reports/summary` | 财务报表聚合 |
+| `GET /api/public/payment/link/{token}`，`POST /api/public/payment/link/{token}/pay` | 支付链接公开展示与下单 |

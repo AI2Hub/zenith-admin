@@ -1,12 +1,13 @@
 import { db } from './index';
-import { users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, systemConfigs, cronJobs, regions, tenants, tenantPackages, tenantPackageMenus, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskConfigs, memberLevels, members, memberPointAccounts, memberPointTransactions, memberWallets, coupons, memberCoupons, checkinRules, workflowForms, workflowTemplates, aiPromptTemplates } from './schema';
+import { users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, systemConfigs, cronJobs, regions, tenants, tenantPackages, tenantPackageMenus, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskConfigs, memberLevels, members, memberPointAccounts, memberPointTransactions, memberWallets, coupons, memberCoupons, checkinRules, workflowForms, workflowTemplates, aiPromptTemplates, paymentMethodConfigs } from './schema';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
 import { and, eq, isNull, inArray, sql } from 'drizzle-orm';
 import { createRequire } from 'node:module';
 import logger from '../lib/logger';
 import { runAsUser } from '../lib/audit-context';
-import { SEED_MENUS, SEED_ROLES, SEED_DEPARTMENTS, SEED_POSITIONS, SEED_DICTS, SEED_DICT_ITEMS, SEED_SYSTEM_CONFIGS, SEED_CRON_JOBS, SEED_TAGS, SEED_DATA_MASK_CONFIGS, SEED_MEMBER_LEVELS, SEED_COUPONS, SEED_EMAIL_TEMPLATES, SEED_SMS_TEMPLATES, SEED_INAPP_TEMPLATES, SEED_TENANTS, SEED_TENANT_PACKAGES, SEED_WORKFLOW_FORMS, SEED_WORKFLOW_TEMPLATES, SEED_AI_PROMPT_TEMPLATES } from '@zenith/shared';
+import { SEED_MENUS, SEED_ROLES, SEED_DEPARTMENTS, SEED_POSITIONS, SEED_DICTS, SEED_DICT_ITEMS, SEED_SYSTEM_CONFIGS, SEED_CRON_JOBS, SEED_TAGS, SEED_DATA_MASK_CONFIGS, SEED_MEMBER_LEVELS, SEED_COUPONS, SEED_EMAIL_TEMPLATES, SEED_SMS_TEMPLATES, SEED_INAPP_TEMPLATES, SEED_TENANTS, SEED_TENANT_PACKAGES, SEED_WORKFLOW_FORMS, SEED_WORKFLOW_TEMPLATES, SEED_AI_PROMPT_TEMPLATES, SEED_PAYMENT_METHOD_CONFIGS } from '@zenith/shared';
+import type { PaymentChannel, PaymentMethod } from '@zenith/shared';
 
 const require = createRequire(import.meta.url);
 
@@ -346,6 +347,21 @@ async function seedRest() {
   ).onConflictDoNothing({ target: aiPromptTemplates.id });
   await db.execute(sql`SELECT setval('ai_prompt_templates_id_seq', GREATEST((SELECT MAX(id) FROM ai_prompt_templates), 1))`);
   logger.info('  ✔ AI prompt templates seeded (onConflictDoNothing)');
+
+  // ─── 支付方式配置（数据来源：@zenith/shared SEED_PAYMENT_METHOD_CONFIGS）─────────
+  await db.insert(paymentMethodConfigs).values(
+    SEED_PAYMENT_METHOD_CONFIGS.map(({ id, method, channel, label, icon, enabled, sort }) => ({
+      id,
+      method: method as PaymentMethod,
+      channel: channel as PaymentChannel,
+      label,
+      icon,
+      enabled,
+      sort,
+    })),
+  ).onConflictDoNothing({ target: paymentMethodConfigs.id });
+  await db.execute(sql`SELECT setval('payment_method_configs_id_seq', GREATEST((SELECT MAX(id) FROM payment_method_configs), 1))`);
+  logger.info('  ✔ Payment method configs seeded (onConflictDoNothing)');
 
   // ── 标签 ────────────────────────────────────────────────────────────────────
   await db.insert(tags).values(

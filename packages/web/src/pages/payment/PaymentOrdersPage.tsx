@@ -342,6 +342,8 @@ export default function PaymentOrdersPage() {
                 { key: '标题', value: detail.subject },
                 { key: '金额', value: yuan(detail.amount) },
                 { key: '实付', value: detail.paidAmount == null ? '-' : yuan(detail.paidAmount) },
+                { key: '手续费', value: detail.feeAmount == null ? '-' : yuan(detail.feeAmount) },
+                { key: '净额', value: detail.netAmount == null ? '-' : yuan(detail.netAmount) },
                 { key: '渠道', value: PAYMENT_CHANNEL_LABELS[detail.channel] },
                 { key: '方式', value: PAYMENT_METHOD_LABELS[detail.payMethod] },
                 { key: '状态', value: <Tag color={STATUS_COLOR[detail.status]}>{PAYMENT_ORDER_STATUS_LABELS[detail.status]}</Tag> },

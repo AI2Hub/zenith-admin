@@ -42,6 +42,8 @@ import { getAdapter } from '../lib/payment';
 import type { AdapterContext, DecryptedSecrets, NotifyResult } from '../lib/payment';
 import { paymentEventBus, type PaymentEvent, type PaymentEventType } from '../lib/payment-event-bus';
 import { recordEvent, processEvent } from './payment-outbox.service';
+import { assertMethodEnabled } from './payment-method.service';
+import { assertWithinRiskLimits } from './payment-risk.service';
 
 // ─── 工具 ─────────────────────────────────────────────────────────────────────
 
@@ -221,6 +223,10 @@ export async function createPayment(input: CreatePaymentInput & { clientIp?: str
     departmentId = creator?.departmentId ?? null;
   }
   const userId = input.userId ?? user?.userId ?? null;
+
+  // ── B 档：支付方式启停校验 + 风控限额校验（命中即拦截下单）──────────────────
+  await assertMethodEnabled(input.payMethod);
+  await assertWithinRiskLimits({ channel, bizType: input.bizType, amount: input.amount, openId: input.openId ?? null, userId, tenantId });
 
   const orderNo = genNo('PAY');
   const expireMinutes = input.expireMinutes ?? 30;

@@ -1849,6 +1849,8 @@ export const paymentOrders = pgTable('payment_orders', {
   clientIp: varchar('client_ip', { length: 64 }),
   departmentId: integer('department_id').references(() => departments.id, { onDelete: 'set null' }),
   paidAmount: integer('paid_amount'),
+  feeAmount: integer('fee_amount'),
+  netAmount: integer('net_amount'),
   paidAt: timestamp('paid_at', { withTimezone: true }),
   expiredAt: timestamp('expired_at', { withTimezone: true }),
   notifyData: text('notify_data'),
@@ -2070,6 +2072,162 @@ export const paymentWebhookEndpointsRelations = relations(paymentWebhookEndpoint
 export const paymentWebhookDeliveriesRelations = relations(paymentWebhookDeliveries, ({ one }) => ({
   endpoint: one(paymentWebhookEndpoints, { fields: [paymentWebhookDeliveries.endpointId], references: [paymentWebhookEndpoints.id] }),
 }));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 支付中心扩展 · B 档（费率 / 结算 / 分账 / 支付链接 / 风控 / 支付方式 / 报表）
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── 手续费/费率规则 ─────────────────────────────────────────────────────────
+export const paymentFeeRules = pgTable('payment_fee_rules', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 64 }).notNull(),
+  channel: paymentChannelEnum('channel').notNull(),
+  payMethod: paymentMethodEnum('pay_method'),
+  rateBps: integer('rate_bps').notNull().default(0),
+  fixedFee: integer('fixed_fee').notNull().default(0),
+  minFee: integer('min_fee'),
+  maxFee: integer('max_fee'),
+  status: statusEnum('status').notNull().default('enabled'),
+  priority: integer('priority').notNull().default(0),
+  remark: varchar('remark', { length: 256 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [index('payment_fee_rules_channel_idx').on(t.channel)]);
+export type PaymentFeeRuleRow = typeof paymentFeeRules.$inferSelect;
+export type NewPaymentFeeRule = typeof paymentFeeRules.$inferInsert;
+
+// ─── 结算批次 ─────────────────────────────────────────────────────────────────
+export const paymentSettlementStatusEnum = pgEnum('payment_settlement_status', ['pending', 'settling', 'settled', 'failed']);
+export const paymentSettlementBatches = pgTable('payment_settlement_batches', {
+  id: serial('id').primaryKey(),
+  batchNo: varchar('batch_no', { length: 64 }).notNull().unique(),
+  channel: paymentChannelEnum('channel').notNull(),
+  periodStart: varchar('period_start', { length: 10 }).notNull(),
+  periodEnd: varchar('period_end', { length: 10 }).notNull(),
+  status: paymentSettlementStatusEnum('status').notNull().default('pending'),
+  orderCount: integer('order_count').notNull().default(0),
+  grossAmount: integer('gross_amount').notNull().default(0),
+  feeAmount: integer('fee_amount').notNull().default(0),
+  refundAmount: integer('refund_amount').notNull().default(0),
+  netAmount: integer('net_amount').notNull().default(0),
+  settledAt: timestamp('settled_at', { withTimezone: true }),
+  remark: varchar('remark', { length: 256 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [index('payment_settlement_batches_status_idx').on(t.status)]);
+export type PaymentSettlementBatchRow = typeof paymentSettlementBatches.$inferSelect;
+export type NewPaymentSettlementBatch = typeof paymentSettlementBatches.$inferInsert;
+
+// ─── 分账接收方 + 分账单 ─────────────────────────────────────────────────────
+export const paymentSharingReceiverTypeEnum = pgEnum('payment_sharing_receiver_type', ['merchant', 'personal']);
+export const paymentSharingOrderStatusEnum = pgEnum('payment_sharing_order_status', ['pending', 'processing', 'success', 'failed']);
+
+export const paymentSharingReceivers = pgTable('payment_sharing_receivers', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 64 }).notNull(),
+  receiverType: paymentSharingReceiverTypeEnum('receiver_type').notNull().default('merchant'),
+  account: varchar('account', { length: 128 }).notNull(),
+  ratioBps: integer('ratio_bps'),
+  status: statusEnum('status').notNull().default('enabled'),
+  remark: varchar('remark', { length: 256 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+export type PaymentSharingReceiverRow = typeof paymentSharingReceivers.$inferSelect;
+export type NewPaymentSharingReceiver = typeof paymentSharingReceivers.$inferInsert;
+
+export const paymentSharingOrders = pgTable('payment_sharing_orders', {
+  id: serial('id').primaryKey(),
+  sharingNo: varchar('sharing_no', { length: 64 }).notNull().unique(),
+  orderNo: varchar('order_no', { length: 64 }).notNull(),
+  receiverId: integer('receiver_id').notNull().references(() => paymentSharingReceivers.id, { onDelete: 'cascade' }),
+  amount: integer('amount').notNull(),
+  status: paymentSharingOrderStatusEnum('status').notNull().default('pending'),
+  channelSharingNo: varchar('channel_sharing_no', { length: 128 }),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+  remark: varchar('remark', { length: 256 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [index('payment_sharing_orders_order_no_idx').on(t.orderNo), index('payment_sharing_orders_receiver_idx').on(t.receiverId)]);
+export type PaymentSharingOrderRow = typeof paymentSharingOrders.$inferSelect;
+export type NewPaymentSharingOrder = typeof paymentSharingOrders.$inferInsert;
+
+export const paymentSharingReceiversRelations = relations(paymentSharingReceivers, ({ many }) => ({
+  sharingOrders: many(paymentSharingOrders),
+}));
+export const paymentSharingOrdersRelations = relations(paymentSharingOrders, ({ one }) => ({
+  receiver: one(paymentSharingReceivers, { fields: [paymentSharingOrders.receiverId], references: [paymentSharingReceivers.id] }),
+}));
+
+// ─── 支付链接/收款码 ─────────────────────────────────────────────────────────
+export const paymentLinkStatusEnum = pgEnum('payment_link_status', ['active', 'disabled', 'expired']);
+export const paymentLinks = pgTable('payment_links', {
+  id: serial('id').primaryKey(),
+  linkNo: varchar('link_no', { length: 64 }).notNull().unique(),
+  token: varchar('token', { length: 64 }).notNull().unique(),
+  subject: varchar('subject', { length: 256 }).notNull(),
+  amount: integer('amount'),
+  payMethod: paymentMethodEnum('pay_method'),
+  bizType: varchar('biz_type', { length: 64 }).notNull(),
+  maxUses: integer('max_uses'),
+  usedCount: integer('used_count').notNull().default(0),
+  expiredAt: timestamp('expired_at', { withTimezone: true }),
+  status: paymentLinkStatusEnum('status').notNull().default('active'),
+  remark: varchar('remark', { length: 256 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+export type PaymentLinkRow = typeof paymentLinks.$inferSelect;
+export type NewPaymentLink = typeof paymentLinks.$inferInsert;
+
+// ─── 风控限额规则 ─────────────────────────────────────────────────────────────
+export const paymentRiskScopeEnum = pgEnum('payment_risk_scope', ['global', 'channel', 'bizType']);
+export const paymentRiskRules = pgTable('payment_risk_rules', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 64 }).notNull(),
+  scope: paymentRiskScopeEnum('scope').notNull().default('global'),
+  channel: paymentChannelEnum('channel'),
+  bizType: varchar('biz_type', { length: 64 }),
+  singleLimit: integer('single_limit'),
+  dailyLimit: integer('daily_limit'),
+  dailyCountLimit: integer('daily_count_limit'),
+  blocklist: jsonb('blocklist').$type<string[]>().default([]).notNull(),
+  status: statusEnum('status').notNull().default('enabled'),
+  remark: varchar('remark', { length: 256 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [index('payment_risk_rules_scope_idx').on(t.scope)]);
+export type PaymentRiskRuleRow = typeof paymentRiskRules.$inferSelect;
+export type NewPaymentRiskRule = typeof paymentRiskRules.$inferInsert;
+
+// ─── 支付方式配置 ─────────────────────────────────────────────────────────────
+export const paymentMethodConfigs = pgTable('payment_method_configs', {
+  id: serial('id').primaryKey(),
+  method: paymentMethodEnum('method').notNull().unique(),
+  channel: paymentChannelEnum('channel').notNull(),
+  label: varchar('label', { length: 64 }).notNull(),
+  icon: varchar('icon', { length: 128 }),
+  enabled: boolean('enabled').notNull().default(true),
+  sort: integer('sort').notNull().default(0),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+export type PaymentMethodConfigRow = typeof paymentMethodConfigs.$inferSelect;
+export type NewPaymentMethodConfig = typeof paymentMethodConfigs.$inferInsert;
 
 // ─── 关系声明（Drizzle Relational Query API）──────────────────────────────────
 // 声明后可使用 db.query.xxx.findMany({ with: { ... } }) 进行关联查询
