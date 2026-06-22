@@ -849,7 +849,8 @@ export const workflowCustomFormVariableSchema = z.object({
 });
 
 export const workflowCustomFormConfigSchema = z.object({
-  createComponent: z.string().min(1, '请填写创建页组件路径').max(256),
+  // 允许草稿期为空（便于先存草稿再补全）；发布时强制校验非空
+  createComponent: z.string().max(256),
   viewComponent: z.string().max(256).nullable().optional(),
   icon: z.string().max(64).nullable().optional(),
   variables: z.array(workflowCustomFormVariableSchema).optional(),

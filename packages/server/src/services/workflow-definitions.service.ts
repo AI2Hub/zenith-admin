@@ -252,6 +252,13 @@ export async function publishDefinition(id: number) {
   if (!flowData?.nodes) throw new HTTPException(400, { message: '请先在设计器中设计流程' });
   const validation = validateFlowData(flowData);
   if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
+  // 自定义业务表单必须配置创建页组件路径，否则发布后无人可发起
+  if (existing.formType === 'custom') {
+    const cf = existing.customForm as WorkflowCustomFormConfig | null;
+    if (!cf?.createComponent?.trim()) {
+      throw new HTTPException(400, { message: '请先在「表单」步骤配置自定义业务表单的创建页组件路径' });
+    }
+  }
   const user = currentUser();
   const updated = await db.transaction(async (tx) => {
     // 行级锁 + 锁内重算版本号：避免并发发布同一定义争用 (definitionId, version) 唯一约束

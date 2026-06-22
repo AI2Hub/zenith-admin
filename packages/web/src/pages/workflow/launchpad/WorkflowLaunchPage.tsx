@@ -4,7 +4,7 @@
  * 与发起工作台 SideSheet 等价的发起填写表单，作为独立系统多页签承载：
  * 标准字段（标题/优先级/抄送）+ 表单（设计器表单或自定义业务表单）+ 提交/存草稿。
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button, Form, Space, Spin, Tabs, TabPane, Toast, Typography, Empty } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -18,11 +18,12 @@ import WorkflowGraphView from '@/components/workflow/WorkflowGraphView';
 import WorkflowNodeListView from '@/components/workflow/WorkflowNodeListView';
 import WorkflowApproverPreview from '@/components/workflow/WorkflowApproverPreview';
 import { WORKFLOW_PRIORITY_OPTIONS } from '@/components/workflow/WorkflowPriorityTag';
-import { useTabMeta } from '@/hooks/useTabMeta';
+import { useTabMeta, TabsMetaContext } from '@/hooks/useTabMeta';
 
 export default function WorkflowLaunchPage() {
   const { definitionId } = useParams<{ definitionId: string }>();
   const navigate = useNavigate();
+  const tabsCtx = useContext(TabsMetaContext);
   const { user } = useAuth();
   const defId = Number(definitionId);
 
@@ -71,7 +72,11 @@ export default function WorkflowLaunchPage() {
       const values = await formApi.current.validate() as Record<string, unknown>;
       let formData: Record<string, unknown> = {};
       if (def.formType === 'custom') {
-        if (businessFormApi.current) formData = await businessFormApi.current.validate();
+        if (!businessFormApi.current) {
+          Toast.error('业务表单尚未就绪，请稍候重试');
+          return null;
+        }
+        formData = await businessFormApi.current.validate();
       } else if (dynamicFormApi.current && def.formFields && def.formFields.length > 0) {
         formData = await dynamicFormApi.current.validate() as Record<string, unknown>;
       }
@@ -100,10 +105,12 @@ export default function WorkflowLaunchPage() {
         Toast.success(asDraft ? '草稿已保存' : '申请已提交');
         const newId = res.data?.id;
         if (!asDraft && newId) {
-          navigate(`/workflow/instance/${newId}`, { replace: true, state: { tabTitle: String(values.title ?? '流程详情') } });
+          navigate(`/workflow/instance/${newId}`, { state: { tabTitle: String(values.title ?? '流程详情') } });
         } else {
-          navigate('/workflow/instances', { replace: true });
+          navigate('/workflow/instances');
         }
+        // 关闭当前发起整页标签，避免遗留已消费的“发起：X”标签
+        tabsCtx?.closeTab(`/workflow/launch/${definitionId}`);
       }
     } finally {
       setBusy(false);

@@ -6,6 +6,8 @@ export interface TabsMetaContextValue {
   enabled: boolean;
   /** 动态设置某个标签页的标题/图标 */
   setTabMeta: (key: string, meta: { title?: string; icon?: string }) => void;
+  /** 关闭某个标签页（提交后关闭发起整页等场景） */
+  closeTab: (key: string) => void;
 }
 
 export const TabsMetaContext = createContext<TabsMetaContextValue | null>(null);

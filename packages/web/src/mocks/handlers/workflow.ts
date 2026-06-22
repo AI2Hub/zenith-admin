@@ -152,6 +152,9 @@ export const workflowHandlers = [
     if (idx === -1) return err('流程定义不存在', 404);
     if (!mockWorkflowDefinitions[idx].flowData) return err('流程图不能为空，请先设计流程');
     const cur = mockWorkflowDefinitions[idx];
+    if (cur.formType === 'custom' && !cur.customForm?.createComponent?.trim()) {
+      return err('请先在「表单」步骤配置自定义业务表单的创建页组件路径');
+    }
     const newVersion = cur.version + 1;
     const now = mockDateTime();
     // 生成快照

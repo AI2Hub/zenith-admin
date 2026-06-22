@@ -107,9 +107,11 @@ export default function WorkflowLaunchpadPage() {
       const values = await formApi.current.validate() as Record<string, unknown>;
       let formData: Record<string, unknown> = {};
       if (selectedDef.formType === 'custom') {
-        if (businessFormApi.current) {
-          formData = await businessFormApi.current.validate();
+        if (!businessFormApi.current) {
+          Toast.error('业务表单尚未就绪，请稍候重试');
+          return null;
         }
+        formData = await businessFormApi.current.validate();
       } else if (dynamicFormApi.current && selectedDef.formFields && selectedDef.formFields.length > 0) {
         formData = await dynamicFormApi.current.validate() as Record<string, unknown>;
       }

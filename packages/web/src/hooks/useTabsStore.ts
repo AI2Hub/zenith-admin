@@ -63,6 +63,10 @@ export function useTabsStore(
     stateRef.current = { tabs, activeKey };
   }, [tabs, activeKey]);
 
+  // 待定的标签元信息：当页面 effect 早于布局 addTab effect 执行时（子 effect 先于父 effect），
+  // setTabMeta 找不到标签，暂存于此，待 addTab 创建标签时应用
+  const pendingMetaRef = useRef<Map<string, { title?: string; icon?: string }>>(new Map());
+
   // 用 ref 存 onEvict，避免将其加入 useCallback 依赖
   const onEvictRef = useRef(onEvict);
   useEffect(() => { onEvictRef.current = onEvict; }, [onEvict]);
@@ -94,14 +98,19 @@ export function useTabsStore(
     return closables[0].i;
   }
 
-  const addTab = useCallback((key: string, title: string, icon?: string) => {
+  const addTab = useCallback((key: string, title?: string, icon?: string, fallbackTitle?: string) => {
     // 使用 stateRef 读取最新状态，以便在超限时调用 onEvict 回调
     const prev = stateRef.current.tabs;
     if (prev.some((t) => t.key === key)) {
       setActiveKey(key);
       return;
     }
-    const newTab: TabItem = { key, title, closable: true, lastUsedAt: Date.now(), ...(icon ? { icon } : {}) };
+    // 应用并清除该 key 的待定元信息；优先级：显式入参 > 待定 > 兜底标题 > key
+    const pending = pendingMetaRef.current.get(key);
+    if (pending) pendingMetaRef.current.delete(key);
+    const finalTitle = title ?? pending?.title ?? fallbackTitle ?? key;
+    const finalIcon = icon ?? pending?.icon;
+    const newTab: TabItem = { key, title: finalTitle, closable: true, lastUsedAt: Date.now(), ...(finalIcon ? { icon: finalIcon } : {}) };
     let next: TabItem[];
     if (insertPolicyRef.current === 'insert-next') {
       const currentKey = stateRef.current.activeKey;
@@ -149,6 +158,12 @@ export function useTabsStore(
 
   // 动态更新某个标签页的标题/图标（非菜单路由由页面加载数据后回写）
   const setTabMeta = useCallback((key: string, meta: { title?: string; icon?: string }) => {
+    // 标签尚未创建（页面 effect 先于布局 addTab effect）：暂存，待 addTab 时应用
+    if (!stateRef.current.tabs.some((t) => t.key === key)) {
+      const prevPending = pendingMetaRef.current.get(key) ?? {};
+      pendingMetaRef.current.set(key, { title: meta.title ?? prevPending.title, icon: meta.icon ?? prevPending.icon });
+      return;
+    }
     setTabs((prev) => {
       const idx = prev.findIndex((t) => t.key === key);
       if (idx < 0) return prev;

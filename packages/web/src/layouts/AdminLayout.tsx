@@ -823,16 +823,16 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
   // Sync current route to tabs
   useEffect(() => {
     if (preferences.enableTabs) {
-      // 整页路由（非菜单页面）可通过导航 state 携带标题/图标，避免标签页闪现原始路径
+      // 整页路由（非菜单页面）可通过导航 state 携带标题/图标，避免标签页闪现原始路径；
+      // 优先级：导航 state > 页面 setTabMeta 暂存 > resolveTitle 兜底
       const navState = location.state as { tabTitle?: string; tabIcon?: string } | null;
-      const title = navState?.tabTitle || resolveTitle(location.pathname);
-      addTab(location.pathname, title, navState?.tabIcon);
+      addTab(location.pathname, navState?.tabTitle, navState?.tabIcon, resolveTitle(location.pathname));
     }
   }, [location.pathname, location.state, preferences.enableTabs, resolveTitle, addTab]);
 
   const tabsMetaValue = useMemo(
-    () => ({ enabled: !!preferences.enableTabs, setTabMeta }),
-    [preferences.enableTabs, setTabMeta],
+    () => ({ enabled: !!preferences.enableTabs, setTabMeta, closeTab: removeTab }),
+    [preferences.enableTabs, setTabMeta, removeTab],
   );
 
   // Track entering tabs (new tab added since last render)
