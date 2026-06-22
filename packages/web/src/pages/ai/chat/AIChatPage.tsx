@@ -800,18 +800,20 @@ export default function AIChatPage() {
                     </Dropdown.Menu>
                   }
                 >
-                  <Tooltip content="选择角色 / 提示词模板（作用于当前对话）">
-                    <Button
-                      theme={activeConv?.systemPromptOverride ? 'light' : 'borderless'}
-                      type="primary"
-                      size="small"
-                      icon={<Sparkles size={14} />}
-                    >
-                      {activeConv?.systemPromptOverride
-                        ? (promptTemplates.find((t) => t.content === activeConv.systemPromptOverride)?.name ?? '自定义角色')
-                        : '角色'}
-                    </Button>
-                  </Tooltip>
+                  <span style={{ display: 'inline-flex' }}>
+                    <Tooltip content="选择角色 / 提示词模板（作用于当前对话）">
+                      <Button
+                        theme={activeConv?.systemPromptOverride ? 'light' : 'borderless'}
+                        type="primary"
+                        size="small"
+                        icon={<Sparkles size={14} />}
+                      >
+                        {activeConv?.systemPromptOverride
+                          ? (promptTemplates.find((t) => t.content === activeConv.systemPromptOverride)?.name ?? '自定义角色')
+                          : '角色'}
+                      </Button>
+                    </Tooltip>
+                  </span>
                 </Dropdown>
                 {pdfFile && (
                   <Tooltip content={pdfFileUrl ? '点击关闭预览（已上传）' : '点击关闭预览（上传中…）'}>
