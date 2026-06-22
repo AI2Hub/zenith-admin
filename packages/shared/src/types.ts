@@ -2449,8 +2449,8 @@ export interface WorkflowEventSubscription {
   definitionName?: string | null;
   events: WorkflowEventType[];
   url: string;
-  /** 已脱敏（列表/详情）或明文（请求"显示"时） */
-  secret: string;
+  /** 列表/详情只返回脱敏值；明文通过 secret 专用接口按需获取 */
+  secretMasked: string | null;
   signMode: WorkflowEventSignMode;
   headers: Record<string, string> | null;
   enabled: boolean;
@@ -2470,7 +2470,7 @@ export interface WorkflowEventDelivery {
   payload: WorkflowEvent | null;
   attempt: number;
   status: WorkflowEventDeliveryStatus;
-  requestUrl: string;
+  requestUrl: string | null;
   requestHeaders: Record<string, string> | null;
   responseStatus: number | null;
   responseBody: string | null;
@@ -2492,7 +2492,7 @@ export interface WorkflowTriggerExecution {
   instanceId: number;
   taskId: number | null;
   nodeKey: string;
-  nodeName: string;
+  nodeName: string | null;
   triggerType: WorkflowTriggerType;
   status: WorkflowTriggerExecutionStatus;
   attempt: number;

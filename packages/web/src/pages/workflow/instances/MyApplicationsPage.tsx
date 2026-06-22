@@ -272,14 +272,9 @@ function InstanceDetailDrawer({
   };
 
   const printAction = data ? (
-    <>
-      <Button theme="borderless" size="small" onClick={handlePrint}>
-        打印审批单
-      </Button>
-      <Button theme="borderless" size="small" onClick={handlePrint}>
-        导出 PDF
-      </Button>
-    </>
+    <Button theme="borderless" size="small" onClick={handlePrint}>
+      打印 / 保存 PDF
+    </Button>
   ) : null;
 
   return (
@@ -421,7 +416,7 @@ export default function MyApplicationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize]);
+  }, [page, pageSize, setPage]);
 
   useEffect(() => {
     void fetchList();

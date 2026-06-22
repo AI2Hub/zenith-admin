@@ -76,6 +76,7 @@ export function AppModal({
 
   return (
     <Modal
+      closeOnEsc
       header={header}
       closable={false}
       fullScreen={fullscreen}

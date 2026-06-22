@@ -52,6 +52,9 @@ const EVENT_OPTIONS: Array<{ value: WorkflowEventType; label: string }> = [
   { value: 'task.rejected',      label: '任务驳回' },
   { value: 'task.skipped',       label: '任务跳过' },
   { value: 'task.transferred',   label: '任务转交' },
+  { value: 'task.addSigned',     label: '任务加签' },
+  { value: 'task.reduceSigned',  label: '任务减签' },
+  { value: 'task.urged',         label: '任务催办' },
 ];
 const EVENT_LABEL_MAP = Object.fromEntries(EVENT_OPTIONS.map((o) => [o.value, o.label])) as Record<string, string>;
 
@@ -268,7 +271,7 @@ export default function WorkflowEventSubscriptionsPage() {
       );
       if (res.code === 0) { setDeliveries(res.data.list); setDeliveriesTotal(res.data.total); }
     } finally { setDeliveryLoading(false); }
-  }, [deliverySubId, deliveryPage]);
+  }, [deliverySubId, deliveryPage, deliveryPageSize]);
 
   useEffect(() => { if (deliveryVisible) void fetchDeliveries(); }, [deliveryVisible, fetchDeliveries]);
 
