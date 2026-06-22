@@ -419,6 +419,18 @@ export const filesHandlers = [
     return HttpResponse.json({ code: 0, message: 'ok', data: config ? stripStorageSecrets(config) : null });
   }),
 
+  // 测试存储配置连接（新增表单）
+  http.post('/api/file-storage-configs/test', () => {
+    return HttpResponse.json({ code: 0, message: '存储连接测试通过', data: null });
+  }),
+
+  // 测试已保存存储配置连接（必须在 /:id 详情之前）
+  http.post('/api/file-storage-configs/:id/test', ({ params }) => {
+    const config = mockFileStorageConfigs.find((c) => c.id === Number(params.id));
+    if (!config) return HttpResponse.json({ code: 404, message: '存储配置不存在', data: null });
+    return HttpResponse.json({ code: 0, message: '存储连接测试通过', data: null });
+  }),
+
   // 获取单个存储配置
   http.get('/api/file-storage-configs/:id', ({ params }) => {
     const config = mockFileStorageConfigs.find((c) => c.id === Number(params.id));

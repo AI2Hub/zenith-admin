@@ -220,6 +220,8 @@ export default function FileStorageConfigsPage() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingConfig, setEditingConfig] = useState<FileStorageConfig | null>(null);
   const [modalDetailLoading, setModalDetailLoading] = useState(false);
+  const [modalTestLoading, setModalTestLoading] = useState(false);
+  const [testingConfigId, setTestingConfigId] = useState<number | null>(null);
   const [formProvider, setFormProvider] = useState<FileStorageProvider>('local');
   const [formIsDefault, setFormIsDefault] = useState(false);
   const [browsingConfig, setBrowsingConfig] = useState<FileStorageConfig | null>(null);
@@ -311,6 +313,27 @@ export default function FileStorageConfigsPage() {
     }
   };
 
+  const handleModalTest = async () => {
+    let values;
+    try {
+      values = await formApi.current!.validate();
+    } catch {
+      return;
+    }
+    if (!values) return;
+    const payload = buildPayload(formProvider, formIsDefault, values);
+    setModalTestLoading(true);
+    try {
+      const res = editingConfig
+        ? await request.post(`/api/file-storage-configs/${editingConfig.id}/test`, payload)
+        : await request.post('/api/file-storage-configs/test', payload);
+      if (res.code === 0) Toast.success(res.message || '存储连接测试通过');
+      else Toast.error(res.message || '存储连接测试失败');
+    } finally {
+      setModalTestLoading(false);
+    }
+  };
+
   const handleDelete = async (config: FileStorageConfig) => {
     const res = await request.delete(`/api/file-storage-configs/${config.id}`);
     if (res.code === 0) {
@@ -324,6 +347,17 @@ export default function FileStorageConfigsPage() {
     if (res.code === 0) {
       Toast.success('默认文件服务已更新');
       fetchConfigs();
+    }
+  };
+
+  const handleTestSaved = async (config: FileStorageConfig) => {
+    setTestingConfigId(config.id);
+    try {
+      const res = await request.post(`/api/file-storage-configs/${config.id}/test`, {});
+      if (res.code === 0) Toast.success(res.message || '存储连接测试通过');
+      else Toast.error(res.message || '存储连接测试失败');
+    } finally {
+      setTestingConfigId(null);
     }
   };
 
@@ -448,12 +482,15 @@ export default function FileStorageConfigsPage() {
     {
       title: '操作',
       fixed: 'right',
-      width: 340,
+      width: 380,
       align: 'center',
       render: (_: unknown, record: FileStorageConfig) => (
         <Space>
           {hasPermission('system:file:list') && <Button theme="borderless" size="small" onClick={() => setBrowsingConfig(record)}>
             浏览
+          </Button>}
+          {hasPermission('system:file:config') && <Button theme="borderless" size="small" loading={testingConfigId === record.id} onClick={() => void handleTestSaved(record)}>
+            测试
           </Button>}
           {hasPermission('system:file:config:default') && <Button theme="borderless" size="small" onClick={() => handleSetDefault(record)} disabled={record.isDefault || record.status !== 'enabled'}>
             设为默认
@@ -614,6 +651,9 @@ export default function FileStorageConfigsPage() {
           <div className="storage-config-form-header">
             <Text strong>配置选项</Text>
             <div className="storage-config-default-switch">
+              <Button size="small" type="tertiary" loading={modalTestLoading} disabled={modalDetailLoading} onClick={() => void handleModalTest()}>
+                测试连接
+              </Button>
               <span>设为默认服务</span>
               <Switch checked={formIsDefault} onChange={(checked) => setFormIsDefault(checked)} />
             </div>

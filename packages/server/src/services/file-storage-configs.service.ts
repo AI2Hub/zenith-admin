@@ -3,6 +3,9 @@ import type { DbExecutor } from '../db/types';
 import type { createFileStorageConfigSchema } from '@zenith/shared';
 import type { z } from '@hono/zod-openapi';
 import { formatDateTime, parseDateTimeInput } from '../lib/datetime';
+import { randomUUID } from 'node:crypto';
+import { Readable } from 'node:stream';
+import { uploadObjectByConfig, deleteObjectByConfig } from '../lib/file-storage';
 
 type StorageInput = z.infer<typeof createFileStorageConfigSchema>;
 
@@ -227,6 +230,37 @@ export async function getFileStorageConfig(id: number) {
   const [row] = await db.select().from(fileStorageConfigs).where(eq(fileStorageConfigs.id, id)).limit(1);
   if (!row) throw new HTTPException(404, { message: '存储配置不存在' });
   return mapFileStorageConfig(row);
+}
+
+async function testStorageConfigRow(config: typeof fileStorageConfigs.$inferSelect) {
+  const objectKey = [config.basePath?.replace(/^\/+|\/+$/g, ''), '.zenith-test', `${Date.now()}-${randomUUID()}.txt`].filter(Boolean).join('/');
+  const body = Buffer.from(`zenith storage test ${new Date().getTime()}`);
+  try {
+    await uploadObjectByConfig(config, {
+      objectKey,
+      stream: Readable.from(body),
+      size: body.length,
+      mimeType: 'text/plain',
+    });
+    await deleteObjectByConfig(config, objectKey);
+  } catch (err) {
+    throw new HTTPException(400, { message: `存储连接测试失败：${err instanceof Error ? err.message : String(err)}` });
+  }
+  return { ok: true as const, message: '存储连接测试通过' };
+}
+
+export async function testFileStorageConfig(data: StorageInput) {
+  return testStorageConfigRow({ ...toStoragePayload(data), id: 0, createdAt: new Date(), updatedAt: new Date(), createdBy: null, updatedBy: null } as typeof fileStorageConfigs.$inferSelect);
+}
+
+export async function testExistingFileStorageConfig(id: number, data: Partial<StorageInput>) {
+  const [current] = await db.select().from(fileStorageConfigs).where(eq(fileStorageConfigs.id, id)).limit(1);
+  if (!current) throw new HTTPException(404, { message: '文件配置不存在' });
+  const merged = { ...current, ...data } as Record<string, unknown>;
+  for (const field of STORAGE_SECRET_FIELDS) {
+    if (!data[field]) merged[field] = current[field];
+  }
+  return testStorageConfigRow({ ...current, ...toStoragePayload(merged as StorageInput) });
 }
 
 export async function getFileStorageConfigBeforeAudit(id: number) {

@@ -621,14 +621,19 @@ export function getMultipartDriver(provider: FileStorageConfigRow['provider']): 
   }
 }
 
-export async function readStoredFile(file: ManagedFileRow, config: FileStorageConfigRow) {
+export interface StoredFileRange {
+  start: number;
+  end: number;
+}
+
+export async function readStoredFile(file: ManagedFileRow, config: FileStorageConfigRow, range?: StoredFileRange) {
   const effectiveConfig = withFileBucket(file, config);
   const contentType = file.mimeType ?? 'application/octet-stream';
   const fileName = file.originalName;
 
   if (effectiveConfig.provider === 'local') {
     const filePath = path.join(resolveLocalRoot(effectiveConfig), ...file.objectKey.split('/'));
-    const stream = Readable.toWeb(createReadStream(filePath)) as ReadableStream<Uint8Array>;
+    const stream = Readable.toWeb(createReadStream(filePath, range ? { start: range.start, end: range.end } : undefined)) as ReadableStream<Uint8Array>;
     return { stream, contentType, fileName };
   }
 
@@ -645,6 +650,7 @@ export async function readStoredFile(file: ManagedFileRow, config: FileStorageCo
     const response = await client.send(new GetObjectCommand({
       Bucket: effectiveConfig.s3Bucket!,
       Key: file.objectKey,
+      ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}),
     }));
     // AWS SDK v3 Body.transformToWebStream() 直接返回 Web ReadableStream
     const stream = response.Body!.transformToWebStream() as ReadableStream<Uint8Array>;
@@ -729,10 +735,10 @@ export async function readStoredFile(file: ManagedFileRow, config: FileStorageCo
   throw new Error(`不支持的存储类型: ${effectiveConfig.provider}`);
 }
 
-export async function deleteStoredFile(file: ManagedFileRow, config: FileStorageConfigRow) {
-  const effectiveConfig = withFileBucket(file, config);
+export async function deleteObjectByConfig(config: FileStorageConfigRow, objectKey: string, bucketName?: string | null) {
+  const effectiveConfig = withFileBucket({ bucketName, provider: config.provider }, config);
   if (effectiveConfig.provider === 'local') {
-    const filePath = path.join(resolveLocalRoot(effectiveConfig), ...file.objectKey.split('/'));
+    const filePath = path.join(resolveLocalRoot(effectiveConfig), ...objectKey.split('/'));
     try {
       await fs.unlink(filePath);
     } catch (error: unknown) {
@@ -743,7 +749,7 @@ export async function deleteStoredFile(file: ManagedFileRow, config: FileStorage
 
   if (effectiveConfig.provider === 'oss') {
     const client = createOssClient(effectiveConfig);
-    await client.delete(file.objectKey);
+    await client.delete(objectKey);
     return;
   }
 
@@ -751,7 +757,7 @@ export async function deleteStoredFile(file: ManagedFileRow, config: FileStorage
     const client = createS3Client(effectiveConfig);
     await client.send(new DeleteObjectCommand({
       Bucket: effectiveConfig.s3Bucket!,
-      Key: file.objectKey,
+      Key: objectKey,
     }));
     return;
   }
@@ -762,7 +768,7 @@ export async function deleteStoredFile(file: ManagedFileRow, config: FileStorage
       cos.deleteObject({
         Bucket: effectiveConfig.cosBucket!,
         Region: effectiveConfig.cosRegion!,
-        Key: file.objectKey,
+        Key: objectKey,
       }, (err) => {
         if (err) reject(new Error(String(err.message ?? err)));
         else resolve();
@@ -774,7 +780,7 @@ export async function deleteStoredFile(file: ManagedFileRow, config: FileStorage
   if (effectiveConfig.provider === 'obs') {
     const obs = createObsClient(effectiveConfig);
     await new Promise<void>((resolve, reject) => {
-      obs.deleteObject({ Bucket: effectiveConfig.obsBucket!, Key: file.objectKey }, (err) => {
+      obs.deleteObject({ Bucket: effectiveConfig.obsBucket!, Key: objectKey }, (err) => {
         if (err) reject(new Error(String((err as { message?: string }).message ?? JSON.stringify(err))));
         else resolve();
       });
@@ -786,7 +792,7 @@ export async function deleteStoredFile(file: ManagedFileRow, config: FileStorage
     const { mac, conf } = createKodoUploader(effectiveConfig);
     const bucketManager = new qiniu.rs.BucketManager(mac, conf);
     await new Promise<void>((resolve, reject) => {
-      bucketManager.delete(effectiveConfig.kodoBucket!, file.objectKey, (err) => {
+      bucketManager.delete(effectiveConfig.kodoBucket!, objectKey, (err) => {
         if (err) reject(err);
         else resolve();
       });
@@ -796,23 +802,27 @@ export async function deleteStoredFile(file: ManagedFileRow, config: FileStorage
 
   if (effectiveConfig.provider === 'bos') {
     const bosClient = createBosClient(effectiveConfig);
-    await bosClient.deleteObject(effectiveConfig.bosBucket!, file.objectKey);
+    await bosClient.deleteObject(effectiveConfig.bosBucket!, objectKey);
     return;
   }
 
   if (effectiveConfig.provider === 'azure') {
     const containerClient = createAzureBlobClient(effectiveConfig);
-    await containerClient.deleteBlob(file.objectKey);
+    await containerClient.deleteBlob(objectKey);
     return;
   }
 
   if (effectiveConfig.provider === 'sftp') {
     await sftpOperation(effectiveConfig, async (client) => {
-      const remotePath = [effectiveConfig.sftpRootPath?.replace(/\/+$/, ''), ...file.objectKey.split('/')].filter(Boolean).join('/');
+      const remotePath = [effectiveConfig.sftpRootPath?.replace(/\/+$/, ''), ...objectKey.split('/')].filter(Boolean).join('/');
       await client.delete(remotePath, true);
     });
     return;
   }
 
   throw new Error(`不支持的存储类型: ${effectiveConfig.provider}`);
+}
+
+export async function deleteStoredFile(file: ManagedFileRow, config: FileStorageConfigRow) {
+  await deleteObjectByConfig(config, file.objectKey, file.bucketName);
 }

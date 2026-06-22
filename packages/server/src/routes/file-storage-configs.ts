@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
 import { createFileStorageConfigSchema, updateFileStorageConfigSchema } from '@zenith/shared';
-import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, okExcel, excelStreamBody, okCsv, csvStreamBody } from '../lib/openapi-schemas';
+import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, okExcel, excelStreamBody, okCsv, csvStreamBody } from '../lib/openapi-schemas';
 import { FileStorageConfigDTO } from '../lib/openapi-dtos';
 import {
   listFileStorageConfigs,
@@ -15,6 +15,8 @@ import {
   getFileStorageConfig,
   exportFileStorageConfigs,
   exportFileStorageConfigsAsCsv,
+  testFileStorageConfig,
+  testExistingFileStorageConfig,
 } from '../services/file-storage-configs.service';
 
 const fileStorageConfigsRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -49,6 +51,43 @@ const getOneRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(FileStorageConfigDTO, '存储配置详情') },
   }),
   handler: async (c) => c.json(okBody(await getFileStorageConfig(c.req.valid('param').id)), 200),
+});
+
+const testRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/test', tags: ['FileStorageConfigs'], summary: '测试存储配置连接',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:file:config', audit: { description: '测试文件存储连接', module: '文件存储配置', recordBody: false } })] as const,
+    request: { body: { content: jsonContent(createFileStorageConfigSchema), required: true } },
+    responses: {
+      ...commonErrorResponses,
+      ...okMsg('测试通过'),
+      400: { content: jsonContent(ErrorResponse), description: '测试失败' },
+    },
+  }),
+  handler: async (c) => {
+    const result = await testFileStorageConfig(c.req.valid('json'));
+    return c.json(okBody(null, result.message), 200);
+  },
+});
+
+const testExistingRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/test', tags: ['FileStorageConfigs'], summary: '测试已保存存储配置连接',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:file:config', audit: { description: '测试文件存储连接', module: '文件存储配置', recordBody: false } })] as const,
+    request: { params: IdParam, body: { content: jsonContent(updateFileStorageConfigSchema), required: true } },
+    responses: {
+      ...commonErrorResponses,
+      ...okMsg('测试通过'),
+      400: { content: jsonContent(ErrorResponse), description: '测试失败' },
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const result = await testExistingFileStorageConfig(id, c.req.valid('json'));
+    return c.json(okBody(null, result.message), 200);
+  },
 });
 
 const createRouteDef = defineOpenAPIRoute({
@@ -137,6 +176,6 @@ const exportCsvRoute = defineOpenAPIRoute({
   },
 });
 
-fileStorageConfigsRouter.openapiRoutes([listRoute, defaultRoute, exportRoute, exportCsvRoute, getOneRoute, createRouteDef, updateRouteDef, setDefaultRoute, deleteRouteDef] as const);
+fileStorageConfigsRouter.openapiRoutes([listRoute, defaultRoute, exportRoute, exportCsvRoute, testRoute, testExistingRoute, getOneRoute, createRouteDef, updateRouteDef, setDefaultRoute, deleteRouteDef] as const);
 
 export default fileStorageConfigsRouter;
