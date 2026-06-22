@@ -405,20 +405,12 @@ export default function WorkflowDefinitionsPage() {
     {
       title: '操作',
       key: 'action',
-      width: 230,
+      width: 170,
       fixed: 'right',
       render: (_: unknown, record: WorkflowDefinition) => (
         <Space>
           <Button theme="borderless" size="small" onClick={() => navigate(`/workflow/designer/${record.id}`)}>
             设计
-          </Button>
-          {hasPermission('workflow:definition:create') && (
-            <Button theme="borderless" size="small" onClick={() => { void handleDuplicate(record); }}>
-              复制
-            </Button>
-          )}
-          <Button theme="borderless" size="small" onClick={() => { void handleExport(record); }}>
-            导出
           </Button>
           {record.status === 'draft' && hasPermission('workflow:definition:publish') && (
             <Button theme="borderless" size="small" type="primary" onClick={() => {
@@ -436,6 +428,10 @@ export default function WorkflowDefinitionsPage() {
             position="bottomRight"
             render={
               <Dropdown.Menu>
+                {hasPermission('workflow:definition:create') && (
+                  <Dropdown.Item onClick={() => { setOpenMoreId(null); void handleDuplicate(record); }}>复制</Dropdown.Item>
+                )}
+                <Dropdown.Item onClick={() => { setOpenMoreId(null); void handleExport(record); }}>导出</Dropdown.Item>
                 {record.status === 'published' && hasPermission('workflow:definition:publish') && (
                   <Dropdown.Item type="warning" onClick={() => {
                     setOpenMoreId(null);
