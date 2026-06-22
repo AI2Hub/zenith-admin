@@ -6,7 +6,7 @@
  */
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Button, Form, Spin, Tabs, TabPane, Toast, Typography, Empty } from '@douyinfe/semi-ui';
+import { Banner, Button, Form, Spin, Tabs, TabPane, Toast, Typography, Empty } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import dayjs from 'dayjs';
 import type { WorkflowDefinition, WorkflowInstance } from '@zenith/shared';
@@ -65,9 +65,14 @@ export default function WorkflowLaunchPage() {
     title: def ? `发起：${def.name}` : '发起申请',
     icon: def?.customForm?.icon ?? def?.categoryIcon ?? 'Send',
   });
+  const isExternal = def?.formType === 'external';
 
   const collectFormData = useCallback(async () => {
     if (!formApi.current || !def) return null;
+    if (def.formType === 'external') {
+      Toast.error('业务系统主导流程请从对应业务模块发起');
+      return null;
+    }
     try {
       const values = await formApi.current.validate() as Record<string, unknown>;
       let formData: Record<string, unknown> = {};
@@ -136,7 +141,13 @@ export default function WorkflowLaunchPage() {
           {def && (
             <Tabs type="line" defaultActiveKey="form">
               <TabPane tab="填写表单" itemKey="form">
-                {def.formType === 'custom' ? (
+                {def.formType === 'external' ? (
+                  <Banner
+                    type="warning"
+                    closeIcon={null}
+                    description="业务系统主导流程由业务模块保存业务数据后发起，不能在工作流发起页直接提交。请返回对应业务模块创建申请。"
+                  />
+                ) : def.formType === 'custom' ? (
                   <BusinessFormHost
                     key={`biz-${def.id}`}
                     customForm={def.customForm}
@@ -200,8 +211,8 @@ export default function WorkflowLaunchPage() {
               />
             </Form>
             <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--semi-color-border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <Button type="primary" block loading={submitting} disabled={savingDraft} onClick={() => void handleSubmit(false)}>提交</Button>
-              <Button block loading={savingDraft} disabled={submitting} onClick={() => void handleSubmit(true)}>保存草稿</Button>
+              <Button type="primary" block loading={submitting} disabled={savingDraft || isExternal} onClick={() => void handleSubmit(false)}>提交</Button>
+              <Button block loading={savingDraft} disabled={submitting || isExternal} onClick={() => void handleSubmit(true)}>保存草稿</Button>
               <Button block theme="borderless" onClick={() => navigate('/workflow/launchpad')}>取消</Button>
             </div>
           </div>

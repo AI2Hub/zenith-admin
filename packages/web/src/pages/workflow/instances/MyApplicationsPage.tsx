@@ -28,6 +28,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { AppModal } from '@/components/AppModal';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import WorkflowInstanceDetailPanel from '@/components/workflow/WorkflowInstanceDetailPanel';
+import BusinessFormHost, { type WorkflowBusinessFormApi } from '@/components/workflow/BusinessFormHost';
 import WorkflowGraphView from '@/components/workflow/WorkflowGraphView';
 import WorkflowNodeListView from '@/components/workflow/WorkflowNodeListView';
 import WorkflowApproverPreview from '@/components/workflow/WorkflowApproverPreview';
@@ -35,6 +36,7 @@ import WorkflowPriorityTag, { WORKFLOW_PRIORITY_OPTIONS } from '@/components/wor
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 import { renderEllipsis } from '../../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
+import { normalizeWorkflowFormSnapshot } from '@/utils/workflow-snapshot';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
 
@@ -69,7 +71,7 @@ function escapeHtml(s: string): string {
 
 function buildPrintHtml(instance: WorkflowInstance): string {
   const statusText = INSTANCE_STATUS_MAP[instance.status]?.text ?? instance.status;
-  const formFields = instance.formSnapshot ?? [];
+  const formFields = normalizeWorkflowFormSnapshot(instance.formSnapshot)?.fields ?? [];
   const formData = instance.formData ?? {};
 
   const formRows = formFields.length > 0
@@ -181,7 +183,8 @@ function InstanceDetailDrawer({
       .then(res => {
         if (res.code === 0) {
           setData(res.data);
-          return request.get<WorkflowDefinition>(`/api/workflows/definitions/${res.data.definitionId}`);
+          if (res.data.definitionSnapshot) return null;
+          return request.get<WorkflowDefinition>(`/api/workflows/definitions/${res.data.definitionId}`, { silent: true });
         }
         return null;
       })
@@ -379,6 +382,7 @@ export default function MyApplicationsPage() {
   const { user } = useAuth();
   const formApi = useRef<FormApi | null>(null);
   const dynamicFormApi = useRef<FormApi | null>(null);
+  const businessFormApi = useRef<WorkflowBusinessFormApi | null>(null);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<PaginatedResponse<WorkflowInstance> | null>(null);
   const { page, pageSize, setPage, buildPagination } = usePagination();
@@ -470,8 +474,10 @@ export default function MyApplicationsPage() {
     setApplyVisible(false);
     setEditingDraft(null);
     setSelectedDef(null);
+    businessFormApi.current = null;
     setApplyCategoryId(null);
     setDynamicFormInitValues({});
+    businessFormApi.current = null;
   };
 
   const openApply = async () => {
@@ -498,7 +504,17 @@ export default function MyApplicationsPage() {
     try {
       const values = await formApi.current.validate() as Record<string, unknown>;
       let formData: Record<string, unknown> = {};
-      if (dynamicFormApi.current && selectedDef?.formFields && selectedDef.formFields.length > 0) {
+      if (selectedDef?.formType === 'external') {
+        Toast.error('业务系统主导流程请从对应业务模块发起');
+        return null;
+      }
+      if (selectedDef?.formType === 'custom') {
+        if (!businessFormApi.current) {
+          Toast.error('业务表单尚未就绪，请稍候重试');
+          return null;
+        }
+        formData = await businessFormApi.current.validate();
+      } else if (dynamicFormApi.current && selectedDef?.formFields && selectedDef.formFields.length > 0) {
         formData = await dynamicFormApi.current.validate() as Record<string, unknown>;
       }
       return { values, formData };
@@ -885,6 +901,7 @@ export default function MyApplicationsPage() {
               const def = definitions.find(d => d.id === v) ?? null;
               setSelectedDef(def);
               setDynamicFormInitValues({});
+              businessFormApi.current = null;
               if (def) {
                 const who = user?.nickname || user?.username || '我';
                 const auto = `${def.name} - ${who} - ${dayjs().format('YYYY-MM-DD')}`;
@@ -929,7 +946,19 @@ export default function MyApplicationsPage() {
           <div style={{ marginTop: 16, borderTop: '1px solid var(--semi-color-border)', paddingTop: 12 }}>
             <Tabs type="line" defaultActiveKey="form">
               <TabPane tab="填写表单" itemKey="form">
-                {selectedDef.formFields && selectedDef.formFields.length > 0 ? (
+                {selectedDef.formType === 'custom' ? (
+                  <BusinessFormHost
+                    key={`biz-${formKey}-${selectedDef.id}`}
+                    customForm={selectedDef.customForm}
+                    mode="create"
+                    container="sheet"
+                    definitionId={selectedDef.id}
+                    value={dynamicFormInitValues}
+                    getFormApi={api => { businessFormApi.current = api; }}
+                  />
+                ) : selectedDef.formType === 'external' ? (
+                  <Typography.Text type="tertiary">业务系统主导流程请从对应业务模块发起。</Typography.Text>
+                ) : selectedDef.formFields && selectedDef.formFields.length > 0 ? (
                   <WorkflowFormRenderer
                     key={`form-${formKey}-${selectedDef.id}`}
                     fields={selectedDef.formFields}
@@ -943,7 +972,11 @@ export default function MyApplicationsPage() {
               <TabPane tab="审批链路" itemKey="chain">
                 <WorkflowApproverPreview
                   definitionId={selectedDef.id}
-                  getFormData={() => (dynamicFormApi.current?.getValues?.() as Record<string, unknown>) ?? {}}
+                getFormData={() => (
+                  selectedDef.formType === 'custom'
+                    ? (businessFormApi.current?.getValues?.() as Record<string, unknown>) ?? {}
+                    : (dynamicFormApi.current?.getValues?.() as Record<string, unknown>) ?? {}
+                )}
                 />
               </TabPane>
               <TabPane tab="流程图预览" itemKey="graph">

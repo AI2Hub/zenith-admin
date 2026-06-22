@@ -71,7 +71,11 @@ async function ensureLeaveDefinitionId(): Promise<number> {
   const [def] = await db
     .select({ id: workflowDefinitions.id })
     .from(workflowDefinitions)
-    .where(and(eq(workflowDefinitions.name, LEAVE_WORKFLOW_NAME), eq(workflowDefinitions.status, 'published')))
+    .where(and(
+      eq(workflowDefinitions.name, LEAVE_WORKFLOW_NAME),
+      eq(workflowDefinitions.status, 'published'),
+      eq(workflowDefinitions.formType, 'external'),
+    ))
     .limit(1);
   if (!def) throw new HTTPException(400, { message: `未找到已发布的「${LEAVE_WORKFLOW_NAME}」流程定义，请先在流程定义中发布` });
   return def.id;

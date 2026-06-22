@@ -1462,7 +1462,7 @@ export const workflowInstances = pgTable('workflow_instances', {
   id: serial('id').primaryKey(),
   definitionId: integer('definition_id').notNull().references(() => workflowDefinitions.id, { onDelete: 'restrict' }),
   definitionSnapshot: jsonb('definition_snapshot').notNull(), // 发起时的定义快照
-  formSnapshot: jsonb('form_snapshot'), // 发起时的表单结构快照（WorkflowFormField[]），冻结历史不受表单修改影响
+  formSnapshot: jsonb('form_snapshot'), // 发起时的表单快照（兼容旧 WorkflowFormField[]；新数据含 fields/settings/customForm）
   title: varchar('title', { length: 128 }).notNull(),
   /** 业务编号/流水号（按流程定义的编号规则在发起时生成，如 BX-20260620-0001） */
   serialNo: varchar('serial_no', { length: 64 }),

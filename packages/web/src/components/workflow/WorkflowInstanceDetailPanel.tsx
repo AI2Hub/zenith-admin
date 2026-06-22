@@ -9,7 +9,7 @@ import {
   Avatar, TextArea, Select, Toast, Popconfirm,
 } from '@douyinfe/semi-ui';
 import { CornerUpLeft, Send, Undo2 } from 'lucide-react';
-import type { WorkflowDefinition, WorkflowInstance, WorkflowFormField, WorkflowComment, WorkflowTaskConsult } from '@zenith/shared';
+import type { WorkflowDefinition, WorkflowInstance, WorkflowComment, WorkflowTaskConsult } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { useAuth } from '@/hooks/useAuth';
 import { formatDateTime } from '@/utils/date';
@@ -18,6 +18,14 @@ import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowF
 import BusinessFormHost from '@/components/workflow/BusinessFormHost';
 import WorkflowGraphView from './WorkflowGraphView';
 import WorkflowNodeListView from './WorkflowNodeListView';
+import {
+  resolveWorkflowCustomForm,
+  resolveWorkflowDetailDefinition,
+  resolveWorkflowFlowData,
+  resolveWorkflowFormFields,
+  resolveWorkflowFormSettings,
+  resolveWorkflowFormType,
+} from '@/utils/workflow-snapshot';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'orange' | 'purple' | 'red';
 
@@ -166,18 +174,22 @@ export default function WorkflowInstanceDetailPanel({
     } catch { Toast.error('撤回失败'); }
   };
   const consults = instance.consults ?? [];
+  const effectiveDefinition = resolveWorkflowDetailDefinition(instance, definition);
   // 历史实例渲染冻结快照（发起时绑定），不受表单后续修改影响；无快照时回退到当前表单
-  const formFields: WorkflowFormField[] = instance.formSnapshot ?? definition?.formFields ?? [];
+  const formFields = resolveWorkflowFormFields(instance, effectiveDefinition);
+  const formSettings = resolveWorkflowFormSettings(instance, effectiveDefinition);
+  const formType = resolveWorkflowFormType(instance, effectiveDefinition);
+  const customForm = resolveWorkflowCustomForm(instance, effectiveDefinition);
   const hasFormFields = formFields.length > 0;
-  const flowData = (definition?.flowData ?? null) as { process?: import('@/pages/workflow/designer/types').FlowProcess } | null;
+  const flowData = (resolveWorkflowFlowData(instance, effectiveDefinition) ?? null) as { process?: import('@/pages/workflow/designer/types').FlowProcess } | null;
   const childInstances = instance.childInstances ?? [];
 
   const renderFormData = () => {
     // 自定义业务表单（custom）/ 业务系统主导（external）：渲染业务页面（view 只读）
-    if (definition?.formType === 'custom' || definition?.formType === 'external') {
+    if (formType === 'custom' || formType === 'external') {
       return (
         <BusinessFormHost
-          customForm={definition.customForm}
+          customForm={customForm}
           mode="view"
           container="sheet"
           definitionId={instance.definitionId}
@@ -195,6 +207,9 @@ export default function WorkflowInstanceDetailPanel({
           fields={formFields}
           initValues={(instance.formData as Record<string, unknown>) ?? {}}
           readOnly
+          labelPosition={formSettings?.labelPosition}
+          labelAlign={formSettings?.labelAlign}
+          labelWidth={formSettings?.labelWidth}
         />
       );
     }
@@ -238,10 +253,10 @@ export default function WorkflowInstanceDetailPanel({
             </>
           )}
           <span>{instance.definitionName ?? '—'}</span>
-          {definition?.categoryName && (
+          {effectiveDefinition?.categoryName && (
             <>
               <span>·</span>
-              <Tag size="small" color="blue" style={{ cursor: 'default' }}>{definition.categoryName}</Tag>
+              <Tag size="small" color="blue" style={{ cursor: 'default' }}>{effectiveDefinition.categoryName}</Tag>
             </>
           )}
           <span>·</span>
@@ -356,9 +371,9 @@ export default function WorkflowInstanceDetailPanel({
         )}
       </Tabs>
 
-      {definition?.description ? (
+      {effectiveDefinition?.description ? (
         <div style={{ marginTop: 16, color: 'var(--semi-color-text-2)', fontSize: 13 }}>
-          <Typography.Text type="tertiary">流程说明：{definition.description}</Typography.Text>
+          <Typography.Text type="tertiary">流程说明：{effectiveDefinition.description}</Typography.Text>
         </div>
       ) : null}
     </div>

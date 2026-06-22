@@ -83,6 +83,27 @@ import { ensureFormExists } from './workflow-forms.service';
 export type WorkflowDefinitionStatus = 'draft' | 'published' | 'disabled';
 type WorkflowInitiatorScopeType = 'all' | 'users' | 'departments' | 'roles';
 
+function hasBusinessFormConfig(formType: WorkflowFormType): formType is 'custom' | 'external' {
+  return formType === 'custom' || formType === 'external';
+}
+
+function validateBusinessFormConfigForPublish(
+  formType: WorkflowFormType,
+  customForm: unknown,
+): void {
+  if (formType === 'custom') {
+    const cf = customForm as WorkflowCustomFormConfig | null;
+    if (!cf?.createComponent?.trim()) {
+      throw new HTTPException(400, { message: '请先在「表单」步骤配置自定义业务表单的创建页组件路径' });
+    }
+  } else if (formType === 'external') {
+    const cf = customForm as WorkflowCustomFormConfig | null;
+    if (!cf?.viewComponent?.trim()) {
+      throw new HTTPException(400, { message: '请先在「表单」步骤配置业务系统主导流程的审批查看页组件路径' });
+    }
+  }
+}
+
 function normalizeScopeIds(ids: unknown): number[] {
   if (!Array.isArray(ids)) return [];
   return ids.map(Number).filter((v) => Number.isInteger(v) && v > 0);
@@ -194,7 +215,7 @@ export async function createDefinition(data: {
     flowData: data.flowData ?? null,
     formId: formType === 'designer' ? (data.formId ?? null) : null,
     formType,
-    customForm: formType === 'custom' ? (data.customForm ?? null) : null,
+    customForm: hasBusinessFormConfig(formType) ? (data.customForm ?? null) : null,
     status: initialStatus,
     tenantId: getCreateTenantId(user),
   }).returning();
@@ -213,10 +234,11 @@ export async function updateDefinition(id: number, data: Partial<{
   const updateData: Record<string, unknown> = { ...data };
   if (data.flowData !== undefined) updateData.flowData = data.flowData;
   if (data.formType !== undefined) updateData.formType = data.formType;
-  // 切到自定义表单时清空表单库引用；切到设计器表单时清空自定义配置，避免脏数据
-  if (nextFormType === 'custom') {
+  // 切到业务表单时清空表单库引用；切到设计器表单时清空业务表单配置，避免脏数据
+  if (hasBusinessFormConfig(nextFormType)) {
     updateData.formId = null;
     if (data.customForm !== undefined) updateData.customForm = data.customForm;
+    else if (data.formType !== undefined) updateData.customForm = existing.customForm ?? null;
   } else {
     updateData.customForm = null;
     if (data.formId !== undefined) updateData.formId = data.formId;
@@ -252,13 +274,7 @@ export async function publishDefinition(id: number) {
   if (!flowData?.nodes) throw new HTTPException(400, { message: '请先在设计器中设计流程' });
   const validation = validateFlowData(flowData);
   if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
-  // 自定义业务表单必须配置创建页组件路径，否则发布后无人可发起
-  if (existing.formType === 'custom') {
-    const cf = existing.customForm as WorkflowCustomFormConfig | null;
-    if (!cf?.createComponent?.trim()) {
-      throw new HTTPException(400, { message: '请先在「表单」步骤配置自定义业务表单的创建页组件路径' });
-    }
-  }
+  validateBusinessFormConfigForPublish((existing.formType ?? 'designer') as WorkflowFormType, existing.customForm);
   const user = currentUser();
   const updated = await db.transaction(async (tx) => {
     // 行级锁 + 锁内重算版本号：避免并发发布同一定义争用 (definitionId, version) 唯一约束
@@ -437,7 +453,7 @@ export async function importDefinition(data: {
       flowData: (data.flowData ?? null) as WorkflowFlowData | null,
       formId: newFormId,
       formType,
-      customForm: formType === 'custom' ? (data.customForm ?? null) : null,
+      customForm: hasBusinessFormConfig(formType) ? (data.customForm ?? null) : null,
       status: 'draft',
       tenantId,
     }).returning();

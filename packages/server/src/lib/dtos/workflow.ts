@@ -214,6 +214,7 @@ export const WorkflowInstanceDTO = z
     allowComment: z.boolean().optional(),
     formData: z.unknown().nullable(),
     formSnapshot: z.unknown().nullable().optional(),
+    definitionSnapshot: z.unknown().nullable().optional(),
     status: z.enum(['draft', 'running', 'approved', 'rejected', 'withdrawn', 'cancelled']),
     currentNodeKey: z.string().nullable(),
     currentNodeName: z.string().nullable().optional(),
@@ -247,6 +248,7 @@ export const WorkflowInstanceDTO = z
 export const WorkflowInstanceListItemDTO = WorkflowInstanceDTO.omit({
   formData: true,
   formSnapshot: true,
+  definitionSnapshot: true,
   tasks: true,
   comments: true,
   consults: true,

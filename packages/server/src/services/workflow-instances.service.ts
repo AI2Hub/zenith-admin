@@ -49,10 +49,11 @@ export function mapInstance(
     myActionAt?: Date | string | null;
     ccTaskId?: number | null;
     ccReadAt?: Date | string | null;
+    includeDefinitionSnapshot?: boolean;
   } = {},
 ) {
   const snapshotSettings = (row.definitionSnapshot as { flowData?: WorkflowFlowData } | null)?.flowData?.settings;
-  return {
+  const mapped = {
     id: row.id,
     definitionId: row.definitionId,
     definitionName: extras.definitionName ?? null,
@@ -64,7 +65,7 @@ export function mapInstance(
     allowResubmit: snapshotSettings?.allowResubmit !== false,
     allowComment: snapshotSettings?.allowComment !== false,
     formData: row.formData,
-    formSnapshot: (row.formSnapshot ?? null) as WorkflowFormField[] | null,
+    formSnapshot: (row.formSnapshot ?? null) as WorkflowFormField[] | WorkflowInstanceFormSnapshot | null,
     status: row.status,
     currentNodeKey: row.currentNodeKey,
     currentNodeName: extras.currentNodeName ?? resolveNodeNameFromSnapshot(row.definitionSnapshot, row.currentNodeKey),
@@ -89,6 +90,9 @@ export function mapInstance(
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
+  return extras.includeDefinitionSnapshot
+    ? { ...mapped, definitionSnapshot: mapDefinitionSnapshot(row.definitionSnapshot, row.formSnapshot) }
+    : mapped;
 }
 
 /** 从流程定义快照中解析节点 key 对应的节点名称 */
@@ -96,6 +100,102 @@ function resolveNodeNameFromSnapshot(snapshot: unknown, nodeKey: string | null):
   if (!nodeKey) return null;
   const flowData = (snapshot as { flowData?: WorkflowFlowData } | null)?.flowData;
   return flowData?.nodes?.find((n) => n.data.key === nodeKey)?.data.label ?? null;
+}
+
+function normalizeStoredFormSnapshot(snapshot: unknown): WorkflowInstanceFormSnapshot | null {
+  if (!snapshot) return null;
+  if (Array.isArray(snapshot)) {
+    return { fields: snapshot as WorkflowFormField[], settings: null };
+  }
+  if (typeof snapshot !== 'object') return null;
+  const value = snapshot as Partial<WorkflowInstanceFormSnapshot>;
+  return {
+    formType: value.formType,
+    formId: value.formId ?? null,
+    formName: value.formName ?? null,
+    fields: Array.isArray(value.fields) ? value.fields : [],
+    settings: value.settings ?? null,
+    customForm: value.customForm ?? null,
+  };
+}
+
+function buildInstanceFormSnapshot(
+  def: typeof workflowDefinitions.$inferSelect,
+  resolvedForm: { fields: WorkflowFormField[]; settings?: WorkflowFormSettings; name: string } | null,
+): WorkflowInstanceFormSnapshot | null {
+  const formType = (def.formType ?? 'designer') as WorkflowFormType;
+  if (formType === 'designer') {
+    if (!resolvedForm) return null;
+    return {
+      formType,
+      formId: def.formId ?? null,
+      formName: resolvedForm.name,
+      fields: resolvedForm.fields,
+      settings: resolvedForm.settings ?? null,
+      customForm: null,
+    };
+  }
+  return {
+    formType,
+    formId: null,
+    formName: null,
+    fields: [],
+    settings: null,
+    customForm: (def.customForm ?? null) as WorkflowCustomFormConfig | null,
+  };
+}
+
+function mapDefinitionSnapshot(snapshot: unknown, formSnapshot: unknown) {
+  if (!snapshot || typeof snapshot !== 'object') return null;
+  const row = snapshot as Partial<typeof workflowDefinitions.$inferSelect>;
+  const normalizedForm = normalizeStoredFormSnapshot(formSnapshot);
+  const formType = (row.formType ?? normalizedForm?.formType ?? 'designer') as WorkflowFormType;
+  return {
+    id: Number(row.id ?? 0),
+    name: typeof row.name === 'string' ? row.name : '',
+    description: typeof row.description === 'string' ? row.description : null,
+    categoryId: typeof row.categoryId === 'number' ? row.categoryId : null,
+    flowData: (row.flowData ?? null) as WorkflowFlowData | null,
+    formId: typeof row.formId === 'number' ? row.formId : null,
+    formName: normalizedForm?.formName ?? null,
+    formFields: normalizedForm?.fields ?? null,
+    formSettings: normalizedForm?.settings ?? null,
+    formType,
+    customForm: (row.customForm ?? normalizedForm?.customForm ?? null) as WorkflowCustomFormConfig | null,
+    status: row.status,
+    version: typeof row.version === 'number' ? row.version : undefined,
+    tenantId: typeof row.tenantId === 'number' || row.tenantId === null ? row.tenantId : undefined,
+  };
+}
+
+function assertLaunchMatchesFormType(
+  def: typeof workflowDefinitions.$inferSelect,
+  data: { bizType?: string | null; bizId?: string | null; asDraft?: boolean },
+): void {
+  const formType = (def.formType ?? 'designer') as WorkflowFormType;
+  const hasBizKey = !!data.bizType?.trim() || !!data.bizId?.trim();
+  if (formType === 'external') {
+    if (data.asDraft) {
+      throw new HTTPException(400, { message: '业务系统主导流程不支持在工作流中保存草稿，请在业务模块中保存草稿' });
+    }
+    if (!data.bizType?.trim() || !data.bizId?.trim()) {
+      throw new HTTPException(400, { message: '业务系统主导流程必须通过业务模块发起，并提供 bizType 与 bizId' });
+    }
+    const cf = def.customForm as WorkflowCustomFormConfig | null;
+    if (!cf?.viewComponent?.trim()) {
+      throw new HTTPException(400, { message: '业务系统主导流程缺少审批查看页组件配置' });
+    }
+    return;
+  }
+  if (hasBizKey) {
+    throw new HTTPException(400, { message: '仅业务系统主导流程允许携带 bizType 与 bizId' });
+  }
+  if (formType === 'custom') {
+    const cf = def.customForm as WorkflowCustomFormConfig | null;
+    if (!cf?.createComponent?.trim()) {
+      throw new HTTPException(400, { message: '自定义业务表单缺少创建页组件配置' });
+    }
+  }
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
@@ -107,7 +207,7 @@ import { workflowInstances, workflowTasks, workflowTaskUrges, workflowDefinition
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { getDataScopeCondition } from '../lib/data-scope';
 import { advanceFlow, getInitialTasks, validateFlowData, type AdvanceResult, type TaskAction } from '../lib/workflow-engine';
-import type { WorkflowApproveMethod, WorkflowFlowData, WorkflowTask as WorkflowTaskDto, WorkflowEventActor, WorkflowActionButtonKey, WorkflowActionButtonConfig, WorkflowFormField, WorkflowStarterContext, WorkflowBatchActionResult } from '@zenith/shared';
+import type { WorkflowApproveMethod, WorkflowFlowData, WorkflowTask as WorkflowTaskDto, WorkflowEventActor, WorkflowActionButtonKey, WorkflowActionButtonConfig, WorkflowFormField, WorkflowFormSettings, WorkflowStarterContext, WorkflowBatchActionResult, WorkflowCustomFormConfig, WorkflowFormType, WorkflowInstanceFormSnapshot } from '@zenith/shared';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
 import { resolveAssigneeIds, buildStarterContext } from './workflow-assignee-resolver.service';
@@ -369,7 +469,9 @@ async function createChildInstanceAndMaterialize(
   actor: WorkflowEventActor,
 ): Promise<typeof workflowInstances.$inferSelect> {
   const flowData = def.flowData as WorkflowFlowData;
-  const childFormSnapshot = await resolveFormSnapshot(def.formId);
+  assertLaunchMatchesFormType(def, {});
+  const childResolvedFormSnapshot = await resolveFormSnapshot(def.formId);
+  const childFormSnapshot = buildInstanceFormSnapshot(def, childResolvedFormSnapshot);
   const childStarter = await buildStarterContext(childInitiatorId);
   const initialResult = getInitialTasks(flowData, childFormData, childStarter);
 
@@ -379,7 +481,7 @@ async function createChildInstanceAndMaterialize(
       definitionSnapshot: def,
       title: childTitle.slice(0, 128),
       formData: childFormData,
-      formSnapshot: childFormSnapshot?.fields ?? null,
+      formSnapshot: childFormSnapshot,
       status: 'running',
       currentNodeKey: null,
       initiatorId: childInitiatorId,
@@ -1674,6 +1776,7 @@ export async function getInstanceDetail(id: number) {
     childInstances,
     comments,
     consults,
+    includeDefinitionSnapshot: true,
   });
 }
 
@@ -1703,6 +1806,7 @@ export async function createInstance(data: { definitionId: number; title: string
   const skipScopeCheck = !!callerOverride;
   const [def] = await db.select().from(workflowDefinitions).where(and(eq(workflowDefinitions.id, data.definitionId), eq(workflowDefinitions.status, 'published'))).limit(1);
   if (!def) throw new HTTPException(404, { message: '流程定义不存在或未发布' });
+  assertLaunchMatchesFormType(def, data);
   const scopeType = (def.initiatorScopeType ?? 'all') as 'all' | 'users' | 'departments' | 'roles';
   const scopeIds = Array.isArray(def.initiatorScopeIds)
     ? def.initiatorScopeIds.map(Number).filter((v) => Number.isInteger(v) && v > 0)
@@ -1727,7 +1831,8 @@ export async function createInstance(data: { definitionId: number; title: string
   const validation = validateFlowData(flowData);
   if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
   const formData: Record<string, unknown> = data.formData ?? {};
-  const formSnapshot = await resolveFormSnapshot(def.formId);
+  const resolvedFormSnapshot = await resolveFormSnapshot(def.formId);
+  const formSnapshot = buildInstanceFormSnapshot(def, resolvedFormSnapshot);
 
   // 草稿：仅保存表单，不进入流转、不生成业务编号、不触发事件
   if (data.asDraft) {
@@ -1736,7 +1841,7 @@ export async function createInstance(data: { definitionId: number; title: string
       definitionSnapshot: def,
       title: data.title,
       formData,
-      formSnapshot: formSnapshot?.fields ?? null,
+      formSnapshot,
       status: 'draft',
       priority: data.priority ?? 'normal',
       currentNodeKey: null,
@@ -1762,7 +1867,7 @@ export async function createInstance(data: { definitionId: number; title: string
       title: data.title,
       serialNo,
       formData,
-      formSnapshot: formSnapshot?.fields ?? null,
+      formSnapshot,
       status: 'running',
       priority: data.priority ?? 'normal',
       currentNodeKey: null,
@@ -2980,7 +3085,9 @@ export async function submitDraftInstance(id: number) {
   const validation = validateFlowData(flowData);
   if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
   const formData = (inst.formData ?? {}) as Record<string, unknown>;
-  const formSnapshot = await resolveFormSnapshot(def.formId);
+  assertLaunchMatchesFormType(def, { bizType: inst.bizType, bizId: inst.bizId });
+  const resolvedFormSnapshot = await resolveFormSnapshot(def.formId);
+  const formSnapshot = buildInstanceFormSnapshot(def, resolvedFormSnapshot);
   const starter = await buildStarterContext(user.userId);
   const initialResult = getInitialTasks(flowData, formData, starter);
   if (initialResult.tasksToCreate.length === 0 && !initialResult.finished && !initialResult.rejected) {
@@ -2991,7 +3098,7 @@ export async function submitDraftInstance(id: number) {
     const serialNo = await generateSerialNo(tx, def.id, serialConfig);
     await tx.update(workflowInstances).set({
       definitionSnapshot: def,
-      formSnapshot: formSnapshot?.fields ?? null,
+      formSnapshot,
       serialNo,
       status: 'running',
       currentNodeKey: null,

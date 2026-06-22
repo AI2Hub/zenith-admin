@@ -28,6 +28,7 @@ export default function WorkflowInstancePage() {
       .then((res) => {
         if (res.code === 0) {
           setData(res.data);
+          if (res.data.definitionSnapshot) return null;
           return request.get<WorkflowDefinition>(`/api/workflows/definitions/${res.data.definitionId}`, { silent: true });
         }
         return null;
@@ -40,7 +41,7 @@ export default function WorkflowInstancePage() {
 
   useTabMeta({
     title: data?.title ?? '流程详情',
-    icon: definition?.customForm?.icon ?? definition?.categoryIcon ?? 'FileText',
+    icon: data?.definitionSnapshot?.customForm?.icon ?? definition?.customForm?.icon ?? definition?.categoryIcon ?? 'FileText',
   });
 
   if (loading && !data) {

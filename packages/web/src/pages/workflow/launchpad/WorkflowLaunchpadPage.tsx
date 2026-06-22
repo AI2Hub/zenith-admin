@@ -87,6 +87,10 @@ export default function WorkflowLaunchpadPage() {
   }, [definitions, activeKeyword, categoryName]);
 
   const openApply = (def: WorkflowDefinition) => {
+    if (def.formType === 'external') {
+      Toast.warning('业务系统主导流程请从对应业务模块发起');
+      return;
+    }
     setSelectedDef(def);
     setFormKey((k) => k + 1);
     setApplyVisible(true);
@@ -106,6 +110,10 @@ export default function WorkflowLaunchpadPage() {
     try {
       const values = await formApi.current.validate() as Record<string, unknown>;
       let formData: Record<string, unknown> = {};
+      if (selectedDef.formType === 'external') {
+        Toast.error('业务系统主导流程请从对应业务模块发起');
+        return null;
+      }
       if (selectedDef.formType === 'custom') {
         if (!businessFormApi.current) {
           Toast.error('业务表单尚未就绪，请稍候重试');
@@ -226,6 +234,9 @@ export default function WorkflowLaunchpadPage() {
           getFormApi={(api) => { businessFormApi.current = api; }}
         />
       );
+    }
+    if (def.formType === 'external') {
+      return <Typography.Text type="tertiary">业务系统主导流程请从对应业务模块发起。</Typography.Text>;
     }
     if (def.formFields && def.formFields.length > 0) {
       return (

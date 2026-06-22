@@ -36,7 +36,8 @@ export default function WorkflowInstanceDetailSheet({
       .then((res) => {
         if (res.code === 0) {
           setData(res.data);
-          return request.get<WorkflowDefinition>(`/api/workflows/definitions/${res.data.definitionId}`);
+          if (res.data.definitionSnapshot) return null;
+          return request.get<WorkflowDefinition>(`/api/workflows/definitions/${res.data.definitionId}`, { silent: true });
         }
         return null;
       })

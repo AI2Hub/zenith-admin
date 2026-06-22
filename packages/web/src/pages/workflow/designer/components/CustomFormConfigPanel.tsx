@@ -88,7 +88,10 @@ export default function CustomFormConfigPanel({ value, onChange, formType = 'cus
       </div>
 
       <div style={{ marginBottom: 16 }}>
-        <Typography.Text strong style={labelStyle}>{isExternal ? '审批查看页组件' : '查看页组件（可选）'}</Typography.Text>
+        <Typography.Text strong style={labelStyle}>
+          {isExternal ? '审批查看页组件' : '查看页组件（可选）'}
+          {isExternal ? <Typography.Text type="danger"> *</Typography.Text> : null}
+        </Typography.Text>
         <Input
           value={config.viewComponent ?? ''}
           onChange={(v) => patch({ viewComponent: v || null })}

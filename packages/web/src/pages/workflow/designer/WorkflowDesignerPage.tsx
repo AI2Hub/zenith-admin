@@ -124,7 +124,7 @@ export default function WorkflowDesignerPage() {
     string: 'text', number: 'number', boolean: 'switch', date: 'date', user: 'userSelect', dept: 'deptSelect',
   };
   const formFields = useMemo<Array<{ key: string; label: string; type: WorkflowFormField['type']; options?: string[] }>>(() => {
-    if (formType === 'custom') {
+    if (formType === 'custom' || formType === 'external') {
       return (customForm?.variables ?? [])
         .filter(v => v.key)
         .map(v => ({ key: v.key, label: v.label || v.key, type: VARIABLE_TYPE_TO_FIELD[v.type] ?? 'text' }));
@@ -462,7 +462,7 @@ export default function WorkflowDesignerPage() {
         flowData,
         formId: formType === 'designer' ? formId : null,
         formType,
-        customForm: formType === 'custom' ? customForm : null,
+        customForm: formType === 'custom' || formType === 'external' ? customForm : null,
       };
 
       let res;

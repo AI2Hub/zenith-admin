@@ -31,6 +31,7 @@ import { usePagination } from '@/hooks/usePagination';
 import WorkflowInstanceDetailPanel from '@/components/workflow/WorkflowInstanceDetailPanel';
 import SignaturePad from '@/components/SignaturePad';
 import { renderEllipsis } from '../../../utils/table-columns';
+import { resolveWorkflowDetailDefinition } from '@/utils/workflow-snapshot';
 
 interface SearchParams {
   keyword: string;
@@ -125,6 +126,10 @@ export default function PendingApprovalsPage() {
   }, [detail, selectedItem]);
 
   const actionButtons = currentTask?.actionButtons ?? null;
+  const currentDetailDefinition = useMemo(
+    () => resolveWorkflowDetailDefinition(detail, detailDef),
+    [detail, detailDef],
+  );
   const btnApprove = useMemo(() => resolveButton(actionButtons, 'approve'), [actionButtons]);
   const btnReject = useMemo(() => resolveButton(actionButtons, 'reject'), [actionButtons]);
   const btnTransfer = useMemo(() => resolveButton(actionButtons, 'transfer'), [actionButtons]);
@@ -145,17 +150,17 @@ export default function PendingApprovalsPage() {
   }, [detail, currentTask]);
 
   const returnTargetOptions = useMemo(() => {
-    if (!detailDef || !currentTask) return [] as Array<{ label: string; value: string }>;
-    const nodes = detailDef.flowData?.nodes ?? [];
+    if (!currentDetailDefinition || !currentTask) return [] as Array<{ label: string; value: string }>;
+    const nodes = currentDetailDefinition.flowData?.nodes ?? [];
     return nodes
       .filter((n) => (n.data.type === 'approve' || n.data.type === 'handler') && n.data.key !== currentTask.nodeKey)
       .map((n) => ({ label: n.data.label ?? n.data.key, value: n.data.key }));
-  }, [detailDef, currentTask]);
+  }, [currentDetailDefinition, currentTask]);
 
   /** 判断当前节点下游是否存在 approverSelect 节点（需要本次审批人选人） */
   const hasApproverSelectDownstream = useMemo(() => {
-    if (!detailDef || !currentTask) return false;
-    const flow = detailDef.flowData;
+    if (!currentDetailDefinition || !currentTask) return false;
+    const flow = currentDetailDefinition.flowData;
     if (!flow) return false;
     const startNode = flow.nodes.find((n) => n.data.key === currentTask.nodeKey);
     if (!startNode) return false;
@@ -172,7 +177,7 @@ export default function PendingApprovalsPage() {
       }
     }
     return false;
-  }, [detailDef, currentTask]);
+  }, [currentDetailDefinition, currentTask]);
 
   const loadUserOptions = useCallback(async () => {
     if (userOptions.length > 0) return;
@@ -325,7 +330,8 @@ export default function PendingApprovalsPage() {
       .then(res => {
         if (res.code === 0) {
           setDetail(res.data);
-          return request.get<WorkflowDefinition>(`/api/workflows/definitions/${res.data.definitionId}`);
+          if (res.data.definitionSnapshot) return null;
+          return request.get<WorkflowDefinition>(`/api/workflows/definitions/${res.data.definitionId}`, { silent: true });
         }
         return null;
       })
@@ -391,7 +397,8 @@ export default function PendingApprovalsPage() {
       const instRes = await request.get<WorkflowInstance>(`/api/workflows/instances/${item.id}`);
       if (instRes.code === 0) {
         setRejectInstance(instRes.data);
-        const defRes = await request.get<WorkflowDefinition>(`/api/workflows/definitions/${instRes.data.definitionId}`);
+        if (instRes.data.definitionSnapshot) return;
+        const defRes = await request.get<WorkflowDefinition>(`/api/workflows/definitions/${instRes.data.definitionId}`, { silent: true });
         if (defRes.code === 0) setRejectDef(defRes.data);
       }
     } finally {
@@ -400,7 +407,7 @@ export default function PendingApprovalsPage() {
   }, [detail, detailDef]);
 
   const rejectHint = useMemo(
-    () => resolveRejectTargetHint(rejectInstance, rejectDef?.flowData ?? null),
+    () => resolveRejectTargetHint(rejectInstance, resolveWorkflowDetailDefinition(rejectInstance, rejectDef)?.flowData ?? null),
     [rejectInstance, rejectDef]
   );
 

@@ -1946,9 +1946,9 @@ export interface WorkflowCustomFormVariable {
   type: 'string' | 'number' | 'boolean' | 'date' | 'user' | 'dept';
 }
 
-/** 自定义业务表单配置（formType='custom' 时有效） */
+/** 自定义业务表单 / 业务系统主导流程配置（formType='custom' 或 'external' 时有效） */
 export interface WorkflowCustomFormConfig {
-  /** 创建/填写页组件路径（相对 packages/web/src/pages，如 'biz/leave/LeaveForm'） */
+  /** 创建/填写页组件路径（相对 packages/web/src/pages，如 'biz/leave/LeaveForm'；external 可为空） */
   createComponent: string;
   /** 查看页组件路径，缺省时复用 createComponent 以只读模式渲染 */
   viewComponent?: string | null;
@@ -1956,6 +1956,37 @@ export interface WorkflowCustomFormConfig {
   icon?: string | null;
   /** 暴露给流程的变量声明 */
   variables?: WorkflowCustomFormVariable[];
+}
+
+/** 实例发起时冻结的表单快照；兼容旧数据中直接存 WorkflowFormField[] 的形态 */
+export interface WorkflowInstanceFormSnapshot {
+  formType?: WorkflowFormType;
+  formId?: number | null;
+  formName?: string | null;
+  fields: WorkflowFormField[];
+  settings?: WorkflowFormSettings | null;
+  customForm?: WorkflowCustomFormConfig | null;
+}
+
+/** 实例发起时冻结的流程定义快照（详情渲染优先使用，避免定义后续修改影响历史实例） */
+export interface WorkflowDefinitionSnapshot {
+  id: number;
+  name: string;
+  description: string | null;
+  categoryId: number | null;
+  categoryName?: string | null;
+  categoryColor?: string | null;
+  categoryIcon?: string | null;
+  flowData: WorkflowFlowData | null;
+  formId: number | null;
+  formName?: string | null;
+  formFields?: WorkflowFormField[] | null;
+  formSettings?: WorkflowFormSettings | null;
+  formType: WorkflowFormType;
+  customForm: WorkflowCustomFormConfig | null;
+  status?: WorkflowDefinitionStatus;
+  version?: number;
+  tenantId?: number | null;
 }
 
 export interface WorkflowDefinition {
@@ -1978,9 +2009,9 @@ export interface WorkflowDefinition {
   formFields: WorkflowFormField[] | null;
   /** 由 formId 解析得到的表单级设置（派生字段） */
   formSettings?: WorkflowFormSettings | null;
-  /** 表单类型：designer=表单库，custom=自定义业务页面 */
+  /** 表单类型：designer=表单库，custom=自定义业务页面，external=业务系统主导 */
   formType: WorkflowFormType;
-  /** 自定义业务表单配置（formType='custom' 时有效） */
+  /** 自定义业务表单配置（formType='custom' 或 'external' 时有效） */
   customForm: WorkflowCustomFormConfig | null;
   status: WorkflowDefinitionStatus;
   version: number;
@@ -2191,7 +2222,9 @@ export interface WorkflowInstance {
   allowComment?: boolean;
   formData: Record<string, unknown> | null;
   /** 发起时的表单结构快照（冻结历史，渲染只读/审批表单时使用） */
-  formSnapshot?: WorkflowFormField[] | null;
+  formSnapshot?: WorkflowFormField[] | WorkflowInstanceFormSnapshot | null;
+  /** 发起时的流程定义快照（详情场景返回） */
+  definitionSnapshot?: WorkflowDefinitionSnapshot | null;
   status: WorkflowInstanceStatus;
   currentNodeKey: string | null;
   /** 当前所处节点名称（由流程快照解析，仅列表/监控场景填充） */
