@@ -28,6 +28,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { request } from '@/utils/request';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { formatFileSize, getFileTypeIcon, fetchProtectedFile, getFileFullUrl, canPreviewFile } from '@/utils/file-utils';
+import { chunkedUpload, CHUNK_SIZE } from '@/utils/chunked-upload';
 import FilePreviewModal from '@/components/FilePreviewModal';
 import FileStatsPanel from './FileStatsPanel';
 import { FileGridCard } from './components/FileGridCard';
@@ -65,6 +66,17 @@ function uploadSingleFile(
   const updateItem = (updater: (item: UploadItem) => UploadItem) =>
     setItems(prev => prev.map(item => item.uid === uid ? updater(item) : item));
   updateItem(item => ({ ...item, status: 'uploading' }));
+  // 大文件走分片上传 + 断点续传
+  if (file.size > CHUNK_SIZE) {
+    chunkedUpload(file, {
+      apiBaseUrl,
+      token,
+      onProgress: (percent) => updateItem(item => ({ ...item, progress: percent })),
+    })
+      .then(() => updateItem(item => ({ ...item, progress: 100, status: 'success' })))
+      .catch((err: unknown) => updateItem(item => ({ ...item, status: 'error', errorMsg: err instanceof Error ? err.message : '上传失败' })));
+    return;
+  }
   const formData = new FormData();
   formData.append('file', file);
   const xhr = new XMLHttpRequest();

@@ -1,11 +1,13 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
-import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, BatchIdsBody } from '../lib/openapi-schemas';
-import { ManagedFileDTO, StorageBrowseResultDTO, FileStatsDTO, SheetPreviewDTO } from '../lib/openapi-dtos';
+import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody, BatchIdsBody } from '../lib/openapi-schemas';
+import { ManagedFileDTO, StorageBrowseResultDTO, FileStatsDTO, SheetPreviewDTO, UploadSessionInitDTO, UploadChunkResultDTO, UploadSessionStatusDTO } from '../lib/openapi-dtos';
+import { initChunkUploadSchema, completeChunkUploadSchema } from '@zenith/shared';
 import {
   readFileContent, listManagedFiles, getManagedFile, uploadManagedFileFromBody, deleteManagedFile, batchDeleteFiles, getManagedFileBeforeAudit, batchDownloadFilesAsZip, browseStorageFiles, getFileStats, getSheetPreview,
 } from '../services/files.service';
+import { initChunkUpload, uploadChunk, completeChunkUpload, getUploadStatus, abortChunkUpload } from '../services/upload-sessions.service';
 
 const filesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -227,7 +229,103 @@ const uploadOneRoute = defineOpenAPIRoute({
   },
 });
 
-filesRouter.openapiRoutes([contentRoute, sheetPreviewRoute, statsRoute, listRoute, browseRoute, getOneRoute, uploadRoute, uploadOneRoute, batchDeleteRoute, deleteRoute] as const);
+const uploadInitRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/upload/init', tags: ['Files'], summary: '初始化分片上传',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: { body: { content: jsonContent(initChunkUploadSchema), required: true } },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(UploadSessionInitDTO, '初始化成功'),
+      400: { content: jsonContent(ErrorResponse), description: '无可用存储或超过大小上限' },
+    },
+  }),
+  handler: async (c) => c.json(okBody(await initChunkUpload(c.req.valid('json'))), 200),
+});
+
+const uploadChunkRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/upload/chunk', tags: ['Files'], summary: '上传单个分片',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: {
+      body: {
+        content: {
+          'multipart/form-data': {
+            schema: z.object({
+              uploadId: z.string(),
+              index: z.string(),
+              chunk: z.any().openapi({ type: 'string', format: 'binary' }),
+            }),
+          },
+        },
+        required: true,
+      },
+    },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(UploadChunkResultDTO, '分片已接收'),
+      400: { content: jsonContent(ErrorResponse), description: '参数错误' },
+    },
+  }),
+  handler: async (c) => {
+    const body = await c.req.parseBody();
+    const uploadId = String(body.uploadId ?? '');
+    const index = Number(body.index);
+    const chunk = body.chunk;
+    if (!uploadId || !Number.isFinite(index) || typeof (chunk as File)?.arrayBuffer !== 'function') {
+      return c.json(errBody('分片参数不完整', 400), 400);
+    }
+    return c.json(okBody(await uploadChunk(uploadId, index, chunk as File)), 200);
+  },
+});
+
+const uploadCompleteRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/upload/complete', tags: ['Files'], summary: '完成分片上传',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: { body: { content: jsonContent(completeChunkUploadSchema), required: true } },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(ManagedFileDTO, '上传完成'),
+      400: { content: jsonContent(ErrorResponse), description: '分片不完整或类型不允许' },
+    },
+  }),
+  handler: async (c) => c.json(okBody(await completeChunkUpload(c.req.valid('json').uploadId), '上传成功'), 200),
+});
+
+const uploadStatusRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/upload/{uploadId}/status', tags: ['Files'], summary: '查询分片上传进度',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: { params: z.object({ uploadId: z.string() }) },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(UploadSessionStatusDTO, '上传进度'),
+      404: { content: jsonContent(ErrorResponse), description: '会话不存在' },
+    },
+  }),
+  handler: async (c) => c.json(okBody(await getUploadStatus(c.req.valid('param').uploadId)), 200),
+});
+
+const uploadAbortRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/upload/{uploadId}', tags: ['Files'], summary: '中止分片上传',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: { params: z.object({ uploadId: z.string() }) },
+    responses: { ...commonErrorResponses, ...okMsg('已中止') },
+  }),
+  handler: async (c) => {
+    await abortChunkUpload(c.req.valid('param').uploadId);
+    return c.json(okBody(null, '已中止'), 200);
+  },
+});
+
+filesRouter.openapiRoutes([contentRoute, sheetPreviewRoute, statsRoute, listRoute, browseRoute, uploadInitRoute, uploadChunkRoute, uploadCompleteRoute, uploadStatusRoute, uploadAbortRoute, getOneRoute, uploadRoute, uploadOneRoute, batchDeleteRoute, deleteRoute] as const);
 
 // 非 OpenAPI 路由：批量下载打包为 zip 流式响应
 filesRouter.post('/batch-download', authMiddleware, guard({ permission: 'system:file:list' }), async (c) => {

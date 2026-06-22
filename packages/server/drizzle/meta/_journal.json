@@ -925,6 +925,13 @@
       "when": 1782053137812,
       "tag": "0131_chubby_squirrel_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1782098271941,
+      "tag": "0132_cheerful_prism",
+      "breakpoints": true
     }
   ]
 }

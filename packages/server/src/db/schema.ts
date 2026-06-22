@@ -357,6 +357,48 @@ export const managedFiles = pgTable('managed_files', {
 export type ManagedFileRow = typeof managedFiles.$inferSelect;
 export type NewManagedFile = typeof managedFiles.$inferInsert;
 
+// ─── 分片上传会话表 ──────────────────────────────────────────────────────────
+export const uploadSessionStatusEnum = pgEnum('upload_session_status', ['uploading', 'completed', 'aborted']);
+
+export const uploadSessions = pgTable('upload_sessions', {
+  id: serial('id').primaryKey(),
+  uploadId: varchar('upload_id', { length: 64 }).notNull().unique(),
+  fileName: varchar('file_name', { length: 256 }).notNull(),
+  fileSize: bigint('file_size', { mode: 'number' }).notNull(),
+  mimeType: varchar('mime_type', { length: 128 }),
+  chunkSize: integer('chunk_size').notNull(),
+  totalChunks: integer('total_chunks').notNull(),
+  storageConfigId: integer('storage_config_id').notNull().references(() => fileStorageConfigs.id, { onDelete: 'cascade' }),
+  provider: fileStorageProviderEnum('provider').notNull(),
+  objectKey: varchar('object_key', { length: 512 }).notNull(),
+  bucketName: varchar('bucket_name', { length: 256 }),
+  // 云原生 multipart 的 uploadId；local/sftp 及回退暂存为 null
+  multipartUploadId: varchar('multipart_upload_id', { length: 512 }),
+  status: uploadSessionStatusEnum('status').notNull().default('uploading'),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+
+export type UploadSessionRow = typeof uploadSessions.$inferSelect;
+export type NewUploadSession = typeof uploadSessions.$inferInsert;
+
+/** 已上传分片记录；index 从 0 计，etag 供云原生 multipart 使用，唯一约束保证并发幂等 */
+export const uploadChunks = pgTable('upload_chunks', {
+  id: serial('id').primaryKey(),
+  uploadSessionId: integer('upload_session_id').notNull().references(() => uploadSessions.id, { onDelete: 'cascade' }),
+  index: integer('index').notNull(),
+  size: integer('size').notNull(),
+  etag: varchar('etag', { length: 256 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  unique('uniq_upload_chunk').on(t.uploadSessionId, t.index),
+]);
+
+export type UploadChunkRow = typeof uploadChunks.$inferSelect;
+export type NewUploadChunk = typeof uploadChunks.$inferInsert;
+
 // ─── 登录日志表 ─────────────────────────────────────────────────────────────────
 export const loginStatusEnum = pgEnum('login_status', ['success', 'fail']);
 
@@ -2358,6 +2400,17 @@ export const managedFilesRelations = relations(managedFiles, ({ one }) => ({
   storageConfig: one(fileStorageConfigs, { fields: [managedFiles.storageConfigId], references: [fileStorageConfigs.id] }),
   tenant: one(tenants, { fields: [managedFiles.tenantId], references: [tenants.id] }),
   createdByUser: one(users, { fields: [managedFiles.createdBy], references: [users.id] }),
+}));
+
+export const uploadSessionsRelations = relations(uploadSessions, ({ one, many }) => ({
+  storageConfig: one(fileStorageConfigs, { fields: [uploadSessions.storageConfigId], references: [fileStorageConfigs.id] }),
+  tenant: one(tenants, { fields: [uploadSessions.tenantId], references: [tenants.id] }),
+  createdByUser: one(users, { fields: [uploadSessions.createdBy], references: [users.id] }),
+  chunks: many(uploadChunks),
+}));
+
+export const uploadChunksRelations = relations(uploadChunks, ({ one }) => ({
+  session: one(uploadSessions, { fields: [uploadChunks.uploadSessionId], references: [uploadSessions.id] }),
 }));
 
 export const cronJobsRelations = relations(cronJobs, ({ many }) => ({

@@ -180,6 +180,18 @@ function stripStorageSecrets(config: FileStorageConfig): FileStorageConfig {
   return clone;
 }
 
+interface MockUploadSession {
+  uploadId: string;
+  fileName: string;
+  fileSize: number;
+  mimeType?: string;
+  chunkSize: number;
+  totalChunks: number;
+  received: Set<number>;
+  status: 'uploading' | 'completed' | 'aborted';
+}
+const mockUploadSessions = new Map<string, MockUploadSession>();
+
 export const filesHandlers = [
   // 文件列表（分页）
   http.get('/api/files', ({ request }) => {
@@ -254,6 +266,64 @@ export const filesHandlers = [
     };
     mockManagedFiles.push(uploaded);
     return HttpResponse.json({ code: 0, message: '上传成功', data: uploaded });
+  }),
+
+  // 分片上传：初始化
+  http.post('/api/files/upload/init', async ({ request }) => {
+    const body = await request.json() as { fileName: string; fileSize: number; mimeType?: string; chunkSize: number };
+    const uploadId = `mock-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const totalChunks = Math.max(1, Math.ceil(body.fileSize / body.chunkSize));
+    mockUploadSessions.set(uploadId, {
+      uploadId, fileName: body.fileName, fileSize: body.fileSize, mimeType: body.mimeType,
+      chunkSize: body.chunkSize, totalChunks, received: new Set(), status: 'uploading',
+    });
+    return HttpResponse.json({ code: 0, message: 'ok', data: { uploadId, chunkSize: body.chunkSize, totalChunks, received: [] } });
+  }),
+
+  // 分片上传：上传单个分片
+  http.post('/api/files/upload/chunk', async ({ request }) => {
+    const formData = await request.formData();
+    const uploadId = String(formData.get('uploadId') ?? '');
+    const index = Number(formData.get('index'));
+    const session = mockUploadSessions.get(uploadId);
+    if (!session) return HttpResponse.json({ code: 404, message: '上传会话不存在', data: null });
+    session.received.add(index);
+    return HttpResponse.json({ code: 0, message: 'ok', data: { index, received: [...session.received].sort((a, b) => a - b) } });
+  }),
+
+  // 分片上传：完成合并
+  http.post('/api/files/upload/complete', async ({ request }) => {
+    const body = await request.json() as { uploadId: string };
+    const session = mockUploadSessions.get(body.uploadId);
+    if (!session) return HttpResponse.json({ code: 404, message: '上传会话不存在', data: null });
+    session.status = 'completed';
+    const uploaded: ManagedFile = {
+      id: nextFileId++, storageConfigId: 1, storageName: '本地磁盘', provider: 'local',
+      originalName: session.fileName, objectKey: `uploads/${Date.now()}-${session.fileName}`,
+      size: session.fileSize, mimeType: session.mimeType ?? 'application/octet-stream',
+      extension: session.fileName.split('.').pop() ?? '',
+      url: `https://via.placeholder.com/200?text=${encodeURIComponent(session.fileName)}`,
+      uploaderName: 'Admin', createdAt: mockDateTime(), updatedAt: mockDateTime(),
+    };
+    mockManagedFiles.push(uploaded);
+    mockUploadSessions.delete(body.uploadId);
+    return HttpResponse.json({ code: 0, message: '上传成功', data: uploaded });
+  }),
+
+  // 分片上传：查询进度（断点续传）
+  http.get('/api/files/upload/:uploadId/status', ({ params }) => {
+    const session = mockUploadSessions.get(String(params.uploadId));
+    if (!session) return HttpResponse.json({ code: 404, message: '上传会话不存在', data: null });
+    return HttpResponse.json({ code: 0, message: 'ok', data: {
+      uploadId: session.uploadId, status: session.status, chunkSize: session.chunkSize,
+      totalChunks: session.totalChunks, received: [...session.received].sort((a, b) => a - b),
+    } });
+  }),
+
+  // 分片上传：中止
+  http.delete('/api/files/upload/:uploadId', ({ params }) => {
+    mockUploadSessions.delete(String(params.uploadId));
+    return HttpResponse.json({ code: 0, message: '已中止', data: null });
   }),
 
   // 获取 Excel 表格预览数据（必须放在 /api/files/:id 之前）

@@ -1,7 +1,7 @@
 import { managedFiles, fileStorageConfigs, users } from '../db/schema';
 import { buildManagedFileUrl, deleteStoredFile, readStoredFile, uploadFileByConfig } from '../lib/file-storage';
 import { formatDateTime, parseDateTimeInput } from '../lib/datetime';
-import { getConfigBoolean, getConfigValue } from '../lib/system-config';
+import { getConfigBoolean, getConfigValue, getConfigNumber } from '../lib/system-config';
 
 export function mapManagedFile(row: typeof managedFiles.$inferSelect) {
   return {
@@ -160,6 +160,39 @@ export async function listManagedFiles(query: {
   };
 }
 
+const DEFAULT_ALLOWED_TYPES = 'image/*,video/*,audio/*,application/pdf,text/plain,application/zip,application/x-zip-compressed,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-excel,application/msword,application/vnd.ms-powerpoint';
+
+/** 校验上传大小是否超过系统配置上限（file_upload_max_size_mb，0 表示不限制） */
+export async function assertUploadSizeAllowed(size: number) {
+  const maxMb = await getConfigNumber('file_upload_max_size_mb', 0);
+  if (maxMb > 0 && size > maxMb * 1024 * 1024) {
+    throw new HTTPException(400, { message: `文件大小超过上限（${maxMb}MB）` });
+  }
+}
+
+/** 基于 magic bytes 校验真实文件类型；headBytes 为文件前若干字节，fallbackMime 用于无法识别时回退 */
+export async function assertUploadTypeAllowed(headBytes: Buffer, fallbackMime: string) {
+  const validateEnabled = await getConfigBoolean('file_upload_validate_type', true);
+  if (!validateEnabled) return;
+  const allowedTypesRaw = await getConfigValue('file_upload_allowed_types', DEFAULT_ALLOWED_TYPES);
+  const allowedPatterns = allowedTypesRaw.split(',').map((s) => s.trim()).filter(Boolean);
+  const { fileTypeFromBuffer } = await import('file-type');
+  const detected = await fileTypeFromBuffer(headBytes);
+  // 无法识别（如纯文本）时回退使用调用方提供的 MIME
+  const actualMime = detected?.mime ?? fallbackMime;
+  const allowed = allowedPatterns.some((pattern) => {
+    if (pattern === '*' || pattern === '*/*') return true;
+    if (pattern.endsWith('/*')) {
+      const mainType = pattern.slice(0, -2);
+      return actualMime.startsWith(`${mainType}/`);
+    }
+    return actualMime === pattern;
+  });
+  if (!allowed) {
+    throw new HTTPException(400, { message: `文件类型不允许：检测到 ${actualMime}，不在允许类型列表中` });
+  }
+}
+
 function normalizeUploadFile(value: unknown): File {
   const rawFile = Array.isArray(value) ? value[0] : value;
   if (!rawFile || typeof (rawFile as File).arrayBuffer !== 'function' || typeof (rawFile as File).name !== 'string') {
@@ -175,29 +208,9 @@ export async function uploadManagedFileFromBody(fileValue: unknown) {
 export async function uploadManagedFile(file: File) {
   const user = currentUser();
 
-  // 基于 magic bytes 校验真实文件类型
-  const validateEnabled = await getConfigBoolean('file_upload_validate_type', true);
-  if (validateEnabled) {
-    const allowedTypesRaw = await getConfigValue('file_upload_allowed_types', 'image/*,video/*,audio/*,application/pdf,text/plain,application/zip,application/x-zip-compressed,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-excel,application/msword,application/vnd.ms-powerpoint');
-    const allowedPatterns = allowedTypesRaw.split(',').map(s => s.trim()).filter(Boolean);
-    // 只读前 4100 字节用于检测
-    const { fileTypeFromBuffer } = await import('file-type');
-    const headBytes = await file.slice(0, 4100).arrayBuffer();
-    const detected = await fileTypeFromBuffer(Buffer.from(headBytes));
-    // 如果无法检测（如纯文本文件），回退使用 MIME type 头
-    const actualMime = detected?.mime ?? file.type;
-    const allowed = allowedPatterns.some(pattern => {
-      if (pattern === '*' || pattern === '*/*') return true;
-      if (pattern.endsWith('/*')) {
-        const mainType = pattern.slice(0, -2);
-        return actualMime.startsWith(`${mainType}/`);
-      }
-      return actualMime === pattern;
-    });
-    if (!allowed) {
-      throw new HTTPException(400, { message: `文件类型不允许：检测到 ${actualMime}，不在允许类型列表中` });
-    }
-  }
+  // 大小上限 + 基于 magic bytes 的真实类型校验
+  await assertUploadSizeAllowed(file.size);
+  await assertUploadTypeAllowed(Buffer.from(await file.slice(0, 4100).arrayBuffer()), file.type);
   const [defaultConfig] = await db
     .select()
     .from(fileStorageConfigs)
@@ -304,36 +317,39 @@ export async function batchDownloadFilesAsZip(ids: number[]): Promise<{ stream: 
   const configMap = new Map(configs.map((c) => [c.id, c]));
 
   const { Readable, PassThrough } = await import('node:stream');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { ZipArchive } = await import('archiver') as any;
-  const archive = new ZipArchive({ zlib: { level: 5 } });
+  const archiver = (await import('archiver')).default;
+  const archive = archiver('zip', { zlib: { level: 5 } });
   const passThrough = new PassThrough();
   archive.on('error', (err: Error) => passThrough.destroy(err));
   archive.pipe(passThrough);
 
-  const nameCount: Record<string, number> = {};
-  for (const file of files) {
-    const config = configMap.get(file.storageConfigId);
-    if (!config) continue;
-    try {
-      const { stream } = await readStoredFile(file, config);
-      const chunks: Uint8Array[] = [];
-      const reader = stream.getReader();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
+  // 逐个文件流式写入 ZIP：等待上一个 entry 处理完再打开下一个远端连接，
+  // 同一时刻只持有一个源流，既不把整文件读进内存，也不并发打开全部连接。
+  void (async () => {
+    const nameCount: Record<string, number> = {};
+    for (const file of files) {
+      const config = configMap.get(file.storageConfigId);
+      if (!config) continue;
+      try {
+        const { stream } = await readStoredFile(file, config);
+        const nodeStream = Readable.fromWeb(stream as Parameters<typeof Readable.fromWeb>[0]);
+        const count = nameCount[file.originalName] ?? 0;
+        nameCount[file.originalName] = count + 1;
+        const entryName = count === 0 ? file.originalName : deduplicateEntryName(file.originalName, count);
+        archive.append(nodeStream, { name: entryName });
+        await new Promise<void>((resolve, reject) => {
+          const cleanup = () => { archive.off('entry', onEntry); archive.off('error', onError); };
+          const onEntry = () => { cleanup(); resolve(); };
+          const onError = (err: Error) => { cleanup(); reject(err); };
+          archive.once('entry', onEntry);
+          archive.once('error', onError);
+        });
+      } catch {
+        // 单个文件读取失败时跳过，不中断整体打包
       }
-      const buffer = Buffer.concat(chunks);
-      const count = nameCount[file.originalName] ?? 0;
-      nameCount[file.originalName] = count + 1;
-      const entryName = count === 0 ? file.originalName : deduplicateEntryName(file.originalName, count);
-      archive.append(buffer, { name: entryName });
-    } catch {
-      // 单个文件读取失败时跳过，不中断整体打包
     }
-  }
-  archive.finalize();
+    await archive.finalize();
+  })().catch((err) => passThrough.destroy(err instanceof Error ? err : new Error(String(err))));
 
   const webStream = Readable.toWeb(passThrough) as ReadableStream;
   return { stream: webStream, filename: `files_${Date.now()}.zip` };

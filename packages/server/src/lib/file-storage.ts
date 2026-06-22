@@ -7,7 +7,7 @@ import { BlobServiceClient, StorageSharedKeyCredential } from '@azure/storage-bl
 import SftpClient from 'ssh2-sftp-client';
 import { randomUUID } from 'node:crypto';
 import { promises as fs, createWriteStream, createReadStream } from 'node:fs';
-import { Readable } from 'node:stream';
+import { Readable, PassThrough } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import type { FileStorageConfigRow, ManagedFileRow } from '../db/schema';
@@ -19,11 +19,17 @@ type ObsClientConstructor = new (opts: Record<string, string>) => ObsClientType;
 // esdk-obs-nodejs 缺少官方类型声明，定义最小接口
 interface ObsClientType {
   putObject(params: Record<string, unknown>, cb: (err: unknown, result: unknown) => void): void;
-  getObject(params: Record<string, unknown>, cb: (err: unknown, result: { Body?: { Content?: Buffer } }) => void): void;
+  getObject(params: Record<string, unknown>, cb: (err: unknown, result: { InterfaceResult?: { Content?: NodeJS.ReadableStream } }) => void): void;
   deleteObject(params: Record<string, unknown>, cb: (err: unknown) => void): void;
 }
 
 export const DEFAULT_LOCAL_STORAGE_ROOT = 'storage/local';
+
+/** @baiducloud/sdk 的类型声明缺少 putObject / generatePresignedUrl，按运行时实际签名补充 */
+interface BosStreamClient {
+  putObject(bucket: string, key: string, data: NodeJS.ReadableStream, options: Record<string, unknown>): Promise<unknown>;
+  generatePresignedUrl(bucket: string, key: string, timestamp: number, expirationInSeconds: number): string;
+}
 
 function trimSlash(value?: string | null) {
   return value?.replaceAll(/^\/+|\/+$/g, '') ?? '';
@@ -128,18 +134,23 @@ function createAzureBlobClient(config: FileStorageConfigRow) {
   return service.getContainerClient(config.azureContainerName);
 }
 
-async function sftpOperation<T>(config: FileStorageConfigRow, fn: (client: SftpClient) => Promise<T>): Promise<T> {
+async function connectSftp(config: FileStorageConfigRow): Promise<SftpClient> {
   if (!config.sftpHost || !config.sftpUsername) {
     throw new Error('SFTP 配置不完整');
   }
   const client = new SftpClient();
+  await client.connect({
+    host: config.sftpHost,
+    port: config.sftpPort ?? 22,
+    username: config.sftpUsername,
+    ...(config.sftpPrivateKey ? { privateKey: config.sftpPrivateKey } : { password: config.sftpPassword ?? '' }),
+  });
+  return client;
+}
+
+async function sftpOperation<T>(config: FileStorageConfigRow, fn: (client: SftpClient) => Promise<T>): Promise<T> {
+  const client = await connectSftp(config);
   try {
-    await client.connect({
-      host: config.sftpHost,
-      port: config.sftpPort ?? 22,
-      username: config.sftpUsername,
-      ...(config.sftpPrivateKey ? { privateKey: config.sftpPrivateKey } : { password: config.sftpPassword ?? '' }),
-    });
     return await fn(client);
   } finally {
     await client.end();
@@ -191,20 +202,25 @@ function toNodeReadable(stream: ReadableStream<Uint8Array>): Readable {
   return Readable.fromWeb(stream as unknown as Parameters<typeof Readable.fromWeb>[0]);
 }
 
-export async function uploadFileByConfig(config: FileStorageConfigRow, file: File) {
-  const objectKey = buildObjectKey(file.name, config.basePath);
-  const extension = path.extname(file.name).replace('.', '').toLowerCase() || undefined;
-  const mimeType = file.type || undefined;
-  const size = file.size;
+interface UploadObjectInput {
+  objectKey: string;
+  stream: Readable;
+  size: number;
+  mimeType?: string;
+}
+
+/** 按存储配置上传一个对象（参数化 objectKey + Node 流），供简单上传与分片合并复用 */
+export async function uploadObjectByConfig(config: FileStorageConfigRow, input: UploadObjectInput): Promise<void> {
+  const { objectKey, stream, size, mimeType } = input;
 
   if (config.provider === 'local') {
     const rootPath = resolveLocalRoot(config);
     const targetPath = path.join(rootPath, ...objectKey.split('/'));
     await fs.mkdir(path.dirname(targetPath), { recursive: true });
-    await pipeline(toNodeReadable(file.stream()), createWriteStream(targetPath));
+    await pipeline(stream, createWriteStream(targetPath));
   } else if (config.provider === 'oss') {
     const client = createOssClient(config);
-    await client.putStream(objectKey, toNodeReadable(file.stream()), {
+    await client.putStream(objectKey, stream, {
       contentLength: size,
       ...(mimeType ? { mime: mimeType } : {}),
     } as unknown as OSS.PutStreamOptions);
@@ -213,7 +229,7 @@ export async function uploadFileByConfig(config: FileStorageConfigRow, file: Fil
     await client.send(new PutObjectCommand({
       Bucket: config.s3Bucket!,
       Key: objectKey,
-      Body: toNodeReadable(file.stream()),
+      Body: stream,
       ContentLength: size,
       ...(mimeType ? { ContentType: mimeType } : {}),
     }));
@@ -224,7 +240,7 @@ export async function uploadFileByConfig(config: FileStorageConfigRow, file: Fil
         Bucket: config.cosBucket!,
         Region: config.cosRegion!,
         Key: objectKey,
-        Body: toNodeReadable(file.stream()),
+        Body: stream,
         ContentLength: size,
         ...(mimeType ? { ContentType: mimeType } : {}),
       }, (err) => {
@@ -234,49 +250,72 @@ export async function uploadFileByConfig(config: FileStorageConfigRow, file: Fil
     });
   } else if (config.provider === 'obs') {
     const obs = createObsClient(config);
-    const buffer = Buffer.from(await file.arrayBuffer());
     await new Promise<void>((resolve, reject) => {
-      obs.putObject({ Bucket: config.obsBucket!, Key: objectKey, Body: buffer, ...(mimeType ? { ContentType: mimeType } : {}) }, (err) => {
+      obs.putObject({
+        Bucket: config.obsBucket!,
+        Key: objectKey,
+        Body: stream,
+        ContentLength: size,
+        ...(mimeType ? { ContentType: mimeType } : {}),
+      }, (err) => {
         if (err) reject(new Error(String((err as { message?: string }).message ?? JSON.stringify(err))));
         else resolve();
       });
     });
   } else if (config.provider === 'kodo') {
     const { uploadToken, formUploader } = createKodoUploader(config);
-    const buffer = Buffer.from(await file.arrayBuffer());
     await new Promise<void>((resolve, reject) => {
-      formUploader.put(uploadToken, objectKey, buffer, new qiniu.form_up.PutExtra(), (err) => {
+      formUploader.putStream(uploadToken, objectKey, stream, new qiniu.form_up.PutExtra(), (err) => {
         if (err) reject(err);
         else resolve();
       });
     });
   } else if (config.provider === 'bos') {
     const bosClient = createBosClient(config);
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await bosClient.putObjectFromString(config.bosBucket!, objectKey, buffer.toString('binary'), {
+    await (bosClient as unknown as BosStreamClient).putObject(config.bosBucket!, objectKey, stream, {
       'Content-Type': mimeType || 'application/octet-stream',
       'Content-Length': size,
     });
   } else if (config.provider === 'azure') {
     const containerClient = createAzureBlobClient(config);
     const blockBlobClient = containerClient.getBlockBlobClient(objectKey);
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await blockBlobClient.uploadData(buffer, { blobHTTPHeaders: { blobContentType: mimeType } });
+    await blockBlobClient.uploadStream(
+      stream,
+      4 * 1024 * 1024,
+      4,
+      { blobHTTPHeaders: { blobContentType: mimeType } },
+    );
   } else if (config.provider === 'sftp') {
-    const buffer = Buffer.from(await file.arrayBuffer());
     const remotePath = [config.sftpRootPath?.replace(/\/+$/, ''), ...objectKey.split('/')].filter(Boolean).join('/');
     await sftpOperation(config, async (client) => {
       const remoteDir = remotePath.substring(0, remotePath.lastIndexOf('/'));
       if (remoteDir) await client.mkdir(remoteDir, true);
-      await client.put(buffer, remotePath);
+      await client.put(stream, remotePath);
     });
   } else {
     throw new Error(`不支持的存储类型: ${config.provider}`);
   }
+}
 
+export async function uploadFileByConfig(config: FileStorageConfigRow, file: File) {
+  const objectKey = buildObjectKey(file.name, config.basePath);
+  const extension = path.extname(file.name).replace('.', '').toLowerCase() || undefined;
+  const mimeType = file.type || undefined;
+  const size = file.size;
+  await uploadObjectByConfig(config, { objectKey, stream: toNodeReadable(file.stream()), size, mimeType });
   const bucketName = extractBucketName(config);
   return { objectKey, size, mimeType, extension, bucketName };
 }
+
+/** 供分片上传复用：根据原始文件名构造 objectKey + 提取扩展名 */
+export function buildUploadObjectKey(fileName: string, basePath?: string | null) {
+  return {
+    objectKey: buildObjectKey(fileName, basePath),
+    extension: path.extname(fileName).replace('.', '').toLowerCase() || undefined,
+  };
+}
+
+export { extractBucketName };
 
 export async function readStoredFile(file: ManagedFileRow, config: FileStorageConfigRow) {
   const effectiveConfig = withFileBucket(file, config);
@@ -309,39 +348,28 @@ export async function readStoredFile(file: ManagedFileRow, config: FileStorageCo
   }
 
   if (effectiveConfig.provider === 'cos') {
-    // COS SDK 不提供原生流式 API，将 buffer 包装为 ReadableStream 以统一接口
     const cos = createCosClient(effectiveConfig);
-    const buffer = await new Promise<Buffer>((resolve, reject) => {
-      cos.getObject({
-        Bucket: effectiveConfig.cosBucket!,
-        Region: effectiveConfig.cosRegion!,
-        Key: file.objectKey,
-      }, (err, data) => {
-        if (err) reject(new Error(String(err.message ?? err)));
-        else resolve(Buffer.isBuffer(data.Body) ? data.Body : Buffer.from(data.Body));
-      });
-    });
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(new Uint8Array(buffer));
-        controller.close();
-      },
-    });
+    // getObjectStream 同步返回 http.IncomingMessage（Readable），真正流式下载
+    const nodeStream = cos.getObjectStream({
+      Bucket: effectiveConfig.cosBucket!,
+      Region: effectiveConfig.cosRegion!,
+      Key: file.objectKey,
+    }) as unknown as import('node:stream').Readable;
+    const stream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
     return { stream, contentType, fileName };
   }
 
   if (effectiveConfig.provider === 'obs') {
     const obs = createObsClient(effectiveConfig);
-    const buffer = await new Promise<Buffer>((resolve, reject) => {
-      obs.getObject({ Bucket: effectiveConfig.obsBucket!, Key: file.objectKey }, (err, result) => {
+    // SaveAsStream:true 时回调在收到响应头后立即触发，Content 为 IncomingMessage（Readable）
+    const nodeStream = await new Promise<NodeJS.ReadableStream>((resolve, reject) => {
+      obs.getObject({ Bucket: effectiveConfig.obsBucket!, Key: file.objectKey, SaveAsStream: true }, (err, result) => {
         if (err) reject(new Error(String((err as { message?: string }).message ?? JSON.stringify(err))));
-        else {
-          const body = result?.Body?.Content;
-          resolve(body ? Buffer.from(body) : Buffer.alloc(0));
-        }
+        else if (!result?.InterfaceResult?.Content) reject(new Error('OBS getObject 未返回数据流'));
+        else resolve(result.InterfaceResult.Content);
       });
     });
-    const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array(buffer)); controller.close(); } });
+    const stream = Readable.toWeb(nodeStream as Readable) as ReadableStream<Uint8Array>;
     return { stream, contentType, fileName };
   }
 
@@ -357,9 +385,16 @@ export async function readStoredFile(file: ManagedFileRow, config: FileStorageCo
 
   if (effectiveConfig.provider === 'bos') {
     const bosClient = createBosClient(effectiveConfig);
-    const result = await bosClient.getObject(effectiveConfig.bosBucket!, file.objectKey);
-    const buffer = Buffer.from(result.body, 'binary');
-    const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array(buffer)); controller.close(); } });
+    // BOS getObject 始终缓冲到内存，改用预签名 URL + fetch 流式下载
+    const presignedUrl = (bosClient as unknown as BosStreamClient).generatePresignedUrl(
+      effectiveConfig.bosBucket!,
+      file.objectKey,
+      Math.floor(Date.now() / 1000),
+      3600,
+    );
+    const response = await fetch(presignedUrl);
+    if (!response.ok) throw new Error(`BOS 下载失败: ${response.status}`);
+    const stream = response.body as ReadableStream<Uint8Array>;
     return { stream, contentType, fileName };
   }
 
@@ -373,11 +408,17 @@ export async function readStoredFile(file: ManagedFileRow, config: FileStorageCo
   }
 
   if (effectiveConfig.provider === 'sftp') {
-    const buffer = await sftpOperation(effectiveConfig, async (client) => {
-      const remotePath = [effectiveConfig.sftpRootPath?.replace(/\/+$/, ''), ...file.objectKey.split('/')].filter(Boolean).join('/');
-      return client.get(remotePath) as Promise<Buffer>;
-    });
-    const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array(buffer)); controller.close(); } });
+    const remotePath = [effectiveConfig.sftpRootPath?.replace(/\/+$/, ''), ...file.objectKey.split('/')].filter(Boolean).join('/');
+    const client = await connectSftp(effectiveConfig);
+    const passThrough = new PassThrough();
+    // 不 await get：远端流持续 pipe 到 passThrough，消费端并发读取，读完/出错后再关闭连接
+    void client.get(remotePath, passThrough)
+      .then(() => client.end())
+      .catch((err: unknown) => {
+        passThrough.destroy(err instanceof Error ? err : new Error(String(err)));
+        void client.end();
+      });
+    const stream = Readable.toWeb(passThrough) as ReadableStream<Uint8Array>;
     return { stream, contentType, fileName };
   }
 

@@ -466,6 +466,7 @@ export const SEED_SYSTEM_CONFIGS: SystemConfig[] = [
   { id: 21, configKey: 'terminal_recording_enabled',  configValue: 'false', configType: 'boolean', description: '是否启用 Web 终端录屏（关闭后终端操作不再自动录制）',              createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 22, configKey: 'terminal_recording_retain_days', configValue: '30',  configType: 'number',  description: '终端录屏保留天数，超过此天数的录屏将在每日清理任务中删除（0 表示不按天数清理）', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 23, configKey: 'terminal_recording_max_size_mb', configValue: '500', configType: 'number',  description: '终端录屏总容量上限（MB），超出上限后按时间从旧到新删除（0 表示不限制容量）',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 24, configKey: 'file_upload_max_size_mb',       configValue: '0',     configType: 'number',  description: '单个文件上传大小上限（MB），0 表示不限制；超过该值的上传（含分片上传）将被拒绝', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── 定时任务 ─────────────────────────────────────────────────────────────────

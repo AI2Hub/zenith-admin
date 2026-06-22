@@ -288,6 +288,19 @@ export const createFileStorageConfigSchema = baseFileStorageConfigSchema.superRe
 
 export const updateFileStorageConfigSchema = baseFileStorageConfigSchema.partial();
 
+// ─── 分片上传 ─────────────────────────────────────────────────────────────────
+export const initChunkUploadSchema = z.object({
+  fileName: z.string().min(1, '文件名不能为空').max(256),
+  fileSize: z.number().int().nonnegative(),
+  mimeType: z.string().max(128).optional(),
+  chunkSize: z.number().int().positive().max(100 * 1024 * 1024),
+});
+export const completeChunkUploadSchema = z.object({
+  uploadId: z.string().min(1).max(64),
+});
+export type InitChunkUploadInput = z.infer<typeof initChunkUploadSchema>;
+export type CompleteChunkUploadInput = z.infer<typeof completeChunkUploadSchema>;
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type CreateUserInput = z.infer<typeof createUserSchema>;
