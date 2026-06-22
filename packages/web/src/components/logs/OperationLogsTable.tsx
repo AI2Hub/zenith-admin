@@ -107,7 +107,7 @@ export function OperationLogsTable({
     { title: 'ID', dataIndex: 'id', width: 70 },
     { title: '操作人', dataIndex: 'username', width: 110, render: (v: string | null) => v ?? '-' },
     { title: '功能模块', dataIndex: 'module', width: 120, render: (v: string | null) => v ?? '-' },
-    { title: '操作描述', dataIndex: 'description', width: 140 },
+    { title: '操作描述', dataIndex: 'description', width: 220, ellipsis: true },
     { title: '请求方法', dataIndex: 'method', width: 90, render: (v: string) => <Tag color="blue">{v}</Tag> },
     { title: '请求路径', dataIndex: 'path', width: 180, ellipsis: true },
     { title: 'IP 地址', dataIndex: 'ip', width: 130, render: (v: string | null) => v ?? '-' },
