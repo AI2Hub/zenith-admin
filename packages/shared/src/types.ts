@@ -1931,8 +1931,8 @@ export interface WorkflowForm {
   updatedAt: string;
 }
 
-/** 流程表单类型：designer=表单库可视化设计器，custom=用户自定义业务页面 */
-export type WorkflowFormType = 'designer' | 'custom';
+/** 流程表单类型：designer=表单库可视化设计器，custom=用户自定义业务页面，external=业务系统主导（businessKey 关联） */
+export type WorkflowFormType = 'designer' | 'custom' | 'external';
 
 /** 自定义业务表单暴露给流程的变量声明（驱动条件分支 / 按字段指定审批人） */
 export interface WorkflowCustomFormVariable {
@@ -2202,6 +2202,10 @@ export interface WorkflowInstance {
   parentInstanceId?: number | null;
   /** 子流程：父实例中触发本子流程的任务 ID */
   parentTaskId?: number | null;
+  /** 业务实体接入：业务类型（如 biz_leave），普通流程为空 */
+  bizType?: string | null;
+  /** 业务实体接入：业务记录主键（与 bizType 组成 businessKey） */
+  bizId?: string | null;
   /** 子流程：本实例发起的子实例摘要列表（仅详情场景填充） */
   childInstances?: WorkflowChildInstanceSummary[] | null;
   tasks?: WorkflowTask[];
@@ -2466,6 +2470,32 @@ export type WorkflowEvent =
   | WorkflowInstanceEventPayload
   | WorkflowNodeEventPayload
   | WorkflowTaskEventPayload;
+
+// ─── 业务接入示例：请假（业务模块自有实体，通过 businessKey 关联工作流）────────────
+export type BizLeaveStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface BizLeave {
+  id: number;
+  /** 请假类型：annual=年假, sick=病假, personal=事假, marriage=婚假, other=其他 */
+  leaveType: string;
+  /** 开始日期 YYYY-MM-DD */
+  startDate: string;
+  /** 结束日期 YYYY-MM-DD */
+  endDate: string;
+  days: number;
+  reason: string | null;
+  status: BizLeaveStatus;
+  /** 关联的工作流实例 ID（提交审批后回填） */
+  workflowInstanceId: number | null;
+  /** 冗余的工作流状态，便于列表展示 */
+  workflowStatus: WorkflowInstanceStatus | null;
+  /** 申请人（= createdBy） */
+  applicantId: number | null;
+  applicantName?: string | null;
+  tenantId: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // ─── 流程事件订阅 ────────────────────────────────────────────────────────────
 export type WorkflowEventSignMode = 'hmacSha256' | 'none';

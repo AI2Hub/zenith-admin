@@ -91,6 +91,7 @@
 
 - [流程设计器使用指南](./designer.md)
 - [表单设计](./form-design.md)
+- [业务模块接入工作流](./business-integration.md)
 - [节点配置指南](./node-config.md)
 - [节点类型与节点标识](./node-types.md)
 - [审批方式与驳回策略](./approval.md)

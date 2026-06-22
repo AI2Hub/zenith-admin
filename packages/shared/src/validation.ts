@@ -840,7 +840,7 @@ export const updateWorkflowFormSchema = createWorkflowFormSchema.partial();
 export type CreateWorkflowFormInput = z.infer<typeof createWorkflowFormSchema>;
 export type UpdateWorkflowFormInput = z.infer<typeof updateWorkflowFormSchema>;
 
-export const workflowFormTypeSchema = z.enum(['designer', 'custom']);
+export const workflowFormTypeSchema = z.enum(['designer', 'custom', 'external']);
 
 export const workflowCustomFormVariableSchema = z.object({
   key: z.string().min(1).max(64),
@@ -1894,3 +1894,19 @@ export type UpdateAnalyticsEventMetaInput = z.infer<typeof updateAnalyticsEventM
 export type UpdateAnalyticsSettingsInput = z.infer<typeof updateAnalyticsSettingsSchema>;
 export type FunnelQueryInput = z.infer<typeof funnelQuerySchema>;
 export type SourceMapUploadInput = z.infer<typeof sourceMapUploadSchema>;
+
+// ── 业务接入示例：请假 ──
+export const bizLeaveTypeSchema = z.enum(['annual', 'sick', 'personal', 'marriage', 'other']);
+
+export const createBizLeaveSchema = z.object({
+  leaveType: bizLeaveTypeSchema,
+  startDate: z.string().min(1, '请选择开始日期'),
+  endDate: z.string().min(1, '请选择结束日期'),
+  days: z.coerce.number().positive('请假天数必须大于 0'),
+  reason: z.string().max(500).nullable().optional(),
+});
+
+export const updateBizLeaveSchema = createBizLeaveSchema.partial();
+
+export type CreateBizLeaveInput = z.infer<typeof createBizLeaveSchema>;
+export type UpdateBizLeaveInput = z.infer<typeof updateBizLeaveSchema>;

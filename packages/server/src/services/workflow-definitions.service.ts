@@ -69,7 +69,7 @@ export function mapDefinitionVersion(
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
-import { eq, and, like, desc, inArray } from 'drizzle-orm';
+import { eq, and, like, desc, inArray, ne } from 'drizzle-orm';
 import { escapeLike } from '../lib/where-helpers';
 import { db } from '../db';
 import { pageOffset } from '../lib/pagination';
@@ -132,7 +132,7 @@ export async function listDefinitions(query: { page?: number; pageSize?: number;
 export async function listPublishedDefinitions() {
   const user = currentUser();
   const tc = tenantCondition(workflowDefinitions, user);
-  const conditions = [eq(workflowDefinitions.status, 'published')];
+  const conditions = [eq(workflowDefinitions.status, 'published'), ne(workflowDefinitions.formType, 'external')];
   if (tc) conditions.push(tc);
   const [rows, me, roleRows] = await Promise.all([
     db.query.workflowDefinitions.findMany({

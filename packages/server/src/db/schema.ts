@@ -1254,7 +1254,7 @@ export type NewTag = typeof tags.$inferInsert;
 // ─── 工作流引擎 ───────────────────────────────────────────────────────────────
 
 export const workflowDefinitionStatusEnum = pgEnum('workflow_definition_status', ['draft', 'published', 'disabled']);
-export const workflowFormTypeEnum = pgEnum('workflow_form_type', ['designer', 'custom']);
+export const workflowFormTypeEnum = pgEnum('workflow_form_type', ['designer', 'custom', 'external']);
 export const workflowInstanceStatusEnum = pgEnum('workflow_instance_status', ['draft', 'running', 'approved', 'rejected', 'withdrawn', 'cancelled']);
 export const workflowTaskStatusEnum = pgEnum('workflow_task_status', ['pending', 'approved', 'rejected', 'skipped', 'waiting']);
 export const workflowEventSignModeEnum = pgEnum('workflow_event_sign_mode', ['hmacSha256', 'none']);
@@ -1477,13 +1477,40 @@ export const workflowInstances = pgTable('workflow_instances', {
   parentInstanceId: integer('parent_instance_id'),
   /** 子流程：父实例中触发本子流程的 subProcess 任务 ID，子实例完成时用于唤醒父任务 */
   parentTaskId: integer('parent_task_id'),
+  /** 业务实体接入：业务类型（如 biz_leave），普通流程为空 */
+  bizType: varchar('biz_type', { length: 64 }),
+  /** 业务实体接入：业务记录主键（字符串，兼容各类业务 PK），与 bizType 组成 businessKey */
+  bizId: varchar('biz_id', { length: 64 }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [index('workflow_instances_biz_idx').on(t.bizType, t.bizId)]);
+export type WorkflowInstanceRow = typeof workflowInstances.$inferSelect;
+export type NewWorkflowInstance = typeof workflowInstances.$inferInsert;
+
+// ─── 业务接入示例：请假（业务模块自有实体，通过 businessKey 关联工作流）──────────
+export const bizLeaveStatusEnum = pgEnum('biz_leave_status', ['draft', 'pending', 'approved', 'rejected', 'cancelled']);
+
+export const bizLeaves = pgTable('biz_leaves', {
+  id: serial('id').primaryKey(),
+  leaveType: varchar('leave_type', { length: 32 }).notNull(),
+  startDate: timestamp('start_date', { withTimezone: true }).notNull(),
+  endDate: timestamp('end_date', { withTimezone: true }).notNull(),
+  days: real('days').notNull().default(1),
+  reason: text('reason'),
+  status: bizLeaveStatusEnum('status').notNull().default('draft'),
+  /** 关联的工作流实例 ID（提交审批后回填） */
+  workflowInstanceId: integer('workflow_instance_id'),
+  /** 冗余的工作流状态，便于列表直接展示（由订阅器回写） */
+  workflowStatus: varchar('workflow_status', { length: 16 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 
-export type WorkflowInstanceRow = typeof workflowInstances.$inferSelect;
-export type NewWorkflowInstance = typeof workflowInstances.$inferInsert;
+export type BizLeaveRow = typeof bizLeaves.$inferSelect;
+export type NewBizLeave = typeof bizLeaves.$inferInsert;
 
 // 审批任务
 export const workflowTasks = pgTable('workflow_tasks', {

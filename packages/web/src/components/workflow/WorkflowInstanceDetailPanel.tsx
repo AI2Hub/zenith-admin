@@ -173,8 +173,8 @@ export default function WorkflowInstanceDetailPanel({
   const childInstances = instance.childInstances ?? [];
 
   const renderFormData = () => {
-    // 自定义业务表单：渲染用户业务页面（view 模式只读）
-    if (definition?.formType === 'custom') {
+    // 自定义业务表单（custom）/ 业务系统主导（external）：渲染业务页面（view 只读）
+    if (definition?.formType === 'custom' || definition?.formType === 'external') {
       return (
         <BusinessFormHost
           customForm={definition.customForm}
@@ -183,6 +183,8 @@ export default function WorkflowInstanceDetailPanel({
           definitionId={instance.definitionId}
           instanceId={instance.id}
           value={(instance.formData as Record<string, unknown>) ?? {}}
+          bizType={instance.bizType ?? null}
+          bizId={instance.bizId ?? null}
           readOnly
         />
       );

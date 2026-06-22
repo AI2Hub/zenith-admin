@@ -74,6 +74,8 @@ export function mapInstance(
     tenantId: row.tenantId,
     parentInstanceId: row.parentInstanceId ?? null,
     parentTaskId: row.parentTaskId ?? null,
+    bizType: row.bizType ?? null,
+    bizId: row.bizId ?? null,
     childInstances: extras.childInstances ?? null,
     tasks: extras.tasks ?? null,
     comments: extras.comments,
@@ -1694,7 +1696,7 @@ export async function getWorkflowTaskBeforeAudit(taskId: number) {
   return getWorkflowInstanceBeforeAudit(task.instanceId);
 }
 
-export async function createInstance(data: { definitionId: number; title: string; formData?: Record<string, unknown> | null; asDraft?: boolean; priority?: import('@zenith/shared').WorkflowInstancePriority; ccUserIds?: number[] }, callerOverride?: { userId: number; username: string; tenantId: number | null; roles?: string[] }) {
+export async function createInstance(data: { definitionId: number; title: string; formData?: Record<string, unknown> | null; asDraft?: boolean; priority?: import('@zenith/shared').WorkflowInstancePriority; ccUserIds?: number[]; bizType?: string | null; bizId?: string | null }, callerOverride?: { userId: number; username: string; tenantId: number | null; roles?: string[] }) {
   const user = callerOverride
     ? { userId: callerOverride.userId, username: callerOverride.username, roles: callerOverride.roles ?? [], tenantId: callerOverride.tenantId }
     : currentUser();
@@ -1740,6 +1742,8 @@ export async function createInstance(data: { definitionId: number; title: string
       currentNodeKey: null,
       initiatorId: user.userId,
       tenantId: getCreateTenantId(user),
+      bizType: data.bizType ?? null,
+      bizId: data.bizId ?? null,
     }).returning();
     return mapInstance(draft);
   }
@@ -1764,6 +1768,8 @@ export async function createInstance(data: { definitionId: number; title: string
       currentNodeKey: null,
       initiatorId: user.userId,
       tenantId: getCreateTenantId(user),
+      bizType: data.bizType ?? null,
+      bizId: data.bizId ?? null,
     }).returning();
     const materialized = await materializeAdvanceResult(initialResult, {
       instanceId: createdInstance.id,

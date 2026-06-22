@@ -344,6 +344,9 @@ export const SEED_MENUS: Menu[] = [
   { id: 877, parentId: 862, title: '会员补签', name: undefined,         path: undefined,                 component: undefined,                    icon: undefined, type: 'button', sort: 1, status: 'enabled', visible: true, permission: 'member:checkin:makeup', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 870, parentId: 800, title: '登录日志', name: 'MemberLoginLogs', path: '/member/login-logs',      component: 'member/MemberLoginLogsPage', icon: 'LogIn',       type: 'menu',      sort: 8,  status: 'enabled', visible: true,  permission: 'member:loginlog:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 875, parentId: 800, title: '充值记录', name: 'MemberRecharges', path: '/member/recharges',       component: 'member/MemberRechargesPage', icon: 'CreditCard',  type: 'menu',      sort: 9,  status: 'enabled', visible: true,  permission: 'member:recharge:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  // ── 业务接入示例（请假，业务模块自有实体 + 工作流编排）──
+  { id: 900, parentId: 0,   title: '业务示例', name: 'BizDemo',          path: undefined,        component: undefined,            icon: 'Briefcase',     type: 'directory', sort: 11, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 901, parentId: 900, title: '请假管理', name: 'BizLeave',         path: '/biz/leave',     component: 'biz/leave/LeavePage', icon: 'CalendarClock', type: 'menu',      sort: 1,  status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── 角色 ─────────────────────────────────────────────────────────────────────
@@ -1094,6 +1097,32 @@ export const SEED_WORKFLOW_TEMPLATES: SeedWorkflowTemplate[] = [
     tenantId: null,
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
+  },
+];
+
+// ─── 流程定义（业务接入示例：请假审批，formType=external）────────────────────────
+// 由「请假管理」业务模块通过 startWorkflowForBiz 发起并关联；审批人查看 LeaveApprovalView。
+// 不指定显式 id（避免 serial 序列冲突），biz-leave 服务按名称查找该已发布定义。
+export const SEED_WORKFLOW_DEFINITIONS = [
+  {
+    id: 1,
+    name: '请假审批',
+    description: '业务接入示例：由「请假管理」业务模块发起并关联的审批流程（formType=external）',
+    initiatorScopeType: 'all' as const,
+    flowData: buildLinearFlow(
+      [{ key: 'approve_admin', name: '管理员审批', props: { assigneeType: 'user', assigneeIds: [1] } }],
+      TEMPLATE_SETTINGS,
+    ),
+    formType: 'external' as const,
+    customForm: {
+      createComponent: '',
+      viewComponent: 'biz/leave/LeaveApprovalView',
+      icon: 'CalendarClock',
+      variables: [{ key: 'days', label: '请假天数', type: 'number' as const }],
+    },
+    status: 'published' as const,
+    version: 1,
+    tenantId: null,
   },
 ];
 

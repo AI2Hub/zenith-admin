@@ -653,6 +653,7 @@ export default function WorkflowDesignerPage() {
             >
               <Radio value="designer">表单库设计器</Radio>
               <Radio value="custom">自定义业务表单</Radio>
+              <Radio value="external">业务系统主导</Radio>
             </RadioGroup>
           </div>
           {formType === 'designer' ? (
@@ -665,7 +666,7 @@ export default function WorkflowDesignerPage() {
               }}
             />
           ) : (
-            <CustomFormConfigPanel value={customForm} onChange={setCustomForm} />
+            <CustomFormConfigPanel value={customForm} onChange={setCustomForm} formType={formType} />
           )}
         </div>
       )}

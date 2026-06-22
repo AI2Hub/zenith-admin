@@ -37,6 +37,9 @@ export interface WorkflowBusinessFormProps {
   value: Record<string, unknown>;
   /** 是否只读（view 模式恒为 true） */
   readOnly?: boolean;
+  /** 业务实体接入（external 表单）：业务类型与业务记录主键，view 组件据此拉取业务数据 */
+  bizType?: string | null;
+  bizId?: string | null;
   /** 暴露给流程的变量声明（来自 customForm.variables），业务页据此写入 formData */
   variables?: WorkflowCustomFormVariable[];
   /** 注册命令式 API（create/approve 必需，供宿主提交时取值校验） */
@@ -53,6 +56,8 @@ interface BusinessFormHostProps {
   instanceId?: number | null;
   value?: Record<string, unknown>;
   readOnly?: boolean;
+  bizType?: string | null;
+  bizId?: string | null;
   getFormApi?: (api: WorkflowBusinessFormApi) => void;
   onClose?: () => void;
 }
@@ -81,6 +86,8 @@ export default function BusinessFormHost({
   instanceId = null,
   value,
   readOnly,
+  bizType = null,
+  bizId = null,
   getFormApi,
   onClose,
 }: Readonly<BusinessFormHostProps>) {
@@ -102,6 +109,8 @@ export default function BusinessFormHost({
     instanceId,
     value: value ?? {},
     readOnly: readOnly ?? mode === 'view',
+    bizType,
+    bizId,
     variables: customForm?.variables ?? [],
     getFormApi,
     onClose,

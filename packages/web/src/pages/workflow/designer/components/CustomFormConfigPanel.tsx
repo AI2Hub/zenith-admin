@@ -15,6 +15,8 @@ import { hasPageComponent } from '@/utils/page-registry';
 interface CustomFormConfigPanelProps {
   value: WorkflowCustomFormConfig | null;
   onChange: (next: WorkflowCustomFormConfig) => void;
+  /** custom=自定义业务表单（流程内创建/查看）；external=业务系统主导（仅审批查看） */
+  formType?: 'custom' | 'external';
 }
 
 const VARIABLE_TYPE_OPTIONS: Array<{ value: WorkflowCustomFormVariable['type']; label: string }> = [
@@ -43,9 +45,10 @@ function ComponentStatus({ path }: Readonly<{ path: string }>) {
   );
 }
 
-export default function CustomFormConfigPanel({ value, onChange }: Readonly<CustomFormConfigPanelProps>) {
+export default function CustomFormConfigPanel({ value, onChange, formType = 'custom' }: Readonly<CustomFormConfigPanelProps>) {
   const config = value ?? EMPTY_CONFIG;
   const variables = config.variables ?? [];
+  const isExternal = formType === 'external';
 
   const patch = (p: Partial<WorkflowCustomFormConfig>) => onChange({ ...config, ...p });
 
@@ -64,12 +67,16 @@ export default function CustomFormConfigPanel({ value, onChange }: Readonly<Cust
         type="info"
         bordered
         closeIcon={null}
-        description="自定义业务表单使用你在 src/pages 下自行实现的 React 页面承载发起填写与查看。页面通过 props.mode（create/view/approve）区分渲染，提交的数据将作为流程实例的 formData 存储。"
+        description={isExternal
+          ? '业务系统主导：流程由业务模块（自有表/列表页）调用 startWorkflowForBiz 发起并关联（businessKey）。此处通常只需配置「查看页组件」用于审批时按 bizId 渲染业务数据，创建页留空即可。'
+          : '自定义业务表单使用你在 src/pages 下自行实现的 React 页面承载发起填写与查看。页面通过 props.mode（create/view/approve）区分渲染，提交的数据将作为流程实例的 formData 存储。'}
         style={{ marginBottom: 16 }}
       />
 
       <div style={{ marginBottom: 16 }}>
-        <Typography.Text strong style={labelStyle}>创建 / 填写页组件 <Typography.Text type="danger">*</Typography.Text></Typography.Text>
+        <Typography.Text strong style={labelStyle}>
+          创建 / 填写页组件 {isExternal ? <Typography.Text type="tertiary">（业务系统主导时可留空）</Typography.Text> : <Typography.Text type="danger">*</Typography.Text>}
+        </Typography.Text>
         <Input
           value={config.createComponent}
           onChange={(v) => patch({ createComponent: v })}
@@ -80,11 +87,11 @@ export default function CustomFormConfigPanel({ value, onChange }: Readonly<Cust
       </div>
 
       <div style={{ marginBottom: 16 }}>
-        <Typography.Text strong style={labelStyle}>查看页组件（可选）</Typography.Text>
+        <Typography.Text strong style={labelStyle}>{isExternal ? '审批查看页组件' : '查看页组件（可选）'}</Typography.Text>
         <Input
           value={config.viewComponent ?? ''}
           onChange={(v) => patch({ viewComponent: v || null })}
-          placeholder="留空则复用创建页组件并以只读模式渲染"
+          placeholder={isExternal ? '审批/查看时按 bizId 渲染业务数据，如 biz/leave/LeaveApprovalView' : '留空则复用创建页组件并以只读模式渲染'}
           showClear
         />
         <div style={{ marginTop: 4 }}>
