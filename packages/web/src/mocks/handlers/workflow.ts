@@ -13,8 +13,8 @@ import {
 import { mockWorkflowForms } from '@/mocks/data/workflow-forms';
 import { mockDateTime } from '@/mocks/utils/date';
 
-function ok<T>(data: T) {
-  return HttpResponse.json({ code: 0, message: 'ok', data });
+function ok<T>(data: T, message = 'ok') {
+  return HttpResponse.json({ code: 0, message, data });
 }
 
 function err(message: string, code = 400) {
@@ -147,6 +147,52 @@ export const workflowHandlers = [
   }),
 
   // 发布流程定义
+  // 批量禁用流程定义（仅已发布）
+  http.post('/api/workflows/definitions/batch-disable', async ({ request }) => {
+    const { ids } = await request.json() as { ids: number[] };
+    const now = mockDateTime();
+    let updated = 0;
+    for (const id of ids ?? []) {
+      const idx = mockWorkflowDefinitions.findIndex(d => d.id === id);
+      if (idx === -1 || mockWorkflowDefinitions[idx].status !== 'published') continue;
+      mockWorkflowDefinitions[idx] = { ...mockWorkflowDefinitions[idx], status: 'disabled', updatedAt: now };
+      updated++;
+    }
+    const skipped = (ids?.length ?? 0) - updated;
+    return ok(null, skipped > 0 ? `成功禁用 ${updated} 条，${skipped} 条已跳过（非已发布状态）` : `成功禁用 ${updated} 条`);
+  }),
+
+  // 批量启用流程定义（仅已禁用）
+  http.post('/api/workflows/definitions/batch-enable', async ({ request }) => {
+    const { ids } = await request.json() as { ids: number[] };
+    const now = mockDateTime();
+    let updated = 0;
+    for (const id of ids ?? []) {
+      const idx = mockWorkflowDefinitions.findIndex(d => d.id === id);
+      if (idx === -1 || mockWorkflowDefinitions[idx].status !== 'disabled') continue;
+      mockWorkflowDefinitions[idx] = { ...mockWorkflowDefinitions[idx], status: 'published', updatedAt: now };
+      updated++;
+    }
+    const skipped = (ids?.length ?? 0) - updated;
+    return ok(null, skipped > 0 ? `成功启用 ${updated} 条，${skipped} 条已跳过（非已禁用状态）` : `成功启用 ${updated} 条`);
+  }),
+
+  // 批量删除流程定义（仅非已发布且无发起实例）
+  http.post('/api/workflows/definitions/batch-delete', async ({ request }) => {
+    const { ids } = await request.json() as { ids: number[] };
+    let deleted = 0;
+    for (const id of ids ?? []) {
+      const idx = mockWorkflowDefinitions.findIndex(d => d.id === id);
+      if (idx === -1) continue;
+      if (mockWorkflowDefinitions[idx].status === 'published') continue;
+      if (mockWorkflowInstances.some(i => i.definitionId === id)) continue;
+      mockWorkflowDefinitions.splice(idx, 1);
+      deleted++;
+    }
+    const skipped = (ids?.length ?? 0) - deleted;
+    return ok(null, skipped > 0 ? `成功删除 ${deleted} 条，${skipped} 条已跳过（已发布或存在发起实例）` : `成功删除 ${deleted} 条`);
+  }),
+
   http.post('/api/workflows/definitions/:id/publish', ({ params }) => {
     const idx = mockWorkflowDefinitions.findIndex(d => d.id === Number(params.id));
     if (idx === -1) return err('流程定义不存在', 404);
@@ -191,6 +237,19 @@ export const workflowHandlers = [
     mockWorkflowDefinitions[idx] = {
       ...mockWorkflowDefinitions[idx],
       status: 'disabled',
+      updatedAt: mockDateTime(),
+    };
+    return ok(resolveWorkflowDefinition(mockWorkflowDefinitions[idx]));
+  }),
+
+  // 启用流程定义
+  http.post('/api/workflows/definitions/:id/enable', ({ params }) => {
+    const idx = mockWorkflowDefinitions.findIndex(d => d.id === Number(params.id));
+    if (idx === -1) return err('流程定义不存在', 404);
+    if (mockWorkflowDefinitions[idx].status !== 'disabled') return err('流程定义不存在或不处于禁用状态');
+    mockWorkflowDefinitions[idx] = {
+      ...mockWorkflowDefinitions[idx],
+      status: 'published',
       updatedAt: mockDateTime(),
     };
     return ok(resolveWorkflowDefinition(mockWorkflowDefinitions[idx]));

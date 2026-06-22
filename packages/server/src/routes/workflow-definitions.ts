@@ -1,12 +1,13 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
-import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../lib/openapi-schemas';
+import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, BatchIdsBody, okBody } from '../lib/openapi-schemas';
 import { WorkflowDefinitionDTO, WorkflowDefinitionVersionDTO, WorkflowDefinitionExportDTO, WorkflowVersionDiffDTO, WorkflowApproverPreviewNodeDTO } from '../lib/openapi-dtos';
 import { importWorkflowDefinitionSchema, previewWorkflowSchema, workflowCustomFormConfigSchema, workflowFormTypeSchema } from '@zenith/shared';
 import {
   listDefinitions, listPublishedDefinitions, getDefinition, createDefinition,
   updateDefinition, publishDefinition, disableDefinition, enableDefinition, deleteDefinition, getWorkflowDefinitionBeforeAudit,
+  batchDisableDefinitions, batchEnableDefinitions, batchDeleteDefinitions,
   listVersions, restoreVersion, duplicateDefinition, exportDefinition, importDefinition, diffVersions,
 } from '../services/workflow-definitions.service';
 import { previewFlow } from '../services/workflow-preview.service';
@@ -185,6 +186,54 @@ const deleteRouteDef = defineOpenAPIRoute({
   },
 });
 
+const batchDisableRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/batch-disable', tags: ['WorkflowDefinitions'], summary: '批量禁用流程',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:definition:publish', audit: { description: '批量禁用流程定义', module: '工作流管理' } })] as const,
+    request: { body: { content: jsonContent(BatchIdsBody), required: true } },
+    responses: { ...commonErrorResponses, ...okMsg('禁用成功') },
+  }),
+  handler: async (c) => {
+    const { ids } = c.req.valid('json');
+    const { updated, skipped } = await batchDisableDefinitions(ids);
+    const message = skipped > 0 ? `成功禁用 ${updated} 条，${skipped} 条已跳过（非已发布状态）` : `成功禁用 ${updated} 条`;
+    return c.json(okBody(null, message), 200);
+  },
+});
+
+const batchEnableRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/batch-enable', tags: ['WorkflowDefinitions'], summary: '批量启用流程',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:definition:publish', audit: { description: '批量启用流程定义', module: '工作流管理' } })] as const,
+    request: { body: { content: jsonContent(BatchIdsBody), required: true } },
+    responses: { ...commonErrorResponses, ...okMsg('启用成功') },
+  }),
+  handler: async (c) => {
+    const { ids } = c.req.valid('json');
+    const { updated, skipped } = await batchEnableDefinitions(ids);
+    const message = skipped > 0 ? `成功启用 ${updated} 条，${skipped} 条已跳过（非已禁用状态）` : `成功启用 ${updated} 条`;
+    return c.json(okBody(null, message), 200);
+  },
+});
+
+const batchDeleteRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/batch-delete', tags: ['WorkflowDefinitions'], summary: '批量删除流程',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:definition:delete', audit: { description: '批量删除流程定义', module: '工作流管理' } })] as const,
+    request: { body: { content: jsonContent(BatchIdsBody), required: true } },
+    responses: { ...commonErrorResponses, ...okMsg('删除成功') },
+  }),
+  handler: async (c) => {
+    const { ids } = c.req.valid('json');
+    const { deleted, skipped } = await batchDeleteDefinitions(ids);
+    const message = skipped > 0 ? `成功删除 ${deleted} 条，${skipped} 条已跳过（已发布或存在发起实例）` : `成功删除 ${deleted} 条`;
+    return c.json(okBody(null, message), 200);
+  },
+});
+
 const VersionParam = z.object({
   id: z.coerce.number().int().positive(),
   versionId: z.coerce.number().int().positive(),
@@ -310,6 +359,6 @@ const previewRoute = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([listRoute, publishedRoute, importRoute, detailRoute, createRouteDef, updateRouteDef, publishRoute, disableRoute, enableRoute, deleteRouteDef, listVersionsRoute, restoreVersionRoute, duplicateRoute, exportRoute, diffVersionsRoute, previewRoute] as const);
+router.openapiRoutes([listRoute, publishedRoute, importRoute, detailRoute, createRouteDef, updateRouteDef, publishRoute, disableRoute, enableRoute, deleteRouteDef, batchDisableRoute, batchEnableRoute, batchDeleteRoute, listVersionsRoute, restoreVersionRoute, duplicateRoute, exportRoute, diffVersionsRoute, previewRoute] as const);
 
 export default router;

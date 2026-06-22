@@ -505,6 +505,47 @@ export async function deleteDefinition(id: number) {
   await db.delete(workflowDefinitions).where(where);
 }
 
+export async function batchDisableDefinitions(ids: number[]) {
+  if (!ids.length) return { updated: 0, skipped: 0 };
+  const tc = tenantCondition(workflowDefinitions, currentUser());
+  const conds = [inArray(workflowDefinitions.id, ids), eq(workflowDefinitions.status, 'published')];
+  if (tc) conds.push(tc);
+  const rows = await db.update(workflowDefinitions).set({ status: 'disabled' }).where(and(...conds)).returning({ id: workflowDefinitions.id });
+  return { updated: rows.length, skipped: ids.length - rows.length };
+}
+
+export async function batchEnableDefinitions(ids: number[]) {
+  if (!ids.length) return { updated: 0, skipped: 0 };
+  const tc = tenantCondition(workflowDefinitions, currentUser());
+  const conds = [inArray(workflowDefinitions.id, ids), eq(workflowDefinitions.status, 'disabled')];
+  if (tc) conds.push(tc);
+  const rows = await db.update(workflowDefinitions).set({ status: 'published' }).where(and(...conds)).returning({ id: workflowDefinitions.id });
+  return { updated: rows.length, skipped: ids.length - rows.length };
+}
+
+export async function batchDeleteDefinitions(ids: number[]) {
+  if (!ids.length) return { deleted: 0, skipped: 0 };
+  const tc = tenantCondition(workflowDefinitions, currentUser());
+  const scopeConds = [inArray(workflowDefinitions.id, ids), ne(workflowDefinitions.status, 'published')];
+  if (tc) scopeConds.push(tc);
+  const candidates = await db
+    .select({ id: workflowDefinitions.id })
+    .from(workflowDefinitions)
+    .where(and(...scopeConds));
+  const candidateIds = candidates.map((row) => row.id);
+  if (!candidateIds.length) return { deleted: 0, skipped: ids.length };
+  const used = await db
+    .selectDistinct({ definitionId: workflowInstances.definitionId })
+    .from(workflowInstances)
+    .where(inArray(workflowInstances.definitionId, candidateIds));
+  const blocked = new Set(used.map((row) => row.definitionId));
+  const deletableIds = candidateIds.filter((id) => !blocked.has(id));
+  if (deletableIds.length) {
+    await db.delete(workflowDefinitions).where(inArray(workflowDefinitions.id, deletableIds));
+  }
+  return { deleted: deletableIds.length, skipped: ids.length - deletableIds.length };
+}
+
 export async function getWorkflowDefinitionBeforeAudit(id: number) {
   const row = await db.query.workflowDefinitions.findFirst({
     where: findDefinition(id),

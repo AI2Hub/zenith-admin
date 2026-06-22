@@ -3,7 +3,7 @@ import { Button, Dropdown, Form, Input, Modal, Select, Space, Tag,
   Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { GitCompare, LayoutTemplate, MoreHorizontal, Plus, RotateCcw, Save, Search, Upload } from 'lucide-react';
+import { Ban, CircleCheck, GitCompare, LayoutTemplate, MoreHorizontal, Plus, RotateCcw, Save, Search, Trash2, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkflowDefinition, WorkflowDefinitionVersion, PaginatedResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
@@ -78,6 +78,8 @@ export default function WorkflowDefinitionsPage() {
   const searchParamsRef = useRef<SearchParams>(defaultSearchParams);
   searchParamsRef.current = searchParams;
   const [openMoreId, setOpenMoreId] = useState<number | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
+  const canBatchOperate = hasPermission('workflow:definition:publish') || hasPermission('workflow:definition:delete');
   const [historyTarget, setHistoryTarget] = useState<WorkflowDefinition | null>(null);
   const [templateGalleryVisible, setTemplateGalleryVisible] = useState(false);
   const [saveAsTarget, setSaveAsTarget] = useState<WorkflowDefinition | null>(null);
@@ -120,17 +122,20 @@ export default function WorkflowDefinitionsPage() {
   }, [fetchList]);
 
   const handleSelectCategory = (id: number | null) => {
+    setSelectedRowKeys([]);
     setSearchParams((prev) => ({ ...prev, selectedCategoryId: id }));
     setPage(1);
     void fetchList(1, pageSize, { ...searchParamsRef.current, selectedCategoryId: id });
   };
 
   const handleSearch = () => {
+    setSelectedRowKeys([]);
     setPage(1);
     void fetchList(1, pageSize);
   };
 
   const handleReset = () => {
+    setSelectedRowKeys([]);
     setSearchParams(defaultSearchParams);
     setPage(1);
     void fetchList(1, pageSize, defaultSearchParams);
@@ -166,6 +171,56 @@ export default function WorkflowDefinitionsPage() {
       Toast.success('删除成功');
       void fetchList();
     }
+  };
+
+  const batchDisable = () => {
+    if (selectedRowKeys.length === 0) return;
+    Modal.confirm({
+      title: `确定禁用选中的 ${selectedRowKeys.length} 个流程？`,
+      content: '仅「已发布」状态的流程会被禁用，禁用后不可发起新申请。',
+      okButtonProps: { type: 'danger', theme: 'solid' },
+      onOk: async () => {
+        const res = await request.post('/api/workflows/definitions/batch-disable', { ids: selectedRowKeys });
+        if (res.code === 0) {
+          Toast.success(res.message || '操作成功');
+          setSelectedRowKeys([]);
+          void fetchList();
+        }
+      },
+    });
+  };
+
+  const batchEnable = () => {
+    if (selectedRowKeys.length === 0) return;
+    Modal.confirm({
+      title: `确定启用选中的 ${selectedRowKeys.length} 个流程？`,
+      content: '仅「已禁用」状态的流程会被启用，启用后恢复为已发布状态。',
+      onOk: async () => {
+        const res = await request.post('/api/workflows/definitions/batch-enable', { ids: selectedRowKeys });
+        if (res.code === 0) {
+          Toast.success(res.message || '操作成功');
+          setSelectedRowKeys([]);
+          void fetchList();
+        }
+      },
+    });
+  };
+
+  const batchDelete = () => {
+    if (selectedRowKeys.length === 0) return;
+    Modal.confirm({
+      title: `确定删除选中的 ${selectedRowKeys.length} 个流程？`,
+      content: '仅「非已发布」且无发起实例的流程会被删除，删除后无法恢复。',
+      okButtonProps: { type: 'danger', theme: 'solid' },
+      onOk: async () => {
+        const res = await request.post('/api/workflows/definitions/batch-delete', { ids: selectedRowKeys });
+        if (res.code === 0) {
+          Toast.success(res.message || '删除成功');
+          setSelectedRowKeys([]);
+          void fetchList();
+        }
+      },
+    });
   };
 
   const handleDuplicate = async (record: WorkflowDefinition) => {
@@ -506,6 +561,21 @@ export default function WorkflowDefinitionsPage() {
                 从模板新建
               </Button>
             )}
+            {selectedRowKeys.length > 0 && hasPermission('workflow:definition:publish') && (
+              <Button type="warning" icon={<Ban size={14} />} onClick={batchDisable}>
+                批量禁用 ({selectedRowKeys.length})
+              </Button>
+            )}
+            {selectedRowKeys.length > 0 && hasPermission('workflow:definition:publish') && (
+              <Button type="tertiary" icon={<CircleCheck size={14} />} onClick={batchEnable}>
+                批量启用 ({selectedRowKeys.length})
+              </Button>
+            )}
+            {selectedRowKeys.length > 0 && hasPermission('workflow:definition:delete') && (
+              <Button type="danger" theme="light" icon={<Trash2 size={14} />} onClick={batchDelete}>
+                批量删除 ({selectedRowKeys.length})
+              </Button>
+            )}
           </SearchToolbar>
           <ConfigurableTable
             bordered
@@ -516,6 +586,10 @@ export default function WorkflowDefinitionsPage() {
             onRefresh={() => void fetchList()}
             refreshLoading={loading}
             pagination={buildPagination(data?.total ?? 0, fetchList)}
+            rowSelection={canBatchOperate ? {
+              selectedRowKeys,
+              onChange: (keys) => setSelectedRowKeys((keys ?? []) as number[]),
+            } : undefined}
           />
           {historyTarget && (
             <WorkflowVersionsModal
