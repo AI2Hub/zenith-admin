@@ -40,7 +40,7 @@ export function ObjectsPanel({ active }: Readonly<{ active: boolean }>) {
   const showDef = (title: string, text: string | null) => { setDefTitle(title); setDefText(text); };
 
   const seqColumns: ColumnProps<DbObjects['sequences'][number]>[] = [
-    { title: '名称', width: 240, render: (_: unknown, r) => <Text strong>{fullName(r.schema, r.name)}</Text> },
+    { title: '名称', render: (_: unknown, r) => <Text strong>{fullName(r.schema, r.name)}</Text> },
     { title: '类型', dataIndex: 'dataType', width: 100 },
     { title: '当前值', dataIndex: 'lastValue', width: 120, render: (v: string | null) => v ?? <Text type="tertiary">未初始化</Text> },
     { title: '步长', dataIndex: 'incrementBy', width: 80 },
@@ -99,7 +99,7 @@ export function ObjectsPanel({ active }: Readonly<{ active: boolean }>) {
         <Collapse defaultActiveKey={['seq', 'fn', 'enum']} keepDOM={false}>
           <Collapse.Panel header={sectionHeader(<ListOrdered size={15} />, '序列', data.sequences.length)} itemKey="seq">
             {data.sequences.length === 0 ? <Empty title="无序列" style={{ padding: 16 }} /> : (
-              <ConfigurableTable bordered columns={seqColumns} dataSource={data.sequences} rowKey={(r) => (r ? `${r.schema}.${r.name}` : '')} size="small" pagination={{ pageSize: 10 }} scroll={{ x: 'max-content' }} />
+              <ConfigurableTable bordered columns={seqColumns} dataSource={data.sequences} rowKey={(r) => (r ? `${r.schema}.${r.name}` : '')} size="small" pagination={{ pageSize: 10 }} />
             )}
           </Collapse.Panel>
           <Collapse.Panel header={sectionHeader(<FunctionSquare size={15} />, '函数 / 存储过程', data.functions.length)} itemKey="fn">
@@ -114,12 +114,12 @@ export function ObjectsPanel({ active }: Readonly<{ active: boolean }>) {
           </Collapse.Panel>
           <Collapse.Panel header={sectionHeader(<Tags size={15} />, '枚举类型', data.enums.length)} itemKey="enum">
             {data.enums.length === 0 ? <Empty title="无枚举类型" style={{ padding: 16 }} /> : (
-              <ConfigurableTable bordered columns={enumColumns} dataSource={data.enums} rowKey={(r) => (r ? `${r.schema}.${r.name}` : '')} size="small" pagination={{ pageSize: 15 }} scroll={{ x: 'max-content' }} />
+              <ConfigurableTable bordered columns={enumColumns} dataSource={data.enums} rowKey={(r) => (r ? `${r.schema}.${r.name}` : '')} size="small" pagination={{ pageSize: 15 }} />
             )}
           </Collapse.Panel>
           <Collapse.Panel header={sectionHeader(<Package size={15} />, '扩展', data.extensions.length)} itemKey="ext">
             {data.extensions.length === 0 ? <Empty title="无扩展" style={{ padding: 16 }} /> : (
-              <ConfigurableTable bordered columns={extColumns} dataSource={data.extensions} rowKey="name" size="small" pagination={false} scroll={{ x: 'max-content' }} />
+              <ConfigurableTable bordered columns={extColumns} dataSource={data.extensions} rowKey="name" size="small" pagination={false} />
             )}
           </Collapse.Panel>
         </Collapse>
