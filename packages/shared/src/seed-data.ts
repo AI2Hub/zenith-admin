@@ -467,6 +467,7 @@ export const SEED_SYSTEM_CONFIGS: SystemConfig[] = [
   { id: 22, configKey: 'terminal_recording_retain_days', configValue: '30',  configType: 'number',  description: '终端录屏保留天数，超过此天数的录屏将在每日清理任务中删除（0 表示不按天数清理）', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 23, configKey: 'terminal_recording_max_size_mb', configValue: '500', configType: 'number',  description: '终端录屏总容量上限（MB），超出上限后按时间从旧到新删除（0 表示不限制容量）',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 24, configKey: 'file_upload_max_size_mb',       configValue: '0',     configType: 'number',  description: '单个文件上传大小上限（MB），0 表示不限制；超过该值的上传（含分片上传）将被拒绝', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 25, configKey: 'upload_session_ttl_hours',      configValue: '24',    configType: 'number',  description: '分片上传会话保留时长（小时）；超过该时长仍未完成的会话及其临时分片将被定时清理', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── 定时任务 ─────────────────────────────────────────────────────────────────
@@ -714,6 +715,24 @@ export const SEED_CRON_JOBS: CronJob[] = [
     params: '7',
     status: 'enabled',
     description: '每天凌晨 4:10 清理超过保留天数（默认 7 天）的系统指标采样',
+    retryCount: 0,
+    retryInterval: 0,
+    retryBackoff: false,
+    monitorTimeout: null,
+    lastRunAt: null,
+    lastRunStatus: null,
+    lastRunMessage: null,
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+  {
+    id: 15,
+    name: '清理过期分片上传',
+    cronExpression: '0 30 4 * * *',
+    handler: 'cleanupUploadSessions',
+    params: null,
+    status: 'enabled',
+    description: '每天凌晨 4:30 清理超过保留时长（upload_session_ttl_hours，默认 24 小时）仍未完成的分片上传会话、临时分片与孤儿目录',
     retryCount: 0,
     retryInterval: 0,
     retryBackoff: false,

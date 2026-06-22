@@ -175,6 +175,12 @@ handlerRegistry.set('cleanupSystemMetrics', async (params) => {
   return `清理系统指标采样：删除 ${n} 条（保留 ${days} 天）`;
 });
 
+handlerRegistry.set('cleanupUploadSessions', async () => {
+  const { cleanupStaleUploadSessions } = await import('../services/upload-sessions.service');
+  const r = await cleanupStaleUploadSessions();
+  return `清理分片上传：过期会话 ${r.staleSessions} 个、孤儿临时目录 ${r.orphanDirs} 个，释放约 ${(r.freedBytes / 1024 / 1024).toFixed(2)} MB`;
+});
+
 /** 已注册 handler 名称列表（供前端下拉选择） */
 export function getRegisteredHandlers(): string[] {
   return Array.from(handlerRegistry.keys());

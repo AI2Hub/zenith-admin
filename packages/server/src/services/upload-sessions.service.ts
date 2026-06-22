@@ -3,7 +3,7 @@ import { promises as fs, createReadStream, createWriteStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, lt } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { InitChunkUploadInput } from '@zenith/shared';
 import { db } from '../db';
@@ -11,6 +11,7 @@ import { uploadSessions, uploadChunks, managedFiles, fileStorageConfigs } from '
 import { buildUploadObjectKey, uploadObjectByConfig, extractBucketName } from '../lib/file-storage';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { currentUser } from '../lib/context';
+import { getConfigNumber } from '../lib/system-config';
 import { assertUploadSizeAllowed, assertUploadTypeAllowed, mapManagedFile } from './files.service';
 
 const UPLOAD_TEMP_ROOT = path.resolve(process.cwd(), 'storage/tmp/uploads');
@@ -43,6 +44,20 @@ async function getReceivedIndices(sessionId: number): Promise<number[]> {
 
 async function cleanupSession(uploadId: string) {
   await fs.rm(sessionTempDir(uploadId), { recursive: true, force: true });
+}
+
+/** 统计某个临时目录下所有分片文件的总字节数（用于清理统计） */
+async function dirSize(dir: string): Promise<number> {
+  try {
+    const files = await fs.readdir(dir);
+    let total = 0;
+    for (const f of files) {
+      try { total += (await fs.stat(path.join(dir, f))).size; } catch { /* 忽略单个文件 stat 失败 */ }
+    }
+    return total;
+  } catch {
+    return 0;
+  }
 }
 
 export async function initChunkUpload(input: InitChunkUploadInput) {
@@ -167,4 +182,50 @@ export async function abortChunkUpload(uploadId: string) {
   const session = await ensureSession(uploadId);
   await db.update(uploadSessions).set({ status: 'aborted' }).where(eq(uploadSessions.id, session.id));
   await cleanupSession(uploadId);
+}
+
+/**
+ * 清理过期的分片上传会话（定时任务）：
+ * 1. 删除创建时间超过 TTL 的会话（任意状态），级联删除 upload_chunks 并移除临时目录；
+ * 2. 扫描临时根目录，删除无活跃会话对应、且修改时间超过 TTL 的孤儿目录（mtime 校验避免误删进行中上传）。
+ */
+export async function cleanupStaleUploadSessions(): Promise<{ staleSessions: number; orphanDirs: number; freedBytes: number }> {
+  const ttlHours = await getConfigNumber('upload_session_ttl_hours', 24);
+  const cutoff = new Date(Date.now() - ttlHours * 3600 * 1000);
+  let freedBytes = 0;
+
+  // 1. 过期会话：先删临时目录，再删 DB 行（外键级联删除 upload_chunks）
+  const stale = await db
+    .select({ uploadId: uploadSessions.uploadId })
+    .from(uploadSessions)
+    .where(lt(uploadSessions.createdAt, cutoff));
+  for (const s of stale) {
+    freedBytes += await dirSize(sessionTempDir(s.uploadId));
+    await cleanupSession(s.uploadId);
+  }
+  if (stale.length > 0) {
+    await db.delete(uploadSessions).where(lt(uploadSessions.createdAt, cutoff));
+  }
+
+  // 2. 孤儿临时目录：磁盘上存在但无对应会话、且修改时间已超过 TTL
+  const activeIds = new Set(
+    (await db.select({ uploadId: uploadSessions.uploadId }).from(uploadSessions)).map((r) => r.uploadId),
+  );
+  let orphanDirs = 0;
+  try {
+    const entries = await fs.readdir(UPLOAD_TEMP_ROOT, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || activeIds.has(entry.name)) continue;
+      const dirPath = path.join(UPLOAD_TEMP_ROOT, entry.name);
+      const st = await fs.stat(dirPath).catch(() => null);
+      if (!st || st.mtimeMs >= cutoff.getTime()) continue; // 太新，可能正在上传，跳过
+      freedBytes += await dirSize(dirPath);
+      await fs.rm(dirPath, { recursive: true, force: true });
+      orphanDirs++;
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+  }
+
+  return { staleSessions: stale.length, orphanDirs, freedBytes };
 }
