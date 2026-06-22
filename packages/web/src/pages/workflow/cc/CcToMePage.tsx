@@ -56,7 +56,7 @@ export default function CcToMePage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize]);
+  }, [page, pageSize, setPage]);
 
   useEffect(() => {
     void fetchList();
@@ -110,6 +110,7 @@ export default function CcToMePage() {
       if (res.code === 0) {
         Toast.success(res.message || '已抄送');
         setForwardTarget(null);
+        void fetchList();
       }
     } finally {
       setForwardLoading(false);

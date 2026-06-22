@@ -134,7 +134,7 @@ import logViewerRoutes from './routes/log-viewer';
 import stripAnsi from 'strip-ansi';
 import { initCronScheduler, stopAllJobs } from './lib/pg-boss-scheduler';
 import { registerWsWorkflowSubscriber } from './lib/workflow-subscribers/ws';
-import { registerWebhookWorkflowSubscriber } from './lib/workflow-subscribers/webhook';
+import { registerWebhookWorkflowSubscriber, retryWorkflowEventDeliveries } from './lib/workflow-subscribers/webhook';
 import { registerTriggerWorkflowSubscriber } from './lib/workflow-subscribers/trigger';
 import { registerExternalApproverSubscriber } from './lib/workflow-subscribers/external-approver';
 import { registerNodeListenersSubscriber } from './lib/workflow-subscribers/node-listeners';
@@ -453,6 +453,9 @@ try {
   const { registerSystemRecurringJob } = await import('./lib/pg-boss-scheduler');
   const { runDueWorkflowSchedules } = await import('./services/workflow-schedules.service');
   await registerSystemRecurringJob('workflow-schedule-tick', '* * * * *', runDueWorkflowSchedules);
+  await registerSystemRecurringJob('workflow-event-delivery-retry', '*/5 * * * *', async () => {
+    await retryWorkflowEventDeliveries();
+  });
 } catch (err) {
   logger.error('Failed to initialize cron scheduler', err);
 }

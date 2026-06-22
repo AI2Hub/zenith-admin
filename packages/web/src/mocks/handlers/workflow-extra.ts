@@ -7,6 +7,7 @@ import type {
 import { SEED_WORKFLOW_TEMPLATES } from '@zenith/shared';
 import { mockWorkflowInstances, mockWorkflowTasks, getNextInstanceId, getNextDefinitionId } from '@/mocks/data/workflow';
 import { mockWorkflowDefinitions } from '@/mocks/data/workflow';
+import { mockUsers } from '@/mocks/data/users';
 import { mockDateTime } from '@/mocks/utils/date';
 
 function ok<T>(data: T, message = 'ok') {
@@ -49,6 +50,30 @@ let nextTemplateId = 100;
 
 const mockConsults: WorkflowTaskConsult[] = [];
 let nextConsultId = 1;
+
+function getMockUserName(userId: number | null | undefined): string | null {
+  if (userId == null) return null;
+  const user = mockUsers.find((item) => item.id === userId);
+  return user?.nickname ?? user?.username ?? `用户#${userId}`;
+}
+
+function getMockDefinitionName(definitionId: number | null | undefined): string | null {
+  if (definitionId == null) return null;
+  return mockWorkflowDefinitions.find((item) => item.id === definitionId)?.name ?? `流程#${definitionId}`;
+}
+
+function syncInstanceApprovedIfComplete(instanceId: number, now: string) {
+  const inst = mockWorkflowInstances.find((item) => item.id === instanceId);
+  if (!inst || inst.status !== 'running') return;
+  const hasPendingTask = mockWorkflowTasks.some((task) =>
+    task.instanceId === instanceId && (task.status === 'pending' || task.status === 'waiting'),
+  );
+  if (!hasPendingTask) {
+    inst.status = 'approved';
+    inst.currentNodeKey = null;
+    inst.updatedAt = now;
+  }
+}
 
 // ── Round-3 内存态 ──
 const ccReadState = new Set<number>();
@@ -530,7 +555,7 @@ export const workflowExtraHandlers = [
     const task = mockWorkflowTasks.find((t) => t.id === Number(params.taskId));
     if (!task) return err('任务不存在', 404);
     task.assigneeId = body.targetUserId;
-    task.assigneeName = `用户#${body.targetUserId}`;
+    task.assigneeName = getMockUserName(body.targetUserId);
     return ok(task, '已改派');
   }),
 
@@ -540,7 +565,9 @@ export const workflowExtraHandlers = [
     const results = taskIds.map((taskId) => {
       const task = mockWorkflowTasks.find((t) => t.id === taskId);
       if (task && task.status === 'pending') {
-        task.status = 'approved'; task.comment = comment ?? null; task.actionAt = mockDateTime();
+        const now = mockDateTime();
+        task.status = 'approved'; task.comment = comment ?? null; task.actionAt = now;
+        syncInstanceApprovedIfComplete(task.instanceId, now);
         return { taskId, success: true };
       }
       return { taskId, success: false, message: '任务不存在或已处理' };
@@ -553,9 +580,22 @@ export const workflowExtraHandlers = [
     const results = taskIds.map((taskId) => {
       const task = mockWorkflowTasks.find((t) => t.id === taskId);
       if (task && task.status === 'pending') {
-        task.status = 'rejected'; task.comment = comment; task.actionAt = mockDateTime();
+        const now = mockDateTime();
+        task.status = 'rejected'; task.comment = comment; task.actionAt = now;
         const inst = mockWorkflowInstances.find((i) => i.id === task.instanceId);
-        if (inst) { inst.status = 'rejected'; inst.updatedAt = mockDateTime(); }
+        if (inst) {
+          inst.status = 'rejected';
+          inst.currentNodeKey = null;
+          inst.updatedAt = now;
+          mockWorkflowTasks
+            .filter((item) => item.instanceId === inst.id && (item.status === 'pending' || item.status === 'waiting'))
+            .forEach((item) => {
+              if (item.id !== task.id) {
+                item.status = 'skipped';
+                item.actionAt = now;
+              }
+            });
+        }
         return { taskId, success: true };
       }
       return { taskId, success: false, message: '任务不存在或已处理' };
@@ -602,11 +642,11 @@ export const workflowExtraHandlers = [
     const row: WorkflowDelegation = {
       id: nextDelegationId++,
       principalId: body.principalId ?? 1,
-      principalName: '张三',
+      principalName: getMockUserName(body.principalId ?? 1),
       delegateId: body.delegateId,
-      delegateName: `用户#${body.delegateId}`,
+      delegateName: getMockUserName(body.delegateId),
       definitionId: body.definitionId ?? null,
-      definitionName: body.definitionId ? `流程#${body.definitionId}` : null,
+      definitionName: getMockDefinitionName(body.definitionId),
       reason: body.reason ?? null,
       startAt: body.startAt ?? null,
       endAt: body.endAt ?? null,

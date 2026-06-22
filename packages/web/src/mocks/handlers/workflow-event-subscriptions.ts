@@ -206,6 +206,7 @@ export const workflowEventSubscriptionsHandlers = [
     const body = await request.json() as Partial<WorkflowEventSubscription> & { secret?: string | null };
     if (!body.name?.trim()) return err('请输入名称');
     if (!body.url?.trim()) return err('请输入回调 URL');
+    if (!/^https?:\/\//i.test(body.url.trim())) return err('URL 必须以 http:// 或 https:// 开头');
     if (!body.events || body.events.length === 0) return err('至少订阅一个事件类型');
 
     const createdAt = mockDateTime();
@@ -256,6 +257,7 @@ export const workflowEventSubscriptionsHandlers = [
     const idx = mockSubscriptions.findIndex((item) => item.id === Number(params.id));
     if (idx === -1) return err('事件订阅不存在', 404);
     const body = await request.json() as Partial<WorkflowEventSubscription> & { secret?: string | null };
+    if (body.url !== undefined && !/^https?:\/\//i.test(body.url.trim())) return err('URL 必须以 http:// 或 https:// 开头');
     const current = mockSubscriptions[idx];
     const nextSecret = body.secret?.trim() ? body.secret.trim() : current.secret;
     mockSubscriptions[idx] = {
