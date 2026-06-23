@@ -463,11 +463,13 @@ export default function WorkflowApprovalDetailSheet({
     </Space>
   ) : undefined;
 
+  const detailSheetVisible = visible && initialAction == null;
+
   return (
     <>
       <SideSheet
         title={title}
-        visible={visible}
+        visible={detailSheetVisible}
         onCancel={onClose}
         width={780}
         bodyStyle={{ padding: 16 }}
@@ -488,7 +490,7 @@ export default function WorkflowApprovalDetailSheet({
       <AppModal
         title={btnApprove.displayName ? `${btnApprove.displayName}` : '审批通过'}
         visible={approveVisible}
-        onCancel={() => { setApproveVisible(false); setApproveAttachments([]); setApproveSignature(''); setSelectedNextApprovers([]); }}
+        onCancel={() => { setApproveVisible(false); setApproveAttachments([]); setApproveSignature(''); setSelectedNextApprovers([]); if (!detailSheetVisible) onClose(); }}
         onOk={() => void handleApprove()}
         okButtonProps={{ loading: submitting, type: 'primary' }}
         okText="确认"
@@ -560,6 +562,7 @@ export default function WorkflowApprovalDetailSheet({
           setRejectVisible(false);
           setRejectInstance(null);
           setRejectDef(null);
+          if (!detailSheetVisible) onClose();
         }}
         onOk={() => void handleReject()}
         okButtonProps={{ loading: submitting, type: 'danger' }}
