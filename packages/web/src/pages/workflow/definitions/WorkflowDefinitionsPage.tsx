@@ -13,6 +13,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
+import { AppModal } from '@/components/AppModal';
 import WorkflowVersionsModal from '../components/WorkflowVersionsModal';
 import CategorySidebar from './components/CategorySidebar';
 import { TemplateGalleryModal } from './components/TemplateGalleryModal';
@@ -623,11 +624,11 @@ export default function WorkflowDefinitionsPage() {
               navigate(`/workflow/designer/${id}`);
             }}
           />
-          <Modal
+          <AppModal
             title="另存为模板"
             visible={!!saveAsTarget}
             onCancel={() => setSaveAsTarget(null)}
-            closeOnEsc
+            width={480}
             okText="保存"
             okButtonProps={{ loading: saveAsLoading, icon: <Save size={14} /> }}
             onOk={() => {
@@ -638,7 +639,7 @@ export default function WorkflowDefinitionsPage() {
           >
             <Form
               labelPosition="left"
-              labelWidth={70}
+              labelWidth={90}
               getFormApi={(api) => { saveAsFormRef.current = api; }}
               initValues={{ name: saveAsTarget?.name ?? '' }}
             >
@@ -669,7 +670,7 @@ export default function WorkflowDefinitionsPage() {
                 placeholder="选填，如 #1677ff"
               />
             </Form>
-          </Modal>
+          </AppModal>
           <Modal
             title={diffTarget ? `版本对比 - ${diffTarget.name}` : '版本对比'}
             visible={!!diffTarget}

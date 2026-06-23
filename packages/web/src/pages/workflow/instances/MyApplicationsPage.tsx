@@ -750,7 +750,7 @@ export default function MyApplicationsPage() {
     {
       title: '操作',
       key: 'action',
-      width: 120,
+      width: 160,
       fixed: 'right',
       render: (_: unknown, record: WorkflowInstance) => {
         if (record.status === 'draft') {

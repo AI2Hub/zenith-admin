@@ -457,6 +457,23 @@ export const workflowExtraHandlers = [
     mockWorkflowDefinitions.push(def as typeof mockWorkflowDefinitions[number]);
     return ok(def, '已创建');
   }),
+  http.put('/api/workflows/templates/:id', async ({ params, request }) => {
+    const idx = mockTemplates.findIndex((t) => t.id === Number(params.id));
+    if (idx === -1) return err('模板不存在', 404);
+    const body = await request.json() as Partial<WorkflowTemplate>;
+    mockTemplates[idx] = {
+      ...mockTemplates[idx],
+      ...('name' in body ? { name: body.name ?? mockTemplates[idx].name } : {}),
+      ...('code' in body ? { code: body.code ?? null } : {}),
+      ...('description' in body ? { description: body.description ?? null } : {}),
+      ...('categoryName' in body ? { categoryName: body.categoryName ?? null } : {}),
+      ...('icon' in body ? { icon: body.icon ?? null } : {}),
+      ...('color' in body ? { color: body.color ?? null } : {}),
+      ...('sort' in body ? { sort: body.sort ?? 0 } : {}),
+      updatedAt: mockDateTime(),
+    };
+    return ok(mockTemplates[idx], '已更新');
+  }),
   http.delete('/api/workflows/templates/:id', ({ params }) => {
     const idx = mockTemplates.findIndex((t) => t.id === Number(params.id));
     if (idx === -1) return err('模板不存在', 404);
