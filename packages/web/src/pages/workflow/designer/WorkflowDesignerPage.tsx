@@ -632,7 +632,7 @@ export default function WorkflowDesignerPage() {
           >
             保存
           </Button>
-          {definition?.status === 'draft' && (
+          {!isNew && (
             <Button
               icon={<Send size={14} />}
               type="primary"
