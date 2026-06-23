@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { CSSProperties } from 'react';
-import { Banner, Button, DatePicker, Input, Row, Col, Select, Tag, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, DatePicker, Input, Row, Col, Select, Skeleton, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, RotateCcw } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -114,20 +114,39 @@ export default function PaymentLedgerPage() {
   return (
     <div className="page-container">
       <div style={{ marginBottom: 16 }}>
-        <Row gutter={[16, 16]} type="flex">
-          <Col xs={24} sm={12} xl={6}>
-            <StatCard title="收入" value={summary ? yuan(summary.inAmount) : '—'} accent="#10b981" />
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <StatCard title="支出" value={summary ? yuan(summary.outAmount) : '—'} accent="#f97316" />
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <StatCard title="净额" value={summary ? yuan(summary.netAmount) : '—'} accent={summary && summary.netAmount < 0 ? '#ef4444' : '#3b82f6'} />
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <StatCard title="笔数" value={summary?.count ?? '—'} />
-          </Col>
-        </Row>
+        {loading && !summary ? (
+          <Skeleton
+            loading
+            active
+            placeholder={
+              <Row gutter={[16, 16]} type="flex">
+                {Array.from({ length: 4 }, (_, i) => `sk-ledger-${i}`).map((key) => (
+                  <Col key={key} xs={24} sm={12} xl={6}>
+                    <div style={{ ...sectionStyle, minHeight: 92, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <Skeleton.Title style={{ width: '60%', marginBottom: 4 }} />
+                      <Skeleton.Paragraph rows={1} style={{ width: '40%', marginBottom: 0 }} />
+                    </div>
+                  </Col>
+                ))}
+              </Row>
+            }
+          >{null}</Skeleton>
+        ) : (
+          <Row gutter={[16, 16]} type="flex">
+            <Col xs={24} sm={12} xl={6}>
+              <StatCard title="收入" value={summary ? yuan(summary.inAmount) : '—'} accent="#10b981" />
+            </Col>
+            <Col xs={24} sm={12} xl={6}>
+              <StatCard title="支出" value={summary ? yuan(summary.outAmount) : '—'} accent="#f97316" />
+            </Col>
+            <Col xs={24} sm={12} xl={6}>
+              <StatCard title="净额" value={summary ? yuan(summary.netAmount) : '—'} accent={summary && summary.netAmount < 0 ? '#ef4444' : '#3b82f6'} />
+            </Col>
+            <Col xs={24} sm={12} xl={6}>
+              <StatCard title="笔数" value={summary?.count ?? '—'} />
+            </Col>
+          </Row>
+        )}
       </div>
 
       <SearchToolbar>
