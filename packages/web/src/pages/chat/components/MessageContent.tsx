@@ -21,7 +21,7 @@ function getForwardedItemPreview(item: ForwardedMessageItem): string {
 }
 
 export function MessageContent({
-  msg, isSelf, onOpenImage, onOpenForwardView, currentUserId, onVote, onOpenFilePreview, onCardAction,
+  msg, isSelf, onOpenImage, onOpenForwardView, currentUserId, onVote, onOpenFilePreview, onCardAction, onOpenWorkflow,
 }: Readonly<{
   msg: ChatMessage;
   isSelf: boolean;
@@ -31,6 +31,7 @@ export function MessageContent({
   onVote?: (msg: ChatMessage, optionIds: string[]) => void;
   onOpenFilePreview?: (msg: ChatMessage) => void;
   onCardAction?: (msg: ChatMessage, action: ChatCardAction) => void;
+  onOpenWorkflow?: (instanceId: number) => void;
 }>) {
   const extra = getMessageExtra(msg);
   const asset = extra?.asset ?? null;
@@ -190,7 +191,7 @@ export function MessageContent({
   }
 
   if (msg.type === 'card') {
-    return <CardMessage msg={msg} onCardAction={onCardAction} />;
+    return <CardMessage msg={msg} onCardAction={onCardAction} onOpenWorkflow={onOpenWorkflow} />;
   }
 
   if (msg.type === 'vote') {

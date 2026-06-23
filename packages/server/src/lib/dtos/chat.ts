@@ -102,6 +102,7 @@ export const ChatCardDTO = z
     source: z.string().nullable().optional(),
     status: z.enum(['pending', 'done']).nullable().optional(),
     statusText: z.string().nullable().optional(),
+    instanceId: z.number().int().nullable().optional(),
   })
   .openapi('ChatCard');
 

@@ -1301,6 +1301,7 @@ export const chatCardSchema = z.object({
   source: z.string().max(40).nullable().optional(),
   status: z.enum(['pending', 'done']).nullable().optional(),
   statusText: z.string().max(60).nullable().optional(),
+  instanceId: z.number().int().positive().nullable().optional(),
 });
 
 export const chatBotMetaSchema = z.object({

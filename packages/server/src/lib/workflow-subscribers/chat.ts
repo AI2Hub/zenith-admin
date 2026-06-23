@@ -47,6 +47,7 @@ export function registerChatWorkflowSubscriber(): void {
         ],
         source: '工作流',
         status: 'pending',
+        instanceId: event.instanceId,
       };
       const conversationId = await ensureBotDirectConversation(botId, task.assigneeId);
       await postBotMessage(conversationId, botId, { type: 'card', content: card.title, extra: { card } });
@@ -93,6 +94,7 @@ export function registerChatWorkflowSubscriber(): void {
         source: '工作流',
         status: 'done',
         statusText: m.statusText,
+        instanceId: event.instanceId,
       };
       const conversationId = await ensureBotDirectConversation(botId, inst.initiatorId);
       await postBotMessage(conversationId, botId, { type: 'card', content: card.title, extra: { card } });

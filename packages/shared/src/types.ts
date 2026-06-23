@@ -2756,6 +2756,8 @@ export interface ChatCard {
   status?: 'pending' | 'done' | null;
   /** 已处理后的结果文案 */
   statusText?: string | null;
+  /** 关联的工作流实例 ID（工作流卡片点击可打开流程详情抽屉） */
+  instanceId?: number | null;
 }
 
 /** 机器人/系统发送者身份（senderId 为 null 的消息携带） */

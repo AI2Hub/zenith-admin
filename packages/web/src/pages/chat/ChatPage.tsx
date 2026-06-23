@@ -45,6 +45,7 @@ import { VotePollModal } from './components/VotePollModal';
 import { MessageBubble } from './components/MessageBubble';
 
 import { MessageContent } from './components/MessageContent';
+import WorkflowInstanceDetailSheet from '@/components/workflow/WorkflowInstanceDetailSheet';
 import { useVoiceRecorder } from './useVoiceRecorder';
 import { getChatNotifyPrefs, setChatNotifyPrefs } from './notifyPrefs';
 import { callManager } from '@/webrtc/useCallManager';
@@ -155,6 +156,7 @@ export default function ChatPage({
   const navigate = useNavigate();
   const [cardRejectTask, setCardRejectTask] = useState<{ taskId: number; messageId: number } | null>(null);
   const [cardRejectComment, setCardRejectComment] = useState('');
+  const [workflowSheetInstanceId, setWorkflowSheetInstanceId] = useState<number | null>(null);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<number | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -615,6 +617,10 @@ export default function ChatPage({
       setCardRejectComment('');
     }
   }, [cardRejectTask, cardRejectComment]);
+
+  const handleOpenWorkflowFromCard = useCallback((instanceId: number) => {
+    setWorkflowSheetInstanceId(instanceId);
+  }, []);
 
   const handleCardAction = useCallback((msg: ChatMessage, action: ChatCardAction) => {
     if (action.action === 'workflow:approve' && action.taskId) {
@@ -2758,6 +2764,7 @@ export default function ChatPage({
                           }}
                           readReceipt={computeReadReceipt(msg)}
                           onCardAction={handleCardAction}
+                          onOpenWorkflow={handleOpenWorkflowFromCard}
                         />
                       </div>
                     );
@@ -3462,6 +3469,11 @@ export default function ChatPage({
           autosize
         />
       </Modal>
+      <WorkflowInstanceDetailSheet
+        instanceId={workflowSheetInstanceId}
+        visible={workflowSheetInstanceId != null}
+        onClose={() => setWorkflowSheetInstanceId(null)}
+      />
       {/* Reaction emoji picker — fixed overlay */}
       {reactionPickerVisible && reactionPickerAnchor && (
         <div

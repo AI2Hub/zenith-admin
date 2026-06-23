@@ -35,7 +35,7 @@ export function MessageBubble({
   msg, isSelf, onReply, onRecall, onOpenImage, shouldShowTime, getReplyMessage, onScrollToMessage,
   onToggleFavorite, onTogglePin, onEditRecalled, recalledDraft, multiSelectMode, isSelected,
   onToggleSelect, onForwardSingle, onOpenForwardView, onDeleteMessage, onReaction, onPickReactionEmoji,
-  currentUserId, onEdit, onVote, isHighlighted, onOpenFilePreview, readReceipt, onCardAction,
+  currentUserId, onEdit, onVote, isHighlighted, onOpenFilePreview, readReceipt, onCardAction, onOpenWorkflow,
 }: Readonly<{
   msg: ChatMessage;
   isSelf: boolean;
@@ -64,6 +64,7 @@ export function MessageBubble({
   onOpenFilePreview?: (msg: ChatMessage) => void;
   readReceipt?: MessageReadReceipt;
   onCardAction?: (msg: ChatMessage, action: ChatCardAction) => void;
+  onOpenWorkflow?: (instanceId: number) => void;
 }>) {
   const fullTimeStr = formatDateTime(msg.createdAt);
   // 机器人/系统消息（senderId 为空）的展示身份取自 extra.bot
@@ -457,6 +458,7 @@ export function MessageBubble({
                   onVote={onVote}
                   onOpenFilePreview={onOpenFilePreview}
                   onCardAction={onCardAction}
+                  onOpenWorkflow={onOpenWorkflow}
                 />
               )}
             </div>
