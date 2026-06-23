@@ -147,3 +147,91 @@ export function isDescendant(fields: WorkflowFormField[], ancestorKey: string, k
   if (anc.children) sub.push(...anc.children);
   return findField(sub, key) != null;
 }
+
+/** 递归展开所有字段（含分栏列 / 分组子 / 明细子） */
+export function flattenAllFields(fields: WorkflowFormField[]): WorkflowFormField[] {
+  const out: WorkflowFormField[] = [];
+  for (const f of fields) {
+    out.push(f);
+    if (f.columns) for (const c of f.columns) out.push(...flattenAllFields(c.fields));
+    if (f.children) out.push(...flattenAllFields(f.children));
+  }
+  return out;
+}
+
+const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** 公式是否引用了某字段 key */
+export function formulaReferencesKey(formula: string | undefined, key: string): boolean {
+  if (!formula) return false;
+  return new RegExp(`\\{\\s*${escapeRegExp(key)}\\s*\\}`).test(formula);
+}
+
+export interface FieldDependent {
+  field: WorkflowFormField;
+  reasons: string[];
+}
+
+/** 找出所有依赖某字段（显隐/级联/天数/公式）的字段，用于删除前提示 */
+export function findFieldDependents(fields: WorkflowFormField[], key: string): FieldDependent[] {
+  const out: FieldDependent[] = [];
+  for (const f of flattenAllFields(fields)) {
+    if (f.key === key) continue;
+    const reasons: string[] = [];
+    if (f.visibilityCondition?.field === key) reasons.push('显隐条件');
+    if (f.visibilityRules?.rules?.some((r) => r.field === key)) reasons.push('联动规则');
+    if (f.optionsFrom?.sourceKey === key) reasons.push('级联父字段');
+    if (f.daysFromKey === key) reasons.push('日期天数联动');
+    if (formulaReferencesKey(f.formula, key)) reasons.push('公式引用');
+    if (reasons.length > 0) out.push({ field: f, reasons });
+  }
+  return out;
+}
+
+function cleanFieldRefs(f: WorkflowFormField, key: string): WorkflowFormField {
+  const nf: WorkflowFormField = { ...f };
+  if (nf.visibilityCondition?.field === key) nf.visibilityCondition = undefined;
+  if (nf.visibilityRules) {
+    const rules = nf.visibilityRules.rules.filter((r) => r.field !== key);
+    nf.visibilityRules = rules.length > 0 ? { ...nf.visibilityRules, rules } : undefined;
+  }
+  if (nf.optionsFrom?.sourceKey === key) nf.optionsFrom = undefined;
+  if (nf.daysFromKey === key) nf.daysFromKey = undefined;
+  return nf;
+}
+
+/** 删除字段后清理依赖它的孤儿引用（显隐/级联/天数）。公式保留以便校验提示。 */
+export function pruneFieldReferences(fields: WorkflowFormField[], key: string): WorkflowFormField[] {
+  return fields.map((f) => {
+    let nf = cleanFieldRefs(f, key);
+    if (nf.columns) nf = { ...nf, columns: nf.columns.map((col) => ({ ...col, fields: pruneFieldReferences(col.fields, key) })) };
+    if (nf.children) nf = { ...nf, children: pruneFieldReferences(nf.children, key) };
+    return nf;
+  });
+}
+
+/** 父字段选项变化后，裁剪所有依赖它的子字段级联 mapping 中已失效的父选项键 */
+export function pruneCascadeMappings(
+  fields: WorkflowFormField[],
+  parentKey: string,
+  allowedOptions: string[],
+): { fields: WorkflowFormField[]; affected: string[] } {
+  const allowed = new Set(allowedOptions);
+  const affected: string[] = [];
+  const walk = (list: WorkflowFormField[]): WorkflowFormField[] =>
+    list.map((f) => {
+      let nf = f;
+      if (f.optionsFrom?.sourceKey === parentKey) {
+        const entries = Object.entries(f.optionsFrom.mapping);
+        const kept = entries.filter(([k]) => allowed.has(k));
+        if (kept.length !== entries.length) {
+          affected.push(f.label || f.key);
+          nf = { ...f, optionsFrom: { ...f.optionsFrom, mapping: Object.fromEntries(kept) } };
+        }
+      }
+      if (nf.columns) nf = { ...nf, columns: nf.columns.map((col) => ({ ...col, fields: walk(col.fields) })) };
+      if (nf.children) nf = { ...nf, children: walk(nf.children) };
+      return nf;
+    });
+  return { fields: walk(fields), affected };
+}

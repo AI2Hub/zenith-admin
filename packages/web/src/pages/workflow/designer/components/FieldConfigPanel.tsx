@@ -74,9 +74,9 @@ export default function FieldConfigPanel({
   const fieldInfo = FORM_FIELD_TYPES.find(t => t.type === field.type);
   const flatFields = useMemo(() => collectFlat(allFields), [allFields]);
 
-  // 可用作条件依赖的字段（select/multiSelect 类型，且不是当前字段）
+  // 可用作条件依赖的字段（具备明确可比较值的类型，且不是当前字段）
   const conditionFields = useMemo(() => flatFields.filter(
-    f => f.key !== field.key && (f.type === 'select' || f.type === 'multiSelect' || f.type === 'number' || f.type === 'text')
+    f => f.key !== field.key && CONDITION_FIELD_TYPES.has(f.type),
   ), [flatFields, field.key]);
 
   const hasOptions = field.type === 'select' || field.type === 'multiSelect' || field.type === 'radio' || field.type === 'checkbox' || field.type === 'autoComplete';
@@ -966,12 +966,103 @@ function DictCodePicker({
 
 // ─── 显隐联动规则编辑器（多条件 and/or） ──────────────────────────────
 
-const VISIBILITY_OPERATORS = [
-  { value: 'eq', label: '等于' },
-  { value: 'neq', label: '不等于' },
-  { value: 'in', label: '包含在' },
-  { value: 'contains', label: '包含' },
-];
+// 可作为显隐条件依赖的字段类型
+const CONDITION_FIELD_TYPES = new Set<WorkflowFormFieldType>([
+  'text', 'textarea', 'number', 'amount', 'slider',
+  'select', 'multiSelect', 'radio', 'checkbox', 'switch', 'dictSelect',
+  'date', 'dateRange',
+]);
+
+const VISIBILITY_OP = {
+  eq: { value: 'eq', label: '等于' },
+  neq: { value: 'neq', label: '不等于' },
+  in: { value: 'in', label: '包含在' },
+  contains: { value: 'contains', label: '包含' },
+  gt: { value: 'gt', label: '大于' },
+  lt: { value: 'lt', label: '小于' },
+  gte: { value: 'gte', label: '大于等于' },
+  lte: { value: 'lte', label: '小于等于' },
+  isEmpty: { value: 'isEmpty', label: '为空' },
+  notEmpty: { value: 'notEmpty', label: '不为空' },
+} as const;
+
+const NO_VALUE_OPERATORS = new Set<string>(['isEmpty', 'notEmpty']);
+
+// 按依赖字段类型给出合适的操作符
+function operatorsForField(f: WorkflowFormField | undefined) {
+  switch (f?.type) {
+    case 'number': case 'amount': case 'slider':
+      return [VISIBILITY_OP.eq, VISIBILITY_OP.neq, VISIBILITY_OP.gt, VISIBILITY_OP.lt, VISIBILITY_OP.gte, VISIBILITY_OP.lte, VISIBILITY_OP.isEmpty, VISIBILITY_OP.notEmpty];
+    case 'multiSelect': case 'checkbox':
+      return [VISIBILITY_OP.contains, VISIBILITY_OP.isEmpty, VISIBILITY_OP.notEmpty];
+    case 'select': case 'radio': case 'dictSelect':
+      return [VISIBILITY_OP.eq, VISIBILITY_OP.neq, VISIBILITY_OP.in, VISIBILITY_OP.isEmpty, VISIBILITY_OP.notEmpty];
+    case 'switch':
+      return [VISIBILITY_OP.eq, VISIBILITY_OP.neq];
+    default:
+      return [VISIBILITY_OP.eq, VISIBILITY_OP.neq, VISIBILITY_OP.in, VISIBILITY_OP.isEmpty, VISIBILITY_OP.notEmpty];
+  }
+}
+
+// 根据依赖字段类型与操作符渲染合适的「值」编辑器
+function ConditionValueEditor({ refField, operator, value, onChange }: Readonly<{
+  refField: WorkflowFormField | undefined;
+  operator: string;
+  value: unknown;
+  onChange: (v: unknown) => void;
+}>) {
+  if (NO_VALUE_OPERATORS.has(operator)) return null;
+  const type = refField?.type;
+  const options = refField?.options ?? [];
+
+  if (type === 'switch') {
+    return (
+      <Select
+        value={value === true ? 'true' : value === false ? 'false' : undefined}
+        onChange={(v) => onChange(v === 'true')} style={{ width: '100%' }}
+        optionList={[{ value: 'true', label: '是 / 开' }, { value: 'false', label: '否 / 关' }]}
+        placeholder="选择开关状态"
+      />
+    );
+  }
+  if (type === 'number' || type === 'amount' || type === 'slider') {
+    return (
+      <InputNumber
+        value={value as number | undefined}
+        onChange={(v) => onChange(v === '' || v === undefined ? undefined : Number(v))}
+        style={{ width: '100%' }} placeholder="输入数值"
+      />
+    );
+  }
+  if (options.length > 0 && (type === 'select' || type === 'radio' || type === 'multiSelect' || type === 'checkbox')) {
+    if (operator === 'in') {
+      const arr = Array.isArray(value)
+        ? value as string[]
+        : (typeof value === 'string' && value ? value.split(',').map(s => s.trim()).filter(Boolean) : []);
+      return (
+        <Select
+          multiple value={arr} onChange={(v) => onChange(v)} style={{ width: '100%' }}
+          optionList={options.map(o => ({ value: o, label: o }))}
+          placeholder="选择一个或多个值"
+        />
+      );
+    }
+    return (
+      <Select
+        value={value as string | undefined} onChange={onChange} style={{ width: '100%' }}
+        optionList={options.map(o => ({ value: o, label: o }))}
+        showClear placeholder="选择值"
+      />
+    );
+  }
+  return (
+    <Input
+      value={formatVisibilityValue(value)}
+      onChange={(v) => onChange(v)}
+      placeholder="条件值（多个值用英文逗号分隔表示「包含在」）"
+    />
+  );
+}
 
 function VisibilityRulesEditor({
   field,
@@ -1037,13 +1128,21 @@ function VisibilityRulesEditor({
             </RadioGroup>
           </div>
 
-          {group.rules.map((rule, index) => (
+          {group.rules.map((rule, index) => {
+            const refField = conditionFields.find(f => f.key === rule.field);
+            const opList = operatorsForField(refField);
+            return (
             <div className="fd-form-config__visibility" key={`rule-${index}-${rule.field}`} style={{ position: 'relative' }}>
               <div className="fd-form-config__field">
                 <Typography.Text size="small">当字段</Typography.Text>
                 <Select
                   value={rule.field}
-                  onChange={(v) => updateRule(index, { field: v as string })}
+                  onChange={(v) => {
+                    const nextField = conditionFields.find(f => f.key === v);
+                    const nextOps = operatorsForField(nextField);
+                    const keepOp = nextOps.some(o => o.value === rule.operator) ? rule.operator : nextOps[0].value;
+                    updateRule(index, { field: v as string, operator: keepOp as WorkflowFieldVisibilityCondition['operator'], value: '' });
+                  }}
                   placeholder="请选择字段"
                   style={{ width: '100%' }}
                   optionList={conditionFields.map(f => ({ value: f.key, label: f.label }))}
@@ -1053,20 +1152,26 @@ function VisibilityRulesEditor({
                 <Typography.Text size="small">条件</Typography.Text>
                 <Select
                   value={rule.operator}
-                  onChange={(v) => updateRule(index, { operator: v as WorkflowFieldVisibilityCondition['operator'] })}
+                  onChange={(v) => updateRule(index, {
+                    operator: v as WorkflowFieldVisibilityCondition['operator'],
+                    ...(NO_VALUE_OPERATORS.has(v as string) ? { value: '' } : {}),
+                  })}
                   placeholder="请选择条件"
                   style={{ width: '100%' }}
-                  optionList={VISIBILITY_OPERATORS}
+                  optionList={opList}
                 />
               </div>
-              <div className="fd-form-config__field">
-                <Typography.Text size="small">值</Typography.Text>
-                <Input
-                  value={formatVisibilityValue(rule.value)}
-                  onChange={(v) => updateRule(index, { value: v })}
-                  placeholder="条件值（多个值用英文逗号分隔表示「包含在」）"
-                />
-              </div>
+              {!NO_VALUE_OPERATORS.has(rule.operator) && (
+                <div className="fd-form-config__field">
+                  <Typography.Text size="small">值</Typography.Text>
+                  <ConditionValueEditor
+                    refField={refField}
+                    operator={rule.operator}
+                    value={rule.value}
+                    onChange={(v) => updateRule(index, { value: v })}
+                  />
+                </div>
+              )}
               {group.rules.length > 1 && (
                 <Button
                   size="small"
@@ -1078,7 +1183,8 @@ function VisibilityRulesEditor({
                 />
               )}
             </div>
-          ))}
+            );
+          })}
 
           <Button size="small" type="tertiary" icon={<Plus size={12} />} onClick={addRule} style={{ marginTop: 4 }}>
             添加条件
@@ -1350,17 +1456,20 @@ function CascadeEditor({
           <Typography.Text type="tertiary" size="small">
             为每个父选项配置可见的子选项；父值变化时已选的子值会被自动清空
           </Typography.Text>
-          {Object.entries(current.mapping).some(([, opts]) => opts.length > 0) && (
+          {(parent.options ?? []).some(opt => (current.mapping[opt]?.length ?? 0) > 0) && (
             <div className="fd-form-config__cascade-preview">
               <Typography.Text strong size="small">级联预览</Typography.Text>
-              {Object.entries(current.mapping).map(([parentValue, opts]) => (
-                <div key={parentValue} className="fd-form-config__cascade-preview-row">
-                  <span>{parentValue}</span>
-                  <Typography.Text type="tertiary" size="small">
-                    {opts.length > 0 ? opts.join('、') : '未配置子选项'}
-                  </Typography.Text>
-                </div>
-              ))}
+              {(parent.options ?? []).map(parentValue => {
+                const opts = current.mapping[parentValue] ?? [];
+                return (
+                  <div key={parentValue} className="fd-form-config__cascade-preview-row">
+                    <span>{parentValue}</span>
+                    <Typography.Text type="tertiary" size="small">
+                      {opts.length > 0 ? opts.join('、') : '未配置子选项'}
+                    </Typography.Text>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

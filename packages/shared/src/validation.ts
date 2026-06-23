@@ -740,7 +740,7 @@ export const workflowNodeConfigSchema = z.looseObject({
 
 export const workflowFieldVisibilityConditionSchema = z.object({
   field: z.string().min(1),
-  operator: z.enum(['eq', 'neq', 'in', 'contains']),
+  operator: z.enum(['eq', 'neq', 'in', 'contains', 'gt', 'lt', 'gte', 'lte', 'isEmpty', 'notEmpty']),
   value: z.unknown(),
 });
 

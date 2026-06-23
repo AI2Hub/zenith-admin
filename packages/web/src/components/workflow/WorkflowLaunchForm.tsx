@@ -31,10 +31,14 @@ interface WorkflowLaunchFormProps {
   def: WorkflowDefinition;
   /** 业务自定义表单的承载容器，影响 BusinessFormHost 布局 */
   container: 'tab' | 'sheet';
+  /** 动态表单初始值（草稿/编辑回填） */
+  initialFormData?: Record<string, unknown>;
+  /** 申请标题初始值（草稿/编辑回填，留空则自动生成） */
+  initialTitle?: string;
 }
 
 const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFormProps>(
-  function WorkflowLaunchForm({ def, container }, ref) {
+  function WorkflowLaunchForm({ def, container, initialFormData, initialTitle }, ref) {
     const { user } = useAuth();
     const formApi = useRef<FormApi | null>(null);
     const dynamicFormApi = useRef<FormApi | null>(null);
@@ -51,7 +55,7 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
 
     useEffect(() => {
       const who = user?.nickname || user?.username || '我';
-      const title = `${def.name} - ${who} - ${dayjs().format('YYYY-MM-DD')}`;
+      const title = initialTitle?.trim() || `${def.name} - ${who} - ${dayjs().format('YYYY-MM-DD')}`;
       const timer = setTimeout(() => formApi.current?.setValue('title', title), 0);
       return () => clearTimeout(timer);
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -116,7 +120,7 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
           <WorkflowFormRenderer
             key={`form-${def.id}`}
             fields={def.formFields}
-            initValues={{}}
+            initValues={initialFormData ?? {}}
             getFormApi={(api) => { dynamicFormApi.current = api; }}
           />
         );

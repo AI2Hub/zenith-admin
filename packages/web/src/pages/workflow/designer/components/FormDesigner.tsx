@@ -3,11 +3,11 @@
  * 三栏布局：左侧控件面板 | 中间画布预览 | 右侧属性配置
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Tooltip } from '@douyinfe/semi-ui';
+import { Button, Tooltip, Modal, Toast, Typography } from '@douyinfe/semi-ui';
 import { Undo2, Redo2 } from 'lucide-react';
-import type { WorkflowFormField, WorkflowFormFieldType } from '@zenith/shared';
+import type { WorkflowFormField, WorkflowFormFieldType, WorkflowFormSettings } from '@zenith/shared';
 import { FORM_FIELD_TYPES } from '../form-types';
-import { findField, updateField, removeField, insertField, insertAfterKey, isDescendant, isContainerType, type DropTarget } from '../form-tree';
+import { findField, updateField, removeField, insertField, insertAfterKey, isDescendant, isContainerType, findFieldDependents, pruneFieldReferences, pruneCascadeMappings, type DropTarget } from '../form-tree';
 import FieldPalette from './FieldPalette';
 import FormCanvas from './FormCanvas';
 import FieldConfigPanel from './FieldConfigPanel';
@@ -16,6 +16,10 @@ import './FormDesigner.css';
 interface FormDesignerProps {
   fields: WorkflowFormField[];
   onChange: (fields: WorkflowFormField[]) => void;
+  /** 表单级设置（纳入撤销/重做历史） */
+  settings?: WorkflowFormSettings;
+  /** 表单级设置变化回调（撤销/重做时同步还原） */
+  onSettingsChange?: (settings: WorkflowFormSettings) => void;
   /** 是否显示内置的撤销/重做工具栏（默认 true）。外部接管工具栏时传 false 并使用 onHistoryChange */
   showToolbar?: boolean;
   /** 撤销/重做状态变化回调，供外部工具栏渲染按钮 */
@@ -27,6 +31,12 @@ export interface FormHistoryControls {
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  /** 提交字段整体变更（JSON 导入/模板/批量设置，纳入历史栈） */
+  commitFields: (fields: WorkflowFormField[]) => void;
+  /** 提交表单级设置变更（纳入历史栈） */
+  commitSettings: (settings: WorkflowFormSettings) => void;
+  /** 选中指定字段（用于体检面板定位） */
+  selectField: (key: string) => void;
 }
 
 let fieldCounter = 0;
@@ -194,18 +204,26 @@ function createField(type: WorkflowFormFieldType): WorkflowFormField {
   return field;
 }
 
+interface DesignerSnapshot {
+  fields: WorkflowFormField[];
+  settings: WorkflowFormSettings;
+}
+
 interface HistoryState {
-  stack: WorkflowFormField[][];
+  stack: DesignerSnapshot[];
   pointer: number;
   lastTag: string | null;
 }
 
 const MAX_HISTORY = 100;
 
-export default function FormDesigner({ fields, onChange, showToolbar = true, onHistoryChange }: Readonly<FormDesignerProps>) {
+export default function FormDesigner({ fields, onChange, settings, onSettingsChange, showToolbar = true, onHistoryChange }: Readonly<FormDesignerProps>) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  // 撤销/重做历史栈（快照为不可变字段数组，所有变更走 commit 统一入栈）
-  const historyRef = useRef<HistoryState>({ stack: [fields], pointer: 0, lastTag: null });
+  // 表单级设置以 ref 跟踪最新值，供字段 commit 写入同一历史快照
+  const settingsRef = useRef<WorkflowFormSettings>(settings ?? {});
+  settingsRef.current = settings ?? {};
+  // 撤销/重做历史栈（快照含字段与表单级设置，所有变更走 commit 统一入栈）
+  const historyRef = useRef<HistoryState>({ stack: [{ fields, settings: settings ?? {} }], pointer: 0, lastTag: null });
   const [, bumpHistory] = useState(0);
 
   const selectedField = findField(fields, selectedKey ?? '');
@@ -214,15 +232,22 @@ export default function FormDesigner({ fields, onChange, showToolbar = true, onH
     ? flatFields.filter((field) => field.key !== selectedField.key && field.label === selectedField.label).length
     : 0;
 
-  // 统一提交变更：写入历史栈并通知父级。tag 相同的连续变更会被合并为一步（如连续编辑同一字段属性）
+  // 还原快照：同时还原字段与表单级设置
+  const restore = useCallback((snap: DesignerSnapshot) => {
+    onChange(snap.fields);
+    onSettingsChange?.(snap.settings);
+  }, [onChange, onSettingsChange]);
+
+  // 统一提交字段变更：写入历史栈（连带当前设置）并通知父级。tag 相同的连续变更合并为一步
   const commit = useCallback((next: WorkflowFormField[], tag?: string) => {
     const h = historyRef.current;
+    const snap: DesignerSnapshot = { fields: next, settings: settingsRef.current };
     const coalesce = tag != null && tag === h.lastTag && h.pointer === h.stack.length - 1;
     if (coalesce) {
-      h.stack[h.pointer] = next;
+      h.stack[h.pointer] = snap;
     } else {
       h.stack = h.stack.slice(0, h.pointer + 1);
-      h.stack.push(next);
+      h.stack.push(snap);
       if (h.stack.length > MAX_HISTORY) h.stack.shift();
       h.pointer = h.stack.length - 1;
     }
@@ -231,14 +256,27 @@ export default function FormDesigner({ fields, onChange, showToolbar = true, onH
     onChange(next);
   }, [onChange]);
 
+  // 提交表单级设置变更（纳入历史栈）
+  const commitSettings = useCallback((nextSettings: WorkflowFormSettings) => {
+    const h = historyRef.current;
+    settingsRef.current = nextSettings;
+    h.stack = h.stack.slice(0, h.pointer + 1);
+    h.stack.push({ fields, settings: nextSettings });
+    if (h.stack.length > MAX_HISTORY) h.stack.shift();
+    h.pointer = h.stack.length - 1;
+    h.lastTag = null;
+    bumpHistory(v => v + 1);
+    onSettingsChange?.(nextSettings);
+  }, [fields, onSettingsChange]);
+
   const undo = useCallback(() => {
     const h = historyRef.current;
     if (h.pointer <= 0) return;
     h.pointer -= 1;
     h.lastTag = null;
     bumpHistory(v => v + 1);
-    onChange(h.stack[h.pointer]);
-  }, [onChange]);
+    restore(h.stack[h.pointer]);
+  }, [restore]);
 
   const redo = useCallback(() => {
     const h = historyRef.current;
@@ -246,8 +284,8 @@ export default function FormDesigner({ fields, onChange, showToolbar = true, onH
     h.pointer += 1;
     h.lastTag = null;
     bumpHistory(v => v + 1);
-    onChange(h.stack[h.pointer]);
-  }, [onChange]);
+    restore(h.stack[h.pointer]);
+  }, [restore]);
 
   // 键盘快捷键：Ctrl/Cmd+Z 撤销，Ctrl/Cmd+Shift+Z 或 Ctrl+Y 重做（编辑输入框时不拦截）
   useEffect(() => {
@@ -269,10 +307,13 @@ export default function FormDesigner({ fields, onChange, showToolbar = true, onH
   const canUndo = hist.pointer > 0;
   const canRedo = hist.pointer < hist.stack.length - 1;
 
-  // 向外部上报撤销/重做状态（供外部工具栏渲染按钮）
+  const selectField = useCallback((key: string) => setSelectedKey(key), []);
+  const commitFields = useCallback((next: WorkflowFormField[]) => commit(next), [commit]);
+
+  // 向外部上报撤销/重做状态与设置提交/字段定位能力（供外部工具栏与体检面板）
   useEffect(() => {
-    onHistoryChange?.({ undo, redo, canUndo, canRedo });
-  }, [onHistoryChange, undo, redo, canUndo, canRedo]);
+    onHistoryChange?.({ undo, redo, canUndo, canRedo, commitFields, commitSettings, selectField });
+  }, [onHistoryChange, undo, redo, canUndo, canRedo, commitFields, commitSettings, selectField]);
 
   // 点击左侧面板添加字段（追加到顶层末尾）
   const handleAddField = useCallback((type: WorkflowFormFieldType) => {
@@ -304,10 +345,38 @@ export default function FormDesigner({ fields, onChange, showToolbar = true, onH
     setSelectedKey(moveKey);
   }, [fields, commit]);
 
-  // 删除字段（任意层级）
+  // 删除字段（任意层级）。删除前扫描依赖，提示并清理孤儿引用
   const handleRemove = useCallback((key: string) => {
-    commit(removeField(fields, key)[0]);
-    if (selectedKey === key) setSelectedKey(null);
+    const target = findField(fields, key);
+    const doRemove = () => {
+      const [next] = removeField(fields, key);
+      commit(pruneFieldReferences(next, key));
+      if (selectedKey === key) setSelectedKey(null);
+    };
+    const deps = findFieldDependents(fields, key);
+    if (deps.length === 0) { doRemove(); return; }
+    Modal.confirm({
+      title: `删除字段「${target?.label ?? key}」`,
+      content: (
+        <div>
+          <Typography.Paragraph type="warning" style={{ marginBottom: 8 }}>
+            以下 {deps.length} 个字段依赖它，删除后相关引用将被自动清理：
+          </Typography.Paragraph>
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            {deps.map((d) => (
+              <li key={d.field.key}>
+                <Typography.Text strong>{d.field.label || d.field.key}</Typography.Text>
+                <Typography.Text type="tertiary" size="small">（{d.reasons.join('、')}）</Typography.Text>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ),
+      okText: '仍然删除并清理引用',
+      okButtonProps: { type: 'danger' },
+      cancelText: '取消',
+      onOk: doRemove,
+    });
   }, [fields, commit, selectedKey]);
 
   // 复制字段（插入到原字段之后，任意层级）
@@ -322,7 +391,19 @@ export default function FormDesigner({ fields, onChange, showToolbar = true, onH
   // 修改字段属性（任意层级；连续编辑同一字段合并为一步撤销）
   const handleFieldChange = useCallback((updates: Partial<WorkflowFormField>) => {
     if (!selectedKey) return;
-    commit(updateField(fields, selectedKey, updates), `edit:${selectedKey}`);
+    let next = updateField(fields, selectedKey, updates);
+    // 父字段选项变化时，裁剪依赖它的子字段级联 mapping 中的孤儿父选项键
+    if (updates.options !== undefined) {
+      const edited = findField(next, selectedKey);
+      if (edited && (edited.type === 'select' || edited.type === 'multiSelect')) {
+        const pruned = pruneCascadeMappings(next, selectedKey, edited.options ?? []);
+        next = pruned.fields;
+        if (pruned.affected.length > 0) {
+          Toast.info(`已同步裁剪级联子字段：${pruned.affected.join('、')}`);
+        }
+      }
+    }
+    commit(next, `edit:${selectedKey}`);
   }, [fields, commit, selectedKey]);
 
   return (

@@ -1814,7 +1814,7 @@ export type WorkflowFormFieldType =
 // 字段显隐条件
 export interface WorkflowFieldVisibilityCondition {
   field: string;
-  operator: 'eq' | 'neq' | 'in' | 'contains';
+  operator: 'eq' | 'neq' | 'in' | 'contains' | 'gt' | 'lt' | 'gte' | 'lte' | 'isEmpty' | 'notEmpty';
   value: unknown;
 }
 

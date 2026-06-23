@@ -3,14 +3,16 @@
  * 支持联动：公式实时计算、dateRange→天数、select 级联
  */
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import DOMPurify from 'dompurify';
-import { Form, Select, Upload, Button, Tag, Typography, Row, Col, Divider, Rating, Toast, withField } from '@douyinfe/semi-ui';
+import { Form, Select, Upload, Button, Typography, Row, Col, Divider, Rating, Toast, withField, Input, InputNumber, DatePicker } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, Eraser } from 'lucide-react';
+import { Plus, Eraser, Trash2, FileText, Download } from 'lucide-react';
 import dayjs from 'dayjs';
 import type { WorkflowFormField, WorkflowFormFieldColumn, WorkflowFieldVisibilityCondition, WorkflowFieldVisibilityRuleGroup, WorkflowRelationOption } from '@zenith/shared';
+import { TOKEN_KEY } from '@zenith/shared';
 import { CURRENCY_OPTIONS, toDateFnsToken } from '../form-types';
+import { config } from '@/config';
 import { request } from '@/utils/request';
 import RegionSelect from '@/components/RegionSelect';
 import RichTextEditor from '@/components/RichTextEditor';
@@ -248,6 +250,230 @@ const FormDeptSelect = withField(DepartmentSelect);
 const FormDictSelect = withField(DictSelect);
 const FormRelationSelect = withField(RelationSelect);
 const FormColorPicker = withField(ColorPickerInput);
+const FormRating = withField(Rating);
+
+// ─── 附件 / 图片上传（接入 Form，存 {name,url,size} 数组） ──────────────
+interface UploadedFileValue { name: string; url: string; size?: number }
+
+interface UploadFileItem {
+  name: string;
+  status?: string;
+  url?: string;
+  size?: string | number;
+  response?: unknown;
+}
+
+interface FileUploadInputProps {
+  value?: UploadedFileValue[];
+  onChange?: (value: UploadedFileValue[]) => void;
+  disabled?: boolean;
+  isImage?: boolean;
+  limit?: number;
+}
+
+function FileUploadInput({ value, onChange, disabled, isImage, limit }: Readonly<FileUploadInputProps>) {
+  const files = Array.isArray(value) ? value : [];
+
+  if (disabled) {
+    if (files.length === 0) return <Typography.Text type="tertiary">（无附件）</Typography.Text>;
+    if (isImage) {
+      return (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {files.map((f) => (
+            <img
+              key={f.url} src={f.url} alt={f.name}
+              style={{ width: 96, height: 96, objectFit: 'cover', border: '1px solid var(--semi-color-border)', borderRadius: 6 }}
+            />
+          ))}
+        </div>
+      );
+    }
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {files.map((f) => (
+          <a key={f.url} href={f.url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <FileText size={14} /><span>{f.name}</span><Download size={12} />
+          </a>
+        ))}
+      </div>
+    );
+  }
+
+  const defaultFileList = files.map((f, i) => ({ uid: `${i}-${f.url}`, name: f.name, status: 'success' as const, url: f.url, size: String(f.size ?? '') }));
+
+  const handleChange = ({ fileList }: { fileList: UploadFileItem[] }) => {
+    const next = fileList
+      .filter((f) => f.status === 'success' || f.status === undefined)
+      .map((f) => {
+        const resp = f.response as { data?: { url?: string; originalName?: string; size?: number } } | undefined;
+        const sz = resp?.data?.size ?? f.size;
+        return {
+          name: resp?.data?.originalName ?? f.name,
+          url: resp?.data?.url ?? f.url ?? '',
+          size: sz === undefined ? undefined : Number(sz),
+        };
+      })
+      .filter((f) => f.url);
+    onChange?.(next);
+  };
+
+  return (
+    <Upload
+      action={`${config.apiBaseUrl}/api/files/upload-one`}
+      headers={{ Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY) ?? ''}` }}
+      name="file"
+      listType={isImage ? 'picture' : 'list'}
+      accept={isImage ? 'image/*' : undefined}
+      limit={limit}
+      defaultFileList={defaultFileList}
+      onChange={handleChange}
+    >
+      <Button icon={<Plus size={14} />} theme="light" disabled={disabled}>
+        {isImage ? '上传图片' : '上传文件'}
+      </Button>
+    </Upload>
+  );
+}
+
+const FormFileUpload = withField(FileUploadInput);
+
+// ─── 明细 / 子表（可增删行、按子字段类型录入、底部合计、提交数组） ──────────
+type DetailRow = Record<string, unknown>;
+
+interface DetailTableInputProps {
+  value?: DetailRow[];
+  onChange?: (value: DetailRow[]) => void;
+  columns: WorkflowFormField[];
+  disabled?: boolean;
+}
+
+function DetailCell({ col, cellValue, disabled, onCellChange }: Readonly<{
+  col: WorkflowFormField; cellValue: unknown; disabled?: boolean; onCellChange: (v: unknown) => void;
+}>) {
+  switch (col.type) {
+    case 'number':
+    case 'amount':
+      return (
+        <InputNumber
+          value={cellValue as number | undefined}
+          onChange={(v) => onCellChange(v === '' || v === undefined ? undefined : Number(v))}
+          precision={col.precision}
+          prefix={col.type === 'amount' ? '¥' : undefined}
+          disabled={disabled} style={{ width: '100%' }}
+        />
+      );
+    case 'date':
+      return (
+        <DatePicker
+          value={cellValue as string | undefined}
+          onChange={(_d, dateString) => onCellChange((dateString as string) || undefined)}
+          format={toDateFnsToken(col.dateFormat)}
+          disabled={disabled} style={{ width: '100%' }}
+        />
+      );
+    case 'select':
+      return (
+        <Select
+          value={cellValue as string | undefined}
+          onChange={(v) => onCellChange(v)}
+          optionList={(col.options ?? []).map((o) => ({ value: o, label: o }))}
+          disabled={disabled} showClear style={{ width: '100%' }}
+        />
+      );
+    default:
+      return (
+        <Input
+          value={(cellValue as string | undefined) ?? ''}
+          onChange={(v) => onCellChange(v || undefined)}
+          disabled={disabled}
+        />
+      );
+  }
+}
+
+function DetailTableInput({ value, onChange, columns, disabled }: Readonly<DetailTableInputProps>) {
+  const rows = Array.isArray(value) ? value : [];
+  const summaryCols = columns.filter((c) => (c.type === 'number' || c.type === 'amount') && c.detailSummary);
+
+  const setRows = (next: DetailRow[]) => onChange?.(next);
+  const addRow = () => setRows([...rows, {}]);
+  const removeRow = (idx: number) => setRows(rows.filter((_, i) => i !== idx));
+  const setCell = (idx: number, key: string, cellVal: unknown) =>
+    setRows(rows.map((r, i) => (i === idx ? { ...r, [key]: cellVal } : r)));
+
+  const sumOf = (key: string) => rows.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+
+  if (columns.length === 0) {
+    return <Typography.Text type="tertiary">请在设计器中为明细配置子列</Typography.Text>;
+  }
+
+  return (
+    <div className="wf-detail-table" style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, overflow: 'hidden' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+        <thead>
+          <tr style={{ background: 'var(--semi-color-fill-0)' }}>
+            <th style={{ width: 44, padding: '8px 10px', fontSize: 12, color: 'var(--semi-color-text-2)' }}>#</th>
+            {columns.map((col) => (
+              <th key={col.key} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 12, color: 'var(--semi-color-text-1)', fontWeight: 600 }}>
+                {col.label}
+              </th>
+            ))}
+            {!disabled && <th style={{ width: 56, padding: '8px 10px' }} />}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={columns.length + (disabled ? 1 : 2)} style={{ padding: '16px', textAlign: 'center', color: 'var(--semi-color-text-2)' }}>
+                暂无明细
+              </td>
+            </tr>
+          ) : (
+            rows.map((row, idx) => (
+              <tr key={`detail-row-${idx}`} style={{ borderTop: '1px solid var(--semi-color-border)' }}>
+                <td style={{ padding: '6px 10px', color: 'var(--semi-color-text-2)', fontSize: 12 }}>{idx + 1}</td>
+                {columns.map((col) => (
+                  <td key={col.key} style={{ padding: '6px 8px' }}>
+                    <DetailCell col={col} cellValue={row[col.key]} disabled={disabled} onCellChange={(v) => setCell(idx, col.key, v)} />
+                  </td>
+                ))}
+                {!disabled && (
+                  <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                    <Button type="danger" theme="borderless" size="small" icon={<Trash2 size={13} />} onClick={() => removeRow(idx)} aria-label="删除明细行" />
+                  </td>
+                )}
+              </tr>
+            ))
+          )}
+          {summaryCols.length > 0 && rows.length > 0 && (
+            <tr style={{ borderTop: '1px solid var(--semi-color-border)', background: 'var(--semi-color-fill-0)' }}>
+              <td style={{ padding: '8px 10px', fontSize: 12, color: 'var(--semi-color-text-2)' }}>合计</td>
+              {columns.map((col) => (
+                <td key={col.key} style={{ padding: '8px 10px', fontWeight: 600 }}>
+                  {summaryCols.some((s) => s.key === col.key) ? sumOf(col.key) : ''}
+                </td>
+              ))}
+              {!disabled && <td />}
+            </tr>
+          )}
+        </tbody>
+      </table>
+      {!disabled && (
+        <div style={{ padding: 8 }}>
+          <Button size="small" theme="light" icon={<Plus size={13} />} onClick={addRow}>添加明细行</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const FormDetailTable = withField(DetailTableInput);
+
+// 必填字段标签（带红色星号），用于 withField 自定义控件
+function fieldLabelNode(field: WorkflowFormField): ReactNode {
+  if (!field.required) return field.label;
+  return <span>{field.label}<span style={{ color: 'var(--semi-color-danger)' }}> *</span></span>;
+}
 
 export function flattenFields(fields: WorkflowFormField[]): WorkflowFormField[] {
   const out: WorkflowFormField[] = [];
@@ -263,11 +489,16 @@ export function flattenFields(fields: WorkflowFormField[]): WorkflowFormField[] 
 }
 
 export function evalFormula(formula: string, values: Record<string, unknown>, precision = 2): number | null {
+  let uncomputable = false;
   const replaced = formula.replace(/\{([^}]+)\}/g, (_, key: string) => {
     const v = values[key.trim()];
+    if (v === undefined || v === null || v === '') { uncomputable = true; return '0'; }
     const n = typeof v === 'number' ? v : Number(v);
-    return Number.isFinite(n) ? String(n) : '0';
+    if (!Number.isFinite(n)) { uncomputable = true; return '0'; }
+    return String(n);
   });
+  // 任一依赖缺失或非数字 → 不可计算（避免按 0 处理产生"看似正确"的错误结果）
+  if (uncomputable) return null;
   if (!SAFE_EXPR_REGEX.test(replaced)) return null;
   try {
     const result = new Function(`"use strict"; return (${replaced});`)() as number;
@@ -295,6 +526,9 @@ const toComparableStr = (v: unknown): string => {
   return '';
 };
 
+const isEmptyValue = (v: unknown): boolean =>
+  v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
+
 function evalCondition(cond: WorkflowFieldVisibilityCondition, values: Record<string, unknown>): boolean {
   if (!cond?.field) return true;
   const left = values[cond.field];
@@ -309,6 +543,12 @@ function evalCondition(cond: WorkflowFieldVisibilityCondition, values: Record<st
       return arr.map(toComparableStr).includes(toComparableStr(left));
     }
     case 'contains': return Array.isArray(left) && left.map(toComparableStr).includes(toComparableStr(right));
+    case 'gt': return Number(left) > Number(right);
+    case 'lt': return Number(left) < Number(right);
+    case 'gte': return Number(left) >= Number(right);
+    case 'lte': return Number(left) <= Number(right);
+    case 'isEmpty': return isEmptyValue(left);
+    case 'notEmpty': return !isEmptyValue(left);
     default: return true;
   }
 }
@@ -581,9 +821,14 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
 
     case 'rate':
       return (
-        <Form.Slot label={field.label} {...extraProps}>
-          <Rating count={field.rateMax ?? 5} defaultValue={Number(field.defaultValue) || 0} disabled={disabled} />
-        </Form.Slot>
+        <FormRating
+          field={field.key} label={fieldLabelNode(field)}
+          count={field.rateMax ?? 5}
+          initValue={Number(field.defaultValue) || 0}
+          disabled={disabled}
+          rules={field.required ? [{ validator: (_r: unknown, v: unknown) => typeof v === 'number' && v > 0, message: `请为${field.label}评分` }] : undefined}
+          {...extraProps}
+        />
       );
 
     case 'formula':
@@ -830,21 +1075,16 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
     case 'attachment':
     case 'image':
       return (
-        <div style={{ marginBottom: 16 }}>
-          <Typography.Text strong style={{ display: 'block', marginBottom: 4 }}>
-            {field.label}{field.required && <span style={{ color: 'var(--semi-color-danger)' }}> *</span>}
-          </Typography.Text>
-          <Upload action="" listType={field.type === 'image' ? 'picture' : 'list'} limit={field.maxCount ?? 5} disabled={disabled}>
-            <Button icon={<Plus size={14} />} theme="light" disabled={disabled}>
-              {field.type === 'image' ? '上传图片' : '上传文件'}
-            </Button>
-          </Upload>
-          {field.maxCount ? (
-            <Typography.Text type="tertiary" size="small">
-              最多上传 {field.maxCount} 个文件
-            </Typography.Text>
-          ) : null}
-        </div>
+        <FormFileUpload
+          field={field.key}
+          label={fieldLabelNode(field)}
+          isImage={field.type === 'image'}
+          limit={field.maxCount}
+          disabled={disabled}
+          rules={field.required ? [{ validator: (_r: unknown, v: unknown) => Array.isArray(v) && v.length > 0, message: `请上传${field.label}` }] : undefined}
+          extraText={field.maxCount ? `最多上传 ${field.maxCount} 个文件` : undefined}
+          {...extraProps}
+        />
       );
 
     case 'userSelect':
@@ -916,27 +1156,41 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
 
     case 'detail': {
       const children = field.children ?? [];
+      const requiredChildren = children.filter(c => c.required);
+      const detailRules: Array<Record<string, unknown>> = [];
+      if (field.required) {
+        detailRules.push({ validator: (_r: unknown, v: unknown) => Array.isArray(v) && v.length > 0, message: `请至少添加一行${field.label}` });
+      }
+      if (requiredChildren.length > 0) {
+        detailRules.push({
+          validator: (_r: unknown, v: unknown) =>
+            Array.isArray(v) && v.every((row) => requiredChildren.every((c) => {
+              const cell = (row as Record<string, unknown>)[c.key];
+              return cell !== undefined && cell !== null && cell !== '';
+            })),
+          message: `${field.label}存在必填子项未填写`,
+        });
+      }
       return (
-        <div style={{ marginBottom: 16 }}>
-          <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
-            {field.label}{field.required && <span style={{ color: 'var(--semi-color-danger)' }}> *</span>}
-          </Typography.Text>
-          <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 12, background: 'var(--semi-color-fill-0)' }}>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-              {children.map(child => (
-                <Tag key={child.key} color="blue" size="large">{child.label}</Tag>
-              ))}
-            </div>
-            <Button size="small" theme="light" icon={<Plus size={12} />} disabled={disabled}>添加明细行</Button>
-          </div>
-        </div>
+        <FormDetailTable
+          field={field.key}
+          label={fieldLabelNode(field)}
+          columns={children}
+          disabled={disabled}
+          rules={detailRules.length > 0 ? detailRules : undefined}
+          {...extraProps}
+        />
       );
     }
 
-    case 'row':
+    case 'row': {
+      const columns = field.columns || [];
+      // 所有子字段都被隐藏时不渲染空白容器
+      const hasVisibleChild = columns.some((col) => (col.fields || []).some((cf) => isFieldVisible(cf, values)));
+      if (!hasVisibleChild) return null;
       return (
         <Row gutter={16}>
-          {(field.columns || []).map((col) => (
+          {columns.map((col) => (
             <Col span={col.span} key={getColumnKey(field.key, col)}>
               {(col.fields || []).map(childField => (
                 isFieldVisible(childField, values) ? <FieldRenderer key={childField.key} field={childField} readOnly={readOnly} /> : null
@@ -945,11 +1199,15 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
           ))}
         </Row>
       );
+    }
 
     case 'divider':
       return <Divider style={{ margin: '16px 0' }} />;
 
-    case 'group':
+    case 'group': {
+      // 所有子字段都被隐藏时不渲染分组标题与空白容器
+      const visibleChildren = (field.children || []).filter((cf) => isFieldVisible(cf, values));
+      if (visibleChildren.length === 0) return null;
       return (
         <div style={{ marginBottom: 24 }}>
           <div style={{
@@ -961,16 +1219,15 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
             {field.title || field.label}
           </div>
           <Row gutter={16}>
-            {(field.children || []).map(childField => (
-              isFieldVisible(childField, values) ? (
-                <Col span={colSpanOf(childField)} key={childField.key}>
-                  <FieldRenderer field={childField} readOnly={readOnly} />
-                </Col>
-              ) : null
+            {visibleChildren.map(childField => (
+              <Col span={colSpanOf(childField)} key={childField.key}>
+                <FieldRenderer field={childField} readOnly={readOnly} />
+              </Col>
             ))}
           </Row>
         </div>
       );
+    }
 
     default:
       return (

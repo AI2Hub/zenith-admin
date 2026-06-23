@@ -1,0 +1,106 @@
+/**
+ * 表单 schema 体检：保存前/设计中统一校验，汇总空标签、重复 key、空选项、
+ * 区间非法、无效正则、孤儿依赖、公式错误等问题。供保存阻断与体检面板复用。
+ */
+import type { WorkflowFormField, WorkflowFormFieldType } from '@zenith/shared';
+import { flattenAllFields, formulaReferencesKey } from './form-tree';
+import { evalFormula } from './components/WorkflowFormRenderer';
+
+export interface FormIssue {
+  level: 'error' | 'warning';
+  fieldKey?: string;
+  fieldLabel?: string;
+  message: string;
+}
+
+const OPTION_TYPES = new Set<WorkflowFormFieldType>(['select', 'multiSelect', 'radio', 'checkbox', 'autoComplete']);
+
+export function validateFormSchema(fields: WorkflowFormField[]): FormIssue[] {
+  const issues: FormIssue[] = [];
+  const all = flattenAllFields(fields);
+  const keys = new Set(all.map((f) => f.key));
+
+  const keyCount = new Map<string, number>();
+  for (const f of all) keyCount.set(f.key, (keyCount.get(f.key) ?? 0) + 1);
+
+  if (fields.length === 0) {
+    issues.push({ level: 'warning', message: '表单还没有任何字段' });
+  }
+
+  const reportedDupKeys = new Set<string>();
+
+  for (const f of all) {
+    const label = f.label || f.key;
+
+    if (!f.label?.trim() && f.type !== 'divider') {
+      issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: '字段名称为空' });
+    }
+
+    if ((keyCount.get(f.key) ?? 0) > 1 && !reportedDupKeys.has(f.key)) {
+      reportedDupKeys.add(f.key);
+      issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: `字段 key 重复：${f.key}` });
+    }
+
+    if (OPTION_TYPES.has(f.type)) {
+      const opts = (f.options ?? []).map((o) => o.trim()).filter(Boolean);
+      if (opts.length === 0) {
+        issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: '选项为空' });
+      } else if (new Set(opts).size !== opts.length) {
+        issues.push({ level: 'warning', fieldKey: f.key, fieldLabel: label, message: '存在重复选项' });
+      }
+    }
+
+    if (f.min !== undefined && f.max !== undefined && f.min > f.max) {
+      issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: '最小值大于最大值' });
+    }
+    if (f.minLength !== undefined && f.maxLength !== undefined && f.minLength > f.maxLength) {
+      issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: '最小长度大于最大长度' });
+    }
+
+    if (f.pattern) {
+      try { new RegExp(f.pattern); } catch { issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: '正则表达式无效' }); }
+    }
+
+    const refKeys: string[] = [];
+    if (f.visibilityCondition?.field) refKeys.push(f.visibilityCondition.field);
+    if (f.visibilityRules?.rules) for (const r of f.visibilityRules.rules) if (r.field) refKeys.push(r.field);
+    for (const rk of refKeys) {
+      if (!keys.has(rk)) issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: `显隐条件引用了不存在的字段：${rk}` });
+    }
+
+    if (f.optionsFrom?.sourceKey && !keys.has(f.optionsFrom.sourceKey)) {
+      issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: `级联父字段不存在：${f.optionsFrom.sourceKey}` });
+    }
+
+    if (f.daysFromKey && !keys.has(f.daysFromKey)) {
+      issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: `天数联动来源字段不存在：${f.daysFromKey}` });
+    }
+
+    if (f.type === 'formula') {
+      if (!f.formula?.trim()) {
+        issues.push({ level: 'warning', fieldKey: f.key, fieldLabel: label, message: '公式为空' });
+      } else {
+        const refs = Array.from(f.formula.matchAll(/\{([^}]+)\}/g), (m) => m[1].trim());
+        const unknown = refs.filter((rk) => rk !== f.key && !keys.has(rk));
+        if (unknown.length > 0) {
+          issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: `公式引用不存在的字段：${unknown.join('、')}` });
+        } else {
+          const sample = Object.fromEntries(refs.map((rk) => [rk, 1]));
+          if (evalFormula(f.formula, sample, 2) === null) {
+            issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: '公式表达式无效' });
+          }
+        }
+      }
+    }
+    // 标记公式引用自身（无意义）
+    if (f.type === 'formula' && f.formula && formulaReferencesKey(f.formula, f.key)) {
+      issues.push({ level: 'warning', fieldKey: f.key, fieldLabel: label, message: '公式引用了自身' });
+    }
+  }
+
+  return issues;
+}
+
+export function countErrors(issues: FormIssue[]): number {
+  return issues.filter((i) => i.level === 'error').length;
+}
