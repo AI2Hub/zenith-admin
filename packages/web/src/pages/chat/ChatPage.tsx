@@ -2708,7 +2708,7 @@ export default function ChatPage({
                   itemContent={(virtualIndex, msg) => { // NOSONAR
                     const realIndex = virtualIndex - firstItemIndex;
                     return (
-                      <div style={{ padding: isQuick ? '0 12px' : '0 20px' }}>
+                      <div style={{ padding: isQuick ? '0 12px 16px' : '0 20px 16px' }}>
                         <MessageBubble
                           msg={msg}
                           isSelf={msg.senderId === currentUserId}

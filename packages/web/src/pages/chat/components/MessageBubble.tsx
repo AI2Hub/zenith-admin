@@ -311,7 +311,7 @@ export function MessageBubble({
     <div // NOSONAR
       id={`msg-${msg.id}`}
       style={{
-        display: 'flex', flexDirection: isSelf ? 'row-reverse' : 'row', gap: 8, marginBottom: 16, alignItems: 'flex-end',
+        display: 'flex', flexDirection: isSelf ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-end',
         background: bubbleBackground,
         borderRadius: 8,
         padding: bubblePadding,
