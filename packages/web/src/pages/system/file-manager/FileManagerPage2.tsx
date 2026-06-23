@@ -5,7 +5,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Button, Input, Space, Tooltip, Dropdown, Modal, Toast,
-  Typography, Tag, Spin, Breadcrumb, Popconfirm, ImagePreview, Checkbox,
+  Typography, Tag, Spin, Breadcrumb, Popconfirm, ImagePreview, Checkbox, SideSheet,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Icon } from '@iconify/react';
@@ -14,6 +14,7 @@ import {
   FolderPlus, FilePlus, Upload as UploadIcon,
   Trash2, Copy, Scissors, Archive, Home,
   MoreHorizontal, FolderOpen,
+  Eye, EyeOff, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { request } from '@/utils/request';
 import { TOKEN_KEY } from '@zenith/shared';
@@ -517,6 +518,14 @@ export default function FileManagerPage() {
   // 内容区高度（用于 Table 虚拟滚动）
   const contentRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState(0);
+  // ── 导航历史 ─────────────────────────────────────────────────────────────────
+  const historyRef = useRef<{ paths: string[]; index: number }>({ paths: [], index: -1 });
+  const [canBack, setCanBack] = useState(false);
+  const [canForward, setCanForward] = useState(false);
+  // ── 隐藏文件 & 属性面板 ────────────────────────────────────────────────────
+  const [showHidden, setShowHidden] = useState(false);
+  const [propsEntry, setPropsEntry] = useState<FsEntry | null>(null);
+  const [propsChecksum, setPropsChecksum] = useState<{ algo: 'md5' | 'sha1' | 'sha256'; hash: string; loading: boolean } | null>(null);
 
   useEffect(() => {
     const el = contentRef.current;
@@ -527,6 +536,9 @@ export default function FileManagerPage() {
     ob.observe(el);
     return () => ob.disconnect();
   }, []);
+
+  // 切换属性面板时清空校验和
+  useEffect(() => { setPropsChecksum(null); }, [propsEntry]);
 
   // ── 初始化 ────────────────────────────────────────────────────────────────
 
@@ -546,7 +558,7 @@ export default function FileManagerPage() {
 
   // ── 导航 ─────────────────────────────────────────────────────────────────
 
-  const navigateTo = useCallback(async (p: string) => {
+  const navigateTo = useCallback(async (p: string, pushHistory = true) => {
     setLoading(true);
     setSelectedPaths(new Set());
     setKeyword('');
@@ -555,16 +567,51 @@ export default function FileManagerPage() {
     if (res.code === 0 && res.data) {
       setCurrentPath(res.data.path);
       setEntries(res.data.entries);
+      if (pushHistory) {
+        const h = historyRef.current;
+        const newStack = [...h.paths.slice(0, h.index + 1), res.data.path];
+        historyRef.current = { paths: newStack, index: newStack.length - 1 };
+        setCanBack(newStack.length > 1);
+        setCanForward(false);
+      }
     }
   }, []);
 
   const refresh = useCallback(() => void navigateTo(currentPath), [navigateTo, currentPath]);
 
+  const goBack = useCallback(async () => {
+    const h = historyRef.current;
+    if (h.index <= 0) return;
+    const newIndex = h.index - 1;
+    historyRef.current = { ...h, index: newIndex };
+    setCanBack(newIndex > 0);
+    setCanForward(true);
+    await navigateTo(h.paths[newIndex], false);
+  }, [navigateTo]);
+
+  const goForward = useCallback(async () => {
+    const h = historyRef.current;
+    if (h.index >= h.paths.length - 1) return;
+    const newIndex = h.index + 1;
+    historyRef.current = { ...h, index: newIndex };
+    setCanBack(true);
+    setCanForward(newIndex < h.paths.length - 1);
+    await navigateTo(h.paths[newIndex], false);
+  }, [navigateTo]);
+
+  const fetchPropsChecksum = useCallback(async (entry: FsEntry, algo: 'md5' | 'sha1' | 'sha256') => {
+    setPropsChecksum({ algo, hash: '', loading: true });
+    const res = await request.get<{ algo: string; hash: string; size: number }>(
+      `/api/terminal-files/checksum?path=${encodeURIComponent(entry.path)}&algo=${algo}`,
+    );
+    setPropsChecksum({ algo, hash: res.code === 0 && res.data ? res.data.hash : '计算失败', loading: false });
+  }, []);
+
   // ── 过滤 + 侧栏 ───────────────────────────────────────────────────────────
 
-  const filteredEntries = keyword
-    ? entries.filter((e) => e.name.toLowerCase().includes(keyword.toLowerCase()))
-    : entries;
+  const filteredEntries = entries
+    .filter((e) => showHidden || !e.name.startsWith('.'))
+    .filter((e) => !keyword || e.name.toLowerCase().includes(keyword.toLowerCase()));
 
   const sidebarDirs = entries.filter((e) => e.type === 'dir');
 
@@ -825,6 +872,7 @@ export default function FileManagerPage() {
       ...(isFile ? [{ label: '校验和', fn: () => { void fetchChecksum(entry, 'sha256'); closeCtxMenu(); } }] : []),
       { label: '修改权限', fn: () => { setDialog({ mode: 'chmod', entry, value: permStringToOctal(entry.permissions) }); closeCtxMenu(); } },
       ...(isDir ? [{ label: '上传到此目录', fn: () => { ctxUploadDirRef.current = entry.path; ctxUploadInputRef.current?.click(); closeCtxMenu(); } }] : []),
+      { label: '属性', fn: () => { setPropsEntry(entry); closeCtxMenu(); } },
       { label: '删除', fn: () => { Modal.confirm({ title: '确定删除此项吗？', okType: 'danger', onOk: () => handleDelete([entry.path]) }); closeCtxMenu(); }, danger: true },
     ];
     return items;
@@ -898,6 +946,7 @@ export default function FileManagerPage() {
                   <Dropdown.Item onClick={() => void fetchChecksum(r, 'sha256')}>校验和</Dropdown.Item>
                 )}
                 <Dropdown.Item onClick={() => setDialog({ mode: 'chmod', entry: r, value: permStringToOctal(r.permissions) })}>修改权限</Dropdown.Item>
+                <Dropdown.Item onClick={() => setPropsEntry(r)}>属性</Dropdown.Item>
                 <Dropdown.Divider />
                 <Dropdown.Item
                   type="danger"
@@ -1090,6 +1139,15 @@ export default function FileManagerPage() {
                     </Popconfirm>
                   </>
                 )}
+                <Tooltip content={showHidden ? '隐藏点文件' : '显示隐藏文件'}>
+                  <Button
+                    size="small"
+                    theme={showHidden ? 'solid' : 'borderless'}
+                    type={showHidden ? 'primary' : 'tertiary'}
+                    icon={showHidden ? <Eye size={13} /> : <EyeOff size={13} />}
+                    onClick={() => setShowHidden((v) => !v)}
+                  />
+                </Tooltip>
                 <Button
                   size="small"
                   theme={viewMode === 'list' ? 'solid' : 'borderless'}
@@ -1109,17 +1167,25 @@ export default function FileManagerPage() {
               </Space>
             }
           >
-            <Breadcrumb className="fm-toolbar__breadcrumb">
-              {breadcrumbs.map((seg, i) => (
-                <Breadcrumb.Item
-                  key={seg.path}
-                  onClick={i < breadcrumbs.length - 1 ? () => void navigateTo(seg.path) : undefined}
-                  style={{ cursor: i < breadcrumbs.length - 1 ? 'pointer' : 'default', color: i < breadcrumbs.length - 1 ? 'var(--semi-color-primary)' : undefined }}
-                >
-                  {seg.label}
-                </Breadcrumb.Item>
-              ))}
-            </Breadcrumb>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, minWidth: 0, overflow: 'hidden' }}>
+              <Tooltip content="后退">
+                <Button size="small" theme="borderless" type="tertiary" icon={<ChevronLeft size={14} />} disabled={!canBack} onClick={() => void goBack()} />
+              </Tooltip>
+              <Tooltip content="前进">
+                <Button size="small" theme="borderless" type="tertiary" icon={<ChevronRight size={14} />} disabled={!canForward} onClick={() => void goForward()} />
+              </Tooltip>
+              <Breadcrumb className="fm-toolbar__breadcrumb">
+                {breadcrumbs.map((seg, i) => (
+                  <Breadcrumb.Item
+                    key={seg.path}
+                    onClick={i < breadcrumbs.length - 1 ? () => void navigateTo(seg.path) : undefined}
+                    style={{ cursor: i < breadcrumbs.length - 1 ? 'pointer' : 'default', color: i < breadcrumbs.length - 1 ? 'var(--semi-color-primary)' : undefined }}
+                  >
+                    {seg.label}
+                  </Breadcrumb.Item>
+                ))}
+              </Breadcrumb>
+            </div>
           </MasterDetailLayout.Header>
 
           <MasterDetailLayout.Body scroll="hidden" style={{ display: 'flex', flexDirection: 'column' }}>
@@ -1294,6 +1360,136 @@ export default function FileManagerPage() {
               ))}
             </div>
           </Modal>
+          {/* ── 文件属性详情面板 ── */}
+          <SideSheet
+            title={
+              propsEntry ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Icon
+                    icon={propsEntry.type === 'dir' ? getFolderIcon(propsEntry.name, false) : getFileIcon(propsEntry.name)}
+                    width={18}
+                    height={18}
+                  />
+                  <Typography.Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>
+                    {propsEntry.name}
+                  </Typography.Text>
+                </div>
+              ) : '属性'
+            }
+            visible={!!propsEntry}
+            onCancel={() => setPropsEntry(null)}
+            width={320}
+            closeOnEsc
+            mask={false}
+          >
+            {propsEntry && (() => {
+              const isDir = propsEntry.type === 'dir';
+              const ext = !isDir && propsEntry.name.includes('.') ? propsEntry.name.split('.').pop()?.toUpperCase() : undefined;
+              const octal = propsEntry.permissions ? permStringToOctal(propsEntry.permissions) : undefined;
+              const rows: { label: string; value: React.ReactNode }[] = [
+                {
+                  label: '类型',
+                  value: isDir
+                    ? <Tag size="small" color="blue">文件夹</Tag>
+                    : <Tag size="small" color="green">{ext ? `${ext} 文件` : '文件'}</Tag>,
+                },
+                {
+                  label: '路径',
+                  value: (
+                    <Typography.Text
+                      size="small"
+                      copyable
+                      style={{ fontFamily: 'monospace', fontSize: 11, wordBreak: 'break-all' }}
+                    >
+                      {propsEntry.path}
+                    </Typography.Text>
+                  ),
+                },
+                ...(!isDir ? [{ label: '大小', value: `${formatSize(propsEntry.size)}  (${propsEntry.size.toLocaleString()} 字节)` }] : []),
+                { label: '修改时间', value: propsEntry.mtime },
+                ...(propsEntry.permissions
+                  ? [{
+                    label: '权限',
+                    value: (
+                      <Tag size="small" color="grey" style={{ fontFamily: 'monospace' }}>
+                        {propsEntry.permissions}{octal ? ` (${octal})` : ''}
+                      </Tag>
+                    ),
+                  }]
+                  : []),
+                ...(propsEntry.uid !== undefined
+                  ? [{ label: 'UID / GID', value: `${propsEntry.uid} / ${propsEntry.gid ?? '—'}` }]
+                  : []),
+              ];
+              return (
+                <div>
+                  {rows.map((r) => (
+                    <div
+                      key={r.label}
+                      style={{ display: 'flex', alignItems: 'flex-start', padding: '9px 0', borderBottom: '1px solid var(--semi-color-fill-1)' }}
+                    >
+                      <Typography.Text
+                        type="tertiary"
+                        size="small"
+                        style={{ width: 72, flexShrink: 0, paddingTop: 1 }}
+                      >
+                        {r.label}
+                      </Typography.Text>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {typeof r.value === 'string'
+                          ? <Typography.Text size="small">{r.value}</Typography.Text>
+                          : r.value}
+                      </div>
+                    </div>
+                  ))}
+                  {!isDir && (
+                    <div style={{ paddingTop: 14 }}>
+                      <Typography.Text
+                        type="tertiary"
+                        size="small"
+                        style={{ display: 'block', marginBottom: 8 }}
+                      >
+                        校验和
+                      </Typography.Text>
+                      <Space spacing={4} style={{ marginBottom: 8 }}>
+                        {(['md5', 'sha1', 'sha256'] as const).map((algo) => (
+                          <Button
+                            key={algo}
+                            size="small"
+                            theme={propsChecksum?.algo === algo ? 'solid' : 'light'}
+                            type={propsChecksum?.algo === algo ? 'primary' : 'tertiary'}
+                            onClick={() => void fetchPropsChecksum(propsEntry, algo)}
+                          >
+                            {algo.toUpperCase()}
+                          </Button>
+                        ))}
+                      </Space>
+                      {propsChecksum && (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <Input
+                            readOnly
+                            value={propsChecksum.loading ? '计算中…' : propsChecksum.hash}
+                            style={{ fontFamily: 'monospace', fontSize: 11 }}
+                            size="small"
+                          />
+                          <Button
+                            size="small"
+                            disabled={propsChecksum.loading || !propsChecksum.hash}
+                            onClick={() => {
+                              void navigator.clipboard?.writeText(propsChecksum.hash);
+                              Toast.success('已复制');
+                            }}
+                          >
+                            复制
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </SideSheet>
         </>
       }
     />
