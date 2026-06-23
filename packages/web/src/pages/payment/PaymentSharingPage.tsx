@@ -222,7 +222,7 @@ export default function PaymentSharingPage() {
       </Tabs>
 
       <AppModal title={editingReceiver ? '编辑分账接收方' : '新增分账接收方'} visible={receiverModal} onOk={handleReceiverOk} onCancel={() => { setReceiverModal(false); setEditingReceiver(null); }} okButtonProps={{ loading: receiverSubmitting }} width={520} closeOnEsc>
-        <Form key={editingReceiver?.id ?? 'new'} getFormApi={(api) => { receiverFormApi.current = api; }} initValues={receiverInit} labelPosition="left" labelWidth={90}>
+        <Form key={editingReceiver?.id ?? 'new'} getFormApi={(api) => { receiverFormApi.current = api; }} initValues={receiverInit} labelPosition="left" labelWidth={104}>
           <Form.Input field="name" label="名称" placeholder="如：合作商户 A" rules={[{ required: true, message: '名称不能为空' }]} />
           <Form.Select field="receiverType" label="类型" style={{ width: '100%' }} optionList={receiverTypeOptions} rules={[{ required: true, message: '请选择类型' }]} />
           <Form.Input field="account" label="账号" placeholder="商户号 / 个人 openid" rules={[{ required: true, message: '账号不能为空' }]} />
@@ -233,7 +233,7 @@ export default function PaymentSharingPage() {
       </AppModal>
 
       <AppModal title="发起分账" visible={dispatchModal} onOk={handleDispatchOk} onCancel={() => setDispatchModal(false)} okButtonProps={{ loading: dispatchSubmitting }} width={520} closeOnEsc>
-        <Form key={dispatchModal ? 'dispatch' : 'closed'} getFormApi={(api) => { dispatchFormApi.current = api; }} labelPosition="left" labelWidth={90}>
+        <Form key={dispatchModal ? 'dispatch' : 'closed'} getFormApi={(api) => { dispatchFormApi.current = api; }} labelPosition="left" labelWidth={104}>
           <Form.Input field="orderNo" label="订单号" placeholder="已支付成功的支付订单号" rules={[{ required: true, message: '订单号不能为空' }]} />
           <Form.Select field="receiverId" label="接收方" style={{ width: '100%' }} rules={[{ required: true, message: '请选择接收方' }]}
             optionList={enabledReceivers.map((r) => ({ value: r.id, label: `${r.name}（${PAYMENT_SHARING_RECEIVER_TYPE_LABELS[r.receiverType]}）` }))} />
