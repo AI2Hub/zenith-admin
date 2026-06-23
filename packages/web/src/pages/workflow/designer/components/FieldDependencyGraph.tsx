@@ -101,6 +101,11 @@ function FieldDependencyGraphInner({ fields }: Readonly<{ fields: WorkflowFormFi
       id: n.key,
       type: 'field',
       position: { x: 0, y: 0 },
+      // 显式声明尺寸与连接侧，确保连线接在节点左右边的垂直中点（避免依赖 DOM 量测导致偏移）
+      width: NODE_WIDTH,
+      height: NODE_HEIGHT,
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
       data: {
         label: n.label,
         typeLabel: n.missing ? '缺失字段' : (TYPE_LABEL.get(n.type) ?? n.type),
