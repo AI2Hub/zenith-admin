@@ -813,11 +813,17 @@ export const workflowFormFieldSchema: z.ZodType<WorkflowFormField> = z.lazy(() =
       sourceKey: z.string().min(1),
       mapping: z.record(z.string(), z.array(z.string())),
     }).optional(),
+    autoFill: z.object({
+      targets: z.array(z.string()),
+      byOption: z.record(z.string(), z.record(z.string(), z.string())),
+    }).optional(),
     columns: z.array(z.object({
       span: z.number().min(1).max(24),
       fields: z.array(workflowFormFieldSchema),
     })).optional(),
     title: z.string().optional(),
+    collapsible: z.boolean().optional(),
+    defaultCollapsed: z.boolean().optional(),
   })
 );
 

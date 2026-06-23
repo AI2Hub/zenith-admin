@@ -5,7 +5,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import DOMPurify from 'dompurify';
-import { Form, Select, Button, Typography, Row, Col, Divider, Rating, Toast, withField, Input, InputNumber, DatePicker } from '@douyinfe/semi-ui';
+import { Form, Select, Button, Typography, Row, Col, Divider, Rating, Toast, withField, Input, InputNumber, DatePicker, Collapse } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, Eraser, Trash2 } from 'lucide-react';
 import dayjs from 'dayjs';
@@ -628,8 +628,10 @@ export default function WorkflowFormRenderer({
   const formulaFields = useMemo(() => all.filter(f => f.type === 'formula' && f.formula), [all]);
   const dayFields = useMemo(() => all.filter(f => f.daysFromKey && (f.type === 'number' || f.type === 'amount')), [all]);
   const cascadeFields = useMemo(() => all.filter(f => f.optionsFrom), [all]);
+  const autoFillFields = useMemo(() => all.filter(f => f.autoFill && f.autoFill.targets.length > 0), [all]);
 
   const handleValueChange = (next: Record<string, unknown>) => {
+    const prev = valuesRef.current;
     valuesRef.current = next;
     setValuesState(next);
     const api = formApiRef.current;
@@ -678,6 +680,24 @@ export default function WorkflowFormRenderer({
         } else if (typeof cur === 'string' && !allowed.includes(cur)) {
           api.setValue(f.key, undefined);
           Toast.info(`${f.label}已清空，当前父字段下该选项不可用`);
+        }
+      }
+      // 联动赋值：源字段选项变化时自动填充目标字段
+      for (const f of autoFillFields) {
+        if (!f.autoFill) continue;
+        if (next[f.key] === prev[f.key]) continue;
+        const optKey = next[f.key];
+        if (optKey === undefined || optKey === null) continue;
+        const fillMap = f.autoFill.byOption[String(optKey)];
+        if (!fillMap) continue;
+        for (const targetKey of f.autoFill.targets) {
+          const raw = fillMap[targetKey];
+          if (raw === undefined) continue;
+          const tf = all.find(x => x.key === targetKey);
+          const val = tf && (tf.type === 'number' || tf.type === 'amount')
+            ? (raw === '' ? undefined : Number(raw))
+            : raw;
+          api.setValue(targetKey, val);
         }
       }
     }
@@ -1245,6 +1265,26 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
       // 所有子字段都被隐藏时不渲染分组标题与空白容器
       const visibleChildren = (field.children || []).filter((cf) => isFieldVisible(cf, values));
       if (visibleChildren.length === 0) return null;
+      const groupBody = (
+        <Row gutter={16}>
+          {visibleChildren.map(childField => (
+            <Col span={colSpanOf(childField)} key={childField.key}>
+              <FieldRenderer field={childField} readOnly={readOnly} />
+            </Col>
+          ))}
+        </Row>
+      );
+      if (field.collapsible) {
+        return (
+          <div style={{ marginBottom: 24 }}>
+            <Collapse defaultActiveKey={field.defaultCollapsed ? [] : ['group']} expandIconPosition="left">
+              <Collapse.Panel header={field.title || field.label} itemKey="group">
+                <div style={{ paddingTop: 8 }}>{groupBody}</div>
+              </Collapse.Panel>
+            </Collapse>
+          </div>
+        );
+      }
       return (
         <div style={{ marginBottom: 24 }}>
           <div style={{
@@ -1255,13 +1295,7 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
           }}>
             {field.title || field.label}
           </div>
-          <Row gutter={16}>
-            {visibleChildren.map(childField => (
-              <Col span={colSpanOf(childField)} key={childField.key}>
-                <FieldRenderer field={childField} readOnly={readOnly} />
-              </Col>
-            ))}
-          </Row>
+          {groupBody}
         </div>
       );
     }

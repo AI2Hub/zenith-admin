@@ -74,6 +74,12 @@ export function validateFormSchema(fields: WorkflowFormField[]): FormIssue[] {
       issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: `级联父字段不存在：${f.optionsFrom.sourceKey}` });
     }
 
+    if (f.autoFill) {
+      for (const t of f.autoFill.targets) {
+        if (!keys.has(t)) issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: `联动赋值目标字段不存在：${t}` });
+      }
+    }
+
     if (f.daysFromKey && !keys.has(f.daysFromKey)) {
       issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: `天数联动来源字段不存在：${f.daysFromKey}` });
     }

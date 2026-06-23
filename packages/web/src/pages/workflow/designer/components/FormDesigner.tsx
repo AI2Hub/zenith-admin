@@ -402,6 +402,12 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
           Toast.info(`已同步裁剪级联子字段：${pruned.affected.join('、')}`);
         }
       }
+      // 选项变化时裁剪本字段联动赋值映射中的孤儿选项键
+      if (edited?.autoFill) {
+        const opts = new Set(edited.options ?? []);
+        const byOption = Object.fromEntries(Object.entries(edited.autoFill.byOption).filter(([o]) => opts.has(o)));
+        next = updateField(next, selectedKey, { autoFill: { ...edited.autoFill, byOption } });
+      }
     }
     commit(next, `edit:${selectedKey}`);
   }, [fields, commit, selectedKey]);

@@ -184,6 +184,17 @@ export function renameFieldKey(fields: WorkflowFormField[], oldKey: string, newK
     if (nf.optionsFrom?.sourceKey === oldKey) {
       nf.optionsFrom = { ...nf.optionsFrom, sourceKey: newKey };
     }
+    if (nf.autoFill) {
+      nf.autoFill = {
+        targets: nf.autoFill.targets.map((t) => (t === oldKey ? newKey : t)),
+        byOption: Object.fromEntries(
+          Object.entries(nf.autoFill.byOption).map(([opt, m]) => [
+            opt,
+            Object.fromEntries(Object.entries(m).map(([tk, v]) => [tk === oldKey ? newKey : tk, v])),
+          ]),
+        ),
+      };
+    }
     if (nf.daysFromKey === oldKey) nf.daysFromKey = newKey;
     if (nf.formula) nf.formula = replaceFormulaKey(nf.formula, oldKey, newKey);
     if (nf.columns) nf.columns = nf.columns.map((c) => ({ ...c, fields: renameFieldKey(c.fields, oldKey, newKey) }));
@@ -214,6 +225,7 @@ export function findFieldDependents(fields: WorkflowFormField[], key: string): F
     if (f.requiredRules?.rules?.some((r) => r.field === key)) reasons.push('条件必填');
     if (f.readOnlyRules?.rules?.some((r) => r.field === key)) reasons.push('条件只读');
     if (f.optionsFrom?.sourceKey === key) reasons.push('级联父字段');
+    if (f.autoFill?.targets?.includes(key)) reasons.push('联动赋值目标');
     if (f.daysFromKey === key) reasons.push('日期天数联动');
     if (formulaReferencesKey(f.formula, key)) reasons.push('公式引用');
     if (reasons.length > 0) out.push({ field: f, reasons });
@@ -234,6 +246,17 @@ function cleanFieldRefs(f: WorkflowFormField, key: string): WorkflowFormField {
   nf.requiredRules = pruneRuleGroup(nf.requiredRules, key);
   nf.readOnlyRules = pruneRuleGroup(nf.readOnlyRules, key);
   if (nf.optionsFrom?.sourceKey === key) nf.optionsFrom = undefined;
+  if (nf.autoFill) {
+    const targets = nf.autoFill.targets.filter((t) => t !== key);
+    const byOption = Object.fromEntries(
+      Object.entries(nf.autoFill.byOption).map(([opt, m]) => {
+        const m2 = { ...m };
+        delete m2[key];
+        return [opt, m2];
+      }),
+    );
+    nf.autoFill = targets.length > 0 ? { targets, byOption } : undefined;
+  }
   if (nf.daysFromKey === key) nf.daysFromKey = undefined;
   return nf;
 }

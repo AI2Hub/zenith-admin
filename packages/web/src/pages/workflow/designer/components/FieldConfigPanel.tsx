@@ -383,6 +383,15 @@ export default function FieldConfigPanel({
             />
           )}
 
+          {/* 联动赋值：选择某选项时自动填充其它字段 */}
+          {field.type === 'select' && (
+            <AutoFillEditor
+              field={field}
+              allFields={allFields}
+              onChange={onChange}
+            />
+          )}
+
           {/* 数字/金额精度 */}
           {isAmountOrNumber && (
             <div className="fd-form-config__field">
@@ -896,6 +905,24 @@ export default function FieldConfigPanel({
                   placeholder="输入分组标题"
                 />
               </div>
+              <div className="fd-form-config__field fd-form-config__field--inline">
+                <Typography.Text strong size="small">可折叠</Typography.Text>
+                <Switch
+                  checked={field.collapsible ?? false}
+                  onChange={(v) => onChange({ collapsible: v || undefined, ...(v ? {} : { defaultCollapsed: undefined }) })}
+                  size="small"
+                />
+              </div>
+              {field.collapsible && (
+                <div className="fd-form-config__field fd-form-config__field--inline">
+                  <Typography.Text strong size="small">默认折叠</Typography.Text>
+                  <Switch
+                    checked={field.defaultCollapsed ?? false}
+                    onChange={(v) => onChange({ defaultCollapsed: v || undefined })}
+                    size="small"
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1554,6 +1581,85 @@ function DateRangeLinkageEditor({
       <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 4 }}>
         若结束日期早于开始日期，运行时会自动清空计算结果，避免产生负数天数。
       </Typography.Text>
+    </div>
+  );
+}
+
+// ─── select 联动赋值：选中某选项时自动填充其它字段 ──────────────────
+
+const AUTOFILL_EXCLUDE = new Set<WorkflowFormFieldType>(['row', 'group', 'divider', 'description', 'detail']);
+
+function AutoFillEditor({
+  field, allFields, onChange,
+}: Readonly<{
+  field: WorkflowFormField;
+  allFields: WorkflowFormField[];
+  onChange: (updates: Partial<WorkflowFormField>) => void;
+}>) {
+  const flat = collectFlat(allFields);
+  const options = (field.options ?? []).filter(Boolean);
+  const candidates = flat.filter((f) => f.key !== field.key && !AUTOFILL_EXCLUDE.has(f.type));
+  const current = field.autoFill;
+  const targets = current?.targets ?? [];
+
+  if (options.length === 0 || candidates.length === 0) return null;
+
+  const setTargets = (next: string[]) => {
+    if (next.length === 0) { onChange({ autoFill: undefined }); return; }
+    const byOption: Record<string, Record<string, string>> = {};
+    for (const opt of options) {
+      const m = current?.byOption[opt] ?? {};
+      byOption[opt] = Object.fromEntries(next.filter((t) => m[t] !== undefined).map((t) => [t, m[t]]));
+    }
+    onChange({ autoFill: { targets: next, byOption } });
+  };
+
+  const setCell = (opt: string, targetKey: string, value: string) => {
+    if (!current) return;
+    const optMap = { ...(current.byOption[opt] ?? {}) };
+    if (value === '') delete optMap[targetKey]; else optMap[targetKey] = value;
+    onChange({ autoFill: { targets: current.targets, byOption: { ...current.byOption, [opt]: optMap } } });
+  };
+
+  return (
+    <div className="fd-form-config__field">
+      <Typography.Text strong size="small">联动赋值（选择后自动填充）</Typography.Text>
+      <Select
+        multiple
+        value={targets}
+        onChange={(v) => setTargets((v as string[]) ?? [])}
+        placeholder="选择要自动填充的目标字段（留空不启用）"
+        style={{ width: '100%' }}
+        showClear
+        optionList={candidates.map((f) => ({ value: f.key, label: f.label }))}
+      />
+      {targets.length > 0 && (
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {targets.map((tk) => {
+            const tf = candidates.find((c) => c.key === tk);
+            return (
+              <div key={tk} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 8 }}>
+                <Typography.Text size="small" strong>{tf?.label ?? tk}</Typography.Text>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+                  {options.map((opt) => (
+                    <div key={opt} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Typography.Text size="small" style={{ width: 80, flexShrink: 0 }}>{opt}</Typography.Text>
+                      <Input
+                        size="small"
+                        value={current?.byOption[opt]?.[tk] ?? ''}
+                        onChange={(v) => setCell(opt, tk, v)}
+                        placeholder="填充值"
+                        style={{ flex: 1 }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          <Typography.Text type="tertiary" size="small">选择某选项时，按上表把对应值写入目标字段（留空则不填充）。</Typography.Text>
+        </div>
+      )}
     </div>
   );
 }

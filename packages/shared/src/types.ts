@@ -1869,9 +1869,15 @@ export interface WorkflowFormField {
     sourceKey: string;             // 父字段 key
     mapping: Record<string, string[]>; // 父值 -> 子选项数组
   };
+  autoFill?: {                     // select：选中某选项时自动填充其它字段
+    targets: string[];             // 受控目标字段 key 列表
+    byOption: Record<string, Record<string, string>>; // 选项值 -> { 目标key: 填充值 }
+  };
   // Layout fields
   columns?: WorkflowFormFieldColumn[];  // for 'row' type
   title?: string;                       // for 'group' type header
+  collapsible?: boolean;                // group：是否可折叠
+  defaultCollapsed?: boolean;           // group：默认折叠
   // 响应式列宽（飞书风格自动并排）：24=整行, 12=半列, 8=三分之一, 6=四分之一
   columnSpan?: number;
   // 字段状态
