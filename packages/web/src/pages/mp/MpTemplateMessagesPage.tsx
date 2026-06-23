@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Button, Input, Modal, Select, Space, Tag, Toast, Tabs, TabPane, Banner, Typography } from '@douyinfe/semi-ui';
+import { Button, Input, Modal, Select, Space, Tag, Toast, Tabs, TabPane, Banner, Typography, TextArea } from '@douyinfe/semi-ui';
 import { RotateCcw, Search, RefreshCw } from 'lucide-react';
 import type { PaginatedResponse, MpMessageTemplate, MpTemplateSendLog } from '@zenith/shared';
 import { usePermission } from '@/hooks/usePermission';
@@ -165,7 +165,7 @@ export default function MpTemplateMessagesPage() {
           <Field label="接收 openid"><Input value={sendOpenid} onChange={setSendOpenid} placeholder="目标粉丝 openid" /></Field>
           <Field label="跳转链接"><Input value={sendUrl} onChange={setSendUrl} placeholder="点击模板消息跳转的 URL（选填）" /></Field>
           <Field label="模板数据 (JSON)">
-            <Input.TextArea value={sendData} onChange={setSendData} rows={6} style={{ fontFamily: 'monospace' }} />
+            <TextArea value={sendData} onChange={setSendData} rows={6} style={{ fontFamily: 'monospace' }} />
             <Typography.Text type="tertiary" size="small">格式：{'{ "key": { "value": "内容", "color": "#173177" } }'}，key 对应模板 {'{{key.DATA}}'}</Typography.Text>
           </Field>
         </div>

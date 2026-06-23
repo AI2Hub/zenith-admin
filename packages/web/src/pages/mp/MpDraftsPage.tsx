@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Button, Input, Modal, Space, Spin, Tag, Toast, Banner, Typography } from '@douyinfe/semi-ui';
+import { Button, Input, Modal, Space, Spin, Tag, Toast, Banner, Typography, TextArea } from '@douyinfe/semi-ui';
 import { Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
 import type { PaginatedResponse, MpDraft, MpArticle } from '@zenith/shared';
 import { usePermission } from '@/hooks/usePermission';
@@ -163,7 +163,7 @@ export default function MpDraftsPage() {
                     <Input prefix="封面" value={a.thumbUrl ?? ''} onChange={(v) => updateArticle(i, { thumbUrl: v })} placeholder="封面图 URL" style={{ flex: 2 }} />
                   </div>
                   <Input prefix="摘要" value={a.digest ?? ''} onChange={(v) => updateArticle(i, { digest: v })} placeholder="摘要（选填）" />
-                  <Input.TextArea value={a.content} onChange={(v) => updateArticle(i, { content: v })} rows={4} placeholder="正文内容（支持 HTML）" />
+                  <TextArea value={a.content} onChange={(v) => updateArticle(i, { content: v })} rows={4} placeholder="正文内容（支持 HTML）" />
                 </Space>
               </div>
             ))}
