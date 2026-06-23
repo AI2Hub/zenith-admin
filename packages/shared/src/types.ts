@@ -1873,6 +1873,7 @@ export interface WorkflowFormField {
     targets: string[];             // 受控目标字段 key 列表
     byOption: Record<string, Record<string, string>>; // 选项值 -> { 目标key: 填充值 }
   };
+  dataSourceId?: number;           // select：选项来自登记的远程数据源（设置后忽略静态 options）
   // Layout fields
   columns?: WorkflowFormFieldColumn[];  // for 'row' type
   title?: string;                       // for 'group' type header
@@ -1920,6 +1921,31 @@ export interface WorkflowFormSchema {
 }
 
 export type WorkflowFormStatus = 'enabled' | 'disabled';
+
+/** 表单远程数据源（登记式外部接口，供 select 字段拉取选项） */
+export interface WorkflowDataSource {
+  id: number;
+  name: string;
+  method: 'GET' | 'POST';
+  url: string;
+  headers?: Record<string, string> | null;
+  itemsPath?: string | null;
+  valueField: string;
+  labelField: string;
+  keywordParam?: string | null;
+  status: 'enabled' | 'disabled';
+  remark?: string | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 远程数据源返回的选项 */
+export interface WorkflowDataSourceOption {
+  value: string;
+  label: string;
+}
 
 /** 表单库实体 */
 export interface WorkflowForm {

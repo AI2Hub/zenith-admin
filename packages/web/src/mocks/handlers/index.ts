@@ -33,6 +33,7 @@ import { workflowCategoriesHandlers } from './workflow-categories';
 import { workflowAutomationsHandlers } from './workflow-automations';
 import { workflowEventSubscriptionsHandlers } from './workflow-event-subscriptions';
 import { workflowTriggerExecutionsHandlers } from './workflow-trigger-executions';
+import { workflowDataSourcesHandlers } from './workflow-data-sources';
 import { bizLeaveHandlers } from './biz-leave';
 import { chatHandlers } from './chat';
 import { chatBotsHandlers } from './chat-bots';
@@ -101,6 +102,7 @@ export const handlers = [
   ...cacheHandlers,
   ...workflowExtraHandlers,
   ...workflowCategoriesHandlers,
+  ...workflowDataSourcesHandlers,
   ...workflowHandlers,
   ...workflowFormsHandlers,
   ...workflowAutomationsHandlers,

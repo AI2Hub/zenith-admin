@@ -1457,6 +1457,34 @@ export type WorkflowSavedViewRow = typeof workflowSavedViews.$inferSelect;
 export type NewWorkflowSavedView = typeof workflowSavedViews.$inferInsert;
 
 
+// 表单远程数据源：登记式外部接口，供表单 select 字段拉取选项（仅登记 URL 可被代理调用，防 SSRF）
+export const workflowDataSources = pgTable('workflow_data_sources', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 64 }).notNull().unique(),
+  /** 请求方法 GET / POST */
+  method: varchar('method', { length: 8 }).notNull().default('GET'),
+  url: varchar('url', { length: 1024 }).notNull(),
+  /** 附加请求头（如鉴权 token），JSON 键值 */
+  headers: jsonb('headers').$type<Record<string, string>>(),
+  /** 响应中数组所在路径，点分隔（如 data.list），留空表示响应根即数组 */
+  itemsPath: varchar('items_path', { length: 128 }),
+  /** 每项取值字段 */
+  valueField: varchar('value_field', { length: 64 }).notNull(),
+  /** 每项显示字段 */
+  labelField: varchar('label_field', { length: 64 }).notNull(),
+  /** 远程搜索时传入关键词的参数名（留空表示不支持远程搜索） */
+  keywordParam: varchar('keyword_param', { length: 64 }),
+  status: statusEnum('status').notNull().default('enabled'),
+  remark: varchar('remark', { length: 256 }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+
+export type WorkflowDataSourceRow = typeof workflowDataSources.$inferSelect;
+export type NewWorkflowDataSource = typeof workflowDataSources.$inferInsert;
+
+
 // 流程实例
 export const workflowInstances = pgTable('workflow_instances', {
   id: serial('id').primaryKey(),

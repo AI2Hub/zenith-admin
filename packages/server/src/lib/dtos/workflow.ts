@@ -39,6 +39,32 @@ export const WorkflowFormDTO = z
   })
   .openapi('WorkflowForm');
 
+export const WorkflowDataSourceDTO = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    method: z.enum(['GET', 'POST']),
+    url: z.string(),
+    headers: z.record(z.string(), z.string()).nullable().optional(),
+    itemsPath: z.string().nullable().optional(),
+    valueField: z.string(),
+    labelField: z.string(),
+    keywordParam: z.string().nullable().optional(),
+    status: z.enum(['enabled', 'disabled']),
+    remark: z.string().nullable().optional(),
+    ...auditFields,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('WorkflowDataSource');
+
+export const WorkflowDataSourceOptionDTO = z
+  .object({
+    value: z.string(),
+    label: z.string(),
+  })
+  .openapi('WorkflowDataSourceOption');
+
 export const WorkflowDefinitionDTO = z
   .object({
     id: z.number().int(),

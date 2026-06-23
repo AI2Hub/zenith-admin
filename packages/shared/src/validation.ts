@@ -817,6 +817,7 @@ export const workflowFormFieldSchema: z.ZodType<WorkflowFormField> = z.lazy(() =
       targets: z.array(z.string()),
       byOption: z.record(z.string(), z.record(z.string(), z.string())),
     }).optional(),
+    dataSourceId: z.number().int().positive().optional(),
     columns: z.array(z.object({
       span: z.number().min(1).max(24),
       fields: z.array(workflowFormFieldSchema),
@@ -855,6 +856,26 @@ export const updateWorkflowFormSchema = createWorkflowFormSchema.partial();
 
 export type CreateWorkflowFormInput = z.input<typeof createWorkflowFormSchema>;
 export type UpdateWorkflowFormInput = z.input<typeof updateWorkflowFormSchema>;
+
+// ─── 表单远程数据源 ──────────────────────────────────────────────────────────
+export const createWorkflowDataSourceSchema = z.object({
+  name: z.string().min(1, '名称不能为空').max(64),
+  method: z.enum(['GET', 'POST']).default('GET'),
+  url: z.string().min(1, 'URL 不能为空').max(1024)
+    .refine((u) => /^https?:\/\//i.test(u), 'URL 需以 http:// 或 https:// 开头'),
+  headers: z.record(z.string(), z.string()).optional(),
+  itemsPath: z.string().max(128).optional(),
+  valueField: z.string().min(1, '取值字段不能为空').max(64),
+  labelField: z.string().min(1, '显示字段不能为空').max(64),
+  keywordParam: z.string().max(64).optional(),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  remark: z.string().max(256).optional(),
+});
+
+export const updateWorkflowDataSourceSchema = createWorkflowDataSourceSchema.partial();
+
+export type CreateWorkflowDataSourceInput = z.input<typeof createWorkflowDataSourceSchema>;
+export type UpdateWorkflowDataSourceInput = z.input<typeof updateWorkflowDataSourceSchema>;
 
 export const workflowFormTypeSchema = z.enum(['designer', 'custom', 'external']);
 

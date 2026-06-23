@@ -91,6 +91,7 @@ import workflowInstancesRoutes from './routes/workflow-instances';
 import bizLeaveRoutes from './routes/biz-leave';
 import workflowAutomationsRoutes from './routes/workflow-automations';
 import workflowSchedulesRoutes from './routes/workflow-schedules';
+import workflowDataSourcesRoutes from './routes/workflow-data-sources';
 import workflowSavedViewsRoutes from './routes/workflow-saved-views';
 import workflowDelegationsRoutes from './routes/workflow-delegations';
 import workflowQuickPhrasesRoutes from './routes/workflow-quick-phrases';
@@ -335,6 +336,7 @@ app.route('/api/workflows/event-subscriptions', workflowEventSubscriptionsRoutes
 app.route('/api/workflows/trigger-executions', workflowTriggerExecutionsRoutes);
 app.route('/api/workflows/automations', workflowAutomationsRoutes);
 app.route('/api/workflows/schedules', workflowSchedulesRoutes);
+app.route('/api/workflows/data-sources', workflowDataSourcesRoutes);
 app.route('/api/workflows/saved-views', workflowSavedViewsRoutes);
 app.route('/api/workflows/delegations', workflowDelegationsRoutes);
 app.route('/api/workflows/quick-phrases', workflowQuickPhrasesRoutes);

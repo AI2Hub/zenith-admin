@@ -8,7 +8,7 @@
  * 修改数据时只需改这一处，两端自动同步。
  */
 
-import type { Menu, Role, Department, Position, Dict, DictItem, SystemConfig, CronJob, WorkflowForm, WorkflowCategory, Tag, DataMaskConfig, MemberLevel, Coupon, EmailTemplate, SmsTemplate, InAppTemplate, Tenant, TenantPackage, AiPromptTemplate } from './types';
+import type { Menu, Role, Department, Position, Dict, DictItem, SystemConfig, CronJob, WorkflowForm, WorkflowCategory, WorkflowDataSource, Tag, DataMaskConfig, MemberLevel, Coupon, EmailTemplate, SmsTemplate, InAppTemplate, Tenant, TenantPackage, AiPromptTemplate } from './types';
 
 const SEED_DATE = '2024-01-01 00:00:00';
 
@@ -245,6 +245,10 @@ export const SEED_MENUS: Menu[] = [
   { id: 896, parentId: 230, title: '抄送我的',   name: 'WorkflowCcToMe',     path: '/workflow/cc',        component: 'workflow/cc/CcToMePage',                  icon: 'Send',           type: 'menu', sort: 4, status: 'enabled', visible: true, permission: 'workflow:instance:list',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 897, parentId: 230, title: '我已办',     name: 'WorkflowHandled',    path: '/workflow/handled',   component: 'workflow/handled/HandledPage',            icon: 'CircleCheckBig',  type: 'menu', sort: 4, status: 'enabled', visible: true, permission: 'workflow:task:handle',     createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 483, parentId: 230, title: '定时发起',   name: 'WorkflowSchedules',  path: '/workflow/schedules', component: 'workflow/schedules/WorkflowSchedulesPage', icon: 'CalendarClock',  type: 'menu', sort: 10, status: 'enabled', visible: true, permission: 'workflow:schedule:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 920, parentId: 230, title: '远程数据源', name: 'WorkflowDataSources', path: '/workflow/data-sources', component: 'workflow/data-sources/WorkflowDataSourcesPage', icon: 'DatabaseZap', type: 'menu', sort: 11, status: 'enabled', visible: true, permission: 'workflow:datasource:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 921, parentId: 920, title: '新增数据源', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 1, status: 'enabled', visible: true, permission: 'workflow:datasource:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 922, parentId: 920, title: '编辑数据源', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 2, status: 'enabled', visible: true, permission: 'workflow:datasource:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 923, parentId: 920, title: '删除数据源', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 3, status: 'enabled', visible: true, permission: 'workflow:datasource:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 484, parentId: 483, title: '新建定时',   name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 1, status: 'enabled', visible: true, permission: 'workflow:schedule:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 485, parentId: 483, title: '编辑定时',   name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 2, status: 'enabled', visible: true, permission: 'workflow:schedule:edit',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 486, parentId: 483, title: '删除定时',   name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 3, status: 'enabled', visible: true, permission: 'workflow:schedule:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -907,6 +911,25 @@ function buildLinearFlow(steps: SeedFlowStep[], settings?: Record<string, unknow
 }
 
 const TEMPLATE_SETTINGS: Record<string, unknown> = { allowWithdraw: true, allowComment: true, serialNo: { enabled: false } };
+
+// ─── 表单远程数据源 初始数据 ───────────────────────────────────────────────
+export const SEED_WORKFLOW_DATA_SOURCES: WorkflowDataSource[] = [
+  {
+    id: 1,
+    name: '示例-用户列表',
+    method: 'GET',
+    url: 'https://jsonplaceholder.typicode.com/users',
+    headers: null,
+    itemsPath: null,
+    valueField: 'id',
+    labelField: 'name',
+    keywordParam: null,
+    status: 'enabled',
+    remark: '公共测试接口，演示远程数据源',
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+];
 
 export const SEED_WORKFLOW_TEMPLATES: SeedWorkflowTemplate[] = [
   {

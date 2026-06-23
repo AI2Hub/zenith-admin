@@ -9,7 +9,7 @@ import { Form, Select, Button, Typography, Row, Col, Divider, Rating, Toast, wit
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, Eraser, Trash2 } from 'lucide-react';
 import dayjs from 'dayjs';
-import type { WorkflowFormField, WorkflowFormFieldColumn, WorkflowFieldVisibilityCondition, WorkflowFieldVisibilityRuleGroup, WorkflowRelationOption } from '@zenith/shared';
+import type { WorkflowFormField, WorkflowFormFieldColumn, WorkflowFieldVisibilityCondition, WorkflowFieldVisibilityRuleGroup, WorkflowRelationOption, WorkflowDataSourceOption } from '@zenith/shared';
 import { CURRENCY_OPTIONS, toDateFnsToken } from '../form-types';
 import { request } from '@/utils/request';
 import { rmbUpper } from '@/utils/rmb';
@@ -148,6 +148,60 @@ function RelationSelect({
   );
 }
 
+interface DataSourceSelectProps {
+  value?: string;
+  onChange?: (value: string | undefined) => void;
+  dataSourceId?: number;
+  placeholder?: string;
+  disabled?: boolean;
+  showClear?: boolean;
+  style?: CSSProperties;
+}
+
+function DataSourceSelect({ value, onChange, dataSourceId, placeholder, disabled, showClear = true, style }: Readonly<DataSourceSelectProps>) {
+  const [options, setOptions] = useState<WorkflowDataSourceOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const seqRef = useRef(0);
+
+  const load = async (keyword = '') => {
+    if (!dataSourceId) return;
+    const seq = ++seqRef.current;
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (keyword.trim()) params.set('keyword', keyword.trim());
+    try {
+      const res = await request.get<WorkflowDataSourceOption[]>(`/api/workflows/data-sources/${dataSourceId}/options?${params.toString()}`, { silent: true });
+      if (seq === seqRef.current && res.code === 0 && res.data) setOptions(res.data);
+    } finally {
+      if (seq === seqRef.current) setLoading(false);
+    }
+  };
+
+  useEffect(() => { setOptions([]); }, [dataSourceId]);
+
+  const current = value === undefined || value === null ? '' : String(value);
+  const optionList = [
+    ...options.map((o) => ({ value: o.value, label: o.label })),
+    ...(current !== '' && !options.some((o) => o.value === current) ? [{ value: current, label: current }] : []),
+  ];
+
+  return (
+    <Select
+      value={current || undefined}
+      onChange={(v) => onChange?.((v as string) ?? undefined)}
+      filter
+      remote
+      onSearch={(keyword) => { void load(keyword); }}
+      onFocus={() => { if (options.length === 0) void load(); }}
+      placeholder={loading ? '加载中...' : placeholder}
+      disabled={disabled}
+      showClear={showClear}
+      style={{ width: '100%', ...style }}
+      optionList={optionList}
+    />
+  );
+}
+
 function SignaturePad({ value, onChange, disabled, width = 360, height = 150 }: Readonly<SignaturePadProps>) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
@@ -249,6 +303,7 @@ const FormUserSelect = withField(UserSelect);
 const FormDeptSelect = withField(DepartmentSelect);
 const FormDictSelect = withField(DictSelect);
 const FormRelationSelect = withField(RelationSelect);
+const FormDataSourceSelect = withField(DataSourceSelect);
 const FormColorPicker = withField(ColorPickerInput);
 const FormRating = withField(Rating);
 
@@ -1025,6 +1080,18 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
       );
 
     case 'select': {
+      if (field.dataSourceId) {
+        return (
+          <FormDataSourceSelect
+            field={field.key} label={field.label}
+            dataSourceId={field.dataSourceId}
+            placeholder={field.placeholder ?? `请选择${field.label}`}
+            initValue={field.defaultValue}
+            rules={rules} disabled={disabled}
+            {...extraProps}
+          />
+        );
+      }
       const options = getCascadeAllowedOptions(field, values);
       return (
         <Form.Select

@@ -41,7 +41,7 @@ export function validateFormSchema(fields: WorkflowFormField[]): FormIssue[] {
       issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: `字段 key 重复：${f.key}` });
     }
 
-    if (OPTION_TYPES.has(f.type)) {
+    if (OPTION_TYPES.has(f.type) && !f.dataSourceId) {
       const opts = (f.options ?? []).map((o) => o.trim()).filter(Boolean);
       if (opts.length === 0) {
         issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: '选项为空' });

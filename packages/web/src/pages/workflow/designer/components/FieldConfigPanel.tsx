@@ -5,7 +5,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { Button, Input, InputNumber, Select, Switch, Typography, TextArea, TagInput, RadioGroup, Radio, Tooltip, Dropdown } from '@douyinfe/semi-ui';
 import { Plus, Trash2, Wand2 } from 'lucide-react';
 import { pinyin } from 'pinyin-pro';
-import type { WorkflowFormField, WorkflowFormFieldType, WorkflowFieldVisibilityCondition, Dict, PaginatedResponse, WorkflowDefinition } from '@zenith/shared';
+import type { WorkflowFormField, WorkflowFormFieldType, WorkflowFieldVisibilityCondition, WorkflowDataSource, Dict, PaginatedResponse, WorkflowDefinition } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { CURRENCY_OPTIONS, DATE_FORMAT_OPTIONS, TIME_FORMAT_OPTIONS, REGION_LEVEL_OPTIONS, COLUMN_SPAN_OPTIONS, LABEL_POSITION_OPTIONS, LABEL_ALIGN_OPTIONS, FORM_FIELD_TYPES, toDateFnsToken } from '../form-types';
 import { evalFormula } from './WorkflowFormRenderer';
@@ -363,8 +363,13 @@ export default function FieldConfigPanel({
             </div>
           )}
 
-          {/* 选项列表（select/multiSelect） */}
-          {hasOptions && (
+          {/* 选项来源（select）：静态选项 / 远程数据源 */}
+          {field.type === 'select' && (
+            <DataSourceSourceEditor field={field} onChange={onChange} />
+          )}
+
+          {/* 选项列表（select/multiSelect/...，远程数据源时隐藏） */}
+          {hasOptions && !field.dataSourceId && (
             <div className="fd-form-config__field">
               <Typography.Text strong size="small">选项</Typography.Text>
               <OptionsEditor
@@ -374,8 +379,8 @@ export default function FieldConfigPanel({
             </div>
           )}
 
-          {/* 级联：选项依赖父字段 */}
-          {supportsCascade && (
+          {/* 级联：选项依赖父字段（远程数据源时不可用） */}
+          {supportsCascade && !field.dataSourceId && (
             <CascadeEditor
               field={field}
               allFields={allFields}
@@ -383,8 +388,8 @@ export default function FieldConfigPanel({
             />
           )}
 
-          {/* 联动赋值：选择某选项时自动填充其它字段 */}
-          {field.type === 'select' && (
+          {/* 联动赋值：选择某选项时自动填充其它字段（远程数据源时不可用） */}
+          {field.type === 'select' && !field.dataSourceId && (
             <AutoFillEditor
               field={field}
               allFields={allFields}
@@ -1581,6 +1586,52 @@ function DateRangeLinkageEditor({
       <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 4 }}>
         若结束日期早于开始日期，运行时会自动清空计算结果，避免产生负数天数。
       </Typography.Text>
+    </div>
+  );
+}
+
+// ─── select 选项来源：静态 / 远程数据源 ───────────────────────────────
+
+function DataSourceSourceEditor({
+  field, onChange,
+}: Readonly<{
+  field: WorkflowFormField;
+  onChange: (updates: Partial<WorkflowFormField>) => void;
+}>) {
+  const [sources, setSources] = useState<Array<{ id: number; name: string }>>([]);
+  const useRemote = field.dataSourceId != null;
+
+  useEffect(() => {
+    request.get<PaginatedResponse<WorkflowDataSource>>('/api/workflows/data-sources?page=1&pageSize=100&status=enabled', { silent: true })
+      .then((res) => { if (res.code === 0 && res.data) setSources(res.data.list.map((d) => ({ id: d.id, name: d.name }))); })
+      .catch(() => { /* 忽略加载失败 */ });
+  }, []);
+
+  return (
+    <div className="fd-form-config__field">
+      <Typography.Text strong size="small">选项来源</Typography.Text>
+      <div style={{ marginTop: 4 }}>
+        <RadioGroup
+          type="button"
+          value={useRemote ? 'remote' : 'static'}
+          onChange={(e) => {
+            if (e.target.value === 'remote') onChange({ dataSourceId: sources[0]?.id, options: undefined, optionsFrom: undefined, autoFill: undefined });
+            else onChange({ dataSourceId: undefined });
+          }}
+        >
+          <Radio value="static">静态选项</Radio>
+          <Radio value="remote">远程数据源</Radio>
+        </RadioGroup>
+      </div>
+      {useRemote && (
+        <Select
+          value={field.dataSourceId}
+          onChange={(v) => onChange({ dataSourceId: (v as number) ?? undefined })}
+          placeholder={sources.length ? '选择数据源' : '暂无启用的数据源，请先在「远程数据源」登记'}
+          style={{ width: '100%', marginTop: 6 }}
+          optionList={sources.map((s) => ({ value: s.id, label: s.name }))}
+        />
+      )}
     </div>
   );
 }

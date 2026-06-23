@@ -154,11 +154,11 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
     },
     { title: '总执行', dataIndex: 'totalRuns', width: 90, align: 'right' },
     {
-      title: '成功', dataIndex: 'successCount', width: 64, align: 'right',
+      title: '成功', dataIndex: 'successCount', width: 90, align: 'right',
       render: (v: number) => <span style={{ color: 'var(--semi-color-success)' }}>{v}</span>,
     },
     {
-      title: '失败', dataIndex: 'failCount', width: 64, align: 'right',
+      title: '失败', dataIndex: 'failCount', width: 90, align: 'right',
       render: (v: number) => (v > 0 ? <span style={{ color: 'var(--semi-color-danger)' }}>{v}</span> : <span>{v}</span>),
     },
     {
