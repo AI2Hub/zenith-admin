@@ -147,3 +147,76 @@ export const MpMenuDTO = z
     updatedAt: z.string(),
   })
   .openapi('MpMenu');
+
+export const MpMaterialDTO = z
+  .object({
+    id: z.number().int(),
+    accountId: z.number().int(),
+    type: z.enum(['image', 'voice', 'video', 'thumb']),
+    name: z.string(),
+    wechatMediaId: z.string().nullable(),
+    url: z.string().nullable(),
+    fileSize: z.number().int().nullable(),
+    ...auditFields,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('MpMaterial');
+
+export const MpDraftDTO = z
+  .object({
+    id: z.number().int(),
+    accountId: z.number().int(),
+    title: z.string(),
+    articles: z.array(z.any()),
+    wechatMediaId: z.string().nullable(),
+    status: z.enum(['draft', 'published']),
+    ...auditFields,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('MpDraft');
+
+export const MpMessageTemplateDTO = z
+  .object({
+    id: z.number().int(),
+    accountId: z.number().int(),
+    templateId: z.string(),
+    title: z.string(),
+    content: z.string().nullable(),
+    example: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('MpMessageTemplate');
+
+export const MpTemplateSendLogDTO = z
+  .object({
+    id: z.number().int(),
+    accountId: z.number().int(),
+    templateId: z.string(),
+    openid: z.string(),
+    data: z.any().nullable(),
+    url: z.string().nullable(),
+    status: z.enum(['success', 'failed']),
+    errorMsg: z.string().nullable(),
+    msgId: z.string().nullable(),
+    createdAt: z.string(),
+  })
+  .openapi('MpTemplateSendLog');
+
+export const MpStatsDTO = z
+  .object({
+    fanTotal: z.number().int(),
+    fanSubscribed: z.number().int(),
+    fanUnsubscribed: z.number().int(),
+    tagTotal: z.number().int(),
+    materialTotal: z.number().int(),
+    draftTotal: z.number().int(),
+    messageIn: z.number().int(),
+    messageOut: z.number().int(),
+    autoReplyTotal: z.number().int(),
+    fanTrend: z.array(z.object({ date: z.string(), count: z.number().int() })),
+    messageTrend: z.array(z.object({ date: z.string(), in: z.number().int(), out: z.number().int() })),
+  })
+  .openapi('MpStats');

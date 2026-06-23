@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { WorkflowFormField, MpMenuButton } from './types';
+import type { WorkflowFormField, MpMenuButton, MpArticle } from './types';
 
 const DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 const dateTimeStringSchema = z.string().regex(DATE_TIME_PATTERN, '日期时间格式必须为 YYYY-MM-DD HH:mm:ss');
@@ -2056,3 +2056,49 @@ export const saveMpMenuSchema = z.object({
   buttons: z.array(mpMenuButtonSchema).max(3, '一级菜单最多 3 个'),
 });
 export type SaveMpMenuInput = z.infer<typeof saveMpMenuSchema>;
+
+// 公众号素材
+export const MP_MATERIAL_TYPES = ['image', 'voice', 'video', 'thumb'] as const;
+export const createMpMaterialSchema = z.object({
+  accountId: z.number().int().positive(),
+  type: z.enum(MP_MATERIAL_TYPES).default('image'),
+  name: z.string().min(1, '素材名称不能为空').max(200),
+  url: z.string().max(1000).optional(),
+  fileSize: z.number().int().nonnegative().optional(),
+});
+export const updateMpMaterialSchema = z.object({
+  name: z.string().min(1, '素材名称不能为空').max(200),
+});
+export type CreateMpMaterialInput = z.infer<typeof createMpMaterialSchema>;
+export type UpdateMpMaterialInput = z.infer<typeof updateMpMaterialSchema>;
+
+// 公众号图文草稿
+export const mpArticleSchema: z.ZodType<MpArticle> = z.object({
+  title: z.string().min(1, '标题不能为空').max(120),
+  author: z.string().max(60).optional(),
+  digest: z.string().max(200).optional(),
+  content: z.string().min(1, '正文不能为空'),
+  thumbUrl: z.string().max(1000).optional(),
+  thumbMediaId: z.string().max(128).optional(),
+  contentSourceUrl: z.string().max(1000).optional(),
+  showCoverPic: z.boolean().optional(),
+});
+export const createMpDraftSchema = z.object({
+  accountId: z.number().int().positive(),
+  articles: z.array(mpArticleSchema).min(1, '至少需要一篇图文'),
+});
+export const updateMpDraftSchema = z.object({
+  articles: z.array(mpArticleSchema).min(1, '至少需要一篇图文'),
+});
+export type CreateMpDraftInput = z.infer<typeof createMpDraftSchema>;
+export type UpdateMpDraftInput = z.infer<typeof updateMpDraftSchema>;
+
+// 公众号模板消息发送
+export const sendMpTemplateSchema = z.object({
+  accountId: z.number().int().positive(),
+  templateId: z.string().min(1, '请选择模板').max(128),
+  openid: z.string().min(1, '请选择粉丝').max(64),
+  url: z.string().max(1000).optional(),
+  data: z.record(z.string(), z.object({ value: z.string(), color: z.string().optional() })),
+});
+export type SendMpTemplateInput = z.infer<typeof sendMpTemplateSchema>;

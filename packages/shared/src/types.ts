@@ -4073,3 +4073,90 @@ export interface MpMenu {
   createdAt: string;
   updatedAt: string;
 }
+
+export type MpMaterialType = 'image' | 'voice' | 'video' | 'thumb';
+
+export interface MpMaterial {
+  id: number;
+  accountId: number;
+  type: MpMaterialType;
+  name: string;
+  wechatMediaId: string | null;
+  url: string | null;
+  fileSize: number | null;
+  tenantId?: number | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 图文消息单篇文章 */
+export interface MpArticle {
+  title: string;
+  author?: string;
+  digest?: string;
+  content: string;
+  thumbUrl?: string;
+  thumbMediaId?: string;
+  contentSourceUrl?: string;
+  showCoverPic?: boolean;
+}
+
+export type MpDraftStatus = 'draft' | 'published';
+
+export interface MpDraft {
+  id: number;
+  accountId: number;
+  title: string;
+  articles: MpArticle[];
+  wechatMediaId: string | null;
+  status: MpDraftStatus;
+  tenantId?: number | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MpMessageTemplate {
+  id: number;
+  accountId: number;
+  templateId: string;
+  title: string;
+  content: string | null;
+  example: string | null;
+  tenantId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type MpTemplateSendStatus = 'success' | 'failed';
+
+export interface MpTemplateSendLog {
+  id: number;
+  accountId: number;
+  templateId: string;
+  openid: string;
+  data: Record<string, unknown> | null;
+  url: string | null;
+  status: MpTemplateSendStatus;
+  errorMsg: string | null;
+  msgId: string | null;
+  createdAt: string;
+}
+
+/** 公众号数据统计（本地聚合） */
+export interface MpStats {
+  fanTotal: number;
+  fanSubscribed: number;
+  fanUnsubscribed: number;
+  tagTotal: number;
+  materialTotal: number;
+  draftTotal: number;
+  messageIn: number;
+  messageOut: number;
+  autoReplyTotal: number;
+  fanTrend: { date: string; count: number }[];
+  messageTrend: { date: string; in: number; out: number }[];
+}

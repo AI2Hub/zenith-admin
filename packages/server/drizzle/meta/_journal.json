@@ -1009,6 +1009,13 @@
       "when": 1782232472819,
       "tag": "0143_little_serpent_society",
       "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1782233660772,
+      "tag": "0144_shocking_lionheart",
+      "breakpoints": true
     }
   ]
 }

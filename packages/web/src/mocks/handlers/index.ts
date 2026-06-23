@@ -49,6 +49,10 @@ import { mpFansHandlers } from './mp-fans';
 import { mpMessagesHandlers } from './mp-messages';
 import { mpAutoRepliesHandlers } from './mp-auto-replies';
 import { mpMenuHandlers } from './mp-menu';
+import { mpMaterialsHandlers } from './mp-materials';
+import { mpDraftsHandlers } from './mp-drafts';
+import { mpTemplatesHandlers } from './mp-templates';
+import { mpStatsHandlers } from './mp-stats';
 import { smsTemplatesHandlers } from './sms-templates';
 import { smsSendLogsHandlers } from './sms-send-logs';
 import { aiProvidersHandlers } from './ai-providers';
@@ -132,6 +136,10 @@ export const handlers = [
   ...mpMessagesHandlers,
   ...mpAutoRepliesHandlers,
   ...mpMenuHandlers,
+  ...mpMaterialsHandlers,
+  ...mpDraftsHandlers,
+  ...mpTemplatesHandlers,
+  ...mpStatsHandlers,
   ...smsTemplatesHandlers,
   ...smsSendLogsHandlers,
   ...inAppTemplatesHandlers,

@@ -8,7 +8,7 @@
  * 修改数据时只需改这一处，两端自动同步。
  */
 
-import type { Menu, Role, Department, Position, Dict, DictItem, SystemConfig, CronJob, WorkflowForm, WorkflowCategory, WorkflowDataSource, Tag, DataMaskConfig, MemberLevel, Coupon, EmailTemplate, SmsTemplate, InAppTemplate, Tenant, TenantPackage, AiPromptTemplate, MpAccount, MpTag, MpFan, MpMessage, MpAutoReply, MpMenu } from './types';
+import type { Menu, Role, Department, Position, Dict, DictItem, SystemConfig, CronJob, WorkflowForm, WorkflowCategory, WorkflowDataSource, Tag, DataMaskConfig, MemberLevel, Coupon, EmailTemplate, SmsTemplate, InAppTemplate, Tenant, TenantPackage, AiPromptTemplate, MpAccount, MpTag, MpFan, MpMessage, MpAutoReply, MpMenu, MpMaterial, MpDraft, MpMessageTemplate } from './types';
 
 const SEED_DATE = '2024-01-01 00:00:00';
 
@@ -384,6 +384,21 @@ export const SEED_MENUS: Menu[] = [
   { id: 1052, parentId: 1050, title: '发布菜单',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 2,  status: 'enabled', visible: true,  permission: 'mp:menu:publish',    createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1053, parentId: 1050, title: '拉取菜单',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 3,  status: 'enabled', visible: true,  permission: 'mp:menu:pull',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1054, parentId: 1050, title: '删除菜单',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 4,  status: 'enabled', visible: true,  permission: 'mp:menu:delete',     createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1060, parentId: 1000, title: '素材管理',   name: 'MpMaterials', path: '/mp/materials', component: 'mp/MpMaterialsPage', icon: 'Image',       type: 'menu',      sort: 7,  status: 'enabled', visible: true,  permission: 'mp:material:list',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1061, parentId: 1060, title: '新增素材',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'mp:material:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1062, parentId: 1060, title: '重命名素材', name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 2,  status: 'enabled', visible: true,  permission: 'mp:material:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1063, parentId: 1060, title: '删除素材',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 3,  status: 'enabled', visible: true,  permission: 'mp:material:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1064, parentId: 1060, title: '同步素材',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 4,  status: 'enabled', visible: true,  permission: 'mp:material:sync',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1070, parentId: 1000, title: '图文草稿',   name: 'MpDrafts',   path: '/mp/drafts',   component: 'mp/MpDraftsPage',   icon: 'Newspaper',     type: 'menu',      sort: 8,  status: 'enabled', visible: true,  permission: 'mp:draft:list',      createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1071, parentId: 1070, title: '新增图文',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'mp:draft:create',    createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1072, parentId: 1070, title: '编辑图文',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 2,  status: 'enabled', visible: true,  permission: 'mp:draft:update',    createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1073, parentId: 1070, title: '删除图文',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 3,  status: 'enabled', visible: true,  permission: 'mp:draft:delete',    createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1074, parentId: 1070, title: '推送图文',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 4,  status: 'enabled', visible: true,  permission: 'mp:draft:push',      createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1080, parentId: 1000, title: '模板消息',   name: 'MpTemplates', path: '/mp/template-messages', component: 'mp/MpTemplateMessagesPage', icon: 'MailCheck', type: 'menu', sort: 9, status: 'enabled', visible: true, permission: 'mp:template:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1081, parentId: 1080, title: '同步模板',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'mp:template:sync',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1082, parentId: 1080, title: '发送模板',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 2,  status: 'enabled', visible: true,  permission: 'mp:template:send',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1083, parentId: 1080, title: '删除模板',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 3,  status: 'enabled', visible: true,  permission: 'mp:template:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1090, parentId: 1000, title: '数据统计',   name: 'MpStatistics', path: '/mp/statistics', component: 'mp/MpStatisticsPage', icon: 'BarChart3', type: 'menu', sort: 10, status: 'enabled', visible: true, permission: 'mp:statistics:view', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   // ── 业务接入示例（请假，业务模块自有实体 + 工作流编排）──
   { id: 900, parentId: 0,   title: '业务示例', name: 'BizDemo',          path: undefined,        component: undefined,            icon: 'Briefcase',     type: 'directory', sort: 12, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 901, parentId: 900, title: '请假管理', name: 'BizLeave',         path: '/biz/leave',     component: 'biz/leave/LeavePage', icon: 'CalendarClock', type: 'menu',      sort: 1,  status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -1270,6 +1285,29 @@ export const SEED_MP_MENUS: MpMenu[] = [
       { name: '联系我们', type: 'view', url: 'https://example.com/contact' },
     ],
   },
+];
+
+// ─── 公众号素材（示例）──────────────────────────────────────────────────────────
+export const SEED_MP_MATERIALS: MpMaterial[] = [
+  { id: 1, accountId: 1, type: 'image', name: '会员海报', wechatMediaId: 'demo_media_001', url: 'https://picsum.photos/seed/mp1/400/300', fileSize: 102400, tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2, accountId: 1, type: 'image', name: '活动banner', wechatMediaId: null, url: 'https://picsum.photos/seed/mp2/400/300', fileSize: 88500, tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 3, accountId: 1, type: 'thumb', name: '图文封面缩略图', wechatMediaId: 'demo_thumb_001', url: 'https://picsum.photos/seed/mp3/200/200', fileSize: 35200, tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+];
+
+// ─── 公众号图文草稿（示例）──────────────────────────────────────────────────────
+export const SEED_MP_DRAFTS: MpDraft[] = [
+  {
+    id: 1, accountId: 1, title: '会员权益全新升级', wechatMediaId: null, status: 'draft', tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE,
+    articles: [
+      { title: '会员权益全新升级', author: '运营团队', digest: '更多积分、更多优惠等你来', content: '<p>尊敬的会员，本月起会员权益全面升级……</p>', thumbUrl: 'https://picsum.photos/seed/mp3/200/200', showCoverPic: true },
+    ],
+  },
+];
+
+// ─── 公众号模板消息模板（示例）──────────────────────────────────────────────────
+export const SEED_MP_MESSAGE_TEMPLATES: MpMessageTemplate[] = [
+  { id: 1, accountId: 1, templateId: 'DEMO_TPL_ORDER_PAID', title: '订单支付成功通知', content: '您的订单已支付成功\n订单号：{{order_no.DATA}}\n金额：{{amount.DATA}}', example: '您的订单已支付成功\n订单号：202603230001\n金额：￥99.00', tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2, accountId: 1, templateId: 'DEMO_TPL_POINTS', title: '积分变动通知', content: '您的积分有变动\n变动：{{change.DATA}}\n余额：{{balance.DATA}}', example: '您的积分有变动\n变动：+100\n余额：1200', tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── 签到里程碑（累计签到天数达标奖励）──────────────────────────────────────────

@@ -3739,3 +3739,111 @@ export const mpMenusRelations = relations(mpMenus, ({ one }) => ({
   account: one(mpAccounts, { fields: [mpMenus.accountId], references: [mpAccounts.id] }),
   tenant: one(tenants, { fields: [mpMenus.tenantId], references: [tenants.id] }),
 }));
+
+// 公众号素材（图片 / 语音 / 视频 / 缩略图），本地登记 + 与微信永久素材同步
+export const mpMaterialTypeEnum = pgEnum('mp_material_type', ['image', 'voice', 'video', 'thumb']);
+
+export const mpMaterials = pgTable('mp_materials', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
+  type: mpMaterialTypeEnum('type').notNull().default('image'),
+  name: varchar('name', { length: 200 }).notNull(),
+  /** 微信永久素材 media_id（同步 / 推送后回填） */
+  wechatMediaId: varchar('wechat_media_id', { length: 128 }),
+  /** 素材 URL（图片可直接预览） */
+  url: varchar('url', { length: 1000 }),
+  /** 文件大小（字节） */
+  fileSize: integer('file_size'),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  index('mp_materials_account_type_idx').on(t.accountId, t.type),
+]);
+export type MpMaterialRow = typeof mpMaterials.$inferSelect;
+export type NewMpMaterial = typeof mpMaterials.$inferInsert;
+
+export const mpMaterialsRelations = relations(mpMaterials, ({ one }) => ({
+  account: one(mpAccounts, { fields: [mpMaterials.accountId], references: [mpAccounts.id] }),
+  tenant: one(tenants, { fields: [mpMaterials.tenantId], references: [tenants.id] }),
+}));
+
+// 公众号图文草稿（articles 为图文消息数组，可多图文）
+export const mpDraftStatusEnum = pgEnum('mp_draft_status', ['draft', 'published']);
+
+export const mpDrafts = pgTable('mp_drafts', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
+  /** 草稿标题（内部标识，取首篇文章标题） */
+  title: varchar('title', { length: 200 }).notNull(),
+  /** 图文文章数组 */
+  articles: jsonb('articles').$type<unknown[]>().notNull().default([]),
+  /** 微信草稿 media_id（推送后回填） */
+  wechatMediaId: varchar('wechat_media_id', { length: 128 }),
+  status: mpDraftStatusEnum('status').notNull().default('draft'),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  index('mp_drafts_account_idx').on(t.accountId),
+]);
+export type MpDraftRow = typeof mpDrafts.$inferSelect;
+export type NewMpDraft = typeof mpDrafts.$inferInsert;
+
+export const mpDraftsRelations = relations(mpDrafts, ({ one }) => ({
+  account: one(mpAccounts, { fields: [mpDrafts.accountId], references: [mpAccounts.id] }),
+  tenant: one(tenants, { fields: [mpDrafts.tenantId], references: [tenants.id] }),
+}));
+
+// 公众号模板消息：模板库（与微信同步）
+export const mpMessageTemplates = pgTable('mp_message_templates', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
+  /** 微信模板 id */
+  templateId: varchar('template_id', { length: 128 }).notNull(),
+  title: varchar('title', { length: 200 }).notNull(),
+  content: text('content'),
+  example: text('example'),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  uniqueIndex('mp_message_templates_account_tpl_uq').on(t.accountId, t.templateId),
+]);
+export type MpMessageTemplateRow = typeof mpMessageTemplates.$inferSelect;
+export type NewMpMessageTemplate = typeof mpMessageTemplates.$inferInsert;
+
+export const mpMessageTemplatesRelations = relations(mpMessageTemplates, ({ one }) => ({
+  account: one(mpAccounts, { fields: [mpMessageTemplates.accountId], references: [mpAccounts.id] }),
+  tenant: one(tenants, { fields: [mpMessageTemplates.tenantId], references: [tenants.id] }),
+}));
+
+// 公众号模板消息发送记录（追加型）
+export const mpTemplateSendStatusEnum = pgEnum('mp_template_send_status', ['success', 'failed']);
+
+export const mpTemplateSendLogs = pgTable('mp_template_send_logs', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
+  templateId: varchar('template_id', { length: 128 }).notNull(),
+  openid: varchar('openid', { length: 64 }).notNull(),
+  data: jsonb('data').$type<Record<string, unknown>>(),
+  url: varchar('url', { length: 1000 }),
+  status: mpTemplateSendStatusEnum('status').notNull().default('success'),
+  errorMsg: text('error_msg'),
+  /** 微信返回的 msgid */
+  msgId: varchar('msg_id', { length: 64 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('mp_template_send_logs_account_idx').on(t.accountId),
+]);
+export type MpTemplateSendLogRow = typeof mpTemplateSendLogs.$inferSelect;
+export type NewMpTemplateSendLog = typeof mpTemplateSendLogs.$inferInsert;
+
+export const mpTemplateSendLogsRelations = relations(mpTemplateSendLogs, ({ one }) => ({
+  account: one(mpAccounts, { fields: [mpTemplateSendLogs.accountId], references: [mpAccounts.id] }),
+  tenant: one(tenants, { fields: [mpTemplateSendLogs.tenantId], references: [tenants.id] }),
+}));

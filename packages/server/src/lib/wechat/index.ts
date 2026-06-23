@@ -11,3 +11,6 @@ export * from './xml';
 export * from './crypto';
 export * from './messages';
 export * from './menu';
+export * from './material';
+export * from './draft';
+export * from './template';
