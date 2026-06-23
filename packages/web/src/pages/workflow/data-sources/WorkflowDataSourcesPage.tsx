@@ -207,7 +207,7 @@ export default function WorkflowDataSourcesPage() {
       ),
     },
     {
-      title: '操作', fixed: 'right', width: 170,
+      title: '操作', fixed: 'right', width: 220,
       render: (_: unknown, record: WorkflowDataSource) => (
         <Space>
           <Button theme="borderless" size="small" onClick={() => void handleTest(record)}>测试</Button>

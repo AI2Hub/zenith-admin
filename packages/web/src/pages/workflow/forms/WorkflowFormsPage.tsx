@@ -181,7 +181,7 @@ export default function WorkflowFormsPage() {
     {
       title: '操作',
       key: 'action',
-      width: 180,
+      width: 220,
       fixed: 'right',
       render: (_value: unknown, record: WorkflowForm) => (
         <Space>
