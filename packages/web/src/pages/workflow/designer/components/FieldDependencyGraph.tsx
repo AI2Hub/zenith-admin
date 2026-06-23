@@ -40,13 +40,17 @@ const FieldNode = memo(({ data, selected }: NodeProps) => {
     <div
       style={{
         width: NODE_WIDTH,
-        minHeight: NODE_HEIGHT,
+        height: NODE_HEIGHT,
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
         background: d.missing ? 'var(--semi-color-danger-light-default)' : 'var(--semi-color-bg-0)',
         border: `1px solid ${selected ? 'var(--semi-color-primary)' : d.missing ? 'var(--semi-color-danger)' : 'var(--semi-color-border)'}`,
         borderRadius: 6,
         boxShadow: selected ? '0 0 0 2px var(--semi-color-primary-light-default)' : 'none',
         opacity: d.dimmed ? 0.2 : 1,
-        padding: '6px 10px',
+        padding: '0 10px',
         transition: 'opacity 120ms',
       }}
     >
