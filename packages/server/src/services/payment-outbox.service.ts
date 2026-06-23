@@ -6,14 +6,16 @@
  * 提交后立即 setImmediate 异步投递（低延迟）；若进程崩溃，cron `dispatchPaymentEvents`
  * 兜底补投 pending 事件。业务订阅者须自身幂等（可能被 outbox 与实时路径各投一次）。
  */
-import { and, eq, lt } from 'drizzle-orm';
+import { and, eq, isNull, lt, or } from 'drizzle-orm';
 import { db } from '../db';
 import { paymentEvents, type PaymentEventRow } from '../db/schema';
 import type { DbExecutor } from '../db/types';
 import { paymentEventBus, type PaymentEvent, type PaymentEventType } from '../lib/payment-event-bus';
 import logger from '../lib/logger';
+import { formatDateTime } from '../lib/datetime';
 
 const MAX_ATTEMPTS = 5;
+const CLAIM_TIMEOUT_MS = 5 * 60_000;
 
 export interface OutboxEventInput {
   type: PaymentEventType;
@@ -39,13 +41,25 @@ export async function recordEvent(tx: DbExecutor, input: OutboxEventInput): Prom
 
 async function dispatchRow(row: PaymentEventRow): Promise<void> {
   const payload = JSON.parse(row.payload) as Omit<PaymentEvent, 'eventId' | 'occurredAt'>;
-  await paymentEventBus.dispatch(payload);
+  await paymentEventBus.dispatch({ ...payload, eventId: `payment-outbox-${row.id}`, occurredAt: formatDateTime(row.createdAt) });
 }
 
 /** 处理单个 outbox 事件：成功标记 done；失败累加 attempts 并记录错误（达上限置 failed）。 */
 export async function processEvent(id: number): Promise<void> {
-  const [row] = await db.select().from(paymentEvents).where(eq(paymentEvents.id, id)).limit(1);
-  if (!row || row.status === 'done') return;
+  const claimBefore = new Date(Date.now() - CLAIM_TIMEOUT_MS);
+  const [row] = await db
+    .update(paymentEvents)
+    .set({ processedAt: new Date() })
+    .where(
+      and(
+        eq(paymentEvents.id, id),
+        eq(paymentEvents.status, 'pending'),
+        lt(paymentEvents.attempts, MAX_ATTEMPTS),
+        or(isNull(paymentEvents.processedAt), lt(paymentEvents.processedAt, claimBefore)),
+      ),
+    )
+    .returning();
+  if (!row) return;
   try {
     await dispatchRow(row);
     await db.update(paymentEvents).set({ status: 'done', processedAt: new Date() }).where(eq(paymentEvents.id, id));
@@ -53,17 +67,18 @@ export async function processEvent(id: number): Promise<void> {
     const attempts = row.attempts + 1;
     const status = attempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
     const lastError = (err instanceof Error ? err.message : 'unknown').slice(0, 500);
-    await db.update(paymentEvents).set({ attempts, status, lastError }).where(eq(paymentEvents.id, id));
+    await db.update(paymentEvents).set({ attempts, status, lastError, processedAt: status === 'pending' ? null : new Date() }).where(eq(paymentEvents.id, id));
     logger.warn('[payment-outbox] dispatch failed', { id, attempts, err: lastError });
   }
 }
 
 /** Cron 兜底：补投所有 pending 且未超重试上限的事件（含进程崩溃遗留）。返回扫描条数。 */
 export async function dispatchPendingPaymentEvents(): Promise<number> {
+  const claimBefore = new Date(Date.now() - CLAIM_TIMEOUT_MS);
   const rows = await db
     .select({ id: paymentEvents.id })
     .from(paymentEvents)
-    .where(and(eq(paymentEvents.status, 'pending'), lt(paymentEvents.attempts, MAX_ATTEMPTS)))
+    .where(and(eq(paymentEvents.status, 'pending'), lt(paymentEvents.attempts, MAX_ATTEMPTS), or(isNull(paymentEvents.processedAt), lt(paymentEvents.processedAt, claimBefore))))
     .limit(200);
   for (const row of rows) {
     await processEvent(row.id);

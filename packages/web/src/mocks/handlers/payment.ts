@@ -11,6 +11,7 @@ import {
 import { mockDateTime, mockDateTimeOffset, mockDate } from '@/mocks/utils/date';
 import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared';
 import type { PaymentChannelConfig, PaymentMethod, PaymentOrder, PaymentRefund } from '@zenith/shared';
+import { recordMockPaymentSucceeded, recordMockRefundSucceeded } from './payment-ext';
 
 function paginate<T>(list: T[], url: URL) {
   const page = Number(url.searchParams.get('page')) || 1;
@@ -225,6 +226,7 @@ export const paymentHandlers = [
       o.paidAmount = o.amount;
       o.paidAt = mockDateTime();
       o.updatedAt = mockDateTime();
+      recordMockPaymentSucceeded(o);
     }
     return HttpResponse.json({ code: 0, message: '已同步', data: o });
   }),
@@ -251,6 +253,7 @@ export const paymentHandlers = [
     mockPaymentRefunds.unshift(refund);
     order.status = body.refundAmount >= order.amount ? 'refunded' : 'success';
     order.updatedAt = now;
+    recordMockRefundSucceeded(refund);
     return HttpResponse.json({ code: 0, message: '退款已发起', data: { refundNo, status: 'success' } });
   }),
   http.get('/api/payment/refunds', ({ request }) => {
@@ -280,6 +283,7 @@ export const paymentHandlers = [
       r.updatedAt = mockDateTime();
       const order = mockPaymentOrders.find((o) => o.orderNo === r.orderNo);
       if (order) order.status = r.refundAmount >= order.amount ? 'refunded' : 'success';
+      recordMockRefundSucceeded(r);
     }
     return HttpResponse.json({ code: 0, message: '已同步', data: r });
   }),

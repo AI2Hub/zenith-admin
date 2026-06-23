@@ -1,7 +1,8 @@
 import { http, HttpResponse } from 'msw';
-import { PAYMENT_MOCK_SEED_TIME, getNextPaymentOrderId, mockPaymentOrders } from '@/mocks/data/payment';
+import { PAYMENT_MOCK_SEED_TIME, getNextPaymentOrderId, mockPaymentOrders, mockPaymentRefunds } from '@/mocks/data/payment';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_CHANNEL, SEED_PAYMENT_METHOD_CONFIGS } from '@zenith/shared';
+import { recordMockLedgerEntry } from './payment-ext';
 import type {
   CreatePaymentResult,
   PaymentChannel,
@@ -98,12 +99,22 @@ const settlementHandlers = [
   }),
   http.post('/api/payment/settlements/generate', async ({ request }) => {
     const b = (await request.json()) as { channel: PaymentChannel; periodStart: string; periodEnd: string; remark?: string };
-    const paid = mockPaymentOrders.filter((o) => o.channel === b.channel && (o.status === 'success' || o.status === 'refunding' || o.status === 'refunded'));
+    const paid = mockPaymentOrders.filter(
+      (o) =>
+        o.channel === b.channel &&
+        (o.status === 'success' || o.status === 'refunding' || o.status === 'refunded') &&
+        !!o.paidAt &&
+        o.paidAt.slice(0, 10) >= b.periodStart &&
+        o.paidAt.slice(0, 10) <= b.periodEnd,
+    );
     const gross = paid.reduce((s, o) => s + (o.paidAmount ?? o.amount), 0);
-    const fee = Math.round(gross * 0.006);
+    const fee = paid.reduce((s, o) => s + (o.feeAmount ?? Math.round((o.paidAmount ?? o.amount) * 0.006)), 0);
+    const refund = mockPaymentRefunds
+      .filter((r) => r.channel === b.channel && r.status === 'success' && r.refundedAt && r.refundedAt.slice(0, 10) >= b.periodStart && r.refundedAt.slice(0, 10) <= b.periodEnd)
+      .reduce((s, r) => s + r.refundAmount, 0);
     const item: PaymentSettlementBatch = {
       id: nextSettlementId++, batchNo: `SETTLE${Date.now()}`, channel: b.channel, periodStart: b.periodStart, periodEnd: b.periodEnd,
-      status: 'pending', orderCount: paid.length, grossAmount: gross, feeAmount: fee, refundAmount: 0, netAmount: gross - fee,
+      status: 'pending', orderCount: paid.length, grossAmount: gross, feeAmount: fee, refundAmount: refund, netAmount: Math.max(0, gross - fee - refund),
       settledAt: null, remark: b.remark ?? null, createdAt: mockDateTime(), updatedAt: mockDateTime(),
     };
     settlements.push(item);
@@ -115,7 +126,10 @@ const settlementHandlers = [
     const { status } = (await request.json()) as { status: PaymentSettlementStatus };
     if (!TRANSITIONS[s.status].includes(status)) return badRequest(`不允许从「${s.status}」流转到「${status}」`);
     s.status = status;
-    if (status === 'settled') s.settledAt = mockDateTime();
+    if (status === 'settled') {
+      s.settledAt = mockDateTime();
+      recordMockLedgerEntry({ direction: 'out', type: 'settlement', amount: s.netAmount, orderNo: null, refundNo: null, channel: s.channel, bizType: null, remark: `结算批次 ${s.batchNo} 到账` });
+    }
     s.updatedAt = mockDateTime();
     return ok(s, '操作成功');
   }),
@@ -376,20 +390,38 @@ const reportHandlers = [
   http.get('/api/payment/reports/summary', ({ request }) => {
     const url = new URL(request.url);
     const groupBy = (url.searchParams.get('groupBy') as PaymentReportGroupBy) ?? 'bizType';
+    const startTime = url.searchParams.get('startTime');
+    const endTime = url.searchParams.get('endTime');
     const paid = mockPaymentOrders.filter((o) => o.status === 'success' || o.status === 'refunding' || o.status === 'refunded');
-    const groups = new Map<string, { gross: number; count: number }>();
+    const groups = new Map<string, { gross: number; fee: number; refund: number; count: number }>();
+    const orderGroup = new Map<string, string>();
     for (const o of paid) {
+      const paidTime = o.paidAt ?? o.createdAt;
+      if (startTime && paidTime < startTime) continue;
+      if (endTime && paidTime > endTime) continue;
       const key = groupBy === 'channel' ? o.channel : groupBy === 'day' ? (o.paidAt ?? o.createdAt).slice(0, 10) : o.bizType;
-      const g = groups.get(key) ?? { gross: 0, count: 0 };
+      orderGroup.set(o.orderNo, key);
+      const g = groups.get(key) ?? { gross: 0, fee: 0, refund: 0, count: 0 };
       g.gross += o.paidAmount ?? o.amount;
+      g.fee += o.feeAmount ?? Math.round((o.paidAmount ?? o.amount) * 0.006);
       g.count += 1;
       groups.set(key, g);
     }
+    for (const refund of mockPaymentRefunds) {
+      if (refund.status !== 'success') continue;
+      const order = mockPaymentOrders.find((o) => o.orderNo === refund.orderNo);
+      if (!order) continue;
+      const refundedAt = refund.refundedAt ?? refund.createdAt;
+      if (startTime && refundedAt < startTime) continue;
+      if (endTime && refundedAt > endTime) continue;
+      const key = orderGroup.get(order.orderNo) ?? (groupBy === 'channel' ? order.channel : groupBy === 'day' ? refundedAt.slice(0, 10) : order.bizType);
+      const g = groups.get(key) ?? { gross: 0, fee: 0, refund: 0, count: 0 };
+      g.refund += refund.refundAmount;
+      groups.set(key, g);
+    }
     const rows: PaymentReportRow[] = [...groups.entries()].map(([key, g]) => {
-      const fee = Math.round(g.gross * 0.006);
-      const refund = 0;
       const label = groupBy === 'channel' ? (PAYMENT_CHANNEL_LABELS[key as PaymentChannel] ?? key) : key;
-      return { key, label, gross: g.gross, fee, refund, net: g.gross - fee - refund, count: g.count };
+      return { key, label, gross: g.gross, fee: g.fee, refund: g.refund, net: g.gross - g.fee - g.refund, count: g.count };
     });
     rows.sort((a, b) => a.key.localeCompare(b.key));
     return ok({

@@ -56,7 +56,7 @@ export async function redispatchEvent(id: number): Promise<PaymentOutboxEvent> {
   const tc = tenantCondition(paymentEvents, currentUser());
   const [row] = await db.select().from(paymentEvents).where(and(eq(paymentEvents.id, id), tc)).limit(1);
   if (!row) throw new HTTPException(404, { message: '事件不存在' });
-  await db.update(paymentEvents).set({ status: 'pending', attempts: 0, lastError: null }).where(eq(paymentEvents.id, id));
+  await db.update(paymentEvents).set({ status: 'pending', attempts: 0, lastError: null, processedAt: null }).where(eq(paymentEvents.id, id));
   await processEvent(id);
   const [latest] = await db.select().from(paymentEvents).where(eq(paymentEvents.id, id)).limit(1);
   return mapOutboxEvent(latest ?? row);

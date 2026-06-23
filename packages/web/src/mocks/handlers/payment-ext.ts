@@ -129,6 +129,7 @@ const deliveries: PaymentWebhookDelivery[] = [
   { id: 1, endpointId: 1, endpointName: '会员系统回调', eventType: 'payment.succeeded', orderNo: 'PAY1700000000001', payload: '{"type":"payment.succeeded","orderNo":"PAY1700000000001","amount":9900}', status: 'success', attempts: 1, httpStatus: 200, responseBody: 'OK', lastError: null, createdAt: SEED, updatedAt: SEED },
   { id: 2, endpointId: 1, endpointName: '会员系统回调', eventType: 'refund.succeeded', orderNo: 'PAY1700000000003', payload: '{"type":"refund.succeeded","orderNo":"PAY1700000000003"}', status: 'failed', attempts: 3, httpStatus: 500, responseBody: 'Internal Error', lastError: 'HTTP 500', createdAt: SEED, updatedAt: SEED },
 ];
+let nextDeliveryId = 3;
 
 const webhookHandlers = [
   http.get('/api/payment/webhooks/endpoints', ({ request }) => {
@@ -189,6 +190,7 @@ const ledgerEntries: PaymentLedgerEntry[] = [
   { id: 2, entryNo: 'LED1700000000002', direction: 'in', type: 'payment', amount: 1900, orderNo: 'PAY1700000000003', refundNo: null, channel: 'wechat', bizType: 'membership', remark: '支付收款', createdAt: SEED },
   { id: 3, entryNo: 'LED1700000000003', direction: 'out', type: 'refund', amount: 1900, orderNo: 'PAY1700000000003', refundNo: 'REF1700000000003', channel: 'wechat', bizType: 'membership', remark: '退款支出', createdAt: SEED },
 ];
+let nextLedgerId = 4;
 
 function filterLedger(url: URL) {
   const keyword = url.searchParams.get('keyword') ?? '';
@@ -214,6 +216,64 @@ const outboxEvents: PaymentOutboxEvent[] = [
   { id: 2, type: 'refund.succeeded', orderNo: 'PAY1700000000003', status: 'done', attempts: 1, lastError: null, createdAt: SEED, processedAt: SEED },
   { id: 3, type: 'payment.succeeded', orderNo: 'PAY1700000000099', status: 'failed', attempts: 3, lastError: '业务订阅者处理超时', createdAt: SEED, processedAt: null },
 ];
+let nextEventId = 4;
+
+type MockPaymentEventType = 'payment.succeeded' | 'refund.succeeded' | 'payment.closed' | 'payment.failed' | 'refund.failed';
+
+function recordMockWebhookDeliveries(eventType: MockPaymentEventType, orderNo: string, bizType: string, payload: Record<string, unknown>) {
+  const now = mockDateTime();
+  for (const endpoint of endpoints) {
+    if (endpoint.status !== 'enabled') continue;
+    if (endpoint.bizType && endpoint.bizType !== bizType) continue;
+    if (endpoint.events.length > 0 && !endpoint.events.includes(eventType)) continue;
+    deliveries.unshift({
+      id: nextDeliveryId++,
+      endpointId: endpoint.id,
+      endpointName: endpoint.name,
+      eventType,
+      orderNo,
+      payload: JSON.stringify(payload),
+      status: 'success',
+      attempts: 1,
+      httpStatus: 200,
+      responseBody: 'OK',
+      lastError: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+}
+
+function recordMockOutboxEvent(eventType: MockPaymentEventType, orderNo: string) {
+  if (outboxEvents.some((e) => e.type === eventType && e.orderNo === orderNo)) return;
+  const now = mockDateTime();
+  outboxEvents.unshift({ id: nextEventId++, type: eventType, orderNo, status: 'done', attempts: 1, lastError: null, createdAt: now, processedAt: now });
+}
+
+export function recordMockLedgerEntry(input: Omit<PaymentLedgerEntry, 'id' | 'entryNo' | 'createdAt'>) {
+  if (input.type === 'refund' && input.refundNo && ledgerEntries.some((e) => e.type === 'refund' && e.refundNo === input.refundNo)) return;
+  if (input.orderNo && ledgerEntries.some((e) => e.type === input.type && e.orderNo === input.orderNo)) return;
+  ledgerEntries.unshift({ id: nextLedgerId++, entryNo: `LED${Date.now()}${nextLedgerId}`, createdAt: mockDateTime(), ...input });
+}
+
+export function recordMockPaymentSucceeded(order: typeof mockPaymentOrders[number]) {
+  const amount = order.paidAmount ?? order.amount;
+  const fee = Math.min(Math.round(amount * 0.006), amount);
+  order.feeAmount = fee;
+  order.netAmount = amount - fee;
+  recordMockLedgerEntry({ direction: 'in', type: 'payment', amount, orderNo: order.orderNo, refundNo: null, channel: order.channel, bizType: order.bizType, remark: '支付收款' });
+  if (fee > 0) recordMockLedgerEntry({ direction: 'out', type: 'fee', amount: fee, orderNo: order.orderNo, refundNo: null, channel: order.channel, bizType: order.bizType, remark: '手续费（演示费率）' });
+  recordMockOutboxEvent('payment.succeeded', order.orderNo);
+  recordMockWebhookDeliveries('payment.succeeded', order.orderNo, order.bizType, { type: 'payment.succeeded', orderNo: order.orderNo, amount });
+}
+
+export function recordMockRefundSucceeded(refund: typeof mockPaymentRefunds[number]) {
+  const order = mockPaymentOrders.find((o) => o.orderNo === refund.orderNo);
+  if (!order) return;
+  recordMockLedgerEntry({ direction: 'out', type: 'refund', amount: refund.refundAmount, orderNo: refund.orderNo, refundNo: refund.refundNo, channel: refund.channel, bizType: order.bizType, remark: '退款支出' });
+  recordMockOutboxEvent('refund.succeeded', refund.orderNo);
+  recordMockWebhookDeliveries('refund.succeeded', refund.orderNo, order.bizType, { type: 'refund.succeeded', orderNo: refund.orderNo, refundNo: refund.refundNo, refundAmount: refund.refundAmount });
+}
 
 const opsHandlers = [
   http.get('/api/payment/ops/events', ({ request }) => {
@@ -227,6 +287,13 @@ const opsHandlers = [
   http.post('/api/payment/ops/events/:id/redispatch', ({ params }) => {
     const e = outboxEvents.find((x) => x.id === Number(params.id));
     if (!e) return notFound('事件不存在');
+    if (e.type === 'payment.succeeded') {
+      const order = mockPaymentOrders.find((o) => o.orderNo === e.orderNo);
+      if (order) recordMockPaymentSucceeded(order);
+    } else if (e.type === 'refund.succeeded') {
+      const refund = mockPaymentRefunds.find((r) => r.orderNo === e.orderNo && r.status === 'success');
+      if (refund) recordMockRefundSucceeded(refund);
+    }
     e.status = 'done';
     e.attempts += 1;
     e.lastError = null;
@@ -241,6 +308,7 @@ const opsHandlers = [
     o.paidAmount = o.amount;
     o.paidAt = mockDateTime();
     o.updatedAt = mockDateTime();
+    recordMockPaymentSucceeded(o);
     return ok(o, '已模拟支付成功');
   }),
 ];
@@ -259,6 +327,7 @@ const refundApprovalHandlers = [
     r.updatedAt = mockDateTime();
     const order = mockPaymentOrders.find((o) => o.orderNo === r.orderNo);
     if (order) order.status = r.refundAmount >= order.amount ? 'refunded' : 'success';
+    recordMockRefundSucceeded(r);
     return ok({ refundNo: r.refundNo, status: 'success' }, '已审批通过');
   }),
   http.post('/api/payment/refunds/:id/reject', async ({ params, request }) => {

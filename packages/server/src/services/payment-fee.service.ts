@@ -148,11 +148,13 @@ export async function matchFeeRule(channel: PaymentChannel, payMethod: PaymentMe
 /** 支付成功后结算手续费：回写订单 feeAmount/netAmount + 记台账（幂等：已算过则跳过）。 */
 export async function settleOrderFee(orderNo: string): Promise<void> {
   const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.orderNo, orderNo)).limit(1);
-  if (!order || order.feeAmount != null) return;
+  if (!order) return;
   const amount = order.paidAmount ?? order.amount;
-  const rule = await matchFeeRule(order.channel, order.payMethod, order.tenantId);
-  const fee = rule ? computeFeeByRule(rule, amount) : 0;
-  await db.update(paymentOrders).set({ feeAmount: fee, netAmount: amount - fee }).where(eq(paymentOrders.id, order.id));
+  const rule = order.feeAmount == null ? await matchFeeRule(order.channel, order.payMethod, order.tenantId) : null;
+  const fee = order.feeAmount ?? (rule ? computeFeeByRule(rule, amount) : 0);
+  if (order.feeAmount == null || order.netAmount == null) {
+    await db.update(paymentOrders).set({ feeAmount: fee, netAmount: amount - fee }).where(eq(paymentOrders.id, order.id));
+  }
   if (fee > 0) {
     await recordLedgerEntry({
       direction: 'out',
@@ -173,7 +175,10 @@ export function registerFeeSubscribers(): void {
   if (registered) return;
   registered = true;
   paymentEventBus.on('payment.succeeded', (e) => {
-    void settleOrderFee(e.orderNo).catch((err) => logger.error('[payment-fee] settle fee failed', { orderNo: e.orderNo, err }));
+    return settleOrderFee(e.orderNo).catch((err) => {
+      logger.error('[payment-fee] settle fee failed', { orderNo: e.orderNo, err });
+      throw err;
+    });
   });
   logger.info('Payment fee subscribers registered');
 }

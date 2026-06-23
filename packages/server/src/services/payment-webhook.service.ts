@@ -226,6 +226,8 @@ async function dispatchEvent(event: PaymentEvent): Promise<void> {
     const events = ep.events ?? [];
     if (events.length > 0 && !events.includes(event.type)) continue;
     const payload = JSON.stringify(event);
+    const exists = await db.$count(paymentWebhookDeliveries, and(eq(paymentWebhookDeliveries.endpointId, ep.id), eq(paymentWebhookDeliveries.payload, payload)));
+    if (exists > 0) continue;
     const [delivery] = await db
       .insert(paymentWebhookDeliveries)
       .values({ endpointId: ep.id, eventType: event.type, orderNo: event.orderNo, payload, status: 'pending', tenantId: ep.tenantId })
@@ -267,7 +269,10 @@ export function registerWebhookSubscribers(): void {
   if (registered) return;
   registered = true;
   paymentEventBus.onAny((event) => {
-    void dispatchEvent(event).catch((err) => logger.error('[payment-webhook] dispatch failed', { type: event.type, err }));
+    return dispatchEvent(event).catch((err) => {
+      logger.error('[payment-webhook] dispatch failed', { type: event.type, err });
+      throw err;
+    });
   });
   logger.info('Payment webhook subscribers registered');
 }

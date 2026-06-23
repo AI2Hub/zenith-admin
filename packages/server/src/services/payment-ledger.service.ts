@@ -134,14 +134,16 @@ export function registerLedgerSubscribers(): void {
   if (registered) return;
   registered = true;
   paymentEventBus.on('payment.succeeded', (e) => {
-    void recordLedgerEntry({ direction: 'in', type: 'payment', amount: e.amount, orderNo: e.orderNo, channel: e.channel, bizType: e.bizType, tenantId: e.tenantId, remark: '支付收款' }).catch((err) =>
-      logger.error('[payment-ledger] record payment failed', { orderNo: e.orderNo, err }),
-    );
+    return recordLedgerEntry({ direction: 'in', type: 'payment', amount: e.amount, orderNo: e.orderNo, channel: e.channel, bizType: e.bizType, tenantId: e.tenantId, remark: '支付收款' }).catch((err) => {
+      logger.error('[payment-ledger] record payment failed', { orderNo: e.orderNo, err });
+      throw err;
+    });
   });
   paymentEventBus.on('refund.succeeded', (e) => {
-    void recordLedgerEntry({ direction: 'out', type: 'refund', amount: e.refundAmount ?? 0, orderNo: e.orderNo, refundNo: e.refundNo, channel: e.channel, bizType: e.bizType, tenantId: e.tenantId, remark: '退款支出' }).catch((err) =>
-      logger.error('[payment-ledger] record refund failed', { orderNo: e.orderNo, err }),
-    );
+    return recordLedgerEntry({ direction: 'out', type: 'refund', amount: e.refundAmount ?? 0, orderNo: e.orderNo, refundNo: e.refundNo, channel: e.channel, bizType: e.bizType, tenantId: e.tenantId, remark: '退款支出' }).catch((err) => {
+      logger.error('[payment-ledger] record refund failed', { orderNo: e.orderNo, err });
+      throw err;
+    });
   });
   logger.info('Payment ledger subscribers registered');
 }

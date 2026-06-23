@@ -41,7 +41,7 @@ import type {
 } from '@zenith/shared';
 import { getAdapter } from '../lib/payment';
 import type { AdapterContext, DecryptedSecrets, NotifyResult } from '../lib/payment';
-import { paymentEventBus, type PaymentEvent, type PaymentEventType } from '../lib/payment-event-bus';
+import type { PaymentEvent, PaymentEventType } from '../lib/payment-event-bus';
 import { recordEvent, processEvent } from './payment-outbox.service';
 import { assertMethodEnabled } from './payment-method.service';
 import { assertWithinRiskLimits } from './payment-risk.service';
@@ -150,8 +150,43 @@ function buildEventPayload(type: PaymentEventType, order: PaymentOrderRow, extra
   };
 }
 
-function emitPaymentEvent(type: PaymentEventType, order: PaymentOrderRow, extra?: { refundNo?: string; refundAmount?: number }): void {
-  paymentEventBus.emit(buildEventPayload(type, order, extra));
+function enqueuePaymentEvent(eventId: number | null): void {
+  if (eventId == null) return;
+  setImmediate(() => { void processEvent(eventId); });
+}
+
+async function markOrderClosed(order: PaymentOrderRow): Promise<void> {
+  const eventId = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(paymentOrders)
+      .set({ status: 'closed' })
+      .where(and(eq(paymentOrders.id, order.id), or(eq(paymentOrders.status, 'pending'), eq(paymentOrders.status, 'paying'))))
+      .returning({ id: paymentOrders.id });
+    if (updated.length === 0) return null;
+    return recordEvent(tx, { type: 'payment.closed', orderNo: order.orderNo, tenantId: order.tenantId, payload: buildEventPayload('payment.closed', order) });
+  });
+  enqueuePaymentEvent(eventId);
+}
+
+async function markRefundFailed(order: PaymentOrderRow, refund: Pick<PaymentRefundRow, 'id' | 'refundNo' | 'refundAmount'>, message?: string): Promise<void> {
+  const setValues: Partial<PaymentRefundRow> = { status: 'failed' };
+  if (message) setValues.errorMessage = message.slice(0, 500);
+  const eventId = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(paymentRefunds)
+      .set(setValues)
+      .where(and(eq(paymentRefunds.id, refund.id), notInArray(paymentRefunds.status, ['success', 'failed'])))
+      .returning({ id: paymentRefunds.id });
+    await tx.update(paymentOrders).set({ status: 'success' }).where(and(eq(paymentOrders.id, order.id), eq(paymentOrders.status, 'refunding')));
+    if (updated.length === 0) return null;
+    return recordEvent(tx, {
+      type: 'refund.failed',
+      orderNo: order.orderNo,
+      tenantId: order.tenantId,
+      payload: buildEventPayload('refund.failed', order, { refundNo: refund.refundNo, refundAmount: refund.refundAmount }),
+    });
+  });
+  enqueuePaymentEvent(eventId);
 }
 
 // ─── 映射 ─────────────────────────────────────────────────────────────────────
@@ -289,7 +324,11 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
     await db.update(paymentOrders).set({ status: 'paying' }).where(and(eq(paymentOrders.id, orderRow.id), eq(paymentOrders.status, 'pending')));
     return { orderNo, payParams };
   } catch (err) {
-    await db.update(paymentOrders).set({ status: 'failed', errorMessage: errMessage(err).slice(0, 500) }).where(eq(paymentOrders.id, orderRow.id));
+    const eventId = await db.transaction(async (tx) => {
+      await tx.update(paymentOrders).set({ status: 'failed', errorMessage: errMessage(err).slice(0, 500) }).where(eq(paymentOrders.id, orderRow.id));
+      return recordEvent(tx, { type: 'payment.failed', orderNo: orderRow.orderNo, tenantId: orderRow.tenantId, payload: buildEventPayload('payment.failed', orderRow) });
+    });
+    enqueuePaymentEvent(eventId);
     throw err;
   }
 }
@@ -339,8 +378,7 @@ export async function syncOrderStatus(order: PaymentOrderRow): Promise<PaymentOr
     return { ...order, status: 'success' };
   }
   if (res.status === 'closed') {
-    await db.update(paymentOrders).set({ status: 'closed' }).where(eq(paymentOrders.id, order.id));
-    emitPaymentEvent('payment.closed', order);
+    await markOrderClosed(order);
     return { ...order, status: 'closed' };
   }
   return order;
@@ -366,7 +404,7 @@ export async function closePayment(orderNo: string): Promise<void> {
       logger.warn('[payment] close failed', { orderNo, err: errMessage(err) });
     }
   }
-  await db.update(paymentOrders).set({ status: 'closed' }).where(eq(paymentOrders.id, order.id));
+  await markOrderClosed(order);
 }
 
 // ─── 退款 ─────────────────────────────────────────────────────────────────────
@@ -395,20 +433,25 @@ async function executeChannelRefund(
     const ctx = buildAdapterContext(config);
     assertNotifyUrl(ctx.notifyUrl);
     const res = await getAdapter(order.channel).refund(ctx, order, refundRow);
-    await db
-      .update(paymentRefunds)
-      .set({ status: res.status, channelRefundNo: res.channelRefundNo ?? null, refundedAt: res.status === 'success' ? new Date() : null })
-      .where(eq(paymentRefunds.id, refundRow.id));
 
     if (res.status === 'success') {
+      await db
+        .update(paymentRefunds)
+        .set({ status: res.status, channelRefundNo: res.channelRefundNo ?? null, refundedAt: new Date() })
+        .where(eq(paymentRefunds.id, refundRow.id));
       await finalizeRefund(order, refundRow.refundNo, refundRow.refundAmount);
     } else if (res.status === 'failed') {
-      await db.update(paymentOrders).set({ status: 'success' }).where(and(eq(paymentOrders.id, order.id), eq(paymentOrders.status, 'refunding')));
+      await db.update(paymentRefunds).set({ channelRefundNo: res.channelRefundNo ?? null }).where(eq(paymentRefunds.id, refundRow.id));
+      await markRefundFailed(order, refundRow, '渠道退款失败');
+    } else {
+      await db
+        .update(paymentRefunds)
+        .set({ status: res.status, channelRefundNo: res.channelRefundNo ?? null, refundedAt: null })
+        .where(eq(paymentRefunds.id, refundRow.id));
     }
     return { refundNo: refundRow.refundNo, status: res.status };
   } catch (err) {
-    await db.update(paymentRefunds).set({ status: 'failed', errorMessage: errMessage(err).slice(0, 500) }).where(eq(paymentRefunds.id, refundRow.id));
-    await db.update(paymentOrders).set({ status: 'success' }).where(and(eq(paymentOrders.id, order.id), eq(paymentOrders.status, 'refunding')));
+    await markRefundFailed(order, refundRow, errMessage(err));
     throw err;
   }
 }
@@ -494,13 +537,26 @@ export async function approveRefund(id: number, remark?: string): Promise<{ refu
 export async function rejectRefund(id: number, remark: string): Promise<void> {
   const user = currentUser();
   const tc = tenantCondition(paymentRefunds, user);
-  const [refundRow] = await db.select({ id: paymentRefunds.id, approvalStatus: paymentRefunds.approvalStatus }).from(paymentRefunds).where(and(eq(paymentRefunds.id, id), tc)).limit(1);
+  const [refundRow] = await db.select().from(paymentRefunds).where(and(eq(paymentRefunds.id, id), tc)).limit(1);
   if (!refundRow) throw new HTTPException(404, { message: '退款记录不存在' });
   if (refundRow.approvalStatus !== 'pending') throw new HTTPException(400, { message: '该退款单无需审批或已处理' });
-  await db
-    .update(paymentRefunds)
-    .set({ approvalStatus: 'rejected', approverId: user.userId, approvedAt: new Date(), approvalRemark: remark, status: 'failed', errorMessage: '退款审批被驳回' })
-    .where(eq(paymentRefunds.id, id));
+  const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.orderNo, refundRow.orderNo)).limit(1);
+  if (!order) throw new HTTPException(404, { message: '原支付订单不存在' });
+  const eventId = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(paymentRefunds)
+      .set({ approvalStatus: 'rejected', approverId: user.userId, approvedAt: new Date(), approvalRemark: remark, status: 'failed', errorMessage: '退款审批被驳回' })
+      .where(and(eq(paymentRefunds.id, id), eq(paymentRefunds.approvalStatus, 'pending')))
+      .returning({ id: paymentRefunds.id });
+    if (updated.length === 0) return null;
+    return recordEvent(tx, {
+      type: 'refund.failed',
+      orderNo: order.orderNo,
+      tenantId: order.tenantId,
+      payload: buildEventPayload('refund.failed', order, { refundNo: refundRow.refundNo, refundAmount: refundRow.refundAmount }),
+    });
+  });
+  enqueuePaymentEvent(eventId);
 }
 
 // ─── 异步回调处理 ───────────────────────────────────────────────────────────────
@@ -537,7 +593,12 @@ async function applyNotify(channel: PaymentChannel, result: NotifyResult): Promi
         if (order) await finalizeRefund(order, refundRow.refundNo, refundRow.refundAmount);
       }
     } else {
-      await db.update(paymentRefunds).set({ status: 'failed' }).where(and(eq(paymentRefunds.id, refundRow.id), ne(paymentRefunds.status, 'success')));
+      if (refundRow.orderId) {
+        const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.id, refundRow.orderId)).limit(1);
+        if (order) await markRefundFailed(order, refundRow, '渠道退款回调失败');
+      } else {
+        await db.update(paymentRefunds).set({ status: 'failed' }).where(and(eq(paymentRefunds.id, refundRow.id), notInArray(paymentRefunds.status, ['success', 'failed'])));
+      }
     }
     return;
   }
@@ -558,8 +619,7 @@ async function applyNotify(channel: PaymentChannel, result: NotifyResult): Promi
       notifyData: result.raw ? JSON.stringify(result.raw).slice(0, 8000) : undefined,
     });
   } else if (result.tradeStatus === 'closed') {
-    await db.update(paymentOrders).set({ status: 'closed' }).where(eq(paymentOrders.id, order.id));
-    emitPaymentEvent('payment.closed', order);
+    await markOrderClosed(order);
   }
 }
 
@@ -774,8 +834,7 @@ export async function refreshRefundById(id: number): Promise<PaymentRefund> {
       .returning();
     if (updated.length > 0) await finalizeRefund(order, refundRow.refundNo, refundRow.refundAmount);
   } else if (res.status === 'failed') {
-    await db.update(paymentRefunds).set({ status: 'failed' }).where(and(eq(paymentRefunds.id, refundRow.id), ne(paymentRefunds.status, 'success')));
-    await db.update(paymentOrders).set({ status: 'success' }).where(and(eq(paymentOrders.id, order.id), eq(paymentOrders.status, 'refunding')));
+    await markRefundFailed(order, refundRow, '渠道退款查单失败');
   } else if (res.channelRefundNo && res.channelRefundNo !== refundRow.channelRefundNo) {
     await db.update(paymentRefunds).set({ channelRefundNo: res.channelRefundNo }).where(eq(paymentRefunds.id, refundRow.id));
   }

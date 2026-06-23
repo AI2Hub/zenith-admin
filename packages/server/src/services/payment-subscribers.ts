@@ -22,6 +22,24 @@ export function registerPaymentSubscribers(): void {
     });
   });
 
+  paymentEventBus.on('payment.closed', (e) => {
+    logger.info('[payment] payment.closed', { orderNo: e.orderNo, bizType: e.bizType, bizId: e.bizId });
+    const userId = e.userId;
+    if (!userId) return;
+    setImmediate(() => {
+      sendToUser(userId, { type: 'payment:closed', payload: { orderNo: e.orderNo, bizType: e.bizType, bizId: e.bizId } });
+    });
+  });
+
+  paymentEventBus.on('payment.failed', (e) => {
+    logger.info('[payment] payment.failed', { orderNo: e.orderNo, bizType: e.bizType, bizId: e.bizId });
+    const userId = e.userId;
+    if (!userId) return;
+    setImmediate(() => {
+      sendToUser(userId, { type: 'payment:failed', payload: { orderNo: e.orderNo, bizType: e.bizType, bizId: e.bizId } });
+    });
+  });
+
   paymentEventBus.on('refund.succeeded', (e) => {
     logger.info('[payment] refund.succeeded', { orderNo: e.orderNo, refundNo: e.refundNo });
     const userId = e.userId;
@@ -33,11 +51,23 @@ export function registerPaymentSubscribers(): void {
     });
   });
 
+  paymentEventBus.on('refund.failed', (e) => {
+    logger.info('[payment] refund.failed', { orderNo: e.orderNo, refundNo: e.refundNo });
+    const userId = e.userId;
+    const refundNo = e.refundNo;
+    if (!userId || !refundNo) return;
+    const refundAmount = e.refundAmount ?? 0;
+    setImmediate(() => {
+      sendToUser(userId, { type: 'payment:refund-failed', payload: { orderNo: e.orderNo, refundNo, refundAmount } });
+    });
+  });
+
   // 会员钱包充值到账（bizType=member_recharge，由 member-wallet 幂等入账）
   paymentEventBus.on('payment.succeeded', (e) => {
     if (e.bizType !== WALLET_RECHARGE_BIZ_TYPE) return;
-    void creditWalletOnRecharge({ bizId: e.bizId, orderNo: e.orderNo, amount: e.amount }).catch((err) => {
+    return creditWalletOnRecharge({ bizId: e.bizId, orderNo: e.orderNo, amount: e.amount }).catch((err) => {
       logger.error('[member] 钱包充值入账失败', { orderNo: e.orderNo, err });
+      throw err;
     });
   });
 

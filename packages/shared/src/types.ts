@@ -1255,7 +1255,10 @@ export type WsMessage =
   | { type: 'workflow:taskFinished'; payload: { instanceId: number; taskId: number; decision: 'approved' | 'rejected' | 'skipped' } }
   | { type: 'workflow:instanceFinished'; payload: { instanceId: number; status: WorkflowInstanceStatus; title: string } }
   | { type: 'payment:success'; payload: { orderNo: string; bizType: string; bizId: string; amount: number } }
-  | { type: 'payment:refunded'; payload: { orderNo: string; refundNo: string; refundAmount: number } };
+  | { type: 'payment:closed'; payload: { orderNo: string; bizType: string; bizId: string } }
+  | { type: 'payment:failed'; payload: { orderNo: string; bizType: string; bizId: string } }
+  | { type: 'payment:refunded'; payload: { orderNo: string; refundNo: string; refundAmount: number } }
+  | { type: 'payment:refund-failed'; payload: { orderNo: string; refundNo: string; refundAmount: number } };
 
 /** Terminal WebSocket 消息（独立端点 /api/ws/terminal） */
 export type TerminalMessage =
