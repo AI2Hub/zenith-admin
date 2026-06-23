@@ -161,6 +161,34 @@ export function flattenAllFields(fields: WorkflowFormField[]): WorkflowFormField
 
 const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const replaceFormulaKey = (formula: string, oldKey: string, newKey: string): string =>
+  formula.replace(new RegExp(`\\{\\s*${escapeRegExp(oldKey)}\\s*\\}`, 'g'), `{${newKey}}`);
+
+/** 重命名字段 key，并级联更新所有引用（显隐条件/联动规则/级联父字段/天数联动/公式） */
+export function renameFieldKey(fields: WorkflowFormField[], oldKey: string, newKey: string): WorkflowFormField[] {
+  return fields.map((f) => {
+    const nf: WorkflowFormField = { ...f };
+    if (nf.key === oldKey) nf.key = newKey;
+    if (nf.visibilityCondition?.field === oldKey) {
+      nf.visibilityCondition = { ...nf.visibilityCondition, field: newKey };
+    }
+    if (nf.visibilityRules) {
+      nf.visibilityRules = {
+        ...nf.visibilityRules,
+        rules: nf.visibilityRules.rules.map((r) => (r.field === oldKey ? { ...r, field: newKey } : r)),
+      };
+    }
+    if (nf.optionsFrom?.sourceKey === oldKey) {
+      nf.optionsFrom = { ...nf.optionsFrom, sourceKey: newKey };
+    }
+    if (nf.daysFromKey === oldKey) nf.daysFromKey = newKey;
+    if (nf.formula) nf.formula = replaceFormulaKey(nf.formula, oldKey, newKey);
+    if (nf.columns) nf.columns = nf.columns.map((c) => ({ ...c, fields: renameFieldKey(c.fields, oldKey, newKey) }));
+    if (nf.children) nf.children = renameFieldKey(nf.children, oldKey, newKey);
+    return nf;
+  });
+}
+
 /** 公式是否引用了某字段 key */
 export function formulaReferencesKey(formula: string | undefined, key: string): boolean {
   if (!formula) return false;

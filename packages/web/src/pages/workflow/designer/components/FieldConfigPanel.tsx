@@ -13,7 +13,11 @@ interface FieldConfigPanelProps {
   field: WorkflowFormField;
   allFields: WorkflowFormField[];
   onChange: (updates: Partial<WorkflowFormField>) => void;
+  /** 重命名字段 key（级联更新所有引用） */
+  onRenameKey?: (newKey: string) => void;
 }
+
+const FIELD_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
 
 function formatVisibilityValue(value: unknown): string {
   if (typeof value === 'string') {
@@ -68,11 +72,29 @@ export default function FieldConfigPanel({
   field,
   allFields,
   onChange,
+  onRenameKey,
 }: Readonly<FieldConfigPanelProps>) {
 
   const [activeSection, setActiveSection] = useState<'basic' | 'validation' | 'visibility'>('basic');
   const fieldInfo = FORM_FIELD_TYPES.find(t => t.type === field.type);
   const flatFields = useMemo(() => collectFlat(allFields), [allFields]);
+
+  // 字段标识(key) 本地草稿：失焦/回车时校验并提交重命名
+  const [keyDraft, setKeyDraft] = useState(field.key);
+  useEffect(() => { setKeyDraft(field.key); }, [field.key]);
+  const otherKeys = useMemo(() => new Set(flatFields.filter(f => f.key !== field.key).map(f => f.key)), [flatFields, field.key]);
+  const keyError = (() => {
+    if (keyDraft === field.key) return null;
+    if (!keyDraft.trim()) return '标识不能为空';
+    if (!FIELD_KEY_PATTERN.test(keyDraft)) return '需字母开头，仅含字母、数字、下划线';
+    if (otherKeys.has(keyDraft)) return '该标识已被占用';
+    return null;
+  })();
+  const commitKey = () => {
+    if (keyDraft === field.key) return;
+    if (keyError) { setKeyDraft(field.key); return; }
+    onRenameKey?.(keyDraft);
+  };
 
   // 可用作条件依赖的字段（具备明确可比较值的类型，且不是当前字段）
   const conditionFields = useMemo(() => flatFields.filter(
@@ -113,6 +135,8 @@ export default function FieldConfigPanel({
   const supportsLayoutState = !isLayout && !isDescription && !isSerialNumber;
   // 支持字段级标签覆盖（排除布局/分割线/纯展示）
   const supportsLabelOverride = !isLayout && !isDescription;
+  // 字段标识(key) 可编辑（排除布局/纯展示类，其 key 不参与数据提交与联动）
+  const supportsKeyEdit = !isLayout && !isDescription;
   const showValidationTab = !isDescription && !isSerialNumber && !isLayout && !isFileType && field.type !== 'detail' && !isFormula && !isRate && !isDate && !isSpecialInput;
   const duplicateKey = flatFields.filter(f => f.key === field.key).length > 1;
   const patternError = regexError(field.pattern);
@@ -179,6 +203,26 @@ export default function FieldConfigPanel({
             <Typography.Text type="danger" size="small" style={{ display: 'block', marginBottom: 12 }}>
               字段 key 重复，运行时取值和联动可能异常，请复制字段或重新添加以生成唯一 key。
             </Typography.Text>
+          )}
+
+          {/* 字段标识(key)：提交数据键 + 公式/联动引用锚点，修改自动级联同步引用 */}
+          {supportsKeyEdit && (
+            <div className="fd-form-config__field">
+              <Typography.Text strong size="small">字段标识(key)</Typography.Text>
+              <Input
+                value={keyDraft}
+                onChange={setKeyDraft}
+                onBlur={commitKey}
+                onEnterPress={commitKey}
+                placeholder="字母开头，仅含字母/数字/下划线"
+                validateStatus={keyError ? 'error' : 'default'}
+              />
+              {keyError ? (
+                <Typography.Text type="danger" size="small">{keyError}</Typography.Text>
+              ) : (
+                <Typography.Text type="tertiary" size="small">用于提交数据与公式/联动引用；修改会自动同步所有引用</Typography.Text>
+              )}
+            </div>
           )}
 
           {/* 占位文字（非说明文字、流水号、布局类型、开关、滑块） */}

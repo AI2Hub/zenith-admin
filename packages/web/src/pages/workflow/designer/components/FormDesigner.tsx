@@ -7,7 +7,7 @@ import { Button, Tooltip, Modal, Toast, Typography } from '@douyinfe/semi-ui';
 import { Undo2, Redo2 } from 'lucide-react';
 import type { WorkflowFormField, WorkflowFormFieldType, WorkflowFormSettings } from '@zenith/shared';
 import { FORM_FIELD_TYPES } from '../form-types';
-import { findField, updateField, removeField, insertField, insertAfterKey, isDescendant, isContainerType, findFieldDependents, pruneFieldReferences, pruneCascadeMappings, type DropTarget } from '../form-tree';
+import { findField, updateField, removeField, insertField, insertAfterKey, isDescendant, isContainerType, findFieldDependents, pruneFieldReferences, pruneCascadeMappings, renameFieldKey, type DropTarget } from '../form-tree';
 import FieldPalette from './FieldPalette';
 import FormCanvas from './FormCanvas';
 import FieldConfigPanel from './FieldConfigPanel';
@@ -406,6 +406,13 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
     commit(next, `edit:${selectedKey}`);
   }, [fields, commit, selectedKey]);
 
+  // 重命名字段 key：级联更新所有引用并保持选中
+  const handleRenameKey = useCallback((newKey: string) => {
+    if (!selectedKey || newKey === selectedKey) return;
+    commit(renameFieldKey(fields, selectedKey, newKey));
+    setSelectedKey(newKey);
+  }, [fields, commit, selectedKey]);
+
   return (
     <div className="fd-form-designer-shell">
       {/* 顶部工具栏：撤销 / 重做（由外部工具栏接管时隐藏） */}
@@ -469,6 +476,7 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
                 field={selectedField}
                 allFields={fields}
                 onChange={handleFieldChange}
+                onRenameKey={handleRenameKey}
               />
             </>
           ) : (
