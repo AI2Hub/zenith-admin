@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AppModal } from '@/components/AppModal';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
-  Input, Button, Badge, Typography, Empty, Spin, Toast, Tooltip, Modal, Tag, Select, DatePicker, Dropdown, ImagePreview, Popover, Progress, Switch, TextArea,
+  Input, Button, Badge, Typography, Empty, Spin, Toast, Tooltip, Modal, Tag, Select, DatePicker, Dropdown, ImagePreview, Popover, Progress, Switch,
   List as SemiList,
 } from '@douyinfe/semi-ui';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';

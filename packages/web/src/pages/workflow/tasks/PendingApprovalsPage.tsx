@@ -88,7 +88,7 @@ export default function PendingApprovalsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize]);
+  }, [page, pageSize, setPage]);
 
   useEffect(() => {
     void fetchList();
