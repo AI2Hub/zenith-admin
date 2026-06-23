@@ -837,7 +837,7 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
           field={field.key} label={numberLabel} disabled
           initValue={field.defaultValue}
           placeholder="请填写依赖字段后自动计算"
-          extraText={field.formula ? `公式：${field.formula}` : helpText}
+          {...extraProps}
         />
       );
 
