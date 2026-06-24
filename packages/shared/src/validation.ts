@@ -2207,29 +2207,45 @@ export const updateMpFanSchema = z.object({
 export type UpdateMpFanInput = z.infer<typeof updateMpFanSchema>;
 
 // 公众号客服消息（发送文本）
+// 公众号客服消息（支持文本 / 图片 / 语音 / 视频 / 图文）
+export const MP_CUSTOM_MSG_TYPES = ['text', 'image', 'voice', 'video', 'news'] as const;
 export const sendMpMessageSchema = z.object({
   accountId: z.number().int().positive(),
   openid: z.string().min(1, '请选择粉丝').max(64),
-  content: z.string().min(1, '消息内容不能为空').max(2000),
-});
+  msgType: z.enum(MP_CUSTOM_MSG_TYPES).default('text'),
+  content: z.string().max(2000).optional(),
+  mediaId: z.string().max(128).optional(),
+})
+  .refine((d) => d.msgType !== 'text' || !!d.content, { message: '消息内容不能为空', path: ['content'] })
+  .refine((d) => d.msgType === 'text' || !!d.mediaId, { message: '请选择素材', path: ['mediaId'] });
 export type SendMpMessageInput = z.infer<typeof sendMpMessageSchema>;
 
 // 公众号自动回复
 export const MP_AUTO_REPLY_TYPES = ['subscribe', 'keyword', 'default'] as const;
+export const MP_REPLY_CONTENT_TYPES = ['text', 'image', 'voice', 'video', 'news'] as const;
+const mpReplyArticleSchema = z.object({
+  title: z.string().min(1, '标题不能为空').max(120),
+  description: z.string().max(300).optional(),
+  picUrl: z.string().max(1024).optional(),
+  url: z.string().min(1, '图文链接不能为空').max(1024),
+});
 const mpAutoReplyBase = z.object({
   accountId: z.number().int().positive(),
   replyType: z.enum(MP_AUTO_REPLY_TYPES),
   keyword: z.string().max(64).optional(),
   matchType: z.enum(['exact', 'contain']).default('contain'),
-  contentType: z.enum(['text', 'image']).default('text'),
+  contentType: z.enum(MP_REPLY_CONTENT_TYPES).default('text'),
   content: z.string().max(2000).optional(),
   mediaId: z.string().max(128).optional(),
+  newsArticles: z.array(mpReplyArticleSchema).max(8).optional(),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   sort: z.number().int().default(0),
 });
 export const createMpAutoReplySchema = mpAutoReplyBase
   .refine((d) => d.replyType !== 'keyword' || !!d.keyword, { message: '关键词回复必须填写关键词', path: ['keyword'] })
-  .refine((d) => d.contentType !== 'text' || !!d.content, { message: '请填写回复内容', path: ['content'] });
+  .refine((d) => d.contentType !== 'text' || !!d.content, { message: '请填写回复内容', path: ['content'] })
+  .refine((d) => !(['image', 'voice', 'video'] as string[]).includes(d.contentType) || !!d.mediaId, { message: '请选择素材', path: ['mediaId'] })
+  .refine((d) => d.contentType !== 'news' || (d.newsArticles?.length ?? 0) > 0, { message: '请至少添加一篇图文', path: ['newsArticles'] });
 export const updateMpAutoReplySchema = mpAutoReplyBase.omit({ accountId: true, replyType: true }).partial();
 export type CreateMpAutoReplyInput = z.infer<typeof createMpAutoReplySchema>;
 export type UpdateMpAutoReplyInput = z.infer<typeof updateMpAutoReplySchema>;
@@ -2243,6 +2259,7 @@ const mpMenuButtonSchema: z.ZodType<MpMenuButton> = z.lazy(() => z.object({
   appid: z.string().max(64).optional(),
   pagepath: z.string().max(256).optional(),
   media_id: z.string().max(128).optional(),
+  article_id: z.string().max(128).optional(),
   sub_button: z.array(mpMenuButtonSchema).max(5).optional(),
 }));
 export const saveMpMenuSchema = z.object({

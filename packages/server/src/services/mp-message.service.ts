@@ -7,7 +7,7 @@ import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { formatDateTime } from '../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
-import { sendCustomTextMessage, WechatApiError } from '../lib/wechat';
+import { sendCustomServiceMessage, WechatApiError } from '../lib/wechat';
 import type { SendMpMessageInput, MpMessageType, MpMessageDirection } from '@zenith/shared';
 
 export function mapMpMessage(row: MpMessageRow) {
@@ -94,22 +94,30 @@ export async function listConversations(accountId: number) {
     .sort((a, b) => (a.lastTime < b.lastTime ? 1 : -1));
 }
 
-/** 发送客服文本消息：调微信下发，成功后落库为出站消息 */
+/** 发送客服消息（文本/图片/语音/视频/图文）：调微信下发，成功后落库为出站消息 */
 export async function sendCustomMessage(input: SendMpMessageInput) {
   const account = await ensureMpAccountExists(input.accountId);
   const tenantId = currentCreateTenantId();
   try {
-    await sendCustomTextMessage(account, input.openid, input.content);
+    await sendCustomServiceMessage(account, input.openid, { msgType: input.msgType, content: input.content, mediaId: input.mediaId });
   } catch (err) {
     if (err instanceof WechatApiError) throw new HTTPException(400, { message: err.message });
     throw new HTTPException(502, { message: '调用微信接口失败，请检查网络或稍后重试' });
   }
+  // 出站落库（mp_messages 枚举无 news，图文记为 text 摘要）
+  const storedType: MpMessageType = input.msgType === 'news' ? 'text' : input.msgType;
+  const storedContent = input.msgType === 'text' ? (input.content ?? '')
+    : input.msgType === 'image' ? '[图片消息]'
+      : input.msgType === 'voice' ? '[语音消息]'
+        : input.msgType === 'video' ? (input.content ? `[视频] ${input.content}` : '[视频消息]')
+          : '[图文消息]';
   const [row] = await db.insert(mpMessages).values({
     accountId: input.accountId,
     openid: input.openid,
     direction: 'out',
-    msgType: 'text',
-    content: input.content,
+    msgType: storedType,
+    content: storedContent,
+    mediaId: input.msgType === 'text' ? null : (input.mediaId ?? null),
     status: 'sent',
     tenantId,
   }).returning();
@@ -168,13 +176,19 @@ export async function storeInboundMessage(p: InboundMessageParams): Promise<bool
 }
 
 /** 落库出站自动回复消息（由公开回调调用，无登录上下文）。 */
-export async function storeOutboundAutoReply(accountId: number, tenantId: number | null, openid: string, content: string): Promise<void> {
+export async function storeOutboundAutoReply(
+  accountId: number,
+  tenantId: number | null,
+  openid: string,
+  reply: { msgType?: MpMessageType; content: string; mediaId?: string | null },
+): Promise<void> {
   await db.insert(mpMessages).values({
     accountId,
     openid,
     direction: 'out',
-    msgType: 'text',
-    content,
+    msgType: reply.msgType ?? 'text',
+    content: reply.content,
+    mediaId: reply.mediaId ?? null,
     status: 'sent',
     tenantId,
   });

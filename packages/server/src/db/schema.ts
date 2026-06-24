@@ -3862,7 +3862,7 @@ export const mpMessagesRelations = relations(mpMessages, ({ one }) => ({
 // 公众号自动回复（关注回复 / 关键词回复 / 默认回复）
 export const mpAutoReplyTypeEnum = pgEnum('mp_auto_reply_type', ['subscribe', 'keyword', 'default']);
 export const mpAutoReplyMatchEnum = pgEnum('mp_auto_reply_match', ['exact', 'contain']);
-export const mpReplyContentTypeEnum = pgEnum('mp_reply_content_type', ['text', 'image']);
+export const mpReplyContentTypeEnum = pgEnum('mp_reply_content_type', ['text', 'image', 'voice', 'video', 'news']);
 
 export const mpAutoReplies = pgTable('mp_auto_replies', {
   id: serial('id').primaryKey(),
@@ -3873,10 +3873,12 @@ export const mpAutoReplies = pgTable('mp_auto_replies', {
   /** 匹配方式（仅 keyword）：exact=全匹配 contain=包含 */
   matchType: mpAutoReplyMatchEnum('match_type').notNull().default('contain'),
   contentType: mpReplyContentTypeEnum('content_type').notNull().default('text'),
-  /** 文本回复内容 */
+  /** 文本回复内容（也用于视频标题） */
   content: text('content'),
-  /** 图片回复素材 id（contentType=image） */
+  /** 图片/语音/视频回复素材 id（contentType=image/voice/video） */
   mediaId: varchar('media_id', { length: 128 }),
+  /** 图文回复文章列表（contentType=news） */
+  newsArticles: jsonb('news_articles').$type<{ title: string; description?: string; picUrl?: string; url: string }[]>(),
   status: statusEnum('status').notNull().default('enabled'),
   /** 关键词优先级（小在前） */
   sort: integer('sort').notNull().default(0),

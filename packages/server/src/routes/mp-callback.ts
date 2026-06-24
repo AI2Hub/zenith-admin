@@ -13,7 +13,7 @@ import { getMpAccountForCallback } from '../services/mp-account.service';
 import { storeInboundMessage, storeOutboundAutoReply } from '../services/mp-message.service';
 import { resolveAutoReply } from '../services/mp-auto-reply.service';
 import { incrementQrcodeScan } from '../services/mp-qrcode.service';
-import { verifyWechatSignature, msgSignature, timingSafeCompare, decryptWechatMessage, encryptWechatMessage, parseWechatXml, buildWechatXml } from '../lib/wechat';
+import { verifyWechatSignature, msgSignature, timingSafeCompare, decryptWechatMessage, encryptWechatMessage, parseWechatXml, buildWechatXml, buildPassiveReplyXml, summarizePassiveReply } from '../lib/wechat';
 import logger from '../lib/logger';
 import type { MpMessageType } from '@zenith/shared';
 
@@ -175,23 +175,24 @@ const receiveRoute = defineOpenAPIRoute({
 
     // 自动回复（构建/落库出站失败不影响入站已落库，返回 200 不重试）
     try {
-      let replyContent: string | null = null;
+      let reply: Awaited<ReturnType<typeof resolveAutoReply>> = null;
       if (msgType === 'event' && f.Event === 'subscribe') {
-        replyContent = await resolveAutoReply(accountId, { event: 'subscribe' });
+        reply = await resolveAutoReply(accountId, { event: 'subscribe' });
       } else if (msgType === 'text') {
-        replyContent = await resolveAutoReply(accountId, { text: f.Content ?? '' });
+        reply = await resolveAutoReply(accountId, { text: f.Content ?? '' });
       }
 
-      if (replyContent) {
+      if (reply) {
         // 仅首次落库出站回复；微信重试时仍返回被动回复，但不写重复记录
-        if (isNew) await storeOutboundAutoReply(accountId, account.tenantId, openid, replyContent);
-        const replyXml = buildWechatXml({
-          ToUserName: openid,
-          FromUserName: f.ToUserName ?? '',
-          CreateTime: Math.floor(Date.now() / 1000),
-          MsgType: 'text',
-          Content: replyContent,
-        });
+        if (isNew) {
+          const outType: MpMessageType = reply.contentType === 'news' ? 'text' : reply.contentType;
+          await storeOutboundAutoReply(accountId, account.tenantId, openid, {
+            msgType: outType,
+            content: summarizePassiveReply(reply),
+            mediaId: reply.mediaId,
+          });
+        }
+        const replyXml = buildPassiveReplyXml({ toUser: openid, fromUser: f.ToUserName ?? '' }, reply);
         if (encrypted && account.encodingAesKey) {
           const enc = encryptWechatMessage(account.encodingAesKey, account.appId, replyXml);
           const ts = timestamp ?? String(Math.floor(Date.now() / 1000));

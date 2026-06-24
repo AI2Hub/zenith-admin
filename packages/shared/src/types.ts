@@ -4309,7 +4309,14 @@ export interface MpConversation {
 
 export type MpAutoReplyType = 'subscribe' | 'keyword' | 'default';
 export type MpAutoReplyMatch = 'exact' | 'contain';
-export type MpReplyContentType = 'text' | 'image';
+export type MpReplyContentType = 'text' | 'image' | 'voice' | 'video' | 'news';
+
+export interface MpReplyArticle {
+  title: string;
+  description?: string;
+  picUrl?: string;
+  url: string;
+}
 
 export interface MpAutoReply {
   id: number;
@@ -4320,6 +4327,7 @@ export interface MpAutoReply {
   contentType: MpReplyContentType;
   content: string | null;
   mediaId: string | null;
+  newsArticles: MpReplyArticle[] | null;
   status: EntityStatus;
   sort: number;
   tenantId?: number | null;
@@ -4340,6 +4348,7 @@ export interface MpMenuButton {
   appid?: string;
   pagepath?: string;
   media_id?: string;
+  article_id?: string;
   sub_button?: MpMenuButton[];
 }
 

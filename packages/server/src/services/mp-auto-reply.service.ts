@@ -7,7 +7,7 @@ import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { formatDateTime } from '../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
-import type { CreateMpAutoReplyInput, UpdateMpAutoReplyInput, MpAutoReplyType } from '@zenith/shared';
+import type { CreateMpAutoReplyInput, UpdateMpAutoReplyInput, MpAutoReplyType, MpReplyContentType, MpReplyArticle } from '@zenith/shared';
 
 export function mapMpAutoReply(row: MpAutoReplyRow) {
   return {
@@ -19,6 +19,7 @@ export function mapMpAutoReply(row: MpAutoReplyRow) {
     contentType: row.contentType,
     content: row.content ?? null,
     mediaId: row.mediaId ?? null,
+    newsArticles: row.newsArticles ?? null,
     status: row.status,
     sort: row.sort,
     createdBy: row.createdBy ?? null,
@@ -90,18 +91,30 @@ export async function deleteMpAutoReply(id: number) {
   await db.delete(mpAutoReplies).where(eq(mpAutoReplies.id, id));
 }
 
+/** 回调匹配到的回复（含富媒体字段） */
+export interface ResolvedReply {
+  contentType: MpReplyContentType;
+  content: string | null;
+  mediaId: string | null;
+  newsArticles: MpReplyArticle[] | null;
+}
+
+function toResolved(row: MpAutoReplyRow): ResolvedReply {
+  return { contentType: row.contentType, content: row.content ?? null, mediaId: row.mediaId ?? null, newsArticles: row.newsArticles ?? null };
+}
+
 /**
  * 回调匹配自动回复（无登录上下文，按 accountId 过滤）。
  * - 关注事件 → 关注回复
  * - 文本消息 → 关键词回复（按 sort，exact/contain），未命中则默认回复
- * 返回回复文本，无匹配返回 null。
+ * 返回结构化回复（含富媒体），无匹配返回 null。
  */
-export async function resolveAutoReply(accountId: number, input: { event?: string; text?: string }): Promise<string | null> {
+export async function resolveAutoReply(accountId: number, input: { event?: string; text?: string }): Promise<ResolvedReply | null> {
   if (input.event === 'subscribe') {
-    const [r] = await db.select({ content: mpAutoReplies.content }).from(mpAutoReplies)
+    const [r] = await db.select().from(mpAutoReplies)
       .where(and(eq(mpAutoReplies.accountId, accountId), eq(mpAutoReplies.replyType, 'subscribe'), eq(mpAutoReplies.status, 'enabled')))
       .limit(1);
-    return r?.content ?? null;
+    return r ? toResolved(r) : null;
   }
   if (input.text != null) {
     const keywordReplies = await db.select().from(mpAutoReplies)
@@ -110,12 +123,12 @@ export async function resolveAutoReply(accountId: number, input: { event?: strin
     for (const r of keywordReplies) {
       if (!r.keyword) continue;
       const matched = r.matchType === 'exact' ? input.text === r.keyword : input.text.includes(r.keyword);
-      if (matched) return r.content ?? null;
+      if (matched) return toResolved(r);
     }
-    const [def] = await db.select({ content: mpAutoReplies.content }).from(mpAutoReplies)
+    const [def] = await db.select().from(mpAutoReplies)
       .where(and(eq(mpAutoReplies.accountId, accountId), eq(mpAutoReplies.replyType, 'default'), eq(mpAutoReplies.status, 'enabled')))
       .limit(1);
-    return def?.content ?? null;
+    return def ? toResolved(def) : null;
   }
   return null;
 }

@@ -1286,10 +1286,10 @@ export const SEED_MP_MESSAGES: MpMessage[] = [
 
 // ─── 公众号自动回复（示例）──────────────────────────────────────────────────────
 export const SEED_MP_AUTO_REPLIES: MpAutoReply[] = [
-  { id: 1, accountId: 1, replyType: 'subscribe', keyword: null,     matchType: 'contain', contentType: 'text', content: '欢迎关注 Zenith 公众号！回复「会员」了解会员权益。', mediaId: null, status: 'enabled', sort: 0, tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 2, accountId: 1, replyType: 'keyword',   keyword: '会员',   matchType: 'contain', contentType: 'text', content: '点击底部菜单「会员中心」即可开通会员～',           mediaId: null, status: 'enabled', sort: 1, tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 3, accountId: 1, replyType: 'keyword',   keyword: '优惠券', matchType: 'contain', contentType: 'text', content: '最新优惠券请在「会员中心-优惠券」查看。',           mediaId: null, status: 'enabled', sort: 2, tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 4, accountId: 1, replyType: 'default',   keyword: null,     matchType: 'contain', contentType: 'text', content: '感谢留言，我们会尽快回复您～',                       mediaId: null, status: 'enabled', sort: 0, tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1, accountId: 1, replyType: 'subscribe', keyword: null,     matchType: 'contain', contentType: 'text', content: '欢迎关注 Zenith 公众号！回复「会员」了解会员权益。', mediaId: null, newsArticles: null, status: 'enabled', sort: 0, tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2, accountId: 1, replyType: 'keyword',   keyword: '会员',   matchType: 'contain', contentType: 'text', content: '点击底部菜单「会员中心」即可开通会员～',           mediaId: null, newsArticles: null, status: 'enabled', sort: 1, tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 3, accountId: 1, replyType: 'keyword',   keyword: '优惠券', matchType: 'contain', contentType: 'news', content: null, mediaId: null, newsArticles: [{ title: '最新优惠券领取攻略', description: '点击查看本月可领取的优惠券与使用规则', picUrl: 'https://mmbiz.qpic.cn/demo/coupon.png', url: 'https://example.com/coupons' }], status: 'enabled', sort: 2, tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 4, accountId: 1, replyType: 'default',   keyword: null,     matchType: 'contain', contentType: 'text', content: '感谢留言，我们会尽快回复您～',                       mediaId: null, newsArticles: null, status: 'enabled', sort: 0, tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── 公众号自定义菜单（示例草稿）────────────────────────────────────────────────
