@@ -14,7 +14,7 @@ import Picker from '@emoji-mart/react';
 import {
   Search, MessageSquarePlus, Send, CornerDownLeft, RotateCcw, Smile, ImagePlus, MoreHorizontal,
   Pin, PinOff, Star, X, Paperclip, Bookmark, History, Forward, Trash2, BellOff, Images, AlertCircle,
-  ArrowLeft, ExternalLink, BarChart3, MessageSquare, Eye, Download, Mic, Bell, Phone, Video,
+  ArrowLeft, ExternalLink, BarChart3, MessageSquare, Eye, Download, Mic, Bell, Phone, Video, Compass,
 } from 'lucide-react';
 import { useWebSocket, sendWsMessage, useWsConnected } from '@/hooks/useWebSocket';
 import { useAuth } from '@/hooks/useAuth';
@@ -1952,7 +1952,13 @@ export default function ChatPage({
               <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', borderBottom: '1px solid var(--semi-color-border)' }}>
                 <Text type="tertiary" size="small">频道</Text>
-                <Button size="small" theme="borderless" onClick={openDiscover}>发现频道</Button>
+                <Tooltip content="发现频道">
+                  <Button
+                    size="small" theme="borderless" type="primary"
+                    icon={<Compass size={16} />}
+                    onClick={openDiscover}
+                  />
+                </Tooltip>
               </div>
               {channels.length > 0 && (
                 <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--semi-color-border)' }}>
