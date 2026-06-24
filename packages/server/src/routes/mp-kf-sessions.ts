@@ -7,15 +7,15 @@ import {
 } from '../lib/openapi-schemas';
 import {
   acceptMpKfSessionSchema, transferMpKfSessionSchema, closeMpKfSessionSchema,
-  replyMpKfSessionSchema, updateMpKfRoutingConfigSchema,
+  replyMpKfSessionSchema, updateMpKfRoutingConfigSchema, rateMpKfSessionSchema,
 } from '@zenith/shared';
 import {
-  MpKfSessionDTO, MpKfSessionDetailDTO, MpKfRoutingConfigDTO, MpKfSessionStatsDTO,
+  MpKfSessionDTO, MpKfSessionDetailDTO, MpKfRoutingConfigDTO, MpKfSessionStatsDTO, MpKfSessionReportDTO,
 } from '../lib/openapi-dtos';
 import {
   listMpKfSessions, getMpKfSessionDetail, getMpKfSessionStats,
   acceptMpKfSession, transferMpKfSession, closeMpKfSession, replyMpKfSession,
-  getMpKfRoutingConfig, updateMpKfRoutingConfig,
+  getMpKfRoutingConfig, updateMpKfRoutingConfig, rateMpKfSession, getMpKfSessionReport,
 } from '../services/mp-kf-session.service';
 
 const mpKfSessionRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -128,9 +128,31 @@ const replyRoute = defineOpenAPIRoute({
   handler: async (c) => c.json(okBody(await replyMpKfSession(c.req.valid('param').id, c.req.valid('json')), '已发送'), 200),
 });
 
+const reportRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/report', tags: ['公众号多客服会话'], summary: '会话数据报表（近 N 天）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'mp:kf:session:list' })] as const,
+    request: { query: accountIdQuery.extend({ days: z.coerce.number().int().min(1).max(31).default(7) }) },
+    responses: { ...commonErrorResponses, ...ok(z.array(MpKfSessionReportDTO), '会话报表') },
+  }),
+  handler: async (c) => { const q = c.req.valid('query'); return c.json(okBody(await getMpKfSessionReport(q.accountId, q.days)), 200); },
+});
+
+const rateRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/rate', tags: ['公众号多客服会话'], summary: '记录会话满意度',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'mp:kf:session:close', audit: { description: '会话满意度评分', module: '公众号多客服会话' } })] as const,
+    request: { params: IdParam, body: { content: jsonContent(rateMpKfSessionSchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(MpKfSessionDTO, '已记录') },
+  }),
+  handler: async (c) => { const { id } = c.req.valid('param'); const b = c.req.valid('json'); return c.json(okBody(await rateMpKfSession(id, b.rating, b.remark), '已记录'), 200); },
+});
+
 mpKfSessionRouter.openapiRoutes([
-  listRoute, statsRoute, getConfigRoute, updateConfigRoute, detailRoute,
-  acceptRoute, transferRoute, closeRoute, replyRoute,
+  listRoute, statsRoute, reportRoute, getConfigRoute, updateConfigRoute, detailRoute,
+  acceptRoute, transferRoute, closeRoute, replyRoute, rateRoute,
 ] as const);
 
 export default mpKfSessionRouter;

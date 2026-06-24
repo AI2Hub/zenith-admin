@@ -467,6 +467,7 @@ export const MpKfSessionStatsDTO = z
     active: z.number().int(),
     closedToday: z.number().int(),
     avgWaitSeconds: z.number().int(),
+    avgRating: z.number(),
     agents: z.array(z.object({
       kfId: z.number().int(),
       kfAccount: z.string(),
@@ -476,3 +477,13 @@ export const MpKfSessionStatsDTO = z
     })),
   })
   .openapi('MpKfSessionStats');
+
+export const MpKfSessionReportDTO = z
+  .object({
+    date: z.string(),
+    created: z.number().int(),
+    closed: z.number().int(),
+    avgWaitSeconds: z.number().int(),
+    avgRating: z.number(),
+  })
+  .openapi('MpKfSessionReport');
