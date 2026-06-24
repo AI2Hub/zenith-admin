@@ -4,7 +4,7 @@
  */
 import type { WorkflowFormField, WorkflowFormFieldType } from '@zenith/shared';
 import { flattenAllFields, formulaReferencesKey } from './form-tree';
-import { evalFormula } from './components/WorkflowFormRenderer';
+import { evalFormula } from './form-formula';
 
 export interface FormIssue {
   level: 'error' | 'warning';
