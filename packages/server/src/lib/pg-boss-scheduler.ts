@@ -101,6 +101,12 @@ handlerRegistry.set('processWorkflowTaskTimeouts', async () => {
   return `扫描 ${r.processed} 个超时任务：提醒 ${r.reminded}，自动通过 ${r.approved}，自动拒绝 ${r.rejected}，升级转交 ${r.escalated}`;
 });
 
+handlerRegistry.set('recoverStuckWorkflowSubProcesses', async () => {
+  const { recoverStuckSubProcesses } = await import('./workflow-subprocess-recovery');
+  const r = await recoverStuckSubProcesses();
+  return `子流程恢复扫描：重新发起 ${r.spawned} 个、重新唤醒 ${r.resumed} 个挂起父任务`;
+});
+
 handlerRegistry.set('publishScheduledAnnouncements', async () => {
   const { publishScheduledAnnouncements } = await import('../services/announcements.service');
   const count = await publishScheduledAnnouncements();

@@ -828,7 +828,7 @@ async function handleMultiChildSettled(
 /**
  * 子流程节点的统一发起入口：在任务创建后调用，自动区分同步 / 异步、单 / 多实例。
  */
-async function maybeSpawnSubProcessChild(
+export async function maybeSpawnSubProcessChild(
   instance: typeof workflowInstances.$inferSelect,
   task: typeof workflowTasks.$inferSelect,
   actor: WorkflowEventActor,
@@ -902,13 +902,16 @@ export async function resumeParentSubProcess(
   if (!childInst.parentInstanceId || !childInst.parentTaskId) return;
   const [parentTask] = await db.select().from(workflowTasks).where(eq(workflowTasks.id, childInst.parentTaskId)).limit(1);
   if (!parentTask) return;
+  const [parentInst] = await db.select().from(workflowInstances).where(eq(workflowInstances.id, childInst.parentInstanceId)).limit(1);
+  if (!parentInst) return;
+  // 异步（fire-and-forget）子流程：父流程在 fork 时已越过该节点，子实例结束不应再次推进父任务，否则会重复展开下游。
+  const parentNodeCfg = snapshotNodeCfg(parentInst, parentTask.nodeKey);
+  if (parentNodeCfg?.subProcessWaitChild === false) return;
   if (parentTask.subTotal != null) {
     // 多实例：走汇聚处理
     await handleMultiChildSettled(childInst, outcome, actor);
     return;
   }
-  const [parentInst] = await db.select().from(workflowInstances).where(eq(workflowInstances.id, childInst.parentInstanceId)).limit(1);
-  if (!parentInst) return;
   await applySubProcessOutputAndResume(parentInst, parentTask, childInst, outcome, actor);
 }
 
