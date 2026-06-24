@@ -10,6 +10,7 @@ export const mpFansHandlers = [
     const keyword = url.searchParams.get('keyword') ?? '';
     const subscribe = url.searchParams.get('subscribe') ?? '';
     const tagId = url.searchParams.get('tagId');
+    const blacklisted = url.searchParams.get('blacklisted');
     const page = Number(url.searchParams.get('page') ?? '1');
     const pageSize = Number(url.searchParams.get('pageSize') ?? '20');
     const filtered = mockMpFans.filter((f) => {
@@ -17,6 +18,7 @@ export const mpFansHandlers = [
       if (keyword && !(f.nickname ?? '').includes(keyword) && !f.openid.includes(keyword) && !(f.remark ?? '').includes(keyword)) return false;
       if (subscribe && f.subscribe !== subscribe) return false;
       if (tagId && !f.tagIds.includes(Number(tagId))) return false;
+      if (blacklisted && f.blacklisted !== (blacklisted === 'true')) return false;
       return true;
     });
     const total = filtered.length;
@@ -28,6 +30,24 @@ export const mpFansHandlers = [
   http.post('/api/mp/fans/sync', async ({ request }) => {
     const body = await request.json() as { accountId: number };
     const count = mockMpFans.filter((f) => f.accountId === body.accountId).length;
+    return HttpResponse.json({ code: 0, message: '同步完成', data: { success: true, synced: count, total: count } });
+  }),
+
+  http.post('/api/mp/fans/blacklist', async ({ request }) => {
+    const body = await request.json() as { accountId: number; openids: string[] };
+    for (const f of mockMpFans) if (f.accountId === body.accountId && body.openids.includes(f.openid)) f.blacklisted = true;
+    return HttpResponse.json({ code: 0, message: '已拉黑', data: { success: true, count: body.openids.length } });
+  }),
+
+  http.post('/api/mp/fans/unblacklist', async ({ request }) => {
+    const body = await request.json() as { accountId: number; openids: string[] };
+    for (const f of mockMpFans) if (f.accountId === body.accountId && body.openids.includes(f.openid)) f.blacklisted = false;
+    return HttpResponse.json({ code: 0, message: '已移出', data: { success: true, count: body.openids.length } });
+  }),
+
+  http.post('/api/mp/fans/sync-blacklist', async ({ request }) => {
+    const body = await request.json() as { accountId: number };
+    const count = mockMpFans.filter((f) => f.accountId === body.accountId && f.blacklisted).length;
     return HttpResponse.json({ code: 0, message: '同步完成', data: { success: true, synced: count, total: count } });
   }),
 
