@@ -1414,6 +1414,68 @@ export const publishChannelSchema = z.object({
 });
 export type PublishChannelInput = z.infer<typeof publishChannelSchema>;
 
+/** 用户向运营号发送一条消息 */
+export const sendChannelMessageSchema = z.object({
+  content: z.string().min(1, '内容不能为空').max(2000),
+});
+export type SendChannelMessageInput = z.infer<typeof sendChannelMessageSchema>;
+
+/** 客服回复用户 */
+export const channelReplySchema = z.object({
+  content: z.string().min(1, '回复内容不能为空').max(2000),
+});
+export type ChannelReplyInput = z.infer<typeof channelReplySchema>;
+
+/** 公众号底部菜单 —— 单个菜单节点 */
+const channelMenuNodeSchema = z.object({
+  name: z.string().min(1, '菜单名称不能为空').max(32),
+  type: z.enum(['click', 'view']).default('click'),
+  value: z.string().max(500).nullable().optional(),
+  children: z
+    .array(
+      z.object({
+        name: z.string().min(1, '子菜单名称不能为空').max(32),
+        type: z.enum(['click', 'view']).default('click'),
+        value: z.string().max(500).nullable().optional(),
+      }),
+    )
+    .max(5, '每个一级菜单最多 5 个子菜单')
+    .optional(),
+});
+
+/** 批量保存公众号底部菜单（整体替换） */
+export const saveChannelMenusSchema = z.object({
+  menus: z.array(channelMenuNodeSchema).max(3, '最多 3 个一级菜单'),
+});
+export type SaveChannelMenusInput = z.infer<typeof saveChannelMenusSchema>;
+
+/** 新建频道自动回复规则 */
+export const createChannelAutoReplySchema = z
+  .object({
+    matchType: z.enum(['subscribe', 'keyword', 'default']),
+    keyword: z.string().max(100).nullable().optional(),
+    keywordMode: z.enum(['exact', 'contains']).default('contains'),
+    replyContent: z.string().min(1, '回复内容不能为空'),
+    status: z.enum(['enabled', 'disabled']).default('enabled'),
+    sort: z.number().int().min(0).default(0),
+  })
+  .refine((v) => v.matchType !== 'keyword' || (v.keyword != null && v.keyword.trim().length > 0), {
+    message: '关键词回复必须填写关键词',
+    path: ['keyword'],
+  });
+export type CreateChannelAutoReplyInput = z.infer<typeof createChannelAutoReplySchema>;
+
+/** 更新频道自动回复规则 */
+export const updateChannelAutoReplySchema = z
+  .object({
+    keyword: z.string().max(100).nullable().optional(),
+    keywordMode: z.enum(['exact', 'contains']).optional(),
+    replyContent: z.string().min(1).optional(),
+    status: z.enum(['enabled', 'disabled']).optional(),
+    sort: z.number().int().min(0).optional(),
+  });
+export type UpdateChannelAutoReplyInput = z.infer<typeof updateChannelAutoReplySchema>;
+
 // ── 通话记录（结束后写入会话系统消息）──
 export const chatCallRecordSchema = z.object({
   callType: z.enum(['audio', 'video']),

@@ -247,8 +247,28 @@ export const CHECKIN_MILESTONE_REWARD_TYPE_LABELS: Record<typeof CHECKIN_MILESTO
 export const CHANNEL_TYPES = ['system', 'business'] as const;
 export const CHANNEL_AUDIENCE_TYPES = ['broadcast', 'targeted'] as const;
 export const CHANNEL_MESSAGE_TYPES = ['text', 'card'] as const;
+export const CHANNEL_MESSAGE_DIRECTIONS = ['out', 'in'] as const;
+export const CHANNEL_MENU_TYPES = ['click', 'view'] as const;
+export const CHANNEL_AUTO_REPLY_MATCH_TYPES = ['subscribe', 'keyword', 'default'] as const;
+export const CHANNEL_AUTO_REPLY_KEYWORD_MODES = ['exact', 'contains'] as const;
 /** 内置「Zenith 助手」系统号 code（全局唯一、内置不可删、全员订阅） */
 export const SYSTEM_CHANNEL_CODE = 'system-assistant';
+
+export const CHANNEL_MENU_TYPE_LABELS: Record<(typeof CHANNEL_MENU_TYPES)[number], string> = {
+  click: '点击关键词',
+  view: '跳转链接',
+};
+
+export const CHANNEL_AUTO_REPLY_MATCH_LABELS: Record<(typeof CHANNEL_AUTO_REPLY_MATCH_TYPES)[number], string> = {
+  subscribe: '关注欢迎语',
+  keyword: '关键词回复',
+  default: '默认兜底回复',
+};
+
+export const CHANNEL_AUTO_REPLY_KEYWORD_MODE_LABELS: Record<(typeof CHANNEL_AUTO_REPLY_KEYWORD_MODES)[number], string> = {
+  exact: '完全匹配',
+  contains: '包含匹配',
+};
 
 export const MEMBER_STATUS_LABELS: Record<MemberStatus, string> = {
   active: '正常',

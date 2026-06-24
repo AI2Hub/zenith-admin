@@ -14,6 +14,9 @@ export const ChannelMessageDTO = z
     content: z.string(),
     extra: ChatMessageExtraDTO.nullable().optional(),
     publishedById: z.number().int().nullable(),
+    direction: z.enum(['out', 'in']),
+    senderUserId: z.number().int().nullable(),
+    senderUserName: z.string().nullable(),
     isRead: z.boolean(),
     createdAt: z.string(),
   })
@@ -55,3 +58,58 @@ export const ChannelAdminDTO = z
     updatedAt: z.string(),
   })
   .openapi('ChannelAdmin');
+
+// ─── 第三期 2D：菜单 / 自动回复 / 会话 ─────────────────────────────────────────
+
+const ChannelMenuNodeDTO = z.object({
+  id: z.number().int(),
+  channelId: z.number().int(),
+  parentId: z.number().int().nullable(),
+  name: z.string(),
+  type: z.enum(['click', 'view']),
+  value: z.string().nullable(),
+  sort: z.number().int(),
+});
+
+export const ChannelMenuDTO = ChannelMenuNodeDTO
+  .extend({
+    children: z.array(ChannelMenuNodeDTO).optional(),
+  })
+  .openapi('ChannelMenu');
+
+export const ChannelAutoReplyDTO = z
+  .object({
+    id: z.number().int(),
+    channelId: z.number().int(),
+    matchType: z.enum(['subscribe', 'keyword', 'default']),
+    keyword: z.string().nullable(),
+    keywordMode: z.enum(['exact', 'contains']),
+    replyContent: z.string(),
+    status: z.enum(['enabled', 'disabled']),
+    sort: z.number().int(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('ChannelAutoReply');
+
+export const ChannelConversationDTO = z
+  .object({
+    channelId: z.number().int(),
+    userId: z.number().int(),
+    userName: z.string(),
+    userAvatar: z.string().nullable(),
+    lastMessage: z.string(),
+    lastDirection: z.enum(['out', 'in']),
+    lastMessageAt: z.string(),
+    unreadCount: z.number().int(),
+    messageCount: z.number().int(),
+  })
+  .openapi('ChannelConversation');
+
+export const ChannelCsChannelDTO = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    avatar: z.string().nullable(),
+  })
+  .openapi('ChannelCsChannel');

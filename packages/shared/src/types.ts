@@ -2898,6 +2898,14 @@ export interface ChatWebhook {
 export type ChannelType = 'system' | 'business';
 export type ChannelAudienceType = 'broadcast' | 'targeted';
 export type ChannelMessageType = 'text' | 'card';
+/** 消息方向：out=频道→用户（群发/客服/自动回复）；in=用户→频道（用户主动发送） */
+export type ChannelMessageDirection = 'out' | 'in';
+/** 公众号底部菜单类型：click=点击触发关键词；view=跳转链接 */
+export type ChannelMenuType = 'click' | 'view';
+/** 自动回复匹配类型：subscribe=关注欢迎语；keyword=关键词；default=兜底 */
+export type ChannelAutoReplyMatchType = 'subscribe' | 'keyword' | 'default';
+/** 关键词匹配模式：exact=完全匹配；contains=包含 */
+export type ChannelAutoReplyKeywordMode = 'exact' | 'contains';
 
 /** 频道内一条消息（卡片复用 ChatMessageExtra.card / 身份用 extra.bot） */
 export interface ChannelMessage {
@@ -2909,9 +2917,60 @@ export interface ChannelMessage {
   content: string;
   extra: ChatMessageExtra | null;
   publishedById: number | null;
+  /** 消息方向（双向客服） */
+  direction: ChannelMessageDirection;
+  /** in 消息=发送用户；out 客服回复=客服用户；自动回复/群发为 null */
+  senderUserId: number | null;
+  /** 发送者展示名（in=用户昵称，out 客服=客服昵称） */
+  senderUserName: string | null;
   /** 当前用户视角是否已读 */
   isRead: boolean;
   createdAt: string;
+}
+
+/** 公众号底部菜单节点（最多 3 个一级，每个一级下最多 5 个二级） */
+export interface ChannelMenu {
+  id: number;
+  channelId: number;
+  parentId: number | null;
+  name: string;
+  type: ChannelMenuType;
+  /** click=关键词文案；view=跳转 URL；含子菜单的一级菜单可为空 */
+  value: string | null;
+  sort: number;
+  children?: ChannelMenu[];
+}
+
+/** 频道自动回复规则 */
+export interface ChannelAutoReply {
+  id: number;
+  channelId: number;
+  matchType: ChannelAutoReplyMatchType;
+  /** 关键词（matchType=keyword 时必填） */
+  keyword: string | null;
+  keywordMode: ChannelAutoReplyKeywordMode;
+  replyContent: string;
+  status: EntityStatus;
+  sort: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 客服工作台中的一条会话（按用户聚合） */
+export interface ChannelConversation {
+  channelId: number;
+  userId: number;
+  userName: string;
+  userAvatar: string | null;
+  /** 最近一条消息内容预览 */
+  lastMessage: string;
+  /** 最近一条消息方向 */
+  lastDirection: ChannelMessageDirection;
+  lastMessageAt: string;
+  /** 待客服回复的用户消息数（最近一条客服回复之后的用户消息） */
+  unreadCount: number;
+  /** 会话内消息总数 */
+  messageCount: number;
 }
 
 /** 公众号 / 系统号（在聊天会话列表中以只读频道形式呈现） */

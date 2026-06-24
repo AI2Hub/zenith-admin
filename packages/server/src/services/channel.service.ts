@@ -22,6 +22,7 @@ import { currentUser } from '../lib/context';
 import { formatDateTime } from '../lib/datetime';
 import { pageOffset } from '../lib/pagination';
 import { scheduleSendToUsers } from '../lib/ws-manager';
+import { handleSubscribeAutoReply } from './channel-cs.service';
 
 interface PublishInput {
   type: ChannelMessageType;
@@ -31,7 +32,7 @@ interface PublishInput {
   publishedById?: number | null;
 }
 
-function mapChannelMessage(row: ChannelMessageRow, isRead: boolean): ChannelMessage {
+export function mapChannelMessage(row: ChannelMessageRow, isRead: boolean, senderUserName: string | null = null): ChannelMessage {
   return {
     id: row.id,
     channelId: row.channelId,
@@ -41,17 +42,21 @@ function mapChannelMessage(row: ChannelMessageRow, isRead: boolean): ChannelMess
     content: row.content,
     extra: (row.extra as ChatMessageExtra | null) ?? null,
     publishedById: row.publishedById,
+    direction: row.direction,
+    senderUserId: row.senderUserId,
+    senderUserName,
     isRead,
     createdAt: formatDateTime(row.createdAt),
   };
 }
 
-/** 当前用户对某频道可见消息的 WHERE 条件（broadcast 全员 ∪ targeted 命中本人） */
+/** 当前用户对某频道可见消息的 WHERE 条件（broadcast 全员 ∪ targeted 命中本人 ∪ 本人发出的 in 消息） */
 function visibleMessageWhere(channelId: number, userId: number) {
   return and(
     eq(channelMessages.channelId, channelId),
     or(
       eq(channelMessages.audienceType, 'broadcast'),
+      and(eq(channelMessages.direction, 'in'), eq(channelMessages.senderUserId, userId)),
       exists(
         db.select({ x: sql`1` }).from(channelMessageTargets).where(and(
           eq(channelMessageTargets.messageId, channelMessages.id),
@@ -381,7 +386,14 @@ export async function subscribeChannel(channelId: number): Promise<void> {
   const ch = await db.query.channels.findFirst({ where: eq(channels.id, channelId) });
   if (!ch) throw new HTTPException(404, { message: '频道不存在' });
   if (ch.type === 'system') throw new HTTPException(400, { message: '系统号默认全员订阅，无需操作' });
-  await db.insert(channelSubscriptions).values({ channelId, userId: me, lastReadAt: null }).onConflictDoNothing();
+  const inserted = await db.insert(channelSubscriptions)
+    .values({ channelId, userId: me, lastReadAt: null })
+    .onConflictDoNothing()
+    .returning({ channelId: channelSubscriptions.channelId });
+  // 仅首次订阅时触发「关注欢迎语」自动回复
+  if (inserted.length > 0) {
+    await handleSubscribeAutoReply(channelId, me);
+  }
 }
 
 export async function unsubscribeChannel(channelId: number): Promise<void> {

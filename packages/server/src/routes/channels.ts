@@ -5,15 +5,46 @@ import {
   jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg,
   IdParam, PaginationQuery, okBody,
 } from '../lib/openapi-schemas';
-import { createChannelSchema, updateChannelSchema, publishChannelSchema } from '@zenith/shared';
-import { ChannelDTO, ChannelMessageDTO, ChannelAdminDTO } from '../lib/openapi-dtos';
+import {
+  createChannelSchema, updateChannelSchema, publishChannelSchema,
+  sendChannelMessageSchema, channelReplySchema, saveChannelMenusSchema,
+  createChannelAutoReplySchema, updateChannelAutoReplySchema,
+} from '@zenith/shared';
+import {
+  ChannelDTO, ChannelMessageDTO, ChannelAdminDTO,
+  ChannelMenuDTO, ChannelAutoReplyDTO, ChannelConversationDTO, ChannelCsChannelDTO,
+} from '../lib/openapi-dtos';
 import {
   listMyChannels, listChannelMessages, markChannelRead,
   listChannelsAdmin, createChannel, updateChannel, deleteChannel, publishToChannel,
   subscribeChannel, unsubscribeChannel, listDiscoverableChannels,
 } from '../services/channel.service';
+import {
+  getChannelMenus, saveChannelMenus,
+  listChannelAutoReplies, createChannelAutoReply, updateChannelAutoReply, deleteChannelAutoReply,
+  sendUserMessage, replyAsAgent,
+  listCsChannels, listChannelConversations, listConversationMessages,
+} from '../services/channel-cs.service';
 
 const channelsRoute = new OpenAPIHono({ defaultHook: validationHook });
+
+/** 自动回复路由的双路径参数（channelId + replyId） */
+const AutoReplyIdParams = z.object({
+  channelId: z.coerce.number().int().positive().openapi({ param: { name: 'channelId', in: 'path' }, example: 1 }),
+  replyId: z.coerce.number().int().positive().openapi({ param: { name: 'replyId', in: 'path' }, example: 1 }),
+});
+
+/** 客服会话路由的双路径参数（channelId=id + 用户 userId） */
+const CsConversationParams = z.object({
+  id: z.coerce.number().int().positive().openapi({ param: { name: 'id', in: 'path' }, example: 1 }),
+  userId: z.coerce.number().int().positive().openapi({ param: { name: 'userId', in: 'path' }, example: 1 }),
+});
+
+/** 用户发送消息结果（用户消息 + 命中的自动回复） */
+const SendMessageResultDTO = z.object({
+  message: ChannelMessageDTO,
+  autoReply: ChannelMessageDTO.nullable(),
+});
 
 const listMine = defineOpenAPIRoute({
   route: createRoute({
@@ -167,6 +198,173 @@ const unsubscribe = defineOpenAPIRoute({
   },
 });
 
-channelsRoute.openapiRoutes([listMine, listMessages, read, adminList, create, update, remove, publish, discoverable, subscribe, unsubscribe] as const);
+// ─── 双向消息（用户侧） ───────────────────────────────────────────────────────
+
+const sendMessage = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/send', tags: ['Channels'], summary: '用户向运营号发送消息',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: { params: IdParam, body: { content: jsonContent(sendChannelMessageSchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(SendMessageResultDTO, '已发送') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const { content } = c.req.valid('json');
+    return c.json(okBody(await sendUserMessage(id, content), '已发送'), 200);
+  },
+});
+
+// ─── 公众号底部菜单 ───────────────────────────────────────────────────────────
+
+const listMenus = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/menus', tags: ['Channels'], summary: '频道底部菜单（订阅用户 / 管理共用）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...ok(z.array(ChannelMenuDTO), '菜单树') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await getChannelMenus(id)), 200);
+  },
+});
+
+const saveMenus = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/{id}/menus', tags: ['Channels'], summary: '保存频道底部菜单（整体替换）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:menu:save', audit: { description: '保存频道菜单', module: '消息中心' } })] as const,
+    request: { params: IdParam, body: { content: jsonContent(saveChannelMenusSchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(z.array(ChannelMenuDTO), '保存成功') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await saveChannelMenus(id, c.req.valid('json')), '保存成功'), 200);
+  },
+});
+
+// ─── 自动回复 ─────────────────────────────────────────────────────────────────
+
+const listAutoReplies = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/auto-replies', tags: ['Channels'], summary: '频道自动回复列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:reply:list' })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...ok(z.array(ChannelAutoReplyDTO), '自动回复列表') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await listChannelAutoReplies(id)), 200);
+  },
+});
+
+const createAutoReply = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/auto-replies', tags: ['Channels'], summary: '新建自动回复规则',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:reply:save', audit: { description: '新建自动回复', module: '消息中心' } })] as const,
+    request: { params: IdParam, body: { content: jsonContent(createChannelAutoReplySchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(ChannelAutoReplyDTO, '创建成功') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await createChannelAutoReply(id, c.req.valid('json')), '创建成功'), 200);
+  },
+});
+
+const updateAutoReply = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/{channelId}/auto-replies/{replyId}', tags: ['Channels'], summary: '编辑自动回复规则',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:reply:save', audit: { description: '编辑自动回复', module: '消息中心' } })] as const,
+    request: { params: AutoReplyIdParams, body: { content: jsonContent(updateChannelAutoReplySchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(ChannelAutoReplyDTO, '更新成功') },
+  }),
+  handler: async (c) => {
+    const { replyId } = c.req.valid('param');
+    return c.json(okBody(await updateChannelAutoReply(replyId, c.req.valid('json')), '更新成功'), 200);
+  },
+});
+
+const removeAutoReply = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/{channelId}/auto-replies/{replyId}', tags: ['Channels'], summary: '删除自动回复规则',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:reply:delete', audit: { description: '删除自动回复', module: '消息中心' } })] as const,
+    request: { params: AutoReplyIdParams },
+    responses: { ...commonErrorResponses, ...okMsg('删除成功') },
+  }),
+  handler: async (c) => {
+    const { replyId } = c.req.valid('param');
+    await deleteChannelAutoReply(replyId);
+    return c.json(okBody(null, '删除成功'), 200);
+  },
+});
+
+// ─── 客服工作台 ───────────────────────────────────────────────────────────────
+
+const csChannels = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/cs/channels', tags: ['Channels'], summary: '客服可服务的运营号列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:cs' })] as const,
+    responses: { ...commonErrorResponses, ...ok(z.array(ChannelCsChannelDTO), '运营号列表') },
+  }),
+  handler: async (c) => c.json(okBody(await listCsChannels()), 200),
+});
+
+const csConversations = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/cs/{id}/conversations', tags: ['Channels'], summary: '客服会话列表（按用户聚合）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:cs' })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...ok(z.array(ChannelConversationDTO), '会话列表') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await listChannelConversations(id)), 200);
+  },
+});
+
+const csMessages = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/cs/{id}/conversations/{userId}/messages', tags: ['Channels'], summary: '会话双向消息流（分页）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:cs' })] as const,
+    request: { params: CsConversationParams, query: PaginationQuery },
+    responses: { ...commonErrorResponses, ...okPaginated(ChannelMessageDTO, '消息列表') },
+  }),
+  handler: async (c) => {
+    const { id, userId } = c.req.valid('param');
+    const { page, pageSize } = c.req.valid('query');
+    return c.json(okBody(await listConversationMessages(id, userId, page, pageSize)), 200);
+  },
+});
+
+const csReply = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/cs/{id}/conversations/{userId}/reply', tags: ['Channels'], summary: '客服回复用户',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:cs', audit: { description: '客服回复', module: '消息中心' } })] as const,
+    request: { params: CsConversationParams, body: { content: jsonContent(channelReplySchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(ChannelMessageDTO, '已回复') },
+  }),
+  handler: async (c) => {
+    const { id, userId } = c.req.valid('param');
+    const { content } = c.req.valid('json');
+    return c.json(okBody(await replyAsAgent(id, userId, content), '已回复'), 200);
+  },
+});
+
+channelsRoute.openapiRoutes([
+  listMine, listMessages, read, adminList, create, update, remove, publish, discoverable, subscribe, unsubscribe,
+  sendMessage, listMenus, saveMenus,
+  listAutoReplies, createAutoReply, updateAutoReply, removeAutoReply,
+  csChannels, csConversations, csMessages, csReply,
+] as const);
 
 export default channelsRoute;
