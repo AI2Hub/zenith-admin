@@ -30,7 +30,6 @@ import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowF
 import WorkflowInstanceDetailPanel from '@/components/workflow/WorkflowInstanceDetailPanel';
 import BusinessFormHost, { type WorkflowBusinessFormApi } from '@/components/workflow/BusinessFormHost';
 import WorkflowGraphView from '@/components/workflow/WorkflowGraphView';
-import WorkflowNodeListView from '@/components/workflow/WorkflowNodeListView';
 import WorkflowApproverPreview from '@/components/workflow/WorkflowApproverPreview';
 import WorkflowPriorityTag, { WORKFLOW_PRIORITY_OPTIONS } from '@/components/workflow/WorkflowPriorityTag';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
@@ -948,7 +947,7 @@ export default function MyApplicationsPage() {
         {selectedDef && (
           <div style={{ marginTop: 16, borderTop: '1px solid var(--semi-color-border)', paddingTop: 12 }}>
             <Tabs type="line" defaultActiveKey="form">
-              <TabPane tab="填写表单" itemKey="form">
+              <TabPane tab="表单" itemKey="form">
                 {selectedDef.formType === 'custom' ? (
                   <BusinessFormHost
                     key={`biz-${formKey}-${selectedDef.id}`}
@@ -972,7 +971,7 @@ export default function MyApplicationsPage() {
                   <Typography.Text type="tertiary">该流程未配置表单字段</Typography.Text>
                 )}
               </TabPane>
-              <TabPane tab="审批链路" itemKey="chain">
+              <TabPane tab="审批流程" itemKey="chain">
                 <WorkflowApproverPreview
                   definitionId={selectedDef.id}
                 getFormData={() => (
@@ -982,11 +981,8 @@ export default function MyApplicationsPage() {
                 )}
                 />
               </TabPane>
-              <TabPane tab="流程图预览" itemKey="graph">
+              <TabPane tab="流程图" itemKey="graph">
                 <WorkflowGraphView flowData={selectedDef.flowData} />
-              </TabPane>
-              <TabPane tab="节点详情" itemKey="nodes">
-                <WorkflowNodeListView flowData={selectedDef.flowData} initiator={user ? { name: user.nickname, avatar: user.avatar } : undefined} />
               </TabPane>
             </Tabs>
           </div>

@@ -16,7 +16,7 @@ import { formatDateTime } from '@/utils/date';
 import ApprovalTimeline from '@/components/ApprovalTimeline';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import BusinessFormHost from '@/components/workflow/BusinessFormHost';
-import WorkflowFlowTab from './WorkflowFlowTab';
+import WorkflowGraphView from './WorkflowGraphView';
 import {
   resolveWorkflowCustomForm,
   resolveWorkflowDetailDefinition,
@@ -292,22 +292,17 @@ export default function WorkflowInstanceDetailPanel({
       ) : null}
 
       <Tabs type="line" style={{ marginTop: 8 }}>
-        <TabPane tab="表单内容" itemKey="form">{renderFormData()}</TabPane>
-        <TabPane tab="流程图" itemKey="graph">
-          <WorkflowFlowTab
-            flowData={flowData}
-            tasks={instance.tasks ?? []}
-            instanceStatus={instance.status}
-            initiator={{ name: instance.initiatorName, avatar: instance.initiatorAvatar, submittedAt: instance.createdAt }}
-          />
-        </TabPane>
-        <TabPane tab="审批记录" itemKey="approvals">
+        <TabPane tab="表单" itemKey="form">{renderFormData()}</TabPane>
+        <TabPane tab="审批流程" itemKey="approvals">
           <ApprovalTimeline
             tasks={instance.tasks ?? []}
             initiator={{ name: instance.initiatorName, avatar: instance.initiatorAvatar, submittedAt: instance.createdAt }}
             instanceStatus={instance.status}
             finishedAt={instance.updatedAt}
           />
+        </TabPane>
+        <TabPane tab="流程图" itemKey="graph">
+          <WorkflowGraphView flowData={flowData} tasks={instance.tasks ?? []} instanceStatus={instance.status} />
         </TabPane>
         <TabPane tab={`沟通${instance.comments && instance.comments.length > 0 ? ` (${instance.comments.length})` : ''}`} itemKey="comments">
           <InstanceComments key={instance.id} instance={instance} />

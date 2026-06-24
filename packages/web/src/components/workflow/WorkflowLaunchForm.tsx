@@ -14,7 +14,7 @@ import { useUserOptions } from '@/hooks/useUserOptions';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import { resolveDynamicDefaults } from '@/pages/workflow/designer/form-defaults';
 import BusinessFormHost, { type WorkflowBusinessFormApi } from '@/components/workflow/BusinessFormHost';
-import WorkflowFlowTab from '@/components/workflow/WorkflowFlowTab';
+import WorkflowGraphView from '@/components/workflow/WorkflowGraphView';
 import WorkflowApproverPreview from '@/components/workflow/WorkflowApproverPreview';
 import { WORKFLOW_PRIORITY_OPTIONS } from '@/components/workflow/WorkflowPriorityTag';
 
@@ -162,14 +162,14 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
 
         <div style={{ marginTop: 16, borderTop: '1px solid var(--semi-color-border)', paddingTop: 12 }}>
           <Tabs type="line" defaultActiveKey="form">
-            <TabPane tab="填写表单" itemKey="form">
+            <TabPane tab="表单" itemKey="form">
               {renderFormBody()}
             </TabPane>
-            <TabPane tab="审批链路" itemKey="chain">
+            <TabPane tab="审批流程" itemKey="chain">
               <WorkflowApproverPreview definitionId={def.id} getFormData={getPreviewFormData} />
             </TabPane>
             <TabPane tab="流程图" itemKey="graph">
-              <WorkflowFlowTab flowData={def.flowData} initiator={user ? { name: user.nickname, avatar: user.avatar } : undefined} />
+              <WorkflowGraphView flowData={def.flowData} />
             </TabPane>
           </Tabs>
         </div>
