@@ -1,6 +1,7 @@
 import { Tag, Timeline, Typography, Toast } from '@douyinfe/semi-ui';
 import { UserAvatar } from '@/components/UserAvatar';
-import { CheckCircle2, Clock, CornerUpLeft, Mail, RotateCcw, XCircle, ExternalLink, Copy, Forward, UserCog, Send, type LucideIcon } from 'lucide-react';
+import { timelineDot } from '@/components/workflow/timeline-dot';
+import { CheckCircle2, Clock, CornerUpLeft, Flag, Mail, RotateCcw, XCircle, ExternalLink, Copy, Forward, UserCog, Send, type LucideIcon } from 'lucide-react';
 import type { WorkflowTask, WorkflowInstanceStatus } from '@zenith/shared';
 import { formatDateTime, formatDurationBetween } from '@/utils/date';
 
@@ -27,24 +28,6 @@ const FINISH_MAP: Partial<Record<WorkflowInstanceStatus, { text: string; color: 
   withdrawn: { text: '已撤回', color: 'amber',  icon: RotateCcw,    iconColor: 'var(--semi-color-warning)' },
   cancelled: { text: '已取消', color: 'grey',   icon: XCircle,      iconColor: 'var(--semi-color-tertiary)' },
 };
-
-/** 统一的时间线圆点 */
-function timelineDot(Icon: LucideIcon, iconColor: string) {
-  return (
-    <div style={{
-      width: 28,
-      height: 28,
-      borderRadius: '50%',
-      backgroundColor: `color-mix(in srgb, ${iconColor} 10%, transparent)`,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-    }}>
-      <Icon size={15} color={iconColor} />
-    </div>
-  );
-}
 
 interface ApprovalTimelineProps {
   tasks: WorkflowTask[];
@@ -269,7 +252,7 @@ export default function ApprovalTimeline({ tasks, initiator, instanceStatus, fin
           </Timeline.Item>
         );
       })}
-      {finish && (
+      {finish ? (
         <Timeline.Item dot={timelineDot(finish.icon, finish.iconColor)}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Typography.Text strong style={{ fontSize: 13 }}>流程结束</Typography.Text>
@@ -279,6 +262,13 @@ export default function ApprovalTimeline({ tasks, initiator, instanceStatus, fin
                 {formatDateTime(finishedAt)}
               </Typography.Text>
             )}
+          </div>
+        </Timeline.Item>
+      ) : (
+        <Timeline.Item dot={timelineDot(Flag, 'var(--semi-color-tertiary)')}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Typography.Text strong style={{ fontSize: 13 }}>流程结束</Typography.Text>
+            <Tag color="grey" size="small">待完成</Tag>
           </div>
         </Timeline.Item>
       )}
