@@ -56,6 +56,7 @@ import { mpTemplatesHandlers } from './mp-templates';
 import { mpStatsHandlers } from './mp-stats';
 import { mpBroadcastsHandlers } from './mp-broadcasts';
 import { mpQrcodesHandlers } from './mp-qrcodes';
+import { mpKfAccountsHandlers } from './mp-kf-accounts';
 import { smsTemplatesHandlers } from './sms-templates';
 import { smsSendLogsHandlers } from './sms-send-logs';
 import { aiProvidersHandlers } from './ai-providers';
@@ -146,6 +147,7 @@ export const handlers = [
   ...mpStatsHandlers,
   ...mpBroadcastsHandlers,
   ...mpQrcodesHandlers,
+  ...mpKfAccountsHandlers,
   ...smsTemplatesHandlers,
   ...smsSendLogsHandlers,
   ...inAppTemplatesHandlers,

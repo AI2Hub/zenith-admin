@@ -8,7 +8,7 @@
  * 修改数据时只需改这一处，两端自动同步。
  */
 
-import type { Menu, Role, Department, Position, Dict, DictItem, SystemConfig, CronJob, WorkflowForm, WorkflowCategory, WorkflowDataSource, Tag, DataMaskConfig, MemberLevel, Coupon, EmailTemplate, SmsTemplate, InAppTemplate, Tenant, TenantPackage, AiPromptTemplate, MpAccount, MpTag, MpFan, MpMessage, MpAutoReply, MpMenu, MpMaterial, MpDraft, MpMessageTemplate, MpBroadcast, MpQrcode } from './types';
+import type { Menu, Role, Department, Position, Dict, DictItem, SystemConfig, CronJob, WorkflowForm, WorkflowCategory, WorkflowDataSource, Tag, DataMaskConfig, MemberLevel, Coupon, EmailTemplate, SmsTemplate, InAppTemplate, Tenant, TenantPackage, AiPromptTemplate, MpAccount, MpTag, MpFan, MpMessage, MpAutoReply, MpMenu, MpMaterial, MpDraft, MpMessageTemplate, MpBroadcast, MpQrcode, MpKfAccount } from './types';
 
 const SEED_DATE = '2024-01-01 00:00:00';
 
@@ -421,6 +421,11 @@ export const SEED_MENUS: Menu[] = [
   { id: 1131, parentId: 1130, title: '生成二维码', name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'mp:qrcode:create',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1132, parentId: 1130, title: '删除二维码', name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 2,  status: 'enabled', visible: true,  permission: 'mp:qrcode:delete',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1140, parentId: 1000, title: '网页授权',   name: 'MpOAuth',    path: '/mp/oauth',    component: 'mp/MpOAuthPage',     icon: 'KeyRound',      type: 'menu',      sort: 13, status: 'enabled', visible: true,  permission: 'mp:oauth:build',     createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1150, parentId: 1000, title: '多客服',     name: 'MpKfAccounts', path: '/mp/kf-accounts', component: 'mp/MpKfAccountsPage', icon: 'Headphones', type: 'menu',  sort: 14, status: 'enabled', visible: true,  permission: 'mp:kf:list',         createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1151, parentId: 1150, title: '添加客服',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'mp:kf:create',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1152, parentId: 1150, title: '编辑客服',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 2,  status: 'enabled', visible: true,  permission: 'mp:kf:update',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1153, parentId: 1150, title: '删除客服',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 3,  status: 'enabled', visible: true,  permission: 'mp:kf:delete',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1154, parentId: 1150, title: '同步客服',   name: undefined,    path: undefined,      component: undefined,           icon: undefined,       type: 'button',    sort: 4,  status: 'enabled', visible: true,  permission: 'mp:kf:sync',         createdAt: SEED_DATE, updatedAt: SEED_DATE },
   // ── 业务接入示例（请假，业务模块自有实体 + 工作流编排）──
   { id: 900, parentId: 0,   title: '业务示例', name: 'BizDemo',          path: undefined,        component: undefined,            icon: 'Briefcase',     type: 'directory', sort: 12, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 901, parentId: 900, title: '请假管理', name: 'BizLeave',         path: '/biz/leave',     component: 'biz/leave/LeavePage', icon: 'CalendarClock', type: 'menu',      sort: 1,  status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -1342,6 +1347,12 @@ export const SEED_MP_BROADCASTS: MpBroadcast[] = [
 export const SEED_MP_QRCODES: MpQrcode[] = [
   { id: 1, accountId: 1, type: 'permanent', sceneStr: 'channel_offline_store', name: '线下门店物料', ticket: 'DEMO_TICKET_OFFLINE', url: 'https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=DEMO_TICKET_OFFLINE', expireSeconds: null, scanCount: 128, tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2, accountId: 1, type: 'permanent', sceneStr: 'event_2026_spring', name: '春季活动推广', ticket: 'DEMO_TICKET_SPRING', url: 'https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=DEMO_TICKET_SPRING', expireSeconds: null, scanCount: 36, tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+];
+
+// ─── 公众号多客服账号（示例）───────────────────────────────────────────────────
+export const SEED_MP_KF_ACCOUNTS: MpKfAccount[] = [
+  { id: 1, accountId: 1, kfAccount: 'kf2001@gh_demo_service', nickname: '客服小柒', avatar: null, kfId: '1001', inviteStatus: 'bound', inviteWx: 'zenith_cs_01', status: 'enabled', tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2, accountId: 1, kfAccount: 'kf2002@gh_demo_service', nickname: '客服小满', avatar: null, kfId: '1002', inviteStatus: 'inviting', inviteWx: null, status: 'enabled', tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── 签到里程碑（累计签到天数达标奖励）──────────────────────────────────────────
