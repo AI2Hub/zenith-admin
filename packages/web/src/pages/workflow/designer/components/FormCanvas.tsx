@@ -23,7 +23,8 @@ const getFieldInfo = (type: WorkflowFormFieldType) => FORM_FIELD_TYPES.find(t =>
 
 const hasNestedFields = (field: WorkflowFormField) =>
   (field.children?.length ?? 0) > 0
-  || (field.columns?.some((column) => column.fields.length > 0) ?? false);
+  || (field.columns?.some((column) => column.fields.length > 0) ?? false)
+  || (field.panes?.some((pane) => pane.fields.length > 0) ?? false);
 
 const deleteTitle = (field: WorkflowFormField) =>
   hasNestedFields(field) ? `删除「${field.label}」及其内部字段？` : `删除字段「${field.label}」？`;
@@ -161,6 +162,35 @@ export default function FormCanvas({
     );
   };
 
+  // ─── 标签页 / 分步 面板容器（可拖入） ─────────────────────────────
+  const renderPanes = (field: WorkflowFormField) => {
+    const isSteps = field.type === 'steps';
+    return (
+      <div className={`fd-form-canvas__panes ${isSteps ? 'fd-form-canvas__panes--steps' : ''}`}>
+        {(field.panes ?? []).map((pane, paneIndex) => {
+          const zoneId = `pane:${field.key}:${paneIndex}`;
+          return (
+            <div key={`${field.key}-pane-${paneIndex}`} className="fd-form-canvas__pane">
+              <div className="fd-form-canvas__pane-title">
+                {isSteps && <span className="fd-form-canvas__pane-step">{paneIndex + 1}</span>}
+                {pane.title || (isSteps ? `步骤${paneIndex + 1}` : `标签${paneIndex + 1}`)}
+              </div>
+              <div
+                className={['fd-form-canvas__pane-body', hint === zoneId && 'fd-form-canvas__drop-active'].filter(Boolean).join(' ')}
+                onDragOver={(e) => overZone(e, zoneId)}
+                onDrop={(e) => dispatchDrop(e, { container: 'pane', paneKey: field.key, paneIndex })}
+              >
+                {pane.fields.length > 0
+                  ? pane.fields.map(f => renderChip(f, (beforeKey) => ({ container: 'pane', paneKey: field.key, paneIndex, beforeKey })))
+                  : <div className="fd-form-canvas__row-col-empty">拖入字段</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   // ─── 明细子字段预览（只读 chip） ────────────────────────────────────
   const renderDetail = (field: WorkflowFormField) => (
     <div className="fd-form-canvas__item-meta" style={{ flexWrap: 'wrap' }}>
@@ -178,6 +208,7 @@ export default function FormCanvas({
     const beforeId = `root:before:${field.key}`;
     const isLayoutRow = field.type === 'row';
     const isLayoutGroup = field.type === 'group';
+    const isPanes = field.type === 'tabs' || field.type === 'steps';
     const isDivider = field.type === 'divider';
     const isDetail = field.type === 'detail';
 
@@ -212,10 +243,11 @@ export default function FormCanvas({
 
           {isLayoutRow && renderRowColumns(field)}
           {isLayoutGroup && renderGroupBody(field)}
+          {isPanes && renderPanes(field)}
           {isDivider && <div className="fd-form-canvas__divider-preview"><hr /></div>}
           {isDetail && renderDetail(field)}
 
-          {!isLayoutRow && !isLayoutGroup && !isDivider && !isDetail && (
+          {!isLayoutRow && !isLayoutGroup && !isPanes && !isDivider && !isDetail && (
             <div className="fd-form-canvas__item-meta">
               <Tag size="small" color="blue">{info?.label ?? field.type}</Tag>
               {field.placeholder && (

@@ -59,6 +59,7 @@ function cloneFieldWithNewKeys(field: WorkflowFormField): WorkflowFormField {
     f.key = generateKey(f.type);
     f.children?.forEach(reassign);
     f.columns?.forEach(col => col.fields.forEach(reassign));
+    f.panes?.forEach(pane => pane.fields.forEach(reassign));
   };
   reassign(copy);
   copy.label = field.label ? `${field.label} 副本` : copy.label;
@@ -70,6 +71,7 @@ function collectFields(fields: WorkflowFormField[]): WorkflowFormField[] {
   for (const field of fields) {
     out.push(field);
     field.columns?.forEach((column) => out.push(...collectFields(column.fields)));
+    field.panes?.forEach((pane) => out.push(...collectFields(pane.fields)));
     if (field.children) out.push(...collectFields(field.children));
   }
   return out;
@@ -107,6 +109,26 @@ function createField(type: WorkflowFormFieldType): WorkflowFormField {
         type: 'group',
         title: '分组标题',
         children: [],
+      };
+    case 'tabs':
+      return {
+        key: field.key,
+        label: '标签页',
+        type: 'tabs',
+        panes: [
+          { title: '标签1', fields: [] },
+          { title: '标签2', fields: [] },
+        ],
+      };
+    case 'steps':
+      return {
+        key: field.key,
+        label: '分步',
+        type: 'steps',
+        panes: [
+          { title: '步骤1', fields: [] },
+          { title: '步骤2', fields: [] },
+        ],
       };
     case 'select':
     case 'multiSelect':

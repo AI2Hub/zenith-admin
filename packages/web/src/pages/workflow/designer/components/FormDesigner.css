@@ -544,6 +544,52 @@
   color: var(--semi-color-text-1);
 }
 
+/* Tabs / Steps (标签页 / 分步) preview in canvas */
+.fd-form-canvas__panes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.fd-form-canvas__pane {
+  border: 1px dashed var(--semi-color-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.fd-form-canvas__pane-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--semi-color-text-0);
+  background: var(--semi-color-fill-0);
+  padding: 4px 8px;
+}
+
+.fd-form-canvas__pane-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--semi-color-primary);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.fd-form-canvas__pane-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 36px;
+  padding: 6px 8px;
+}
+
 .fd-form-canvas__group-empty {
   color: var(--semi-color-text-3);
   font-size: 12px;
