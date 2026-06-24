@@ -18,6 +18,7 @@ export const MpAccountDTO = z
     qrCodeUrl: z.string().nullable(),
     isDefault: z.boolean(),
     autoCreateMember: z.boolean(),
+    contentCheckEnabled: z.boolean(),
     status: z.enum(['enabled', 'disabled']),
     remark: z.string().nullable(),
     ...auditFields,
@@ -73,6 +74,7 @@ export const MpFanDTO = z
     tagIds: z.array(z.number().int()),
     unionid: z.string().nullable(),
     memberId: z.number().int().nullable(),
+    blacklisted: z.boolean(),
     ...auditFields,
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -156,6 +158,41 @@ export const MpMenuDTO = z
     updatedAt: z.string(),
   })
   .openapi('MpMenu');
+
+export const MpConditionalMenuDTO = z
+  .object({
+    id: z.number().int(),
+    accountId: z.number().int(),
+    name: z.string(),
+    buttons: z.array(z.any()),
+    matchRule: z.object({
+      tagId: z.string().optional(),
+      sex: z.string().optional(),
+      country: z.string().optional(),
+      province: z.string().optional(),
+      city: z.string().optional(),
+      clientPlatformType: z.string().optional(),
+      language: z.string().optional(),
+    }),
+    menuId: z.string().nullable(),
+    status: z.enum(['draft', 'published']),
+    publishedAt: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('MpConditionalMenu');
+
+export const MpMenuTryMatchDTO = z
+  .object({ buttons: z.array(z.unknown()) })
+  .openapi('MpMenuTryMatch');
+
+export const MpContentCheckDTO = z
+  .object({ pass: z.boolean(), suggest: z.string() })
+  .openapi('MpContentCheck');
+
+export const MpFanBlacklistResultDTO = z
+  .object({ success: z.boolean(), count: z.number().int() })
+  .openapi('MpFanBlacklistResult');
 
 export const MpMaterialDTO = z
   .object({

@@ -1114,6 +1114,13 @@
       "when": 1782309901294,
       "tag": "0158_sparkling_iron_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 159,
+      "version": "7",
+      "when": 1782312408870,
+      "tag": "0159_shiny_power_man",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,7 @@ import { mergeWhere, withPagination } from '../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
+import { assertContentSafe } from './mp-security.service';
 import { massSend, WechatApiError } from '../lib/wechat';
 import { mapWechatError } from '../lib/wechat-error';
 import type { CreateMpBroadcastInput, UpdateMpBroadcastInput, MpBroadcastStatus } from '@zenith/shared';
@@ -113,6 +114,7 @@ export async function sendMpBroadcast(id: number) {
   }
 
   try {
+    await assertContentSafe(account, broadcast.content);
     const { msgId } = await massSend(account, {
       isToAll: broadcast.target === 'all',
       tagId: wechatTagId,

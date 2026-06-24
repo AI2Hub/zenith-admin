@@ -5,10 +5,11 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, IdParam, okBody,
 } from '../lib/openapi-schemas';
-import { updateMpFanSchema } from '@zenith/shared';
-import { MpFanDTO, MpFanSyncResultDTO } from '../lib/openapi-dtos';
+import { updateMpFanSchema, blacklistMpFansSchema } from '@zenith/shared';
+import { MpFanDTO, MpFanSyncResultDTO, MpFanBlacklistResultDTO } from '../lib/openapi-dtos';
 import {
   listMpFans, updateMpFan, getMpFanBeforeAudit, syncMpFans,
+  blacklistMpFans, unblacklistMpFans, syncMpBlacklist,
 } from '../services/mp-fan.service';
 import { createMemberForFan, bindFanToMember, unbindFanMember } from '../services/mp-member.service';
 
@@ -27,6 +28,7 @@ const listRoute = defineOpenAPIRoute({
         keyword: z.string().optional(),
         subscribe: z.enum(['subscribed', 'unsubscribed']).optional(),
         tagId: z.coerce.number().int().positive().optional(),
+        blacklisted: z.enum(['true', 'false']).optional().transform((v) => (v === undefined ? undefined : v === 'true')),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(MpFanDTO, '粉丝列表') },
@@ -105,6 +107,39 @@ const unbindMemberRoute = defineOpenAPIRoute({
   },
 });
 
-mpFansRouter.openapiRoutes([listRoute, syncRoute, updateRoute, createMemberRoute, bindMemberRoute, unbindMemberRoute] as const);
+const blacklistRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/blacklist', tags: ['公众号粉丝'], summary: '批量拉黑粉丝',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'mp:fan:blacklist', audit: { description: '拉黑粉丝', module: '公众号粉丝' } })] as const,
+    request: { body: { content: jsonContent(blacklistMpFansSchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(MpFanBlacklistResultDTO, '已拉黑') },
+  }),
+  handler: async (c) => { const b = c.req.valid('json'); return c.json(okBody(await blacklistMpFans(b.accountId, b.openids), '已拉黑'), 200); },
+});
+
+const unblacklistRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/unblacklist', tags: ['公众号粉丝'], summary: '批量移出黑名单',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'mp:fan:blacklist', audit: { description: '移出黑名单', module: '公众号粉丝' } })] as const,
+    request: { body: { content: jsonContent(blacklistMpFansSchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(MpFanBlacklistResultDTO, '已移出') },
+  }),
+  handler: async (c) => { const b = c.req.valid('json'); return c.json(okBody(await unblacklistMpFans(b.accountId, b.openids), '已移出'), 200); },
+});
+
+const syncBlacklistRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/sync-blacklist', tags: ['公众号粉丝'], summary: '从微信同步黑名单',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'mp:fan:blacklist', audit: { description: '同步黑名单', module: '公众号粉丝' } })] as const,
+    request: { body: { content: jsonContent(syncBodySchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(MpFanSyncResultDTO, '同步完成') },
+  }),
+  handler: async (c) => { const r = await syncMpBlacklist(c.req.valid('json').accountId); return c.json(okBody({ success: r.success, synced: r.total, total: r.total }, '同步完成'), 200); },
+});
+
+mpFansRouter.openapiRoutes([listRoute, syncRoute, blacklistRoute, unblacklistRoute, syncBlacklistRoute, updateRoute, createMemberRoute, bindMemberRoute, unbindMemberRoute] as const);
 
 export default mpFansRouter;

@@ -25,6 +25,7 @@ import { tenantScope, currentCreateTenantId } from '../lib/tenant';
 import { currentUserOrNull } from '../lib/context';
 import { ensureMpAccountExists } from './mp-account.service';
 import { mapMpMessage } from './mp-message.service';
+import { assertContentSafe } from './mp-security.service';
 import { sendCustomServiceMessage, WechatApiError } from '../lib/wechat';
 import { broadcast } from '../lib/ws-manager';
 import logger from '../lib/logger';
@@ -494,6 +495,7 @@ export async function replyMpKfSession(id: number, data: ReplyMpKfSessionInput):
   if (!account) throw new HTTPException(404, { message: '公众号不存在' });
 
   try {
+    await assertContentSafe(account, data.content);
     await sendCustomServiceMessage(account, session.openid, { msgType: data.msgType, content: data.content, mediaId: data.mediaId });
   } catch (err) {
     if (err instanceof WechatApiError) throw new HTTPException(400, { message: err.message });

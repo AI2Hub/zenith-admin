@@ -53,3 +53,31 @@ export async function batchGetFanInfo(account: MpCredential, openids: string[]):
   const data = await wechatApiPost<BatchGetResponse>(account, '/cgi-bin/user/info/batchget', body);
   return data.user_info_list ?? [];
 }
+
+interface BlacklistGetResponse {
+  errcode?: number;
+  errmsg?: string;
+  total?: number;
+  count?: number;
+  data?: { openid: string[] };
+  next_openid?: string;
+}
+
+/** 拉取黑名单 openid（每次最多 10000 个，用 begin_openid 翻页） */
+export async function getWechatBlacklist(
+  account: MpCredential,
+  beginOpenid = '',
+): Promise<{ openids: string[]; total: number; nextOpenid: string }> {
+  const data = await wechatApiPost<BlacklistGetResponse>(account, '/cgi-bin/tags/members/getblacklist', beginOpenid ? { begin_openid: beginOpenid } : {});
+  return { openids: data.data?.openid ?? [], total: data.total ?? 0, nextOpenid: data.next_openid ?? '' };
+}
+
+/** 批量拉黑粉丝（每次最多 20 个 openid） */
+export async function batchBlacklistFans(account: MpCredential, openids: string[]): Promise<void> {
+  await wechatApiPost<{ errcode?: number; errmsg?: string }>(account, '/cgi-bin/tags/members/batchblacklist', { openid_list: openids });
+}
+
+/** 批量移出黑名单（每次最多 20 个 openid） */
+export async function batchUnblacklistFans(account: MpCredential, openids: string[]): Promise<void> {
+  await wechatApiPost<{ errcode?: number; errmsg?: string }>(account, '/cgi-bin/tags/members/batchunblacklist', { openid_list: openids });
+}

@@ -3743,6 +3743,8 @@ export const mpAccounts = pgTable('mp_accounts', {
   isDefault: boolean('is_default').notNull().default(false),
   /** 关注即注册会员：粉丝关注时自动创建并绑定会员 */
   autoCreateMember: boolean('auto_create_member').notNull().default(false),
+  /** 是否对群发/客服消息启用内容安全校验（msg_sec_check） */
+  contentCheckEnabled: boolean('content_check_enabled').notNull().default(false),
   status: statusEnum('status').notNull().default('enabled'),
   remark: text('remark'),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
@@ -3811,6 +3813,8 @@ export const mpFans = pgTable('mp_fans', {
   unionid: varchar('unionid', { length: 64 }),
   /** 关联的会员 id（公众号粉丝 ↔ 会员体系打通） */
   memberId: integer('member_id').references((): AnyPgColumn => members.id, { onDelete: 'set null' }),
+  /** 是否已加入黑名单（微信 batchblacklist） */
+  blacklisted: boolean('blacklisted').notNull().default(false),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -3927,6 +3931,35 @@ export type NewMpMenu = typeof mpMenus.$inferInsert;
 export const mpMenusRelations = relations(mpMenus, ({ one }) => ({
   account: one(mpAccounts, { fields: [mpMenus.accountId], references: [mpAccounts.id] }),
   tenant: one(tenants, { fields: [mpMenus.tenantId], references: [tenants.id] }),
+}));
+
+// 个性化菜单（按标签/性别/地区等匹配规则向不同人群下发不同菜单）
+export const mpConditionalMenus = pgTable('mp_conditional_menus', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
+  /** 本地名称（便于管理识别） */
+  name: varchar('name', { length: 64 }).notNull(),
+  /** 菜单按钮树（结构同普通自定义菜单） */
+  buttons: jsonb('buttons').$type<unknown[]>().notNull().default([]),
+  /** 匹配规则：tag_id/sex/country/province/city/client_platform_type/language */
+  matchRule: jsonb('match_rule').$type<Record<string, string>>().notNull().default({}),
+  /** 微信返回的 menuid（发布后写入） */
+  menuId: varchar('menu_id', { length: 64 }),
+  status: mpMenuStatusEnum('status').notNull().default('draft'),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  index('mp_conditional_menus_account_idx').on(t.accountId),
+]);
+export type MpConditionalMenuRow = typeof mpConditionalMenus.$inferSelect;
+export type NewMpConditionalMenu = typeof mpConditionalMenus.$inferInsert;
+
+export const mpConditionalMenusRelations = relations(mpConditionalMenus, ({ one }) => ({
+  account: one(mpAccounts, { fields: [mpConditionalMenus.accountId], references: [mpAccounts.id] }),
+  tenant: one(tenants, { fields: [mpConditionalMenus.tenantId], references: [tenants.id] }),
 }));
 
 // 公众号素材（图片 / 语音 / 视频 / 缩略图），本地登记 + 与微信永久素材同步

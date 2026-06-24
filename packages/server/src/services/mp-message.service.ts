@@ -7,6 +7,7 @@ import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { formatDateTime } from '../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
+import { assertContentSafe } from './mp-security.service';
 import { sendCustomServiceMessage, WechatApiError } from '../lib/wechat';
 import type { SendMpMessageInput, MpMessageType, MpMessageDirection } from '@zenith/shared';
 
@@ -99,6 +100,7 @@ export async function sendCustomMessage(input: SendMpMessageInput) {
   const account = await ensureMpAccountExists(input.accountId);
   const tenantId = currentCreateTenantId();
   try {
+    await assertContentSafe(account, input.content);
     await sendCustomServiceMessage(account, input.openid, { msgType: input.msgType, content: input.content, mediaId: input.mediaId });
   } catch (err) {
     if (err instanceof WechatApiError) throw new HTTPException(400, { message: err.message });

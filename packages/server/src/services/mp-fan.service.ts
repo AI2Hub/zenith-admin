@@ -7,7 +7,7 @@ import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
-import { getFollowerOpenids, batchGetFanInfo, WechatApiError } from '../lib/wechat';
+import { getFollowerOpenids, batchGetFanInfo, getWechatBlacklist, batchBlacklistFans, batchUnblacklistFans, WechatApiError } from '../lib/wechat';
 import type { UpdateMpFanInput, MpFanSubscribe } from '@zenith/shared';
 
 export function mapMpFan(row: MpFanRow) {
@@ -28,6 +28,7 @@ export function mapMpFan(row: MpFanRow) {
     tagIds: row.tagIds ?? [],
     unionid: row.unionid ?? null,
     memberId: row.memberId ?? null,
+    blacklisted: row.blacklisted,
     createdBy: row.createdBy ?? null,
     updatedBy: row.updatedBy ?? null,
     createdAt: formatDateTime(row.createdAt),
@@ -50,6 +51,7 @@ export interface ListMpFansQuery {
   keyword?: string;
   subscribe?: MpFanSubscribe;
   tagId?: number;
+  blacklisted?: boolean;
   page: number;
   pageSize: number;
 }
@@ -66,6 +68,7 @@ export async function listMpFans(q: ListMpFansQuery) {
   }
   if (q.subscribe) conditions.push(eq(mpFans.subscribe, q.subscribe));
   if (q.tagId) conditions.push(sql`${mpFans.tagIds} @> ${JSON.stringify([q.tagId])}::jsonb`);
+  if (q.blacklisted !== undefined) conditions.push(eq(mpFans.blacklisted, q.blacklisted));
   const where = mergeWhere(and(...conditions));
   const [total, list] = await Promise.all([
     db.$count(mpFans, where),
@@ -146,4 +149,59 @@ export async function syncMpFans(accountId: number): Promise<{ success: boolean;
     throw new HTTPException(502, { message: '调用微信接口失败，请检查网络或稍后重试' });
   }
   return { success: true, synced, total };
+}
+
+function mapWechatErr(err: unknown): never {
+  if (err instanceof WechatApiError) throw new HTTPException(400, { message: err.message });
+  throw new HTTPException(502, { message: '调用微信接口失败，请检查网络或稍后重试' });
+}
+
+/** 拉黑粉丝：调微信 batchblacklist，成功后本地标记 blacklisted=true */
+export async function blacklistMpFans(accountId: number, openids: string[]): Promise<{ success: boolean; count: number }> {
+  const account = await ensureMpAccountExists(accountId);
+  try {
+    await batchBlacklistFans(account, openids);
+  } catch (err) {
+    mapWechatErr(err);
+  }
+  await db.update(mpFans).set({ blacklisted: true })
+    .where(and(eq(mpFans.accountId, accountId), inArray(mpFans.openid, openids), tenantScope(mpFans)));
+  return { success: true, count: openids.length };
+}
+
+/** 移出黑名单：调微信 batchunblacklist，成功后本地标记 blacklisted=false */
+export async function unblacklistMpFans(accountId: number, openids: string[]): Promise<{ success: boolean; count: number }> {
+  const account = await ensureMpAccountExists(accountId);
+  try {
+    await batchUnblacklistFans(account, openids);
+  } catch (err) {
+    mapWechatErr(err);
+  }
+  await db.update(mpFans).set({ blacklisted: false })
+    .where(and(eq(mpFans.accountId, accountId), inArray(mpFans.openid, openids), tenantScope(mpFans)));
+  return { success: true, count: openids.length };
+}
+
+/** 从微信同步黑名单：将远端黑名单 openid 在本地标记，其余取消标记 */
+export async function syncMpBlacklist(accountId: number): Promise<{ success: boolean; total: number }> {
+  const account = await ensureMpAccountExists(accountId);
+  const blackset = new Set<string>();
+  let nextOpenid = '';
+  try {
+    do {
+      const page = await getWechatBlacklist(account, nextOpenid);
+      for (const o of page.openids) blackset.add(o);
+      nextOpenid = page.openids.length > 0 ? page.nextOpenid : '';
+    } while (nextOpenid);
+  } catch (err) {
+    mapWechatErr(err);
+  }
+  await db.transaction(async (tx) => {
+    await tx.update(mpFans).set({ blacklisted: false }).where(eq(mpFans.accountId, accountId));
+    if (blackset.size > 0) {
+      await tx.update(mpFans).set({ blacklisted: true })
+        .where(and(eq(mpFans.accountId, accountId), inArray(mpFans.openid, [...blackset])));
+    }
+  });
+  return { success: true, total: blackset.size };
 }
