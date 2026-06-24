@@ -490,6 +490,8 @@ try {
   await registerSystemRecurringJob('workflow-event-delivery-retry', '*/5 * * * *', async () => {
     await retryWorkflowEventDeliveries();
   });
+  const { publishDueScheduledMessages } = await import('./services/channel.service');
+  await registerSystemRecurringJob('channel-scheduled-publish', '* * * * *', publishDueScheduledMessages);
 } catch (err) {
   logger.error('Failed to initialize cron scheduler', err);
 }

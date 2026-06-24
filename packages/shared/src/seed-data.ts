@@ -1439,3 +1439,18 @@ export const SEED_CHANNELS: SeedChannel[] = [
     builtin: true,
   },
 ];
+
+// ─── Channel 客服快捷回复（channelId 为 null = 全局，所有运营号通用） ───────────
+export interface SeedChannelQuickReply {
+  channelId: number | null;
+  title: string;
+  content: string;
+  sort: number;
+}
+
+export const SEED_CHANNEL_QUICK_REPLIES: SeedChannelQuickReply[] = [
+  { channelId: null, title: '欢迎语', content: '您好！很高兴为您服务，请问有什么可以帮您？', sort: 1 },
+  { channelId: null, title: '稍等', content: '请稍等，正在为您查询，马上回复您～', sort: 2 },
+  { channelId: null, title: '结束语', content: '感谢您的咨询，祝您生活愉快！如有问题随时联系我们。', sort: 3 },
+  { channelId: null, title: '工作时间', content: '我们的客服工作时间为工作日 9:00-18:00，非工作时间留言我们会尽快回复。', sort: 4 },
+];

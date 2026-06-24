@@ -13,6 +13,8 @@ import { AppModal } from '@/components/AppModal';
 import { usePagination } from '@/hooks/usePagination';
 import { ChannelMenuDrawer } from './ChannelMenuDrawer';
 import { ChannelAutoReplyDrawer } from './ChannelAutoReplyDrawer';
+import { ChannelPublishModal } from './ChannelPublishModal';
+import { ChannelMessagesDrawer } from './ChannelMessagesDrawer';
 
 const TYPE_META: Record<string, { text: string; color: 'green' | 'blue' }> = {
   system: { text: '系统号', color: 'green' },
@@ -35,10 +37,10 @@ export default function ChannelsPage() {
 
   const [publishVisible, setPublishVisible] = useState(false);
   const [publishTarget, setPublishTarget] = useState<ChannelAdmin | null>(null);
-  const [publishApi, setPublishApi] = useState<FormApi | null>(null);
 
   const [menuDrawer, setMenuDrawer] = useState<ChannelAdmin | null>(null);
   const [replyDrawer, setReplyDrawer] = useState<ChannelAdmin | null>(null);
+  const [messagesDrawer, setMessagesDrawer] = useState<ChannelAdmin | null>(null);
 
   const fetchList = useCallback(async (p = page, ps = pageSize, kw = keywordRef.current) => {
     setLoading(true);
@@ -86,15 +88,6 @@ export default function ChannelsPage() {
   };
 
   const openPublish = (ch: ChannelAdmin) => { setPublishTarget(ch); setPublishVisible(true); };
-  const handlePublish = async () => {
-    if (!publishApi || !publishTarget) return;
-    try {
-      const values = await publishApi.validate() as { title?: string; content: string };
-      setSubmitting(true);
-      const res = await request.post(`/api/channels/${publishTarget.id}/publish`, { title: values.title || null, content: values.content });
-      if (res.code === 0) { Toast.success('已群发'); setPublishVisible(false); publishApi.reset(); void fetchList(); }
-    } catch { /* validation failed */ } finally { setSubmitting(false); }
-  };
 
   const columns: ColumnProps<ChannelAdmin>[] = [
     {
@@ -112,10 +105,11 @@ export default function ChannelsPage() {
     { title: '状态', dataIndex: 'status', width: 80, render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'grey'} size="small">{v === 'enabled' ? '启用' : '停用'}</Tag> },
     { title: '创建时间', dataIndex: 'createdAt', width: 180, render: (v: string) => formatDateTime(v) },
     {
-      title: '操作', dataIndex: 'op', width: 360, fixed: 'right',
+      title: '操作', dataIndex: 'op', width: 440, fixed: 'right',
       render: (_: unknown, r: ChannelAdmin) => (
         <Space>
           {hasPermission('channel:message:publish') && <Button theme="borderless" size="small" onClick={() => openPublish(r)}>群发</Button>}
+          {hasPermission('channel:message:publish') && <Button theme="borderless" size="small" onClick={() => setMessagesDrawer(r)}>消息记录</Button>}
           {r.type === 'business' && hasPermission('channel:menu:save') && <Button theme="borderless" size="small" onClick={() => setMenuDrawer(r)}>菜单配置</Button>}
           {r.type === 'business' && hasPermission('channel:reply:list') && <Button theme="borderless" size="small" onClick={() => setReplyDrawer(r)}>自动回复</Button>}
           {hasPermission('channel:channel:update') && <Button theme="borderless" size="small" onClick={() => openEdit(r)}>编辑</Button>}
@@ -181,20 +175,12 @@ export default function ChannelsPage() {
         </Form>
       </AppModal>
 
-      <AppModal
-        title={`向「${publishTarget?.name ?? ''}」群发`}
+      <ChannelPublishModal
+        channel={publishTarget}
         visible={publishVisible}
-        onCancel={() => setPublishVisible(false)}
-        onOk={() => void handlePublish()}
-        confirmLoading={submitting}
-        okText="发布"
-        width={520}
-      >
-        <Form key={publishTarget?.id ?? 'pub'} getFormApi={setPublishApi} labelPosition="left" labelWidth={70}>
-          <Form.Input field="title" label="标题" placeholder="可选" />
-          <Form.TextArea field="content" label="内容" rules={[{ required: true, message: '请填写内容' }]} autosize={{ minRows: 3, maxRows: 6 }} />
-        </Form>
-      </AppModal>
+        onClose={() => setPublishVisible(false)}
+        onSuccess={() => void fetchList()}
+      />
 
       {menuDrawer && (
         <ChannelMenuDrawer
@@ -210,6 +196,13 @@ export default function ChannelsPage() {
           channelName={replyDrawer.name}
           visible={!!replyDrawer}
           onClose={() => setReplyDrawer(null)}
+        />
+      )}
+      {messagesDrawer && (
+        <ChannelMessagesDrawer
+          channel={messagesDrawer}
+          visible={!!messagesDrawer}
+          onClose={() => setMessagesDrawer(null)}
         />
       )}
     </div>

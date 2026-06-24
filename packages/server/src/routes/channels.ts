@@ -9,21 +9,24 @@ import {
   createChannelSchema, updateChannelSchema, publishChannelSchema,
   sendChannelMessageSchema, channelReplySchema, saveChannelMenusSchema,
   createChannelAutoReplySchema, updateChannelAutoReplySchema,
+  createChannelQuickReplySchema, updateChannelQuickReplySchema,
 } from '@zenith/shared';
 import {
   ChannelDTO, ChannelMessageDTO, ChannelAdminDTO,
-  ChannelMenuDTO, ChannelAutoReplyDTO, ChannelConversationDTO, ChannelCsChannelDTO,
+  ChannelMenuDTO, ChannelAutoReplyDTO, ChannelConversationDTO, ChannelCsChannelDTO, ChannelQuickReplyDTO,
 } from '../lib/openapi-dtos';
 import {
   listMyChannels, listChannelMessages, markChannelRead,
   listChannelsAdmin, createChannel, updateChannel, deleteChannel, publishToChannel,
   subscribeChannel, unsubscribeChannel, listDiscoverableChannels,
+  listChannelMessageRecords, updateDeferredMessage, deleteDeferredMessage, publishDeferredMessageNow,
 } from '../services/channel.service';
 import {
   getChannelMenus, saveChannelMenus,
   listChannelAutoReplies, createChannelAutoReply, updateChannelAutoReply, deleteChannelAutoReply,
   sendUserMessage, replyAsAgent, handleSubscribeAutoReply,
   listCsChannels, listChannelConversations, listConversationMessages,
+  listChannelQuickReplies, createChannelQuickReply, updateChannelQuickReply, deleteChannelQuickReply,
 } from '../services/channel-cs.service';
 
 const channelsRoute = new OpenAPIHono({ defaultHook: validationHook });
@@ -163,9 +166,10 @@ const discoverable = defineOpenAPIRoute({
     method: 'get', path: '/discoverable', tags: ['Channels'], summary: '可订阅的运营号列表',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware] as const,
+    request: { query: z.object({ keyword: z.string().optional() }) },
     responses: { ...commonErrorResponses, ...ok(z.array(ChannelDTO), '可订阅频道') },
   }),
-  handler: async (c) => c.json(okBody(await listDiscoverableChannels()), 200),
+  handler: async (c) => c.json(okBody(await listDiscoverableChannels(c.req.valid('query').keyword)), 200),
 });
 
 const subscribe = defineOpenAPIRoute({
@@ -361,10 +365,125 @@ const csReply = defineOpenAPIRoute({
   },
 });
 
+// ─── 群发消息记录管理（草稿 / 定时 / 已发） ────────────────────────────────────
+
+const adminMessages = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/admin/{id}/messages', tags: ['Channels'], summary: '频道群发消息记录（含草稿/定时）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:message:publish' })] as const,
+    request: { params: IdParam, query: PaginationQuery.extend({ status: z.enum(['sent', 'draft', 'scheduled']).optional() }) },
+    responses: { ...commonErrorResponses, ...okPaginated(ChannelMessageDTO, '消息记录') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const { page, pageSize, status } = c.req.valid('query');
+    return c.json(okBody(await listChannelMessageRecords(id, page, pageSize, status)), 200);
+  },
+});
+
+const updateDraft = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/admin/messages/{id}', tags: ['Channels'], summary: '编辑草稿/定时消息',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:message:publish', audit: { description: '编辑草稿消息', module: '消息中心' } })] as const,
+    request: { params: IdParam, body: { content: jsonContent(publishChannelSchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(ChannelMessageDTO, '已保存') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await updateDeferredMessage(id, c.req.valid('json')), '已保存'), 200);
+  },
+});
+
+const deleteDraft = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/admin/messages/{id}', tags: ['Channels'], summary: '删除草稿/取消定时',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:message:publish', audit: { description: '删除草稿消息', module: '消息中心' } })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...okMsg('已删除') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    await deleteDeferredMessage(id);
+    return c.json(okBody(null, '已删除'), 200);
+  },
+});
+
+const publishDraftNow = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/admin/messages/{id}/publish', tags: ['Channels'], summary: '立即发送草稿/定时消息',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:message:publish', audit: { description: '立即发送草稿', module: '消息中心' } })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...ok(ChannelMessageDTO, '已发送') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await publishDeferredMessageNow(id), '已发送'), 200);
+  },
+});
+
+// ─── 客服快捷回复库 ───────────────────────────────────────────────────────────
+
+const listQuickReplies = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/cs/quick-replies', tags: ['Channels'], summary: '客服快捷回复列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:cs' })] as const,
+    request: { query: z.object({ channelId: z.coerce.number().int().positive().optional() }) },
+    responses: { ...commonErrorResponses, ...ok(z.array(ChannelQuickReplyDTO), '快捷回复列表') },
+  }),
+  handler: async (c) => c.json(okBody(await listChannelQuickReplies(c.req.valid('query').channelId)), 200),
+});
+
+const createQuickReply = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/cs/quick-replies', tags: ['Channels'], summary: '新建快捷回复',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:cs', audit: { description: '新建快捷回复', module: '消息中心' } })] as const,
+    request: { body: { content: jsonContent(createChannelQuickReplySchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(ChannelQuickReplyDTO, '已创建') },
+  }),
+  handler: async (c) => c.json(okBody(await createChannelQuickReply(c.req.valid('json')), '已创建'), 200),
+});
+
+const updateQuickReply = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/cs/quick-replies/{id}', tags: ['Channels'], summary: '编辑快捷回复',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:cs', audit: { description: '编辑快捷回复', module: '消息中心' } })] as const,
+    request: { params: IdParam, body: { content: jsonContent(updateChannelQuickReplySchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(ChannelQuickReplyDTO, '已保存') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await updateChannelQuickReply(id, c.req.valid('json')), '已保存'), 200);
+  },
+});
+
+const deleteQuickReply = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/cs/quick-replies/{id}', tags: ['Channels'], summary: '删除快捷回复',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'channel:cs', audit: { description: '删除快捷回复', module: '消息中心' } })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...okMsg('已删除') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    await deleteChannelQuickReply(id);
+    return c.json(okBody(null, '已删除'), 200);
+  },
+});
+
 channelsRoute.openapiRoutes([
   listMine, listMessages, read, adminList, create, update, remove, publish, discoverable, subscribe, unsubscribe,
   sendMessage, listMenus, saveMenus,
   listAutoReplies, createAutoReply, updateAutoReply, removeAutoReply,
+  adminMessages, updateDraft, deleteDraft, publishDraftNow,
+  listQuickReplies, createQuickReply, updateQuickReply, deleteQuickReply,
   csChannels, csConversations, csMessages, csReply,
 ] as const);
 

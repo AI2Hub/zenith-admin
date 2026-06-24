@@ -1,5 +1,5 @@
-import type { Channel, ChannelMessage, ChannelMenu, ChannelAutoReply } from '@zenith/shared';
-import { SEED_CHANNELS } from '@zenith/shared';
+import type { Channel, ChannelMessage, ChannelMenu, ChannelAutoReply, ChannelQuickReply } from '@zenith/shared';
+import { SEED_CHANNELS, SEED_CHANNEL_QUICK_REPLIES } from '@zenith/shared';
 import { mockDateTime } from '@/mocks/utils/date';
 
 /**
@@ -29,6 +29,8 @@ export const mockChannelMessages: MockChannelMessage[] = [
     senderUserName: null,
     isRead: false,
     createdAt: mockDateTime(),
+    status: 'sent',
+    scheduledAt: null,
     convUserId: null,
   },
   {
@@ -59,6 +61,8 @@ export const mockChannelMessages: MockChannelMessage[] = [
     senderUserName: null,
     isRead: false,
     createdAt: mockDateTime(),
+    status: 'sent',
+    scheduledAt: null,
     convUserId: null,
   },
   // ── 运营号「智能客服」(channel 3) 双向会话 ─────────────────────────────────
@@ -67,45 +71,73 @@ export const mockChannelMessages: MockChannelMessage[] = [
     id: 3, channelId: 3, audienceType: 'targeted', type: 'text', title: null,
     content: '你好，请问你们怎么收费？', extra: null, publishedById: null,
     direction: 'in', senderUserId: 1, senderUserName: '超级管理员', isRead: true,
-    createdAt: mockDateTime(), convUserId: 1,
+    createdAt: mockDateTime(), status: 'sent', scheduledAt: null, convUserId: 1,
   },
   {
     id: 4, channelId: 3, audienceType: 'targeted', type: 'text', title: null,
     content: '我们提供免费版与企业版，详情见官网定价页。', extra: null, publishedById: null,
     direction: 'out', senderUserId: null, senderUserName: null, isRead: true,
-    createdAt: mockDateTime(), convUserId: 1,
+    createdAt: mockDateTime(), status: 'sent', scheduledAt: null, convUserId: 1,
   },
   // 用户「李四」(id=2) 的会话
   {
     id: 5, channelId: 3, audienceType: 'targeted', type: 'text', title: null,
     content: '价格', extra: null, publishedById: null,
     direction: 'in', senderUserId: 2, senderUserName: '李四', isRead: true,
-    createdAt: mockDateTime(), convUserId: 2,
+    createdAt: mockDateTime(), status: 'sent', scheduledAt: null, convUserId: 2,
   },
   {
     id: 6, channelId: 3, audienceType: 'targeted', type: 'text', title: null,
     content: '我们提供免费版与企业版，详情见官网定价页。', extra: null, publishedById: null,
     direction: 'out', senderUserId: null, senderUserName: null, isRead: true,
-    createdAt: mockDateTime(), convUserId: 2,
+    createdAt: mockDateTime(), status: 'sent', scheduledAt: null, convUserId: 2,
   },
   {
     id: 7, channelId: 3, audienceType: 'targeted', type: 'text', title: null,
     content: '您好，我是客服小王，企业版可享受专属对接，需要我详细介绍吗？', extra: null, publishedById: 1,
     direction: 'out', senderUserId: 1, senderUserName: '超级管理员', isRead: true,
-    createdAt: mockDateTime(), convUserId: 2,
+    createdAt: mockDateTime(), status: 'sent', scheduledAt: null, convUserId: 2,
   },
   // 用户「王五」(id=3) 的会话（待回复）
   {
     id: 8, channelId: 3, audienceType: 'targeted', type: 'text', title: null,
     content: '人工', extra: null, publishedById: null,
     direction: 'in', senderUserId: 3, senderUserName: '王五', isRead: true,
-    createdAt: mockDateTime(), convUserId: 3,
+    createdAt: mockDateTime(), status: 'sent', scheduledAt: null, convUserId: 3,
   },
   {
     id: 9, channelId: 3, audienceType: 'targeted', type: 'text', title: null,
     content: '正在为您转接人工客服，请稍候…', extra: null, publishedById: null,
     direction: 'out', senderUserId: null, senderUserName: null, isRead: true,
-    createdAt: mockDateTime(), convUserId: 3,
+    createdAt: mockDateTime(), status: 'sent', scheduledAt: null, convUserId: 3,
+  },
+  // ── 运营号图文（news）群发示例（channel 3 广播，所有订阅用户可见） ──────────
+  {
+    id: 10,
+    channelId: 3,
+    audienceType: 'broadcast',
+    type: 'news',
+    title: '企业版全新升级，限时体验',
+    content: '企业版全新升级，限时体验',
+    extra: {
+      card: {
+        title: '企业版全新升级，限时体验',
+        text: '专属客服对接、数据看板、API 开放能力一站到位，点击查看详情。',
+        cover: 'https://picsum.photos/400/200',
+        actions: [{ key: 'open', label: '查看详情', action: 'link', url: 'https://example.com/enterprise' }],
+        source: '图文',
+        status: null,
+      },
+    },
+    publishedById: 1,
+    direction: 'out',
+    senderUserId: null,
+    senderUserName: null,
+    isRead: false,
+    createdAt: mockDateTime(),
+    status: 'sent',
+    scheduledAt: null,
+    convUserId: null,
   },
 ];
 
@@ -135,6 +167,21 @@ export const mockChannelAutoReplies: ChannelAutoReply[] = [
 
 let nextAutoReplyId = 100;
 export function getNextAutoReplyId() { return nextAutoReplyId++; }
+
+/** 客服快捷回复（channelId 为 null = 全局，所有运营号通用） */
+export const mockChannelQuickReplies: ChannelQuickReply[] = SEED_CHANNEL_QUICK_REPLIES.map((q, i) => ({
+  id: i + 1,
+  channelId: q.channelId,
+  channelName: null,
+  title: q.title,
+  content: q.content,
+  sort: q.sort,
+  createdAt: mockDateTime(),
+  updatedAt: mockDateTime(),
+}));
+
+let nextQuickReplyId = 100;
+export function getNextQuickReplyId() { return nextQuickReplyId++; }
 
 function buildChannel(seed: (typeof SEED_CHANNELS)[number]): Channel {
   const msgs = mockChannelMessages.filter((m) => m.channelId === seed.id);

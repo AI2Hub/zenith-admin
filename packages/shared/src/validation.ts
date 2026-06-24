@@ -1408,10 +1408,36 @@ export const updateChannelSchema = z.object({
 });
 export type UpdateChannelInput = z.infer<typeof updateChannelSchema>;
 
-export const publishChannelSchema = z.object({
-  title: z.string().max(200).nullable().optional(),
-  content: z.string().min(1),
+/** 群发受众范围定义（mode=all 时其余字段忽略） */
+export const channelPublishAudienceSchema = z.object({
+  mode: z.enum(['all', 'users', 'departments', 'roles']).default('all'),
+  userIds: z.array(z.number().int().positive()).optional(),
+  departmentIds: z.array(z.number().int().positive()).optional(),
+  roleIds: z.array(z.number().int().positive()).optional(),
 });
+export type ChannelPublishAudienceInput = z.infer<typeof channelPublishAudienceSchema>;
+
+/** 管理端群发（文本 / 图片 / 图文 + 受众 + 立即/定时/草稿） */
+export const publishChannelSchema = z
+  .object({
+    type: z.enum(['text', 'image', 'news']).default('text'),
+    title: z.string().max(200).nullable().optional(),
+    content: z.string().max(10000).default(''),
+    imageUrl: z.string().max(1000).nullable().optional(),
+    cover: z.string().max(1000).nullable().optional(),
+    summary: z.string().max(500).nullable().optional(),
+    linkUrl: z.string().max(1000).nullable().optional(),
+    audience: channelPublishAudienceSchema.default({ mode: 'all' }),
+    sendMode: z.enum(['now', 'scheduled', 'draft']).default('now'),
+    scheduledAt: z.string().max(32).nullable().optional(),
+  })
+  .refine((v) => v.type !== 'text' || v.content.trim().length > 0, { message: '文本内容不能为空', path: ['content'] })
+  .refine((v) => v.type !== 'image' || (v.imageUrl?.trim().length ?? 0) > 0, { message: '请上传图片', path: ['imageUrl'] })
+  .refine((v) => v.type !== 'news' || (v.title?.trim().length ?? 0) > 0, { message: '图文消息必须填写标题', path: ['title'] })
+  .refine((v) => v.sendMode !== 'scheduled' || (v.scheduledAt?.trim().length ?? 0) > 0, { message: '定时发送必须选择发送时间', path: ['scheduledAt'] })
+  .refine((v) => v.audience.mode !== 'users' || (v.audience.userIds?.length ?? 0) > 0, { message: '请选择目标用户', path: ['audience', 'userIds'] })
+  .refine((v) => v.audience.mode !== 'departments' || (v.audience.departmentIds?.length ?? 0) > 0, { message: '请选择目标部门', path: ['audience', 'departmentIds'] })
+  .refine((v) => v.audience.mode !== 'roles' || (v.audience.roleIds?.length ?? 0) > 0, { message: '请选择目标角色', path: ['audience', 'roleIds'] });
 export type PublishChannelInput = z.infer<typeof publishChannelSchema>;
 
 /** 用户向运营号发送一条消息 */
@@ -1475,6 +1501,19 @@ export const updateChannelAutoReplySchema = z
     sort: z.number().int().min(0).optional(),
   });
 export type UpdateChannelAutoReplyInput = z.infer<typeof updateChannelAutoReplySchema>;
+
+/** 新建客服快捷回复（channelId 为 null = 全局，所有运营号通用） */
+export const createChannelQuickReplySchema = z.object({
+  channelId: z.number().int().positive().nullable().optional(),
+  title: z.string().min(1, '标题不能为空').max(100),
+  content: z.string().min(1, '内容不能为空').max(2000),
+  sort: z.number().int().min(0).default(0),
+});
+export type CreateChannelQuickReplyInput = z.infer<typeof createChannelQuickReplySchema>;
+
+/** 更新客服快捷回复 */
+export const updateChannelQuickReplySchema = createChannelQuickReplySchema.partial();
+export type UpdateChannelQuickReplyInput = z.infer<typeof updateChannelQuickReplySchema>;
 
 // ── 通话记录（结束后写入会话系统消息）──
 export const chatCallRecordSchema = z.object({

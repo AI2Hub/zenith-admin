@@ -12,21 +12,22 @@
  *  - out 回复：direction='out', audienceType='targeted'，经 channelMessageTargets 定向到用户
  *  运营号不接收工作流卡片（那些走系统号），故按业务号聚合的 targeted out 即客服回复，干净无污染。
  */
-import { and, asc, desc, eq, exists, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, inArray, isNull, or, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
-  channels, channelMessages, channelMenus, channelAutoReplies, channelMessageTargets, users,
-  type ChannelMenuRow, type ChannelAutoReplyRow, type ChannelRow,
+  channels, channelMessages, channelMenus, channelAutoReplies, channelMessageTargets, channelQuickReplies, users,
+  type ChannelMenuRow, type ChannelAutoReplyRow, type ChannelQuickReplyRow, type ChannelRow,
 } from '../db/schema';
 import type {
-  ChannelMenu, ChannelAutoReply, ChannelConversation, ChannelMessage,
+  ChannelMenu, ChannelAutoReply, ChannelConversation, ChannelMessage, ChannelQuickReply,
   SaveChannelMenusInput, CreateChannelAutoReplyInput, UpdateChannelAutoReplyInput,
+  CreateChannelQuickReplyInput, UpdateChannelQuickReplyInput,
 } from '@zenith/shared';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
 import { formatDateTime } from '../lib/datetime';
 import { pageOffset } from '../lib/pagination';
-import { scheduleSendToUsers } from '../lib/ws-manager';
+import { broadcast, scheduleSendToUsers } from '../lib/ws-manager';
 import { mapChannelMessage } from './channel.service';
 
 // ─── 频道前置校验 ──────────────────────────────────────────────────────────────
@@ -257,6 +258,8 @@ export async function sendUserMessage(
   if (matched) {
     autoReply = await deliverOut(channelId, me.userId, matched.replyContent, null, null);
   }
+  // 通知在线客服工作台有新用户消息（轻量信号，不含敏感内容；客服端凭权限拉取刷新）
+  broadcast({ type: 'channel:cs-message', payload: { channelId } });
   return { message: inMsg, autoReply };
 }
 
@@ -386,4 +389,64 @@ export async function listConversationMessages(channelId: number, userId: number
     mapChannelMessage(r, true, r.senderUserId != null ? (nameMap.get(r.senderUserId) ?? null) : null),
   );
   return { list, total, page, pageSize };
+}
+
+// ─── 客服快捷回复库（D） ────────────────────────────────────────────────────────
+
+function mapQuickReply(row: ChannelQuickReplyRow, channelName: string | null = null): ChannelQuickReply {
+  return {
+    id: row.id,
+    channelId: row.channelId,
+    channelName,
+    title: row.title,
+    content: row.content,
+    sort: row.sort,
+    createdAt: formatDateTime(row.createdAt),
+    updatedAt: formatDateTime(row.updatedAt),
+  };
+}
+
+/** 列出快捷回复（全局 + 指定运营号；channelId 省略时仅返回全局） */
+export async function listChannelQuickReplies(channelId?: number): Promise<ChannelQuickReply[]> {
+  const rows = await db.query.channelQuickReplies.findMany({
+    where: channelId
+      ? or(isNull(channelQuickReplies.channelId), eq(channelQuickReplies.channelId, channelId))
+      : isNull(channelQuickReplies.channelId),
+    orderBy: [asc(channelQuickReplies.sort), asc(channelQuickReplies.id)],
+    with: { channel: { columns: { name: true } } },
+  });
+  return rows.map((r) => mapQuickReply(r, r.channel?.name ?? null));
+}
+
+/** 新建快捷回复 */
+export async function createChannelQuickReply(input: CreateChannelQuickReplyInput): Promise<ChannelQuickReply> {
+  if (input.channelId != null) await ensureBusinessChannel(input.channelId);
+  const [row] = await db.insert(channelQuickReplies).values({
+    channelId: input.channelId ?? null,
+    title: input.title,
+    content: input.content,
+    sort: input.sort ?? 0,
+  }).returning();
+  return mapQuickReply(row);
+}
+
+/** 更新快捷回复 */
+export async function updateChannelQuickReply(id: number, input: UpdateChannelQuickReplyInput): Promise<ChannelQuickReply> {
+  const existing = await db.query.channelQuickReplies.findFirst({ where: eq(channelQuickReplies.id, id) });
+  if (!existing) throw new HTTPException(404, { message: '快捷回复不存在' });
+  if (input.channelId != null) await ensureBusinessChannel(input.channelId);
+  const [row] = await db.update(channelQuickReplies).set({
+    ...(input.channelId === undefined ? {} : { channelId: input.channelId }),
+    ...(input.title === undefined ? {} : { title: input.title }),
+    ...(input.content === undefined ? {} : { content: input.content }),
+    ...(input.sort === undefined ? {} : { sort: input.sort }),
+  }).where(eq(channelQuickReplies.id, id)).returning();
+  return mapQuickReply(row);
+}
+
+/** 删除快捷回复 */
+export async function deleteChannelQuickReply(id: number): Promise<void> {
+  const existing = await db.query.channelQuickReplies.findFirst({ where: eq(channelQuickReplies.id, id) });
+  if (!existing) throw new HTTPException(404, { message: '快捷回复不存在' });
+  await db.delete(channelQuickReplies).where(eq(channelQuickReplies.id, id));
 }

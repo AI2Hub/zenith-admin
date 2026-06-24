@@ -64,6 +64,13 @@ export function CardMessage({
         boxShadow: clickable && hovered ? '0 2px 8px rgba(0,0,0,0.12)' : 'none',
       }}
     >
+      {card.cover && (
+        <img
+          src={card.cover}
+          alt={card.title}
+          style={{ width: '100%', maxHeight: 180, objectFit: 'cover', display: 'block' }}
+        />
+      )}
       <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid var(--semi-color-fill-1)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
           {card.source && (

@@ -162,6 +162,8 @@ export default function ChatPage({
   const [activeChannelId, setActiveChannelId] = useState<number | null>(null);
   const [discoverVisible, setDiscoverVisible] = useState(false);
   const [discoverList, setDiscoverList] = useState<Channel[]>([]);
+  const [discoverKeyword, setDiscoverKeyword] = useState('');
+  const [channelSearch, setChannelSearch] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [mentionClosed, setMentionClosed] = useState(false);
@@ -385,11 +387,24 @@ export default function ChatPage({
     }
   }, [fetchChannels]);
 
-  const openDiscover = useCallback(async () => {
-    const res = await request.get<Channel[]>('/api/channels/discoverable', { silent: true });
+  const loadDiscoverList = useCallback(async (keyword: string) => {
+    const kw = keyword.trim();
+    const qs = kw ? `?keyword=${encodeURIComponent(kw)}` : '';
+    const res = await request.get<Channel[]>(`/api/channels/discoverable${qs}`, { silent: true });
     if (res.code === 0 && res.data) setDiscoverList(res.data);
+  }, []);
+
+  const openDiscover = useCallback(() => {
+    setDiscoverKeyword('');
     setDiscoverVisible(true);
   }, []);
+
+  // 发现频道搜索：打开时立即加载，输入关键词时 300ms 防抖重新加载
+  useEffect(() => {
+    if (!discoverVisible) return;
+    const handler = setTimeout(() => { void loadDiscoverList(discoverKeyword); }, discoverKeyword.trim() ? 300 : 0);
+    return () => clearTimeout(handler);
+  }, [discoverVisible, discoverKeyword, loadDiscoverList]);
 
   const handleSubscribeChannel = useCallback(async (ch: Channel) => {
     const res = await request.post(`/api/channels/${ch.id}/subscribe`, {});
@@ -1623,7 +1638,7 @@ export default function ChatPage({
       });
       setLastSeenMap((prev) => ({ ...prev, [userId]: online ? null : lastSeen }));
     }
-  }, [activeConvId, appendMessageOnce, applyMessageUpdate, conversations, currentUserId, fetchConversations, refreshGroupAvatarMembers]);
+  }, [activeChannelId, activeConvId, appendMessageOnce, applyMessageUpdate, conversations, currentUserId, fetchConversations, refreshGroupAvatarMembers]);
 
   const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
     isAtBottomRef.current = atBottom;
@@ -1636,7 +1651,7 @@ export default function ChatPage({
     if (pendingNewMsgCount > 0) setPendingNewMsgCount(0);
     request.post(`/api/chat/conversations/${activeConvId}/read`, {}, { silent: true }).catch(() => {});
     setConversations(markConversationReadById(activeConvId));
-  }, [activeConvId, activeChannelId, contextMode, pendingNewMsgCount, restoreLatestMessages]);
+  }, [activeConvId, contextMode, pendingNewMsgCount, restoreLatestMessages]);
 
   const handleStartReached = useCallback(() => {
     if (!hasMore || loadingMsgs || !activeConvId) return;
@@ -1759,6 +1774,13 @@ export default function ChatPage({
   });
 
   const totalUnread = conversations.reduce((s, c) => s + c.unreadCount, 0);
+
+  // 频道列表本地过滤：按名称包含匹配，不调接口
+  const filteredChannels = useMemo(() => {
+    const kw = channelSearch.trim().toLowerCase();
+    if (!kw) return channels;
+    return channels.filter((c) => c.name.toLowerCase().includes(kw));
+  }, [channels, channelSearch]);
 
   useEffect(() => {
     onUnreadChange?.(totalUnread);
@@ -1930,12 +1952,24 @@ export default function ChatPage({
               <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', borderBottom: '1px solid var(--semi-color-border)' }}>
                 <Text type="tertiary" size="small">频道</Text>
-                <Button size="small" theme="borderless" onClick={() => void openDiscover()}>发现频道</Button>
+                <Button size="small" theme="borderless" onClick={openDiscover}>发现频道</Button>
               </div>
               {channels.length > 0 && (
+                <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--semi-color-border)' }}>
+                  <Input
+                    prefix={<Search size={14} />}
+                    placeholder="搜索频道"
+                    showClear
+                    size="small"
+                    value={channelSearch}
+                    onChange={setChannelSearch}
+                  />
+                </div>
+              )}
+              {filteredChannels.length > 0 && (
                 <SemiList
                   className="chat-conv-list"
-                  dataSource={channels}
+                  dataSource={filteredChannels}
                   split={false}
                   style={{ borderBottom: '1px solid var(--semi-color-border)' }}
                   renderItem={(ch: Channel) => (
@@ -3506,6 +3540,14 @@ export default function ChatPage({
         footer={null}
         width={480}
       >
+        <Input
+          prefix={<Search size={14} />}
+          placeholder="搜索频道"
+          showClear
+          value={discoverKeyword}
+          onChange={setDiscoverKeyword}
+          style={{ marginBottom: 12 }}
+        />
         {discoverList.length === 0 ? (
           <Empty description="暂无可订阅的频道" style={{ padding: 32 }} />
         ) : (

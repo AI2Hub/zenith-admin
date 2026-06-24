@@ -1241,6 +1241,7 @@ export type WsMessage =
   | { type: 'chat:vote-update'; payload: { conversationId: number; messageId: number; voteData: ChatVoteData } }
   | { type: 'chat:presence'; payload: { userId: number; online: boolean; lastSeen: string | null } }
   | { type: 'channel:message'; payload: ChannelMessage }
+  | { type: 'channel:cs-message'; payload: { channelId: number } }
   | { type: 'rtc:invite'; payload: RtcInvitePayload }
   | { type: 'rtc:accept'; payload: { callId: string; to: number; from: RtcPeerInfo } }
   | { type: 'rtc:reject'; payload: { callId: string; to: number; reason?: string } }
@@ -2746,6 +2747,8 @@ export interface ChatCardAction {
 export interface ChatCard {
   title: string;
   text?: string | null;
+  /** 图文消息封面图 URL（频道图文群发使用，工作流卡片不设） */
+  cover?: string | null;
   fields?: ChatCardField[] | null;
   actions?: ChatCardAction[] | null;
   /** 来源标识（如「工作流」「系统告警」「监控」） */
@@ -2897,7 +2900,13 @@ export interface ChatWebhook {
 // ─── Channel（站内公众号 / 系统号）────────────────────────────────────────────
 export type ChannelType = 'system' | 'business';
 export type ChannelAudienceType = 'broadcast' | 'targeted';
-export type ChannelMessageType = 'text' | 'card';
+export type ChannelMessageType = 'text' | 'card' | 'image' | 'news';
+/** 消息状态：sent=已发；draft=草稿；scheduled=定时待发 */
+export type ChannelMessageStatus = 'sent' | 'draft' | 'scheduled';
+/** 群发受众范围：all=全员；users=指定用户；departments=按部门；roles=按角色 */
+export type ChannelPublishAudienceMode = 'all' | 'users' | 'departments' | 'roles';
+/** 群发发送方式：now=立即；scheduled=定时；draft=存草稿 */
+export type ChannelSendMode = 'now' | 'scheduled' | 'draft';
 /** 消息方向：out=频道→用户（群发/客服/自动回复）；in=用户→频道（用户主动发送） */
 export type ChannelMessageDirection = 'out' | 'in';
 /** 公众号底部菜单类型：click=点击触发关键词；view=跳转链接 */
@@ -2925,6 +2934,10 @@ export interface ChannelMessage {
   senderUserName: string | null;
   /** 当前用户视角是否已读 */
   isRead: boolean;
+  /** 消息状态（管理端消息记录：sent 已发 / draft 草稿 / scheduled 定时待发） */
+  status: ChannelMessageStatus;
+  /** 定时发送时间（status=scheduled 时有值） */
+  scheduledAt: string | null;
   createdAt: string;
 }
 
@@ -2951,6 +2964,18 @@ export interface ChannelAutoReply {
   keywordMode: ChannelAutoReplyKeywordMode;
   replyContent: string;
   status: EntityStatus;
+  sort: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 客服快捷回复（channelId 为 null 表示全局，所有运营号通用） */
+export interface ChannelQuickReply {
+  id: number;
+  channelId: number | null;
+  channelName: string | null;
+  title: string;
+  content: string;
   sort: number;
   createdAt: string;
   updatedAt: string;

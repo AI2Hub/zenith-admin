@@ -3,15 +3,18 @@
  *
  * 左侧按用户聚合的会话列表，右侧双向消息流 + 回复框。
  * 用户消息（in）靠左，频道回复（out：客服/自动回复）靠右。
- * 采用轮询刷新：会话列表 10s、活动会话消息 6s。
+ * 实时刷新：订阅 WS channel:cs-message 事件即时更新；轮询作为兜底（会话列表 30s、活动会话消息 15s）。
+ * 回复框支持快捷回复（插入）与快捷回复 CRUD 管理。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Badge, Button, Empty, Select, Spin, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
-import { RotateCcw, Send } from 'lucide-react';
-import type { ChannelConversation, ChannelMessage, PaginatedResponse } from '@zenith/shared';
+import { Badge, Button, Dropdown, Empty, Select, Spin, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { MessageSquareText, RotateCcw, Send, Settings } from 'lucide-react';
+import type { ChannelConversation, ChannelMessage, ChannelQuickReply, PaginatedResponse, WsMessage } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import { UserAvatar } from '@/components/UserAvatar';
+import { ChannelQuickReplyDrawer } from './ChannelQuickReplyDrawer';
 
 const { Text } = Typography;
 
@@ -30,8 +33,12 @@ export default function ChannelCustomerServicePage() {
   const [loadingMsg, setLoadingMsg] = useState(false);
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
+  const [quickReplies, setQuickReplies] = useState<ChannelQuickReply[]>([]);
+  const [manageVisible, setManageVisible] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastCountRef = useRef(0);
+  const channelIdRef = useRef<number | null>(null);
+  const activeUserIdRef = useRef<number | null>(null);
 
   const activeConv = useMemo(
     () => conversations.find((c) => c.userId === activeUserId) ?? null,
@@ -81,19 +88,50 @@ export default function ChannelCustomerServicePage() {
     }
   }, [scrollToBottom]);
 
-  // 切换频道：重置会话 + 加载
+  const fetchQuickReplies = useCallback(async (cid: number) => {
+    const res = await request.get<ChannelQuickReply[]>(
+      `/api/channels/cs/quick-replies?channelId=${cid}`,
+      { silent: true },
+    );
+    if (res.code === 0 && res.data) setQuickReplies(res.data);
+  }, []);
+
+  // 保持当前频道 / 会话引用，供 WS 回调读取最新值
+  useEffect(() => { channelIdRef.current = channelId; }, [channelId]);
+  useEffect(() => { activeUserIdRef.current = activeUserId; }, [activeUserId]);
+
+  // 切换频道：重置会话 + 加载会话列表 + 加载快捷回复
   useEffect(() => {
     if (channelId == null) return;
     setConversations([]);
     setActiveUserId(null);
     setMessages([]);
+    setQuickReplies([]);
     void fetchConversations(channelId);
-  }, [channelId, fetchConversations]);
+    void fetchQuickReplies(channelId);
+  }, [channelId, fetchConversations, fetchQuickReplies]);
 
-  // 轮询会话列表
+  // 订阅 WS：用户给运营号发消息时实时刷新
+  const handleWs = useCallback((wsMsg: WsMessage) => {
+    if (wsMsg.type !== 'channel:cs-message') return;
+    const cid = channelIdRef.current;
+    if (cid == null) return;
+    if (wsMsg.payload.channelId === cid) {
+      void fetchConversations(cid);
+      const uid = activeUserIdRef.current;
+      if (uid != null) void fetchMessages(cid, uid);
+    } else {
+      // 其他频道有新消息：刷新会话列表更新未读角标（仅当前选中频道维度）
+      void fetchConversations(cid);
+    }
+  }, [fetchConversations, fetchMessages]);
+
+  useWebSocket(handleWs);
+
+  // 轮询会话列表（WS 兜底，降频至 30s）
   useEffect(() => {
     if (channelId == null) return;
-    const timer = setInterval(() => { void fetchConversations(channelId); }, 10000);
+    const timer = setInterval(() => { void fetchConversations(channelId); }, 30000);
     return () => clearInterval(timer);
   }, [channelId, fetchConversations]);
 
@@ -104,10 +142,10 @@ export default function ChannelCustomerServicePage() {
     void fetchMessages(channelId, activeUserId, true);
   }, [channelId, activeUserId, fetchMessages]);
 
-  // 轮询活动会话消息
+  // 轮询活动会话消息（WS 兜底，降频至 15s）
   useEffect(() => {
     if (channelId == null || activeUserId == null) return;
-    const timer = setInterval(() => { void fetchMessages(channelId, activeUserId); }, 6000);
+    const timer = setInterval(() => { void fetchMessages(channelId, activeUserId); }, 15000);
     return () => clearInterval(timer);
   }, [channelId, activeUserId, fetchMessages]);
 
@@ -134,6 +172,13 @@ export default function ChannelCustomerServicePage() {
       setSending(false);
     }
   }, [reply, sending, channelId, activeUserId, scrollToBottom, fetchConversations]);
+
+  const insertQuickReply = useCallback((content: string) => {
+    setReply((prev) => {
+      if (!prev.trim()) return content;
+      return prev.endsWith('\n') ? prev + content : `${prev}\n${content}`;
+    });
+  }, []);
 
   return (
     <div className="page-container" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
@@ -223,28 +268,63 @@ export default function ChannelCustomerServicePage() {
                   })}
                 </div>
 
-                <div style={{ flexShrink: 0, display: 'flex', alignItems: 'flex-end', gap: 8, padding: '10px 16px', borderTop: '1px solid var(--semi-color-border)' }}>
-                  <TextArea
-                    value={reply}
-                    onChange={setReply}
-                    autosize={{ minRows: 1, maxRows: 4 }}
-                    placeholder="输入回复，Enter 发送 / Shift+Enter 换行"
-                    style={{ flex: 1 }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        void handleReply();
-                      }
-                    }}
-                  />
-                  <Button type="primary" theme="solid" icon={<Send size={14} />} loading={sending} disabled={!reply.trim()} onClick={() => void handleReply()}>
-                    回复
-                  </Button>
+                <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 16px', borderTop: '1px solid var(--semi-color-border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Dropdown
+                      trigger="click"
+                      position="topLeft"
+                      render={(
+                        <Dropdown.Menu style={{ maxHeight: 320, overflowY: 'auto', maxWidth: 360 }}>
+                          {quickReplies.length === 0 ? (
+                            <Dropdown.Item disabled>暂无快捷回复</Dropdown.Item>
+                          ) : quickReplies.map((q) => (
+                            <Dropdown.Item key={q.id} onClick={() => insertQuickReply(q.content)}>
+                              <div style={{ minWidth: 0 }}>
+                                <Text strong size="small" style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.title}</Text>
+                                <Text type="tertiary" size="small" style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 320 }}>{q.content}</Text>
+                              </div>
+                            </Dropdown.Item>
+                          ))}
+                        </Dropdown.Menu>
+                      )}
+                    >
+                      <Button theme="borderless" size="small" icon={<MessageSquareText size={14} />}>快捷回复</Button>
+                    </Dropdown>
+                    <Button theme="borderless" size="small" icon={<Settings size={14} />} onClick={() => setManageVisible(true)}>管理快捷回复</Button>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+                    <TextArea
+                      value={reply}
+                      onChange={setReply}
+                      autosize={{ minRows: 1, maxRows: 4 }}
+                      placeholder="输入回复，Enter 发送 / Shift+Enter 换行"
+                      style={{ flex: 1 }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          void handleReply();
+                        }
+                      }}
+                    />
+                    <Button type="primary" theme="solid" icon={<Send size={14} />} loading={sending} disabled={!reply.trim()} onClick={() => void handleReply()}>
+                      回复
+                    </Button>
+                  </div>
                 </div>
               </>
             )}
           </div>
         </div>
+      )}
+
+      {channelId != null && (
+        <ChannelQuickReplyDrawer
+          channelId={channelId}
+          channelName={channels.find((c) => c.id === channelId)?.name ?? '当前频道'}
+          visible={manageVisible}
+          onClose={() => setManageVisible(false)}
+          onChanged={() => { void fetchQuickReplies(channelId); }}
+        />
       )}
     </div>
   );

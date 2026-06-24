@@ -35,7 +35,8 @@ function toChatMessage(m: ChannelMessage, channel: Channel): ChatMessage {
     senderId: isIn ? m.senderUserId : null,
     senderName: isIn ? (m.senderUserName ?? '我') : channel.name,
     senderAvatar: isIn ? null : channel.avatar,
-    type: m.type,
+    // 图文（news）复用卡片渲染路径：映射为 'card'，由 CardMessage 识别 cover 字段增强展示
+    type: m.type === 'news' ? 'card' : m.type,
     content: m.content,
     replyToId: null,
     replyToMessage: null,

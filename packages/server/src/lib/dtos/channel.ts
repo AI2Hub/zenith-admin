@@ -9,7 +9,7 @@ export const ChannelMessageDTO = z
     id: z.number().int(),
     channelId: z.number().int(),
     audienceType: z.enum(['broadcast', 'targeted']),
-    type: z.enum(['text', 'card']),
+    type: z.enum(['text', 'card', 'image', 'news']),
     title: z.string().nullable(),
     content: z.string(),
     extra: ChatMessageExtraDTO.nullable().optional(),
@@ -18,6 +18,8 @@ export const ChannelMessageDTO = z
     senderUserId: z.number().int().nullable(),
     senderUserName: z.string().nullable(),
     isRead: z.boolean(),
+    status: z.enum(['sent', 'draft', 'scheduled']),
+    scheduledAt: z.string().nullable(),
     createdAt: z.string(),
   })
   .openapi('ChannelMessage');
@@ -113,3 +115,16 @@ export const ChannelCsChannelDTO = z
     avatar: z.string().nullable(),
   })
   .openapi('ChannelCsChannel');
+
+export const ChannelQuickReplyDTO = z
+  .object({
+    id: z.number().int(),
+    channelId: z.number().int().nullable(),
+    channelName: z.string().nullable(),
+    title: z.string(),
+    content: z.string(),
+    sort: z.number().int(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('ChannelQuickReply');

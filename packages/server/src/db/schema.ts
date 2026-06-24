@@ -1882,7 +1882,8 @@ export type NewChatWebhook = typeof chatWebhooks.$inferInsert;
 // ─── Channel（站内公众号 / 系统号）────────────────────────────────────────────
 export const channelTypeEnum = pgEnum('channel_type', ['system', 'business']);
 export const channelAudienceEnum = pgEnum('channel_audience', ['broadcast', 'targeted']);
-export const channelMessageTypeEnum = pgEnum('channel_message_type', ['text', 'card']);
+export const channelMessageTypeEnum = pgEnum('channel_message_type', ['text', 'card', 'image', 'news']);
+export const channelMessageStatusEnum = pgEnum('channel_message_status', ['sent', 'draft', 'scheduled']);
 export const channelMessageDirectionEnum = pgEnum('channel_message_direction', ['out', 'in']);
 export const channelMenuTypeEnum = pgEnum('channel_menu_type', ['click', 'view']);
 export const channelAutoReplyMatchEnum = pgEnum('channel_auto_reply_match', ['subscribe', 'keyword', 'default']);
@@ -1916,6 +1917,9 @@ export const channelMessages = pgTable('channel_messages', {
   publishedById: integer('published_by_id').references(() => users.id, { onDelete: 'set null' }),
   direction: channelMessageDirectionEnum('direction').notNull().default('out'),
   senderUserId: integer('sender_user_id').references(() => users.id, { onDelete: 'set null' }),
+  status: channelMessageStatusEnum('status').notNull().default('sent'),
+  scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
+  targetSpec: jsonb('target_spec'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 export type ChannelMessageRow = typeof channelMessages.$inferSelect;
@@ -1989,6 +1993,24 @@ export const channelMenusRelations = relations(channelMenus, ({ one }) => ({
 }));
 export const channelAutoRepliesRelations = relations(channelAutoReplies, ({ one }) => ({
   channel: one(channels, { fields: [channelAutoReplies.channelId], references: [channels.id] }),
+}));
+
+// ─── Channel 客服快捷回复库（D：channelId 为 null 表示全局，所有运营号可用） ────
+export const channelQuickReplies = pgTable('channel_quick_replies', {
+  id: serial('id').primaryKey(),
+  channelId: integer('channel_id').references(() => channels.id, { onDelete: 'cascade' }),
+  title: varchar('title', { length: 100 }).notNull(),
+  content: text('content').notNull(),
+  sort: integer('sort').notNull().default(0),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+export type ChannelQuickReplyRow = typeof channelQuickReplies.$inferSelect;
+export type NewChannelQuickReply = typeof channelQuickReplies.$inferInsert;
+
+export const channelQuickRepliesRelations = relations(channelQuickReplies, ({ one }) => ({
+  channel: one(channels, { fields: [channelQuickReplies.channelId], references: [channels.id] }),
 }));
 
 // ═══════════════════════════════════════════════════════════════════════════

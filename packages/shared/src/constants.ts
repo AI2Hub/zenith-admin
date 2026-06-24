@@ -246,7 +246,10 @@ export const CHECKIN_MILESTONE_REWARD_TYPE_LABELS: Record<typeof CHECKIN_MILESTO
 // ─── Channel（站内公众号 / 系统号）────────────────────────────────────────────
 export const CHANNEL_TYPES = ['system', 'business'] as const;
 export const CHANNEL_AUDIENCE_TYPES = ['broadcast', 'targeted'] as const;
-export const CHANNEL_MESSAGE_TYPES = ['text', 'card'] as const;
+export const CHANNEL_MESSAGE_TYPES = ['text', 'card', 'image', 'news'] as const;
+export const CHANNEL_MESSAGE_STATUSES = ['sent', 'draft', 'scheduled'] as const;
+export const CHANNEL_PUBLISH_AUDIENCE_MODES = ['all', 'users', 'departments', 'roles'] as const;
+export const CHANNEL_SEND_MODES = ['now', 'scheduled', 'draft'] as const;
 export const CHANNEL_MESSAGE_DIRECTIONS = ['out', 'in'] as const;
 export const CHANNEL_MENU_TYPES = ['click', 'view'] as const;
 export const CHANNEL_AUTO_REPLY_MATCH_TYPES = ['subscribe', 'keyword', 'default'] as const;
@@ -268,6 +271,32 @@ export const CHANNEL_AUTO_REPLY_MATCH_LABELS: Record<(typeof CHANNEL_AUTO_REPLY_
 export const CHANNEL_AUTO_REPLY_KEYWORD_MODE_LABELS: Record<(typeof CHANNEL_AUTO_REPLY_KEYWORD_MODES)[number], string> = {
   exact: '完全匹配',
   contains: '包含匹配',
+};
+
+export const CHANNEL_MESSAGE_TYPE_LABELS: Record<(typeof CHANNEL_MESSAGE_TYPES)[number], string> = {
+  text: '文本',
+  image: '图片',
+  news: '图文',
+  card: '卡片',
+};
+
+export const CHANNEL_MESSAGE_STATUS_LABELS: Record<(typeof CHANNEL_MESSAGE_STATUSES)[number], string> = {
+  sent: '已发送',
+  draft: '草稿',
+  scheduled: '定时待发',
+};
+
+export const CHANNEL_PUBLISH_AUDIENCE_MODE_LABELS: Record<(typeof CHANNEL_PUBLISH_AUDIENCE_MODES)[number], string> = {
+  all: '全体成员',
+  users: '指定用户',
+  departments: '按部门',
+  roles: '按角色',
+};
+
+export const CHANNEL_SEND_MODE_LABELS: Record<(typeof CHANNEL_SEND_MODES)[number], string> = {
+  now: '立即发送',
+  scheduled: '定时发送',
+  draft: '存草稿',
 };
 
 export const MEMBER_STATUS_LABELS: Record<MemberStatus, string> = {

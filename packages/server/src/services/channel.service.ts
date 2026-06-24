@@ -8,20 +8,22 @@
  * 发送者身份由频道（name/avatar）承载，消息 publishedById 仅记录触发的管理员/系统（可空），
  * 不再依赖 users 表的机器人假用户。
  */
-import { and, desc, eq, exists, gt, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, exists, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
-  channels, channelMessages, channelSubscriptions, channelMessageTargets, users,
+  channels, channelMessages, channelSubscriptions, channelMessageTargets, users, userRoles,
   type ChannelRow, type ChannelMessageRow,
 } from '../db/schema';
-import type { Channel, ChannelAdmin, ChannelMessage, ChannelMessageType, ChatMessageExtra, CreateChannelInput, UpdateChannelInput, PublishChannelInput } from '@zenith/shared';
+import type { Channel, ChannelAdmin, ChannelMessage, ChannelMessageType, ChatCard, ChatMessageExtra, CreateChannelInput, UpdateChannelInput, PublishChannelInput, ChannelPublishAudienceInput, PaginatedResponse } from '@zenith/shared';
 import { SYSTEM_CHANNEL_CODE } from '@zenith/shared';
 import { HTTPException } from 'hono/http-exception';
 import { rethrowPgUniqueViolation } from '../lib/db-errors';
 import { currentUser } from '../lib/context';
-import { formatDateTime } from '../lib/datetime';
+import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../lib/datetime';
 import { pageOffset } from '../lib/pagination';
 import { scheduleSendToUsers } from '../lib/ws-manager';
+import { escapeLike } from '../lib/where-helpers';
+import logger from '../lib/logger';
 
 interface PublishInput {
   type: ChannelMessageType;
@@ -45,6 +47,8 @@ export function mapChannelMessage(row: ChannelMessageRow, isRead: boolean, sende
     senderUserId: row.senderUserId,
     senderUserName,
     isRead,
+    status: row.status,
+    scheduledAt: formatNullableDateTime(row.scheduledAt),
     createdAt: formatDateTime(row.createdAt),
   };
 }
@@ -53,6 +57,7 @@ export function mapChannelMessage(row: ChannelMessageRow, isRead: boolean, sende
 function visibleMessageWhere(channelId: number, userId: number) {
   return and(
     eq(channelMessages.channelId, channelId),
+    eq(channelMessages.status, 'sent'),
     or(
       eq(channelMessages.audienceType, 'broadcast'),
       and(eq(channelMessages.direction, 'in'), eq(channelMessages.senderUserId, userId)),
@@ -135,12 +140,13 @@ async function buildChannelView(ch: ChannelRow, userId: number, isSubscribed: bo
   const lastReadAt = sub?.lastReadAt ?? null;
 
   const targetedMsgIds = db.select({ id: channelMessages.id }).from(channelMessages)
-    .where(and(eq(channelMessages.channelId, ch.id), eq(channelMessages.audienceType, 'targeted')));
+    .where(and(eq(channelMessages.channelId, ch.id), eq(channelMessages.audienceType, 'targeted'), eq(channelMessages.status, 'sent')));
 
   const [broadcastUnread, targetedUnread, lastRows] = await Promise.all([
     db.$count(channelMessages, and(
       eq(channelMessages.channelId, ch.id),
       eq(channelMessages.audienceType, 'broadcast'),
+      eq(channelMessages.status, 'sent'),
       lastReadAt ? gt(channelMessages.createdAt, lastReadAt) : undefined,
     )),
     db.$count(channelMessageTargets, and(
@@ -365,17 +371,186 @@ export async function deleteChannel(id: number): Promise<void> {
   await db.delete(channels).where(eq(channels.id, id));
 }
 
-/** 管理员手动向频道群发一条广播文本消息 */
+// ─── 群发受众展开 ──────────────────────────────────────────────────────────────
+
+/** 将受众定义展开为目标用户 id 列表；mode=all 返回 null（走全员广播） */
+async function resolveAudienceUserIds(audience: ChannelPublishAudienceInput): Promise<number[] | null> {
+  switch (audience.mode) {
+    case 'all':
+      return null;
+    case 'users':
+      return [...new Set(audience.userIds ?? [])];
+    case 'departments': {
+      const ids = audience.departmentIds ?? [];
+      if (ids.length === 0) return [];
+      const rows = await db.select({ id: users.id }).from(users).where(inArray(users.departmentId, ids));
+      return rows.map((r) => r.id);
+    }
+    case 'roles': {
+      const ids = audience.roleIds ?? [];
+      if (ids.length === 0) return [];
+      const rows = await db.select({ userId: userRoles.userId }).from(userRoles).where(inArray(userRoles.roleId, ids));
+      return [...new Set(rows.map((r) => r.userId))];
+    }
+    default:
+      return null;
+  }
+}
+
+/** 由群发入参构造底层消息载荷（type + content + extra） */
+function buildPublishPayload(input: PublishChannelInput, publishedById: number): PublishInput {
+  if (input.type === 'image') {
+    return { type: 'image', title: null, content: (input.imageUrl ?? '').trim(), extra: null, publishedById };
+  }
+  if (input.type === 'news') {
+    const card: ChatCard = {
+      title: (input.title ?? '').trim(),
+      text: input.summary ?? null,
+      cover: input.cover ?? null,
+      actions: input.linkUrl ? [{ key: 'open', label: '查看详情', action: 'link', url: input.linkUrl }] : null,
+      source: '图文',
+      status: null,
+    };
+    return { type: 'news', title: card.title, content: input.content || input.summary || '', extra: { card }, publishedById };
+  }
+  return { type: 'text', title: input.title ?? null, content: input.content, extra: null, publishedById };
+}
+
+/** 管理员群发：文本/图片/图文 + 受众(全员/用户/部门/角色) + 立即/定时/草稿 */
 export async function publishToChannel(id: number, input: PublishChannelInput): Promise<ChannelMessage> {
   const ch = await db.query.channels.findFirst({ where: eq(channels.id, id) });
   if (!ch) throw new HTTPException(404, { message: '频道不存在' });
   const me = currentUser();
-  return publishBroadcast(id, {
-    type: 'text',
-    title: input.title ?? null,
-    content: input.content,
-    publishedById: me.userId,
+  const payload = buildPublishPayload(input, me.userId);
+
+  if (input.sendMode !== 'now') {
+    return saveDeferredMessage(id, input, payload);
+  }
+  if (input.audience.mode === 'all') {
+    return publishBroadcast(id, payload);
+  }
+  const userIds = await resolveAudienceUserIds(input.audience);
+  const msg = await publishTargeted(id, userIds ?? [], payload);
+  if (!msg) throw new HTTPException(400, { message: '目标受众为空，无法发送' });
+  return msg;
+}
+
+// ─── 草稿 / 定时群发 ────────────────────────────────────────────────────────────
+
+/** 写入一条草稿/定时消息（不投递；定时由扫描任务到点发布） */
+async function saveDeferredMessage(channelId: number, input: PublishChannelInput, payload: PublishInput): Promise<ChannelMessage> {
+  const audienceType = input.audience.mode === 'all' ? 'broadcast' : 'targeted';
+  const scheduledAt = input.sendMode === 'scheduled' ? parseDateTimeInput(input.scheduledAt) : null;
+  const [row] = await db.insert(channelMessages).values({
+    channelId,
+    audienceType,
+    type: payload.type,
+    title: payload.title ?? null,
+    content: payload.content,
+    extra: payload.extra ?? null,
+    publishedById: payload.publishedById ?? null,
+    status: input.sendMode === 'draft' ? 'draft' : 'scheduled',
+    scheduledAt,
+    targetSpec: input.audience,
+  }).returning();
+  return mapChannelMessage(row, false);
+}
+
+/** 真正投递一条延迟消息：改 sent + 写 targets + WS 推送 */
+async function deliverDeferredRow(row: ChannelMessageRow): Promise<void> {
+  await db.update(channelMessages).set({ status: 'sent' }).where(eq(channelMessages.id, row.id));
+  const msg = mapChannelMessage({ ...row, status: 'sent' }, false);
+  if (row.audienceType === 'broadcast') {
+    const allUsers = await db.select({ userId: users.id }).from(users);
+    scheduleSendToUsers(allUsers, { type: 'channel:message', payload: msg });
+    return;
+  }
+  const spec = (row.targetSpec as ChannelPublishAudienceInput | null) ?? { mode: 'all' };
+  const userIds = [...new Set((await resolveAudienceUserIds(spec)) ?? [])].filter((x) => x > 0);
+  if (userIds.length > 0) {
+    await db.insert(channelMessageTargets).values(userIds.map((userId) => ({ messageId: row.id, userId })));
+    scheduleSendToUsers(userIds.map((userId) => ({ userId })), { type: 'channel:message', payload: msg });
+  }
+}
+
+/** 系统定时任务：扫描到期的定时消息并发布（registerSystemRecurringJob 每分钟触发） */
+export async function publishDueScheduledMessages(): Promise<void> {
+  const due = await db.query.channelMessages.findMany({
+    where: and(eq(channelMessages.status, 'scheduled'), lte(channelMessages.scheduledAt, new Date())),
+    orderBy: [channelMessages.scheduledAt],
+    limit: 50,
   });
+  for (const row of due) {
+    try {
+      await deliverDeferredRow(row);
+    } catch (err) {
+      logger.error(`channel scheduled publish failed (msg ${row.id}):`, err);
+    }
+  }
+}
+
+// ─── 消息记录管理（已发 / 草稿 / 定时） ────────────────────────────────────────
+
+/** 管理端：某频道的群发消息记录列表（direction=out，含已发/草稿/定时） */
+export async function listChannelMessageRecords(
+  channelId: number,
+  page: number,
+  pageSize: number,
+  status?: 'sent' | 'draft' | 'scheduled',
+): Promise<PaginatedResponse<ChannelMessage>> {
+  const where = and(
+    eq(channelMessages.channelId, channelId),
+    eq(channelMessages.direction, 'out'),
+    status ? eq(channelMessages.status, status) : undefined,
+  );
+  const [total, rows] = await Promise.all([
+    db.$count(channelMessages, where),
+    db.select().from(channelMessages).where(where)
+      .orderBy(desc(channelMessages.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+  ]);
+  return { list: rows.map((r) => mapChannelMessage(r, true)), total, page, pageSize };
+}
+
+/** 取出一条可编辑的延迟消息（草稿/定时），已发拒绝 */
+async function ensureDeferredMessage(messageId: number): Promise<ChannelMessageRow> {
+  const row = await db.query.channelMessages.findFirst({ where: eq(channelMessages.id, messageId) });
+  if (!row) throw new HTTPException(404, { message: '消息不存在' });
+  if (row.status === 'sent') throw new HTTPException(400, { message: '已发送的消息不可修改' });
+  return row;
+}
+
+/** 编辑草稿/定时消息 */
+export async function updateDeferredMessage(messageId: number, input: PublishChannelInput): Promise<ChannelMessage> {
+  const row = await ensureDeferredMessage(messageId);
+  const me = currentUser();
+  const payload = buildPublishPayload(input, me.userId);
+  const audienceType = input.audience.mode === 'all' ? 'broadcast' : 'targeted';
+  const scheduledAt = input.sendMode === 'scheduled' ? parseDateTimeInput(input.scheduledAt) : null;
+  const [updated] = await db.update(channelMessages).set({
+    audienceType,
+    type: payload.type,
+    title: payload.title ?? null,
+    content: payload.content,
+    extra: payload.extra ?? null,
+    status: input.sendMode === 'draft' ? 'draft' : 'scheduled',
+    scheduledAt,
+    targetSpec: input.audience,
+  }).where(eq(channelMessages.id, row.id)).returning();
+  return mapChannelMessage(updated, false);
+}
+
+/** 删除草稿 / 取消定时 */
+export async function deleteDeferredMessage(messageId: number): Promise<void> {
+  await ensureDeferredMessage(messageId);
+  await db.delete(channelMessages).where(eq(channelMessages.id, messageId));
+}
+
+/** 立即发送一条草稿/定时消息 */
+export async function publishDeferredMessageNow(messageId: number): Promise<ChannelMessage> {
+  const row = await ensureDeferredMessage(messageId);
+  await deliverDeferredRow(row);
+  const sent = await db.query.channelMessages.findFirst({ where: eq(channelMessages.id, messageId) });
+  return mapChannelMessage(sent!, true);
 }
 
 // ─── 订阅（运营号） ───────────────────────────────────────────────────────────
@@ -405,13 +580,20 @@ export async function unsubscribeChannel(channelId: number): Promise<void> {
 }
 
 /** 可发现（未订阅）的运营号列表 */
-export async function listDiscoverableChannels(): Promise<Channel[]> {
+export async function listDiscoverableChannels(keyword?: string): Promise<Channel[]> {
   const me = currentUser().userId;
   const subRows = await db.select({ channelId: channelSubscriptions.channelId })
     .from(channelSubscriptions).where(eq(channelSubscriptions.userId, me));
   const subscribedIds = new Set(subRows.map((r) => r.channelId));
+  const kw = keyword?.trim();
   const chs = await db.query.channels.findMany({
-    where: and(eq(channels.status, 'enabled'), eq(channels.type, 'business')),
+    where: and(
+      eq(channels.status, 'enabled'),
+      eq(channels.type, 'business'),
+      kw
+        ? sql`(${channels.name} ILIKE ${'%' + escapeLike(kw) + '%'} OR ${channels.description} ILIKE ${'%' + escapeLike(kw) + '%'})`
+        : undefined,
+    ),
     orderBy: [channels.id],
   });
   const discoverable = chs.filter((ch) => !subscribedIds.has(ch.id));

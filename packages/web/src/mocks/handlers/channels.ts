@@ -1,8 +1,8 @@
 import { http, HttpResponse } from 'msw';
-import type { Channel, ChannelMessage, ChannelMenu, ChannelAutoReply, ChannelConversation } from '@zenith/shared';
+import type { Channel, ChannelMessage, ChannelMenu, ChannelAutoReply, ChannelConversation, ChannelQuickReply, ChannelMessageStatus, ChatMessageExtra } from '@zenith/shared';
 import {
-  mockChannels, mockChannelMessages, mockChannelMenus, mockChannelAutoReplies,
-  getNextChannelMessageId, getNextAutoReplyId, MOCK_CURRENT_USER_ID,
+  mockChannels, mockChannelMessages, mockChannelMenus, mockChannelAutoReplies, mockChannelQuickReplies,
+  getNextChannelMessageId, getNextAutoReplyId, getNextQuickReplyId, MOCK_CURRENT_USER_ID,
   type MockChannelMessage,
 } from '@/mocks/data/channels';
 import { mockDateTime } from '@/mocks/utils/date';
@@ -10,9 +10,52 @@ import { mockDateTime } from '@/mocks/utils/date';
 const CURRENT_USER_NAME = '超级管理员';
 let nextMenuId = 1000;
 
-/** 当前用户（id=1）视角可见的消息：广播/卡片(convUserId=null) + 本人会话 */
+/** 管理端群发请求体（文本 / 图片 / 图文 + 受众 + 立即/定时/草稿） */
+interface PublishBody {
+  type?: 'text' | 'image' | 'news';
+  title?: string | null;
+  content?: string;
+  imageUrl?: string | null;
+  cover?: string | null;
+  summary?: string | null;
+  linkUrl?: string | null;
+  audience?: { mode: 'all' | 'users' | 'departments' | 'roles'; userIds?: number[]; departmentIds?: number[]; roleIds?: number[] };
+  sendMode?: 'now' | 'scheduled' | 'draft';
+  scheduledAt?: string | null;
+}
+
+/** 由群发请求体构造消息 extra（仅图文生成卡片，其余为 null） */
+function buildPublishExtra(body: PublishBody): ChatMessageExtra | null {
+  if (body.type !== 'news') return null;
+  const linkUrl = body.linkUrl?.trim();
+  return {
+    card: {
+      title: (body.title ?? '').trim() || '图文消息',
+      text: body.summary ?? null,
+      cover: body.cover ?? null,
+      actions: linkUrl ? [{ key: 'open', label: '查看详情', action: 'link', url: linkUrl }] : null,
+      source: '图文',
+      status: null,
+    },
+  };
+}
+
+/** 将群发请求体写入消息（复用于新建与编辑），保留 id/channelId/createdAt 等不变字段 */
+function applyPublishFields(msg: MockChannelMessage, body: PublishBody): void {
+  const sendMode = body.sendMode ?? 'now';
+  const audienceMode = body.audience?.mode ?? 'all';
+  msg.type = body.type ?? 'text';
+  msg.title = body.title ?? null;
+  msg.content = body.content ?? '';
+  msg.extra = buildPublishExtra(body);
+  msg.audienceType = audienceMode === 'all' ? 'broadcast' : 'targeted';
+  msg.status = sendMode === 'draft' ? 'draft' : sendMode === 'scheduled' ? 'scheduled' : 'sent';
+  msg.scheduledAt = msg.status === 'scheduled' ? (body.scheduledAt ?? null) : null;
+}
+
+/** 当前用户（id=1）视角可见的消息：仅已发(sent) 的广播/卡片(convUserId=null) + 本人会话 */
 function visibleToCurrentUser(m: MockChannelMessage, channelId: number): boolean {
-  return m.channelId === channelId && (m.convUserId == null || m.convUserId === MOCK_CURRENT_USER_ID);
+  return m.channelId === channelId && m.status === 'sent' && (m.convUserId == null || m.convUserId === MOCK_CURRENT_USER_ID);
 }
 
 /** mock 自动回复匹配：subscribe → keyword(exact 优先 contains) → default */
@@ -34,6 +77,105 @@ function topMenus(channelId: number): ChannelMenu[] {
 }
 
 export const channelsHandlers = [
+  // ══ 频道功能扩展：消息记录管理 + 客服快捷回复 ══════════════════════════════
+  // 注：以下更具体的路由需先于 /api/channels/admin/:id/* 与 /api/channels/cs/:id/* 注册，
+  // 避免 MSW 按注册顺序匹配时被通配段抢占。
+
+  // ── 客服快捷回复 ──────────────────────────────────────────
+  http.get('/api/channels/cs/quick-replies', ({ request }) => {
+    const raw = new URL(request.url).searchParams.get('channelId');
+    const channelId = raw != null && raw !== '' && raw !== 'null' ? Number(raw) : null;
+    const list = mockChannelQuickReplies
+      .filter((q) => q.channelId == null || (channelId != null && q.channelId === channelId))
+      .sort((a, b) => a.sort - b.sort || a.id - b.id);
+    return HttpResponse.json({ code: 0, message: 'ok', data: list });
+  }),
+
+  http.post('/api/channels/cs/quick-replies', async ({ request }) => {
+    const body = await request.json() as Partial<ChannelQuickReply> & { title: string; content: string };
+    const channelId = body.channelId ?? null;
+    const reply: ChannelQuickReply = {
+      id: getNextQuickReplyId(),
+      channelId,
+      channelName: channelId != null ? (mockChannels.find((c) => c.id === channelId)?.name ?? null) : null,
+      title: body.title,
+      content: body.content,
+      sort: body.sort ?? 0,
+      createdAt: mockDateTime(), updatedAt: mockDateTime(),
+    };
+    mockChannelQuickReplies.push(reply);
+    return HttpResponse.json({ code: 0, message: '创建成功', data: reply });
+  }),
+
+  http.put('/api/channels/cs/quick-replies/:id', async ({ params, request }) => {
+    const id = Number(params.id);
+    const body = await request.json() as Partial<ChannelQuickReply>;
+    const reply = mockChannelQuickReplies.find((q) => q.id === id);
+    if (!reply) return HttpResponse.json({ code: 404, message: '快捷回复不存在', data: null }, { status: 404 });
+    if (body.channelId !== undefined) {
+      reply.channelId = body.channelId;
+      reply.channelName = body.channelId != null ? (mockChannels.find((c) => c.id === body.channelId)?.name ?? null) : null;
+    }
+    if (body.title !== undefined) reply.title = body.title;
+    if (body.content !== undefined) reply.content = body.content;
+    if (body.sort !== undefined) reply.sort = body.sort;
+    reply.updatedAt = mockDateTime();
+    return HttpResponse.json({ code: 0, message: '更新成功', data: reply });
+  }),
+
+  http.delete('/api/channels/cs/quick-replies/:id', ({ params }) => {
+    const id = Number(params.id);
+    const idx = mockChannelQuickReplies.findIndex((q) => q.id === id);
+    if (idx === -1) return HttpResponse.json({ code: 404, message: '快捷回复不存在', data: null }, { status: 404 });
+    mockChannelQuickReplies.splice(idx, 1);
+    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+  }),
+
+  // ── 消息记录管理（编辑/删除/立即发送单条；需先于 admin/:id/* 注册） ──────────
+  http.put('/api/channels/admin/messages/:id', async ({ params, request }) => {
+    const id = Number(params.id);
+    const msg = mockChannelMessages.find((m) => m.id === id);
+    if (!msg) return HttpResponse.json({ code: 404, message: '消息不存在', data: null }, { status: 404 });
+    if (msg.status === 'sent') return HttpResponse.json({ code: 400, message: '已发送消息不可编辑', data: null }, { status: 400 });
+    const body = await request.json() as PublishBody;
+    applyPublishFields(msg, body);
+    return HttpResponse.json({ code: 0, message: '更新成功', data: msg });
+  }),
+
+  http.delete('/api/channels/admin/messages/:id', ({ params }) => {
+    const id = Number(params.id);
+    const idx = mockChannelMessages.findIndex((m) => m.id === id);
+    if (idx === -1) return HttpResponse.json({ code: 404, message: '消息不存在', data: null }, { status: 404 });
+    if (mockChannelMessages[idx].status === 'sent') return HttpResponse.json({ code: 400, message: '已发送消息不可删除', data: null }, { status: 400 });
+    mockChannelMessages.splice(idx, 1);
+    return HttpResponse.json({ code: 0, message: '删除成功', data: null });
+  }),
+
+  http.post('/api/channels/admin/messages/:id/publish', ({ params }) => {
+    const id = Number(params.id);
+    const msg = mockChannelMessages.find((m) => m.id === id);
+    if (!msg) return HttpResponse.json({ code: 404, message: '消息不存在', data: null }, { status: 404 });
+    msg.status = 'sent';
+    msg.scheduledAt = null;
+    msg.createdAt = mockDateTime();
+    return HttpResponse.json({ code: 0, message: '已发送', data: msg });
+  }),
+
+  // 消息记录列表（某频道全部 out 消息，可按状态过滤）
+  http.get('/api/channels/admin/:id/messages', ({ params, request }) => {
+    const channelId = Number(params.id);
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get('page') ?? '1');
+    const pageSize = Number(url.searchParams.get('pageSize') ?? '10');
+    const status = url.searchParams.get('status') as ChannelMessageStatus | null;
+    const all = mockChannelMessages
+      .filter((m) => m.channelId === channelId && m.direction === 'out' && (!status || m.status === status))
+      .sort((a, b) => b.id - a.id);
+    const total = all.length;
+    const list = all.slice((page - 1) * pageSize, page * pageSize);
+    return HttpResponse.json({ code: 0, message: 'ok', data: { list, total, page, pageSize } });
+  }),
+
   // 我的频道列表（含未读数）
   http.get('/api/channels/mine', () => {
     const list = mockChannels.filter((ch) => ch.isSubscribed).map((ch) => {
@@ -77,7 +219,7 @@ export const channelsHandlers = [
       id: getNextChannelMessageId(), channelId, audienceType: 'targeted', type: 'text', title: null,
       content: body.content, extra: null, publishedById: null, direction: 'in',
       senderUserId: MOCK_CURRENT_USER_ID, senderUserName: CURRENT_USER_NAME, isRead: true,
-      createdAt: mockDateTime(), convUserId: MOCK_CURRENT_USER_ID,
+      createdAt: mockDateTime(), status: 'sent', scheduledAt: null, convUserId: MOCK_CURRENT_USER_ID,
     };
     mockChannelMessages.push(inMsg);
 
@@ -88,7 +230,7 @@ export const channelsHandlers = [
         id: getNextChannelMessageId(), channelId, audienceType: 'targeted', type: 'text', title: null,
         content: matched.replyContent, extra: null, publishedById: null, direction: 'out',
         senderUserId: null, senderUserName: null, isRead: true,
-        createdAt: mockDateTime(), convUserId: MOCK_CURRENT_USER_ID,
+        createdAt: mockDateTime(), status: 'sent', scheduledAt: null, convUserId: MOCK_CURRENT_USER_ID,
       };
       mockChannelMessages.push(out);
       autoReply = out;
@@ -217,7 +359,7 @@ export const channelsHandlers = [
       id: getNextChannelMessageId(), channelId, audienceType: 'targeted', type: 'text', title: null,
       content: body.content, extra: null, publishedById: MOCK_CURRENT_USER_ID, direction: 'out',
       senderUserId: MOCK_CURRENT_USER_ID, senderUserName: CURRENT_USER_NAME, isRead: true,
-      createdAt: mockDateTime(), convUserId: userId,
+      createdAt: mockDateTime(), status: 'sent', scheduledAt: null, convUserId: userId,
     };
     mockChannelMessages.push(out);
     return HttpResponse.json({ code: 0, message: '已回复', data: out });
@@ -277,20 +419,24 @@ export const channelsHandlers = [
   }),
 
   http.post('/api/channels/:id/publish', async ({ params, request }) => {
-    const body = await request.json() as { title?: string | null; content: string };
     const channelId = Number(params.id);
+    const body = await request.json() as PublishBody;
     const msg: MockChannelMessage = {
-      id: getNextChannelMessageId(), channelId, audienceType: 'broadcast', type: 'text', title: body.title ?? null, content: body.content,
-      extra: null, publishedById: 1, direction: 'out', senderUserId: null, senderUserName: null, isRead: false,
-      createdAt: mockDateTime(), convUserId: null,
+      id: getNextChannelMessageId(), channelId, audienceType: 'broadcast', type: 'text', title: null, content: '',
+      extra: null, publishedById: MOCK_CURRENT_USER_ID, direction: 'out', senderUserId: null, senderUserName: null, isRead: false,
+      createdAt: mockDateTime(), status: 'sent', scheduledAt: null, convUserId: null,
     };
+    applyPublishFields(msg, body);
     mockChannelMessages.unshift(msg);
-    return HttpResponse.json({ code: 0, message: '已发布', data: msg });
+    const okMsg = msg.status === 'draft' ? '已保存草稿' : msg.status === 'scheduled' ? '已设置定时发送' : '已发布';
+    return HttpResponse.json({ code: 0, message: okMsg, data: msg });
   }),
 
   // ── 订阅（运营号） ────────────────────────────────────────
-  http.get('/api/channels/discoverable', () => {
-    const list = mockChannels.filter((ch) => ch.type === 'business' && !ch.isSubscribed);
+  http.get('/api/channels/discoverable', ({ request }) => {
+    const keyword = (new URL(request.url).searchParams.get('keyword') ?? '').trim().toLowerCase();
+    let list = mockChannels.filter((ch) => ch.type === 'business' && !ch.isSubscribed);
+    if (keyword) list = list.filter((ch) => ch.name.toLowerCase().includes(keyword));
     return HttpResponse.json({ code: 0, message: 'ok', data: list });
   }),
 
