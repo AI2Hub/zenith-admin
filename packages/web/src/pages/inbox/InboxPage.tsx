@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AppModal } from '@/components/AppModal';
 import {
-  Button, Tag, Space, Tabs, TabPane, Toast, Empty, Badge, Modal, Popconfirm, Spin, Typography,
+  Button, Tag, Space, Tabs, TabPane, Toast, Empty, Badge, Modal, Popconfirm, Spin,
 } from '@douyinfe/semi-ui';
-import { useNavigate } from 'react-router-dom';
 import { usePagination } from '@/hooks/usePagination';
 import { IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi-illustrations';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { CheckCheck } from 'lucide-react';
-import type { InAppMessage, Channel } from '@zenith/shared';
+import type { InAppMessage } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -28,9 +27,6 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 export default function InboxPage() {
-  const navigate = useNavigate();
-  const [mainTab, setMainTab] = useState<'inapp' | 'channel'>('inapp');
-  const [channels, setChannels] = useState<Channel[]>([]);
   const [list, setList] = useState<InAppMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -171,47 +167,6 @@ export default function InboxPage() {
 
   return (
     <div className="page-container">
-      <Tabs
-        type="line"
-        activeKey={mainTab}
-        style={{ marginBottom: 8 }}
-        onChange={(k) => {
-          const tab = k as 'inapp' | 'channel';
-          setMainTab(tab);
-          if (tab === 'channel') {
-            void request.get<Channel[]>('/api/channels/mine', { silent: true }).then((res) => {
-              if (res.code === 0 && res.data) setChannels(res.data);
-            });
-          }
-        }}
-      >
-        <TabPane tab="站内信" itemKey="inapp" />
-        <TabPane tab="频道通知" itemKey="channel" />
-      </Tabs>
-      {mainTab === 'channel' ? (
-        channels.length === 0 ? (
-          <Empty description="暂无频道" style={{ padding: '48px 0' }} />
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {channels.map((ch) => (
-              <div
-                key={ch.id}
-                onClick={() => navigate('/chat')}
-                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', border: '1px solid var(--semi-color-border)', borderRadius: 8, cursor: 'pointer' }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <Typography.Text strong>{ch.name}</Typography.Text>
-                  <Typography.Text type="tertiary" size="small" style={{ display: 'block' }}>
-                    {ch.lastMessage ? (ch.lastMessage.title ?? ch.lastMessage.content) : (ch.description ?? '')}
-                  </Typography.Text>
-                </div>
-                {ch.unreadCount > 0 && <Tag color="red" size="small">{ch.unreadCount}</Tag>}
-              </div>
-            ))}
-          </div>
-        )
-      ) : (
-      <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Tabs activeKey={activeTab} onChange={handleTabChange} style={{ marginBottom: 0, flex: 1 }}>
             <TabPane tab="全部" itemKey="all" />
@@ -270,8 +225,6 @@ export default function InboxPage() {
             style: { opacity: (record as InAppMessage).isRead ? 0.7 : 1 },
           })}
         />
-      )}
-      </>
       )}
 
       <AppModal
