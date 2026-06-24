@@ -3,12 +3,12 @@
  */
 import { useMemo, useState, useEffect } from 'react';
 import { Button, Input, InputNumber, Select, Switch, Typography, TextArea, TagInput, RadioGroup, Radio, Tooltip, Dropdown } from '@douyinfe/semi-ui';
-import { Plus, Trash2, Wand2 } from 'lucide-react';
+import { Plus, Trash2, Wand2, Ban } from 'lucide-react';
 import { pinyin } from 'pinyin-pro';
-import type { WorkflowFormField, WorkflowFormFieldType, WorkflowFieldVisibilityCondition, WorkflowDataSource, Dict, PaginatedResponse, WorkflowDefinition } from '@zenith/shared';
+import type { WorkflowFormField, WorkflowFormFieldType, WorkflowFormFieldOptionItem, WorkflowFormFieldCompareRule, WorkflowFieldVisibilityCondition, WorkflowDataSource, Dict, PaginatedResponse, WorkflowDefinition } from '@zenith/shared';
 import { request } from '@/utils/request';
-import { CURRENCY_OPTIONS, DATE_FORMAT_OPTIONS, TIME_FORMAT_OPTIONS, REGION_LEVEL_OPTIONS, COLUMN_SPAN_OPTIONS, LABEL_POSITION_OPTIONS, LABEL_ALIGN_OPTIONS, FORM_FIELD_TYPES, toDateFnsToken } from '../form-types';
-import { evalFormula } from './WorkflowFormRenderer';
+import { CURRENCY_OPTIONS, DATE_FORMAT_OPTIONS, TIME_FORMAT_OPTIONS, REGION_LEVEL_OPTIONS, COLUMN_SPAN_OPTIONS, LABEL_POSITION_OPTIONS, LABEL_ALIGN_OPTIONS, DATE_LIMIT_OPTIONS, COMPARE_OPERATOR_OPTIONS, OPTION_COLOR_PRESETS, FORM_FIELD_TYPES, toDateFnsToken } from '../form-types';
+import { evalFormula, FORMULA_FN_GROUPS } from '../form-formula';
 
 interface FieldConfigPanelProps {
   field: WorkflowFormField;
@@ -162,7 +162,8 @@ export default function FieldConfigPanel({
   const isAmount = field.type === 'amount';
   const isDate = field.type === 'date' || field.type === 'dateRange';
   const isFileType = field.type === 'attachment' || field.type === 'image';
-  const isLayout = field.type === 'row' || field.type === 'divider' || field.type === 'group';
+  const isLayout = field.type === 'row' || field.type === 'divider' || field.type === 'group' || field.type === 'tabs' || field.type === 'steps';
+  const isPanesContainer = field.type === 'tabs' || field.type === 'steps';
   const isText = field.type === 'text' || field.type === 'textarea';
   const isFormatted = field.type === 'phone' || field.type === 'email' || field.type === 'idCard' || field.type === 'url' || field.type === 'password';
   const isRate = field.type === 'rate';
@@ -182,14 +183,16 @@ export default function FieldConfigPanel({
   const isDictSelect = field.type === 'dictSelect';
   const isRelationSelect = field.type === 'relation';
   const isSystemSelect = isUserSelect || isDeptSelect || isDictSelect || isRelationSelect;
-  const isSpecialInput = isTime || isRegion || isSignature || isRichText || isSwitch || isSlider || isTags || isColorPicker || isPinCode || isSystemSelect;
   // 支持响应式列宽 / 只读 / 隐藏的普通输入字段（排除布局类与纯展示类）
   const supportsLayoutState = !isLayout && !isDescription && !isSerialNumber;
   // 支持字段级标签覆盖（排除布局/分割线/纯展示）
   const supportsLabelOverride = !isLayout && !isDescription;
   // 字段标识(key) 可编辑（排除布局/纯展示类，其 key 不参与数据提交与联动）
   const supportsKeyEdit = !isLayout && !isDescription;
-  const showValidationTab = !isDescription && !isSerialNumber && !isLayout && !isFileType && field.type !== 'detail' && !isFormula && !isRate && !isDate && !isSpecialInput;
+  const showValidationTab = isText || isFormatted || isAmountOrNumber || isDate;
+  const supportsUnique = isText || isFormatted || isAmountOrNumber;
+  const supportsCompare = isAmountOrNumber || isDate;
+  const allowOtherTypes = field.type === 'select' || field.type === 'radio';
   const duplicateKey = flatFields.filter(f => f.key === field.key).length > 1;
   const patternError = regexError(field.pattern);
   const textRangeError = field.minLength !== undefined && field.maxLength !== undefined && field.minLength > field.maxLength
@@ -377,9 +380,18 @@ export default function FieldConfigPanel({
           {hasOptions && !isRemoteSource && (
             <div className="fd-form-config__field">
               <Typography.Text strong size="small">选项</Typography.Text>
-              <OptionsEditor
-                options={field.options ?? []}
-                onChange={(opts) => onChange({ options: opts })}
+              <OptionsEditor field={field} onChange={onChange} />
+            </div>
+          )}
+
+          {/* 允许填写「其他」自定义值（仅 select / radio） */}
+          {allowOtherTypes && !isRemoteSource && (
+            <div className="fd-form-config__field fd-form-config__field--inline">
+              <Typography.Text strong size="small">允许填写「其他」</Typography.Text>
+              <Switch
+                size="small"
+                checked={field.allowOther ?? false}
+                onChange={(v) => onChange({ allowOther: v || undefined })}
               />
             </div>
           )}
@@ -464,8 +476,28 @@ export default function FieldConfigPanel({
                   rows={3}
                 />
                 <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 4 }}>
-                  支持 + - * / 与比较/三元，函数 IF/SUM/AVG/MAX/MIN/ROUND/ABS/CEIL/FLOOR；明细汇总用 {'{明细key.列key}'}
+                  支持 + - * / 与比较/三元；数学/逻辑/文本/日期函数见下方；明细汇总用 {'{明细key.列key}'}
                 </Typography.Text>
+                <div className="fd-formula-fns">
+                  {FORMULA_FN_GROUPS.map((g) => (
+                    <div key={g.group} className="fd-formula-fns__group">
+                      <Typography.Text type="tertiary" size="small" className="fd-formula-fns__label">{g.group}</Typography.Text>
+                      <div className="fd-formula-fns__list">
+                        {g.fns.map((f) => (
+                          <Tooltip key={f.name} content={f.desc}>
+                            <button
+                              type="button"
+                              className="fd-formula-fns__chip"
+                              onClick={() => onChange({ formula: `${field.formula ?? ''}${f.insert}` })}
+                            >
+                              {f.name}
+                            </button>
+                          </Tooltip>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
                 {formulaValidationError && (
                   <Typography.Text type="danger" size="small" style={{ display: 'block', marginTop: 4 }}>
                     {formulaValidationError}
@@ -530,6 +562,35 @@ export default function FieldConfigPanel({
                 style={{ width: '100%' }}
                 optionList={DATE_FORMAT_OPTIONS}
               />
+            </div>
+          )}
+
+          {/* 日期可选范围 */}
+          {isDate && (
+            <div className="fd-form-config__field">
+              <Typography.Text strong size="small">可选范围</Typography.Text>
+              <Select
+                value={field.dateLimit ?? 'none'}
+                onChange={(v) => onChange({ dateLimit: (v as 'none' | 'noPast' | 'noFuture' | 'custom') === 'none' ? undefined : (v as 'noPast' | 'noFuture' | 'custom') })}
+                style={{ width: '100%' }}
+                optionList={DATE_LIMIT_OPTIONS}
+              />
+              {field.dateLimit === 'custom' && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <Input
+                    size="small"
+                    value={field.minDate ?? ''}
+                    onChange={(v) => onChange({ minDate: v || undefined })}
+                    placeholder="最早 YYYY-MM-DD"
+                  />
+                  <Input
+                    size="small"
+                    value={field.maxDate ?? ''}
+                    onChange={(v) => onChange({ maxDate: v || undefined })}
+                    placeholder="最晚 YYYY-MM-DD"
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -694,6 +755,34 @@ export default function FieldConfigPanel({
                 style={{ width: '100%' }}
               />
             </div>
+          )}
+
+          {/* 附件/图片：允许类型 + 单文件大小 */}
+          {isFileType && (
+            <>
+              <div className="fd-form-config__field">
+                <Typography.Text strong size="small">允许的文件类型</Typography.Text>
+                <Input
+                  value={field.accept ?? ''}
+                  onChange={(v) => onChange({ accept: v || undefined })}
+                  placeholder={field.type === 'image' ? '默认 image/*，可改如 .jpg,.png' : '如 .pdf,.doc,.docx,.xls,.xlsx'}
+                />
+                <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 4 }}>
+                  逗号分隔的扩展名或 MIME，如 .pdf,.png,image/*；留空不限制
+                </Typography.Text>
+              </div>
+              <div className="fd-form-config__field">
+                <Typography.Text strong size="small">单文件大小上限</Typography.Text>
+                <InputNumber
+                  value={field.maxSize}
+                  onChange={(v) => onChange({ maxSize: v === undefined || v === '' ? undefined : Number(v) })}
+                  min={0}
+                  suffix="MB"
+                  placeholder="不限"
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </>
           )}
 
           {/* 说明文字内容 */}
@@ -903,6 +992,55 @@ export default function FieldConfigPanel({
             </div>
           )}
 
+          {/* --- 标签页 / 分步 面板设置 --- */}
+          {isPanesContainer && (
+            <div className="fd-form-config__section" style={{ borderTop: 'none', padding: 0, marginTop: 12 }}>
+              <div className="fd-form-config__section-title">{field.type === 'tabs' ? '标签页设置' : '分步设置'}</div>
+              {(field.panes ?? []).map((pane, i) => (
+                <div className="fd-form-config__field" key={`pane-${i}`} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <Input
+                    size="small"
+                    value={pane.title}
+                    onChange={(val) => {
+                      const next = [...(field.panes ?? [])];
+                      next[i] = { ...next[i], title: val };
+                      onChange({ panes: next });
+                    }}
+                    placeholder={`${field.type === 'tabs' ? '标签' : '步骤'}${i + 1}标题`}
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className="fd-options-editor__delete"
+                    title={(field.panes?.length ?? 0) <= 1 ? '至少保留一个面板' : '删除面板'}
+                    disabled={(field.panes?.length ?? 0) <= 1}
+                    onClick={() => {
+                      const next = (field.panes ?? []).filter((_, idx) => idx !== i);
+                      onChange({ panes: next });
+                    }}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
+              <Button
+                size="small"
+                type="tertiary"
+                icon={<Plus size={12} />}
+                onClick={() => {
+                  const panes = field.panes ?? [];
+                  const label = field.type === 'tabs' ? '标签' : '步骤';
+                  onChange({ panes: [...panes, { title: `${label}${panes.length + 1}`, fields: [] }] });
+                }}
+              >
+                添加{field.type === 'tabs' ? '标签' : '步骤'}
+              </Button>
+              <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 4 }}>
+                删除面板会一并删除其中字段；把控件拖入面板内即可分配。
+              </Typography.Text>
+            </div>
+          )}
+
           {/* --- 分组设置 --- */}
           {field.type === 'group' && (
             <div className="fd-form-config__section" style={{ borderTop: 'none', padding: 0, marginTop: 12 }}>
@@ -1027,6 +1165,35 @@ export default function FieldConfigPanel({
             <Typography.Text type="tertiary" size="small">
               该控件已内置格式校验，无需配置正则。
             </Typography.Text>
+          )}
+
+          {/* 唯一性校验 */}
+          {supportsUnique && (
+            <div className="fd-form-config__field fd-form-config__field--inline" style={{ marginTop: 12 }}>
+              <div>
+                <Typography.Text strong size="small">禁止重复</Typography.Text>
+                <Typography.Text type="tertiary" size="small" style={{ display: 'block' }}>
+                  用于明细表内该列值不可重复
+                </Typography.Text>
+              </div>
+              <Switch
+                size="small"
+                checked={field.unique ?? false}
+                onChange={(v) => onChange({ unique: v || undefined })}
+              />
+            </div>
+          )}
+
+          {/* 跨字段比较校验 */}
+          {supportsCompare && (
+            <div className="fd-form-config__field" style={{ marginTop: 12 }}>
+              <Typography.Text strong size="small">字段比较校验</Typography.Text>
+              <CompareRulesEditor
+                field={field}
+                candidates={conditionFields}
+                onChange={onChange}
+              />
+            </div>
           )}
         </div>
       )}
@@ -1409,55 +1576,126 @@ function VisibilityRulesEditor({
   );
 }
 
-// ─── 选项编辑器 ──────────────────────────────────────────────────────
+// ─── 选项编辑器（增强：value/label/颜色/禁用） ───────────────────────
+
+function deriveOptionItems(field: WorkflowFormField): WorkflowFormFieldOptionItem[] {
+  if (field.optionItems?.length) return field.optionItems;
+  return (field.options ?? []).map((v) => ({ value: v }));
+}
 
 function OptionsEditor({
-  options,
+  field,
   onChange,
-}: Readonly<{ options: string[]; onChange: (opts: string[]) => void }>) {
-  const normalizedOptions = options.map((opt) => opt.trim()).filter(Boolean);
-  const hasDuplicate = new Set(normalizedOptions).size !== normalizedOptions.length;
-  const hasEmpty = options.some((opt) => !opt.trim());
+}: Readonly<{ field: WorkflowFormField; onChange: (updates: Partial<WorkflowFormField>) => void }>) {
+  const items = deriveOptionItems(field);
+  // 是否「值与显示分离」：存在 label 且与 value 不同时默认开启
+  const [separate, setSeparate] = useState(items.some((it) => it.label && it.label !== it.value));
+
+  // 写回：同步 optionItems（完整）与 options（值列表镜像，供级联/校验复用）
+  const commit = (next: WorkflowFormFieldOptionItem[]) => {
+    const cleaned = next.map((it) => ({
+      value: it.value,
+      ...(it.label && it.label !== it.value ? { label: it.label } : {}),
+      ...(it.color ? { color: it.color } : {}),
+      ...(it.disabled ? { disabled: true } : {}),
+    }));
+    onChange({ optionItems: cleaned, options: cleaned.map((it) => it.value) });
+  };
+
+  const update = (i: number, patch: Partial<WorkflowFormFieldOptionItem>) => {
+    const next = items.map((it, idx) => (idx === i ? { ...it, ...patch } : it));
+    commit(next);
+  };
+  const remove = (i: number) => commit(items.filter((_, idx) => idx !== i));
+  const add = () => commit([...items, { value: `选项${items.length + 1}` }]);
+
+  const values = items.map((it) => it.value.trim());
+  const hasDuplicate = new Set(values.filter(Boolean)).size !== values.filter(Boolean).length;
+  const hasEmpty = items.some((it) => !it.value.trim());
+
   return (
     <div className="fd-options-editor">
-      {options.map((opt, i) => (
-        <div key={`opt-${opt}-${i}`} className="fd-options-editor__row">
+      <div className="fd-form-config__field fd-form-config__field--inline" style={{ marginBottom: 4 }}>
+        <Typography.Text type="tertiary" size="small">选项值与显示分离</Typography.Text>
+        <Switch size="small" checked={separate} onChange={setSeparate} />
+      </div>
+      {items.map((it, i) => (
+        <div key={`opt-${i}`} className="fd-options-editor__row">
+          <Dropdown
+            trigger="click"
+            position="bottomLeft"
+            render={(
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: 8, width: 132 }}>
+                {OPTION_COLOR_PRESETS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-label={c}
+                    onClick={() => update(i, { color: c })}
+                    style={{ width: 18, height: 18, borderRadius: '50%', background: c, border: it.color === c ? '2px solid var(--semi-color-text-0)' : '1px solid var(--semi-color-border)', cursor: 'pointer' }}
+                  />
+                ))}
+                <button
+                  type="button"
+                  aria-label="无色"
+                  onClick={() => update(i, { color: undefined })}
+                  style={{ width: 18, height: 18, borderRadius: '50%', background: 'transparent', border: '1px dashed var(--semi-color-border)', cursor: 'pointer' }}
+                />
+              </div>
+            )}
+          >
+            <button
+              type="button"
+              className="fd-options-editor__color"
+              title="选项颜色"
+              style={{ background: it.color || 'transparent', borderStyle: it.color ? 'solid' : 'dashed' }}
+            />
+          </Dropdown>
+          {separate && (
+            <Input
+              size="small"
+              value={it.value}
+              onChange={(v) => update(i, { value: v })}
+              placeholder="值"
+              style={{ width: 88 }}
+            />
+          )}
           <Input
             size="small"
-            value={opt}
-            onChange={(v) => {
-              const updated = [...options];
-              updated[i] = v;
-              onChange(updated);
-            }}
-            placeholder={`选项 ${i + 1}`}
+            value={separate ? (it.label ?? '') : it.value}
+            onChange={(v) => (separate ? update(i, { label: v }) : update(i, { value: v }))}
+            placeholder={separate ? '显示名' : `选项 ${i + 1}`}
           />
           <button
             type="button"
+            className={`fd-options-editor__flag ${it.disabled ? 'fd-options-editor__flag--active' : ''}`}
+            title={it.disabled ? '已禁用（点击启用）' : '禁用该选项'}
+            onClick={() => update(i, { disabled: !it.disabled })}
+          >
+            <Ban size={12} />
+          </button>
+          <button
+            type="button"
             className="fd-options-editor__delete"
-            onClick={() => onChange(options.filter((_, idx) => idx !== i))}
+            onClick={() => remove(i)}
           >
             <Trash2 size={12} />
           </button>
         </div>
       ))}
-      <Button
-        size="small"
-        type="tertiary"
-        icon={<Plus size={12} />}
-        onClick={() => onChange([...options, `选项${options.length + 1}`])}
-      >
+      <Button size="small" type="tertiary" icon={<Plus size={12} />} onClick={add}>
         添加选项
       </Button>
       {(hasEmpty || hasDuplicate) && (
-        <Typography.Text type="warning" size="small">
+        <Typography.Text type="warning" size="small" style={{ display: 'block', marginTop: 4 }}>
           {hasEmpty ? '存在空选项，运行时不会有明确显示；' : ''}
-          {hasDuplicate ? '存在重复选项，建议去重。' : ''}
+          {hasDuplicate ? '存在重复选项值，建议去重。' : ''}
         </Typography.Text>
       )}
     </div>
   );
 }
+
 
 // ─── 明细子字段编辑器 ────────────────────────────────────────────────
 
