@@ -12,7 +12,7 @@ export interface FlowNodeBrief {
   type: string;
 }
 
-const APPROVAL_NODE_TYPES = new Set(['approve', 'handler', 'cc']);
+const APPROVAL_NODE_TYPES = new Set(['approver', 'handler', 'cc']);
 
 /**
  * 线性化流程中的审批相关节点（approve / handler / cc），按流转顺序返回（含尚未到达的后续节点）。

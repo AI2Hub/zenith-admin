@@ -72,7 +72,7 @@ export default function WorkflowApproverPreview({
       ) : flowNodes.length === 0 ? (
         <Empty description="该流程无需审批，提交后自动通过" style={{ padding: 24 }} />
       ) : (
-        <Timeline style={{ paddingLeft: 4 }}>
+        <Timeline className="wf-approval-timeline" style={{ paddingLeft: 4 }}>
           {/* 开始：发起申请 */}
           <Timeline.Item dot={timelineDot(Send, 'var(--semi-color-primary)')}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>

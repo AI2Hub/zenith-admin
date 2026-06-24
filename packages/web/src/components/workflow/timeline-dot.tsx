@@ -3,6 +3,7 @@
  * 供 ApprovalTimeline（运行态）与 WorkflowApproverPreview（预测态）共用，保证两处视觉一致。
  */
 import type { LucideIcon } from 'lucide-react';
+import './timeline.css';
 
 export function timelineDot(Icon: LucideIcon, iconColor: string) {
   return (

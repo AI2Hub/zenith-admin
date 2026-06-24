@@ -1,0 +1,20 @@
+/*
+ * 审批时间线圆点对齐修正。
+ *
+ * Semi Timeline 默认按 ~9px 小圆点定位自定义 dot（head-custom 居中于 left:5px），
+ * 我们用的是 28px 带图标圆点，会向左溢出约 9px。这里重新对齐连接线、圆点与内容：
+ *   - 圆点中心移到 left:14px（半径），左缘正好落在节点行左侧，不再溢出
+ *   - 连接线对齐圆点中心
+ *   - 内容左移到圆点右侧（28px + 间距）
+ */
+.wf-approval-timeline .semi-timeline-item-head-custom {
+  left: 14px;
+}
+
+.wf-approval-timeline .semi-timeline-item-tail {
+  left: 14px;
+}
+
+.wf-approval-timeline .semi-timeline-item-content {
+  margin-left: 38px;
+}

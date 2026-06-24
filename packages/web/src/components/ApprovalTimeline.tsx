@@ -70,7 +70,7 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
   const finish = instanceStatus ? FINISH_MAP[instanceStatus] : undefined;
 
   return (
-    <Timeline style={{ paddingLeft: 4 }}>
+    <Timeline className="wf-approval-timeline" style={{ paddingLeft: 4 }}>
       {initiator && (
         <Timeline.Item dot={timelineDot(Send, 'var(--semi-color-primary)')}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
