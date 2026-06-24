@@ -8,7 +8,7 @@
  * 修改数据时只需改这一处，两端自动同步。
  */
 
-import type { Menu, Role, Department, Position, Dict, DictItem, SystemConfig, CronJob, WorkflowForm, WorkflowCategory, WorkflowDataSource, Tag, DataMaskConfig, MemberLevel, Coupon, EmailTemplate, SmsTemplate, InAppTemplate, Tenant, TenantPackage, AiPromptTemplate, MpAccount, MpTag, MpFan, MpMessage, MpAutoReply, MpMenu, MpMaterial, MpDraft, MpMessageTemplate, MpBroadcast, MpQrcode, MpKfAccount, MpKfSessionStatus, MpKfSessionCloseReason, MpKfSessionEventType, MpKfRoutingStrategy } from './types';
+import type { Menu, Role, Department, Position, Dict, DictItem, SystemConfig, CronJob, WorkflowForm, WorkflowCategory, WorkflowDataSource, Tag, DataMaskConfig, MemberLevel, Coupon, EmailTemplate, SmsTemplate, InAppTemplate, Tenant, TenantPackage, AiPromptTemplate, MpAccount, MpTag, MpFan, MpMessage, MpAutoReply, MpMenu, MpMaterial, MpDraft, MpMessageTemplate, MpBroadcast, MpQrcode, MpKfAccount, MpKfSessionStatus, MpKfSessionCloseReason, MpKfSessionEventType, MpKfRoutingStrategy, MpMenuButton, MpMenuMatchRule, MpMenuStatus } from './types';
 
 const SEED_DATE = '2024-01-01 00:00:00';
 
@@ -1415,6 +1415,39 @@ export const SEED_MP_KF_SESSION_EVENTS: SeedMpKfSessionEvent[] = [
   { id: 4, sessionId: 3, accountId: 1, type: 'create', fromKfId: null, toKfId: null, detail: '粉丝发起会话' },
   { id: 5, sessionId: 3, accountId: 1, type: 'accept', fromKfId: null, toKfId: 2, detail: '人工接入' },
   { id: 6, sessionId: 3, accountId: 1, type: 'close', fromKfId: 2, toKfId: null, detail: '手动结束' },
+];
+
+// ─── 个性化菜单（示例）────────────────────────────────────────────────────────
+export interface SeedMpConditionalMenu {
+  id: number;
+  accountId: number;
+  name: string;
+  buttons: MpMenuButton[];
+  matchRule: MpMenuMatchRule;
+  status: MpMenuStatus;
+}
+export const SEED_MP_CONDITIONAL_MENUS: SeedMpConditionalMenu[] = [
+  {
+    id: 1, accountId: 1, name: '女性用户菜单', status: 'draft',
+    matchRule: { sex: '2' },
+    buttons: [
+      { name: '美妆专区', type: 'view', url: 'https://example.com/beauty' },
+      { name: '会员中心', type: 'click', key: 'MEMBER_CENTER' },
+    ],
+  },
+  {
+    id: 2, accountId: 1, name: '星标用户菜单', status: 'draft',
+    matchRule: { tagId: '100' },
+    buttons: [
+      { name: '专属客服', type: 'click', key: 'VIP_KF' },
+      {
+        name: '更多', type: '', sub_button: [
+          { name: '官网', type: 'view', url: 'https://example.com' },
+          { name: '积分商城', type: 'view', url: 'https://example.com/points' },
+        ],
+      },
+    ],
+  },
 ];
 
 // ─── 签到里程碑（累计签到天数达标奖励）──────────────────────────────────────────
