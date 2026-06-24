@@ -127,10 +127,10 @@ export function ChannelMessagesDrawer({ channel, visible, onClose }: Readonly<Pr
       title: '受众', dataIndex: 'audienceType', width: 70,
       render: (v: string) => <Typography.Text type="tertiary">{AUDIENCE_TEXT[v] ?? v}</Typography.Text>,
     },
-    { title: '创建时间', dataIndex: 'createdAt', width: 160, render: (v: string) => formatDateTime(v) },
+    { title: '创建时间', dataIndex: 'createdAt', width: 175, render: (v: string) => <span style={{ whiteSpace: 'nowrap' }}>{formatDateTime(v)}</span> },
     {
-      title: '定时时间', dataIndex: 'scheduledAt', width: 160,
-      render: (v: string | null) => (v ? formatDateTime(v) : <Typography.Text type="tertiary">—</Typography.Text>),
+      title: '定时时间', dataIndex: 'scheduledAt', width: 175,
+      render: (v: string | null) => (v ? <span style={{ whiteSpace: 'nowrap' }}>{formatDateTime(v)}</span> : <Typography.Text type="tertiary">—</Typography.Text>),
     },
     {
       title: '操作', dataIndex: 'op', width: 160, fixed: 'right',
@@ -168,7 +168,7 @@ export function ChannelMessagesDrawer({ channel, visible, onClose }: Readonly<Pr
       title={`消息记录 · ${channel?.name ?? ''}`}
       visible={visible}
       onCancel={onClose}
-      width={860}
+      width={920}
       placement="right"
     >
       <Tabs type="line" activeKey={tab} onChange={handleTabChange}>
