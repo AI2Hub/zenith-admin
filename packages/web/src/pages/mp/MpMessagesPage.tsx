@@ -26,7 +26,7 @@ function msgPreview(type: MpMessageType, content: string | null): string {
 
 export default function MpMessagesPage() {
   const { hasPermission: can } = usePermission();
-  const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
+  const { accounts, currentId, currentIdRef, setCurrentId, loading: accountsLoading } = useMpAccounts();
 
   const [conversations, setConversations] = useState<MpConversation[]>([]);
   const [convLoading, setConvLoading] = useState(false);
@@ -42,22 +42,24 @@ export default function MpMessagesPage() {
     setConvLoading(true);
     try {
       const res = await request.get<MpConversation[]>(`/api/mp/messages/conversations?accountId=${accountId}`);
+      if (currentIdRef.current !== accountId) return; // 账号已切换，丢弃过期响应
       setConversations(res.data ?? []);
     } finally {
       setConvLoading(false);
     }
-  }, []);
+  }, [currentIdRef]);
 
   const fetchThread = useCallback(async (accountId: number, openid: string) => {
     setThreadLoading(true);
     try {
       const res = await request.get<PaginatedResponse<MpMessage>>(`/api/mp/messages?accountId=${accountId}&openid=${encodeURIComponent(openid)}&page=1&pageSize=50`);
+      if (currentIdRef.current !== accountId) return; // 账号已切换，丢弃过期响应
       // 接口按 id 倒序返回，反转为时间正序（旧→新）展示
       setThread([...(res.data?.list ?? [])].reverse());
     } finally {
       setThreadLoading(false);
     }
-  }, []);
+  }, [currentIdRef]);
 
   useEffect(() => {
     setSelectedOpenid(null);

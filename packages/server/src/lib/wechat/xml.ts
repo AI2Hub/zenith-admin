@@ -12,10 +12,12 @@ export function parseWechatXml(xml: string): Record<string, string> {
   return result;
 }
 
-/** 构建微信 XML（数字字段不包 CDATA，字符串字段包 CDATA） */
+/** 构建微信 XML（数字字段不包 CDATA，字符串字段包 CDATA，转义 CDATA 终止符避免破坏结构/注入） */
 export function buildWechatXml(fields: Record<string, string | number>): string {
   const body = Object.entries(fields)
-    .map(([k, v]) => (typeof v === 'number' ? `<${k}>${v}</${k}>` : `<${k}><![CDATA[${v}]]></${k}>`))
+    .map(([k, v]) => (typeof v === 'number'
+      ? `<${k}>${v}</${k}>`
+      : `<${k}><![CDATA[${String(v).replaceAll(']]>', ']]]]><![CDATA[>')}]]></${k}>`))
     .join('');
   return `<xml>${body}</xml>`;
 }

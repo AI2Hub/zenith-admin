@@ -1,5 +1,5 @@
 import { pgTable, serial, varchar, timestamp, pgEnum, integer, bigint, boolean, primaryKey, unique, text, uniqueIndex, index, jsonb, smallint, real, date, uuid as pgUuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import { v7 as uuidv7 } from 'uuid';
 
 export const statusEnum = pgEnum('status', ['enabled', 'disabled']);
@@ -3848,6 +3848,8 @@ export const mpMessages = pgTable('mp_messages', {
 }, (t) => [
   index('mp_messages_account_openid_idx').on(t.accountId, t.openid),
   index('mp_messages_account_idx').on(t.accountId),
+  // 入站消息去重：同一账号下 msg_id 唯一（仅对非空 msg_id 生效），保证微信重试不产生重复记录
+  uniqueIndex('mp_messages_account_msgid_uq').on(t.accountId, t.msgId).where(sql`${t.msgId} IS NOT NULL`),
 ]);
 export type MpMessageRow = typeof mpMessages.$inferSelect;
 export type NewMpMessage = typeof mpMessages.$inferInsert;

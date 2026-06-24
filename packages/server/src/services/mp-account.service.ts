@@ -1,4 +1,4 @@
-import { eq, and, or, ilike, type SQL } from 'drizzle-orm';
+import { eq, and, or, ilike, isNull, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../db';
 import { mpAccounts } from '../db/schema';
@@ -87,19 +87,17 @@ export async function getMpAccountBeforeAudit(id: number) {
   return mapMpAccountSafe(await ensureMpAccountExists(id));
 }
 
-/** 取消同租户内其它默认公众号（保证默认唯一） */
-async function clearOtherDefaults(executor: DbExecutor): Promise<void> {
-  const conds: SQL[] = [eq(mpAccounts.isDefault, true)];
-  const tenant = tenantScope(mpAccounts);
-  if (tenant) conds.push(tenant);
-  await executor.update(mpAccounts).set({ isDefault: false }).where(and(...conds));
+/** 取消同租户内其它默认公众号（保证默认唯一）。按目标账号的 tenantId 精确过滤，避免平台管理员无租户上下文时跨租户清除。 */
+async function clearOtherDefaults(executor: DbExecutor, tenantId: number | null): Promise<void> {
+  const tenantCond = tenantId === null ? isNull(mpAccounts.tenantId) : eq(mpAccounts.tenantId, tenantId);
+  await executor.update(mpAccounts).set({ isDefault: false }).where(and(eq(mpAccounts.isDefault, true), tenantCond));
 }
 
 export async function createMpAccount(data: CreateMpAccountInput) {
   try {
     return await db.transaction(async (tx) => {
       const tenantId = currentCreateTenantId();
-      if (data.isDefault) await clearOtherDefaults(tx);
+      if (data.isDefault) await clearOtherDefaults(tx, tenantId);
       const [row] = await tx.insert(mpAccounts).values({ ...data, tenantId }).returning();
       return mapMpAccountSafe(row);
     });
@@ -109,12 +107,14 @@ export async function createMpAccount(data: CreateMpAccountInput) {
 }
 
 export async function updateMpAccount(id: number, data: UpdateMpAccountInput) {
-  await ensureMpAccountExists(id);
+  const existing = await ensureMpAccountExists(id);
+  const patch: Partial<typeof mpAccounts.$inferInsert> = { ...data };
+  if (!data.appSecret) delete patch.appSecret; // 留空表示保持原值
+  // 无任何有效字段变更：直接返回，避免 Drizzle "No values to set"
+  if (Object.keys(patch).length === 0) return mapMpAccountSafe(existing);
   try {
     const row = await db.transaction(async (tx) => {
-      if (data.isDefault === true) await clearOtherDefaults(tx);
-      const patch: Partial<typeof mpAccounts.$inferInsert> = { ...data };
-      if (!data.appSecret) delete patch.appSecret; // 留空表示保持原值
+      if (data.isDefault === true) await clearOtherDefaults(tx, existing.tenantId);
       const [updated] = await tx.update(mpAccounts).set(patch).where(eq(mpAccounts.id, id)).returning();
       return updated;
     });
@@ -136,7 +136,7 @@ export async function deleteMpAccount(id: number) {
 export async function setMpAccountDefault(id: number) {
   const row = await ensureMpAccountExists(id);
   await db.transaction(async (tx) => {
-    await clearOtherDefaults(tx);
+    await clearOtherDefaults(tx, row.tenantId);
     await tx.update(mpAccounts).set({ isDefault: true }).where(eq(mpAccounts.id, id));
   });
   return mapMpAccountSafe({ ...row, isDefault: true });

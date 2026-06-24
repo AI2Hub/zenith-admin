@@ -16,6 +16,7 @@ export function msgSignature(token: string, timestamp: string, nonce: string, en
 
 function keyAndIv(encodingAesKey: string): { key: Buffer; iv: Buffer } {
   const key = Buffer.from(`${encodingAesKey}=`, 'base64');
+  if (key.length !== 32) throw new Error('EncodingAESKey 非法：解码后必须为 32 字节');
   return { key, iv: key.subarray(0, 16) };
 }
 

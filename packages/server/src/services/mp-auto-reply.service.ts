@@ -78,7 +78,9 @@ export async function createMpAutoReply(data: CreateMpAutoReplyInput) {
 }
 
 export async function updateMpAutoReply(id: number, data: UpdateMpAutoReplyInput) {
-  await ensureMpAutoReplyExists(id);
+  const existing = await ensureMpAutoReplyExists(id);
+  // 空补丁直接返回，避免 Drizzle "No values to set"
+  if (Object.keys(data).length === 0) return mapMpAutoReply(existing);
   const [row] = await db.update(mpAutoReplies).set(data).where(eq(mpAutoReplies.id, id)).returning();
   return mapMpAutoReply(row);
 }

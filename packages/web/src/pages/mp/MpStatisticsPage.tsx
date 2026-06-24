@@ -18,7 +18,7 @@ const CARD_DEFS: { key: keyof MpStats; label: string; icon: React.ReactNode; col
 ];
 
 export default function MpStatisticsPage() {
-  const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
+  const { accounts, currentId, currentIdRef, setCurrentId, loading: accountsLoading } = useMpAccounts();
   const [stats, setStats] = useState<MpStats | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -26,9 +26,10 @@ export default function MpStatisticsPage() {
     setLoading(true);
     try {
       const res = await request.get<MpStats>(`/api/mp/stats?accountId=${accountId}`);
+      if (currentIdRef.current !== accountId) return; // 账号已切换，丢弃过期响应
       setStats(res.data ?? null);
     } finally { setLoading(false); }
-  }, []);
+  }, [currentIdRef]);
 
   useEffect(() => { if (currentId) void load(currentId); else setStats(null); }, [currentId, load]);
 

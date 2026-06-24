@@ -16,7 +16,7 @@ const blankArticle = (): MpArticle => ({ title: '', author: '', digest: '', cont
 
 export default function MpDraftsPage() {
   const { hasPermission: can } = usePermission();
-  const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
+  const { accounts, currentId, currentIdRef, setCurrentId, loading: accountsLoading } = useMpAccounts();
 
   const [loading, setLoading] = useState(false);
   const [list, setList] = useState<MpDraft[]>([]);
@@ -31,21 +31,24 @@ export default function MpDraftsPage() {
   const [articles, setArticles] = useState<MpArticle[]>([blankArticle()]);
   const [submitting, setSubmitting] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
+  const editDetailIdRef = useRef<number | null>(null);
   const [pushingId, setPushingId] = useState<number | null>(null);
 
   const fetchList = useCallback(async (p = page, ps = pageSize, kw = keywordRef.current) => {
     if (!currentId) { setList([]); setTotal(0); return; }
+    const reqId = currentId;
     setLoading(true);
     try {
       const q = new URLSearchParams({ page: String(p), pageSize: String(ps), accountId: String(currentId) });
       if (kw) q.set('keyword', kw);
       const res = await request.get<PaginatedResponse<MpDraft>>(`/api/mp/drafts?${q}`);
+      if (currentIdRef.current !== reqId) return; // 账号已切换，丢弃过期响应
       setList(res.data?.list ?? []);
       setTotal(res.data?.total ?? 0);
       setPage(res.data?.page ?? p);
       setPageSize(res.data?.pageSize ?? ps);
     } finally { setLoading(false); }
-  }, [page, pageSize, currentId, setPage, setPageSize]);
+  }, [page, pageSize, currentId, currentIdRef, setPage, setPageSize]);
 
   useEffect(() => { setPage(1); void fetchList(1, pageSize, keywordRef.current); /* eslint-disable-line react-hooks/exhaustive-deps */ }, [currentId]);
 
@@ -55,7 +58,9 @@ export default function MpDraftsPage() {
   const openCreate = () => { setEditingId(null); setArticles([blankArticle()]); setModalVisible(true); };
   const openEdit = async (record: MpDraft) => {
     setEditingId(record.id); setArticles([blankArticle()]); setModalVisible(true); setDetailLoading(true);
+    editDetailIdRef.current = record.id;
     const res = await request.get<MpDraft>(`/api/mp/drafts/${record.id}`);
+    if (editDetailIdRef.current !== record.id) return; // 已打开其它草稿，丢弃过期详情
     setDetailLoading(false);
     if (res.code === 0 && res.data) setArticles(res.data.articles.length ? res.data.articles : [blankArticle()]);
   };

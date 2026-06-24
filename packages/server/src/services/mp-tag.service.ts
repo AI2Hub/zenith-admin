@@ -79,16 +79,16 @@ export async function updateMpTag(id: number, data: UpdateMpTagInput) {
 }
 
 export async function deleteMpTag(id: number) {
-  await ensureMpTagExists(id);
+  const tag = await ensureMpTagExists(id);
   await db.transaction(async (tx) => {
     await tx.delete(mpTags).where(eq(mpTags.id, id));
-    // 从粉丝本地标签列表中移除该标签 id
+    // 仅清理同一公众号下粉丝的本地标签引用（附加 account_id 过滤防止越权改动并缩小更新范围）
     await tx.execute(sql`
       UPDATE mp_fans
       SET tag_ids = COALESCE((
         SELECT jsonb_agg(elem) FROM jsonb_array_elements(tag_ids) elem WHERE elem <> to_jsonb(${id}::int)
       ), '[]'::jsonb)
-      WHERE tag_ids @> to_jsonb(${id}::int)
+      WHERE account_id = ${tag.accountId} AND tag_ids @> to_jsonb(${id}::int)
     `);
   });
 }

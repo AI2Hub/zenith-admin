@@ -29,7 +29,7 @@ function fmtSize(bytes: number | null): string {
 
 export default function MpMaterialsPage() {
   const { hasPermission: can } = usePermission();
-  const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
+  const { accounts, currentId, currentIdRef, setCurrentId, loading: accountsLoading } = useMpAccounts();
 
   const [loading, setLoading] = useState(false);
   const [list, setList] = useState<MpMaterial[]>([]);
@@ -51,6 +51,7 @@ export default function MpMaterialsPage() {
   const fetchList = useCallback(
     async (p = page, ps = pageSize, params?: SearchParams) => {
       if (!currentId) { setList([]); setTotal(0); return; }
+      const reqId = currentId;
       const { filterType, keyword } = params ?? searchRef.current;
       setLoading(true);
       try {
@@ -58,13 +59,14 @@ export default function MpMaterialsPage() {
         if (filterType) query.set('type', filterType);
         if (keyword) query.set('keyword', keyword);
         const res = await request.get<PaginatedResponse<MpMaterial>>(`/api/mp/materials?${query}`);
+        if (currentIdRef.current !== reqId) return; // 账号已切换，丢弃过期响应
         setList(res.data?.list ?? []);
         setTotal(res.data?.total ?? 0);
         setPage(res.data?.page ?? p);
         setPageSize(res.data?.pageSize ?? ps);
       } finally { setLoading(false); }
     },
-    [page, pageSize, currentId, setPage, setPageSize],
+    [page, pageSize, currentId, currentIdRef, setPage, setPageSize],
   );
 
   useEffect(() => { setPage(1); void fetchList(1, pageSize, searchRef.current); /* eslint-disable-line react-hooks/exhaustive-deps */ }, [currentId]);

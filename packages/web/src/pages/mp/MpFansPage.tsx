@@ -21,7 +21,7 @@ const SUBSCRIBE_OPTIONS = [
 
 export default function MpFansPage() {
   const { hasPermission: can } = usePermission();
-  const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
+  const { accounts, currentId, currentIdRef, setCurrentId, loading: accountsLoading } = useMpAccounts();
 
   const [loading, setLoading] = useState(false);
   const [list, setList] = useState<MpFan[]>([]);
@@ -45,12 +45,14 @@ export default function MpFansPage() {
 
   const fetchTags = useCallback(async (accountId: number) => {
     const res = await request.get<PaginatedResponse<MpTag>>(`/api/mp/tags?page=1&pageSize=200&accountId=${accountId}`);
+    if (currentIdRef.current !== accountId) return; // 账号已切换，丢弃过期标签
     setTags(res.data?.list ?? []);
-  }, []);
+  }, [currentIdRef]);
 
   const fetchList = useCallback(
     async (p = page, ps = pageSize, params?: SearchParams) => {
       if (!currentId) { setList([]); setTotal(0); return; }
+      const reqId = currentId;
       const { keyword, subscribe, tagId } = params ?? searchRef.current;
       setLoading(true);
       try {
@@ -59,6 +61,7 @@ export default function MpFansPage() {
         if (subscribe) query.set('subscribe', subscribe);
         if (tagId) query.set('tagId', String(tagId));
         const res = await request.get<PaginatedResponse<MpFan>>(`/api/mp/fans?${query}`);
+        if (currentIdRef.current !== reqId) return; // 账号已切换，丢弃过期响应
         setList(res.data?.list ?? []);
         setTotal(res.data?.total ?? 0);
         setPage(res.data?.page ?? p);
@@ -67,7 +70,7 @@ export default function MpFansPage() {
         setLoading(false);
       }
     },
-    [page, pageSize, currentId, setPage, setPageSize],
+    [page, pageSize, currentId, currentIdRef, setPage, setPageSize],
   );
 
   useEffect(() => {

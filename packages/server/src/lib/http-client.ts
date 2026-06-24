@@ -166,6 +166,26 @@ function resolveUrl(url: string, baseURL?: string): string {
   return `${baseURL.replace(/\/+$/, '')}/${url.replace(/^\/+/, '')}`;
 }
 
+/** 出站日志中需脱敏的敏感 query 参数名（小写比较） */
+const SENSITIVE_QUERY_KEYS = new Set([
+  'access_token', 'secret', 'appsecret', 'app_secret', 'client_secret',
+  'password', 'refresh_token', 'api_key', 'apikey', 'token', 'sign', 'signature',
+]);
+
+/** 脱敏 URL 中的敏感 query 值（用于日志），避免 access_token / appSecret 等写入应用日志 */
+function redactUrl(rawUrl: string): string {
+  const qIdx = rawUrl.indexOf('?');
+  if (qIdx === -1) return rawUrl;
+  const base = rawUrl.slice(0, qIdx);
+  const parts = rawUrl.slice(qIdx + 1).split('&').map((pair) => {
+    const eq = pair.indexOf('=');
+    if (eq === -1) return pair;
+    const key = pair.slice(0, eq);
+    return SENSITIVE_QUERY_KEYS.has(key.toLowerCase()) ? `${key}=***` : pair;
+  });
+  return `${base}?${parts.join('&')}`;
+}
+
 function normalizeBody(body: HttpRequestOptions['body'], headers: Headers): BodyInit | null | undefined {
   if (body === undefined || body === null) return body;
   if (typeof body === 'string') return body;
@@ -218,6 +238,7 @@ export async function httpRequest(
   } = opts;
 
   const finalUrl = resolveUrl(url, baseURL);
+  const safeUrl = redactUrl(finalUrl);
   const host = breakerKey(finalUrl);
   breakerCheck(host);
 
@@ -240,7 +261,7 @@ export async function httpRequest(
     const startedAt = Date.now();
     const logCtx = {
       method,
-      url: finalUrl,
+      url: safeUrl,
       headers: redactHeadersInit(headersInit),
       attempt,
       proxy: proxy ? new URL(proxy).host : undefined,
@@ -262,7 +283,7 @@ export async function httpRequest(
         direction: 'outgoing',
         phase: 'request',
         method,
-        url: finalUrl,
+        url: safeUrl,
         requestHeaders: (outLevel === 'headers' || outLevel === 'full')
           ? redactHeaders(logCtx.headers)
           : undefined,
@@ -316,7 +337,7 @@ export async function httpRequest(
           direction: 'outgoing',
           phase: 'response',
           method,
-          url: finalUrl,
+          url: safeUrl,
           statusCode: resp.status,
           durationMs: elapsed,
           responseHeaders: (outLevel === 'headers' || outLevel === 'full')
@@ -341,7 +362,7 @@ export async function httpRequest(
           direction: 'outgoing',
           phase: 'response',
           method,
-          url: finalUrl,
+          url: safeUrl,
           durationMs: elapsed,
           attempt: attempt > 1 ? attempt : undefined,
           error: (err as Error).message,
@@ -361,7 +382,7 @@ export async function httpRequest(
 
   throw new HttpClientError(`HTTP request failed: ${(lastErr as Error)?.message ?? 'unknown'}`, {
     status: 0,
-    url: finalUrl,
+    url: safeUrl,
     cause: lastErr,
   });
 }

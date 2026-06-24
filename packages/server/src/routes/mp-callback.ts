@@ -7,6 +7,7 @@
  * 校验逻辑见 lib/wechat。账号查询不做租户过滤（回调无登录上下文）。
  */
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { createHash } from 'node:crypto';
 import { validationHook } from '../lib/openapi-schemas';
 import { getMpAccountForCallback } from '../services/mp-account.service';
 import { storeInboundMessage, storeOutboundAutoReply } from '../services/mp-message.service';
@@ -16,6 +17,9 @@ import logger from '../lib/logger';
 import type { MpMessageType } from '@zenith/shared';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
+
+/** 回调请求体大小上限（字节）：微信消息体很小，超限直接拒绝，避免对未验签内容做大文本解析 */
+const MAX_CALLBACK_BODY = 64 * 1024;
 
 const CallbackParam = z.object({
   accountId: z.coerce.number().int().openapi({ param: { name: 'accountId', in: 'path' }, example: 1 }),
@@ -34,6 +38,7 @@ const textResponses = {
   200: { description: '处理结果（纯文本）', content: { 'text/plain': { schema: z.string() } } },
   403: { description: '签名校验失败', content: { 'text/plain': { schema: z.string() } } },
   404: { description: '公众号不存在', content: { 'text/plain': { schema: z.string() } } },
+  500: { description: '服务端处理失败（触发微信重试）', content: { 'text/plain': { schema: z.string() } } },
 } as const;
 
 const ALLOWED_TYPES = new Set(['text', 'image', 'voice', 'video', 'shortvideo', 'location', 'link', 'event']);
@@ -49,6 +54,20 @@ function extractContent(type: string, f: Record<string, string>): string | null 
     case 'location': return [f.Location_X, f.Location_Y].filter(Boolean).join(',') + (f.Label ? ` ${f.Label}` : '');
     default: return null;
   }
+}
+
+/**
+ * 计算入站消息去重键：
+ * - 普通消息直接用微信 MsgId（数值串）
+ * - 事件消息无 MsgId，用 openid+event+eventKey+createTime 合成并 sha1（微信重试时这些字段一致），保证事件重试也能去重
+ */
+function dedupKey(f: Record<string, string>, msgType: MpMessageType): string | null {
+  if (f.MsgId) return f.MsgId;
+  if (msgType === 'event') {
+    const composite = `${f.FromUserName ?? ''}|${f.Event ?? ''}|${f.EventKey ?? ''}|${f.CreateTime ?? ''}`;
+    return `evt_${createHash('sha1').update(composite).digest('hex')}`;
+  }
+  return null;
 }
 
 const verifyRoute = defineOpenAPIRoute({
@@ -89,6 +108,7 @@ const receiveRoute = defineOpenAPIRoute({
     if (account.status === 'disabled') return c.text('', 200);
 
     const rawBody = await c.req.raw.clone().text();
+    if (rawBody.length > MAX_CALLBACK_BODY) return c.text('', 403);
     const encrypted = encryptType === 'aes' || account.encryptMode !== 'plaintext';
 
     let plainXml: string;
@@ -108,58 +128,73 @@ const receiveRoute = defineOpenAPIRoute({
       plainXml = rawBody;
     }
 
+    // 解析失败属不可重试错误：直接返回 200，避免微信反复重试同一条坏消息
+    let f: Record<string, string>;
     try {
-      const f = parseWechatXml(plainXml);
-      const openid = f.FromUserName;
-      if (openid) {
-        const msgType = normalizeType(f.MsgType ?? 'text');
-        const isNew = await storeInboundMessage({
-          accountId,
-          tenantId: account.tenantId,
-          openid,
-          msgType,
-          content: extractContent(msgType, f),
-          mediaId: f.MediaId ?? null,
-          mediaUrl: f.PicUrl ?? null,
-          event: f.Event ?? null,
-          msgId: f.MsgId ?? null,
+      f = parseWechatXml(plainXml);
+    } catch (err) {
+      logger.warn(`[mp-callback] 报文解析失败: ${(err as Error).message}`);
+      return c.text('', 200);
+    }
+
+    const openid = f.FromUserName;
+    if (!openid) return c.text('', 200);
+    const msgType = normalizeType(f.MsgType ?? 'text');
+
+    // 落库失败属可重试错误（如 DB 抖动）：返回非 200 让微信重试，避免消息永久丢失
+    let isNew: boolean;
+    try {
+      isNew = await storeInboundMessage({
+        accountId,
+        tenantId: account.tenantId,
+        openid,
+        msgType,
+        content: extractContent(msgType, f),
+        mediaId: f.MediaId ?? null,
+        mediaUrl: f.PicUrl ?? null,
+        event: f.Event ?? null,
+        msgId: dedupKey(f, msgType),
+      });
+    } catch (err) {
+      logger.error(`[mp-callback] 入站消息落库失败，返回 500 触发微信重试: ${(err as Error).message}`);
+      return c.text('', 500);
+    }
+
+    // 自动回复（构建/落库出站失败不影响入站已落库，返回 200 不重试）
+    try {
+      let replyContent: string | null = null;
+      if (msgType === 'event' && f.Event === 'subscribe') {
+        replyContent = await resolveAutoReply(accountId, { event: 'subscribe' });
+      } else if (msgType === 'text') {
+        replyContent = await resolveAutoReply(accountId, { text: f.Content ?? '' });
+      }
+
+      if (replyContent) {
+        // 仅首次落库出站回复；微信重试时仍返回被动回复，但不写重复记录
+        if (isNew) await storeOutboundAutoReply(accountId, account.tenantId, openid, replyContent);
+        const replyXml = buildWechatXml({
+          ToUserName: openid,
+          FromUserName: f.ToUserName ?? '',
+          CreateTime: Math.floor(Date.now() / 1000),
+          MsgType: 'text',
+          Content: replyContent,
         });
-
-        // ── 自动回复匹配 ──
-        let replyContent: string | null = null;
-        if (msgType === 'event' && f.Event === 'subscribe') {
-          replyContent = await resolveAutoReply(accountId, { event: 'subscribe' });
-        } else if (msgType === 'text') {
-          replyContent = await resolveAutoReply(accountId, { text: f.Content ?? '' });
-        }
-
-        if (replyContent) {
-          // 仅首次落库出站回复；微信重试时仍返回被动回复，但不写重复记录
-          if (isNew) await storeOutboundAutoReply(accountId, account.tenantId, openid, replyContent);
-          const replyXml = buildWechatXml({
-            ToUserName: openid,
-            FromUserName: f.ToUserName ?? '',
-            CreateTime: Math.floor(Date.now() / 1000),
-            MsgType: 'text',
-            Content: replyContent,
+        if (encrypted && account.encodingAesKey) {
+          const enc = encryptWechatMessage(account.encodingAesKey, account.appId, replyXml);
+          const ts = timestamp ?? String(Math.floor(Date.now() / 1000));
+          const nc = nonce ?? Math.random().toString(36).slice(2);
+          const encXml = buildWechatXml({
+            Encrypt: enc,
+            MsgSignature: msgSignature(account.token, ts, nc, enc),
+            TimeStamp: Number(ts),
+            Nonce: nc,
           });
-          if (encrypted && account.encodingAesKey) {
-            const enc = encryptWechatMessage(account.encodingAesKey, account.appId, replyXml);
-            const ts = timestamp ?? String(Math.floor(Date.now() / 1000));
-            const nc = nonce ?? Math.random().toString(36).slice(2);
-            const encXml = buildWechatXml({
-              Encrypt: enc,
-              MsgSignature: msgSignature(account.token, ts, nc, enc),
-              TimeStamp: Number(ts),
-              Nonce: nc,
-            });
-            return c.text(encXml, 200);
-          }
-          return c.text(replyXml, 200);
+          return c.text(encXml, 200);
         }
+        return c.text(replyXml, 200);
       }
     } catch (err) {
-      logger.warn(`[mp-callback] 消息处理失败: ${(err as Error).message}`);
+      logger.warn(`[mp-callback] 自动回复处理失败（入站已落库）: ${(err as Error).message}`);
     }
     return c.text('', 200);
   },

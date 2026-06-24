@@ -14,7 +14,7 @@ import { MpAccountSwitcher } from './MpAccountSwitcher';
 
 export default function MpTemplateMessagesPage() {
   const { hasPermission: can } = usePermission();
-  const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
+  const { accounts, currentId, currentIdRef, setCurrentId, loading: accountsLoading } = useMpAccounts();
 
   const [tab, setTab] = useState('templates');
   const [tplLoading, setTplLoading] = useState(false);
@@ -38,29 +38,33 @@ export default function MpTemplateMessagesPage() {
 
   const fetchTemplates = useCallback(async (p = 1, ps = tplPg.pageSize) => {
     if (!currentId) { setTemplates([]); setTplTotal(0); return; }
+    const reqId = currentId;
     setTplLoading(true);
     try {
       const res = await request.get<PaginatedResponse<MpMessageTemplate>>(`/api/mp/templates?accountId=${currentId}&page=${p}&pageSize=${ps}`);
+      if (currentIdRef.current !== reqId) return; // 账号已切换，丢弃过期响应
       setTemplates(res.data?.list ?? []);
       setTplTotal(res.data?.total ?? 0);
       tplPg.setPage(res.data?.page ?? p);
       tplPg.setPageSize(res.data?.pageSize ?? ps);
     } finally { setTplLoading(false); }
-  }, [currentId, tplPg]);
+  }, [currentId, currentIdRef, tplPg]);
 
   const fetchLogs = useCallback(async (p = 1, ps = logPg.pageSize, status = logStatus) => {
     if (!currentId) { setLogs([]); setLogTotal(0); return; }
+    const reqId = currentId;
     setLogLoading(true);
     try {
       const q = new URLSearchParams({ accountId: String(currentId), page: String(p), pageSize: String(ps) });
       if (status) q.set('status', status);
       const res = await request.get<PaginatedResponse<MpTemplateSendLog>>(`/api/mp/templates/logs?${q}`);
+      if (currentIdRef.current !== reqId) return; // 账号已切换，丢弃过期响应
       setLogs(res.data?.list ?? []);
       setLogTotal(res.data?.total ?? 0);
       logPg.setPage(res.data?.page ?? p);
       logPg.setPageSize(res.data?.pageSize ?? ps);
     } finally { setLogLoading(false); }
-  }, [currentId, logStatus, logPg]);
+  }, [currentId, currentIdRef, logStatus, logPg]);
 
   useEffect(() => { void fetchTemplates(1); void fetchLogs(1); /* eslint-disable-line react-hooks/exhaustive-deps */ }, [currentId]);
 

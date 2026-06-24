@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Button, Col, Form, Modal, Row, Select, Space, Spin, Tag, Toast, Switch, Banner } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Input, Modal, Row, Select, Space, Spin, Tag, Toast, Switch, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, RotateCcw, Search } from 'lucide-react';
 import type { PaginatedResponse, MpAutoReply, MpAutoReplyType } from '@zenith/shared';
@@ -28,7 +28,7 @@ const TYPE_TAG_COLOR: Record<MpAutoReplyType, 'green' | 'blue' | 'orange'> = {
 
 export default function MpAutoRepliesPage() {
   const { hasPermission: can } = usePermission();
-  const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
+  const { accounts, currentId, currentIdRef, setCurrentId, loading: accountsLoading } = useMpAccounts();
 
   const [loading, setLoading] = useState(false);
   const [list, setList] = useState<MpAutoReply[]>([]);
@@ -51,6 +51,7 @@ export default function MpAutoRepliesPage() {
   const fetchList = useCallback(
     async (p = page, ps = pageSize, params?: SearchParams) => {
       if (!currentId) { setList([]); setTotal(0); return; }
+      const reqId = currentId;
       const { filterType, keyword } = params ?? searchRef.current;
       setLoading(true);
       try {
@@ -58,6 +59,7 @@ export default function MpAutoRepliesPage() {
         if (filterType) query.set('replyType', filterType);
         if (keyword) query.set('keyword', keyword);
         const res = await request.get<PaginatedResponse<MpAutoReply>>(`/api/mp/auto-replies?${query}`);
+        if (currentIdRef.current !== reqId) return; // 账号已切换，丢弃过期响应
         setList(res.data?.list ?? []);
         setTotal(res.data?.total ?? 0);
         setPage(res.data?.page ?? p);
@@ -66,7 +68,7 @@ export default function MpAutoRepliesPage() {
         setLoading(false);
       }
     },
-    [page, pageSize, currentId, setPage, setPageSize],
+    [page, pageSize, currentId, currentIdRef, setPage, setPageSize],
   );
 
   useEffect(() => { setPage(1); void fetchList(1, pageSize, searchRef.current); /* eslint-disable-line react-hooks/exhaustive-deps */ }, [currentId]);
@@ -153,6 +155,8 @@ export default function MpAutoRepliesPage() {
         <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
         <Select placeholder="回复类型" value={searchParams.filterType} onChange={(v) => setSearchParams({ ...searchParams, filterType: v as MpAutoReplyType | undefined })}
           optionList={REPLY_TYPE_OPTIONS} showClear style={{ width: 140 }} />
+        <Input prefix={<Search size={14} />} placeholder="搜索关键词" value={searchParams.keyword} showClear
+          onChange={(v) => setSearchParams({ ...searchParams, keyword: v })} onEnterPress={handleSearch} style={{ width: 180 }} />
         <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
         <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
         {can('mp:reply:create') && <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增</Button>}

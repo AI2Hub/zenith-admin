@@ -128,13 +128,29 @@ export interface InboundMessageParams {
   msgId?: string | null;
 }
 
-/** 落库入站消息（由公开回调调用，无登录上下文，tenantId 由账号传入）。返回是否新增。 */
+/** 落库入站消息（由公开回调调用，无登录上下文，tenantId 由账号传入）。返回是否新增（false=微信重试的重复消息）。 */
 export async function storeInboundMessage(p: InboundMessageParams): Promise<boolean> {
+  // 有 msgId：依赖 (account_id, msg_id) 部分唯一索引原子去重，避免 SELECT→INSERT 竞态
   if (p.msgId) {
-    const [dup] = await db.select({ id: mpMessages.id }).from(mpMessages)
-      .where(and(eq(mpMessages.accountId, p.accountId), eq(mpMessages.msgId, p.msgId))).limit(1);
-    if (dup) return false;
+    const inserted = await db.insert(mpMessages).values({
+      accountId: p.accountId,
+      openid: p.openid,
+      direction: 'in',
+      msgType: p.msgType,
+      content: p.content ?? null,
+      mediaId: p.mediaId ?? null,
+      mediaUrl: p.mediaUrl ?? null,
+      event: p.event ?? null,
+      msgId: p.msgId,
+      status: 'received',
+      tenantId: p.tenantId,
+    }).onConflictDoNothing({
+      target: [mpMessages.accountId, mpMessages.msgId],
+      where: sql`${mpMessages.msgId} IS NOT NULL`,
+    }).returning({ id: mpMessages.id });
+    return inserted.length > 0;
   }
+  // 无 msgId（理论上仅极少数场景）：直接插入
   await db.insert(mpMessages).values({
     accountId: p.accountId,
     openid: p.openid,
@@ -144,7 +160,7 @@ export async function storeInboundMessage(p: InboundMessageParams): Promise<bool
     mediaId: p.mediaId ?? null,
     mediaUrl: p.mediaUrl ?? null,
     event: p.event ?? null,
-    msgId: p.msgId ?? null,
+    msgId: null,
     status: 'received',
     tenantId: p.tenantId,
   });

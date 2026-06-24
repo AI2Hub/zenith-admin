@@ -15,7 +15,7 @@ import { MpAccountSwitcher } from './MpAccountSwitcher';
 
 export default function MpTagsPage() {
   const { hasPermission: can } = usePermission();
-  const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
+  const { accounts, currentId, currentIdRef, setCurrentId, loading: accountsLoading } = useMpAccounts();
 
   const [loading, setLoading] = useState(false);
   const [list, setList] = useState<MpTag[]>([]);
@@ -34,11 +34,13 @@ export default function MpTagsPage() {
   const fetchList = useCallback(
     async (p = page, ps = pageSize, kw = keywordRef.current) => {
       if (!currentId) { setList([]); setTotal(0); return; }
+      const reqId = currentId;
       setLoading(true);
       try {
         const query = new URLSearchParams({ page: String(p), pageSize: String(ps), accountId: String(currentId) });
         if (kw) query.set('keyword', kw);
         const res = await request.get<PaginatedResponse<MpTag>>(`/api/mp/tags?${query}`);
+        if (currentIdRef.current !== reqId) return; // 账号已切换，丢弃过期响应
         setList(res.data?.list ?? []);
         setTotal(res.data?.total ?? 0);
         setPage(res.data?.page ?? p);
@@ -47,7 +49,7 @@ export default function MpTagsPage() {
         setLoading(false);
       }
     },
-    [page, pageSize, currentId, setPage, setPageSize],
+    [page, pageSize, currentId, currentIdRef, setPage, setPageSize],
   );
 
   useEffect(() => {

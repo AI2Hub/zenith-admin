@@ -61,6 +61,7 @@ export default function MpAccountsPage() {
   const [modalDetailLoading, setModalDetailLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const formRef = useRef<FormApi>(null);
+  const editingDetailIdRef = useRef<number | null>(null);
 
   const [configRecord, setConfigRecord] = useState<MpAccount | null>(null);
   const [testingId, setTestingId] = useState<number | null>(null);
@@ -103,10 +104,11 @@ export default function MpAccountsPage() {
     setEditingRecord(record);
     setModalVisible(true);
     setModalDetailLoading(true);
+    editingDetailIdRef.current = record.id;
     const res = await request.get<MpAccount>(`/api/mp/accounts/${record.id}`);
+    if (editingDetailIdRef.current !== record.id) return; // 已打开其它记录，丢弃过期详情
     setModalDetailLoading(false);
-    if (res.code === 0) setEditingRecord(res.data);
-    else Toast.error(res.message || '获取信息失败');
+    if (res.code === 0 && res.data) setEditingRecord(res.data);
   };
 
   const handleSubmit = async () => {

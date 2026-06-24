@@ -88,28 +88,34 @@ export async function deleteMpMaterial(id: number) {
   await db.delete(mpMaterials).where(eq(mpMaterials.id, id));
 }
 
-/** 从微信同步永久素材（image/voice/video） */
+/** 从微信同步永久素材（image/voice/video），分页拉取全部 */
 export async function syncMpMaterials(accountId: number): Promise<{ success: boolean; created: number; updated: number; total: number }> {
   const account = await ensureMpAccountExists(accountId);
   const tenantId = currentCreateTenantId();
   const types = ['image', 'voice', 'video'] as const;
+  const PAGE = 20;
   let created = 0;
   let updated = 0;
   let total = 0;
   try {
     for (const type of types) {
-      const { items } = await batchGetWechatMaterials(account, type, 0, 20);
-      for (const item of items) {
-        total += 1;
-        const [existing] = await db.select({ id: mpMaterials.id }).from(mpMaterials)
-          .where(and(eq(mpMaterials.accountId, accountId), eq(mpMaterials.wechatMediaId, item.media_id))).limit(1);
-        if (existing) {
-          await db.update(mpMaterials).set({ name: item.name || '未命名素材', url: item.url ?? null }).where(eq(mpMaterials.id, existing.id));
-          updated += 1;
-        } else {
-          await db.insert(mpMaterials).values({ accountId, type, name: item.name || '未命名素材', wechatMediaId: item.media_id, url: item.url ?? null, tenantId });
-          created += 1;
+      let offset = 0;
+      for (;;) {
+        const { total: typeTotal, items } = await batchGetWechatMaterials(account, type, offset, PAGE);
+        for (const item of items) {
+          total += 1;
+          const [existing] = await db.select({ id: mpMaterials.id }).from(mpMaterials)
+            .where(and(eq(mpMaterials.accountId, accountId), eq(mpMaterials.wechatMediaId, item.media_id))).limit(1);
+          if (existing) {
+            await db.update(mpMaterials).set({ name: item.name || '未命名素材', url: item.url ?? null }).where(eq(mpMaterials.id, existing.id));
+            updated += 1;
+          } else {
+            await db.insert(mpMaterials).values({ accountId, type, name: item.name || '未命名素材', wechatMediaId: item.media_id, url: item.url ?? null, tenantId });
+            created += 1;
+          }
         }
+        offset += items.length;
+        if (items.length < PAGE || offset >= typeTotal) break;
       }
     }
   } catch (err) {

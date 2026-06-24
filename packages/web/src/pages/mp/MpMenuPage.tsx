@@ -19,7 +19,7 @@ const clone = (b: MpMenuButton[]): MpMenuButton[] => structuredClone(b);
 
 export default function MpMenuPage() {
   const { hasPermission: can } = usePermission();
-  const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
+  const { accounts, currentId, currentIdRef, setCurrentId, loading: accountsLoading } = useMpAccounts();
 
   const [menu, setMenu] = useState<MpMenu | null>(null);
   const [buttons, setButtons] = useState<MpMenuButton[]>([]);
@@ -32,12 +32,13 @@ export default function MpMenuPage() {
     setLoading(true);
     try {
       const res = await request.get<MpMenu>(`/api/mp/menu?accountId=${accountId}`);
+      if (currentIdRef.current !== accountId) return; // 账号已切换，丢弃过期响应
       setMenu(res.data ?? null);
       setButtons(res.data?.buttons ?? []);
       setSelected(null);
       setActiveL1(null);
     } finally { setLoading(false); }
-  }, []);
+  }, [currentIdRef]);
 
   useEffect(() => {
     if (currentId) void load(currentId);
@@ -194,6 +195,7 @@ export default function MpMenuPage() {
   const currentAccountName = accounts.find(a => a.id === currentId)?.name ?? '公众号名称';
   const activeSubs = activeL1 === null ? [] : (buttons[activeL1]?.sub_button ?? []);
   const actionBusy = busy === 'save' || busy === 'publish';
+  const canEditMenu = can('mp:menu:save') || can('mp:menu:publish');
 
   return (
     <div className="page-container">
@@ -395,16 +397,16 @@ export default function MpMenuPage() {
             <div style={{ display: 'flex', gap: 0, borderTop: '1px solid var(--semi-color-border)' }}>
               <button
                 type="button"
-                disabled={!currentId || actionBusy}
+                disabled={!currentId || actionBusy || !canEditMenu}
                 onClick={() => void (can('mp:menu:publish') ? doPublish() : doSave())}
                 style={{
                   flex: 1,
                   padding: '11px 4px',
-                  background: (!currentId || actionBusy) ? 'var(--semi-color-disabled-bg)' : 'var(--semi-color-primary)',
-                  color: (!currentId || actionBusy) ? 'var(--semi-color-disabled-text)' : '#fff',
+                  background: (!currentId || actionBusy || !canEditMenu) ? 'var(--semi-color-disabled-bg)' : 'var(--semi-color-primary)',
+                  color: (!currentId || actionBusy || !canEditMenu) ? 'var(--semi-color-disabled-text)' : '#fff',
                   border: 'none',
                   borderRight: '1px solid var(--semi-color-border)',
-                  cursor: (!currentId || actionBusy) ? 'not-allowed' : 'pointer',
+                  cursor: (!currentId || actionBusy || !canEditMenu) ? 'not-allowed' : 'pointer',
                   fontSize: 12,
                   fontWeight: 500,
                   whiteSpace: 'nowrap',
@@ -412,7 +414,7 @@ export default function MpMenuPage() {
                   transition: 'background 0.15s',
                 }}
               >
-                {actionBusy ? '处理中…' : '保存并发布菜单'}
+                {actionBusy ? '处理中…' : (can('mp:menu:publish') ? '保存并发布菜单' : '保存菜单')}
               </button>
               <button
                 type="button"
