@@ -15,6 +15,7 @@ import { resolveAutoReply } from '../services/mp-auto-reply.service';
 import { incrementQrcodeScan } from '../services/mp-qrcode.service';
 import { autoCreateMemberOnSubscribe } from '../services/mp-member.service';
 import { onFanInboundMessage } from '../services/mp-kf-session.service';
+import { handleTemplateSendReceipt } from '../services/mp-template.service';
 import { verifyWechatSignature, msgSignature, timingSafeCompare, decryptWechatMessage, encryptWechatMessage, parseWechatXml, buildWechatXml, buildPassiveReplyXml, summarizePassiveReply } from '../lib/wechat';
 import logger from '../lib/logger';
 import type { MpMessageType } from '@zenith/shared';
@@ -190,6 +191,15 @@ const receiveRoute = defineOpenAPIRoute({
         await onFanInboundMessage(accountId, account.tenantId, openid, msgType);
       } catch (err) {
         logger.warn(`[mp-callback] 多客服会话接入失败: ${(err as Error).message}`);
+      }
+    }
+
+    // ── 模板消息送达回执（TEMPLATESENDJOBFINISH：按 msgid 回写发送日志最终状态） ──
+    if (isNew && msgType === 'event' && f.Event === 'TEMPLATESENDJOBFINISH' && f.MsgID) {
+      try {
+        await handleTemplateSendReceipt(accountId, f.MsgID, f.Status ?? '');
+      } catch (err) {
+        logger.warn(`[mp-callback] 模板消息回执处理失败: ${(err as Error).message}`);
       }
     }
 
