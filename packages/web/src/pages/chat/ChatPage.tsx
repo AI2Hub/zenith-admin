@@ -1466,6 +1466,14 @@ export default function ChatPage({
   }, []);
 
   const handleWsMessage = useCallback((wsMsg: WsMessage) => {
+    if (wsMsg.type === 'channel:message') {
+      const m = wsMsg.payload;
+      setChannels((prev) => prev.map((c) =>
+        c.id === m.channelId
+          ? { ...c, lastMessage: m, unreadCount: activeChannelId === m.channelId ? 0 : c.unreadCount + 1 }
+          : c));
+      return;
+    }
     if (wsMsg.type === 'chat:message') {
       const msg = wsMsg.payload;
       const isOwnMsg = msg.senderId === currentUserId;
@@ -1602,7 +1610,7 @@ export default function ChatPage({
     if (pendingNewMsgCount > 0) setPendingNewMsgCount(0);
     request.post(`/api/chat/conversations/${activeConvId}/read`, {}, { silent: true }).catch(() => {});
     setConversations(markConversationReadById(activeConvId));
-  }, [activeConvId, contextMode, pendingNewMsgCount, restoreLatestMessages]);
+  }, [activeConvId, activeChannelId, contextMode, pendingNewMsgCount, restoreLatestMessages]);
 
   const handleStartReached = useCallback(() => {
     if (!hasMore || loadingMsgs || !activeConvId) return;
@@ -1904,7 +1912,7 @@ export default function ChatPage({
                     <SemiList.Item
                       key={`channel-${ch.id}`}
                       align="center"
-                      onClick={() => { setActiveChannelId(ch.id); setActiveConvId(null); }}
+                      onClick={() => { setActiveChannelId(ch.id); setActiveConvId(null); setChannels((prev) => prev.map((c) => c.id === ch.id ? { ...c, unreadCount: 0 } : c)); }}
                       style={{ padding: '10px 12px', cursor: 'pointer', background: activeChannelId === ch.id ? 'var(--semi-color-primary-light-default)' : 'transparent' }}
                       header={ch.unreadCount > 0
                         ? <Badge count={ch.unreadCount} overflowCount={99}><UserAvatar name={ch.name} avatar={ch.avatar} size={38} /></Badge>
