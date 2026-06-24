@@ -757,12 +757,19 @@ export const workflowFormFieldSchema: z.ZodType<WorkflowFormField> = z.lazy(() =
       'region', 'signature', 'richtext',
       'userSelect', 'deptSelect', 'dictSelect',
       'detail', 'description', 'serialNumber',
-      'row', 'divider', 'group',
+      'row', 'divider', 'group', 'tabs', 'steps',
     ]),
     required: z.boolean().optional(),
     placeholder: z.string().optional(),
     helpText: z.string().optional(),
     options: z.array(z.string()).optional(),
+    optionItems: z.array(z.object({
+      value: z.string(),
+      label: z.string().optional(),
+      color: z.string().optional(),
+      disabled: z.boolean().optional(),
+    })).optional(),
+    allowOther: z.boolean().optional(),
     defaultValue: z.unknown().optional(),
     visibilityCondition: workflowFieldVisibilityConditionSchema.optional(),
     visibilityRules: z.object({
@@ -808,6 +815,17 @@ export const workflowFormFieldSchema: z.ZodType<WorkflowFormField> = z.lazy(() =
     max: z.number().optional(),
     pattern: z.string().optional(),
     patternMessage: z.string().optional(),
+    unique: z.boolean().optional(),
+    compareRules: z.array(z.object({
+      operator: z.enum(['gt', 'gte', 'lt', 'lte', 'eq', 'neq']),
+      field: z.string().min(1),
+      message: z.string().optional(),
+    })).optional(),
+    dateLimit: z.enum(['none', 'noPast', 'noFuture', 'custom']).optional(),
+    minDate: z.string().optional(),
+    maxDate: z.string().optional(),
+    accept: z.string().optional(),
+    maxSize: z.number().positive().optional(),
     daysFromKey: z.string().optional(),
     optionsFrom: z.object({
       sourceKey: z.string().min(1),
@@ -820,6 +838,10 @@ export const workflowFormFieldSchema: z.ZodType<WorkflowFormField> = z.lazy(() =
     dataSourceId: z.number().int().positive().optional(),
     columns: z.array(z.object({
       span: z.number().min(1).max(24),
+      fields: z.array(workflowFormFieldSchema),
+    })).optional(),
+    panes: z.array(z.object({
+      title: z.string(),
       fields: z.array(workflowFormFieldSchema),
     })).optional(),
     title: z.string().optional(),
@@ -2180,6 +2202,7 @@ export const createMpAccountSchema = z.object({
   qrCodeUrl: z.string().max(500).optional(),
   isDefault: z.boolean().default(false),
   autoCreateMember: z.boolean().default(false),
+  contentCheckEnabled: z.boolean().default(false),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(500).optional(),
 });
@@ -2278,6 +2301,47 @@ export const saveMpMenuSchema = z.object({
   buttons: z.array(mpMenuButtonSchema).max(3, '一级菜单最多 3 个'),
 });
 export type SaveMpMenuInput = z.infer<typeof saveMpMenuSchema>;
+
+// 个性化菜单（按匹配规则下发）
+const mpMenuMatchRuleSchema = z.object({
+  tagId: z.string().max(16).optional(),
+  sex: z.string().max(4).optional(),
+  country: z.string().max(64).optional(),
+  province: z.string().max(64).optional(),
+  city: z.string().max(64).optional(),
+  clientPlatformType: z.string().max(4).optional(),
+  language: z.string().max(16).optional(),
+});
+export const createMpConditionalMenuSchema = z.object({
+  accountId: z.number().int().positive(),
+  name: z.string().min(1, '名称不能为空').max(64),
+  buttons: z.array(mpMenuButtonSchema).min(1, '至少一个一级菜单').max(3, '一级菜单最多 3 个'),
+  matchRule: mpMenuMatchRuleSchema.refine((r) => Object.values(r).some((v) => v && v.length > 0), { message: '至少设置一个匹配条件' }),
+});
+export const updateMpConditionalMenuSchema = z.object({
+  name: z.string().min(1).max(64).optional(),
+  buttons: z.array(mpMenuButtonSchema).min(1).max(3).optional(),
+  matchRule: mpMenuMatchRuleSchema.optional(),
+});
+export const tryMatchMpMenuSchema = z.object({
+  accountId: z.number().int().positive(),
+  userId: z.string().min(1, '请输入 openid 或微信号').max(128),
+});
+export type CreateMpConditionalMenuInput = z.infer<typeof createMpConditionalMenuSchema>;
+export type UpdateMpConditionalMenuInput = z.infer<typeof updateMpConditionalMenuSchema>;
+export type TryMatchMpMenuInput = z.infer<typeof tryMatchMpMenuSchema>;
+
+// 粉丝黑名单 + 内容安全校验
+export const blacklistMpFansSchema = z.object({
+  accountId: z.number().int().positive(),
+  openids: z.array(z.string().min(1)).min(1, '请选择粉丝').max(20, '每次最多 20 个'),
+});
+export const checkMpContentSchema = z.object({
+  accountId: z.number().int().positive(),
+  content: z.string().min(1, '内容不能为空').max(2500),
+});
+export type BlacklistMpFansInput = z.infer<typeof blacklistMpFansSchema>;
+export type CheckMpContentInput = z.infer<typeof checkMpContentSchema>;
 
 // 公众号素材
 export const MP_MATERIAL_TYPES = ['image', 'voice', 'video', 'thumb'] as const;

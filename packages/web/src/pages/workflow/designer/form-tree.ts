@@ -6,22 +6,32 @@
 import type { WorkflowFormField, WorkflowFormFieldType } from '@zenith/shared';
 
 /** 容器类型：内部可容纳子字段，禁止被拖入其它容器（避免无限嵌套） */
-export const CONTAINER_TYPES: WorkflowFormFieldType[] = ['row', 'group', 'detail'];
+export const CONTAINER_TYPES: WorkflowFormFieldType[] = ['row', 'group', 'detail', 'tabs', 'steps'];
 export const isContainerType = (t: WorkflowFormFieldType): boolean => CONTAINER_TYPES.includes(t);
+
+/** 是否为 tabs/steps 面板容器 */
+export const isPaneContainerType = (t: WorkflowFormFieldType): boolean => t === 'tabs' || t === 'steps';
 
 /** 拖放目标位置；beforeKey 为空表示追加到容器末尾 */
 export type DropTarget =
   | { container: 'root'; beforeKey?: string }
   | { container: 'col'; rowKey: string; colIndex: number; beforeKey?: string }
-  | { container: 'group'; groupKey: string; beforeKey?: string };
+  | { container: 'group'; groupKey: string; beforeKey?: string }
+  | { container: 'pane'; paneKey: string; paneIndex: number; beforeKey?: string };
 
-/** 递归查找字段（含分栏列 / 分组子 / 明细子） */
+/** 递归查找字段（含分栏列 / 分组子 / 明细子 / 面板子） */
 export function findField(fields: WorkflowFormField[], key: string): WorkflowFormField | null {
   for (const f of fields) {
     if (f.key === key) return f;
     if (f.columns) {
       for (const col of f.columns) {
         const r = findField(col.fields, key);
+        if (r) return r;
+      }
+    }
+    if (f.panes) {
+      for (const pane of f.panes) {
+        const r = findField(pane.fields, key);
         if (r) return r;
       }
     }
@@ -44,6 +54,9 @@ export function updateField(
     let nf = f;
     if (f.columns) {
       nf = { ...nf, columns: f.columns.map((col) => ({ ...col, fields: updateField(col.fields, key, updates) })) };
+    }
+    if (f.panes) {
+      nf = { ...nf, panes: f.panes.map((pane) => ({ ...pane, fields: updateField(pane.fields, key, updates) })) };
     }
     if (f.children) {
       nf = { ...nf, children: updateField(f.children, key, updates) };
@@ -69,6 +82,16 @@ export function removeField(
           const [cf, r] = removeField(col.fields, key);
           if (r) removed = r;
           return { ...col, fields: cf };
+        }),
+      };
+    }
+    if (f.panes) {
+      nf = {
+        ...nf,
+        panes: f.panes.map((pane) => {
+          const [pf, r] = removeField(pane.fields, key);
+          if (r) removed = r;
+          return { ...pane, fields: pf };
         }),
       };
     }
@@ -111,6 +134,17 @@ export function insertField(
       };
     });
   }
+  if (target.container === 'pane') {
+    return fields.map((f) => {
+      if (f.key !== target.paneKey || !f.panes) return f;
+      return {
+        ...f,
+        panes: f.panes.map((pane, i) =>
+          i === target.paneIndex ? { ...pane, fields: insertIntoArray(pane.fields, target.beforeKey, field) } : pane,
+        ),
+      };
+    });
+  }
   return fields.map((f) => {
     if (f.key !== target.groupKey) return f;
     return { ...f, children: insertIntoArray(f.children ?? [], target.beforeKey, field) };
@@ -129,6 +163,9 @@ export function insertAfterKey(
     if (f.columns) {
       nf = { ...nf, columns: f.columns.map((col) => ({ ...col, fields: insertAfterKey(col.fields, afterKey, field) })) };
     }
+    if (f.panes) {
+      nf = { ...nf, panes: f.panes.map((pane) => ({ ...pane, fields: insertAfterKey(pane.fields, afterKey, field) })) };
+    }
     if (f.children) {
       nf = { ...nf, children: insertAfterKey(f.children, afterKey, field) };
     }
@@ -144,16 +181,18 @@ export function isDescendant(fields: WorkflowFormField[], ancestorKey: string, k
   if (!anc) return false;
   const sub: WorkflowFormField[] = [];
   if (anc.columns) for (const c of anc.columns) sub.push(...c.fields);
+  if (anc.panes) for (const p of anc.panes) sub.push(...p.fields);
   if (anc.children) sub.push(...anc.children);
   return findField(sub, key) != null;
 }
 
-/** 递归展开所有字段（含分栏列 / 分组子 / 明细子） */
+/** 递归展开所有字段（含分栏列 / 分组子 / 明细子 / 面板子） */
 export function flattenAllFields(fields: WorkflowFormField[]): WorkflowFormField[] {
   const out: WorkflowFormField[] = [];
   for (const f of fields) {
     out.push(f);
     if (f.columns) for (const c of f.columns) out.push(...flattenAllFields(c.fields));
+    if (f.panes) for (const p of f.panes) out.push(...flattenAllFields(p.fields));
     if (f.children) out.push(...flattenAllFields(f.children));
   }
   return out;
@@ -197,7 +236,9 @@ export function renameFieldKey(fields: WorkflowFormField[], oldKey: string, newK
     }
     if (nf.daysFromKey === oldKey) nf.daysFromKey = newKey;
     if (nf.formula) nf.formula = replaceFormulaKey(nf.formula, oldKey, newKey);
+    if (nf.compareRules) nf.compareRules = nf.compareRules.map((r) => (r.field === oldKey ? { ...r, field: newKey } : r));
     if (nf.columns) nf.columns = nf.columns.map((c) => ({ ...c, fields: renameFieldKey(c.fields, oldKey, newKey) }));
+    if (nf.panes) nf.panes = nf.panes.map((p) => ({ ...p, fields: renameFieldKey(p.fields, oldKey, newKey) }));
     if (nf.children) nf.children = renameFieldKey(nf.children, oldKey, newKey);
     return nf;
   });
@@ -228,6 +269,7 @@ export function findFieldDependents(fields: WorkflowFormField[], key: string): F
     if (f.autoFill?.targets?.includes(key)) reasons.push('联动赋值目标');
     if (f.daysFromKey === key) reasons.push('日期天数联动');
     if (formulaReferencesKey(f.formula, key)) reasons.push('公式引用');
+    if (f.compareRules?.some((r) => r.field === key)) reasons.push('比较校验');
     if (reasons.length > 0) out.push({ field: f, reasons });
   }
   return out;
@@ -258,14 +300,19 @@ function cleanFieldRefs(f: WorkflowFormField, key: string): WorkflowFormField {
     nf.autoFill = targets.length > 0 ? { targets, byOption } : undefined;
   }
   if (nf.daysFromKey === key) nf.daysFromKey = undefined;
+  if (nf.compareRules) {
+    const kept = nf.compareRules.filter((r) => r.field !== key);
+    nf.compareRules = kept.length > 0 ? kept : undefined;
+  }
   return nf;
 }
 
-/** 删除字段后清理依赖它的孤儿引用（显隐/级联/天数）。公式保留以便校验提示。 */
+/** 删除字段后清理依赖它的孤儿引用（显隐/级联/天数/比较）。公式保留以便校验提示。 */
 export function pruneFieldReferences(fields: WorkflowFormField[], key: string): WorkflowFormField[] {
   return fields.map((f) => {
     let nf = cleanFieldRefs(f, key);
     if (nf.columns) nf = { ...nf, columns: nf.columns.map((col) => ({ ...col, fields: pruneFieldReferences(col.fields, key) })) };
+    if (nf.panes) nf = { ...nf, panes: nf.panes.map((pane) => ({ ...pane, fields: pruneFieldReferences(pane.fields, key) })) };
     if (nf.children) nf = { ...nf, children: pruneFieldReferences(nf.children, key) };
     return nf;
   });
@@ -291,6 +338,7 @@ export function pruneCascadeMappings(
         }
       }
       if (nf.columns) nf = { ...nf, columns: nf.columns.map((col) => ({ ...col, fields: walk(col.fields) })) };
+      if (nf.panes) nf = { ...nf, panes: nf.panes.map((pane) => ({ ...pane, fields: walk(pane.fields) })) };
       if (nf.children) nf = { ...nf, children: walk(nf.children) };
       return nf;
     });

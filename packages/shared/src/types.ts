@@ -1823,7 +1823,9 @@ export type WorkflowFormFieldType =
   | 'relation'      // 关联审批单（引用其他流程实例）
   | 'row'           // 栅格行
   | 'divider'       // 分割线
-  | 'group';        // 分组标题
+  | 'group'         // 分组标题
+  | 'tabs'          // 标签页容器（多面板切换）
+  | 'steps';        // 分步容器（向导式分页）
 
 // 字段显隐条件
 export interface WorkflowFieldVisibilityCondition {
@@ -1843,6 +1845,27 @@ export interface WorkflowFormFieldColumn {
   fields: WorkflowFormField[];
 }
 
+/** 增强选项项（select/multiSelect/radio/checkbox）：支持独立 value/label、颜色、禁用 */
+export interface WorkflowFormFieldOptionItem {
+  value: string;
+  label?: string;        // 显示文案，缺省取 value
+  color?: string;        // 选项标签颜色（十六进制，如 #1677ff）
+  disabled?: boolean;    // 是否禁用该选项
+}
+
+/** 跨字段比较校验规则：当前字段值与目标字段值比较，不满足时报错 */
+export interface WorkflowFormFieldCompareRule {
+  operator: 'gt' | 'gte' | 'lt' | 'lte' | 'eq' | 'neq';
+  field: string;         // 目标字段 key
+  message?: string;      // 校验失败提示
+}
+
+/** tabs/steps 容器的单个面板（标签页 / 步骤） */
+export interface WorkflowFormFieldPane {
+  title: string;
+  fields: WorkflowFormField[];
+}
+
 // 表单字段配置
 export interface WorkflowFormField {
   key: string;
@@ -1851,7 +1874,9 @@ export interface WorkflowFormField {
   required?: boolean;
   placeholder?: string;
   helpText?: string;               // 帮助提示（label 下方/旁边的说明）
-  options?: string[];              // select/multiSelect 的选项
+  options?: string[];              // select/multiSelect 的选项（值列表，作为规范数据源）
+  optionItems?: WorkflowFormFieldOptionItem[];  // 增强选项（value/label/颜色/禁用）；与 options 并存，options 始终镜像其 value
+  allowOther?: boolean;            // select/radio：允许填写「其他」自定义值
   defaultValue?: unknown;
   visibilityCondition?: WorkflowFieldVisibilityCondition;
   visibilityRules?: WorkflowFieldVisibilityRuleGroup;   // 高级联动：多条件 and/or 显隐
@@ -1877,6 +1902,13 @@ export interface WorkflowFormField {
   max?: number;                    // 数字/金额最大值
   pattern?: string;                // 正则表达式
   patternMessage?: string;         // 正则不匹配时的提示
+  unique?: boolean;                // 唯一性校验：明细列内行级查重（标量字段则标记，供提交时校验）
+  compareRules?: WorkflowFormFieldCompareRule[];  // 跨字段比较校验（number/amount/date）
+  dateLimit?: 'none' | 'noPast' | 'noFuture' | 'custom';  // 日期可选范围模式（date/dateRange）
+  minDate?: string;                // dateLimit='custom' 时最早可选日期（YYYY-MM-DD）
+  maxDate?: string;                // dateLimit='custom' 时最晚可选日期（YYYY-MM-DD）
+  accept?: string;                 // 附件/图片允许的文件类型（如 '.pdf,.docx,image/*'）
+  maxSize?: number;                // 附件/图片单文件大小上限（MB）
   // 字段联动
   daysFromKey?: string;            // 数字字段：从指定 dateRange 字段自动计算天数
   optionsFrom?: {                  // select/multiSelect：依据父字段值动态生成选项
@@ -1890,6 +1922,7 @@ export interface WorkflowFormField {
   dataSourceId?: number;           // select：选项来自登记的远程数据源（设置后忽略静态 options）
   // Layout fields
   columns?: WorkflowFormFieldColumn[];  // for 'row' type
+  panes?: WorkflowFormFieldPane[];      // for 'tabs' / 'steps' type（标签页 / 分步面板）
   title?: string;                       // for 'group' type header
   collapsible?: boolean;                // group：是否可折叠
   defaultCollapsed?: boolean;           // group：默认折叠
@@ -4234,6 +4267,7 @@ export interface MpAccount {
   qrCodeUrl: string | null;
   isDefault: boolean;
   autoCreateMember: boolean;
+  contentCheckEnabled: boolean;
   status: EntityStatus;
   remark: string | null;
   tenantId?: number | null;
@@ -4276,6 +4310,7 @@ export interface MpFan {
   tagIds: number[];
   unionid: string | null;
   memberId: number | null;
+  blacklisted: boolean;
   tenantId?: number | null;
   createdBy?: number | null;
   updatedBy?: number | null;
@@ -4367,6 +4402,30 @@ export interface MpMenu {
   status: MpMenuStatus;
   publishedAt: string | null;
   tenantId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 个性化菜单匹配规则（字段值均为字符串，对齐微信 matchrule） */
+export interface MpMenuMatchRule {
+  tagId?: string;
+  sex?: string;
+  country?: string;
+  province?: string;
+  city?: string;
+  clientPlatformType?: string;
+  language?: string;
+}
+
+export interface MpConditionalMenu {
+  id: number;
+  accountId: number;
+  name: string;
+  buttons: MpMenuButton[];
+  matchRule: MpMenuMatchRule;
+  menuId: string | null;
+  status: MpMenuStatus;
+  publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

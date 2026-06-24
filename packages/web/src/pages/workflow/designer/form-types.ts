@@ -41,6 +41,8 @@ import {
   TextCursorInput,
   Palette,
   Link2,
+  LayoutPanelTop,
+  Footprints,
   type LucideIcon,
 } from 'lucide-react';
 import type { WorkflowFormFieldType } from '@zenith/shared';
@@ -108,6 +110,8 @@ export const FORM_FIELD_TYPES: FormFieldTypeInfo[] = [
   { type: 'row',          label: '分栏',     icon: Columns,       group: '布局', description: '网络/分栏布局' },
   { type: 'divider',      label: '分割线',   icon: Minus,         group: '布局', description: '横向分割线' },
   { type: 'group',        label: '分组',     icon: FolderOpen,    group: '布局', description: '带有标题的分组区块' },
+  { type: 'tabs',         label: '标签页',   icon: LayoutPanelTop, group: '布局', description: '多面板标签页切换' },
+  { type: 'steps',        label: '分步',     icon: Footprints,    group: '布局', description: '向导式分步填写' },
 ];
 
 // 按分组聚合
@@ -183,4 +187,28 @@ export const LABEL_POSITION_OPTIONS = [
 export const LABEL_ALIGN_OPTIONS = [
   { value: 'left',  label: '左对齐' },
   { value: 'right', label: '右对齐' },
+];
+
+// 日期可选范围模式（date/dateRange）
+export const DATE_LIMIT_OPTIONS = [
+  { value: 'none',      label: '不限制' },
+  { value: 'noPast',    label: '不可选过去（今天及以后）' },
+  { value: 'noFuture',  label: '不可选未来（今天及以前）' },
+  { value: 'custom',    label: '自定义最早 / 最晚' },
+];
+
+// 跨字段比较操作符（number/amount/date）
+export const COMPARE_OPERATOR_OPTIONS = [
+  { value: 'gt',  label: '大于 >' },
+  { value: 'gte', label: '大于等于 ≥' },
+  { value: 'lt',  label: '小于 <' },
+  { value: 'lte', label: '小于等于 ≤' },
+  { value: 'eq',  label: '等于 =' },
+  { value: 'neq', label: '不等于 ≠' },
+];
+
+// 选项标签可选颜色（增强选项 optionItems）
+export const OPTION_COLOR_PRESETS = [
+  '#1677ff', '#52c41a', '#faad14', '#f5222d',
+  '#722ed1', '#13c2c2', '#eb2f96', '#8c8c8c',
 ];

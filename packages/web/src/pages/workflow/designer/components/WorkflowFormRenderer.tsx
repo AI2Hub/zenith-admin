@@ -11,6 +11,7 @@ import { Plus, Eraser, Trash2 } from 'lucide-react';
 import dayjs from 'dayjs';
 import type { WorkflowFormField, WorkflowFormFieldColumn, WorkflowFieldVisibilityCondition, WorkflowFieldVisibilityRuleGroup, WorkflowRelationOption, WorkflowDataSourceOption } from '@zenith/shared';
 import { CURRENCY_OPTIONS, toDateFnsToken } from '../form-types';
+import { evalFormula } from '../form-formula';
 import { request } from '@/utils/request';
 import { rmbUpper } from '@/utils/rmb';
 import { guessMimeTypeFromName } from '@/utils/file-utils';
@@ -509,6 +510,8 @@ export function flattenFields(fields: WorkflowFormField[]): WorkflowFormField[] 
     out.push(f);
     if (f.type === 'row' && f.columns) {
       for (const col of f.columns) out.push(...flattenFields(col.fields));
+    } else if ((f.type === 'tabs' || f.type === 'steps') && f.panes) {
+      for (const pane of f.panes) out.push(...flattenFields(pane.fields));
     } else if ((f.type === 'group' || f.type === 'detail') && f.children) {
       out.push(...flattenFields(f.children));
     }
@@ -516,83 +519,8 @@ export function flattenFields(fields: WorkflowFormField[]): WorkflowFormField[] 
   return out;
 }
 
-const FORMULA_FUNCTIONS = ['IF', 'SUM', 'AVG', 'MAX', 'MIN', 'ROUND', 'ABS', 'CEIL', 'FLOOR'] as const;
-type FormulaFn = typeof FORMULA_FUNCTIONS[number];
-const FORMULA_IDENT_RE = /[A-Za-z_$][A-Za-z0-9_$]*/g;
+export { evalFormula };
 
-// 解析公式引用：'key' 取标量；'detailKey.colKey' 取明细列数组（用于 SUM/AVG 等）
-function resolveFormulaRef(values: Record<string, unknown>, ref: string): unknown {
-  const trimmed = ref.trim();
-  const dot = trimmed.indexOf('.');
-  if (dot >= 0) {
-    const detailKey = trimmed.slice(0, dot);
-    const colKey = trimmed.slice(dot + 1);
-    const rows = values[detailKey];
-    if (Array.isArray(rows)) {
-      return rows.map((r) => (r && typeof r === 'object' ? (r as Record<string, unknown>)[colKey] : undefined));
-    }
-    return [];
-  }
-  return values[trimmed];
-}
-
-const flattenNums = (args: unknown[]): number[] =>
-  args.flatMap((a) => (Array.isArray(a) ? a : [a])).map((x) => Number(x)).filter((x) => Number.isFinite(x));
-
-const FORMULA_IMPL: Record<FormulaFn, (...args: never[]) => unknown> = {
-  IF: ((cond: unknown, a: unknown, b: unknown) => (cond ? a : b)) as (...args: never[]) => unknown,
-  SUM: ((...args: unknown[]) => flattenNums(args).reduce((s, x) => s + x, 0)) as (...args: never[]) => unknown,
-  AVG: ((...args: unknown[]) => { const xs = flattenNums(args); return xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : NaN; }) as (...args: never[]) => unknown,
-  MAX: ((...args: unknown[]) => { const xs = flattenNums(args); return xs.length ? Math.max(...xs) : NaN; }) as (...args: never[]) => unknown,
-  MIN: ((...args: unknown[]) => { const xs = flattenNums(args); return xs.length ? Math.min(...xs) : NaN; }) as (...args: never[]) => unknown,
-  ROUND: ((x: number, n = 0) => { const f = 10 ** n; return Math.round(Number(x) * f) / f; }) as (...args: never[]) => unknown,
-  ABS: ((x: number) => Math.abs(Number(x))) as (...args: never[]) => unknown,
-  CEIL: ((x: number) => Math.ceil(Number(x))) as (...args: never[]) => unknown,
-  FLOOR: ((x: number) => Math.floor(Number(x))) as (...args: never[]) => unknown,
-};
-
-/**
- * 计算公式。支持：四则运算、比较/逻辑/三元、函数 IF/SUM/AVG/MAX/MIN/ROUND/ABS/CEIL/FLOOR，
- * 以及明细列引用 {明细key.列key}（解析为数字数组）。
- * 安全：先校验标识符必须是白名单函数名，引用替换为字面量，再以白名单函数为入参求值。
- * 缺失/非数字标量依赖 → NaN → 最终不可计算返回 null。
- */
-export function evalFormula(formula: string, values: Record<string, unknown>, precision = 2): number | null {
-  if (!formula?.trim()) return null;
-
-  // 1) 标识符白名单：剔除 {引用} 后剩余标识符必须是允许的函数名或 NaN
-  const stripped = formula.replace(/\{[^}]+\}/g, ' ');
-  const idents = stripped.match(FORMULA_IDENT_RE) ?? [];
-  if (idents.some((id) => id !== 'NaN' && !FORMULA_FUNCTIONS.includes(id as FormulaFn))) return null;
-
-  // 2) 引用替换为字面量：标量缺失/非数字 → NaN；明细列 → 数字数组
-  const replaced = formula.replace(/\{([^}]+)\}/g, (_, ref: string) => {
-    const v = resolveFormulaRef(values, ref);
-    if (Array.isArray(v)) {
-      const nums = v
-        .map((x) => (x === '' || x === null || x === undefined ? NaN : Number(x)))
-        .map((x) => (Number.isFinite(x) ? String(x) : 'NaN'));
-      return `[${nums.join(',')}]`;
-    }
-    if (v === undefined || v === null || v === '') return 'NaN';
-    const n = typeof v === 'number' ? v : Number(v);
-    return Number.isFinite(n) ? String(n) : 'NaN';
-  });
-
-  // 3) 字符白名单：剔除函数名与 NaN 后只允许数字与运算符（杜绝注入）
-  const checkStr = replaced.replace(/\b(?:IF|SUM|AVG|MAX|MIN|ROUND|ABS|CEIL|FLOOR|NaN)\b/g, '');
-  if (/[^0-9+\-*/%(),.<>=!&|?:\s[\]]/.test(checkStr)) return null;
-
-  try {
-    const fn = new Function(...FORMULA_FUNCTIONS, `"use strict"; return (${replaced});`);
-    const result = fn(...FORMULA_FUNCTIONS.map((k) => FORMULA_IMPL[k])) as unknown;
-    const num = typeof result === 'boolean' ? (result ? 1 : 0) : Number(result);
-    if (!Number.isFinite(num)) return null;
-    return Number(num.toFixed(precision));
-  } catch {
-    return null;
-  }
-}
 
 function getCascadeAllowedOptions(field: WorkflowFormField, values: Record<string, unknown>): string[] {
   if (!field.optionsFrom) return field.options ?? [];
