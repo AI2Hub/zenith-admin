@@ -16,7 +16,7 @@ import type { NodeListenerConfig } from '@zenith/shared';
 import { ADDABLE_NODE_TYPES, DEFAULT_APPROVER_OPERATIONS, DELAY_UNIT_OPTIONS, TRIGGER_TYPE_OPTIONS } from '../constants';
 import ApproverSettingsTab from './tabs/ApproverSettingsTab';
 import FormPermissionTab from './tabs/FormPermissionTab';
-import OperationPermissionTab from './tabs/OperationPermissionTab';
+import ApprovalRequirementsTab from './tabs/ApprovalRequirementsTab';
 import ActionButtonsTab from './tabs/ActionButtonsTab';
 import NodeListenersTab from './tabs/NodeListenersTab';
 
@@ -447,10 +447,10 @@ export default function NodeConfigDrawer({
             </TabPane>
           )}
 
-          {/* 操作权限 Tab（仅审批人） */}
+          {/* 审批要求 Tab（仅审批人） */}
           {hasOperationPermission && (
             <TabPane tab="审批要求" itemKey="operations">
-              <OperationPermissionTab
+              <ApprovalRequirementsTab
                 operations={(props.operations as OperationPermission[]) ?? DEFAULT_APPROVER_OPERATIONS}
                 onChange={(ops) => handlePropsChange({ operations: ops })}
               />

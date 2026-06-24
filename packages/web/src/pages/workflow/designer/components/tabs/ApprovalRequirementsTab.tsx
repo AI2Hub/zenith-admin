@@ -21,15 +21,15 @@ const OPERATION_GROUPS = [
   },
 ];
 
-interface OperationPermissionTabProps {
+interface ApprovalRequirementsTabProps {
   operations: OperationPermission[];
   onChange: (operations: OperationPermission[]) => void;
 }
 
-export default function OperationPermissionTab({
+export default function ApprovalRequirementsTab({
   operations,
   onChange,
-}: Readonly<OperationPermissionTabProps>) {
+}: Readonly<ApprovalRequirementsTabProps>) {
 
   const addOp = (value: OperationPermission) => onChange([...operations, value]);
   const removeOp = (value: OperationPermission) => onChange(operations.filter(v => v !== value));
