@@ -4541,6 +4541,7 @@ export interface MpBroadcast {
   mediaId: string | null;
   status: MpBroadcastStatus;
   wechatMsgId: string | null;
+  scheduledAt: string | null;
   errorMsg: string | null;
   sentAt: string | null;
   tenantId?: number | null;
@@ -4548,6 +4549,26 @@ export interface MpBroadcast {
   updatedBy?: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface MpBroadcastResult {
+  msgStatus: string;
+  totalCount?: number;
+  filterCount?: number;
+  sentCount?: number;
+  errorCount?: number;
+}
+
+export interface MpTemplateIndustry {
+  primaryIndustry: { firstClass: string; secondClass: string } | null;
+  secondaryIndustry: { firstClass: string; secondClass: string } | null;
+}
+
+export interface MpJsConfig {
+  appId: string;
+  timestamp: number;
+  nonceStr: string;
+  signature: string;
 }
 
 // ─── 公众号带参数二维码 ───────────────────────────────────────────────────────

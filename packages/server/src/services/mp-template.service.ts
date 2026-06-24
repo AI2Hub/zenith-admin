@@ -7,7 +7,7 @@ import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { formatDateTime } from '../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
-import { getAllPrivateTemplates, sendTemplateMessage, WechatApiError } from '../lib/wechat';
+import { getAllPrivateTemplates, sendTemplateMessage, setTemplateIndustry, getTemplateIndustry, WechatApiError } from '../lib/wechat';
 import { mapWechatError } from '../lib/wechat-error';
 import type { SendMpTemplateInput, MpTemplateSendStatus } from '@zenith/shared';
 
@@ -129,4 +129,56 @@ export async function listMpTemplateSendLogs(q: ListMpSendLogsQuery) {
     withPagination(db.select().from(mpTemplateSendLogs).where(where).orderBy(desc(mpTemplateSendLogs.id)).$dynamic(), q.page, q.pageSize),
   ]);
   return { list: list.map(mapMpTemplateSendLog), total, page: q.page, pageSize: q.pageSize };
+}
+
+/** 设置账号所属行业（模板消息行业，影响可选模板范围） */
+export async function setMpTemplateIndustry(accountId: number, industryId1: string, industryId2: string) {
+  const account = await ensureMpAccountExists(accountId);
+  try {
+    await setTemplateIndustry(account, industryId1, industryId2);
+  } catch (err) {
+    return mapWechatError(err);
+  }
+  return { success: true };
+}
+
+export async function getMpTemplateIndustry(accountId: number) {
+  const account = await ensureMpAccountExists(accountId);
+  try {
+    return await getTemplateIndustry(account);
+  } catch (err) {
+    return mapWechatError(err);
+  }
+}
+
+/** 批量发送模板消息：对多个 openid 逐一下发，逐条落库，返回成功/失败计数。 */
+export async function batchSendMpTemplate(input: { accountId: number; templateId: string; openids: string[]; url?: string; data: Record<string, { value: string; color?: string }> }) {
+  const account = await ensureMpAccountExists(input.accountId);
+  const tenantId = currentCreateTenantId();
+  let success = 0;
+  let failed = 0;
+  for (const openid of input.openids) {
+    try {
+      const msgId = await sendTemplateMessage(account, { openid, templateId: input.templateId, url: input.url, data: input.data });
+      await db.insert(mpTemplateSendLogs).values({ accountId: input.accountId, templateId: input.templateId, openid, data: input.data, url: input.url ?? null, status: 'success', msgId, tenantId });
+      success += 1;
+    } catch (err) {
+      const message = err instanceof WechatApiError ? err.message : '调用微信接口失败';
+      await db.insert(mpTemplateSendLogs).values({ accountId: input.accountId, templateId: input.templateId, openid, data: input.data, url: input.url ?? null, status: 'failed', errorMsg: message, tenantId });
+      failed += 1;
+    }
+  }
+  if (success === 0 && failed > 0) throw new HTTPException(400, { message: '全部发送失败，请检查模板与公众号配置' });
+  return { success, failed, total: input.openids.length };
+}
+
+/**
+ * 处理模板消息送达回执（公开回调 TEMPLATESENDJOBFINISH 事件，无登录上下文）。
+ * 按 accountId + msgId 匹配发送日志，依据微信 Status 更新最终状态。
+ */
+export async function handleTemplateSendReceipt(accountId: number, msgId: string, status: string): Promise<void> {
+  const finalStatus: MpTemplateSendStatus = status === 'success' ? 'success' : 'failed';
+  await db.update(mpTemplateSendLogs)
+    .set({ status: finalStatus, errorMsg: finalStatus === 'failed' ? `送达失败：${status}` : null })
+    .where(and(eq(mpTemplateSendLogs.accountId, accountId), eq(mpTemplateSendLogs.msgId, msgId)));
 }

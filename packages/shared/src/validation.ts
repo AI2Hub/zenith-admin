@@ -2399,6 +2399,7 @@ const mpBroadcastBase = z.object({
   tagId: z.number().int().positive().optional(),
   content: z.string().max(2000).optional(),
   mediaId: z.string().max(128).optional(),
+  scheduledAt: z.string().max(32).nullish(),
 });
 export const createMpBroadcastSchema = mpBroadcastBase
   .refine((d) => d.msgType !== 'text' || !!d.content, { message: '请填写群发文本内容', path: ['content'] })
@@ -2408,6 +2409,31 @@ export const updateMpBroadcastSchema = mpBroadcastBase.omit({ accountId: true })
   .refine((d) => d.target !== 'tag' || d.tagId == null || d.tagId > 0, { message: '标签不合法', path: ['tagId'] });
 export type CreateMpBroadcastInput = z.infer<typeof createMpBroadcastSchema>;
 export type UpdateMpBroadcastInput = z.infer<typeof updateMpBroadcastSchema>;
+export const previewMpBroadcastSchema = z.object({ openid: z.string().min(1, '请输入预览 openid').max(64) });
+export type PreviewMpBroadcastInput = z.infer<typeof previewMpBroadcastSchema>;
+
+// 模板消息：行业设置 + 批量发送
+export const setMpTemplateIndustrySchema = z.object({
+  accountId: z.number().int().positive(),
+  industryId1: z.string().min(1, '请选择主营行业').max(8),
+  industryId2: z.string().min(1, '请选择副营行业').max(8),
+});
+export const batchSendMpTemplateSchema = z.object({
+  accountId: z.number().int().positive(),
+  templateId: z.string().min(1, '请选择模板').max(128),
+  openids: z.array(z.string().min(1)).min(1, '请选择粉丝').max(500, '单次最多 500 个'),
+  url: z.string().max(1000).optional(),
+  data: z.record(z.string(), z.object({ value: z.string(), color: z.string().optional() })),
+});
+export type SetMpTemplateIndustryInput = z.infer<typeof setMpTemplateIndustrySchema>;
+export type BatchSendMpTemplateInput = z.infer<typeof batchSendMpTemplateSchema>;
+
+// JS-SDK 配置签名
+export const getMpJsConfigSchema = z.object({
+  accountId: z.number().int().positive(),
+  url: z.string().min(1, '请输入页面 URL').max(1000),
+});
+export type GetMpJsConfigInput = z.infer<typeof getMpJsConfigSchema>;
 
 // 公众号带参数二维码
 export const MP_QRCODE_TYPES = ['temporary', 'permanent'] as const;
