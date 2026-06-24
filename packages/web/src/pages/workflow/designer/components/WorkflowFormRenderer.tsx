@@ -5,11 +5,11 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import DOMPurify from 'dompurify';
-import { Form, Select, Button, Typography, Row, Col, Divider, Rating, Toast, withField, Input, InputNumber, DatePicker, Collapse } from '@douyinfe/semi-ui';
+import { Form, Select, Button, Typography, Row, Col, Divider, Rating, Toast, withField, Input, InputNumber, DatePicker, Collapse, Tabs, Steps, RadioGroup, Radio, Tag } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, Eraser, Trash2 } from 'lucide-react';
 import dayjs from 'dayjs';
-import type { WorkflowFormField, WorkflowFormFieldColumn, WorkflowFieldVisibilityCondition, WorkflowFieldVisibilityRuleGroup, WorkflowRelationOption, WorkflowDataSourceOption } from '@zenith/shared';
+import type { WorkflowFormField, WorkflowFormFieldColumn, WorkflowFormFieldOptionItem, WorkflowFormFieldCompareRule, WorkflowFieldVisibilityCondition, WorkflowFieldVisibilityRuleGroup, WorkflowRelationOption, WorkflowDataSourceOption } from '@zenith/shared';
 import { CURRENCY_OPTIONS, toDateFnsToken } from '../form-types';
 import { evalFormula } from '../form-formula';
 import { request } from '@/utils/request';
@@ -34,7 +34,7 @@ const getColumnKey = (parentKey: string, column: WorkflowFormFieldColumn) =>
   `${parentKey}-col-${column.span}-${column.fields.map(field => field.key).join('-') || 'empty'}`;
 
 // ─── 字段列宽（响应式并排） ──────────────────────────────────────────
-const LAYOUT_FULL_WIDTH_TYPES = new Set<string>(['row', 'divider', 'group', 'description', 'detail']);
+const LAYOUT_FULL_WIDTH_TYPES = new Set<string>(['row', 'divider', 'group', 'description', 'detail', 'tabs', 'steps']);
 const VALID_COLUMN_SPANS = new Set([12, 8, 6]);
 function colSpanOf(field: WorkflowFormField): number {
   if (LAYOUT_FULL_WIDTH_TYPES.has(field.type)) return 24;
@@ -317,6 +317,8 @@ interface FileUploadInputProps {
   disabled?: boolean;
   isImage?: boolean;
   limit?: number;
+  accept?: string;
+  maxSizeMb?: number;
 }
 
 function fileToAttachment(f: UploadedFileValue, i: number): AttachmentItem {
@@ -337,7 +339,7 @@ function fileToAttachment(f: UploadedFileValue, i: number): AttachmentItem {
   };
 }
 
-function FileUploadInput({ value, onChange, disabled, isImage, limit }: Readonly<FileUploadInputProps>) {
+function FileUploadInput({ value, onChange, disabled, isImage, limit, accept, maxSizeMb }: Readonly<FileUploadInputProps>) {
   const files = Array.isArray(value) ? value : [];
   const attachments = files.map(fileToAttachment);
 
@@ -353,7 +355,8 @@ function FileUploadInput({ value, onChange, disabled, isImage, limit }: Readonly
       showTitle={false}
       multiple={limit !== 1}
       limit={limit ?? 0}
-      accept={isImage ? 'image/*' : undefined}
+      accept={accept || (isImage ? 'image/*' : undefined)}
+      maxSizeMB={maxSizeMb && maxSizeMb > 0 ? maxSizeMb : undefined}
       uploadTip={isImage ? '上传图片' : '上传文件'}
       onChange={(items) => onChange?.(items.map((a) => ({
         name: a.file.originalName,
@@ -588,6 +591,173 @@ export function isFieldVisible(field: WorkflowFormField, values: Record<string, 
   return true;
 }
 
+// ─── 日期可选范围 → disabledDate ─────────────────────────────────────
+function buildDisabledDate(field: WorkflowFormField): ((date?: Date) => boolean) | undefined {
+  const mode = field.dateLimit;
+  if (!mode || mode === 'none') return undefined;
+  if (mode === 'noPast') return (d?: Date) => !!d && dayjs(d).isBefore(dayjs(), 'day');
+  if (mode === 'noFuture') return (d?: Date) => !!d && dayjs(d).isAfter(dayjs(), 'day');
+  const min = field.minDate ? dayjs(field.minDate) : null;
+  const max = field.maxDate ? dayjs(field.maxDate) : null;
+  if (!(min?.isValid()) && !(max?.isValid())) return undefined;
+  return (d?: Date) => {
+    if (!d) return false;
+    const day = dayjs(d);
+    if (min?.isValid() && day.isBefore(min, 'day')) return true;
+    if (max?.isValid() && day.isAfter(max, 'day')) return true;
+    return false;
+  };
+}
+
+// ─── 增强选项：合并 optionItems 元信息，按级联允许值过滤排序 ──────────
+export interface DisplayOption { value: string; label: string; color?: string; disabled?: boolean }
+function getDisplayOptions(field: WorkflowFormField, values: Record<string, unknown>): DisplayOption[] {
+  const allowed = getCascadeAllowedOptions(field, values);
+  const itemMap = new Map<string, WorkflowFormFieldOptionItem>((field.optionItems ?? []).map((it) => [it.value, it]));
+  return allowed.map((v) => {
+    const it = itemMap.get(v);
+    return { value: v, label: it?.label || v, color: it?.color, disabled: it?.disabled };
+  });
+}
+
+function optionLabelNode(opt: DisplayOption): ReactNode {
+  if (!opt.color) return opt.label;
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: opt.color, display: 'inline-block' }} />
+      {opt.label}
+    </span>
+  );
+}
+
+// ─── 跨字段比较校验 ──────────────────────────────────────────────────
+function evalCompare(op: WorkflowFormFieldCompareRule['operator'], a: unknown, b: unknown, isDate: boolean): boolean {
+  if (a === null || a === undefined || a === '' || b === null || b === undefined || b === '') return true;
+  if (Array.isArray(a) || Array.isArray(b)) return true;
+  let x: number; let y: number;
+  if (isDate) { x = dayjs(a as string).valueOf(); y = dayjs(b as string).valueOf(); }
+  else { x = Number(a); y = Number(b); }
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return true;
+  switch (op) {
+    case 'gt': return x > y;
+    case 'gte': return x >= y;
+    case 'lt': return x < y;
+    case 'lte': return x <= y;
+    case 'eq': return x === y;
+    case 'neq': return x !== y;
+    default: return true;
+  }
+}
+
+const COMPARE_OP_TEXT: Record<WorkflowFormFieldCompareRule['operator'], string> = {
+  gt: '大于', gte: '不小于', lt: '小于', lte: '不大于', eq: '等于', neq: '不等于',
+};
+
+// ─── select / radio 「其他」可填 包装控件 ─────────────────────────────
+const OTHER_VALUE = '__other__';
+interface OptionInputProps {
+  value?: string;
+  onChange?: (v: string | undefined) => void;
+  disabled?: boolean;
+  mode: 'select' | 'radio';
+  options: DisplayOption[];
+  allowOther?: boolean;
+  placeholder?: string;
+}
+function OptionInput({ value, onChange, disabled, mode, options, allowOther, placeholder }: Readonly<OptionInputProps>) {
+  const known = new Set(options.map((o) => o.value));
+  const valueIsOther = allowOther && value != null && value !== '' && !known.has(value);
+  const [otherMode, setOtherMode] = useState(!!valueIsOther);
+  useEffect(() => { if (valueIsOther) setOtherMode(true); }, [valueIsOther]);
+  const showOther = !!allowOther && (otherMode || !!valueIsOther);
+  const controlValue = showOther ? OTHER_VALUE : value;
+  const pick = (v: string) => {
+    if (v === OTHER_VALUE) { setOtherMode(true); onChange?.(''); }
+    else { setOtherMode(false); onChange?.(v); }
+  };
+  const otherInput = showOther ? (
+    <Input
+      style={{ marginTop: 8 }}
+      value={value ?? ''}
+      onChange={(v) => onChange?.(v)}
+      placeholder="请填写其他"
+      disabled={disabled}
+    />
+  ) : null;
+
+  if (mode === 'radio') {
+    return (
+      <div>
+        <RadioGroup
+          value={controlValue}
+          disabled={disabled}
+          onChange={(e) => pick(String(e.target.value))}
+          options={[
+            ...options.map((o) => ({ label: optionLabelNode(o), value: o.value, disabled: o.disabled })),
+            ...(allowOther ? [{ label: '其他', value: OTHER_VALUE }] : []),
+          ]}
+        />
+        {otherInput}
+      </div>
+    );
+  }
+  return (
+    <div>
+      <Select
+        value={controlValue}
+        disabled={disabled}
+        placeholder={placeholder}
+        style={{ width: '100%' }}
+        onChange={(v) => pick(String(v))}
+      >
+        {options.map((o) => (
+          <Select.Option key={o.value} value={o.value} disabled={o.disabled}>{optionLabelNode(o)}</Select.Option>
+        ))}
+        {allowOther && <Select.Option value={OTHER_VALUE}>其他…</Select.Option>}
+      </Select>
+      {otherInput}
+    </div>
+  );
+}
+const FormOptionInput = withField(OptionInput);
+
+// ─── 分步容器 ────────────────────────────────────────────────────────
+function renderPaneFields(pane: { fields: WorkflowFormField[] }, readOnly: boolean | undefined, values: Record<string, unknown>): ReactNode {
+  return (
+    <Row gutter={16}>
+      {pane.fields.map((cf) => (
+        isFieldVisible(cf, values) ? (
+          <Col span={colSpanOf(cf)} key={cf.key}><FieldRenderer field={cf} readOnly={readOnly} /></Col>
+        ) : null
+      ))}
+    </Row>
+  );
+}
+
+function StepsContainer({ field, readOnly }: Readonly<{ field: WorkflowFormField; readOnly?: boolean }>) {
+  const values = useContext(ValuesContext);
+  const panes = field.panes ?? [];
+  const [current, setCurrent] = useState(0);
+  if (panes.length === 0) return null;
+  const cur = Math.min(current, panes.length - 1);
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <Steps type="basic" size="small" current={cur} onChange={setCurrent} style={{ marginBottom: 16 }}>
+        {panes.map((p, i) => <Steps.Step key={`${field.key}-step-${i}`} title={p.title || `步骤${i + 1}`} />)}
+      </Steps>
+      {panes.map((pane, i) => (
+        <div key={`${field.key}-pane-${i}`} style={{ display: i === cur ? 'block' : 'none' }}>
+          {renderPaneFields(pane, readOnly, values)}
+        </div>
+      ))}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
+        <Button disabled={cur === 0} onClick={() => setCurrent(cur - 1)}>上一步</Button>
+        <Button disabled={cur === panes.length - 1} onClick={() => setCurrent(cur + 1)}>下一步</Button>
+      </div>
+    </div>
+  );
+}
+
 interface RendererProps {
   fields: WorkflowFormField[];
   initValues?: Record<string, unknown>;
@@ -731,6 +901,19 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
   if (dynamicRequired) numberRules.push({ required: true, message: `请填写${field.label}` });
   if (field.min !== undefined) numberRules.push({ type: 'number', min: field.min, message: `不小于${field.min}` });
   if (field.max !== undefined) numberRules.push({ type: 'number', max: field.max, message: `不大于${field.max}` });
+  // 跨字段比较校验（number/amount/date）
+  if (field.compareRules?.length) {
+    const isDateField = field.type === 'date' || field.type === 'dateRange';
+    for (const cr of field.compareRules) {
+      const message = cr.message || `需${COMPARE_OP_TEXT[cr.operator]}目标字段`;
+      const validator = (_r: unknown, value: unknown, _cb: unknown, source?: Record<string, unknown>) => {
+        const other = source && typeof source === 'object' && cr.field in source ? source[cr.field] : values[cr.field];
+        return evalCompare(cr.operator, value, other, isDateField);
+      };
+      baseRules.push({ validator, message });
+      numberRules.push({ validator, message });
+    }
+  }
   const rules = baseRules.length > 0 ? baseRules : undefined;
   const helpText = field.helpText;
   // 字段级标签覆盖（labelPosition/labelAlign/labelWidth），随 extraProps 透传至每个 Form 字段
@@ -925,6 +1108,7 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
           placeholder={field.placeholder ?? `请选择${field.label}`}
           style={{ width: '100%' }}
           format={toDateFnsToken(field.dateFormat)}
+          disabledDate={buildDisabledDate(field)}
           rules={rules} disabled={disabled}
           {...extraProps}
         />
@@ -936,6 +1120,7 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
           field={field.key} label={field.label}
           type="dateRange" style={{ width: '100%' }}
           format={toDateFnsToken(field.dateFormat)}
+          disabledDate={buildDisabledDate(field)}
           rules={rules} disabled={disabled}
           {...extraProps}
         />
@@ -1020,7 +1205,19 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
           />
         );
       }
-      const options = getCascadeAllowedOptions(field, values);
+      const options = getDisplayOptions(field, values);
+      if (field.allowOther) {
+        return (
+          <FormOptionInput
+            field={field.key} label={field.label}
+            mode="select" options={options} allowOther
+            placeholder={field.placeholder ?? `请选择${field.label}`}
+            initValue={field.defaultValue}
+            rules={rules} disabled={disabled}
+            {...extraProps}
+          />
+        );
+      }
       return (
         <Form.Select
           field={field.key} label={field.label}
@@ -1029,14 +1226,14 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
           {...extraProps}
         >
           {options.map(opt => (
-            <Select.Option key={opt} value={opt}>{opt}</Select.Option>
+            <Select.Option key={opt.value} value={opt.value} disabled={opt.disabled}>{optionLabelNode(opt)}</Select.Option>
           ))}
         </Form.Select>
       );
     }
 
     case 'multiSelect': {
-      const options = getCascadeAllowedOptions(field, values);
+      const options = getDisplayOptions(field, values);
       return (
         <Form.Select
           field={field.key} label={field.label}
@@ -1045,32 +1242,43 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
           {...extraProps}
         >
           {options.map(opt => (
-            <Select.Option key={opt} value={opt}>{opt}</Select.Option>
+            <Select.Option key={opt.value} value={opt.value} disabled={opt.disabled}>{optionLabelNode(opt)}</Select.Option>
           ))}
         </Form.Select>
       );
     }
 
     case 'radio': {
-      const options = getCascadeAllowedOptions(field, values);
+      const options = getDisplayOptions(field, values);
+      if (field.allowOther) {
+        return (
+          <FormOptionInput
+            field={field.key} label={field.label}
+            mode="radio" options={options} allowOther
+            initValue={field.defaultValue}
+            rules={rules} disabled={disabled}
+            {...extraProps}
+          />
+        );
+      }
       return (
         <Form.RadioGroup
           field={field.key} label={field.label}
           initValue={field.defaultValue} rules={rules} disabled={disabled}
-          options={options.map(opt => ({ label: opt, value: opt }))}
+          options={options.map(opt => ({ label: optionLabelNode(opt), value: opt.value, disabled: opt.disabled }))}
           {...extraProps}
         />
       );
     }
 
     case 'checkbox': {
-      const options = getCascadeAllowedOptions(field, values);
+      const options = getDisplayOptions(field, values);
       return (
         <Form.CheckboxGroup
           field={field.key} label={field.label}
           direction="horizontal"
           rules={rules} disabled={disabled}
-          options={options.map(opt => ({ label: opt, value: opt }))}
+          options={options.map(opt => ({ label: optionLabelNode(opt), value: opt.value, disabled: opt.disabled }))}
           {...extraProps}
         />
       );
@@ -1125,19 +1333,27 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
       );
 
     case 'attachment':
-    case 'image':
+    case 'image': {
+      const limitParts = [
+        field.maxCount ? `最多 ${field.maxCount} 个` : '',
+        field.maxSize ? `单个 ≤ ${field.maxSize}MB` : '',
+        field.accept ? `类型：${field.accept}` : '',
+      ].filter(Boolean);
       return (
         <FormFileUpload
           field={field.key}
           label={fieldLabelNode(field, dynamicRequired)}
           isImage={field.type === 'image'}
           limit={field.maxCount}
+          accept={field.accept}
+          maxSizeMb={field.maxSize}
           disabled={disabled}
           rules={dynamicRequired ? [{ validator: (_r: unknown, v: unknown) => Array.isArray(v) && v.length > 0, message: `请上传${field.label}` }] : undefined}
-          extraText={field.maxCount ? `最多上传 ${field.maxCount} 个文件` : undefined}
+          extraText={limitParts.length ? limitParts.join(' · ') : undefined}
           {...extraProps}
         />
       );
+    }
 
     case 'userSelect':
       return (
@@ -1223,6 +1439,24 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
           message: `${field.label}存在必填子项未填写`,
         });
       }
+      const uniqueChildren = children.filter(c => c.unique);
+      for (const uc of uniqueChildren) {
+        detailRules.push({
+          validator: (_r: unknown, v: unknown) => {
+            if (!Array.isArray(v)) return true;
+            const seen = new Set<string>();
+            for (const row of v) {
+              const cell = (row as Record<string, unknown>)[uc.key];
+              if (cell === undefined || cell === null || cell === '') continue;
+              const k = String(cell);
+              if (seen.has(k)) return false;
+              seen.add(k);
+            }
+            return true;
+          },
+          message: `${field.label}「${uc.label}」列存在重复值`,
+        });
+      }
       return (
         <FormDetailTable
           field={field.key}
@@ -1294,6 +1528,25 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
         </div>
       );
     }
+
+    case 'tabs': {
+      const panes = field.panes ?? [];
+      if (panes.length === 0) return null;
+      return (
+        <div style={{ marginBottom: 24 }}>
+          <Tabs type="line" keepDOM lazyRender={false}>
+            {panes.map((pane, i) => (
+              <Tabs.TabPane tab={pane.title || `标签${i + 1}`} itemKey={String(i)} key={`${field.key}-tab-${i}`}>
+                <div style={{ paddingTop: 8 }}>{renderPaneFields(pane, readOnly, values)}</div>
+              </Tabs.TabPane>
+            ))}
+          </Tabs>
+        </div>
+      );
+    }
+
+    case 'steps':
+      return <StepsContainer field={field} readOnly={readOnly} />;
 
     default:
       return (
