@@ -14,13 +14,13 @@ import { alias } from 'drizzle-orm/pg-core';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../db';
 import {
-  mpKfSessions, mpKfSessionEvents, mpKfRoutingConfigs, mpKfAccounts, mpFans, mpMessages, mpAccounts, users,
+  mpKfSessions, mpKfSessionEvents, mpKfRoutingConfigs, mpKfAccounts, mpFans, mpMessages, mpAccounts, users, members, memberLevels,
 } from '../db/schema';
 import type {
   MpKfSessionRow, MpKfRoutingConfigRow, MpAccountRow,
 } from '../db/schema';
 import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
-import { formatDateTime, formatNullableDateTime } from '../lib/datetime';
+import { formatDateTime, formatNullableDateTime, formatDate } from '../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../lib/tenant';
 import { currentUserOrNull } from '../lib/context';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -69,6 +69,8 @@ function mapSession(r: SessionJoinRow): MpKfSession {
     acceptedAt: formatNullableDateTime(s.acceptedAt),
     closedAt: formatNullableDateTime(s.closedAt),
     closeReason: s.closeReason ?? null,
+    rating: s.rating ?? null,
+    ratingRemark: s.ratingRemark ?? null,
     remark: s.remark ?? null,
     waitSeconds,
     createdAt: formatDateTime(s.createdAt),
@@ -244,6 +246,14 @@ async function assignKf(p: {
 }
 
 // ─── 回调接入钩子（公开回调调用，无登录上下文）─────────────────────────────────
+/** 绑定会员的粉丝按会员等级提升排队优先级（VIP 优先接入）；未绑定返回 0。 */
+async function memberPriority(accountId: number, openid: string): Promise<number> {
+  const [fan] = await db.select({ memberId: mpFans.memberId }).from(mpFans).where(and(eq(mpFans.accountId, accountId), eq(mpFans.openid, openid))).limit(1);
+  if (!fan?.memberId) return 0;
+  const [m] = await db.select({ level: memberLevels.level }).from(members).leftJoin(memberLevels, eq(memberLevels.id, members.levelId)).where(eq(members.id, fan.memberId)).limit(1);
+  return m?.level ?? 0;
+}
+
 /**
  * 粉丝入站消息触发会话接入。
  * 已有未结束会话 → 累加未读并刷新时间；无会话 → 建排队会话并按策略尝试自动分配。
@@ -271,9 +281,10 @@ export async function onFanInboundMessage(accountId: number, tenantId: number | 
 
   let created: MpKfSessionRow;
   try {
+    const priority = await memberPriority(accountId, openid);
     const [row] = await db
       .insert(mpKfSessions)
-      .values({ accountId, openid, status: 'waiting', source, unreadCount: 1, lastFanMsgAt: now, lastMsgAt: now, waitingSince: now, tenantId })
+      .values({ accountId, openid, status: 'waiting', source, unreadCount: 1, priority, lastFanMsgAt: now, lastMsgAt: now, waitingSince: now, tenantId })
       .returning();
     created = row;
   } catch {
@@ -415,6 +426,7 @@ export async function getMpKfSessionStats(accountId: number): Promise<MpKfSessio
       .select({
         n: sql<number>`count(*)::int`,
         avgWait: sql<number>`coalesce(avg(extract(epoch from (${mpKfSessions.acceptedAt} - ${mpKfSessions.createdAt}))), 0)::float`,
+        avgRating: sql<number>`coalesce(avg(${mpKfSessions.rating}), 0)::float`,
       })
       .from(mpKfSessions)
       .where(scoped(and(eq(mpKfSessions.accountId, accountId), eq(mpKfSessions.status, 'closed'), gte(mpKfSessions.closedAt, todayStart))!)),
@@ -437,6 +449,7 @@ export async function getMpKfSessionStats(accountId: number): Promise<MpKfSessio
     active,
     closedToday: closedTodayRows[0]?.n ?? 0,
     avgWaitSeconds: Math.round(Number(closedTodayRows[0]?.avgWait ?? 0)),
+    avgRating: Math.round(Number(closedTodayRows[0]?.avgRating ?? 0) * 10) / 10,
     agents: agentsRows.map((a) => ({
       kfId: a.kfId,
       kfAccount: a.kfAccount,
@@ -445,6 +458,57 @@ export async function getMpKfSessionStats(accountId: number): Promise<MpKfSessio
       activeCount: Number(a.activeCount) || 0,
     })),
   };
+}
+
+/** 记录会话满意度评分（1-5） */
+export async function rateMpKfSession(id: number, rating: number, remark?: string): Promise<MpKfSession> {
+  const session = await ensureSession(id);
+  await db.update(mpKfSessions).set({ rating, ratingRemark: remark ?? null }).where(eq(mpKfSessions.id, session.id));
+  return (await loadMappedSession(id))!;
+}
+
+/** 会话数据报表：近 N 天每日新建/结束会话量、平均接入等待、平均评分。 */
+export async function getMpKfSessionReport(accountId: number, days: number): Promise<{ date: string; created: number; closed: number; avgWaitSeconds: number; avgRating: number }[]> {
+  await ensureMpAccountExists(accountId);
+  const tenant = tenantScope(mpKfSessions);
+  const since = new Date();
+  since.setDate(since.getDate() - (days - 1));
+  since.setHours(0, 0, 0, 0);
+  const base = (extra: SQL) => mergeWhere(tenant ? and(extra, tenant) : extra);
+
+  const [createdRows, closedRows] = await Promise.all([
+    db.select({ d: sql<string>`to_char(${mpKfSessions.createdAt}, 'YYYY-MM-DD')`, n: sql<number>`count(*)::int` })
+      .from(mpKfSessions)
+      .where(base(and(eq(mpKfSessions.accountId, accountId), gte(mpKfSessions.createdAt, since))!))
+      .groupBy(sql`to_char(${mpKfSessions.createdAt}, 'YYYY-MM-DD')`),
+    db.select({
+      d: sql<string>`to_char(${mpKfSessions.closedAt}, 'YYYY-MM-DD')`,
+      n: sql<number>`count(*)::int`,
+      avgWait: sql<number>`coalesce(avg(extract(epoch from (${mpKfSessions.acceptedAt} - ${mpKfSessions.createdAt}))), 0)::float`,
+      avgRating: sql<number>`coalesce(avg(${mpKfSessions.rating}), 0)::float`,
+    })
+      .from(mpKfSessions)
+      .where(base(and(eq(mpKfSessions.accountId, accountId), eq(mpKfSessions.status, 'closed'), gte(mpKfSessions.closedAt, since))!))
+      .groupBy(sql`to_char(${mpKfSessions.closedAt}, 'YYYY-MM-DD')`),
+  ]);
+
+  const createdMap = new Map(createdRows.map((r) => [r.d, r.n]));
+  const closedMap = new Map(closedRows.map((r) => [r.d, r]));
+  const result: { date: string; created: number; closed: number; avgWaitSeconds: number; avgRating: number }[] = [];
+  for (let i = 0; i < days; i += 1) {
+    const d = new Date(since);
+    d.setDate(since.getDate() + i);
+    const key = formatDate(d);
+    const cl = closedMap.get(key);
+    result.push({
+      date: key,
+      created: createdMap.get(key) ?? 0,
+      closed: cl?.n ?? 0,
+      avgWaitSeconds: Math.round(Number(cl?.avgWait ?? 0)),
+      avgRating: Math.round(Number(cl?.avgRating ?? 0) * 10) / 10,
+    });
+  }
+  return result;
 }
 
 // ─── 鉴权路由：接入 / 转接 / 结束 / 回复 ────────────────────────────────────────

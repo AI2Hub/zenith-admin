@@ -52,3 +52,34 @@ export async function getArticleSummary(account: MpCredential, beginDate: string
   }
   return [...map.entries()].map(([refDate, pageReadCount]) => ({ refDate, pageReadCount })).sort((a, b) => a.refDate.localeCompare(b.refDate));
 }
+
+interface UserShareRow { ref_date: string; share_scene?: number; share_count?: number; share_user?: number }
+interface InterfaceSummaryRow { ref_date: string; callback_count?: number; fail_count?: number; total_time_cost?: number; max_time_cost?: number }
+
+/** 图文分享转发数据（按日聚合各场景的转发次数 / 人数） */
+export async function getUserShare(account: MpCredential, beginDate: string, endDate: string): Promise<{ refDate: string; shareCount: number; shareUser: number }[]> {
+  const data = await wechatApiPost<ListResponse<UserShareRow>>(account, '/datacube/getusershare', { begin_date: beginDate, end_date: endDate });
+  const map = new Map<string, { shareCount: number; shareUser: number }>();
+  for (const r of data.list ?? []) {
+    const cur = map.get(r.ref_date) ?? { shareCount: 0, shareUser: 0 };
+    cur.shareCount += r.share_count ?? 0;
+    cur.shareUser += r.share_user ?? 0;
+    map.set(r.ref_date, cur);
+  }
+  return [...map.entries()].map(([refDate, v]) => ({ refDate, ...v })).sort((a, b) => a.refDate.localeCompare(b.refDate));
+}
+
+/** 接口分析数据（按日：调用次数 / 失败次数 / 平均与最大耗时 ms） */
+export async function getInterfaceSummary(account: MpCredential, beginDate: string, endDate: string): Promise<{ refDate: string; callbackCount: number; failCount: number; totalTimeCost: number; maxTimeCost: number }[]> {
+  const data = await wechatApiPost<ListResponse<InterfaceSummaryRow>>(account, '/datacube/getinterfacesummary', { begin_date: beginDate, end_date: endDate });
+  const map = new Map<string, { callbackCount: number; failCount: number; totalTimeCost: number; maxTimeCost: number }>();
+  for (const r of data.list ?? []) {
+    const cur = map.get(r.ref_date) ?? { callbackCount: 0, failCount: 0, totalTimeCost: 0, maxTimeCost: 0 };
+    cur.callbackCount += r.callback_count ?? 0;
+    cur.failCount += r.fail_count ?? 0;
+    cur.totalTimeCost += r.total_time_cost ?? 0;
+    cur.maxTimeCost = Math.max(cur.maxTimeCost, r.max_time_cost ?? 0);
+    map.set(r.ref_date, cur);
+  }
+  return [...map.entries()].map(([refDate, v]) => ({ refDate, ...v })).sort((a, b) => a.refDate.localeCompare(b.refDate));
+}

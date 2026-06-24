@@ -6,9 +6,10 @@ import {
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../lib/openapi-schemas';
 import { createMpAutoReplySchema, updateMpAutoReplySchema, MP_AUTO_REPLY_TYPES } from '@zenith/shared';
-import { MpAutoReplyDTO } from '../lib/openapi-dtos';
+import { MpAutoReplyDTO, MpUnmatchedKeywordDTO } from '../lib/openapi-dtos';
 import {
   listMpAutoReplies, createMpAutoReply, updateMpAutoReply, deleteMpAutoReply, getMpAutoReplyBeforeAudit,
+  listMpUnmatchedKeywords, deleteMpUnmatchedKeyword,
 } from '../services/mp-auto-reply.service';
 
 const mpAutoRepliesRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -72,6 +73,28 @@ const deleteRoute = defineOpenAPIRoute({
   },
 });
 
-mpAutoRepliesRouter.openapiRoutes([listRoute, createRouteDef, updateRoute, deleteRoute] as const);
+const unmatchedListRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/unmatched', tags: ['公众号自动回复'], summary: '未命中热词列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'mp:reply:list' })] as const,
+    request: { query: PaginationQuery.extend({ accountId: z.coerce.number().int().positive() }) },
+    responses: { ...commonErrorResponses, ...okPaginated(MpUnmatchedKeywordDTO, '未命中热词') },
+  }),
+  handler: async (c) => { const q = c.req.valid('query'); return c.json(okBody(await listMpUnmatchedKeywords(q.accountId, q.page, q.pageSize)), 200); },
+});
+
+const unmatchedDeleteRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/unmatched/{id}', tags: ['公众号自动回复'], summary: '删除未命中热词',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'mp:reply:delete' })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...okMsg('已删除') },
+  }),
+  handler: async (c) => { await deleteMpUnmatchedKeyword(c.req.valid('param').id); return c.json(okBody(null, '已删除'), 200); },
+});
+
+mpAutoRepliesRouter.openapiRoutes([unmatchedListRoute, unmatchedDeleteRoute, listRoute, createRouteDef, updateRoute, deleteRoute] as const);
 
 export default mpAutoRepliesRouter;

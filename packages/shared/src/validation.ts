@@ -2267,11 +2267,12 @@ const mpAutoReplyBase = z.object({
   accountId: z.number().int().positive(),
   replyType: z.enum(MP_AUTO_REPLY_TYPES),
   keyword: z.string().max(64).optional(),
-  matchType: z.enum(['exact', 'contain']).default('contain'),
+  matchType: z.enum(['exact', 'contain', 'regex']).default('contain'),
   contentType: z.enum(MP_REPLY_CONTENT_TYPES).default('text'),
   content: z.string().max(2000).optional(),
   mediaId: z.string().max(128).optional(),
   newsArticles: z.array(mpReplyArticleSchema).max(8).optional(),
+  transferToKf: z.boolean().default(false),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   sort: z.number().int().default(0),
 });
@@ -2470,6 +2471,10 @@ export const transferMpKfSessionSchema = z.object({
 export const closeMpKfSessionSchema = z.object({
   remark: z.string().max(255).optional(),
 });
+export const rateMpKfSessionSchema = z.object({
+  rating: z.number().int().min(1).max(5),
+  remark: z.string().max(255).optional(),
+});
 export const replyMpKfSessionSchema = z.object({
   msgType: z.enum(['text', 'image', 'voice', 'video', 'news']).default('text'),
   content: z.string().max(2000).optional(),
@@ -2491,5 +2496,6 @@ export const updateMpKfRoutingConfigSchema = z.object({
 export type AcceptMpKfSessionInput = z.infer<typeof acceptMpKfSessionSchema>;
 export type TransferMpKfSessionInput = z.infer<typeof transferMpKfSessionSchema>;
 export type CloseMpKfSessionInput = z.infer<typeof closeMpKfSessionSchema>;
+export type RateMpKfSessionInput = z.infer<typeof rateMpKfSessionSchema>;
 export type ReplyMpKfSessionInput = z.infer<typeof replyMpKfSessionSchema>;
 export type UpdateMpKfRoutingConfigInput = z.infer<typeof updateMpKfRoutingConfigSchema>;

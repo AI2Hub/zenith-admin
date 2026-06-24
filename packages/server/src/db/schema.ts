@@ -3874,7 +3874,7 @@ export const mpMessagesRelations = relations(mpMessages, ({ one }) => ({
 
 // 公众号自动回复（关注回复 / 关键词回复 / 默认回复）
 export const mpAutoReplyTypeEnum = pgEnum('mp_auto_reply_type', ['subscribe', 'keyword', 'default']);
-export const mpAutoReplyMatchEnum = pgEnum('mp_auto_reply_match', ['exact', 'contain']);
+export const mpAutoReplyMatchEnum = pgEnum('mp_auto_reply_match', ['exact', 'contain', 'regex']);
 export const mpReplyContentTypeEnum = pgEnum('mp_reply_content_type', ['text', 'image', 'voice', 'video', 'news']);
 
 export const mpAutoReplies = pgTable('mp_auto_replies', {
@@ -3892,6 +3892,8 @@ export const mpAutoReplies = pgTable('mp_auto_replies', {
   mediaId: varchar('media_id', { length: 128 }),
   /** 图文回复文章列表（contentType=news） */
   newsArticles: jsonb('news_articles').$type<{ title: string; description?: string; picUrl?: string; url: string }[]>(),
+  /** 命中后是否转人工客服（接入多客服会话） */
+  transferToKf: boolean('transfer_to_kf').notNull().default(false),
   status: statusEnum('status').notNull().default('enabled'),
   /** 关键词优先级（小在前） */
   sort: integer('sort').notNull().default(0),
@@ -3908,6 +3910,26 @@ export type NewMpAutoReply = typeof mpAutoReplies.$inferInsert;
 export const mpAutoRepliesRelations = relations(mpAutoReplies, ({ one }) => ({
   account: one(mpAccounts, { fields: [mpAutoReplies.accountId], references: [mpAccounts.id] }),
   tenant: one(tenants, { fields: [mpAutoReplies.tenantId], references: [tenants.id] }),
+}));
+
+// 自动回复未命中关键词收集（用于优化关键词库；按 account+keyword 累计命中次数）
+export const mpUnmatchedKeywords = pgTable('mp_unmatched_keywords', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
+  keyword: varchar('keyword', { length: 128 }).notNull(),
+  count: integer('count').notNull().default(1),
+  lastAt: timestamp('last_at').defaultNow().notNull(),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('mp_unmatched_keywords_account_kw_uq').on(t.accountId, t.keyword),
+]);
+export type MpUnmatchedKeywordRow = typeof mpUnmatchedKeywords.$inferSelect;
+export type NewMpUnmatchedKeyword = typeof mpUnmatchedKeywords.$inferInsert;
+
+export const mpUnmatchedKeywordsRelations = relations(mpUnmatchedKeywords, ({ one }) => ({
+  account: one(mpAccounts, { fields: [mpUnmatchedKeywords.accountId], references: [mpAccounts.id] }),
+  tenant: one(tenants, { fields: [mpUnmatchedKeywords.tenantId], references: [tenants.id] }),
 }));
 
 // 公众号自定义菜单（每账号一份，buttons 为微信菜单按钮树 JSON）
@@ -4130,6 +4152,8 @@ export const mpQrcodes = pgTable('mp_qrcodes', {
   expireSeconds: integer('expire_seconds'),
   /** 累计扫码次数（回调事件累加） */
   scanCount: integer('scan_count').notNull().default(0),
+  /** 扫码关注奖励积分（粉丝已绑定会员时自动入账，0=不奖励） */
+  rewardPoints: integer('reward_points').notNull().default(0),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -4205,6 +4229,9 @@ export const mpKfSessions = pgTable('mp_kf_sessions', {
   acceptedAt: timestamp('accepted_at'),
   closedAt: timestamp('closed_at'),
   closeReason: mpKfSessionCloseReasonEnum('close_reason'),
+  /** 满意度评分（1-5，结束后由粉丝/客服记录） */
+  rating: integer('rating'),
+  ratingRemark: varchar('rating_remark', { length: 255 }),
   remark: varchar('remark', { length: 255 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),

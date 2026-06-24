@@ -6,7 +6,7 @@ import { mergeWhere } from '../lib/where-helpers';
 import { formatDate } from '../lib/datetime';
 import { tenantScope } from '../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
-import { getUserSummary, getUserCumulate, getUpstreamMsg, getArticleSummary, DATACUBE_MAX_SPAN_DAYS } from '../lib/wechat';
+import { getUserSummary, getUserCumulate, getUpstreamMsg, getArticleSummary, getUserShare, getInterfaceSummary, DATACUBE_MAX_SPAN_DAYS } from '../lib/wechat';
 import { mapWechatError } from '../lib/wechat-error';
 import type { MpStats, MpDatacube } from '@zenith/shared';
 
@@ -76,13 +76,15 @@ export async function getMpDatacube(accountId: number, beginDate: string, endDat
   if (Number.isNaN(spanDays) || spanDays < 0) throw new HTTPException(400, { message: '日期范围无效' });
   if (spanDays >= DATACUBE_MAX_SPAN_DAYS) throw new HTTPException(400, { message: `查询跨度不能超过 ${DATACUBE_MAX_SPAN_DAYS} 天` });
   try {
-    const [userSummary, userCumulate, upstreamMsg, articleSummary] = await Promise.all([
+    const [userSummary, userCumulate, upstreamMsg, articleSummary, userShare, interfaceSummary] = await Promise.all([
       getUserSummary(account, beginDate, endDate),
       getUserCumulate(account, beginDate, endDate),
       getUpstreamMsg(account, beginDate, endDate),
       getArticleSummary(account, beginDate, endDate),
+      getUserShare(account, beginDate, endDate),
+      getInterfaceSummary(account, beginDate, endDate),
     ]);
-    return { beginDate, endDate, userSummary, userCumulate, upstreamMsg, articleSummary };
+    return { beginDate, endDate, userSummary, userCumulate, upstreamMsg, articleSummary, userShare, interfaceSummary };
   } catch (err) {
     return mapWechatError(err);
   }

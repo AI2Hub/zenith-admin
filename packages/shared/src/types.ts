@@ -4351,7 +4351,7 @@ export interface MpConversation {
 }
 
 export type MpAutoReplyType = 'subscribe' | 'keyword' | 'default';
-export type MpAutoReplyMatch = 'exact' | 'contain';
+export type MpAutoReplyMatch = 'exact' | 'contain' | 'regex';
 export type MpReplyContentType = 'text' | 'image' | 'voice' | 'video' | 'news';
 
 export interface MpReplyArticle {
@@ -4371,6 +4371,7 @@ export interface MpAutoReply {
   content: string | null;
   mediaId: string | null;
   newsArticles: MpReplyArticle[] | null;
+  transferToKf: boolean;
   status: EntityStatus;
   sort: number;
   tenantId?: number | null;
@@ -4378,6 +4379,14 @@ export interface MpAutoReply {
   updatedBy?: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface MpUnmatchedKeyword {
+  id: number;
+  accountId: number;
+  keyword: string;
+  count: number;
+  lastAt: string;
 }
 
 export type MpMenuStatus = 'draft' | 'published';
@@ -4524,6 +4533,8 @@ export interface MpDatacube {
   userCumulate: { refDate: string; cumulateUser: number }[];
   upstreamMsg: { refDate: string; msgUser: number; msgCount: number }[];
   articleSummary: { refDate: string; pageReadCount: number }[];
+  userShare: { refDate: string; shareCount: number; shareUser: number }[];
+  interfaceSummary: { refDate: string; callbackCount: number; failCount: number; totalTimeCost: number; maxTimeCost: number }[];
 }
 
 // ─── 公众号群发消息 ──────────────────────────────────────────────────────────
@@ -4636,6 +4647,8 @@ export interface MpKfSession {
   acceptedAt: string | null;
   closedAt: string | null;
   closeReason: MpKfSessionCloseReason | null;
+  rating: number | null;
+  ratingRemark: string | null;
   remark: string | null;
   /** 已等待秒数（waiting 时由后端计算） */
   waitSeconds?: number;
@@ -4690,5 +4703,15 @@ export interface MpKfSessionStats {
   closedToday: number;
   /** 今日已结束会话平均等待接入秒数 */
   avgWaitSeconds: number;
+  /** 今日已结束会话平均满意度评分（1-5） */
+  avgRating: number;
   agents: MpKfAgentLoad[];
+}
+
+export interface MpKfSessionReportItem {
+  date: string;
+  created: number;
+  closed: number;
+  avgWaitSeconds: number;
+  avgRating: number;
 }

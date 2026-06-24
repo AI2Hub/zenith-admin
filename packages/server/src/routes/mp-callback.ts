@@ -207,9 +207,9 @@ const receiveRoute = defineOpenAPIRoute({
     try {
       let reply: Awaited<ReturnType<typeof resolveAutoReply>> = null;
       if (msgType === 'event' && f.Event === 'subscribe') {
-        reply = await resolveAutoReply(accountId, { event: 'subscribe' });
+        reply = await resolveAutoReply(accountId, { event: 'subscribe' }, account.tenantId);
       } else if (msgType === 'text') {
-        reply = await resolveAutoReply(accountId, { text: f.Content ?? '' });
+        reply = await resolveAutoReply(accountId, { text: f.Content ?? '' }, account.tenantId);
       }
 
       if (reply) {

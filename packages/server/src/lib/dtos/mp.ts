@@ -129,7 +129,7 @@ export const MpAutoReplyDTO = z
     accountId: z.number().int(),
     replyType: z.enum(['subscribe', 'keyword', 'default']),
     keyword: z.string().nullable(),
-    matchType: z.enum(['exact', 'contain']),
+    matchType: z.enum(['exact', 'contain', 'regex']),
     contentType: z.enum(['text', 'image', 'voice', 'video', 'news']),
     content: z.string().nullable(),
     mediaId: z.string().nullable(),
@@ -139,6 +139,7 @@ export const MpAutoReplyDTO = z
       picUrl: z.string().optional(),
       url: z.string(),
     })).nullable(),
+    transferToKf: z.boolean(),
     status: z.enum(['enabled', 'disabled']),
     sort: z.number().int(),
     ...auditFields,
@@ -146,6 +147,16 @@ export const MpAutoReplyDTO = z
     updatedAt: z.string(),
   })
   .openapi('MpAutoReply');
+
+export const MpUnmatchedKeywordDTO = z
+  .object({
+    id: z.number().int(),
+    accountId: z.number().int(),
+    keyword: z.string(),
+    count: z.number().int(),
+    lastAt: z.string(),
+  })
+  .openapi('MpUnmatchedKeyword');
 
 export const MpMenuDTO = z
   .object({
@@ -374,6 +385,8 @@ export const MpDatacubeDTO = z
     userCumulate: z.array(z.object({ refDate: z.string(), cumulateUser: z.number().int() })),
     upstreamMsg: z.array(z.object({ refDate: z.string(), msgUser: z.number().int(), msgCount: z.number().int() })),
     articleSummary: z.array(z.object({ refDate: z.string(), pageReadCount: z.number().int() })),
+    userShare: z.array(z.object({ refDate: z.string(), shareCount: z.number().int(), shareUser: z.number().int() })),
+    interfaceSummary: z.array(z.object({ refDate: z.string(), callbackCount: z.number().int(), failCount: z.number().int(), totalTimeCost: z.number().int(), maxTimeCost: z.number().int() })),
   })
   .openapi('MpDatacube');
 
@@ -400,6 +413,8 @@ export const MpKfSessionDTO = z
     acceptedAt: z.string().nullable(),
     closedAt: z.string().nullable(),
     closeReason: z.enum(['manual', 'wait_timeout', 'idle_timeout', 'system']).nullable(),
+    rating: z.number().int().nullable(),
+    ratingRemark: z.string().nullable(),
     remark: z.string().nullable(),
     waitSeconds: z.number().int().optional(),
     createdAt: z.string(),
