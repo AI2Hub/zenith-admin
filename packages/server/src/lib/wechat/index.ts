@@ -19,3 +19,4 @@ export * from './qrcode';
 export * from './reply';
 export * from './oauth';
 export * from './datacube';
+export * from './kf';

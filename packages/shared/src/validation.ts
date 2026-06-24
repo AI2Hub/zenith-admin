@@ -2356,3 +2356,15 @@ export const createMpQrcodeSchema = z.object({
   expireSeconds: z.number().int().min(60).max(2592000).optional(),
 }).refine((d) => d.type !== 'temporary' || !!d.expireSeconds, { message: '临时二维码请设置有效期', path: ['expireSeconds'] });
 export type CreateMpQrcodeInput = z.infer<typeof createMpQrcodeSchema>;
+
+// 公众号多客服账号
+export const createMpKfAccountSchema = z.object({
+  accountId: z.number().int().positive(),
+  kfAccount: z.string().min(1, '客服账号不能为空').max(64),
+  nickname: z.string().min(1, '客服昵称不能为空').max(64),
+});
+export const updateMpKfAccountSchema = z.object({
+  nickname: z.string().min(1, '客服昵称不能为空').max(64),
+});
+export type CreateMpKfAccountInput = z.infer<typeof createMpKfAccountSchema>;
+export type UpdateMpKfAccountInput = z.infer<typeof updateMpKfAccountSchema>;

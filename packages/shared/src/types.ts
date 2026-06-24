@@ -4507,3 +4507,21 @@ export interface MpQrcode {
   createdAt: string;
   updatedAt: string;
 }
+
+// ─── 公众号多客服账号 ─────────────────────────────────────────────────────────
+export interface MpKfAccount {
+  id: number;
+  accountId: number;
+  kfAccount: string;
+  nickname: string;
+  avatar: string | null;
+  kfId: string | null;
+  inviteStatus: string;
+  inviteWx: string | null;
+  status: EntityStatus;
+  tenantId?: number | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}

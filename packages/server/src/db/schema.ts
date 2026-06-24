@@ -4110,3 +4110,34 @@ export const mpQrcodesRelations = relations(mpQrcodes, ({ one }) => ({
   account: one(mpAccounts, { fields: [mpQrcodes.accountId], references: [mpAccounts.id] }),
   tenant: one(tenants, { fields: [mpQrcodes.tenantId], references: [tenants.id] }),
 }));
+
+// 公众号多客服账号（与微信多客服 kf_account 对应）
+export const mpKfAccounts = pgTable('mp_kf_accounts', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
+  /** 微信客服账号（形如 kf2001@gh_xxx） */
+  kfAccount: varchar('kf_account', { length: 64 }).notNull(),
+  nickname: varchar('nickname', { length: 64 }).notNull(),
+  avatar: varchar('avatar', { length: 512 }),
+  /** 微信侧客服 id（kf_id） */
+  kfId: varchar('kf_id', { length: 64 }),
+  /** 绑定微信号邀请状态：none/inviting/bound */
+  inviteStatus: varchar('invite_status', { length: 32 }).notNull().default('none'),
+  /** 绑定的微信号 */
+  inviteWx: varchar('invite_wx', { length: 64 }),
+  status: statusEnum('status').notNull().default('enabled'),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  uniqueIndex('mp_kf_accounts_account_kf_uq').on(t.accountId, t.kfAccount),
+  index('mp_kf_accounts_account_idx').on(t.accountId),
+]);
+export type MpKfAccountRow = typeof mpKfAccounts.$inferSelect;
+export type NewMpKfAccount = typeof mpKfAccounts.$inferInsert;
+
+export const mpKfAccountsRelations = relations(mpKfAccounts, ({ one }) => ({
+  account: one(mpAccounts, { fields: [mpKfAccounts.accountId], references: [mpAccounts.id] }),
+  tenant: one(tenants, { fields: [mpKfAccounts.tenantId], references: [tenants.id] }),
+}));
