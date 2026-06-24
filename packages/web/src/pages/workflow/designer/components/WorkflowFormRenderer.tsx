@@ -522,8 +522,6 @@ export function flattenFields(fields: WorkflowFormField[]): WorkflowFormField[] 
   return out;
 }
 
-export { evalFormula };
-
 
 function getCascadeAllowedOptions(field: WorkflowFormField, values: Record<string, unknown>): string[] {
   if (!field.optionsFrom) return field.options ?? [];
