@@ -6,6 +6,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RefreshCw, ListOrdered, FunctionSquare, Zap, Tags, Package } from 'lucide-react';
 import { request } from '@/utils/request';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { AppModal } from '@/components/AppModal';
 
 const { Text } = Typography;
@@ -53,18 +54,33 @@ export function ObjectsPanel({ active }: Readonly<{ active: boolean }>) {
     { title: '语言', dataIndex: 'language', width: 90 },
     { title: '参数', dataIndex: 'args', ellipsis: { showTitle: true }, render: (v: string) => <Text type="tertiary" size="small" style={{ fontFamily: 'monospace' }}>{v || '()'}</Text> },
     { title: '返回', dataIndex: 'result', width: 140, ellipsis: { showTitle: true } },
-    { title: '操作', width: 100, fixed: 'right', render: (_: unknown, r) => (
-      <Button theme="borderless" size="small" disabled={!r.definition} onClick={() => showDef(`${fullName(r.schema, r.name)}`, r.definition)}>定义</Button>
-    )},
+    createOperationColumn<DbObjects['functions'][number]>({
+      width: 100,
+      actions: (record) => [
+        {
+          key: 'definition',
+          label: '定义',
+          disabled: !record.definition,
+          onClick: () => showDef(`${fullName(record.schema, record.name)}`, record.definition),
+        },
+      ],
+    }),
   ];
 
   const trgColumns: ColumnProps<DbObjects['triggers'][number]>[] = [
     { title: '触发器', dataIndex: 'name', width: 220, render: (v: string) => <Text strong>{v}</Text> },
     { title: '表', width: 200, render: (_: unknown, r) => fullName(r.schema, r.table) },
     { title: '状态', dataIndex: 'enabled', width: 90, render: (v: boolean) => v ? <Tag size="small" color="green">启用</Tag> : <Tag size="small" color="grey">禁用</Tag> },
-    { title: '操作', width: 100, fixed: 'right', render: (_: unknown, r) => (
-      <Button theme="borderless" size="small" onClick={() => showDef(r.name, r.definition)}>定义</Button>
-    )},
+    createOperationColumn<DbObjects['triggers'][number]>({
+      width: 100,
+      actions: (record) => [
+        {
+          key: 'definition',
+          label: '定义',
+          onClick: () => showDef(record.name, record.definition),
+        },
+      ],
+    }),
   ];
 
   const enumColumns: ColumnProps<DbObjects['enums'][number]>[] = [

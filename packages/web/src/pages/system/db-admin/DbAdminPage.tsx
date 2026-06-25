@@ -45,6 +45,7 @@ import { useThemeController } from '@/providers/theme-controller';
 import { request } from '@/utils/request';
 import { usePermission } from '@/hooks/usePermission';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import { formatDateTime } from '@/utils/date';
@@ -982,33 +983,63 @@ export default function DbAdminPage() {
       const schemaName = editable.schema;
       const tableName = editable.table;
       const pkCols = editable.primaryKey;
-      result.push({
-        title: '操作',
-        key: '__actions',
+      result.push(createOperationColumn<Record<string, unknown>>({
         width: 180,
-        fixed: 'right',
-        render: (_, record) => (
-          <Space>
-            <Button theme="borderless" size="small" onClick={() => openEditRow(record)}>编辑</Button>
-            <Popconfirm
-              title="确定要删除该行吗？"
-              content="此操作不可恢复"
-              onConfirm={() => handleDeleteRow(record)}
-            >
-              <Button theme="borderless" type="danger" size="small">删除</Button>
-            </Popconfirm>
-            {schemaName && tableName && (
-              <Dropdown
-                trigger="click"
-                position="bottomRight"
-                render={renderRowSqlMenu(schemaName, tableName, pkCols, record)}
-              >
-                <Button theme="borderless" size="small">SQL</Button>
-              </Dropdown>
-            )}
-          </Space>
-        ),
-      });
+        actions: (record) => [
+          {
+            key: 'edit',
+            label: '编辑',
+            onClick: () => openEditRow(record),
+          },
+          {
+            key: 'delete',
+            label: '删除',
+            danger: true,
+            onClick: () => {
+              Modal.confirm({
+                title: '确定要删除该行吗？',
+                content: '此操作不可恢复',
+                okButtonProps: { type: 'danger', theme: 'solid' },
+                onOk: () => handleDeleteRow(record),
+              });
+            },
+          },
+          {
+            key: 'insert-sql',
+            label: '复制为 INSERT SQL',
+            hidden: !(schemaName && tableName),
+            onClick: () => {
+              if (schemaName && tableName) {
+                const cleanRow: Record<string, unknown> = {};
+                for (const [k, v] of Object.entries(record)) {
+                  if (!k.startsWith('__')) cleanRow[k] = v;
+                }
+                void copyRowSqlAndToast(buildInsertSql(schemaName, tableName, cleanRow), 'INSERT SQL');
+              }
+            },
+          },
+          {
+            key: 'update-sql',
+            label: '复制为 UPDATE SQL',
+            hidden: !(schemaName && tableName),
+            onClick: () => {
+              if (schemaName && tableName) {
+                const cleanRow: Record<string, unknown> = {};
+                for (const [k, v] of Object.entries(record)) {
+                  if (!k.startsWith('__')) cleanRow[k] = v;
+                }
+                const pk: Record<string, unknown> = {};
+                for (const k of pkCols) pk[k] = record[k];
+                const updateChanges: Record<string, unknown> = {};
+                for (const [k, v] of Object.entries(cleanRow)) {
+                  if (!pkCols.includes(k)) updateChanges[k] = v;
+                }
+                void copyRowSqlAndToast(buildUpdateSql(schemaName, tableName, pk, updateChanges), 'UPDATE SQL');
+              }
+            },
+          },
+        ],
+      }));
     }
     return result;
   };
@@ -1028,14 +1059,28 @@ export default function DbAdminPage() {
     { title: '错误', dataIndex: 'errorMessage', ellipsis: { showTitle: false }, render: (v: string | null) =>
       v ? <Tooltip content={<div style={{ maxWidth: 400 }}>{v}</div>}><Text type="danger">{v.slice(0, 60)}</Text></Tooltip> : '-',
     },
-    { title: '操作', width: 160, fixed: 'right', render: (_, r) => (
-      <Space>
-        <Button theme="borderless" size="small" onClick={() => applyHistorySql(r.sqlText)}>使用</Button>
-        <Popconfirm title="删除该记录？" onConfirm={() => deleteHistoryItem(r.id)}>
-          <Button theme="borderless" type="danger" size="small">删除</Button>
-        </Popconfirm>
-      </Space>
-    )},
+    createOperationColumn<HistoryItem>({
+      width: 160,
+      actions: (record) => [
+        {
+          key: 'use',
+          label: '使用',
+          onClick: () => applyHistorySql(record.sqlText),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          onClick: () => {
+            Modal.confirm({
+              title: '删除该记录？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => deleteHistoryItem(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   // ─── 主渲染 ──────────────────────────────────────────────────────────────────

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Banner, Button, Dropdown, Empty, Popconfirm, Space, Spin, Switch, Table, Tabs, TabPane,
+  Banner, Button, Empty, Modal, Space, Spin, Switch, Table, Tabs, TabPane,
   Tag, Toast, Tooltip, Typography,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RefreshCw, Activity, Wrench, KeyRound, GitCompare } from 'lucide-react';
 import { request } from '@/utils/request';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { copyToClipboard } from './sql-format';
 
 const { Text } = Typography;
@@ -169,18 +170,37 @@ function ActivityPanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
     )},
   ];
   if (canMaintain) {
-    columns.push({
-      title: '操作', width: 130, fixed: 'right', render: (_: unknown, r) => r.isCurrent ? <Text type="tertiary" size="small">—</Text> : (
-        <Space>
-          <Popconfirm title={`取消 PID ${r.pid} 的查询？`} onConfirm={() => void act(r.pid, 'cancel')}>
-            <Button theme="borderless" size="small">取消</Button>
-          </Popconfirm>
-          <Popconfirm title={`强制终止 PID ${r.pid} 的连接？`} content="连接将被断开" onConfirm={() => void act(r.pid, 'terminate')}>
-            <Button theme="borderless" type="danger" size="small">终止</Button>
-          </Popconfirm>
-        </Space>
-      ),
-    });
+    columns.push(createOperationColumn<ActivityConnection>({
+      width: 130,
+      emptyContent: <Text type="tertiary" size="small">—</Text>,
+      actions: (record) => [
+        {
+          key: 'cancel',
+          label: '取消',
+          hidden: record.isCurrent,
+          onClick: () => {
+            Modal.confirm({
+              title: `取消 PID ${record.pid} 的查询？`,
+              onOk: () => { void act(record.pid, 'cancel'); },
+            });
+          },
+        },
+        {
+          key: 'terminate',
+          label: '终止',
+          danger: true,
+          hidden: record.isCurrent,
+          onClick: () => {
+            Modal.confirm({
+              title: `强制终止 PID ${record.pid} 的连接？`,
+              content: '连接将被断开',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => { void act(record.pid, 'terminate'); },
+            });
+          },
+        },
+      ],
+    }));
   }
 
   return (
@@ -246,26 +266,39 @@ function MaintenancePanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
     { title: '上次 ANALYZE', width: 160, render: (_: unknown, r) => <Text type="tertiary" size="small">{r.lastAnalyze ?? r.lastAutoanalyze ?? '从未'}</Text> },
   ];
   if (canMaintain) {
-    columns.push({
-      title: '操作', width: 90, fixed: 'right', render: (_: unknown, r) => {
-        const key = `${r.schema}.${r.name}`;
-        return (
-          <Dropdown
-            trigger="click"
-            render={(
-              <Dropdown.Menu>
-                <Dropdown.Item onClick={() => void run(r, 'vacuum')}>VACUUM</Dropdown.Item>
-                <Dropdown.Item onClick={() => void run(r, 'vacuum_analyze')}>VACUUM ANALYZE</Dropdown.Item>
-                <Dropdown.Item onClick={() => void run(r, 'analyze')}>ANALYZE</Dropdown.Item>
-                <Dropdown.Item type="danger" onClick={() => void run(r, 'reindex')}>REINDEX</Dropdown.Item>
-              </Dropdown.Menu>
-            )}
-          >
-            <Button theme="borderless" size="small" loading={busyKey === key}>维护</Button>
-          </Dropdown>
-        );
+    columns.push(createOperationColumn<TableMaintenance>({
+      width: 90,
+      actions: (record) => {
+        const key = `${record.schema}.${record.name}`;
+        return [
+          {
+            key: 'vacuum',
+            label: 'VACUUM',
+            loading: busyKey === key,
+            onClick: () => { void run(record, 'vacuum'); },
+          },
+          {
+            key: 'vacuum-analyze',
+            label: 'VACUUM ANALYZE',
+            loading: busyKey === key,
+            onClick: () => { void run(record, 'vacuum_analyze'); },
+          },
+          {
+            key: 'analyze',
+            label: 'ANALYZE',
+            loading: busyKey === key,
+            onClick: () => { void run(record, 'analyze'); },
+          },
+          {
+            key: 'reindex',
+            label: 'REINDEX',
+            danger: true,
+            loading: busyKey === key,
+            onClick: () => { void run(record, 'reindex'); },
+          },
+        ];
       },
-    });
+    }));
   }
 
   return (
@@ -319,9 +352,16 @@ function IndexHealthPanel() {
     { title: '列', dataIndex: 'columns', render: (v: string[]) => v.join(', ') },
     { title: '大小', dataIndex: 'sizeText', width: 90 },
     { title: '扫描次数', dataIndex: 'scans', width: 90, render: (v: number) => <Tag color="amber" size="small">{v}</Tag> },
-    { title: '操作', width: 110, fixed: 'right', render: (_: unknown, r) => (
-      <Button theme="borderless" size="small" onClick={() => copyDrop(r)}>复制 DROP</Button>
-    )},
+    createOperationColumn<IndexInfoRow>({
+      width: 110,
+      actions: (record) => [
+        {
+          key: 'copy-drop',
+          label: '复制 DROP',
+          onClick: () => copyDrop(record),
+        },
+      ],
+    }),
   ];
 
   return (
