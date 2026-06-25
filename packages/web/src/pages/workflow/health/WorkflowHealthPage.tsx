@@ -29,6 +29,11 @@ const THRESHOLD_OPTIONS = [
   { value: 1440, label: '超过 1 天' },
 ];
 
+const ISSUE_TYPE_OPTIONS = [
+  { value: '', label: '全部问题类型' },
+  ...Object.entries(ISSUE_LABELS).map(([value, label]) => ({ value, label })),
+];
+
 function SummaryItem({ label, value, danger }: Readonly<{ label: string; value: number; danger?: boolean }>) {
   return (
     <div style={{ minWidth: 120, padding: '10px 12px', border: '1px solid var(--semi-color-border)', borderRadius: 8 }}>
@@ -40,6 +45,7 @@ function SummaryItem({ label, value, danger }: Readonly<{ label: string; value: 
 
 export default function WorkflowHealthPage() {
   const [thresholdMinutes, setThresholdMinutes] = useState(30);
+  const [issueType, setIssueType] = useState<WorkflowHealthIssue['type'] | ''>('');
   const [data, setData] = useState<WorkflowHealthSummary | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -111,7 +117,13 @@ export default function WorkflowHealthPage() {
           suffix="的问题"
           style={{ width: 320 }}
         />
-        <Typography.Text size="small" type="tertiary">用于发现卡住的审批、触发器、子流程和 Outbox 事件</Typography.Text>
+        <Select
+          value={issueType}
+          onChange={(v) => setIssueType(v as WorkflowHealthIssue['type'] | '')}
+          optionList={ISSUE_TYPE_OPTIONS}
+          prefix="问题类型"
+          style={{ width: 220 }}
+        />
         <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
         <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
       </SearchToolbar>
@@ -129,7 +141,7 @@ export default function WorkflowHealthPage() {
         bordered
         rowKey="id"
         loading={loading}
-        dataSource={data?.issues ?? []}
+        dataSource={(data?.issues ?? []).filter((issue) => !issueType || issue.type === issueType)}
         columns={columns}
         pagination={false}
         onRefresh={fetchData}
