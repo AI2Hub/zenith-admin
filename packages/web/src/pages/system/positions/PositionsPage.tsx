@@ -137,6 +137,29 @@ export default function PositionsPage() {
     void fetchPositions(1, pageSize, defaultSearchParams);
   };
 
+  const openCreate = () => {
+    setEditingPosition(null);
+    setModalVisible(true);
+  };
+
+  const handleExportExcel = async () => {
+    setExportLoading(true);
+    try {
+      await request.download('/api/positions/export', '岗位列表.xlsx');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setExportCsvLoading(true);
+    try {
+      await request.download('/api/positions/export/csv', '岗位列表.csv');
+    } finally {
+      setExportCsvLoading(false);
+    }
+  };
+
   const handleModalOk = async () => {
     let values;
     try {
@@ -328,69 +351,121 @@ export default function PositionsPage() {
     },
   ];
 
+  const renderKeywordSearch = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="搜索岗位名称/编码"
+      value={searchParams.keyword}
+      onChange={(value) => setSearchParams((prev) => ({ ...prev, keyword: value }))}
+      onEnterPress={handleSearch}
+      style={{ width: 240 }}
+      showClear
+    />
+  );
+
+  const renderStatusFilter = () => (
+    <Select
+      placeholder="请选择状态"
+      value={searchParams.status || undefined}
+      onChange={(value) => setSearchParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
+      style={{ width: 140 }}
+      optionList={[
+        { value: '', label: '全部状态' },
+        ...statusItems.map((item) => ({ value: item.value, label: item.label })),
+      ]}
+    />
+  );
+
+  const renderTimeRangeFilter = () => (
+    <DatePicker
+      type="dateTimeRange"
+      placeholder={['开始时间', '结束时间']}
+      value={searchParams.timeRange ?? undefined}
+      onChange={(value) => setSearchParams((prev) => ({ ...prev, timeRange: value ? (value as [Date, Date]) : null }))}
+      style={{ width: 360 }}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderCreateButton = () => hasPermission('system:position:create') ? (
+    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+  ) : null;
+
+  const renderExportButtons = () => (
+    <SplitButtonGroup>
+      <Button type="primary" icon={<Download size={14} />} loading={exportLoading} onClick={handleExportExcel}>导出</Button>
+      <Dropdown
+        trigger="click"
+        position="bottomRight"
+        clickToHide
+        render={(
+          <Dropdown.Menu>
+            <Dropdown.Item onClick={handleExportExcel}>导出 Excel</Dropdown.Item>
+            <Dropdown.Item onClick={handleExportCsv}>导出 CSV</Dropdown.Item>
+          </Dropdown.Menu>
+        )}
+      >
+        <Button type="primary" icon={<ChevronDown size={14} />} loading={exportCsvLoading} />
+      </Dropdown>
+    </SplitButtonGroup>
+  );
+
+  const renderMobileExportActions = () => (
+    <>
+      <Button icon={<Download size={14} />} loading={exportLoading} onClick={handleExportExcel}>导出 Excel</Button>
+      <Button icon={<Download size={14} />} loading={exportCsvLoading} onClick={handleExportCsv}>导出 CSV</Button>
+    </>
+  );
+
+  const renderBatchDeleteButton = () => selectedRowKeys.length > 0 && hasPermission('system:position:delete') ? (
+    <Button type="danger" theme="light" icon={<Trash2 size={14} />} onClick={handleBatchDelete}>
+      批量删除 ({selectedRowKeys.length})
+    </Button>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-          <Input
-            prefix={<Search size={14} />}
-            placeholder="搜索岗位名称/编码"
-            value={searchParams.keyword}
-            onChange={(value) => setSearchParams((prev) => ({ ...prev, keyword: value }))}
-            onEnterPress={handleSearch}
-            style={{ width: 240 }}
-            showClear
-          />
-          <Select
-            placeholder="请选择状态"
-            value={searchParams.status || undefined}
-            onChange={(value) => setSearchParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
-            style={{ width: 140 }}
-            optionList={[
-              { value: '', label: '全部状态' },
-              ...statusItems.map((item) => ({ value: item.value, label: item.label })),
-            ]}
-          />
-          <DatePicker
-            type="dateTimeRange"
-            placeholder={['开始时间', '结束时间']}
-            value={searchParams.timeRange ?? undefined}
-            onChange={(value) => setSearchParams((prev) => ({ ...prev, timeRange: value ? (value as [Date, Date]) : null }))}
-            style={{ width: 360 }}
-          />
-          <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-          <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-          <SplitButtonGroup>
-            <Button type="primary" icon={<Download size={14} />} loading={exportLoading} onClick={async () => { setExportLoading(true); try { await request.download('/api/positions/export', '岗位列表.xlsx'); } finally { setExportLoading(false); } }}>导出</Button>
-            <Dropdown
-              trigger="click"
-              position="bottomRight"
-              clickToHide
-              render={(
-                <Dropdown.Menu>
-                  <Dropdown.Item onClick={async () => { setExportLoading(true); try { await request.download('/api/positions/export', '岗位列表.xlsx'); } finally { setExportLoading(false); } }}>导出 Excel</Dropdown.Item>
-                  <Dropdown.Item onClick={async () => { setExportCsvLoading(true); try { await request.download('/api/positions/export/csv', '岗位列表.csv'); } finally { setExportCsvLoading(false); } }}>导出 CSV</Dropdown.Item>
-                </Dropdown.Menu>
-              )}
-            >
-              <Button type="primary" icon={<ChevronDown size={14} />} loading={exportCsvLoading} />
-            </Dropdown>
-          </SplitButtonGroup>
-          {selectedRowKeys.length > 0 && hasPermission('system:position:delete') && (
-            <Button type="danger" theme="light" icon={<Trash2 size={14} />} onClick={handleBatchDelete}>
-              批量删除 ({selectedRowKeys.length})
-            </Button>
-          )}
-          {hasPermission('system:position:create') && <Button
-            type="primary"
-            icon={<Plus size={14} />}
-            onClick={() => {
-              setEditingPosition(null);
-              setModalVisible(true);
-            }}
-          >
-            新增
-          </Button>}
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordSearch()}
+            {renderStatusFilter()}
+            {renderTimeRangeFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+          </>
+        )}
+        actions={(
+          <>
+            {renderExportButtons()}
+            {renderBatchDeleteButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderKeywordSearch()}
+            {renderSearchButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            {renderStatusFilter()}
+            {renderTimeRangeFilter()}
+          </>
+        )}
+        mobileActions={(
+          <>
+            {renderMobileExportActions()}
+            {renderBatchDeleteButton()}
+          </>
+        )}
+        filterTitle="岗位筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable
         bordered
