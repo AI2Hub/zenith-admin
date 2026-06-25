@@ -93,6 +93,8 @@ export default function WorkflowHealthPage() {
   return (
     <div className="page-container">
       <SearchToolbar>
+        <Space spacing={6}>
+          <Typography.Text size="small" type="tertiary">巡检阈值</Typography.Text>
         <InputNumber
           value={thresholdMinutes}
           onChange={(v) => setThresholdMinutes(typeof v === 'number' ? v : 30)}
@@ -100,8 +102,11 @@ export default function WorkflowHealthPage() {
           max={1440}
           step={5}
           placeholder="阈值（分钟）"
-          style={{ width: 140 }}
+            style={{ width: 96 }}
         />
+          <Typography.Text size="small" type="tertiary">分钟</Typography.Text>
+        </Space>
+        <Typography.Text size="small" type="tertiary">仅展示等待时长超过该阈值的问题</Typography.Text>
         <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
         <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
       </SearchToolbar>
