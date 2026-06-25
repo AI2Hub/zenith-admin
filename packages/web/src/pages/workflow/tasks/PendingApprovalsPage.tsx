@@ -90,6 +90,18 @@ export default function PendingApprovalsPage() {
     }
   }, [page, pageSize, setPage]);
 
+  const fetchPendingSnapshot = useCallback(async (p = page, ps = pageSize, params?: SearchParams) => {
+    const { keyword: kw, definitionId: did } = params ?? searchParamsRef.current;
+    const query = new URLSearchParams({
+      page: String(p),
+      pageSize: String(ps),
+      ...(kw ? { keyword: kw } : {}),
+      ...(did === null ? {} : { definitionId: String(did) }),
+    }).toString();
+    const res = await request.get<PaginatedResponse<PendingItem>>(`/api/workflows/instances/pending-mine?${query}`, { silent: true });
+    return res.code === 0 ? res.data : null;
+  }, [page, pageSize]);
+
   useEffect(() => {
     void fetchList();
     request.get<WorkflowDefinition[]>('/api/workflows/definitions/published')
@@ -97,6 +109,7 @@ export default function PendingApprovalsPage() {
   }, [fetchList]);
 
   const handleBatch = async () => {
+    if (batchSubmitting) return;
     const taskIds = (data?.list ?? [])
       .filter((it) => selectedRowKeys.includes(it.id))
       .map((it) => it.pendingTaskId)
@@ -105,6 +118,21 @@ export default function PendingApprovalsPage() {
     if (batchMode === 'reject' && !batchComment.trim()) { Toast.error('请填写驳回原因'); return; }
     setBatchSubmitting(true);
     try {
+      const latest = await fetchPendingSnapshot();
+      const latestMap = new Map((latest?.list ?? []).map((item) => [item.id, item.pendingTaskId]));
+      const staleKeys = selectedRowKeys.filter((instanceId) => latestMap.get(instanceId) == null
+        || !taskIds.includes(latestMap.get(instanceId) as number));
+      if (staleKeys.length > 0) {
+        Toast.warning('部分任务状态已变化，请刷新后重试');
+        if (latest) {
+          setData(latest);
+          setPage(latest.page);
+        } else {
+          void fetchList();
+        }
+        setSelectedRowKeys((keys) => keys.filter((key) => !staleKeys.includes(key)));
+        return;
+      }
       const path = batchMode === 'approve' ? 'batch-approve' : 'batch-reject';
       const payload = batchMode === 'reject'
         ? { taskIds, comment: batchComment.trim() }
@@ -112,6 +140,7 @@ export default function PendingApprovalsPage() {
       const res = await request.post<{ succeeded: number; failed: number }>(
         `/api/workflows/tasks/${path}`,
         payload,
+        { headers: { 'X-Idempotency-Key': `workflow-${path}-${taskIds.join('-')}` } },
       );
       if (res.code === 0) {
         Toast.success(res.message || '批量处理完成');

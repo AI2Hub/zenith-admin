@@ -260,6 +260,7 @@ export default function WorkflowApprovalDetailSheet({
 
   const handleApprove = async () => {
     if (taskId == null) return;
+    if (submitting) return;
     const needSignature = currentTask?.signatureRequired ?? false;
     try {
       const values = await approveFormApi.current?.validate();
@@ -280,6 +281,7 @@ export default function WorkflowApprovalDetailSheet({
           signature: approveSignature || undefined,
           selectedNextApprovers: hasApproverSelectDownstream && selectedNextApprovers.length > 0 ? selectedNextApprovers : undefined,
         },
+        { headers: { 'X-Idempotency-Key': `workflow-approve-${taskId}` } },
       );
       if (res.code === 0) {
         Toast.success('审批通过');
@@ -298,12 +300,14 @@ export default function WorkflowApprovalDetailSheet({
 
   const handleReject = async () => {
     if (taskId == null) return;
+    if (submitting) return;
     try {
       const values = await rejectFormApi.current?.validate() as Record<string, unknown>;
       setSubmitting(true);
       const res = await request.post(
         `/api/workflows/tasks/${taskId}/reject`,
         { comment: values.comment as string },
+        { headers: { 'X-Idempotency-Key': `workflow-reject-${taskId}` } },
       );
       if (res.code === 0) {
         Toast.success('已驳回');
@@ -324,9 +328,14 @@ export default function WorkflowApprovalDetailSheet({
     closer: () => void,
   ) => {
     if (taskId == null) return;
+    if (submitting) return;
     try {
       setSubmitting(true);
-      const res = await request.post(`/api/workflows/tasks/${taskId}/${path}`, body);
+      const res = await request.post(
+        `/api/workflows/tasks/${taskId}/${path}`,
+        body,
+        { headers: { 'X-Idempotency-Key': `workflow-${path}-${taskId}` } },
+      );
       if (res.code === 0) {
         Toast.success(successMsg);
         closer();

@@ -182,6 +182,20 @@ describe('evaluateCondition', () => {
     expect(evaluateCondition({ field: 'reason', operator: 'contains', value: '请假' }, { reason: '出差' })).toBe(false);
   });
 
+  it('does not stringify complex object values for scalar comparisons', () => {
+    const formData = { payload: { status: 'approved' }, rows: [{ amount: 1 }] };
+    expect(evaluateCondition({ field: 'payload', operator: 'eq', value: '{"status":"approved"}' }, formData)).toBe(false);
+    expect(evaluateCondition({ field: 'payload', operator: 'neq', value: '{"status":"approved"}' }, formData)).toBe(false);
+    expect(evaluateCondition({ field: 'rows', operator: 'contains', value: '{"amount":1}' }, formData)).toBe(false);
+  });
+
+  it('supports explicit collection operators for primitive arrays', () => {
+    const formData = { tags: ['urgent', 'finance'] };
+    expect(evaluateCondition({ field: 'tags', operator: 'contains', value: 'urgent' }, formData)).toBe(true);
+    expect(evaluateCondition({ field: 'tags', operator: 'in', value: 'legal,finance' }, formData)).toBe(true);
+    expect(evaluateCondition({ field: 'tags', operator: 'notIn', value: 'legal,hr' }, formData)).toBe(true);
+  });
+
   it('handles null/undefined field values', () => {
     expect(evaluateCondition({ field: 'x', operator: 'eq', value: '' }, {})).toBe(true);
     expect(evaluateCondition({ field: 'x', operator: 'gt', value: 0 }, {})).toBe(false);

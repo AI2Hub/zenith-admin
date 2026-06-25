@@ -114,6 +114,16 @@ function compareNumber(fv: number, operator: WorkflowEdgeCondition['operator'], 
   }
 }
 
+function isPrimitiveConditionValue(value: unknown): value is string | number | boolean | null | undefined {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value == null;
+}
+
+function parseTargetList(target: string | number | boolean): string[] {
+  return typeof target === 'string'
+    ? target.split(',').map((s) => s.trim()).filter(Boolean)
+    : [String(target)];
+}
+
 /** 求值条件表达式 */
 export function evaluateCondition(
   condition: WorkflowEdgeCondition,
@@ -155,15 +165,27 @@ export function evaluateCondition(
     return condition.operator === 'withinDays' ? Math.abs(diff) <= days : diff > days;
   }
 
-  // Normalize to primitive for safe comparison
-  let fv: string | number | boolean | null;
-  if (typeof fieldValue === 'string' || typeof fieldValue === 'number' || typeof fieldValue === 'boolean') {
-    fv = fieldValue;
-  } else if (fieldValue == null) {
-    fv = null;
-  } else {
-    fv = JSON.stringify(fieldValue);
+  if (condition.operator === 'isEmpty' || condition.operator === 'isNotEmpty') {
+    const empty = fieldValue == null
+      || fieldValue === ''
+      || (Array.isArray(fieldValue) && fieldValue.length === 0)
+      || (typeof fieldValue === 'object' && fieldValue !== null && !Array.isArray(fieldValue) && Object.keys(fieldValue).length === 0);
+    return condition.operator === 'isEmpty' ? empty : !empty;
   }
+
+  if (Array.isArray(fieldValue)) {
+    const values = fieldValue.filter(isPrimitiveConditionValue).map((v) => String(v ?? ''));
+    if (condition.operator === 'contains') return values.includes(String(target));
+    if (condition.operator === 'in' || condition.operator === 'notIn') {
+      const targets = parseTargetList(target);
+      const hit = values.some((value) => targets.includes(value));
+      return condition.operator === 'notIn' ? !hit : hit;
+    }
+    return false;
+  }
+
+  if (!isPrimitiveConditionValue(fieldValue)) return false;
+  const fv = fieldValue;
 
   switch (condition.operator) {
     case 'eq':
@@ -185,21 +207,12 @@ export function evaluateCondition(
     case 'in':
     case 'notIn': {
       // target 可能是逗号分隔字符串，也可能是单个数字/布尔（如从下拉条件直接存数值）
-      const arr = typeof target === 'string'
-        ? target.split(',').map((s) => s.trim())
-        : [String(target)];
+      const arr = parseTargetList(target);
       const inList = arr.includes(String(fv ?? ''));
       return condition.operator === 'notIn' ? !inList : inList;
     }
     case 'contains':
       return typeof fv === 'string' && fv.includes(String(target));
-    case 'isEmpty':
-    case 'isNotEmpty': {
-      const empty = fieldValue == null
-        || fieldValue === ''
-        || (Array.isArray(fieldValue) && fieldValue.length === 0);
-      return condition.operator === 'isEmpty' ? empty : !empty;
-    }
     default:
       return false;
   }

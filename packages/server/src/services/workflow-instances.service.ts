@@ -42,6 +42,8 @@ export function mapInstance(
     initiatorName?: string | null;
     initiatorAvatar?: string | null;
     currentNodeName?: string | null;
+    currentNodeKeys?: string[];
+    currentNodeNames?: string[];
     tasks?: ReturnType<typeof mapTask>[];
     childInstances?: Array<{ id: number; title: string; status: typeof workflowInstances.$inferSelect['status']; parentTaskNodeKey?: string | null; createdAt: string }>;
     comments?: import('@zenith/shared').WorkflowComment[];
@@ -54,6 +56,15 @@ export function mapInstance(
   } = {},
 ) {
   const snapshotSettings = (row.definitionSnapshot as { flowData?: WorkflowFlowData } | null)?.flowData?.settings;
+  const activeNodeKeys = extras.currentNodeKeys
+    ?? [...new Set((extras.tasks ?? [])
+      .filter((task) => task.status === 'pending' || task.status === 'waiting')
+      .map((task) => task.nodeKey))];
+  const currentNodeKeys = activeNodeKeys.length > 0 ? activeNodeKeys : (row.currentNodeKey ? [row.currentNodeKey] : []);
+  const currentNodeNames = extras.currentNodeNames
+    ?? currentNodeKeys
+      .map((nodeKey) => resolveNodeNameFromSnapshot(row.definitionSnapshot, nodeKey))
+      .filter((name): name is string => typeof name === 'string' && name.length > 0);
   const mapped = {
     id: row.id,
     definitionId: row.definitionId,
@@ -69,7 +80,9 @@ export function mapInstance(
     formSnapshot: (row.formSnapshot ?? null) as WorkflowFormField[] | WorkflowInstanceFormSnapshot | null,
     status: row.status,
     currentNodeKey: row.currentNodeKey,
+    currentNodeKeys,
     currentNodeName: extras.currentNodeName ?? resolveNodeNameFromSnapshot(row.definitionSnapshot, row.currentNodeKey),
+    currentNodeNames,
     initiatorId: row.initiatorId,
     initiatorName: extras.initiatorName ?? null,
     initiatorAvatar: extras.initiatorAvatar ?? null,
@@ -1736,6 +1749,26 @@ type InstanceStatus = 'draft' | 'running' | 'approved' | 'rejected' | 'withdrawn
 /** 优先级排序：urgent > high > normal > low（用于审批/申请列表置顶加急） */
 const priorityRankOrder = sql`CASE ${workflowInstances.priority} WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END`;
 
+async function loadActiveNodeKeysByInstance(instanceIds: number[]): Promise<Map<number, string[]>> {
+  if (instanceIds.length === 0) return new Map();
+  const rows = await db.select({
+    instanceId: workflowTasks.instanceId,
+    nodeKey: workflowTasks.nodeKey,
+  }).from(workflowTasks)
+    .where(and(
+      inArray(workflowTasks.instanceId, [...new Set(instanceIds)]),
+      inArray(workflowTasks.status, ['pending', 'waiting']),
+    ))
+    .orderBy(workflowTasks.id);
+  const map = new Map<number, string[]>();
+  for (const row of rows) {
+    const keys = map.get(row.instanceId) ?? [];
+    if (!keys.includes(row.nodeKey)) keys.push(row.nodeKey);
+    map.set(row.instanceId, keys);
+  }
+  return map;
+}
+
 export async function listMyInstances(query: { page?: number; pageSize?: number; status?: string; priority?: string }) {
   const user = currentUser();
   const { page = 1, pageSize = 20, status, priority } = query;
@@ -1758,11 +1791,13 @@ export async function listMyInstances(query: { page?: number; pageSize?: number;
       offset: pageOffset(page, pageSize),
     }),
   ]);
+  const activeNodeKeys = await loadActiveNodeKeysByInstance(rows.map((row) => row.id));
   return {
     list: rows.map((r) => mapInstance(r, {
       definitionName: r.definition?.name ?? null,
       initiatorName: r.initiator?.nickname ?? null,
       initiatorAvatar: r.initiator?.avatar ?? null,
+      currentNodeKeys: activeNodeKeys.get(r.id),
     })),
     total, page, pageSize,
   };
@@ -1803,12 +1838,13 @@ export async function listPendingMine(query: { page?: number; pageSize?: number;
       page, pageSize,
     ),
   ]);
+  const activeNodeKeys = await loadActiveNodeKeysByInstance(rows.map((row) => row.inst.id));
   return {
     list: rows.map((r) => {
       const flow = (r.inst.definitionSnapshot as { flowData?: WorkflowFlowData } | null)?.flowData;
       const node = flow?.nodes.find((n) => n.data.key === r.task.nodeKey)?.data;
       const pendingSignatureRequired = node?.operations?.includes('signature') ?? false;
-      return { ...mapInstance(r.inst, r), pendingTaskId: r.task.id, pendingSignatureRequired };
+      return { ...mapInstance(r.inst, { ...r, currentNodeKeys: activeNodeKeys.get(r.inst.id) }), pendingTaskId: r.task.id, pendingSignatureRequired };
     }),
     total: Number(total),
     page,
@@ -1851,11 +1887,13 @@ export async function listMyCc(query: { page?: number; pageSize?: number; keywor
       page, pageSize,
     ),
   ]);
+  const activeNodeKeys = await loadActiveNodeKeysByInstance(rows.map((row) => row.inst.id));
   return {
     list: rows.map((r) => mapInstance(r.inst, {
       definitionName: r.definitionName,
       initiatorName: r.initiatorName,
       initiatorAvatar: r.initiatorAvatar,
+      currentNodeKeys: activeNodeKeys.get(r.inst.id),
       ccTaskId: r.task.id,
       ccReadAt: r.task.ccReadAt,
     })),
@@ -2011,11 +2049,13 @@ export async function listMyHandled(query: { page?: number; pageSize?: number; k
       page, pageSize,
     ),
   ]);
+  const activeNodeKeys = await loadActiveNodeKeysByInstance(rows.map((row) => row.inst.id));
   return {
     list: rows.map((r) => mapInstance(r.inst, {
       definitionName: r.definitionName,
       initiatorName: r.initiatorName,
       initiatorAvatar: r.initiatorAvatar,
+      currentNodeKeys: activeNodeKeys.get(r.inst.id),
       myTaskStatus: r.task.status,
       myActionAt: r.task.actionAt,
     })),
@@ -2084,7 +2124,14 @@ export async function listAllInstances(query: { page?: number; pageSize?: number
     stats[r.status] = r.cnt;
     stats.total += r.cnt;
   }
-  return { stats, list: rows.map((r) => mapInstance(r.inst, r)), total, page, pageSize };
+  const activeNodeKeys = await loadActiveNodeKeysByInstance(rows.map((row) => row.inst.id));
+  return {
+    stats,
+    list: rows.map((r) => mapInstance(r.inst, { ...r, currentNodeKeys: activeNodeKeys.get(r.inst.id) })),
+    total,
+    page,
+    pageSize,
+  };
 }
 
 export async function getInstanceDetail(id: number) {

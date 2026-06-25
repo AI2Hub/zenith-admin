@@ -183,6 +183,9 @@ export default function WorkflowInstanceDetailPanel({
   const hasFormFields = formFields.length > 0;
   const flowData = (resolveWorkflowFlowData(instance, effectiveDefinition) ?? null) as { process?: import('@/pages/workflow/designer/types').FlowProcess } | null;
   const childInstances = instance.childInstances ?? [];
+  const activeNodeNames = (instance.currentNodeNames && instance.currentNodeNames.length > 0)
+    ? instance.currentNodeNames
+    : (instance.currentNodeName ? [instance.currentNodeName] : []);
 
   const renderFormData = () => {
     // 自定义业务表单（custom）/ 业务系统主导（external）：渲染业务页面（view 只读）
@@ -263,6 +266,13 @@ export default function WorkflowInstanceDetailPanel({
           <span>{instance.initiatorName ?? '—'}</span>
           <span>·</span>
           <span>{formatDateTime(instance.createdAt)}</span>
+          {activeNodeNames.length > 0 && (
+            <>
+              <span>·</span>
+              <span>当前节点</span>
+              {activeNodeNames.map((name) => <Tag key={name} size="small" color="cyan" style={{ cursor: 'default' }}>{name}</Tag>)}
+            </>
+          )}
         </div>
       </div>
 

@@ -370,10 +370,15 @@ export default function WorkflowMonitorPage() {
     {
       title: '当前节点',
       dataIndex: 'currentNodeName',
-      width: 130,
-      render: (v: string | null | undefined) => v
-        ? <Tag size="small" color="cyan">{v}</Tag>
-        : <span style={{ color: 'var(--semi-color-text-2)' }}>—</span>,
+      width: 180,
+      render: (v: string | null | undefined, record: WorkflowInstance) => {
+        const names = (record.currentNodeNames && record.currentNodeNames.length > 0)
+          ? record.currentNodeNames
+          : (v ? [v] : []);
+        return names.length > 0
+          ? <Space spacing={4} wrap>{names.map((name) => <Tag key={name} size="small" color="cyan">{name}</Tag>)}</Space>
+          : <span style={{ color: 'var(--semi-color-text-2)' }}>—</span>;
+      },
     },
     {
       title: '申请人',

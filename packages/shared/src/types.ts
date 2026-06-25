@@ -2314,8 +2314,12 @@ export interface WorkflowInstance {
   definitionSnapshot?: WorkflowDefinitionSnapshot | null;
   status: WorkflowInstanceStatus;
   currentNodeKey: string | null;
+  /** 当前所有活动节点 key（并行分支可能有多个；未提供时兼容 currentNodeKey） */
+  currentNodeKeys?: string[];
   /** 当前所处节点名称（由流程快照解析，仅列表/监控场景填充） */
   currentNodeName?: string | null;
+  /** 当前所有活动节点名称（并行分支可能有多个） */
+  currentNodeNames?: string[];
   initiatorId: number;
   initiatorName?: string | null;
   initiatorAvatar?: string | null;

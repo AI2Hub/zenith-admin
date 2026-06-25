@@ -17,6 +17,22 @@ function err(message: string, code = 400) {
   return HttpResponse.json({ code, message });
 }
 
+type MockApiPayload<T = unknown> = { code: number; message: string; data: T };
+const idempotencyCache = new Map<string, MockApiPayload>();
+
+function readIdempotentResponse(request: Request) {
+  const key = request.headers.get('X-Idempotency-Key');
+  const payload = key ? idempotencyCache.get(key) : undefined;
+  return payload ? HttpResponse.json(payload) : null;
+}
+
+function okIdempotent<T>(request: Request, data: T, message = 'ok') {
+  const payload: MockApiPayload<T> = { code: 0, message, data };
+  const key = request.headers.get('X-Idempotency-Key');
+  if (key) idempotencyCache.set(key, payload);
+  return HttpResponse.json(payload);
+}
+
 // ── 内存态数据 ──
 const mockComments: WorkflowComment[] = [];
 let nextCommentId = 1;
@@ -610,6 +626,8 @@ export const workflowExtraHandlers = [
 
   // ── 批量审批 ──
   http.post('/api/workflows/tasks/batch-approve', async ({ request }) => {
+    const cached = readIdempotentResponse(request);
+    if (cached) return cached;
     const { taskIds, comment } = await request.json() as { taskIds: number[]; comment?: string };
     const results = taskIds.map((taskId) => {
       const task = mockWorkflowTasks.find((t) => t.id === taskId);
@@ -622,9 +640,11 @@ export const workflowExtraHandlers = [
       return { taskId, success: false, message: '任务不存在或已处理' };
     });
     const succeeded = results.filter((r) => r.success).length;
-    return ok({ succeeded, failed: results.length - succeeded, results }, `成功 ${succeeded} 条`);
+    return okIdempotent(request, { succeeded, failed: results.length - succeeded, results }, `成功 ${succeeded} 条`);
   }),
   http.post('/api/workflows/tasks/batch-reject', async ({ request }) => {
+    const cached = readIdempotentResponse(request);
+    if (cached) return cached;
     const { taskIds, comment } = await request.json() as { taskIds: number[]; comment: string };
     const results = taskIds.map((taskId) => {
       const task = mockWorkflowTasks.find((t) => t.id === taskId);
@@ -650,7 +670,7 @@ export const workflowExtraHandlers = [
       return { taskId, success: false, message: '任务不存在或已处理' };
     });
     const succeeded = results.filter((r) => r.success).length;
-    return ok({ succeeded, failed: results.length - succeeded, results }, `成功 ${succeeded} 条`);
+    return okIdempotent(request, { succeeded, failed: results.length - succeeded, results }, `成功 ${succeeded} 条`);
   }),
 
   // ── 审批意见常用语 ──

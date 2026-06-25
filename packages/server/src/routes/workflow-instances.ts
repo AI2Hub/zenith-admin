@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
+import { idempotencyGuard } from '../middleware/idempotency';
 import { approveWorkflowTaskSchema, rejectWorkflowTaskSchema, createWorkflowInstanceWithDraftSchema, updateWorkflowInstanceSchema, transferWorkflowTaskSchema, delegateWorkflowTaskSchema, addSignWorkflowTaskSchema, reduceSignWorkflowTaskSchema, returnWorkflowTaskSchema, urgeWorkflowTaskSchema, addInstanceCcSchema, batchApproveWorkflowTaskSchema, batchRejectWorkflowTaskSchema, batchWithdrawWorkflowInstanceSchema, batchUrgeWorkflowInstanceSchema, forwardInstanceSchema, createWorkflowCommentSchema, jumpWorkflowInstanceSchema, reassignWorkflowTaskSchema, createWorkflowConsultSchema, replyWorkflowConsultSchema, recallWorkflowTaskSchema } from '@zenith/shared';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okMsg, okPaginated, IdParam, okBody, okExcel, excelStreamBody } from '../lib/openapi-schemas';
 import { WorkflowInstanceDTO, WorkflowInstanceListItemDTO, WorkflowInstanceAllDTO, WorkflowTaskDTO, WorkflowTaskUrgeDTO, WorkflowCommentDTO, WorkflowBatchActionResponseDTO, WorkflowInstanceBatchActionResponseDTO, WorkflowAnalyticsDTO, WorkflowOverdueTaskDTO, WorkflowTaskConsultDTO, WorkflowRelationOptionDTO } from '../lib/openapi-dtos';
@@ -233,7 +234,7 @@ const approveRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/tasks/{taskId}/approve', tags: ['WorkflowInstances'], summary: '审批通过',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'workflow:task:handle', audit: { description: '审批通过', module: '工作流管理' } })] as const,
+    middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10 }), guard({ permission: 'workflow:task:handle', audit: { description: '审批通过', module: '工作流管理' } })] as const,
     request: {
       params: z.object({ taskId: z.coerce.number().openapi({ param: { name: 'taskId', in: 'path' }, example: 1 }) }),
       body: { content: jsonContent(approveWorkflowTaskSchema), required: true },
@@ -260,7 +261,7 @@ const rejectRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/tasks/{taskId}/reject', tags: ['WorkflowInstances'], summary: '审批驳回',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'workflow:task:handle', audit: { description: '审批驳回', module: '工作流管理' } })] as const,
+    middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10 }), guard({ permission: 'workflow:task:handle', audit: { description: '审批驳回', module: '工作流管理' } })] as const,
     request: {
       params: z.object({ taskId: z.coerce.number().openapi({ param: { name: 'taskId', in: 'path' }, example: 1 }) }),
       body: { content: jsonContent(rejectWorkflowTaskSchema), required: true },
@@ -289,7 +290,7 @@ const transferRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/tasks/{taskId}/transfer', tags: ['WorkflowInstances'], summary: '转办',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'workflow:task:handle', audit: { description: '转办任务', module: '工作流管理' } })] as const,
+    middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10 }), guard({ permission: 'workflow:task:handle', audit: { description: '转办任务', module: '工作流管理' } })] as const,
     request: { params: taskIdParam, body: { content: jsonContent(transferWorkflowTaskSchema), required: true } },
     responses: {
       ...commonErrorResponses,
@@ -312,7 +313,7 @@ const delegateRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/tasks/{taskId}/delegate', tags: ['WorkflowInstances'], summary: '委派',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'workflow:task:handle', audit: { description: '委派任务', module: '工作流管理' } })] as const,
+    middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10 }), guard({ permission: 'workflow:task:handle', audit: { description: '委派任务', module: '工作流管理' } })] as const,
     request: { params: taskIdParam, body: { content: jsonContent(delegateWorkflowTaskSchema), required: true } },
     responses: {
       ...commonErrorResponses,
@@ -335,7 +336,7 @@ const addSignRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/tasks/{taskId}/add-sign', tags: ['WorkflowInstances'], summary: '加签',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'workflow:task:handle', audit: { description: '加签任务', module: '工作流管理' } })] as const,
+    middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10 }), guard({ permission: 'workflow:task:handle', audit: { description: '加签任务', module: '工作流管理' } })] as const,
     request: { params: taskIdParam, body: { content: jsonContent(addSignWorkflowTaskSchema), required: true } },
     responses: {
       ...commonErrorResponses,
@@ -358,7 +359,7 @@ const reduceSignRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/tasks/{taskId}/reduce-sign', tags: ['WorkflowInstances'], summary: '减签',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'workflow:task:handle', audit: { description: '减签任务', module: '工作流管理' } })] as const,
+    middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10 }), guard({ permission: 'workflow:task:handle', audit: { description: '减签任务', module: '工作流管理' } })] as const,
     request: { params: taskIdParam, body: { content: jsonContent(reduceSignWorkflowTaskSchema), required: true } },
     responses: {
       ...commonErrorResponses,
@@ -381,7 +382,7 @@ const returnRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/tasks/{taskId}/return', tags: ['WorkflowInstances'], summary: '退回',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'workflow:task:handle', audit: { description: '退回任务', module: '工作流管理' } })] as const,
+    middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10 }), guard({ permission: 'workflow:task:handle', audit: { description: '退回任务', module: '工作流管理' } })] as const,
     request: { params: taskIdParam, body: { content: jsonContent(returnWorkflowTaskSchema), required: true } },
     responses: {
       ...commonErrorResponses,
@@ -607,7 +608,7 @@ const batchApproveRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/tasks/batch-approve', tags: ['WorkflowInstances'], summary: '批量审批通过',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'workflow:task:handle', audit: { description: '批量审批通过', module: '工作流管理' } })] as const,
+    middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10 }), guard({ permission: 'workflow:task:handle', audit: { description: '批量审批通过', module: '工作流管理' } })] as const,
     request: { body: { content: jsonContent(batchApproveWorkflowTaskSchema), required: true } },
     responses: { ...commonErrorResponses, ...ok(WorkflowBatchActionResponseDTO, '批量处理完成') },
   }),
@@ -623,7 +624,7 @@ const batchRejectRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/tasks/batch-reject', tags: ['WorkflowInstances'], summary: '批量审批驳回',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'workflow:task:handle', audit: { description: '批量审批驳回', module: '工作流管理' } })] as const,
+    middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10 }), guard({ permission: 'workflow:task:handle', audit: { description: '批量审批驳回', module: '工作流管理' } })] as const,
     request: { body: { content: jsonContent(batchRejectWorkflowTaskSchema), required: true } },
     responses: { ...commonErrorResponses, ...ok(WorkflowBatchActionResponseDTO, '批量处理完成') },
   }),

@@ -21,6 +21,22 @@ function err(message: string, code = 400) {
   return HttpResponse.json({ code, message });
 }
 
+type MockApiPayload<T = unknown> = { code: number; message: string; data: T };
+const idempotencyCache = new Map<string, MockApiPayload>();
+
+function readIdempotentResponse(request: Request) {
+  const key = request.headers.get('X-Idempotency-Key');
+  const payload = key ? idempotencyCache.get(key) : undefined;
+  return payload ? HttpResponse.json(payload) : null;
+}
+
+function okIdempotent<T>(request: Request, data: T, message = 'ok') {
+  const payload: MockApiPayload<T> = { code: 0, message, data };
+  const key = request.headers.get('X-Idempotency-Key');
+  if (key) idempotencyCache.set(key, payload);
+  return HttpResponse.json(payload);
+}
+
 function cloneFormFields(fields: WorkflowFormField[] | null | undefined): WorkflowFormField[] | null {
   return fields ? JSON.parse(JSON.stringify(fields)) as WorkflowFormField[] : null;
 }
@@ -110,6 +126,27 @@ function resolveCurrentNodeName(inst: WorkflowInstance): string | null {
   if (!inst.currentNodeKey) return null;
   const def = mockWorkflowDefinitions.find((d) => d.id === inst.definitionId);
   return def?.flowData?.nodes.find((n) => n.data.key === inst.currentNodeKey)?.data.label ?? null;
+}
+
+function resolveActiveNodeKeys(instanceId: number, fallbackKey: string | null | undefined): string[] {
+  const keys = [...new Set(mockWorkflowTasks
+    .filter((task) => task.instanceId === instanceId && (task.status === 'pending' || task.status === 'waiting'))
+    .map((task) => task.nodeKey))];
+  return keys.length > 0 ? keys : (fallbackKey ? [fallbackKey] : []);
+}
+
+function withActiveNodes<T extends WorkflowInstance>(inst: T): T {
+  const currentNodeKeys = resolveActiveNodeKeys(inst.id, inst.currentNodeKey);
+  const def = mockWorkflowDefinitions.find((d) => d.id === inst.definitionId);
+  const currentNodeNames = currentNodeKeys
+    .map((key) => def?.flowData?.nodes.find((n) => n.data.key === key)?.data.label ?? null)
+    .filter((name): name is string => typeof name === 'string' && name.length > 0);
+  return {
+    ...inst,
+    currentNodeKeys,
+    currentNodeNames,
+    currentNodeName: currentNodeNames[0] ?? resolveCurrentNodeName(inst),
+  };
 }
 
 // 催办流水（内存）
@@ -375,7 +412,7 @@ export const workflowHandlers = [
 
     const total = list.length;
     const paged = list.slice((page - 1) * pageSize, page * pageSize).map(i => ({
-      ...i,
+      ...withActiveNodes(i),
       tasks: undefined, // 列表不返回 tasks
     }));
     return ok({ list: paged, total, page, pageSize });
@@ -396,7 +433,7 @@ export const workflowHandlers = [
 
     let list = pendingTaskIds.map(({ instanceId, taskId }) => {
       const inst = mockWorkflowInstances.find(i => i.id === instanceId);
-      return inst ? { ...inst, pendingTaskId: taskId, tasks: undefined } : null;
+      return inst ? { ...withActiveNodes(inst), pendingTaskId: taskId, tasks: undefined } : null;
     }).filter(Boolean) as (WorkflowInstance & { pendingTaskId: number })[];
 
     if (keyword) list = list.filter(i => i.title?.includes(keyword));
@@ -437,7 +474,7 @@ export const workflowHandlers = [
       .slice()
       .sort((a, b) => b.id - a.id)
       .slice((page - 1) * pageSize, page * pageSize)
-      .map(i => ({ ...i, currentNodeName: resolveCurrentNodeName(i), tasks: undefined }));
+      .map(i => ({ ...withActiveNodes(i), tasks: undefined }));
 
     return ok({ stats, list: paged, total, page, pageSize });
   }),
@@ -452,7 +489,7 @@ export const workflowHandlers = [
     const childInstances = mockWorkflowInstances
       .filter(i => i.parentInstanceId === inst.id)
       .map(c => ({ id: c.id, title: c.title, status: c.status, parentTaskNodeKey: null, createdAt: c.createdAt }));
-    return ok({ ...withDefinitionSnapshot(inst), tasks, childInstances });
+    return ok({ ...withDefinitionSnapshot(withActiveNodes(inst)), tasks, childInstances });
   }),
 
   // 发起流程申请（支持保存草稿 asDraft）
@@ -517,7 +554,7 @@ export const workflowHandlers = [
     mockWorkflowInstances.push(newInstance);
     for (const task of newTasks) mockWorkflowTasks.push(task);
 
-    return ok(newInstance);
+    return ok(withActiveNodes(newInstance));
   }),
 
   // 撤回流程实例
@@ -579,6 +616,8 @@ export const workflowHandlers = [
 
   // 审批通过
   http.post('/api/workflows/tasks/:taskId/approve', async ({ params, request }) => {
+    const cached = readIdempotentResponse(request);
+    if (cached) return cached;
     const body = await request.json() as { comment?: string; signature?: string; attachments?: Array<{ name: string; url: string; size?: number }>; selectedNextApprovers?: number[] };
     const taskIdx = mockWorkflowTasks.findIndex(t => t.id === Number(params.taskId));
     if (taskIdx === -1) return err('任务不存在', 404);
@@ -612,7 +651,7 @@ export const workflowHandlers = [
         createdAt: now,
       };
       mockWorkflowTasks.push(newTask);
-      return HttpResponse.json({ code: 0, message: '已提交委派回执，等待原审批人确认', data: newTask });
+      return okIdempotent(request, newTask, '已提交委派回执，等待原审批人确认');
     }
 
     mockWorkflowTasks[taskIdx] = {
@@ -644,11 +683,13 @@ export const workflowHandlers = [
       }
     }
 
-    return ok(mockWorkflowTasks[taskIdx]);
+    return okIdempotent(request, mockWorkflowTasks[taskIdx]);
   }),
 
   // 审批驳回
   http.post('/api/workflows/tasks/:taskId/reject', async ({ params, request }) => {
+    const cached = readIdempotentResponse(request);
+    if (cached) return cached;
     const body = await request.json() as { comment?: string };
     const taskIdx = mockWorkflowTasks.findIndex(t => t.id === Number(params.taskId));
     if (taskIdx === -1) return err('任务不存在', 404);
@@ -679,7 +720,7 @@ export const workflowHandlers = [
         createdAt: now,
       };
       mockWorkflowTasks.push(newTask);
-      return HttpResponse.json({ code: 0, message: '已提交委派回执，等待原审批人确认', data: newTask });
+      return okIdempotent(request, newTask, '已提交委派回执，等待原审批人确认');
     }
 
     mockWorkflowTasks[taskIdx] = {
@@ -707,7 +748,7 @@ export const workflowHandlers = [
         });
     }
 
-    return ok(mockWorkflowTasks[taskIdx]);
+    return okIdempotent(request, mockWorkflowTasks[taskIdx]);
   }),
 
   // 转办
