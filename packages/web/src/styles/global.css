@@ -388,12 +388,23 @@ body {
   }
 
   .responsive-toolbar__mobile-primary .semi-space {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap !important;
     width: 100%;
   }
 
-  .responsive-toolbar__mobile-primary .semi-input-wrapper {
-    flex: 1 1 160px;
+  .responsive-toolbar__mobile-primary .semi-space-item {
+    flex: 0 0 auto;
     min-width: 0;
+  }
+
+  .responsive-toolbar__mobile-primary .semi-space-item:first-child {
+    flex: 1 1 auto;
+  }
+
+  .responsive-toolbar__mobile-primary .semi-space-item:first-child .semi-input-wrapper {
+    width: 100% !important;
   }
 
   .responsive-toolbar__mobile-primary .semi-button {
