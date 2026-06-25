@@ -250,16 +250,15 @@ export default function MpFansPage() {
   );
   const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
   const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
-  const renderSyncActions = () => (
-    <>
-      {can('mp:fan:sync') && (
-        <Button icon={<RefreshCw size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSync()}>同步粉丝</Button>
-      )}
-      {can('mp:fan:blacklist') && (
-        <Button icon={<Ban size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSyncBlacklist()}>同步黑名单</Button>
-      )}
-    </>
-  );
+  const renderSyncActions = () => {
+    const syncButton = can('mp:fan:sync') ? (
+      <Button icon={<RefreshCw size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSync()}>同步粉丝</Button>
+    ) : null;
+    const blacklistButton = can('mp:fan:blacklist') ? (
+      <Button icon={<Ban size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSyncBlacklist()}>同步黑名单</Button>
+    ) : null;
+    return syncButton || blacklistButton ? <>{syncButton}{blacklistButton}</> : null;
+  };
 
   return (
     <div className="page-container">

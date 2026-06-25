@@ -168,12 +168,15 @@ export default function MpTemplateMessagesPage() {
   const renderTemplateRefreshButton = () => (
     <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => void fetchTemplates(1)}>刷新</Button>
   );
-  const renderTemplateActions = () => (
-    <>
-      {can('mp:template:sync') && <Button icon={<RefreshCw size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSync()}>从微信同步模板</Button>}
-      {can('mp:template:sync') && <Button icon={<Briefcase size={14} />} disabled={!currentId} onClick={() => void openIndustry()}>行业设置</Button>}
-    </>
-  );
+  const renderTemplateActions = () => {
+    if (!can('mp:template:sync')) return null;
+    return (
+      <>
+        <Button icon={<RefreshCw size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSync()}>从微信同步模板</Button>
+        <Button icon={<Briefcase size={14} />} disabled={!currentId} onClick={() => void openIndustry()}>行业设置</Button>
+      </>
+    );
+  };
   const renderLogStatusFilter = () => (
     <Select
       placeholder="状态"

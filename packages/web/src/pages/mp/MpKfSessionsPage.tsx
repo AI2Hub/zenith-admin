@@ -252,12 +252,17 @@ export default function MpKfSessionsPage() {
   const renderResetButton = () => (
     <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { setKeyword(''); keywordRef.current = ''; void fetchSessions(undefined, ''); }}>重置</Button>
   );
-  const renderSessionActions = () => (
-    <>
-      <Button icon={<RefreshCw size={14} />} onClick={refreshAll}>刷新</Button>
-      {can('mp:kf:session:config') && <Button icon={<Settings size={14} />} disabled={!currentId} onClick={() => void openConfig()}>路由配置</Button>}
-    </>
-  );
+  const renderSessionActions = () => {
+    const configButton = can('mp:kf:session:config') ? (
+      <Button icon={<Settings size={14} />} disabled={!currentId} onClick={() => void openConfig()}>路由配置</Button>
+    ) : null;
+    return (
+      <>
+        <Button icon={<RefreshCw size={14} />} onClick={refreshAll}>刷新</Button>
+        {configButton}
+      </>
+    );
+  };
 
   return (
     <div className="page-container">

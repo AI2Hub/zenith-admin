@@ -182,12 +182,15 @@ export default function MpMaterialsPage() {
   const renderCreateButton = () => can('mp:material:create') ? (
     <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增</Button>
   ) : null;
-  const renderMaterialActions = () => (
-    <>
-      {can('mp:material:sync') && <Button icon={<RefreshCw size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSync()}>从微信同步</Button>}
-      {can('mp:material:create') && <Button icon={<UploadCloud size={14} />} disabled={!currentId} onClick={() => { setUploadType('image'); setUploadName(''); setUploadVisible(true); }}>上传素材</Button>}
-    </>
-  );
+  const renderMaterialActions = () => {
+    const syncButton = can('mp:material:sync') ? (
+      <Button icon={<RefreshCw size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSync()}>从微信同步</Button>
+    ) : null;
+    const uploadButton = can('mp:material:create') ? (
+      <Button icon={<UploadCloud size={14} />} disabled={!currentId} onClick={() => { setUploadType('image'); setUploadName(''); setUploadVisible(true); }}>上传素材</Button>
+    ) : null;
+    return syncButton || uploadButton ? <>{syncButton}{uploadButton}</> : null;
+  };
 
   return (
     <div className="page-container">
