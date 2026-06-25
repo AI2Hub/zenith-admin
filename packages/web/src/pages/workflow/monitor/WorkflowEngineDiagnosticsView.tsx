@@ -74,6 +74,8 @@ const THRESHOLD_OPTIONS = [
   { label: '12 小时', value: 720 },
 ];
 
+const HEADER_TAG_STYLE = { height: 32, display: 'inline-flex', alignItems: 'center', borderRadius: 6, margin: 0 } as const;
+
 function statusTag(status: WorkflowEngineComponentStatus) {
   const meta = STATUS_META[status];
   return <Tag color={meta.color}>{meta.text}</Tag>;
@@ -356,35 +358,30 @@ export default function WorkflowEngineDiagnosticsView() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <Space wrap>
+        <Space wrap align="center">
           <div
             style={{
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
-              gap: 10,
-              padding: '10px 12px',
-              borderRadius: 8,
+              gap: 8,
+              height: 32,
+              padding: '0 12px',
+              borderRadius: 6,
               border: '1px solid var(--semi-color-border)',
               background: data.healthy ? 'var(--semi-color-success-light-default)' : 'var(--semi-color-danger-light-default)',
             }}
           >
-            {data.healthy ? <CheckCircle2 size={20} color="var(--semi-color-success)" /> : <AlertTriangle size={20} color="var(--semi-color-danger)" />}
-            <div>
-              <Typography.Text strong>{data.healthy ? '引擎状态正常' : '引擎存在严重事项'}</Typography.Text>
-              <div>
-                <Typography.Text type="tertiary" size="small">
-                  {data.generatedAt} 生成，阈值 {data.thresholdMinutes} 分钟
-                </Typography.Text>
-              </div>
-            </div>
+            {data.healthy ? <CheckCircle2 size={16} color="var(--semi-color-success)" /> : <AlertTriangle size={16} color="var(--semi-color-danger)" />}
+            <Typography.Text strong>{data.healthy ? '引擎状态正常' : '引擎存在严重事项'}</Typography.Text>
+            <Typography.Text type="tertiary" size="small">· {data.generatedAt} 生成 · 阈值 {data.thresholdMinutes} 分钟</Typography.Text>
           </div>
-          <Tag color={data.telemetry.healthScore >= 90 ? 'green' : data.telemetry.healthScore >= 70 ? 'orange' : 'red'}>健康分 {data.telemetry.healthScore}</Tag>
-          <Tag color={criticalCount > 0 ? 'red' : 'green'}>严重 {criticalCount}</Tag>
-          <Tag color={warningCount > 0 ? 'orange' : 'grey'}>警告 {warningCount}</Tag>
-          <Tag color="blue">运行实例 {data.runtime.runningInstances}</Tag>
-          <Tag color="purple">监听器 {data.eventBus.totalListenerCount}</Tag>
+          <Tag size="large" color={data.telemetry.healthScore >= 90 ? 'green' : data.telemetry.healthScore >= 70 ? 'orange' : 'red'}>健康分 {data.telemetry.healthScore}</Tag>
+          <Tag size="large" color={criticalCount > 0 ? 'red' : 'green'}>严重 {criticalCount}</Tag>
+          <Tag size="large" color={warningCount > 0 ? 'orange' : 'grey'}>警告 {warningCount}</Tag>
+          <Tag size="large" color="blue">运行实例 {data.runtime.runningInstances}</Tag>
+          <Tag size="large" color="purple">监听器 {data.eventBus.totalListenerCount}</Tag>
         </Space>
-        <Space wrap>
+        <Space wrap align="center">
           <Select
             value={thresholdMinutes}
             optionList={THRESHOLD_OPTIONS}
