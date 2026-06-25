@@ -994,89 +994,42 @@ export default function AnalyticsDataPage() {
     <div className="page-container">
       <Tabs activeKey={activeTab} onChange={(key) => setActiveTab(key as typeof activeTab)} type="line" lazyRender keepDOM={false}>
         <TabPane tab="事件明细" itemKey="events">
-          <SearchToolbar>
-            <Select
-              placeholder="事件类型"
-              value={eventSearch.eventType || undefined}
-              onChange={(value) => setEventSearch((prev) => ({ ...prev, eventType: (value as string) ?? '' }))}
-              optionList={EVENT_TYPE_OPTIONS}
-              showClear
-              style={{ width: 150 }}
-            />
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="事件名"
-              value={eventSearch.eventName}
-              onChange={(value) => setEventSearch((prev) => ({ ...prev, eventName: value }))}
-              onEnterPress={handleEventSearch}
-              showClear
-              style={{ width: 160 }}
-            />
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="用户名"
-              value={eventSearch.username}
-              onChange={(value) => setEventSearch((prev) => ({ ...prev, username: value }))}
-              onEnterPress={handleEventSearch}
-              showClear
-              style={{ width: 140 }}
-            />
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="页面路径"
-              value={eventSearch.pagePath}
-              onChange={(value) => setEventSearch((prev) => ({ ...prev, pagePath: value }))}
-              onEnterPress={handleEventSearch}
-              showClear
-              style={{ width: 180 }}
-            />
-            <Select
-              placeholder="设备"
-              value={eventSearch.deviceType || undefined}
-              onChange={(value) => setEventSearch((prev) => ({ ...prev, deviceType: (value as string) ?? '' }))}
-              optionList={DEVICE_OPTIONS}
-              showClear
-              style={{ width: 130 }}
-            />
-            <DatePicker
-              type="dateTimeRange"
-              placeholder={['开始时间', '结束时间']}
-              value={eventSearch.timeRange ?? undefined}
-              onChange={handleEventRangeChange}
-              style={{ width: 330 }}
-            />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleEventSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleEventReset}>重置</Button>
-            <SplitButtonGroup>
-              <Button type="primary" icon={<Download size={14} />} loading={exportLoading} onClick={() => void handleExport()}>导出</Button>
-              <Dropdown trigger="click" position="bottomRight" clickToHide render={(
-                <Dropdown.Menu>
-                  <Dropdown.Item onClick={() => void handleExport()}>导出 Excel</Dropdown.Item>
-                  <Dropdown.Item onClick={() => void handleExportCsv()}>导出 CSV</Dropdown.Item>
-                </Dropdown.Menu>
-              )}>
-                <Button type="primary" icon={<ChevronDown size={14} />} loading={exportCsvLoading} />
-              </Dropdown>
-            </SplitButtonGroup>
-            <SplitButtonGroup>
-              <Button type="danger" theme="light" icon={<Trash2 size={14} />} loading={cleanLoading} onClick={() => handleClean(90)}>清除数据</Button>
-              <Dropdown trigger="click" position="bottomRight" clickToHide render={(
-                <Dropdown.Menu>
-                  {CLEAN_DAY_OPTIONS.map((item) => (
-                    <Dropdown.Item
-                      key={item.value}
-                      type={item.value === 0 ? 'danger' : 'primary'}
-                      onClick={() => handleClean(item.value)}
-                    >
-                      清除{item.label === '全部' ? '全部数据' : `${item.label}前数据`}
-                    </Dropdown.Item>
-                  ))}
-                </Dropdown.Menu>
-              )}>
-                <Button type="danger" theme="light" icon={<ChevronDown size={14} />} />
-              </Dropdown>
-            </SplitButtonGroup>
-          </SearchToolbar>
+          <SearchToolbar
+            primary={(
+              <>
+                {renderEventTypeFilter()}
+                {renderEventNameSearch()}
+                {renderEventUsernameSearch()}
+                {renderEventPagePathSearch()}
+                {renderEventDeviceFilter()}
+                {renderEventTimeRangeFilter()}
+                {renderEventSearchButton()}
+                {renderEventResetButton()}
+                {renderEventExportButtons()}
+                {renderEventCleanButtons()}
+              </>
+            )}
+            mobilePrimary={(
+              <>
+                {renderEventNameSearch()}
+                {renderEventSearchButton()}
+              </>
+            )}
+            mobileFilters={(
+              <>
+                {renderEventTypeFilter()}
+                {renderEventUsernameSearch()}
+                {renderEventPagePathSearch()}
+                {renderEventDeviceFilter()}
+                {renderEventTimeRangeFilter()}
+              </>
+            )}
+            mobileActions={renderMobileEventActions()}
+            filterTitle="事件筛选"
+            actionTitle="事件操作"
+            onFilterApply={handleEventSearch}
+            onFilterReset={handleEventReset}
+          />
 
           <ConfigurableTable
             bordered
@@ -1114,37 +1067,34 @@ export default function AnalyticsDataPage() {
           </SideSheet>
         </TabPane>
         <TabPane tab="事件字典" itemKey="meta">
-          <SearchToolbar>
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="关键词"
-              value={metaSearch.keyword}
-              onChange={(value) => setMetaSearch((prev) => ({ ...prev, keyword: value }))}
-              onEnterPress={handleMetaSearch}
-              showClear
-              style={{ width: 180 }}
-            />
-            <Input
-              prefix={<Search size={14} />}
-              placeholder="分类"
-              value={metaSearch.category}
-              onChange={(value) => setMetaSearch((prev) => ({ ...prev, category: value }))}
-              onEnterPress={handleMetaSearch}
-              showClear
-              style={{ width: 140 }}
-            />
-            <Select
-              placeholder="状态"
-              value={metaSearch.status || undefined}
-              onChange={(value) => setMetaSearch((prev) => ({ ...prev, status: (value as AnalyticsEventMeta['status']) ?? '' }))}
-              optionList={META_STATUS_OPTIONS}
-              showClear
-              style={{ width: 130 }}
-            />
-            <Button type="primary" icon={<Search size={14} />} onClick={handleMetaSearch}>查询</Button>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleMetaReset}>重置</Button>
-            <Button type="primary" icon={<Plus size={14} />} onClick={openCreateMeta}>新增</Button>
-          </SearchToolbar>
+          <SearchToolbar
+            primary={(
+              <>
+                {renderMetaKeywordSearch()}
+                {renderMetaCategorySearch()}
+                {renderMetaStatusFilter()}
+                {renderMetaSearchButton()}
+                {renderMetaResetButton()}
+                {renderMetaCreateButton()}
+              </>
+            )}
+            mobilePrimary={(
+              <>
+                {renderMetaKeywordSearch()}
+                {renderMetaSearchButton()}
+                {renderMetaCreateButton()}
+              </>
+            )}
+            mobileFilters={(
+              <>
+                {renderMetaCategorySearch()}
+                {renderMetaStatusFilter()}
+              </>
+            )}
+            filterTitle="事件字典筛选"
+            onFilterApply={handleMetaSearch}
+            onFilterReset={handleMetaReset}
+          />
 
           <ConfigurableTable
             bordered
@@ -1204,10 +1154,20 @@ export default function AnalyticsDataPage() {
           </Modal>
         </TabPane>
         <TabPane tab="数据聚合" itemKey="rollup">
-          <SearchToolbar>
-            <Select value={rollupDays} onChange={handleRollupDaysChange} optionList={ROLLUP_DAY_OPTIONS} style={{ width: 130 }} />
-            <Button type="primary" loading={rollupRebuilding} onClick={() => void handleRebuildRollup()}>重建聚合</Button>
-          </SearchToolbar>
+          <SearchToolbar
+            primary={(
+              <>
+                {renderRollupDaysFilter()}
+                {renderRebuildRollupButton()}
+              </>
+            )}
+            mobilePrimary={(
+              <>
+                {renderRollupDaysFilter()}
+                {renderRebuildRollupButton()}
+              </>
+            )}
+          />
           <ConfigurableTable
             bordered
             rowKey="statDate"
