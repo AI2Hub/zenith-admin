@@ -5,6 +5,7 @@ import {
   Dropdown,
   Form,
   Input,
+  JsonViewer,
   Modal,
   Select,
   SideSheet,
@@ -14,13 +15,15 @@ import {
   TabPane,
   Tag,
   Toast,
+  Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Download, MoreHorizontal, RotateCcw, Search } from 'lucide-react';
+import { Download, FileText, MoreHorizontal, RotateCcw, Search } from 'lucide-react';
 import dayjs from 'dayjs';
-import type { WorkflowCategory, WorkflowDefinition, WorkflowInstance, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowRuntimeOutboxEvent, WorkflowTask, WorkflowTriggerExecution } from '@zenith/shared';
+import type { WorkflowApproveMethod, WorkflowAssigneeType, WorkflowCategory, WorkflowDefinition, WorkflowFlowData, WorkflowInstance, WorkflowNodeConfig, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowRuntimeOutboxEvent, WorkflowTask, WorkflowTriggerExecution } from '@zenith/shared';
+import { WORKFLOW_APPROVER_DEDUP_OPTIONS, WORKFLOW_FORM_TYPE_LABELS, resolveApproverDedupMode } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { UserAvatar } from '@/components/UserAvatar';
 import { formatDateTime } from '@/utils/date';
@@ -31,6 +34,10 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import WorkflowInstanceDetailPanel from '@/components/workflow/WorkflowInstanceDetailPanel';
+import WorkflowGraphView from '@/components/workflow/WorkflowGraphView';
+import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
+import { NODE_RT_STATUS_COLOR, NODE_RT_STATUS_LABEL } from '@/components/workflow/workflow-runtime';
+import { resolveWorkflowFlowData } from '@/utils/workflow-snapshot';
 import WorkflowAnalyticsView from './WorkflowAnalyticsView';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 import { renderEllipsis } from '../../../utils/table-columns';
@@ -60,6 +67,150 @@ const ISSUE_SOURCE_MAP: Record<WorkflowRuntimeIssue['source'], string> = {
   trigger: '触发器',
   outbox: 'Outbox',
 };
+
+/** 节点类型 → 中文标签（含网关 / 抄送 / 触发器等结构节点） */
+const NODE_TYPE_LABEL: Record<string, string> = {
+  start: '发起',
+  approve: '审批',
+  handler: '办理',
+  end: '结束',
+  exclusiveGateway: '条件分支',
+  parallelGateway: '并行分支',
+  inclusiveGateway: '包容分支',
+  routeGateway: '路由分支',
+  ccNode: '抄送',
+  delay: '延时',
+  trigger: '触发器',
+  subProcess: '子流程',
+  catchNode: '捕获',
+};
+
+/** 审批人来源类型 → 中文标签 */
+const ASSIGNEE_TYPE_LABEL: Partial<Record<WorkflowAssigneeType, string>> = {
+  user: '指定成员',
+  role: '指定角色',
+  department: '部门负责人',
+  userGroup: '用户组',
+  post: '指定岗位',
+  deptMember: '部门成员',
+  initiator: '发起人本人',
+  initiatorLeader: '发起人上级',
+  initiatorDept: '发起人部门主管',
+  startUserDeptResponsible: '部门分管领导',
+  manager: '直属主管',
+  multiLevelManager: '连续多级上级',
+  multiLevelDeptHead: '连续多级部门负责人',
+  formUser: '表单联系人',
+  formDepartment: '表单部门',
+  nodeApprover: '关联节点审批人',
+  initiatorSelect: '发起人自选',
+  initiatorSelectScope: '发起人自选(范围)',
+  approverSelect: '上节点审批人自选',
+  expression: '流程表达式',
+};
+
+/** 审批方式 → 中文标签 */
+const APPROVE_METHOD_LABEL: Partial<Record<WorkflowApproveMethod, string>> = {
+  and: '会签',
+  or: '或签',
+  sequential: '顺序会签',
+  ratio: '比例会签',
+  random: '随机',
+  auto: '自动通过',
+};
+
+/** 节点运行态（由关联任务派生） */
+type DiagNodeState = 'done' | 'active' | 'rejected' | 'idle';
+
+const NODE_STATE_MAP: Record<DiagNodeState, { text: string; color: TagColor; accent: string }> = {
+  done: { text: '已完成', color: 'green', accent: 'var(--semi-color-success)' },
+  active: { text: '进行中', color: 'blue', accent: 'var(--semi-color-primary)' },
+  rejected: { text: '已驳回', color: 'red', accent: 'var(--semi-color-danger)' },
+  idle: { text: '无任务', color: 'grey', accent: 'var(--semi-color-border)' },
+};
+
+/** 整合后的诊断节点：流程定义节点 + 关联运行时任务 + 派生状态 */
+interface DiagNode {
+  key: string;
+  name: string;
+  type: string;
+  config: WorkflowNodeConfig;
+  tasks: WorkflowTask[];
+  state: DiagNodeState;
+  isCurrent: boolean;
+}
+
+/** 提取节点配置中已静态指定的处理人名称（运行态解析的来源不在此列） */
+function getConfiguredAssigneeNames(cfg: WorkflowNodeConfig): string[] {
+  const names = [
+    ...(cfg.assigneeNames ?? []),
+    ...(cfg.assigneeName ? [cfg.assigneeName] : []),
+    ...(cfg.postNames ?? []),
+    ...(cfg.deptMemberDeptNames ?? []),
+  ].filter((name): name is string => !!name);
+  return [...new Set(names)];
+}
+
+/** 节点配置摘要项（处理人来源 / 审批方式 / 指定处理人 / 触发类型 / 子流程等），供节点列表与定义快照复用 */
+function getNodeConfigItems(cfg: WorkflowNodeConfig): Array<{ label: string; value: string }> {
+  const items: Array<{ label: string; value: string }> = [];
+  if (cfg.assigneeType && ASSIGNEE_TYPE_LABEL[cfg.assigneeType]) {
+    items.push({ label: '处理人来源', value: ASSIGNEE_TYPE_LABEL[cfg.assigneeType] as string });
+  }
+  if (cfg.approveMethod && APPROVE_METHOD_LABEL[cfg.approveMethod]) {
+    const ratio = cfg.approveMethod === 'ratio' && cfg.approveRatio ? ` ${cfg.approveRatio}%` : '';
+    items.push({ label: '审批方式', value: `${APPROVE_METHOD_LABEL[cfg.approveMethod]}${ratio}` });
+  }
+  const names = getConfiguredAssigneeNames(cfg);
+  if (names.length > 0) items.push({ label: '指定处理人', value: names.join('、') });
+  if (cfg.type === 'trigger' && cfg.triggerConfig?.triggerType) {
+    items.push({ label: '触发类型', value: String(cfg.triggerConfig.triggerType) });
+  }
+  if (cfg.type === 'subProcess' && cfg.subProcessName) {
+    items.push({ label: '子流程', value: cfg.subProcessName });
+  }
+  return items;
+}
+
+/**
+ * 整合流程定义节点（flat flowData.nodes）与运行时任务（按 nodeKey 关联）。
+ * 排序：发起节点置顶、结束节点置底，其余保持定义顺序；并派生每个节点的运行态。
+ */
+function buildDiagNodes(
+  flowData: WorkflowFlowData | null,
+  tasks: WorkflowTask[],
+  currentNodeKeys: string[],
+): DiagNode[] {
+  const flatNodes = flowData?.nodes ?? [];
+  if (flatNodes.length === 0) return [];
+  const tasksByNode = new Map<string, WorkflowTask[]>();
+  for (const task of tasks) {
+    const arr = tasksByNode.get(task.nodeKey) ?? [];
+    arr.push(task);
+    tasksByNode.set(task.nodeKey, arr);
+  }
+  const currentSet = new Set(currentNodeKeys);
+  const rank = (type: string) => (type === 'start' ? 0 : type === 'end' ? 2 : 1);
+  const ordered = [...flatNodes].sort((a, b) => rank(a.data.type) - rank(b.data.type));
+  return ordered.map((node) => {
+    const cfg = node.data;
+    const nodeTasks = (tasksByNode.get(cfg.key) ?? []).slice().sort((a, b) => a.id - b.id);
+    let state: DiagNodeState;
+    if (nodeTasks.some((t) => t.status === 'rejected')) state = 'rejected';
+    else if (nodeTasks.some((t) => t.status === 'pending' || t.status === 'waiting')) state = 'active';
+    else if (nodeTasks.some((t) => t.status === 'approved' || t.status === 'skipped')) state = 'done';
+    else state = 'idle';
+    return {
+      key: cfg.key,
+      name: cfg.label || cfg.key,
+      type: cfg.type,
+      config: cfg,
+      tasks: nodeTasks,
+      state,
+      isCurrent: currentSet.has(cfg.key),
+    };
+  });
+}
 
 /** 计算流程耗时：运行中算到当前，已结束算到最后更新时间 */
 function formatDuration(start: string, end: string): string {
@@ -153,6 +304,8 @@ export default function WorkflowMonitorPage() {
   const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
   const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
   const [diagnostics, setDiagnostics] = useState<WorkflowRuntimeDiagnostics | null>(null);
+  const [diagnosticsTab, setDiagnosticsTab] = useState('nodes');
+  const [defSnapshotVisible, setDefSnapshotVisible] = useState(false);
 
   // 流程定义（用于数据分析筛选 + 强制跳转节点选择）
   const [definitions, setDefinitions] = useState<WorkflowDefinition[]>([]);
@@ -256,6 +409,7 @@ export default function WorkflowMonitorPage() {
   const openDiagnostics = (item: WorkflowInstance) => {
     setDiagnosticsVisible(true);
     setDiagnostics(null);
+    setDiagnosticsTab('nodes');
     setDiagnosticsLoading(true);
     request.get<WorkflowRuntimeDiagnostics>(`/api/workflows/instances/${item.id}/diagnostics`)
       .then((res) => {
@@ -368,25 +522,22 @@ export default function WorkflowMonitorPage() {
     }
   };
 
-  const renderJsonBlock = (value: unknown) => (
-    <pre style={{
-      margin: 0,
-      padding: 12,
-      maxHeight: 360,
-      overflow: 'auto',
-      border: '1px solid var(--semi-color-border)',
-      borderRadius: 6,
-      background: 'var(--semi-color-fill-0)',
-      color: 'var(--semi-color-text-1)',
-      fontSize: 12,
-      lineHeight: 1.5,
-      whiteSpace: 'pre-wrap',
-      wordBreak: 'break-word',
-    }}
-    >
-      {JSON.stringify(value, null, 2)}
-    </pre>
-  );
+  const renderJsonBlock = (value: unknown) => {
+    if (value == null) {
+      return (
+        <div style={{ padding: 24, textAlign: 'center', color: 'var(--semi-color-text-2)' }}>暂无数据</div>
+      );
+    }
+    return (
+      <JsonViewer
+        value={JSON.stringify(value, null, 2)}
+        width="100%"
+        height={400}
+        showSearch
+        options={{ readOnly: true, autoWrap: true, formatOptions: { tabSize: 2 } }}
+      />
+    );
+  };
 
   const renderDiagnostics = () => {
     if (!diagnostics) return null;
@@ -425,15 +576,119 @@ export default function WorkflowMonitorPage() {
       { title: '创建时间', dataIndex: 'createdAt', width: 170 },
     ];
 
+    const inst = diagnostics.instance;
+    const flowData = resolveWorkflowFlowData(inst, null);
+    const diagNodes = buildDiagNodes(flowData, diagnostics.tasks, inst.currentNodeKeys ?? []);
+    const nodeNameByKey = new Map(diagNodes.map((n) => [n.key, n.name]));
+    const statusMeta = INSTANCE_STATUS_MAP[inst.status] ?? { text: inst.status, color: 'grey' as TagColor };
+    const currentNodeText = inst.currentNodeNames && inst.currentNodeNames.length > 0
+      ? inst.currentNodeNames.join('、')
+      : (inst.currentNodeName || '—');
+
+    const renderNodeConfigSummary = (node: DiagNode) => {
+      const items = getNodeConfigItems(node.config);
+      if (items.length === 0) return null;
+      return (
+        <div style={{ padding: '8px 12px', display: 'flex', flexWrap: 'wrap', gap: '4px 18px', borderTop: '1px solid var(--semi-color-fill-1)' }}>
+          {items.map((it) => (
+            <span key={it.label} style={{ fontSize: 12 }}>
+              <Typography.Text type="tertiary" size="small">{it.label}：</Typography.Text>
+              <Typography.Text size="small">{it.value}</Typography.Text>
+            </span>
+          ))}
+        </div>
+      );
+    };
+
+    const renderNodeTaskRow = (task: WorkflowTask) => (
+      <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderTop: '1px solid var(--semi-color-fill-1)', flexWrap: 'wrap' }}>
+        <Typography.Text type="tertiary" size="small" style={{ width: 44 }}>#{task.id}</Typography.Text>
+        <Tag size="small" color={NODE_RT_STATUS_COLOR[task.status]}>{NODE_RT_STATUS_LABEL[task.status]}</Tag>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 110 }}>
+          <UserAvatar name={task.assigneeName || '未指定'} avatar={task.assigneeAvatar} size={20} />
+          <Typography.Text size="small">{task.assigneeName || '未指定'}</Typography.Text>
+        </span>
+        <Typography.Text type="tertiary" size="small">{task.actionAt || task.createdAt}</Typography.Text>
+        {task.comment && (
+          <Typography.Text size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 220 }}>
+            “{task.comment}”
+          </Typography.Text>
+        )}
+        {task.externalDispatchStatus && <Tag size="small" color="grey">外部 {task.externalDispatchStatus}</Tag>}
+        {task.triggerDispatchStatus && <Tag size="small" color="grey">触发 {task.triggerDispatchStatus}</Tag>}
+      </div>
+    );
+
+    const renderNodes = () => {
+      if (diagNodes.length === 0) {
+        return (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--semi-color-text-2)' }}>
+            无流程定义节点数据（缺少流程定义快照）
+          </div>
+        );
+      }
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {diagNodes.map((node) => {
+            const stateMeta = NODE_STATE_MAP[node.state];
+            const typeLabel = NODE_TYPE_LABEL[node.type] ?? node.type;
+            return (
+              <div key={node.key} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: 'var(--semi-color-fill-0)', flexWrap: 'wrap' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: stateMeta.accent, flexShrink: 0 }} />
+                  <Tag size="small" color="grey" type="light">{typeLabel}</Tag>
+                  <Typography.Text strong>{node.name}</Typography.Text>
+                  <Typography.Text type="tertiary" size="small">{node.key}</Typography.Text>
+                  {node.isCurrent && <Tag size="small" color="light-blue">当前</Tag>}
+                  <span style={{ flex: 1 }} />
+                  <Tag size="small" color={stateMeta.color}>{stateMeta.text}</Tag>
+                  <Typography.Text type="tertiary" size="small">{node.tasks.length} 个任务</Typography.Text>
+                </div>
+                {renderNodeConfigSummary(node)}
+                {node.tasks.length > 0 ? (
+                  <div>{node.tasks.map(renderNodeTaskRow)}</div>
+                ) : (
+                  <div style={{ padding: '8px 12px', borderTop: '1px dashed var(--semi-color-border)' }}>
+                    <Typography.Text type="tertiary" size="small">该节点暂未生成运行时任务</Typography.Text>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-          <div><Typography.Text type="tertiary" size="small">实例 ID</Typography.Text><div>#{diagnostics.instance.id}</div></div>
-          <div><Typography.Text type="tertiary" size="small">定义 ID</Typography.Text><div>#{diagnostics.instance.definitionId}</div></div>
-          <div><Typography.Text type="tertiary" size="small">Business Key</Typography.Text><div>{diagnostics.instance.bizType && diagnostics.instance.bizId ? `${diagnostics.instance.bizType}:${diagnostics.instance.bizId}` : '—'}</div></div>
-          <div><Typography.Text type="tertiary" size="small">活动任务</Typography.Text><div>{diagnostics.activeTasks.length}</div></div>
-          <div><Typography.Text type="tertiary" size="small">任务总数</Typography.Text><div>{diagnostics.tasks.length}</div></div>
-          <div><Typography.Text type="tertiary" size="small">生成时间</Typography.Text><div>{diagnostics.generatedAt}</div></div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+            <div><Typography.Text type="tertiary" size="small">流程名称</Typography.Text><div>{inst.definitionName || '—'}</div></div>
+            <div><Typography.Text type="tertiary" size="small">状态</Typography.Text><div><Tag color={statusMeta.color}>{statusMeta.text}</Tag></div></div>
+            <div><Typography.Text type="tertiary" size="small">当前节点</Typography.Text><div>{currentNodeText}</div></div>
+            <div>
+              <Typography.Text type="tertiary" size="small">发起人</Typography.Text>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                {inst.initiatorName ? <UserAvatar name={inst.initiatorName} avatar={inst.initiatorAvatar} size={20} /> : null}
+                <span>{inst.initiatorName || '—'}</span>
+              </div>
+            </div>
+            <div><Typography.Text type="tertiary" size="small">实例 ID</Typography.Text><div>#{inst.id}</div></div>
+            <div><Typography.Text type="tertiary" size="small">定义 ID</Typography.Text><div>#{inst.definitionId}</div></div>
+            <div><Typography.Text type="tertiary" size="small">Business Key</Typography.Text><div>{inst.bizType && inst.bizId ? `${inst.bizType}:${inst.bizId}` : '—'}</div></div>
+            <div><Typography.Text type="tertiary" size="small">节点 / 任务</Typography.Text><div>{diagNodes.length} 节点 · {diagnostics.tasks.length} 任务（{diagnostics.activeTasks.length} 活动）</div></div>
+            <div><Typography.Text type="tertiary" size="small">生成时间</Typography.Text><div>{diagnostics.generatedAt}</div></div>
+          </div>
+          <Tooltip content="查看该实例发起时的完整流程定义快照（基本信息 / 表单设计 / 流程图 / 节点配置 / 高级设置），即实例实际执行依据，而非最新版本。">
+            <Button
+              theme="borderless"
+              size="small"
+              icon={<FileText size={14} />}
+              onClick={() => setDefSnapshotVisible(true)}
+            >
+              查看流程定义
+            </Button>
+          </Tooltip>
         </div>
 
         <div>
@@ -447,7 +702,7 @@ export default function WorkflowMonitorPage() {
                     <Tag color={meta.color}>{meta.text}</Tag>
                     <Tag color="grey">{ISSUE_SOURCE_MAP[issue.source]}</Tag>
                     {issue.taskId != null && <Typography.Text type="tertiary">task #{issue.taskId}</Typography.Text>}
-                    {issue.nodeKey && <Typography.Text type="tertiary">{issue.nodeKey}</Typography.Text>}
+                    {issue.nodeKey && <Typography.Text type="tertiary">{nodeNameByKey.get(issue.nodeKey) ?? issue.nodeKey}</Typography.Text>}
                   </Space>
                   <div style={{ marginTop: 6 }}><Typography.Text strong>{issue.title}</Typography.Text></div>
                   <Typography.Text type="tertiary" size="small">{issue.description}</Typography.Text>
@@ -457,7 +712,15 @@ export default function WorkflowMonitorPage() {
           </Space>
         </div>
 
-        <Tabs type="line">
+        <Tabs type="line" activeKey={diagnosticsTab} onChange={setDiagnosticsTab}>
+          <TabPane tab={`节点 ${diagNodes.length}`} itemKey="nodes">
+            <div style={{ marginBottom: 10 }}>
+              <Typography.Text type="tertiary" size="small">
+                节点来自发起时的流程定义快照，已与运行时任务按节点关联；一个节点可对应 0 到多个任务。
+              </Typography.Text>
+            </div>
+            {renderNodes()}
+          </TabPane>
           <TabPane tab={`任务 ${diagnostics.tasks.length}`} itemKey="tasks">
             <ConfigurableTable bordered columns={taskColumns} dataSource={diagnostics.tasks} rowKey="id" pagination={false} scroll={{ x: 1270 }} />
           </TabPane>
@@ -467,11 +730,142 @@ export default function WorkflowMonitorPage() {
           <TabPane tab={`Outbox ${diagnostics.outboxEvents.length}`} itemKey="outbox">
             <ConfigurableTable bordered columns={outboxColumns} dataSource={diagnostics.outboxEvents} rowKey="id" pagination={false} scroll={{ x: 1080 }} />
           </TabPane>
-          <TabPane tab="FormData" itemKey="formData">
+          <TabPane tab="流程图" itemKey="graph">
+            <div style={{ marginBottom: 10 }}>
+              <Typography.Text type="tertiary" size="small">
+                基于发起时的流程定义快照，叠加运行时任务状态（驳回回退轨迹会高亮提示）。
+              </Typography.Text>
+            </div>
+            <WorkflowGraphView flowData={flowData} tasks={diagnostics.tasks} instanceStatus={inst.status} />
+          </TabPane>
+          <TabPane tab="表单数据" itemKey="formData">
             {renderJsonBlock(diagnostics.snapshot.formData)}
           </TabPane>
           <TabPane tab="定义快照" itemKey="definitionSnapshot">
             {renderJsonBlock(diagnostics.snapshot.definitionSnapshot)}
+          </TabPane>
+        </Tabs>
+      </div>
+    );
+  };
+
+  const renderDefinitionSnapshot = () => {
+    const snap = diagnostics?.instance.definitionSnapshot ?? null;
+    if (!snap) {
+      return (
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--semi-color-text-2)' }}>无流程定义快照数据</div>
+      );
+    }
+    const flowData = snap.flowData ?? null;
+    const settings = flowData?.settings ?? null;
+    const flatNodes = flowData?.nodes ?? [];
+    const rank = (type: string) => (type === 'start' ? 0 : type === 'end' ? 2 : 1);
+    const orderedNodes = [...flatNodes].sort((a, b) => rank(a.data.type) - rank(b.data.type));
+
+    const renderFormDesign = () => {
+      if (snap.formType === 'designer') {
+        const fields = snap.formFields ?? [];
+        if (fields.length === 0) {
+          return <div style={{ padding: 32, textAlign: 'center', color: 'var(--semi-color-text-2)' }}>暂无表单字段</div>;
+        }
+        return <WorkflowFormRenderer fields={fields} readOnly labelPosition="top" style={{ padding: '4px 2px' }} />;
+      }
+      return (
+        <div style={{ padding: 32, textAlign: 'center', color: 'var(--semi-color-text-2)' }}>
+          {WORKFLOW_FORM_TYPE_LABELS[snap.formType] ?? snap.formType}
+          {snap.formName ? `：${snap.formName}` : ''}（无可视化表单字段）
+        </div>
+      );
+    };
+
+    const renderSettings = () => {
+      if (!settings) {
+        return <div style={{ padding: 32, textAlign: 'center', color: 'var(--semi-color-text-2)' }}>无高级设置</div>;
+      }
+      const dedupMode = resolveApproverDedupMode(settings);
+      const dedupLabel = WORKFLOW_APPROVER_DEDUP_OPTIONS.find((o) => o.value === dedupMode)?.label ?? dedupMode;
+      const items: Array<{ label: string; value: string }> = [
+        { label: '允许撤回', value: settings.allowWithdraw ? '是' : '否' },
+        { label: '允许驳回后重新提交', value: settings.allowResubmit ? '是' : '否' },
+        { label: '流程结束后通知发起人', value: settings.notifyInitiator ? '是' : '否' },
+        { label: '允许流程中评论', value: settings.allowComment !== false ? '是' : '否' },
+        { label: '自动去重', value: dedupLabel },
+      ];
+      if (settings.serialNo?.enabled) {
+        const s = settings.serialNo;
+        items.push({ label: '业务编号', value: `前缀「${s.prefix ?? ''}」· 日期 ${s.dateFormat ?? 'none'} · 序号 ${s.seqLength ?? 4} 位 · 重置 ${s.resetPeriod ?? 'never'}` });
+      }
+      const channels: string[] = ['站内信'];
+      if (settings.notifyChannels?.email) channels.push('邮件');
+      if (settings.notifyChannels?.sms) channels.push('短信');
+      items.push({ label: '通知渠道', value: channels.join('、') });
+      return (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+          {items.map((it) => (
+            <div key={it.label}>
+              <Typography.Text type="tertiary" size="small">{it.label}</Typography.Text>
+              <div>{it.value}</div>
+            </div>
+          ))}
+        </div>
+      );
+    };
+
+    const renderNodeConfigList = () => {
+      if (orderedNodes.length === 0) {
+        return <div style={{ padding: 32, textAlign: 'center', color: 'var(--semi-color-text-2)' }}>无节点数据</div>;
+      }
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {orderedNodes.map((node) => {
+            const cfg = node.data;
+            const items = getNodeConfigItems(cfg);
+            const typeLabel = NODE_TYPE_LABEL[cfg.type] ?? cfg.type;
+            return (
+              <div key={cfg.key} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: 'var(--semi-color-fill-0)', flexWrap: 'wrap' }}>
+                  <Tag size="small" color="grey" type="light">{typeLabel}</Tag>
+                  <Typography.Text strong>{cfg.label || cfg.key}</Typography.Text>
+                  <Typography.Text type="tertiary" size="small">{cfg.key}</Typography.Text>
+                </div>
+                {items.length > 0 && (
+                  <div style={{ padding: '8px 12px', display: 'flex', flexWrap: 'wrap', gap: '4px 18px', borderTop: '1px solid var(--semi-color-fill-1)' }}>
+                    {items.map((it) => (
+                      <span key={it.label} style={{ fontSize: 12 }}>
+                        <Typography.Text type="tertiary" size="small">{it.label}：</Typography.Text>
+                        <Typography.Text size="small">{it.value}</Typography.Text>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+          <div><Typography.Text type="tertiary" size="small">流程名称</Typography.Text><div>{snap.name || '—'}</div></div>
+          <div><Typography.Text type="tertiary" size="small">版本</Typography.Text><div>v{snap.version ?? '—'}</div></div>
+          <div><Typography.Text type="tertiary" size="small">分类</Typography.Text><div>{snap.categoryName || '—'}</div></div>
+          <div><Typography.Text type="tertiary" size="small">表单类型</Typography.Text><div>{WORKFLOW_FORM_TYPE_LABELS[snap.formType] ?? snap.formType}</div></div>
+          <div style={{ gridColumn: '1 / -1' }}><Typography.Text type="tertiary" size="small">描述</Typography.Text><div>{snap.description || '—'}</div></div>
+        </div>
+        <Tabs type="line">
+          <TabPane tab="流程图" itemKey="def-graph">
+            <WorkflowGraphView flowData={flowData} />
+          </TabPane>
+          <TabPane tab="表单设计" itemKey="def-form">
+            {renderFormDesign()}
+          </TabPane>
+          <TabPane tab={`节点配置 ${orderedNodes.length}`} itemKey="def-nodes">
+            {renderNodeConfigList()}
+          </TabPane>
+          <TabPane tab="高级设置" itemKey="def-settings">
+            {renderSettings()}
           </TabPane>
         </Tabs>
       </div>
@@ -767,13 +1161,24 @@ export default function WorkflowMonitorPage() {
       <SideSheet
         title="运行时诊断"
         visible={diagnosticsVisible}
-        onCancel={() => { setDiagnosticsVisible(false); setDiagnostics(null); }}
+        onCancel={() => { setDiagnosticsVisible(false); setDiagnostics(null); setDefSnapshotVisible(false); }}
         width={980}
         bodyStyle={{ padding: 16 }}
       >
         {diagnosticsLoading ? (
           <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
         ) : renderDiagnostics()}
+      </SideSheet>
+
+      <SideSheet
+        title="流程定义快照（发起时）"
+        visible={defSnapshotVisible}
+        onCancel={() => setDefSnapshotVisible(false)}
+        width={860}
+        zIndex={1061}
+        bodyStyle={{ padding: 16 }}
+      >
+        {defSnapshotVisible ? renderDefinitionSnapshot() : null}
       </SideSheet>
 
       {/* 管理员：强制跳转节点 */}
