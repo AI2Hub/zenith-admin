@@ -184,6 +184,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [isMobileNav, setIsMobileNav] = useState(false);
   const [mobileNavVisible, setMobileNavVisible] = useState(false);
+  const [mobileMoreVisible, setMobileMoreVisible] = useState(false);
   const [menuTree, setMenuTree] = useState<Menu[]>(presetMenus || []);
 
   const flatMenus = useMemo<FlatMenuItem[]>(() => {
@@ -224,7 +225,10 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
     };
     const handleMobile = (e: MediaQueryList | MediaQueryListEvent) => {
       setIsMobileNav(e.matches);
-      if (!e.matches) setMobileNavVisible(false);
+      if (!e.matches) {
+        setMobileNavVisible(false);
+        setMobileMoreVisible(false);
+      }
     };
 
     handleLg(lgMq);
@@ -911,6 +915,9 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
   };
 
   const outletRefreshKey = `${location.pathname}:${tabRefreshVersion[location.pathname] ?? 0}`;
+  const recentMenus = recents
+    .map((id) => flatMenus.find((m) => m.id === id))
+    .filter((menu): menu is FlatMenuItem => Boolean(menu));
 
   // ─── Render wrappers ──────────────────────────────────────────────────────
 
@@ -1025,6 +1032,129 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
     [location.pathname],
   );
 
+  const mobileQuickPagesPanel = (
+    <div className="mobile-quick-pages-panel">
+      <div className="mobile-quick-pages-section">
+        <div className="mobile-quick-pages-section__header">
+          <span>已打开页面</span>
+          <span>{tabs.length}</span>
+        </div>
+        {tabs.length === 0 ? (
+          <div className="mobile-quick-pages-empty">暂无打开页面</div>
+        ) : (
+          <div className="mobile-quick-pages-list">
+            {tabs.map((tab) => {
+              const isActive = tab.key === activeKey;
+              const iconName = tab.icon ?? pathIconMap[tab.key];
+              return (
+                <div key={tab.key} className={`mobile-quick-pages-item${isActive ? ' mobile-quick-pages-item--active' : ''}`}>
+                  <button
+                    type="button"
+                    className="mobile-quick-pages-item__main"
+                    onClick={() => {
+                      setMobileMoreVisible(false);
+                      handleTabChange(tab.key);
+                    }}
+                  >
+                    {iconName && (
+                      <span className="mobile-quick-pages-item__icon">{renderLucideIcon(iconName, 14)}</span>
+                    )}
+                    <span className="mobile-quick-pages-item__title">{tab.title}</span>
+                  </button>
+                  {tab.closable && (
+                    <Button
+                      icon={<X size={13} />}
+                      theme="borderless"
+                      type="tertiary"
+                      size="small"
+                      aria-label={`关闭${tab.title}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTabClose(tab.key);
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="mobile-quick-pages-section">
+        <div className="mobile-quick-pages-section__header">
+          <span>最近访问</span>
+          {recentMenus.length > 0 && (
+            <button type="button" onClick={clearRecents}>清空</button>
+          )}
+        </div>
+        {recentMenus.length === 0 ? (
+          <div className="mobile-quick-pages-empty">暂无记录</div>
+        ) : (
+          <div className="mobile-quick-pages-list">
+            {recentMenus.map((menu) => (
+              <div key={menu.id} className="mobile-quick-pages-item">
+                <button
+                  type="button"
+                  className="mobile-quick-pages-item__main"
+                  onClick={() => {
+                    setMobileMoreVisible(false);
+                    navigate(menu.path);
+                  }}
+                >
+                  <span className="mobile-quick-pages-item__icon"><Clock size={14} /></span>
+                  <span className="mobile-quick-pages-item__title">{menu.title}</span>
+                  <span className="mobile-quick-pages-item__meta">{menu.breadcrumb.at(-1) ?? ''}</span>
+                </button>
+                <Button
+                  icon={<X size={13} />}
+                  theme="borderless"
+                  type="tertiary"
+                  size="small"
+                  aria-label={`移除${menu.title}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeRecent(menu.id);
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="mobile-quick-pages-section mobile-quick-pages-section--compact">
+        <Dropdown.Menu>
+          <Dropdown.Item
+            icon={<Megaphone size={14} strokeWidth={1.5} />}
+            onClick={() => {
+              setMobileMoreVisible(false);
+              navigate('/announcements');
+            }}
+          >
+            公告中心{announcementUnreadCount > 0 && <Badge count={announcementUnreadCount} overflowCount={99} style={{ marginLeft: 6 }} />}
+          </Dropdown.Item>
+          <Dropdown.Item
+            icon={<Bell size={14} strokeWidth={1.5} />}
+            onClick={() => {
+              setMobileMoreVisible(false);
+              navigate('/inbox');
+            }}
+          >
+            我的消息{unreadCount > 0 && <Badge count={unreadCount} overflowCount={99} style={{ marginLeft: 6 }} />}
+          </Dropdown.Item>
+          <Dropdown.Divider />
+          <Dropdown.Title>颜色模式</Dropdown.Title>
+          {(['light', 'dark', 'system'] as ThemeMode[]).map((m) => (
+            <Dropdown.Item key={m} icon={themeLabelMap[m].icon} active={mode === m} onClick={() => { handleThemeModeChange(m); setMobileMoreVisible(false); }}>
+              {themeLabelMap[m].label}
+            </Dropdown.Item>
+          ))}
+        </Dropdown.Menu>
+      </div>
+    </div>
+  );
+
   // ─── Header actions (reused in both topbar and vertical header) ────────────
   const headerActions = (
     <div className="admin-header__actions">
@@ -1046,7 +1176,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
                 </button>
               )}
             </div>
-            {recents.length === 0 ? (
+            {recentMenus.length === 0 ? (
               <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--semi-color-text-2)', fontSize: 13 }}>
                 暂无记录
               </div>
@@ -1054,7 +1184,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
               <div style={{ overflow: 'auto', flex: 1 }}>
                 <List
                   size="small"
-                  dataSource={recents.map((id) => flatMenus.find((m) => m.id === id)).filter(Boolean)}
+                  dataSource={recentMenus}
                   renderItem={(menu) => (
                     <List.Item
                       style={{ padding: '0 4px 0 0' }}
@@ -1339,7 +1469,10 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
       <div className="admin-header-action admin-header-action--more">
         <Dropdown
           position="bottomRight"
-          render={
+          visible={isMobileNav ? mobileMoreVisible : undefined}
+          onVisibleChange={isMobileNav ? setMobileMoreVisible : undefined}
+          clickToHide
+          render={isMobileNav ? mobileQuickPagesPanel : (
             <Dropdown.Menu>
               <Dropdown.Item
                 icon={<Megaphone size={14} strokeWidth={1.5} />}
@@ -1361,9 +1494,9 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
                 </Dropdown.Item>
               ))}
             </Dropdown.Menu>
-          }
+          )}
         >
-          <button className="admin-theme-btn" title="更多">
+          <button className="admin-theme-btn" title={isMobileNav ? '页面与更多' : '更多'}>
             <MoreHorizontal size={16} strokeWidth={1.5} />
           </button>
         </Dropdown>
