@@ -2,49 +2,63 @@ import { and, eq, isNotNull } from 'drizzle-orm';
 import { db } from '../db';
 import { workflowTasks } from '../db/schema';
 import logger from './logger';
+import { deleteSystemJob, registerSystemQueueWorker, sendSystemJobAfter } from './pg-boss-scheduler';
 
-/** 单次 setTimeout 最大延时（24h），超过分段重排 */
-const MAX_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+const DELAY_QUEUE = 'workflow-delay-wakeup';
 
-const timers = new Map<number, NodeJS.Timeout>();
-
-function clearTimer(taskId: number) {
-  const t = timers.get(taskId);
-  if (t) {
-    clearTimeout(t);
-    timers.delete(taskId);
-  }
+interface DelayWakeJob {
+  taskId: number;
 }
 
-function scheduleAt(taskId: number, wakeAt: Date) {
-  clearTimer(taskId);
-  const remaining = wakeAt.getTime() - Date.now();
-  const delay = Math.max(0, Math.min(remaining, MAX_TIMEOUT_MS));
-  const t = setTimeout(() => {
-    timers.delete(taskId);
-    if (remaining > MAX_TIMEOUT_MS) {
-      scheduleAt(taskId, wakeAt);
-      return;
-    }
-    void fireWake(taskId);
-  }, delay);
-  timers.set(taskId, t);
+function jobId(taskId: number): string {
+  return `workflow-delay-${taskId}`;
 }
 
-function cancelScheduled(taskId: number) {
-  clearTimer(taskId);
+function scheduleAt(taskId: number, wakeAt: Date): void {
+  void sendSystemJobAfter<DelayWakeJob>(
+    DELAY_QUEUE,
+    { taskId },
+    wakeAt,
+    {
+      id: jobId(taskId),
+      singletonKey: jobId(taskId),
+      retryLimit: 3,
+      retryDelay: 60,
+      retryBackoff: true,
+      expireInSeconds: 300,
+      retentionSeconds: 60 * 60 * 24 * 7,
+    },
+  ).catch((err) => {
+    logger.error('Delay scheduler: failed to enqueue wake job', { taskId, wakeAt, err });
+  });
 }
 
-async function fireWake(taskId: number) {
-  try {
-    const { resumeDelayTask } = await import('../services/workflow-resume.service');
-    await resumeDelayTask(taskId);
-  } catch (err) {
-    logger.error(`Delay scheduler: failed to wake task ${taskId}`, err);
-  }
+function cancelScheduled(taskId: number): void {
+  void deleteSystemJob(DELAY_QUEUE, jobId(taskId)).catch((err) => {
+    logger.warn('Delay scheduler: failed to delete wake job', { taskId, err });
+  });
 }
 
-async function initialize() {
+async function initialize(): Promise<void> {
+  await registerSystemQueueWorker<DelayWakeJob>(
+    DELAY_QUEUE,
+    async ({ taskId }) => {
+      const { resumeDelayTask } = await import('../services/workflow-resume.service');
+      const resumed = await resumeDelayTask(taskId);
+      if (!resumed) {
+        logger.info('Delay scheduler: wake job skipped because task is no longer waiting', { taskId });
+      }
+    },
+    {
+      retentionSeconds: 60 * 60 * 24 * 7,
+      deleteAfterSeconds: 60 * 60 * 24 * 7,
+      retryLimit: 3,
+      retryDelay: 60,
+      retryBackoff: true,
+      expireInSeconds: 300,
+    },
+  );
+
   const rows = await db.select({ id: workflowTasks.id, wakeAt: workflowTasks.wakeAt }).from(workflowTasks)
     .where(and(
       eq(workflowTasks.status, 'waiting'),
@@ -54,7 +68,7 @@ async function initialize() {
   for (const row of rows) {
     if (row.wakeAt) scheduleAt(row.id, row.wakeAt);
   }
-  logger.info(`Delay scheduler initialized: ${rows.length} pending delay task(s) scheduled`);
+  logger.info(`Delay scheduler initialized: ${rows.length} pending delay task(s) enqueued to pg-boss`);
 }
 
 export const delayScheduler = { initialize, scheduleAt, cancelScheduled };

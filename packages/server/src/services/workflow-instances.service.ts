@@ -76,6 +76,8 @@ export function mapInstance(
     tenantId: row.tenantId,
     parentInstanceId: row.parentInstanceId ?? null,
     parentTaskId: row.parentTaskId ?? null,
+    parentTaskItemKey: row.parentTaskItemKey ?? null,
+    parentTaskItemIndex: row.parentTaskItemIndex ?? null,
     bizType: row.bizType ?? null,
     bizId: row.bizId ?? null,
     childInstances: extras.childInstances ?? null,
@@ -200,7 +202,7 @@ function assertLaunchMatchesFormType(
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
-import { count, countDistinct, eq, ne, and, desc, ilike, or, inArray, sql, isNotNull, gt } from 'drizzle-orm';
+import { count, countDistinct, eq, ne, and, desc, ilike, or, inArray, sql, gt } from 'drizzle-orm';
 import { escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { pageOffset } from '../lib/pagination';
@@ -215,7 +217,7 @@ import { currentUser } from '../lib/context';
 import { resolveAssigneeIds, buildStarterContext } from './workflow-assignee-resolver.service';
 import { resolveFormSnapshot } from './workflow-forms.service';
 import type { DbExecutor } from '../db/types';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { delayScheduler } from '../lib/delay-scheduler';
 import { computeTimeoutAt } from '../lib/workflow-timeout';
 import { workflowEventBus } from '../lib/workflow-event-bus';
@@ -223,6 +225,7 @@ import { generateSerialNo } from './workflow-serial.service';
 import { resolveActiveDelegate } from './workflow-delegations.service';
 import { loadInstanceCommentsForDetail } from './workflow-comments.service';
 import { loadInstanceConsultsForDetail } from './workflow-consults.service';
+import { isPgUniqueViolation } from '../lib/db-errors';
 import dayjs from 'dayjs';
 import logger from '../lib/logger';
 
@@ -458,6 +461,22 @@ export function buildChildFormData(
   return out;
 }
 
+function stableStringify(value: unknown): string {
+  if (value == null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, val]) => `${JSON.stringify(key)}:${stableStringify(val)}`);
+  return `{${entries.join(',')}}`;
+}
+
+function buildSubProcessItemKey(parentTaskId: number, index: number, item: unknown): string {
+  const digest = createHash('sha256')
+    .update(`${parentTaskId}:${index}:${stableStringify(item)}`)
+    .digest('hex');
+  return digest.slice(0, 64);
+}
+
 /** 从实例的 definitionSnapshot 中按 nodeKey 解析节点配置 */
 function snapshotNodeCfg(
   inst: typeof workflowInstances.$inferSelect,
@@ -465,6 +484,18 @@ function snapshotNodeCfg(
 ): TaskAction['nodeConfig'] | null {
   return (inst.definitionSnapshot as { flowData?: WorkflowFlowData } | null)?.flowData?.nodes
     .find((n) => n.data.key === nodeKey)?.data ?? null;
+}
+
+function findExceptionCatchNode(flowData: WorkflowFlowData, nodeKey: string): TaskAction['nodeConfig'] | null {
+  const source = flowData.nodes.find((n) => n.data.key === nodeKey);
+  if (!source) return null;
+  for (const edge of flowData.edges) {
+    if (edge.source !== source.id) continue;
+    const target = flowData.nodes.find((n) => n.id === edge.target);
+    if (!target) continue;
+    if (edge.isException || target.data.type === 'catchNode') return target.data;
+  }
+  return null;
 }
 
 /** 查找已发布的子流程定义 */
@@ -517,6 +548,7 @@ async function createChildInstanceAndMaterialize(
   childInitiatorId: number,
   childTitle: string,
   actor: WorkflowEventActor,
+  opts?: { itemKey?: string; itemIndex?: number },
 ): Promise<typeof workflowInstances.$inferSelect> {
   const flowData = def.flowData as WorkflowFlowData;
   assertLaunchMatchesFormType(def, {});
@@ -538,6 +570,8 @@ async function createChildInstanceAndMaterialize(
       tenantId: parentInst.tenantId,
       parentInstanceId: parentInst.id,
       parentTaskId: parentTask.id,
+      parentTaskItemKey: opts?.itemKey ?? null,
+      parentTaskItemIndex: opts?.itemIndex ?? null,
     }).returning();
     const materialized = await materializeAdvanceResult(initialResult, {
       instanceId: created.id,
@@ -607,20 +641,59 @@ async function spawnSingleSubProcessChild(
 ): Promise<void> {
   const def = await loadPublishedSubProcessDef(nodeCfg.subProcessId);
   if (!def) {
-    if (!opts?.detached) await rejectTaskCore(parentTask, parentInst, '子流程定义不存在或未发布', actor);
+    if (!opts?.detached) {
+      const handled = await handleNodeExecutionError({
+        instance: parentInst,
+        task: parentTask,
+        nodeKey: parentTask.nodeKey,
+        nodeName: parentTask.nodeName,
+        errorMessage: '子流程定义不存在或未发布',
+        actor,
+      });
+      if (!handled) await rejectTaskCore(parentTask, parentInst, '子流程定义不存在或未发布', actor);
+    }
     else logger.warn('[subProcess] async child def missing', { parentInstanceId: parentInst.id, subProcessId: nodeCfg.subProcessId });
     return;
   }
   const validation = validateFlowData(def.flowData as WorkflowFlowData);
   if (!validation.valid) {
-    if (!opts?.detached) await rejectTaskCore(parentTask, parentInst, `子流程定义无效：${validation.errors[0]}`, actor);
+    if (!opts?.detached) {
+      const message = `子流程定义无效：${validation.errors[0]}`;
+      const handled = await handleNodeExecutionError({
+        instance: parentInst,
+        task: parentTask,
+        nodeKey: parentTask.nodeKey,
+        nodeName: parentTask.nodeName,
+        errorMessage: message,
+        actor,
+      });
+      if (!handled) await rejectTaskCore(parentTask, parentInst, message, actor);
+    }
     return;
   }
   const parentFormData = (parentInst.formData ?? {}) as Record<string, unknown>;
   const childFormData = buildChildFormData(nodeCfg.subProcessFieldMapping, parentFormData);
   const childInitiatorId = await resolveChildInitiator(nodeCfg, parentInst);
   const childTitle = `${parentInst.title} / ${nodeCfg.label ?? nodeCfg.subProcessName ?? '子流程'}`;
-  const childInst = await createChildInstanceAndMaterialize(parentInst, parentTask, def, childFormData, childInitiatorId, childTitle, actor);
+  let childInst: typeof workflowInstances.$inferSelect;
+  try {
+    childInst = await createChildInstanceAndMaterialize(parentInst, parentTask, def, childFormData, childInitiatorId, childTitle, actor);
+  } catch (err) {
+    if (!opts?.detached) {
+      const handled = await handleNodeExecutionError({
+        instance: parentInst,
+        task: parentTask,
+        nodeKey: parentTask.nodeKey,
+        nodeName: parentTask.nodeName,
+        errorMessage: err instanceof Error ? err.message : String(err),
+        actor,
+      });
+      if (!handled) await rejectTaskCore(parentTask, parentInst, '子流程发起失败', actor);
+    } else {
+      logger.error('[subProcess] async single child failed', { parentInstanceId: parentInst.id, taskId: parentTask.id, err });
+    }
+    return;
+  }
   if (opts?.detached) return;
   if (childInst.status === 'approved') {
     emitInstanceEvent('instance.approved', mapInstance(childInst), actor);
@@ -649,13 +722,27 @@ async function spawnMultiInstanceChild(
   index: number,
   childInitiatorId: number,
   actor: WorkflowEventActor,
-): Promise<void> {
+): Promise<typeof workflowInstances.$inferSelect | null> {
   const item = items[index];
+  const itemKey = buildSubProcessItemKey(parentTask.id, index, item);
+  const [existing] = await db.select().from(workflowInstances)
+    .where(and(eq(workflowInstances.parentTaskId, parentTask.id), eq(workflowInstances.parentTaskItemKey, itemKey)))
+    .limit(1);
+  if (existing) return null;
   const parentFormData = (parentInst.formData ?? {}) as Record<string, unknown>;
   const childFormData = buildChildFormData(nodeCfg.subProcessFieldMapping, parentFormData, item);
   if (nodeCfg.subProcessMultiItemKey) childFormData[nodeCfg.subProcessMultiItemKey] = item;
   const childTitle = `${parentInst.title} / ${nodeCfg.label ?? nodeCfg.subProcessName ?? '子流程'} #${index + 1}`;
-  const childInst = await createChildInstanceAndMaterialize(parentInst, parentTask, def, childFormData, childInitiatorId, childTitle, actor);
+  let childInst: typeof workflowInstances.$inferSelect;
+  try {
+    childInst = await createChildInstanceAndMaterialize(parentInst, parentTask, def, childFormData, childInitiatorId, childTitle, actor, {
+      itemKey,
+      itemIndex: index,
+    });
+  } catch (err) {
+    if (isPgUniqueViolation(err)) return null;
+    throw err;
+  }
   if (childInst.status === 'approved') {
     emitInstanceEvent('instance.approved', mapInstance(childInst), actor);
     await handleMultiChildSettled(childInst, 'approved', actor);
@@ -663,6 +750,7 @@ async function spawnMultiInstanceChild(
     emitInstanceEvent('instance.rejected', mapInstance(childInst), actor);
     await handleMultiChildSettled(childInst, 'rejected', actor);
   }
+  return childInst;
 }
 
 /**
@@ -680,12 +768,33 @@ async function spawnMultiSubProcess(
 ): Promise<void> {
   const def = await loadPublishedSubProcessDef(nodeCfg.subProcessId);
   if (!def) {
-    if (!opts?.detached) await rejectTaskCore(parentTask, parentInst, '子流程定义不存在或未发布', actor);
+    if (!opts?.detached) {
+      const handled = await handleNodeExecutionError({
+        instance: parentInst,
+        task: parentTask,
+        nodeKey: parentTask.nodeKey,
+        nodeName: parentTask.nodeName,
+        errorMessage: '子流程定义不存在或未发布',
+        actor,
+      });
+      if (!handled) await rejectTaskCore(parentTask, parentInst, '子流程定义不存在或未发布', actor);
+    }
     return;
   }
   const validation = validateFlowData(def.flowData as WorkflowFlowData);
   if (!validation.valid) {
-    if (!opts?.detached) await rejectTaskCore(parentTask, parentInst, `子流程定义无效：${validation.errors[0]}`, actor);
+    if (!opts?.detached) {
+      const message = `子流程定义无效：${validation.errors[0]}`;
+      const handled = await handleNodeExecutionError({
+        instance: parentInst,
+        task: parentTask,
+        nodeKey: parentTask.nodeKey,
+        nodeName: parentTask.nodeName,
+        errorMessage: message,
+        actor,
+      });
+      if (!handled) await rejectTaskCore(parentTask, parentInst, message, actor);
+    }
     return;
   }
   const parentFormData = (parentInst.formData ?? {}) as Record<string, unknown>;
@@ -699,11 +808,7 @@ async function spawnMultiSubProcess(
   if (opts?.detached) {
     // 异步：fire-and-forget，全部发起，不汇聚
     for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      const childFormData = buildChildFormData(nodeCfg.subProcessFieldMapping, parentFormData, item);
-      if (nodeCfg.subProcessMultiItemKey) childFormData[nodeCfg.subProcessMultiItemKey] = item;
-      const childTitle = `${parentInst.title} / ${nodeCfg.label ?? nodeCfg.subProcessName ?? '子流程'} #${i + 1}`;
-      await createChildInstanceAndMaterialize(parentInst, parentTask, def, childFormData, childInitiatorId, childTitle, actor)
+      await spawnMultiInstanceChild(parentInst, parentTask, nodeCfg, def, items, i, childInitiatorId, actor)
         .catch((err) => logger.error('[subProcess] async multi child failed', { parentInstanceId: parentInst.id, index: i, err }));
     }
     return;
@@ -725,7 +830,15 @@ async function spawnMultiSubProcess(
     const [pt] = await db.select().from(workflowTasks).where(eq(workflowTasks.id, parentTask.id)).limit(1);
     const [pi] = await db.select().from(workflowInstances).where(eq(workflowInstances.id, parentInst.id)).limit(1);
     if (pt && pi && pt.status === 'waiting' && pi.status === 'running') {
-      await rejectTaskCore(pt, pi, '子流程多实例发起失败', actor);
+      const handled = await handleNodeExecutionError({
+        instance: pi,
+        task: pt,
+        nodeKey: pt.nodeKey,
+        nodeName: pt.nodeName,
+        errorMessage: '子流程多实例发起失败',
+        actor,
+      });
+      if (!handled) await rejectTaskCore(pt, pi, '子流程多实例发起失败', actor);
     }
   }
 }
@@ -807,6 +920,27 @@ export async function reconcileMultiSubProcess(
       const spawnedCount = await tx.$count(workflowInstances, eq(workflowInstances.parentTaskId, pt.id));
       if (spawnedCount < pt.subTotal && settledCount >= spawnedCount) {
         return { action: 'spawnNext', index: spawnedCount, parentTaskId: pt.id, parentInstId: pi.id };
+      }
+    } else if (nodeCfg) {
+      const spawnedChildren = await tx.select({
+        parentTaskItemIndex: workflowInstances.parentTaskItemIndex,
+      }).from(workflowInstances)
+        .where(eq(workflowInstances.parentTaskId, pt.id));
+      const spawnedIndexes = new Set(
+        spawnedChildren
+          .map((child) => child.parentTaskItemIndex)
+          .filter((index): index is number => Number.isInteger(index) && index >= 0),
+      );
+      if (spawnedChildren.length < pt.subTotal) {
+        if (spawnedIndexes.size === 0) {
+          return { action: 'spawnNext', index: spawnedChildren.length, parentTaskId: pt.id, parentInstId: pi.id };
+        } else {
+          for (let i = 0; i < pt.subTotal; i++) {
+            if (!spawnedIndexes.has(i)) {
+              return { action: 'spawnNext', index: i, parentTaskId: pt.id, parentInstId: pi.id };
+            }
+          }
+        }
       }
     }
     return null;
@@ -934,6 +1068,180 @@ export async function resumeParentSubProcess(
   await applySubProcessOutputAndResume(parentInst, parentTask, childInst, outcome, actor);
 }
 
+export async function handleNodeExecutionError(input: {
+  instance: typeof workflowInstances.$inferSelect;
+  task?: typeof workflowTasks.$inferSelect | null;
+  nodeKey: string;
+  nodeName?: string | null;
+  errorMessage: string;
+  actor: WorkflowEventActor;
+}): Promise<boolean> {
+  const snapshot = input.instance.definitionSnapshot as { flowData?: WorkflowFlowData } | null;
+  const flowData = snapshot?.flowData;
+  if (!flowData) return false;
+  const catchCfg = findExceptionCatchNode(flowData, input.nodeKey);
+  if (!catchCfg) return false;
+
+  const action = catchCfg.catchAction ?? 'notify';
+  const errorComment = `[节点异常] ${input.nodeName ?? input.nodeKey}：${input.errorMessage}`;
+  const updated = await db.transaction(async (tx) => {
+    const [lockedInst] = await tx.select().from(workflowInstances)
+      .where(eq(workflowInstances.id, input.instance.id))
+      .for('update')
+      .limit(1);
+    if (!lockedInst || lockedInst.status !== 'running') return null;
+
+    const affectedTasks = input.task
+      ? await tx.update(workflowTasks).set({
+        status: action === 'terminate' ? 'rejected' : 'skipped',
+        comment: errorComment,
+        actionAt: new Date(),
+      }).where(and(eq(workflowTasks.id, input.task.id), inArray(workflowTasks.status, ['pending', 'waiting']))).returning()
+      : [];
+
+    if (action === 'terminate') {
+      const [catchTask] = await tx.insert(workflowTasks).values({
+        instanceId: lockedInst.id,
+        nodeKey: catchCfg.key,
+        nodeName: catchCfg.label,
+        nodeType: 'catchNode',
+        assigneeId: null,
+        status: 'rejected',
+        comment: errorComment,
+        actionAt: new Date(),
+      }).returning();
+      await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date(), comment: errorComment })
+        .where(and(eq(workflowTasks.instanceId, lockedInst.id), inArray(workflowTasks.status, ['pending', 'waiting'])));
+      const [row] = await tx.update(workflowInstances)
+        .set({ status: 'rejected', currentNodeKey: null })
+        .where(eq(workflowInstances.id, lockedInst.id))
+        .returning();
+      return { row, affectedTasks, catchTask, newTasks: [] as typeof workflowTasks.$inferSelect[], finished: false, rejected: true };
+    }
+
+    if (action === 'toAdmin') {
+      const adminId = await resolveAdminAssigneeId(tx);
+      if (!adminId) {
+        const [catchTask] = await tx.insert(workflowTasks).values({
+          instanceId: lockedInst.id,
+          nodeKey: catchCfg.key,
+          nodeName: catchCfg.label,
+          nodeType: 'catchNode',
+          assigneeId: null,
+          status: 'rejected',
+          comment: `${errorComment}；未找到管理员`,
+          actionAt: new Date(),
+        }).returning();
+        await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date(), comment: errorComment })
+          .where(and(eq(workflowTasks.instanceId, lockedInst.id), inArray(workflowTasks.status, ['pending', 'waiting'])));
+        const [row] = await tx.update(workflowInstances)
+          .set({ status: 'rejected', currentNodeKey: null })
+          .where(eq(workflowInstances.id, lockedInst.id))
+          .returning();
+        return { row, affectedTasks, catchTask, newTasks: [] as typeof workflowTasks.$inferSelect[], finished: false, rejected: true };
+      }
+      const [catchTask] = await tx.insert(workflowTasks).values({
+        instanceId: lockedInst.id,
+        nodeKey: catchCfg.key,
+        nodeName: catchCfg.label,
+        nodeType: 'catchNode',
+        assigneeId: adminId,
+        status: 'pending',
+        comment: errorComment,
+      }).returning();
+      const [row] = await tx.update(workflowInstances)
+        .set({ currentNodeKey: catchCfg.key })
+        .where(eq(workflowInstances.id, lockedInst.id))
+        .returning();
+      return { row, affectedTasks, catchTask, newTasks: [catchTask], finished: false, rejected: false };
+    }
+
+    const [catchTask] = await tx.insert(workflowTasks).values({
+      instanceId: lockedInst.id,
+      nodeKey: catchCfg.key,
+      nodeName: catchCfg.label,
+      nodeType: 'catchNode',
+      assigneeId: null,
+      status: 'approved',
+      comment: errorComment,
+      actionAt: new Date(),
+    }).returning();
+    const formData = (lockedInst.formData ?? {}) as Record<string, unknown>;
+    const starter = await buildStarterContext(lockedInst.initiatorId, tx);
+    const completedKeys = await getCompletedNodeKeys(tx, lockedInst.id);
+    completedKeys.add(catchCfg.key);
+    const materialized = await materializeAdvanceResult(
+      advanceFlow(flowData, catchCfg.key, formData, completedKeys, starter),
+      {
+        instanceId: lockedInst.id,
+        initiatorId: lockedInst.initiatorId,
+        executor: tx,
+        flowData,
+        formData,
+        settings: flowData.settings,
+        starter,
+      },
+    );
+
+    if (materialized.rejected || (!materialized.finished && materialized.currentNodeKeys.length === 0 && materialized.createdTasks.length === 0)) {
+      await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date(), comment: errorComment })
+        .where(and(eq(workflowTasks.instanceId, lockedInst.id), inArray(workflowTasks.status, ['pending', 'waiting'])));
+      const [row] = await tx.update(workflowInstances)
+        .set({ status: 'rejected', currentNodeKey: null })
+        .where(eq(workflowInstances.id, lockedInst.id))
+        .returning();
+      return { row, affectedTasks, catchTask, newTasks: materialized.createdTasks, finished: false, rejected: true };
+    }
+    if (materialized.finished) {
+      const [row] = await tx.update(workflowInstances)
+        .set({ status: 'approved', currentNodeKey: null })
+        .where(eq(workflowInstances.id, lockedInst.id))
+        .returning();
+      return { row, affectedTasks, catchTask, newTasks: materialized.createdTasks, finished: true, rejected: false };
+    }
+    const [row] = await tx.update(workflowInstances)
+      .set({ currentNodeKey: materialized.currentNodeKeys[0] ?? null })
+      .where(eq(workflowInstances.id, lockedInst.id))
+      .returning();
+    return { row, affectedTasks, catchTask, newTasks: materialized.createdTasks, finished: false, rejected: false };
+  });
+
+  if (!updated) return true;
+  const meta = { definitionId: updated.row.definitionId, tenantId: updated.row.tenantId, actor: input.actor };
+  for (const task of updated.affectedTasks) {
+    emitTaskEvent(task.status === 'rejected' ? 'task.rejected' : 'task.skipped', mapTask(task), { ...meta, comment: errorComment });
+  }
+  emitNodeEvent('node.left', {
+    instanceId: updated.row.id,
+    ...meta,
+    nodeKey: input.nodeKey,
+    nodeName: input.nodeName ?? input.nodeKey,
+    nodeType: input.task?.nodeType ?? null,
+  });
+  emitNodeEvent('node.entered', { instanceId: updated.row.id, ...meta, nodeKey: updated.catchTask.nodeKey, nodeName: updated.catchTask.nodeName, nodeType: updated.catchTask.nodeType });
+  emitTaskEvent('task.created', mapTask(updated.catchTask), meta);
+  if (updated.catchTask.assigneeId && updated.catchTask.status === 'pending') emitTaskEvent('task.assigned', mapTask(updated.catchTask), meta);
+  if (updated.catchTask.status === 'approved') emitTaskEvent('task.approved', mapTask(updated.catchTask), meta);
+  if (updated.catchTask.status === 'rejected') emitTaskEvent('task.rejected', mapTask(updated.catchTask), meta);
+
+  for (const task of updated.newTasks.filter((task) => task.id !== updated.catchTask.id)) {
+    emitNodeEvent('node.entered', { instanceId: updated.row.id, ...meta, nodeKey: task.nodeKey, nodeName: task.nodeName, nodeType: task.nodeType });
+    emitTaskEvent('task.created', mapTask(task), meta);
+    if (task.assigneeId && task.status === 'pending') emitTaskEvent('task.assigned', mapTask(task), meta);
+    if (task.status === 'approved') emitTaskEvent('task.approved', mapTask(task), meta);
+    if (task.status === 'rejected') emitTaskEvent('task.rejected', mapTask(task), meta);
+    if (task.nodeType === 'delay' && task.status === 'waiting' && task.wakeAt) delayScheduler.scheduleAt(task.id, task.wakeAt);
+    if (task.nodeType === 'subProcess') {
+      void maybeSpawnSubProcessChild(updated.row, task, input.actor).catch((err) => {
+        logger.error('[subProcess] spawn child failed after catchNode recovery', { instanceId: updated.row.id, taskId: task.id, err });
+      });
+    }
+  }
+  if (updated.finished) emitInstanceEvent('instance.approved', mapInstance(updated.row), input.actor);
+  if (updated.rejected) emitInstanceEvent('instance.rejected', mapInstance(updated.row), input.actor);
+  return true;
+}
+
 async function expandTasksToRows(
   tasks: TaskAction[],
   ctx: { instanceId: number; initiatorId: number; executor: DbExecutor; formData?: Record<string, unknown>; settings?: WorkflowFlowData['settings']; selectedNextApprovers?: number[]; flowData?: WorkflowFlowData },
@@ -967,21 +1275,6 @@ async function expandTasksToRows(
       result.push({ assigneeId: finalId, delegatedFromId: delegate ? uid : null });
     }
     return result;
-  };
-
-  // T3-2 异常捕获：查找节点的异常出边目标（catchNode）
-  const findExceptionCatch = (nodeKey: string): TaskAction['nodeConfig'] | null => {
-    const flow = ctx.flowData;
-    if (!flow) return null;
-    const node = flow.nodes.find((n) => n.data.key === nodeKey);
-    if (!node) return null;
-    for (const e of flow.edges) {
-      if (e.source !== node.id) continue;
-      const tgt = flow.nodes.find((n) => n.id === e.target);
-      if (!tgt) continue;
-      if (e.isException || tgt.data.type === 'catchNode') return tgt.data;
-    }
-    return null;
   };
 
   const pushAutoRow = (task: TaskAction, status: 'approved' | 'rejected') => {
@@ -1153,7 +1446,7 @@ async function expandTasksToRows(
         continue;
       }
       // T3-2 异常捕获（React Flow 异常边）：节点存在指向 catchNode 的异常出边时，按 catchAction 兜底
-      const catchCfg = findExceptionCatch(t.nodeKey);
+      const catchCfg = ctx.flowData ? findExceptionCatchNode(ctx.flowData, t.nodeKey) : null;
       if (catchCfg) {
         const action = catchCfg.catchAction ?? 'notify';
         if (action === 'terminate') {

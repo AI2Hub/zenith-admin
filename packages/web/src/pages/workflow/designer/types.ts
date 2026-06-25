@@ -115,6 +115,8 @@ export interface TimeoutConfig {
   escalateAction?: 'none' | 'autoApprove' | 'autoReject' | 'transferToManager';
   /** escalateAction='transferToManager' 时的上级层级（1=直属上级，默认 1） */
   escalateManagerLevel?: number;
+  /** 转交链路无人可用时的最终兜底策略 */
+  escalateFallbackAction?: 'none' | 'autoApprove' | 'autoReject';
 }
 
 // ─── 节点 Props 类型 ─────────────────────────────────────────────────

@@ -666,6 +666,7 @@ export const workflowTimeoutConfigSchema = z.object({
   remindCount: z.number().int().min(1).optional(),
   escalateAction: z.enum(['none', 'autoApprove', 'autoReject', 'transferToManager']).optional(),
   escalateManagerLevel: z.number().int().min(1).optional(),
+  escalateFallbackAction: z.enum(['none', 'autoApprove', 'autoReject']).optional(),
 });
 
 export const workflowNodeConfigSchema = z.looseObject({
@@ -728,6 +729,8 @@ export const workflowNodeConfigSchema = z.looseObject({
   subProcessInitiatorField: z.string().optional(),
   subProcessInitiatorUserId: z.number().int().optional(),
   subProcessIgnoreReject: z.boolean().optional(),
+  catchAction: z.enum(['toAdmin', 'notify', 'terminate']).optional(),
+  catchNotifyUserIds: z.array(z.number().int()).nullable().optional(),
   isAsync: z.boolean().optional(),
   nodeListeners: z.array(z.object({
     type: z.literal('webhook'),

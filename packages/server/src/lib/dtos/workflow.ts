@@ -251,6 +251,8 @@ export const WorkflowInstanceDTO = z
     tenantId: z.number().int().nullable(),
     parentInstanceId: z.number().int().nullable().optional(),
     parentTaskId: z.number().int().nullable().optional(),
+    parentTaskItemKey: z.string().nullable().optional(),
+    parentTaskItemIndex: z.number().int().nullable().optional(),
     bizType: z.string().nullable().optional(),
     bizId: z.string().nullable().optional(),
     childInstances: z.array(z.object({

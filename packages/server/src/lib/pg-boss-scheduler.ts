@@ -4,7 +4,7 @@
  *
  * 对外 API 与原 cron-scheduler.ts 保持一致，以最小化调用方改动。
  */
-import { PgBoss, type WorkHandler } from 'pg-boss';
+import { PgBoss, type QueueOptions, type SendOptions, type WorkHandler } from 'pg-boss';
 import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '../db';
 import { cronJobs, cronJobLogs, dbBackups, users } from '../db/schema';
@@ -410,6 +410,34 @@ export async function registerSystemRecurringJob(
   await b.work(name, async () => { await fn(); });
   await b.schedule(name, cronExpr, {}, { tz: 'Asia/Shanghai' });
   logger.info(`pg-boss: system recurring job "${name}" scheduled (${cronExpr})`);
+}
+
+export async function registerSystemQueueWorker<T extends object>(
+  name: string,
+  handler: (data: T) => Promise<void>,
+  queueOptions?: Omit<QueueOptions, 'name'>,
+): Promise<void> {
+  const b = getBoss();
+  await b.createQueue(name, queueOptions);
+  await b.work<T>(name, async (jobs) => {
+    for (const job of jobs) {
+      await handler(job.data);
+    }
+  });
+  logger.info(`pg-boss: system queue worker "${name}" registered`);
+}
+
+export async function sendSystemJobAfter<T extends object>(
+  name: string,
+  data: T,
+  runAt: Date,
+  options?: SendOptions,
+): Promise<string | null> {
+  return getBoss().sendAfter(name, data, options ?? null, runAt);
+}
+
+export async function deleteSystemJob(name: string, id: string): Promise<void> {
+  await getBoss().deleteJob(name, id);
 }
 
 /** 校验 cron 表达式（兼容 5 段标准格式和带秒的 6 段格式） */

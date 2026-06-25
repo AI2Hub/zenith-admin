@@ -529,16 +529,11 @@ try {
   logger.error('Failed to initialize cron scheduler', err);
 }
 
-const isMainInstance = process.env.NODE_APP_INSTANCE === undefined || process.env.NODE_APP_INSTANCE === '0';
-if (isMainInstance) {
-  try {
-    const { delayScheduler } = await import('./lib/delay-scheduler');
-    await delayScheduler.initialize();
-  } catch (err) {
-    logger.error('Failed to initialize delay scheduler', err);
-  }
-} else {
-  logger.info(`Skipping delay scheduler on PM2 instance ${process.env.NODE_APP_INSTANCE}`);
+try {
+  const { delayScheduler } = await import('./lib/delay-scheduler');
+  await delayScheduler.initialize();
+} catch (err) {
+  logger.error('Failed to initialize delay scheduler', err);
 }
 
 // 注册工作流事件总线的内置订阅者

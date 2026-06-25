@@ -2,12 +2,26 @@ import { and, eq, lte, isNotNull, inArray } from 'drizzle-orm';
 import { db } from '../db';
 import { workflowTasks, workflowInstances } from '../db/schema';
 import { approveTaskCore, rejectTaskCore, systemTransferTaskToManager } from '../services/workflow-instances.service';
-import { resolveUserManagerId } from '../services/workflow-assignee-resolver.service';
+import { resolveAdminUserId, resolveUserDeptHeadId, resolveUserManagerId } from '../services/workflow-assignee-resolver.service';
 import { computeTimeoutAt } from './workflow-timeout';
-import type { WorkflowFlowData, WorkflowNodeConfig } from '@zenith/shared';
+import type { WorkflowFlowData, WorkflowNodeConfig, WorkflowTimeoutConfig } from '@zenith/shared';
 import logger from './logger';
 
 const SYSTEM_ACTOR = { userId: 0, name: 'system:timeout' } as const;
+
+async function resolveTransferFallbackTarget(task: typeof workflowTasks.$inferSelect, cfg: WorkflowTimeoutConfig): Promise<{ userId: number; reason: string } | null> {
+  if (!task.assigneeId) {
+    const adminId = await resolveAdminUserId();
+    return adminId ? { userId: adminId, reason: '管理员' } : null;
+  }
+  const managerId = await resolveUserManagerId(task.assigneeId, cfg.escalateManagerLevel ?? 1);
+  if (managerId && managerId !== task.assigneeId) return { userId: managerId, reason: '上级' };
+  const deptHeadId = await resolveUserDeptHeadId(task.assigneeId);
+  if (deptHeadId && deptHeadId !== task.assigneeId) return { userId: deptHeadId, reason: '部门负责人' };
+  const adminId = await resolveAdminUserId();
+  if (adminId && adminId !== task.assigneeId) return { userId: adminId, reason: '管理员' };
+  return null;
+}
 
 /**
  * 扫描所有已超时的 pending 审批任务并执行相应动作。
@@ -76,17 +90,23 @@ export async function processWorkflowTaskTimeouts(): Promise<{ processed: number
           await rejectTaskCore(task, inst, '系统超时（提醒耗尽）自动拒绝', SYSTEM_ACTOR);
           rejected += 1;
         } else if (escalate === 'transferToManager') {
-          const managerId = task.assigneeId
-            ? await resolveUserManagerId(task.assigneeId, cfg.escalateManagerLevel ?? 1)
-            : null;
-          if (managerId && managerId !== task.assigneeId) {
-            await systemTransferTaskToManager(task, inst, managerId, computeTimeoutAt(cfg, now), '[系统超时] 提醒耗尽，自动转交给上级处理');
-            logger.info('workflow task timeout escalate transfer', { taskId: task.id, instanceId: inst.id, managerId });
+          const target = await resolveTransferFallbackTarget(task, cfg);
+          if (target) {
+            await systemTransferTaskToManager(task, inst, target.userId, computeTimeoutAt(cfg, now), `[系统超时] 提醒耗尽，自动转交给${target.reason}处理`);
+            logger.info('workflow task timeout escalate transfer', { taskId: task.id, instanceId: inst.id, targetUserId: target.userId, reason: target.reason });
             escalated += 1;
           } else {
-            // 无上级可转：停止扫描，保持挂起
+            const fallback = cfg.escalateFallbackAction ?? 'none';
             await db.update(workflowTasks).set({ timeoutRemindCount: nextCount, timeoutAt: null }).where(eq(workflowTasks.id, task.id));
-            logger.warn('workflow task timeout escalate: no manager', { taskId: task.id, instanceId: inst.id, assigneeId: task.assigneeId });
+            if (fallback === 'autoApprove') {
+              await approveTaskCore(task, inst, '系统超时（无人可转）自动通过', SYSTEM_ACTOR);
+              approved += 1;
+            } else if (fallback === 'autoReject') {
+              await rejectTaskCore(task, inst, '系统超时（无人可转）自动拒绝', SYSTEM_ACTOR);
+              rejected += 1;
+            } else {
+              logger.warn('workflow task timeout escalate: no transfer fallback target', { taskId: task.id, instanceId: inst.id, assigneeId: task.assigneeId });
+            }
           }
         } else {
           // none：停止扫描，保持挂起

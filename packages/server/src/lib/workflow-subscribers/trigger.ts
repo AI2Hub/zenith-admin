@@ -14,7 +14,7 @@ import { db } from '../../db';
 import { workflowInstances, workflowTasks } from '../../db/schema';
 import { workflowEventBus } from '../workflow-event-bus';
 import { insertTriggerExecution } from '../../services/workflow-trigger-executions.service';
-import { approveTaskCore } from '../../services/workflow-instances.service';
+import { approveTaskCore, handleNodeExecutionError } from '../../services/workflow-instances.service';
 import { httpRequest } from '../http-client';
 import logger from '../logger';
 import type {
@@ -193,6 +193,18 @@ async function dispatchTrigger(instanceId: number, nodeKey: string, nodeName: st
   });
 
   // onFailure='block'（非 callback）：触发器生成阻塞 waiting 任务，成功才推进，失败保持阻塞等待人工处理
+  if (result.status !== 'success' && task && task.status === 'waiting') {
+    const handled = await handleNodeExecutionError({
+      instance: inst,
+      task,
+      nodeKey,
+      nodeName,
+      errorMessage: result.errorMessage ?? '触发器执行失败',
+      actor: { userId: 0, name: 'trigger' },
+    });
+    if (handled) return;
+  }
+
   if (onFailure === 'block' && triggerType !== 'callback' && task && task.status === 'waiting') {
     if (result.status === 'success') {
       await approveTaskCore(task, inst, '触发器执行成功，自动推进', { userId: 0, name: 'trigger:block' });

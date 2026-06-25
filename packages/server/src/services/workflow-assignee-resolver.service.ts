@@ -133,6 +133,33 @@ export async function resolveUserManagerId(
   return getDeptLeader(exec, targetDeptId);
 }
 
+export async function resolveUserDeptHeadId(
+  userId: number,
+  executor?: DbExecutor,
+): Promise<number | null> {
+  const exec = executor ?? db;
+  const deptId = await getUserDept(exec, userId);
+  if (!deptId) return null;
+  const leaderId = await getDeptLeader(exec, deptId);
+  if (!leaderId || leaderId === userId) return null;
+  const [leader] = await exec.select({ id: users.id }).from(users)
+    .where(and(eq(users.id, leaderId), eq(users.status, 'enabled')))
+    .limit(1);
+  return leader?.id ?? null;
+}
+
+export async function resolveAdminUserId(executor?: DbExecutor): Promise<number | null> {
+  const exec = executor ?? db;
+  const [admin] = await exec.select({ id: users.id }).from(users)
+    .where(and(eq(users.username, 'admin'), eq(users.status, 'enabled')))
+    .limit(1);
+  if (admin) return admin.id;
+  const [firstEnabled] = await exec.select({ id: users.id }).from(users)
+    .where(eq(users.status, 'enabled'))
+    .limit(1);
+  return firstEnabled?.id ?? null;
+}
+
 /**
  * 安全表达式求值器，限制作用域在 form / starter / context，返回 user ID 数组。
  * 例如： `form.managerId`, `[form.a, form.b]`, `starter.id`

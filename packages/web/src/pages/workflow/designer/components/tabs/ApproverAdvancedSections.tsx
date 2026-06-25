@@ -252,17 +252,35 @@ export default function ApproverAdvancedSections({
                 ]}
               />
               {timeout?.escalateAction === 'transferToManager' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                  <span style={{ fontSize: 13 }}>上级层级</span>
-                  <InputNumber
-                    value={timeout?.escalateManagerLevel ?? 1}
-                    onChange={(v) => handleTimeoutChange({ escalateManagerLevel: Number(v) || 1 })}
-                    min={1}
-                    max={10}
-                    style={{ width: 110 }}
-                    suffix="级"
-                  />
-                  <Typography.Text type="tertiary" size="small">1 = 直属上级</Typography.Text>
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13 }}>上级层级</span>
+                    <InputNumber
+                      value={timeout?.escalateManagerLevel ?? 1}
+                      onChange={(v) => handleTimeoutChange({ escalateManagerLevel: Number(v) || 1 })}
+                      min={1}
+                      max={10}
+                      style={{ width: 110 }}
+                      suffix="级"
+                    />
+                    <Typography.Text type="tertiary" size="small">1 = 直属上级</Typography.Text>
+                  </div>
+                  <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 6 }}>
+                    找不到指定上级时会依次尝试部门负责人、系统管理员。
+                  </Typography.Text>
+                  <div style={{ marginTop: 8 }}>
+                    <div className="fd-field-label">仍无人可转时</div>
+                    <Select
+                      value={timeout?.escalateFallbackAction ?? 'none'}
+                      onChange={(v) => handleTimeoutChange({ escalateFallbackAction: v as TimeoutConfig['escalateFallbackAction'] })}
+                      style={{ width: '100%' }}
+                      optionList={[
+                        { value: 'none', label: '保持挂起（停止重复扫描）' },
+                        { value: 'autoApprove', label: '自动同意' },
+                        { value: 'autoReject', label: '自动拒绝' },
+                      ]}
+                    />
+                  </div>
                 </div>
               )}
             </div>

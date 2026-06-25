@@ -1503,6 +1503,10 @@ export const workflowInstances = pgTable('workflow_instances', {
   parentInstanceId: integer('parent_instance_id'),
   /** 子流程：父实例中触发本子流程的 subProcess 任务 ID，子实例完成时用于唤醒父任务 */
   parentTaskId: integer('parent_task_id'),
+  /** 子流程多实例：父任务下当前循环项的幂等 key */
+  parentTaskItemKey: varchar('parent_task_item_key', { length: 128 }),
+  /** 子流程多实例：父任务下当前循环项的序号（0-based） */
+  parentTaskItemIndex: integer('parent_task_item_index'),
   /** 业务实体接入：业务类型（如 biz_leave），普通流程为空 */
   bizType: varchar('biz_type', { length: 64 }),
   /** 业务实体接入：业务记录主键（字符串，兼容各类业务 PK），与 bizType 组成 businessKey */
@@ -1510,7 +1514,10 @@ export const workflowInstances = pgTable('workflow_instances', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('workflow_instances_biz_idx').on(t.bizType, t.bizId)]);
+}, (t) => [
+  index('workflow_instances_biz_idx').on(t.bizType, t.bizId),
+  uniqueIndex('workflow_instances_parent_task_item_key_idx').on(t.parentTaskId, t.parentTaskItemKey),
+]);
 export type WorkflowInstanceRow = typeof workflowInstances.$inferSelect;
 export type NewWorkflowInstance = typeof workflowInstances.$inferInsert;
 

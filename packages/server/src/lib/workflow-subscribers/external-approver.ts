@@ -11,7 +11,7 @@ import { db } from '../../db';
 import { workflowInstances, workflowTasks } from '../../db/schema';
 import { workflowEventBus } from '../workflow-event-bus';
 import { httpPost } from '../http-client';
-import { approveTaskByCallback, rejectTaskByCallback } from '../../services/workflow-instances.service';
+import { approveTaskByCallback, handleNodeExecutionError, rejectTaskByCallback } from '../../services/workflow-instances.service';
 import logger from '../logger';
 import type { WorkflowFlowData, WorkflowExternalApprovalConfig } from '@zenith/shared';
 
@@ -60,6 +60,15 @@ async function dispatchExternalApproval(taskId: number): Promise<void> {
   if (!ext?.enabled || !ext.url) {
     await db.update(workflowTasks).set({ externalDispatchStatus: 'failed' }).where(eq(workflowTasks.id, taskId));
     logger.warn('[external-approver] 缺少 externalApproval 配置', { taskId });
+    const handled = await handleNodeExecutionError({
+      instance: inst,
+      task,
+      nodeKey: task.nodeKey,
+      nodeName: task.nodeName,
+      errorMessage: '外部审批配置缺失',
+      actor: { userId: 0, name: 'external-approver' },
+    });
+    if (handled) return;
     await applyFallback(taskId, ext?.fallbackStrategy);
     return;
   }
@@ -97,11 +106,29 @@ async function dispatchExternalApproval(taskId: number): Promise<void> {
     } else {
       await db.update(workflowTasks).set({ externalDispatchStatus: 'failed' }).where(eq(workflowTasks.id, taskId));
       logger.warn('[external-approver] 外部审批服务返回非 2xx', { taskId, status: resp.status });
+      const handled = await handleNodeExecutionError({
+        instance: inst,
+        task,
+        nodeKey: task.nodeKey,
+        nodeName: task.nodeName,
+        errorMessage: `外部审批服务返回 HTTP ${resp.status}`,
+        actor: { userId: 0, name: 'external-approver' },
+      });
+      if (handled) return;
       await applyFallback(taskId, ext.fallbackStrategy);
     }
   } catch (err) {
     await db.update(workflowTasks).set({ externalDispatchStatus: 'failed' }).where(eq(workflowTasks.id, taskId));
     logger.error('[external-approver] 调用外部审批服务失败', { taskId, err });
+    const handled = await handleNodeExecutionError({
+      instance: inst,
+      task,
+      nodeKey: task.nodeKey,
+      nodeName: task.nodeName,
+      errorMessage: err instanceof Error ? err.message : String(err),
+      actor: { userId: 0, name: 'external-approver' },
+    });
+    if (handled) return;
     await applyFallback(taskId, ext.fallbackStrategy);
   }
 }

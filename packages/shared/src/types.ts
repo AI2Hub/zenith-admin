@@ -1538,6 +1538,11 @@ export interface WorkflowTimeoutConfig {
   escalateAction?: 'none' | 'autoApprove' | 'autoReject' | 'transferToManager';
   /** escalateAction='transferToManager' 时的上级层级（1=直属上级，默认 1） */
   escalateManagerLevel?: number;
+  /**
+   * transferToManager 找不到上级、部门负责人、管理员时的最终兜底策略。
+   * 默认 none = 保持挂起但停止重复扫描；也可配置为自动同意/拒绝。
+   */
+  escalateFallbackAction?: 'none' | 'autoApprove' | 'autoReject';
 }
 
 /** 审批节点被驳回时的处理策略 */
@@ -2319,6 +2324,10 @@ export interface WorkflowInstance {
   parentInstanceId?: number | null;
   /** 子流程：父实例中触发本子流程的任务 ID */
   parentTaskId?: number | null;
+  /** 子流程多实例：父任务下循环项幂等 key */
+  parentTaskItemKey?: string | null;
+  /** 子流程多实例：父任务下循环项序号（0-based） */
+  parentTaskItemIndex?: number | null;
   /** 业务实体接入：业务类型（如 biz_leave），普通流程为空 */
   bizType?: string | null;
   /** 业务实体接入：业务记录主键（与 bizType 组成 businessKey） */
