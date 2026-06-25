@@ -176,6 +176,7 @@ export default defineConfig({
           { text: '总览', link: '/payment/' },
           { text: '渠道适配与配置', link: '/payment/channels' },
           { text: '业务接入', link: '/payment/integration' },
+          { text: '业务接入实战示例', link: '/payment/integration-example' },
           { text: '异步通知与对账', link: '/payment/callback' },
           { text: '安全设计', link: '/payment/security' },
           { text: '后台管理页面', link: '/payment/admin' },
