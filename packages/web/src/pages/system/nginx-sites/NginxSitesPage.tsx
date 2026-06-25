@@ -5,7 +5,7 @@ import {
   Col,
   Form,
   Input,
-  Popconfirm,
+  Modal,
   Radio,
   Row,
   Space,
@@ -20,6 +20,7 @@ import { CheckCircle, Plus, RefreshCw, RotateCcw, Search } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { request } from '@/utils/request';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
@@ -244,24 +245,37 @@ export default function NginxSitesPage() {
       fixed: 'right',
       render: (value: boolean) => <Tag color={value ? 'green' : 'grey'} size="small">{value ? '启用' : '禁用'}</Tag>,
     },
-    {
-      title: '操作',
+    createOperationColumn<NginxSite>({
       width: 220,
-      fixed: 'right',
-      render: (_: unknown, record: NginxSite) => (
-        <Space>
-          <Button theme="borderless" size="small" onClick={() => void openEditor(record.name)}>查看/编辑</Button>
-          {canManage && (record.enabled
-            ? <Button theme="borderless" size="small" loading={!!actionLoading[record.name]} onClick={() => void handleAction(record.name, 'disable')}>禁用</Button>
-            : <Button theme="borderless" size="small" loading={!!actionLoading[record.name]} onClick={() => void handleAction(record.name, 'enable')}>启用</Button>)}
-          {canManage && (
-            <Popconfirm title="确定要删除吗？" onConfirm={() => void handleAction(record.name, 'delete')}>
-              <Button theme="borderless" type="danger" size="small" loading={!!actionLoading[record.name]}>删除</Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '查看/编辑',
+          onClick: () => { void openEditor(record.name); },
+        },
+        {
+          key: 'toggle',
+          label: record.enabled ? '禁用' : '启用',
+          loading: !!actionLoading[record.name],
+          hidden: !canManage,
+          onClick: () => { void handleAction(record.name, record.enabled ? 'disable' : 'enable'); },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          loading: !!actionLoading[record.name],
+          hidden: !canManage,
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => { void handleAction(record.name, 'delete'); },
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const runningTag = RUNNING_STATUS_TAG[info?.runningStatus ?? 'unknown'];

@@ -9,7 +9,6 @@ import {
   Form,
   Toast,
   Typography,
-  Popconfirm,
   Row,
   Col,
   Spin,
@@ -24,6 +23,7 @@ import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 
@@ -359,21 +359,30 @@ export default function DataMaskPage() {
         />
       ),
     },
-    {
-      title: '操作', fixed: 'right' as const, width: 130,
-      render: (_: unknown, record: DataMaskConfig) => (
-        <Space>
-          {hasPermission('system:data-mask:update') && (
-            <Button theme="borderless" size="small" onClick={() => openEdit(record)}>编辑</Button>
-          )}
-          {hasPermission('system:data-mask:delete') && (
-            <Popconfirm title="确定要删除该规则吗？" onConfirm={() => handleDelete(record.id)}>
-              <Button theme="borderless" type="danger" size="small">删除</Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<DataMaskConfig>({
+      width: 130,
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('system:data-mask:update'),
+          onClick: () => openEdit(record),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('system:data-mask:delete'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除该规则吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   return (

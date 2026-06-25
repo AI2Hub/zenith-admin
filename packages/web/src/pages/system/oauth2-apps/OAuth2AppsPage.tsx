@@ -8,7 +8,6 @@ import {
   Form,
   Toast,
   Typography,
-  Popconfirm,
   Checkbox,
   Spin,
   Banner,
@@ -26,6 +25,7 @@ import { createdAtColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 
@@ -304,26 +304,41 @@ export default function OAuth2AppsPage() {
         />
       ),
     },
-    {
-      title: '操作',
-      fixed: 'right' as const,
+    createOperationColumn<OAuth2Client>({
       width: 200,
-      render: (_: unknown, record: OAuth2Client) => (
-        <Space>
-          <Button theme="borderless" size="small" onClick={() => openEdit(record)}>编辑</Button>
-          {canManage && !record.isPublic && (
-            <Popconfirm title="重置 client_secret？此操作不可撤销" onConfirm={() => handleRegenerate(record)}>
-              <Button theme="borderless" size="small">重置 Secret</Button>
-            </Popconfirm>
-          )}
-          {canManage && (
-            <Popconfirm title="确定要删除此应用吗？" content="删除后不可恢复" onConfirm={() => handleDelete(record.id)}>
-              <Button theme="borderless" type="danger" size="small">删除</Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          onClick: () => openEdit(record),
+        },
+        {
+          key: 'regenerate',
+          label: '重置 Secret',
+          hidden: !canManage || record.isPublic,
+          onClick: () => {
+            Modal.confirm({
+              title: '重置 client_secret？此操作不可撤销',
+              onOk: () => handleRegenerate(record),
+            });
+          },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !canManage,
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除此应用吗？',
+              content: '删除后不可恢复',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   return (

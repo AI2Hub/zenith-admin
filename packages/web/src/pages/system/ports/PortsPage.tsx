@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Button, Input, Tag, Select, Space, Popconfirm, Toast } from '@douyinfe/semi-ui';
+import { Button, Input, Tag, Select, Space, Modal, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, RotateCcw } from 'lucide-react';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 
 interface PortEntry {
@@ -88,16 +89,27 @@ export default function PortsPage() {
     { title: '状态', dataIndex: 'state', width: 100, render: (v: string) => <Tag color={v === 'LISTEN' ? 'green' : 'orange'} size="small">{v}</Tag> },
     { title: 'PID', dataIndex: 'pid', width: 80, render: (v: number | null) => v ?? '—' },
     { title: '进程名', dataIndex: 'processName', render: (v: string | null) => v ?? '—' },
-    {
-      title: '操作', fixed: 'right', width: 90,
-      render: (_: unknown, r: PortEntry) => (
-        canKill && r.pid ? (
-          <Popconfirm title="结束该进程？" content={`将向 PID ${r.pid}（${r.processName ?? '未知'}）发送终止信号`} onConfirm={() => handleKill(r.pid as number)}>
-            <Button theme="borderless" type="danger" size="small" loading={killingPid === r.pid}>结束进程</Button>
-          </Popconfirm>
-        ) : <span style={{ color: 'var(--semi-color-text-2)' }}>—</span>
-      ),
-    },
+    createOperationColumn<PortEntry>({
+      width: 90,
+      emptyContent: <span style={{ color: 'var(--semi-color-text-2)' }}>—</span>,
+      actions: (record) => [
+        {
+          key: 'kill',
+          label: '结束进程',
+          danger: true,
+          loading: killingPid === record.pid,
+          hidden: !canKill || !record.pid,
+          onClick: () => {
+            Modal.confirm({
+              title: '结束该进程？',
+              content: `将向 PID ${record.pid}（${record.processName ?? '未知'}）发送终止信号`,
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleKill(record.pid as number),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   return (

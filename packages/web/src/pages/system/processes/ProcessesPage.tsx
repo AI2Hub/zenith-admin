@@ -9,6 +9,7 @@ import {
   Activity, ChevronDown, Download, RefreshCw, Search, X,
 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { request } from '@/utils/request';
@@ -364,37 +365,29 @@ export default function ProcessesPage() {
         ? <Typography.Text style={{ fontSize: 12 }}>{v}</Typography.Text>
         : <span style={{ color: '#bbb' }}>—</span>,
     },
-    {
-      title: '操作',
-      fixed: 'right' as const,
+    createOperationColumn<ProcessInfo>({
       width: hasPermission('system:process:priority') ? 230 : 160,
-      render: (_: unknown, record: ProcessInfo) => (
-        <Space>
-          <Button theme="borderless" size="small" onClick={() => openDetail(record)}>
-            详情
-          </Button>
-          {hasPermission('system:process:kill') && (
-            <Button
-              theme="borderless"
-              type="danger"
-              size="small"
-              onClick={() => { setKillTarget(record); setKillSignal('SIGTERM'); setKillVisible(true); }}
-            >
-              结束
-            </Button>
-          )}
-          {hasPermission('system:process:priority') && (
-            <Button
-              theme="borderless"
-              size="small"
-              onClick={() => { setPriorityTarget(record); setPriorityVisible(true); }}
-            >
-              优先级
-            </Button>
-          )}
-        </Space>
-      ),
-    },
+      actions: (record) => [
+        {
+          key: 'detail',
+          label: '详情',
+          onClick: () => openDetail(record),
+        },
+        {
+          key: 'kill',
+          label: '结束',
+          danger: true,
+          hidden: !hasPermission('system:process:kill'),
+          onClick: () => { setKillTarget(record); setKillSignal('SIGTERM'); setKillVisible(true); },
+        },
+        {
+          key: 'priority',
+          label: '优先级',
+          hidden: !hasPermission('system:process:priority'),
+          onClick: () => { setPriorityTarget(record); setPriorityVisible(true); },
+        },
+      ],
+    }),
   ];
 
   const sseIndicator = SSE_STATUS_META[sseStatus];

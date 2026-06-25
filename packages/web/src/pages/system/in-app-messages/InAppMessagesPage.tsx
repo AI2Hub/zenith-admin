@@ -10,6 +10,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 
 const TYPE_OPTIONS: { label: string; value: InAppMessageType; color: 'blue' | 'green' | 'orange' | 'red' }[] = [
@@ -174,19 +175,24 @@ export default function InAppMessagesPage() {
       title: '状态', dataIndex: 'isRead', width: 90, fixed: 'right' as const,
       render: (v: boolean) => v ? <Tag color="green" type="light">已读</Tag> : <Tag color="orange" type="light">未读</Tag>,
     },
-    {
-      title: '操作', key: 'actions', width: 160, fixed: 'right' as const,
-      render: (_: unknown, record: InAppMessage) => (
-        <Space>
-          {can('system:in-app-message:update') && !record.isRead && (
-            <Button theme="borderless" size="small" onClick={() => handleMarkRead(record.id)}>标记已读</Button>
-          )}
-          {can('system:in-app-message:delete') && (
-            <Button theme="borderless" type="danger" size="small" onClick={() => handleDelete(record.id)}>删除</Button>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<InAppMessage>({
+      width: 160,
+      actions: (record) => [
+        {
+          key: 'mark-read',
+          label: '标记已读',
+          hidden: !can('system:in-app-message:update') || record.isRead,
+          onClick: () => handleMarkRead(record.id),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !can('system:in-app-message:delete'),
+          onClick: () => handleDelete(record.id),
+        },
+      ],
+    }),
   ];
 
   return (

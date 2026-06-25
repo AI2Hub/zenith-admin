@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Button, Form, Input, Space, Spin, Toast, Popconfirm, Switch, Tag, Row, Col,
+  Button, Form, Input, Space, Spin, Toast, Modal, Switch, Tag, Row, Col,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, RotateCcw, Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { request } from '@/utils/request';
@@ -207,19 +208,31 @@ export default function MonitorAlertsPage() {
         </Space>
       ),
     },
-    {
-      title: '操作', fixed: 'right', width: 120,
-      render: (_: unknown, record: MonitorAlertRule) => (
-        <Space>
-          {canManage && <Button theme="borderless" size="small" onClick={() => openEdit(record)}>编辑</Button>}
-          {canManage && (
-            <Popconfirm title="确定要删除该规则吗？" content="删除后不可恢复" onConfirm={() => handleDelete(record.id)}>
-              <Button theme="borderless" type="danger" size="small">删除</Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<MonitorAlertRule>({
+      width: 120,
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !canManage,
+          onClick: () => openEdit(record),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !canManage,
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除该规则吗？',
+              content: '删除后不可恢复',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   return (

@@ -1,14 +1,15 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
-  Button, Tag, Toast, SideSheet, Typography, Input, Empty, Select, Dropdown,
+  Button, Tag, Toast, SideSheet, Typography, Input, Empty, Select,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { RefreshCw, Search, Play, Square, FileText, MoreHorizontal } from 'lucide-react';
+import { RefreshCw, Search, Play, Square } from 'lucide-react';
 import { TOKEN_KEY } from '@zenith/shared';
 import { config } from '@/config';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 
 interface ServiceInfo {
   name: string;
@@ -161,39 +162,56 @@ export default function ServicesPage() {
       title: '加载状态', dataIndex: 'loadState', width: 100,
       render: (v: string) => <Tag size="small" color={v === 'loaded' ? 'blue' : 'grey'}>{v}</Tag>,
     },
-    {
-      title: '操作', width: 230, fixed: 'right' as const,
-      render: (_: unknown, r: ServiceInfo) => {
-        const busy = !!actionLoading[r.name];
-        const isActive = r.activeState === 'active';
-        return (
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            {isActive
-              ? <Button size="small" theme="borderless" type="danger" loading={busy} onClick={() => void handleAction(r.name, 'stop')}>停止</Button>
-              : <Button size="small" theme="borderless" loading={busy} onClick={() => void handleAction(r.name, 'start')}>启动</Button>
-            }
-            <Button size="small" theme="borderless" loading={busy} onClick={() => void handleAction(r.name, 'restart')}>重启</Button>
-            <Button size="small" theme="borderless" icon={<FileText size={13} />} onClick={() => void openLogs(r)}>日志</Button>
-            <Dropdown
-              trigger="click"
-              clickToHide
-              position="bottomRight"
-              render={(
-                <Dropdown.Menu>
-                  <Dropdown.Item onClick={() => void handleAction(r.name, 'enable')}>设为开机自启</Dropdown.Item>
-                  <Dropdown.Item onClick={() => void handleAction(r.name, 'disable')}>取消开机自启</Dropdown.Item>
-                  <Dropdown.Divider />
-                  <Dropdown.Item type="danger" onClick={() => void handleAction(r.name, 'mask')}>屏蔽服务</Dropdown.Item>
-                  <Dropdown.Item onClick={() => void handleAction(r.name, 'unmask')}>取消屏蔽</Dropdown.Item>
-                </Dropdown.Menu>
-              )}
-            >
-              <Button size="small" theme="borderless" icon={<MoreHorizontal size={14} />} />
-            </Dropdown>
-          </div>
-        );
+    createOperationColumn<ServiceInfo>({
+      width: 230,
+      desktopInlineKeys: ['toggle', 'restart', 'logs'],
+      actions: (record) => {
+        const busy = !!actionLoading[record.name];
+        const isActive = record.activeState === 'active';
+        return [
+          {
+            key: 'toggle',
+            label: isActive ? '停止' : '启动',
+            danger: isActive,
+            loading: busy,
+            onClick: () => { void handleAction(record.name, isActive ? 'stop' : 'start'); },
+          },
+          {
+            key: 'restart',
+            label: '重启',
+            loading: busy,
+            onClick: () => { void handleAction(record.name, 'restart'); },
+          },
+          {
+            key: 'logs',
+            label: '日志',
+            onClick: () => { void openLogs(record); },
+          },
+          {
+            key: 'enable',
+            label: '设为开机自启',
+            onClick: () => { void handleAction(record.name, 'enable'); },
+          },
+          {
+            key: 'disable',
+            label: '取消开机自启',
+            onClick: () => { void handleAction(record.name, 'disable'); },
+          },
+          {
+            key: 'mask',
+            label: '屏蔽服务',
+            danger: true,
+            dividerBefore: true,
+            onClick: () => { void handleAction(record.name, 'mask'); },
+          },
+          {
+            key: 'unmask',
+            label: '取消屏蔽',
+            onClick: () => { void handleAction(record.name, 'unmask'); },
+          },
+        ];
       },
-    },
+    }),
   ];
 
   if (available === false) {
