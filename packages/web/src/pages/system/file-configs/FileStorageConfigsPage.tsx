@@ -17,7 +17,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Plus, Search, RotateCcw, Download, ChevronDown, MoreHorizontal, PlugZap } from 'lucide-react';
+import { Plus, Search, RotateCcw, Download, ChevronDown, PlugZap } from 'lucide-react';
 import type {
   CreateFileStorageConfigInput,
   FileStorageConfig,
@@ -33,6 +33,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { renderEllipsis } from '@/utils/table-columns';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import StorageFileBrowser from './StorageFileBrowser';
 import './FileStorageConfigsPage.css';
@@ -222,7 +223,6 @@ export default function FileStorageConfigsPage() {
   const [modalDetailLoading, setModalDetailLoading] = useState(false);
   const [modalTestLoading, setModalTestLoading] = useState(false);
   const [testingConfigId, setTestingConfigId] = useState<number | null>(null);
-  const [openMoreId, setOpenMoreId] = useState<number | null>(null);
   const [formProvider, setFormProvider] = useState<FileStorageProvider>('local');
   const [formIsDefault, setFormIsDefault] = useState(false);
   const [browsingConfig, setBrowsingConfig] = useState<FileStorageConfig | null>(null);
@@ -498,70 +498,53 @@ export default function FileStorageConfigsPage() {
         />
       ),
     },
-    {
-      title: '操作',
-      fixed: 'right',
+    createOperationColumn<FileStorageConfig>({
       width: 260,
-      align: 'center',
-      render: (_: unknown, record: FileStorageConfig) => {
-        const canTest = hasPermission('system:file:config');
-        const canDelete = hasPermission('system:file:config:delete');
-        return (
-        <Space>
-          {hasPermission('system:file:list') && <Button theme="borderless" size="small" onClick={() => setBrowsingConfig(record)}>
-            浏览
-          </Button>}
-          {hasPermission('system:file:config:default') && <Button theme="borderless" size="small" onClick={() => handleSetDefault(record)} disabled={record.isDefault || record.status !== 'enabled'}>
-            设为默认
-          </Button>}
-          {hasPermission('system:file:config:update') && <Button theme="borderless" size="small" onClick={() => openEdit(record)}>
-            编辑
-          </Button>}
-          {(canTest || canDelete) && (
-            <Dropdown
-              trigger="custom"
-              visible={openMoreId === record.id}
-              onClickOutSide={() => setOpenMoreId(null)}
-              position="bottomRight"
-              render={
-                <Dropdown.Menu>
-                  {canTest && (
-                    <Dropdown.Item onClick={() => { setOpenMoreId(null); void handleTestSaved(record); }}>
-                      测试连接
-                    </Dropdown.Item>
-                  )}
-                  {canDelete && (
-                    <Dropdown.Item
-                      type="danger"
-                      disabled={record.isDefault}
-                      onClick={() => {
-                        setOpenMoreId(null);
-                        Modal.confirm({
-                          title: '确认删除此文件服务配置？',
-                          content: '若已绑定文件记录，后端会阻止删除。',
-                          okButtonProps: { type: 'danger', theme: 'solid' },
-                          onOk: () => handleDelete(record),
-                        });
-                      }}
-                    >删除</Dropdown.Item>
-                  )}
-                </Dropdown.Menu>
-              }
-            >
-              <Button
-                theme="borderless"
-                size="small"
-                icon={<MoreHorizontal size={16} />}
-                aria-label="更多操作"
-                loading={testingConfigId === record.id}
-                onClick={() => setOpenMoreId(openMoreId === record.id ? null : record.id)}
-              />
-            </Dropdown>
-          )}
-        </Space>
-        );
-      },
-    },
+      desktopInlineKeys: ['browse', 'default', 'edit'],
+      actions: (record) => [
+        {
+          key: 'browse',
+          label: '浏览',
+          hidden: !hasPermission('system:file:list'),
+          onClick: () => setBrowsingConfig(record),
+        },
+        {
+          key: 'default',
+          label: '设为默认',
+          hidden: !hasPermission('system:file:config:default'),
+          disabled: record.isDefault || record.status !== 'enabled',
+          onClick: () => handleSetDefault(record),
+        },
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('system:file:config:update'),
+          onClick: () => openEdit(record),
+        },
+        {
+          key: 'test',
+          label: '测试连接',
+          loading: testingConfigId === record.id,
+          hidden: !hasPermission('system:file:config'),
+          onClick: () => { void handleTestSaved(record); },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('system:file:config:delete'),
+          disabled: record.isDefault,
+          onClick: () => {
+            Modal.confirm({
+              title: '确认删除此文件服务配置？',
+              content: '若已绑定文件记录，后端会阻止删除。',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const initValues: FileStorageConfigFormValues = editingConfig

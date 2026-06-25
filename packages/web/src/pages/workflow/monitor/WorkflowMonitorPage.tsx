@@ -2,7 +2,6 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import {
   Button,
   Card,
-  Dropdown,
   Form,
   Input,
   JsonViewer,
@@ -21,7 +20,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Download, FileText, MoreHorizontal, RotateCcw, Search } from 'lucide-react';
+import { Download, FileText, RotateCcw, Search } from 'lucide-react';
 import dayjs from 'dayjs';
 import type { WorkflowApproveMethod, WorkflowAssigneeType, WorkflowCategory, WorkflowDefinition, WorkflowFlowData, WorkflowInstance, WorkflowNodeConfig, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowRuntimeOutboxEvent, WorkflowTask, WorkflowTriggerExecution } from '@zenith/shared';
 import { request } from '@/utils/request';
@@ -31,6 +30,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import SavedViewsBar from '@/components/workflow/SavedViewsBar';
 import WorkflowPriorityTag, { WORKFLOW_PRIORITY_OPTIONS } from '@/components/workflow/WorkflowPriorityTag';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import WorkflowInstanceDetailPanel from '@/components/workflow/WorkflowInstanceDetailPanel';
@@ -1067,39 +1067,45 @@ export default function WorkflowMonitorPage() {
         return <Tag color={s?.color ?? 'grey'}>{s?.text ?? v}</Tag>;
       },
     },
-    {
-      title: '操作',
-      key: 'action',
+    createOperationColumn<WorkflowInstance>({
       width: 180,
-      fixed: 'right',
-      render: (_: unknown, record: WorkflowInstance) => {
+      desktopInlineKeys: ['detail', 'diagnostics'],
+      actions: (record) => {
         const canCancel = hasPermission('workflow:instance:cancel') && record.status === 'running';
         const canDelete = hasPermission('workflow:instance:delete') && !RUNNING_STATUSES.has(record.status);
         const canJump = canAdmin && record.status === 'running';
-        return (
-          <Space>
-            <Button theme="borderless" size="small" onClick={() => openDetail(record)}>详情</Button>
-            <Button theme="borderless" size="small" onClick={() => openDiagnostics(record)}>诊断</Button>
-            {(canCancel || canDelete || canJump) && (
-              <Dropdown
-                trigger="click"
-                position="bottomRight"
-                render={(
-                  <Dropdown.Menu>
-                    {canJump && <Dropdown.Item onClick={() => void openJump(record)}>强制跳转</Dropdown.Item>}
-                    {canJump && <Dropdown.Item onClick={() => void openReassign(record)}>改派处理人</Dropdown.Item>}
-                    {canCancel && <Dropdown.Item type="warning" onClick={() => handleCancel(record)}>取消</Dropdown.Item>}
-                    {canDelete && <Dropdown.Item type="danger" onClick={() => handleDelete(record)}>删除</Dropdown.Item>}
-                  </Dropdown.Menu>
-                )}
-              >
-                <Button theme="borderless" size="small" icon={<MoreHorizontal size={14} />} />
-              </Dropdown>
-            )}
-          </Space>
-        );
+        return [
+          { key: 'detail', label: '详情', onClick: () => openDetail(record) },
+          { key: 'diagnostics', label: '诊断', onClick: () => openDiagnostics(record) },
+          {
+            key: 'jump',
+            label: '强制跳转',
+            hidden: !canJump,
+            onClick: () => void openJump(record),
+          },
+          {
+            key: 'reassign',
+            label: '改派处理人',
+            hidden: !canJump,
+            onClick: () => void openReassign(record),
+          },
+          {
+            key: 'cancel',
+            label: '取消',
+            danger: true,
+            hidden: !canCancel,
+            onClick: () => handleCancel(record),
+          },
+          {
+            key: 'delete',
+            label: '删除',
+            danger: true,
+            hidden: !canDelete,
+            onClick: () => handleDelete(record),
+          },
+        ];
       },
-    },
+    }),
   ];
 
   const renderKeywordSearch = () => (

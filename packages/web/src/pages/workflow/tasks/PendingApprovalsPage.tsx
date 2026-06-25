@@ -18,6 +18,7 @@ import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import WorkflowPriorityTag from '@/components/workflow/WorkflowPriorityTag';
 import WorkflowApprovalDetailSheet from '@/components/workflow/WorkflowApprovalDetailSheet';
 import { usePagination } from '@/hooks/usePagination';
@@ -232,38 +233,30 @@ export default function PendingApprovalsPage() {
       width: 180,
       render: (v: string) => formatDateTime(v),
     },
-    {
-      title: '操作',
-      key: 'action',
+    createOperationColumn<PendingItem>({
       width: 210,
-      fixed: 'right',
-      render: (_: unknown, record: PendingItem) => (
-        <Space>
-          <Button theme="borderless" size="small" onClick={() => setSheet({ instanceId: record.id, taskId: record.pendingTaskId, action: null })}>
-            详情
-          </Button>
-          <Button
-            theme="borderless"
-            size="small"
-            type="primary"
-            onClick={() => setSheet({ instanceId: record.id, taskId: record.pendingTaskId, action: 'approve' })}
-          >
-            通过
-          </Button>
-          <Button
-            theme="borderless"
-            size="small"
-            type="danger"
-            onClick={() => setSheet({ instanceId: record.id, taskId: record.pendingTaskId, action: 'reject' })}
-          >
-            驳回
-          </Button>
-          <Button theme="borderless" size="small" onClick={() => openConsult(record)}>
-            协办
-          </Button>
-        </Space>
-      ),
-    },
+      desktopInlineKeys: ['detail', 'approve', 'reject', 'consult'],
+      actions: (record) => [
+        {
+          key: 'detail',
+          label: '详情',
+          onClick: () => setSheet({ instanceId: record.id, taskId: record.pendingTaskId, action: null }),
+        },
+        {
+          key: 'approve',
+          label: '通过',
+          type: 'primary',
+          onClick: () => setSheet({ instanceId: record.id, taskId: record.pendingTaskId, action: 'approve' }),
+        },
+        {
+          key: 'reject',
+          label: '驳回',
+          danger: true,
+          onClick: () => setSheet({ instanceId: record.id, taskId: record.pendingTaskId, action: 'reject' }),
+        },
+        { key: 'consult', label: '协办', onClick: () => openConsult(record) },
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

@@ -1,8 +1,8 @@
 import { type ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Dropdown, Input, Modal, Select, Space, Tag,
+import { Button, Input, Modal, Select, Space, Tag,
   Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Ban, CircleCheck, GitCompare, Layers, LayoutTemplate, MoreHorizontal, Plus, RotateCcw, Save, Search, Trash2, Upload } from 'lucide-react';
+import { Ban, CircleCheck, GitCompare, Layers, LayoutTemplate, Plus, RotateCcw, Save, Search, Trash2, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkflowDefinition, WorkflowDefinitionVersion, PaginatedResponse, WorkflowFormType } from '@zenith/shared';
 import { WORKFLOW_FORM_TYPE_LABELS } from '@zenith/shared';
@@ -12,6 +12,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import WorkflowVersionsModal from '../components/WorkflowVersionsModal';
 import WorkflowTemplateFormModal, { type WorkflowTemplateFormValues } from '../components/WorkflowTemplateFormModal';
 import CategorySidebar from './components/CategorySidebar';
@@ -84,7 +85,6 @@ export default function WorkflowDefinitionsPage() {
   const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
   const searchParamsRef = useRef<SearchParams>(defaultSearchParams);
   searchParamsRef.current = searchParams;
-  const [openMoreId, setOpenMoreId] = useState<number | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const canBatchOperate = hasPermission('workflow:definition:publish') || hasPermission('workflow:definition:delete');
   const [historyTarget, setHistoryTarget] = useState<WorkflowDefinition | null>(null);
@@ -295,7 +295,6 @@ export default function WorkflowDefinitionsPage() {
   };
 
   const openDiffModal = async (record: WorkflowDefinition) => {
-    setOpenMoreId(null);
     setDiffTarget(record);
     setVersions([]);
     setDiffData(null);
@@ -420,91 +419,86 @@ export default function WorkflowDefinitionsPage() {
         return <Tag color={s?.color ?? 'grey'}>{s?.text ?? v}</Tag>;
       },
     },
-    {
-      title: '操作',
-      key: 'action',
+    createOperationColumn<WorkflowDefinition>({
       width: 170,
-      fixed: 'right',
-      render: (_: unknown, record: WorkflowDefinition) => {
+      desktopInlineKeys: ['design', 'publish'],
+      actions: (record) => {
         const canPublish = record.status === 'draft' && hasPermission('workflow:definition:publish');
-        return (
-          <div style={{ display: 'grid', gridTemplateColumns: '44px 44px 28px', alignItems: 'center', columnGap: 8 }}>
-            <Button theme="borderless" size="small" onClick={() => navigate(`/workflow/designer/${record.id}`)}>
-              设计
-            </Button>
-            <Button theme="borderless" size="small" type="primary" disabled={!canPublish} onClick={() => {
-              if (!canPublish) return;
+        return [
+          { key: 'design', label: '设计', onClick: () => navigate(`/workflow/designer/${record.id}`) },
+          {
+            key: 'publish',
+            label: '发布',
+            type: 'primary',
+            disabled: !canPublish,
+            onClick: () => {
               Modal.confirm({
                 title: '确定发布此流程？',
                 content: '发布后不可删除，请确认流程配置正确。',
                 onOk: () => handlePublish(record),
               });
-            }}>发布</Button>
-            <Dropdown
-              trigger="custom"
-              visible={openMoreId === record.id}
-              onClickOutSide={() => setOpenMoreId(null)}
-              position="bottomRight"
-              render={
-                <Dropdown.Menu>
-                  {hasPermission('workflow:definition:create') && (
-                    <Dropdown.Item onClick={() => { setOpenMoreId(null); void handleDuplicate(record); }}>复制</Dropdown.Item>
-                  )}
-                  <Dropdown.Item onClick={() => { setOpenMoreId(null); void handleExport(record); }}>导出</Dropdown.Item>
-                  {record.status === 'published' && hasPermission('workflow:definition:publish') && (
-                    <Dropdown.Item type="warning" onClick={() => {
-                      setOpenMoreId(null);
-                      Modal.confirm({
-                        title: '确定禁用此流程？',
-                        content: '禁用后该流程不可发起新申请，是否继续？',
-                        okButtonProps: { type: 'danger', theme: 'solid' },
-                        onOk: () => handleDisable(record),
-                      });
-                    }}>禁用</Dropdown.Item>
-                  )}
-                  {record.status === 'disabled' && hasPermission('workflow:definition:publish') && (
-                    <Dropdown.Item onClick={() => {
-                      setOpenMoreId(null);
-                      Modal.confirm({
-                        title: '确定启用此流程？',
-                        content: '启用后该流程将恢复为已发布状态，可正常发起申请。',
-                        onOk: () => handleEnable(record),
-                      });
-                    }}>启用</Dropdown.Item>
-                  )}
-                  <Dropdown.Item onClick={() => { setOpenMoreId(null); setHistoryTarget(record); }}>历史版本</Dropdown.Item>
-                  <Dropdown.Item onClick={() => { void openDiffModal(record); }}>版本对比</Dropdown.Item>
-                  {hasPermission('workflow:definition:create') && (
-                    <Dropdown.Item onClick={() => { setOpenMoreId(null); setSaveAsTarget(record); }}>另存为模板</Dropdown.Item>
-                  )}
-                  {record.status !== 'published' && hasPermission('workflow:definition:delete') && (
-                    <Dropdown.Item
-                      type="danger"
-                      onClick={() => {
-                        setOpenMoreId(null);
-                        Modal.confirm({
-                          title: '确定要删除该流程吗？',
-                          okButtonProps: { type: 'danger', theme: 'solid' },
-                          onOk: () => handleDelete(record.id),
-                        });
-                      }}
-                    >删除</Dropdown.Item>
-                  )}
-                </Dropdown.Menu>
-              }
-            >
-              <Button
-                theme="borderless"
-                size="small"
-                icon={<MoreHorizontal size={16} />}
-                aria-label="更多操作"
-                onClick={() => setOpenMoreId(openMoreId === record.id ? null : record.id)}
-              />
-            </Dropdown>
-          </div>
-        );
+            },
+          },
+          {
+            key: 'duplicate',
+            label: '复制',
+            hidden: !hasPermission('workflow:definition:create'),
+            onClick: () => void handleDuplicate(record),
+          },
+          { key: 'export', label: '导出', onClick: () => void handleExport(record) },
+          {
+            key: 'disable',
+            label: '禁用',
+            hidden: record.status !== 'published' || !hasPermission('workflow:definition:publish'),
+            dividerBefore: true,
+            danger: true,
+            onClick: () => {
+              Modal.confirm({
+                title: '确定禁用此流程？',
+                content: '禁用后该流程不可发起新申请，是否继续？',
+                okButtonProps: { type: 'danger', theme: 'solid' },
+                onOk: () => handleDisable(record),
+              });
+            },
+          },
+          {
+            key: 'enable',
+            label: '启用',
+            hidden: record.status !== 'disabled' || !hasPermission('workflow:definition:publish'),
+            dividerBefore: true,
+            onClick: () => {
+              Modal.confirm({
+                title: '确定启用此流程？',
+                content: '启用后该流程将恢复为已发布状态，可正常发起申请。',
+                onOk: () => handleEnable(record),
+              });
+            },
+          },
+          { key: 'versions', label: '历史版本', onClick: () => setHistoryTarget(record) },
+          { key: 'diff', label: '版本对比', onClick: () => void openDiffModal(record) },
+          {
+            key: 'save-template',
+            label: '另存为模板',
+            hidden: !hasPermission('workflow:definition:create'),
+            onClick: () => setSaveAsTarget(record),
+          },
+          {
+            key: 'delete',
+            label: '删除',
+            danger: true,
+            hidden: record.status === 'published' || !hasPermission('workflow:definition:delete'),
+            dividerBefore: true,
+            onClick: () => {
+              Modal.confirm({
+                title: '确定要删除该流程吗？',
+                okButtonProps: { type: 'danger', theme: 'solid' },
+                onOk: () => handleDelete(record.id),
+              });
+            },
+          },
+        ];
       },
-    },
+    }),
   ];
 
   const renderCategoryButton = () => (

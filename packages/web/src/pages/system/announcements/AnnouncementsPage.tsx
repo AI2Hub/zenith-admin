@@ -29,6 +29,7 @@ import { request } from '@/utils/request';
 import { UserAvatar } from '@/components/UserAvatar';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn, type ResponsiveTableAction } from '@/components/ResponsiveTableActions';
 import FileAttachment from '@/components/FileAttachment';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -540,6 +541,155 @@ export default function AnnouncementsPage() {
     scheduled: 'blue',
   };
 
+  const getAnnouncementActions = (record: Announcement): ResponsiveTableAction[] => {
+    if (record.publishStatus === 'draft') {
+      return [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('system:announcement:update'),
+          onClick: () => openEditModal(record),
+        },
+        {
+          key: 'publish',
+          label: '发布',
+          type: 'primary',
+          hidden: !hasPermission('system:announcement:update'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要发布该公告吗？',
+              onOk: () => handlePublish(record.id),
+            });
+          },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('system:announcement:delete'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除该公告吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ];
+    }
+
+    if (record.publishStatus === 'published') {
+      return [
+        {
+          key: 'view',
+          label: '查看',
+          hidden: !hasPermission('system:announcement:update'),
+          onClick: () => { void openViewModal(record); },
+        },
+        {
+          key: 'recall',
+          label: '撤回',
+          danger: true,
+          hidden: !hasPermission('system:announcement:update'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要撤回该公告吗？',
+              content: '撤回后用户将无法查看该公告',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleRecall(record.id),
+            });
+          },
+        },
+      ];
+    }
+
+    if (record.publishStatus === 'recalled') {
+      return [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('system:announcement:update'),
+          onClick: () => openEditModal(record),
+        },
+        {
+          key: 'republish',
+          label: '重新发布',
+          type: 'primary',
+          hidden: !hasPermission('system:announcement:update'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要重新发布该公告吗？',
+              onOk: () => handlePublish(record.id),
+            });
+          },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('system:announcement:delete'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除该公告吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ];
+    }
+
+    if (record.publishStatus === 'scheduled') {
+      return [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('system:announcement:update'),
+          onClick: () => openEditModal(record),
+        },
+        {
+          key: 'publish-now',
+          label: '立即发布',
+          type: 'primary',
+          hidden: !hasPermission('system:announcement:update'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要立即发布该公告吗？',
+              onOk: () => handlePublish(record.id),
+            });
+          },
+        },
+        {
+          key: 'cancel-schedule',
+          label: '取消定时',
+          hidden: !hasPermission('system:announcement:update'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要取消定时发布吗？',
+              content: '取消后公告将回到草稿状态',
+              onOk: () => handleCancelSchedule(record.id),
+            });
+          },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('system:announcement:delete'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除该公告吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ];
+    }
+
+    return [];
+  };
+
   const columns: ColumnProps<Announcement>[] = [
     { title: 'ID', dataIndex: 'id', width: 70 },
     { title: '标题', dataIndex: 'title', width: 220, render: renderEllipsis },
@@ -603,122 +753,11 @@ export default function AnnouncementsPage() {
       render: (v: string | null) => (v ? formatDateTime(v) : '-'),
     },
     createdAtColumn,
-    {
-      title: '操作',
-      dataIndex: 'op',
+    createOperationColumn<Announcement>({
       width: 230,
-      fixed: 'right' as const,
-      render: (_: unknown, record: Announcement) => (
-        <Space>
-          {record.publishStatus === 'draft' && <>
-            {hasPermission('system:announcement:update') && <Button
-              theme="borderless"
-              size="small"
-              onClick={() => openEditModal(record)}
-            >编辑</Button>}
-            {hasPermission('system:announcement:update') && <Button
-              theme="borderless"
-              size="small"
-              type="primary"
-              onClick={() => {
-                Modal.confirm({
-                  title: '确定要发布该公告吗？',
-                  onOk: () => handlePublish(record.id),
-                });
-              }}
-            >发布</Button>}
-            {hasPermission('system:announcement:delete') && <Button theme="borderless" type="danger" size="small" onClick={() => {
-              Modal.confirm({
-                title: '确定要删除该公告吗？',
-                okButtonProps: { type: 'danger', theme: 'solid' },
-                onOk: () => handleDelete(record.id),
-              });
-            }}>删除</Button>}
-          </>}
-          {record.publishStatus === 'published' && <>
-            {hasPermission('system:announcement:update') && <Button
-              theme="borderless"
-              size="small"
-              onClick={() => void openViewModal(record)}
-            >查看</Button>}
-            {hasPermission('system:announcement:update') && <Button
-              theme="borderless"
-              size="small"
-              type="danger"
-              onClick={() => {
-                Modal.confirm({
-                  title: '确定要撤回该公告吗？',
-                  content: '撤回后用户将无法查看该公告',
-                  okButtonProps: { type: 'danger', theme: 'solid' },
-                  onOk: () => handleRecall(record.id),
-                });
-              }}
-            >撤回</Button>}
-          </>}
-          {record.publishStatus === 'recalled' && <>
-            {hasPermission('system:announcement:update') && <Button
-              theme="borderless"
-              size="small"
-              onClick={() => openEditModal(record)}
-            >编辑</Button>}
-            {hasPermission('system:announcement:update') && <Button
-              theme="borderless"
-              size="small"
-              type="primary"
-              onClick={() => {
-                Modal.confirm({
-                  title: '确定要重新发布该公告吗？',
-                  onOk: () => handlePublish(record.id),
-                });
-              }}
-            >重新发布</Button>}
-            {hasPermission('system:announcement:delete') && <Button theme="borderless" type="danger" size="small" onClick={() => {
-              Modal.confirm({
-                title: '确定要删除该公告吗？',
-                okButtonProps: { type: 'danger', theme: 'solid' },
-                onOk: () => handleDelete(record.id),
-              });
-            }}>删除</Button>}
-          </>}
-          {record.publishStatus === 'scheduled' && <>
-            {hasPermission('system:announcement:update') && <Button
-              theme="borderless"
-              size="small"
-              onClick={() => openEditModal(record)}
-            >编辑</Button>}
-            {hasPermission('system:announcement:update') && <Button
-              theme="borderless"
-              size="small"
-              type="primary"
-              onClick={() => {
-                Modal.confirm({
-                  title: '确定要立即发布该公告吗？',
-                  onOk: () => handlePublish(record.id),
-                });
-              }}
-            >立即发布</Button>}
-            {hasPermission('system:announcement:update') && <Button
-              theme="borderless"
-              size="small"
-              onClick={() => {
-                Modal.confirm({
-                  title: '确定要取消定时发布吗？',
-                  content: '取消后公告将回到草稿状态',
-                  onOk: () => handleCancelSchedule(record.id),
-                });
-              }}
-            >取消定时</Button>}
-            {hasPermission('system:announcement:delete') && <Button theme="borderless" type="danger" size="small" onClick={() => {
-              Modal.confirm({
-                title: '确定要删除该公告吗？',
-                okButtonProps: { type: 'danger', theme: 'solid' },
-                onOk: () => handleDelete(record.id),
-              });
-            }}>删除</Button>}
-          </>}
-        </Space>
-      ),
-    },
+      desktopInlineKeys: ['edit', 'publish', 'delete', 'view', 'recall', 'republish', 'publish-now', 'cancel-schedule'],
+      actions: getAnnouncementActions,
+    }),
   ];
 
   return (

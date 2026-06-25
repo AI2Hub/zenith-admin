@@ -2,6 +2,7 @@
 import {
   Button,
   Form,
+  Modal,
   Popconfirm,
   Select,
   SideSheet,
@@ -25,6 +26,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { AppModal } from '@/components/AppModal';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import WorkflowInstanceDetailPanel from '@/components/workflow/WorkflowInstanceDetailPanel';
@@ -749,44 +751,59 @@ export default function MyApplicationsPage() {
         return <Tag color={s?.color ?? 'grey'}>{s?.text ?? v}</Tag>;
       },
     },
-    {
-      title: '操作',
-      key: 'action',
+    createOperationColumn<WorkflowInstance>({
       width: 160,
-      fixed: 'right',
-      render: (_: unknown, record: WorkflowInstance) => {
-        if (record.status === 'draft') {
-          return (
-            <Space>
-              <Button theme="borderless" size="small" onClick={() => void openEditDraft(record)}>编辑</Button>
-              <Popconfirm title="确定要提交此草稿吗？" onConfirm={() => void handleDirectSubmitDraft(record.id)}>
-                <Button theme="borderless" size="small">提交</Button>
-              </Popconfirm>
-              <Popconfirm title="确定要删除此草稿吗？" onConfirm={() => void handleDeleteDraft(record.id)}>
-                <Button theme="borderless" size="small" type="danger">删除</Button>
-              </Popconfirm>
-            </Space>
-          );
-        }
-        if (record.status === 'rejected' || record.status === 'withdrawn') {
-          return (
-            <Space>
-              <Button theme="borderless" size="small" onClick={() => openDetail(record.id)}>详情</Button>
-              {record.allowResubmit !== false && (
-                <Popconfirm title="将生成新草稿，确定要重新提交吗？" onConfirm={() => void handleResubmit(record.id)}>
-                  <Button theme="borderless" size="small">重新提交</Button>
-                </Popconfirm>
-              )}
-            </Space>
-          );
-        }
-        return (
-          <Space>
-            <Button theme="borderless" size="small" onClick={() => openDetail(record.id)}>详情</Button>
-          </Space>
-        );
-      },
-    },
+      desktopInlineKeys: ['edit-draft', 'submit-draft', 'delete-draft', 'detail', 'resubmit'],
+      actions: (record) => [
+        {
+          key: 'edit-draft',
+          label: '编辑',
+          hidden: record.status !== 'draft',
+          onClick: () => void openEditDraft(record),
+        },
+        {
+          key: 'submit-draft',
+          label: '提交',
+          hidden: record.status !== 'draft',
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要提交此草稿吗？',
+              onOk: () => handleDirectSubmitDraft(record.id),
+            });
+          },
+        },
+        {
+          key: 'delete-draft',
+          label: '删除',
+          danger: true,
+          hidden: record.status !== 'draft',
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除此草稿吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDeleteDraft(record.id),
+            });
+          },
+        },
+        {
+          key: 'detail',
+          label: '详情',
+          hidden: record.status === 'draft',
+          onClick: () => openDetail(record.id),
+        },
+        {
+          key: 'resubmit',
+          label: '重新提交',
+          hidden: (record.status !== 'rejected' && record.status !== 'withdrawn') || record.allowResubmit === false,
+          onClick: () => {
+            Modal.confirm({
+              title: '将生成新草稿，确定要重新提交吗？',
+              onOk: () => handleResubmit(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const applySheetTitle = editingDraft ? '编辑草稿' : '发起申请';
