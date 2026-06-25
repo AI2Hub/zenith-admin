@@ -138,14 +138,24 @@ export default function CheckinMilestonesPage() {
     },
   ];
 
+  const renderRefreshButton = () => (
+    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => void fetchData()}>刷新</Button>
+  );
+
+  const renderCreateButton = () => hasPermission('member:checkin:milestone:create') ? (
+    <Button type="primary" icon={<Plus size={14} />} onClick={() => openModal(null)}>新增</Button>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => void fetchData()}>刷新</Button>
-        {hasPermission('member:checkin:milestone:create') && (
-          <Button type="primary" icon={<Plus size={14} />} onClick={() => openModal(null)}>新增</Button>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderRefreshButton()}
+            {renderCreateButton()}
+          </>
         )}
-      </SearchToolbar>
+      />
 
       <ConfigurableTable
         bordered

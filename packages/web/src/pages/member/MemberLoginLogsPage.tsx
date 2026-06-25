@@ -71,35 +71,70 @@ export default function MemberLoginLogsPage() {
     { title: '登录时间', dataIndex: 'createdAt', width: 180, fixed: 'right' },
   ];
 
+  const renderKeywordSearch = () => (
+    <Input
+      placeholder="会员昵称/手机号/用户名"
+      prefix={<Search size={14} />}
+      value={search.keyword}
+      showClear
+      style={{ width: 220 }}
+      onChange={(value) => setSearch((prev) => ({ ...prev, keyword: value || undefined }))}
+      onEnterPress={handleSearch}
+    />
+  );
+
+  const renderStatusFilter = () => (
+    <Select
+      placeholder="全部状态"
+      value={search.status}
+      style={{ width: 130 }}
+      showClear
+      optionList={statusOptions}
+      onChange={(value) => setSearch((prev) => ({ ...prev, status: value as 'success' | 'fail' | undefined }))}
+    />
+  );
+
+  const renderDateRangeFilter = () => (
+    <DatePicker
+      type="dateRange"
+      placeholder={['开始日期', '结束日期']}
+      value={search.dateRange ?? undefined}
+      onChange={(value) => setSearch((prev) => ({ ...prev, dateRange: value ? (value as [Date, Date]) : null }))}
+      style={{ width: 300 }}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Input
-          placeholder="会员昵称/手机号/用户名"
-          prefix={<Search size={14} />}
-          value={search.keyword}
-          showClear
-          style={{ width: 200 }}
-          onChange={(value) => setSearch((prev) => ({ ...prev, keyword: value || undefined }))}
-        />
-        <Select
-          placeholder="全部状态"
-          value={search.status}
-          style={{ width: 130 }}
-          showClear
-          optionList={statusOptions}
-          onChange={(value) => setSearch((prev) => ({ ...prev, status: value as 'success' | 'fail' | undefined }))}
-        />
-        <DatePicker
-          type="dateRange"
-          placeholder={['开始日期', '结束日期']}
-          value={search.dateRange ?? undefined}
-          onChange={(value) => setSearch((prev) => ({ ...prev, dateRange: value ? (value as [Date, Date]) : null }))}
-          style={{ width: 300 }}
-        />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordSearch()}
+            {renderStatusFilter()}
+            {renderDateRangeFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderKeywordSearch()}
+            {renderSearchButton()}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            {renderStatusFilter()}
+            {renderDateRangeFilter()}
+          </>
+        )}
+        filterTitle="登录日志筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable
         bordered

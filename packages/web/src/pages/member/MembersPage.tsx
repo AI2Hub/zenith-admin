@@ -75,6 +75,33 @@ export default function MembersPage() {
   const handleSearch = () => { setPage(1); void fetchData(1, pageSize); };
   const handleReset = () => { setSearch(defaultSearch); setPage(1); void fetchData(1, pageSize, defaultSearch); };
 
+  const buildExportQuery = () => {
+    const ap = searchRef.current;
+    return new URLSearchParams({
+      ...(ap.keyword ? { keyword: ap.keyword } : {}),
+      ...(ap.status ? { status: ap.status } : {}),
+      ...(ap.levelId ? { levelId: String(ap.levelId) } : {}),
+    }).toString();
+  };
+
+  const handleExportExcel = async () => {
+    setExportLoading(true);
+    try {
+      const q = buildExportQuery();
+      const url = q ? `/api/members/export?${q}` : '/api/members/export';
+      await request.download(url, '会员列表.xlsx');
+    } finally { setExportLoading(false); }
+  };
+
+  const handleExportCsv = async () => {
+    setExportCsvLoading(true);
+    try {
+      const q = buildExportQuery();
+      const csvUrl = q ? `/api/members/export/csv?${q}` : '/api/members/export/csv';
+      await request.download(csvUrl, '会员列表.csv');
+    } finally { setExportCsvLoading(false); }
+  };
+
   const openCreate = () => { setEditing(null); setModalVisible(true); };
   const openEdit = (record: Member) => { setEditing(record); setModalVisible(true); };
 
@@ -194,63 +221,103 @@ export default function MembersPage() {
     },
   ];
 
+  const renderKeywordSearch = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="昵称/手机号/用户名/邮箱"
+      value={search.keyword}
+      showClear
+      onChange={(v) => setSearch((p) => ({ ...p, keyword: v }))}
+      onEnterPress={handleSearch}
+      style={{ width: 240 }}
+    />
+  );
+
+  const renderStatusFilter = () => (
+    <Select
+      placeholder="全部状态"
+      value={search.status || undefined}
+      style={{ width: 130 }}
+      onChange={(v) => setSearch((p) => ({ ...p, status: (v as string) ?? '' }))}
+      optionList={[{ value: '', label: '全部状态' }, ...statusOptions]}
+    />
+  );
+
+  const renderLevelFilter = () => (
+    <Select
+      placeholder="全部等级"
+      value={search.levelId}
+      style={{ width: 140 }}
+      showClear
+      onChange={(v) => setSearch((p) => ({ ...p, levelId: v as number | undefined }))}
+      optionList={levels.map((l) => ({ value: l.id, label: l.name }))}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderCreateButton = () => hasPermission('member:member:create') ? (
+    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+  ) : null;
+
+  const renderExportButtons = () => hasPermission('member:member:list') ? (
+    <SplitButtonGroup>
+      <Button type="primary" icon={<Download size={14} />} loading={exportLoading} onClick={handleExportExcel}>导出</Button>
+      <Dropdown
+        trigger="click"
+        position="bottomRight"
+        clickToHide
+        render={(
+          <Dropdown.Menu>
+            <Dropdown.Item onClick={handleExportExcel}>导出 Excel</Dropdown.Item>
+            <Dropdown.Item onClick={handleExportCsv}>导出 CSV</Dropdown.Item>
+          </Dropdown.Menu>
+        )}
+      >
+        <Button type="primary" icon={<ChevronDown size={14} />} loading={exportCsvLoading} />
+      </Dropdown>
+    </SplitButtonGroup>
+  ) : null;
+
+  const renderMobileExportActions = () => hasPermission('member:member:list') ? (
+    <>
+      <Button icon={<Download size={14} />} loading={exportLoading} onClick={handleExportExcel}>导出 Excel</Button>
+      <Button icon={<Download size={14} />} loading={exportCsvLoading} onClick={handleExportCsv}>导出 CSV</Button>
+    </>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Input prefix={<Search size={14} />} placeholder="昵称/手机号/用户名/邮箱" value={search.keyword} showClear
-          onChange={(v) => setSearch((p) => ({ ...p, keyword: v }))} onEnterPress={handleSearch} style={{ width: 240 }} />
-        <Select placeholder="全部状态" value={search.status || undefined} style={{ width: 130 }}
-          onChange={(v) => setSearch((p) => ({ ...p, status: (v as string) ?? '' }))}
-          optionList={[{ value: '', label: '全部状态' }, ...statusOptions]} />
-        <Select placeholder="全部等级" value={search.levelId} style={{ width: 140 }} showClear
-          onChange={(v) => setSearch((p) => ({ ...p, levelId: v as number | undefined }))}
-          optionList={levels.map((l) => ({ value: l.id, label: l.name }))} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        {hasPermission('member:member:list') && (
-          <SplitButtonGroup>
-            <Button type="primary" icon={<Download size={14} />} loading={exportLoading} onClick={async () => {
-              setExportLoading(true);
-              try {
-                const ap = searchRef.current;
-                const q = new URLSearchParams({ ...(ap.keyword ? { keyword: ap.keyword } : {}), ...(ap.status ? { status: ap.status } : {}), ...(ap.levelId ? { levelId: String(ap.levelId) } : {}) }).toString();
-                const url = q ? `/api/members/export?${q}` : '/api/members/export';
-                await request.download(url, '会员列表.xlsx');
-              } finally { setExportLoading(false); }
-            }}>导出</Button>
-            <Dropdown
-              trigger="click"
-              position="bottomRight"
-              clickToHide
-              render={(
-                <Dropdown.Menu>
-                  <Dropdown.Item onClick={async () => {
-                    setExportLoading(true);
-                    try {
-                      const ap = searchRef.current;
-                      const q = new URLSearchParams({ ...(ap.keyword ? { keyword: ap.keyword } : {}), ...(ap.status ? { status: ap.status } : {}), ...(ap.levelId ? { levelId: String(ap.levelId) } : {}) }).toString();
-                      const url = q ? `/api/members/export?${q}` : '/api/members/export';
-                      await request.download(url, '会员列表.xlsx');
-                    } finally { setExportLoading(false); }
-                  }}>导出 Excel</Dropdown.Item>
-                  <Dropdown.Item onClick={async () => {
-                    setExportCsvLoading(true);
-                    try {
-                      const ap = searchRef.current;
-                      const q = new URLSearchParams({ ...(ap.keyword ? { keyword: ap.keyword } : {}), ...(ap.status ? { status: ap.status } : {}), ...(ap.levelId ? { levelId: String(ap.levelId) } : {}) }).toString();
-                      const csvUrl = q ? `/api/members/export/csv?${q}` : '/api/members/export/csv';
-                      await request.download(csvUrl, '会员列表.csv');
-                    } finally { setExportCsvLoading(false); }
-                  }}>导出 CSV</Dropdown.Item>
-                </Dropdown.Menu>
-              )}
-            >
-              <Button type="primary" icon={<ChevronDown size={14} />} loading={exportCsvLoading} />
-            </Dropdown>
-          </SplitButtonGroup>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordSearch()}
+            {renderStatusFilter()}
+            {renderLevelFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderExportButtons()}
+            {renderCreateButton()}
+          </>
         )}
-        {hasPermission('member:member:create') && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>}
-      </SearchToolbar>
+        mobilePrimary={(
+          <>
+            {renderKeywordSearch()}
+            {renderSearchButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            {renderStatusFilter()}
+            {renderLevelFilter()}
+          </>
+        )}
+        mobileActions={renderMobileExportActions()}
+        filterTitle="会员筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       {/* 批量操作栏 */}
       {selectedRowKeys.length > 0 && hasPermission('member:member:update') && (

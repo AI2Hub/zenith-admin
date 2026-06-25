@@ -61,6 +61,9 @@ export default function CheckinLogsPage() {
     void fetchData();
   }, [fetchData]);
 
+  const handleSearch = () => { setPage(1); void fetchData(1, pageSize); };
+  const handleReset = () => { setSearch(defaultSearch); setPage(1); void fetchData(1, pageSize, defaultSearch); };
+
   const handleMakeup = async () => {
     let values: { memberId?: number; date?: Date } | undefined;
     try {
@@ -97,35 +100,60 @@ export default function CheckinLogsPage() {
     { title: '签到时间', dataIndex: 'createdAt', width: 180 },
   ];
 
+  const renderKeywordSearch = () => (
+    <Input
+      placeholder="会员ID/昵称"
+      prefix={<Search size={14} />}
+      value={search.memberKeyword}
+      showClear
+      style={{ width: 180 }}
+      onChange={(value) => setSearch((prev) => ({ ...prev, memberKeyword: value || undefined }))}
+      onEnterPress={handleSearch}
+    />
+  );
+
+  const renderDateRangeFilter = () => (
+    <DatePicker
+      type="dateRange"
+      placeholder={['开始日期', '结束日期']}
+      value={search.dateRange ?? undefined}
+      onChange={(value) => setSearch((prev) => ({ ...prev, dateRange: value ? (value as [Date, Date]) : null }))}
+      style={{ width: 300 }}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderMakeupButton = () => hasPermission('member:checkin:makeup') ? (
+    <Button type="primary" icon={<CalendarPlus size={14} />} onClick={() => setMakeupVisible(true)}>
+      会员补签
+    </Button>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Input
-          placeholder="会员ID/昵称"
-          value={search.memberKeyword}
-          showClear
-          style={{ width: 160 }}
-          onChange={(value) => setSearch((prev) => ({ ...prev, memberKeyword: value || undefined }))}
-        />
-        <DatePicker
-          type="dateRange"
-          placeholder={['开始日期', '结束日期']}
-          value={search.dateRange ?? undefined}
-          onChange={(value) => setSearch((prev) => ({ ...prev, dateRange: value ? (value as [Date, Date]) : null }))}
-          style={{ width: 300 }}
-        />
-        <Button type="primary" icon={<Search size={14} />} onClick={() => { setPage(1); void fetchData(1, pageSize); }}>
-          查询
-        </Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { setSearch(defaultSearch); setPage(1); void fetchData(1, pageSize, defaultSearch); }}>
-          重置
-        </Button>
-        {hasPermission('member:checkin:makeup') && (
-          <Button type="primary" icon={<CalendarPlus size={14} />} onClick={() => setMakeupVisible(true)}>
-            会员补签
-          </Button>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordSearch()}
+            {renderDateRangeFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderMakeupButton()}
+          </>
         )}
-      </SearchToolbar>
+        mobilePrimary={(
+          <>
+            {renderKeywordSearch()}
+            {renderSearchButton()}
+            {renderMakeupButton()}
+          </>
+        )}
+        mobileFilters={renderDateRangeFilter()}
+        filterTitle="签到记录筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable
         bordered

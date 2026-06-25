@@ -122,23 +122,42 @@ export default function CheckinRulesPage() {
     },
   ];
 
+  const renderRefreshButton = () => (
+    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => void fetchData()}>
+      刷新
+    </Button>
+  );
+
+  const renderSettingsButton = () => hasPermission('member:checkin:setting:update') ? (
+    <Button type="tertiary" icon={<Settings size={14} />} onClick={() => void openSettings()}>
+      签到设置
+    </Button>
+  ) : null;
+
+  const renderCreateButton = () => hasPermission('member:checkin:rule:create') ? (
+    <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditing(null); setModalVisible(true); }}>
+      新增
+    </Button>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => void fetchData()}>
-          刷新
-        </Button>
-        {hasPermission('member:checkin:setting:update') && (
-          <Button type="tertiary" icon={<Settings size={14} />} onClick={() => void openSettings()}>
-            签到设置
-          </Button>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderRefreshButton()}
+            {renderSettingsButton()}
+            {renderCreateButton()}
+          </>
         )}
-        {hasPermission('member:checkin:rule:create') && (
-          <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditing(null); setModalVisible(true); }}>
-            新增
-          </Button>
+        mobilePrimary={(
+          <>
+            {renderRefreshButton()}
+            {renderCreateButton()}
+          </>
         )}
-      </SearchToolbar>
+        mobileActions={renderSettingsButton()}
+      />
 
       <ConfigurableTable
         bordered

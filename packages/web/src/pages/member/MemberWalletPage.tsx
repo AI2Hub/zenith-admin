@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Input, Select, Space, Form, Toast, Tag } from '@douyinfe/semi-ui';
+import { Button, Input, Select, Form, Toast, Tag } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, RotateCcw, WalletCards, Undo2 } from 'lucide-react';
@@ -74,18 +74,64 @@ export default function MemberWalletPage() {
     createdAtColumn,
   ];
 
+  const renderKeywordSearch = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="会员ID/昵称"
+      value={search.memberKeyword}
+      showClear
+      style={{ width: 180 }}
+      onChange={(v) => setSearch((p) => ({ ...p, memberKeyword: v || undefined }))}
+      onEnterPress={handleSearch}
+    />
+  );
+
+  const renderTypeFilter = () => (
+    <Select
+      placeholder="全部类型"
+      value={search.type}
+      style={{ width: 130 }}
+      showClear
+      onChange={(v) => setSearch((p) => ({ ...p, type: v as string | undefined }))}
+      optionList={typeOptions}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderAdjustButton = () => hasPermission('member:wallet:adjust') ? (
+    <Button type="primary" icon={<WalletCards size={14} />} onClick={() => openModal('adjust')}>调整余额</Button>
+  ) : null;
+  const renderRefundButton = () => hasPermission('member:wallet:refund') ? (
+    <Button type="primary" icon={<Undo2 size={14} />} onClick={() => openModal('refund')}>退款</Button>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Input placeholder="会员ID/昵称" value={search.memberKeyword} showClear style={{ width: 160 }}
-          onChange={(v) => setSearch((p) => ({ ...p, memberKeyword: v || undefined }))} />
-        <Select placeholder="全部类型" value={search.type} style={{ width: 130 }} showClear
-          onChange={(v) => setSearch((p) => ({ ...p, type: v as string | undefined }))} optionList={typeOptions} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        {hasPermission('member:wallet:adjust') && <Button type="primary" icon={<WalletCards size={14} />} onClick={() => openModal('adjust')}>调整余额</Button>}
-        {hasPermission('member:wallet:refund') && <Button type="primary" icon={<Undo2 size={14} />} onClick={() => openModal('refund')}>退款</Button>}
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordSearch()}
+            {renderTypeFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderAdjustButton()}
+            {renderRefundButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderKeywordSearch()}
+            {renderSearchButton()}
+            {renderAdjustButton()}
+            {renderRefundButton()}
+          </>
+        )}
+        mobileFilters={renderTypeFilter()}
+        filterTitle="钱包流水筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable bordered columns={columns} dataSource={data} loading={loading}
         onRefresh={fetchData} refreshLoading={loading} rowKey="id" size="small"

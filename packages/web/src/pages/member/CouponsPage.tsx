@@ -177,19 +177,76 @@ export default function CouponsPage() {
     }] : []),
   ];
 
+  const renderKeywordSearch = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="券名称"
+      value={search.keyword}
+      showClear
+      style={{ width: 180 }}
+      onChange={(v) => setSearch((p) => ({ ...p, keyword: v || undefined }))}
+      onEnterPress={handleSearch}
+    />
+  );
+
+  const renderTypeFilter = () => (
+    <Select
+      placeholder="全部类型"
+      value={search.type}
+      style={{ width: 120 }}
+      showClear
+      onChange={(v) => setSearch((p) => ({ ...p, type: v as string | undefined }))}
+      optionList={typeOptions}
+    />
+  );
+
+  const renderStatusFilter = () => (
+    <Select
+      placeholder="全部状态"
+      value={search.status}
+      style={{ width: 120 }}
+      showClear
+      onChange={(v) => setSearch((p) => ({ ...p, status: v as string | undefined }))}
+      optionList={statusOptions}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderCreateButton = () => hasPermission('member:coupon:create') ? (
+    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Input prefix={<Search size={14} />} placeholder="券名称" value={search.keyword} showClear style={{ width: 180 }}
-          onChange={(v) => setSearch((p) => ({ ...p, keyword: v || undefined }))} onEnterPress={handleSearch} />
-        <Select placeholder="全部类型" value={search.type} style={{ width: 120 }} showClear
-          onChange={(v) => setSearch((p) => ({ ...p, type: v as string | undefined }))} optionList={typeOptions} />
-        <Select placeholder="全部状态" value={search.status} style={{ width: 120 }} showClear
-          onChange={(v) => setSearch((p) => ({ ...p, status: v as string | undefined }))} optionList={statusOptions} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        {hasPermission('member:coupon:create') && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>}
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordSearch()}
+            {renderTypeFilter()}
+            {renderStatusFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderKeywordSearch()}
+            {renderSearchButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            {renderTypeFilter()}
+            {renderStatusFilter()}
+          </>
+        )}
+        filterTitle="优惠券筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable bordered columns={columns} dataSource={data} loading={loading}
         onRefresh={fetchData} refreshLoading={loading} rowKey="id" size="small"

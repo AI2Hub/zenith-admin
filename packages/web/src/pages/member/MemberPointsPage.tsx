@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Input, Select, Space, Form, Toast, Tag } from '@douyinfe/semi-ui';
+import { Button, Input, Select, Form, Toast, Tag } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, RotateCcw, Coins } from 'lucide-react';
@@ -68,17 +68,59 @@ export default function MemberPointsPage() {
     createdAtColumn,
   ];
 
+  const renderKeywordSearch = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="会员ID/昵称"
+      value={search.memberKeyword}
+      showClear
+      style={{ width: 180 }}
+      onChange={(v) => setSearch((p) => ({ ...p, memberKeyword: v || undefined }))}
+      onEnterPress={handleSearch}
+    />
+  );
+
+  const renderTypeFilter = () => (
+    <Select
+      placeholder="全部类型"
+      value={search.type}
+      style={{ width: 130 }}
+      showClear
+      onChange={(v) => setSearch((p) => ({ ...p, type: v as string | undefined }))}
+      optionList={typeOptions}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderAdjustButton = () => hasPermission('member:point:adjust') ? (
+    <Button type="primary" icon={<Coins size={14} />} onClick={() => setAdjustVisible(true)}>调整积分</Button>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Input placeholder="会员ID/昵称" value={search.memberKeyword} showClear style={{ width: 160 }}
-          onChange={(v) => setSearch((p) => ({ ...p, memberKeyword: v || undefined }))} />
-        <Select placeholder="全部类型" value={search.type} style={{ width: 130 }} showClear
-          onChange={(v) => setSearch((p) => ({ ...p, type: v as string | undefined }))} optionList={typeOptions} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        {hasPermission('member:point:adjust') && <Button type="primary" icon={<Coins size={14} />} onClick={() => setAdjustVisible(true)}>调整积分</Button>}
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordSearch()}
+            {renderTypeFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderAdjustButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderKeywordSearch()}
+            {renderSearchButton()}
+            {renderAdjustButton()}
+          </>
+        )}
+        mobileFilters={renderTypeFilter()}
+        filterTitle="积分流水筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable bordered columns={columns} dataSource={data} loading={loading}
         onRefresh={fetchData} refreshLoading={loading} rowKey="id" size="small"

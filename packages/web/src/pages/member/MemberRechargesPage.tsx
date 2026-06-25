@@ -78,43 +78,83 @@ export default function MemberRechargesPage() {
     { title: '创建时间', dataIndex: 'createdAt', width: 180, fixed: 'right' },
   ];
 
+  const renderKeywordSearch = () => (
+    <Input
+      placeholder="会员昵称/手机号/订单号"
+      prefix={<Search size={14} />}
+      value={search.keyword}
+      showClear
+      style={{ width: 220 }}
+      onChange={(value) => setSearch((prev) => ({ ...prev, keyword: value || undefined }))}
+      onEnterPress={handleSearch}
+    />
+  );
+
+  const renderChannelFilter = () => (
+    <Select
+      placeholder="全部渠道"
+      value={search.channel}
+      style={{ width: 120 }}
+      showClear
+      optionList={channelOptions}
+      onChange={(value) => setSearch((prev) => ({ ...prev, channel: value as PaymentChannel | undefined }))}
+    />
+  );
+
+  const renderStatusFilter = () => (
+    <Select
+      placeholder="全部状态"
+      value={search.status}
+      style={{ width: 130 }}
+      showClear
+      optionList={statusOptions}
+      onChange={(value) => setSearch((prev) => ({ ...prev, status: value as PaymentOrderStatus | undefined }))}
+    />
+  );
+
+  const renderDateRangeFilter = () => (
+    <DatePicker
+      type="dateRange"
+      placeholder={['开始日期', '结束日期']}
+      value={search.dateRange ?? undefined}
+      onChange={(value) => setSearch((prev) => ({ ...prev, dateRange: value ? (value as [Date, Date]) : null }))}
+      style={{ width: 300 }}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Input
-          placeholder="会员昵称/手机号/订单号"
-          prefix={<Search size={14} />}
-          value={search.keyword}
-          showClear
-          style={{ width: 220 }}
-          onChange={(value) => setSearch((prev) => ({ ...prev, keyword: value || undefined }))}
-        />
-        <Select
-          placeholder="全部渠道"
-          value={search.channel}
-          style={{ width: 120 }}
-          showClear
-          optionList={channelOptions}
-          onChange={(value) => setSearch((prev) => ({ ...prev, channel: value as PaymentChannel | undefined }))}
-        />
-        <Select
-          placeholder="全部状态"
-          value={search.status}
-          style={{ width: 130 }}
-          showClear
-          optionList={statusOptions}
-          onChange={(value) => setSearch((prev) => ({ ...prev, status: value as PaymentOrderStatus | undefined }))}
-        />
-        <DatePicker
-          type="dateRange"
-          placeholder={['开始日期', '结束日期']}
-          value={search.dateRange ?? undefined}
-          onChange={(value) => setSearch((prev) => ({ ...prev, dateRange: value ? (value as [Date, Date]) : null }))}
-          style={{ width: 300 }}
-        />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordSearch()}
+            {renderChannelFilter()}
+            {renderStatusFilter()}
+            {renderDateRangeFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderKeywordSearch()}
+            {renderSearchButton()}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            {renderChannelFilter()}
+            {renderStatusFilter()}
+            {renderDateRangeFilter()}
+          </>
+        )}
+        filterTitle="充值记录筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable
         bordered

@@ -82,12 +82,24 @@ export default function MemberLevelsPage() {
     },
   ];
 
+  const renderRefreshButton = () => (
+    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => void fetchData()}>刷新</Button>
+  );
+
+  const renderCreateButton = () => hasPermission('member:level:create') ? (
+    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增等级</Button>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => void fetchData()}>刷新</Button>
-        {hasPermission('member:level:create') && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增等级</Button>}
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderRefreshButton()}
+            {renderCreateButton()}
+          </>
+        )}
+      />
 
       <ConfigurableTable bordered columns={columns} dataSource={data} loading={loading}
         onRefresh={fetchData} refreshLoading={loading} rowKey="id" size="small" pagination={false} empty="暂无数据" />

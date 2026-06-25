@@ -74,18 +74,70 @@ export default function CouponRecordsPage() {
     }] : []),
   ];
 
+  const renderKeywordSearch = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="会员ID/昵称"
+      value={search.memberKeyword}
+      showClear
+      style={{ width: 180 }}
+      onChange={(v) => setSearch((p) => ({ ...p, memberKeyword: v || undefined }))}
+      onEnterPress={handleSearch}
+    />
+  );
+
+  const renderCouponIdFilter = () => (
+    <InputNumber
+      placeholder="优惠券ID"
+      value={search.couponId}
+      min={1}
+      style={{ width: 120 }}
+      onChange={(v) => setSearch((p) => ({ ...p, couponId: (v as number) || undefined }))}
+    />
+  );
+
+  const renderStatusFilter = () => (
+    <Select
+      placeholder="全部状态"
+      value={search.status}
+      style={{ width: 130 }}
+      showClear
+      onChange={(v) => setSearch((p) => ({ ...p, status: v as string | undefined }))}
+      optionList={statusOptions}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Input placeholder="会员ID/昵称" value={search.memberKeyword} showClear style={{ width: 160 }}
-          onChange={(v) => setSearch((p) => ({ ...p, memberKeyword: v || undefined }))} />
-        <InputNumber placeholder="优惠券ID" value={search.couponId} min={1} style={{ width: 120 }}
-          onChange={(v) => setSearch((p) => ({ ...p, couponId: (v as number) || undefined }))} />
-        <Select placeholder="全部状态" value={search.status} style={{ width: 130 }} showClear
-          onChange={(v) => setSearch((p) => ({ ...p, status: v as string | undefined }))} optionList={statusOptions} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordSearch()}
+            {renderCouponIdFilter()}
+            {renderStatusFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderKeywordSearch()}
+            {renderSearchButton()}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            {renderCouponIdFilter()}
+            {renderStatusFilter()}
+          </>
+        )}
+        filterTitle="领券记录筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable bordered columns={columns} dataSource={data} loading={loading}
         onRefresh={fetchData} refreshLoading={loading} rowKey="id" size="small"
