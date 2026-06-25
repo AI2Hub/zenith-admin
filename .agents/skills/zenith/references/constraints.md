@@ -54,7 +54,7 @@
 
 - **操作列固定**（Step 8）：所有表格操作列必须 `fixed: 'right'`
 - **状态列固定**（Step 8）：状态列必须紧靠操作列左侧，并同样设置 `fixed: 'right'`
-- **搜索栏布局**（Step 8）：使用 `SearchToolbar` 组件（`packages/web/src/components/SearchToolbar.tsx`）。简单页面可继续使用 children 写法；筛选/操作较多时必须使用结构化模式（`primary` / `filters` / `actions`，必要时用 `mobilePrimary` / `mobileFilters` / `mobileActions` 覆盖移动端）。移动端默认只露出关键词搜索、查询、新增等高频入口，其他筛选放入底部筛选抽屉，导出/导入/批量等低频操作放入更多菜单。参考 `packages/web/src/pages/system/positions/PositionsPage.tsx`
+- **搜索栏布局**（Step 8）：使用 `SearchToolbar` 组件（`packages/web/src/components/SearchToolbar.tsx`）。简单页面可继续使用 children 写法；筛选/操作较多时必须使用结构化模式（`primary` / `filters` / `actions`，必要时用 `mobilePrimary` / `mobileFilters` / `mobileActions` 覆盖移动端）。移动端至少露出一个高频搜索/筛选项：优先关键词搜索；没有关键词搜索时，选择最常用且区分度最高的筛选项（如渠道、类型、作用域、状态）放在 `mobilePrimary`。其他筛选放入底部筛选抽屉，导出/导入/批量等低频操作放入更多菜单。参考 `packages/web/src/pages/system/positions/PositionsPage.tsx`
 - **表格样式**（Step 8）：统一 `<ConfigurableTable bordered ... />`
 - **表格列公共工具**（Step 8）：`createdAtColumn`（创建时间预置列）和 `renderEllipsis`（省略列 render）从 `'../../utils/table-columns'` 导入；**禁止**内联写 `<Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>`
 - **操作按钮样式**（Step 8）：`theme="borderless" size="small"`，删除加 `type="danger"`
