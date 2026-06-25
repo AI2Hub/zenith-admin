@@ -135,18 +135,66 @@ export default function MpQrcodesPage() {
     },
   ];
 
+  const renderAccountFilter = () => (
+    <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
+  );
+  const renderTypeFilter = () => (
+    <Select
+      placeholder="类型"
+      value={searchParams.filterType}
+      onChange={(v) => setSearchParams({ ...searchParams, filterType: v as MpQrcodeType | undefined })}
+      optionList={TYPE_OPTIONS}
+      showClear
+      style={{ width: 130 }}
+    />
+  );
+  const renderKeywordInput = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="搜索名称 / 场景值"
+      value={searchParams.keyword}
+      onChange={(v) => setSearchParams({ ...searchParams, keyword: v })}
+      onEnterPress={handleSearch}
+      showClear
+      style={{ width: 200 }}
+    />
+  );
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderCreateButton = () => can('mp:qrcode:create') ? (
+    <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>生成二维码</Button>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
-        <Select placeholder="类型" value={searchParams.filterType} onChange={(v) => setSearchParams({ ...searchParams, filterType: v as MpQrcodeType | undefined })}
-          optionList={TYPE_OPTIONS} showClear style={{ width: 130 }} />
-        <Input prefix={<Search size={14} />} placeholder="搜索名称 / 场景值" value={searchParams.keyword} showClear
-          onChange={(v) => setSearchParams({ ...searchParams, keyword: v })} onEnterPress={handleSearch} style={{ width: 200 }} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        {can('mp:qrcode:create') && <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>生成二维码</Button>}
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderAccountFilter()}
+            {renderTypeFilter()}
+            {renderKeywordInput()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderKeywordInput()}
+            {renderSearchButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            {renderAccountFilter()}
+            {renderTypeFilter()}
+          </>
+        )}
+        filterTitle="二维码筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       {!accountsLoading && accounts.length === 0 && (
         <Banner type="warning" fullMode={false} description="尚未配置公众号，请先在「公众号账号」中添加公众号。" style={{ marginBottom: 12 }} />

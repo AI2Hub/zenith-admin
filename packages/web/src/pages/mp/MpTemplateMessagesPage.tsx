@@ -162,32 +162,73 @@ export default function MpTemplateMessagesPage() {
     { title: '发送时间', dataIndex: 'createdAt', width: 170 },
   ];
 
+  const renderAccountFilter = () => (
+    <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
+  );
+  const renderTemplateRefreshButton = () => (
+    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => void fetchTemplates(1)}>刷新</Button>
+  );
+  const renderTemplateActions = () => (
+    <>
+      {can('mp:template:sync') && <Button icon={<RefreshCw size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSync()}>从微信同步模板</Button>}
+      {can('mp:template:sync') && <Button icon={<Briefcase size={14} />} disabled={!currentId} onClick={() => void openIndustry()}>行业设置</Button>}
+    </>
+  );
+  const renderLogStatusFilter = () => (
+    <Select
+      placeholder="状态"
+      value={logStatus}
+      onChange={(v) => { setLogStatus(v as string | undefined); void fetchLogs(1, logPg.pageSize, v as string | undefined); }}
+      optionList={[{ label: '成功', value: 'success' }, { label: '失败', value: 'failed' }]}
+      showClear
+      style={{ width: 120 }}
+    />
+  );
+  const renderLogRefreshButton = () => (
+    <Button type="tertiary" icon={<Search size={14} />} onClick={() => void fetchLogs(1)}>刷新</Button>
+  );
+
   return (
     <div className="page-container">
-      <div style={{ marginBottom: 12 }}>
-        <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
-      </div>
+      <SearchToolbar
+        primary={renderAccountFilter()}
+        mobilePrimary={renderAccountFilter()}
+        filterTitle="模板消息筛选"
+      />
       {!accountsLoading && accounts.length === 0 && (
         <Banner type="warning" fullMode={false} description="尚未配置公众号，请先在「公众号账号」中添加公众号。" style={{ marginBottom: 12 }} />
       )}
 
       <Tabs activeKey={tab} onChange={setTab} type="line">
         <TabPane tab="模板库" itemKey="templates">
-          <SearchToolbar>
-            <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => void fetchTemplates(1)}>刷新</Button>
-            {can('mp:template:sync') && <Button icon={<RefreshCw size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSync()}>从微信同步模板</Button>}
-            {can('mp:template:sync') && <Button icon={<Briefcase size={14} />} disabled={!currentId} onClick={() => void openIndustry()}>行业设置</Button>}
-          </SearchToolbar>
+          <SearchToolbar
+            primary={(
+              <>
+                {renderTemplateRefreshButton()}
+                {renderTemplateActions()}
+              </>
+            )}
+            mobilePrimary={renderTemplateRefreshButton()}
+            mobileActions={renderTemplateActions()}
+            actionTitle="模板库操作"
+          />
           <ConfigurableTable bordered loading={tplLoading} onRefresh={() => void fetchTemplates()} refreshLoading={tplLoading}
             columns={tplColumns} dataSource={templates} rowKey="id"
             pagination={tplPg.buildPagination(tplTotal, (p, ps) => fetchTemplates(p, ps))} scroll={{ x: 1000 }} />
         </TabPane>
         <TabPane tab="发送记录" itemKey="logs">
-          <SearchToolbar>
-            <Select placeholder="状态" value={logStatus} onChange={(v) => { setLogStatus(v as string | undefined); void fetchLogs(1, logPg.pageSize, v as string | undefined); }}
-              optionList={[{ label: '成功', value: 'success' }, { label: '失败', value: 'failed' }]} showClear style={{ width: 120 }} />
-            <Button type="tertiary" icon={<Search size={14} />} onClick={() => void fetchLogs(1)}>刷新</Button>
-          </SearchToolbar>
+          <SearchToolbar
+            primary={(
+              <>
+                {renderLogStatusFilter()}
+                {renderLogRefreshButton()}
+              </>
+            )}
+            mobilePrimary={renderLogRefreshButton()}
+            mobileFilters={renderLogStatusFilter()}
+            filterTitle="发送记录筛选"
+            onFilterApply={() => void fetchLogs(1)}
+          />
           <ConfigurableTable bordered loading={logLoading} onRefresh={() => void fetchLogs()} refreshLoading={logLoading}
             columns={logColumns} dataSource={logs} rowKey="id"
             pagination={logPg.buildPagination(logTotal, (p, ps) => fetchLogs(p, ps))} scroll={{ x: 1000 }} />

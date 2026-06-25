@@ -249,21 +249,73 @@ export default function MpAccountsPage() {
     },
   ];
 
+  const renderKeywordInput = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="搜索名称/微信号/AppID"
+      value={searchParams.keyword}
+      onChange={(v) => setSearchParams({ ...searchParams, keyword: v })}
+      onEnterPress={handleSearch}
+      showClear
+      style={{ width: 220 }}
+    />
+  );
+  const renderTypeFilter = () => (
+    <Select
+      placeholder="类型"
+      value={searchParams.filterType}
+      onChange={(v) => setSearchParams({ ...searchParams, filterType: v as MpAccountType | undefined })}
+      optionList={TYPE_OPTIONS}
+      showClear
+      style={{ width: 120 }}
+    />
+  );
+  const renderStatusFilter = () => (
+    <Select
+      placeholder="状态"
+      value={searchParams.filterStatus}
+      onChange={(v) => setSearchParams({ ...searchParams, filterStatus: v as string | undefined })}
+      optionList={statusItems.map((i) => ({ label: i.label, value: i.value }))}
+      showClear
+      style={{ width: 110 }}
+    />
+  );
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderCreateButton = () => can('mp:account:create') ? (
+    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Input prefix={<Search size={14} />} placeholder="搜索名称/微信号/AppID"
-          value={searchParams.keyword} onChange={(v) => setSearchParams({ ...searchParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 220 }} />
-        <Select placeholder="类型" value={searchParams.filterType} onChange={(v) => setSearchParams({ ...searchParams, filterType: v as MpAccountType | undefined })}
-          optionList={TYPE_OPTIONS} showClear style={{ width: 120 }} />
-        <Select placeholder="状态" value={searchParams.filterStatus} onChange={(v) => setSearchParams({ ...searchParams, filterStatus: v as string | undefined })}
-          optionList={statusItems.map((i) => ({ label: i.label, value: i.value }))} showClear style={{ width: 110 }} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        {can('mp:account:create') && (
-          <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordInput()}
+            {renderTypeFilter()}
+            {renderStatusFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderCreateButton()}
+          </>
         )}
-      </SearchToolbar>
+        mobilePrimary={(
+          <>
+            {renderKeywordInput()}
+            {renderSearchButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            {renderTypeFilter()}
+            {renderStatusFilter()}
+          </>
+        )}
+        filterTitle="公众号账号筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable bordered loading={loading} onRefresh={() => void fetchList()} refreshLoading={loading} columns={columns} dataSource={list} rowKey="id"
         pagination={buildPagination(total, fetchList)}

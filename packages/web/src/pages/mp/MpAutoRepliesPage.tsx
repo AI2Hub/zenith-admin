@@ -237,19 +237,72 @@ export default function MpAutoRepliesPage() {
     if (res.code === 0) setHotwords((prev) => prev.filter((h) => h.id !== id));
   };
 
+  const renderAccountFilter = () => (
+    <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
+  );
+  const renderTypeFilter = () => (
+    <Select
+      placeholder="回复类型"
+      value={searchParams.filterType}
+      onChange={(v) => setSearchParams({ ...searchParams, filterType: v as MpAutoReplyType | undefined })}
+      optionList={REPLY_TYPE_OPTIONS}
+      showClear
+      style={{ width: 140 }}
+    />
+  );
+  const renderKeywordInput = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="搜索关键词"
+      value={searchParams.keyword}
+      onChange={(v) => setSearchParams({ ...searchParams, keyword: v })}
+      onEnterPress={handleSearch}
+      showClear
+      style={{ width: 180 }}
+    />
+  );
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderCreateButton = () => can('mp:reply:create') ? (
+    <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增</Button>
+  ) : null;
+  const renderHotwordsButton = () => can('mp:reply:list') ? (
+    <Button icon={<Flame size={14} />} disabled={!currentId} onClick={() => void openHotwords()}>未命中热词</Button>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
-        <Select placeholder="回复类型" value={searchParams.filterType} onChange={(v) => setSearchParams({ ...searchParams, filterType: v as MpAutoReplyType | undefined })}
-          optionList={REPLY_TYPE_OPTIONS} showClear style={{ width: 140 }} />
-        <Input prefix={<Search size={14} />} placeholder="搜索关键词" value={searchParams.keyword} showClear
-          onChange={(v) => setSearchParams({ ...searchParams, keyword: v })} onEnterPress={handleSearch} style={{ width: 180 }} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        {can('mp:reply:create') && <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增</Button>}
-        {can('mp:reply:list') && <Button icon={<Flame size={14} />} disabled={!currentId} onClick={() => void openHotwords()}>未命中热词</Button>}
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderAccountFilter()}
+            {renderTypeFilter()}
+            {renderKeywordInput()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderCreateButton()}
+            {renderHotwordsButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderKeywordInput()}
+            {renderSearchButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            {renderAccountFilter()}
+            {renderTypeFilter()}
+          </>
+        )}
+        mobileActions={renderHotwordsButton()}
+        filterTitle="自动回复筛选"
+        actionTitle="自动回复操作"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       {!accountsLoading && accounts.length === 0 && (
         <Banner type="warning" fullMode={false} description="尚未配置公众号，请先在「公众号账号」中添加公众号。" style={{ marginBottom: 12 }} />

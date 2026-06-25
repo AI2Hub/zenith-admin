@@ -52,11 +52,17 @@ export default function MpOAuthPage() {
     try { await navigator.clipboard.writeText(text); Toast.success('已复制'); } catch { Toast.error('复制失败'); }
   };
 
+  const renderAccountFilter = () => (
+    <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
+  );
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
-      </SearchToolbar>
+      <SearchToolbar
+        primary={renderAccountFilter()}
+        mobilePrimary={renderAccountFilter()}
+        filterTitle="网页授权筛选"
+      />
 
       {!accountsLoading && accounts.length === 0 && (
         <Banner type="warning" fullMode={false} description="尚未配置公众号，请先在「公众号账号」中添加公众号。" style={{ marginBottom: 12 }} />

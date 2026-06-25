@@ -189,14 +189,42 @@ export default function MpConditionalMenusPage() {
     },
   ];
 
+  const renderAccountFilter = () => (
+    <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
+  );
+  const renderRefreshButton = () => (
+    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => void fetchList()}>刷新</Button>
+  );
+  const renderCreateButton = () => can('mp:condmenu:create') ? (
+    <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增个性化菜单</Button>
+  ) : null;
+  const renderMatchButton = () => (
+    <Button icon={<FlaskConical size={14} />} disabled={!currentId} onClick={() => { setMatchResult(null); setMatchUserId(''); setMatchVisible(true); }}>匹配测试</Button>
+  );
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => void fetchList()}>刷新</Button>
-        <Button icon={<FlaskConical size={14} />} disabled={!currentId} onClick={() => { setMatchResult(null); setMatchUserId(''); setMatchVisible(true); }}>匹配测试</Button>
-        {can('mp:condmenu:create') && <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增个性化菜单</Button>}
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderAccountFilter()}
+            {renderRefreshButton()}
+            {renderMatchButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderRefreshButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobileFilters={renderAccountFilter()}
+        mobileActions={renderMatchButton()}
+        filterTitle="个性化菜单筛选"
+        actionTitle="个性化菜单操作"
+        onFilterApply={() => void fetchList()}
+      />
 
       {!accountsLoading && accounts.length === 0 && (
         <Banner type="warning" fullMode={false} description="尚未配置公众号，请先在「公众号账号」中添加公众号。" style={{ marginBottom: 12 }} />

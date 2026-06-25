@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Button, Form, Modal, Select, Space, Spin, Tag, Toast, Banner, Typography, Tooltip, Input, Descriptions } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, RotateCcw, Eye, BarChart3 } from 'lucide-react';
+import { Plus, RotateCcw, Eye, BarChart3, Search } from 'lucide-react';
 import type { PaginatedResponse, MpBroadcast, MpBroadcastType, MpBroadcastTarget, MpBroadcastStatus, MpBroadcastResult, MpTag, MpMaterial, MpDraft } from '@zenith/shared';
 import { usePermission } from '@/hooks/usePermission';
 import { request } from '@/utils/request';
@@ -225,16 +225,53 @@ export default function MpBroadcastsPage() {
     ? materials.map((m) => ({ label: `${m.name}（${m.wechatMediaId}）`, value: m.wechatMediaId as string }))
     : drafts.map((d) => ({ label: `${d.title}（${d.wechatMediaId}）`, value: d.wechatMediaId as string }));
 
+  const renderAccountFilter = () => (
+    <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
+  );
+  const renderStatusFilter = () => (
+    <Select
+      placeholder="状态"
+      value={filterStatus}
+      onChange={(v) => setFilterStatus(v as MpBroadcastStatus | undefined)}
+      optionList={STATUS_OPTIONS}
+      showClear
+      style={{ width: 130 }}
+    />
+  );
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderCreateButton = () => can('mp:broadcast:create') ? (
+    <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增群发</Button>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
-        <Select placeholder="状态" value={filterStatus} onChange={(v) => setFilterStatus(v as MpBroadcastStatus | undefined)}
-          optionList={STATUS_OPTIONS} showClear style={{ width: 130 }} />
-        <Button type="primary" icon={<RotateCcw size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        {can('mp:broadcast:create') && <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增群发</Button>}
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderAccountFilter()}
+            {renderStatusFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderSearchButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            {renderAccountFilter()}
+            {renderStatusFilter()}
+          </>
+        )}
+        filterTitle="群发筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       {!accountsLoading && accounts.length === 0 && (
         <Banner type="warning" fullMode={false} description="尚未配置公众号，请先在「公众号账号」中添加公众号。" style={{ marginBottom: 12 }} />

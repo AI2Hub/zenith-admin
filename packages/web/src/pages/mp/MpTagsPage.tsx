@@ -133,21 +133,56 @@ export default function MpTagsPage() {
     },
   ];
 
+  const renderAccountFilter = () => (
+    <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
+  );
+  const renderKeywordInput = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="搜索标签名称"
+      value={keyword}
+      onChange={setKeyword}
+      onEnterPress={handleSearch}
+      showClear
+      style={{ width: 180 }}
+    />
+  );
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderCreateButton = () => can('mp:tag:create') ? (
+    <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增</Button>
+  ) : null;
+  const renderSyncButton = () => can('mp:tag:sync') ? (
+    <Button icon={<RefreshCw size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSync()}>从微信同步</Button>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
-        <Input prefix={<Search size={14} />} placeholder="搜索标签名称"
-          value={keyword} onChange={setKeyword} onEnterPress={handleSearch} showClear style={{ width: 180 }} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        {can('mp:tag:sync') && (
-          <Button icon={<RefreshCw size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSync()}>从微信同步</Button>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderAccountFilter()}
+            {renderKeywordInput()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderSyncButton()}
+            {renderCreateButton()}
+          </>
         )}
-        {can('mp:tag:create') && (
-          <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>新增</Button>
+        mobilePrimary={(
+          <>
+            {renderKeywordInput()}
+            {renderSearchButton()}
+            {renderCreateButton()}
+          </>
         )}
-      </SearchToolbar>
+        mobileFilters={renderAccountFilter()}
+        mobileActions={renderSyncButton()}
+        filterTitle="标签筛选"
+        actionTitle="标签操作"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       {!accountsLoading && accounts.length === 0 && (
         <Banner type="warning" fullMode={false} description="尚未配置公众号，请先在「公众号账号」中添加公众号。" style={{ marginBottom: 12 }} />

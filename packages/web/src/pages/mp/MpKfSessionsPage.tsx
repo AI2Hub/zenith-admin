@@ -234,17 +234,56 @@ export default function MpKfSessionsPage() {
 
   const agentOptions = (stats?.agents ?? []).filter((a) => a.status === 'enabled' && (pickModal.mode === 'accept' || a.kfId !== detail?.kfId));
 
+  const renderAccountFilter = () => (
+    <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
+  );
+  const renderKeywordInput = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="搜索 openid / 粉丝昵称"
+      value={keyword}
+      onChange={setKeyword}
+      onEnterPress={() => void fetchSessions()}
+      showClear
+      style={{ width: 200 }}
+    />
+  );
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={() => void fetchSessions()}>查询</Button>;
+  const renderResetButton = () => (
+    <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { setKeyword(''); keywordRef.current = ''; void fetchSessions(undefined, ''); }}>重置</Button>
+  );
+  const renderSessionActions = () => (
+    <>
+      <Button icon={<RefreshCw size={14} />} onClick={refreshAll}>刷新</Button>
+      {can('mp:kf:session:config') && <Button icon={<Settings size={14} />} disabled={!currentId} onClick={() => void openConfig()}>路由配置</Button>}
+    </>
+  );
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
-        <Input prefix={<Search size={14} />} placeholder="搜索 openid / 粉丝昵称" value={keyword} onChange={setKeyword}
-          onEnterPress={() => void fetchSessions()} showClear style={{ width: 200 }} />
-        <Button type="primary" icon={<Search size={14} />} onClick={() => void fetchSessions()}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { setKeyword(''); keywordRef.current = ''; void fetchSessions(undefined, ''); }}>重置</Button>
-        <Button icon={<RefreshCw size={14} />} onClick={refreshAll}>刷新</Button>
-        {can('mp:kf:session:config') && <Button icon={<Settings size={14} />} disabled={!currentId} onClick={() => void openConfig()}>路由配置</Button>}
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderAccountFilter()}
+            {renderKeywordInput()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderSessionActions()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderKeywordInput()}
+            {renderSearchButton()}
+          </>
+        )}
+        mobileFilters={renderAccountFilter()}
+        mobileActions={renderSessionActions()}
+        filterTitle="会话筛选"
+        actionTitle="会话操作"
+        onFilterApply={() => void fetchSessions()}
+        onFilterReset={() => { setKeyword(''); keywordRef.current = ''; void fetchSessions(undefined, ''); }}
+      />
 
       {!accountsLoading && accounts.length === 0 && (
         <Banner type="warning" fullMode={false} description="尚未配置公众号，请先在「公众号账号」中添加公众号。" style={{ marginBottom: 12 }} />

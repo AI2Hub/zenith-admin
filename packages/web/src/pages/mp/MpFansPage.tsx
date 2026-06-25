@@ -203,27 +203,99 @@ export default function MpFansPage() {
     },
   ];
 
+  const renderAccountFilter = () => (
+    <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
+  );
+  const renderKeywordInput = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="搜索昵称/openid/备注"
+      value={searchParams.keyword}
+      onChange={(v) => setSearchParams({ ...searchParams, keyword: v })}
+      onEnterPress={handleSearch}
+      showClear
+      style={{ width: 200 }}
+    />
+  );
+  const renderSubscribeFilter = () => (
+    <Select
+      placeholder="关注状态"
+      value={searchParams.subscribe}
+      onChange={(v) => setSearchParams({ ...searchParams, subscribe: v as MpFanSubscribe | undefined })}
+      optionList={SUBSCRIBE_OPTIONS}
+      showClear
+      style={{ width: 120 }}
+    />
+  );
+  const renderTagFilter = () => (
+    <Select
+      placeholder="标签"
+      value={searchParams.tagId}
+      onChange={(v) => setSearchParams({ ...searchParams, tagId: v as number | undefined })}
+      optionList={tags.map((t) => ({ label: t.name, value: t.id }))}
+      showClear
+      filter
+      style={{ width: 150 }}
+    />
+  );
+  const renderBlacklistFilter = () => (
+    <Select
+      placeholder="黑名单"
+      value={searchParams.blacklisted}
+      onChange={(v) => setSearchParams({ ...searchParams, blacklisted: v as 'true' | 'false' | undefined })}
+      optionList={[{ label: '黑名单', value: 'true' }, { label: '正常', value: 'false' }]}
+      showClear
+      style={{ width: 110 }}
+    />
+  );
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderSyncActions = () => (
+    <>
+      {can('mp:fan:sync') && (
+        <Button icon={<RefreshCw size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSync()}>同步粉丝</Button>
+      )}
+      {can('mp:fan:blacklist') && (
+        <Button icon={<Ban size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSyncBlacklist()}>同步黑名单</Button>
+      )}
+    </>
+  );
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
-        <Input prefix={<Search size={14} />} placeholder="搜索昵称/openid/备注"
-          value={searchParams.keyword} onChange={(v) => setSearchParams({ ...searchParams, keyword: v })} onEnterPress={handleSearch} showClear style={{ width: 200 }} />
-        <Select placeholder="关注状态" value={searchParams.subscribe} onChange={(v) => setSearchParams({ ...searchParams, subscribe: v as MpFanSubscribe | undefined })}
-          optionList={SUBSCRIBE_OPTIONS} showClear style={{ width: 120 }} />
-        <Select placeholder="标签" value={searchParams.tagId} onChange={(v) => setSearchParams({ ...searchParams, tagId: v as number | undefined })}
-          optionList={tags.map((t) => ({ label: t.name, value: t.id }))} showClear filter style={{ width: 150 }} />
-        <Select placeholder="黑名单" value={searchParams.blacklisted} onChange={(v) => setSearchParams({ ...searchParams, blacklisted: v as 'true' | 'false' | undefined })}
-          optionList={[{ label: '黑名单', value: 'true' }, { label: '正常', value: 'false' }]} showClear style={{ width: 110 }} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        {can('mp:fan:sync') && (
-          <Button icon={<RefreshCw size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSync()}>同步粉丝</Button>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderAccountFilter()}
+            {renderKeywordInput()}
+            {renderSubscribeFilter()}
+            {renderTagFilter()}
+            {renderBlacklistFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderSyncActions()}
+          </>
         )}
-        {can('mp:fan:blacklist') && (
-          <Button icon={<Ban size={14} />} loading={syncing} disabled={!currentId} onClick={() => void handleSyncBlacklist()}>同步黑名单</Button>
+        mobilePrimary={(
+          <>
+            {renderKeywordInput()}
+            {renderSearchButton()}
+          </>
         )}
-      </SearchToolbar>
+        mobileFilters={(
+          <>
+            {renderAccountFilter()}
+            {renderSubscribeFilter()}
+            {renderTagFilter()}
+            {renderBlacklistFilter()}
+          </>
+        )}
+        mobileActions={renderSyncActions()}
+        filterTitle="粉丝筛选"
+        actionTitle="粉丝操作"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       {!accountsLoading && accounts.length === 0 && (
         <Banner type="warning" fullMode={false} description="尚未配置公众号，请先在「公众号账号」中添加公众号。" style={{ marginBottom: 12 }} />
