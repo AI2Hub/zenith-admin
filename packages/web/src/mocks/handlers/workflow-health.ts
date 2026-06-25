@@ -51,7 +51,7 @@ export const workflowHealthHandlers = [
         critical,
         warning: issues.length - critical,
         externalFailed: issues.filter((issue) => issue.type === 'external_dispatch_failed').length,
-        triggerStuck: issues.filter((issue) => issue.type === 'trigger_waiting_no_execution').length,
+        triggerStuck: issues.filter((issue) => issue.type === 'trigger_waiting_no_execution' || issue.type === 'trigger_execution_failed').length,
         subProcessStuck: issues.filter((issue) => issue.type === 'subprocess_waiting').length,
         outboxFailed: issues.filter((issue) => issue.type === 'workflow_event_outbox_failed').length,
       },
