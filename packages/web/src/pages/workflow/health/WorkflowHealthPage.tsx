@@ -103,16 +103,14 @@ export default function WorkflowHealthPage() {
   return (
     <div className="page-container">
       <SearchToolbar>
-        <Space spacing={8} style={{ padding: '4px 8px', borderRadius: 6, background: 'var(--semi-color-fill-0)' }}>
-          <Typography.Text strong>只看等待</Typography.Text>
-          <Select
-            value={thresholdMinutes}
-            onChange={(v) => setThresholdMinutes(Number(v) || 30)}
-            optionList={THRESHOLD_OPTIONS}
-            style={{ width: 190 }}
-          />
-          <Typography.Text strong>的问题</Typography.Text>
-        </Space>
+        <Select
+          value={thresholdMinutes}
+          onChange={(v) => setThresholdMinutes(Number(v) || 30)}
+          optionList={THRESHOLD_OPTIONS}
+          prefix="只看等待"
+          suffix="的问题"
+          style={{ width: 320 }}
+        />
         <Typography.Text size="small" type="tertiary">用于发现卡住的审批、触发器、子流程和 Outbox 事件</Typography.Text>
         <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
         <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
