@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, InputNumber, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Select, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RotateCcw, Search } from 'lucide-react';
 import type { WorkflowHealthIssue, WorkflowHealthSummary } from '@zenith/shared';
@@ -18,6 +18,16 @@ const ISSUE_LABELS: Record<WorkflowHealthIssue['type'], string> = {
   workflow_event_outbox_pending: 'Outbox 待处理',
   waiting_task_stuck: '任务等待过久',
 };
+
+const THRESHOLD_OPTIONS = [
+  { value: 10, label: '超过 10 分钟' },
+  { value: 15, label: '超过 15 分钟' },
+  { value: 30, label: '超过 30 分钟（推荐）' },
+  { value: 60, label: '超过 1 小时' },
+  { value: 120, label: '超过 2 小时' },
+  { value: 240, label: '超过 4 小时' },
+  { value: 1440, label: '超过 1 天' },
+];
 
 function SummaryItem({ label, value, danger }: Readonly<{ label: string; value: number; danger?: boolean }>) {
   return (
@@ -93,20 +103,17 @@ export default function WorkflowHealthPage() {
   return (
     <div className="page-container">
       <SearchToolbar>
-        <Space spacing={6}>
-          <Typography.Text size="small" type="tertiary">巡检阈值</Typography.Text>
-        <InputNumber
-          value={thresholdMinutes}
-          onChange={(v) => setThresholdMinutes(typeof v === 'number' ? v : 30)}
-          min={1}
-          max={1440}
-          step={5}
-          placeholder="阈值（分钟）"
-            style={{ width: 96 }}
-        />
-          <Typography.Text size="small" type="tertiary">分钟</Typography.Text>
+        <Space spacing={8} style={{ padding: '4px 8px', borderRadius: 6, background: 'var(--semi-color-fill-0)' }}>
+          <Typography.Text strong>只看等待</Typography.Text>
+          <Select
+            value={thresholdMinutes}
+            onChange={(v) => setThresholdMinutes(Number(v) || 30)}
+            optionList={THRESHOLD_OPTIONS}
+            style={{ width: 190 }}
+          />
+          <Typography.Text strong>的问题</Typography.Text>
         </Space>
-        <Typography.Text size="small" type="tertiary">仅展示等待时长超过该阈值的问题</Typography.Text>
+        <Typography.Text size="small" type="tertiary">用于发现卡住的审批、触发器、子流程和 Outbox 事件</Typography.Text>
         <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
         <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
       </SearchToolbar>
