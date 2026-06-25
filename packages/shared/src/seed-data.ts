@@ -443,6 +443,7 @@ export const SEED_MENUS: Menu[] = [
   // ── 业务接入示例（请假，业务模块自有实体 + 工作流编排）──
   { id: 900, parentId: 0,   title: '业务示例', name: 'BizDemo',          path: undefined,        component: undefined,            icon: 'Briefcase',     type: 'directory', sort: 12, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 901, parentId: 900, title: '请假管理', name: 'BizLeave',         path: '/biz/leave',     component: 'biz/leave/LeavePage', icon: 'CalendarClock', type: 'menu',      sort: 1,  status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 902, parentId: 900, title: '支付接入示例', name: 'BizPayDemo',     path: '/biz/pay-demo',  component: 'biz/pay-demo/PayDemoPage', icon: 'Wallet',     type: 'menu',      sort: 2,  status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── 角色 ─────────────────────────────────────────────────────────────────────
