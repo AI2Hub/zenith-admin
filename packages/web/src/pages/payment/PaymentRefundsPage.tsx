@@ -154,31 +154,117 @@ export default function PaymentRefundsPage() {
     },
   ];
 
+  const renderKeywordSearch = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="退款单号/订单号..."
+      value={searchParams.keyword}
+      onChange={(v) => setSearchParams((p) => ({ ...p, keyword: v }))}
+      showClear
+      style={{ width: 200 }}
+      onEnterPress={handleSearch}
+    />
+  );
+
+  const renderChannelFilter = () => (
+    <Select
+      placeholder="全部渠道"
+      value={searchParams.channel || undefined}
+      onChange={(v) => setSearchParams((p) => ({ ...p, channel: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 120 }}
+      optionList={[{ value: 'wechat', label: '微信支付' }, { value: 'alipay', label: '支付宝' }]}
+    />
+  );
+
+  const renderStatusFilter = () => (
+    <Select
+      placeholder="全部状态"
+      value={searchParams.status || undefined}
+      onChange={(v) => setSearchParams((p) => ({ ...p, status: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 120 }}
+      optionList={Object.entries(PAYMENT_REFUND_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+    />
+  );
+
+  const renderApprovalFilter = () => (
+    <Select
+      placeholder="审批状态"
+      value={searchParams.approvalStatus || undefined}
+      onChange={(v) => setSearchParams((p) => ({ ...p, approvalStatus: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 120 }}
+      optionList={Object.entries(PAYMENT_REFUND_APPROVAL_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+    />
+  );
+
+  const renderTimeRangeFilter = () => (
+    <DatePicker
+      type="dateTimeRange"
+      placeholder={['创建开始', '创建结束']}
+      value={searchParams.timeRange ?? undefined}
+      onChange={(v) => setSearchParams((p) => ({ ...p, timeRange: v ? (v as [Date, Date]) : null }))}
+      style={{ width: 330 }}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderExportButtons = () => (
+    <SplitButtonGroup>
+      <Button type="primary" icon={<Download size={14} />} loading={exportLoading} onClick={handleExport}>导出</Button>
+      <Dropdown trigger="click" position="bottomRight" clickToHide render={(
+        <Dropdown.Menu>
+          <Dropdown.Item onClick={handleExport}>导出 Excel</Dropdown.Item>
+          <Dropdown.Item onClick={handleExportCsv}>导出 CSV</Dropdown.Item>
+        </Dropdown.Menu>
+      )}>
+        <Button type="primary" icon={<ChevronDown size={14} />} loading={exportCsvLoading} />
+      </Dropdown>
+    </SplitButtonGroup>
+  );
+  const renderMobileExportActions = () => (
+    <>
+      <Button icon={<Download size={14} />} loading={exportLoading} onClick={handleExport}>导出 Excel</Button>
+      <Button icon={<Download size={14} />} loading={exportCsvLoading} onClick={handleExportCsv}>导出 CSV</Button>
+    </>
+  );
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Input prefix={<Search size={14} />} placeholder="退款单号/订单号..." value={searchParams.keyword} onChange={(v) => setSearchParams((p) => ({ ...p, keyword: v }))} showClear style={{ width: 200 }} onEnterPress={handleSearch} />
-        <Select placeholder="全部渠道" value={searchParams.channel || undefined} onChange={(v) => setSearchParams((p) => ({ ...p, channel: (v as string) ?? '' }))} showClear style={{ width: 120 }}
-          optionList={[{ value: 'wechat', label: '微信支付' }, { value: 'alipay', label: '支付宝' }]} />
-        <Select placeholder="全部状态" value={searchParams.status || undefined} onChange={(v) => setSearchParams((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }}
-          optionList={Object.entries(PAYMENT_REFUND_STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
-        <Select placeholder="审批状态" value={searchParams.approvalStatus || undefined} onChange={(v) => setSearchParams((p) => ({ ...p, approvalStatus: (v as string) ?? '' }))} showClear style={{ width: 120 }}
-          optionList={Object.entries(PAYMENT_REFUND_APPROVAL_STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
-        <DatePicker type="dateTimeRange" placeholder={['创建开始', '创建结束']} value={searchParams.timeRange ?? undefined} onChange={(v) => setSearchParams((p) => ({ ...p, timeRange: v ? (v as [Date, Date]) : null }))} style={{ width: 330 }} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        <SplitButtonGroup>
-          <Button type="primary" icon={<Download size={14} />} loading={exportLoading} onClick={handleExport}>导出</Button>
-          <Dropdown trigger="click" position="bottomRight" clickToHide render={(
-            <Dropdown.Menu>
-              <Dropdown.Item onClick={handleExport}>导出 Excel</Dropdown.Item>
-              <Dropdown.Item onClick={handleExportCsv}>导出 CSV</Dropdown.Item>
-            </Dropdown.Menu>
-          )}>
-            <Button type="primary" icon={<ChevronDown size={14} />} loading={exportCsvLoading} />
-          </Dropdown>
-        </SplitButtonGroup>
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordSearch()}
+            {renderChannelFilter()}
+            {renderStatusFilter()}
+            {renderApprovalFilter()}
+            {renderTimeRangeFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+          </>
+        )}
+        actions={renderExportButtons()}
+        mobilePrimary={(
+          <>
+            {renderKeywordSearch()}
+            {renderSearchButton()}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            {renderChannelFilter()}
+            {renderStatusFilter()}
+            {renderApprovalFilter()}
+            {renderTimeRangeFilter()}
+          </>
+        )}
+        mobileActions={renderMobileExportActions()}
+        filterTitle="退款记录筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable
         bordered columns={columns} dataSource={data?.list ?? []} loading={loading} rowKey="id" size="small" empty="暂无数据"

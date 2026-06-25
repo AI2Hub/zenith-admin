@@ -193,16 +193,59 @@ export default function PaymentLinksPage() {
     },
   ];
 
+  const renderKeywordSearch = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="标题..."
+      value={search.keyword}
+      onChange={(v) => setSearch((p) => ({ ...p, keyword: v }))}
+      showClear
+      style={{ width: 200 }}
+      onEnterPress={handleSearch}
+    />
+  );
+
+  const renderStatusFilter = () => (
+    <Select
+      placeholder="全部状态"
+      value={search.status || undefined}
+      onChange={(v) => setSearch((p) => ({ ...p, status: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 120 }}
+      optionList={[{ value: 'active', label: '生效中' }, { value: 'disabled', label: '已停用' }]}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderCreateButton = () => hasPermission('payment:link:create') ? (
+    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Input prefix={<Search size={14} />} placeholder="标题..." value={search.keyword} onChange={(v) => setSearch((p) => ({ ...p, keyword: v }))} showClear style={{ width: 200 }} onEnterPress={handleSearch} />
-        <Select placeholder="全部状态" value={search.status || undefined} onChange={(v) => setSearch((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }}
-          optionList={[{ value: 'active', label: '生效中' }, { value: 'disabled', label: '已停用' }]} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        {hasPermission('payment:link:create') && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>}
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordSearch()}
+            {renderStatusFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderKeywordSearch()}
+            {renderSearchButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobileFilters={renderStatusFilter()}
+        filterTitle="支付链接筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable
         bordered columns={columns} dataSource={data?.list ?? []} loading={loading} rowKey="id" size="small" empty="暂无数据"

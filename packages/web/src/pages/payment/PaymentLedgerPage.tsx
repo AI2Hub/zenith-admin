@@ -111,6 +111,64 @@ export default function PaymentLedgerPage() {
     { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
   ];
 
+  const renderKeywordSearch = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="订单号..."
+      value={searchParams.keyword}
+      onChange={(v) => setSearchParams((p) => ({ ...p, keyword: v }))}
+      showClear
+      style={{ width: 200 }}
+      onEnterPress={handleSearch}
+    />
+  );
+
+  const renderDirectionFilter = () => (
+    <Select
+      placeholder="收支方向"
+      value={searchParams.direction || undefined}
+      onChange={(v) => setSearchParams((p) => ({ ...p, direction: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 120 }}
+      optionList={Object.entries(PAYMENT_LEDGER_DIRECTION_LABELS).map(([value, label]) => ({ value, label }))}
+    />
+  );
+
+  const renderTypeFilter = () => (
+    <Select
+      placeholder="流水类型"
+      value={searchParams.type || undefined}
+      onChange={(v) => setSearchParams((p) => ({ ...p, type: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 120 }}
+      optionList={Object.entries(PAYMENT_LEDGER_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+    />
+  );
+
+  const renderChannelFilter = () => (
+    <Select
+      placeholder="全部渠道"
+      value={searchParams.channel || undefined}
+      onChange={(v) => setSearchParams((p) => ({ ...p, channel: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 120 }}
+      optionList={[{ value: 'wechat', label: '微信支付' }, { value: 'alipay', label: '支付宝' }]}
+    />
+  );
+
+  const renderTimeRangeFilter = () => (
+    <DatePicker
+      type="dateTimeRange"
+      placeholder={['开始时间', '结束时间']}
+      value={searchParams.timeRange ?? undefined}
+      onChange={(v) => setSearchParams((p) => ({ ...p, timeRange: v ? (v as [Date, Date]) : null }))}
+      style={{ width: 330 }}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch} disabled={!canView}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset} disabled={!canView}>重置</Button>;
+
   return (
     <div className="page-container">
       <div style={{ marginBottom: 16 }}>
@@ -149,18 +207,36 @@ export default function PaymentLedgerPage() {
         )}
       </div>
 
-      <SearchToolbar>
-        <Input prefix={<Search size={14} />} placeholder="订单号..." value={searchParams.keyword} onChange={(v) => setSearchParams((p) => ({ ...p, keyword: v }))} showClear style={{ width: 200 }} onEnterPress={handleSearch} />
-        <Select placeholder="收支方向" value={searchParams.direction || undefined} onChange={(v) => setSearchParams((p) => ({ ...p, direction: (v as string) ?? '' }))} showClear style={{ width: 120 }}
-          optionList={Object.entries(PAYMENT_LEDGER_DIRECTION_LABELS).map(([value, label]) => ({ value, label }))} />
-        <Select placeholder="流水类型" value={searchParams.type || undefined} onChange={(v) => setSearchParams((p) => ({ ...p, type: (v as string) ?? '' }))} showClear style={{ width: 120 }}
-          optionList={Object.entries(PAYMENT_LEDGER_TYPE_LABELS).map(([value, label]) => ({ value, label }))} />
-        <Select placeholder="全部渠道" value={searchParams.channel || undefined} onChange={(v) => setSearchParams((p) => ({ ...p, channel: (v as string) ?? '' }))} showClear style={{ width: 120 }}
-          optionList={[{ value: 'wechat', label: '微信支付' }, { value: 'alipay', label: '支付宝' }]} />
-        <DatePicker type="dateTimeRange" placeholder={['开始时间', '结束时间']} value={searchParams.timeRange ?? undefined} onChange={(v) => setSearchParams((p) => ({ ...p, timeRange: v ? (v as [Date, Date]) : null }))} style={{ width: 330 }} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch} disabled={!canView}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset} disabled={!canView}>重置</Button>
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordSearch()}
+            {renderDirectionFilter()}
+            {renderTypeFilter()}
+            {renderChannelFilter()}
+            {renderTimeRangeFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderKeywordSearch()}
+            {renderSearchButton()}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            {renderDirectionFilter()}
+            {renderTypeFilter()}
+            {renderChannelFilter()}
+            {renderTimeRangeFilter()}
+          </>
+        )}
+        filterTitle="资金台账筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       {!canView && (
         <Banner

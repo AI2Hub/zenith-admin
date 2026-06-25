@@ -89,16 +89,72 @@ export default function PaymentEventsPage() {
     },
   ];
 
+  const renderKeywordSearch = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="订单号..."
+      value={searchParams.keyword}
+      onChange={(v) => setSearchParams((p) => ({ ...p, keyword: v }))}
+      showClear
+      style={{ width: 200 }}
+      onEnterPress={handleSearch}
+    />
+  );
+
+  const renderStatusFilter = () => (
+    <Select
+      placeholder="全部状态"
+      value={searchParams.status || undefined}
+      onChange={(v) => setSearchParams((p) => ({ ...p, status: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 120 }}
+      optionList={Object.entries(EVENT_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+    />
+  );
+
+  const renderTypeFilter = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="事件类型..."
+      value={searchParams.type}
+      onChange={(v) => setSearchParams((p) => ({ ...p, type: v }))}
+      showClear
+      style={{ width: 180 }}
+      onEnterPress={handleSearch}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Input prefix={<Search size={14} />} placeholder="订单号..." value={searchParams.keyword} onChange={(v) => setSearchParams((p) => ({ ...p, keyword: v }))} showClear style={{ width: 200 }} onEnterPress={handleSearch} />
-        <Select placeholder="全部状态" value={searchParams.status || undefined} onChange={(v) => setSearchParams((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }}
-          optionList={Object.entries(EVENT_STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
-        <Input prefix={<Search size={14} />} placeholder="事件类型..." value={searchParams.type} onChange={(v) => setSearchParams((p) => ({ ...p, type: v }))} showClear style={{ width: 180 }} onEnterPress={handleSearch} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordSearch()}
+            {renderStatusFilter()}
+            {renderTypeFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderKeywordSearch()}
+            {renderSearchButton()}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            {renderStatusFilter()}
+            {renderTypeFilter()}
+          </>
+        )}
+        filterTitle="支付事件筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable
         bordered columns={columns} dataSource={data?.list ?? []} loading={loading} rowKey="id" size="small" empty="暂无数据"
@@ -107,4 +163,3 @@ export default function PaymentEventsPage() {
     </div>
   );
 }
-

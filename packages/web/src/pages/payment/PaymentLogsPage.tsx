@@ -83,20 +83,96 @@ export default function PaymentLogsPage() {
     },
   ];
 
+  const renderKeywordSearch = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="订单号..."
+      value={searchParams.keyword}
+      onChange={(v) => setSearchParams((p) => ({ ...p, keyword: v }))}
+      showClear
+      style={{ width: 200 }}
+      onEnterPress={handleSearch}
+    />
+  );
+
+  const renderChannelFilter = () => (
+    <Select
+      placeholder="全部渠道"
+      value={searchParams.channel || undefined}
+      onChange={(v) => setSearchParams((p) => ({ ...p, channel: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 120 }}
+      optionList={[{ value: 'wechat', label: '微信支付' }, { value: 'alipay', label: '支付宝' }]}
+    />
+  );
+
+  const renderSceneFilter = () => (
+    <Select
+      placeholder="全部场景"
+      value={searchParams.scene || undefined}
+      onChange={(v) => setSearchParams((p) => ({ ...p, scene: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 120 }}
+      optionList={[{ value: 'payment', label: '支付回调' }, { value: 'refund', label: '退款回调' }]}
+    />
+  );
+
+  const renderSignatureFilter = () => (
+    <Select
+      placeholder="验签结果"
+      value={searchParams.signatureValid || undefined}
+      onChange={(v) => setSearchParams((p) => ({ ...p, signatureValid: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 120 }}
+      optionList={[{ value: 'true', label: '验签通过' }, { value: 'false', label: '验签失败' }]}
+    />
+  );
+
+  const renderTimeRangeFilter = () => (
+    <DatePicker
+      type="dateTimeRange"
+      placeholder={['开始时间', '结束时间']}
+      value={searchParams.timeRange ?? undefined}
+      onChange={(v) => setSearchParams((p) => ({ ...p, timeRange: v ? (v as [Date, Date]) : null }))}
+      style={{ width: 330 }}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Input prefix={<Search size={14} />} placeholder="订单号..." value={searchParams.keyword} onChange={(v) => setSearchParams((p) => ({ ...p, keyword: v }))} showClear style={{ width: 200 }} onEnterPress={handleSearch} />
-        <Select placeholder="全部渠道" value={searchParams.channel || undefined} onChange={(v) => setSearchParams((p) => ({ ...p, channel: (v as string) ?? '' }))} showClear style={{ width: 120 }}
-          optionList={[{ value: 'wechat', label: '微信支付' }, { value: 'alipay', label: '支付宝' }]} />
-        <Select placeholder="全部场景" value={searchParams.scene || undefined} onChange={(v) => setSearchParams((p) => ({ ...p, scene: (v as string) ?? '' }))} showClear style={{ width: 120 }}
-          optionList={[{ value: 'payment', label: '支付回调' }, { value: 'refund', label: '退款回调' }]} />
-        <Select placeholder="验签结果" value={searchParams.signatureValid || undefined} onChange={(v) => setSearchParams((p) => ({ ...p, signatureValid: (v as string) ?? '' }))} showClear style={{ width: 120 }}
-          optionList={[{ value: 'true', label: '验签通过' }, { value: 'false', label: '验签失败' }]} />
-        <DatePicker type="dateTimeRange" placeholder={['开始时间', '结束时间']} value={searchParams.timeRange ?? undefined} onChange={(v) => setSearchParams((p) => ({ ...p, timeRange: v ? (v as [Date, Date]) : null }))} style={{ width: 330 }} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordSearch()}
+            {renderChannelFilter()}
+            {renderSceneFilter()}
+            {renderSignatureFilter()}
+            {renderTimeRangeFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderKeywordSearch()}
+            {renderSearchButton()}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            {renderChannelFilter()}
+            {renderSceneFilter()}
+            {renderSignatureFilter()}
+            {renderTimeRangeFilter()}
+          </>
+        )}
+        filterTitle="支付回调日志筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable
         bordered columns={columns} dataSource={data?.list ?? []} loading={loading} rowKey="id" size="small" empty="暂无数据"

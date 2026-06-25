@@ -80,14 +80,51 @@ export default function PaymentReportsPage() {
     { title: '成功笔数', dataIndex: 'count', width: 100 },
   ];
 
+  const renderGroupByFilter = () => (
+    <Select
+      value={groupBy}
+      onChange={(v) => setGroupBy(v as PaymentReportGroupBy)}
+      style={{ width: 140 }}
+      optionList={groupByOptions}
+      placeholder="选择维度"
+    />
+  );
+
+  const renderTimeRangeFilter = () => (
+    <DatePicker
+      type="dateTimeRange"
+      placeholder={['开始时间', '结束时间']}
+      value={timeRange ?? undefined}
+      onChange={(v) => setTimeRange(v ? (v as [Date, Date]) : null)}
+      style={{ width: 330 }}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={() => void fetchSummary()} disabled={!canView}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset} disabled={!canView}>重置</Button>;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Select value={groupBy} onChange={(v) => setGroupBy(v as PaymentReportGroupBy)} style={{ width: 140 }} optionList={groupByOptions} placeholder="选择维度" />
-        <DatePicker type="dateTimeRange" placeholder={['开始时间', '结束时间']} value={timeRange ?? undefined} onChange={(v) => setTimeRange(v ? (v as [Date, Date]) : null)} style={{ width: 330 }} />
-        <Button type="primary" icon={<Search size={14} />} onClick={() => void fetchSummary()} disabled={!canView}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset} disabled={!canView}>重置</Button>
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderGroupByFilter()}
+            {renderTimeRangeFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+          </>
+        )}
+        mobilePrimary={renderSearchButton()}
+        mobileFilters={(
+          <>
+            {renderGroupByFilter()}
+            {renderTimeRangeFilter()}
+          </>
+        )}
+        filterTitle="财务报表筛选"
+        onFilterApply={() => void fetchSummary()}
+        onFilterReset={handleReset}
+      />
 
       {!canView && (
         <Banner

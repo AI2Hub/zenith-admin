@@ -164,16 +164,62 @@ export default function PaymentRiskRulesPage() {
     },
   ];
 
+  const renderScopeFilter = () => (
+    <Select
+      placeholder="全部作用域"
+      value={search.scope || undefined}
+      onChange={(v) => setSearch((p) => ({ ...p, scope: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 130 }}
+      optionList={scopeOptions}
+    />
+  );
+
+  const renderStatusFilter = () => (
+    <Select
+      placeholder="全部状态"
+      value={search.status || undefined}
+      onChange={(v) => setSearch((p) => ({ ...p, status: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 120 }}
+      optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderCreateButton = () => hasPermission('payment:risk:create') ? (
+    <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Select placeholder="全部作用域" value={search.scope || undefined} onChange={(v) => setSearch((p) => ({ ...p, scope: (v as string) ?? '' }))} showClear style={{ width: 130 }} optionList={scopeOptions} />
-        <Select placeholder="全部状态" value={search.status || undefined} onChange={(v) => setSearch((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }}
-          optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        {hasPermission('payment:risk:create') && <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新增</Button>}
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderScopeFilter()}
+            {renderStatusFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderSearchButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            {renderScopeFilter()}
+            {renderStatusFilter()}
+          </>
+        )}
+        filterTitle="风控规则筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable
         bordered columns={columns} dataSource={data?.list ?? []} loading={loading} rowKey="id" size="small" empty="暂无数据"

@@ -124,16 +124,62 @@ export default function PaymentSettlementsPage() {
     },
   ];
 
+  const renderChannelFilter = () => (
+    <Select
+      placeholder="全部渠道"
+      value={search.channel || undefined}
+      onChange={(v) => setSearch((p) => ({ ...p, channel: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 130 }}
+      optionList={channelOptions}
+    />
+  );
+
+  const renderStatusFilter = () => (
+    <Select
+      placeholder="全部状态"
+      value={search.status || undefined}
+      onChange={(v) => setSearch((p) => ({ ...p, status: (v as string) ?? '' }))}
+      showClear
+      style={{ width: 120 }}
+      optionList={Object.entries(PAYMENT_SETTLEMENT_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderGenerateButton = () => hasPermission('payment:settlement:generate') ? (
+    <Button type="primary" icon={<Plus size={14} />} onClick={() => setGenVisible(true)}>生成结算</Button>
+  ) : null;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Select placeholder="全部渠道" value={search.channel || undefined} onChange={(v) => setSearch((p) => ({ ...p, channel: (v as string) ?? '' }))} showClear style={{ width: 130 }} optionList={channelOptions} />
-        <Select placeholder="全部状态" value={search.status || undefined} onChange={(v) => setSearch((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }}
-          optionList={Object.entries(PAYMENT_SETTLEMENT_STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        {hasPermission('payment:settlement:generate') && <Button type="primary" icon={<Plus size={14} />} onClick={() => setGenVisible(true)}>生成结算</Button>}
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderChannelFilter()}
+            {renderStatusFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderGenerateButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderSearchButton()}
+            {renderGenerateButton()}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            {renderChannelFilter()}
+            {renderStatusFilter()}
+          </>
+        )}
+        filterTitle="结算批次筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable
         bordered columns={columns} dataSource={data?.list ?? []} loading={loading} rowKey="id" size="small" empty="暂无数据"
