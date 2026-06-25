@@ -40,14 +40,25 @@ const LEAVE_TYPE_OPTIONS = [
 ];
 const LEAVE_TYPE_TEXT = Object.fromEntries(LEAVE_TYPE_OPTIONS.map((o) => [o.value, o.label]));
 
+interface LeaveSearchParams {
+  keyword: string;
+  status: BizLeave['status'] | '';
+}
+
+const DEFAULT_LEAVE_SEARCH_PARAMS: LeaveSearchParams = {
+  keyword: '',
+  status: '',
+};
+
 export default function LeavePage() {
   const navigate = useNavigate();
   const { page, pageSize, setPage, resetPage, buildPagination } = usePagination();
   const [list, setList] = useState<BizLeave[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [keyword, setKeyword] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [searchParams, setSearchParams] = useState<LeaveSearchParams>(DEFAULT_LEAVE_SEARCH_PARAMS);
+  const searchParamsRef = useRef<LeaveSearchParams>(DEFAULT_LEAVE_SEARCH_PARAMS);
+  searchParamsRef.current = searchParams;
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<BizLeave | null>(null);
@@ -55,18 +66,19 @@ export default function LeavePage() {
   const [submittingApproval, setSubmittingApproval] = useState(false);
   const formApi = useRef<FormApi | null>(null);
 
-  const fetchList = useCallback(async (p = page, ps = pageSize) => {
+  const fetchList = useCallback(async (p = page, ps = pageSize, params?: LeaveSearchParams) => {
+    const activeParams = params ?? searchParamsRef.current;
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(p), pageSize: String(ps) });
-      if (keyword.trim()) params.set('keyword', keyword.trim());
-      if (statusFilter) params.set('status', statusFilter);
-      const res = await request.get<PaginatedResponse<BizLeave>>(`/api/biz/leaves?${params.toString()}`);
+      const queryParams = new URLSearchParams({ page: String(p), pageSize: String(ps) });
+      if (activeParams.keyword.trim()) queryParams.set('keyword', activeParams.keyword.trim());
+      if (activeParams.status) queryParams.set('status', activeParams.status);
+      const res = await request.get<PaginatedResponse<BizLeave>>(`/api/biz/leaves?${queryParams.toString()}`);
       if (res.code === 0) { setList(res.data.list); setTotal(res.data.total); }
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, statusFilter]);
+  }, [page, pageSize]);
 
   useEffect(() => {
     void fetchList(1, pageSize);
@@ -75,7 +87,11 @@ export default function LeavePage() {
   }, []);
 
   const handleSearch = () => { resetPage(); void fetchList(1, pageSize); };
-  const handleReset = () => { setKeyword(''); setStatusFilter(''); resetPage(); setTimeout(() => void fetchList(1, pageSize), 0); };
+  const handleReset = () => {
+    setSearchParams(DEFAULT_LEAVE_SEARCH_PARAMS);
+    resetPage();
+    void fetchList(1, pageSize, DEFAULT_LEAVE_SEARCH_PARAMS);
+  };
 
   const openCreate = () => { setEditing(null); setModalVisible(true); setTimeout(() => formApi.current?.reset(), 0); };
   const openEdit = (record: BizLeave) => {
@@ -192,30 +208,57 @@ export default function LeavePage() {
     },
   ];
 
+  const renderKeywordSearch = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="搜索事由"
+      value={searchParams.keyword}
+      onChange={(value) => setSearchParams((prev) => ({ ...prev, keyword: value }))}
+      onEnterPress={handleSearch}
+      showClear
+      style={{ width: 220, maxWidth: '100%' }}
+    />
+  );
+
+  const renderStatusFilter = () => (
+    <Select
+      placeholder="状态"
+      value={searchParams.status || undefined}
+      onChange={(value) => setSearchParams((prev) => ({ ...prev, status: (value as LeaveSearchParams['status']) ?? '' }))}
+      showClear
+      style={{ width: 140, maxWidth: '100%' }}
+      optionList={Object.entries(STATUS_MAP).map(([value, s]) => ({ value, label: s.text }))}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderCreateButton = () => <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新建请假</Button>;
+
   return (
     <div className="page-container">
-      <SearchToolbar>
-        <Input
-          prefix={<Search size={14} />}
-          placeholder="搜索事由"
-          value={keyword}
-          onChange={setKeyword}
-          onEnterPress={handleSearch}
-          showClear
-          style={{ width: 200 }}
-        />
-        <Select
-          placeholder="状态"
-          value={statusFilter || undefined}
-          onChange={(v) => setStatusFilter((v as string) ?? '')}
-          showClear
-          style={{ width: 140 }}
-          optionList={Object.entries(STATUS_MAP).map(([value, s]) => ({ value, label: s.text }))}
-        />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新建请假</Button>
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordSearch()}
+            {renderStatusFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderKeywordSearch()}
+            {renderSearchButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobileFilters={renderStatusFilter()}
+        filterTitle="请假筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable
         bordered

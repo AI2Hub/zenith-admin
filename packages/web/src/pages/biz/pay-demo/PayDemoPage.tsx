@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
-  Banner, Button, Collapse, Form, Modal, Popconfirm, Select, Space, Tag, Toast, Typography,
+  Banner, Button, Collapse, Form, Input, Modal, Popconfirm, Select, Space, Tag, Toast, Typography,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -74,14 +74,25 @@ const { payParams } = res.data;                 // { orderNo, codeUrl?, payUrl?,
 <QRCodeSVG value={payParams.codeUrl} size={200} />
 // 支付成功后后端经 WebSocket 推送 'payment:success'，前端据此刷新列表（或主动查单）`;
 
+interface PayDemoSearchParams {
+  keyword: string;
+  status: BizPayDemoStatus | '';
+}
+
+const DEFAULT_PAY_DEMO_SEARCH_PARAMS: PayDemoSearchParams = {
+  keyword: '',
+  status: '',
+};
+
 export default function PayDemoPage() {
   const { page, pageSize, setPage, resetPage, buildPagination } = usePagination();
 
   const [list, setList] = useState<BizPayDemo[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [keyword, setKeyword] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [searchParams, setSearchParams] = useState<PayDemoSearchParams>(DEFAULT_PAY_DEMO_SEARCH_PARAMS);
+  const searchParamsRef = useRef<PayDemoSearchParams>(DEFAULT_PAY_DEMO_SEARCH_PARAMS);
+  searchParamsRef.current = searchParams;
 
   const [createVisible, setCreateVisible] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -94,18 +105,19 @@ export default function PayDemoPage() {
   const [payResult, setPayResult] = useState<CreatePaymentResult | null>(null);
   const [simulatingId, setSimulatingId] = useState<number | null>(null);
 
-  const fetchList = useCallback(async (p = page, ps = pageSize) => {
+  const fetchList = useCallback(async (p = page, ps = pageSize, params?: PayDemoSearchParams) => {
+    const activeParams = params ?? searchParamsRef.current;
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(p), pageSize: String(ps) });
-      if (keyword.trim()) params.set('keyword', keyword.trim());
-      if (statusFilter) params.set('status', statusFilter);
-      const res = await request.get<PaginatedResponse<BizPayDemo>>(`/api/biz/pay-demos?${params.toString()}`);
+      const queryParams = new URLSearchParams({ page: String(p), pageSize: String(ps) });
+      if (activeParams.keyword.trim()) queryParams.set('keyword', activeParams.keyword.trim());
+      if (activeParams.status) queryParams.set('status', activeParams.status);
+      const res = await request.get<PaginatedResponse<BizPayDemo>>(`/api/biz/pay-demos?${queryParams.toString()}`);
       if (res.code === 0) { setList(res.data.list); setTotal(res.data.total); }
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, keyword, statusFilter]);
+  }, [page, pageSize]);
 
   useEffect(() => {
     void fetchList(1, pageSize);
@@ -115,10 +127,9 @@ export default function PayDemoPage() {
 
   const handleSearch = () => { resetPage(); void fetchList(1, pageSize); };
   const handleReset = () => {
-    setKeyword('');
-    setStatusFilter('');
+    setSearchParams(DEFAULT_PAY_DEMO_SEARCH_PARAMS);
     resetPage();
-    setTimeout(() => void fetchList(1, pageSize), 0);
+    void fetchList(1, pageSize, DEFAULT_PAY_DEMO_SEARCH_PARAMS);
   };
 
   const openCreate = () => {
@@ -218,6 +229,33 @@ export default function PayDemoPage() {
     },
   ];
 
+  const renderKeywordSearch = () => (
+    <Input
+      prefix={<Search size={14} />}
+      placeholder="搜索示例事项"
+      value={searchParams.keyword}
+      onChange={(value) => setSearchParams((prev) => ({ ...prev, keyword: value }))}
+      onEnterPress={handleSearch}
+      showClear
+      style={{ width: 220, maxWidth: '100%' }}
+    />
+  );
+
+  const renderStatusFilter = () => (
+    <Select
+      placeholder="状态"
+      value={searchParams.status || undefined}
+      onChange={(value) => setSearchParams((prev) => ({ ...prev, status: (value as PayDemoSearchParams['status']) ?? '' }))}
+      showClear
+      style={{ width: 140, maxWidth: '100%' }}
+      optionList={(Object.keys(STATUS_MAP) as BizPayDemoStatus[]).map((value) => ({ value, label: STATUS_MAP[value].text }))}
+    />
+  );
+
+  const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
+  const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const renderCreateButton = () => <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新建示例单</Button>;
+
   return (
     <div className="page-container">
       <Banner
@@ -227,19 +265,28 @@ export default function PayDemoPage() {
         description="本页演示业务模块如何对接支付中心：新建示例单 → 发起支付（拿到二维码/跳转链接）→ 支付成功后由事件订阅器自动履约。未配置真实微信/支付宝渠道时，可点「模拟支付成功」跑通完整闭环。展开下方「前后端集成示例代码」查看接入方式。"
       />
 
-      <SearchToolbar>
-        <Select
-          placeholder="状态"
-          value={statusFilter || undefined}
-          onChange={(v) => setStatusFilter((v as string) ?? '')}
-          showClear
-          style={{ width: 140 }}
-          optionList={(Object.keys(STATUS_MAP) as BizPayDemoStatus[]).map((value) => ({ value, label: STATUS_MAP[value].text }))}
-        />
-        <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
-        <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
-        <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新建示例单</Button>
-      </SearchToolbar>
+      <SearchToolbar
+        primary={(
+          <>
+            {renderKeywordSearch()}
+            {renderStatusFilter()}
+            {renderSearchButton()}
+            {renderResetButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobilePrimary={(
+          <>
+            {renderKeywordSearch()}
+            {renderSearchButton()}
+            {renderCreateButton()}
+          </>
+        )}
+        mobileFilters={renderStatusFilter()}
+        filterTitle="支付示例筛选"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
 
       <ConfigurableTable
         bordered
