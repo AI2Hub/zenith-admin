@@ -236,11 +236,11 @@ function formatDuration(start: string, end: string): string {
 
 type FocusSeverity = 'success' | 'info' | 'warning' | 'critical';
 
-const FOCUS_SEVERITY_META: Record<FocusSeverity, { text: string; color: TagColor; borderColor: string }> = {
-  success: { text: '正常', color: 'green', borderColor: 'var(--semi-color-success)' },
-  info: { text: '运行中', color: 'blue', borderColor: 'var(--semi-color-primary)' },
-  warning: { text: '需关注', color: 'orange', borderColor: 'var(--semi-color-warning)' },
-  critical: { text: '有风险', color: 'red', borderColor: 'var(--semi-color-danger)' },
+const FOCUS_SEVERITY_META: Record<FocusSeverity, { text: string; color: TagColor }> = {
+  success: { text: '正常', color: 'green' },
+  info: { text: '运行中', color: 'blue' },
+  warning: { text: '需关注', color: 'orange' },
+  critical: { text: '有风险', color: 'red' },
 };
 
 interface FocusMetric {
@@ -821,15 +821,15 @@ export default function WorkflowMonitorPage() {
             <div><Typography.Text type="tertiary" size="small">流程名称</Typography.Text><div>{inst.definitionName || '—'}</div></div>
             <div><Typography.Text type="tertiary" size="small">状态</Typography.Text><div><Tag color={statusMeta.color}>{statusMeta.text}</Tag></div></div>
             <div><Typography.Text type="tertiary" size="small">当前节点</Typography.Text><div>{currentNodeText}</div></div>
+            <div><Typography.Text type="tertiary" size="small">实例 ID</Typography.Text><div>#{inst.id}</div></div>
+            <div><Typography.Text type="tertiary" size="small">定义 ID</Typography.Text><div>#{inst.definitionId}</div></div>
             <div>
               <Typography.Text type="tertiary" size="small">发起人</Typography.Text>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                 {inst.initiatorName ? <UserAvatar name={inst.initiatorName} avatar={inst.initiatorAvatar} size={20} /> : null}
                 <span>{inst.initiatorName || '—'}</span>
               </div>
             </div>
-            <div><Typography.Text type="tertiary" size="small">实例 ID</Typography.Text><div>#{inst.id}</div></div>
-            <div><Typography.Text type="tertiary" size="small">定义 ID</Typography.Text><div>#{inst.definitionId}</div></div>
             <div><Typography.Text type="tertiary" size="small">Business Key</Typography.Text><div>{inst.bizType && inst.bizId ? `${inst.bizType}:${inst.bizId}` : '—'}</div></div>
             <div><Typography.Text type="tertiary" size="small">节点 / 任务</Typography.Text><div>{diagNodes.length} 节点 · {diagnostics.tasks.length} 任务（{diagnostics.activeTasks.length} 活动）</div></div>
             <div><Typography.Text type="tertiary" size="small">生成时间</Typography.Text><div>{diagnostics.generatedAt}</div></div>
@@ -849,7 +849,6 @@ export default function WorkflowMonitorPage() {
         <div
           style={{
             border: '1px solid var(--semi-color-border)',
-            borderLeft: `4px solid ${focusMeta.borderColor}`,
             borderRadius: 6,
             padding: 14,
             background: 'var(--semi-color-bg-1)',
