@@ -10,7 +10,6 @@ import {
   Form,
   Input,
   Modal,
-  Popconfirm,
   Row,
   Select,
   Space,
@@ -36,6 +35,7 @@ import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 
@@ -312,21 +312,38 @@ export default function WorkflowEventSubscriptionsPage() {
         : (v ? <Tag color="green">启用</Tag> : <Tag color="grey">禁用</Tag>),
     },
     { title: '更新时间', dataIndex: 'updatedAt', width: 160, render: (v: string) => formatDateTime(v) },
-    {
-      title: '操作', dataIndex: 'op', width: 280, fixed: 'right',
-      render: (_v, r) => (
-        <Space>
-          {canManageEventSubscription && <Button theme="borderless" size="small" onClick={() => openEdit(r)}>编辑</Button>}
-          <Button theme="borderless" size="small" onClick={() => openDeliveries(r)}>投递</Button>
-          {canManageEventSubscription && <Button theme="borderless" size="small" onClick={() => handleViewSecret(r.id)}>密钥</Button>}
-          {canManageEventSubscription && (
-            <Popconfirm title="确定要删除该订阅吗？" onConfirm={() => handleDelete(r.id)}>
-              <Button theme="borderless" type="danger" size="small">删除</Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<WorkflowEventSubscription>({
+      width: 280,
+      desktopInlineKeys: ['edit', 'deliveries', 'secret', 'delete'],
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !canManageEventSubscription,
+          onClick: () => openEdit(record),
+        },
+        { key: 'deliveries', label: '投递', onClick: () => openDeliveries(record) },
+        {
+          key: 'secret',
+          label: '密钥',
+          hidden: !canManageEventSubscription,
+          onClick: () => handleViewSecret(record.id),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !canManageEventSubscription,
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除该订阅吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const deliveryColumns: ColumnProps<WorkflowEventDelivery>[] = [
@@ -347,12 +364,18 @@ export default function WorkflowEventSubscriptionsPage() {
     { title: '耗时', dataIndex: 'durationMs', width: 90, render: (v: number | null) => v == null ? '-' : `${v}ms` },
     { title: '错误', dataIndex: 'errorMessage', width: 220, ellipsis: { showTitle: true } },
     { title: '时间', dataIndex: 'createdAt', width: 160, render: (v: string) => formatDateTime(v) },
-    {
-      title: '操作', dataIndex: 'op', width: 100, fixed: 'right',
-      render: (_v, r) => canManageEventSubscription && (r.status === 'failed' || r.status === 'retrying')
-        ? <Button theme="borderless" size="small" onClick={() => handleRetryDelivery(r.id)}>重试</Button>
-        : null,
-    },
+    createOperationColumn<WorkflowEventDelivery>({
+      width: 100,
+      desktopInlineKeys: ['retry'],
+      actions: (record) => [
+        {
+          key: 'retry',
+          label: '重试',
+          hidden: !canManageEventSubscription || (record.status !== 'failed' && record.status !== 'retrying'),
+          onClick: () => handleRetryDelivery(record.id),
+        },
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

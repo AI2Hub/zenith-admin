@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Button, Form, Input, Popconfirm, Select, Space, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Modal, Select, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, RotateCcw, Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { request } from '@/utils/request';
@@ -164,19 +165,27 @@ export default function PaymentSharingPage() {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
       render: (_: unknown, r: PaymentSharingReceiver) => <Switch checked={r.status === 'enabled'} loading={togglingIds.has(r.id)} disabled={!canManage} size="small" onChange={(c) => handleReceiverToggle(r, c)} />,
     },
-    {
-      title: '操作', fixed: 'right', width: 120,
-      render: (_: unknown, r: PaymentSharingReceiver) => (
-        <Space>
-          {canManage && <Button theme="borderless" size="small" onClick={() => openEditReceiver(r)}>编辑</Button>}
-          {canManage && (
-            <Popconfirm title="确定要删除吗？" content="删除后不可恢复" onConfirm={() => handleDeleteReceiver(r.id)}>
-              <Button theme="borderless" type="danger" size="small">删除</Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<PaymentSharingReceiver>({
+      width: 120,
+      actions: (r) => [
+        ...(canManage ? [{
+          key: 'edit',
+          label: '编辑',
+          onClick: () => openEditReceiver(r),
+        }, {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除吗？',
+              content: '删除后不可恢复',
+              onOk: () => handleDeleteReceiver(r.id),
+            });
+          },
+        }] : []),
+      ],
+    }),
   ];
 
   const orderColumns: ColumnProps<PaymentSharingOrder>[] = [

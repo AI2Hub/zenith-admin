@@ -7,6 +7,7 @@ import { ZENITH_OPERATION_COLUMN_SYMBOL, type ZenithOperationColumnMarker } from
 
 type OperationColumnRecord = Data;
 type OperationColumn<RecordType extends OperationColumnRecord> = ColumnProps<RecordType> & ZenithOperationColumnMarker;
+type InlineActionButtonType = 'primary' | 'secondary' | 'tertiary' | 'warning' | 'danger';
 
 export const OPERATION_COLUMN_KEY = 'operation';
 const DEFAULT_OPERATION_COLUMN_WIDTH = 160;
@@ -16,6 +17,8 @@ export interface ResponsiveTableAction {
   label: ReactNode;
   onClick?: () => void | Promise<void>;
   danger?: boolean;
+  type?: InlineActionButtonType;
+  loading?: boolean;
   disabled?: boolean;
   disabledReason?: ReactNode;
   hidden?: boolean;
@@ -26,6 +29,7 @@ interface ResponsiveTableActionsProps {
   actions: ResponsiveTableAction[];
   desktopInlineKeys?: string[];
   menuAriaLabel?: string;
+  emptyContent?: ReactNode;
 }
 
 interface OperationColumnOptions<RecordType extends OperationColumnRecord> {
@@ -34,6 +38,7 @@ interface OperationColumnOptions<RecordType extends OperationColumnRecord> {
   title?: ReactNode;
   desktopInlineKeys?: string[];
   menuAriaLabel?: string;
+  emptyContent?: ReactNode | ((record: RecordType) => ReactNode);
 }
 
 function visibleActions(actions: ResponsiveTableAction[]) {
@@ -41,7 +46,7 @@ function visibleActions(actions: ResponsiveTableAction[]) {
 }
 
 function runAction(action: ResponsiveTableAction) {
-  if (action.disabled) return;
+  if (action.disabled || action.loading) return;
   void action.onClick?.();
 }
 
@@ -55,8 +60,8 @@ function renderActionMenu(actions: ResponsiveTableAction[]) {
     items.push(
       <Dropdown.Item
         key={action.key}
-        type={action.danger ? 'danger' : undefined}
-        disabled={action.disabled}
+        type={action.danger || action.type === 'danger' ? 'danger' : undefined}
+        disabled={action.disabled || action.loading}
         onClick={() => runAction(action)}
       >
         {action.label}
@@ -98,9 +103,10 @@ function InlineActionButton({ action }: Readonly<{ action: ResponsiveTableAction
   const button = (
     <Button
       theme="borderless"
-      type={action.danger ? 'danger' : undefined}
+      type={action.danger ? 'danger' : action.type}
       size="small"
       disabled={action.disabled}
+      loading={action.loading}
       onClick={() => runAction(action)}
     >
       {action.label}
@@ -120,12 +126,13 @@ export function ResponsiveTableActions({
   actions,
   desktopInlineKeys,
   menuAriaLabel = '更多操作',
+  emptyContent,
 }: Readonly<ResponsiveTableActionsProps>) {
   const isMobile = useIsMobile();
   const filteredActions = visibleActions(actions);
 
   if (filteredActions.length === 0) {
-    return <span className="table-cell-placeholder">—</span>;
+    return emptyContent ?? <span className="table-cell-placeholder">—</span>;
   }
 
   if (isMobile) {
@@ -160,6 +167,7 @@ export function createOperationColumn<RecordType extends OperationColumnRecord>(
   title = '操作',
   desktopInlineKeys,
   menuAriaLabel,
+  emptyContent,
 }: Readonly<OperationColumnOptions<RecordType>>): OperationColumn<RecordType> {
   return {
     key: OPERATION_COLUMN_KEY,
@@ -167,13 +175,17 @@ export function createOperationColumn<RecordType extends OperationColumnRecord>(
     fixed: 'right',
     [ZENITH_OPERATION_COLUMN_SYMBOL]: true,
     width,
-    render: (_: unknown, record: RecordType) => (
-      <ResponsiveTableActions
-        actions={actions(record)}
-        desktopInlineKeys={desktopInlineKeys}
-        menuAriaLabel={menuAriaLabel}
-      />
-    ),
+    render: (_: unknown, record: RecordType) => {
+      const resolvedEmptyContent = typeof emptyContent === 'function' ? emptyContent(record) : emptyContent;
+      return (
+        <ResponsiveTableActions
+          actions={actions(record)}
+          desktopInlineKeys={desktopInlineKeys}
+          menuAriaLabel={menuAriaLabel}
+          emptyContent={resolvedEmptyContent}
+        />
+      );
+    },
   };
 }
 

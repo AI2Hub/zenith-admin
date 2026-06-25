@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
-  Button, Col, Dropdown, Form, Input, Modal, Row, Select, Space, Spin, Tag,
+  Button, Col, Form, Input, Modal, Row, Select, Spin, Tag,
   Toast, Switch, Typography, Banner,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, RotateCcw, Search, MoreHorizontal } from 'lucide-react';
+import { Plus, RotateCcw, Search } from 'lucide-react';
 import type { PaginatedResponse, MpAccount, MpAccountType } from '@zenith/shared';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -13,6 +13,7 @@ import { config } from '@/config';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 
@@ -208,45 +209,30 @@ export default function MpAccountsPage() {
         />
       ),
     },
-    {
-      title: '操作', key: 'actions', width: 300, fixed: 'right' as const,
-      render: (_: unknown, record: MpAccount) => (
-        <Space>
-          <Button theme="borderless" size="small" onClick={() => setConfigRecord(record)}>服务器配置</Button>
-          {can('mp:account:default') && (
-            <Button
-              theme="borderless"
-              size="small"
-              disabled={record.isDefault}
-              onClick={() => void handleSetDefault(record)}
-            >设为默认</Button>
-          )}
-          {can('mp:account:update') && (
-            <Button theme="borderless" size="small" onClick={() => void openEdit(record)}>编辑</Button>
-          )}
-          {(can('mp:account:token') || can('mp:account:delete')) && (
-            <Dropdown
-              trigger="click"
-              position="bottomRight"
-              render={
-                <Dropdown.Menu>
-                  {can('mp:account:token') && (
-                    <Dropdown.Item disabled={testingId === record.id} onClick={() => void handleTest(record)}>
-                      {testingId === record.id ? '测试中…' : '测试连接'}
-                    </Dropdown.Item>
-                  )}
-                  {can('mp:account:delete') && (
-                    <Dropdown.Item type="danger" onClick={() => handleDelete(record)}>删除</Dropdown.Item>
-                  )}
-                </Dropdown.Menu>
-              }
-            >
-              <Button theme="borderless" size="small" icon={<MoreHorizontal size={14} />} />
-            </Dropdown>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<MpAccount>({
+      width: 300,
+      desktopInlineKeys: ['config', 'default', 'edit'],
+      menuAriaLabel: '公众号账号操作',
+      actions: (record) => [
+        { key: 'config', label: '服务器配置', onClick: () => setConfigRecord(record) },
+        {
+          key: 'default',
+          label: '设为默认',
+          disabled: record.isDefault,
+          hidden: !can('mp:account:default'),
+          onClick: () => void handleSetDefault(record),
+        },
+        { key: 'edit', label: '编辑', hidden: !can('mp:account:update'), onClick: () => void openEdit(record) },
+        {
+          key: 'test',
+          label: testingId === record.id ? '测试中...' : '测试连接',
+          loading: testingId === record.id,
+          hidden: !can('mp:account:token'),
+          onClick: () => void handleTest(record),
+        },
+        { key: 'delete', label: '删除', danger: true, hidden: !can('mp:account:delete'), onClick: () => handleDelete(record) },
+      ],
+    }),
   ];
 
   const renderKeywordInput = () => (

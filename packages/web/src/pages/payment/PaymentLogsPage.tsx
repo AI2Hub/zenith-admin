@@ -4,6 +4,7 @@ import { Button, DatePicker, Input, Modal, Select, Tag, Typography } from '@douy
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, RotateCcw } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { request } from '@/utils/request';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
@@ -75,12 +76,16 @@ export default function PaymentLogsPage() {
     { title: '说明', dataIndex: 'message', width: 220, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>{v || '-'}</Typography.Text> },
     { title: 'IP', dataIndex: 'ip', width: 140, render: (v: string | null) => v || '-' },
     { title: '时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
-    {
-      title: '操作', fixed: 'right', width: 80,
-      render: (_: unknown, r: PaymentNotifyLog) => (
-        <Button theme="borderless" size="small" disabled={!r.rawBody && !r.headers} onClick={() => setDetailLog(r)}>详情</Button>
-      ),
-    },
+    createOperationColumn<PaymentNotifyLog>({
+      width: 80,
+      actions: (r) => [{
+        key: 'detail',
+        label: '详情',
+        disabled: !r.rawBody && !r.headers,
+        disabledReason: '无详情内容',
+        onClick: () => setDetailLog(r),
+      }],
+    }),
   ];
 
   const renderKeywordSearch = () => (

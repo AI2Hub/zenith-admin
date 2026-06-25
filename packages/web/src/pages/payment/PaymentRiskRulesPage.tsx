@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Button, Form, Popconfirm, Select, Space, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Modal, Select, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, RotateCcw, Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { request } from '@/utils/request';
@@ -149,19 +150,28 @@ export default function PaymentRiskRulesPage() {
         <Switch checked={r.status === 'enabled'} loading={togglingIds.has(r.id)} disabled={!hasPermission('payment:risk:update')} size="small" onChange={(c) => handleToggle(r, c)} />
       ),
     },
-    {
-      title: '操作', fixed: 'right', width: 120,
-      render: (_: unknown, r: PaymentRiskRule) => (
-        <Space>
-          {hasPermission('payment:risk:update') && <Button theme="borderless" size="small" onClick={() => openEdit(r)}>编辑</Button>}
-          {hasPermission('payment:risk:delete') && (
-            <Popconfirm title="确定要删除吗？" content="删除后不可恢复" onConfirm={() => handleDelete(r.id)}>
-              <Button theme="borderless" type="danger" size="small">删除</Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<PaymentRiskRule>({
+      width: 120,
+      actions: (r) => [
+        ...(hasPermission('payment:risk:update') ? [{
+          key: 'edit',
+          label: '编辑',
+          onClick: () => openEdit(r),
+        }] : []),
+        ...(hasPermission('payment:risk:delete') ? [{
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除吗？',
+              content: '删除后不可恢复',
+              onOk: () => handleDelete(r.id),
+            });
+          },
+        }] : []),
+      ],
+    }),
   ];
 
   const renderScopeFilter = () => (

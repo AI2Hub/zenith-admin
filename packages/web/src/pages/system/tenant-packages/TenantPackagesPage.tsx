@@ -3,7 +3,6 @@ import {
   Button,
   Input,
   Select,
-  Space,
   Modal,
   Form,
   Toast,
@@ -22,6 +21,7 @@ import { MenuPermissionPanel } from '@/components/permissions/MenuPermissionPane
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 
 interface SearchParams {
   keyword: string;
@@ -213,39 +213,38 @@ export default function TenantPackagesPage() {
         />
       ),
     },
-    {
-      title: '操作',
-      fixed: 'right',
+    createOperationColumn<TenantPackage>({
       width: 200,
-      align: 'center',
-      render: (_v, row) => (
-        <Space>
-          {hasPermission('system:tenant-package:update') && (
-            <Button theme="borderless" size="small" onClick={() => void openEdit(row)}>编辑</Button>
-          )}
-          {hasPermission('system:tenant-package:assign') && (
-            <Button theme="borderless" size="small" onClick={() => void openMenuModal(row)}>分配菜单</Button>
-          )}
-          {hasPermission('system:tenant-package:delete') && (
-            <Button
-              theme="borderless"
-              size="small"
-              type="danger"
-              onClick={() => {
-                Modal.confirm({
-                  title: '确认删除此套餐？',
-                  content: '删除后已绑定该套餐的租户将解除关联。',
-                  okButtonProps: { type: 'danger', theme: 'solid' },
-                  onOk: () => handleDelete(row.id),
-                });
-              }}
-            >
-              删除
-            </Button>
-          )}
-        </Space>
-      ),
-    },
+      desktopInlineKeys: ['edit', 'menus', 'delete'],
+      actions: (row) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('system:tenant-package:update'),
+          onClick: () => { void openEdit(row); },
+        },
+        {
+          key: 'menus',
+          label: '分配菜单',
+          hidden: !hasPermission('system:tenant-package:assign'),
+          onClick: () => { void openMenuModal(row); },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('system:tenant-package:delete'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确认删除此套餐？',
+              content: '删除后已绑定该套餐的租户将解除关联。',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(row.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

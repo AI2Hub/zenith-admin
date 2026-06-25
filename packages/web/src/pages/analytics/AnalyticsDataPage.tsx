@@ -20,13 +20,13 @@ import {
   SideSheet,
   Descriptions,
   Card,
-  Popconfirm,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { Search, RotateCcw, Plus, Download, Trash2, ChevronDown } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { request } from '@/utils/request';
@@ -618,15 +618,17 @@ export default function AnalyticsDataPage() {
     },
     { title: '时长', dataIndex: 'durationMs', width: 100, render: (value: number | null) => msToReadable(value) },
     { title: '时间', dataIndex: 'createdAt', width: 180, render: (value: string) => formatDateTime(value) },
-    {
-      title: '操作',
-      dataIndex: '__actions',
-      fixed: 'right',
+    createOperationColumn<EventListItem>({
       width: 90,
-      render: (_: unknown, record) => (
-        <Button theme="borderless" size="small" onClick={() => void openEventDetail(record)}>详情</Button>
-      ),
-    },
+      desktopInlineKeys: ['detail'],
+      actions: (record) => [
+        {
+          key: 'detail',
+          label: '详情',
+          onClick: () => { void openEventDetail(record); },
+        },
+      ],
+    }),
   ];
 
   const metaColumns: ColumnProps<AnalyticsEventMeta>[] = [
@@ -639,12 +641,6 @@ export default function AnalyticsDataPage() {
     { title: '显示名', dataIndex: 'displayName', width: 150, render: (value: string | null) => nullableText(value) },
     { title: '分类', dataIndex: 'category', width: 130, render: (value: string | null) => nullableText(value) },
     { title: '触发次数', dataIndex: 'eventCount', width: 100 },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 90,
-      render: (value: AnalyticsEventMeta['status']) => <MetaStatusTag value={value} />,
-    },
     {
       title: '首次/最近',
       dataIndex: 'firstSeenAt',
@@ -659,23 +655,35 @@ export default function AnalyticsDataPage() {
       ),
     },
     {
-      title: '操作',
-      dataIndex: '__actions',
+      title: '状态',
+      dataIndex: 'status',
       fixed: 'right',
-      width: 130,
-      render: (_: unknown, record) => (
-        <div style={{ display: 'flex', gap: 4 }}>
-          <Button theme="borderless" size="small" onClick={() => openEditMeta(record)}>编辑</Button>
-          <Popconfirm
-            title={`确定删除事件「${record.eventName}」吗？`}
-            onConfirm={() => void handleMetaDelete(record)}
-            okButtonProps={{ type: 'danger' }}
-          >
-            <Button theme="borderless" type="danger" size="small">删除</Button>
-          </Popconfirm>
-        </div>
-      ),
+      width: 90,
+      render: (value: AnalyticsEventMeta['status']) => <MetaStatusTag value={value} />,
     },
+    createOperationColumn<AnalyticsEventMeta>({
+      width: 130,
+      desktopInlineKeys: ['edit', 'delete'],
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          onClick: () => openEditMeta(record),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          onClick: () => {
+            Modal.confirm({
+              title: `确定删除事件「${record.eventName}」吗？`,
+              okButtonProps: { type: 'danger' },
+              onOk: () => handleMetaDelete(record),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const rollupColumns: ColumnProps<AnalyticsRollupItem>[] = [

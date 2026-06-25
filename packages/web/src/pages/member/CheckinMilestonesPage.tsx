@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Form, Space, Tag, Toast, Modal } from '@douyinfe/semi-ui';
+import { Button, Form, Tag, Toast, Modal } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw } from 'lucide-react';
@@ -10,6 +10,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { AppModal } from '@/components/AppModal';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { renderEllipsis } from '../../utils/table-columns';
 
 interface CouponOption {
@@ -121,21 +122,14 @@ export default function CheckinMilestonesPage() {
         <Tag color={value ? 'green' : 'grey'} size="small">{value ? '启用' : '停用'}</Tag>
       ),
     },
-    {
-      title: '操作',
+    createOperationColumn<CheckinMilestone>({
       width: 130,
-      fixed: 'right',
-      render: (_: unknown, record: CheckinMilestone) => (
-        <Space>
-          {hasPermission('member:checkin:milestone:update') && (
-            <Button theme="borderless" size="small" onClick={() => openModal(record)}>编辑</Button>
-          )}
-          {hasPermission('member:checkin:milestone:delete') && (
-            <Button theme="borderless" type="danger" size="small" onClick={() => handleDelete(record)}>删除</Button>
-          )}
-        </Space>
-      ),
-    },
+      desktopInlineKeys: ['edit', 'delete'],
+      actions: (record) => [
+        { key: 'edit', label: '编辑', hidden: !hasPermission('member:checkin:milestone:update'), onClick: () => openModal(record) },
+        { key: 'delete', label: '删除', danger: true, hidden: !hasPermission('member:checkin:milestone:delete'), onClick: () => handleDelete(record) },
+      ],
+    }),
   ];
 
   const renderRefreshButton = () => (

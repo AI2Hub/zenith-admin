@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Button, Form, Image, Input, Modal, Select, Space, Spin, Tag, Toast, Banner, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Image, Input, Modal, Select, Spin, Tag, Toast, Banner, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, RotateCcw, Search } from 'lucide-react';
 import type { PaginatedResponse, MpQrcode, MpQrcodeType } from '@zenith/shared';
@@ -8,6 +8,7 @@ import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn } from '../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
@@ -125,14 +126,14 @@ export default function MpQrcodesPage() {
         : '—'),
     },
     createdAtColumn,
-    {
-      title: '操作', key: 'actions', width: 100, fixed: 'right' as const,
-      render: (_: unknown, record: MpQrcode) => (
-        <Space>
-          {can('mp:qrcode:delete') && <Button theme="borderless" type="danger" size="small" onClick={() => handleDelete(record)}>删除</Button>}
-        </Space>
-      ),
-    },
+    createOperationColumn<MpQrcode>({
+      width: 100,
+      desktopInlineKeys: ['delete'],
+      menuAriaLabel: '二维码操作',
+      actions: (record) => [
+        { key: 'delete', label: '删除', danger: true, hidden: !can('mp:qrcode:delete'), onClick: () => handleDelete(record) },
+      ],
+    }),
   ];
 
   const renderAccountFilter = () => (

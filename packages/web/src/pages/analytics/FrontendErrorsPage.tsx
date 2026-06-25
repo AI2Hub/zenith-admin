@@ -19,7 +19,6 @@ import {
   TagInput,
   SplitButtonGroup,
   Dropdown,
-  Popconfirm,
   Upload,
   Collapse,
   Timeline,
@@ -71,6 +70,7 @@ import type {
   SourceMapItem,
 } from '@zenith/shared';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
 import { formatDateTime } from '@/utils/date';
@@ -799,21 +799,29 @@ export default function FrontendErrorsPage() {
       fixed: 'right',
       render: (_value, record) => <StatusTag status={record.status} />,
     },
-    {
-      title: '操作',
-      key: 'operation',
+    createOperationColumn<ErrorGroup>({
       width: 240,
-      fixed: 'right',
-      render: (_value, record) => (
-        <Space spacing={2}>
-          <Button theme="borderless" size="small" onClick={() => void openGroupDetail(record.id)}>详情</Button>
-          {record.status !== 'resolved' && (
-            <Button theme="borderless" size="small" onClick={() => void updateGroupStatus(record.id, 'resolved')}>标记已解决</Button>
-          )}
-          <Button theme="borderless" type="danger" size="small" onClick={() => void updateGroupStatus(record.id, 'ignored')}>忽略</Button>
-        </Space>
-      ),
-    },
+      desktopInlineKeys: ['detail', 'resolve', 'ignore'],
+      actions: (record) => [
+        {
+          key: 'detail',
+          label: '详情',
+          onClick: () => { void openGroupDetail(record.id); },
+        },
+        {
+          key: 'resolve',
+          label: '标记已解决',
+          hidden: record.status === 'resolved',
+          onClick: () => { void updateGroupStatus(record.id, 'resolved'); },
+        },
+        {
+          key: 'ignore',
+          label: '忽略',
+          danger: true,
+          onClick: () => { void updateGroupStatus(record.id, 'ignored'); },
+        },
+      ],
+    }),
   ], [openGroupDetail, updateGroupStatus]);
 
   const eventColumns = useMemo<ColumnProps<ErrorEvent>[]>(() => [
@@ -839,15 +847,17 @@ export default function FrontendErrorsPage() {
       render: (_value, record) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 230 }}>{record.pageUrl || '–'}</Text>,
     },
     { title: '时间', dataIndex: 'createdAt', width: 180, render: (value) => formatDateTime(String(value)) },
-    {
-      title: '操作',
-      key: 'operation',
+    createOperationColumn<ErrorEvent>({
       width: 90,
-      fixed: 'right',
-      render: (_value, record) => (
-        <Button theme="borderless" size="small" onClick={() => setEventDetail(record)}>详情</Button>
-      ),
-    },
+      desktopInlineKeys: ['detail'],
+      actions: (record) => [
+        {
+          key: 'detail',
+          label: '详情',
+          onClick: () => setEventDetail(record),
+        },
+      ],
+    }),
   ], []);
 
   const sourceMapColumns = useMemo<ColumnProps<SourceMapItem>[]>(() => [
@@ -855,17 +865,24 @@ export default function FrontendErrorsPage() {
     { title: '文件名', dataIndex: 'fileName', width: 260 },
     { title: '大小', dataIndex: 'size', width: 120, render: (value) => formatBytes(Number(value)) },
     { title: '上传时间', dataIndex: 'createdAt', width: 180, render: (value) => formatDateTime(String(value)) },
-    {
-      title: '操作',
-      key: 'operation',
+    createOperationColumn<SourceMapItem>({
       width: 100,
-      fixed: 'right',
-      render: (_value, record) => (
-        <Popconfirm title="确定删除该 Source Map？" onConfirm={() => void deleteSourceMap(record.id)}>
-          <Button theme="borderless" type="danger" size="small">删除</Button>
-        </Popconfirm>
-      ),
-    },
+      desktopInlineKeys: ['delete'],
+      actions: (record) => [
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          onClick: () => {
+            Modal.confirm({
+              title: '确定删除该 Source Map？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => deleteSourceMap(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ], [deleteSourceMap]);
 
   const alertColumns = useMemo<ColumnProps<ErrorAlertRule>[]>(() => [
@@ -887,27 +904,37 @@ export default function FrontendErrorsPage() {
         </Space>
       ),
     },
+    { title: '最近触发', dataIndex: 'lastTriggeredAt', width: 180, render: (_value, record) => record.lastTriggeredAt ? formatDateTime(record.lastTriggeredAt) : '–' },
     {
       title: '启用',
       dataIndex: 'enabled',
       width: 90,
+      fixed: 'right',
       render: (_value, record) => <Switch size="small" checked={record.enabled} onChange={(checked) => void toggleAlert(record, checked)} />,
     },
-    { title: '最近触发', dataIndex: 'lastTriggeredAt', width: 180, render: (_value, record) => record.lastTriggeredAt ? formatDateTime(record.lastTriggeredAt) : '–' },
-    {
-      title: '操作',
-      key: 'operation',
+    createOperationColumn<ErrorAlertRule>({
       width: 130,
-      fixed: 'right',
-      render: (_value, record) => (
-        <Space spacing={2}>
-          <Button theme="borderless" size="small" onClick={() => openAlertModal(record)}>编辑</Button>
-          <Popconfirm title="确定删除该告警规则？" onConfirm={() => void deleteAlert(record.id)}>
-            <Button theme="borderless" type="danger" size="small">删除</Button>
-          </Popconfirm>
-        </Space>
-      ),
-    },
+      desktopInlineKeys: ['edit', 'delete'],
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          onClick: () => openAlertModal(record),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          onClick: () => {
+            Modal.confirm({
+              title: '确定删除该告警规则？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => deleteAlert(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ], [deleteAlert, openAlertModal, toggleAlert]);
 
   const overviewTypeData = (overview?.byType ?? []).map((item) => ({

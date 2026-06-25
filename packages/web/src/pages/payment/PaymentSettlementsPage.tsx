@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Button, Form, Popconfirm, Select, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, RotateCcw, Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { request } from '@/utils/request';
@@ -102,26 +103,45 @@ export default function PaymentSettlementsPage() {
     { title: '到账时间', dataIndex: 'settledAt', width: 170, render: (v: string | null) => (v ? formatDateTime(v) : '-') },
     createdAtColumn as ColumnProps<PaymentSettlementBatch>,
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentSettlementStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_SETTLEMENT_STATUS_LABELS[v]}</Tag> },
-    {
-      title: '操作', fixed: 'right', width: 180,
-      render: (_: unknown, r: PaymentSettlementBatch) => {
-        if (!canSettle || r.status === 'settled' || r.status === 'failed') return <Typography.Text type="tertiary">—</Typography.Text>;
+    createOperationColumn<PaymentSettlementBatch>({
+      width: 180,
+      emptyContent: <Typography.Text type="tertiary">—</Typography.Text>,
+      actions: (r) => {
+        if (!canSettle || r.status === 'settled' || r.status === 'failed') return [];
         const busy = transitioningIds.has(r.id);
-        return (
-          <Space>
-            {r.status === 'pending' && <Button theme="borderless" size="small" loading={busy} onClick={() => handleTransition(r, 'settling')}>开始结算</Button>}
-            {r.status === 'settling' && (
-              <Popconfirm title="确认该批次已到账？" onConfirm={() => handleTransition(r, 'settled')}>
-                <Button theme="borderless" size="small" loading={busy}>标记到账</Button>
-              </Popconfirm>
-            )}
-            <Popconfirm title="确认标记为结算失败？" onConfirm={() => handleTransition(r, 'failed')}>
-              <Button theme="borderless" type="danger" size="small" loading={busy}>标记失败</Button>
-            </Popconfirm>
-          </Space>
-        );
+        return [
+          ...(r.status === 'pending' ? [{
+            key: 'start',
+            label: '开始结算',
+            loading: busy,
+            onClick: () => handleTransition(r, 'settling'),
+          }] : []),
+          ...(r.status === 'settling' ? [{
+            key: 'settled',
+            label: '标记到账',
+            loading: busy,
+            onClick: () => {
+              Modal.confirm({
+                title: '确认该批次已到账？',
+                onOk: () => handleTransition(r, 'settled'),
+              });
+            },
+          }] : []),
+          {
+            key: 'failed',
+            label: '标记失败',
+            danger: true,
+            loading: busy,
+            onClick: () => {
+              Modal.confirm({
+                title: '确认标记为结算失败？',
+                onOk: () => handleTransition(r, 'failed'),
+              });
+            },
+          },
+        ];
       },
-    },
+    }),
   ];
 
   const renderChannelFilter = () => (

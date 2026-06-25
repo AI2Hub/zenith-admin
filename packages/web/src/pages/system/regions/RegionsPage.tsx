@@ -5,10 +5,8 @@ import {
   Input,
   Modal,
   Select,
-  Space,
   Spin,
   Toast,
-  Popconfirm,
   SplitButtonGroup,
   Dropdown,
   Switch,
@@ -25,6 +23,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 
 const LEVEL_LABELS: Record<string, string> = {
   province: '省级',
@@ -352,35 +351,32 @@ export default function RegionsPage() {
         />
       ),
     },
-    {
-      title: '操作',
-      fixed: 'right',
+    createOperationColumn<Region>({
       width: 160,
-      render: (_: unknown, record: Region) => (
-        <Space>
-          {hasPermission('system:region:update') && (
-            <Button
-              theme="borderless"
-              size="small"
-              onClick={() => openEdit(record)}
-            >
-              编辑
-            </Button>
-          )}
-          {hasPermission('system:region:delete') && (
-            <Popconfirm
-              title="确定要删除该地区吗？"
-              content="若有子地区，需先删除子地区"
-              onConfirm={() => handleDelete(record.id)}
-            >
-              <Button theme="borderless" type="danger" size="small">
-                删除
-              </Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+      desktopInlineKeys: ['edit', 'delete'],
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('system:region:update'),
+          onClick: () => { void openEdit(record); },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('system:region:delete'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除该地区吗？',
+              content: '若有子地区，需先删除子地区',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

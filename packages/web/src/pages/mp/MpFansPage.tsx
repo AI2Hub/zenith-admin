@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Avatar, Button, Form, Input, Select, Space, Spin, Tag, Toast, Banner, Popconfirm } from '@douyinfe/semi-ui';
+import { Avatar, Button, Form, Input, Modal, Select, Space, Spin, Tag, Toast, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { RotateCcw, Search, RefreshCw, Ban } from 'lucide-react';
 import type { PaginatedResponse, MpFan, MpTag, MpFanSubscribe } from '@zenith/shared';
@@ -8,6 +8,7 @@ import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { renderEllipsis } from '../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
@@ -127,6 +128,22 @@ export default function MpFansPage() {
     if (res.code === 0) { Toast.success('已解绑会员'); void fetchList(); }
   };
 
+  const confirmUnbindMember = (record: MpFan) => {
+    Modal.confirm({
+      title: '确定解绑该粉丝的会员？',
+      okButtonProps: { type: 'danger', theme: 'solid' },
+      onOk: () => handleUnbindMember(record),
+    });
+  };
+
+  const confirmBlacklist = (record: MpFan) => {
+    Modal.confirm({
+      title: record.blacklisted ? '移出黑名单？' : '确定拉黑该粉丝？',
+      okButtonProps: record.blacklisted ? undefined : { type: 'danger', theme: 'solid' },
+      onOk: () => handleBlacklist(record),
+    });
+  };
+
   const handleSubmit = async () => {
     let values: Awaited<ReturnType<FormApi['validate']>>;
     try { values = (await formRef.current?.validate())!; } catch { return; }
@@ -181,26 +198,28 @@ export default function MpFansPage() {
         </Space>
       ),
     },
-    {
-      title: '操作', key: 'actions', width: 240, fixed: 'right' as const,
-      render: (_: unknown, record: MpFan) => (
-        <Space>
-          {can('mp:fan:update') && <Button theme="borderless" size="small" onClick={() => openEdit(record)}>编辑</Button>}
-          {can('mp:fan:bind') && (record.memberId
-            ? (
-              <Popconfirm title="确定解绑该粉丝的会员？" onConfirm={() => void handleUnbindMember(record)}>
-                <Button theme="borderless" size="small" type="danger">解绑会员</Button>
-              </Popconfirm>
-            )
-            : <Button theme="borderless" size="small" onClick={() => void handleCreateMember(record)}>创建会员</Button>)}
-          {can('mp:fan:blacklist') && (
-            <Popconfirm title={record.blacklisted ? '移出黑名单？' : '确定拉黑该粉丝？'} onConfirm={() => void handleBlacklist(record)}>
-              <Button theme="borderless" size="small" type={record.blacklisted ? 'tertiary' : 'danger'}>{record.blacklisted ? '移出黑名单' : '拉黑'}</Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<MpFan>({
+      width: 240,
+      desktopInlineKeys: ['edit', 'member', 'blacklist'],
+      menuAriaLabel: '粉丝操作',
+      actions: (record) => [
+        { key: 'edit', label: '编辑', hidden: !can('mp:fan:update'), onClick: () => openEdit(record) },
+        {
+          key: 'member',
+          label: record.memberId ? '解绑会员' : '创建会员',
+          danger: !!record.memberId,
+          hidden: !can('mp:fan:bind'),
+          onClick: () => (record.memberId ? confirmUnbindMember(record) : void handleCreateMember(record)),
+        },
+        {
+          key: 'blacklist',
+          label: record.blacklisted ? '移出黑名单' : '拉黑',
+          danger: !record.blacklisted,
+          hidden: !can('mp:fan:blacklist'),
+          onClick: () => confirmBlacklist(record),
+        },
+      ],
+    }),
   ];
 
   const renderAccountFilter = () => (

@@ -8,6 +8,7 @@ import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn } from '../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
@@ -207,15 +208,15 @@ export default function MpAutoRepliesPage() {
           disabled={!can('mp:reply:update')} onChange={(ck: boolean) => void handleToggle(record, ck ? 'enabled' : 'disabled')} />
       ),
     },
-    {
-      title: '操作', key: 'actions', width: 140, fixed: 'right' as const,
-      render: (_: unknown, record: MpAutoReply) => (
-        <Space>
-          {can('mp:reply:update') && <Button theme="borderless" size="small" onClick={() => openEdit(record)}>编辑</Button>}
-          {can('mp:reply:delete') && <Button theme="borderless" type="danger" size="small" onClick={() => handleDelete(record)}>删除</Button>}
-        </Space>
-      ),
-    },
+    createOperationColumn<MpAutoReply>({
+      width: 140,
+      desktopInlineKeys: ['edit', 'delete'],
+      menuAriaLabel: '自动回复操作',
+      actions: (record) => [
+        { key: 'edit', label: '编辑', hidden: !can('mp:reply:update'), onClick: () => openEdit(record) },
+        { key: 'delete', label: '删除', danger: true, hidden: !can('mp:reply:delete'), onClick: () => handleDelete(record) },
+      ],
+    }),
   ];
 
   const [hotwordsVisible, setHotwordsVisible] = useState(false);

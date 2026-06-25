@@ -9,6 +9,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { renderEllipsis } from '../../utils/table-columns';
 
 const statusOptions = [{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }];
@@ -71,15 +72,14 @@ export default function MemberLevelsPage() {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
       render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'grey'}>{v === 'enabled' ? '启用' : '停用'}</Tag>,
     },
-    {
-      title: '操作', fixed: 'right', width: 130,
-      render: (_: unknown, record: MemberLevel) => (
-        <Space>
-          {hasPermission('member:level:update') && <Button theme="borderless" size="small" onClick={() => openEdit(record)}>编辑</Button>}
-          {hasPermission('member:level:delete') && <Button theme="borderless" type="danger" size="small" onClick={() => handleDelete(record)}>删除</Button>}
-        </Space>
-      ),
-    },
+    createOperationColumn<MemberLevel>({
+      width: 130,
+      desktopInlineKeys: ['edit', 'delete'],
+      actions: (record) => [
+        { key: 'edit', label: '编辑', hidden: !hasPermission('member:level:update'), onClick: () => openEdit(record) },
+        { key: 'delete', label: '删除', danger: true, hidden: !hasPermission('member:level:delete'), onClick: () => handleDelete(record) },
+      ],
+    }),
   ];
 
   const renderRefreshButton = () => (

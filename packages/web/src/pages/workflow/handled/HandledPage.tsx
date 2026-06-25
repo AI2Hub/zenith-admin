@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Input, Space, Tag } from '@douyinfe/semi-ui';
+import { Button, Input, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RotateCcw, Search } from 'lucide-react';
 import type { WorkflowInstance, PaginatedResponse } from '@zenith/shared';
@@ -7,6 +7,7 @@ import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import WorkflowInstanceDetailSheet from '@/components/workflow/WorkflowInstanceDetailSheet';
 import { renderEllipsis } from '../../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
@@ -101,17 +102,13 @@ export default function HandledPage() {
         return <Tag color={s?.color ?? 'grey'}>{s?.text ?? v}</Tag>;
       },
     },
-    {
-      title: '操作',
-      key: 'action',
+    createOperationColumn<WorkflowInstance>({
       width: 90,
-      fixed: 'right',
-      render: (_: unknown, record: WorkflowInstance) => (
-        <Space>
-          <Button theme="borderless" size="small" onClick={() => openDetail(record.id)}>详情</Button>
-        </Space>
-      ),
-    },
+      desktopInlineKeys: ['detail'],
+      actions: (record) => [
+        { key: 'detail', label: '详情', onClick: () => openDetail(record.id) },
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

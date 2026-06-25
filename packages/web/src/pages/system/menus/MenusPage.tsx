@@ -3,7 +3,6 @@ import {
   Button,
   Input,
   Select,
-  Space,
   Modal,
   Form,
   Radio,
@@ -28,6 +27,7 @@ import IconPicker from '@/components/IconPicker';
 import { usePermission } from '@/hooks/usePermission';
 import DictTag from '@/components/DictTag';
 import { useDictItems } from '@/hooks/useDictItems';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 
@@ -335,30 +335,38 @@ export default function MenusPage() {
       fixed: 'right',
       render: (val: boolean, row: Menu) => row.type === 'button' ? '—' : <DictTag dictCode="menu_visible" value={val ? 'show' : 'hidden'} />,
     },
-    {
-      title: '操作',
-      fixed: 'right',
+    createOperationColumn<Menu>({
       width: 260,
-      align: 'center',
-      render: (_val, row) => (
-        <Space>
-          {row.type !== 'button' && hasPermission('system:menu:create') && (
-            <Button theme="borderless" size="small" onClick={() => openCreate(row.id)}>
-              子项
-            </Button>
-          )}
-          {hasPermission('system:menu:update') && <Button theme="borderless" size="small" onClick={() => openEdit(row)}>编辑</Button>}
-          {hasPermission('system:menu:delete') && <Button theme="borderless" size="small" type="danger" onClick={() => {
+      desktopInlineKeys: ['child', 'edit', 'delete'],
+      actions: (row) => [
+        {
+          key: 'child',
+          label: '子项',
+          hidden: row.type === 'button' || !hasPermission('system:menu:create'),
+          onClick: () => openCreate(row.id),
+        },
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('system:menu:update'),
+          onClick: () => { void openEdit(row); },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('system:menu:delete'),
+          onClick: () => {
             Modal.confirm({
               title: '确认删除此菜单？',
               content: '子菜单也将一并删除',
               okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(row.id),
             });
-          }}>删除</Button>}
-        </Space>
-      ),
-    },
+          },
+        },
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

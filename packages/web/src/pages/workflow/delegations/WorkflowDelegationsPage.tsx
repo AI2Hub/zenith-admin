@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Form,
-  Popconfirm,
+  Modal,
   Select,
   Space,
   Tag,
@@ -17,6 +17,7 @@ import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 
@@ -246,31 +247,31 @@ export default function WorkflowDelegationsPage() {
       fixed: 'right',
       render: (_v: unknown, r: WorkflowDelegation) => renderDelegationStatus(r),
     },
-    ...(canManage
-      ? [
-          {
-            title: '操作',
-            dataIndex: 'op',
-            width: 130,
-            fixed: 'right' as const,
-            render: (_v: unknown, r: WorkflowDelegation) => (
-              <Space>
-                <Button theme="borderless" size="small" onClick={() => openEdit(r)}>
-                  编辑
-                </Button>
-                <Popconfirm
-                  title="确定删除该审批代理？"
-                  onConfirm={() => handleDelete(r.id)}
-                >
-                  <Button theme="borderless" type="danger" size="small">
-                    删除
-                  </Button>
-                </Popconfirm>
-              </Space>
-            ),
+    createOperationColumn<WorkflowDelegation>({
+      width: 130,
+      desktopInlineKeys: ['edit', 'delete'],
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !canManage,
+          onClick: () => openEdit(record),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !canManage,
+          onClick: () => {
+            Modal.confirm({
+              title: '确定删除该审批代理？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
           },
-        ]
-      : []),
+        },
+      ],
+    }),
   ];
 
   const renderScopeFilter = () => (

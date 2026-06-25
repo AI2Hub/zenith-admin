@@ -10,6 +10,7 @@ import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
@@ -177,16 +178,16 @@ export default function MpConditionalMenusPage() {
     { title: '匹配规则', dataIndex: 'matchRule', width: 240, render: (r: MpMenuMatchRule) => <Text type="tertiary">{ruleSummary(r)}</Text> },
     { title: '一级按钮数', dataIndex: 'buttons', width: 100, render: (b: MpMenuButton[]) => (b?.length ?? 0) },
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right' as const, render: (s: string) => <Tag color={s === 'published' ? 'green' : 'grey'} type="light">{s === 'published' ? '已发布' : '草稿'}</Tag> },
-    {
-      title: '操作', key: 'actions', width: 180, fixed: 'right' as const,
-      render: (_: unknown, r: MpConditionalMenu) => (
-        <Space>
-          {can('mp:condmenu:update') && <Button theme="borderless" size="small" onClick={() => openEdit(r)}>编辑</Button>}
-          {can('mp:condmenu:publish') && <Button theme="borderless" size="small" onClick={() => handlePublish(r)}>发布</Button>}
-          {can('mp:condmenu:delete') && <Button theme="borderless" type="danger" size="small" onClick={() => handleDelete(r)}>删除</Button>}
-        </Space>
-      ),
-    },
+    createOperationColumn<MpConditionalMenu>({
+      width: 180,
+      desktopInlineKeys: ['edit', 'publish', 'delete'],
+      menuAriaLabel: '个性化菜单操作',
+      actions: (record) => [
+        { key: 'edit', label: '编辑', hidden: !can('mp:condmenu:update'), onClick: () => openEdit(record) },
+        { key: 'publish', label: '发布', hidden: !can('mp:condmenu:publish'), onClick: () => handlePublish(record) },
+        { key: 'delete', label: '删除', danger: true, hidden: !can('mp:condmenu:delete'), onClick: () => handleDelete(record) },
+      ],
+    }),
   ];
 
   const renderAccountFilter = () => (

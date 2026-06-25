@@ -5,6 +5,7 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, RotateCcw, Plus, Download, ChevronDown } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import PaymentStatsPanel from './PaymentStatsPanel';
@@ -259,26 +260,38 @@ export default function PaymentOrdersPage() {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
       render: (v: PaymentOrderStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_ORDER_STATUS_LABELS[v]}</Tag>,
     },
-    {
-      title: '操作', fixed: 'right', width: 250,
-      render: (_: unknown, r: PaymentOrder) => (
-        <Space>
-          <Button theme="borderless" size="small" onClick={() => void openDetail(r)}>详情</Button>
-          {hasPermission('payment:order:list') && (r.status === 'paying' || r.status === 'pending') && (
-            <Button theme="borderless" size="small" onClick={() => handleQuery(r)}>查单</Button>
-          )}
-          {hasPermission('payment:ops:manage') && (r.status === 'paying' || r.status === 'pending') && (
-            <Button theme="borderless" size="small" type="warning" onClick={() => void handleSimulate(r)}>模拟支付</Button>
-          )}
-          {hasPermission('payment:order:close') && (r.status === 'paying' || r.status === 'pending') && (
-            <Button theme="borderless" size="small" onClick={() => handleClose(r)}>关闭</Button>
-          )}
-          {hasPermission('payment:order:refund') && (r.status === 'success' || r.status === 'refunding') && (
-            <Button theme="borderless" type="danger" size="small" onClick={() => void openRefundModal(r)}>退款</Button>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<PaymentOrder>({
+      width: 250,
+      actions: (r) => [
+        {
+          key: 'detail',
+          label: '详情',
+          onClick: () => void openDetail(r),
+        },
+        ...(hasPermission('payment:order:list') && (r.status === 'paying' || r.status === 'pending') ? [{
+          key: 'query',
+          label: '查单',
+          onClick: () => handleQuery(r),
+        }] : []),
+        ...(hasPermission('payment:ops:manage') && (r.status === 'paying' || r.status === 'pending') ? [{
+          key: 'simulate',
+          label: '模拟支付',
+          type: 'warning' as const,
+          onClick: () => void handleSimulate(r),
+        }] : []),
+        ...(hasPermission('payment:order:close') && (r.status === 'paying' || r.status === 'pending') ? [{
+          key: 'close',
+          label: '关闭',
+          onClick: () => handleClose(r),
+        }] : []),
+        ...(hasPermission('payment:order:refund') && (r.status === 'success' || r.status === 'refunding') ? [{
+          key: 'refund',
+          label: '退款',
+          danger: true,
+          onClick: () => void openRefundModal(r),
+        }] : []),
+      ],
+    }),
   ];
 
   const detailRefundColumns: ColumnProps<PaymentRefund>[] = [

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Button, Form, Tag, Typography, Select, Space, Toast } from '@douyinfe/semi-ui';
+import { Button, Form, Tag, Typography, Select, Toast } from '@douyinfe/semi-ui';
 import { RotateCcw, Search, ThumbsUp, ThumbsDown } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -7,6 +7,7 @@ import type { AiFeedbackStatus, AiMessage } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
@@ -196,21 +197,18 @@ export default function AiFeedbackPage() {
       fixed: 'right',
       render: (v: AiMessage['feedbackStatus']) => renderStatus(v),
     },
-    {
-      title: '操作',
-      dataIndex: 'operation',
+    createOperationColumn<AiMessage>({
       width: 90,
-      fixed: 'right',
-      render: (_: unknown, record) => (
-        hasPermission('ai:feedback:handle') ? (
-          <Space>
-            <Button theme="borderless" size="small" onClick={() => openHandleModal(record)}>
-              处理
-            </Button>
-          </Space>
-        ) : null
-      ),
-    },
+      desktopInlineKeys: ['handle'],
+      actions: (record) => [
+        {
+          key: 'handle',
+          label: '处理',
+          hidden: !hasPermission('ai:feedback:handle'),
+          onClick: () => openHandleModal(record),
+        },
+      ],
+    }),
   ];
 
   const renderFeedbackFilter = () => (

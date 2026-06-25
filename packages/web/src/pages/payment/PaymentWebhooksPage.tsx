@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { CSSProperties } from 'react';
-import { Button, Form, Input, Popconfirm, Select, Space, Spin, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Modal, Select, Space, Spin, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, RotateCcw, Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { request } from '@/utils/request';
@@ -245,19 +246,28 @@ export default function PaymentWebhooksPage() {
         <Switch checked={r.status === 'enabled'} loading={togglingIds.has(r.id)} disabled={!hasPermission('payment:webhook:update')} size="small" onChange={(c) => handleToggle(r, c)} />
       ),
     },
-    {
-      title: '操作', fixed: 'right', width: 120,
-      render: (_: unknown, r: PaymentWebhookEndpoint) => (
-        <Space>
-          {hasPermission('payment:webhook:update') && <Button theme="borderless" size="small" onClick={() => openEdit(r)}>编辑</Button>}
-          {hasPermission('payment:webhook:delete') && (
-            <Popconfirm title="确定要删除吗？" content="删除后不可恢复" onConfirm={() => handleDelete(r.id)}>
-              <Button theme="borderless" type="danger" size="small">删除</Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<PaymentWebhookEndpoint>({
+      width: 120,
+      actions: (r) => [
+        ...(hasPermission('payment:webhook:update') ? [{
+          key: 'edit',
+          label: '编辑',
+          onClick: () => openEdit(r),
+        }] : []),
+        ...(hasPermission('payment:webhook:delete') ? [{
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除吗？',
+              content: '删除后不可恢复',
+              onOk: () => handleDelete(r.id),
+            });
+          },
+        }] : []),
+      ],
+    }),
   ];
 
   const deliveryColumns: ColumnProps<PaymentWebhookDelivery>[] = [
@@ -269,15 +279,22 @@ export default function PaymentWebhooksPage() {
     { title: 'HTTP', dataIndex: 'httpStatus', width: 90, render: (v: number | null) => v ?? '-' },
     { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentWebhookDelivery['status']) => <Tag color={DELIVERY_STATUS_COLOR[v]}>{PAYMENT_WEBHOOK_DELIVERY_STATUS_LABELS[v]}</Tag> },
-    {
-      title: '操作', fixed: 'right', width: 120,
-      render: (_: unknown, r: PaymentWebhookDelivery) => (
-        <Space>
-          <Button theme="borderless" size="small" onClick={() => setDetailDelivery(r)}>详情</Button>
-          {r.status !== 'success' && <Button theme="borderless" size="small" loading={redeliveringIds.has(r.id)} onClick={() => handleRedeliver(r)}>重投</Button>}
-        </Space>
-      ),
-    },
+    createOperationColumn<PaymentWebhookDelivery>({
+      width: 120,
+      actions: (r) => [
+        {
+          key: 'detail',
+          label: '详情',
+          onClick: () => setDetailDelivery(r),
+        },
+        ...(r.status !== 'success' ? [{
+          key: 'redeliver',
+          label: '重投',
+          loading: redeliveringIds.has(r.id),
+          onClick: () => handleRedeliver(r),
+        }] : []),
+      ],
+    }),
   ];
 
   const renderEndpointKeywordSearch = () => (

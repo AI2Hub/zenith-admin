@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Button, Form, Popconfirm, Select, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Modal, Select, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, RotateCcw, Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { request } from '@/utils/request';
@@ -186,19 +187,28 @@ export default function PaymentReconPage() {
     { title: '差异数', dataIndex: 'diffCount', width: 90, render: (v: number) => <Typography.Text type={v > 0 ? 'danger' : 'tertiary'}>{v}</Typography.Text> },
     { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentReconStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_RECON_STATUS_LABELS[v]}</Tag> },
-    {
-      title: '操作', fixed: 'right', width: 130,
-      render: (_: unknown, r: PaymentReconBatch) => (
-        <Space>
-          <Button theme="borderless" size="small" onClick={() => openItems(r)}>明细</Button>
-          {hasPermission('payment:recon:delete') && (
-            <Popconfirm title="确定要删除吗？" content="删除后不可恢复" onConfirm={() => handleDelete(r.id)}>
-              <Button theme="borderless" type="danger" size="small">删除</Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<PaymentReconBatch>({
+      width: 130,
+      actions: (r) => [
+        {
+          key: 'items',
+          label: '明细',
+          onClick: () => openItems(r),
+        },
+        ...(hasPermission('payment:recon:delete') ? [{
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除吗？',
+              content: '删除后不可恢复',
+              onOk: () => handleDelete(r.id),
+            });
+          },
+        }] : []),
+      ],
+    }),
   ];
 
   const itemColumns: ColumnProps<PaymentReconItem>[] = [

@@ -5,7 +5,6 @@ import {
   Input,
   Select,
   Tag,
-  Space,
   Modal,
   Form,
   Pagination,
@@ -33,6 +32,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { usePermission } from '@/hooks/usePermission';
 import './DictsPage.css';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 
 export default function DictsPage() {
   const { hasPermission } = usePermission();
@@ -333,6 +333,32 @@ export default function DictsPage() {
     }
   };
 
+  const openCreateChildItem = (row: DictItem) => {
+    setEditingItem(null);
+    setItemParentId(row.id);
+    setItemColor(null);
+    setMetadataStr('{}');
+    setItemModalVisible(true);
+  };
+
+  const openEditItem = (row: DictItem) => {
+    if (!selectedDict) return;
+    setEditingItem(row);
+    setItemParentId(row.parentId ?? null);
+    setItemColor(row.color ?? null);
+    setMetadataStr(row.metadata ? JSON.stringify(row.metadata, null, 2) : '{}');
+    setItemModalVisible(true);
+    setItemDetailLoading(true);
+    void request.get<DictItem>(`/api/dicts/${selectedDict.id}/items/${row.id}`).then((res) => {
+      if (res.code === 0 && res.data) {
+        setEditingItem(res.data);
+        setItemParentId(res.data.parentId ?? null);
+        setItemColor(res.data.color ?? null);
+        setMetadataStr(res.data.metadata ? JSON.stringify(res.data.metadata, null, 2) : '{}');
+      }
+    }).finally(() => setItemDetailLoading(false));
+  };
+
   const handleToggleItemStatus = useCallback(async (item: DictItem, newStatus: 'enabled' | 'disabled') => {
     if (!selectedDict) return;
     if (newStatus === 'disabled') {
@@ -543,57 +569,37 @@ export default function DictsPage() {
         />
       ),
     },
-    {
-      title: '操作',
-      fixed: 'right',
+    createOperationColumn<DictItem>({
       width: 220,
-      align: 'center',
-      render: (_v, row) => (
-        <Space>
-          {hasPermission('system:dict:item') && <Button
-            theme="borderless"
-            size="small"
-            onClick={() => {
-              setEditingItem(null);
-              setItemParentId(row.id);
-              setItemColor(null);
-              setMetadataStr('{}');
-              setItemModalVisible(true);
-            }}
-          >子项</Button>}
-          {hasPermission('system:dict:item') && <Button
-            theme="borderless"
-            size="small"
-            onClick={() => {
-              setEditingItem(row);
-              setItemParentId(row.parentId ?? null);
-              setItemColor(row.color ?? null);
-              setMetadataStr(row.metadata ? JSON.stringify(row.metadata, null, 2) : '{}');
-              setItemModalVisible(true);
-              // 重新拉取最新数据
-              setItemDetailLoading(true);
-              void request.get<DictItem>(`/api/dicts/${selectedDict!.id}/items/${row.id}`).then((res) => {
-                if (res.code === 0 && res.data) {
-                  setEditingItem(res.data);
-                  setItemParentId(res.data.parentId ?? null);
-                  setItemColor(res.data.color ?? null);
-                  setMetadataStr(res.data.metadata ? JSON.stringify(res.data.metadata, null, 2) : '{}');
-                }
-              }).finally(() => setItemDetailLoading(false));
-            }}
-          >
-            编辑
-          </Button>}
-          {hasPermission('system:dict:item') && <Button theme="borderless" size="small" type="danger" onClick={() => {
+      desktopInlineKeys: ['child', 'edit', 'delete'],
+      actions: (row) => [
+        {
+          key: 'child',
+          label: '子项',
+          hidden: !hasPermission('system:dict:item'),
+          onClick: () => openCreateChildItem(row),
+        },
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('system:dict:item'),
+          onClick: () => openEditItem(row),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('system:dict:item'),
+          onClick: () => {
             Modal.confirm({
               title: '确认删除此字典项？',
               okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleItemDelete(row.id),
             });
-          }}>删除</Button>}
-        </Space>
-      ),
-    },
+          },
+        },
+      ],
+    }),
   ];
 
   const renderItemKeywordSearch = () => (

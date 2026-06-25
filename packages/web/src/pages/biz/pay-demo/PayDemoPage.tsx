@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
-  Banner, Button, Collapse, Form, Input, Modal, Popconfirm, Select, Space, Tag, Toast, Typography,
+  Banner, Button, Collapse, Form, Input, Modal, Select, Space, Tag, Toast, Typography,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -18,6 +18,7 @@ import type { BizPayDemo, BizPayDemoStatus, CreatePaymentResult, PaymentMethod, 
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { createdAtColumn } from '@/utils/table-columns';
 
@@ -206,27 +207,49 @@ export default function PayDemoPage() {
       title: '状态', dataIndex: 'status', width: 100, fixed: 'right',
       render: (v: BizPayDemoStatus) => { const s = STATUS_MAP[v]; return s ? <Tag color={s.color}>{s.text}</Tag> : <span>{v}</span>; },
     },
-    {
-      title: '操作', width: 230, fixed: 'right',
-      render: (_: unknown, record: BizPayDemo) => (
-        <Space>
-          {record.status !== 'paid' && record.status !== 'closed' && (
-            <Button theme="borderless" size="small" type="primary" onClick={() => openPay(record)}>发起支付</Button>
-          )}
-          {record.status !== 'paid' && record.status !== 'closed' && (
-            <Popconfirm title="模拟支付成功？" content="触发后端履约（执行与真实支付成功相同的履约逻辑，演示用）" onConfirm={() => void handleSimulate(record)}>
-              <Button theme="borderless" size="small" loading={simulatingId === record.id}>模拟支付成功</Button>
-            </Popconfirm>
-          )}
-          {record.status !== 'paid' && (
-            <Popconfirm title="确定删除吗？" onConfirm={() => void handleDelete(record.id)}>
-              <Button theme="borderless" size="small" type="danger">删除</Button>
-            </Popconfirm>
-          )}
-          {record.status === 'paid' && <Typography.Text type="tertiary" size="small">{record.fulfillRemark ?? '已履约'}</Typography.Text>}
-        </Space>
+    createOperationColumn<BizPayDemo>({
+      width: 230,
+      emptyContent: (record) => (
+        record.status === 'paid'
+          ? <Typography.Text type="tertiary" size="small">{record.fulfillRemark ?? '已履约'}</Typography.Text>
+          : undefined
       ),
-    },
+      actions: (record) => [
+        {
+          key: 'pay',
+          label: '发起支付',
+          type: 'primary',
+          hidden: record.status === 'paid' || record.status === 'closed',
+          onClick: () => openPay(record),
+        },
+        {
+          key: 'simulate',
+          label: '模拟支付成功',
+          hidden: record.status === 'paid' || record.status === 'closed',
+          loading: simulatingId === record.id,
+          onClick: () => {
+            Modal.confirm({
+              title: '模拟支付成功？',
+              content: '触发后端履约（执行与真实支付成功相同的履约逻辑，演示用）',
+              onOk: () => handleSimulate(record),
+            });
+          },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: record.status === 'paid',
+          onClick: () => {
+            Modal.confirm({
+              title: '确定删除吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

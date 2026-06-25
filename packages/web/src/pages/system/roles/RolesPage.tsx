@@ -18,7 +18,7 @@ import {
   SideSheet,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, RotateCcw, Download, MoreHorizontal, ChevronDown } from 'lucide-react';
+import { Search, Plus, RotateCcw, Download, ChevronDown } from 'lucide-react';
 import type { Role, Menu, Department, PaginatedResponse, User } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
@@ -35,6 +35,7 @@ import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { MenuPermissionPanel } from '@/components/permissions/MenuPermissionPanel';
 import { DataScopePanel } from '@/components/permissions/DataScopePanel';
 import { usePagination } from '@/hooks/usePagination';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 
 export default function RolesPage() {
   const { hasPermission } = usePermission();
@@ -370,54 +371,51 @@ export default function RolesPage() {
         />
       ),
     },
-    {
-      title: '操作',
-      fixed: 'right',
+    createOperationColumn<Role>({
       width: 320,
-      align: 'center',
-      render: (_v, row) => (
-        <Space>
-          {hasPermission('system:role:update') && <Button
-            theme="borderless"
-            size="small"
-            onClick={() => { void openEditRoleModal(row); }}
-          >
-            编辑
-          </Button>}
-          {hasPermission('system:role:assign') && <Button theme="borderless" size="small" onClick={() => openMenuModal(row)}>
-            菜单权限
-          </Button>}
-          {hasPermission('system:role:delete') && <Button theme="borderless" size="small" type="danger" disabled={row.code === 'super_admin'} onClick={() => {
+      desktopInlineKeys: ['edit', 'menu', 'delete'],
+      actions: (row) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('system:role:update'),
+          onClick: () => { void openEditRoleModal(row); },
+        },
+        {
+          key: 'menu',
+          label: '菜单权限',
+          hidden: !hasPermission('system:role:assign'),
+          onClick: () => { void openMenuModal(row); },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('system:role:delete'),
+          disabled: row.code === 'super_admin',
+          disabledReason: '超级管理员角色不允许删除',
+          onClick: () => {
             Modal.confirm({
               title: '确认删除此角色？',
               okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleDelete(row.id),
             });
-          }}>删除</Button>}
-          {(hasPermission('system:role:assign') || hasPermission('system:role:update')) && (
-            <Dropdown
-              trigger="click"
-              position="bottomRight"
-              clickToHide
-              render={
-                <Dropdown.Menu>
-                  {hasPermission('system:role:assign') && (
-                    <Dropdown.Item onClick={() => openUserModal(row)}>分配用户</Dropdown.Item>
-                  )}
-                  {hasPermission('system:role:update') && (
-                    <Dropdown.Item onClick={() => openDataScopeModal(row)}>数据权限</Dropdown.Item>
-                  )}
-                </Dropdown.Menu>
-              }
-            >
-              <span style={{ display: 'inline-block' }}>
-                <Button theme="borderless" size="small" icon={<MoreHorizontal size={14} />} />
-              </span>
-            </Dropdown>
-          )}
-        </Space>
-      ),
-    },
+          },
+        },
+        {
+          key: 'users',
+          label: '分配用户',
+          hidden: !hasPermission('system:role:assign'),
+          onClick: () => { void openUserModal(row); },
+        },
+        {
+          key: 'dataScope',
+          label: '数据权限',
+          hidden: !hasPermission('system:role:update'),
+          onClick: () => { void openDataScopeModal(row); },
+        },
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

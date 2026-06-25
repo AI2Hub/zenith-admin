@@ -7,6 +7,7 @@ import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
@@ -121,16 +122,16 @@ export default function MpDraftsPage() {
     },
     { title: '微信 MediaID', dataIndex: 'wechatMediaId', width: 200, render: (v: string | null) => v || '—' },
     createdAtColumn,
-    {
-      title: '操作', key: 'actions', width: 200, fixed: 'right' as const,
-      render: (_: unknown, record: MpDraft) => (
-        <Space>
-          {can('mp:draft:update') && <Button theme="borderless" size="small" onClick={() => void openEdit(record)}>编辑</Button>}
-          {can('mp:draft:push') && <Button theme="borderless" size="small" loading={pushingId === record.id} onClick={() => void handlePush(record)}>推送</Button>}
-          {can('mp:draft:delete') && <Button theme="borderless" type="danger" size="small" onClick={() => handleDelete(record)}>删除</Button>}
-        </Space>
-      ),
-    },
+    createOperationColumn<MpDraft>({
+      width: 200,
+      desktopInlineKeys: ['edit', 'push', 'delete'],
+      menuAriaLabel: '图文草稿操作',
+      actions: (record) => [
+        { key: 'edit', label: '编辑', hidden: !can('mp:draft:update'), onClick: () => void openEdit(record) },
+        { key: 'push', label: '推送', loading: pushingId === record.id, hidden: !can('mp:draft:push'), onClick: () => void handlePush(record) },
+        { key: 'delete', label: '删除', danger: true, hidden: !can('mp:draft:delete'), onClick: () => handleDelete(record) },
+      ],
+    }),
   ];
 
   const renderAccountFilter = () => (

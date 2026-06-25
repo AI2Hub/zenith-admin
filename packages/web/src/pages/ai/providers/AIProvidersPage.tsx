@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Button, Input, Modal, Popconfirm, Space, Tag, Toast, Switch } from '@douyinfe/semi-ui';
+import { Button, Input, Modal, Tag, Toast, Switch } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Search, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { request } from '@/utils/request';
 import { usePermission } from '@/hooks/usePermission';
@@ -190,36 +191,40 @@ export default function AIProvidersPage() {
         );
       },
     },
-    {
-      title: '操作',
-      dataIndex: 'id',
+    createOperationColumn<TableRow>({
       width: 250,
-      fixed: 'right',
-      render: (_: unknown, record: TableRow) => {
-        if ('_isGroup' in record) return null;
-        return (
-          <Space>
-            {hasPermission('ai:provider:edit') && (
-              <Button theme="borderless" size="small" onClick={() => openEdit(record)}>
-                编辑
-              </Button>
-            )}
-            {hasPermission('ai:provider:edit') && !record.isDefault && (
-              <Button theme="borderless" size="small" onClick={() => void handleSetDefault(record.id)}>
-                设为默认
-              </Button>
-            )}
-            {hasPermission('ai:provider:delete') && (
-              <Popconfirm title="确定要删除该服务商配置吗？" onConfirm={() => void handleDelete(record.id)}>
-                <Button theme="borderless" type="danger" size="small">
-                  删除
-                </Button>
-              </Popconfirm>
-            )}
-          </Space>
-        );
+      desktopInlineKeys: ['edit', 'set-default', 'delete'],
+      actions: (record) => {
+        if ('_isGroup' in record) return [];
+        return [
+          {
+            key: 'edit',
+            label: '编辑',
+            hidden: !hasPermission('ai:provider:edit'),
+            onClick: () => openEdit(record),
+          },
+          {
+            key: 'set-default',
+            label: '设为默认',
+            hidden: !hasPermission('ai:provider:edit') || record.isDefault,
+            onClick: () => handleSetDefault(record.id),
+          },
+          {
+            key: 'delete',
+            label: '删除',
+            danger: true,
+            hidden: !hasPermission('ai:provider:delete'),
+            onClick: () => {
+              Modal.confirm({
+                title: '确定要删除该服务商配置吗？',
+                okButtonProps: { type: 'danger', theme: 'solid' },
+                onOk: () => handleDelete(record.id),
+              });
+            },
+          },
+        ];
       },
-    },
+    }),
   ];
 
   const renderKeywordSearch = () => (

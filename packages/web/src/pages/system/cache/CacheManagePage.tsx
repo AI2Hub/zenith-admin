@@ -23,6 +23,7 @@ import { request } from '@/utils/request';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 
@@ -405,43 +406,30 @@ export default function CacheManagePage() {
           <span style={{ color: 'var(--semi-color-text-3)' }}>—</span>
         ),
     },
-    {
-      title: '操作',
-      fixed: 'right' as const,
+    createOperationColumn<CacheItem>({
       width: 200,
-      render: (_: unknown, record: CacheItem) => (
-        <Space>
-          {record.value != null && (
-            <Button
-              theme="borderless"
-              size="small"
-              onClick={() => void openValueModal(record)}
-            >
-              查看
-            </Button>
-          )}
-          {canEdit && (
-            <Button
-              theme="borderless"
-              size="small"
-              onClick={() => openTtlEdit(record)}
-            >
-              TTL
-            </Button>
-          )}
-          {canDelete && (
-            <Button
-              theme="borderless"
-              type="danger"
-              size="small"
-              onClick={() => handleDeleteKey(record)}
-            >
-              删除
-            </Button>
-          )}
-        </Space>
-      ),
-    },
+      actions: (record) => [
+        {
+          key: 'view',
+          label: '查看',
+          hidden: record.value == null,
+          onClick: () => { void openValueModal(record); },
+        },
+        {
+          key: 'ttl',
+          label: 'TTL',
+          hidden: !canEdit,
+          onClick: () => openTtlEdit(record),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !canDelete,
+          onClick: () => handleDeleteKey(record),
+        },
+      ],
+    }),
   ];
 
   const cacheMaster = (

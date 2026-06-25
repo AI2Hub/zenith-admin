@@ -3,7 +3,6 @@ import {
   Button,
   Input,
   Select,
-  Space,
   Modal,
   Form,
   Toast,
@@ -30,6 +29,7 @@ import { usePermission } from '@/hooks/usePermission';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 
 export default function TenantsPage() {
   const { hasPermission } = usePermission();
@@ -195,6 +195,19 @@ export default function TenantsPage() {
     }
   };
 
+  const openEdit = async (tenant: Tenant) => {
+    setEditingTenant(tenant);
+    setModalVisible(true);
+    setModalDetailLoading(true);
+    const res = await request.get<Tenant>(`/api/tenants/${tenant.id}`);
+    setModalDetailLoading(false);
+    if (res.code === 0 && res.data) {
+      setEditingTenant(res.data);
+    } else {
+      Toast.error(res.message || '获取租户信息失败');
+    }
+  };
+
   function renderExpiry(days: number | null, expireAt: string | null) {
     if (days === null) return '永不过期';
     if (days < 0) return <Tag color="red">已过期 {-days} 天</Tag>;
@@ -245,54 +258,37 @@ export default function TenantsPage() {
         />
       ),
     },
-    {
-      title: '操作',
-      fixed: 'right',
+    createOperationColumn<Tenant>({
       width: 210,
-      align: 'center',
-      render: (_v, row) => (
-        <Space>
-          <Button theme="borderless" size="small" onClick={() => void openStats(row)}>概览</Button>
-          {hasPermission('system:tenant:update') && (
-            <Button
-              theme="borderless"
-              size="small"
-              onClick={async () => {
-                setEditingTenant(row);
-                setModalVisible(true);
-                setModalDetailLoading(true);
-                const res = await request.get<Tenant>(`/api/tenants/${row.id}`);
-                setModalDetailLoading(false);
-                if (res.code === 0 && res.data) {
-                  setEditingTenant(res.data);
-                } else {
-                  Toast.error(res.message || '获取租户信息失败');
-                }
-              }}
-            >
-              编辑
-            </Button>
-          )}
-          {hasPermission('system:tenant:delete') && (
-            <Button
-              theme="borderless"
-              size="small"
-              type="danger"
-              onClick={() => {
-                Modal.confirm({
-                  title: '确认删除此租户？',
-                  content: '删除后该租户下的所有数据将不可访问',
-                  okButtonProps: { type: 'danger', theme: 'solid' },
-                  onOk: () => handleDelete(row.id),
-                });
-              }}
-            >
-              删除
-            </Button>
-          )}
-        </Space>
-      ),
-    },
+      desktopInlineKeys: ['stats', 'edit', 'delete'],
+      actions: (row) => [
+        {
+          key: 'stats',
+          label: '概览',
+          onClick: () => { void openStats(row); },
+        },
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('system:tenant:update'),
+          onClick: () => { void openEdit(row); },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('system:tenant:delete'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确认删除此租户？',
+              content: '删除后该租户下的所有数据将不可访问',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(row.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

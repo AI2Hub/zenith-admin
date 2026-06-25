@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Input, Popconfirm, Space, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Input, Modal, Space, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { LayoutTemplate, RotateCcw, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +8,7 @@ import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { renderEllipsis } from '@/utils/table-columns';
 import WorkflowTemplateFormModal, { type WorkflowTemplateFormValues } from '../components/WorkflowTemplateFormModal';
@@ -159,45 +160,41 @@ export default function WorkflowTemplatesPage() {
       width: 180,
       render: (v: string) => formatDateTime(v),
     },
-    {
-      title: '操作',
-      dataIndex: 'op',
+    createOperationColumn<WorkflowTemplate>({
       width: 240,
-      fixed: 'right',
-      render: (_v: unknown, record: WorkflowTemplate) => (
-        <Space>
-          {canCreate && (
-            <Button
-              theme="borderless"
-              size="small"
-              loading={cloningId === record.id}
-              disabled={cloningId !== null}
-              onClick={() => void handleCloneToDefinition(record)}
-            >
-              从模板新建
-            </Button>
-          )}
-          {canEdit && (
-            <Button theme="borderless" size="small" onClick={() => openEdit(record)}>
-              编辑
-            </Button>
-          )}
-          {canEdit && (
-            record.builtin ? (
-              <Button theme="borderless" type="danger" size="small" disabled>
-                删除
-              </Button>
-            ) : (
-              <Popconfirm title="确定要删除该模板吗？" onConfirm={() => void handleDelete(record.id)}>
-                <Button theme="borderless" type="danger" size="small">
-                  删除
-                </Button>
-              </Popconfirm>
-            )
-          )}
-        </Space>
-      ),
-    },
+      desktopInlineKeys: ['clone', 'edit', 'delete'],
+      actions: (record) => [
+        {
+          key: 'clone',
+          label: '从模板新建',
+          hidden: !canCreate,
+          loading: cloningId === record.id,
+          disabled: cloningId !== null,
+          onClick: () => void handleCloneToDefinition(record),
+        },
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !canEdit,
+          onClick: () => openEdit(record),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !canEdit,
+          disabled: record.builtin,
+          disabledReason: '系统内置模板不可删除',
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除该模板吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

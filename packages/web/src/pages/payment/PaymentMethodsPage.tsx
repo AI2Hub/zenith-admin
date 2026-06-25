@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Button, Form, Space, Switch, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Form, Switch, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { RotateCcw } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { request } from '@/utils/request';
@@ -76,14 +77,16 @@ export default function PaymentMethodsPage() {
         <Switch checked={r.enabled} loading={togglingIds.has(r.id)} disabled={!canUpdate} size="small" onChange={(c) => handleToggle(r, c)} />
       ),
     },
-    {
-      title: '操作', fixed: 'right', width: 90,
-      render: (_: unknown, r: PaymentMethodConfig) => (
-        <Space>
-          {canUpdate && <Button theme="borderless" size="small" onClick={() => openEdit(r)}>编辑</Button>}
-        </Space>
-      ),
-    },
+    createOperationColumn<PaymentMethodConfig>({
+      width: 90,
+      actions: (r) => [
+        ...(canUpdate ? [{
+          key: 'edit',
+          label: '编辑',
+          onClick: () => openEdit(r),
+        }] : []),
+      ],
+    }),
   ];
 
   const renderRefreshButton = () => (

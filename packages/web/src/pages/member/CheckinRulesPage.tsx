@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Form, Space, Toast, Modal } from '@douyinfe/semi-ui';
+import { Button, Form, Toast, Modal } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Settings } from 'lucide-react';
@@ -9,6 +9,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { AppModal } from '@/components/AppModal';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { renderEllipsis } from '../../utils/table-columns';
 
 export default function CheckinRulesPage() {
@@ -101,25 +102,25 @@ export default function CheckinRulesPage() {
     { title: '经验奖励', dataIndex: 'experience', width: 100 },
     { title: '备注', dataIndex: 'remark', render: renderEllipsis },
     { title: '更新时间', dataIndex: 'updatedAt', width: 180 },
-    {
-      title: '操作',
+    createOperationColumn<CheckinRule>({
       width: 130,
-      fixed: 'right',
-      render: (_: unknown, record: CheckinRule) => (
-        <Space>
-          {hasPermission('member:checkin:rule:update') && (
-            <Button theme="borderless" size="small" onClick={() => { setEditing(record); setModalVisible(true); }}>
-              编辑
-            </Button>
-          )}
-          {hasPermission('member:checkin:rule:delete') && (
-            <Button theme="borderless" type="danger" size="small" onClick={() => handleDelete(record)}>
-              删除
-            </Button>
-          )}
-        </Space>
-      ),
-    },
+      desktopInlineKeys: ['edit', 'delete'],
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('member:checkin:rule:update'),
+          onClick: () => { setEditing(record); setModalVisible(true); },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('member:checkin:rule:delete'),
+          onClick: () => handleDelete(record),
+        },
+      ],
+    }),
   ];
 
   const renderRefreshButton = () => (

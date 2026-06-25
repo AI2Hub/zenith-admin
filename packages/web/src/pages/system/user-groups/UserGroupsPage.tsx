@@ -29,6 +29,7 @@ import type { UserTransferUser } from '@/components/UserTransferSelect';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 
@@ -231,6 +232,19 @@ export default function UserGroupsPage() {
     }
   };
 
+  const openEdit = async (record: UserGroup) => {
+    setEditing(record);
+    setModalVisible(true);
+    setModalDetailLoading(true);
+    const res = await request.get<UserGroup>(`/api/user-groups/${record.id}`);
+    setModalDetailLoading(false);
+    if (res.code === 0 && res.data) {
+      setEditing(res.data);
+    } else {
+      Toast.error(res.message || '获取用户组信息失败');
+    }
+  };
+
   const handleSaveMembers = async () => {
     if (!memberGroup) return;
     setMemberSaving(true);
@@ -301,39 +315,37 @@ export default function UserGroupsPage() {
         />
       ),
     },
-    {
-      title: '操作', fixed: 'right', width: 220,
-      render: (_: unknown, record: UserGroup) => (
-        <Space>
-          {hasPermission('system:user-groups:assign') && (
-            <Button theme="borderless" size="small" onClick={() => openMembers(record)}>成员</Button>
-          )}
-          {hasPermission('system:user-groups:update') && (
-            <Button theme="borderless" size="small" onClick={async () => {
-              setEditing(record);
-              setModalVisible(true);
-              setModalDetailLoading(true);
-              const res = await request.get<UserGroup>(`/api/user-groups/${record.id}`);
-              setModalDetailLoading(false);
-              if (res.code === 0 && res.data) {
-                setEditing(res.data);
-              } else {
-                Toast.error(res.message || '获取用户组信息失败');
-              }
-            }}>编辑</Button>
-          )}
-          {hasPermission('system:user-groups:delete') && (
-            <Button theme="borderless" type="danger" size="small" onClick={() => {
-              Modal.confirm({
-                title: '确定要删除该用户组吗？',
-                okButtonProps: { type: 'danger', theme: 'solid' },
-                onOk: () => handleDelete(record.id),
-              });
-            }}>删除</Button>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<UserGroup>({
+      width: 220,
+      desktopInlineKeys: ['members', 'edit', 'delete'],
+      actions: (record) => [
+        {
+          key: 'members',
+          label: '成员',
+          hidden: !hasPermission('system:user-groups:assign'),
+          onClick: () => { void openMembers(record); },
+        },
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('system:user-groups:update'),
+          onClick: () => { void openEdit(record); },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('system:user-groups:delete'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除该用户组吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const formInitValues = editing

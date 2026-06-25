@@ -19,6 +19,7 @@ import { formatDateTime } from '@/utils/date';
 import { createdAtColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import type {
   PaginatedResponse,
@@ -155,15 +156,13 @@ export default function WorkflowTriggerExecutionsPage() {
         v ? <Typography.Text type="danger" ellipsis={{ rows: 1, showTooltip: true }}>{v}</Typography.Text> : '-',
     },
     createdAtColumn,
-    {
-      title: '操作',
-      dataIndex: '__ops',
+    createOperationColumn<WorkflowTriggerExecution>({
       width: 90,
-      fixed: 'right',
-      render: (_: unknown, r) => (
-        <Button theme="borderless" size="small" onClick={() => openDetail(r)}>详情</Button>
-      ),
-    },
+      desktopInlineKeys: ['detail'],
+      actions: (record) => [
+        { key: 'detail', label: '详情', onClick: () => openDetail(record) },
+      ],
+    }),
   ];
 
   const renderNodeKeySearch = () => (

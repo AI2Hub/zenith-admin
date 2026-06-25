@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Input, Popconfirm, Select, Space, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Input, Modal, Select, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -11,6 +11,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 
 type StatusFilter = WorkflowFormStatus | '';
 type TagColor = 'green' | 'grey';
@@ -178,39 +179,37 @@ export default function WorkflowFormsPage() {
         return <Tag color={status.color}>{status.text}</Tag>;
       },
     },
-    {
-      title: '操作',
-      key: 'action',
+    createOperationColumn<WorkflowForm>({
       width: 220,
-      fixed: 'right',
-      render: (_value: unknown, record: WorkflowForm) => (
-        <Space>
-          {hasPermission('workflow:form:edit') && (
-            <Button
-              theme="borderless"
-              size="small"
-              onClick={() => navigate(`/workflow/forms/designer?id=${record.id}`)}
-            >
-              编辑
-            </Button>
-          )}
-          {hasPermission('workflow:form:create') && (
-            <Button
-              theme="borderless"
-              size="small"
-              onClick={() => void handleDuplicate(record.id)}
-            >
-              复制
-            </Button>
-          )}
-          {hasPermission('workflow:form:delete') && (
-            <Popconfirm title="确定要删除该表单吗？" onConfirm={() => void handleDelete(record.id)}>
-              <Button theme="borderless" type="danger" size="small">删除</Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+      desktopInlineKeys: ['edit', 'duplicate', 'delete'],
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('workflow:form:edit'),
+          onClick: () => navigate(`/workflow/forms/designer?id=${record.id}`),
+        },
+        {
+          key: 'duplicate',
+          label: '复制',
+          hidden: !hasPermission('workflow:form:create'),
+          onClick: () => void handleDuplicate(record.id),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('workflow:form:delete'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除该表单吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

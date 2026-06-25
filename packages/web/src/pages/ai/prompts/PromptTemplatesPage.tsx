@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Col, Form, Input, Popconfirm, Row, Select, Space, Spin, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Input, Modal, Row, Select, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Plus, RotateCcw, Search } from 'lucide-react';
 import type { AiPromptTemplate, AiPromptScope, CreateAiPromptTemplateInput, PaginatedResponse } from '@zenith/shared';
 import { AppModal } from '@/components/AppModal';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
@@ -214,28 +215,32 @@ export default function PromptTemplatesPage() {
       fixed: 'right',
       render: (enabled: boolean) => statusTag(enabled),
     },
-    {
-      title: '操作',
-      dataIndex: 'operation',
+    createOperationColumn<AiPromptTemplate>({
       width: 150,
-      fixed: 'right',
-      render: (_: unknown, record) => (
-        <Space>
-          {hasPermission('ai:prompt:edit') && (
-            <Button theme="borderless" size="small" onClick={() => void openEdit(record)}>
-              编辑
-            </Button>
-          )}
-          {hasPermission('ai:prompt:delete') && !record.isBuiltin && (
-            <Popconfirm title="确定要删除该提示词模板吗？" content="删除后不可恢复" onConfirm={() => void handleDelete(record.id)}>
-              <Button theme="borderless" type="danger" size="small">
-                删除
-              </Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+      desktopInlineKeys: ['edit', 'delete'],
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('ai:prompt:edit'),
+          onClick: () => openEdit(record),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('ai:prompt:delete') || record.isBuiltin,
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除该提示词模板吗？',
+              content: '删除后不可恢复',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

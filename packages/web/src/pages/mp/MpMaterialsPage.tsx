@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Button, Form, Input, Modal, Select, Space, Spin, Tag, Toast, Banner, Upload, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Modal, Select, Spin, Tag, Toast, Banner, Upload, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, RotateCcw, Search, RefreshCw, UploadCloud } from 'lucide-react';
 import { TOKEN_KEY } from '@zenith/shared';
@@ -10,6 +10,7 @@ import { config } from '@/config';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
@@ -142,15 +143,15 @@ export default function MpMaterialsPage() {
     { title: '微信 MediaID', dataIndex: 'wechatMediaId', width: 200, render: (v: string | null) => v || '— 未同步' },
     { title: '大小', dataIndex: 'fileSize', width: 100, render: (v: number | null) => fmtSize(v) },
     createdAtColumn,
-    {
-      title: '操作', key: 'actions', width: 140, fixed: 'right' as const,
-      render: (_: unknown, record: MpMaterial) => (
-        <Space>
-          {can('mp:material:update') && <Button theme="borderless" size="small" onClick={() => openEdit(record)}>重命名</Button>}
-          {can('mp:material:delete') && <Button theme="borderless" type="danger" size="small" onClick={() => handleDelete(record)}>删除</Button>}
-        </Space>
-      ),
-    },
+    createOperationColumn<MpMaterial>({
+      width: 140,
+      desktopInlineKeys: ['rename', 'delete'],
+      menuAriaLabel: '素材操作',
+      actions: (record) => [
+        { key: 'rename', label: '重命名', hidden: !can('mp:material:update'), onClick: () => openEdit(record) },
+        { key: 'delete', label: '删除', danger: true, hidden: !can('mp:material:delete'), onClick: () => handleDelete(record) },
+      ],
+    }),
   ];
 
   const renderAccountFilter = () => (

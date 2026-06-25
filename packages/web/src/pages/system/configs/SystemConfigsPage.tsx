@@ -5,7 +5,6 @@ import {
   Input,
   Modal,
   Select,
-  Space,
   Spin,
   SplitButtonGroup,
   Dropdown,
@@ -23,6 +22,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { renderEllipsis } from '../../../utils/table-columns';
 
@@ -163,27 +163,30 @@ export default function SystemConfigsPage() {
       title: '更新时间', dataIndex: 'updatedAt', width: 180,
       render: (v: string) => formatDateTime(v),
     },
-    {
-      title: '操作',
-      fixed: 'right',
+    createOperationColumn<SystemConfig>({
       width: 160,
-      render: (_: unknown, record: SystemConfig) => (
-        <Space>
-          {hasPermission('system:config:update') && (
-            <Button theme="borderless" size="small" onClick={() => { void openEdit(record); }}>
-              编辑
-            </Button>
-          )}
-          {hasPermission('system:config:delete') && (
-            <Button theme="borderless" type="danger" size="small" onClick={() => {
-              Modal.confirm({ title: '确定要删除此配置吗？', okButtonProps: { type: 'danger', theme: 'solid' }, onOk: () => handleDelete(record.id) });
-            }}>
-              删除
-            </Button>
-          )}
-        </Space>
-      ),
-    },
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('system:config:update'),
+          onClick: () => { void openEdit(record); },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('system:config:delete'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除此配置吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   return (

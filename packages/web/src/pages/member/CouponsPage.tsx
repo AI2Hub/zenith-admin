@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Input, Select, Form, Toast, Tag, Popconfirm, Row, Col } from '@douyinfe/semi-ui';
+import { Button, Input, Select, Form, Toast, Tag, Modal, Row, Col } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, RotateCcw, Plus, Send } from 'lucide-react';
+import { Search, RotateCcw, Plus } from 'lucide-react';
 import type { Coupon, CouponType, CouponTemplateStatus, PaginatedResponse } from '@zenith/shared';
 import { COUPON_TYPE_LABELS, COUPON_TEMPLATE_STATUS_LABELS } from '@zenith/shared';
 import { request } from '@/utils/request';
@@ -12,6 +12,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { MemberSelect } from '@/components/MemberSelect';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
 import { formatDateTimeForApi } from '@/utils/date';
 
@@ -137,6 +138,14 @@ export default function CouponsPage() {
     else Toast.error(res.message);
   };
 
+  const confirmDelete = (record: Coupon) => {
+    Modal.confirm({
+      title: '确定要删除该优惠券吗？',
+      okButtonProps: { type: 'danger', theme: 'solid' },
+      onOk: () => handleDelete(record.id),
+    });
+  };
+
   const openIssue = (r: Coupon) => { setIssuing(r); setIssueVisible(true); };
   const handleIssue = async () => {
     let values: { memberId: number };
@@ -161,20 +170,17 @@ export default function CouponsPage() {
     { title: '有效期', dataIndex: 'validType', width: 200, render: (_: string, r: Coupon) => <span style={{ fontSize: 12 }}>{renderValid(r)}</span> },
     { title: '状态', dataIndex: 'status', width: 90, render: (v: CouponTemplateStatus) => <Tag color={STATUS_COLORS[v] as 'green'}>{COUPON_TEMPLATE_STATUS_LABELS[v]}</Tag> },
     createdAtColumn,
-    ...(hasOps ? [{
-      title: '操作', dataIndex: 'ops', width: 190, fixed: 'right' as const,
-      render: (_: unknown, r: Coupon) => (
-        <span>
-          {canIssue && <Button theme="borderless" size="small" onClick={() => openIssue(r)}>发券</Button>}
-          {canEdit && <Button theme="borderless" size="small" onClick={() => openEdit(r)}>编辑</Button>}
-          {canDelete && (
-            <Popconfirm title="确定要删除该优惠券吗？" onConfirm={() => handleDelete(r.id)}>
-              <Button theme="borderless" type="danger" size="small">删除</Button>
-            </Popconfirm>
-          )}
-        </span>
-      ),
-    }] : []),
+    ...(hasOps ? [
+      createOperationColumn<Coupon>({
+        width: 190,
+        desktopInlineKeys: ['issue', 'edit', 'delete'],
+        actions: (record) => [
+          { key: 'issue', label: '发券', hidden: !canIssue, onClick: () => openIssue(record) },
+          { key: 'edit', label: '编辑', hidden: !canEdit, onClick: () => openEdit(record) },
+          { key: 'delete', label: '删除', danger: true, hidden: !canDelete, onClick: () => confirmDelete(record) },
+        ],
+      }),
+    ] : []),
   ];
 
   const renderKeywordSearch = () => (

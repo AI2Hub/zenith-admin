@@ -8,6 +8,7 @@ import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
@@ -128,15 +129,15 @@ export default function MpKfAccountsPage() {
       render: (v: string) => { const m = INVITE_LABEL[v] ?? INVITE_LABEL.none; return <Tag color={m.color} type="light">{m.label}</Tag>; },
     },
     createdAtColumn,
-    {
-      title: '操作', key: 'actions', width: 140, fixed: 'right' as const,
-      render: (_: unknown, record: MpKfAccount) => (
-        <Space>
-          {can('mp:kf:update') && <Button theme="borderless" size="small" onClick={() => openEdit(record)}>编辑</Button>}
-          {can('mp:kf:delete') && <Button theme="borderless" type="danger" size="small" onClick={() => handleDelete(record)}>删除</Button>}
-        </Space>
-      ),
-    },
+    createOperationColumn<MpKfAccount>({
+      width: 140,
+      desktopInlineKeys: ['edit', 'delete'],
+      menuAriaLabel: '多客服操作',
+      actions: (record) => [
+        { key: 'edit', label: '编辑', hidden: !can('mp:kf:update'), onClick: () => openEdit(record) },
+        { key: 'delete', label: '删除', danger: true, hidden: !can('mp:kf:delete'), onClick: () => handleDelete(record) },
+      ],
+    }),
   ];
 
   const renderAccountFilter = () => (

@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Button, Form, Input, Popconfirm, Select, Space, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Modal, Select, Space, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { QRCodeSVG } from 'qrcode.react';
 import { Search, RotateCcw, Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { request } from '@/utils/request';
@@ -173,24 +174,44 @@ export default function PaymentLinksPage() {
     { title: '已用/上限', dataIndex: 'usedCount', width: 110, render: (_: unknown, r: PaymentLink) => `${r.usedCount} / ${r.maxUses ?? '∞'}` },
     { title: '失效时间', dataIndex: 'expiredAt', width: 170, render: (v: string | null) => (v ? formatDateTime(v) : '永久') },
     createdAtColumn as ColumnProps<PaymentLink>,
-    { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentLinkStatus) => <Tag color={LINK_STATUS_COLOR[v]}>{PAYMENT_LINK_STATUS_LABELS[v]}</Tag> },
     {
-      title: '操作', fixed: 'right', width: 170,
+      title: '状态', dataIndex: 'status', width: 140, fixed: 'right',
       render: (_: unknown, r: PaymentLink) => (
-        <Space>
-          <Button theme="borderless" size="small" onClick={() => setQrLink(r)}>收款码</Button>
+        <Space spacing={4}>
+          <Tag color={LINK_STATUS_COLOR[r.status]}>{PAYMENT_LINK_STATUS_LABELS[r.status]}</Tag>
           {hasPermission('payment:link:update') && (
             <Switch checked={r.status !== 'disabled'} loading={togglingIds.has(r.id)} size="small" onChange={(c) => handleToggle(r, c)} />
-          )}
-          {hasPermission('payment:link:update') && <Button theme="borderless" size="small" onClick={() => openEdit(r)}>编辑</Button>}
-          {hasPermission('payment:link:delete') && (
-            <Popconfirm title="确定要删除吗？" content="删除后不可恢复" onConfirm={() => handleDelete(r.id)}>
-              <Button theme="borderless" type="danger" size="small">删除</Button>
-            </Popconfirm>
           )}
         </Space>
       ),
     },
+    createOperationColumn<PaymentLink>({
+      width: 150,
+      actions: (r) => [
+        {
+          key: 'qr',
+          label: '收款码',
+          onClick: () => setQrLink(r),
+        },
+        ...(hasPermission('payment:link:update') ? [{
+          key: 'edit',
+          label: '编辑',
+          onClick: () => openEdit(r),
+        }] : []),
+        ...(hasPermission('payment:link:delete') ? [{
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除吗？',
+              content: '删除后不可恢复',
+              onOk: () => handleDelete(r.id),
+            });
+          },
+        }] : []),
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

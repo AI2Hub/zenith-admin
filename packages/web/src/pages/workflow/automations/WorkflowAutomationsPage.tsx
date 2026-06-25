@@ -12,7 +12,7 @@ import {
   Col,
   Form,
   Input,
-  Popconfirm,
+  Modal,
   Row,
   Select,
   Space,
@@ -38,6 +38,7 @@ import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 
@@ -432,19 +433,31 @@ export default function WorkflowAutomationsPage() {
     },
     { title: '排序', dataIndex: 'sort', width: 70 },
     { title: '更新时间', dataIndex: 'updatedAt', width: 160, render: (v: string) => formatDateTime(v) },
-    {
-      title: '操作', dataIndex: 'op', width: 160, fixed: 'right',
-      render: (_v, r) => (
-        <Space>
-          {canEditAutomation && <Button theme="borderless" size="small" onClick={() => openEdit(r)}>编辑</Button>}
-          {canEditAutomation && (
-            <Popconfirm title="确定要删除该规则吗？" onConfirm={() => handleDelete(r.id)}>
-              <Button theme="borderless" type="danger" size="small">删除</Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<WorkflowAutomation>({
+      width: 160,
+      desktopInlineKeys: ['edit', 'delete'],
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !canEditAutomation,
+          onClick: () => openEdit(record),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !canEditAutomation,
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除该规则吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const renderDefinitionFilter = () => (

@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Button, Form, Input, Select, Space, Spin, Toast, Popconfirm, Switch, Modal,
+  Button, Form, Input, Select, Space, Spin, Toast, Switch, Modal,
   Row, Col, Typography, Tag, Empty,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, RotateCcw, Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { request } from '@/utils/request';
@@ -206,22 +207,33 @@ export default function WorkflowDataSourcesPage() {
         />
       ),
     },
-    {
-      title: '操作', fixed: 'right', width: 220,
-      render: (_: unknown, record: WorkflowDataSource) => (
-        <Space>
-          <Button theme="borderless" size="small" onClick={() => void handleTest(record)}>测试</Button>
-          {hasPermission('workflow:datasource:update') && (
-            <Button theme="borderless" size="small" onClick={() => openEdit(record)}>编辑</Button>
-          )}
-          {hasPermission('workflow:datasource:delete') && (
-            <Popconfirm title="确定要删除吗？" content="删除后引用该数据源的表单字段将无法加载选项" onConfirm={() => handleDelete(record.id)}>
-              <Button theme="borderless" type="danger" size="small">删除</Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<WorkflowDataSource>({
+      width: 220,
+      desktopInlineKeys: ['test', 'edit', 'delete'],
+      actions: (record) => [
+        { key: 'test', label: '测试', onClick: () => void handleTest(record) },
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('workflow:datasource:update'),
+          onClick: () => openEdit(record),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('workflow:datasource:delete'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除吗？',
+              content: '删除后引用该数据源的表单字段将无法加载选项',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

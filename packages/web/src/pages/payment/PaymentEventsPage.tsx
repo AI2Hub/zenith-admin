@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Button, Input, Select, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Input, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, RotateCcw } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
@@ -77,16 +78,17 @@ export default function PaymentEventsPage() {
     { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
     { title: '处理时间', dataIndex: 'processedAt', width: 170, render: (t: string | null) => (t ? formatDateTime(t) : '-') },
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentOutboxEvent['status']) => <Tag color={EVENT_STATUS_COLOR[v]}>{EVENT_STATUS_LABELS[v]}</Tag> },
-    {
-      title: '操作', fixed: 'right', width: 90,
-      render: (_: unknown, r: PaymentOutboxEvent) => (
-        <Space>
-          {r.status !== 'done' && hasPermission('payment:ops:manage') && (
-            <Button theme="borderless" size="small" loading={redispatchingIds.has(r.id)} onClick={() => handleRedispatch(r)}>重投</Button>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<PaymentOutboxEvent>({
+      width: 90,
+      actions: (r) => [
+        ...(r.status !== 'done' && hasPermission('payment:ops:manage') ? [{
+          key: 'redispatch',
+          label: '重投',
+          loading: redispatchingIds.has(r.id),
+          onClick: () => handleRedispatch(r),
+        }] : []),
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

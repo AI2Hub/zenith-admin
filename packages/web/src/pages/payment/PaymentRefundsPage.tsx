@@ -3,6 +3,7 @@ import { Button, DatePicker, Dropdown, Form, Input, Modal, Select, Space, SplitB
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, RotateCcw, Download, ChevronDown } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { request } from '@/utils/request';
@@ -135,23 +136,34 @@ export default function PaymentRefundsPage() {
       render: (v: PaymentRefundApprovalStatus) => (v === 'none' ? <Typography.Text type="tertiary">-</Typography.Text> : <Tag color={APPROVAL_COLOR[v]}>{PAYMENT_REFUND_APPROVAL_STATUS_LABELS[v]}</Tag>),
     },
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentRefundStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_REFUND_STATUS_LABELS[v]}</Tag> },
-    {
-      title: '操作', fixed: 'right', width: 200,
-      render: (_: unknown, r: PaymentRefund) => (
-        <Space>
-          <Button theme="borderless" size="small" onClick={() => setDetail(r)}>详情</Button>
-          {(r.status === 'processing' || r.status === 'pending') && r.approvalStatus !== 'pending' && (
-            <Button theme="borderless" size="small" loading={queryingIds.has(r.id)} onClick={() => handleRefundQuery(r)}>查单</Button>
-          )}
-          {r.approvalStatus === 'pending' && hasPermission('payment:refund:approve') && (
-            <>
-              <Button theme="borderless" size="small" type="primary" loading={approvingIds.has(r.id)} onClick={() => handleApprove(r)}>通过</Button>
-              <Button theme="borderless" size="small" type="danger" onClick={() => openReject(r)}>驳回</Button>
-            </>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<PaymentRefund>({
+      width: 200,
+      actions: (r) => [
+        {
+          key: 'detail',
+          label: '详情',
+          onClick: () => setDetail(r),
+        },
+        ...((r.status === 'processing' || r.status === 'pending') && r.approvalStatus !== 'pending' ? [{
+          key: 'query',
+          label: '查单',
+          loading: queryingIds.has(r.id),
+          onClick: () => handleRefundQuery(r),
+        }] : []),
+        ...(r.approvalStatus === 'pending' && hasPermission('payment:refund:approve') ? [{
+          key: 'approve',
+          label: '通过',
+          type: 'primary' as const,
+          loading: approvingIds.has(r.id),
+          onClick: () => handleApprove(r),
+        }, {
+          key: 'reject',
+          label: '驳回',
+          danger: true,
+          onClick: () => openReject(r),
+        }] : []),
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

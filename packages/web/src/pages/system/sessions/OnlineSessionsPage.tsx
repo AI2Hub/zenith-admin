@@ -19,6 +19,7 @@ import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { renderEllipsis } from '../../../utils/table-columns';
 
@@ -125,25 +126,18 @@ export default function OnlineSessionsPage() {
       width: 180,
       render: (v: string) => formatDateTime(v),
     },
-    {
-      title: '操作',
-      fixed: 'right',
+    createOperationColumn<OnlineUser>({
       width: 120,
-      render: (_: unknown, record: OnlineUser) => (
-        <Space>
-          {hasPermission('system:session:forceLogout') && (
-            <Button
-              theme="borderless"
-              type="danger"
-              size="small"
-              onClick={() => handleForceLogout(record)}
-            >
-              强制下线
-            </Button>
-          )}
-        </Space>
-      ),
-    },
+      actions: (record) => [
+        {
+          key: 'force-logout',
+          label: '强制下线',
+          danger: true,
+          hidden: !hasPermission('system:session:forceLogout'),
+          onClick: () => handleForceLogout(record),
+        },
+      ],
+    }),
   ];
 
   return (

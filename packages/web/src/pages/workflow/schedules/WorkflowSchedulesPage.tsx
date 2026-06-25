@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Form,
-  Popconfirm,
+  Modal,
   Select,
   Space,
   Tag,
@@ -19,6 +19,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 
@@ -303,39 +304,39 @@ export default function WorkflowSchedulesPage() {
       fixed: 'right',
       render: (value: ScheduleStatus) => renderStatus(value),
     },
-    {
-      title: '操作',
-      dataIndex: 'op',
+    createOperationColumn<WorkflowSchedule>({
       width: 190,
-      fixed: 'right',
-      render: (_value: unknown, record) => (
-        <Space>
-          {canEdit && (
-            <Button theme="borderless" size="small" onClick={() => openEdit(record)}>
-              编辑
-            </Button>
-          )}
-          {canEdit && (
-            <Button
-              theme="borderless"
-              size="small"
-              loading={runningId === record.id}
-              disabled={runningId !== null}
-              onClick={() => handleRunOnce(record)}
-            >
-              立即执行
-            </Button>
-          )}
-          {canDelete && (
-            <Popconfirm title="确定要删除该定时发起规则吗？" onConfirm={() => handleDelete(record.id)}>
-              <Button theme="borderless" type="danger" size="small">
-                删除
-              </Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+      desktopInlineKeys: ['edit', 'run-once', 'delete'],
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !canEdit,
+          onClick: () => openEdit(record),
+        },
+        {
+          key: 'run-once',
+          label: '立即执行',
+          hidden: !canEdit,
+          loading: runningId === record.id,
+          disabled: runningId !== null,
+          onClick: () => handleRunOnce(record),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !canDelete,
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除该定时发起规则吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const renderDefinitionFilter = () => (

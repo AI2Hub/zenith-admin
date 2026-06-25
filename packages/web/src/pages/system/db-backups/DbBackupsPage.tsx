@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Button, Space, Tag, Select, Popconfirm, Toast, Form } from '@douyinfe/semi-ui';
+import { Button, Tag, Select, Modal, Toast, Form } from '@douyinfe/semi-ui';
 import { Search, RotateCcw, Plus } from 'lucide-react';
 import type { DbBackup, BackupType, BackupStatus } from '@zenith/shared';
 import { request } from '@/utils/request';
@@ -7,6 +7,7 @@ import { AppModal } from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { createdAtColumn } from '../../../utils/table-columns';
 
@@ -117,23 +118,30 @@ export default function DbBackupsPage() {
       fixed: 'right' as const,
       render: (v: BackupStatus) => <Tag color={statusColorMap[v]} size="small">{statusLabelMap[v]}</Tag>,
     },
-    {
-      title: '操作',
-      fixed: 'right' as const,
+    createOperationColumn<DbBackup>({
       width: 120,
-      render: (_: unknown, record: DbBackup) => (
-        <Space>
-          {record.fileId && record.status === 'success' && (
-            <Button theme="borderless" size="small" onClick={() => handleDownload(record)}>下载</Button>
-          )}
-          {hasPermission('system:db-backup:delete') && (
-            <Popconfirm title="确定要删除吗？" onConfirm={() => handleDelete(record.id)}>
-              <Button theme="borderless" type="danger" size="small">删除</Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+      actions: (record) => [
+        {
+          key: 'download',
+          label: '下载',
+          hidden: !(record.fileId && record.status === 'success'),
+          onClick: () => handleDownload(record),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('system:db-backup:delete'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   return (

@@ -11,7 +11,6 @@ import {
   Modal,
   Popover,
   Select,
-  Space,
   Spin,
   Switch,
   Table,
@@ -21,7 +20,7 @@ import {
   Tooltip,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, Plus, RotateCcw, Download, ScrollText, MoreHorizontal, Trash2, ChevronDown, HelpCircle } from 'lucide-react';
+import { Search, Plus, RotateCcw, Download, ScrollText, Trash2, ChevronDown, HelpCircle } from 'lucide-react';
 import type { CronJob, PaginatedResponse } from '@zenith/shared';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { request } from '@/utils/request';
@@ -33,6 +32,7 @@ import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { renderEllipsis } from '../../../utils/table-columns';
 import CronJobDashboard from './CronJobDashboard';
@@ -88,7 +88,6 @@ export default function CronJobsPage() {
   const [allLogsLoading, setAllLogsLoading] = useState(false);
   const [allLogsJobFilter, setAllLogsJobFilter] = useState<number | null>(null);
   const [switchLoadingIds, setSwitchLoadingIds] = useState<Set<number>>(new Set());
-  const [openMoreId, setOpenMoreId] = useState<number | null>(null);
   const [clearLogsLoading, setClearLogsLoading] = useState(false);
 
   const fetchData = useCallback(async (p = page, ps = pageSize, params?: SearchParams) => {
@@ -426,59 +425,43 @@ export default function CronJobsPage() {
         />
       ),
     },
-    {
-      title: '操作',
-      fixed: 'right',
+    createOperationColumn<CronJob>({
       width: 240,
-      render: (_: unknown, record: CronJob) => (
-        <Space>
-          {hasPermission('system:cronjob:execute') && (
-            <Button theme="borderless" size="small" onClick={() => handleRunOnce(record.id, record.name)}>
-              执行
-            </Button>
-          )}
-          {hasPermission('system:cronjob:update') && (
-            <Button theme="borderless" size="small" onClick={() => { void openEdit(record); }}>
-              编辑
-            </Button>
-          )}
-          {hasPermission('system:cronjob:delete') && (
-            <Button
-              theme="borderless"
-              type="danger"
-              size="small"
-              onClick={() => {
-                Modal.confirm({
-                  title: '确定要删除此任务吗？',
-                  okButtonProps: { type: 'danger', theme: 'solid' },
-                  onOk: () => handleDelete(record.id),
-                });
-              }}
-            >删除</Button>
-          )}
-          {hasPermission('system:cronjob:list') && (
-            <Dropdown
-              trigger="custom"
-              visible={openMoreId === record.id}
-              onClickOutSide={() => setOpenMoreId(null)}
-              position="bottomRight"
-              render={
-                <Dropdown.Menu>
-                  <Dropdown.Item onClick={() => { setOpenMoreId(null); openLogsDrawer(record); }}>执行日志</Dropdown.Item>
-                </Dropdown.Menu>
-              }
-            >
-              <Button
-                theme="borderless"
-                size="small"
-                icon={<MoreHorizontal size={14} />}
-                onClick={() => setOpenMoreId(openMoreId === record.id ? null : record.id)}
-              />
-            </Dropdown>
-          )}
-        </Space>
-      ),
-    },
+      desktopInlineKeys: ['execute', 'edit', 'delete'],
+      actions: (record) => [
+        {
+          key: 'execute',
+          label: '执行',
+          hidden: !hasPermission('system:cronjob:execute'),
+          onClick: () => handleRunOnce(record.id, record.name),
+        },
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('system:cronjob:update'),
+          onClick: () => { void openEdit(record); },
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('system:cronjob:delete'),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定要删除此任务吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+        {
+          key: 'logs',
+          label: '执行日志',
+          hidden: !hasPermission('system:cronjob:list'),
+          onClick: () => openLogsDrawer(record),
+        },
+      ],
+    }),
   ];
 
   return (

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Input, Select, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Input, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RotateCcw, Search } from 'lucide-react';
 import type { WorkflowInstance, PaginatedResponse } from '@zenith/shared';
@@ -7,6 +7,7 @@ import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { AppModal } from '@/components/AppModal';
 import WorkflowInstanceDetailSheet from '@/components/workflow/WorkflowInstanceDetailSheet';
 import { renderEllipsis } from '../../../utils/table-columns';
@@ -139,18 +140,14 @@ export default function CcToMePage() {
         return <Tag color={s?.color ?? 'grey'}>{s?.text ?? v}</Tag>;
       },
     },
-    {
-      title: '操作',
-      key: 'action',
+    createOperationColumn<WorkflowInstance>({
       width: 140,
-      fixed: 'right',
-      render: (_: unknown, record: WorkflowInstance) => (
-        <Space>
-          <Button theme="borderless" size="small" onClick={() => openDetail(record)}>详情</Button>
-          <Button theme="borderless" size="small" onClick={() => void openForward(record)}>转发</Button>
-        </Space>
-      ),
-    },
+      desktopInlineKeys: ['detail', 'forward'],
+      actions: (record) => [
+        { key: 'detail', label: '详情', onClick: () => openDetail(record) },
+        { key: 'forward', label: '转发', onClick: () => void openForward(record) },
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

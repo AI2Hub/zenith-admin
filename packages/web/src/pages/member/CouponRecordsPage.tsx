@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Input, InputNumber, Select, Toast, Tag, Popconfirm } from '@douyinfe/semi-ui';
+import { Button, Input, InputNumber, Select, Toast, Tag, Modal } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, RotateCcw } from 'lucide-react';
 import type { MemberCoupon, MemberCouponStatus, PaginatedResponse } from '@zenith/shared';
@@ -9,6 +9,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { renderEllipsis } from '../../utils/table-columns';
 
 const statusOptions = (Object.keys(MEMBER_COUPON_STATUS_LABELS) as MemberCouponStatus[]).map((v) => ({ value: v, label: MEMBER_COUPON_STATUS_LABELS[v] }));
@@ -52,6 +53,14 @@ export default function CouponRecordsPage() {
     else Toast.error(res.message);
   };
 
+  const confirmRevoke = (record: MemberCoupon) => {
+    Modal.confirm({
+      title: '确定要作废该券码吗？',
+      okButtonProps: { type: 'danger', theme: 'solid' },
+      onOk: () => handleRevoke(record.id),
+    });
+  };
+
   const canRevoke = hasPermission('member:coupon:revoke');
 
   const columns: ColumnProps<MemberCoupon>[] = [
@@ -62,16 +71,21 @@ export default function CouponRecordsPage() {
     { title: '领取时间', dataIndex: 'receivedAt', width: 180 },
     { title: '使用时间', dataIndex: 'usedAt', width: 180, render: (v: string | null) => v || '-' },
     { title: '过期时间', dataIndex: 'expireAt', width: 180, render: (v: string | null) => v || '-' },
-    ...(canRevoke ? [{
-      title: '操作', dataIndex: 'ops', width: 90, fixed: 'right' as const,
-      render: (_: unknown, r: MemberCoupon) => (
-        r.status === 'unused' ? (
-          <Popconfirm title="确定要作废该券码吗？" onConfirm={() => handleRevoke(r.id)}>
-            <Button theme="borderless" type="danger" size="small">作废</Button>
-          </Popconfirm>
-        ) : <span style={{ color: 'var(--semi-color-disabled-text)' }}>-</span>
-      ),
-    }] : []),
+    ...(canRevoke ? [
+      createOperationColumn<MemberCoupon>({
+        width: 90,
+        desktopInlineKeys: ['revoke'],
+        actions: (record) => [
+          {
+            key: 'revoke',
+            label: '作废',
+            danger: true,
+            hidden: record.status !== 'unused',
+            onClick: () => confirmRevoke(record),
+          },
+        ],
+      }),
+    ] : []),
   ];
 
   const renderKeywordSearch = () => (

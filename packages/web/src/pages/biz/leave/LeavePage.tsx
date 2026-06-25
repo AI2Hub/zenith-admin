@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Button, Form, Input, Modal, Popconfirm, Select, Space, Tag, Toast, Typography,
+  Button, Form, Input, Modal, Select, Space, Tag, Toast, Typography,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -17,6 +17,7 @@ import type { BizLeave, PaginatedResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { formatDateForApi } from '@/utils/date';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
@@ -180,32 +181,53 @@ export default function LeavePage() {
     { title: '日期', width: 200, render: (_: unknown, r: BizLeave) => `${r.startDate} ~ ${r.endDate}` },
     { title: '天数', dataIndex: 'days', width: 90, render: (v: number) => `${v} 天` },
     { title: '事由', dataIndex: 'reason', render: renderEllipsis },
+    createdAtColumn as ColumnProps<BizLeave>,
     {
       title: '状态', dataIndex: 'status', width: 110, fixed: 'right',
       render: (v: string) => { const s = STATUS_MAP[v]; return s ? <Tag color={s.color}>{s.text}</Tag> : <span>{v}</span>; },
     },
-    createdAtColumn as ColumnProps<BizLeave>,
-    {
-      title: '操作', width: 220, fixed: 'right',
-      render: (_: unknown, record: BizLeave) => (
-        <Space>
-          {record.status === 'draft' && <Button theme="borderless" size="small" onClick={() => openEdit(record)}>编辑</Button>}
-          {record.status === 'draft' && (
-            <Popconfirm title="确定提交审批吗？" onConfirm={() => void handleSubmitApproval(record.id)}>
-              <Button theme="borderless" size="small" type="primary">提交审批</Button>
-            </Popconfirm>
-          )}
-          {record.workflowInstanceId && (
-            <Button theme="borderless" size="small" onClick={() => openWorkflow(record)}>流程详情</Button>
-          )}
-          {record.status === 'draft' && (
-            <Popconfirm title="确定删除吗？" onConfirm={() => void handleDelete(record.id)}>
-              <Button theme="borderless" size="small" type="danger">删除</Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<BizLeave>({
+      width: 220,
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: record.status !== 'draft',
+          onClick: () => openEdit(record),
+        },
+        {
+          key: 'submit',
+          label: '提交审批',
+          type: 'primary',
+          hidden: record.status !== 'draft',
+          onClick: () => {
+            Modal.confirm({
+              title: '确定提交审批吗？',
+              onOk: () => handleSubmitApproval(record.id),
+            });
+          },
+        },
+        {
+          key: 'workflow',
+          label: '流程详情',
+          hidden: !record.workflowInstanceId,
+          onClick: () => openWorkflow(record),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: record.status !== 'draft',
+          onClick: () => {
+            Modal.confirm({
+              title: '确定删除吗？',
+              okButtonProps: { type: 'danger', theme: 'solid' },
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        },
+      ],
+    }),
   ];
 
   const renderKeywordSearch = () => (

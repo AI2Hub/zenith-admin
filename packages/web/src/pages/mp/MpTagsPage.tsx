@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Button, Form, Input, Modal, Space, Spin, Toast, Banner } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Modal, Spin, Toast, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, RotateCcw, Search, RefreshCw } from 'lucide-react';
 import type { PaginatedResponse, MpTag } from '@zenith/shared';
@@ -8,6 +8,7 @@ import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
@@ -118,19 +119,15 @@ export default function MpTagsPage() {
     { title: '微信标签ID', dataIndex: 'wechatTagId', width: 140, render: (v: number | null) => (v == null ? '— 未同步' : v) },
     { title: '粉丝数', dataIndex: 'fansCount', width: 120 },
     createdAtColumn,
-    {
-      title: '操作', key: 'actions', width: 160, fixed: 'right' as const,
-      render: (_: unknown, record: MpTag) => (
-        <Space>
-          {can('mp:tag:update') && (
-            <Button theme="borderless" size="small" onClick={() => openEdit(record)}>编辑</Button>
-          )}
-          {can('mp:tag:delete') && (
-            <Button theme="borderless" type="danger" size="small" onClick={() => handleDelete(record)}>删除</Button>
-          )}
-        </Space>
-      ),
-    },
+    createOperationColumn<MpTag>({
+      width: 160,
+      desktopInlineKeys: ['edit', 'delete'],
+      menuAriaLabel: '标签操作',
+      actions: (record) => [
+        { key: 'edit', label: '编辑', hidden: !can('mp:tag:update'), onClick: () => openEdit(record) },
+        { key: 'delete', label: '删除', danger: true, hidden: !can('mp:tag:delete'), onClick: () => handleDelete(record) },
+      ],
+    }),
   ];
 
   const renderAccountFilter = () => (

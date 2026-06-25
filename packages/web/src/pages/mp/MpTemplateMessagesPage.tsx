@@ -7,6 +7,7 @@ import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { renderEllipsis } from '../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
@@ -139,15 +140,15 @@ export default function MpTemplateMessagesPage() {
     { title: '模板标题', dataIndex: 'title', width: 180, render: renderEllipsis },
     { title: '模板ID', dataIndex: 'templateId', width: 200, render: renderEllipsis },
     { title: '内容', dataIndex: 'content', width: 320, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 300, whiteSpace: 'pre-wrap' }}>{v || '—'}</Typography.Text> },
-    {
-      title: '操作', key: 'actions', width: 140, fixed: 'right' as const,
-      render: (_: unknown, record: MpMessageTemplate) => (
-        <Space>
-          {can('mp:template:send') && <Button theme="borderless" size="small" onClick={() => openSend(record)}>发送</Button>}
-          {can('mp:template:delete') && <Button theme="borderless" type="danger" size="small" onClick={() => handleDeleteTpl(record)}>删除</Button>}
-        </Space>
-      ),
-    },
+    createOperationColumn<MpMessageTemplate>({
+      width: 140,
+      desktopInlineKeys: ['send', 'delete'],
+      menuAriaLabel: '模板库操作',
+      actions: (record) => [
+        { key: 'send', label: '发送', hidden: !can('mp:template:send'), onClick: () => openSend(record) },
+        { key: 'delete', label: '删除', danger: true, hidden: !can('mp:template:delete'), onClick: () => handleDeleteTpl(record) },
+      ],
+    }),
   ];
 
   const logColumns = [

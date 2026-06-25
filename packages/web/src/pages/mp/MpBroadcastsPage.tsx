@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Button, Form, Modal, Select, Space, Spin, Tag, Toast, Banner, Typography, Tooltip, Input, Descriptions } from '@douyinfe/semi-ui';
+import { Button, Form, Modal, Select, Spin, Tag, Toast, Banner, Typography, Tooltip, Input, Descriptions } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Plus, RotateCcw, Eye, BarChart3, Search } from 'lucide-react';
+import { Plus, RotateCcw, Search } from 'lucide-react';
 import type { PaginatedResponse, MpBroadcast, MpBroadcastType, MpBroadcastTarget, MpBroadcastStatus, MpBroadcastResult, MpTag, MpMaterial, MpDraft } from '@zenith/shared';
 import { usePermission } from '@/hooks/usePermission';
 import { request } from '@/utils/request';
@@ -9,6 +9,7 @@ import { formatDateTimeForApi } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn } from '../../utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { useMpAccounts } from './useMpAccounts';
@@ -201,24 +202,29 @@ export default function MpBroadcastsPage() {
         return v === 'failed' && r.errorMsg ? <Tooltip content={r.errorMsg}>{tag}</Tooltip> : tag;
       },
     },
-    {
-      title: '操作', key: 'actions', width: 170, fixed: 'right' as const,
-      render: (_: unknown, record: MpBroadcast) => (
-        <Space>
-          {record.status !== 'sent' && can('mp:broadcast:send') && (
-            <Button theme="borderless" size="small" loading={sendingId === record.id} onClick={() => handleSend(record)}>发送</Button>
-          )}
-          {can('mp:broadcast:send') && (
-            <Button theme="borderless" size="small" icon={<Eye size={13} />} onClick={() => { setPreviewOpenid(''); setPreviewState({ visible: true, id: record.id }); }}>预览</Button>
-          )}
-          {record.status === 'sent' && (
-            <Button theme="borderless" size="small" icon={<BarChart3 size={13} />} onClick={() => void openResult(record)}>结果</Button>
-          )}
-          {record.status !== 'sent' && can('mp:broadcast:update') && <Button theme="borderless" size="small" onClick={() => openEdit(record)}>编辑</Button>}
-          {can('mp:broadcast:delete') && <Button theme="borderless" type="danger" size="small" onClick={() => handleDelete(record)}>删除</Button>}
-        </Space>
-      ),
-    },
+    createOperationColumn<MpBroadcast>({
+      width: 170,
+      desktopInlineKeys: ['send', 'preview', 'result', 'edit', 'delete'],
+      menuAriaLabel: '群发操作',
+      actions: (record) => [
+        {
+          key: 'send',
+          label: '发送',
+          loading: sendingId === record.id,
+          hidden: record.status === 'sent' || !can('mp:broadcast:send'),
+          onClick: () => handleSend(record),
+        },
+        {
+          key: 'preview',
+          label: '预览',
+          hidden: !can('mp:broadcast:send'),
+          onClick: () => { setPreviewOpenid(''); setPreviewState({ visible: true, id: record.id }); },
+        },
+        { key: 'result', label: '结果', hidden: record.status !== 'sent', onClick: () => void openResult(record) },
+        { key: 'edit', label: '编辑', hidden: record.status === 'sent' || !can('mp:broadcast:update'), onClick: () => openEdit(record) },
+        { key: 'delete', label: '删除', danger: true, hidden: !can('mp:broadcast:delete'), onClick: () => handleDelete(record) },
+      ],
+    }),
   ];
 
   const mediaOptions = modalType === 'image'
