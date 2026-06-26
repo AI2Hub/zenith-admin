@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Button, Form, Input, Select, Switch, Table, Tag, Toast, Modal, Space, Typography, Empty } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Select, Table, Tag, Toast, Modal, Space, Typography, Empty } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, RotateCcw, Plus, Play } from 'lucide-react';

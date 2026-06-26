@@ -1,30 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import { Table } from '@douyinfe/semi-ui';
-import { Hash, Table as TableIcon, BarChart3, LineChart as LineChartIcon, PieChart as PieChartIcon } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 import { BarChart, LineChart, PieChart, makeBarSpec, makeLineSpec, makePieSpec, useChartPalette, chartOptions } from '@/components/charts';
-import type { ReportWidget, ReportWidgetType, ReportField, ReportDataResult } from '@zenith/shared';
-
-// ─── 组件类型元数据（设计器面板用）────────────────────────────────────────────
-export interface WidgetTypeMeta {
-  type: ReportWidgetType;
-  label: string;
-  icon: LucideIcon;
-  /** 默认网格尺寸（列宽 w / 行高 h） */
-  defaultSize: { w: number; h: number };
-}
-
-export const WIDGET_TYPES: WidgetTypeMeta[] = [
-  { type: 'kpi', label: '指标卡', icon: Hash, defaultSize: { w: 3, h: 3 } },
-  { type: 'table', label: '表格', icon: TableIcon, defaultSize: { w: 6, h: 6 } },
-  { type: 'bar', label: '柱状图', icon: BarChart3, defaultSize: { w: 6, h: 6 } },
-  { type: 'line', label: '折线图', icon: LineChartIcon, defaultSize: { w: 6, h: 6 } },
-  { type: 'pie', label: '饼图', icon: PieChartIcon, defaultSize: { w: 4, h: 6 } },
-];
-
-export function widgetTypeLabel(type: ReportWidgetType): string {
-  return WIDGET_TYPES.find((w) => w.type === type)?.label ?? type;
-}
+import type { ReportWidget, ReportField, ReportDataResult } from '@zenith/shared';
 
 // ─── 工具 ────────────────────────────────────────────────────────────────────
 const numberFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
@@ -79,12 +56,11 @@ function EmptyHint({ text }: { readonly text: string }) {
 export function WidgetRenderer({ widget, data, loading, error }: Readonly<WidgetRendererProps>) {
   const palette = useChartPalette();
   const { ref, width, height } = useElementSize<HTMLDivElement>();
-  const rows = data?.rows ?? [];
-  const opts = widget.options ?? {};
-
   const chartHeight = Math.max(80, height - 4);
 
   const content = useMemo(() => {
+    const rows = data?.rows ?? [];
+    const opts = widget.options ?? {};
     if (error) return <EmptyHint text={`加载失败：${error}`} />;
     if (loading && !data) return <EmptyHint text="加载中…" />;
     if (!widget.datasetId) return <EmptyHint text="请在右侧选择数据集" />;
@@ -152,7 +128,7 @@ export function WidgetRenderer({ widget, data, loading, error }: Readonly<Widget
     }
     const spec = makeLineSpec({ data: chartData, xField: opts.categoryField, series, palette });
     return <LineChart {...spec} options={chartOptions} height={chartHeight} />;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [widget, data, rows, opts, loading, error, palette, width, height, chartHeight]);
 
   return <div ref={ref} style={{ width: '100%', height: '100%' }}>{content}</div>;

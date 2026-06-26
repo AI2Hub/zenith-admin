@@ -8,7 +8,8 @@ import 'react-resizable/css/styles.css';
 import '../report-grid.css';
 import { request } from '@/utils/request';
 import { usePermission } from '@/hooks/usePermission';
-import { WidgetRenderer, WIDGET_TYPES, type WidgetTypeMeta } from '../widgets/WidgetRenderer';
+import { WidgetRenderer } from '../widgets/WidgetRenderer';
+import { WIDGET_TYPES, type WidgetTypeMeta } from '../widgets/widget-meta';
 import { useDatasetDataMap } from '../widgets/useDatasetData';
 import type {
   ReportDashboard, ReportDataset, ReportWidget, ReportWidgetType, ReportGridItem, ReportWidgetOptions,
