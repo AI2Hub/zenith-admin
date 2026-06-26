@@ -61,6 +61,26 @@ const WSL_BASH_CWD_BOOTSTRAP = [
   'exec bash --rcfile "$tmp" -i',
 ].join('\n');
 
+type DockerExecShell = {
+  containerId: string;
+  shellName: 'bash' | 'sh';
+  shellPath: '/bin/bash' | '/bin/sh';
+};
+
+function parseDockerExecShell(type: string | undefined): DockerExecShell | null {
+  if (!type?.startsWith('docker-exec:')) return null;
+  const raw = type.slice('docker-exec:'.length);
+  const [containerId, shell = 'sh', extra] = raw.split(':');
+  if (extra !== undefined) return null;
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(containerId)) return null;
+  if (shell !== 'bash' && shell !== 'sh') return null;
+  return {
+    containerId,
+    shellName: shell,
+    shellPath: shell === 'bash' ? '/bin/bash' : '/bin/sh',
+  };
+}
+
 /**
  * 根据前端选择的 shell id 解析实际可执行文件与启动参数。
  * shell 列表由 listShells() 按当前平台动态探测；前端传入的 id 必须在白名单内，
@@ -69,21 +89,19 @@ const WSL_BASH_CWD_BOOTSTRAP = [
 function resolveShell(type: string | undefined): { file: string; args: string[] } {
   // docker exec 进容器 — 不在 shell 白名单内，提前处理
   if (type?.startsWith('docker-exec:')) {
-    const cid = type.slice('docker-exec:'.length);
-    // 仅允许合法容器 ID/名称字符，防止命令注入
-    if (/^[a-zA-Z0-9_-]{1,128}$/.test(cid)) {
-      // -i 保持 stdin 开启，-t 在容器内分配 TTY（修复 job control 警告）
-      // 显式设置 PATH 和 TERM，避免非登录 shell 环境变量缺失
-      return {
-        file: 'docker',
-        args: [
-          'exec', '-it',
-          '-e', 'TERM=xterm-256color',
-          '-e', 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-          cid, '/bin/sh',
-        ],
-      };
-    }
+    const dockerShell = parseDockerExecShell(type);
+    if (!dockerShell) throw new Error('无效的 Docker 容器或 Shell');
+    // -i 保持 stdin 开启，-t 在容器内分配 TTY（修复 job control 警告）
+    // 显式设置 PATH 和 TERM，避免非登录 shell 环境变量缺失
+    return {
+      file: 'docker',
+      args: [
+        'exec', '-it',
+        '-e', 'TERM=xterm-256color',
+        '-e', 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+        dockerShell.containerId, dockerShell.shellPath,
+      ],
+    };
   }
   const { shells, defaultShell } = listShells();
   const id = type && shells.some((s) => s.id === type) ? type : defaultShell;
@@ -302,7 +320,10 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
               const { file: shellFile, args: shellArgs } = resolveShell(shellType);
               const isWsl = shellType?.startsWith('wsl:');
               if (isDocker) {
-                label = `docker:${shellType!.slice('docker-exec:'.length).slice(0, 12)}`;
+                const dockerShell = parseDockerExecShell(shellType);
+                label = dockerShell
+                  ? `docker:${dockerShell.containerId.slice(0, 12)}:${dockerShell.shellName}`
+                  : 'docker';
               } else {
                 const { shells } = listShells();
                 label = shells.find((s) => s.id === shellType)?.label ?? shellType ?? 'shell';
