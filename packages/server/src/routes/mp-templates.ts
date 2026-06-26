@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditAfterData, setAuditBeforeData } from '../middleware/guard';
 import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
@@ -9,12 +9,24 @@ import { sendMpTemplateSchema, setMpTemplateIndustrySchema, batchSendMpTemplateS
 import { MpMessageTemplateDTO, MpTemplateSendLogDTO, MpTagSyncResultDTO, MpTemplateIndustryDTO, MpBatchSendResultDTO } from '../lib/openapi-dtos';
 import {
   listMpTemplates, deleteMpTemplate, syncMpTemplates, sendMpTemplate, listMpTemplateSendLogs,
-  setMpTemplateIndustry, getMpTemplateIndustry, batchSendMpTemplate,
+  setMpTemplateIndustry, getMpTemplateIndustry, batchSendMpTemplate, getMpTemplateBeforeAudit, getMpTemplateIndustryBeforeAudit,
 } from '../services/mp-template.service';
 
 const mpTemplatesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 const syncBody = z.object({ accountId: z.number().int().positive() });
+
+async function getTemplateIndustryAuditSafe(accountId: number) {
+  try {
+    return await getMpTemplateIndustryBeforeAudit(accountId);
+  } catch (err) {
+    return {
+      accountId,
+      industry: null,
+      auditError: err instanceof Error ? err.message : '获取行业信息失败',
+    };
+  }
+}
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -75,6 +87,7 @@ const deleteRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getMpTemplateBeforeAudit(id));
     await deleteMpTemplate(id);
     return c.json(okBody(null, '删除成功'), 200);
   },
@@ -99,7 +112,13 @@ const industrySetRoute = defineOpenAPIRoute({
     request: { body: { content: jsonContent(setMpTemplateIndustrySchema), required: true } },
     responses: { ...commonErrorResponses, ...okMsg('设置成功') },
   }),
-  handler: async (c) => { const b = c.req.valid('json'); await setMpTemplateIndustry(b.accountId, b.industryId1, b.industryId2); return c.json(okBody(null, '设置成功'), 200); },
+  handler: async (c) => {
+    const b = c.req.valid('json');
+    setAuditBeforeData(c, await getTemplateIndustryAuditSafe(b.accountId));
+    await setMpTemplateIndustry(b.accountId, b.industryId1, b.industryId2);
+    setAuditAfterData(c, await getTemplateIndustryAuditSafe(b.accountId));
+    return c.json(okBody(null, '设置成功'), 200);
+  },
 });
 
 const batchSendRoute = defineOpenAPIRoute({

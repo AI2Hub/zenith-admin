@@ -328,6 +328,7 @@ const orderCloseRoute = defineOpenAPIRoute({
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getOrderDetail(id));
     await closeOrderById(id);
+    setAuditAfterData(c, await getOrderDetail(id));
     return c.json(okBody(null, '订单已关闭'), 200);
   },
 });

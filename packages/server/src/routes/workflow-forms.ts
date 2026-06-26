@@ -98,7 +98,10 @@ const deleteRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okMsg('删除成功'), 400: { content: jsonContent(ErrorResponse), description: '参数错误' } },
   }),
   handler: async (c) => {
-    await deleteWorkflowForm(c.req.valid('param').id);
+    const { id } = c.req.valid('param');
+    const before = await getWorkflowForm(id).catch(() => null);
+    if (before) setAuditBeforeData(c, before);
+    await deleteWorkflowForm(id);
     return c.json(okBody(null, '删除成功'), 200);
   },
 });

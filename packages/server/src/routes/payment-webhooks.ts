@@ -20,6 +20,7 @@ import {
   updateEndpoint,
   deleteEndpoint,
   listDeliveries,
+  getDelivery,
   redeliver,
 } from '../services/payment-webhook.service';
 
@@ -120,7 +121,11 @@ const redeliverRoute = defineOpenAPIRoute({
     request: { params: IdParam },
     responses: { ...ok(PaymentWebhookDeliveryDTO, '已重投'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await redeliver(c.req.valid('param').id), '已重投'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getDelivery(id));
+    return c.json(okBody(await redeliver(id), '已重投'), 200);
+  },
 });
 
 router.openapiRoutes([

@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { createPaymentLinkSchema, updatePaymentLinkSchema } from '@zenith/shared';
 import { authMiddleware } from '../middleware/auth';
-import { guard, setAuditBeforeData } from '../middleware/guard';
+import { guard, setAuditAfterData, setAuditBeforeData } from '../middleware/guard';
 import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../lib/openapi-schemas';
 import { PaymentLinkDTO } from '../lib/openapi-dtos';
 import { listLinks, getLink, createLink, updateLink, deleteLink } from '../services/payment-link.service';
@@ -45,8 +45,7 @@ const createRouteDef = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const created = await createLink(c.req.valid('json'));
-    setAuditBeforeData(c, null);
-    setAuditBeforeData(c, undefined);
+    setAuditAfterData(c, maskPaymentLinkForAudit(created));
     return c.json(okBody(created, '创建成功'), 200);
   },
 });
@@ -61,8 +60,10 @@ const updateRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getLink(id));
-    return c.json(okBody(await updateLink(id, c.req.valid('json')), '更新成功'), 200);
+    setAuditBeforeData(c, maskPaymentLinkForAudit(await getLink(id)));
+    const updated = await updateLink(id, c.req.valid('json'));
+    setAuditAfterData(c, maskPaymentLinkForAudit(updated));
+    return c.json(okBody(updated, '更新成功'), 200);
   },
 });
 
@@ -76,7 +77,7 @@ const deleteRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getLink(id));
+    setAuditBeforeData(c, maskPaymentLinkForAudit(await getLink(id)));
     await deleteLink(id);
     return c.json(okBody(null, '删除成功'), 200);
   },

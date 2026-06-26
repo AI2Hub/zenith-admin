@@ -9,7 +9,7 @@ import { createMpAutoReplySchema, updateMpAutoReplySchema, MP_AUTO_REPLY_TYPES }
 import { MpAutoReplyDTO, MpUnmatchedKeywordDTO } from '../lib/openapi-dtos';
 import {
   listMpAutoReplies, createMpAutoReply, updateMpAutoReply, deleteMpAutoReply, getMpAutoReplyBeforeAudit,
-  listMpUnmatchedKeywords, deleteMpUnmatchedKeyword,
+  listMpUnmatchedKeywords, deleteMpUnmatchedKeyword, getMpUnmatchedKeywordBeforeAudit,
 } from '../services/mp-auto-reply.service';
 
 const mpAutoRepliesRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -88,11 +88,17 @@ const unmatchedDeleteRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'delete', path: '/unmatched/{id}', tags: ['公众号自动回复'], summary: '删除未命中热词',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'mp:reply:delete' })] as const,
+    middleware: [authMiddleware, guard({ permission: 'mp:reply:delete', audit: { description: '删除未命中热词', module: '公众号自动回复' } })] as const,
     request: { params: IdParam },
     responses: { ...commonErrorResponses, ...okMsg('已删除') },
   }),
-  handler: async (c) => { await deleteMpUnmatchedKeyword(c.req.valid('param').id); return c.json(okBody(null, '已删除'), 200); },
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const before = await getMpUnmatchedKeywordBeforeAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    await deleteMpUnmatchedKeyword(id);
+    return c.json(okBody(null, '已删除'), 200);
+  },
 });
 
 mpAutoRepliesRouter.openapiRoutes([unmatchedListRoute, unmatchedDeleteRoute, listRoute, createRouteDef, updateRoute, deleteRoute] as const);

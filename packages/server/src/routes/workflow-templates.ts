@@ -1,12 +1,12 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import { jsonContent, validationHook, commonErrorResponses, ok, okMsg, IdParam, okBody } from '../lib/openapi-schemas';
 import { createWorkflowTemplateSchema, updateWorkflowTemplateSchema, saveAsTemplateSchema, cloneFromTemplateSchema } from '@zenith/shared';
 import { WorkflowTemplateDTO, WorkflowDefinitionDTO } from '../lib/openapi-dtos';
 import {
   listWorkflowTemplates, createWorkflowTemplate, updateWorkflowTemplate, deleteWorkflowTemplate,
-  cloneTemplateToDefinition, saveAsTemplate,
+  cloneTemplateToDefinition, saveAsTemplate, getWorkflowTemplateBeforeAudit,
 } from '../services/workflow-templates.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -65,7 +65,12 @@ const updateRoute = defineOpenAPIRoute({
     request: { params: IdParam, body: { content: jsonContent(updateWorkflowTemplateSchema), required: true } },
     responses: { ...commonErrorResponses, ...ok(WorkflowTemplateDTO, '已更新') },
   }),
-  handler: async (c) => c.json(okBody(await updateWorkflowTemplate(c.req.valid('param').id, c.req.valid('json')), '已更新'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const before = await getWorkflowTemplateBeforeAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    return c.json(okBody(await updateWorkflowTemplate(id, c.req.valid('json')), '已更新'), 200);
+  },
 });
 
 const deleteRoute = defineOpenAPIRoute({
@@ -77,7 +82,10 @@ const deleteRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okMsg('已删除') },
   }),
   handler: async (c) => {
-    await deleteWorkflowTemplate(c.req.valid('param').id);
+    const { id } = c.req.valid('param');
+    const before = await getWorkflowTemplateBeforeAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    await deleteWorkflowTemplate(id);
     return c.json(okBody(null, '已删除'), 200);
   },
 });

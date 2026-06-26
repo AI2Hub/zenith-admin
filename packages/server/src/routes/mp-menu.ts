@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import {
   jsonContent, validationHook, commonErrorResponses, ok, okBody,
 } from '../lib/openapi-schemas';
@@ -33,6 +33,7 @@ const saveRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { accountId, buttons } = c.req.valid('json');
+    setAuditBeforeData(c, await getMpMenu(accountId));
     return c.json(okBody(await saveMpMenu(accountId, buttons), '保存成功'), 200);
   },
 });
@@ -45,7 +46,11 @@ const publishRoute = defineOpenAPIRoute({
     request: { body: { content: jsonContent(accountBody), required: true } },
     responses: { ...commonErrorResponses, ...ok(MpMenuDTO, '发布成功') },
   }),
-  handler: async (c) => c.json(okBody(await publishMpMenu(c.req.valid('json').accountId), '发布成功'), 200),
+  handler: async (c) => {
+    const { accountId } = c.req.valid('json');
+    setAuditBeforeData(c, await getMpMenu(accountId));
+    return c.json(okBody(await publishMpMenu(accountId), '发布成功'), 200);
+  },
 });
 
 const pullRoute = defineOpenAPIRoute({
@@ -56,7 +61,11 @@ const pullRoute = defineOpenAPIRoute({
     request: { body: { content: jsonContent(accountBody), required: true } },
     responses: { ...commonErrorResponses, ...ok(MpMenuDTO, '拉取成功') },
   }),
-  handler: async (c) => c.json(okBody(await pullMpMenu(c.req.valid('json').accountId), '拉取成功'), 200),
+  handler: async (c) => {
+    const { accountId } = c.req.valid('json');
+    setAuditBeforeData(c, await getMpMenu(accountId));
+    return c.json(okBody(await pullMpMenu(accountId), '拉取成功'), 200);
+  },
 });
 
 const deleteRoute = defineOpenAPIRoute({
@@ -67,7 +76,11 @@ const deleteRoute = defineOpenAPIRoute({
     request: { body: { content: jsonContent(accountBody), required: true } },
     responses: { ...commonErrorResponses, ...ok(MpMenuDTO, '删除成功') },
   }),
-  handler: async (c) => c.json(okBody(await deleteMpMenu(c.req.valid('json').accountId), '删除成功'), 200),
+  handler: async (c) => {
+    const { accountId } = c.req.valid('json');
+    setAuditBeforeData(c, await getMpMenu(accountId));
+    return c.json(okBody(await deleteMpMenu(accountId), '删除成功'), 200);
+  },
 });
 
 mpMenuRouter.openapiRoutes([getRoute, saveRoute, publishRoute, pullRoute, deleteRoute] as const);

@@ -1,11 +1,12 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../lib/openapi-schemas';
 import { createWorkflowDelegationSchema, updateWorkflowDelegationSchema } from '@zenith/shared';
 import { WorkflowDelegationDTO } from '../lib/openapi-dtos';
 import {
   listWorkflowDelegations, createWorkflowDelegation, updateWorkflowDelegation, deleteWorkflowDelegation,
+  getWorkflowDelegationBeforeAudit,
 } from '../services/workflow-delegations.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -44,7 +45,12 @@ const updateRoute = defineOpenAPIRoute({
     request: { params: IdParam, body: { content: jsonContent(updateWorkflowDelegationSchema), required: true } },
     responses: { ...commonErrorResponses, ...ok(WorkflowDelegationDTO, '已更新') },
   }),
-  handler: async (c) => c.json(okBody(await updateWorkflowDelegation(c.req.valid('param').id, c.req.valid('json')), '已更新'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const before = await getWorkflowDelegationBeforeAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    return c.json(okBody(await updateWorkflowDelegation(id, c.req.valid('json')), '已更新'), 200);
+  },
 });
 
 const deleteRoute = defineOpenAPIRoute({
@@ -56,7 +62,10 @@ const deleteRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okMsg('已删除') },
   }),
   handler: async (c) => {
-    await deleteWorkflowDelegation(c.req.valid('param').id);
+    const { id } = c.req.valid('param');
+    const before = await getWorkflowDelegationBeforeAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    await deleteWorkflowDelegation(id);
     return c.json(okBody(null, '已删除'), 200);
   },
 });

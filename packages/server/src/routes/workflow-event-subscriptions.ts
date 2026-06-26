@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import { jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, PaginationQuery, BatchIdsBody, okBody } from '../lib/openapi-schemas';
 import {
   WorkflowEventSubscriptionDTO,
@@ -15,6 +15,7 @@ import {
   updateSubscription,
   deleteSubscription,
   toggleSubscription,
+  getSubscriptionBeforeAudit,
   listDeliveries,
   getDelivery,
   retryDelivery,
@@ -73,7 +74,7 @@ const getSecret = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/{id}/secret', tags: ['WorkflowEventSubscriptions'], summary: '查看订阅 secret 明文（敏感操作）',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'workflow:event-subscription:view', audit: { description: '查看事件订阅 secret', module: '工作流管理' } })] as const,
+    middleware: [authMiddleware, guard({ permission: 'workflow:event-subscription:view', audit: { description: '查看事件订阅 secret', module: '工作流管理', recordResponseBody: false } })] as const,
     request: { params: IdParam },
     responses: { ...commonErrorResponses, ...ok(WorkflowEventSubscriptionSecretDTO, 'secret 明文') },
   }),
@@ -99,7 +100,12 @@ const update = defineOpenAPIRoute({
     request: { params: IdParam, body: { content: jsonContent(UpsertBody.partial()), required: true } },
     responses: { ...commonErrorResponses, ...ok(WorkflowEventSubscriptionDTO, '更新成功') },
   }),
-  handler: async (c) => c.json(okBody(await updateSubscription(c.req.valid('param').id, c.req.valid('json')), '已更新'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const before = await getSubscriptionBeforeAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    return c.json(okBody(await updateSubscription(id, c.req.valid('json')), '已更新'), 200);
+  },
 });
 
 const remove = defineOpenAPIRoute({
@@ -111,7 +117,10 @@ const remove = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okMsg('删除成功') },
   }),
   handler: async (c) => {
-    await deleteSubscription(c.req.valid('param').id);
+    const { id } = c.req.valid('param');
+    const before = await getSubscriptionBeforeAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    await deleteSubscription(id);
     return c.json(okBody(null, '已删除'), 200);
   },
 });
@@ -124,7 +133,12 @@ const toggle = defineOpenAPIRoute({
     request: { params: IdParam, body: { content: jsonContent(z.object({ enabled: z.boolean() })), required: true } },
     responses: { ...commonErrorResponses, ...ok(WorkflowEventSubscriptionDTO, '已切换') },
   }),
-  handler: async (c) => c.json(okBody(await toggleSubscription(c.req.valid('param').id, c.req.valid('json').enabled), '已切换'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const before = await getSubscriptionBeforeAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    return c.json(okBody(await toggleSubscription(id, c.req.valid('json').enabled), '已切换'), 200);
+  },
 });
 
 // ─── 投递记录 ──────────────────────────────────────────────────────────────

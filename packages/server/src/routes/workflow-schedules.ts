@@ -1,10 +1,10 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import { createWorkflowScheduleSchema, updateWorkflowScheduleSchema } from '@zenith/shared';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../lib/openapi-schemas';
 import { WorkflowScheduleDTO } from '../lib/openapi-dtos';
-import { listSchedules, createSchedule, updateSchedule, deleteSchedule, runScheduleNow } from '../services/workflow-schedules.service';
+import { listSchedules, createSchedule, updateSchedule, deleteSchedule, runScheduleNow, getWorkflowScheduleBeforeAudit } from '../services/workflow-schedules.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -38,7 +38,12 @@ const updateRouteDef = defineOpenAPIRoute({
     request: { params: IdParam, body: { content: jsonContent(updateWorkflowScheduleSchema), required: true } },
     responses: { ...commonErrorResponses, ...ok(WorkflowScheduleDTO, '已更新'), 404: { content: jsonContent(ErrorResponse), description: '不存在' } },
   }),
-  handler: async (c) => c.json(okBody(await updateSchedule(c.req.valid('param').id, c.req.valid('json')), '已更新'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const before = await getWorkflowScheduleBeforeAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    return c.json(okBody(await updateSchedule(id, c.req.valid('json')), '已更新'), 200);
+  },
 });
 
 const deleteRouteDef = defineOpenAPIRoute({
@@ -50,7 +55,10 @@ const deleteRouteDef = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okMsg('已删除'), 404: { content: jsonContent(ErrorResponse), description: '不存在' } },
   }),
   handler: async (c) => {
-    await deleteSchedule(c.req.valid('param').id);
+    const { id } = c.req.valid('param');
+    const before = await getWorkflowScheduleBeforeAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    await deleteSchedule(id);
     return c.json(okBody(null, '已删除'), 200);
   },
 });
@@ -63,7 +71,12 @@ const runNowRoute = defineOpenAPIRoute({
     request: { params: IdParam },
     responses: { ...commonErrorResponses, ...ok(WorkflowScheduleDTO, '已执行'), 404: { content: jsonContent(ErrorResponse), description: '不存在' } },
   }),
-  handler: async (c) => c.json(okBody(await runScheduleNow(c.req.valid('param').id), '已触发一次执行'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const before = await getWorkflowScheduleBeforeAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    return c.json(okBody(await runScheduleNow(id), '已触发一次执行'), 200);
+  },
 });
 
 router.openapiRoutes([listRoute, createRouteDef, updateRouteDef, deleteRouteDef, runNowRoute] as const);

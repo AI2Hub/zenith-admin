@@ -89,6 +89,21 @@ export async function getMpAccountBeforeAudit(id: number) {
   return mapMpAccountSafe(await ensureMpAccountExists(id));
 }
 
+export async function getMpAccountDefaultAudit(id: number) {
+  const target = await ensureMpAccountExists(id);
+  const tenantCond = target.tenantId === null ? isNull(mpAccounts.tenantId) : eq(mpAccounts.tenantId, target.tenantId);
+  const rows = await db
+    .select()
+    .from(mpAccounts)
+    .where(and(tenantCond, or(eq(mpAccounts.isDefault, true), eq(mpAccounts.id, id))))
+    .orderBy(mpAccounts.id);
+  return {
+    targetId: id,
+    tenantId: target.tenantId,
+    accounts: rows.map(mapMpAccountSafe),
+  };
+}
+
 /** 取消同租户内其它默认公众号（保证默认唯一）。按目标账号的 tenantId 精确过滤，避免平台管理员无租户上下文时跨租户清除。 */
 async function clearOtherDefaults(executor: DbExecutor, tenantId: number | null): Promise<void> {
   const tenantCond = tenantId === null ? isNull(mpAccounts.tenantId) : eq(mpAccounts.tenantId, tenantId);

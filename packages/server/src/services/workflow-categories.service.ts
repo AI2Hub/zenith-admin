@@ -69,6 +69,13 @@ export async function getWorkflowCategory(id: number) {
   return mapCategory(row);
 }
 
+export async function getWorkflowCategoryBeforeAudit(id: number) {
+  return getWorkflowCategory(id).catch((err) => {
+    if (err instanceof HTTPException && err.status === 404) return null;
+    throw err;
+  });
+}
+
 export interface CreateWorkflowCategoryInput {
   name: string;
   code?: string | null;

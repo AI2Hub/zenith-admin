@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard, setAuditBeforeData } from '../middleware/guard';
+import { guard, setAuditAfterData, setAuditBeforeData } from '../middleware/guard';
 import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
@@ -9,7 +9,7 @@ import { createMpAccountSchema, updateMpAccountSchema, MP_ACCOUNT_TYPES } from '
 import { MpAccountDTO, MpConnectionTestDTO } from '../lib/openapi-dtos';
 import {
   listMpAccounts, getMpAccount, createMpAccount, updateMpAccount,
-  deleteMpAccount, getMpAccountBeforeAudit, setMpAccountDefault, testMpAccountConnection,
+  deleteMpAccount, getMpAccountBeforeAudit, setMpAccountDefault, testMpAccountConnection, getMpAccountDefaultAudit,
 } from '../services/mp-account.service';
 
 const mpAccountsRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -78,8 +78,10 @@ const setDefaultRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getMpAccountBeforeAudit(id));
-    return c.json(okBody(await setMpAccountDefault(id), '操作成功'), 200);
+    setAuditBeforeData(c, await getMpAccountDefaultAudit(id));
+    const updated = await setMpAccountDefault(id);
+    setAuditAfterData(c, await getMpAccountDefaultAudit(id));
+    return c.json(okBody(updated, '操作成功'), 200);
   },
 });
 

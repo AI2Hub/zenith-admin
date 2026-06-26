@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
@@ -13,6 +13,7 @@ import {
   createWorkflowCategory,
   updateWorkflowCategory,
   deleteWorkflowCategory,
+  getWorkflowCategoryBeforeAudit,
 } from '../services/workflow-categories.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -78,7 +79,12 @@ const updateRoute = defineOpenAPIRoute({
     request: { params: IdParam, body: { content: jsonContent(updateSchema), required: true } },
     responses: { ...commonErrorResponses, ...ok(WorkflowCategoryDTO, '更新成功') },
   }),
-  handler: async (c) => c.json(okBody(await updateWorkflowCategory(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const before = await getWorkflowCategoryBeforeAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    return c.json(okBody(await updateWorkflowCategory(id, c.req.valid('json')), '更新成功'), 200);
+  },
 });
 
 const deleteRoute = defineOpenAPIRoute({
@@ -90,7 +96,10 @@ const deleteRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okMsg('删除成功') },
   }),
   handler: async (c) => {
-    await deleteWorkflowCategory(c.req.valid('param').id);
+    const { id } = c.req.valid('param');
+    const before = await getWorkflowCategoryBeforeAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    await deleteWorkflowCategory(id);
     return c.json(okBody(null, '删除成功'), 200);
   },
 });
