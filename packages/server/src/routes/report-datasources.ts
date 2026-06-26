@@ -1,15 +1,15 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createReportDatasourceSchema, updateReportDatasourceSchema } from '@zenith/shared';
+import { createReportDatasourceSchema, updateReportDatasourceSchema, reportDatasourceTestSchema } from '@zenith/shared';
 import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
 import {
   ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../lib/openapi-schemas';
-import { ReportDatasourceDTO } from '../lib/openapi-dtos';
+import { ReportDatasourceDTO, ReportDatasourceTestResultDTO } from '../lib/openapi-dtos';
 import {
   listDatasources, getDatasource, createDatasource, updateDatasource,
-  deleteDatasource, ensureDatasourceExists,
+  deleteDatasource, ensureDatasourceExists, testDatasource,
 } from '../services/report-datasource.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -23,7 +23,7 @@ const listRoute = defineOpenAPIRoute({
     request: {
       query: PaginationQuery.extend({
         keyword: z.string().optional(),
-        type: z.enum(['api', 'sql']).optional(),
+        type: z.enum(['api', 'sql', 'mysql', 'postgresql']).optional(),
         status: z.enum(['enabled', 'disabled']).optional(),
       }),
     },
@@ -91,6 +91,18 @@ const deleteRoute_ = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([listRoute, getOneRoute, createRoute_, updateRoute_, deleteRoute_] as const);
+const testRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/test',
+    tags: ['报表数据源'], summary: '测试数据源连接（外部库）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'report:datasource:create' })] as const,
+    request: { body: { content: jsonContent(reportDatasourceTestSchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(ReportDatasourceTestResultDTO, '连接测试结果') },
+  }),
+  handler: async (c) => c.json(okBody(await testDatasource(c.req.valid('json'))), 200),
+});
+
+router.openapiRoutes([listRoute, getOneRoute, createRoute_, updateRoute_, deleteRoute_, testRoute] as const);
 
 export default router;

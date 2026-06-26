@@ -1191,6 +1191,13 @@
       "when": 1782490212155,
       "tag": "0169_quiet_manta",
       "breakpoints": true
+    },
+    {
+      "idx": 170,
+      "version": "7",
+      "when": 1782503806130,
+      "tag": "0170_dry_maestro",
+      "breakpoints": true
     }
   ]
 }

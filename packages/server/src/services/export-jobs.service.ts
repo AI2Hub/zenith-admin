@@ -280,6 +280,7 @@ export async function listExportEntities() {
       permissions: {
         export: definition.permissions.export,
         exportRaw: definition.permissions.exportRaw,
+        requireExportRawPermission: definition.permissions.requireExportRawPermission,
       },
     });
   }
@@ -296,7 +297,7 @@ export async function createExportJob(input: CreateExportJobInput) {
   if (format === 'csv' && (definition.renderMode ?? 'table') !== 'table') {
     throw new HTTPException(400, { message: '该导出包含复杂布局或自定义样式，仅支持 Excel' });
   }
-  const raw = !!input.raw;
+  const raw = input.raw ?? true;
   await assertExportPermission(definition, raw, user);
   const selectedColumns = input.columns?.length ? [...new Set(input.columns)] : null;
   const sensitive = definitionHasSensitiveColumns(definition, selectedColumns);

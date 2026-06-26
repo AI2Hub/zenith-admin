@@ -24,7 +24,7 @@ const listRoute = defineOpenAPIRoute({
       query: PaginationQuery.extend({
         keyword: z.string().optional(),
         datasourceId: z.coerce.number().int().positive().optional(),
-        type: z.enum(['api', 'sql']).optional(),
+        type: z.enum(['api', 'sql', 'mysql', 'postgresql']).optional(),
         status: z.enum(['enabled', 'disabled']).optional(),
       }),
     },

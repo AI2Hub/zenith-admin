@@ -2,7 +2,7 @@ import { pgTable, serial, varchar, timestamp, pgEnum, integer, bigint, boolean, 
 import { relations, sql } from 'drizzle-orm';
 import { v7 as uuidv7 } from 'uuid';
 // 报表中心 jsonb 列形态（前后端共享契约；type-only 导入，编译期即擦除）
-import type { ReportDatasourceConfig, ReportDatasetContent, ReportField, ReportGridItem, ReportWidget, ReportDatasetParam, ReportFilter, ReportDashboardConfig, ReportDashboardVersionSnapshot } from '@zenith/shared';
+import type { ReportDatasourceConfig, ReportDatasetContent, ReportField, ReportGridItem, ReportWidget, ReportDatasetParam, ReportFilter, ReportDashboardConfig, ReportDashboardVersionSnapshot, ReportComputedField, ReportCanvasItem } from '@zenith/shared';
 
 export const statusEnum = pgEnum('status', ['enabled', 'disabled']);
 export const menuTypeEnum = pgEnum('menu_type', ['directory', 'menu', 'button']);
@@ -4461,7 +4461,7 @@ export const mpKfRoutingConfigsRelations = relations(mpKfRoutingConfigs, ({ one 
 // ════════════════════════════════════════════════════════════════════════════
 // 报表中心（Report Center）—— 通用报表设计器 / 数据大屏
 // ════════════════════════════════════════════════════════════════════════════
-export const reportDatasourceTypeEnum = pgEnum('report_datasource_type', ['api', 'sql']);
+export const reportDatasourceTypeEnum = pgEnum('report_datasource_type', ['api', 'sql', 'mysql', 'postgresql']);
 
 /** 报表数据源：api=远程 HTTP；sql=内置只读主库 */
 export const reportDatasources = pgTable('report_datasources', {
@@ -4492,6 +4492,10 @@ export const reportDatasets = pgTable('report_datasets', {
   fields: jsonb('fields').$type<ReportField[]>().notNull().default(sql`'[]'::jsonb`),
   /** 参数定义（SQL ${name} / API 注入）*/
   params: jsonb('params').$type<ReportDatasetParam[]>().notNull().default(sql`'[]'::jsonb`),
+  /** 计算字段（衍生列）*/
+  computedFields: jsonb('computed_fields').$type<ReportComputedField[]>().notNull().default(sql`'[]'::jsonb`),
+  /** 结果缓存 TTL（秒），0=不缓存 */
+  cacheTtl: integer('cache_ttl').notNull().default(0),
   status: statusEnum('status').notNull().default('enabled'),
   remark: varchar('remark', { length: 256 }),
   ...auditColumns(),
@@ -4507,6 +4511,8 @@ export const reportDashboards = pgTable('report_dashboards', {
   name: varchar('name', { length: 64 }).notNull().unique(),
   /** react-grid-layout 布局数组 */
   layout: jsonb('layout').$type<ReportGridItem[]>().notNull().default(sql`'[]'::jsonb`),
+  /** 自由画布定位数组（canvas 大屏模式）*/
+  canvasLayout: jsonb('canvas_layout').$type<ReportCanvasItem[]>().notNull().default(sql`'[]'::jsonb`),
   /** 组件配置数组 */
   widgets: jsonb('widgets').$type<ReportWidget[]>().notNull().default(sql`'[]'::jsonb`),
   /** 全局筛选器 */

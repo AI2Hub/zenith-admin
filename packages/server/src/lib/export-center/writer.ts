@@ -54,6 +54,17 @@ export function leafColumns<TRow extends Record<string, unknown>>(columns: Expor
   return columns.flatMap((column) => column.children?.length ? leafColumns(column.children) : [column]);
 }
 
+/** 解析定义的列：优先动态 resolveColumns，否则用静态 columns */
+async function resolveDefinitionColumns(
+  definition: AnyExportDefinition,
+  ctx: ExportRuntimeContext,
+): Promise<ExportColumn[]> {
+  if (definition.resolveColumns) {
+    return await definition.resolveColumns(ctx.query, ctx.currentUser);
+  }
+  return definition.columns;
+}
+
 function maxDepth(columns: ExportColumn[]): number {
   return Math.max(...columns.map((column) => column.children?.length ? 1 + maxDepth(column.children) : 1), 1);
 }
@@ -135,7 +146,7 @@ async function writeTableSheet(
   rows: AsyncIterable<Record<string, unknown>> | Iterable<Record<string, unknown>>,
   ctx: ExportRuntimeContext,
 ) {
-  const columns = selectedColumns(definition.columns, ctx.selectedColumns);
+  const columns = selectedColumns(await resolveDefinitionColumns(definition, ctx), ctx.selectedColumns);
   const leaves = leafColumns(columns);
   const sheet = workbook.addWorksheet(definition.sheetName ?? definition.moduleName);
   const styles = { ...DEFAULT_STYLES, ...definition.styles };
@@ -172,7 +183,8 @@ async function writeTableSheet(
     sheet.getColumn(index + 1).width = column.width ?? 18;
   });
 
-  let rowIndex = headerStartRow + headerDepth;
+  const filterHeaderRow = headerStartRow + headerDepth - 1;
+  let rowIndex = filterHeaderRow;
   for await (const sourceRow of rows) {
     const values = leaves.map((column) => formatExportValue(column, sourceRow));
     const excelRow = sheet.insertRow(++rowIndex, values);
@@ -182,10 +194,10 @@ async function writeTableSheet(
     });
   }
 
-  sheet.views = [{ state: 'frozen', ySplit: headerStartRow + headerDepth - 1 }];
+  sheet.views = [{ state: 'frozen', ySplit: filterHeaderRow }];
   sheet.autoFilter = {
-    from: { row: headerStartRow + headerDepth - 1, column: 1 },
-    to: { row: headerStartRow + headerDepth - 1, column: Math.max(leaves.length, 1) },
+    from: { row: filterHeaderRow, column: 1 },
+    to: { row: rowIndex, column: Math.max(leaves.length, 1) },
   };
 }
 
@@ -215,7 +227,7 @@ export async function renderExportCsv(
   if (definition.renderMode !== 'table') {
     throw new Error('该导出包含复杂布局或自定义样式，仅支持 Excel 格式');
   }
-  const columns = leafColumns(selectedColumns(definition.columns, ctx.selectedColumns));
+  const columns = leafColumns(selectedColumns(await resolveDefinitionColumns(definition, ctx), ctx.selectedColumns));
   const lines = [columns.map((column) => csvEscapeCell(column.header)).join(',')];
   for await (const row of rows) {
     lines.push(columns.map((column) => csvEscapeCell(formatExportValue(column, row))).join(','));

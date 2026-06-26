@@ -1725,6 +1725,8 @@ export const SEED_REPORT_DATASETS: ReportDataset[] = [
     params: [
       { name: 'mstatus', label: '菜单状态', type: 'string', defaultValue: '' },
     ],
+    computedFields: [],
+    cacheTtl: 0,
     status: 'enabled',
     remark: '示例：按类型统计菜单数量',
     createdAt: SEED_DATE,
@@ -1741,6 +1743,7 @@ export const SEED_REPORT_DASHBOARDS: ReportDashboard[] = [
       { i: 'w2', x: 3, y: 0, w: 5, h: 6, minW: 2, minH: 2 },
       { i: 'w3', x: 8, y: 0, w: 4, h: 6, minW: 2, minH: 2 },
     ],
+    canvasLayout: [],
     widgets: [
       { i: 'w1', type: 'kpi', title: '菜单总数', datasetId: 1, options: { valueField: 'value', aggregate: 'sum', unit: '个' }, paramBindings: [{ filterId: 'f_status', param: 'mstatus' }] },
       { i: 'w2', type: 'bar', title: '菜单类型分布', datasetId: 1, options: { categoryField: 'name', valueFields: ['value'] }, paramBindings: [{ filterId: 'f_status', param: 'mstatus' }] },

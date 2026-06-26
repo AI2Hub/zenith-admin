@@ -17,6 +17,22 @@ const ReportGridItemDTO = z.object({
   minH: z.number().optional(),
 });
 
+const ReportCanvasItemDTO = z.object({
+  i: z.string(),
+  x: z.number(),
+  y: z.number(),
+  w: z.number(),
+  h: z.number(),
+  z: z.number().optional(),
+});
+
+const ReportComputedFieldDTO = z.object({
+  name: z.string(),
+  label: z.string(),
+  expression: z.string(),
+  type: z.enum(['string', 'number', 'date', 'boolean']).optional(),
+});
+
 const ReportDatasetParamDTO = z.object({
   name: z.string(),
   label: z.string(),
@@ -27,7 +43,7 @@ const ReportDatasetParamDTO = z.object({
 
 const ReportWidgetDTO = z.object({
   i: z.string(),
-  type: z.enum(['kpi', 'table', 'pivot', 'text', 'bar', 'line', 'area', 'dualAxis', 'pie', 'scatter', 'radar', 'funnel', 'gauge', 'treemap']),
+  type: z.enum(['kpi', 'table', 'pivot', 'text', 'bar', 'line', 'area', 'dualAxis', 'pie', 'scatter', 'radar', 'funnel', 'gauge', 'treemap', 'flipper', 'scrollList', 'map']),
   title: z.string(),
   datasetId: z.number().int().nullable().optional(),
   options: z.record(z.string(), z.unknown()),
@@ -50,7 +66,7 @@ export const ReportDatasourceDTO = z
   .object({
     id: z.number().int(),
     name: z.string(),
-    type: z.enum(['api', 'sql']),
+    type: z.enum(['api', 'sql', 'mysql', 'postgresql']),
     config: z.record(z.string(), z.unknown()),
     status: z.enum(['enabled', 'disabled']),
     remark: z.string().nullable().optional(),
@@ -66,10 +82,12 @@ export const ReportDatasetDTO = z
     name: z.string(),
     datasourceId: z.number().int(),
     datasourceName: z.string().nullable().optional(),
-    type: z.enum(['api', 'sql']),
+    type: z.enum(['api', 'sql', 'mysql', 'postgresql']),
     content: z.record(z.string(), z.unknown()),
     fields: z.array(ReportFieldDTO),
     params: z.array(ReportDatasetParamDTO),
+    computedFields: z.array(ReportComputedFieldDTO),
+    cacheTtl: z.number().int(),
     status: z.enum(['enabled', 'disabled']),
     remark: z.string().nullable().optional(),
     ...auditFields,
@@ -83,6 +101,7 @@ export const ReportDashboardDTO = z
     id: z.number().int(),
     name: z.string(),
     layout: z.array(ReportGridItemDTO),
+    canvasLayout: z.array(ReportCanvasItemDTO),
     widgets: z.array(ReportWidgetDTO),
     filters: z.array(ReportFilterDTO),
     config: z.record(z.string(), z.unknown()),
@@ -168,8 +187,14 @@ export const ReportPublicDashboardDTO = z
   .object({
     name: z.string(),
     layout: z.array(ReportGridItemDTO),
+    canvasLayout: z.array(ReportCanvasItemDTO),
     widgets: z.array(ReportWidgetDTO),
     filters: z.array(ReportFilterDTO),
     config: z.record(z.string(), z.unknown()),
   })
   .openapi('ReportPublicDashboard');
+
+/** 数据源连接测试结果 */
+export const ReportDatasourceTestResultDTO = z
+  .object({ ok: z.boolean(), message: z.string(), latencyMs: z.number().optional() })
+  .openapi('ReportDatasourceTestResult');

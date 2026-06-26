@@ -102,6 +102,11 @@ export interface ExportDefinition<
   execution?: Partial<ExportExecutionPolicy>;
   retention?: Partial<ExportRetentionPolicy>;
   columns: ExportColumn<TRow>[];
+  /**
+   * 动态列解析钩子（可选）。用于列结构在运行时才能确定的导出（如报表数据集）。
+   * 提供后，writer 渲染时调用它替代静态 `columns`，xlsx / csv 均可用。
+   */
+  resolveColumns?: (query: TQuery, user: JwtPayload) => Promise<ExportColumn<TRow>[]> | ExportColumn<TRow>[];
   styles?: ExportStyleSet;
   layout?: ExportLayout<TRow>;
   countRows: (query: TQuery, user: JwtPayload) => Promise<number>;

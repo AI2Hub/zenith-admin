@@ -18,7 +18,7 @@ import type {
 } from '../db/schema';
 import type {
   ReportDashboardCategory, ReportDashboardVersion, ReportDashboardShare, ReportPublicDashboard,
-  ReportDashboardVersionSnapshot, ReportGridItem, ReportWidget, ReportFilter, ReportDashboardConfig, ReportDataResult,
+  ReportDashboardVersionSnapshot, ReportGridItem, ReportCanvasItem, ReportWidget, ReportFilter, ReportDashboardConfig, ReportDataResult,
   CreateReportCategoryInput, UpdateReportCategoryInput, CreateReportShareInput, UpdateReportShareInput,
 } from '@zenith/shared';
 
@@ -70,7 +70,8 @@ export async function createVersion(dashboardId: number, remark?: string): Promi
   const [last] = await db.select({ v: reportDashboardVersions.version }).from(reportDashboardVersions).where(eq(reportDashboardVersions.dashboardId, dashboardId)).orderBy(desc(reportDashboardVersions.version)).limit(1);
   const version = (last?.v ?? 0) + 1;
   const snapshot: ReportDashboardVersionSnapshot = {
-    layout: (dash.layout ?? []) as ReportGridItem[], widgets: (dash.widgets ?? []) as ReportWidget[],
+    layout: (dash.layout ?? []) as ReportGridItem[], canvasLayout: (dash.canvasLayout ?? []) as ReportCanvasItem[],
+    widgets: (dash.widgets ?? []) as ReportWidget[],
     filters: (dash.filters ?? []) as ReportFilter[], config: (dash.config ?? {}) as ReportDashboardConfig,
   };
   const [row] = await db.insert(reportDashboardVersions).values({ dashboardId, version, snapshot, remark }).returning();
@@ -80,7 +81,7 @@ export async function restoreVersion(dashboardId: number, versionId: number): Pr
   const [ver] = await db.select().from(reportDashboardVersions).where(and(eq(reportDashboardVersions.id, versionId), eq(reportDashboardVersions.dashboardId, dashboardId))).limit(1);
   if (!ver) throw new HTTPException(404, { message: '版本不存在' });
   const s = (ver.snapshot ?? {}) as ReportDashboardVersionSnapshot;
-  await db.update(reportDashboards).set({ layout: s.layout ?? [], widgets: s.widgets ?? [], filters: s.filters ?? [], config: s.config ?? {} }).where(eq(reportDashboards.id, dashboardId));
+  await db.update(reportDashboards).set({ layout: s.layout ?? [], canvasLayout: s.canvasLayout ?? [], widgets: s.widgets ?? [], filters: s.filters ?? [], config: s.config ?? {} }).where(eq(reportDashboards.id, dashboardId));
 }
 
 // ─── 收藏 ──────────────────────────────────────────────────────────────────────
@@ -152,6 +153,7 @@ export async function resolvePublicDashboard(token: string, password?: string): 
   return {
     name: dash.name,
     layout: (dash.layout ?? []) as ReportGridItem[],
+    canvasLayout: (dash.canvasLayout ?? []) as ReportCanvasItem[],
     widgets: (dash.widgets ?? []) as ReportWidget[],
     filters: (dash.filters ?? []) as ReportFilter[],
     config: (dash.config ?? {}) as ReportDashboardConfig,

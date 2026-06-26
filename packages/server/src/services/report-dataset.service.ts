@@ -5,19 +5,24 @@
  * - api：统一走 http-client 的 httpRequest（防 SSRF），按 itemsPath 提取数组，运行时参数注入。
  */
 import { HTTPException } from 'hono/http-exception';
+import { createHash } from 'node:crypto';
 import { and, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '../db';
 import { reportDatasets } from '../db/schema';
+import { config } from '../config';
+import redis from '../lib/redis';
 import { pageOffset } from '../lib/pagination';
 import { escapeLike } from '../lib/where-helpers';
 import { formatDateTime } from '../lib/datetime';
 import { rethrowPgUniqueViolation } from '../lib/db-errors';
 import { httpRequest } from '../lib/http-client';
+import { applyComputedFields } from '../lib/report-formula';
+import { runExternalQuery } from '../lib/report-external-db';
 import { ensureDatasourceExists } from './report-datasource.service';
 import type { ReportDatasetRow } from '../db/schema';
 import type {
   ReportDataset, ReportDataResult, ReportField, ReportFieldType, ReportDatasetContent, ReportDatasetParam,
-  ReportDatasourceType, ReportDatasourceConfig,
+  ReportDatasourceType, ReportDatasourceConfig, ReportComputedField, ReportExternalDbConfig,
   ReportApiDatasourceConfig, ReportApiDatasetContent, ReportSqlDatasetContent,
   CreateReportDatasetInput, UpdateReportDatasetInput, ReportDatasetPreviewInput,
 } from '@zenith/shared';
@@ -25,6 +30,7 @@ import type {
 const PREVIEW_LIMIT = 100;
 const MAX_LIMIT = 5000;
 const QUERY_TIMEOUT = '15s';
+const CACHE_PREFIX = `${config.redis.keyPrefix}report:dataset:`;
 
 type DatasetRowWithDs = ReportDatasetRow & { datasource?: { name: string } | null };
 
@@ -38,6 +44,8 @@ export function mapDataset(row: DatasetRowWithDs): ReportDataset {
     content: (row.content ?? {}) as ReportDatasetContent,
     fields: (row.fields ?? []) as ReportField[],
     params: (row.params ?? []) as ReportDatasetParam[],
+    computedFields: (row.computedFields ?? []) as ReportComputedField[],
+    cacheTtl: row.cacheTtl ?? 0,
     status: row.status,
     remark: row.remark ?? null,
     createdBy: row.createdBy ?? null,
@@ -53,7 +61,7 @@ function normalizeDatasetContent(
   content: Record<string, unknown> | null | undefined,
 ): ReportDatasetContent {
   const c = (content ?? {}) as Record<string, unknown>;
-  if (type === 'sql') {
+  if (type === 'sql' || type === 'mysql' || type === 'postgresql') {
     return { sql: typeof c.sql === 'string' ? c.sql : '' };
   }
   const itemsPath = typeof c.itemsPath === 'string' ? c.itemsPath : null;
@@ -107,6 +115,24 @@ function buildParamSql(text: string, params: Record<string, unknown>): SQL {
   return sql.join(chunks, sql.raw(''));
 }
 
+/** 外部库 ${name} → 占位符（pg=$N / mysql=?）+ values 数组（防注入）*/
+function buildExternalParamSql(
+  text: string,
+  params: Record<string, unknown>,
+  dialect: 'mysql' | 'postgresql',
+): { text: string; values: unknown[] } {
+  const segments = text.split(/\$\{\s*(\w+)\s*\}/g);
+  let out = '';
+  const values: unknown[] = [];
+  for (let i = 0; i < segments.length; i++) {
+    if (i % 2 === 0) { out += segments[i]; continue; }
+    const v = params[segments[i]];
+    values.push(v === undefined ? null : v);
+    out += dialect === 'postgresql' ? `$${values.length}` : '?';
+  }
+  return { text: out, values };
+}
+
 /** 只读执行 SQL（READ ONLY 事务 + 超时 + 行上限 + 参数绑定）*/
 async function runReadonlySql(text: string, params: Record<string, unknown>, limit: number): Promise<ReportDataResult> {
   const trimmed = text.trim().replace(/;\s*$/, '');
@@ -157,7 +183,9 @@ export async function listDatasets(query: {
     conds.push(or(ilike(reportDatasets.name, kw), ilike(reportDatasets.remark, kw)));
   }
   if (datasourceId) conds.push(eq(reportDatasets.datasourceId, datasourceId));
-  if (type === 'api' || type === 'sql') conds.push(eq(reportDatasets.type, type));
+  if (type === 'api' || type === 'sql' || type === 'mysql' || type === 'postgresql') {
+    conds.push(eq(reportDatasets.type, type));
+  }
   if (status === 'enabled' || status === 'disabled') conds.push(eq(reportDatasets.status, status));
   const where = conds.length ? and(...conds) : undefined;
   const [total, rows] = await Promise.all([
@@ -184,6 +212,8 @@ export async function createDataset(input: CreateReportDatasetInput): Promise<Re
       content,
       fields: (input.fields ?? []) as ReportField[],
       params: (input.params ?? []) as ReportDatasetParam[],
+      computedFields: (input.computedFields ?? []) as ReportComputedField[],
+      cacheTtl: input.cacheTtl ?? 0,
       status: input.status ?? 'enabled',
       remark: input.remark,
     }).returning();
@@ -211,10 +241,13 @@ export async function updateDataset(id: number, input: UpdateReportDatasetInput)
       content,
       fields: input.fields as ReportField[] | undefined,
       params: input.params as ReportDatasetParam[] | undefined,
+      computedFields: input.computedFields as ReportComputedField[] | undefined,
+      cacheTtl: input.cacheTtl,
       status: input.status,
       remark: input.remark,
     }).where(eq(reportDatasets.id, id)).returning();
     if (!row) throw new HTTPException(404, { message: '数据集不存在' });
+    await clearDatasetCache(id);
     return mapDataset(row);
   } catch (err) {
     rethrowPgUniqueViolation(err, '数据集名称已存在');
@@ -225,24 +258,34 @@ export async function updateDataset(id: number, input: UpdateReportDatasetInput)
 export async function deleteDataset(id: number): Promise<void> {
   await ensureDatasetExists(id);
   await db.delete(reportDatasets).where(eq(reportDatasets.id, id));
+  await clearDatasetCache(id);
 }
 
 // ─── 取数核心 ────────────────────────────────────────────────────────────────
 
-/** 按数据源类型执行取数；sql 走只读绑定执行器，api 走 http-client */
+/** 按数据源类型执行取数；sql 走只读绑定执行器，mysql/postgresql 走外部库，api 走 http-client。最后应用计算字段 */
 export async function runReportData(
   type: ReportDatasourceType,
   config: ReportDatasourceConfig,
   content: ReportDatasetContent,
   params: Record<string, unknown> = {},
   limit = PREVIEW_LIMIT,
+  computedFields?: ReportComputedField[],
 ): Promise<ReportDataResult> {
   const cappedLimit = Math.max(1, Math.min(limit || PREVIEW_LIMIT, MAX_LIMIT));
 
   if (type === 'sql') {
     const sqlText = ((content as ReportSqlDatasetContent).sql ?? '').trim();
     if (!sqlText) throw new HTTPException(400, { message: '数据集 SQL 不能为空' });
-    return runReadonlySql(sqlText, params, cappedLimit);
+    return applyComputedFields(await runReadonlySql(sqlText, params, cappedLimit), computedFields);
+  }
+
+  if (type === 'mysql' || type === 'postgresql') {
+    const sqlText = ((content as ReportSqlDatasetContent).sql ?? '').trim();
+    if (!sqlText) throw new HTTPException(400, { message: '数据集 SQL 不能为空' });
+    const { text, values } = buildExternalParamSql(sqlText, params, type);
+    const result = await runExternalQuery(type, config as ReportExternalDbConfig, text, values, cappedLimit);
+    return applyComputedFields(result, computedFields);
   }
 
   // api
@@ -281,7 +324,7 @@ export async function runReportData(
   }
   const sliced = arr.slice(0, cappedLimit) as Record<string, unknown>[];
   const columns = sliced.length > 0 ? Object.keys(sliced[0] ?? {}) : [];
-  return { columns, rows: sliced, total: arr.length };
+  return applyComputedFields({ columns, rows: sliced, total: arr.length }, computedFields);
 }
 
 /** 试跑预览（不落库）：用未保存的数据源 + content + 运行时参数取数 */
@@ -289,10 +332,26 @@ export async function previewDataset(input: ReportDatasetPreviewInput): Promise<
   const ds = await ensureDatasourceExists(input.datasourceId);
   const content = normalizeDatasetContent(ds.type, input.content);
   const params = (input.params ?? {}) as Record<string, unknown>;
-  return runReportData(ds.type, (ds.config ?? {}) as ReportDatasourceConfig, content, params, input.limit ?? PREVIEW_LIMIT);
+  const computed = (input.computedFields ?? []) as ReportComputedField[];
+  return runReportData(ds.type, (ds.config ?? {}) as ReportDatasourceConfig, content, params, input.limit ?? PREVIEW_LIMIT, computed);
 }
 
-/** 取已保存数据集的数据（供仪表盘组件运行时调用，支持参数）*/
+/** 清除某数据集的全部缓存（更新/删除时调用）*/
+export async function clearDatasetCache(id: number): Promise<void> {
+  try {
+    const pattern = `${CACHE_PREFIX}${id}:*`;
+    const keys: string[] = [];
+    let cursor = '0';
+    do {
+      const [next, batch] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 200);
+      cursor = next;
+      keys.push(...batch);
+    } while (cursor !== '0');
+    if (keys.length) await redis.del(...keys);
+  } catch { /* 缓存清理失败不阻断主流程 */ }
+}
+
+/** 取已保存数据集的数据（供仪表盘组件运行时调用，支持参数 + Redis 缓存）*/
 export async function getDatasetData(id: number, params?: Record<string, unknown>, limit?: number): Promise<ReportDataResult> {
   const row = await db.query.reportDatasets.findFirst({
     where: eq(reportDatasets.id, id),
@@ -302,5 +361,25 @@ export async function getDatasetData(id: number, params?: Record<string, unknown
   if (row.status !== 'enabled') throw new HTTPException(400, { message: '数据集已停用' });
   const config = (row.datasource?.config ?? {}) as ReportDatasourceConfig;
   const resolved = resolveDatasetParams((row.params ?? []) as ReportDatasetParam[], params);
-  return runReportData(row.type, config, (row.content ?? {}) as ReportDatasetContent, resolved, limit ?? PREVIEW_LIMIT);
+  const computed = (row.computedFields ?? []) as ReportComputedField[];
+  const effLimit = limit ?? PREVIEW_LIMIT;
+  const cacheTtl = row.cacheTtl ?? 0;
+
+  // 命中缓存
+  let cacheKey = '';
+  if (cacheTtl > 0) {
+    const hash = createHash('md5').update(JSON.stringify({ resolved, effLimit })).digest('hex');
+    cacheKey = `${CACHE_PREFIX}${id}:${hash}`;
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) return JSON.parse(cached) as ReportDataResult;
+    } catch { /* 缓存读取失败回源 */ }
+  }
+
+  const result = await runReportData(row.type, config, (row.content ?? {}) as ReportDatasetContent, resolved, effLimit, computed);
+
+  if (cacheTtl > 0 && cacheKey) {
+    try { await redis.set(cacheKey, JSON.stringify(result), 'EX', cacheTtl); } catch { /* 缓存写入失败忽略 */ }
+  }
+  return result;
 }

@@ -2562,15 +2562,23 @@ export type UpdateMpKfRoutingConfigInput = z.infer<typeof updateMpKfRoutingConfi
 // ════════════════════════════════════════════════════════════════════════════
 // 报表中心（Report Center）
 // ════════════════════════════════════════════════════════════════════════════
-export const reportDatasourceTypeSchema = z.enum(['api', 'sql']);
+export const reportDatasourceTypeSchema = z.enum(['api', 'sql', 'mysql', 'postgresql']);
 export const reportFieldTypeSchema = z.enum(['string', 'number', 'date', 'boolean']);
-export const reportWidgetTypeSchema = z.enum(['kpi', 'table', 'pivot', 'text', 'bar', 'line', 'area', 'dualAxis', 'pie', 'scatter', 'radar', 'funnel', 'gauge', 'treemap']);
+export const reportWidgetTypeSchema = z.enum(['kpi', 'table', 'pivot', 'text', 'bar', 'line', 'area', 'dualAxis', 'pie', 'scatter', 'radar', 'funnel', 'gauge', 'treemap', 'flipper', 'scrollList', 'map']);
 
 /** 数据集字段（列）定义 */
 export const reportFieldSchema = z.object({
   name: z.string().min(1, '列名不能为空').max(128),
   label: z.string().min(1, '显示名不能为空').max(128),
   type: reportFieldTypeSchema.default('string'),
+});
+
+/** 计算字段（衍生列）*/
+export const reportComputedFieldSchema = z.object({
+  name: z.string().min(1, '列名不能为空').max(128),
+  label: z.string().min(1).max(128),
+  expression: z.string().min(1, '表达式不能为空').max(512),
+  type: reportFieldTypeSchema.optional(),
 });
 
 /** 数据集参数定义 */
@@ -2596,6 +2604,14 @@ export const updateReportDatasourceSchema = createReportDatasourceSchema.partial
 export type CreateReportDatasourceInput = z.input<typeof createReportDatasourceSchema>;
 export type UpdateReportDatasourceInput = z.input<typeof updateReportDatasourceSchema>;
 
+/** 测试数据源连接（外部库）：可带 id（复用已存凭据）或完整 config */
+export const reportDatasourceTestSchema = z.object({
+  id: z.number().int().positive().optional(),
+  type: reportDatasourceTypeSchema.optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+});
+export type ReportDatasourceTestInput = z.input<typeof reportDatasourceTestSchema>;
+
 // ─── 数据集 ──────────────────────────────────────────────────────────────────
 // type 由 datasource 继承，不接受用户传入；content 形态由 service 按 type 校验。
 export const createReportDatasetSchema = z.object({
@@ -2604,6 +2620,8 @@ export const createReportDatasetSchema = z.object({
   content: z.record(z.string(), z.unknown()).default({}),
   fields: z.array(reportFieldSchema).default([]),
   params: z.array(reportDatasetParamSchema).default([]),
+  computedFields: z.array(reportComputedFieldSchema).default([]),
+  cacheTtl: z.number().int().min(0).max(86_400).default(0),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(256).optional(),
 });
@@ -2616,6 +2634,7 @@ export const reportDatasetPreviewSchema = z.object({
   datasourceId: z.number().int().positive('请选择数据源'),
   content: z.record(z.string(), z.unknown()).default({}),
   params: z.record(z.string(), z.unknown()).optional(),
+  computedFields: z.array(reportComputedFieldSchema).optional(),
   limit: z.number().int().min(1).max(1000).default(100),
 });
 export type ReportDatasetPreviewInput = z.input<typeof reportDatasetPreviewSchema>;
@@ -2629,6 +2648,14 @@ export const reportGridItemSchema = z.object({
   h: z.number().int().min(1),
   minW: z.number().int().min(1).optional(),
   minH: z.number().int().min(1).optional(),
+});
+export const reportCanvasItemSchema = z.object({
+  i: z.string().min(1),
+  x: z.number().int(),
+  y: z.number().int(),
+  w: z.number().int().min(1),
+  h: z.number().int().min(1),
+  z: z.number().int().optional(),
 });
 export const reportWidgetSchema = z.object({
   i: z.string().min(1),
@@ -2663,14 +2690,24 @@ export const reportFilterSchema = z.object({
   }).optional(),
   width: z.number().int().min(1).max(24).optional(),
 });
+export const reportScreenConfigSchema = z.object({
+  width: z.number().int().min(320).max(10000),
+  height: z.number().int().min(240).max(10000),
+  background: z.string().optional(),
+  backgroundImage: z.string().optional(),
+  scaleMode: z.enum(['fit', 'width', 'full']).optional(),
+});
 export const reportDashboardConfigSchema = z.object({
   theme: z.enum(['light', 'dark']).optional(),
+  layoutMode: z.enum(['grid', 'canvas']).optional(),
   screen: z.boolean().optional(),
+  screenConfig: reportScreenConfigSchema.optional(),
   refreshInterval: z.number().int().min(0).optional(),
 });
 export const createReportDashboardSchema = z.object({
   name: z.string().min(1, '名称不能为空').max(64),
   layout: z.array(reportGridItemSchema).default([]),
+  canvasLayout: z.array(reportCanvasItemSchema).default([]),
   widgets: z.array(reportWidgetSchema).default([]),
   filters: z.array(reportFilterSchema).default([]),
   config: reportDashboardConfigSchema.default({}),

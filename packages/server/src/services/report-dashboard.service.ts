@@ -15,7 +15,7 @@ import { getDatasetData } from './report-dataset.service';
 import type { ReportDashboardRow } from '../db/schema';
 import type {
   ReportDashboard, ReportGridItem, ReportWidget, ReportFilter, ReportDashboardConfig, ReportDataResult,
-  CreateReportDashboardInput, UpdateReportDashboardInput,
+  ReportCanvasItem, CreateReportDashboardInput, UpdateReportDashboardInput,
 } from '@zenith/shared';
 
 type DashboardRowExt = ReportDashboardRow & { category?: { name: string } | null };
@@ -25,6 +25,7 @@ export function mapDashboard(row: DashboardRowExt, favorited?: boolean): ReportD
     id: row.id,
     name: row.name,
     layout: (row.layout ?? []) as ReportGridItem[],
+    canvasLayout: (row.canvasLayout ?? []) as ReportCanvasItem[],
     widgets: (row.widgets ?? []) as ReportWidget[],
     filters: (row.filters ?? []) as ReportFilter[],
     config: (row.config ?? {}) as ReportDashboardConfig,
@@ -103,6 +104,7 @@ export async function createDashboard(input: CreateReportDashboardInput): Promis
     const [row] = await db.insert(reportDashboards).values({
       name: input.name,
       layout: (input.layout ?? []) as ReportGridItem[],
+      canvasLayout: (input.canvasLayout ?? []) as ReportCanvasItem[],
       widgets: (input.widgets ?? []) as ReportWidget[],
       filters: (input.filters ?? []) as ReportFilter[],
       config: (input.config ?? {}) as ReportDashboardConfig,
@@ -122,6 +124,7 @@ export async function updateDashboard(id: number, input: UpdateReportDashboardIn
     const [row] = await db.update(reportDashboards).set({
       name: input.name,
       layout: input.layout as ReportGridItem[] | undefined,
+      canvasLayout: input.canvasLayout as ReportCanvasItem[] | undefined,
       widgets: input.widgets as ReportWidget[] | undefined,
       filters: input.filters as ReportFilter[] | undefined,
       config: input.config as ReportDashboardConfig | undefined,

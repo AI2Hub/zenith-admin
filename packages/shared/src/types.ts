@@ -5238,15 +5238,16 @@ export interface MpKfSessionReportItem {
 // 报表中心（Report Center）—— 通用报表设计器 / 数据大屏
 // ════════════════════════════════════════════════════════════════════════════
 
-/** 数据源类型：api=远程 HTTP；sql=内置只读主库 */
-export type ReportDatasourceType = 'api' | 'sql';
+/** 数据源类型：api=远程 HTTP；sql=内置只读主库；mysql/postgresql=外部数据库 */
+export type ReportDatasourceType = 'api' | 'sql' | 'mysql' | 'postgresql';
 /** 数据集字段（列）数据类型 */
 export type ReportFieldType = 'string' | 'number' | 'date' | 'boolean';
 /** 仪表盘组件类型 */
 export type ReportWidgetType =
   | 'kpi' | 'table' | 'pivot' | 'text'
   | 'bar' | 'line' | 'area' | 'dualAxis'
-  | 'pie' | 'scatter' | 'radar' | 'funnel' | 'gauge' | 'treemap';
+  | 'pie' | 'scatter' | 'radar' | 'funnel' | 'gauge' | 'treemap'
+  | 'flipper' | 'scrollList' | 'map';
 
 /** API 数据源连接配置 */
 export interface ReportApiDatasourceConfig {
@@ -5254,13 +5255,26 @@ export interface ReportApiDatasourceConfig {
   method: 'GET' | 'POST';
   headers?: Record<string, string> | null;
 }
-/** SQL 数据源连接配置（MVP 仅内置只读主库） */
+/** SQL 数据源连接配置（内置只读主库） */
 export interface ReportSqlDatasourceConfig {
   connection: 'internal';
+}
+/** 外部数据库连接配置（mysql / postgresql）；password 仅写入，读取时脱敏 */
+export interface ReportExternalDbConfig {
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password?: string | null;
+  /** 是否启用 SSL */
+  ssl?: boolean;
+  /** 读取时返回的脱敏标记（service 注入，前端只读）*/
+  hasPassword?: boolean;
 }
 export type ReportDatasourceConfig =
   | ReportApiDatasourceConfig
   | ReportSqlDatasourceConfig
+  | ReportExternalDbConfig
   | Record<string, never>;
 
 export interface ReportDatasource {
@@ -5283,6 +5297,15 @@ export interface ReportField {
   /** 显示名 */
   label: string;
   type: ReportFieldType;
+}
+
+/** 计算字段（衍生列）：在取数结果上用表达式计算 */
+export interface ReportComputedField {
+  name: string;
+  label: string;
+  /** 表达式，引用其他列用 row.列名（如 row.gross - row.fee）*/
+  expression: string;
+  type?: ReportFieldType;
 }
 
 /** SQL 数据集内容 */
@@ -5313,6 +5336,10 @@ export interface ReportDataset {
   fields: ReportField[];
   /** 参数定义（SQL ${name} 占位 / API 注入） */
   params: ReportDatasetParam[];
+  /** 计算字段（衍生列） */
+  computedFields: ReportComputedField[];
+  /** 结果缓存 TTL（秒），0=不缓存 */
+  cacheTtl: number;
   status: 'enabled' | 'disabled';
   remark?: string | null;
   createdBy?: number | null;
@@ -5338,6 +5365,18 @@ export interface ReportGridItem {
   h: number;
   minW?: number;
   minH?: number;
+}
+
+/** 自由画布定位项（绝对像素，用于大屏 canvas 模式） */
+export interface ReportCanvasItem {
+  /** 与 widget.i 对应 */
+  i: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** 层级 */
+  z?: number;
 }
 
 /** 组件字段映射 + 图表选项 */
@@ -5402,6 +5441,21 @@ export interface ReportWidgetOptions {
   // ── 仪表盘 gauge / 雷达 ──
   min?: number;
   max?: number;
+  // ── 大屏：数字翻牌器 flipper ──
+  /** 翻牌固定位数（不足补 0） */
+  flipDigits?: number;
+  // ── 大屏：滚动榜单 scrollList ──
+  /** 滚动速度（行/秒），0=不滚动 */
+  scrollSpeed?: number;
+  /** 显示排名序号 */
+  showRank?: boolean;
+  // ── 大屏：地图 map ──
+  /** geojson 地图数据 URL（懒加载注册） */
+  mapGeojsonUrl?: string;
+  /** 已注册地图名称（默认取 URL 推导） */
+  mapName?: string;
+  /** 区域名字段（匹配 geojson 的 name） */
+  areaField?: string;
   [key: string]: unknown;
 }
 
@@ -5427,6 +5481,8 @@ export interface ReportDashboard {
   id: number;
   name: string;
   layout: ReportGridItem[];
+  /** 自由画布定位（canvas 模式） */
+  canvasLayout: ReportCanvasItem[];
   widgets: ReportWidget[];
   /** 全局筛选器 */
   filters: ReportFilter[];
@@ -5522,11 +5578,29 @@ export interface ReportWidgetStyle {
   borderless?: boolean;
 }
 
+/** 大屏自由画布设置 */
+export interface ReportScreenConfig {
+  /** 设计宽度（px） */
+  width: number;
+  /** 设计高度（px） */
+  height: number;
+  /** 背景色 */
+  background?: string;
+  /** 背景图 URL */
+  backgroundImage?: string;
+  /** 缩放方式：fit=等比铺满(letterbox)，width=按宽度铺满，full=拉伸 */
+  scaleMode?: 'fit' | 'width' | 'full';
+}
+
 /** 仪表盘全局配置 */
 export interface ReportDashboardConfig {
   theme?: 'light' | 'dark';
+  /** 布局模式：grid=响应式栅格；canvas=自由画布大屏 */
+  layoutMode?: 'grid' | 'canvas';
   /** 大屏模式（全屏自适应缩放） */
   screen?: boolean;
+  /** 自由画布大屏设置（layoutMode=canvas 时生效） */
+  screenConfig?: ReportScreenConfig;
   /** 自动刷新间隔（秒，0=关闭） */
   refreshInterval?: number;
 }
@@ -5544,6 +5618,7 @@ export interface ReportDashboardCategory {
 /** 仪表盘版本快照内容 */
 export interface ReportDashboardVersionSnapshot {
   layout: ReportGridItem[];
+  canvasLayout?: ReportCanvasItem[];
   widgets: ReportWidget[];
   filters: ReportFilter[];
   config: ReportDashboardConfig;
@@ -5594,6 +5669,7 @@ export interface ReportDashboardSubscription {
 export interface ReportPublicDashboard {
   name: string;
   layout: ReportGridItem[];
+  canvasLayout: ReportCanvasItem[];
   widgets: ReportWidget[];
   filters: ReportFilter[];
   config: ReportDashboardConfig;
