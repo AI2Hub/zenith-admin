@@ -47,6 +47,14 @@ function mapChatWebhook(row: WebhookRow, conversationName: string | null): ChatW
   };
 }
 
+function redactWebhookToken(webhook: ChatWebhook) {
+  return {
+    ...webhook,
+    token: webhook.token ? '[REDACTED]' : '',
+    webhookUrl: webhook.webhookUrl.replace(/\/api\/public\/chat\/webhook\/[^/]+$/, '/api/public/chat/webhook/[REDACTED]'),
+  };
+}
+
 async function ensureConversationExists(conversationId: number): Promise<void> {
   const conv = await db.query.chatConversations.findFirst({
     where: eq(chatConversations.id, conversationId),
@@ -73,6 +81,16 @@ export async function listChatWebhooks(params: { page: number; pageSize: number;
 
   const list = rows.map((r) => mapChatWebhook(r, r.conversation?.name ?? null));
   return { list, total, page: params.page, pageSize: params.pageSize };
+}
+
+export async function getChatWebhookBeforeAudit(id: number) {
+  const row = await getWebhookOr404(id);
+  const conv = await db.query.chatConversations.findFirst({ where: eq(chatConversations.id, row.conversationId), columns: { name: true } });
+  return redactWebhookToken(mapChatWebhook(row, conv?.name ?? null));
+}
+
+export function sanitizeChatWebhookForAudit(webhook: ChatWebhook) {
+  return redactWebhookToken(webhook);
 }
 
 export async function createChatWebhook(input: CreateChatWebhookInput): Promise<ChatWebhook> {

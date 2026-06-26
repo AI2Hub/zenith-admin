@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { stream } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import { authMiddleware } from '../middleware/auth';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import {
   validationHook, ok, commonErrorResponses, okBody, okMsg,
 } from '../lib/openapi-schemas';
@@ -10,6 +11,7 @@ import {
 } from '../services/systemd.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
+const PERM = 'system:process:view';
 
 /** 验证服务名：只允许合法字符，防止命令注入 */
 function validateServiceName(name: string): void {
@@ -47,7 +49,7 @@ const ServiceDTO = z.object({
 const checkRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/check', summary: '检查 systemd 可用性', tags: ['Systemd'],
-    middleware: [authMiddleware] as const,
+    middleware: [authMiddleware, guard({ permission: PERM })] as const,
     request: {},
     responses: { ...commonErrorResponses, ...ok(z.object({ available: z.boolean() }), 'systemd 可用性') },
   }),
@@ -60,7 +62,7 @@ const checkRoute = defineOpenAPIRoute({
 const listRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/', summary: '列出 systemd 服务', tags: ['Systemd'],
-    middleware: [authMiddleware] as const,
+    middleware: [authMiddleware, guard({ permission: PERM })] as const,
     request: {},
     responses: { ...commonErrorResponses, ...ok(z.array(ServiceDTO), '服务列表') },
   }),
@@ -73,7 +75,10 @@ const listRoute = defineOpenAPIRoute({
 const controlRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/:name/:action', summary: '控制服务（启停/重启/开机自启/屏蔽）', tags: ['Systemd'],
-    middleware: [authMiddleware] as const,
+    middleware: [authMiddleware, guard({
+      permission: PERM,
+      audit: { description: '控制 systemd 服务', module: '服务管理' },
+    })] as const,
     request: {
       params: z.object({ name: z.string(), action: z.enum(['start', 'stop', 'restart', 'reload', 'enable', 'disable', 'mask', 'unmask']) }),
     },
@@ -82,6 +87,7 @@ const controlRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const { name, action } = c.req.valid('param');
     validateServiceName(name);
+    setAuditBeforeData(c, { name, detail: await getServiceDetail(name) });
     await controlService(name, action);
     return c.json(okBody(null, '操作成功'), 200);
   },
@@ -90,7 +96,7 @@ const controlRoute = defineOpenAPIRoute({
 const detailRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/:name/detail', summary: '获取服务详情', tags: ['Systemd'],
-    middleware: [authMiddleware] as const,
+    middleware: [authMiddleware, guard({ permission: PERM })] as const,
     request: { params: z.object({ name: z.string() }) },
     responses: { ...commonErrorResponses, ...ok(z.record(z.string(), z.string()), '服务详情') },
   }),
@@ -105,7 +111,7 @@ const detailRoute = defineOpenAPIRoute({
 const logsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/:name/logs', summary: '获取服务近期日志', tags: ['Systemd'],
-    middleware: [authMiddleware] as const,
+    middleware: [authMiddleware, guard({ permission: PERM })] as const,
     request: { params: z.object({ name: z.string() }) },
     responses: { ...commonErrorResponses, ...ok(z.object({ logs: z.string() }), '服务日志') },
   }),

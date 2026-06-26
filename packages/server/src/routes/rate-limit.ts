@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import {
   jsonContent,
   validationHook,
@@ -19,6 +19,7 @@ import {
   getRateLimitStats,
   unblockRateLimit,
   resetRateLimitStats,
+  getRateLimitRuleBeforeAudit,
 } from '../services/rate-limit.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -73,7 +74,10 @@ const createRule = defineOpenAPIRoute({
     tags: ['RateLimit'],
     summary: '新增自定义限流规则',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:rate-limit:manage' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:rate-limit:manage',
+      audit: { description: '新增限流规则', module: '接口限流' },
+    })] as const,
     request: { body: { content: jsonContent(CreateRuleBody), required: true } },
     responses: { ...commonErrorResponses, ...ok(RateLimitRuleDTO, '新增的规则') },
   }),
@@ -90,13 +94,17 @@ const patchRule = defineOpenAPIRoute({
     tags: ['RateLimit'],
     summary: '更新限流规则（保存后立即热更新）',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:rate-limit:manage' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:rate-limit:manage',
+      audit: { description: '更新限流规则', module: '接口限流' },
+    })] as const,
     request: { params: IdParam, body: { content: jsonContent(UpdateRuleBody), required: true } },
     responses: { ...commonErrorResponses, ...ok(RateLimitRuleDTO, '更新后的规则') },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const patch = c.req.valid('json');
+    setAuditBeforeData(c, await getRateLimitRuleBeforeAudit(id));
     return c.json(okBody(await updateRateLimitRule(id, patch), '规则已更新'), 200);
   },
 });
@@ -108,12 +116,16 @@ const deleteRule = defineOpenAPIRoute({
     tags: ['RateLimit'],
     summary: '删除自定义限流规则（内置规则不可删除）',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:rate-limit:manage' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:rate-limit:manage',
+      audit: { description: '删除限流规则', module: '接口限流' },
+    })] as const,
     request: { params: IdParam },
     responses: { ...commonErrorResponses, ...okMsg('删除成功') },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getRateLimitRuleBeforeAudit(id));
     await deleteRateLimitRule(id);
     return c.json(okBody(null, '规则已删除'), 200);
   },
@@ -139,7 +151,10 @@ const unblock = defineOpenAPIRoute({
     tags: ['RateLimit'],
     summary: '解封指定 key（清除 Redis 计数窗口）',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:rate-limit:manage' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:rate-limit:manage',
+      audit: { description: '解封限流 key', module: '接口限流' },
+    })] as const,
     request: { body: { content: jsonContent(UnblockBody), required: true } },
     responses: { ...commonErrorResponses, ...okMsg('解封成功') },
   }),
@@ -157,7 +172,10 @@ const resetStats = defineOpenAPIRoute({
     tags: ['RateLimit'],
     summary: '清空指定规则的统计计数器',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:rate-limit:manage' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:rate-limit:manage',
+      audit: { description: '清空限流统计', module: '接口限流' },
+    })] as const,
     request: { body: { content: jsonContent(ResetStatsBody), required: true } },
     responses: { ...commonErrorResponses, ...okMsg('统计已清空') },
   }),

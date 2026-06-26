@@ -15,6 +15,8 @@ export interface AuditLogOptions {
   module?: string;
   /** 是否记录请求体，默认 true；文件上传等场景传 false */
   recordBody?: boolean;
+  /** 是否记录完整响应体，默认 true；返回一次性密钥等敏感响应时传 false */
+  recordResponseBody?: boolean;
 }
 
 /** 在路由处理器中调用，记录操作前的实体快照，用于 diff 展示 */
@@ -139,7 +141,9 @@ export function guard(opts: GuardOptions) {
         const cloned = c.res.clone();
         const rawText = await cloned.text();
         // 完整响应体（限长 16KB，避免超大 payload）
-        if (rawText) responseBodyStr = rawText.length > 16384 ? `${rawText.slice(0, 16384)}…` : rawText;
+        if (rawText && opts.audit.recordResponseBody !== false) {
+          responseBodyStr = rawText.length > 16384 ? `${rawText.slice(0, 16384)}…` : rawText;
+        }
         const resJson = JSON.parse(rawText) as { code?: number; data?: unknown };
         if (afterData === undefined && resJson.code === 0 && resJson.data != null) {
           afterData = JSON.stringify(resJson.data);

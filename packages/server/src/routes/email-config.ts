@@ -39,7 +39,10 @@ const testRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/test', tags: ['EmailConfig'], summary: '发送测试邮件',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:email-config:update' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:email-config:update',
+      audit: { description: '发送测试邮件', module: '邮件配置' },
+    })] as const,
     request: { body: { content: jsonContent(TestEmailBody), required: true } },
     responses: { ...commonErrorResponses, ...okMsg('发送成功') },
   }),

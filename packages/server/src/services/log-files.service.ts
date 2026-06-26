@@ -121,6 +121,17 @@ export function deleteLogFile(filename: string) {
   fs.unlinkSync(filepath);
 }
 
+export function getLogFileBeforeAudit(filename: string) {
+  const { name, filepath } = resolveLogFile(filename);
+  const stat = fs.statSync(filepath);
+  return {
+    name,
+    size: stat.size,
+    modifiedAt: formatDateTime(stat.mtime),
+    isGzip: name.endsWith('.gz'),
+  };
+}
+
 export function resolveLogFile(filename: string) {
   const name = safeFilename(filename);
   if (!name) throw new HTTPException(400, { message: '无效的文件名' });

@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditAfterData, setAuditBeforeData } from '../middleware/guard';
 import {
   jsonContent,
   validationHook,
@@ -27,6 +27,8 @@ import {
   regenerateOAuth2ClientSecret,
   listClientTokens,
   revokeToken,
+  getOAuth2ClientBeforeAudit,
+  getOAuth2TokenBeforeAudit,
 } from '../services/oauth2-clients.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -81,12 +83,18 @@ const create = defineOpenAPIRoute({
     tags: ['OAuth2Apps'],
     summary: '创建 OAuth2 应用（clientSecret 仅在此返回一次）',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:oauth2-apps:manage' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:oauth2-apps:manage',
+      audit: { description: '创建 OAuth2 应用', module: 'OAuth2 应用', recordResponseBody: false },
+    })] as const,
     request: { body: { content: jsonContent(ClientBody), required: true } },
     responses: { ...commonErrorResponses, ...ok(OAuth2ClientCreatedDTO, '创建成功') },
   }),
-  handler: async (c) =>
-    c.json(okBody(await createOAuth2Client(c.req.valid('json')), '应用已创建，client_secret 仅返回一次，请妥善保存'), 200),
+  handler: async (c) => {
+    const created = await createOAuth2Client(c.req.valid('json'));
+    setAuditAfterData(c, { ...created, clientSecret: created.clientSecret ? '[REDACTED]' : '' });
+    return c.json(okBody(created, '应用已创建，client_secret 仅返回一次，请妥善保存'), 200);
+  },
 });
 
 const detail = defineOpenAPIRoute({
@@ -110,12 +118,16 @@ const update = defineOpenAPIRoute({
     tags: ['OAuth2Apps'],
     summary: '更新 OAuth2 应用',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:oauth2-apps:manage' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:oauth2-apps:manage',
+      audit: { description: '更新 OAuth2 应用', module: 'OAuth2 应用' },
+    })] as const,
     request: { params: IdParam, body: { content: jsonContent(UpdateClientBody), required: true } },
     responses: { ...commonErrorResponses, ...ok(OAuth2ClientListItemDTO, '更新成功') },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getOAuth2ClientBeforeAudit(id));
     return c.json(okBody(await updateOAuth2Client(id, c.req.valid('json'))), 200);
   },
 });
@@ -127,12 +139,17 @@ const remove = defineOpenAPIRoute({
     tags: ['OAuth2Apps'],
     summary: '删除 OAuth2 应用',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:oauth2-apps:manage' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:oauth2-apps:manage',
+      audit: { description: '删除 OAuth2 应用', module: 'OAuth2 应用' },
+    })] as const,
     request: { params: IdParam },
     responses: { ...commonErrorResponses, ...okMsg('删除成功') },
   }),
   handler: async (c) => {
-    await deleteOAuth2Client(c.req.valid('param').id);
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getOAuth2ClientBeforeAudit(id));
+    await deleteOAuth2Client(id);
     return c.json(okBody(null, '删除成功'), 200);
   },
 });
@@ -144,12 +161,20 @@ const regenerateSecret = defineOpenAPIRoute({
     tags: ['OAuth2Apps'],
     summary: '重置 OAuth2 应用的 client_secret（仅返回一次）',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:oauth2-apps:manage' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:oauth2-apps:manage',
+      audit: { description: '重置 OAuth2 应用密钥', module: 'OAuth2 应用', recordResponseBody: false },
+    })] as const,
     request: { params: IdParam },
     responses: { ...commonErrorResponses, ...ok(OAuth2ClientSecretDTO, '重置成功') },
   }),
-  handler: async (c) =>
-    c.json(okBody(await regenerateOAuth2ClientSecret(c.req.valid('param').id), '新 secret 仅返回一次，请妥善保存'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getOAuth2ClientBeforeAudit(id));
+    const result = await regenerateOAuth2ClientSecret(id);
+    setAuditAfterData(c, { clientId: result.clientId, clientSecret: '[REDACTED]' });
+    return c.json(okBody(result, '新 secret 仅返回一次，请妥善保存'), 200);
+  },
 });
 
 const tokens = defineOpenAPIRoute({
@@ -176,12 +201,17 @@ const revokeTokenRoute = defineOpenAPIRoute({
     tags: ['OAuth2Apps'],
     summary: '撤销令牌',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:oauth2-apps:manage' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:oauth2-apps:manage',
+      audit: { description: '撤销 OAuth2 令牌', module: 'OAuth2 应用' },
+    })] as const,
     request: { params: IdParam },
     responses: { ...commonErrorResponses, ...okMsg('令牌已撤销') },
   }),
   handler: async (c) => {
-    await revokeToken(c.req.valid('param').id);
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getOAuth2TokenBeforeAudit(id));
+    await revokeToken(id);
     return c.json(okBody(null, '令牌已撤销'), 200);
   },
 });

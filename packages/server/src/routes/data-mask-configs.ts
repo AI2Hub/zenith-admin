@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import { jsonContent, validationHook, commonErrorResponses, ok, okMsg, okPaginated, IdParam, okBody, PaginationQuery } from '../lib/openapi-schemas';
 import { DataMaskConfigDTO, SensitiveFieldDTO } from '../lib/openapi-dtos';
 import { maskTypeValues } from '@zenith/shared';
@@ -85,6 +85,7 @@ const updateRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
+    setAuditBeforeData(c, await getDataMaskConfig(id));
     return c.json(okBody(await updateDataMaskConfig(id, body)), 200);
   },
 });
@@ -99,6 +100,7 @@ const deleteRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getDataMaskConfig(id));
     await deleteDataMaskConfig(id);
     return c.json(okBody(null, '删除成功'), 200);
   },

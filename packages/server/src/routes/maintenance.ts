@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import { validationHook, ok, okPaginated, okBody, commonErrorResponses, PaginationQuery } from '../lib/openapi-schemas';
 import { MaintenanceStatusDTO, MaintenanceLogDTO } from '../lib/openapi-dtos';
 import { getMaintenanceStatus, updateMaintenanceStatus, listMaintenanceLogs } from '../services/maintenance.service';
@@ -28,7 +28,10 @@ const getRoute = defineOpenAPIRoute({
     tags: ['维护模式'],
     summary: '获取维护模式详情',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:maintenance:manage' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:maintenance:manage',
+      audit: { description: '更新维护模式', module: '维护模式' },
+    })] as const,
     responses: { ...ok(MaintenanceStatusDTO, '维护模式状态'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await getMaintenanceStatus()), 200),
@@ -54,6 +57,7 @@ const updateRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const body = c.req.valid('json');
+    setAuditBeforeData(c, await getMaintenanceStatus());
     const result = await updateMaintenanceStatus(body);
     return c.json(okBody(result), 200);
   },

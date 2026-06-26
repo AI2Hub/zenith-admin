@@ -56,6 +56,12 @@ export async function listRateLimitRules() {
   return rows.map(mapRule);
 }
 
+export async function getRateLimitRuleBeforeAudit(id: number) {
+  const [row] = await db.select().from(rateLimitRules).where(eq(rateLimitRules.id, id));
+  if (!row) throw new HTTPException(404, { message: '规则不存在' });
+  return mapRule(row);
+}
+
 export interface UpdateRateLimitRuleInput {
   windowMs?: number;
   limit?: number;

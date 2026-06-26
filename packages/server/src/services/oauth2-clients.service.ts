@@ -38,6 +38,20 @@ function mapClientRow(row: typeof oauth2Clients.$inferSelect) {
   };
 }
 
+function mapTokenAuditRow(row: typeof oauth2Tokens.$inferSelect) {
+  return {
+    id: row.id,
+    tokenType: row.tokenType as 'access' | 'refresh',
+    tokenPrefix: row.tokenPrefix,
+    clientId: row.clientId,
+    userId: row.userId,
+    scopes: row.scopes ?? [],
+    expiresAt: formatNullableDateTime(row.expiresAt),
+    revoked: row.revoked,
+    createdAt: formatDateTime(row.createdAt),
+  };
+}
+
 // ─── CRUD ─────────────────────────────────────────────────────────────────────
 
 export async function listOAuth2Clients(opts: { page: number; pageSize: number; keyword?: string }) {
@@ -115,6 +129,10 @@ export async function getOAuth2Client(id: number) {
   const [row] = await db.select().from(oauth2Clients).where(eq(oauth2Clients.id, id));
   if (!row) throw new HTTPException(404, { message: 'OAuth2 应用不存在' });
   return mapClientRow(row);
+}
+
+export async function getOAuth2ClientBeforeAudit(id: number) {
+  return getOAuth2Client(id);
 }
 
 export async function getOAuth2ClientByClientId(clientId: string) {
@@ -204,6 +222,12 @@ export async function listClientTokens(clientId: string, opts: { page: number; p
     page,
     pageSize,
   };
+}
+
+export async function getOAuth2TokenBeforeAudit(id: number) {
+  const [row] = await db.select().from(oauth2Tokens).where(eq(oauth2Tokens.id, id));
+  if (!row) throw new HTTPException(404, { message: '令牌不存在' });
+  return mapTokenAuditRow(row);
 }
 
 export async function revokeToken(id: number) {

@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditAfterData } from '../middleware/guard';
 import { PaginationQuery, validationHook, commonErrorResponses, ok, okPaginated, okBody, okExcel, excelStreamBody, okCsv, csvStreamBody, okMsg } from '../lib/openapi-schemas';
 import { LoginLogDTO, LoginLogStatsDTO } from '../lib/openapi-dtos';
 import { listLoginLogs, loginLogStats, exportLoginLogs, exportLoginLogsAsCsv, cleanLoginLogs } from '../services/login-logs.service';
@@ -11,7 +11,10 @@ const listRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/', tags: ['LoginLogs'], summary: '登录日志分页查询',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:log:login' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:log:login',
+      audit: { description: '清除登录日志', module: '登录日志' },
+    })] as const,
     request: {
       query: PaginationQuery.extend({
         username: z.string().optional(),
@@ -74,6 +77,7 @@ const cleanRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const { months } = c.req.valid('query');
     const deleted = await cleanLoginLogs(months);
+    setAuditAfterData(c, { months, deleted });
     return c.json(okBody(null, `共删除 ${deleted} 条登录日志`), 200);
   },
 });

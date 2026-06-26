@@ -2,12 +2,12 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { streamSSE } from 'hono/streaming';
 import fs from 'node:fs';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import { validationHook, commonErrorResponses, ok, okMsg, ErrorResponse, jsonContent, okBody, errBody } from '../lib/openapi-schemas';
 import { LogFileDTO, LogFileContentDTO } from '../lib/openapi-dtos';
 import {
   readLastLines, watchTail,
-  listLogFiles, readLogFileLines, deleteLogFile, resolveLogFile,
+  listLogFiles, readLogFileLines, deleteLogFile, resolveLogFile, getLogFileBeforeAudit,
 } from '../services/log-files.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -52,7 +52,10 @@ const deleteApiRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'delete', path: '/:filename', tags: ['LogFiles'], summary: '删除日志文件',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:log:files:delete' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:log:files:delete',
+      audit: { description: '删除日志文件', module: '日志文件' },
+    })] as const,
     request: {
       params: z.object({ filename: z.string().openapi({ param: { name: 'filename', in: 'path' }, example: 'app.log' }) }),
     },
@@ -64,7 +67,9 @@ const deleteApiRoute = defineOpenAPIRoute({
     },
   }),
   handler: async (c) => {
-    deleteLogFile(c.req.param('filename'));
+    const filename = c.req.param('filename');
+    setAuditBeforeData(c, getLogFileBeforeAudit(filename));
+    deleteLogFile(filename);
     return c.json(okBody(null, '删除成功'), 200);
   },
 });

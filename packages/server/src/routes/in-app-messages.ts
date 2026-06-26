@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
@@ -11,6 +11,7 @@ import {
   listMyInAppMessages, getMyInAppMessage, markAsRead, markAllAsRead, unreadCount,
   deleteInAppMessage, sendInApp,
   listAllInAppMessages, adminDeleteInAppMessage, adminMarkAsRead,
+  getInAppMessageBeforeAudit,
 } from '../services/in-app-messages.service';
 
 const inAppMessagesRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -57,7 +58,10 @@ const sendRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/send', tags: ['InAppMessages'], summary: '发送站内信',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:in-app-template:list' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:in-app-template:list',
+      audit: { description: '发送站内信', module: '收件记录' },
+    })] as const,
     request: { body: { content: jsonContent(sendInAppSchema), required: true } },
     responses: { ...commonErrorResponses, ...ok(InAppSendResultDTO, '发送结果') },
   }),
@@ -128,12 +132,17 @@ const adminMarkReadRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/admin/{id}/read', tags: ['InAppMessages'], summary: '管理员：标记任意站内信为已读',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:in-app-message:update' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:in-app-message:update',
+      audit: { description: '管理员标记站内信已读', module: '收件记录' },
+    })] as const,
     request: { params: IdParam },
     responses: { ...commonErrorResponses, ...okMsg('已标记') },
   }),
   handler: async (c) => {
-    await adminMarkAsRead(c.req.valid('param').id);
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getInAppMessageBeforeAudit(id));
+    await adminMarkAsRead(id);
     return c.json(okBody(null, '已标记'), 200);
   },
 });
@@ -142,12 +151,17 @@ const adminDeleteRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'delete', path: '/admin/{id}', tags: ['InAppMessages'], summary: '管理员：删除任意站内信',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:in-app-message:delete' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'system:in-app-message:delete',
+      audit: { description: '管理员删除站内信', module: '收件记录' },
+    })] as const,
     request: { params: IdParam },
     responses: { ...commonErrorResponses, ...okMsg('删除成功') },
   }),
   handler: async (c) => {
-    await adminDeleteInAppMessage(c.req.valid('param').id);
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getInAppMessageBeforeAudit(id));
+    await adminDeleteInAppMessage(id);
     return c.json(okBody(null, '删除成功'), 200);
   },
 });
