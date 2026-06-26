@@ -336,6 +336,63 @@ function RealtimeTab() {
 }
 
 type PageStatsRow = PageStats['items'][number] & { id: string };
+type MutableTreemapNode = {
+  name: string;
+  value?: number;
+  children?: MutableTreemapNode[];
+  [key: string]: unknown;
+};
+
+function getRouteSegments(pagePath: string): string[] {
+  const parts = pagePath.split('/').filter(Boolean);
+  return parts.length ? parts : ['首页'];
+}
+
+function addDwellPathNode(nodes: MutableTreemapNode[], segments: string[], row: PageStatsRow) {
+  const [current, ...rest] = segments;
+  if (!current) return;
+  const isLeaf = rest.length === 0;
+  const weight = Math.max(1, Math.round((row.avgMs ?? 0) * row.visits));
+  const existing = nodes.find((node) => node.name === current);
+
+  if (isLeaf) {
+    const pageNode: MutableTreemapNode = {
+      name: row.pageTitle || row.pagePath,
+      value: weight,
+      pagePath: row.pagePath,
+      visits: row.visits,
+      avgMs: row.avgMs,
+      totalMs: weight,
+    };
+    if (existing) {
+      existing.value = (existing.value ?? 0) + weight;
+      existing.children = [...(existing.children ?? []), pageNode];
+      return;
+    }
+    nodes.push(pageNode);
+    return;
+  }
+
+  const branch = existing ?? { name: current, value: 0, children: [] };
+  branch.value = (branch.value ?? 0) + weight;
+  branch.children ??= [];
+  if (!existing) nodes.push(branch);
+  addDwellPathNode(branch.children, rest, row);
+}
+
+function sortTreemapNodes(nodes: TreemapNode[]): TreemapNode[] {
+  return nodes
+    .map((node) => ({ ...node, children: node.children ? sortTreemapNodes(node.children) : undefined }))
+    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+}
+
+function buildDwellTreemap(rows: readonly PageStatsRow[]): TreemapNode {
+  const children: MutableTreemapNode[] = [];
+  for (const row of rows) {
+    addDwellPathNode(children, getRouteSegments(row.pagePath), row);
+  }
+  return { name: '页面停留', children: sortTreemapNodes(children) };
+}
 
 function DwellTab() {
   const palette = useChartPalette();
@@ -358,6 +415,17 @@ function DwellTab() {
   const rows = useMemo<PageStatsRow[]>(() => (data?.items ?? []).map((item) => ({ ...item, id: item.pagePath })), [data]);
   const maxAvg = useMemo(() => Math.max(1, ...rows.map((item) => item.avgMs ?? 0)), [rows]);
   const avgDwell = data?.avgDwellMs ?? null;
+  const dwellTreemapData = useMemo(() => buildDwellTreemap(rows), [rows]);
+  const dwellTreemapSpec = useMemo(() => makeTreemapSpec({
+    data: dwellTreemapData,
+    palette,
+    valueFormatter: msToReadable,
+    tooltipItems: [
+      { key: '总停留', value: (datum) => msToReadable(datumNumber(datum, 'totalMs') || datumNumber(datum, 'value')) },
+      { key: '访问次数', value: (datum) => numberText(datumNumber(datum, 'visits')) },
+      { key: '平均停留', value: (datum) => msToReadable(datumNumber(datum, 'avgMs')) },
+    ],
+  }), [dwellTreemapData, palette]);
 
   const columns: ColumnProps<PageStatsRow>[] = [
     {
@@ -399,6 +467,11 @@ function DwellTab() {
         <StatCard label="统计页面" value={numberText(rows.length)} icon={<BarChart3 size={19} />} color="#8b5cf6" />
         <StatCard label="平均停留" value={msToReadable(avgDwell)} icon={<Clock size={19} />} color="#06b6d4" />
       </div>
+      <Card title="页面停留热区" bodyStyle={{ padding: 16 }}>
+        {!rows.length ? emptyOrSpin(loading, '暂无页面停留数据') : (
+          <TreemapChart {...dwellTreemapSpec} options={chartOptions} height={360} />
+        )}
+      </Card>
       <ConfigurableTable<PageStatsRow>
         bordered
         columns={columns}

@@ -425,6 +425,7 @@ export interface TreemapOptions {
   readonly minChildrenVisibleArea?: number;
   readonly labelFontSize?: number;
   readonly valueFormatter?: (value: number) => string;
+  readonly tooltipItems?: { key: string; value: (datum: ChartDatum) => string }[];
 }
 
 function treemapPath(datum: ChartDatum): string {
@@ -445,6 +446,12 @@ export function makeTreemapSpec(o: TreemapOptions): Partial<ITreemapChartSpec> {
   const valueField = o.valueField ?? 'value';
   const valueFmt = o.valueFormatter ?? ((value: number) => compactCount(value));
   const values = isTreemapNodeArray(o.data) ? [...o.data] : [...(o.data.children ?? [])];
+  const tooltipItems = o.tooltipItems ?? [
+    {
+      key: '使用次数',
+      value: (datum?: ChartDatum) => valueFmt(datumNumber(datum, valueField)),
+    },
+  ];
 
   return {
     type: 'treemap',
@@ -501,12 +508,7 @@ export function makeTreemapSpec(o: TreemapOptions): Partial<ITreemapChartSpec> {
       ...makeCommonTooltip(o.palette),
       mark: {
         title: { value: (datum?: ChartDatum) => treemapPath(datum) },
-        content: [
-          {
-            key: '使用次数',
-            value: (datum?: ChartDatum) => valueFmt(datumNumber(datum, valueField)),
-          },
-        ],
+        content: tooltipItems,
       },
     },
   };
