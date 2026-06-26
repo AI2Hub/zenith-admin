@@ -828,7 +828,7 @@ export default function UsersPage() {
 
   const renderMobileExportActions = () => (
     hasPermission('system:user:export')
-      ? <ExportButton entity="system.users" query={buildExportQuery()} label="导出" />
+      ? <ExportButton entity="system.users" query={buildExportQuery()} label="导出" variant="flat" />
       : null
   );
 

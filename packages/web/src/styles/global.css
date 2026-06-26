@@ -363,6 +363,10 @@ body {
   width: 100%;
 }
 
+.responsive-toolbar__mobile-actions .export-button--flat {
+  width: 100% !important;
+}
+
 .search-toolbar-filter-sheet .semi-sidesheet-inner {
   width: 100vw !important;
   max-width: 100vw !important;
