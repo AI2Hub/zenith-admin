@@ -45,11 +45,15 @@ const updateRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'put', path: '/{id}', tags: ['支付中心-支付链接'], summary: '编辑支付链接',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'payment:link:update', audit: { description: '编辑支付链接', module: '支付中心' } })] as const,
+    middleware: [authMiddleware, guard({ permission: 'payment:link:update', audit: { description: '编辑支付链接', module: '支付中心', recordResponseBody: false } })] as const,
     request: { params: IdParam, body: { content: jsonContent(updatePaymentLinkSchema), required: true } },
     responses: { ...ok(PaymentLinkDTO, '更新成功'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await updateLink(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getLink(id));
+    return c.json(okBody(await updateLink(id, c.req.valid('json')), '更新成功'), 200);
+  },
 });
 
 const deleteRoute = defineOpenAPIRoute({

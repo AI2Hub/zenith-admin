@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import {
   ok,
   okBody,
@@ -9,7 +9,7 @@ import {
   commonErrorResponses,
 } from '../lib/openapi-schemas';
 import { CheckinSettingsDTO } from '../lib/openapi-dtos';
-import { getCheckinSettings, updateCheckinSettings } from '../services/checkin-settings.service';
+import { getCheckinSettings, updateCheckinSettings, getCheckinSettingsBeforeAudit } from '../services/checkin-settings.service';
 
 const checkinSettingsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -43,7 +43,10 @@ const updateRoute = defineOpenAPIRoute({
     request: { body: { content: jsonContent(settingsBody), required: true } },
     responses: { ...commonErrorResponses, ...ok(CheckinSettingsDTO, '更新成功') },
   }),
-  handler: async (c) => c.json(okBody(await updateCheckinSettings(c.req.valid('json')), '更新成功'), 200),
+  handler: async (c) => {
+    setAuditBeforeData(c, await getCheckinSettingsBeforeAudit());
+    return c.json(okBody(await updateCheckinSettings(c.req.valid('json')), '更新成功'), 200);
+  },
 });
 
 checkinSettingsRouter.openapiRoutes([getRoute, updateRoute] as const);

@@ -20,6 +20,8 @@ import { escapeLike, withPagination } from '../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../lib/db-errors';
 import { getCheckinSettingsRow } from './checkin-settings.service';
 import { grantCouponInTx } from './coupons.service';
+import { getMemberDetail } from './admin-members.service';
+import { getPointAccountBeforeAudit } from './member-points.service';
 
 function mapMemberCheckin(row: MemberCheckinRow, memberNickname?: string | null) {
   return {
@@ -96,6 +98,28 @@ export async function listMemberCheckins(params: {
     total,
     page: params.page,
     pageSize: params.pageSize,
+  };
+}
+
+export async function getMakeupCheckinBeforeAudit(memberId: number, date: string) {
+  const [member, points, existing, recentRows] = await Promise.all([
+    getMemberDetail(memberId),
+    getPointAccountBeforeAudit(memberId),
+    db.query.memberCheckins.findFirst({
+      where: and(eq(memberCheckins.memberId, memberId), eq(memberCheckins.checkinDate, date)),
+    }),
+    db.query.memberCheckins.findMany({
+      where: eq(memberCheckins.memberId, memberId),
+      orderBy: desc(memberCheckins.checkinDate),
+      limit: 5,
+    }),
+  ]);
+  return {
+    member,
+    points,
+    targetDate: date,
+    targetCheckin: existing ? mapMemberCheckin(existing) : null,
+    recentCheckins: recentRows.map((row) => mapMemberCheckin(row)),
   };
 }
 

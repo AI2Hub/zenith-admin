@@ -50,7 +50,11 @@ const updateRoute = defineOpenAPIRoute({
     request: { params: IdParam, body: { content: jsonContent(updatePaymentFeeRuleSchema), required: true } },
     responses: { ...ok(PaymentFeeRuleDTO, '更新成功'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await updateFeeRule(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getFeeRule(id));
+    return c.json(okBody(await updateFeeRule(id, c.req.valid('json')), '更新成功'), 200);
+  },
 });
 
 const deleteRoute = defineOpenAPIRoute({

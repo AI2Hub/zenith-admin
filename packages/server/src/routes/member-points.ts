@@ -1,11 +1,11 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import {
   jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okBody, IdParam, PaginationQuery,
 } from '../lib/openapi-schemas';
 import { MemberPointTransactionDTO, MemberPointAccountDTO } from '../lib/openapi-dtos';
-import { listPointTransactions, adjustPoints, getPointAccount } from '../services/member-points.service';
+import { listPointTransactions, adjustPoints, getPointAccount, getPointAccountBeforeAudit } from '../services/member-points.service';
 import { currentUser } from '../lib/context';
 
 const pointsRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -53,6 +53,7 @@ const adjustRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { memberId, delta, remark } = c.req.valid('json');
+    setAuditBeforeData(c, await getPointAccountBeforeAudit(memberId));
     const acc = await adjustPoints(memberId, delta, currentUser().userId, remark);
     return c.json(okBody({ memberId: acc.memberId, balance: acc.balance, frozen: acc.frozen, totalEarned: acc.totalEarned, totalSpent: acc.totalSpent }, '已调整'), 200);
   },

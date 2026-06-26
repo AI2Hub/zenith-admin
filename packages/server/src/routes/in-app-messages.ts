@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard, setAuditBeforeData } from '../middleware/guard';
+import { guard, setAuditAfterData, setAuditBeforeData } from '../middleware/guard';
 import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
@@ -10,7 +10,7 @@ import { InAppMessageDTO, InAppSendResultDTO, UnreadCountDTO } from '../lib/open
 import {
   listMyInAppMessages, getMyInAppMessage, markAsRead, markAllAsRead, unreadCount,
   deleteInAppMessage, sendInApp,
-  listAllInAppMessages, adminDeleteInAppMessage, adminMarkAsRead,
+  listAllInAppMessages, adminDeleteInAppMessage, adminMarkAsRead, adminMarkAllAsRead,
   getInAppMessageBeforeAudit,
 } from '../services/in-app-messages.service';
 
@@ -128,6 +128,23 @@ const adminListRoute = defineOpenAPIRoute({
   handler: async (c) => c.json(okBody(await listAllInAppMessages(c.req.valid('query'))), 200),
 });
 
+const adminMarkAllReadRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/admin/read-all', tags: ['InAppMessages'], summary: '管理员：全部标记为已读',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'system:in-app-message:update',
+      audit: { description: '管理员全部标记站内信已读', module: '收件记录' },
+    })] as const,
+    responses: { ...commonErrorResponses, ...okMsg('已全部标记') },
+  }),
+  handler: async (c) => {
+    const result = await adminMarkAllAsRead();
+    setAuditAfterData(c, result);
+    return c.json(okBody(null, '已全部标记'), 200);
+  },
+});
+
 const adminMarkReadRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/admin/{id}/read', tags: ['InAppMessages'], summary: '管理员：标记任意站内信为已读',
@@ -166,6 +183,9 @@ const adminDeleteRoute = defineOpenAPIRoute({
   },
 });
 
-inAppMessagesRouter.openapiRoutes([listRoute, adminListRoute, unreadCountRoute, detailRoute, sendRoute, markAllReadRoute, markReadRoute, adminMarkReadRoute, deleteRoute, adminDeleteRoute] as const);
+inAppMessagesRouter.openapiRoutes([
+  listRoute, adminListRoute, adminMarkAllReadRoute, adminMarkReadRoute, adminDeleteRoute,
+  unreadCountRoute, sendRoute, markAllReadRoute, detailRoute, markReadRoute, deleteRoute,
+] as const);
 
 export default inAppMessagesRouter;

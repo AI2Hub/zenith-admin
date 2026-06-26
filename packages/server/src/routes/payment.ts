@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard, setAuditBeforeData } from '../middleware/guard';
+import { guard, setAuditAfterData, setAuditBeforeData } from '../middleware/guard';
 import { idempotencyGuard } from '../middleware/idempotency';
 import {
   PaginationQuery,
@@ -305,11 +305,15 @@ const orderQueryRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/orders/{id}/query', tags: ['支付中心'], summary: '主动查询并同步订单状态',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'payment:order:list' })] as const,
+    middleware: [authMiddleware, guard({ permission: 'payment:order:list', audit: { description: '主动同步支付订单状态', module: '支付中心' } })] as const,
     request: { params: IdParam },
     responses: { ...ok(PaymentOrderDTO, '最新订单状态'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await refreshOrderById(c.req.valid('param').id), '已同步'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getOrderDetail(id));
+    return c.json(okBody(await refreshOrderById(id), '已同步'), 200);
+  },
 });
 
 const orderCloseRoute = defineOpenAPIRoute({
@@ -367,11 +371,15 @@ const refundQueryRoute = defineOpenAPIRoute({
     method: 'post', path: '/refunds/{id}/query', tags: ['支付中心'], summary: '主动查询并同步退款状态',
     description: '向支付渠道发起退款查单，纠正本地退款单状态（处理中→成功/失败），回调兜底。',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'payment:refund:list' })] as const,
+    middleware: [authMiddleware, guard({ permission: 'payment:refund:list', audit: { description: '主动同步退款状态', module: '支付中心' } })] as const,
     request: { params: IdParam },
     responses: { ...ok(PaymentRefundDTO, '最新退款状态'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await refreshRefundById(c.req.valid('param').id), '已同步'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getRefundDetail(id));
+    return c.json(okBody(await refreshRefundById(id), '已同步'), 200);
+  },
 });
 
 const refundApproveRoute = defineOpenAPIRoute({
@@ -382,7 +390,13 @@ const refundApproveRoute = defineOpenAPIRoute({
     request: { params: IdParam, body: { content: jsonContent(z.object({ remark: z.string().max(256).optional() })), required: true } },
     responses: { ...ok(PaymentRefundResultDTO, '审批通过'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await approveRefund(c.req.valid('param').id, c.req.valid('json').remark), '已审批通过'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getRefundDetail(id));
+    const result = await approveRefund(id, c.req.valid('json').remark);
+    setAuditAfterData(c, await getRefundDetail(id));
+    return c.json(okBody(result, '已审批通过'), 200);
+  },
 });
 
 const refundRejectRoute = defineOpenAPIRoute({
@@ -395,7 +409,9 @@ const refundRejectRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getRefundDetail(id));
     await rejectRefund(id, c.req.valid('json').remark);
+    setAuditAfterData(c, await getRefundDetail(id));
     return c.json(okBody(null, '已驳回'), 200);
   },
 });

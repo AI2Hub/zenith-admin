@@ -60,7 +60,11 @@ const updateReceiverRoute = defineOpenAPIRoute({
     request: { params: IdParam, body: { content: jsonContent(updatePaymentSharingReceiverSchema), required: true } },
     responses: { ...ok(PaymentSharingReceiverDTO, '更新成功'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await updateReceiver(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getReceiver(id));
+    return c.json(okBody(await updateReceiver(id, c.req.valid('json')), '更新成功'), 200);
+  },
 });
 
 const deleteReceiverRoute = defineOpenAPIRoute({

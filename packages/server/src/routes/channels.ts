@@ -552,7 +552,10 @@ const listTemplates = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/templates', tags: ['Channels'], summary: '群发消息模板列表',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'channel:message:publish' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'channel:message:publish',
+      audit: { description: '测试发送频道消息', module: '消息中心' },
+    })] as const,
     responses: { ...commonErrorResponses, ...ok(z.array(ChannelMessageTemplateDTO), '模板列表') },
   }),
   handler: async (c) => c.json(okBody(await listChannelTemplates()), 200),

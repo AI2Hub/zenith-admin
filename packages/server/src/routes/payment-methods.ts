@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute } from '@hono/zod-openapi'
 import { z } from '@hono/zod-openapi';
 import { updatePaymentMethodConfigSchema } from '@zenith/shared';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import { jsonContent, validationHook, commonErrorResponses, ok, IdParam, okBody } from '../lib/openapi-schemas';
 import { PaymentMethodConfigDTO } from '../lib/openapi-dtos';
 import { listMethodConfigs, listEnabledMethodConfigs, getMethodConfig, updateMethodConfig } from '../services/payment-method.service';
@@ -48,7 +48,11 @@ const updateRoute = defineOpenAPIRoute({
     request: { params: IdParam, body: { content: jsonContent(updatePaymentMethodConfigSchema), required: true } },
     responses: { ...ok(PaymentMethodConfigDTO, '更新成功'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await updateMethodConfig(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getMethodConfig(id));
+    return c.json(okBody(await updateMethodConfig(id, c.req.valid('json')), '更新成功'), 200);
+  },
 });
 
 router.openapiRoutes([listRoute, enabledRoute, detailRoute, updateRoute] as const);

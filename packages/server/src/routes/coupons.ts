@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard, setAuditBeforeData } from '../middleware/guard';
+import { guard, setAuditAfterData, setAuditBeforeData } from '../middleware/guard';
 import {
   ErrorResponse, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, okBody, IdParam, PaginationQuery,
@@ -8,7 +8,7 @@ import {
 import { CouponDTO, MemberCouponDTO } from '../lib/openapi-dtos';
 import {
   listCoupons, getCoupon, createCoupon, updateCoupon, deleteCoupon, ensureCouponExists,
-  issueCoupon, listMemberCoupons, revokeCoupon,
+  issueCoupon, listMemberCoupons, revokeCoupon, getMemberCouponBeforeAudit,
 } from '../services/coupons.service';
 
 const couponsRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -80,7 +80,10 @@ const revokeRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okMsg('已作废') },
   }),
   handler: async (c) => {
-    await revokeCoupon(c.req.valid('param').id);
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getMemberCouponBeforeAudit(id));
+    await revokeCoupon(id);
+    setAuditAfterData(c, await getMemberCouponBeforeAudit(id));
     return c.json(okBody(null, '已作废'), 200);
   },
 });
@@ -137,7 +140,13 @@ const issueRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { memberId } = c.req.valid('json');
-    return c.json(okBody(await issueCoupon(id, memberId), '发放成功'), 200);
+    setAuditBeforeData(c, await ensureCouponExists(id));
+    const issued = await issueCoupon(id, memberId);
+    setAuditAfterData(c, {
+      coupon: await ensureCouponExists(id),
+      issued,
+    });
+    return c.json(okBody(issued, '发放成功'), 200);
   },
 });
 

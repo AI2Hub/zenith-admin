@@ -1,11 +1,11 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import {
   jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okBody, IdParam, PaginationQuery,
 } from '../lib/openapi-schemas';
 import { MemberWalletTransactionDTO, MemberWalletDTO } from '../lib/openapi-dtos';
-import { listWalletTransactions, getWallet, adjustWallet, refundWallet, mapWallet } from '../services/member-wallet.service';
+import { listWalletTransactions, getWallet, adjustWallet, refundWallet, mapWallet, getWalletBeforeAudit } from '../services/member-wallet.service';
 import { currentUser } from '../lib/context';
 
 const walletsRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -58,6 +58,7 @@ const adjustRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { memberId, amount, remark } = c.req.valid('json');
+    setAuditBeforeData(c, await getWalletBeforeAudit(memberId));
     const w = await adjustWallet(memberId, amount, currentUser().userId, remark);
     return c.json(okBody(mapWallet(w), '已调整'), 200);
   },
@@ -73,6 +74,7 @@ const refundRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { memberId, amount, remark } = c.req.valid('json');
+    setAuditBeforeData(c, await getWalletBeforeAudit(memberId));
     const w = await refundWallet(memberId, amount, { operatorId: currentUser().userId, remark, bizType: 'admin_refund' });
     return c.json(okBody(mapWallet(w), '已退款'), 200);
   },

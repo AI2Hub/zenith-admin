@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard, setAuditBeforeData } from '../middleware/guard';
+import { guard, setAuditAfterData, setAuditBeforeData } from '../middleware/guard';
 import {
   ErrorResponse, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, okBody, IdParam, PaginationQuery, okExcel, excelStreamBody, okCsv, csvStreamBody, BatchIdsBody,
@@ -10,9 +10,9 @@ import {
   listMembers, getMemberDetail, getMemberOverview, getMemberOptions, listMemberLoginLogs, createMember, updateMember,
   setMemberStatus, batchSetMemberStatus, batchSetMemberLevel,
   resetMemberPasswordByAdmin, deleteMember, exportMembers, exportMembersAsCsv,
+  getMemberBeforeAudit, getMembersBeforeAudit,
 } from '../services/admin-members.service';
-import { doMakeupCheckin } from '../services/member-checkin.service';
-import { ensureMemberExists } from '../services/member-auth.service';
+import { doMakeupCheckin, getMakeupCheckinBeforeAudit } from '../services/member-checkin.service';
 
 const membersRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -67,7 +67,11 @@ const batchStatusRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { ids, status } = c.req.valid('json');
+    const before = await getMembersBeforeAudit(ids);
+    if (before.length > 0) setAuditBeforeData(c, before);
     const count = await batchSetMemberStatus(ids, status);
+    const after = await getMembersBeforeAudit(ids);
+    if (after.length > 0) setAuditAfterData(c, after);
     return c.json(okBody(null, `已更新 ${count} 名会员状态`), 200);
   },
 });
@@ -83,7 +87,11 @@ const batchLevelRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { ids, levelId } = c.req.valid('json');
+    const before = await getMembersBeforeAudit(ids);
+    if (before.length > 0) setAuditBeforeData(c, before);
     const count = await batchSetMemberLevel(ids, levelId);
+    const after = await getMembersBeforeAudit(ids);
+    if (after.length > 0) setAuditAfterData(c, after);
     return c.json(okBody(null, `已调整 ${count} 名会员等级`), 200);
   },
 });
@@ -190,7 +198,10 @@ const makeupCheckinRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { date } = c.req.valid('json');
-    return c.json(okBody(await doMakeupCheckin({ memberId: id, date, mode: 'admin' }), '补签成功'), 200);
+    setAuditBeforeData(c, await getMakeupCheckinBeforeAudit(id, date));
+    const result = await doMakeupCheckin({ memberId: id, date, mode: 'admin' });
+    setAuditAfterData(c, await getMakeupCheckinBeforeAudit(id, date));
+    return c.json(okBody(result, '补签成功'), 200);
   },
 });
 
@@ -227,9 +238,7 @@ const updateRoute_ = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    const before = await ensureMemberExists(id);
-    const { password: _pw, ...safeBefore } = before;
-    setAuditBeforeData(c, safeBefore);
+    setAuditBeforeData(c, await getMemberBeforeAudit(id));
     return c.json(okBody(await updateMember(id, c.req.valid('json')), '更新成功'), 200);
   },
 });
@@ -246,6 +255,7 @@ const setStatusRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { status } = c.req.valid('json');
+    setAuditBeforeData(c, await getMemberBeforeAudit(id));
     return c.json(okBody(await setMemberStatus(id, status), '已更新'), 200);
   },
 });
@@ -261,6 +271,7 @@ const resetPwdRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getMemberBeforeAudit(id));
     await resetMemberPasswordByAdmin(id, c.req.valid('json').newPassword);
     return c.json(okBody(null, '密码已重置'), 200);
   },
@@ -277,9 +288,7 @@ const deleteRoute_ = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    const before = await ensureMemberExists(id);
-    const { password: _pw, ...safeBefore } = before;
-    setAuditBeforeData(c, safeBefore);
+    setAuditBeforeData(c, await getMemberBeforeAudit(id));
     await deleteMember(id);
     return c.json(okBody(null, '删除成功'), 200);
   },

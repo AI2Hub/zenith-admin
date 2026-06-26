@@ -2,7 +2,7 @@ import { eq, and, ilike, desc, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../db';
 import { mpAutoReplies, mpUnmatchedKeywords } from '../db/schema';
-import type { MpAutoReplyRow } from '../db/schema';
+import type { MpAutoReplyRow, MpUnmatchedKeywordRow } from '../db/schema';
 import { mergeWhere, escapeLike, withPagination } from '../lib/where-helpers';
 import { formatDateTime } from '../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../lib/tenant';
@@ -38,6 +38,22 @@ export async function ensureMpAutoReplyExists(id: number): Promise<MpAutoReplyRo
 
 export async function getMpAutoReplyBeforeAudit(id: number) {
   return mapMpAutoReply(await ensureMpAutoReplyExists(id));
+}
+
+export function mapMpUnmatchedKeyword(row: MpUnmatchedKeywordRow) {
+  return {
+    id: row.id,
+    accountId: row.accountId,
+    keyword: row.keyword,
+    count: row.count,
+    lastAt: formatDateTime(row.lastAt),
+  };
+}
+
+export async function getMpUnmatchedKeywordBeforeAudit(id: number) {
+  const [row] = await db.select().from(mpUnmatchedKeywords).where(and(eq(mpUnmatchedKeywords.id, id), tenantScope(mpUnmatchedKeywords))).limit(1);
+  if (!row) return null;
+  return mapMpUnmatchedKeyword(row);
 }
 
 export interface ListMpAutoRepliesQuery {
@@ -162,7 +178,7 @@ export async function listMpUnmatchedKeywords(accountId: number, page: number, p
     withPagination(db.select().from(mpUnmatchedKeywords).where(where).orderBy(desc(mpUnmatchedKeywords.count), desc(mpUnmatchedKeywords.lastAt)).$dynamic(), page, pageSize),
   ]);
   return {
-    list: list.map((r) => ({ id: r.id, accountId: r.accountId, keyword: r.keyword, count: r.count, lastAt: formatDateTime(r.lastAt) })),
+    list: list.map(mapMpUnmatchedKeyword),
     total, page, pageSize,
   };
 }

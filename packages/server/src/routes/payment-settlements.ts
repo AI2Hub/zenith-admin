@@ -53,7 +53,11 @@ const transitionRoute = defineOpenAPIRoute({
     request: { params: IdParam, body: { content: jsonContent(z.object({ status: z.enum(['settling', 'settled', 'failed']) })), required: true } },
     responses: { ...ok(PaymentSettlementBatchDTO, '流转成功'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await transitionSettlement(c.req.valid('param').id, c.req.valid('json').status), '流转成功'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getSettlement(id));
+    return c.json(okBody(await transitionSettlement(id, c.req.valid('json').status), '流转成功'), 200);
+  },
 });
 
 const deleteRoute = defineOpenAPIRoute({

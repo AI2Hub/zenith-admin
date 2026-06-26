@@ -134,7 +134,7 @@ export default function InAppMessagesPage() {
     Modal.confirm({
       title: '确定要将所有未读消息标记为已读吗？',
       onOk: async () => {
-        const res = await request.post('/api/in-app-messages/read-all');
+        const res = await request.post('/api/in-app-messages/admin/read-all');
         if (res.code !== 0) return;
         Toast.success('已全部标记为已读');
         globalThis.dispatchEvent(new CustomEvent('in-app-messages:refresh'));
