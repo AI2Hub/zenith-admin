@@ -23,6 +23,15 @@ function LoginStatusTag({ status, size }: Readonly<{ status: LoginLog['status'];
   );
 }
 
+function LoginEventTypeTag({ eventType, size }: Readonly<{ eventType?: LoginLog['eventType']; size?: 'small' | 'default' | 'large' }>) {
+  const normalized = eventType ?? 'login';
+  return (
+    <Tag color={normalized === 'logout' ? 'blue' : 'cyan'} size={size}>
+      {normalized === 'logout' ? '退出登录' : '登录'}
+    </Tag>
+  );
+}
+
 export function LoginLogsTable({
   dataSource,
   loading,
@@ -36,9 +45,15 @@ export function LoginLogsTable({
   const columns = useMemo<ColumnProps<LoginLog>[]>(() => [
     { title: 'ID', dataIndex: 'id', width: 80 },
     { title: '用户名', dataIndex: 'username', width: 120 },
-    { title: '登录信息', dataIndex: 'message', width: 150, render: (v: string | null) => v ?? '-' },
+    {
+      title: '事件',
+      dataIndex: 'eventType',
+      width: 110,
+      render: (eventType: LoginLog['eventType']) => <LoginEventTypeTag eventType={eventType} />,
+    },
+    { title: '事件信息', dataIndex: 'message', width: 160, render: (v: string | null) => v ?? '-' },
     { title: 'IP 地址', dataIndex: 'ip', width: 150, render: (v: string | null) => v ?? '-' },
-    { title: '登录地点', dataIndex: 'location', width: 180, render: (v: string | null) => v ?? '-' },
+    { title: '地点', dataIndex: 'location', width: 180, render: (v: string | null) => v ?? '-' },
     { title: '浏览器', dataIndex: 'browser', width: 150, render: (v: string | null) => v ?? '-' },
     { title: '操作系统', dataIndex: 'os', width: 150, render: (v: string | null) => v ?? '-' },
     {
@@ -48,7 +63,7 @@ export function LoginLogsTable({
       render: (status: LoginLog['status']) => <LoginStatusTag status={status} />,
     },
     {
-      title: '登录时间',
+      title: '操作时间',
       dataIndex: 'createdAt',
       width: 180,
       render: (v: string) => formatDateTime(v),
@@ -98,17 +113,18 @@ export function LoginLogsTable({
             data={[
               { key: 'ID', value: String(detailLog.id) },
               { key: '用户名', value: detailLog.username },
+              { key: '事件', value: <LoginEventTypeTag eventType={detailLog.eventType} size="small" /> },
               {
                 key: '状态',
                 value: <LoginStatusTag status={detailLog.status} size="small" />,
               },
-              { key: '登录信息', value: detailLog.message ?? '-' },
+              { key: '事件信息', value: detailLog.message ?? '-' },
               { key: 'IP 地址', value: detailLog.ip ?? '-' },
-              { key: '登录地点', value: detailLog.location ?? '-' },
+              { key: '地点', value: detailLog.location ?? '-' },
               { key: '浏览器', value: detailLog.browser ?? '-' },
               { key: '操作系统', value: detailLog.os ?? '-' },
               { key: 'User-Agent', value: detailLog.userAgent ?? '-', span: 2 },
-              { key: '登录时间', value: formatDateTime(detailLog.createdAt), span: 2 },
+              { key: '操作时间', value: formatDateTime(detailLog.createdAt), span: 2 },
               ...(detailLog.screenWidth && detailLog.screenHeight ? [
                 { key: '屏幕分辨率', value: [detailLog.screenWidth, ' × ', detailLog.screenHeight, detailLog.devicePixelRatio && detailLog.devicePixelRatio !== '1' ? ` (${detailLog.devicePixelRatio}x)` : ''].join(''), span: 2 },
               ] : []),

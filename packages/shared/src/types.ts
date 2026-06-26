@@ -346,6 +346,8 @@ export interface FileStats {
 }
 
 // ─── Login Logs ──────────────────────────────────────────
+export type LoginEventType = 'login' | 'logout';
+
 export interface LoginLog {
   id: number;
   userId: number | null;
@@ -355,6 +357,7 @@ export interface LoginLog {
   browser: string | null;
   os: string | null;
   userAgent: string | null;
+  eventType: LoginEventType;
   status: 'success' | 'fail';
   message: string | null;
   screenWidth?: number | null;

@@ -58,8 +58,11 @@ export interface DeviceInfo {
   memoryGb?: string;
 }
 
+export type LoginEventType = 'login' | 'logout';
+
 export interface LoginLogParams {
   username: string;
+  eventType?: LoginEventType;
   status: 'success' | 'fail';
   message: string;
   userId?: number;
@@ -70,7 +73,7 @@ export interface LoginLogParams {
 }
 
 export async function recordLoginLog(params: LoginLogParams) {
-  const { username, status, message, userId, tenantId, ip, ua, deviceInfo } = params;
+  const { username, eventType = 'login', status, message, userId, tenantId, ip, ua, deviceInfo } = params;
   const { browser, os } = parseUserAgent(ua);
   await db.insert(loginLogs).values({
     username,
@@ -80,6 +83,7 @@ export async function recordLoginLog(params: LoginLogParams) {
     browser,
     os,
     userAgent: ua || null,
+    eventType,
     status,
     message,
     tenantId: tenantId ?? null,
@@ -307,9 +311,24 @@ export async function refreshAccessToken(token: string, clientInfo?: { ip: strin
   return { accessToken };
 }
 
-export async function logoutSession() {
-  const tokenId = currentUser().jti;
-  if (tokenId) await removeSession(tokenId);
+export async function logoutSession(clientInfo?: { ip: string; ua: string }) {
+  const user = currentUser();
+  const tokenId = user.jti;
+  await Promise.all([
+    tokenId ? removeSession(tokenId) : Promise.resolve(),
+    clientInfo
+      ? recordLoginLog({
+          eventType: 'logout',
+          ip: clientInfo.ip,
+          ua: clientInfo.ua,
+          username: user.username,
+          status: 'success',
+          message: '退出登录成功',
+          userId: user.userId,
+          tenantId: user.tenantId,
+        })
+      : Promise.resolve(),
+  ]);
 }
 
 export async function getMyPreferences() {
@@ -365,7 +384,7 @@ export async function getMyProfile() {
   const recentLogins = await db
     .select({ createdAt: loginLogs.createdAt, ip: loginLogs.ip })
     .from(loginLogs)
-    .where(and(eq(loginLogs.userId, userId), eq(loginLogs.status, 'success')))
+    .where(and(eq(loginLogs.userId, userId), eq(loginLogs.eventType, 'login'), eq(loginLogs.status, 'success')))
     .orderBy(desc(loginLogs.createdAt))
     .limit(2);
   const prevLogin = recentLogins[1] ?? null;
@@ -415,10 +434,11 @@ export async function changeMyPassword(oldPassword: string, newPassword: string)
   await db.update(users).set({ password: hashed, passwordUpdatedAt: new Date() }).where(eq(users.id, userId));
 }
 
-export async function listMyLoginLogs(query: { page?: number; pageSize?: number; status?: 'success' | 'fail'; startTime?: string; endTime?: string }) {
+export async function listMyLoginLogs(query: { page?: number; pageSize?: number; eventType?: LoginEventType; status?: 'success' | 'fail'; startTime?: string; endTime?: string }) {
   const userId = currentUser().userId;
-  const { page = 1, pageSize = 10, status, startTime, endTime } = query;
+  const { page = 1, pageSize = 10, eventType, status, startTime, endTime } = query;
   const conditions = [eq(loginLogs.userId, userId)];
+  if (eventType) conditions.push(eq(loginLogs.eventType, eventType));
   if (status) conditions.push(eq(loginLogs.status, status));
   const parsedStartTime = parseDateTimeInput(startTime);
   const parsedEndTime = parseDateTimeInput(endTime);

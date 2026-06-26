@@ -136,7 +136,8 @@ const logoutRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okMsg('ok') },
   }),
   handler: async (c) => {
-    await logoutSession();
+    const { ip, ua } = getClientInfo(c.req.raw.headers);
+    await logoutSession({ ip, ua });
     return c.json(okBody(null, '已退出登录'), 200);
   },
 });
@@ -198,7 +199,7 @@ const myLoginLogsRoute = defineOpenAPIRoute({
     method: 'get', path: '/my-login-logs', tags: ['Auth'], summary: '我的登录记录',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware] as const,
-    request: { query: PaginationQuery.extend({ status: z.enum(['success', 'fail']).optional(), startTime: z.string().optional(), endTime: z.string().optional() }) },
+    request: { query: PaginationQuery.extend({ eventType: z.enum(['login', 'logout']).optional(), status: z.enum(['success', 'fail']).optional(), startTime: z.string().optional(), endTime: z.string().optional() }) },
     responses: { ...commonErrorResponses, ...okPaginated(LogRowDTO, 'ok') },
   }),
   handler: async (c) => c.json(okBody(await listMyLoginLogs(c.req.valid('query'))), 200),

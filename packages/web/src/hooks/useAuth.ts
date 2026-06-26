@@ -89,14 +89,14 @@ export function useAuth() {
   };
 
   const logout = () => {
+    // Best-effort: notify server while the access token is still available.
+    request.post('/api/auth/logout', {}, { silent: true, skipAuth: true }).catch(() => {});
     // Immediately clear local state first
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(PREFERENCES_KEY);
     localStorage.removeItem(TABS_STORAGE_KEY);
     setState({ user: null, permissions: [], loading: false });
-    // Best-effort: notify server to remove session from Redis (fire-and-forget)
-    request.post('/api/auth/logout', {}, { silent: true }).catch(() => {});
   };
 
   const updateUser = (user: Omit<User, 'password'>) => {

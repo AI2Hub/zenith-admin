@@ -13,11 +13,12 @@ import LoginLogStatsPanel from './LoginLogStatsPanel';
 export default function LoginLogsPage() {
   interface SearchParams {
     username: string;
+    eventType: string;
     status: string;
     timeRange: [Date, Date] | null;
   }
 
-  const defaultParams: SearchParams = { username: '', status: '', timeRange: null };
+  const defaultParams: SearchParams = { username: '', eventType: '', status: '', timeRange: null };
   const [data, setData] = useState<LoginLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
@@ -43,6 +44,7 @@ export default function LoginLogsPage() {
         page: String(p),
         pageSize: String(ps),
         ...(activeParams.username ? { username: activeParams.username } : {}),
+        ...(activeParams.eventType ? { eventType: activeParams.eventType } : {}),
         ...(activeParams.status ? { status: activeParams.status } : {}),
       });
       if (activeParams.timeRange) {
@@ -136,6 +138,19 @@ export default function LoginLogsPage() {
     </Select>
   );
 
+  const renderEventTypeFilter = () => (
+    <Select
+      placeholder="请选择事件"
+      value={searchParams.eventType || undefined}
+      onChange={(v) => setSearchParams({ ...searchParams, eventType: v as string })}
+      style={{ width: 150 }}
+    >
+      <Select.Option value="">全部事件</Select.Option>
+      <Select.Option value="login">登录</Select.Option>
+      <Select.Option value="logout">退出登录</Select.Option>
+    </Select>
+  );
+
   const renderTimeRangeFilter = () => (
     <DatePicker
       type="dateTimeRange"
@@ -215,6 +230,7 @@ export default function LoginLogsPage() {
             primary={(
               <>
                 {renderUsernameSearch()}
+                {renderEventTypeFilter()}
                 {renderStatusFilter()}
                 {renderTimeRangeFilter()}
                 <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
@@ -235,6 +251,7 @@ export default function LoginLogsPage() {
             )}
             mobileFilters={(
               <>
+                {renderEventTypeFilter()}
                 {renderStatusFilter()}
                 {renderTimeRangeFilter()}
               </>

@@ -27,8 +27,8 @@ export async function getDashboardStats() {
 
   const activeUsersWhere = utc ? and(eq(users.status, 'enabled'), utc) : eq(users.status, 'enabled');
   const todayLoginWhere = ltc
-    ? and(gte(loginLogs.createdAt, todayStart), lt(loginLogs.createdAt, todayEnd), ltc)
-    : and(gte(loginLogs.createdAt, todayStart), lt(loginLogs.createdAt, todayEnd));
+    ? and(gte(loginLogs.createdAt, todayStart), lt(loginLogs.createdAt, todayEnd), eq(loginLogs.eventType, 'login'), ltc)
+    : and(gte(loginLogs.createdAt, todayStart), lt(loginLogs.createdAt, todayEnd), eq(loginLogs.eventType, 'login'));
   const todayOpWhere = otc
     ? and(gte(operationLogs.createdAt, todayStart), lt(operationLogs.createdAt, todayEnd), otc)
     : and(gte(operationLogs.createdAt, todayStart), lt(operationLogs.createdAt, todayEnd));
@@ -57,13 +57,15 @@ export async function getDashboardCharts() {
   const ltc = tenantCondition(loginLogs, user);
   const otc = tenantCondition(operationLogs, user);
 
-  const loginRangeWhere = ltc ? and(gte(loginLogs.createdAt, sevenDaysAgo), ltc) : gte(loginLogs.createdAt, sevenDaysAgo);
+  const loginRangeWhere = ltc
+    ? and(gte(loginLogs.createdAt, sevenDaysAgo), eq(loginLogs.eventType, 'login'), ltc)
+    : and(gte(loginLogs.createdAt, sevenDaysAgo), eq(loginLogs.eventType, 'login'));
   const todayOpWhere = otc
     ? and(gte(operationLogs.createdAt, todayStart), lt(operationLogs.createdAt, todayEnd), otc)
     : and(gte(operationLogs.createdAt, todayStart), lt(operationLogs.createdAt, todayEnd));
   const activityRangeWhere = ltc
-    ? and(gte(loginLogs.createdAt, sevenDaysAgo), eq(loginLogs.status, 'success'), ltc)
-    : and(gte(loginLogs.createdAt, sevenDaysAgo), eq(loginLogs.status, 'success'));
+    ? and(gte(loginLogs.createdAt, sevenDaysAgo), eq(loginLogs.eventType, 'login'), eq(loginLogs.status, 'success'), ltc)
+    : and(gte(loginLogs.createdAt, sevenDaysAgo), eq(loginLogs.eventType, 'login'), eq(loginLogs.status, 'success'));
 
   const loginTrendCount = count();
   const operationTypeCount = count();

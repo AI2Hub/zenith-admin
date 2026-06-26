@@ -11,6 +11,7 @@ export interface ListLoginLogsQuery {
   page?: number;
   pageSize?: number;
   username?: string;
+  eventType?: 'login' | 'logout';
   status?: 'success' | 'fail';
   startTime?: string;
   endTime?: string;
@@ -22,6 +23,7 @@ export async function listLoginLogs(q: ListLoginLogsQuery) {
   const pageSize = Number(q.pageSize) || 10;
   const conditions = [];
   if (q.username) conditions.push(like(loginLogs.username, `%${escapeLike(q.username)}%`));
+  if (q.eventType) conditions.push(eq(loginLogs.eventType, q.eventType));
   if (q.status) conditions.push(eq(loginLogs.status, q.status));
   const startTime = parseDateTimeInput(q.startTime);
   const endTime = parseDateTimeInput(q.endTime);
@@ -50,7 +52,9 @@ export async function loginLogStats(daysRaw?: number) {
   startDate.setHours(0, 0, 0, 0);
   const startDateLabel = formatDate(startDate);
   const tc = tenantCondition(loginLogs, user);
-  const baseWhere = tc ? and(gte(loginLogs.createdAt, startDate), tc) : gte(loginLogs.createdAt, startDate);
+  const baseWhere = tc
+    ? and(gte(loginLogs.createdAt, startDate), eq(loginLogs.eventType, 'login'), tc)
+    : and(gte(loginLogs.createdAt, startDate), eq(loginLogs.eventType, 'login'));
 
   const [summaryRows, dailyStats, userStats, ipStats, ipFailStats, browserStats, osStats, hourlyRaw] = await Promise.all([
     db.select({
@@ -114,13 +118,14 @@ export async function exportLoginLogs(): Promise<{ stream: ReadableStream; filen
     [
       { header: 'ID', key: 'id', width: 8 },
       { header: '用户名', key: 'username', width: 16 },
+      { header: '事件类型', key: 'eventType', width: 12, transform: (v) => (v === 'logout' ? '退出登录' : '登录') },
       { header: 'IP', key: 'ip', width: 18 },
       { header: '状态', key: 'status', width: 10, transform: (v) => (v === 'success' ? '成功' : '失败') },
       { header: '消息', key: 'message', width: 30, transform: (v) => (v as string | null) ?? '' },
       { header: '浏览器', key: 'browser', width: 16, transform: (v) => (v as string | null) ?? '' },
       { header: '操作系统', key: 'os', width: 16, transform: (v) => (v as string | null) ?? '' },
       { header: 'User-Agent', key: 'userAgent', width: 60, transform: (v) => (v as string | null) ?? '' },
-      { header: '登录时间', key: 'createdAt', width: 22, transform: (v) => formatDateTimeForExcel(v as Date) },
+      { header: '操作时间', key: 'createdAt', width: 22, transform: (v) => formatDateTimeForExcel(v as Date) },
     ],
     rows,
     '登录日志',
@@ -139,13 +144,14 @@ export async function exportLoginLogsAsCsv(): Promise<{ stream: ReadableStream; 
     [
       { header: 'ID', key: 'id', width: 8 },
       { header: '用户名', key: 'username', width: 16 },
+      { header: '事件类型', key: 'eventType', width: 12, transform: (v) => (v === 'logout' ? '退出登录' : '登录') },
       { header: 'IP', key: 'ip', width: 18 },
       { header: '状态', key: 'status', width: 10, transform: (v) => (v === 'success' ? '成功' : '失败') },
       { header: '消息', key: 'message', width: 30, transform: (v) => (v as string | null) ?? '' },
       { header: '浏览器', key: 'browser', width: 16, transform: (v) => (v as string | null) ?? '' },
       { header: '操作系统', key: 'os', width: 16, transform: (v) => (v as string | null) ?? '' },
       { header: 'User-Agent', key: 'userAgent', width: 60, transform: (v) => (v as string | null) ?? '' },
-      { header: '登录时间', key: 'createdAt', width: 22, transform: (v) => formatDateTimeForExcel(v as Date) },
+      { header: '操作时间', key: 'createdAt', width: 22, transform: (v) => formatDateTimeForExcel(v as Date) },
     ],
     rows,
   );

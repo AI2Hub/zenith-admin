@@ -5,7 +5,7 @@ import { mockLoginLogs } from '@/mocks/data/logs';
 function buildLoginLogStats(days: number) {
   const cutoff = Date.now() - days * 24 * 3600 * 1000;
   const toTime = (s: string) => new Date(s.replace(' ', 'T')).getTime();
-  const logs = mockLoginLogs.filter((l) => toTime(l.createdAt) >= cutoff);
+  const logs = mockLoginLogs.filter((l) => (l.eventType ?? 'login') === 'login' && toTime(l.createdAt) >= cutoff);
 
   const successCount = logs.filter((l) => l.status === 'success').length;
   const failCount = logs.length - successCount;
@@ -57,10 +57,12 @@ export const loginLogsHandlers = [
     const page = Number(url.searchParams.get('page')) || 1;
     const pageSize = Number(url.searchParams.get('pageSize')) || 10;
     const username = url.searchParams.get('username') ?? '';
+    const eventType = url.searchParams.get('eventType') ?? '';
     const status = url.searchParams.get('status') ?? '';
 
     let list = mockLoginLogs.filter((log) => {
       if (username && !log.username.includes(username)) return false;
+      if (eventType && log.eventType !== eventType) return false;
       if (status && log.status !== status) return false;
       return true;
     });
@@ -88,7 +90,7 @@ export const loginLogsHandlers = [
 
   // 导出 CSV
   http.get('/api/login-logs/export/csv', () =>
-    new HttpResponse('\uFEFF用户名,IP,状态,时间\nadmin,127.0.0.1,成功,2026-06-20 12:00:00\n', {
+    new HttpResponse('\uFEFF用户名,事件类型,IP,状态,时间\nadmin,登录,127.0.0.1,成功,2026-06-20 12:00:00\nadmin,退出登录,127.0.0.1,成功,2026-06-20 12:30:00\n', {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': 'attachment; filename="login-logs.csv"',

@@ -49,7 +49,7 @@ export const authHandlers = [
     const role = mockRoles.find((r) => r.code === 'super_admin');
     const permissions = role ? getAllPermissions() : [];
     // 取最近第 2 条成功登录记录模拟上次登录
-    const myLogs = mockLoginLogs.filter((l) => l.userId === mockUsers[0].id && l.status === 'success');
+    const myLogs = mockLoginLogs.filter((l) => l.userId === mockUsers[0].id && (l.eventType ?? 'login') === 'login' && l.status === 'success');
     const prevLogin = myLogs[1] ?? null;
     return HttpResponse.json({
       code: 0,
@@ -75,6 +75,21 @@ export const authHandlers = [
 
   // 退出登录
   http.post('/api/auth/logout', () => {
+    const user = mockUsers[0];
+    mockLoginLogs.unshift({
+      id: Math.max(0, ...mockLoginLogs.map((l) => l.id)) + 1,
+      userId: user.id,
+      username: user.username,
+      ip: '127.0.0.1',
+      location: '内网地址',
+      browser: 'Chrome 124',
+      os: 'Windows 11',
+      userAgent: 'Mozilla/5.0 Chrome/124',
+      eventType: 'logout',
+      status: 'success',
+      message: '退出登录成功',
+      createdAt: mockDateTime(),
+    });
     return HttpResponse.json({ code: 0, message: 'ok', data: null });
   }),
 

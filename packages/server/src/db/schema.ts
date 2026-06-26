@@ -400,6 +400,7 @@ export type NewUploadChunk = typeof uploadChunks.$inferInsert;
 
 // ─── 登录日志表 ─────────────────────────────────────────────────────────────────
 export const loginStatusEnum = pgEnum('login_status', ['success', 'fail']);
+export const loginEventTypeEnum = pgEnum('login_event_type', ['login', 'logout']);
 
 export const loginLogs = pgTable('login_logs', {
   id: serial('id').primaryKey(),
@@ -410,6 +411,7 @@ export const loginLogs = pgTable('login_logs', {
   browser: varchar('browser', { length: 64 }),
   os: varchar('os', { length: 64 }),
   userAgent: varchar('user_agent', { length: 512 }),
+  eventType: loginEventTypeEnum('event_type').notNull().default('login'),
   status: loginStatusEnum('status').notNull(),
   message: varchar('message', { length: 256 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),

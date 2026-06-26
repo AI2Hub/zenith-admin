@@ -15,6 +15,7 @@ const listRoute = defineOpenAPIRoute({
     request: {
       query: PaginationQuery.extend({
         username: z.string().optional(),
+        eventType: z.enum(['login', 'logout']).optional(),
         status: z.enum(['success', 'fail']).optional(),
         startTime: z.string().optional(),
         endTime: z.string().optional(),
