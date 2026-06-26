@@ -356,6 +356,9 @@ export default function XxxPage() {
     <ExportButton entity="system.xxxs" query={buildExportQuery()} label="导出" variant="flat" />
   ) : null;
 
+  // mobileActions 中的普通操作按钮统一使用 theme="borderless"；
+  // 导出操作优先使用 ExportButton variant="flat"。
+
   // ════════════════════════════════════════════════════════════════════════
   // 渲染
   // ════════════════════════════════════════════════════════════════════════
