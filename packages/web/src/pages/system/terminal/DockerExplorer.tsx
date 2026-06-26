@@ -419,7 +419,7 @@ export default function DockerExplorer({ active, onOpenFile, onAttachShell }: Do
       const container = data.container;
       return (
         <span
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, width: '100%', minWidth: 0 }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, width: '100%', minWidth: 0, paddingRight: 10, boxSizing: 'border-box' }}
           className="docker-tree-container-row"
         >
           <span style={{ flexShrink: 0 }}>{d._stateIcon ?? '⬛'}</span>
@@ -432,15 +432,14 @@ export default function DockerExplorer({ active, onOpenFile, onAttachShell }: Do
             {label}
           </Typography.Text>
           {container && isRunning && (
-            <Dropdown trigger="click" position="bottomRight" render={renderAttachMenu(container)}>
-              <Tooltip content="Attach Shell" position="right">
+            <Dropdown trigger="click" position="bottomLeft" render={renderAttachMenu(container)}>
+              <Tooltip content="Attach Shell" position="top">
                 <span
                   role="button"
                   tabIndex={0}
                   className="docker-tree-row-action"
                   style={{ cursor: 'pointer', opacity: 0, transition: 'opacity 0.15s', flexShrink: 0 }}
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
                 >
                   <TerminalSquare size={13} style={{ color: 'var(--semi-color-primary)', verticalAlign: 'middle' }} />
                 </span>
@@ -448,15 +447,14 @@ export default function DockerExplorer({ active, onOpenFile, onAttachShell }: Do
             </Dropdown>
           )}
           {container && (
-            <Dropdown trigger="click" position="bottomRight" render={renderContainerMenu(container)}>
-              <Tooltip content="容器操作" position="right">
+            <Dropdown trigger="click" position="bottomLeft" render={renderContainerMenu(container)}>
+              <Tooltip content="容器操作" position="top">
                 <span
                   role="button"
                   tabIndex={0}
                   className="docker-tree-row-action"
                   style={{ cursor: 'pointer', opacity: 0, transition: 'opacity 0.15s', flexShrink: 0 }}
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
                 >
                   <MoreHorizontal size={13} style={{ color: 'var(--semi-color-text-2)', verticalAlign: 'middle' }} />
                 </span>
@@ -528,6 +526,20 @@ export default function DockerExplorer({ active, onOpenFile, onAttachShell }: Do
       {/* 底部 CSS：鼠标悬停显示 Attach 按钮 */}
       <style>{`
         .docker-tree-container-row:hover .docker-tree-row-action { opacity: 1 !important; }
+        .docker-tree-row-action {
+          width: 24px;
+          height: 24px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 4px;
+        }
+        .docker-tree-row-action:hover,
+        .docker-tree-row-action:focus-visible {
+          opacity: 1 !important;
+          background: var(--semi-color-fill-1);
+          outline: none;
+        }
         .docker-modal-code {
           margin: 0;
           padding: 12px;
