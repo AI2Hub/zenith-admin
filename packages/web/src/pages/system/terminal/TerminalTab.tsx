@@ -11,11 +11,15 @@ import {
   CheckSquare,
   FolderOpen,
   SquareTerminal,
+  Folder,
+  Radio,
+  Video,
+  Monitor,
 } from 'lucide-react';
 import { useThemeController } from '@/providers/theme-controller';
 import { useTerminalPreferences } from './useTerminalPreferences';
 import { resolveTheme } from './themes';
-import { terminalSessionStore } from './terminalSessionStore';
+import { terminalSessionStore, type TerminalStatusSnapshot } from './terminalSessionStore';
 import '@xterm/xterm/css/xterm.css';
 
 interface TerminalTabProps {
@@ -31,15 +35,20 @@ interface TerminalTabProps {
 
 export default function TerminalTab({ sessionId, active, shell, cwd, onTitleChange, onOpenTerminalAt }: TerminalTabProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const { isDark } = useThemeController();
   const { terminal } = useTerminalPreferences();
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [searchCaseSensitive, setSearchCaseSensitive] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [status, setStatus] = useState<TerminalStatusSnapshot | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [compactStatus, setCompactStatus] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const contextCwd = contextMenu ? (terminalSessionStore.getCwd(sessionId) ?? cwd) : undefined;
   const canOpenLocalTerminalAt = !!contextCwd && !shell.startsWith('ssh:') && !shell.startsWith('docker-exec:');
+  const showStatusBar = terminal.showStatusBar ?? true;
 
   const currentTheme = useMemo(
     () => resolveTheme(isDark ? terminal.themeDark : terminal.themeLight, isDark ? 'dark' : 'light'),
@@ -226,6 +235,30 @@ export default function TerminalTab({ sessionId, active, shell, cwd, onTitleChan
     }
   }, [active, sessionId]);
 
+  useEffect(() => terminalSessionStore.subscribeStatus(sessionId, setStatus), [sessionId]);
+
+  useEffect(() => {
+    if (!showStatusBar || status?.connectionState !== 'reconnecting' || !status.reconnectNextAt) return;
+    const timer = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, [showStatusBar, status?.connectionState, status?.reconnectNextAt]);
+
+  useEffect(() => {
+    if (!showStatusBar) return;
+    const root = rootRef.current;
+    if (!root) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setCompactStatus(width < 520 || height < 180);
+    });
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [showStatusBar]);
+
+  useEffect(() => {
+    terminalSessionStore.refit(sessionId);
+  }, [sessionId, showStatusBar, compactStatus]);
+
   // 主题 / 字体 / 字号 / 行高 / 光标 / 滚动 变化时更新（不重建连接）
   useEffect(() => {
     terminalSessionStore.updateOptions(sessionId, {
@@ -251,9 +284,26 @@ export default function TerminalTab({ sessionId, active, shell, cwd, onTitleChan
     sessionId,
   ]);
 
+  const statusCwd = status?.cwd ?? cwd;
+  const reconnectSeconds = status?.reconnectNextAt
+    ? Math.max(0, Math.ceil((status.reconnectNextAt - now) / 1000))
+    : 0;
+  const connectionText: Record<NonNullable<TerminalStatusSnapshot['connectionState']>, string> = {
+    connecting: '连接中',
+    connected: '已连接',
+    reconnecting: reconnectSeconds > 0
+      ? `${reconnectSeconds}s 后重连 ${status?.reconnectAttempts ?? 0}/${status?.reconnectMaxAttempts ?? 0}`
+      : `重连中 ${status?.reconnectAttempts ?? 0}/${status?.reconnectMaxAttempts ?? 0}`,
+    disconnected: status?.message ?? '已断开',
+    exited: status?.message ?? '已退出',
+    error: status?.message ?? '连接异常',
+  };
+
   return (
     <div
-      style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column' }}
+      ref={rootRef}
+      className="terminal-tab-root"
+      data-compact-status={compactStatus ? 'true' : 'false'}
       onContextMenu={(e) => {
         e.preventDefault();
         terminalSessionStore.focus(sessionId);
@@ -344,7 +394,36 @@ export default function TerminalTab({ sessionId, active, shell, cwd, onTitleChan
           <button type="button" title="关闭（Esc）" onClick={closeSearch} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 2, display: 'flex', color: 'var(--semi-color-text-2)' }}><X size={14} /></button>
         </div>
       )}
-      <div ref={containerRef} style={{ flex: 1, minHeight: 0 }} />
+      <div ref={containerRef} className="terminal-tab-body" />
+      {showStatusBar && (
+        <div className="terminal-status-bar" data-state={status?.connectionState ?? 'connecting'}>
+          <span className="terminal-status-bar__item">
+            <span className="terminal-status-bar__dot" data-state={status?.connectionState ?? 'connecting'} />
+            <span className="terminal-status-bar__text">{connectionText[status?.connectionState ?? 'connecting']}</span>
+          </span>
+          <span className="terminal-status-bar__item terminal-status-bar__item--shell" title={status?.shell ?? shell}>
+            <Radio size={12} className="terminal-status-bar__icon" />
+            <span className="terminal-status-bar__text">{(status?.shell ?? shell) || 'shell'}</span>
+          </span>
+          <span className="terminal-status-bar__item terminal-status-bar__item--path" title={statusCwd || '未获取当前路径'}>
+            <Folder size={12} className="terminal-status-bar__icon" />
+            <span className="terminal-status-bar__text">{statusCwd || '未获取当前路径'}</span>
+          </span>
+          <span className="terminal-status-bar__item" title="终端尺寸">
+            <Monitor size={12} className="terminal-status-bar__icon" />
+            <span className="terminal-status-bar__text">{status?.cols ?? 0}×{status?.rows ?? 0}</span>
+          </span>
+          <span
+            className="terminal-status-bar__item terminal-status-bar__item--recording"
+            title={status?.recordingEnabled ? (status.recordingActive ? '录屏中' : '录屏已启用') : '录屏未启用'}
+          >
+            <Video size={12} className="terminal-status-bar__icon" />
+            <span className="terminal-status-bar__text">
+              {status?.recordingEnabled ? (status.recordingActive ? '录屏中' : '录屏') : '未录屏'}
+            </span>
+          </span>
+        </div>
+      )}
     </div>
   );
 }

@@ -180,6 +180,119 @@
   inset: 0;
 }
 
+.terminal-tab-root {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal-tab-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.terminal-status-bar {
+  height: 22px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 8px;
+  border-top: 1px solid var(--semi-color-border);
+  background: color-mix(in srgb, var(--semi-color-bg-1) 92%, var(--semi-color-fill-0));
+  color: var(--semi-color-text-2);
+  font-size: 11px;
+  line-height: 22px;
+  white-space: nowrap;
+  user-select: none;
+  overflow: hidden;
+}
+
+.terminal-status-bar[data-state='reconnecting'] {
+  color: var(--semi-color-warning);
+  background: color-mix(in srgb, var(--semi-color-warning-light-default) 34%, var(--semi-color-bg-1));
+}
+
+.terminal-status-bar[data-state='error'],
+.terminal-status-bar[data-state='disconnected'] {
+  color: var(--semi-color-danger);
+  background: color-mix(in srgb, var(--semi-color-danger-light-default) 32%, var(--semi-color-bg-1));
+}
+
+.terminal-status-bar[data-state='exited'] {
+  color: var(--semi-color-warning);
+}
+
+.terminal-status-bar__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.terminal-status-bar__item--path {
+  flex: 1;
+  min-width: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.terminal-status-bar__item--shell {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.terminal-status-bar__dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--semi-color-text-2);
+}
+
+.terminal-status-bar__dot[data-state='connected'] {
+  background: var(--semi-color-success);
+}
+
+.terminal-status-bar__dot[data-state='connecting'],
+.terminal-status-bar__dot[data-state='reconnecting'] {
+  background: var(--semi-color-warning);
+}
+
+.terminal-status-bar__dot[data-state='error'],
+.terminal-status-bar__dot[data-state='disconnected'] {
+  background: var(--semi-color-danger);
+}
+
+.terminal-status-bar__dot[data-state='exited'] {
+  background: var(--semi-color-text-2);
+}
+
+.terminal-status-bar__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.terminal-status-bar__icon {
+  flex-shrink: 0;
+}
+
+.terminal-tab-root[data-compact-status='true'] .terminal-status-bar {
+  gap: 6px;
+  padding: 0 6px;
+}
+
+.terminal-tab-root[data-compact-status='true'] .terminal-status-bar__item--path,
+.terminal-tab-root[data-compact-status='true'] .terminal-status-bar__item--shell,
+.terminal-tab-root[data-compact-status='true'] .terminal-status-bar__item--recording {
+  display: none;
+}
+
 /* 面板右上角悬浮工具栏（拆分 / 关闭） */
 .terminal-pane__toolbar {
   position: absolute;

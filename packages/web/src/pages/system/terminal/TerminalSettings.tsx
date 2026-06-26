@@ -71,6 +71,16 @@ export default function TerminalSettings({ visible, onClose, shells }: TerminalS
         </Field>
       )}
 
+      <Field label="显示终端状态栏">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Switch
+            checked={terminal.showStatusBar ?? true}
+            onChange={(v) => setTerminalPref({ showStatusBar: v })}
+          />
+          <Typography.Text size="small" type="tertiary">显示连接、路径、尺寸、录屏与重连状态</Typography.Text>
+        </div>
+      </Field>
+
       <Divider margin="12px" />
 
       <Field label="暗色模式主题">

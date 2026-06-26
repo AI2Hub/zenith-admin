@@ -22,6 +22,7 @@ export const defaultTerminalPreferences: TerminalPreferences = {
   fontWeight: 'normal',
   rightClickSelectsWord: false,
   minimumContrastRatio: 1,
+  showStatusBar: true,
 };
 
 /**

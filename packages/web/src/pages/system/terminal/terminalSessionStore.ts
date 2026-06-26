@@ -17,6 +17,7 @@ import { SearchAddon } from '@xterm/addon-search';
 import { TOKEN_KEY } from '@zenith/shared';
 import { config } from '@/config';
 import { request } from '@/utils/request';
+import { formatDateTime } from '@/utils/date';
 import { type TerminalThemeDef, toXtermTheme } from './themes';
 
 export interface SessionCreateOptions {
@@ -48,6 +49,33 @@ export interface SessionCreateOptions {
   minimumContrastRatio?: number;
 }
 
+export type TerminalConnectionState =
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+  | 'disconnected'
+  | 'exited'
+  | 'error';
+
+export interface TerminalStatusSnapshot {
+  connectionState: TerminalConnectionState;
+  shell: string;
+  cwd?: string;
+  cols: number;
+  rows: number;
+  recordingEnabled: boolean;
+  recordingActive: boolean;
+  reconnectAttempts: number;
+  reconnectMaxAttempts: number;
+  reconnectNextAt: number | null;
+  reconnectDelayMs: number;
+  message?: string;
+}
+
+type TerminalStatusListener = (snapshot: TerminalStatusSnapshot) => void;
+
+const MAX_RECONNECT_ATTEMPTS = 8;
+
 interface SessionState {
   term: Terminal;
   fitAddon: FitAddon;
@@ -69,10 +97,14 @@ interface SessionState {
   } | null;
   /** 是否启用录屏（由系统配置 terminal_recording_enabled 决定） */
   recordingEnabled: boolean;
+  connectionState: TerminalConnectionState;
+  statusMessage?: string;
   /** 指数退退重连状态 */
   reconnect: {
     attempts: number;
     timer: ReturnType<typeof setTimeout> | null;
+    nextAt: number | null;
+    delayMs: number;
     /** true = 已被标记待销毁，不再重连 */
     stopped: boolean;
   };
@@ -92,8 +124,53 @@ function buildWsUrl(sessionId: string, shell: string, cwd?: string): string {
 class TerminalSessionStore {
   private readonly sessions = new Map<string, SessionState>();
   private readonly cwdCallbacks = new Map<string, (cwd: string) => void>();
+  private readonly statusListeners = new Map<string, Set<TerminalStatusListener>>();
   private readonly pendingDestroy = new Set<string>();
   private hiddenRoot: HTMLDivElement | null = null;
+
+  private snapshot(session: SessionState): TerminalStatusSnapshot {
+    return {
+      connectionState: session.connectionState,
+      shell: session.shell,
+      cwd: session.currentCwd ?? session.cwd,
+      cols: session.term.cols,
+      rows: session.term.rows,
+      recordingEnabled: session.recordingEnabled,
+      recordingActive: !!session.recording,
+      reconnectAttempts: session.reconnect.attempts,
+      reconnectMaxAttempts: MAX_RECONNECT_ATTEMPTS,
+      reconnectNextAt: session.reconnect.nextAt,
+      reconnectDelayMs: session.reconnect.delayMs,
+      message: session.statusMessage,
+    };
+  }
+
+  private notifyStatus(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    const listeners = this.statusListeners.get(sessionId);
+    if (!listeners || listeners.size === 0) return;
+    const snapshot = this.snapshot(session);
+    listeners.forEach((listener) => listener(snapshot));
+  }
+
+  getStatus(sessionId: string): TerminalStatusSnapshot | null {
+    const session = this.sessions.get(sessionId);
+    return session ? this.snapshot(session) : null;
+  }
+
+  subscribeStatus(sessionId: string, listener: TerminalStatusListener): () => void {
+    const listeners = this.statusListeners.get(sessionId) ?? new Set<TerminalStatusListener>();
+    listeners.add(listener);
+    this.statusListeners.set(sessionId, listeners);
+    const current = this.getStatus(sessionId);
+    if (current) listener(current);
+    return () => {
+      const currentListeners = this.statusListeners.get(sessionId);
+      currentListeners?.delete(listener);
+      if (currentListeners?.size === 0) this.statusListeners.delete(sessionId);
+    };
+  }
 
   private getHiddenRoot(): HTMLDivElement {
     if (!this.hiddenRoot) {
@@ -164,9 +241,11 @@ class TerminalSessionStore {
       recording: null,
       recordingEnabled,
       copyOnSelect: options.copyOnSelect ?? true,
-      reconnect: { attempts: 0, timer: null, stopped: false },
+      connectionState: 'connecting',
+      reconnect: { attempts: 0, timer: null, nextAt: null, delayMs: 0, stopped: false },
     };
     this.sessions.set(sessionId, session);
+    this.notifyStatus(sessionId);
 
     // 选中自动复制（xterm v6 已移除 copyOnSelection 选项，改用事件监听）
     term.onSelectionChange(() => {
@@ -184,6 +263,7 @@ class TerminalSessionStore {
           const newCwd = decodeURIComponent(match[1]);
           session.currentCwd = newCwd;
           this.cwdCallbacks.get(sessionId)?.(newCwd);
+          this.notifyStatus(sessionId);
         }
       } catch { /* ignore */ }
       return false;
@@ -205,6 +285,7 @@ class TerminalSessionStore {
       if (currentWs.readyState === WebSocket.OPEN) {
         currentWs.send(JSON.stringify({ type: 'terminal:resize', cols, rows }));
       }
+      this.notifyStatus(sessionId);
     });
   }
 
@@ -217,12 +298,17 @@ class TerminalSessionStore {
     ws.onopen = () => {
       // 重连成功时重置计数
       session.reconnect.attempts = 0;
+      session.reconnect.nextAt = null;
+      session.reconnect.delayMs = 0;
+      session.connectionState = 'connected';
+      session.statusMessage = undefined;
       const { cols, rows } = term;
       ws.send(JSON.stringify({ type: 'terminal:resize', cols, rows }));
       // 仅在系统配置启用录屏时初始化录制状态
       if (session.recordingEnabled && !session.recording) {
         session.recording = { startTime: Date.now(), events: [], cols, rows };
       }
+      this.notifyStatus(sessionId);
     };
 
     ws.onmessage = (evt) => {
@@ -233,14 +319,21 @@ class TerminalSessionStore {
           message?: string;
         };
         if (msg.type === 'terminal:reconnected') {
-          // 服务端确认重连，回放的 output 数据随后发送，无需特殊处理
-          term.write('\r\n\x1b[32m[已重新连接]\x1b[0m\r\n');
+          session.connectionState = 'connected';
+          session.statusMessage = undefined;
+          this.notifyStatus(sessionId);
         } else if (msg.type === 'terminal:output' && msg.data) {
           session.recording?.events.push([(Date.now() - (session.recording?.startTime ?? 0)) / 1000, 'o', msg.data]);
           term.write(msg.data);
         } else if (msg.type === 'terminal:exit') {
+          session.connectionState = 'exited';
+          session.statusMessage = '进程已退出';
+          this.notifyStatus(sessionId);
           term.write('\r\n\x1b[33m[进程已退出]\x1b[0m\r\n');
         } else if (msg.type === 'terminal:error' && msg.message) {
+          session.connectionState = 'error';
+          session.statusMessage = msg.message;
+          this.notifyStatus(sessionId);
           term.write(`\r\n\x1b[31m[错误] ${msg.message}\x1b[0m\r\n`);
         }
       } catch {
@@ -249,6 +342,9 @@ class TerminalSessionStore {
     };
 
     ws.onerror = () => {
+      session.connectionState = 'error';
+      session.statusMessage = '连接异常';
+      this.notifyStatus(sessionId);
       // onerror 之后通常会触发 onclose，重连逻辑在 onclose 中统一处理
     };
 
@@ -260,7 +356,7 @@ class TerminalSessionStore {
         request.post(
           '/api/terminal-recordings',
           {
-            title: `${shell || 'terminal'} 录屏 - ${new Date().toLocaleString('zh-CN')}`,
+            title: `${shell || 'terminal'} 录屏 - ${formatDateTime(Date.now())}`,
             shell: shell || null,
             cols: rec.cols,
             rows: rec.rows,
@@ -270,19 +366,33 @@ class TerminalSessionStore {
           { silent: true },
         );
         session.recording = null;
+        this.notifyStatus(sessionId);
       }
 
       if (evt.code === 4001) {
         term.write('\r\n\x1b[31m[认证失败，请重新登录]\x1b[0m\r\n');
+        session.connectionState = 'error';
+        session.statusMessage = '认证失败，请重新登录';
         session.reconnect.stopped = true;
+        this.notifyStatus(sessionId);
       } else if (evt.code === 4003) {
         term.write('\r\n\x1b[31m[无权限访问终端]\x1b[0m\r\n');
+        session.connectionState = 'error';
+        session.statusMessage = '无权限访问终端';
         session.reconnect.stopped = true;
+        this.notifyStatus(sessionId);
       } else if (evt.code === 1000) {
         // 正常关闭（进程退出 / 明确关闭），不重连
+        session.connectionState = 'exited';
+        session.statusMessage = '会话已结束';
+        this.notifyStatus(sessionId);
       } else if (!session.reconnect.stopped) {
         // 意外断线：指数退避重连
         this.scheduleReconnect(sessionId);
+      } else {
+        session.connectionState = 'disconnected';
+        session.statusMessage = '连接已断开';
+        this.notifyStatus(sessionId);
       }
     };
   }
@@ -292,23 +402,33 @@ class TerminalSessionStore {
     const session = this.sessions.get(sessionId);
     if (!session || session.reconnect.stopped) return;
 
-    const MAX_ATTEMPTS = 8;
-    if (session.reconnect.attempts >= MAX_ATTEMPTS) {
-      session.term.write('\r\n\x1b[31m[已达最大重连次数，停止重连]\x1b[0m\r\n');
+    if (session.reconnect.attempts >= MAX_RECONNECT_ATTEMPTS) {
+      session.connectionState = 'disconnected';
+      session.statusMessage = '已达最大重连次数';
+      session.reconnect.nextAt = null;
+      session.reconnect.delayMs = 0;
+      this.notifyStatus(sessionId);
       return;
     }
 
     const delay = Math.min(1000 * Math.pow(2, session.reconnect.attempts), 30_000);
     session.reconnect.attempts++;
-    const attemptsText = `${session.reconnect.attempts}/${MAX_ATTEMPTS}`;
-    session.term.write(`\r\n\x1b[33m[连接已断开，${delay / 1000}s 后自动重连…（${attemptsText}）]\x1b[0m\r\n`);
+    session.reconnect.nextAt = Date.now() + delay;
+    session.reconnect.delayMs = delay;
+    session.connectionState = 'reconnecting';
+    session.statusMessage = '连接已断开，等待自动重连';
+    this.notifyStatus(sessionId);
 
     session.reconnect.timer = setTimeout(() => {
       session.reconnect.timer = null;
       const s = this.sessions.get(sessionId);
       if (!s || s.reconnect.stopped) return;
 
-      s.term.write('\r\n\x1b[33m[正在重新连接…]\x1b[0m\r\n');
+      s.reconnect.nextAt = null;
+      s.reconnect.delayMs = 0;
+      s.connectionState = 'reconnecting';
+      s.statusMessage = '正在重新连接';
+      this.notifyStatus(sessionId);
       const newWs = new WebSocket(buildWsUrl(sessionId, s.shell, s.cwd));
       s.ws = newWs;
       this.setupWsHandlers(sessionId, newWs, s, s.shell);
@@ -330,12 +450,14 @@ class TerminalSessionStore {
     session.resizeObserver?.disconnect();
     session.resizeObserver = new ResizeObserver(() => {
       session.fitAddon.fit();
+      this.notifyStatus(sessionId);
     });
     session.resizeObserver.observe(parent);
 
     // 延迟一帧 fit，确保布局已稳定
     setTimeout(() => {
       session.fitAddon.fit();
+      this.notifyStatus(sessionId);
     }, 0);
   }
 
@@ -367,6 +489,11 @@ class TerminalSessionStore {
           clearTimeout(session.reconnect.timer);
           session.reconnect.timer = null;
         }
+        session.reconnect.nextAt = null;
+        session.reconnect.delayMs = 0;
+        session.connectionState = 'disconnected';
+        session.statusMessage = '会话正在关闭';
+        this.notifyStatus(sessionId);
       }
       this.pendingDestroy.add(sessionId);
     }
@@ -388,6 +515,9 @@ class TerminalSessionStore {
     if (session.ws.readyState === WebSocket.OPEN) {
       try { session.ws.send(JSON.stringify({ type: 'terminal:close' })); } catch { /* ignore */ }
     }
+    session.connectionState = 'disconnected';
+    session.statusMessage = '会话已关闭';
+    this.notifyStatus(sessionId);
     session.ws.close(1000);
     session.term.dispose();
     session.container.remove();
@@ -400,6 +530,7 @@ class TerminalSessionStore {
     if (!session) return;
     setTimeout(() => {
       session.fitAddon.fit();
+      this.notifyStatus(sessionId);
     }, 50);
   }
 
@@ -453,6 +584,53 @@ class TerminalSessionStore {
   /** 清除搜索高亮 */
   clearSearch(sessionId: string): void {
     this.sessions.get(sessionId)?.searchAddon.clearDecorations();
+  }
+
+  // ── 右键菜单操作 ──────────────────────────────────────────────────────────
+
+  /** 获取当前选中文本 */
+  getSelection(sessionId: string): string {
+    return this.sessions.get(sessionId)?.term.getSelection() ?? '';
+  }
+
+  /** 复制当前选中文本 */
+  async copySelection(sessionId: string): Promise<boolean> {
+    const text = this.getSelection(sessionId);
+    if (!text) return false;
+    await navigator.clipboard.writeText(text);
+    return true;
+  }
+
+  /** 从剪贴板粘贴到终端 */
+  async pasteFromClipboard(sessionId: string): Promise<boolean> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return false;
+    const text = await navigator.clipboard.readText();
+    if (!text) return false;
+    session.term.paste(text);
+    session.term.focus();
+    return true;
+  }
+
+  /** 全选终端缓冲区 */
+  selectAll(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    session.term.selectAll();
+    session.term.focus();
+  }
+
+  /** 清空终端显示内容 */
+  clear(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    session.term.clear();
+    session.term.focus();
+  }
+
+  /** 聚焦终端 */
+  focus(sessionId: string): void {
+    this.sessions.get(sessionId)?.term.focus();
   }
 
   // ── CWD (OSC 7) ───────────────────────────────────────────────────────────

@@ -57,6 +57,8 @@ export interface TerminalPreferences {
   rightClickSelectsWord: boolean;
   /** 最小对比度（1–21，1 = 不限制） */
   minimumContrastRatio: number;
+  /** 是否显示终端底部状态栏 */
+  showStatusBar: boolean;
 }
 
 export interface UserPreferences {
@@ -190,6 +192,7 @@ export const defaultPreferences: UserPreferences = {
     fontWeight: 'normal',
     rightClickSelectsWord: false,
     minimumContrastRatio: 1,
+    showStatusBar: true,
   },
 };
 
