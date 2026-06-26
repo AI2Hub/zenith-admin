@@ -4,14 +4,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, RadioGroup, Radio, Spin, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
-import { ArrowLeft, Download, Eye, History, Minus, Plus, Redo2, RotateCcw, Save, Send, Undo2, Upload } from 'lucide-react';
-import type { WorkflowDefinition, WorkflowDefinitionSnapshot, WorkflowFormField, WorkflowFormType, WorkflowCustomFormConfig } from '@zenith/shared';
+import { ArrowLeft, Download, Eye, History, Minus, Play, Plus, Redo2, RotateCcw, Save, Send, Undo2, Upload } from 'lucide-react';
+import type { WorkflowDefinition, WorkflowDefinitionSnapshot, WorkflowFlowData, WorkflowFormField, WorkflowFormType, WorkflowCustomFormConfig, WorkflowSimulationResult } from '@zenith/shared';
 import { WORKFLOW_FORM_TYPES, WORKFLOW_FORM_TYPE_LABELS, resolveApproverDedupMode } from '@zenith/shared';
 import { request } from '@/utils/request';
 
 import WorkflowVersionsModal from '../components/WorkflowVersionsModal';
 
-import type { FlowNode, FlowBranch, FlowNodeType, FlowProcess, BranchNodeType, ConditionGroup } from './types';
+import type { FlowNode, FlowBranch, FlowNodeType, FlowProcess, BranchNodeType, ConditionGroup, NodeRuntimeInfo } from './types';
 import {
   createDefaultProcess,
   createNode,
@@ -45,6 +45,7 @@ import FormPreview from './components/FormPreview';
 import WorkflowFormRenderer from './components/WorkflowFormRenderer';
 import BasicInfoPanel from './components/BasicInfoPanel';
 import AdvancedSettingsPanel from './components/AdvancedSettingsPanel';
+import WorkflowSimulationDrawer from './components/WorkflowSimulationDrawer';
 import type { AdvancedSettingsData } from './components/AdvancedSettingsPanel';
 import { DEFAULT_ADVANCED_SETTINGS } from './components/advanced-settings';
 import './styles/flow-designer.css';
@@ -117,6 +118,10 @@ export default function WorkflowDesignerPage({
 
   // 预览
   const [previewVisible, setPreviewVisible] = useState(false);
+
+  // 仿真
+  const [simulationVisible, setSimulationVisible] = useState(false);
+  const [simulationResult, setSimulationResult] = useState<WorkflowSimulationResult | null>(null);
 
   // 历史版本
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
@@ -470,6 +475,11 @@ export default function WorkflowDesignerPage({
     initiatorScopeIds: metaInitiatorScopeType === 'all' ? null : metaInitiatorScopeIds,
   });
 
+  const buildCurrentFlowData = useCallback((): WorkflowFlowData => {
+    const flat = treeToFlat(process);
+    return { ...flat, process, settings: advancedSettings } as unknown as WorkflowFlowData;
+  }, [advancedSettings, process]);
+
   const validateBeforeSave = () => {
     if (!metaName.trim()) {
       Toast.warning('请先填写流程名称');
@@ -511,8 +521,7 @@ export default function WorkflowDesignerPage({
   }, options: { showToast?: boolean } = {}): Promise<WorkflowDefinition | null> => {
     setSaving(true);
     try {
-      const flat = treeToFlat(process);
-      const flowData = { ...flat, process, settings: advancedSettings };
+      const flowData = buildCurrentFlowData();
       const payload = {
         name: meta.name,
         description: meta.description ?? null,
@@ -561,6 +570,64 @@ export default function WorkflowDesignerPage({
       setPublishing(false);
     }
   };
+
+  const simulationNodeRuntime = useMemo(() => {
+    if (!simulationResult) return undefined;
+    const byNode = new Map<string, WorkflowSimulationResult['timeline']>();
+    for (const item of simulationResult.timeline) {
+      const arr = byNode.get(item.nodeKey) ?? [];
+      arr.push(item);
+      byNode.set(item.nodeKey, arr);
+    }
+    const map = new Map<string, NodeRuntimeInfo>();
+    byNode.forEach((items, nodeKey) => {
+      const last = items[items.length - 1];
+      let status: NodeRuntimeInfo['status'] = 'skipped';
+      if (items.some((item) => item.status === 'rejected')) status = 'rejected';
+      else if (items.some((item) => item.status === 'waiting' || item.status === 'blocked')) status = 'waiting';
+      else if (items.some((item) => item.status === 'approved' || item.status === 'autoApproved' || item.status === 'entered')) status = 'approved';
+      const approvers = items
+        .flatMap((item) => item.assignees ?? [])
+        .map((user) => ({
+          name: user.name,
+          status,
+          actionAt: null,
+          comment: last.reason ?? null,
+        }));
+      map.set(nodeKey, {
+        status,
+        approvers: approvers.length > 0 ? approvers : [{ name: last.reason ?? '仿真经过', status, actionAt: null, comment: last.reason ?? null }],
+      });
+    });
+    return map;
+  }, [simulationResult]);
+
+  const simulationDimmedBranchIds = useMemo(() => {
+    if (!simulationResult) return undefined;
+    const skippedNodeKeys = new Set(
+      Object.entries(simulationResult.nodeStates)
+        .filter(([, state]) => state.status === 'skipped')
+        .map(([key]) => key),
+    );
+    const dimmed = new Set<string>();
+    const visit = (node: FlowNode | undefined) => {
+      if (!node) return;
+      node.branches?.forEach((branch) => {
+        const first = branch.children;
+        if (first && skippedNodeKeys.has(first.key ?? first.id)) dimmed.add(branch.id);
+        visit(first);
+      });
+      visit(node.children);
+    };
+    visit(process.initiator);
+    return dimmed;
+  }, [process, simulationResult]);
+
+  const simulationInstanceStatus = simulationResult?.result === 'finished'
+    ? 'approved'
+    : simulationResult?.result === 'rejected'
+      ? 'rejected'
+      : undefined;
 
   // ─── 缩放 ─────────────────────────────────────────────────────────
 
@@ -805,6 +872,9 @@ export default function WorkflowDesignerPage({
                     历史版本
                   </Button>
                 )}
+                <Button icon={<Play size={14} />} type="tertiary" theme="borderless" onClick={() => setSimulationVisible(true)}>
+                  仿真
+                </Button>
                 <span className="fd-canvas__toolbar-divider" />
               </>
             )}
@@ -817,7 +887,16 @@ export default function WorkflowDesignerPage({
           </div>
           <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}>
             {readOnly ? (
-              <FlowRenderer process={process} readOnly readOnlyInteractive onEditNode={handleEditNode} formFields={formFields} />
+              <FlowRenderer
+                process={process}
+                readOnly
+                readOnlyInteractive
+                onEditNode={handleEditNode}
+                formFields={formFields}
+                nodeRuntime={simulationNodeRuntime}
+                dimmedBranchIds={simulationDimmedBranchIds}
+                instanceStatus={simulationInstanceStatus}
+              />
             ) : (
               <FlowRenderer
                 process={process}
@@ -831,6 +910,9 @@ export default function WorkflowDesignerPage({
                 onEditBranch={handleEditBranch}
                 onMoveBranch={handleMoveBranch}
                 formFields={formFields}
+                nodeRuntime={simulationNodeRuntime}
+                dimmedBranchIds={simulationDimmedBranchIds}
+                instanceStatus={simulationInstanceStatus}
               />
             )}
           </div>
@@ -851,6 +933,17 @@ export default function WorkflowDesignerPage({
         visible={previewVisible}
         fields={localFormFields}
         onClose={() => setPreviewVisible(false)}
+      />
+
+      <WorkflowSimulationDrawer
+        visible={simulationVisible}
+        definitionId={!isNew && id ? Number(id) : null}
+        flowData={buildCurrentFlowData()}
+        formFields={localFormFields}
+        users={users}
+        result={simulationResult}
+        onResult={setSimulationResult}
+        onClose={() => setSimulationVisible(false)}
       />
 
       {/* 节点配置抽屉 */}

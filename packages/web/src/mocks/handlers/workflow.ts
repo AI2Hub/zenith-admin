@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { WorkflowDefinition, WorkflowDefinitionVersion, WorkflowEngineIntrospection, WorkflowEngineOutboxEvent, WorkflowEngineRuntimeTask, WorkflowFormField, WorkflowInstance, WorkflowInstanceFormSnapshot, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowTask, WorkflowTaskUrge } from '@zenith/shared';
+import type { WorkflowDefinition, WorkflowDefinitionVersion, WorkflowEngineIntrospection, WorkflowEngineOutboxEvent, WorkflowEngineRuntimeTask, WorkflowFlowData, WorkflowFormField, WorkflowInstance, WorkflowInstanceFormSnapshot, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowSimulationResult, WorkflowTask, WorkflowTaskUrge } from '@zenith/shared';
 import {
   mockWorkflowDefinitions,
   mockWorkflowInstances,
@@ -92,6 +92,81 @@ function resolveDefinitionFormSnapshot(definition: WorkflowDefinition): Workflow
     fields: [],
     settings: null,
     customForm: definition.customForm,
+  };
+}
+
+function buildMockSimulationResult(flowData: WorkflowFlowData | null | undefined, starterUserId?: number): WorkflowSimulationResult {
+  if (!flowData?.nodes?.length) {
+    return {
+      valid: false,
+      warnings: ['流程未配置，无法仿真'],
+      result: 'invalid',
+      timeline: [],
+      edgeResults: [],
+      nodeStates: {},
+    };
+  }
+  const nodeStates: WorkflowSimulationResult['nodeStates'] = {};
+  const visited = new Set<string>();
+  const timeline: WorkflowSimulationResult['timeline'] = [];
+  const starterName = starterUserId ? `用户${starterUserId}` : '当前用户';
+  const sortedNodes = flowData.nodes.filter((node) => node.data.type !== 'end');
+  sortedNodes.forEach((node, index) => {
+    const key = node.data.key;
+    visited.add(key);
+    if (node.data.type === 'start') {
+      timeline.push({
+        step: timeline.length + 1,
+        nodeKey: key,
+        nodeName: node.data.label || '发起',
+        nodeType: node.data.type,
+        status: 'entered',
+        assignees: [{ id: starterUserId ?? 1, name: starterName }],
+        reason: 'Demo 仿真开始',
+      });
+      nodeStates[key] = { status: 'done' };
+      return;
+    }
+    const assigneeIds = node.data.assigneeIds ?? (node.data.assigneeId ? [node.data.assigneeId] : []);
+    const assignees = assigneeIds.map((id) => ({ id, name: node.data.assigneeNames?.[0] ?? node.data.assigneeName ?? `用户${id}` }));
+    const waiting = node.data.type === 'delay' || node.data.type === 'trigger' || node.data.type === 'subProcess';
+    timeline.push({
+      step: timeline.length + 1,
+      nodeKey: key,
+      nodeName: node.data.label || key,
+      nodeType: node.data.type,
+      status: waiting ? 'waiting' : index === 0 ? 'entered' : 'approved',
+      assignees,
+      decision: waiting ? undefined : 'approve',
+      reason: waiting ? 'Demo 模式模拟等待后继续' : 'Demo 模式默认通过',
+    });
+    nodeStates[key] = { status: 'done', message: waiting ? 'Demo 模式模拟继续' : undefined };
+  });
+  flowData.nodes
+    .filter((node) => !nodeStates[node.data.key])
+    .forEach((node) => { nodeStates[node.data.key] = { status: node.data.type === 'end' ? 'done' : 'skipped' }; });
+  const nodeById = new Map(flowData.nodes.map((node) => [node.id, node.data]));
+  return {
+    valid: true,
+    warnings: ['Demo 模式使用轻量仿真，真实环境以后端流程引擎结果为准'],
+    result: 'finished',
+    timeline,
+    edgeResults: flowData.edges.map((edge) => {
+      const source = nodeById.get(edge.source);
+      const target = nodeById.get(edge.target);
+      const taken = !!source?.key && !!target?.key && visited.has(source.key) && (target.type === 'end' || visited.has(target.key));
+      return {
+        edgeId: edge.id,
+        source: edge.source,
+        target: edge.target,
+        sourceKey: source?.key,
+        targetKey: target?.key,
+        label: edge.label ?? null,
+        taken,
+        reason: taken ? 'Demo 仿真路径经过此连线' : undefined,
+      };
+    }),
+    nodeStates,
   };
 }
 
@@ -751,6 +826,14 @@ export const workflowHandlers = [
   http.get('/api/workflows/definitions/published', () => {
     const list = mockWorkflowDefinitions.filter(d => d.status === 'published' && d.formType !== 'external').map(resolveWorkflowDefinition);
     return ok(list);
+  }),
+
+  // 流程仿真（Demo 模式轻量实现）
+  http.post('/api/workflows/definitions/simulate', async ({ request }) => {
+    const body = await request.json().catch(() => ({})) as { definitionId?: number; flowData?: WorkflowFlowData | null; starterUserId?: number };
+    const definition = body.definitionId ? mockWorkflowDefinitions.find((item) => item.id === body.definitionId) : undefined;
+    const flowData = body.flowData ?? definition?.flowData ?? null;
+    return ok(buildMockSimulationResult(flowData, body.starterUserId));
   }),
 
   // 获取单个流程定义

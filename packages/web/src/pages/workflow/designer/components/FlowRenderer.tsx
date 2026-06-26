@@ -107,7 +107,7 @@ export default function FlowRenderer({
       <InitiatorNode
         node={process.initiator}
         onEdit={editNode}
-        started={readOnly && !!nodeRuntime}
+        started={!!nodeRuntime}
       />
 
       {!readOnly && <AddNodeButton onAdd={(type) => addAfter(process.initiator.id, type)} />}
@@ -115,7 +115,7 @@ export default function FlowRenderer({
 
       {renderNodeChain(process.initiator.children, process.initiator.id)}
 
-      <EndNode status={readOnly && nodeRuntime ? instanceStatus : undefined} />
+      <EndNode status={nodeRuntime ? instanceStatus : undefined} />
     </div>
   );
 }

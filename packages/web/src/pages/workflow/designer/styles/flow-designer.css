@@ -455,6 +455,60 @@ body[theme-mode='dark'] .fd-node-picker-panel {
   color: var(--semi-color-text-2);
 }
 
+/* ─── 流程仿真抽屉 ─────────────────────────────────────────────────── */
+
+.fd-simulation-drawer__body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.fd-simulation-drawer__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 12px 0;
+}
+
+.fd-simulation-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fd-simulation-section__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--semi-color-text-0);
+}
+
+.fd-simulation-form-box {
+  max-height: 320px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 8px;
+  background: var(--semi-color-bg-1);
+}
+
+.fd-simulation-timeline-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fd-simulation-timeline-item__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 /* 未命中分支置灰 */
 .fd-branch-col--dimmed {
   opacity: 0.4;
