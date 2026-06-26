@@ -412,6 +412,11 @@ export async function getMpKfSessionDetail(id: number): Promise<MpKfSessionDetai
   return { ...base, events, messages };
 }
 
+export async function getMpKfSessionBeforeAudit(id: number): Promise<MpKfSession | null> {
+  await ensureSession(id);
+  return loadMappedSession(id);
+}
+
 export async function getMpKfSessionStats(accountId: number): Promise<MpKfSessionStats> {
   await ensureMpAccountExists(accountId);
   const tenant = tenantScope(mpKfSessions);
@@ -601,6 +606,10 @@ async function getOrCreateConfigRow(accountId: number): Promise<MpKfRoutingConfi
 export async function getMpKfRoutingConfig(accountId: number): Promise<MpKfRoutingConfig> {
   await ensureMpAccountExists(accountId);
   return mapConfig(await getOrCreateConfigRow(accountId));
+}
+
+export async function getMpKfRoutingConfigBeforeAudit(accountId: number): Promise<MpKfRoutingConfig> {
+  return getMpKfRoutingConfig(accountId);
 }
 
 export async function updateMpKfRoutingConfig(accountId: number, data: UpdateMpKfRoutingConfigInput): Promise<MpKfRoutingConfig> {

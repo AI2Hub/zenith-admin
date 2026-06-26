@@ -43,7 +43,7 @@ const createBatchRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/batches', tags: ['支付中心-对账'], summary: '创建对账批次（上传渠道账单逐笔比对）',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'payment:recon:create', audit: { description: '创建支付对账批次', module: '支付中心' } })] as const,
+    middleware: [authMiddleware, guard({ permission: 'payment:recon:create', audit: { description: '创建支付对账批次', module: '支付中心', recordBody: false } })] as const,
     request: {
       body: {
         content: jsonContent(

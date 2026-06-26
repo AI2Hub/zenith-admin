@@ -88,6 +88,14 @@ async function ensureDelegationAccess(id: number): Promise<DelegationRow> {
   return row;
 }
 
+export async function getWorkflowDelegationBeforeAudit(id: number) {
+  const row = await ensureDelegationAccess(id).catch((err) => {
+    if (err instanceof HTTPException && err.status === 404) return null;
+    throw err;
+  });
+  return row ? mapDelegation(row) : null;
+}
+
 export interface ListWorkflowDelegationsQuery {
   page?: number;
   pageSize?: number;

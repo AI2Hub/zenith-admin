@@ -552,10 +552,7 @@ const listTemplates = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/templates', tags: ['Channels'], summary: '群发消息模板列表',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({
-      permission: 'channel:message:publish',
-      audit: { description: '测试发送频道消息', module: '消息中心' },
-    })] as const,
+    middleware: [authMiddleware, guard({ permission: 'channel:message:publish' })] as const,
     responses: { ...commonErrorResponses, ...ok(z.array(ChannelMessageTemplateDTO), '模板列表') },
   }),
   handler: async (c) => c.json(okBody(await listChannelTemplates()), 200),
@@ -607,7 +604,10 @@ const testSendRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/{id}/test-send', tags: ['Channels'], summary: '测试发送（仅发给本人）',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'channel:message:publish' })] as const,
+    middleware: [authMiddleware, guard({
+      permission: 'channel:message:publish',
+      audit: { description: '测试发送频道消息', module: '消息中心' },
+    })] as const,
     request: { params: IdParam, body: { content: jsonContent(publishChannelSchema), required: true } },
     responses: { ...commonErrorResponses, ...ok(ChannelMessageDTO, '已发送测试') },
   }),

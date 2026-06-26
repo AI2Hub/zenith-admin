@@ -125,6 +125,13 @@ export async function getSubscription(id: number) {
   return mapSubscription(row, definitionName);
 }
 
+export async function getSubscriptionBeforeAudit(id: number) {
+  return getSubscription(id).catch((err) => {
+    if (err instanceof HTTPException && err.status === 404) return null;
+    throw err;
+  });
+}
+
 export async function getSubscriptionSecret(id: number) {
   const row = await ensureSubscriptionExists(id);
   return { id: row.id, secret: row.secret ?? null };

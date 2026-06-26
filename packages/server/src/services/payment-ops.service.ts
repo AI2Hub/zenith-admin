@@ -51,6 +51,13 @@ export async function listPaymentEvents(q: ListEventsQuery) {
   return { list: list.map(mapOutboxEvent), total, page, pageSize };
 }
 
+export async function getPaymentEvent(id: number): Promise<PaymentOutboxEvent> {
+  const tc = tenantCondition(paymentEvents, currentUser());
+  const [row] = await db.select().from(paymentEvents).where(and(eq(paymentEvents.id, id), tc)).limit(1);
+  if (!row) throw new HTTPException(404, { message: '事件不存在' });
+  return mapOutboxEvent(row);
+}
+
 /** 手动重投 Outbox 事件：重置为 pending 并立即投递。 */
 export async function redispatchEvent(id: number): Promise<PaymentOutboxEvent> {
   const tc = tenantCondition(paymentEvents, currentUser());

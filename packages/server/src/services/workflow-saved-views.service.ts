@@ -38,6 +38,14 @@ export async function listSavedViews(pageKey: string): Promise<WorkflowSavedView
   return rows.map(mapView);
 }
 
+export async function getSavedViewBeforeAudit(id: number): Promise<WorkflowSavedView | null> {
+  const row = await ensureOwn(id).catch((err) => {
+    if (err instanceof HTTPException && err.status === 404) return null;
+    throw err;
+  });
+  return row ? mapView(row) : null;
+}
+
 export async function createSavedView(input: CreateWorkflowSavedViewInput): Promise<WorkflowSavedView> {
   const user = currentUser();
   const row = await db.transaction(async (tx) => {

@@ -46,6 +46,74 @@ export async function getMpFanBeforeAudit(id: number) {
   return mapMpFan(await ensureMpFanExists(id));
 }
 
+function compactFanAudit(row: Pick<MpFanRow, 'id' | 'accountId' | 'openid' | 'nickname' | 'remark' | 'blacklisted' | 'memberId'>) {
+  return {
+    id: row.id,
+    accountId: row.accountId,
+    openid: row.openid,
+    nickname: row.nickname ?? null,
+    remark: row.remark ?? null,
+    memberId: row.memberId ?? null,
+    blacklisted: row.blacklisted,
+  };
+}
+
+export async function getMpFansBlacklistAudit(accountId: number, openids: string[]) {
+  await ensureMpAccountExists(accountId);
+  const uniqOpenids = [...new Set(openids)];
+  if (uniqOpenids.length === 0) {
+    return { accountId, openids: [], fans: [] };
+  }
+  const tenant = tenantScope(mpFans);
+  const rows = await db
+    .select({
+      id: mpFans.id,
+      accountId: mpFans.accountId,
+      openid: mpFans.openid,
+      nickname: mpFans.nickname,
+      remark: mpFans.remark,
+      memberId: mpFans.memberId,
+      blacklisted: mpFans.blacklisted,
+    })
+    .from(mpFans)
+    .where(and(eq(mpFans.accountId, accountId), inArray(mpFans.openid, uniqOpenids), tenant))
+    .orderBy(mpFans.id);
+  return {
+    accountId,
+    openids: uniqOpenids,
+    fans: rows.map(compactFanAudit),
+  };
+}
+
+export async function getMpBlacklistStateAudit(accountId: number) {
+  await ensureMpAccountExists(accountId);
+  const tenant = tenantScope(mpFans);
+  const where = and(eq(mpFans.accountId, accountId), eq(mpFans.blacklisted, true), tenant);
+  const [total, rows] = await Promise.all([
+    db.$count(mpFans, where),
+    db
+      .select({
+        id: mpFans.id,
+        accountId: mpFans.accountId,
+        openid: mpFans.openid,
+        nickname: mpFans.nickname,
+        remark: mpFans.remark,
+        memberId: mpFans.memberId,
+        blacklisted: mpFans.blacklisted,
+      })
+      .from(mpFans)
+      .where(where)
+      .orderBy(mpFans.id)
+      .limit(100),
+  ]);
+  return {
+    accountId,
+    blacklistedCount: total,
+    sampleSize: rows.length,
+    blacklistedFansSample: rows.map(compactFanAudit),
+  };
+}
+
 export interface ListMpFansQuery {
   accountId: number;
   keyword?: string;

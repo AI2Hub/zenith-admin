@@ -108,6 +108,13 @@ async function loadScheduleWithNames(id: number): Promise<WorkflowSchedule> {
   return mapSchedule(r.row, { definitionName: r.definitionName, initiatorName: r.initiatorName });
 }
 
+export async function getWorkflowScheduleBeforeAudit(id: number): Promise<WorkflowSchedule | null> {
+  return loadScheduleWithNames(id).catch((err) => {
+    if (err instanceof HTTPException && err.status === 404) return null;
+    throw err;
+  });
+}
+
 export async function createSchedule(input: CreateWorkflowScheduleInput): Promise<WorkflowSchedule> {
   const user = currentUser();
   await ensureScheduleDefinitionLaunchable(input.definitionId);

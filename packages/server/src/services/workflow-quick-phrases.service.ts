@@ -50,6 +50,14 @@ async function ensureOwnPhrase(id: number): Promise<PhraseRow> {
   return row;
 }
 
+export async function getQuickPhraseBeforeAudit(id: number): Promise<WorkflowQuickPhrase | null> {
+  const row = await ensureOwnPhrase(id).catch((err) => {
+    if (err instanceof HTTPException && err.status === 404) return null;
+    throw err;
+  });
+  return row ? mapQuickPhrase(row) : null;
+}
+
 export async function updateMyQuickPhrase(id: number, input: UpdateWorkflowQuickPhraseInput): Promise<WorkflowQuickPhrase> {
   await ensureOwnPhrase(id);
   const patch: Partial<typeof workflowQuickPhrases.$inferInsert> = {};

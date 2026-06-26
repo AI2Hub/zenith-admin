@@ -45,6 +45,17 @@ export async function ensureMpTemplateExists(id: number): Promise<MpMessageTempl
   return row;
 }
 
+export async function getMpTemplateBeforeAudit(id: number) {
+  return mapMpTemplate(await ensureMpTemplateExists(id));
+}
+
+export async function getMpTemplateIndustryBeforeAudit(accountId: number) {
+  return {
+    accountId,
+    industry: await getMpTemplateIndustry(accountId),
+  };
+}
+
 export interface ListMpTemplatesQuery { accountId: number; keyword?: string; page: number; pageSize: number; }
 
 export async function listMpTemplates(q: ListMpTemplatesQuery) {

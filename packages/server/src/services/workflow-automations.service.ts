@@ -54,6 +54,26 @@ async function ensureAutomationExists(id: number) {
   return row;
 }
 
+export async function getWorkflowAutomationBeforeAudit(id: number) {
+  return getWorkflowAutomation(id).catch((err) => {
+    if (err instanceof HTTPException && err.status === 404) return null;
+    throw err;
+  });
+}
+
+export async function getWorkflowAutomationsBeforeAudit(ids: number[]) {
+  if (!ids.length) return [];
+  const tc = tenantCondition(workflowAutomations, currentUser());
+  const conds = [inArray(workflowAutomations.id, ids)];
+  if (tc) conds.push(tc);
+  const rows = await db.query.workflowAutomations.findMany({
+    where: and(...conds),
+    orderBy: [asc(workflowAutomations.sort), desc(workflowAutomations.id)],
+    with: { definition: { columns: { name: true } } },
+  });
+  return rows.map((r) => mapAutomation(r, r.definition?.name ?? null));
+}
+
 async function ensureDefinitionExists(definitionId: number) {
   const tc = tenantCondition(workflowDefinitions, currentUser());
   const conds = [eq(workflowDefinitions.id, definitionId)];

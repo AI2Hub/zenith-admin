@@ -5,8 +5,13 @@ import { guard, setAuditBeforeData } from '../middleware/guard';
 import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../lib/openapi-schemas';
 import { PaymentLinkDTO } from '../lib/openapi-dtos';
 import { listLinks, getLink, createLink, updateLink, deleteLink } from '../services/payment-link.service';
+import type { PaymentLink } from '@zenith/shared';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
+
+function maskPaymentLinkForAudit(link: PaymentLink): PaymentLink {
+  return { ...link, token: '***' };
+}
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -34,11 +39,16 @@ const createRouteDef = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/', tags: ['支付中心-支付链接'], summary: '新增支付链接',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'payment:link:create', audit: { description: '新增支付链接', module: '支付中心' } })] as const,
+    middleware: [authMiddleware, guard({ permission: 'payment:link:create', audit: { description: '新增支付链接', module: '支付中心', recordResponseBody: false } })] as const,
     request: { body: { content: jsonContent(createPaymentLinkSchema), required: true } },
     responses: { ...ok(PaymentLinkDTO, '创建成功'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await createLink(c.req.valid('json')), '创建成功'), 200),
+  handler: async (c) => {
+    const created = await createLink(c.req.valid('json'));
+    setAuditBeforeData(c, null);
+    setAuditBeforeData(c, undefined);
+    return c.json(okBody(created, '创建成功'), 200);
+  },
 });
 
 const updateRoute = defineOpenAPIRoute({

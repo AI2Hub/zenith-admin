@@ -1,9 +1,10 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { guard } from '../middleware/guard';
+import { guard, setAuditBeforeData } from '../middleware/guard';
 import { PaginationQuery, validationHook, commonErrorResponses, ok, okPaginated, IdParam, okBody } from '../lib/openapi-schemas';
 import { PaymentOutboxEventDTO, PaymentOrderDTO } from '../lib/openapi-dtos';
-import { listPaymentEvents, redispatchEvent, simulateOrderPaid } from '../services/payment-ops.service';
+import { getPaymentEvent, listPaymentEvents, redispatchEvent, simulateOrderPaid } from '../services/payment-ops.service';
+import { getOrderDetail } from '../services/payment.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -26,7 +27,11 @@ const redispatchRoute = defineOpenAPIRoute({
     request: { params: IdParam },
     responses: { ...ok(PaymentOutboxEventDTO, '已重投'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await redispatchEvent(c.req.valid('param').id), '已重投'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getPaymentEvent(id));
+    return c.json(okBody(await redispatchEvent(id), '已重投'), 200);
+  },
 });
 
 const simulateRoute = defineOpenAPIRoute({
@@ -38,7 +43,11 @@ const simulateRoute = defineOpenAPIRoute({
     request: { params: IdParam },
     responses: { ...ok(PaymentOrderDTO, '已模拟支付'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await simulateOrderPaid(c.req.valid('param').id), '已模拟支付成功'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getOrderDetail(id));
+    return c.json(okBody(await simulateOrderPaid(id), '已模拟支付成功'), 200);
+  },
 });
 
 router.openapiRoutes([listEventsRoute, redispatchRoute, simulateRoute] as const);

@@ -170,6 +170,16 @@ export async function listDeliveries(q: ListDeliveriesQuery) {
   return { list, total, page, pageSize };
 }
 
+export async function getDelivery(id: number): Promise<PaymentWebhookDelivery> {
+  const tc = tenantCondition(paymentWebhookDeliveries, currentUser());
+  const row = await db.query.paymentWebhookDeliveries.findFirst({
+    where: and(eq(paymentWebhookDeliveries.id, id), tc),
+    with: { endpoint: { columns: { name: true } } },
+  });
+  if (!row) throw new HTTPException(404, { message: '投递记录不存在' });
+  return mapDelivery({ ...row, endpointName: row.endpoint?.name ?? null });
+}
+
 // ─── 投递与重试 ─────────────────────────────────────────────────────────────
 function sign(secret: string, body: string): string {
   return createHmac('sha256', secret).update(body).digest('hex');
