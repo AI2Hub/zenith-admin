@@ -8,7 +8,7 @@ import type { TableSizePreference } from '@/hooks/usePreferences';
 import { ZENITH_OPERATION_COLUMN_SYMBOL, type ZenithOperationColumnMarker } from './table-column-meta';
 
 type TableRecord = Data;
-type ConfigurableColumn<RecordType extends TableRecord> = ColumnProps<RecordType> & {
+type ConfigurableColumn<RecordType extends TableRecord> = Omit<ColumnProps<RecordType>, 'children'> & {
   children?: ConfigurableColumn<RecordType>[];
 } & ZenithOperationColumnMarker;
 
@@ -140,25 +140,27 @@ function filterColumns<RecordType extends TableRecord>(
   compactActionColumn = false,
   path: number[] = [],
 ): ColumnProps<RecordType>[] {
-  return columns.flatMap((column, index) => {
+  return columns.reduce<ColumnProps<RecordType>[]>((result, column, index) => {
     const key = getColumnKey(column, index, path);
     const children = column.children ?? [];
 
     if (children.length > 0) {
       const visibleChildren = filterColumns(children, hiddenKeys, compactActionColumn, [...path, index]);
-      if (visibleChildren.length === 0) return [];
-      return [{ ...column, children: visibleChildren }];
+      if (visibleChildren.length > 0) result.push({ ...column, children: visibleChildren });
+      return result;
     }
 
-    if (hiddenKeys.has(key) && !isAlwaysVisibleColumn(column)) return [];
+    if (hiddenKeys.has(key) && !isAlwaysVisibleColumn(column)) return result;
     if (compactActionColumn && isOperationColumn(column)) {
-      return [{
+      result.push({
         ...column,
         width: MOBILE_ACTION_COLUMN_WIDTH,
-      }];
+      });
+      return result;
     }
-    return [column];
-  });
+    result.push(column);
+    return result;
+  }, []);
 }
 
 function getDefaultStorageKey(columnKeys: string[]): string {
