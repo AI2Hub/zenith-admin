@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Button, Form, Input, Select, Switch, Tag, Toast, Modal } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Select, Switch, Tag, Toast, Modal, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, RotateCcw, Plus } from 'lucide-react';
@@ -9,6 +9,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
+import { renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import type { ReportDatasource, ReportDatasourceType, ReportApiDatasourceConfig, PaginatedResponse } from '@zenith/shared';
@@ -136,10 +137,10 @@ export default function DataSourcesPage() {
     {
       title: '连接', dataIndex: 'config', width: 320,
       render: (_: unknown, r: ReportDatasource) => r.type === 'api'
-        ? <span style={{ color: 'var(--semi-color-text-1)' }}>{(r.config as ReportApiDatasourceConfig).url ?? '-'}</span>
+        ? <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%', color: 'var(--semi-color-text-1)' }}>{(r.config as ReportApiDatasourceConfig).url ?? '-'}</Typography.Text>
         : <span style={{ color: 'var(--semi-color-text-2)' }}>内置只读主库</span>,
     },
-    { title: '备注', dataIndex: 'remark', width: 180, render: (v: string) => v || '-' },
+    { title: '备注', dataIndex: 'remark', width: 180, render: renderEllipsis },
     { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',

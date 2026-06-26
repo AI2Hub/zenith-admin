@@ -11,6 +11,7 @@ import AppModal from '@/components/AppModal';
 import { ShareModal, VersionModal } from './components/DashboardOpsModals';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
+import { renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import type { ReportDashboard, ReportWidget, ReportDashboardCategory, PaginatedResponse } from '@zenith/shared';
@@ -111,7 +112,7 @@ export default function DashboardListPage() {
     { title: '名称', dataIndex: 'name', width: 200 },
     { title: '分类', dataIndex: 'categoryName', width: 120, render: (v: string) => v ? <Tag size="small" color="light-blue">{v}</Tag> : '-' },
     { title: '组件数', dataIndex: 'widgets', width: 80, render: (w: ReportWidget[]) => (w?.length ?? 0) },
-    { title: '备注', dataIndex: 'remark', width: 180, render: (v: string) => v || '-' },
+    { title: '备注', dataIndex: 'remark', width: 180, render: renderEllipsis },
     { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
     { title: '状态', dataIndex: 'status', width: 70, fixed: 'right', render: (s: string) => s === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag> },
     createOperationColumn<ReportDashboard>({

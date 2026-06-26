@@ -8,6 +8,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { request } from '@/utils/request';
+import { renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import type { ReportDashboardSubscription, ReportDashboard, PaginatedResponse } from '@zenith/shared';
@@ -76,7 +77,7 @@ export default function SubscriptionsPage() {
     { title: '仪表盘', dataIndex: 'dashboardName', width: 180, render: (v: string) => v || '-' },
     { title: 'Cron', dataIndex: 'cron', width: 130 },
     { title: '通道', dataIndex: 'channels', width: 140, render: (ch: string[]) => (ch ?? []).map((c) => <Tag key={c} size="small" color={c === 'email' ? 'blue' : 'green'} style={{ marginRight: 4 }}>{c === 'email' ? '邮件' : '站内信'}</Tag>) },
-    { title: '收件邮箱', dataIndex: 'recipients', width: 200, render: (v: string) => v || '-' },
+    { title: '收件邮箱', dataIndex: 'recipients', width: 200, render: renderEllipsis },
     { title: '上次推送', dataIndex: 'lastRunAt', width: 170, render: (v: string) => v || '—' },
     { title: '状态', dataIndex: 'enabled', width: 70, fixed: 'right', render: (e: boolean) => e ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag> },
     createOperationColumn<ReportDashboardSubscription>({
