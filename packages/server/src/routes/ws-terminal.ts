@@ -45,6 +45,22 @@ const POWERSHELL_CWD_PROMPT = [
   '}',
 ].join(' ');
 
+const WSL_BASH_CWD_BOOTSTRAP = [
+  'tmp="${TMPDIR:-/tmp}/zenith-terminal-rc-$$.bashrc"',
+  'export ZENITH_TERMINAL_RC="$tmp"',
+  "cat > \"$tmp\" <<'__ZENITH_RC__'",
+  'if [ -f /etc/bash.bashrc ]; then . /etc/bash.bashrc; fi',
+  'if [ -f ~/.bashrc ]; then . ~/.bashrc; fi',
+  "__zenith_emit_cwd() { printf '\\033]7;file://wsl%s\\007' \"$PWD\"; }",
+  'case ";${PROMPT_COMMAND:-};" in',
+  '  *";__zenith_emit_cwd;"*) ;;',
+  '  *) PROMPT_COMMAND="__zenith_emit_cwd${PROMPT_COMMAND:+;$PROMPT_COMMAND}" ;;',
+  'esac',
+  'if [ -n "${ZENITH_TERMINAL_RC:-}" ]; then rm -f "$ZENITH_TERMINAL_RC"; unset ZENITH_TERMINAL_RC; fi',
+  '__ZENITH_RC__',
+  'exec bash --rcfile "$tmp" -i',
+].join('\n');
+
 /**
  * 根据前端选择的 shell id 解析实际可执行文件与启动参数。
  * shell 列表由 listShells() 按当前平台动态探测；前端传入的 id 必须在白名单内，
@@ -72,6 +88,11 @@ function resolveShell(type: string | undefined): { file: string; args: string[] 
   const { shells, defaultShell } = listShells();
   const id = type && shells.some((s) => s.id === type) ? type : defaultShell;
   const shell = shells.find((s) => s.id === id) ?? shells[0];
+  if (os.platform() === 'win32' && shell.id.startsWith('wsl:')) {
+    const execIndex = shell.args?.indexOf('--exec') ?? -1;
+    const prefixArgs = execIndex >= 0 ? shell.args!.slice(0, execIndex) : ['-d', shell.id.slice(4), '--cd', '~'];
+    return { file: shell.path, args: [...prefixArgs, '--exec', 'bash', '-lc', WSL_BASH_CWD_BOOTSTRAP] };
+  }
   // WSL 发行版：shell.args 已包含 ['-d', '<distro>']
   if (shell.args?.length) {
     return { file: shell.path, args: shell.args };
