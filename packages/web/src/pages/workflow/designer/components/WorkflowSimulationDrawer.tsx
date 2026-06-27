@@ -4,7 +4,7 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 import { Banner, Button, Select, SideSheet, Space, Switch, Tag, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { AlertTriangle, Bookmark, Bug, CheckCircle2, ChevronLeft, ChevronRight, CircleDashed, Clock, FastForward, GitCompare, ListChecks, Minus, PanelRightClose, Pause, Play, Plus, RotateCcw, RotateCw, Save, Send, SlidersHorizontal, Wand2, X, XCircle } from 'lucide-react';
+import { AlertTriangle, Bookmark, Bug, CheckCircle2, ChevronLeft, ChevronRight, CircleDashed, Clock, FastForward, GitCompare, Keyboard, ListChecks, Minus, PanelRightClose, Pause, Play, Plus, RotateCcw, RotateCw, Save, Send, SlidersHorizontal, Wand2, XCircle } from 'lucide-react';
 import type { WorkflowFlowData, WorkflowFormField, WorkflowSimulationDecision, WorkflowSimulationHealthIssue, WorkflowSimulationResult } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { formatDateForApi, formatDateTimeForApi } from '@/utils/date';
@@ -832,14 +832,13 @@ export default function WorkflowSimulationDrawer({
     if (!result || totalSteps === 0) {
       return (
         <div className="fd-simulation-transport fd-simulation-transport--empty">
-          <Button type="primary" icon={<Play size={15} />} loading={submitting} onClick={() => void runSimulation()}>启动仿真</Button>
-          <Typography.Text size="small" type="tertiary">运行后点「下一步」即可逐步执行（无需断点）；断点仅用于自动播放时暂停。</Typography.Text>
+          <Typography.Text size="small" type="tertiary">填好左侧输入后点左下角「启动仿真」。运行后点「下一步」逐步执行（无需断点）；断点仅用于自动播放时暂停。</Typography.Text>
         </div>
       );
     }
     return (
       <div className="fd-simulation-transport" aria-live="polite">
-        <div className="fd-simulation-transport__controls">
+        <div className="fd-simulation-transport__zone fd-simulation-transport__zone--playback">
           <Tooltip content="上一步 (←)">
             <Button size="small" theme="borderless" icon={<ChevronLeft size={16} />} onClick={() => moveStep(currentStep - 1)} disabled={currentStep <= 1} aria-label="上一步" />
           </Tooltip>
@@ -849,21 +848,26 @@ export default function WorkflowSimulationDrawer({
           <Tooltip content="下一步 (→)">
             <Button size="small" type="primary" icon={<ChevronRight size={16} />} onClick={() => moveStep(currentStep + 1)} disabled={currentStep >= totalSteps} aria-label="下一步">下一步</Button>
           </Tooltip>
+          <Tooltip content="快捷键：← 上一步 · → 下一步 · 空格 播放/暂停">
+            <span className="fd-simulation-transport__hint"><Keyboard size={14} /></span>
+          </Tooltip>
         </div>
-        <div className="fd-simulation-transport__track">{renderScrubber()}</div>
-        <div className="fd-simulation-transport__meta">
-          <ListChecks size={14} />
-          <Typography.Text strong>第 {currentStep} / {totalSteps} 步</Typography.Text>
-          {resultMeta && <Tag size="small" color={resultMeta.color}>{resultMeta.label}</Tag>}
+        <div className="fd-simulation-transport__zone fd-simulation-transport__zone--progress">
+          <div className="fd-simulation-transport__track">{renderScrubber()}</div>
+          <div className="fd-simulation-transport__meta">
+            <ListChecks size={14} />
+            <Typography.Text strong>第 {currentStep} / {totalSteps} 步</Typography.Text>
+            {resultMeta && <Tag size="small" color={resultMeta.color}>{resultMeta.label}</Tag>}
+          </div>
         </div>
-        <div className="fd-simulation-transport__right">
+        <div className="fd-simulation-transport__zone fd-simulation-transport__zone--run">
           {debugMode && (
             <Tooltip content="运行到下一个断点">
               <Button size="small" type="tertiary" icon={<FastForward size={14} />} onClick={runToBreakpoint} disabled={breakpoints.size === 0}>运行到断点</Button>
             </Tooltip>
           )}
           <Button size="small" icon={<RotateCw size={14} />} loading={submitting} onClick={() => void runSimulation(undefined, undefined, '已重新运行仿真')}>重新运行</Button>
-          <Button size="small" type="tertiary" theme="borderless" icon={<RotateCcw size={14} />} onClick={resetResult}>重置</Button>
+          <Button size="small" type="tertiary" theme="borderless" onClick={resetResult}>重置</Button>
         </div>
       </div>
     );
@@ -1039,9 +1043,7 @@ export default function WorkflowSimulationDrawer({
           <div className="fd-simulation-graph__toolbar">
             <div className="fd-simulation-graph__title">
               <Typography.Text strong>流程图仿真</Typography.Text>
-              {currentItem ? (
-                <Typography.Text type="tertiary" size="small">当前：{currentItem.nodeName}</Typography.Text>
-              ) : (
+              {!result && (
                 <Typography.Text type="tertiary" size="small">启动后在这里逐步呈现节点状态</Typography.Text>
               )}
             </div>
@@ -1059,7 +1061,6 @@ export default function WorkflowSimulationDrawer({
                 <Button icon={<Plus size={14} />} type="tertiary" theme="borderless" size="small" onClick={() => setGraphZoom((z) => Math.min(z + 10, 160))} />
                 <Button icon={<RotateCcw size={12} />} type="tertiary" theme="borderless" size="small" onClick={() => setGraphZoom(90)} />
               </div>
-              <Button size="small" icon={<X size={14} />} onClick={onClose}>关闭</Button>
             </div>
           </div>
           <div className="fd-simulation-graph__status">
@@ -1069,34 +1070,36 @@ export default function WorkflowSimulationDrawer({
             {renderTransport()}
           </div>
           <div className="fd-simulation-graph__viewport">
-            <div className="fd-simulation-graph__canvas" ref={graphCanvasRef}>
-              <div style={{ transform: `scale(${graphZoom / 100})`, transformOrigin: 'top center' }}>
-                <FlowRenderer
-                  process={process}
-                  readOnly
-                  formFields={formFields}
-                  nodeRuntime={simulationNodeRuntime}
-                  dimmedBranchIds={simulationDimmedBranchIds}
-                  instanceStatus={simulationInstanceStatus}
-                  onSimulationNodeClick={jumpToNode}
-                  onSimulationNodeContextMenu={debugMode ? toggleBreakpointForNode : undefined}
-                  onSimulationBranchClick={selectBranch}
-                  selectedSimulationBranchId={selectedBranch?.id}
-                  simulationBreakpoints={breakpoints}
-                  simulationDebug={debugMode}
-                />
+            <div className="fd-simulation-graph__stage">
+              <div className="fd-simulation-graph__canvas" ref={graphCanvasRef}>
+                <div style={{ transform: `scale(${graphZoom / 100})`, transformOrigin: 'top center' }}>
+                  <FlowRenderer
+                    process={process}
+                    readOnly
+                    formFields={formFields}
+                    nodeRuntime={simulationNodeRuntime}
+                    dimmedBranchIds={simulationDimmedBranchIds}
+                    instanceStatus={simulationInstanceStatus}
+                    onSimulationNodeClick={jumpToNode}
+                    onSimulationNodeContextMenu={debugMode ? toggleBreakpointForNode : undefined}
+                    onSimulationBranchClick={selectBranch}
+                    selectedSimulationBranchId={selectedBranch?.id}
+                    simulationBreakpoints={breakpoints}
+                    simulationDebug={debugMode}
+                  />
+                </div>
               </div>
+              {result && (
+                <div className="fd-simulation-legend" aria-hidden="true">
+                  {SIMULATION_LEGEND.map((legend) => (
+                    <span className="fd-simulation-legend__item" key={legend.label}>
+                      <i style={{ background: legend.color }} />
+                      {legend.label}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-            {result && (
-              <div className="fd-simulation-legend" aria-hidden="true">
-                {SIMULATION_LEGEND.map((legend) => (
-                  <span className="fd-simulation-legend__item" key={legend.label}>
-                    <i style={{ background: legend.color }} />
-                    {legend.label}
-                  </span>
-                ))}
-              </div>
-            )}
             {renderInspector()}
           </div>
         </section>
