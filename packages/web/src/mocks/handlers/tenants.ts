@@ -106,13 +106,6 @@ export const tenantsHandlers = [
     return HttpResponse.json({ code: 0, message: '删除成功', data: null });
   }),
 
-  // 导出
-  http.get('/api/tenants/export', () => {
-    return new HttpResponse(new Blob(['mock-excel-data']), {
-      headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
-    });
-  }),
-
   // 切换租户
   http.post('/api/auth/switch-tenant', () => {
     return HttpResponse.json({

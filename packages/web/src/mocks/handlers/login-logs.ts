@@ -78,26 +78,6 @@ export const loginLogsHandlers = [
     return HttpResponse.json({ code: 0, message: 'ok', data: buildLoginLogStats(days) });
   }),
 
-  // 导出 Excel
-  http.get('/api/login-logs/export', () =>
-    new HttpResponse(new Blob(['mock-excel-data']), {
-      headers: {
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': 'attachment; filename="login-logs.xlsx"',
-      },
-    }),
-  ),
-
-  // 导出 CSV
-  http.get('/api/login-logs/export/csv', () =>
-    new HttpResponse('\uFEFF用户名,事件类型,IP,状态,时间\nadmin,登录,127.0.0.1,成功,2026-06-20 12:00:00\nadmin,退出登录,127.0.0.1,成功,2026-06-20 12:30:00\n', {
-      headers: {
-        'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': 'attachment; filename="login-logs.csv"',
-      },
-    }),
-  ),
-
   http.delete('/api/login-logs/clean', ({ request }) => {
     const url = new URL(request.url);
     const months = Number(url.searchParams.get('months')) || 0;

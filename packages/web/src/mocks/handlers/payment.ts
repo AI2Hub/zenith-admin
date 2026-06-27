@@ -197,8 +197,6 @@ export const paymentHandlers = [
     };
     return HttpResponse.json({ code: 0, message: '下单成功', data: { orderNo, payParams } });
   }),
-  http.get('/api/payment/orders/export', () => new HttpResponse('\uFEFF订单号,金额(元)\nPAY1700000000001,99.00\n', { headers: { 'Content-Type': 'text/csv; charset=utf-8' } })),
-  http.get('/api/payment/orders/export/csv', () => new HttpResponse('\uFEFF订单号,金额(元)\nPAY1700000000001,99.00\n', { headers: { 'Content-Type': 'text/csv; charset=utf-8' } })),
   http.get('/api/payment/orders/by-no/:orderNo', ({ params }) => {
     const o = mockPaymentOrders.find((x) => x.orderNo === String(params.orderNo));
     return o ? HttpResponse.json({ code: 0, message: 'ok', data: o }) : HttpResponse.json({ code: 404, message: '不存在', data: null });
@@ -282,8 +280,6 @@ export const paymentHandlers = [
     }
     return HttpResponse.json({ code: 0, message: '已同步', data: r });
   }),
-  http.get('/api/payment/refunds/export', () => new HttpResponse('\uFEFF退款单号,金额(元)\nREF1700000000003,19.00\n', { headers: { 'Content-Type': 'text/csv; charset=utf-8' } })),
-  http.get('/api/payment/refunds/export/csv', () => new HttpResponse('\uFEFF退款单号,金额(元)\nREF1700000000003,19.00\n', { headers: { 'Content-Type': 'text/csv; charset=utf-8' } })),
   http.get('/api/payment/refunds/:id', ({ params }) => {
     const r = mockPaymentRefunds.find((x) => x.id === Number(params.id));
     return r ? HttpResponse.json({ code: 0, message: 'ok', data: r }) : HttpResponse.json({ code: 404, message: '不存在', data: null });

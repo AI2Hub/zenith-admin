@@ -33,12 +33,6 @@ function paginated<T>(list: T[], page = 1, pageSize = 10) {
 }
 
 export const memberAdminHandlers = [
-  // ── 会员管理（/export 必须在 /:id 之前）──────────────────────────────────
-  http.get('/api/members/export', () =>
-    new HttpResponse('id,nickname,phone\n1,演示会员,13800138000', {
-      headers: { 'Content-Type': 'text/csv' },
-    }),
-  ),
   http.put('/api/members/batch-status', () => ok(null, '已更新状态')),
   http.put('/api/members/batch-level', () => ok(null, '已调整等级')),
   http.get('/api/members', () => paginated(mockMembers.map(memberView))),

@@ -309,6 +309,7 @@ export function WidgetRenderer({ widget, data, loading, error, filterValues, onC
       const max = o.max && o.max > 0 ? o.max : 100;
       const percent = Math.max(0, Math.min(1, value / max));
       const spec = {
+        type: 'liquid',
         data: [{ id: 'd', values: [{ value: percent }] }],
         valueField: 'value',
         maskShape: 'circle',
@@ -321,7 +322,7 @@ export function WidgetRenderer({ widget, data, loading, error, filterValues, onC
       };
       return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-          <LiquidChart {...spec} options={chartOptions} height={chartHeight} />
+          <LiquidChart spec={spec as ISpec} options={chartOptions} height={chartHeight} />
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
             <span style={{ color: 'var(--semi-color-text-0)', fontSize: 22, fontWeight: 700 }}>{fmtNumber(value, o.decimals)}{o.unit ?? ''}</span>
             <span style={{ color: 'var(--semi-color-text-2)', fontSize: 12 }}>{Math.round(percent * 100)}%</span>
@@ -379,7 +380,7 @@ export function WidgetRenderer({ widget, data, loading, error, filterValues, onC
         valueField: 'value',
         sourceField: 'source',
         targetField: 'target',
-        nodeAlign: 'left',
+        nodeAlign: 'left' as const,
         color: palette.dataColors,
         label: { visible: true, style: { fill: palette.text1 } },
         tooltip: { visible: true },
@@ -425,7 +426,7 @@ export function WidgetRenderer({ widget, data, loading, error, filterValues, onC
         yField: o.yField,
         valueField,
         color: {
-          type: 'linear',
+          type: 'linear' as const,
           field: valueField,
           domain: [0, max],
           range: [palette.fill1, palette.dataColors[0] ?? palette.primary],
@@ -433,8 +434,8 @@ export function WidgetRenderer({ widget, data, loading, error, filterValues, onC
         },
         cell: { style: { stroke: palette.border, lineWidth: 1 } },
         axes: [
-          { orient: 'bottom', type: 'band' },
-          { orient: 'left', type: 'band' },
+          { orient: 'bottom' as const, type: 'band' as const },
+          { orient: 'left' as const, type: 'band' as const },
         ],
         tooltip: { visible: true },
       };

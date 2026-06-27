@@ -239,10 +239,6 @@ export const analyticsHandlers = [
     ],
   })),
 
-  // 导出（在 :id 之前注册）
-  http.get('/api/analytics/events/export', () => new HttpResponse('mock excel', { headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' } })),
-  http.get('/api/analytics/events/export/csv', () => new HttpResponse('id,event\n1,$pageview\n', { headers: { 'Content-Type': 'text/csv; charset=utf-8' } })),
-
   http.get('/api/analytics/events/:id', ({ params }) => {
     const id = Number(params.id);
     const base = MOCK_EVENTS.find((e) => e.id === id) ?? MOCK_EVENTS[0];

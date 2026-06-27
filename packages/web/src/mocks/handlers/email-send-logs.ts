@@ -74,8 +74,4 @@ export const emailSendLogsHandlers = [
     mockEmailSendLogs.unshift(log);
     return HttpResponse.json({ code: 0, message: '测试发送成功', data: { success: true, status: 'success', logId: log.id } });
   }),
-
-  http.get('/api/email-send-logs/export', () => {
-    return HttpResponse.json({ code: 0, message: '演示模式不支持导出', data: null });
-  }),
 ];

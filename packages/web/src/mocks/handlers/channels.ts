@@ -183,11 +183,6 @@ export const channelsHandlers = [
   }),
 
   // ── 订阅者管理（需先于 /api/channels/admin/:id/messages 与 /api/channels/:id/* 注册） ──
-  http.get('/api/channels/admin/:id/subscribers/export', ({ params }) => {
-    const channelId = Number(params.id);
-    const ch = mockChannels.find((c) => c.id === channelId);
-    return HttpResponse.json({ code: 0, message: 'ok', data: listSubscribers(channelId, ch?.type === 'system') });
-  }),
   http.get('/api/channels/admin/:id/subscribers', ({ params, request }) => {
     const channelId = Number(params.id);
     const ch = mockChannels.find((c) => c.id === channelId);
