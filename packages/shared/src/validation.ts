@@ -2564,7 +2564,7 @@ export type UpdateMpKfRoutingConfigInput = z.infer<typeof updateMpKfRoutingConfi
 // ════════════════════════════════════════════════════════════════════════════
 export const reportDatasourceTypeSchema = z.enum(['api', 'sql', 'mysql', 'postgresql', 'sqlserver', 'static']);
 export const reportFieldTypeSchema = z.enum(['string', 'number', 'date', 'boolean']);
-export const reportWidgetTypeSchema = z.enum(['kpi', 'table', 'pivot', 'text', 'bar', 'line', 'area', 'dualAxis', 'pie', 'scatter', 'radar', 'funnel', 'gauge', 'treemap', 'flipper', 'scrollList', 'map']);
+export const reportWidgetTypeSchema = z.enum(['kpi', 'table', 'pivot', 'text', 'bar', 'line', 'area', 'dualAxis', 'pie', 'scatter', 'radar', 'funnel', 'gauge', 'treemap', 'flipper', 'scrollList', 'map', 'sankey', 'wordCloud', 'liquid', 'heatmap', 'image', 'iframe']);
 
 /** 字段显示格式化（语义层 lite） */
 export const reportFieldFormatSchema = z.object({
