@@ -3,12 +3,13 @@ import {
   Form, Button, Typography, Toast, Tag, Space, Spin,
   Modal, Cropper, Input, Tabs, DatePicker, List as SemiList, Descriptions,
 } from '@douyinfe/semi-ui';
-import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle, RotateCcw, RotateCw } from 'lucide-react';
+import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle, RotateCcw, RotateCw, Smartphone } from 'lucide-react';
 import { Icon } from '@iconify/react';
+import { QRCodeSVG } from 'qrcode.react';
 
 import type {
   User as UserType, LoginLog, OperationLog, OAuthAccount, OAuthProviderType,
-  UserSession, UserApiToken, UserApiTokenCreated,
+  UserSession, UserApiToken, UserApiTokenCreated, MfaFactor, TotpSetupResult,
 } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { AppModal } from '@/components/AppModal';
@@ -151,6 +152,11 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
   const [oauthAccounts, setOauthAccounts] = useState<OAuthAccount[]>([]);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [oauthLoaded, setOauthLoaded] = useState(false);
+  const [mfaFactors, setMfaFactors] = useState<MfaFactor[]>([]);
+  const [mfaLoading, setMfaLoading] = useState(false);
+  const [totpSetup, setTotpSetup] = useState<TotpSetupResult | null>(null);
+  const [totpCode, setTotpCode] = useState('');
+  const [totpSubmitting, setTotpSubmitting] = useState(false);
 
   // ─── 我的设备 ────────────────────────────────────────────────────────────────
   const [sessions, setSessions] = useState<UserSession[]>([]);
@@ -186,7 +192,10 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
   }, []);
 
   useEffect(() => {
-    if (activeSection === 'security' && !oauthLoaded) void fetchOauthAccounts();
+    if (activeSection === 'security' && !oauthLoaded) {
+      void fetchOauthAccounts();
+      void fetchMfaFactors();
+    }
     if (activeSection === 'devices') void fetchSessions();
     if ((activeSection === 'login' || activeSection === 'operation') && !logsLoaded) {
       void fetchLoginLogs(1);
@@ -208,6 +217,13 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
     const res = await request.get<OAuthAccount[]>('/api/auth/oauth/accounts');
     setOauthLoading(false);
     if (res.code === 0 && res.data) { setOauthAccounts(res.data); setOauthLoaded(true); }
+  }
+
+  async function fetchMfaFactors() {
+    setMfaLoading(true);
+    const res = await request.get<MfaFactor[]>('/api/auth/mfa/factors');
+    setMfaLoading(false);
+    if (res.code === 0 && res.data) setMfaFactors(res.data);
   }
 
   async function fetchSessions() {
@@ -275,6 +291,37 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
   async function handleOAuthUnbind(provider: OAuthProviderType) {
     const res = await request.delete(`/api/auth/oauth/unbind/${provider}`);
     if (res.code === 0) { Toast.success('已解绑'); setOauthAccounts((prev) => prev.filter((a) => a.provider !== provider)); }
+  }
+
+  async function handleBeginTotpSetup() {
+    setTotpSubmitting(true);
+    const res = await request.post<TotpSetupResult>('/api/auth/mfa/totp/setup');
+    setTotpSubmitting(false);
+    if (res.code === 0) {
+      setTotpSetup(res.data);
+      setTotpCode('');
+    }
+  }
+
+  async function handleVerifyTotpSetup() {
+    if (!totpSetup) return;
+    setTotpSubmitting(true);
+    const res = await request.post('/api/auth/mfa/totp/verify', { factorId: totpSetup.factorId, code: totpCode });
+    setTotpSubmitting(false);
+    if (res.code === 0) {
+      Toast.success('TOTP 已绑定');
+      setTotpSetup(null);
+      setTotpCode('');
+      void fetchMfaFactors();
+    }
+  }
+
+  async function handleDisableMfaFactor(id: number) {
+    const res = await request.delete(`/api/auth/mfa/factors/${id}`);
+    if (res.code === 0) {
+      Toast.success('已停用');
+      void fetchMfaFactors();
+    }
   }
 
   function handleAvatarFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -596,6 +643,61 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
 
                   <div className="section-divider" />
 
+                  <div className="section-title">多因素认证</div>
+                  <SemiList
+                    bordered
+                    className="oauth-list"
+                    dataSource={mfaFactors}
+                    loading={mfaLoading}
+                    emptyContent={<div style={{ padding: 24, textAlign: 'center', color: 'var(--semi-color-text-2)' }}>暂未绑定 MFA 因子</div>}
+                    renderItem={(factor: MfaFactor) => (
+                      <SemiList.Item
+                        key={factor.id}
+                        align="center"
+                        className="oauth-list-item"
+                        header={<span className="oauth-list-icon"><Smartphone size={16} /></span>}
+                        main={(
+                          <div className="oauth-list-main">
+                            <Text strong>{factor.name}</Text>
+                            <Tag color={factor.status === 'enabled' ? 'green' : 'grey'} size="small">
+                              {factor.status === 'enabled' ? '已启用' : factor.status === 'pending' ? '待验证' : '已停用'}
+                            </Tag>
+                            {factor.lastUsedAt && <Text type="tertiary" size="small">上次使用 {formatDateTime(factor.lastUsedAt)}</Text>}
+                          </div>
+                        )}
+                        extra={factor.status === 'enabled' && (
+                          <Button
+                            theme="borderless"
+                            type="danger"
+                            size="small"
+                            onClick={() => {
+                              Modal.confirm({
+                                title: '确定要停用该 MFA 因子吗？',
+                                okButtonProps: { type: 'danger', theme: 'solid' },
+                                onOk: () => handleDisableMfaFactor(factor.id),
+                              });
+                            }}
+                          >
+                            停用
+                          </Button>
+                        )}
+                      />
+                    )}
+                  />
+                  <Button
+                    type="primary"
+                    theme="light"
+                    size="small"
+                    icon={<Plus size={14} />}
+                    loading={totpSubmitting}
+                    style={{ marginTop: 12 }}
+                    onClick={handleBeginTotpSetup}
+                  >
+                    绑定身份验证器
+                  </Button>
+
+                  <div className="section-divider" />
+
                   <div className="section-title">第三方账号绑定</div>
                   <SemiList
                     bordered
@@ -798,6 +900,35 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
             </button>
           ))}
         </div>
+      </AppModal>
+
+      <AppModal
+        title="绑定身份验证器"
+        visible={!!totpSetup}
+        onCancel={() => { setTotpSetup(null); setTotpCode(''); }}
+        footer={
+          <Space>
+            <Button onClick={() => { setTotpSetup(null); setTotpCode(''); }}>取消</Button>
+            <Button type="primary" loading={totpSubmitting} onClick={handleVerifyTotpSetup}>确认绑定</Button>
+          </Space>
+        }
+        width={480}
+        centered
+      >
+        {totpSetup && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <QRCodeSVG value={totpSetup.otpauthUrl} size={180} />
+            <Text type="tertiary" size="small" style={{ textAlign: 'center' }}>
+              使用身份验证器扫描二维码，或手动输入密钥 <code>{totpSetup.secret}</code>。
+            </Text>
+            <Input
+              value={totpCode}
+              onChange={setTotpCode}
+              placeholder="输入 6 位动态验证码"
+              style={{ width: 220 }}
+            />
+          </div>
+        )}
       </AppModal>
 
       {/* ── 头像裁剪 Modal ────────────────────────────────────────────────────────────────── */}

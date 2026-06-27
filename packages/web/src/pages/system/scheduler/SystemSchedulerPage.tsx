@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Descriptions, Form, Input, Modal, Select, Space, TabPane, Tabs, Tag, Toast, Typography, withField } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { AlertTriangle, CheckCircle2, RefreshCw, RotateCcw, Search, Settings, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, RefreshCw, RotateCcw, Search, Trash2 } from 'lucide-react';
 import type {
   PaginatedResponse,
   SystemSchedulerAlertChannel,
@@ -382,15 +382,6 @@ export default function SystemSchedulerPage() {
       render: (_: unknown, record) => record.taskType === 'recurring' ? <Typography.Text code>{record.cronExpression}</Typography.Text> : <Typography.Text type="tertiary">队列消费</Typography.Text>,
     },
     { title: '下次执行', dataIndex: 'nextRunAt', width: 210, render: (value: string | null) => value ?? '-' },
-    {
-      title: '启用',
-      dataIndex: 'enabled',
-      width: 100,
-      fixed: 'right',
-      render: (_: unknown, record) => record.taskType === 'queue'
-        ? <Tag color="cyan">Worker</Tag>
-        : <Tag color={record.enabled ? 'green' : 'grey'}>{record.enabled ? '启用' : '停用'}</Tag>,
-    },
     { title: '最近状态', dataIndex: 'lastRunStatus', width: 120, render: statusTag },
     { title: '最近耗时', dataIndex: 'lastDurationMs', width: 120, render: formatDuration },
     {
@@ -443,6 +434,15 @@ export default function SystemSchedulerPage() {
       render: (_: unknown, record) => `${record.totalRuns} / 失败 ${record.failedCount}`,
     },
     { title: '最近信息', dataIndex: 'lastRunMessage', width: 280, render: renderEllipsis },
+    {
+      title: '启用',
+      dataIndex: 'enabled',
+      width: 100,
+      fixed: 'right',
+      render: (_: unknown, record) => record.taskType === 'queue'
+        ? <Tag color="cyan">Worker</Tag>
+        : <Tag color={record.enabled ? 'green' : 'grey'}>{record.enabled ? '启用' : '停用'}</Tag>,
+    },
     createOperationColumn<SystemSchedulerTask>({
       width: 220,
       desktopInlineKeys: ['run', 'logs', 'config'],
@@ -468,7 +468,6 @@ export default function SystemSchedulerPage() {
         {
           key: 'config',
           label: '策略',
-          icon: <Settings size={14} />,
           disabled: !canConfig,
           disabledReason: '缺少配置权限',
           onClick: () => openTaskConfig(record),

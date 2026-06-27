@@ -7,6 +7,7 @@ import { positionsHandlers } from './positions';
 import { userGroupsHandlers } from './user-groups';
 import { dictsHandlers } from './dicts';
 import { systemConfigsHandlers } from './system-configs';
+import { identitySecurityHandlers } from './identity-security';
 import { announcementsHandlers } from './announcements';
 import { filesHandlers } from './files';
 import { exportJobsHandlers } from './export-jobs';
@@ -111,6 +112,7 @@ export const handlers = [
   ...userGroupsHandlers,
   ...dictsHandlers,
   ...systemConfigsHandlers,
+  ...identitySecurityHandlers,
   ...announcementsHandlers,
   ...filesHandlers,
   ...exportJobsHandlers,

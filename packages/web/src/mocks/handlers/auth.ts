@@ -4,6 +4,7 @@ import { mockMenus } from '@/mocks/data/menus';
 import { mockRoles } from '@/mocks/data/roles';
 import { mockLoginLogs, mockOperationLogs } from '@/mocks/data/logs';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
+import type { MfaFactor, TotpSetupResult } from '@zenith/shared';
 
 const MOCK_TOKEN = 'mock-access-token-demo';
 const MOCK_REFRESH_TOKEN = 'mock-refresh-token-demo';
@@ -11,6 +12,8 @@ const MOCK_REFRESH_TOKEN = 'mock-refresh-token-demo';
 // 偏好设置 & 收藏菜单 mock 状态（模块级可变，模拟服务端持久化）
 let mockPreferencesStore: Record<string, unknown> | null = null;
 let mockFavoriteMenusStore: number[] = [];
+let mockMfaFactors: MfaFactor[] = [];
+let nextMfaFactorId = 1;
 
 /** 获取所有叶子菜单权限 */
 function getAllPermissions(): string[] {
@@ -36,6 +39,18 @@ export const authHandlers = [
     return HttpResponse.json({
       code: 0,
       message: 'ok',
+      data: {
+        user: userWithoutPassword,
+        token: { accessToken: MOCK_TOKEN, refreshToken: MOCK_REFRESH_TOKEN },
+      },
+    });
+  }),
+
+  http.post('/api/auth/mfa/verify', () => {
+    const { password: _, ...userWithoutPassword } = mockUsers[0];
+    return HttpResponse.json({
+      code: 0,
+      message: '登录成功',
       data: {
         user: userWithoutPassword,
         token: { accessToken: MOCK_TOKEN, refreshToken: MOCK_REFRESH_TOKEN },
@@ -169,6 +184,50 @@ export const authHandlers = [
 
   // OAuth 账号绑定列表（demo 模式默认未绑定任何账号）
   http.get('/api/auth/oauth/accounts', () => {
+    return HttpResponse.json({ code: 0, message: 'ok', data: [] });
+  }),
+
+  http.get('/api/auth/mfa/factors', () => {
+    return HttpResponse.json({ code: 0, message: 'ok', data: mockMfaFactors });
+  }),
+
+  http.post('/api/auth/mfa/totp/setup', () => {
+    const result: TotpSetupResult = {
+      factorId: nextMfaFactorId++,
+      secret: 'JBSWY3DPEHPK3PXP',
+      otpauthUrl: 'otpauth://totp/Zenith%20Admin:admin?secret=JBSWY3DPEHPK3PXP&issuer=Zenith%20Admin',
+    };
+    mockMfaFactors.unshift({
+      id: result.factorId,
+      type: 'totp',
+      name: '身份验证器',
+      status: 'pending',
+      verifiedAt: null,
+      lastUsedAt: null,
+      createdAt: mockDateTime(),
+    });
+    return HttpResponse.json({ code: 0, message: 'ok', data: result });
+  }),
+
+  http.post('/api/auth/mfa/totp/verify', async ({ request }) => {
+    const body = await request.json() as { factorId: number };
+    const factor = mockMfaFactors.find((item) => item.id === body.factorId);
+    if (!factor) return HttpResponse.json({ code: 404, message: 'MFA 因子不存在', data: null }, { status: 404 });
+    factor.status = 'enabled';
+    factor.verifiedAt = mockDateTime();
+    factor.lastUsedAt = mockDateTime();
+    return HttpResponse.json({ code: 0, message: '绑定成功', data: null });
+  }),
+
+  http.delete('/api/auth/mfa/factors/:id', ({ params }) => {
+    const id = Number(params.id);
+    const factor = mockMfaFactors.find((item) => item.id === id);
+    if (!factor) return HttpResponse.json({ code: 404, message: 'MFA 因子不存在', data: null }, { status: 404 });
+    factor.status = 'disabled';
+    return HttpResponse.json({ code: 0, message: '已停用', data: null });
+  }),
+
+  http.get('/api/auth/trusted-devices', () => {
     return HttpResponse.json({ code: 0, message: 'ok', data: [] });
   }),
 

@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Form, Button, Toast, Typography, Tabs, TabPane } from '@douyinfe/semi-ui';
-import { User, Lock, Mail, AtSign, Building2 } from 'lucide-react';
+import { User, Lock, Mail, AtSign, Building2, ShieldCheck } from 'lucide-react';
 import { Icon } from '@iconify/react';
-import type { RegisterInput, OAuthProviderType } from '@zenith/shared';
+import type { RegisterInput, OAuthProviderType, LoginResult, LoginResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { config } from '@/config';
 import AppLogo from '@/components/AppLogo';
@@ -13,11 +13,16 @@ import './LoginPage.css';
 const { Title, Text } = Typography;
 
 interface LoginPageProps {
-  onLogin: (username: string, password: string, captchaId?: string, captchaCode?: string, tenantCode?: string) => Promise<{ code: number; message: string; retryAfterSeconds?: number }>;
+  onLogin: (username: string, password: string, captchaId?: string, captchaCode?: string, tenantCode?: string) => Promise<{ code: number; message: string; retryAfterSeconds?: number; data: LoginResult }>;
+  onVerifyMfa: (challengeId: string, code: string, rememberDevice: boolean) => Promise<{ code: number; message: string; retryAfterSeconds?: number; data: LoginResponse }>;
   onRegister: (data: { username: string; nickname: string; email: string; password: string }) => Promise<{ code: number; message: string; retryAfterSeconds?: number }>;
 }
 
-export default function LoginPage({ onLogin, onRegister }: Readonly<LoginPageProps>) {
+function isMfaChallenge(data: LoginResult): data is Extract<LoginResult, { mfaRequired: true }> {
+  return 'mfaRequired' in data && data.mfaRequired;
+}
+
+export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly<LoginPageProps>) {
   const navigate = useNavigate();
   const location = useLocation();
   const params = new URLSearchParams(location.search);
@@ -42,6 +47,7 @@ export default function LoginPage({ onLogin, onRegister }: Readonly<LoginPagePro
   const [allowRegistration, setAllowRegistration] = useState(false);
   const [forgotPasswordEnabled, setForgotPasswordEnabled] = useState(false);
   const [forgotPasswordVisible, setForgotPasswordVisible] = useState(false);
+  const [mfaChallenge, setMfaChallenge] = useState<Extract<LoginResult, { mfaRequired: true }> | null>(null);
 
   const fetchCaptcha = useCallback(async () => {
     try {
@@ -84,6 +90,10 @@ export default function LoginPage({ onLogin, onRegister }: Readonly<LoginPagePro
     try {
       const res = await onLogin(values.username, values.password, captchaId, values.captchaCode, values.tenantCode);
       if (res.code === 0) {
+        if (isMfaChallenge(res.data)) {
+          setMfaChallenge(res.data);
+          return;
+        }
         navigate(redirectTo, { replace: true });
         return;
       }
@@ -92,6 +102,21 @@ export default function LoginPage({ onLogin, onRegister }: Readonly<LoginPagePro
       }
       Toast.error(res.message);
       if (captchaEnabled) fetchCaptcha();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMfaVerify = async (values: Record<string, string | boolean>) => {
+    if (!mfaChallenge || retrySeconds > 0) return;
+    setLoading(true);
+    try {
+      const res = await onVerifyMfa(mfaChallenge.challengeId, String(values.code ?? ''), Boolean(values.rememberDevice));
+      if (res.code === 0) {
+        navigate(redirectTo, { replace: true });
+        return;
+      }
+      Toast.error(res.message);
     } finally {
       setLoading(false);
     }
@@ -201,6 +226,64 @@ export default function LoginPage({ onLogin, onRegister }: Readonly<LoginPagePro
     </Form>
   );
 
+  const renderMfaForm = () => (
+    <Form onSubmit={handleMfaVerify} initValues={{ rememberDevice: true }} style={{ marginTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <div style={{
+          width: 36,
+          height: 36,
+          borderRadius: 8,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--semi-color-primary)',
+          background: 'var(--semi-color-primary-light-default)',
+        }}>
+          <ShieldCheck size={18} />
+        </div>
+        <div>
+          <Text strong>需要二次验证</Text>
+          <Text type="tertiary" size="small" style={{ display: 'block' }}>
+            {mfaChallenge?.reason || '请输入身份验证器中的 6 位动态码'}
+          </Text>
+        </div>
+      </div>
+      <Form.Input
+        field="code"
+        noLabel
+        placeholder="6 位动态验证码"
+        rules={[{ required: true, message: '请输入动态验证码' }]}
+        size="large"
+      />
+      <Form.Checkbox field="rememberDevice" noLabel>
+        信任此设备，减少二次验证
+      </Form.Checkbox>
+      <Button
+        htmlType="submit"
+        type="primary"
+        theme="solid"
+        loading={loading}
+        block
+        size="large"
+        style={{ marginTop: 8, borderRadius: 8, height: 42 }}
+      >
+        验证并登录
+      </Button>
+      <Button
+        type="tertiary"
+        theme="borderless"
+        block
+        style={{ marginTop: 8 }}
+        onClick={() => {
+          setMfaChallenge(null);
+          if (captchaEnabled) fetchCaptcha();
+        }}
+      >
+        返回账号密码登录
+      </Button>
+    </Form>
+  );
+
   const renderRegisterForm = () => (
     <Form onSubmit={handleRegister} style={{ marginTop: 12 }}>
       <Form.Input
@@ -262,7 +345,9 @@ export default function LoginPage({ onLogin, onRegister }: Readonly<LoginPagePro
     }
   };
 
-  if (isDemoMode) {
+  if (mfaChallenge) {
+    formSubtitle = '请完成多因素认证以进入工作台';
+  } else if (isDemoMode) {
     formSubtitle = '当前为演示模式，仅开放预置账号登录，页面数据为模拟环境。';
   } else if (tab !== 'login') {
     formSubtitle = '注册新账号加入我们';
@@ -305,13 +390,17 @@ export default function LoginPage({ onLogin, onRegister }: Readonly<LoginPagePro
           </div>
           <div className="login-form-header">
             <Title heading={3} style={{ marginBottom: 6, fontWeight: 700 }}>
-              {isDemoMode || tab === 'login' ? '欢迎回来' : '创建账号'}
+              {mfaChallenge ? '安全验证' : (isDemoMode || tab === 'login' ? '欢迎回来' : '创建账号')}
             </Title>
             <Text type="tertiary" style={{ fontSize: 14, display: 'block', marginBottom: 24 }}>
               {formSubtitle}
             </Text>
           </div>
-          {isDemoMode || !allowRegistration ? (
+          {mfaChallenge ? (
+            <div style={{ marginBottom: 20 }}>
+              {renderMfaForm()}
+            </div>
+          ) : isDemoMode || !allowRegistration ? (
             <div style={{ marginBottom: 20 }}>
               {renderLoginForm()}
             </div>
@@ -326,7 +415,7 @@ export default function LoginPage({ onLogin, onRegister }: Readonly<LoginPagePro
             </Tabs>
           )}
           {/* OAuth 第三方登录 */}
-          <div style={{ textAlign: 'center', marginTop: 16 }}>
+          {!mfaChallenge && <div style={{ textAlign: 'center', marginTop: 16 }}>
             <Text type="tertiary" size="small">其他方式登录</Text>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 10 }}>
               <button
@@ -354,7 +443,7 @@ export default function LoginPage({ onLogin, onRegister }: Readonly<LoginPagePro
                 <Icon icon="ant-design:wechat-work-filled" width="22" height="22" />
               </button>
             </div>
-          </div>
+          </div>}
           {import.meta.env.VITE_DEMO_MODE === 'true' && (
             <div style={{
               marginTop: 20,

@@ -1,7 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { request } from '@/utils/request';
 import { TOKEN_KEY, REFRESH_TOKEN_KEY, PREFERENCES_KEY, TABS_STORAGE_KEY } from '@zenith/shared';
-import type { User, LoginResponse } from '@zenith/shared';
+import type { User, LoginResponse, LoginResult } from '@zenith/shared';
+
+const DEVICE_ID_KEY = 'zenith_device_id';
+
+function getDeviceId(): string {
+  const existing = localStorage.getItem(DEVICE_ID_KEY);
+  if (existing) return existing;
+  const value = crypto.randomUUID();
+  localStorage.setItem(DEVICE_ID_KEY, value);
+  return value;
+}
+
+function isLoginResponse(data: LoginResult): data is LoginResponse {
+  return 'token' in data;
+}
 
 interface AuthState {
   user: Omit<User, 'password'> | null;
@@ -69,7 +83,17 @@ export function useAuth() {
         ...(nav.deviceMemory ? { memoryGb: String(nav.deviceMemory) } : {}),
       };
     } catch { /* ignore */ }
-    const res = await request.post<LoginResponse>('/api/auth/login', { username, password, captchaId, captchaCode, tenantCode, deviceInfo }, { silent: true });
+    const res = await request.post<LoginResult>('/api/auth/login', { username, password, captchaId, captchaCode, tenantCode, deviceInfo, deviceId: getDeviceId(), rememberDevice: true }, { silent: true });
+    if (res.code === 0 && isLoginResponse(res.data)) {
+      localStorage.setItem(TOKEN_KEY, res.data.token.accessToken);
+      localStorage.setItem(REFRESH_TOKEN_KEY, res.data.token.refreshToken);
+      await fetchUser();
+    }
+    return res;
+  };
+
+  const verifyMfaLogin = async (challengeId: string, code: string, rememberDevice: boolean) => {
+    const res = await request.post<LoginResponse>('/api/auth/mfa/verify', { challengeId, code, rememberDevice }, { silent: true });
     if (res.code === 0) {
       localStorage.setItem(TOKEN_KEY, res.data.token.accessToken);
       localStorage.setItem(REFRESH_TOKEN_KEY, res.data.token.refreshToken);
@@ -103,5 +127,5 @@ export function useAuth() {
     setState((prev) => ({ ...prev, user }));
   };
 
-  return { ...state, login, register, logout, refresh: fetchUser, updateUser };
+  return { ...state, login, verifyMfaLogin, register, logout, refresh: fetchUser, updateUser };
 }

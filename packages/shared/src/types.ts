@@ -105,6 +105,16 @@ export interface LoginResponse {
   requirePasswordChange?: boolean;
 }
 
+export interface MfaLoginChallenge {
+  mfaRequired: true;
+  challengeId: string;
+  methods: ('totp' | 'passkey')[];
+  expiresAt: number;
+  reason?: string | null;
+}
+
+export type LoginResult = LoginResponse | MfaLoginChallenge;
+
 // ─── JWT Payload ──────────────────────────────────────────────────────────────
 export interface JwtPayload {
   userId: number;
@@ -1181,6 +1191,69 @@ export interface SystemConfig {
   description: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface IdentitySecurityPolicy {
+  password: {
+    minLength: number;
+    requireUppercase: boolean;
+    requireSpecialChar: boolean;
+    expiryEnabled: boolean;
+    expiryDays: number;
+  };
+  lockout: {
+    maxAttempts: number;
+    durationMinutes: number;
+  };
+  mfa: {
+    enabled: boolean;
+    mode: 'off' | 'optional' | 'required';
+    rememberDeviceDays: number;
+  };
+  risk: {
+    enabled: boolean;
+    newDeviceAction: 'allow' | 'challenge';
+  };
+}
+
+export interface MfaFactor {
+  id: number;
+  type: 'totp' | 'passkey' | 'recovery_code';
+  name: string;
+  status: 'pending' | 'enabled' | 'disabled';
+  verifiedAt: string | null;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
+export interface TotpSetupResult {
+  factorId: number;
+  secret: string;
+  otpauthUrl: string;
+}
+
+export interface TrustedDevice {
+  id: number;
+  deviceName: string | null;
+  ip: string | null;
+  userAgent: string | null;
+  trustedUntil: string;
+  lastSeenAt: string;
+  createdAt: string;
+}
+
+export interface LoginRiskEvent {
+  id: number;
+  userId: number | null;
+  username: string;
+  tenantId: number | null;
+  riskLevel: 'low' | 'medium' | 'high';
+  reason: string;
+  action: 'allow' | 'challenge' | 'block';
+  ip: string | null;
+  location: string | null;
+  userAgent: string | null;
+  createdAt: string;
 }
 
 // ─── 定时任务 ──────────────────────────────────────────────

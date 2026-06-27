@@ -234,7 +234,7 @@ function AdminRouteLoader({ user, permissions, logout, updateUser }: Readonly<Ad
 
 export default function App() {
   useGlobalErrorHandler();
-  const { user, permissions, loading, login, register, logout, updateUser } = useAuth();
+  const { user, permissions, loading, login, verifyMfaLogin, register, logout, updateUser } = useAuth();
 
   const isSuperAdmin = user?.roles?.some((r) => r.code === 'super_admin') ?? false;
 
@@ -308,7 +308,7 @@ export default function App() {
         <ThemeProvider>
           <PageErrorBoundary>
             <Routes>
-              <Route path="/login" element={<Suspense fallback={routeFallback}><LoginPage onLogin={login} onRegister={register} /></Suspense>} />
+              <Route path="/login" element={<Suspense fallback={routeFallback}><LoginPage onLogin={login} onVerifyMfa={verifyMfaLogin} onRegister={register} /></Suspense>} />
               <Route path="/reset-password" element={<Suspense fallback={routeFallback}><ResetPasswordPage /></Suspense>} />
               <Route path="/oauth/callback/:provider" element={<Suspense fallback={routeFallback}><OAuthCallbackPage /></Suspense>} />
               <Route path="/oauth2/authorize" element={<Suspense fallback={routeFallback}><OAuth2AuthorizePage /></Suspense>} />
