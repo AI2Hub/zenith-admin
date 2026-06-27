@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Form, Button, Toast, Typography, Tabs, TabPane, Divider } from '@douyinfe/semi-ui';
+import { Form, Button, Toast, Typography, Tabs, TabPane, Divider, Modal } from '@douyinfe/semi-ui';
 import { User, Lock, Mail, AtSign, Building2, ShieldCheck, BriefcaseBusiness } from 'lucide-react';
 import { Icon } from '@iconify/react';
-import type { RegisterInput, OAuthProviderType, LoginResult, LoginResponse, EnterpriseIdentityDiscovery, TenantIdentityProviderSummary } from '@zenith/shared';
+import { REFRESH_TOKEN_KEY, TOKEN_KEY, type RegisterInput, type OAuthProviderType, type LoginResult, type LoginResponse, type EnterpriseIdentityDiscovery, type TenantIdentityProviderSummary } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { config } from '@/config';
 import AppLogo from '@/components/AppLogo';
@@ -50,6 +50,8 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
   const [mfaChallenge, setMfaChallenge] = useState<Extract<LoginResult, { mfaRequired: true }> | null>(null);
   const [tenantCode, setTenantCode] = useState('');
   const [enterpriseProviders, setEnterpriseProviders] = useState<TenantIdentityProviderSummary[]>([]);
+  const [directoryProvider, setDirectoryProvider] = useState<TenantIdentityProviderSummary | null>(null);
+  const [directoryLoginLoading, setDirectoryLoginLoading] = useState(false);
 
   const fetchCaptcha = useCallback(async () => {
     try {
@@ -361,6 +363,10 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
   };
 
   const handleEnterpriseLogin = async (provider: TenantIdentityProviderSummary) => {
+    if (provider.type === 'ldap' || provider.type === 'ad') {
+      setDirectoryProvider(provider);
+      return;
+    }
     const res = await request.get<{ authUrl: string; state: string | null }>(
       `/api/auth/enterprise/${provider.id}?redirect=${encodeURIComponent(redirectTo)}`,
       { silent: true },
@@ -369,6 +375,29 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
       globalThis.location.href = res.data.authUrl;
     } else {
       Toast.warning(res.message || '该企业登录方式暂不可用，请联系管理员配置');
+    }
+  };
+
+  const handleDirectoryLogin = async (values: Record<string, string>) => {
+    if (!directoryProvider) return;
+    setDirectoryLoginLoading(true);
+    try {
+      const res = await request.post<{ loginResult: LoginResponse; redirectTo?: string | null }>('/api/auth/enterprise/ldap/login', {
+        providerId: directoryProvider.id,
+        username: values.username,
+        password: values.password,
+        redirectTo,
+      }, { silent: true });
+      if (res.code === 0) {
+        localStorage.setItem(TOKEN_KEY, res.data.loginResult.token.accessToken);
+        localStorage.setItem(REFRESH_TOKEN_KEY, res.data.loginResult.token.refreshToken);
+        setDirectoryProvider(null);
+        navigate(res.data.redirectTo || redirectTo, { replace: true });
+        return;
+      }
+      Toast.error(res.message);
+    } finally {
+      setDirectoryLoginLoading(false);
     }
   };
 
@@ -514,6 +543,44 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
         visible={forgotPasswordVisible}
         onClose={() => setForgotPasswordVisible(false)}
       />
+      <Modal
+        title={directoryProvider ? `${directoryProvider.name} 登录` : '目录账号登录'}
+        visible={!!directoryProvider}
+        footer={null}
+        onCancel={() => setDirectoryProvider(null)}
+        closeOnEsc
+      >
+        <Form onSubmit={handleDirectoryLogin}>
+          <Form.Input
+            field="username"
+            noLabel
+            placeholder="目录账号 / 邮箱"
+            prefix={<User />}
+            rules={[{ required: true, message: '请输入目录账号' }]}
+            size="large"
+          />
+          <Form.Input
+            field="password"
+            noLabel
+            type="password"
+            placeholder="目录密码"
+            prefix={<Lock />}
+            rules={[{ required: true, message: '请输入目录密码' }]}
+            size="large"
+          />
+          <Button
+            htmlType="submit"
+            type="primary"
+            theme="solid"
+            loading={directoryLoginLoading}
+            block
+            size="large"
+            style={{ marginTop: 8, borderRadius: 8, height: 42 }}
+          >
+            登录
+          </Button>
+        </Form>
+      </Modal>
     </div>
   );
 }

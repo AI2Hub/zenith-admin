@@ -8,13 +8,23 @@ import {
   Row,
   Select,
   Switch,
+  Table,
   Tag,
   Toast,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Search } from 'lucide-react';
-import type { PaginatedResponse, Role, Tenant, TenantIdentityProvider } from '@zenith/shared';
+import type {
+  IdentityProviderConnectionTestResult,
+  IdentityProviderSyncResult,
+  IdentityProviderType,
+  LdapDirectoryUser,
+  PaginatedResponse,
+  Role,
+  Tenant,
+  TenantIdentityProvider,
+} from '@zenith/shared';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -40,7 +50,16 @@ const defaultSearchParams: SearchParams = {
 const providerTypeOptions = [
   { value: 'oidc', label: 'OIDC' },
   { value: 'saml', label: 'SAML' },
+  { value: 'ldap', label: 'LDAP' },
+  { value: 'ad', label: 'Active Directory' },
 ];
+
+const providerTypeLabels: Record<IdentityProviderType, string> = {
+  oidc: 'OIDC',
+  saml: 'SAML',
+  ldap: 'LDAP',
+  ad: 'AD',
+};
 
 const statusOptions = [
   { value: 'enabled', label: '启用' },
@@ -52,6 +71,8 @@ const defaultMapping = {
   email: 'email',
   username: 'preferred_username',
   nickname: 'name',
+  phone: 'phone_number',
+  department: 'department',
 };
 
 const samlDefaultMapping = {
@@ -59,10 +80,37 @@ const samlDefaultMapping = {
   email: 'email',
   username: 'username',
   nickname: 'displayName',
+  phone: 'phone',
+  department: 'department',
 };
 
-function mappingForType(type: 'oidc' | 'saml') {
-  return type === 'saml' ? samlDefaultMapping : defaultMapping;
+const ldapDefaultMapping = {
+  subject: 'entryUUID',
+  email: 'mail',
+  username: 'uid',
+  nickname: 'cn',
+  phone: 'telephoneNumber',
+  department: 'ou',
+};
+
+const adDefaultMapping = {
+  subject: 'objectGUID',
+  email: 'mail',
+  username: 'sAMAccountName',
+  nickname: 'displayName',
+  phone: 'telephoneNumber',
+  department: 'department',
+};
+
+function isDirectoryType(type: IdentityProviderType) {
+  return type === 'ldap' || type === 'ad';
+}
+
+function mappingForType(type: IdentityProviderType) {
+  if (type === 'saml') return samlDefaultMapping;
+  if (type === 'ldap') return ldapDefaultMapping;
+  if (type === 'ad') return adDefaultMapping;
+  return defaultMapping;
 }
 
 export default function IdentityProvidersPage() {
@@ -72,7 +120,12 @@ export default function IdentityProvidersPage() {
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<TenantIdentityProvider | null>(null);
-  const [providerType, setProviderType] = useState<'oidc' | 'saml'>('oidc');
+  const [providerType, setProviderType] = useState<IdentityProviderType>('oidc');
+  const [ldapSearchVisible, setLdapSearchVisible] = useState(false);
+  const [ldapSearchProvider, setLdapSearchProvider] = useState<TenantIdentityProvider | null>(null);
+  const [ldapSearchKeyword, setLdapSearchKeyword] = useState('');
+  const [ldapSearchLoading, setLdapSearchLoading] = useState(false);
+  const [ldapSearchUsers, setLdapSearchUsers] = useState<LdapDirectoryUser[]>([]);
   const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
   const searchParamsRef = useRef<SearchParams>(defaultSearchParams);
   searchParamsRef.current = searchParams;
@@ -136,7 +189,7 @@ export default function IdentityProvidersPage() {
   }
 
   function handleProviderTypeChange(value: unknown) {
-    const nextType = value === 'saml' ? 'saml' : 'oidc';
+    const nextType = (value === 'saml' || value === 'ldap' || value === 'ad') ? value : 'oidc';
     setProviderType(nextType);
     const nextMapping = mappingForType(nextType);
     formApi.current?.setValues({
@@ -144,6 +197,8 @@ export default function IdentityProvidersPage() {
       'attributeMapping.email': nextMapping.email,
       'attributeMapping.username': nextMapping.username,
       'attributeMapping.nickname': nextMapping.nickname,
+      'attributeMapping.phone': nextMapping.phone,
+      'attributeMapping.department': nextMapping.department,
     });
   }
 
@@ -173,6 +228,8 @@ export default function IdentityProvidersPage() {
         email: values['attributeMapping.email'] || activeMapping.email,
         username: values['attributeMapping.username'] || activeMapping.username,
         nickname: values['attributeMapping.nickname'] || activeMapping.nickname,
+        phone: values['attributeMapping.phone'] || activeMapping.phone,
+        department: values['attributeMapping.department'] || activeMapping.department,
       },
       defaultRoleIds: Array.isArray(values.defaultRoleIds) ? values.defaultRoleIds : [],
     };
@@ -212,6 +269,59 @@ export default function IdentityProvidersPage() {
     });
   }
 
+  async function handleTestConnection(row: TenantIdentityProvider) {
+    const res = await request.post<IdentityProviderConnectionTestResult>(`/api/identity-providers/${row.id}/test`, {}, { silent: true });
+    if (res.code === 0) {
+      if (res.data.ok) Toast.success(res.data.message);
+      else Toast.error(res.data.message);
+      return;
+    }
+    Toast.error(res.message);
+  }
+
+  function openLdapSearch(row: TenantIdentityProvider) {
+    setLdapSearchProvider(row);
+    setLdapSearchKeyword('');
+    setLdapSearchUsers([]);
+    setLdapSearchVisible(true);
+  }
+
+  async function handleLdapSearch() {
+    if (!ldapSearchProvider) return;
+    setLdapSearchLoading(true);
+    try {
+      const query = new URLSearchParams({
+        limit: '20',
+        ...(ldapSearchKeyword ? { keyword: ldapSearchKeyword } : {}),
+      }).toString();
+      const res = await request.get<LdapDirectoryUser[]>(`/api/identity-providers/${ldapSearchProvider.id}/ldap/users?${query}`, { silent: true });
+      if (res.code === 0) {
+        setLdapSearchUsers(res.data);
+      } else {
+        Toast.error(res.message);
+      }
+    } finally {
+      setLdapSearchLoading(false);
+    }
+  }
+
+  function handleSyncDirectory(row: TenantIdentityProvider) {
+    Modal.confirm({
+      title: `同步「${row.name}」目录用户？`,
+      content: '将按同步过滤器读取目录用户，并创建、绑定或更新本地账号基础资料。',
+      onOk: async () => {
+        const res = await request.post<IdentityProviderSyncResult>(`/api/identity-providers/${row.id}/sync`, { limit: 500 }, { silent: true });
+        if (res.code === 0) {
+          if (res.data.status === 'failed') Toast.error(res.data.message);
+          else Toast.success(res.data.message);
+          void fetchData();
+        } else {
+          Toast.error(res.message);
+        }
+      },
+    });
+  }
+
   const columns: ColumnProps<TenantIdentityProvider>[] = [
     { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
     { title: '编码', dataIndex: 'code', width: 130, render: renderEllipsis },
@@ -220,9 +330,14 @@ export default function IdentityProvidersPage() {
       title: '类型',
       dataIndex: 'type',
       width: 90,
-      render: (value: string) => <Tag color={value === 'oidc' ? 'blue' : 'violet'}>{value.toUpperCase()}</Tag>,
+      render: (value: IdentityProviderType) => <Tag color={isDirectoryType(value) ? 'green' : value === 'oidc' ? 'blue' : 'violet'}>{providerTypeLabels[value]}</Tag>,
     },
-    { title: 'Issuer / SP Entity ID', dataIndex: 'issuer', width: 260, render: (_value, row) => renderEllipsis(row.type === 'oidc' ? row.issuer : row.samlEntityId) },
+    {
+      title: '端点 / Base DN',
+      dataIndex: 'issuer',
+      width: 280,
+      render: (_value, row) => renderEllipsis(isDirectoryType(row.type) ? (row.ldapUrl || row.ldapBaseDn) : row.type === 'oidc' ? row.issuer : row.samlEntityId),
+    },
     createdAtColumn,
     {
       title: '状态',
@@ -238,10 +353,13 @@ export default function IdentityProvidersPage() {
       ),
     },
     createOperationColumn<TenantIdentityProvider>({
-      width: 140,
-      desktopInlineKeys: ['edit', 'delete'],
+      width: 220,
+      desktopInlineKeys: ['edit', 'test', 'delete'],
       actions: (row) => [
         { key: 'edit', label: '编辑', onClick: () => { void openEdit(row); } },
+        { key: 'test', label: '测试', hidden: !isDirectoryType(row.type), onClick: () => { void handleTestConnection(row); } },
+        { key: 'searchUsers', label: '搜索用户', hidden: !isDirectoryType(row.type), onClick: () => openLdapSearch(row) },
+        { key: 'sync', label: '同步', hidden: !isDirectoryType(row.type), onClick: () => handleSyncDirectory(row) },
         { key: 'delete', label: '删除', danger: true, onClick: () => handleDelete(row) },
       ],
     }),
@@ -288,10 +406,18 @@ export default function IdentityProvidersPage() {
     'attributeMapping.email': editing.attributeMapping?.email || initMapping.email,
     'attributeMapping.username': editing.attributeMapping?.username || initMapping.username,
     'attributeMapping.nickname': editing.attributeMapping?.nickname || initMapping.nickname,
+    'attributeMapping.phone': editing.attributeMapping?.phone || initMapping.phone,
+    'attributeMapping.department': editing.attributeMapping?.department || initMapping.department,
   } : {
     type: 'oidc',
     status: 'disabled',
     scopes: 'openid profile email',
+    ldapStartTls: false,
+    ldapSkipTlsVerify: false,
+    ldapTimeoutMs: 5000,
+    ldapUserFilter: '(&(objectClass=person)(|(uid={{username}})(sAMAccountName={{username}})(mail={{username}})))',
+    ldapUserSearchFilter: '(&(objectClass=person)(|(cn=*{{keyword}}*)(displayName=*{{keyword}}*)(uid=*{{keyword}}*)(sAMAccountName=*{{keyword}}*)(mail=*{{keyword}}*)))',
+    ldapSyncFilter: '(&(objectClass=person)(|(uid=*)(sAMAccountName=*)(mail=*)))',
     jitEnabled: false,
     defaultRoleIds: [],
     ...Object.fromEntries(Object.entries(defaultMapping).map(([key, value]) => [`attributeMapping.${key}`, value])),
@@ -382,7 +508,7 @@ export default function IdentityProvidersPage() {
             <Col span={12}><Form.Switch field="jitEnabled" label="JIT 创建" /></Col>
           </Row>
 
-          {providerType === 'oidc' ? (
+          {providerType === 'oidc' && (
             <>
               <Form.Input field="issuer" label="Issuer" placeholder="https://login.example.com" />
               <Form.Input field="authorizationEndpoint" label="授权端点" placeholder="https://.../authorize" rules={[{ required: providerType === 'oidc', message: '请输入授权端点' }]} />
@@ -395,7 +521,9 @@ export default function IdentityProvidersPage() {
               </Row>
               <Form.Input field="scopes" label="Scopes" placeholder="openid profile email" />
             </>
-          ) : (
+          )}
+
+          {providerType === 'saml' && (
             <>
               <Form.Input field="issuer" label="IdP Issuer" placeholder="https://idp.example.com/saml/metadata" />
               <Form.Input field="samlSsoUrl" label="SSO URL" placeholder="https://idp.example.com/sso" rules={[{ required: providerType === 'saml', message: '请输入 SSO URL' }]} />
@@ -404,13 +532,40 @@ export default function IdentityProvidersPage() {
             </>
           )}
 
+          {isDirectoryType(providerType) && (
+            <>
+              <Form.Input field="ldapUrl" label="LDAP URL" placeholder="ldap://ad.example.com:389" rules={[{ required: true, message: '请输入 LDAP URL' }]} />
+              <Row gutter={16}>
+                <Col span={12}><Form.Switch field="ldapStartTls" label="StartTLS" /></Col>
+                <Col span={12}><Form.Switch field="ldapSkipTlsVerify" label="跳过证书校验" /></Col>
+              </Row>
+              <Form.Input field="ldapBaseDn" label="Base DN" placeholder="dc=example,dc=com" rules={[{ required: true, message: '请输入 Base DN' }]} />
+              <Row gutter={16}>
+                <Col span={12}><Form.Input field="ldapBindDn" label="绑定 DN" placeholder="cn=readonly,dc=example,dc=com" /></Col>
+                <Col span={12}><Form.Input field="ldapBindPassword" label="绑定密码" type="password" /></Col>
+              </Row>
+              <Form.InputNumber field="ldapTimeoutMs" label="超时(ms)" min={1000} max={60000} step={1000} style={{ width: '100%' }} />
+              <Form.TextArea field="ldapUserFilter" label="登录过滤器" rows={2} />
+              <Form.TextArea field="ldapUserSearchFilter" label="搜索过滤器" rows={2} />
+              <Form.TextArea field="ldapSyncFilter" label="同步过滤器" rows={2} />
+              <Row gutter={16}>
+                <Col span={12}><Form.Input field="ldapGroupBaseDn" label="组 Base DN" placeholder="ou=groups,dc=example,dc=com" /></Col>
+                <Col span={12}><Form.Input field="ldapGroupFilter" label="组过滤器" placeholder="(member={{dn}})" /></Col>
+              </Row>
+            </>
+          )}
+
           <Row gutter={16}>
-            <Col span={12}><Form.Input field="attributeMapping.subject" label="主体字段" placeholder="sub / NameID" /></Col>
+            <Col span={12}><Form.Input field="attributeMapping.subject" label="主体字段" placeholder={isDirectoryType(providerType) ? 'entryUUID / objectGUID' : 'sub / NameID'} /></Col>
             <Col span={12}><Form.Input field="attributeMapping.email" label="邮箱字段" placeholder="email" /></Col>
           </Row>
           <Row gutter={16}>
-            <Col span={12}><Form.Input field="attributeMapping.username" label="用户名字段" placeholder="preferred_username" /></Col>
-            <Col span={12}><Form.Input field="attributeMapping.nickname" label="昵称字段" placeholder="name" /></Col>
+            <Col span={12}><Form.Input field="attributeMapping.username" label="用户名字段" placeholder={isDirectoryType(providerType) ? 'uid / sAMAccountName' : 'preferred_username'} /></Col>
+            <Col span={12}><Form.Input field="attributeMapping.nickname" label="昵称字段" placeholder={isDirectoryType(providerType) ? 'cn / displayName' : 'name'} /></Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}><Form.Input field="attributeMapping.phone" label="手机字段" placeholder="telephoneNumber" /></Col>
+            <Col span={12}><Form.Input field="attributeMapping.department" label="部门字段" placeholder="department / ou" /></Col>
           </Row>
           <Form.Select
             field="defaultRoleIds"
@@ -421,6 +576,42 @@ export default function IdentityProvidersPage() {
           />
           <Form.TextArea field="remark" label="备注" rows={3} />
         </Form>
+      </AppModal>
+
+      <AppModal
+        title={ldapSearchProvider ? `搜索目录用户 - ${ldapSearchProvider.name}` : '搜索目录用户'}
+        visible={ldapSearchVisible}
+        onCancel={() => setLdapSearchVisible(false)}
+        onOk={handleLdapSearch}
+        okText="搜索"
+        closeOnEsc
+        width={860}
+      >
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <Input
+            prefix={<Search size={14} />}
+            placeholder="输入用户名、姓名或邮箱关键字"
+            value={ldapSearchKeyword}
+            onChange={setLdapSearchKeyword}
+            onEnterPress={handleLdapSearch}
+            showClear
+          />
+          <Button type="primary" icon={<Search size={14} />} loading={ldapSearchLoading} onClick={handleLdapSearch}>搜索</Button>
+        </div>
+        <Table
+          size="small"
+          loading={ldapSearchLoading}
+          dataSource={ldapSearchUsers}
+          rowKey="dn"
+          pagination={false}
+          columns={[
+            { title: '用户名', dataIndex: 'username', width: 140, render: renderEllipsis },
+            { title: '昵称', dataIndex: 'nickname', width: 140, render: renderEllipsis },
+            { title: '邮箱', dataIndex: 'email', width: 190, render: renderEllipsis },
+            { title: '部门', dataIndex: 'department', width: 140, render: renderEllipsis },
+            { title: 'DN', dataIndex: 'dn', render: renderEllipsis },
+          ]}
+        />
       </AppModal>
     </div>
   );
