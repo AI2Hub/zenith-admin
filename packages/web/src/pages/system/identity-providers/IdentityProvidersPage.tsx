@@ -389,7 +389,7 @@ export default function IdentityProvidersPage() {
           <Form.Select
             field="defaultRoleIds"
             label="默认角色"
-            mode="multiple"
+            multiple
             optionList={roleOptions}
             style={{ width: '100%' }}
           />
