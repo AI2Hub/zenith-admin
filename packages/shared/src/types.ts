@@ -766,7 +766,8 @@ export interface ErrorAlertRule {
 // ─── 系统监控告警 ─────────────────────────────────────────────────────────────
 export type MonitorMetric =
   | 'cpu' | 'memory' | 'disk' | 'swap' | 'load1' | 'procCpu' | 'heap'
-  | 'loopLag' | 'qps' | 'errorRate' | 'netRxBps' | 'netTxBps' | 'diskReadBps' | 'diskWriteBps';
+  | 'loopLag' | 'qps' | 'errorRate' | 'netRxBps' | 'netTxBps' | 'diskReadBps' | 'diskWriteBps'
+  | 'workflowHealth' | 'workflowBacklog';
 export type MonitorAlertOperator = 'gt' | 'gte' | 'lt' | 'lte';
 export type MonitorAlertLevel = 'info' | 'warning' | 'critical';
 export type MonitorAlertState = 'ok' | 'firing';
@@ -3216,6 +3217,49 @@ export interface WorkflowEngineInstanceBucket {
   completed: number;
 }
 
+/** 健康分扣分归因项（让健康分可解释） */
+export interface WorkflowEngineScoreFactor {
+  /** 扣分原因 */
+  reason: string;
+  /** 扣分值（正数，表示从 100 中扣减多少） */
+  delta: number;
+  /** 关联严重级别 */
+  severity: 'warning' | 'critical';
+}
+
+/** 延迟 / 耗时分布直方图桶 */
+export interface WorkflowEngineHistogramBucket {
+  /** 桶标签，如 "<50ms" / "50-100ms" / "≥1s" */
+  label: string;
+  /** 桶下界（毫秒，含） */
+  min: number;
+  /** 桶上界（毫秒，不含）；null 表示无上界 */
+  max: number | null;
+  count: number;
+}
+
+/** Apdex 满意度（基于事件处理延迟，T = 满意阈值，4T = 容忍阈值） */
+export interface WorkflowEngineApdex {
+  /** Apdex 分值 0-1；样本为 0 时为 null */
+  score: number | null;
+  /** 满意阈值 T（毫秒） */
+  thresholdMs: number;
+  satisfied: number;
+  tolerating: number;
+  frustrated: number;
+  total: number;
+}
+
+/** 可配置阈值（来自 system_configs，回显给前端用于解释判定口径） */
+export interface WorkflowEngineThresholds {
+  healthWarn: number;
+  healthCritical: number;
+  backlogWarn: number;
+  backlogCritical: number;
+  errorRateWarn: number;
+  errorRateCritical: number;
+}
+
 /**
  * 引擎遥测指标（借鉴 Camunda/Zeebe/Temporal 内省端点对外暴露的吞吐 / 延迟 / 生命周期信号）。
  * 仅承载“只能由后端计算”的数据；饱和度、积压、SLA 分布等展示聚合由前端从其它字段派生。
@@ -3223,26 +3267,42 @@ export interface WorkflowEngineInstanceBucket {
 export interface WorkflowEngineTelemetry {
   /** 引擎健康分 0-100（规范化健康度，越高越好） */
   healthScore: number;
+  /** 健康分扣分归因（解释 healthScore 为何不是满分） */
+  scoreBreakdown: WorkflowEngineScoreFactor[];
+  /** 事件处理 Apdex 满意度 */
+  apdex: WorkflowEngineApdex;
   /** 事件 Outbox 吞吐 + 延迟（Traffic / Errors / Latency） */
   events: {
     last1h: WorkflowEngineThroughputWindow;
     last24h: WorkflowEngineThroughputWindow;
+    /** 前一个 24h 窗口（24-48h 前），用于同比 delta */
+    prev24h: WorkflowEngineThroughputWindow;
     /** 当前 pending/retrying 待重放事件数 */
     pendingRetry: number;
     /** 近 24h 成功事件的平均处理延迟（processedAt - createdAt，毫秒） */
     avgLatencyMs: number | null;
     /** 近 24h 成功事件处理延迟 P95（毫秒） */
     p95LatencyMs: number | null;
+    /** 近 24h 成功事件处理延迟 P99（毫秒） */
+    p99LatencyMs: number | null;
+    /** 近 24h 成功事件处理延迟分布直方图 */
+    latencyHistogram: WorkflowEngineHistogramBucket[];
     /** 近 24h 按小时聚合的吞吐趋势（24 个桶，缺口补 0） */
     series24h: WorkflowEngineEventBucket[];
   };
   /** 触发器执行吞吐 + 延迟 */
   triggers: {
     last24h: { total: number; success: number; failed: number; retrying: number };
+    /** 前一个 24h 窗口（24-48h 前）总数，用于同比 delta */
+    prev24h: { total: number; success: number; failed: number; retrying: number };
     /** 近 24h 触发器平均耗时（毫秒） */
     avgDurationMs: number | null;
     /** 近 24h 成功触发器耗时 P95（毫秒） */
     p95DurationMs: number | null;
+    /** 近 24h 成功触发器耗时 P99（毫秒） */
+    p99DurationMs: number | null;
+    /** 近 24h 成功触发器耗时分布直方图 */
+    durationHistogram: WorkflowEngineHistogramBucket[];
   };
   /** 流程实例生命周期吞吐 */
   instances: {
@@ -3250,6 +3310,9 @@ export interface WorkflowEngineTelemetry {
     createdLast24h: number;
     completedLast24h: number;
     canceledLast24h: number;
+    /** 前一个 24h 窗口（24-48h 前）发起 / 完结，用于同比 delta */
+    createdPrev24h: number;
+    completedPrev24h: number;
     /** 近 24h 按小时聚合的发起 / 完结趋势（24 个桶，缺口补 0） */
     series24h: WorkflowEngineInstanceBucket[];
   };
@@ -3266,6 +3329,8 @@ export interface WorkflowEngineIntrospection {
   healthy: boolean;
   generatedAt: string;
   thresholdMinutes: number;
+  /** 可配置阈值口径回显 */
+  thresholds: WorkflowEngineThresholds;
   telemetry: WorkflowEngineTelemetry;
   components: WorkflowEngineComponent[];
   queues: WorkflowEngineQueueSnapshot[];
@@ -3274,6 +3339,44 @@ export interface WorkflowEngineIntrospection {
   scheduler: WorkflowEngineSchedulerSnapshot;
   runtime: WorkflowEngineRuntimeSnapshot;
   issues: WorkflowEngineRuntimeIssue[];
+}
+
+/** 健康历史趋势单点（由定时任务 platform-wide 采集） */
+export interface WorkflowEngineHealthPoint {
+  /** 采集时间，格式 YYYY-MM-DD HH:mm:ss */
+  capturedAt: string;
+  healthScore: number;
+  severity: WorkflowEngineComponentStatus;
+  backlog: number;
+  /** 事件错误率 0-1 */
+  errorRate: number;
+  criticalCount: number;
+  warningCount: number;
+  runningInstances: number;
+}
+
+export interface WorkflowEngineHealthHistory {
+  /** 时间升序排列的健康趋势点 */
+  points: WorkflowEngineHealthPoint[];
+  /** 阈值口径，便于前端在趋势图上画警戒线 */
+  thresholds: WorkflowEngineThresholds;
+}
+
+/** 引擎运维动作（复用现有恢复函数；全部为幂等的恢复扫描） */
+export type WorkflowEngineActionKey =
+  | 'replay-outbox'
+  | 'recover-delays'
+  | 'recover-subprocess'
+  | 'process-timeouts'
+  | 'recover-triggers';
+
+export interface WorkflowEngineActionResult {
+  action: WorkflowEngineActionKey;
+  ok: boolean;
+  /** 人类可读结果摘要 */
+  message: string;
+  /** 各动作返回的原始计数（scanned/dispatched/resumed 等） */
+  detail: Record<string, number>;
 }
 
 export type WorkflowHealthIssueType =

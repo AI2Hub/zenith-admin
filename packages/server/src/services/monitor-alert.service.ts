@@ -34,6 +34,8 @@ const METRIC_LABELS: Record<MonitorMetric, string> = {
   netTxBps: '网络上行',
   diskReadBps: '磁盘读取',
   diskWriteBps: '磁盘写入',
+  workflowHealth: '流程引擎健康分',
+  workflowBacklog: '流程引擎队列积压',
 };
 
 const OPERATOR_SYMBOL: Record<MonitorAlertOperator, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤' };
@@ -44,6 +46,10 @@ function formatMetricValue(metric: MonitorMetric, value: number): string {
       return `${Math.round(value * 10) / 10}%`;
     case 'load1':
       return `${Math.round(value * 100) / 100}`;
+    case 'workflowHealth':
+      return `${Math.round(value)} 分`;
+    case 'workflowBacklog':
+      return `${Math.round(value)} 项`;
     case 'loopLag':
       return `${Math.round(value * 100) / 100}ms`;
     case 'qps':

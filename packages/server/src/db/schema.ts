@@ -1004,6 +1004,28 @@ export const systemSchedulerRuns = pgTable('system_scheduler_runs', {
 export type SystemSchedulerRunRow = typeof systemSchedulerRuns.$inferSelect;
 export type NewSystemSchedulerRun = typeof systemSchedulerRuns.$inferInsert;
 
+// ─── 工作流引擎健康快照表（append-only，由定时任务 platform-wide 采集，驱动健康趋势 + 告警指标源）───
+export const workflowEngineHealthSnapshots = pgTable('workflow_engine_health_snapshots', {
+  id: serial('id').primaryKey(),
+  /** 健康分 0-100 */
+  healthScore: smallint('health_score').notNull(),
+  /** 综合严重级别：healthy / warning / critical */
+  severity: varchar('severity', { length: 16 }).notNull().default('healthy'),
+  /** 各内部队列积压总数（饱和度指标） */
+  backlog: integer('backlog').notNull().default(0),
+  /** 近 24h 事件错误率 0-1 */
+  errorRate: real('error_rate').notNull().default(0),
+  criticalCount: integer('critical_count').notNull().default(0),
+  warningCount: integer('warning_count').notNull().default(0),
+  runningInstances: integer('running_instances').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('workflow_engine_health_snapshots_created_at_idx').on(t.createdAt),
+]);
+
+export type WorkflowEngineHealthSnapshotRow = typeof workflowEngineHealthSnapshots.$inferSelect;
+export type NewWorkflowEngineHealthSnapshot = typeof workflowEngineHealthSnapshots.$inferInsert;
+
 // ─── 系统调度任务配置表（启动时注册任务的运行策略）───────────────────────────────
 export const systemSchedulerTaskConfigs = pgTable('system_scheduler_task_configs', {
   taskName: varchar('task_name', { length: 128 }).primaryKey(),
@@ -3970,9 +3992,10 @@ export type SystemMetricSampleRow = typeof systemMetricSamples.$inferSelect;
 export type NewSystemMetricSample = typeof systemMetricSamples.$inferInsert;
 
 // ─── 监控告警规则 ──────────────────────────────────────────────────────────────
-// 可监控的指标维度（与 system_metric_samples 字段对应）
+// 可监控的指标维度（与 system_metric_samples 字段对应；workflow* 为流程引擎健康指标，由引擎健康快照提供）
 export const monitorMetricEnum = pgEnum('monitor_metric', [
   'cpu', 'memory', 'disk', 'swap', 'load1', 'procCpu', 'heap', 'loopLag', 'qps', 'errorRate', 'netRxBps', 'netTxBps', 'diskReadBps', 'diskWriteBps',
+  'workflowHealth', 'workflowBacklog',
 ]);
 export const monitorAlertOperatorEnum = pgEnum('monitor_alert_operator', ['gt', 'gte', 'lt', 'lte']);
 export const monitorAlertLevelEnum = pgEnum('monitor_alert_level', ['info', 'warning', 'critical']);

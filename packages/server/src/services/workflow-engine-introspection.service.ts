@@ -2,10 +2,12 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, notInArray, or, sq
 import { alias } from 'drizzle-orm/pg-core';
 import { CronExpressionParser } from 'cron-parser';
 import type {
+  WorkflowEngineApdex,
   WorkflowEngineComponent,
   WorkflowEngineComponentStatus,
   WorkflowEngineDefinitionSnapshot,
   WorkflowEngineEventBucket,
+  WorkflowEngineHistogramBucket,
   WorkflowEngineInstanceBucket,
   WorkflowEngineIntrospection,
   WorkflowEngineMetric,
@@ -13,7 +15,9 @@ import type {
   WorkflowEngineQueueSnapshot,
   WorkflowEngineRuntimeIssue,
   WorkflowEngineRuntimeTask,
+  WorkflowEngineScoreFactor,
   WorkflowEngineTelemetry,
+  WorkflowEngineThresholds,
   WorkflowEngineTriggerExecution,
   WorkflowEngineOutboxEvent,
   WorkflowFlowData,
@@ -25,6 +29,7 @@ import { currentUser } from '../lib/context';
 import { getDataScopeCondition } from '../lib/data-scope';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../lib/datetime';
 import { getSchedulerIntrospection } from '../lib/pg-boss-scheduler';
+import { getConfigNumber } from '../lib/system-config';
 import { tenantCondition } from '../lib/tenant';
 import { getWorkflowEventBusIntrospection } from '../lib/workflow-event-bus';
 import { validateFlowData } from '../lib/workflow-engine';
@@ -421,19 +426,102 @@ function nextCronRun(cron: string, from: Date): string | null {
 
 /**
  * 引擎健康分 0-100：以 100 为基准，按运行时问题严重程度与队列饱和/陈旧度扣分。
- * 用于顶部 Stat 面板给出规范化健康度（借鉴工业引擎健康度百分比）。
+ * 返回最终分值与扣分归因（让健康分可解释），用于顶部 Stat 面板 + 解释 tooltip。
  */
-function computeHealthScore(issues: WorkflowEngineRuntimeIssue[], queues: WorkflowEngineQueueSnapshot[]): number {
+function computeHealthScore(
+  issues: WorkflowEngineRuntimeIssue[],
+  queues: WorkflowEngineQueueSnapshot[],
+): { score: number; breakdown: WorkflowEngineScoreFactor[] } {
   let score = 100;
-  for (const issue of issues) {
-    if (issue.severity === 'critical') score -= 12;
-    else if (issue.severity === 'warning') score -= 4;
+  const breakdown: WorkflowEngineScoreFactor[] = [];
+  const criticalIssues = issues.filter((i) => i.severity === 'critical').length;
+  const warningIssues = issues.filter((i) => i.severity === 'warning').length;
+  if (criticalIssues > 0) {
+    const delta = criticalIssues * 12;
+    score -= delta;
+    breakdown.push({ reason: `严重问题 ×${criticalIssues}`, delta, severity: 'critical' });
   }
-  for (const queue of queues) {
-    if (queue.failed > 0) score -= 5;
-    if (queue.oldestAgeMinutes != null && queue.oldestAgeMinutes >= 60) score -= 3;
+  if (warningIssues > 0) {
+    const delta = warningIssues * 4;
+    score -= delta;
+    breakdown.push({ reason: `警告问题 ×${warningIssues}`, delta, severity: 'warning' });
   }
-  return Math.max(0, Math.min(100, Math.round(score)));
+  const failedQueues = queues.filter((q) => q.failed > 0).length;
+  if (failedQueues > 0) {
+    const delta = failedQueues * 5;
+    score -= delta;
+    breakdown.push({ reason: `队列存在失败任务 ×${failedQueues}`, delta, severity: 'critical' });
+  }
+  const staleQueues = queues.filter((q) => q.oldestAgeMinutes != null && q.oldestAgeMinutes >= 60).length;
+  if (staleQueues > 0) {
+    const delta = staleQueues * 3;
+    score -= delta;
+    breakdown.push({ reason: `队列积压≥60 分钟 ×${staleQueues}`, delta, severity: 'warning' });
+  }
+  return { score: Math.max(0, Math.min(100, Math.round(score))), breakdown };
+}
+
+const THRESHOLD_DEFAULTS = {
+  healthWarn: 90,
+  healthCritical: 70,
+  backlogWarn: 50,
+  backlogCritical: 200,
+  errorRateWarn: 0.05,
+  errorRateCritical: 0.15,
+  apdexThresholdMs: 100,
+} as const;
+
+const THRESHOLD_CONFIG_KEYS = {
+  healthWarn: 'workflow_engine_health_warn',
+  healthCritical: 'workflow_engine_health_critical',
+  backlogWarn: 'workflow_engine_backlog_warn',
+  backlogCritical: 'workflow_engine_backlog_critical',
+  errorRateWarn: 'workflow_engine_error_rate_warn',
+  errorRateCritical: 'workflow_engine_error_rate_critical',
+  apdexThresholdMs: 'workflow_engine_apdex_threshold_ms',
+} as const;
+
+/** 读取可配置阈值（system_configs），缺省回退到内置默认。 */
+export async function getWorkflowEngineThresholds(): Promise<WorkflowEngineThresholds & { apdexThresholdMs: number }> {
+  const [healthWarn, healthCritical, backlogWarn, backlogCritical, errorRateWarn, errorRateCritical, apdexThresholdMs] = await Promise.all([
+    getConfigNumber(THRESHOLD_CONFIG_KEYS.healthWarn, THRESHOLD_DEFAULTS.healthWarn),
+    getConfigNumber(THRESHOLD_CONFIG_KEYS.healthCritical, THRESHOLD_DEFAULTS.healthCritical),
+    getConfigNumber(THRESHOLD_CONFIG_KEYS.backlogWarn, THRESHOLD_DEFAULTS.backlogWarn),
+    getConfigNumber(THRESHOLD_CONFIG_KEYS.backlogCritical, THRESHOLD_DEFAULTS.backlogCritical),
+    getConfigNumber(THRESHOLD_CONFIG_KEYS.errorRateWarn, THRESHOLD_DEFAULTS.errorRateWarn),
+    getConfigNumber(THRESHOLD_CONFIG_KEYS.errorRateCritical, THRESHOLD_DEFAULTS.errorRateCritical),
+    getConfigNumber(THRESHOLD_CONFIG_KEYS.apdexThresholdMs, THRESHOLD_DEFAULTS.apdexThresholdMs),
+  ]);
+  return { healthWarn, healthCritical, backlogWarn, backlogCritical, errorRateWarn, errorRateCritical, apdexThresholdMs };
+}
+
+/** 综合严重级别：按健康分档位映射（健康分已综合 issue/queue 扣分）。 */
+export function severityFromHealth(score: number, thresholds: WorkflowEngineThresholds): WorkflowEngineComponentStatus {
+  if (score >= thresholds.healthWarn) return 'healthy';
+  if (score >= thresholds.healthCritical) return 'warning';
+  return 'critical';
+}
+
+const LATENCY_BUCKETS: Array<{ label: string; min: number; max: number | null }> = [
+  { label: '<50ms', min: 0, max: 50 },
+  { label: '50-100ms', min: 50, max: 100 },
+  { label: '100-250ms', min: 100, max: 250 },
+  { label: '250-500ms', min: 250, max: 500 },
+  { label: '500ms-1s', min: 500, max: 1000 },
+  { label: '1-5s', min: 1000, max: 5000 },
+  { label: '≥5s', min: 5000, max: null },
+];
+
+/** 将 7 个桶计数数组映射为直方图结构。 */
+function buildHistogram(counts: number[]): WorkflowEngineHistogramBucket[] {
+  return LATENCY_BUCKETS.map((b, i) => ({ label: b.label, min: b.min, max: b.max, count: counts[i] ?? 0 }));
+}
+
+/** 由满意/容忍/沮丧计数计算 Apdex。 */
+function buildApdex(satisfied: number, tolerating: number, frustrated: number, thresholdMs: number): WorkflowEngineApdex {
+  const total = satisfied + tolerating + frustrated;
+  const score = total > 0 ? (satisfied + tolerating / 2) / total : null;
+  return { score: score != null ? Math.round(score * 1000) / 1000 : null, thresholdMs, satisfied, tolerating, frustrated, total };
 }
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -491,20 +579,27 @@ function buildInstanceSeries(
   return out;
 }
 
-export async function getWorkflowEngineIntrospection(thresholdMinutes = 30): Promise<WorkflowEngineIntrospection> {
+export async function getWorkflowEngineIntrospection(
+  thresholdMinutes = 30,
+  options: { systemWide?: boolean } = {},
+): Promise<WorkflowEngineIntrospection> {
   const now = new Date();
   const threshold = Math.max(1, Math.min(thresholdMinutes, 24 * 60));
   const dueSoon = new Date(now.getTime() + 24 * 60 * 60_000);
-  const user = currentUser();
+  // systemWide：定时采集等无请求上下文场景，平台级统计，跳过租户/数据权限过滤。
+  const systemWide = options.systemWide === true;
+  const user = systemWide ? null : currentUser();
   const assigneeUsers = alias(users, 'workflow_engine_task_assignee');
-  const instTenant = tenantCondition(workflowInstances, user);
-  const defTenant = tenantCondition(workflowDefinitions, user);
-  const outboxTenant = tenantCondition(workflowEventOutbox, user);
-  const taskScope = await getDataScopeCondition({
-    currentUserId: user.userId,
-    deptColumn: users.departmentId,
-    ownerColumn: workflowInstances.initiatorId,
-  });
+  const instTenant = user ? tenantCondition(workflowInstances, user) : undefined;
+  const defTenant = user ? tenantCondition(workflowDefinitions, user) : undefined;
+  const outboxTenant = user ? tenantCondition(workflowEventOutbox, user) : undefined;
+  const taskScope = user
+    ? await getDataScopeCondition({
+        currentUserId: user.userId,
+        deptColumn: users.departmentId,
+        ownerColumn: workflowInstances.initiatorId,
+      })
+    : undefined;
 
   const instanceBaseConds: SQL[] = [];
   if (instTenant) instanceBaseConds.push(instTenant);
@@ -517,6 +612,14 @@ export async function getWorkflowEngineIntrospection(thresholdMinutes = 30): Pro
 
   const since1h = new Date(now.getTime() - 60 * 60_000);
   const since24h = new Date(now.getTime() - 24 * 60 * 60_000);
+  const since48h = new Date(now.getTime() - 48 * 60 * 60_000);
+  const thresholds = await getWorkflowEngineThresholds();
+  const apdexT = thresholds.apdexThresholdMs;
+  // 事件处理延迟（毫秒）SQL 片段 + 「近 24h 成功且已处理」过滤片段，复用于 P95/P99/直方图/Apdex。
+  const evLatency = sql`extract(epoch from (${workflowEventOutbox.processedAt} - ${workflowEventOutbox.createdAt})) * 1000`;
+  const evDone24h = and(eq(workflowEventOutbox.status, 'success'), isNotNull(workflowEventOutbox.processedAt), gte(workflowEventOutbox.createdAt, since24h));
+  const trDone24h = and(eq(workflowTriggerExecutions.status, 'success'), isNotNull(workflowTriggerExecutions.durationMs), gte(workflowTriggerExecutions.createdAt, since24h));
+  const trDuration = sql`${workflowTriggerExecutions.durationMs}`;
   const terminalStatuses = ['approved', 'rejected', 'withdrawn', 'cancelled'] as const;
   const canceledStatuses = ['withdrawn', 'cancelled'] as const;
   const outboxScopeConds: SQL[] = [];
@@ -616,9 +719,23 @@ export async function getWorkflowEngineIntrospection(thresholdMinutes = 30): Pro
       total24h: sql<number>`count(*) filter (where ${gte(workflowEventOutbox.createdAt, since24h)})`.mapWith(Number),
       success24h: sql<number>`count(*) filter (where ${and(eq(workflowEventOutbox.status, 'success'), gte(workflowEventOutbox.createdAt, since24h))})`.mapWith(Number),
       failed24h: sql<number>`count(*) filter (where ${and(eq(workflowEventOutbox.status, 'failed'), gte(workflowEventOutbox.createdAt, since24h))})`.mapWith(Number),
+      totalPrev24h: sql<number>`count(*) filter (where ${and(gte(workflowEventOutbox.createdAt, since48h), sql`${workflowEventOutbox.createdAt} < ${since24h}`)})`.mapWith(Number),
+      successPrev24h: sql<number>`count(*) filter (where ${and(eq(workflowEventOutbox.status, 'success'), gte(workflowEventOutbox.createdAt, since48h), sql`${workflowEventOutbox.createdAt} < ${since24h}`)})`.mapWith(Number),
+      failedPrev24h: sql<number>`count(*) filter (where ${and(eq(workflowEventOutbox.status, 'failed'), gte(workflowEventOutbox.createdAt, since48h), sql`${workflowEventOutbox.createdAt} < ${since24h}`)})`.mapWith(Number),
       pendingRetry: sql<number>`count(*) filter (where ${inArray(workflowEventOutbox.status, ['pending', 'processing', 'retrying'])})`.mapWith(Number),
-      avgLatencyMs: sql<number | null>`avg(extract(epoch from (${workflowEventOutbox.processedAt} - ${workflowEventOutbox.createdAt})) * 1000) filter (where ${and(eq(workflowEventOutbox.status, 'success'), isNotNull(workflowEventOutbox.processedAt), gte(workflowEventOutbox.createdAt, since24h))})`.mapWith(Number),
-      p95LatencyMs: sql<number | null>`percentile_cont(0.95) within group (order by extract(epoch from (${workflowEventOutbox.processedAt} - ${workflowEventOutbox.createdAt})) * 1000) filter (where ${and(eq(workflowEventOutbox.status, 'success'), isNotNull(workflowEventOutbox.processedAt), gte(workflowEventOutbox.createdAt, since24h))})`.mapWith(Number),
+      avgLatencyMs: sql<number | null>`avg(${evLatency}) filter (where ${evDone24h})`.mapWith(Number),
+      p95LatencyMs: sql<number | null>`percentile_cont(0.95) within group (order by ${evLatency}) filter (where ${evDone24h})`.mapWith(Number),
+      p99LatencyMs: sql<number | null>`percentile_cont(0.99) within group (order by ${evLatency}) filter (where ${evDone24h})`.mapWith(Number),
+      h0: sql<number>`count(*) filter (where ${evDone24h} and ${evLatency} < 50)`.mapWith(Number),
+      h1: sql<number>`count(*) filter (where ${evDone24h} and ${evLatency} >= 50 and ${evLatency} < 100)`.mapWith(Number),
+      h2: sql<number>`count(*) filter (where ${evDone24h} and ${evLatency} >= 100 and ${evLatency} < 250)`.mapWith(Number),
+      h3: sql<number>`count(*) filter (where ${evDone24h} and ${evLatency} >= 250 and ${evLatency} < 500)`.mapWith(Number),
+      h4: sql<number>`count(*) filter (where ${evDone24h} and ${evLatency} >= 500 and ${evLatency} < 1000)`.mapWith(Number),
+      h5: sql<number>`count(*) filter (where ${evDone24h} and ${evLatency} >= 1000 and ${evLatency} < 5000)`.mapWith(Number),
+      h6: sql<number>`count(*) filter (where ${evDone24h} and ${evLatency} >= 5000)`.mapWith(Number),
+      apdexSatisfied: sql<number>`count(*) filter (where ${evDone24h} and ${evLatency} <= ${apdexT})`.mapWith(Number),
+      apdexTolerating: sql<number>`count(*) filter (where ${evDone24h} and ${evLatency} > ${apdexT} and ${evLatency} <= ${apdexT * 4})`.mapWith(Number),
+      apdexFrustrated: sql<number>`count(*) filter (where ${evDone24h} and ${evLatency} > ${apdexT * 4})`.mapWith(Number),
     })
       .from(workflowEventOutbox)
       .leftJoin(workflowInstances, eq(workflowEventOutbox.instanceId, workflowInstances.id))
@@ -629,8 +746,20 @@ export async function getWorkflowEngineIntrospection(thresholdMinutes = 30): Pro
       success24h: sql<number>`count(*) filter (where ${and(eq(workflowTriggerExecutions.status, 'success'), gte(workflowTriggerExecutions.createdAt, since24h))})`.mapWith(Number),
       failed24h: sql<number>`count(*) filter (where ${and(eq(workflowTriggerExecutions.status, 'failed'), gte(workflowTriggerExecutions.createdAt, since24h))})`.mapWith(Number),
       retrying24h: sql<number>`count(*) filter (where ${and(eq(workflowTriggerExecutions.status, 'retrying'), gte(workflowTriggerExecutions.createdAt, since24h))})`.mapWith(Number),
-      avgDurationMs: sql<number | null>`avg(${workflowTriggerExecutions.durationMs}) filter (where ${and(eq(workflowTriggerExecutions.status, 'success'), isNotNull(workflowTriggerExecutions.durationMs), gte(workflowTriggerExecutions.createdAt, since24h))})`.mapWith(Number),
-      p95DurationMs: sql<number | null>`percentile_cont(0.95) within group (order by ${workflowTriggerExecutions.durationMs}) filter (where ${and(eq(workflowTriggerExecutions.status, 'success'), isNotNull(workflowTriggerExecutions.durationMs), gte(workflowTriggerExecutions.createdAt, since24h))})`.mapWith(Number),
+      totalPrev24h: sql<number>`count(*) filter (where ${and(gte(workflowTriggerExecutions.createdAt, since48h), sql`${workflowTriggerExecutions.createdAt} < ${since24h}`)})`.mapWith(Number),
+      successPrev24h: sql<number>`count(*) filter (where ${and(eq(workflowTriggerExecutions.status, 'success'), gte(workflowTriggerExecutions.createdAt, since48h), sql`${workflowTriggerExecutions.createdAt} < ${since24h}`)})`.mapWith(Number),
+      failedPrev24h: sql<number>`count(*) filter (where ${and(eq(workflowTriggerExecutions.status, 'failed'), gte(workflowTriggerExecutions.createdAt, since48h), sql`${workflowTriggerExecutions.createdAt} < ${since24h}`)})`.mapWith(Number),
+      retryingPrev24h: sql<number>`count(*) filter (where ${and(eq(workflowTriggerExecutions.status, 'retrying'), gte(workflowTriggerExecutions.createdAt, since48h), sql`${workflowTriggerExecutions.createdAt} < ${since24h}`)})`.mapWith(Number),
+      avgDurationMs: sql<number | null>`avg(${trDuration}) filter (where ${trDone24h})`.mapWith(Number),
+      p95DurationMs: sql<number | null>`percentile_cont(0.95) within group (order by ${trDuration}) filter (where ${trDone24h})`.mapWith(Number),
+      p99DurationMs: sql<number | null>`percentile_cont(0.99) within group (order by ${trDuration}) filter (where ${trDone24h})`.mapWith(Number),
+      th0: sql<number>`count(*) filter (where ${trDone24h} and ${trDuration} < 50)`.mapWith(Number),
+      th1: sql<number>`count(*) filter (where ${trDone24h} and ${trDuration} >= 50 and ${trDuration} < 100)`.mapWith(Number),
+      th2: sql<number>`count(*) filter (where ${trDone24h} and ${trDuration} >= 100 and ${trDuration} < 250)`.mapWith(Number),
+      th3: sql<number>`count(*) filter (where ${trDone24h} and ${trDuration} >= 250 and ${trDuration} < 500)`.mapWith(Number),
+      th4: sql<number>`count(*) filter (where ${trDone24h} and ${trDuration} >= 500 and ${trDuration} < 1000)`.mapWith(Number),
+      th5: sql<number>`count(*) filter (where ${trDone24h} and ${trDuration} >= 1000 and ${trDuration} < 5000)`.mapWith(Number),
+      th6: sql<number>`count(*) filter (where ${trDone24h} and ${trDuration} >= 5000)`.mapWith(Number),
     })
       .from(workflowTriggerExecutions)
       .innerJoin(workflowInstances, eq(workflowTriggerExecutions.instanceId, workflowInstances.id))
@@ -640,6 +769,8 @@ export async function getWorkflowEngineIntrospection(thresholdMinutes = 30): Pro
       createdLast24h: sql<number>`count(*) filter (where ${gte(workflowInstances.createdAt, since24h)})`.mapWith(Number),
       completedLast24h: sql<number>`count(*) filter (where ${and(inArray(workflowInstances.status, [...terminalStatuses]), gte(workflowInstances.updatedAt, since24h))})`.mapWith(Number),
       canceledLast24h: sql<number>`count(*) filter (where ${and(inArray(workflowInstances.status, [...canceledStatuses]), gte(workflowInstances.updatedAt, since24h))})`.mapWith(Number),
+      createdPrev24h: sql<number>`count(*) filter (where ${and(gte(workflowInstances.createdAt, since48h), sql`${workflowInstances.createdAt} < ${since24h}`)})`.mapWith(Number),
+      completedPrev24h: sql<number>`count(*) filter (where ${and(inArray(workflowInstances.status, [...terminalStatuses]), gte(workflowInstances.updatedAt, since48h), sql`${workflowInstances.updatedAt} < ${since24h}`)})`.mapWith(Number),
     })
       .from(workflowInstances)
       .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
@@ -829,32 +960,43 @@ export async function getWorkflowEngineIntrospection(thresholdMinutes = 30): Pro
     ], { wip: scheduler.wip }),
   ];
 
-  const eventStats = eventStatsRows[0] ?? { total1h: 0, success1h: 0, failed1h: 0, total24h: 0, success24h: 0, failed24h: 0, pendingRetry: 0, avgLatencyMs: null, p95LatencyMs: null };
-  const triggerStats = triggerStatsRows[0] ?? { total24h: 0, success24h: 0, failed24h: 0, retrying24h: 0, avgDurationMs: null, p95DurationMs: null };
-  const instanceStats = instanceStatsRows[0] ?? { createdLast24h: 0, completedLast24h: 0, canceledLast24h: 0 };
+  const eventStats = eventStatsRows[0] ?? { total1h: 0, success1h: 0, failed1h: 0, total24h: 0, success24h: 0, failed24h: 0, totalPrev24h: 0, successPrev24h: 0, failedPrev24h: 0, pendingRetry: 0, avgLatencyMs: null, p95LatencyMs: null, p99LatencyMs: null, h0: 0, h1: 0, h2: 0, h3: 0, h4: 0, h5: 0, h6: 0, apdexSatisfied: 0, apdexTolerating: 0, apdexFrustrated: 0 };
+  const triggerStats = triggerStatsRows[0] ?? { total24h: 0, success24h: 0, failed24h: 0, retrying24h: 0, totalPrev24h: 0, successPrev24h: 0, failedPrev24h: 0, retryingPrev24h: 0, avgDurationMs: null, p95DurationMs: null, p99DurationMs: null, th0: 0, th1: 0, th2: 0, th3: 0, th4: 0, th5: 0, th6: 0 };
+  const instanceStats = instanceStatsRows[0] ?? { createdLast24h: 0, completedLast24h: 0, canceledLast24h: 0, createdPrev24h: 0, completedPrev24h: 0 };
   const eventSeries = buildEventSeries(eventSeriesRows, now);
   const instanceSeries = buildInstanceSeries(instanceSeriesRows, now, terminalStatuses);
+  const { score: healthScore, breakdown: scoreBreakdown } = computeHealthScore(issues, queues);
 
   const telemetry: WorkflowEngineTelemetry = {
-    healthScore: computeHealthScore(issues, queues),
+    healthScore,
+    scoreBreakdown,
+    apdex: buildApdex(eventStats.apdexSatisfied, eventStats.apdexTolerating, eventStats.apdexFrustrated, apdexT),
     events: {
       last1h: { total: eventStats.total1h, success: eventStats.success1h, failed: eventStats.failed1h },
       last24h: { total: eventStats.total24h, success: eventStats.success24h, failed: eventStats.failed24h },
+      prev24h: { total: eventStats.totalPrev24h, success: eventStats.successPrev24h, failed: eventStats.failedPrev24h },
       pendingRetry: eventStats.pendingRetry,
       avgLatencyMs: eventStats.avgLatencyMs != null ? Math.round(eventStats.avgLatencyMs) : null,
       p95LatencyMs: eventStats.p95LatencyMs != null ? Math.round(eventStats.p95LatencyMs) : null,
+      p99LatencyMs: eventStats.p99LatencyMs != null ? Math.round(eventStats.p99LatencyMs) : null,
+      latencyHistogram: buildHistogram([eventStats.h0, eventStats.h1, eventStats.h2, eventStats.h3, eventStats.h4, eventStats.h5, eventStats.h6]),
       series24h: eventSeries,
     },
     triggers: {
       last24h: { total: triggerStats.total24h, success: triggerStats.success24h, failed: triggerStats.failed24h, retrying: triggerStats.retrying24h },
+      prev24h: { total: triggerStats.totalPrev24h, success: triggerStats.successPrev24h, failed: triggerStats.failedPrev24h, retrying: triggerStats.retryingPrev24h },
       avgDurationMs: triggerStats.avgDurationMs != null ? Math.round(triggerStats.avgDurationMs) : null,
       p95DurationMs: triggerStats.p95DurationMs != null ? Math.round(triggerStats.p95DurationMs) : null,
+      p99DurationMs: triggerStats.p99DurationMs != null ? Math.round(triggerStats.p99DurationMs) : null,
+      durationHistogram: buildHistogram([triggerStats.th0, triggerStats.th1, triggerStats.th2, triggerStats.th3, triggerStats.th4, triggerStats.th5, triggerStats.th6]),
     },
     instances: {
       running: runningInstanceRows.length,
       createdLast24h: instanceStats.createdLast24h,
       completedLast24h: instanceStats.completedLast24h,
       canceledLast24h: instanceStats.canceledLast24h,
+      createdPrev24h: instanceStats.createdPrev24h,
+      completedPrev24h: instanceStats.completedPrev24h,
       series24h: instanceSeries,
     },
     recurringJobs: scheduler.systemRecurringJobs.map((job) => ({
@@ -869,6 +1011,14 @@ export async function getWorkflowEngineIntrospection(thresholdMinutes = 30): Pro
     healthy: !issues.some((issue) => issue.severity === 'critical'),
     generatedAt: formatDateTime(now),
     thresholdMinutes: threshold,
+    thresholds: {
+      healthWarn: thresholds.healthWarn,
+      healthCritical: thresholds.healthCritical,
+      backlogWarn: thresholds.backlogWarn,
+      backlogCritical: thresholds.backlogCritical,
+      errorRateWarn: thresholds.errorRateWarn,
+      errorRateCritical: thresholds.errorRateCritical,
+    },
     telemetry,
     components,
     queues,

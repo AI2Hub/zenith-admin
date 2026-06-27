@@ -370,13 +370,43 @@ const WorkflowEngineThroughputWindowDTO = z.object({
   failed: z.number().int(),
 });
 
+const WorkflowEngineHistogramBucketDTO = z.object({
+  label: z.string(),
+  min: z.number(),
+  max: z.number().nullable(),
+  count: z.number().int(),
+});
+
 const WorkflowEngineTelemetryDTO = z.object({
   healthScore: z.number().int(),
+  scoreBreakdown: z.array(z.object({
+    reason: z.string(),
+    delta: z.number(),
+    severity: z.enum(['warning', 'critical']),
+  })),
+  apdex: z.object({
+    score: z.number().nullable(),
+    thresholdMs: z.number(),
+    satisfied: z.number().int(),
+    tolerating: z.number().int(),
+    frustrated: z.number().int(),
+    total: z.number().int(),
+  }),
   events: z.object({
     last1h: WorkflowEngineThroughputWindowDTO,
     last24h: WorkflowEngineThroughputWindowDTO,
+    prev24h: WorkflowEngineThroughputWindowDTO,
     pendingRetry: z.number().int(),
     avgLatencyMs: z.number().nullable(),
+    p95LatencyMs: z.number().nullable(),
+    p99LatencyMs: z.number().nullable(),
+    latencyHistogram: z.array(WorkflowEngineHistogramBucketDTO),
+    series24h: z.array(z.object({
+      hour: z.string(),
+      total: z.number().int(),
+      success: z.number().int(),
+      failed: z.number().int(),
+    })),
   }),
   triggers: z.object({
     last24h: z.object({
@@ -385,13 +415,29 @@ const WorkflowEngineTelemetryDTO = z.object({
       failed: z.number().int(),
       retrying: z.number().int(),
     }),
+    prev24h: z.object({
+      total: z.number().int(),
+      success: z.number().int(),
+      failed: z.number().int(),
+      retrying: z.number().int(),
+    }),
     avgDurationMs: z.number().nullable(),
+    p95DurationMs: z.number().nullable(),
+    p99DurationMs: z.number().nullable(),
+    durationHistogram: z.array(WorkflowEngineHistogramBucketDTO),
   }),
   instances: z.object({
     running: z.number().int(),
     createdLast24h: z.number().int(),
     completedLast24h: z.number().int(),
     canceledLast24h: z.number().int(),
+    createdPrev24h: z.number().int(),
+    completedPrev24h: z.number().int(),
+    series24h: z.array(z.object({
+      hour: z.string(),
+      created: z.number().int(),
+      completed: z.number().int(),
+    })),
   }),
   recurringJobs: z.array(z.object({
     name: z.string(),
@@ -401,11 +447,21 @@ const WorkflowEngineTelemetryDTO = z.object({
   })),
 });
 
+const WorkflowEngineThresholdsDTO = z.object({
+  healthWarn: z.number(),
+  healthCritical: z.number(),
+  backlogWarn: z.number(),
+  backlogCritical: z.number(),
+  errorRateWarn: z.number(),
+  errorRateCritical: z.number(),
+});
+
 export const WorkflowEngineIntrospectionDTO = z
   .object({
     healthy: z.boolean(),
     generatedAt: z.string(),
     thresholdMinutes: z.number().int(),
+    thresholds: WorkflowEngineThresholdsDTO,
     telemetry: WorkflowEngineTelemetryDTO,
     components: z.array(WorkflowEngineComponentDTO),
     queues: z.array(WorkflowEngineQueueSnapshotDTO),
@@ -416,3 +472,28 @@ export const WorkflowEngineIntrospectionDTO = z
     issues: z.array(WorkflowEngineRuntimeIssueDTO),
   })
   .openapi('WorkflowEngineIntrospection');
+
+export const WorkflowEngineHealthHistoryDTO = z
+  .object({
+    points: z.array(z.object({
+      capturedAt: z.string(),
+      healthScore: z.number().int(),
+      severity: z.enum(['healthy', 'warning', 'critical']),
+      backlog: z.number().int(),
+      errorRate: z.number(),
+      criticalCount: z.number().int(),
+      warningCount: z.number().int(),
+      runningInstances: z.number().int(),
+    })),
+    thresholds: WorkflowEngineThresholdsDTO,
+  })
+  .openapi('WorkflowEngineHealthHistory');
+
+export const WorkflowEngineActionResultDTO = z
+  .object({
+    action: z.enum(['replay-outbox', 'recover-delays', 'recover-subprocess', 'process-timeouts', 'recover-triggers']),
+    ok: z.boolean(),
+    message: z.string(),
+    detail: z.record(z.string(), z.number()),
+  })
+  .openapi('WorkflowEngineActionResult');

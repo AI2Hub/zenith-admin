@@ -126,4 +126,15 @@ export async function registerSystemTasks(): Promise<void> {
     allowManualRun: true,
     run: runDueMpBroadcasts,
   });
+
+  const { runWorkflowEngineHealthCapture } = await import('../services/workflow-engine-ops.service');
+  await registerSystemRecurringJob({
+    name: 'workflow-engine-health-capture',
+    title: '流程引擎健康采集',
+    module: '工作流',
+    cronExpression: '*/5 * * * *',
+    description: '每 5 分钟采集平台级流程引擎健康快照，驱动健康趋势图与引擎健康告警指标，并清理超期快照。',
+    allowManualRun: true,
+    run: runWorkflowEngineHealthCapture,
+  });
 }
