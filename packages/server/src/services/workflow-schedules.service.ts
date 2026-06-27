@@ -2,7 +2,7 @@
  * 流程定时发起（T2-1）
  *
  * 按 cron 周期自动以指定发起人身份发起流程实例。
- * 调度由 registerSystemRecurringJob('workflow-schedule-tick') 每分钟触发 runDueWorkflowSchedules() 扫描执行。
+ * 调度由系统启动任务 workflow-schedule-tick 每分钟触发 runDueWorkflowSchedules() 扫描执行。
  */
 import { and, desc, eq, lte, sql } from 'drizzle-orm';
 import { CronExpressionParser } from 'cron-parser';

@@ -357,13 +357,17 @@ export async function runExportJob(jobId: number) {
 }
 
 export async function registerExportJobWorker() {
-  await registerSystemQueueWorker<{ jobId: number }>(
-    EXPORT_JOB_QUEUE,
-    async ({ jobId }) => {
+  await registerSystemQueueWorker<{ jobId: number }>({
+    name: EXPORT_JOB_QUEUE,
+    title: '导出任务执行 Worker',
+    module: '导出中心',
+    description: '消费异步导出任务队列，生成 Excel/CSV 文件并更新导出中心任务状态。',
+    handler: async ({ jobId }) => {
       await runExportJob(jobId);
+      return `导出任务 ${jobId} 执行完成`;
     },
-    { retentionSeconds: 60 * 60 * 24 * 7 },
-  );
+    queueOptions: { retentionSeconds: 60 * 60 * 24 * 7 },
+  });
 }
 
 async function visibleJobWhere(user: JwtPayload): Promise<SQL | undefined> {

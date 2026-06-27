@@ -13,6 +13,9 @@ export const exportJobFormatEnum = pgEnum('export_job_format', ['xlsx', 'csv']);
 export const exportJobStatusEnum = pgEnum('export_job_status', ['pending', 'running', 'success', 'failed', 'cancelled', 'expired']);
 export const exportJobExecutionModeEnum = pgEnum('export_job_execution_mode', ['sync', 'async']);
 export const exportJobDeleteReasonEnum = pgEnum('export_job_delete_reason', ['expired', 'manual', 'file_missing']);
+export const systemSchedulerTaskTypeEnum = pgEnum('system_scheduler_task_type', ['recurring', 'queue']);
+export const systemSchedulerRunStatusEnum = pgEnum('system_scheduler_run_status', ['running', 'success', 'failed']);
+export const systemSchedulerTriggerTypeEnum = pgEnum('system_scheduler_trigger_type', ['schedule', 'manual', 'queue']);
 
 /**
  * 通用审计列：`created_by` / `updated_by` 指向 `users.id`（保留 set null）。
@@ -968,6 +971,30 @@ export const cronJobLogs = pgTable('cron_job_logs', {
 
 export type CronJobLogRow = typeof cronJobLogs.$inferSelect;
 export type NewCronJobLog = typeof cronJobLogs.$inferInsert;
+
+// ─── 系统调度运行日志表（启动时注册的系统级任务 / 队列 Worker）─────────────────────
+export const systemSchedulerRuns = pgTable('system_scheduler_runs', {
+  id: serial('id').primaryKey(),
+  taskName: varchar('task_name', { length: 128 }).notNull(),
+  taskTitle: varchar('task_title', { length: 128 }).notNull(),
+  taskType: systemSchedulerTaskTypeEnum('task_type').notNull(),
+  module: varchar('module', { length: 64 }).notNull().default('系统'),
+  triggerType: systemSchedulerTriggerTypeEnum('trigger_type').notNull(),
+  status: systemSchedulerRunStatusEnum('status').notNull().default('running'),
+  startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+  durationMs: integer('duration_ms'),
+  resultMessage: text('result_message'),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('system_scheduler_runs_task_idx').on(t.taskName),
+  index('system_scheduler_runs_status_idx').on(t.status),
+  index('system_scheduler_runs_started_at_idx').on(t.startedAt),
+]);
+
+export type SystemSchedulerRunRow = typeof systemSchedulerRuns.$inferSelect;
+export type NewSystemSchedulerRun = typeof systemSchedulerRuns.$inferInsert;
 
 // ─── 地区表 ──────────────────────────────────────────────────────────────────
 export const regionLevelEnum = pgEnum('region_level', ['province', 'city', 'county']);

@@ -15,6 +15,7 @@ export * from './logs';
 export * from './announcements';
 export * from './system-configs';
 export * from './cron-jobs';
+export * from './system-scheduler';
 export * from './email-config';
 export * from './cache';
 export * from './db-backups';

@@ -50,6 +50,7 @@ import fileStorageConfigsRoutes from './routes/file-storage-configs';
 import filesRoutes from './routes/files';
 import businessFilesRoutes from './routes/business-files';
 import exportJobsRoutes from './routes/export-jobs';
+import systemSchedulerRoutes from './routes/system-scheduler';
 import monitorRoutes from './routes/monitor';
 import monitorAlertsRoutes from './routes/monitor-alerts';
 import sslCertificatesRoutes from './routes/ssl-certificates';
@@ -340,6 +341,7 @@ app.route('/api/file-storage-configs', fileStorageConfigsRoutes);
 app.route('/api/files', filesRoutes);
 app.route('/api/business-files', businessFilesRoutes);
 app.route('/api/export-jobs', exportJobsRoutes);
+app.route('/api/system-scheduler', systemSchedulerRoutes);
 app.route('/api/monitor', monitorRoutes);
 app.route('/api/monitor-alerts', monitorAlertsRoutes);
 app.route('/api/ssl-certificates', sslCertificatesRoutes);
@@ -548,34 +550,101 @@ try {
   const { registerSystemRecurringJob } = await import('./lib/pg-boss-scheduler');
   const { registerExportJobWorker, cleanupExpiredExportFiles } = await import('./services/export-jobs.service');
   await registerExportJobWorker();
-  await registerSystemRecurringJob('export-file-cleanup', '0 3 * * *', async () => {
-    await cleanupExpiredExportFiles();
+  await registerSystemRecurringJob({
+    name: 'export-file-cleanup',
+    title: '导出文件自动清理',
+    module: '导出中心',
+    cronExpression: '0 3 * * *',
+    description: '每天清理已过期的导出文件，并把任务状态标记为 expired。',
+    allowManualRun: true,
+    run: async () => {
+      const cleaned = await cleanupExpiredExportFiles();
+      return `清理了 ${cleaned} 个过期导出文件`;
+    },
   });
   const { runDueWorkflowSchedules } = await import('./services/workflow-schedules.service');
-  await registerSystemRecurringJob('workflow-schedule-tick', '* * * * *', runDueWorkflowSchedules);
-  await registerSystemRecurringJob('workflow-event-delivery-retry', '*/5 * * * *', async () => {
-    await retryWorkflowEventDeliveries();
+  await registerSystemRecurringJob({
+    name: 'workflow-schedule-tick',
+    title: '工作流定时发起扫描',
+    module: '工作流',
+    cronExpression: '* * * * *',
+    description: '每分钟扫描到期的工作流定时发起规则，并推进下一次执行时间。',
+    allowManualRun: true,
+    run: async () => {
+      await runDueWorkflowSchedules();
+      return '工作流定时发起扫描完成';
+    },
   });
-  await registerSystemRecurringJob('app-webhook-delivery-retry', '*/5 * * * *', async () => {
-    await retryAppWebhookDeliveries();
+  await registerSystemRecurringJob({
+    name: 'workflow-event-delivery-retry',
+    title: '工作流事件投递重试',
+    module: '工作流',
+    cronExpression: '*/5 * * * *',
+    description: '定期重试工作流 Webhook 事件投递。',
+    allowManualRun: true,
+    run: retryWorkflowEventDeliveries,
+  });
+  await registerSystemRecurringJob({
+    name: 'app-webhook-delivery-retry',
+    title: '开放应用 Webhook 重试',
+    module: '开放平台',
+    cronExpression: '*/5 * * * *',
+    description: '定期重试开放应用 Webhook 投递。',
+    allowManualRun: true,
+    run: retryAppWebhookDeliveries,
   });
   const { replayWorkflowEventOutbox } = await import('./lib/workflow-event-bus');
-  await registerSystemRecurringJob('workflow-event-outbox-replay', '* * * * *', async () => {
-    await replayWorkflowEventOutbox();
+  await registerSystemRecurringJob({
+    name: 'workflow-event-outbox-replay',
+    title: '工作流事件 Outbox 重放',
+    module: '工作流',
+    cronExpression: '* * * * *',
+    description: '每分钟重放待处理的工作流事件 Outbox，保证事件最终投递。',
+    allowManualRun: true,
+    run: replayWorkflowEventOutbox,
   });
   const { recoverDueDelayTasks } = await import('./services/workflow-resume.service');
-  await registerSystemRecurringJob('workflow-delay-recovery', '* * * * *', async () => {
-    await recoverDueDelayTasks();
+  await registerSystemRecurringJob({
+    name: 'workflow-delay-recovery',
+    title: '工作流延时任务恢复',
+    module: '工作流',
+    cronExpression: '* * * * *',
+    description: '兜底扫描已到期的 delay 节点任务并恢复执行。',
+    allowManualRun: true,
+    run: recoverDueDelayTasks,
   });
   const { publishDueScheduledMessages } = await import('./services/channel.service');
-  await registerSystemRecurringJob('channel-scheduled-publish', '* * * * *', publishDueScheduledMessages);
+  await registerSystemRecurringJob({
+    name: 'channel-scheduled-publish',
+    title: '频道定时消息发布',
+    module: '消息渠道',
+    cronExpression: '* * * * *',
+    description: '每分钟发布到期的频道定时消息。',
+    allowManualRun: true,
+    run: async () => {
+      await publishDueScheduledMessages();
+      return '频道定时消息发布扫描完成';
+    },
+  });
   const { runMpKfSessionTimeouts } = await import('./services/mp-kf-session.service');
-  await registerSystemRecurringJob('mp-kf-session-tick', '* * * * *', async () => {
-    await runMpKfSessionTimeouts();
+  await registerSystemRecurringJob({
+    name: 'mp-kf-session-tick',
+    title: '公众号客服会话维护',
+    module: '公众号',
+    cronExpression: '* * * * *',
+    description: '每分钟处理公众号客服会话超时、转接和自动关闭。',
+    allowManualRun: true,
+    run: runMpKfSessionTimeouts,
   });
   const { runDueMpBroadcasts } = await import('./services/mp-broadcast.service');
-  await registerSystemRecurringJob('mp-broadcast-tick', '* * * * *', async () => {
-    await runDueMpBroadcasts();
+  await registerSystemRecurringJob({
+    name: 'mp-broadcast-tick',
+    title: '公众号群发任务扫描',
+    module: '公众号',
+    cronExpression: '* * * * *',
+    description: '每分钟扫描并发送到期的公众号群发任务。',
+    allowManualRun: true,
+    run: runDueMpBroadcasts,
   });
 } catch (err) {
   logger.error('Failed to initialize cron scheduler', err);

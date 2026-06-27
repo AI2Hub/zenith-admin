@@ -2,12 +2,12 @@
  * pg-boss 调度器
  * 基于 PostgreSQL SKIP LOCKED 实现精确一次执行和多进程安全。
  *
- * 对外 API 与原 cron-scheduler.ts 保持一致，以最小化调用方改动。
+ * 用户可配置 Cron 与系统启动任务共用 pg-boss 执行，但日志与注册元数据分离。
  */
 import { PgBoss, type QueueOptions, type SendOptions, type WorkHandler } from 'pg-boss';
 import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '../db';
-import { cronJobs, cronJobLogs, dbBackups, users } from '../db/schema';
+import { cronJobs, cronJobLogs, dbBackups, systemSchedulerRuns, users } from '../db/schema';
 import logger from './logger';
 import { cleanExpiredCaptchas } from './captcha';
 import { cleanExpiredSessions } from './session-manager';
@@ -55,12 +55,155 @@ function queueName(jobId: number): string {
 // ─── pg-boss 实例（单例）─────────────────────────────────────────────────────
 
 let boss: PgBoss | null = null;
-const systemRecurringJobs = new Map<string, { name: string; cronExpression: string; registeredAt: string }>();
-const systemQueueWorkers = new Map<string, { name: string; registeredAt: string }>();
+
+export type SystemSchedulerTaskType = 'recurring' | 'queue';
+export type SystemSchedulerRunStatus = 'running' | 'success' | 'failed';
+export type SystemSchedulerTriggerType = 'schedule' | 'manual' | 'queue';
+
+export interface SystemSchedulerTaskInfo {
+  name: string;
+  title: string;
+  module: string;
+  description: string | null;
+  taskType: SystemSchedulerTaskType;
+  cronExpression: string | null;
+  registeredAt: string;
+  allowManualRun: boolean;
+  lastRunAt: string | null;
+  lastRunStatus: SystemSchedulerRunStatus | null;
+  lastRunMessage: string | null;
+  lastDurationMs: number | null;
+}
+
+interface SystemRecurringJobInfo extends SystemSchedulerTaskInfo {
+  taskType: 'recurring';
+  cronExpression: string;
+}
+
+interface SystemQueueWorkerInfo extends SystemSchedulerTaskInfo {
+  taskType: 'queue';
+  cronExpression: null;
+  allowManualRun: false;
+}
+
+export interface SystemRecurringJobRegistration {
+  name: string;
+  title: string;
+  module: string;
+  cronExpression: string;
+  description?: string;
+  allowManualRun?: boolean;
+  run: () => Promise<unknown>;
+}
+
+export interface SystemQueueWorkerRegistration<T extends object> {
+  name: string;
+  title: string;
+  module: string;
+  description?: string;
+  handler: (data: T) => Promise<unknown>;
+  queueOptions?: Omit<QueueOptions, 'name'>;
+}
+
+const systemRecurringJobs = new Map<string, SystemRecurringJobInfo>();
+const systemRecurringJobHandlers = new Map<string, () => Promise<unknown>>();
+const systemQueueWorkers = new Map<string, SystemQueueWorkerInfo>();
 
 function getBoss(): PgBoss {
   if (!boss) throw new Error('pg-boss not initialized. Call initCronScheduler() first.');
   return boss;
+}
+
+function limitText(value: string, maxLength = 8192): string {
+  return value.length > maxLength ? value.slice(0, maxLength) : value;
+}
+
+function stringifyRunResult(result: unknown): string {
+  if (result == null || result === '') return '执行完成';
+  if (typeof result === 'string') return result;
+  if (typeof result === 'number' || typeof result === 'boolean') return String(result);
+  try {
+    return JSON.stringify(result);
+  } catch {
+    return String(result);
+  }
+}
+
+function updateSystemTaskRunSnapshot(
+  name: string,
+  taskType: SystemSchedulerTaskType,
+  patch: Pick<SystemSchedulerTaskInfo, 'lastRunAt' | 'lastRunStatus' | 'lastRunMessage' | 'lastDurationMs'>,
+): void {
+  if (taskType === 'recurring') {
+    const current = systemRecurringJobs.get(name);
+    if (current) systemRecurringJobs.set(name, { ...current, ...patch });
+    return;
+  }
+  const current = systemQueueWorkers.get(name);
+  if (current) systemQueueWorkers.set(name, { ...current, ...patch });
+}
+
+async function executeSystemTask(
+  task: Pick<SystemSchedulerTaskInfo, 'name' | 'title' | 'taskType' | 'module'>,
+  triggerType: SystemSchedulerTriggerType,
+  fn: () => Promise<unknown>,
+): Promise<string> {
+  const startedAt = new Date();
+  const startedAtText = formatDateTime(startedAt);
+  updateSystemTaskRunSnapshot(task.name, task.taskType, {
+    lastRunAt: startedAtText,
+    lastRunStatus: 'running',
+    lastRunMessage: null,
+    lastDurationMs: null,
+  });
+
+  const [run] = await db.insert(systemSchedulerRuns).values({
+    taskName: task.name,
+    taskTitle: task.title,
+    taskType: task.taskType,
+    module: task.module,
+    triggerType,
+    status: 'running',
+    startedAt,
+  }).returning({ id: systemSchedulerRuns.id });
+
+  try {
+    const result = await fn();
+    const endedAt = new Date();
+    const durationMs = endedAt.getTime() - startedAt.getTime();
+    const resultMessage = limitText(stringifyRunResult(result));
+    await db.update(systemSchedulerRuns).set({
+      status: 'success',
+      endedAt,
+      durationMs,
+      resultMessage,
+    }).where(eq(systemSchedulerRuns.id, run.id));
+    updateSystemTaskRunSnapshot(task.name, task.taskType, {
+      lastRunAt: startedAtText,
+      lastRunStatus: 'success',
+      lastRunMessage: resultMessage,
+      lastDurationMs: durationMs,
+    });
+    return resultMessage;
+  } catch (err) {
+    const endedAt = new Date();
+    const durationMs = endedAt.getTime() - startedAt.getTime();
+    const errorMessage = limitText(err instanceof Error ? err.message : String(err));
+    await db.update(systemSchedulerRuns).set({
+      status: 'failed',
+      endedAt,
+      durationMs,
+      errorMessage,
+    }).where(eq(systemSchedulerRuns.id, run.id));
+    updateSystemTaskRunSnapshot(task.name, task.taskType, {
+      lastRunAt: startedAtText,
+      lastRunStatus: 'failed',
+      lastRunMessage: errorMessage,
+      lastDurationMs: durationMs,
+    });
+    logger.error(`System scheduler task "${task.name}" failed:`, err);
+    throw err;
+  }
 }
 
 // ─── Handler 注册表 ──────────────────────────────────────────────────────────
@@ -434,8 +577,8 @@ export function getSchedulerIntrospection(): {
   initialized: boolean;
   runningJobCount: number;
   registeredHandlers: string[];
-  systemRecurringJobs: Array<{ name: string; cronExpression: string; registeredAt: string }>;
-  systemQueueWorkers: Array<{ name: string; registeredAt: string }>;
+  systemRecurringJobs: SystemRecurringJobInfo[];
+  systemQueueWorkers: SystemQueueWorkerInfo[];
   wip: Array<{ name: string; count: number }>;
 } {
   const wip = boss?.getWipData().map((item) => ({ name: item.name, count: item.count })) ?? [];
@@ -450,36 +593,71 @@ export function getSchedulerIntrospection(): {
 }
 
 /**
- * 注册系统级周期任务（不写入 cron_jobs / cron_job_logs），用于工作流定时发起等内部调度。
- * 与用户可配置的 cron 任务隔离，避免污染任务日志。
+ * 注册系统级周期任务（不写入 cron_jobs / cron_job_logs），用于启动时固定注册的内部调度。
+ * 运行结果写入 system_scheduler_runs，并在系统调度页面统一展示。
  */
-export async function registerSystemRecurringJob(
-  name: string,
-  cronExpr: string,
-  fn: () => Promise<void>,
-): Promise<void> {
+export async function registerSystemRecurringJob(registration: SystemRecurringJobRegistration): Promise<void> {
   const b = getBoss();
-  await b.createQueue(name);
-  await b.work(name, async () => { await fn(); });
-  await b.schedule(name, cronExpr, {}, { tz: 'Asia/Shanghai' });
-  systemRecurringJobs.set(name, { name, cronExpression: cronExpr, registeredAt: formatDateTime(new Date()) });
-  logger.info(`pg-boss: system recurring job "${name}" scheduled (${cronExpr})`);
+  const now = formatDateTime(new Date());
+  const info: SystemRecurringJobInfo = {
+    name: registration.name,
+    title: registration.title,
+    module: registration.module,
+    description: registration.description ?? null,
+    taskType: 'recurring',
+    cronExpression: registration.cronExpression,
+    registeredAt: now,
+    allowManualRun: registration.allowManualRun ?? false,
+    lastRunAt: null,
+    lastRunStatus: null,
+    lastRunMessage: null,
+    lastDurationMs: null,
+  };
+
+  await b.createQueue(registration.name);
+  await b.work(registration.name, async () => {
+    await executeSystemTask(info, 'schedule', registration.run);
+  });
+  await b.schedule(registration.name, registration.cronExpression, {}, { tz: 'Asia/Shanghai' });
+  systemRecurringJobs.set(registration.name, info);
+  systemRecurringJobHandlers.set(registration.name, registration.run);
+  logger.info(`pg-boss: system recurring job "${registration.name}" scheduled (${registration.cronExpression})`);
 }
 
-export async function registerSystemQueueWorker<T extends object>(
-  name: string,
-  handler: (data: T) => Promise<void>,
-  queueOptions?: Omit<QueueOptions, 'name'>,
-): Promise<void> {
+export async function runSystemRecurringJobNow(name: string): Promise<string> {
+  const info = systemRecurringJobs.get(name);
+  const handler = systemRecurringJobHandlers.get(name);
+  if (!info || !handler) throw new Error('系统周期任务不存在或尚未注册');
+  if (!info.allowManualRun) throw new Error('该系统周期任务不允许手动执行');
+  return executeSystemTask(info, 'manual', handler);
+}
+
+export async function registerSystemQueueWorker<T extends object>(registration: SystemQueueWorkerRegistration<T>): Promise<void> {
   const b = getBoss();
-  await b.createQueue(name, queueOptions);
-  await b.work<T>(name, async (jobs) => {
+  const now = formatDateTime(new Date());
+  const info: SystemQueueWorkerInfo = {
+    name: registration.name,
+    title: registration.title,
+    module: registration.module,
+    description: registration.description ?? null,
+    taskType: 'queue',
+    cronExpression: null,
+    registeredAt: now,
+    allowManualRun: false,
+    lastRunAt: null,
+    lastRunStatus: null,
+    lastRunMessage: null,
+    lastDurationMs: null,
+  };
+
+  await b.createQueue(registration.name, registration.queueOptions);
+  await b.work<T>(registration.name, async (jobs) => {
     for (const job of jobs) {
-      await handler(job.data);
+      await executeSystemTask(info, 'queue', () => registration.handler(job.data));
     }
   });
-  systemQueueWorkers.set(name, { name, registeredAt: formatDateTime(new Date()) });
-  logger.info(`pg-boss: system queue worker "${name}" registered`);
+  systemQueueWorkers.set(registration.name, info);
+  logger.info(`pg-boss: system queue worker "${registration.name}" registered`);
 }
 
 export async function sendSystemJobAfter<T extends object>(

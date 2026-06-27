@@ -40,16 +40,21 @@ function cancelScheduled(taskId: number): void {
 }
 
 async function initialize(): Promise<void> {
-  await registerSystemQueueWorker<DelayWakeJob>(
-    DELAY_QUEUE,
-    async ({ taskId }) => {
+  await registerSystemQueueWorker<DelayWakeJob>({
+    name: DELAY_QUEUE,
+    title: '工作流延时唤醒 Worker',
+    module: '工作流',
+    description: '消费 delay 节点唤醒队列，到期后恢复等待中的工作流任务。',
+    handler: async ({ taskId }) => {
       const { resumeDelayTask } = await import('../services/workflow-resume.service');
       const resumed = await resumeDelayTask(taskId);
       if (!resumed) {
         logger.info('Delay scheduler: wake job skipped because task is no longer waiting', { taskId });
+        return `任务 ${taskId} 已不处于等待状态，跳过唤醒`;
       }
+      return `任务 ${taskId} 已恢复执行`;
     },
-    {
+    queueOptions: {
       retentionSeconds: 60 * 60 * 24 * 7,
       deleteAfterSeconds: 60 * 60 * 24 * 7,
       retryLimit: 3,
@@ -57,7 +62,7 @@ async function initialize(): Promise<void> {
       retryBackoff: true,
       expireInSeconds: 300,
     },
-  );
+  });
 
   const rows = await db.select({ id: workflowTasks.id, wakeAt: workflowTasks.wakeAt }).from(workflowTasks)
     .where(and(

@@ -1247,6 +1247,47 @@ export interface CronJobStats {
   dailyStats: CronJobDailyStat[];
   recentLogs: CronJobRecentLog[];
 }
+
+// ─── 系统调度 ──────────────────────────────────────────────
+export type SystemSchedulerTaskType = 'recurring' | 'queue';
+export type SystemSchedulerRunStatus = 'running' | 'success' | 'failed';
+export type SystemSchedulerTriggerType = 'schedule' | 'manual' | 'queue';
+
+export interface SystemSchedulerTask {
+  name: string;
+  title: string;
+  module: string;
+  description: string | null;
+  taskType: SystemSchedulerTaskType;
+  cronExpression: string | null;
+  registeredAt: string;
+  allowManualRun: boolean;
+  nextRunAt: string | null;
+  running: boolean;
+  lastRunAt: string | null;
+  lastRunStatus: SystemSchedulerRunStatus | null;
+  lastRunMessage: string | null;
+  lastDurationMs: number | null;
+  totalRuns: number;
+  successCount: number;
+  failedCount: number;
+}
+
+export interface SystemSchedulerRun {
+  id: number;
+  taskName: string;
+  taskTitle: string;
+  taskType: SystemSchedulerTaskType;
+  module: string;
+  triggerType: SystemSchedulerTriggerType;
+  status: SystemSchedulerRunStatus;
+  startedAt: string;
+  endedAt: string | null;
+  durationMs: number | null;
+  resultMessage: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+}
 export interface OnlineUser {
   tokenId: string;
   userId: number;
@@ -3014,12 +3055,27 @@ export interface WorkflowEngineEventBusSnapshot {
   listeners: Array<{ eventType: WorkflowEventType | '__any__'; listenerCount: number }>;
 }
 
+export interface WorkflowEngineSystemSchedulerTask {
+  name: string;
+  title: string;
+  module: string;
+  description: string | null;
+  taskType: SystemSchedulerTaskType;
+  cronExpression: string | null;
+  registeredAt: string;
+  allowManualRun: boolean;
+  lastRunAt: string | null;
+  lastRunStatus: SystemSchedulerRunStatus | null;
+  lastRunMessage: string | null;
+  lastDurationMs: number | null;
+}
+
 export interface WorkflowEngineSchedulerSnapshot {
   initialized: boolean;
   runningJobCount: number;
   registeredHandlers: string[];
-  systemRecurringJobs: Array<{ name: string; cronExpression: string; registeredAt: string }>;
-  systemQueueWorkers: Array<{ name: string; registeredAt: string }>;
+  systemRecurringJobs: Array<WorkflowEngineSystemSchedulerTask & { taskType: 'recurring'; cronExpression: string }>;
+  systemQueueWorkers: Array<WorkflowEngineSystemSchedulerTask & { taskType: 'queue'; cronExpression: null; allowManualRun: false }>;
   wip: Array<{ name: string; count: number }>;
 }
 
