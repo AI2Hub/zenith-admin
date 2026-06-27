@@ -746,6 +746,16 @@ body[theme-mode='dark'] .fd-node-picker-panel {
   position: relative;
   grid-column: 1;
   grid-row: 3;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 画布舞台：承载流程图与图例，检查器停靠在其右侧 */
+.fd-simulation-graph__stage {
+  position: relative;
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -772,7 +782,7 @@ body[theme-mode='dark'] .fd-node-picker-panel {
   --fd-tag-color: var(--semi-color-primary);
 }
 
-/* ── 工具栏右侧（调试模式 / 缩放 / 关闭） ───────────── */
+/* ── 工具栏右侧（调试模式 / 缩放） ───────────────────── */
 .fd-simulation-graph__tools {
   display: flex;
   align-items: center;
@@ -793,28 +803,44 @@ body[theme-mode='dark'] .fd-node-picker-panel {
   white-space: nowrap;
 }
 
-/* ── 统一播放器（传输条） ───────────────────────────── */
+/* ── 统一播放器（传输条）：回放 | 进度 | 运行 三区 ─────── */
 .fd-simulation-transport {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
 }
 
 .fd-simulation-transport--empty {
-  gap: 12px;
-  padding: 2px 2px;
+  padding: 4px 2px;
 }
 
-.fd-simulation-transport__controls {
+.fd-simulation-transport__zone {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   flex: 0 0 auto;
 }
 
-.fd-simulation-transport__controls .semi-button {
+.fd-simulation-transport__zone .semi-button {
   flex: 0 0 auto;
+}
+
+.fd-simulation-transport__zone--progress {
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 12px;
+  padding: 0 12px;
+  border-left: 1px solid var(--semi-color-border);
+  border-right: 1px solid var(--semi-color-border);
+}
+
+.fd-simulation-transport__hint {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+  color: var(--semi-color-text-2);
+  cursor: help;
 }
 
 .fd-simulation-transport__track {
@@ -829,13 +855,6 @@ body[theme-mode='dark'] .fd-node-picker-panel {
   flex: 0 0 auto;
   white-space: nowrap;
   color: var(--semi-color-text-1);
-}
-
-.fd-simulation-transport__right {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
 }
 
 /* 可点击步骤刻度轴：轨道 + 按比例绝对定位的圆点 */
@@ -923,22 +942,18 @@ body[theme-mode='dark'] .fd-node-picker-panel {
 
 /* ── 画布内：上下文检查器（贴近高亮节点） ───────────── */
 .fd-simulation-inspector {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 5;
+  position: relative;
+  z-index: 1;
+  flex: 0 0 300px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  width: 280px;
-  max-height: calc(100% - 24px);
+  align-self: stretch;
+  max-height: 100%;
   padding: 12px;
   overflow: auto;
-  border: 1px solid var(--semi-color-border);
   border-left: 3px solid var(--accent, var(--semi-color-primary));
-  border-radius: 10px;
   background: var(--semi-color-bg-2);
-  box-shadow: 0 12px 32px rgba(28, 31, 35, 0.16);
 }
 
 .fd-simulation-inspector__head {
@@ -1023,22 +1038,31 @@ body[theme-mode='dark'] .fd-node-picker-panel {
 }
 
 .fd-simulation-inspector-tab {
-  position: absolute;
-  top: 12px;
-  right: 0;
-  z-index: 5;
-  display: inline-flex;
+  position: relative;
+  flex: 0 0 34px;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 6px 8px;
-  border: 1px solid var(--semi-color-border);
-  border-right: none;
-  border-radius: 8px 0 0 8px;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 0;
+  border: none;
+  border-left: 1px solid var(--semi-color-border);
   background: var(--semi-color-bg-2);
   color: var(--semi-color-text-1);
   font-size: 12px;
   cursor: pointer;
-  box-shadow: -4px 0 12px rgba(28, 31, 35, 0.1);
+}
+
+.fd-simulation-inspector-tab:hover {
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-primary);
+}
+
+.fd-simulation-inspector-tab span {
+  writing-mode: vertical-rl;
+  letter-spacing: 3px;
 }
 
 /* 画布内颜色图例 */
@@ -1126,17 +1150,16 @@ body[theme-mode='dark'] .fd-simulation-graph__canvas {
     flex-wrap: wrap;
   }
 
-  .fd-simulation-transport__track {
+  .fd-simulation-transport__zone--progress {
     order: 5;
     flex-basis: 100%;
-  }
-
-  .fd-simulation-transport__right {
-    margin-left: auto;
+    padding: 0;
+    border-left: none;
+    border-right: none;
   }
 
   .fd-simulation-inspector {
-    width: 240px;
+    flex-basis: 260px;
   }
 
   .fd-simulation-graph__tools {
@@ -1190,18 +1213,33 @@ body[theme-mode='dark'] .fd-simulation-graph__canvas {
     padding: 14px 0 64px;
   }
 
+  .fd-simulation-graph__viewport {
+    flex-direction: column;
+  }
+
+  .fd-simulation-graph__stage {
+    flex: 1 1 auto;
+    min-height: 300px;
+  }
+
   .fd-simulation-inspector {
-    top: auto;
-    bottom: 8px;
-    left: 8px;
-    right: 8px;
-    width: auto;
-    max-height: 52%;
+    flex: 0 0 auto;
+    align-self: stretch;
+    max-height: 45%;
+    border-left: none;
+    border-top: 3px solid var(--accent, var(--semi-color-primary));
   }
 
   .fd-simulation-inspector-tab {
-    top: auto;
-    bottom: 8px;
+    flex: 0 0 auto;
+    flex-direction: row;
+    border-left: none;
+    border-top: 1px solid var(--semi-color-border);
+  }
+
+  .fd-simulation-inspector-tab span {
+    writing-mode: horizontal-tb;
+    letter-spacing: 1px;
   }
 
   .fd-simulation-legend {

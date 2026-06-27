@@ -38,6 +38,15 @@ const RT_NODE_STATUS: Record<NodeRuntimeInfo['status'], { label: string }> = {
   skipped: { label: '已跳过' },
 };
 
+/** 运行态节点表头配色（与画布图例一致：当前/通过/拒绝/等待/跳过） */
+const RT_HEADER_COLOR: Record<NodeRuntimeInfo['status'], string> = {
+  approved: 'var(--semi-color-success)',
+  rejected: 'var(--semi-color-danger)',
+  pending: 'var(--semi-color-primary)',
+  waiting: 'var(--semi-color-warning)',
+  skipped: 'var(--semi-color-tertiary)',
+};
+
 /** 单处理人状态文案（抄送节点语义不同） */
 function approverStatusLabel(nodeType: FlowNode['type'], status: NodeRuntimeInfo['status']): string {
   if (nodeType === 'cc') return status === 'approved' ? '已抄送' : '待抄送';
@@ -190,6 +199,9 @@ export default function NodeCard({
 }: Readonly<NodeCardProps>) {
   const info = getNodeInfo(node.type);
   const color = NODE_COLOR_MAP[node.type] ?? '#999';
+  const headerBg = runtime
+    ? (runtime.active ? 'var(--semi-color-primary)' : RT_HEADER_COLOR[runtime.status] ?? color)
+    : color;
   const Icon = info?.icon;
 
   const bodyText = getBodySummary(node);
@@ -231,7 +243,7 @@ export default function NodeCard({
       )}
 
       {/* 标题栏 */}
-      <div className="fd-node-card__header" style={{ background: color }}>
+      <div className="fd-node-card__header" style={{ background: headerBg }}>
         {Icon && (
           <span className="fd-node-card__header-icon">
             <Icon size={14} />
