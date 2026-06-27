@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Descriptions, Form, Input, Modal, Select, Space, TabPane, Tabs, Tag, Toast, Typography, withField } from '@douyinfe/semi-ui';
+import { Button, Col, Descriptions, Form, Input, Modal, Row, Select, Space, TabPane, Tabs, Tag, Toast, Typography, withField } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { AlertTriangle, CheckCircle2, RefreshCw, RotateCcw, Search, Trash2 } from 'lucide-react';
@@ -752,7 +752,7 @@ export default function SystemSchedulerPage() {
       <AppModal
         visible={!!configTask}
         title={configTask ? `调度策略 - ${configTask.title}` : '调度策略'}
-        width={560}
+        width={760}
         onCancel={() => {
           setConfigTask(null);
           configFormApi.current = null;
@@ -782,27 +782,51 @@ export default function SystemSchedulerPage() {
               manualSingleton: configTask.manualSingleton,
             }}
           >
-            <Form.Switch field="enabled" label="启用任务" disabled={configTask.taskType === 'queue'} />
-            <Form.InputNumber field="logRetentionDays" label="留存天数" min={1} max={3650} style={{ width: '100%' }} rules={[{ required: true, message: '请输入留存天数' }]} />
-            <Form.InputNumber field="logRetentionRuns" label="每任务保留条数" min={1} max={100000} style={{ width: '100%' }} rules={[{ required: true, message: '请输入保留条数' }]} />
-            <Form.InputNumber field="timeoutMs" label="超时告警毫秒" min={100} max={86400000} style={{ width: '100%' }} placeholder="为空表示不启用" />
-            <Form.InputNumber field="failureAlertThreshold" label="连续失败阈值" min={1} max={100} style={{ width: '100%' }} rules={[{ required: true, message: '请输入失败阈值' }]} />
-            <Form.Switch field="alertEnabled" label="启用告警" />
-            <Form.Select
-              field="alertChannels"
-              label="告警渠道"
-              multiple
-              optionList={[
-                { value: 'inapp', label: '系统号卡片' },
-                { value: 'email', label: '邮件' },
-                { value: 'webhook', label: 'Webhook' },
-              ]}
-              style={{ width: '100%' }}
-            />
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Switch field="enabled" label="启用任务" disabled={configTask.taskType === 'queue'} />
+              </Col>
+              <Col span={12}>
+                <Form.Switch field="alertEnabled" label="启用告警" />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.InputNumber field="logRetentionDays" label="留存天数" min={1} max={3650} style={{ width: '100%' }} rules={[{ required: true, message: '请输入留存天数' }]} />
+              </Col>
+              <Col span={12}>
+                <Form.InputNumber field="logRetentionRuns" label="每任务保留条数" min={1} max={100000} style={{ width: '100%' }} rules={[{ required: true, message: '请输入保留条数' }]} />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.InputNumber field="timeoutMs" label="超时告警毫秒" min={100} max={86400000} style={{ width: '100%' }} placeholder="为空表示不启用" />
+              </Col>
+              <Col span={12}>
+                <Form.InputNumber field="failureAlertThreshold" label="连续失败阈值" min={1} max={100} style={{ width: '100%' }} rules={[{ required: true, message: '请输入失败阈值' }]} />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Select
+                  field="alertChannels"
+                  label="告警渠道"
+                  multiple
+                  optionList={[
+                    { value: 'inapp', label: '系统号卡片' },
+                    { value: 'email', label: '邮件' },
+                    { value: 'webhook', label: 'Webhook' },
+                  ]}
+                  style={{ width: '100%' }}
+                />
+              </Col>
+              <Col span={12}>
+                <Form.Switch field="manualSingleton" label="手动执行防重" disabled={!configTask.allowManualRun} />
+              </Col>
+            </Row>
             <FormUserSelect field="alertUserIds" label="通知用户" multiple />
             <Form.TextArea field="alertEmailsText" label="通知邮箱" placeholder="多个邮箱可用换行或逗号分隔" autosize={{ minRows: 2, maxRows: 4 }} />
             <Form.Input field="alertWebhookUrl" label="Webhook URL" placeholder="https://example.com/webhook" />
-            <Form.Switch field="manualSingleton" label="手动执行防重" disabled={!configTask.allowManualRun} />
           </Form>
         )}
       </AppModal>
