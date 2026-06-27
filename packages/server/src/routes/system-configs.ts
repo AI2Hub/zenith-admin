@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
 import { getPasswordPolicy } from '../lib/password-policy';
-import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, okExcel, excelStreamBody, okCsv, csvStreamBody } from '../lib/openapi-schemas';
+import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../lib/openapi-schemas';
 import { SystemConfigDTO, PublicConfigDTO, PasswordPolicyDTO } from '../lib/openapi-dtos';
 import {
   getPublicConfig,
@@ -10,7 +10,6 @@ import {
   createSystemConfig,
   updateSystemConfig,
   deleteSystemConfig,
-  exportSystemConfigs, exportSystemConfigsAsCsv,
   getSystemConfigBeforeAudit,
   getSystemConfig,
 } from '../services/system-configs.service';
@@ -109,32 +108,6 @@ const deleteRouteDef = defineOpenAPIRoute({
   },
 });
 
-const exportRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/export', tags: ['SystemConfigs'], summary: '导出系统配置 Excel',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:config:list' })] as const,
-    responses: { ...commonErrorResponses, ...okExcel('Excel 文件') },
-  }),
-  handler: async (c) => {
-    const { stream, filename } = await exportSystemConfigs();
-    return excelStreamBody(c, stream, filename);
-  },
-});
-
-const exportCsvRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/export/csv', tags: ['SystemConfigs'], summary: '导出系统配置 CSV',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:config:list' })] as const,
-    responses: { ...commonErrorResponses, ...okCsv('CSV 文件') },
-  }),
-  handler: async (c) => {
-    const { stream, filename } = await exportSystemConfigsAsCsv();
-    return csvStreamBody(c, stream, filename);
-  },
-});
-
-systemConfigsRoute.openapiRoutes([publicGetRoute, passwordPolicyRoute, listRoute, getOneRoute, createConfigRoute, updateConfigRoute, deleteRouteDef, exportRoute, exportCsvRoute] as const);
+systemConfigsRoute.openapiRoutes([publicGetRoute, passwordPolicyRoute, listRoute, getOneRoute, createConfigRoute, updateConfigRoute, deleteRouteDef] as const);
 
 export default systemConfigsRoute;

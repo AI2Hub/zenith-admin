@@ -4,7 +4,7 @@ import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
 import { isPlatformAdmin } from '../lib/tenant';
 import type { AppEnv } from '../lib/context';
-import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody, okExcel, excelStreamBody, okCsv, csvStreamBody } from '../lib/openapi-schemas';
+import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody } from '../lib/openapi-schemas';
 import { TenantDTO, TenantStatsDTO } from '../lib/openapi-dtos';
 import {
   listTenants,
@@ -15,7 +15,6 @@ import {
   updateTenant,
   deleteTenant,
   getTenantBeforeAudit,
-  exportTenants, exportTenantsAsCsv,
 } from '../services/tenants.service';
 
 const tenantsRoute = new OpenAPIHono({ defaultHook: validationHook });
@@ -66,19 +65,6 @@ const allRoute = defineOpenAPIRoute({
     responses: { ...ok(z.array(TenantDTO), 'ok'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await listAllTenants()), 200),
-});
-
-const exportRouteDef = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/export', tags: ['Tenants'], summary: '导出租户',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, platformAdminMiddleware] as const,
-    responses: { ...okExcel() },
-  }),
-  handler: async (c) => {
-    const { stream, filename } = await exportTenants();
-    return excelStreamBody(c, stream, filename);
-  },
 });
 
 const detailRoute = defineOpenAPIRoute({
@@ -139,19 +125,6 @@ const deleteRouteDef = defineOpenAPIRoute({
   },
 });
 
-const exportCsvRouteDef = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/export/csv', tags: ['Tenants'], summary: '导出租户 CSV',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, platformAdminMiddleware] as const,
-    responses: { ...okCsv() },
-  }),
-  handler: async (c) => {
-    const { stream, filename } = await exportTenantsAsCsv();
-    return csvStreamBody(c, stream, filename);
-  },
-});
-
 const statsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/{id}/stats', tags: ['Tenants'], summary: '租户用量概览',
@@ -166,6 +139,6 @@ const statsRoute = defineOpenAPIRoute({
   },
 });
 
-tenantsRoute.openapiRoutes([listRoute, allRoute, exportRouteDef, exportCsvRouteDef, statsRoute, detailRoute, createRouteDef, updateRouteDef, deleteRouteDef] as const);
+tenantsRoute.openapiRoutes([listRoute, allRoute, statsRoute, detailRoute, createRouteDef, updateRouteDef, deleteRouteDef] as const);
 
 export default tenantsRoute;

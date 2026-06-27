@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
 import { createRoleSchema, updateRoleSchema, assignRoleMenusSchema, assignRoleUsersSchema } from '@zenith/shared';
-import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, okExcel, excelStreamBody, okCsv, csvStreamBody } from '../lib/openapi-schemas';
+import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../lib/openapi-schemas';
 import { RoleDTO, UserDTO } from '../lib/openapi-dtos';
 import {
   listAllRoles,
@@ -14,7 +14,6 @@ import {
   assignRoleMenus,
   getRoleUsers,
   assignRoleUsers,
-  exportRoles, exportRolesAsCsv,
   getRoleBeforeAudit,
 } from '../services/roles.service';
 
@@ -157,32 +156,6 @@ const assignUsersRoute = defineOpenAPIRoute({
   },
 });
 
-const exportRouteDef = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/export', tags: ['Roles'], summary: '导出角色列表',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:role:list' })] as const,
-    responses: { ...commonErrorResponses, ...okExcel('Excel 文件') },
-  }),
-  handler: async (c) => {
-    const { stream, filename } = await exportRoles();
-    return excelStreamBody(c, stream, filename);
-  },
-});
-
-const exportCsvRouteDef = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/export/csv', tags: ['Roles'], summary: '导出角色列表 CSV',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:role:list' })] as const,
-    responses: { ...commonErrorResponses, ...okCsv('CSV 文件') },
-  }),
-  handler: async (c) => {
-    const { stream, filename } = await exportRolesAsCsv();
-    return csvStreamBody(c, stream, filename);
-  },
-});
-
-rolesRouter.openapiRoutes([allRoute, listRouteDef, exportRouteDef, exportCsvRouteDef, getOneRoute, createRoleRoute, updateRoleRoute, deleteRouteDef, assignMenusRoute, getUsersRoute, assignUsersRoute] as const);
+rolesRouter.openapiRoutes([allRoute, listRouteDef, getOneRoute, createRoleRoute, updateRoleRoute, deleteRouteDef, assignMenusRoute, getUsersRoute, assignUsersRoute] as const);
 
 export default rolesRouter;
