@@ -63,7 +63,7 @@ export default function AnnouncementsPage() {
       setTotal(res.data.total);
       setPage(p);
     }
-  }, [activeTab]);
+  }, [activeTab, setPage]);
 
   useEffect(() => {
     void fetchList(1, activeTab);
