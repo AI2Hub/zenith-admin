@@ -21,7 +21,8 @@ import { httpRequest } from '../lib/http-client';
 import { currentUserOrNull } from '../lib/context';
 import { applyComputedFields } from '../lib/report-formula';
 import { runExternalQuery } from '../lib/report-external-db';
-import { ensureDatasourceExists } from './report-datasource.service';
+import { ensureDatasourceExists, resolveApiHeaders } from './report-datasource.service';
+import { isSqlLikeType, isExternalDbType } from '@zenith/shared';
 import type { ReportDatasetRow } from '../db/schema';
 import type {
   ReportDataset, ReportDataResult, ReportField, ReportFieldType, ReportDatasetContent, ReportDatasetParam,
@@ -35,6 +36,8 @@ const MAX_LIMIT = 5000;
 const QUERY_TIMEOUT = '15s';
 const CACHE_PREFIX = `${config.redis.keyPrefix}report:dataset:`;
 const MATVIEW_PREFIX = `${config.redis.keyPrefix}report:matview:`;
+/** 物化快照安全 TTL（秒）：即便无 cron 刷新，也不会永久冻结（默认 24h） */
+const MATVIEW_TTL_SECONDS = 24 * 60 * 60;
 
 type DatasetRowWithDs = ReportDatasetRow & { datasource?: { name: string } | null };
 
@@ -66,13 +69,16 @@ function normalizeDatasetContent(
   content: Record<string, unknown> | null | undefined,
 ): ReportDatasetContent {
   const c = (content ?? {}) as Record<string, unknown>;
-  if (type === 'sql' || type === 'mysql' || type === 'postgresql' || type === 'sqlserver') {
+  if (isSqlLikeType(type)) {
     return { sql: typeof c.sql === 'string' ? c.sql : '' };
   }
   if (type === 'static') {
-    const data = Array.isArray(c.data) ? (c.data as Record<string, unknown>[]) : [];
+    const rawData = Array.isArray(c.data) ? (c.data as Record<string, unknown>[]) : [];
+    if (rawData.length > MAX_LIMIT) {
+      throw new HTTPException(400, { message: `静态数据集最多 ${MAX_LIMIT} 行，当前 ${rawData.length} 行，请精简后再保存` });
+    }
     const columns = Array.isArray(c.columns) ? (c.columns as string[]) : undefined;
-    return { data, ...(columns ? { columns } : {}) };
+    return { data: rawData, ...(columns ? { columns } : {}) };
   }
   const itemsPath = typeof c.itemsPath === 'string' ? c.itemsPath : null;
   const params = c.params && typeof c.params === 'object' && !Array.isArray(c.params)
@@ -234,9 +240,31 @@ export async function listDatasets(query: {
   return { list: rows.map(mapDataset), total, page, pageSize };
 }
 
+/**
+ * 物化前置校验：物化为「全局快照」，忽略运行时参数且不含用户上下文。
+ * 因此禁止在 ① 使用数据权限系统变量(${__userId} 等) ② 声明了任何参数 的数据集上启用，
+ * 否则会出现跨用户数据串号 / 筛选被静默忽略。
+ */
+function assertMaterializable(
+  materialize: ReportDatasetMaterialize | null | undefined,
+  type: ReportDatasourceType,
+  content: ReportDatasetContent,
+  params: ReportDatasetParam[] | undefined,
+): void {
+  if (!materialize?.enabled) return;
+  const sqlText = isSqlLikeType(type) ? ((content as ReportSqlDatasetContent).sql ?? '') : '';
+  if (/\$\{\s*__\w+\s*\}/.test(sqlText)) {
+    throw new HTTPException(400, { message: '该数据集使用了数据权限系统变量（${__userId} 等），启用物化会导致跨用户数据串号，请先关闭物化' });
+  }
+  if ((params ?? []).length > 0) {
+    throw new HTTPException(400, { message: '含参数的数据集不支持物化：物化为全局快照会忽略运行时参数/筛选，请先移除参数或关闭物化' });
+  }
+}
+
 export async function createDataset(input: CreateReportDatasetInput): Promise<ReportDataset> {
   const ds = await ensureDatasourceExists(input.datasourceId);
   const content = normalizeDatasetContent(ds.type, input.content);
+  assertMaterializable(input.materialize as ReportDatasetMaterialize | undefined, ds.type, content, input.params as ReportDatasetParam[] | undefined);
   try {
     const [row] = await db.insert(reportDatasets).values({
       name: input.name,
@@ -267,6 +295,11 @@ export async function updateDataset(id: number, input: UpdateReportDatasetInput)
   }
   const content = input.content !== undefined ? normalizeDatasetContent(type, input.content) : undefined;
   const typeChanged = input.datasourceId != null && input.datasourceId !== current.datasourceId;
+  // 用合并后的最终态校验物化约束（部分更新时回退到现值）
+  const effMaterialize = (input.materialize ?? current.materialize) as ReportDatasetMaterialize | undefined;
+  const effContent = (content ?? current.content) as ReportDatasetContent;
+  const effParams = (input.params ?? current.params) as ReportDatasetParam[] | undefined;
+  assertMaterializable(effMaterialize, type, effContent, effParams);
   try {
     const [row] = await db.update(reportDatasets).set({
       name: input.name,
@@ -315,10 +348,10 @@ export async function runReportData(
     return applyComputedFields(await runReadonlySql(sqlText, params, cappedLimit), computedFields);
   }
 
-  if (type === 'mysql' || type === 'postgresql' || type === 'sqlserver') {
+  if (isExternalDbType(type)) {
     const sqlText = ((content as ReportSqlDatasetContent).sql ?? '').trim();
     if (!sqlText) throw new HTTPException(400, { message: '数据集 SQL 不能为空' });
-    const { text, values } = buildExternalParamSql(sqlText, params, type);
+    const { text, values } = buildExternalParamSql(sqlText, params, type as 'mysql' | 'postgresql' | 'sqlserver');
     const result = await runExternalQuery(type, config as ReportExternalDbConfig, text, values, cappedLimit);
     return applyComputedFields(result, computedFields);
   }
@@ -355,7 +388,7 @@ export async function runReportData(
 
   let json: unknown;
   try {
-    const res = await httpRequest(url, { method, headers: apiCfg.headers ?? undefined, body, timeout: 10_000 });
+    const res = await httpRequest(url, { method, headers: resolveApiHeaders(apiCfg.headers), body, timeout: 10_000 });
     if (!res.ok) throw new HTTPException(502, { message: `数据源返回状态 ${res.status}` });
     json = await res.json();
   } catch (err) {
@@ -376,13 +409,13 @@ export async function runReportData(
 export async function previewDataset(input: ReportDatasetPreviewInput): Promise<ReportDataResult> {
   const ds = await ensureDatasourceExists(input.datasourceId);
   const content = normalizeDatasetContent(ds.type, input.content);
-  const sqlText = (ds.type === 'sql' || ds.type === 'mysql' || ds.type === 'postgresql') ? ((content as ReportSqlDatasetContent).sql ?? '') : '';
+  const sqlText = isSqlLikeType(ds.type) ? ((content as ReportSqlDatasetContent).sql ?? '') : '';
   const params = { ...((input.params ?? {}) as Record<string, unknown>), ...await buildSystemParams(sqlText) };
   const computed = (input.computedFields ?? []) as ReportComputedField[];
   return runReportData(ds.type, (ds.config ?? {}) as ReportDatasourceConfig, content, params, input.limit ?? PREVIEW_LIMIT, computed);
 }
 
-/** 清除某数据集的全部缓存（更新/删除时调用）*/
+/** 清除某数据集的全部缓存（更新/删除时调用）：分页缓存 + 物化快照 */
 export async function clearDatasetCache(id: number): Promise<void> {
   try {
     const pattern = `${CACHE_PREFIX}${id}:*`;
@@ -393,6 +426,7 @@ export async function clearDatasetCache(id: number): Promise<void> {
       cursor = next;
       keys.push(...batch);
     } while (cursor !== '0');
+    keys.push(`${MATVIEW_PREFIX}${id}`); // 物化快照前缀不同，需显式清除，避免改 SQL 后仍发旧快照
     if (keys.length) await redis.del(...keys);
   } catch { /* 缓存清理失败不阻断主流程 */ }
 }
@@ -407,22 +441,21 @@ export async function getDatasetData(id: number, params?: Record<string, unknown
   if (row.status !== 'enabled') throw new HTTPException(400, { message: '数据集已停用' });
   const config = (row.datasource?.config ?? {}) as ReportDatasourceConfig;
   const content = (row.content ?? {}) as ReportDatasetContent;
-  const isSqlLike = row.type === 'sql' || row.type === 'mysql' || row.type === 'postgresql' || row.type === 'sqlserver';
+  const isSqlLike = isSqlLikeType(row.type);
   const sqlText = isSqlLike ? ((content as ReportSqlDatasetContent).sql ?? '') : '';
   const computed = (row.computedFields ?? []) as ReportComputedField[];
   const effLimit = limit ?? PREVIEW_LIMIT;
 
-  // 物化快照优先：启用后返回持久化快照（忽略运行时参数，命中即返回）
+  // 物化快照优先：返回持久化全局快照（保存时已校验无参数/无系统变量，故与运行时参数/用户无关）
   const materialize = (row.materialize ?? {}) as ReportDatasetMaterialize;
   if (materialize.enabled) {
     try {
       const snap = await redis.get(`${MATVIEW_PREFIX}${id}`);
       if (snap) return JSON.parse(snap) as ReportDataResult;
     } catch { /* 快照读取失败回源 */ }
-    const sysOnly = await buildSystemParams(sqlText);
-    const baseParams = { ...resolveDatasetParams((row.params ?? []) as ReportDatasetParam[]), ...sysOnly };
-    const live = await runReportData(row.type, config, content, baseParams, effLimit, computed);
-    try { await redis.set(`${MATVIEW_PREFIX}${id}`, JSON.stringify(live)); } catch { /* 落快照失败忽略 */ }
+    // 首次填充：统一用 MAX_LIMIT 保证快照行数与 cron 刷新一致
+    const live = await runReportData(row.type, config, content, {}, MAX_LIMIT, computed);
+    try { await redis.set(`${MATVIEW_PREFIX}${id}`, JSON.stringify(live), 'EX', MATVIEW_TTL_SECONDS); } catch { /* 落快照失败忽略 */ }
     return live;
   }
 
@@ -460,14 +493,14 @@ export async function refreshMaterialization(id: number): Promise<{ rows: number
   if (!row) throw new HTTPException(404, { message: '数据集不存在' });
   const config = (row.datasource?.config ?? {}) as ReportDatasourceConfig;
   const content = (row.content ?? {}) as ReportDatasetContent;
-  // 物化用默认参数（全局快照，不含运行时/用户上下文参数）
-  const resolved = resolveDatasetParams((row.params ?? []) as ReportDatasetParam[]);
+  // 物化为全局快照，无参数（保存时已校验），统一空参数 + MAX_LIMIT
   const computed = (row.computedFields ?? []) as ReportComputedField[];
-  const result = await runReportData(row.type, config, content, resolved, MAX_LIMIT, computed);
-  try { await redis.set(`${MATVIEW_PREFIX}${id}`, JSON.stringify(result)); } catch { /* ignore */ }
+  const result = await runReportData(row.type, config, content, {}, MAX_LIMIT, computed);
+  const now = new Date();
+  try { await redis.set(`${MATVIEW_PREFIX}${id}`, JSON.stringify(result), 'EX', MATVIEW_TTL_SECONDS); } catch { /* ignore */ }
   const materialize = (row.materialize ?? {}) as ReportDatasetMaterialize;
   await db.update(reportDatasets)
-    .set({ materialize: { ...materialize, enabled: materialize.enabled ?? true, refreshedAt: formatDateTime(new Date()) } })
+    .set({ materialize: { ...materialize, enabled: materialize.enabled ?? true, refreshedAt: formatDateTime(now), refreshedAtMs: now.getTime() } })
     .where(eq(reportDatasets.id, id));
   return { rows: result.rows.length };
 }
@@ -484,7 +517,7 @@ export async function dispatchDueMaterializations(): Promise<{ checked: number; 
     checked++;
     try {
       const prev = CronExpressionParser.parse(m.cron, { currentDate: now }).prev().toDate();
-      const last = m.refreshedAt ? new Date(m.refreshedAt.replace(' ', 'T')).getTime() : 0;
+      const last = m.refreshedAtMs ?? 0;
       if (prev.getTime() > last) {
         await refreshMaterialization(r.id);
         refreshed++;

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { REPORT_DATASOURCE_TYPES, REPORT_WIDGET_TYPES } from './types';
 import type { WorkflowFormField, MpMenuButton, MpArticle } from './types';
 
 const DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
@@ -2562,9 +2563,9 @@ export type UpdateMpKfRoutingConfigInput = z.infer<typeof updateMpKfRoutingConfi
 // ════════════════════════════════════════════════════════════════════════════
 // 报表中心（Report Center）
 // ════════════════════════════════════════════════════════════════════════════
-export const reportDatasourceTypeSchema = z.enum(['api', 'sql', 'mysql', 'postgresql', 'sqlserver', 'static']);
+export const reportDatasourceTypeSchema = z.enum(REPORT_DATASOURCE_TYPES);
 export const reportFieldTypeSchema = z.enum(['string', 'number', 'date', 'boolean']);
-export const reportWidgetTypeSchema = z.enum(['kpi', 'table', 'pivot', 'text', 'bar', 'line', 'area', 'dualAxis', 'pie', 'scatter', 'radar', 'funnel', 'gauge', 'treemap', 'flipper', 'scrollList', 'map', 'sankey', 'wordCloud', 'liquid', 'heatmap', 'image', 'iframe']);
+export const reportWidgetTypeSchema = z.enum(REPORT_WIDGET_TYPES);
 
 /** 字段显示格式化（语义层 lite） */
 export const reportFieldFormatSchema = z.object({

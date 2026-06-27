@@ -5384,18 +5384,37 @@ export interface MpKfSessionReportItem {
 // 报表中心（Report Center）—— 通用报表设计器 / 数据大屏
 // ════════════════════════════════════════════════════════════════════════════
 
-/** 数据源类型：api=远程 HTTP；sql=内置只读主库；mysql/postgresql=外部数据库 */
-export type ReportDatasourceType = 'api' | 'sql' | 'mysql' | 'postgresql' | 'sqlserver' | 'static';
+/** 数据源类型清单（单一来源，派生 type/zod/DTO，防止"半加一个类型"漂移） */
+export const REPORT_DATASOURCE_TYPES = ['api', 'sql', 'mysql', 'postgresql', 'sqlserver', 'static'] as const;
+/** 数据源类型：api=远程 HTTP；sql=内置只读主库；mysql/postgresql/sqlserver=外部数据库；static=静态/文件 */
+export type ReportDatasourceType = typeof REPORT_DATASOURCE_TYPES[number];
+
+/** 外部数据库类型（凭据加密 + 走外部连接池取数） */
+export const EXTERNAL_DB_TYPES = ['mysql', 'postgresql', 'sqlserver'] as const;
+/** 以 SQL 文本取数的类型（内置主库 + 外部库），统一驱动 SQL 编辑 / 系统变量解析 */
+export const SQL_DATASET_TYPES = ['sql', 'mysql', 'postgresql', 'sqlserver'] as const;
+/** 是否外部数据库类型 */
+export function isExternalDbType(t: ReportDatasourceType): boolean {
+  return (EXTERNAL_DB_TYPES as readonly string[]).includes(t);
+}
+/** 是否以 SQL 取数（内置主库或外部库） */
+export function isSqlLikeType(t: ReportDatasourceType): boolean {
+  return (SQL_DATASET_TYPES as readonly string[]).includes(t);
+}
+
 /** 数据集字段（列）数据类型 */
 export type ReportFieldType = 'string' | 'number' | 'date' | 'boolean';
+/** 仪表盘组件类型清单（单一来源） */
+export const REPORT_WIDGET_TYPES = [
+  'kpi', 'table', 'pivot', 'text',
+  'bar', 'line', 'area', 'dualAxis',
+  'pie', 'scatter', 'radar', 'funnel', 'gauge', 'treemap',
+  'flipper', 'scrollList', 'map',
+  'sankey', 'wordCloud', 'liquid', 'heatmap',
+  'image', 'iframe',
+] as const;
 /** 仪表盘组件类型 */
-export type ReportWidgetType =
-  | 'kpi' | 'table' | 'pivot' | 'text'
-  | 'bar' | 'line' | 'area' | 'dualAxis'
-  | 'pie' | 'scatter' | 'radar' | 'funnel' | 'gauge' | 'treemap'
-  | 'flipper' | 'scrollList' | 'map'
-  | 'sankey' | 'wordCloud' | 'liquid' | 'heatmap'
-  | 'image' | 'iframe';
+export type ReportWidgetType = typeof REPORT_WIDGET_TYPES[number];
 
 /** API 数据源连接配置 */
 export interface ReportApiDatasourceConfig {
@@ -5530,8 +5549,10 @@ export interface ReportDatasetMaterialize {
   enabled: boolean;
   /** 刷新 Cron（留空=仅手动刷新） */
   cron?: string;
-  /** 最近刷新时间（只读，服务端注入） */
+  /** 最近刷新时间（展示用，只读，服务端注入） */
   refreshedAt?: string | null;
+  /** 最近刷新时间戳（epoch 毫秒，调度比较用，避免展示串再解析的时区歧义） */
+  refreshedAtMs?: number | null;
 }
 
 /** 数据集取数结果 */

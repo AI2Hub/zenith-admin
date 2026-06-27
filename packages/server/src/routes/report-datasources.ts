@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createReportDatasourceSchema, updateReportDatasourceSchema, reportDatasourceTestSchema } from '@zenith/shared';
+import { createReportDatasourceSchema, updateReportDatasourceSchema, reportDatasourceTestSchema, reportDatasourceTypeSchema } from '@zenith/shared';
 import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
 import {
@@ -23,7 +23,7 @@ const listRoute = defineOpenAPIRoute({
     request: {
       query: PaginationQuery.extend({
         keyword: z.string().optional(),
-        type: z.enum(['api', 'sql', 'mysql', 'postgresql']).optional(),
+        type: reportDatasourceTypeSchema.optional(),
         status: z.enum(['enabled', 'disabled']).optional(),
       }),
     },

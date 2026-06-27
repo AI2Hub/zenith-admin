@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi';
+import { REPORT_DATASOURCE_TYPES, REPORT_WIDGET_TYPES } from '@zenith/shared';
 import { auditFields } from './_audit';
 
 const ReportFieldDTO = z.object({
@@ -52,7 +53,7 @@ const ReportDatasetParamDTO = z.object({
 
 const ReportWidgetDTO = z.object({
   i: z.string(),
-  type: z.enum(['kpi', 'table', 'pivot', 'text', 'bar', 'line', 'area', 'dualAxis', 'pie', 'scatter', 'radar', 'funnel', 'gauge', 'treemap', 'flipper', 'scrollList', 'map', 'sankey', 'wordCloud', 'liquid', 'heatmap', 'image', 'iframe']),
+  type: z.enum(REPORT_WIDGET_TYPES),
   title: z.string(),
   datasetId: z.number().int().nullable().optional(),
   options: z.record(z.string(), z.unknown()),
@@ -75,7 +76,7 @@ export const ReportDatasourceDTO = z
   .object({
     id: z.number().int(),
     name: z.string(),
-    type: z.enum(['api', 'sql', 'mysql', 'postgresql', 'sqlserver', 'static']),
+    type: z.enum(REPORT_DATASOURCE_TYPES),
     config: z.record(z.string(), z.unknown()),
     status: z.enum(['enabled', 'disabled']),
     remark: z.string().nullable().optional(),
@@ -91,7 +92,7 @@ export const ReportDatasetDTO = z
     name: z.string(),
     datasourceId: z.number().int(),
     datasourceName: z.string().nullable().optional(),
-    type: z.enum(['api', 'sql', 'mysql', 'postgresql', 'sqlserver', 'static']),
+    type: z.enum(REPORT_DATASOURCE_TYPES),
     content: z.record(z.string(), z.unknown()),
     fields: z.array(ReportFieldDTO),
     params: z.array(ReportDatasetParamDTO),
@@ -101,6 +102,7 @@ export const ReportDatasetDTO = z
       enabled: z.boolean(),
       cron: z.string().optional(),
       refreshedAt: z.string().nullable().optional(),
+      refreshedAtMs: z.number().nullable().optional(),
     }).optional(),
     status: z.enum(['enabled', 'disabled']),
     remark: z.string().nullable().optional(),
