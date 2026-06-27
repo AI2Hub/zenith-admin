@@ -450,6 +450,10 @@ async function armTaskAsyncJobs(task: typeof workflowTasks.$inferSelect, instanc
   const tenantId = instance.tenantId ?? null;
   const base = { instanceId: instance.id, nodeKey: task.nodeKey, taskId: task.id, tenantId, payload: { taskId: task.id } } as const;
 
+  if (task.nodeType === 'subProcess') {
+    await enqueueJob({ ...base, jobType: 'subprocess_spawn', maxAttempts: 5, idempotencyKey: `subprocess_spawn:${task.id}` }, executor);
+    return;
+  }
   if (task.nodeType === 'delay' && task.status === 'waiting') {
     await enqueueJob({ ...base, jobType: 'delay_wake', runAt: computeDelayWakeAt(cfg, (instance.formData ?? {}) as Record<string, unknown>), maxAttempts: 3, idempotencyKey: `delay_wake:${task.id}` }, executor);
     return;
@@ -468,6 +472,23 @@ async function armTaskAsyncJobs(task: typeof workflowTasks.$inferSelect, instanc
       await enqueueJob({ ...base, jobType: 'task_timeout', runAt: timeoutAt, maxAttempts: 3, idempotencyKey: `task_timeout:${task.id}` }, executor);
     }
   }
+}
+
+/**
+ * 子实例结束后入队 subprocess_join 作业唤醒/汇聚父任务（取代直接 resumeParentSubProcess 调用）。
+ * 幂等键含 childInst.id，确保每个子实例的结束都触发一次（多实例汇聚靠 reconcile 绝对重算收敛）。
+ */
+async function enqueueSubprocessJoin(childInst: typeof workflowInstances.$inferSelect): Promise<void> {
+  if (!childInst.parentTaskId) return;
+  await enqueueJob({
+    jobType: 'subprocess_join',
+    taskId: childInst.parentTaskId,
+    instanceId: childInst.parentInstanceId ?? null,
+    payload: { parentTaskId: childInst.parentTaskId },
+    maxAttempts: 5,
+    idempotencyKey: `subprocess_join:${childInst.parentTaskId}:${childInst.id}`,
+    tenantId: childInst.tenantId ?? null,
+  });
 }
 
 /**
@@ -653,12 +674,6 @@ async function createChildInstanceAndMaterialize(
     if (t.status === 'approved') emitTaskEvent('task.approved', mapTask(t), meta);
     if (t.status === 'rejected') emitTaskEvent('task.rejected', mapTask(t), meta);
     await armTaskAsyncJobs(t, childInst);
-    if (t.nodeType === 'subProcess') {
-      // 子实例内部又遇到 subProcess：递归 spawn（支持嵌套单/多实例）
-      void maybeSpawnSubProcessChild(childInst, t, actor).catch((err) => {
-        logger.error('[subProcess] nested spawn failed', { instanceId: childInst.id, taskId: t.id, err });
-      });
-    }
   }
   return childInst;
 }
@@ -1282,11 +1297,6 @@ export async function handleNodeExecutionError(input: {
     if (task.status === 'approved') emitTaskEvent('task.approved', mapTask(task), meta);
     if (task.status === 'rejected') emitTaskEvent('task.rejected', mapTask(task), meta);
     await armTaskAsyncJobs(task, updated.row);
-    if (task.nodeType === 'subProcess') {
-      void maybeSpawnSubProcessChild(updated.row, task, input.actor).catch((err) => {
-        logger.error('[subProcess] spawn child failed after catchNode recovery', { instanceId: updated.row.id, taskId: task.id, err });
-      });
-    }
   }
   if (updated.finished) emitInstanceEvent('instance.approved', mapInstance(updated.row), input.actor);
   if (updated.rejected) emitInstanceEvent('instance.rejected', mapInstance(updated.row), input.actor);
@@ -2638,11 +2648,6 @@ function emitInstanceStartEvents(
       emitTaskEvent('task.rejected', mapTask(t), { definitionId: instance.definitionId, tenantId: instance.tenantId, actor });
     }
     void armTaskAsyncJobs(t, instance).catch((err) => logger.error('[workflow-jobs] arm task jobs failed', { taskId: t.id, err }));
-    if (t.nodeType === 'subProcess') {
-      void maybeSpawnSubProcessChild(instance, t, actor).catch((err) => {
-        logger.error('[subProcess] spawn child failed', { instanceId: instance.id, taskId: t.id, err });
-      });
-    }
   }
   if (instance.status === 'approved') emitInstanceEvent('instance.approved', instanceDto, actor);
   if (instance.status === 'rejected') emitInstanceEvent('instance.rejected', instanceDto, actor);
@@ -2916,16 +2921,11 @@ export async function approveTaskCore(
       emitTaskEvent('task.rejected', mapTask(t), meta);
     }
     await armTaskAsyncJobs(t, updated.row);
-    if (t.nodeType === 'subProcess') {
-      void maybeSpawnSubProcessChild(updated.row, t, actor).catch((err) => {
-        logger.error('[subProcess] spawn child failed', { instanceId: updated.row.id, taskId: t.id, err });
-      });
-    }
   }
   if (updated.finished) {
     emitInstanceEvent('instance.approved', mapInstance(updated.row), actor);
     if (updated.row.parentTaskId) {
-      void resumeParentSubProcess(updated.row, 'approved', actor).catch((err) => {
+      void enqueueSubprocessJoin(updated.row).catch((err) => {
         logger.error('[subProcess] resume parent failed', { childId: updated.row.id, err });
       });
     }
@@ -2933,7 +2933,7 @@ export async function approveTaskCore(
   if (updated.rejected) {
     emitInstanceEvent('instance.rejected', mapInstance(updated.row), actor);
     if (updated.row.parentTaskId) {
-      void resumeParentSubProcess(updated.row, 'rejected', actor).catch((err) => {
+      void enqueueSubprocessJoin(updated.row).catch((err) => {
         logger.error('[subProcess] resume parent failed', { childId: updated.row.id, err });
       });
     }
@@ -3191,7 +3191,7 @@ export async function rejectTaskCore(
   if (updated.terminated) {
     emitInstanceEvent('instance.rejected', mapInstance(updated.row), actor);
     if (updated.row.parentTaskId) {
-      void resumeParentSubProcess(updated.row, 'rejected', actor).catch((err) => {
+      void enqueueSubprocessJoin(updated.row).catch((err) => {
         logger.error('[subProcess] resume parent failed', { childId: updated.row.id, err });
       });
     }
@@ -3202,17 +3202,12 @@ export async function rejectTaskCore(
       if (t.assigneeId && t.status === 'pending') emitTaskEvent('task.assigned', mapTask(t), meta);
       if (t.status === 'approved') emitTaskEvent('task.approved', mapTask(t), meta);
       if (t.status === 'rejected') emitTaskEvent('task.rejected', mapTask(t), meta);
-      await armTaskAsyncJobs(t, updated.row);
-      if (t.nodeType === 'subProcess') {
-        void maybeSpawnSubProcessChild(updated.row, t, actor).catch((err) => {
-          logger.error('[subProcess] spawn child failed', { instanceId: updated.row.id, taskId: t.id, err });
-        });
-      }
+    await armTaskAsyncJobs(t, updated.row);
     }
     if (updated.finished) {
       emitInstanceEvent('instance.approved', mapInstance(updated.row), actor);
       if (updated.row.parentTaskId) {
-        void resumeParentSubProcess(updated.row, 'approved', actor).catch((err) => {
+        void enqueueSubprocessJoin(updated.row).catch((err) => {
           logger.error('[subProcess] resume parent failed', { childId: updated.row.id, err });
         });
       }
@@ -3565,11 +3560,6 @@ export async function reduceSignTask(taskId: number, targetTaskIds: number[], co
       emitTaskEvent('task.created', mapTask(t), meta);
       if (t.assigneeId && t.status === 'pending') emitTaskEvent('task.assigned', mapTask(t), meta);
       await armTaskAsyncJobs(t, instRow);
-      if (t.nodeType === 'subProcess') {
-        void maybeSpawnSubProcessChild(instRow, t, actor).catch((err) => {
-          logger.error('[subProcess] spawn child failed', { instanceId: inst.id, taskId: t.id, err });
-        });
-      }
     }
     if (result.finished) emitInstanceEvent('instance.approved', mapInstance(instRow), actor);
     if (result.rejected) emitInstanceEvent('instance.rejected', mapInstance(instRow), actor);

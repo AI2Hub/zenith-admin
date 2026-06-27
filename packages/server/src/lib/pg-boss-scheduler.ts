@@ -625,12 +625,6 @@ handlerRegistry.set('databaseBackup', async (params) => {
   return `数据库备份完成 (${type}), ID: ${backup.id}`;
 });
 
-handlerRegistry.set('recoverStuckWorkflowSubProcesses', async () => {
-  const { recoverStuckSubProcesses } = await import('./workflow-subprocess-recovery');
-  const r = await recoverStuckSubProcesses();
-  return `子流程恢复扫描：重新发起 ${r.spawned} 个、重新唤醒 ${r.resumed} 个、多实例汇聚对账 ${r.reconciled} 个`;
-});
-
 handlerRegistry.set('publishScheduledAnnouncements', async () => {
   const { publishScheduledAnnouncements } = await import('../services/announcements.service');
   const count = await publishScheduledAnnouncements();

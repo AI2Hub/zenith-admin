@@ -134,11 +134,11 @@ const ACTION_META: Record<WorkflowEngineActionKey, { label: string; run: () => P
     },
   },
   'recover-subprocess': {
-    label: '子流程恢复扫描',
+    label: '子流程兜底（作业账本）',
     run: async () => {
-      const { recoverStuckSubProcesses } = await import('../lib/workflow-subprocess-recovery');
-      const r = await recoverStuckSubProcesses();
-      return { resumed: r.resumed, spawned: r.spawned, reconciled: r.reconciled };
+      const { drainWorkflowJobs } = await import('../lib/workflow-jobs');
+      const r = await drainWorkflowJobs();
+      return { recovered: r.recovered, processed: r.processed };
     },
   },
   'process-timeouts': {

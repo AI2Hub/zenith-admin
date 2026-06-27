@@ -23,8 +23,8 @@ async function handle({ payload }: WorkflowJobContext): Promise<void> {
   }
 
   const [task] = await db.select().from(workflowTasks).where(eq(workflowTasks.id, taskId)).limit(1);
-  if (!task || task.nodeType !== 'subProcess' || task.status !== 'waiting') {
-    throw new WorkflowJobSkip('子流程任务已不在等待状态');
+  if (!task || task.nodeType !== 'subProcess') {
+    throw new WorkflowJobSkip('子流程任务不存在或类型不符');
   }
   // 幂等：已存在子实例则视为已起步
   const [existingChild] = await db.select({ id: workflowInstances.id }).from(workflowInstances)

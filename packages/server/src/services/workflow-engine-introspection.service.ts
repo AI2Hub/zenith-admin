@@ -980,10 +980,10 @@ export async function getWorkflowEngineIntrospection(
       metric('无活动任务实例', runningWithoutActiveTasks.length, runningWithoutActiveTasks.length > 0 ? 'critical' : 'healthy'),
       metric('活动任务', activeInstanceRows.length),
     ]),
-    component('delayScheduler', worstStatus([queueStatus('delayWakeups'), scheduler.systemQueueWorkers.some((item) => item.name === 'workflow-delay-wakeup') ? 'healthy' : 'warning']), [
+    component('delayScheduler', worstStatus([queueStatus('delayWakeups'), workflowJobsDrainRegistered ? 'healthy' : 'warning']), [
       metric('等待唤醒', delayTasks.length),
       metric('已到期', overdueDelayTasks.length, overdueDelayTasks.length > 0 ? 'warning' : 'healthy'),
-      metric('队列 worker', scheduler.systemQueueWorkers.some((item) => item.name === 'workflow-delay-wakeup') ? '已注册' : '未注册', scheduler.systemQueueWorkers.some((item) => item.name === 'workflow-delay-wakeup') ? 'healthy' : 'warning'),
+      metric('队列 worker', workflowJobsDrainRegistered ? '已注册' : '未注册', workflowJobsDrainRegistered ? 'healthy' : 'warning'),
     ]),
     component('timeoutProcessor', worstStatus([queueStatus('timeouts'), workflowJobsDrainRegistered ? 'healthy' : 'warning']), [
       metric('待处理超时', timeoutTasks.length, timeoutTasks.length > 0 ? 'warning' : 'healthy'),
@@ -1003,7 +1003,7 @@ export async function getWorkflowEngineIntrospection(
     ]),
     component('subProcessRecovery', worstStatus([queueStatus('subProcessJoin'), componentStatusByIssue('subProcessRecovery')]), [
       metric('等待汇聚', subProcessTasks.length),
-      metric('Cron Handler', scheduler.registeredHandlers.includes('recoverStuckWorkflowSubProcesses') ? '已注册' : '未注册', scheduler.registeredHandlers.includes('recoverStuckWorkflowSubProcesses') ? 'healthy' : 'warning'),
+      metric('Cron Handler', workflowJobsDrainRegistered ? '已注册' : '未注册', workflowJobsDrainRegistered ? 'healthy' : 'warning'),
     ]),
     component('eventBus', eventBus.totalListenerCount > 0 ? 'healthy' : 'critical', [
       metric('监听器总数', eventBus.totalListenerCount, eventBus.totalListenerCount > 0 ? 'healthy' : 'critical'),
