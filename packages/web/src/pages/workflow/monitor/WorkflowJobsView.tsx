@@ -69,6 +69,33 @@ function renderStatusTag(status: WorkflowJobStatus) {
   return <Tag color={meta?.color ?? 'grey'} size="small">{meta?.text ?? status}</Tag>;
 }
 
+/** 从 payload 中提取最能区分同类型作业的摘要（如事件派发的事件类型） */
+function jobSummaryText(record: WorkflowJob): string {
+  const p = (record.payload ?? {}) as Record<string, unknown>;
+  const event = p.event as Record<string, unknown> | undefined;
+  switch (record.jobType) {
+    case 'event_dispatch':
+      return (event?.type as string) ?? '—';
+    case 'webhook_delivery': {
+      const sub = p.subscriptionId != null ? `#${p.subscriptionId} ` : '';
+      return `${sub}${(event?.type as string) ?? ''}`.trim() || '—';
+    }
+    case 'trigger_dispatch':
+      return p.kind != null ? `kind=${p.kind}` : (record.nodeKey ?? '—');
+    case 'external_dispatch': {
+      const method = p.method != null ? `${p.method} ` : '';
+      const endpoint = (p.endpoint as string) ?? '';
+      return `${method}${endpoint}`.trim() || (record.nodeKey ?? '—');
+    }
+    case 'subprocess_join':
+      return p.childInstanceId != null ? `child #${p.childInstanceId}` : '—';
+    case 'subprocess_spawn':
+      return p.childDefinitionId != null ? `def #${p.childDefinitionId}` : (record.nodeKey ?? '—');
+    default:
+      return record.nodeKey ?? '—';
+  }
+}
+
 // ───────────────────────── 单作业类型明细面板 ─────────────────────────
 
 interface JobTypePanelProps {
@@ -175,6 +202,17 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
   const columns: ColumnProps<WorkflowJob>[] = [
     { title: 'ID', dataIndex: 'id', width: 80 },
     { title: '状态', dataIndex: 'status', width: 90, render: (v: WorkflowJobStatus) => renderStatusTag(v) },
+    {
+      title: '摘要',
+      dataIndex: 'summary',
+      width: 180,
+      render: (_: unknown, record: WorkflowJob) => {
+        const text = jobSummaryText(record);
+        return text === '—'
+          ? <Typography.Text size="small" type="tertiary">—</Typography.Text>
+          : <Tooltip content={text}><Tag size="small" color="light-blue" type="light">{text}</Tag></Tooltip>;
+      },
+    },
     {
       title: '实例 / 节点',
       dataIndex: 'instanceId',
@@ -329,7 +367,7 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
         loading={loading}
         onRefresh={() => void fetchList()}
         refreshLoading={loading}
-        scroll={{ x: 1080 }}
+        scroll={{ x: 1260 }}
         pagination={buildPagination(data?.total ?? 0, (p, ps) => { setPage(p); void fetchList(p, ps); })}
       />
 
