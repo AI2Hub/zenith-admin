@@ -1603,7 +1603,7 @@ export interface OAuthConfig {
 }
 
 // ─── 企业身份源 ───────────────────────────────────────────────────────────
-export type IdentityProviderType = 'oidc' | 'saml';
+export type IdentityProviderType = 'oidc' | 'saml' | 'ldap' | 'ad';
 export type IdentityProviderStatus = 'enabled' | 'disabled';
 
 export interface IdentityProviderAttributeMapping {
@@ -1611,6 +1611,8 @@ export interface IdentityProviderAttributeMapping {
   email?: string;
   username?: string;
   nickname?: string;
+  phone?: string;
+  department?: string;
 }
 
 export interface TenantIdentityProvider {
@@ -1632,6 +1634,18 @@ export interface TenantIdentityProvider {
   samlSsoUrl?: string | null;
   samlEntityId?: string | null;
   samlCertificate?: string;
+  ldapUrl?: string | null;
+  ldapStartTls: boolean;
+  ldapSkipTlsVerify: boolean;
+  ldapBaseDn?: string | null;
+  ldapBindDn?: string | null;
+  ldapBindPassword?: string;
+  ldapUserFilter?: string | null;
+  ldapUserSearchFilter?: string | null;
+  ldapSyncFilter?: string | null;
+  ldapGroupBaseDn?: string | null;
+  ldapGroupFilter?: string | null;
+  ldapTimeoutMs: number;
   attributeMapping: IdentityProviderAttributeMapping;
   jitEnabled: boolean;
   defaultRoleIds: number[];
@@ -1669,12 +1683,70 @@ export interface CreateTenantIdentityProviderInput {
   samlSsoUrl?: string | null;
   samlEntityId?: string | null;
   samlCertificate?: string;
+  ldapUrl?: string | null;
+  ldapStartTls?: boolean;
+  ldapSkipTlsVerify?: boolean;
+  ldapBaseDn?: string | null;
+  ldapBindDn?: string | null;
+  ldapBindPassword?: string;
+  ldapUserFilter?: string | null;
+  ldapUserSearchFilter?: string | null;
+  ldapSyncFilter?: string | null;
+  ldapGroupBaseDn?: string | null;
+  ldapGroupFilter?: string | null;
+  ldapTimeoutMs?: number;
   attributeMapping?: IdentityProviderAttributeMapping;
   jitEnabled?: boolean;
   defaultRoleIds?: number[];
   remark?: string | null;
 }
 export type UpdateTenantIdentityProviderInput = Partial<CreateTenantIdentityProviderInput>;
+
+export interface LdapDirectoryUser {
+  dn: string;
+  subject: string;
+  email?: string | null;
+  username: string;
+  nickname: string;
+  phone?: string | null;
+  department?: string | null;
+}
+
+export interface IdentityProviderConnectionTestResult {
+  ok: boolean;
+  message: string;
+  sampleUsers: LdapDirectoryUser[];
+}
+
+export interface IdentityProviderSyncResult {
+  logId: number;
+  status: 'success' | 'failed' | 'partial';
+  total: number;
+  created: number;
+  linked: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  message: string;
+}
+
+export interface IdentityProviderSyncLog {
+  id: number;
+  providerId: number;
+  status: 'success' | 'failed' | 'partial';
+  triggerType: string;
+  total: number;
+  created: number;
+  linked: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  message?: string | null;
+  errorMessage?: string | null;
+  startedAt: string;
+  completedAt?: string | null;
+  createdAt: string;
+}
 
 // ─── 数据库备份 ────────────────────────────────────────────────────────────
 export type BackupType = 'pg_dump' | 'drizzle_export';

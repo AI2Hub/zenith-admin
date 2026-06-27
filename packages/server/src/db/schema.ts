@@ -20,8 +20,9 @@ export const mfaFactorTypeEnum = pgEnum('mfa_factor_type', ['totp', 'passkey', '
 export const mfaFactorStatusEnum = pgEnum('mfa_factor_status', ['pending', 'enabled', 'disabled']);
 export const loginRiskLevelEnum = pgEnum('login_risk_level', ['low', 'medium', 'high']);
 export const loginRiskActionEnum = pgEnum('login_risk_action', ['allow', 'challenge', 'block']);
-export const identityProviderTypeEnum = pgEnum('identity_provider_type', ['oidc', 'saml']);
+export const identityProviderTypeEnum = pgEnum('identity_provider_type', ['oidc', 'saml', 'ldap', 'ad']);
 export const identityProviderStatusEnum = pgEnum('identity_provider_status', ['enabled', 'disabled']);
+export const identityProviderSyncStatusEnum = pgEnum('identity_provider_sync_status', ['success', 'failed', 'partial']);
 
 /**
  * 通用审计列：`created_by` / `updated_by` 指向 `users.id`（保留 set null）。
@@ -1179,6 +1180,18 @@ export const tenantIdentityProviders = pgTable('tenant_identity_providers', {
   samlSsoUrl: varchar('saml_sso_url', { length: 512 }),
   samlEntityId: varchar('saml_entity_id', { length: 512 }),
   samlCertificate: text('saml_certificate'),
+  ldapUrl: varchar('ldap_url', { length: 512 }),
+  ldapStartTls: boolean('ldap_start_tls').notNull().default(false),
+  ldapSkipTlsVerify: boolean('ldap_skip_tls_verify').notNull().default(false),
+  ldapBaseDn: varchar('ldap_base_dn', { length: 512 }),
+  ldapBindDn: varchar('ldap_bind_dn', { length: 512 }),
+  ldapBindPassword: text('ldap_bind_password'),
+  ldapUserFilter: varchar('ldap_user_filter', { length: 1000 }),
+  ldapUserSearchFilter: varchar('ldap_user_search_filter', { length: 1000 }),
+  ldapSyncFilter: varchar('ldap_sync_filter', { length: 1000 }),
+  ldapGroupBaseDn: varchar('ldap_group_base_dn', { length: 512 }),
+  ldapGroupFilter: varchar('ldap_group_filter', { length: 1000 }),
+  ldapTimeoutMs: integer('ldap_timeout_ms').notNull().default(5000),
   attributeMapping: jsonb('attribute_mapping').$type<Record<string, string>>().notNull().default({
     subject: 'sub',
     email: 'email',
@@ -1221,6 +1234,31 @@ export const userIdentityAccounts = pgTable('user_identity_accounts', {
 
 export type UserIdentityAccountRow = typeof userIdentityAccounts.$inferSelect;
 export type NewUserIdentityAccount = typeof userIdentityAccounts.$inferInsert;
+
+export const identityProviderSyncLogs = pgTable('identity_provider_sync_logs', {
+  id: serial('id').primaryKey(),
+  providerId: integer('provider_id').notNull().references(() => tenantIdentityProviders.id, { onDelete: 'cascade' }),
+  status: identityProviderSyncStatusEnum('status').notNull(),
+  triggerType: varchar('trigger_type', { length: 32 }).notNull().default('manual'),
+  total: integer('total').notNull().default(0),
+  created: integer('created').notNull().default(0),
+  linked: integer('linked').notNull().default(0),
+  updated: integer('updated').notNull().default(0),
+  skipped: integer('skipped').notNull().default(0),
+  failed: integer('failed').notNull().default(0),
+  message: text('message'),
+  errorMessage: text('error_message'),
+  details: jsonb('details').$type<Array<Record<string, unknown>> | null>(),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('identity_provider_sync_logs_provider_idx').on(t.providerId),
+  index('identity_provider_sync_logs_status_idx').on(t.status),
+]);
+
+export type IdentityProviderSyncLogRow = typeof identityProviderSyncLogs.$inferSelect;
+export type NewIdentityProviderSyncLog = typeof identityProviderSyncLogs.$inferInsert;
 
 // ─── 数据库备份记录表 ──────────────────────────────────────────────────────────
 export const backupTypeEnum = pgEnum('backup_type', ['pg_dump', 'drizzle_export']);
@@ -3080,11 +3118,16 @@ export const userOauthAccountsRelations = relations(userOauthAccounts, ({ one })
 export const tenantIdentityProvidersRelations = relations(tenantIdentityProviders, ({ one, many }) => ({
   tenant: one(tenants, { fields: [tenantIdentityProviders.tenantId], references: [tenants.id] }),
   accounts: many(userIdentityAccounts),
+  syncLogs: many(identityProviderSyncLogs),
 }));
 
 export const userIdentityAccountsRelations = relations(userIdentityAccounts, ({ one }) => ({
   user: one(users, { fields: [userIdentityAccounts.userId], references: [users.id] }),
   provider: one(tenantIdentityProviders, { fields: [userIdentityAccounts.providerId], references: [tenantIdentityProviders.id] }),
+}));
+
+export const identityProviderSyncLogsRelations = relations(identityProviderSyncLogs, ({ one }) => ({
+  provider: one(tenantIdentityProviders, { fields: [identityProviderSyncLogs.providerId], references: [tenantIdentityProviders.id] }),
 }));
 
 export const userApiTokensRelations = relations(userApiTokens, ({ one }) => ({

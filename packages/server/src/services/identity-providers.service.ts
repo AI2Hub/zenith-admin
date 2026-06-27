@@ -1,23 +1,30 @@
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
+import { Client, InvalidCredentialsError, type Entry } from 'ldapts';
 import { SAML, ValidateInResponseTo, type CacheItem, type CacheProvider, type Profile } from '@node-saml/node-saml';
 import { and, desc, eq, ilike, isNull, ne, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type {
   CreateTenantIdentityProviderInput,
+  IdentityProviderConnectionTestResult,
   IdentityProviderAttributeMapping,
+  IdentityProviderSyncResult,
+  IdentityProviderType,
+  LdapDirectoryUser,
   UpdateTenantIdentityProviderInput,
 } from '@zenith/shared';
 import { config } from '../config';
 import { db } from '../db';
-import { roles, tenantIdentityProviders, tenants, userIdentityAccounts, userRoles, users } from '../db/schema';
+import { identityProviderSyncLogs, roles, tenantIdentityProviders, tenants, userIdentityAccounts, userRoles, users } from '../db/schema';
 import redis from '../lib/redis';
 import { formatDateTime } from '../lib/datetime';
 import { escapeLike } from '../lib/where-helpers';
 import { pageOffset } from '../lib/pagination';
 import { rethrowPgUniqueViolation } from '../lib/db-errors';
 import { httpGet, httpPost, HttpClientError } from '../lib/http-client';
-import { finalizeLogin, type DeviceInfo } from './auth.service';
+import { getConfigNumber } from '../lib/system-config';
+import { checkLoginLock, clearLoginAttempts, recordLoginFailure } from '../lib/session-manager';
+import { finalizeLogin, recordLoginLog, type DeviceInfo } from './auth.service';
 
 const SECRET_MASK = '******';
 const OIDC_STATE_TTL = 5 * 60;
@@ -27,12 +34,17 @@ const SAML_STATE_PREFIX = `${config.redis.keyPrefix}idp-saml-state:`;
 const SAML_REQUEST_PREFIX = `${config.redis.keyPrefix}idp-saml-request:`;
 const SAML_LOGIN_TICKET_TTL = 60;
 const SAML_LOGIN_TICKET_PREFIX = `${config.redis.keyPrefix}idp-saml-login-ticket:`;
+const DEFAULT_LDAP_USER_FILTER = '(&(objectClass=person)(|(uid={{username}})(sAMAccountName={{username}})(mail={{username}})))';
+const DEFAULT_LDAP_USER_SEARCH_FILTER = '(&(objectClass=person)(|(cn=*{{keyword}}*)(displayName=*{{keyword}}*)(uid=*{{keyword}}*)(sAMAccountName=*{{keyword}}*)(mail=*{{keyword}}*)))';
+const DEFAULT_LDAP_SYNC_FILTER = '(&(objectClass=person)(|(uid=*)(sAMAccountName=*)(mail=*)))';
 
 const DEFAULT_MAPPING: Required<IdentityProviderAttributeMapping> = {
   subject: 'sub',
   email: 'email',
   username: 'preferred_username',
   nickname: 'name',
+  phone: 'phone_number',
+  department: 'department',
 };
 
 const SAML_DEFAULT_MAPPING: Required<IdentityProviderAttributeMapping> = {
@@ -40,6 +52,26 @@ const SAML_DEFAULT_MAPPING: Required<IdentityProviderAttributeMapping> = {
   email: 'email',
   username: 'username',
   nickname: 'displayName',
+  phone: 'phone',
+  department: 'department',
+};
+
+const LDAP_DEFAULT_MAPPING: Required<IdentityProviderAttributeMapping> = {
+  subject: 'entryUUID',
+  email: 'mail',
+  username: 'uid',
+  nickname: 'cn',
+  phone: 'telephoneNumber',
+  department: 'ou',
+};
+
+const AD_DEFAULT_MAPPING: Required<IdentityProviderAttributeMapping> = {
+  subject: 'objectGUID',
+  email: 'mail',
+  username: 'sAMAccountName',
+  nickname: 'displayName',
+  phone: 'telephoneNumber',
+  department: 'department',
 };
 
 interface EnterpriseAuthStatePayload {
@@ -67,12 +99,20 @@ function maskSecret(value: string | null | undefined): string {
 
 function normalizeMapping(
   mapping?: IdentityProviderAttributeMapping | null,
-  providerType: 'oidc' | 'saml' = 'oidc',
+  providerType: IdentityProviderType = 'oidc',
 ): Required<IdentityProviderAttributeMapping> {
-  return { ...(providerType === 'saml' ? SAML_DEFAULT_MAPPING : DEFAULT_MAPPING), ...(mapping ?? {}) };
+  const base = providerType === 'saml'
+    ? SAML_DEFAULT_MAPPING
+    : providerType === 'ldap'
+      ? LDAP_DEFAULT_MAPPING
+      : providerType === 'ad'
+        ? AD_DEFAULT_MAPPING
+        : DEFAULT_MAPPING;
+  return { ...base, ...(mapping ?? {}) };
 }
 
 function readMappedString(profile: Record<string, unknown>, key: string): string | null {
+  if (!key) return null;
   const value = profile[key];
   if (typeof value === 'string' && value.trim()) return value.trim();
   if (typeof value === 'number') return String(value);
@@ -105,6 +145,18 @@ export function mapIdentityProvider(row: ProviderRow) {
     samlSsoUrl: row.samlSsoUrl,
     samlEntityId: row.samlEntityId,
     samlCertificate: maskSecret(row.samlCertificate),
+    ldapUrl: row.ldapUrl,
+    ldapStartTls: row.ldapStartTls,
+    ldapSkipTlsVerify: row.ldapSkipTlsVerify,
+    ldapBaseDn: row.ldapBaseDn,
+    ldapBindDn: row.ldapBindDn,
+    ldapBindPassword: maskSecret(row.ldapBindPassword),
+    ldapUserFilter: row.ldapUserFilter,
+    ldapUserSearchFilter: row.ldapUserSearchFilter,
+    ldapSyncFilter: row.ldapSyncFilter,
+    ldapGroupBaseDn: row.ldapGroupBaseDn,
+    ldapGroupFilter: row.ldapGroupFilter,
+    ldapTimeoutMs: row.ldapTimeoutMs,
     attributeMapping: normalizeMapping(row.attributeMapping, row.type),
     jitEnabled: row.jitEnabled,
     defaultRoleIds: row.defaultRoleIds,
@@ -145,7 +197,9 @@ function buildProviderValues(
   for (const key of [
     'tenantId', 'name', 'code', 'type', 'status', 'issuer', 'authorizationEndpoint',
     'tokenEndpoint', 'userinfoEndpoint', 'jwksUri', 'clientId', 'scopes', 'samlSsoUrl',
-    'samlEntityId', 'attributeMapping', 'jitEnabled', 'defaultRoleIds', 'remark',
+    'samlEntityId', 'ldapUrl', 'ldapStartTls', 'ldapSkipTlsVerify', 'ldapBaseDn', 'ldapBindDn',
+    'ldapUserFilter', 'ldapUserSearchFilter', 'ldapSyncFilter', 'ldapGroupBaseDn', 'ldapGroupFilter',
+    'ldapTimeoutMs', 'attributeMapping', 'jitEnabled', 'defaultRoleIds', 'remark',
   ] as const) {
     if (key in data) {
       values[key] = data[key] as never;
@@ -161,8 +215,13 @@ function buildProviderValues(
   } else if (!existing && !('samlCertificate' in data)) {
     values.samlCertificate = null;
   }
+  if ('ldapBindPassword' in data && data.ldapBindPassword !== SECRET_MASK) {
+    values.ldapBindPassword = data.ldapBindPassword || null;
+  } else if (!existing && !('ldapBindPassword' in data)) {
+    values.ldapBindPassword = null;
+  }
   if (values.attributeMapping) {
-    const providerType = (values.type ?? existing?.type ?? data.type ?? 'oidc') as 'oidc' | 'saml';
+    const providerType = (values.type ?? existing?.type ?? data.type ?? 'oidc') as IdentityProviderType;
     values.attributeMapping = normalizeMapping(values.attributeMapping, providerType);
   }
   if (values.defaultRoleIds) values.defaultRoleIds = Array.from(new Set(values.defaultRoleIds));
@@ -174,7 +233,7 @@ export interface ListIdentityProvidersQuery {
   pageSize?: number;
   keyword?: string;
   tenantId?: number;
-  type?: 'oidc' | 'saml';
+  type?: IdentityProviderType;
   status?: 'enabled' | 'disabled';
 }
 
@@ -301,6 +360,158 @@ async function getUsableProvider(id: number) {
   return row;
 }
 
+function isDirectoryProviderType(type: IdentityProviderType): type is 'ldap' | 'ad' {
+  return type === 'ldap' || type === 'ad';
+}
+
+function ensureDirectoryProvider(provider: typeof tenantIdentityProviders.$inferSelect) {
+  if (!isDirectoryProviderType(provider.type)) throw new HTTPException(400, { message: '该身份源不是 LDAP/AD 类型' });
+  if (!provider.ldapUrl?.trim()) throw new HTTPException(400, { message: 'LDAP URL 未配置' });
+  if (!provider.ldapBaseDn?.trim()) throw new HTTPException(400, { message: 'LDAP Base DN 未配置' });
+}
+
+function createDirectoryClient(provider: typeof tenantIdentityProviders.$inferSelect): Client {
+  ensureDirectoryProvider(provider);
+  return new Client({
+    url: provider.ldapUrl!.trim(),
+    timeout: provider.ldapTimeoutMs,
+    connectTimeout: provider.ldapTimeoutMs,
+    tlsOptions: { rejectUnauthorized: !provider.ldapSkipTlsVerify },
+  });
+}
+
+async function prepareDirectoryClient(provider: typeof tenantIdentityProviders.$inferSelect): Promise<Client> {
+  const client = createDirectoryClient(provider);
+  if (provider.ldapStartTls) {
+    await client.startTLS({ rejectUnauthorized: !provider.ldapSkipTlsVerify });
+  }
+  return client;
+}
+
+async function bindDirectoryServiceAccount(client: Client, provider: typeof tenantIdentityProviders.$inferSelect) {
+  if (provider.ldapBindDn?.trim()) {
+    await client.bind(provider.ldapBindDn.trim(), provider.ldapBindPassword ?? '');
+  }
+}
+
+async function withDirectoryClient<T>(
+  provider: typeof tenantIdentityProviders.$inferSelect,
+  fn: (client: Client) => Promise<T>,
+): Promise<T> {
+  const client = await prepareDirectoryClient(provider);
+  try {
+    await bindDirectoryServiceAccount(client, provider);
+    return await fn(client);
+  } finally {
+    await client.unbind().catch(() => undefined);
+  }
+}
+
+function escapeLdapFilterValue(value: string): string {
+  return value.replace(/[\0()*\\]/g, (char) => {
+    switch (char) {
+      case '\0': return '\\00';
+      case '(': return '\\28';
+      case ')': return '\\29';
+      case '*': return '\\2a';
+      case '\\': return '\\5c';
+      default: return char;
+    }
+  });
+}
+
+function renderLdapFilter(template: string, variables: Record<string, string>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => escapeLdapFilterValue(variables[key] ?? ''));
+}
+
+function normalizeEntryValue(attribute: string, value: Entry[string]): string | string[] | undefined {
+  const normalizeOne = (item: Buffer | string): string => {
+    if (Buffer.isBuffer(item)) return item.toString(attribute.toLowerCase() === 'objectguid' ? 'base64' : 'utf8').trim();
+    return item.trim();
+  };
+  if (Buffer.isBuffer(value) || typeof value === 'string') {
+    const normalized = normalizeOne(value);
+    return normalized || undefined;
+  }
+  if (Array.isArray(value)) {
+    const values = value
+      .map((item) => normalizeOne(item))
+      .filter(Boolean);
+    if (values.length === 0) return undefined;
+    return values.length === 1 ? values[0] : values;
+  }
+  return undefined;
+}
+
+function entryToRecord(entry: Entry): Record<string, unknown> {
+  const record: Record<string, unknown> = { dn: entry.dn };
+  for (const [key, value] of Object.entries(entry)) {
+    if (key === 'dn') continue;
+    const normalized = normalizeEntryValue(key, value);
+    if (normalized !== undefined) record[key] = normalized;
+  }
+  return record;
+}
+
+function directorySearchAttributes(provider: typeof tenantIdentityProviders.$inferSelect): string[] {
+  const mapping = normalizeMapping(provider.attributeMapping, provider.type);
+  return Array.from(new Set([
+    ...Object.values(mapping),
+    'cn',
+    'displayName',
+    'mail',
+    'uid',
+    'sAMAccountName',
+    'telephoneNumber',
+    'department',
+    'ou',
+    'entryUUID',
+    'objectGUID',
+  ].filter(Boolean)));
+}
+
+function mapDirectoryProfile(provider: typeof tenantIdentityProviders.$inferSelect, entry: Entry): { profile: Record<string, unknown>; user: LdapDirectoryUser } {
+  const profile = entryToRecord(entry);
+  const external = normalizeExternalProfile(provider, profile);
+  const mapping = normalizeMapping(provider.attributeMapping, provider.type);
+  const user: LdapDirectoryUser = {
+    dn: entry.dn,
+    subject: external.subject,
+    email: external.email ?? null,
+    username: external.username,
+    nickname: external.nickname,
+    phone: readMappedString(profile, mapping.phone) ?? null,
+    department: readMappedString(profile, mapping.department) ?? null,
+  };
+  return { profile, user };
+}
+
+async function searchDirectoryEntries(
+  provider: typeof tenantIdentityProviders.$inferSelect,
+  options: { keyword?: string; username?: string; limit: number; mode: 'login' | 'search' | 'sync' },
+): Promise<Entry[]> {
+  ensureDirectoryProvider(provider);
+  const template = options.mode === 'login'
+    ? (provider.ldapUserFilter || DEFAULT_LDAP_USER_FILTER)
+    : options.mode === 'sync'
+      ? (provider.ldapSyncFilter || DEFAULT_LDAP_SYNC_FILTER)
+      : (provider.ldapUserSearchFilter || DEFAULT_LDAP_USER_SEARCH_FILTER);
+  const filter = renderLdapFilter(template, {
+    username: options.username ?? '',
+    keyword: options.keyword ?? '',
+  });
+  return withDirectoryClient(provider, async (client) => {
+    const { searchEntries } = await client.search(provider.ldapBaseDn!.trim(), {
+      scope: 'sub',
+      filter,
+      attributes: directorySearchAttributes(provider),
+      sizeLimit: options.limit,
+      timeLimit: Math.ceil(provider.ldapTimeoutMs / 1000),
+    });
+    return searchEntries;
+  });
+}
+
 function oidcRedirectUri(): string {
   return `${config.oauth.callbackBaseUrl}/enterprise/callback`;
 }
@@ -386,6 +597,9 @@ function createSamlClient(
 
 export async function generateEnterpriseAuthUrl(providerId: number, client: { ip: string; ua: string; redirectTo?: string | null }) {
   const provider = await getUsableProvider(providerId);
+  if (isDirectoryProviderType(provider.type)) {
+    throw new HTTPException(400, { message: 'LDAP/AD 身份源不支持跳转授权，请使用目录账号密码登录' });
+  }
   if (provider.type === 'saml') {
     const state = randomToken();
     let samlRequestId: string | undefined;
@@ -424,6 +638,10 @@ export async function generateEnterpriseAuthUrl(providerId: number, client: { ip
     state,
   });
   return { authUrl: `${provider.authorizationEndpoint}?${params}`, state };
+}
+
+function getErrorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error && err.message ? err.message : fallback;
 }
 
 interface OidcTokenResponse {
@@ -472,11 +690,15 @@ async function loadOidcProfile(provider: typeof tenantIdentityProviders.$inferSe
 function normalizeExternalProfile(provider: typeof tenantIdentityProviders.$inferSelect, profile: Record<string, unknown>) {
   const mapping = normalizeMapping(provider.attributeMapping, provider.type);
   const subject = readMappedString(profile, mapping.subject);
-  if (!subject) throw new HTTPException(400, { message: '企业身份源未返回用户唯一标识' });
+  const fallbackSubject = readMappedString(profile, 'dn');
+  const resolvedSubject = subject ?? fallbackSubject;
+  if (!resolvedSubject) throw new HTTPException(400, { message: '企业身份源未返回用户唯一标识' });
   const email = readMappedString(profile, mapping.email);
-  const username = readMappedString(profile, mapping.username) ?? email?.split('@')[0] ?? `idp_${subject.slice(0, 24)}`;
+  const username = readMappedString(profile, mapping.username) ?? email?.split('@')[0] ?? `idp_${resolvedSubject.slice(0, 24)}`;
   const nickname = readMappedString(profile, mapping.nickname) ?? username;
-  return { subject, email, username, nickname };
+  const phone = readMappedString(profile, mapping.phone);
+  const department = readMappedString(profile, mapping.department);
+  return { subject: resolvedSubject, email, username, nickname, phone, department };
 }
 
 function assignStringAlias(target: Record<string, unknown>, key: string, value: unknown) {
@@ -568,6 +790,284 @@ async function findOrCreateUserForProvider(provider: typeof tenantIdentityProvid
     }
     return created;
   });
+}
+
+type ProviderSyncAction = 'created' | 'linked' | 'updated' | 'skipped';
+
+async function syncUserForProvider(provider: typeof tenantIdentityProviders.$inferSelect, profile: Record<string, unknown>): Promise<ProviderSyncAction> {
+  const external = normalizeExternalProfile(provider, profile);
+  const now = new Date();
+  const [existingAccount] = await db
+    .select()
+    .from(userIdentityAccounts)
+    .where(and(eq(userIdentityAccounts.providerId, provider.id), eq(userIdentityAccounts.subject, external.subject)))
+    .limit(1);
+
+  if (existingAccount) {
+    const [user] = await db.select().from(users).where(eq(users.id, existingAccount.userId)).limit(1);
+    if (!user) return 'skipped';
+    await Promise.all([
+      db.update(userIdentityAccounts).set({
+        email: external.email,
+        username: external.username,
+        displayName: external.nickname,
+        rawProfile: profile,
+      }).where(eq(userIdentityAccounts.id, existingAccount.id)),
+      db.update(users).set({
+        email: external.email ?? user.email,
+        nickname: external.nickname.slice(0, 32),
+        phone: external.phone ?? user.phone,
+      }).where(eq(users.id, user.id)),
+    ]);
+    return 'updated';
+  }
+
+  const conditions = [
+    and(eq(users.username, external.username), provider.tenantId == null ? isNull(users.tenantId) : eq(users.tenantId, provider.tenantId)),
+  ];
+  if (external.email) {
+    conditions.push(and(eq(users.email, external.email), provider.tenantId == null ? isNull(users.tenantId) : eq(users.tenantId, provider.tenantId)));
+  }
+  const [matchedUser] = await db.select().from(users).where(or(...conditions)).limit(1);
+  if (matchedUser) {
+    await db.insert(userIdentityAccounts).values({
+      userId: matchedUser.id,
+      providerId: provider.id,
+      subject: external.subject,
+      email: external.email,
+      username: external.username,
+      displayName: external.nickname,
+      rawProfile: profile,
+    });
+    return 'linked';
+  }
+
+  if (!provider.jitEnabled || !external.email) return 'skipped';
+  const password = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+  await db.transaction(async (tx) => {
+    const [created] = await tx.insert(users).values({
+      username: external.username.slice(0, 32),
+      nickname: external.nickname.slice(0, 32),
+      email: external.email!,
+      phone: external.phone ?? null,
+      password,
+      tenantId: provider.tenantId ?? null,
+    }).returning();
+    await tx.insert(userIdentityAccounts).values({
+      userId: created.id,
+      providerId: provider.id,
+      subject: external.subject,
+      email: external.email,
+      username: external.username,
+      displayName: external.nickname,
+      rawProfile: profile,
+    });
+    if (provider.defaultRoleIds.length > 0) {
+      await tx.insert(userRoles).values(provider.defaultRoleIds.map((roleId) => ({ userId: created.id, roleId }))).onConflictDoNothing();
+    }
+  });
+  return 'created';
+}
+
+export async function testIdentityProviderConnection(id: number): Promise<IdentityProviderConnectionTestResult> {
+  const provider = await getUsableProvider(id);
+  ensureDirectoryProvider(provider);
+  try {
+    const entries = await searchDirectoryEntries(provider, { mode: 'sync', limit: 3 });
+    return {
+      ok: true,
+      message: '连接成功',
+      sampleUsers: entries.map((entry) => mapDirectoryProfile(provider, entry).user),
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      message: `连接失败：${getErrorMessage(err, '未知错误')}`,
+      sampleUsers: [],
+    };
+  }
+}
+
+export async function searchIdentityProviderUsers(
+  id: number,
+  query: { keyword?: string; limit?: number },
+): Promise<LdapDirectoryUser[]> {
+  const provider = await getUsableProvider(id);
+  ensureDirectoryProvider(provider);
+  const entries = await searchDirectoryEntries(provider, {
+    mode: query.keyword ? 'search' : 'sync',
+    keyword: query.keyword,
+    limit: query.limit ?? 20,
+  });
+  return entries.map((entry) => mapDirectoryProfile(provider, entry).user);
+}
+
+export async function syncIdentityProviderUsers(
+  id: number,
+  input: { limit?: number },
+): Promise<IdentityProviderSyncResult> {
+  const provider = await getUsableProvider(id);
+  ensureDirectoryProvider(provider);
+  const startedAt = new Date();
+  const [log] = await db.insert(identityProviderSyncLogs).values({
+    providerId: provider.id,
+    status: 'failed',
+    triggerType: 'manual',
+    startedAt,
+    message: '同步中',
+  }).returning();
+  const stats = {
+    total: 0,
+    created: 0,
+    linked: 0,
+    updated: 0,
+    skipped: 0,
+    failed: 0,
+  };
+  const failures: Array<Record<string, unknown>> = [];
+  try {
+    const entries = await searchDirectoryEntries(provider, {
+      mode: 'sync',
+      limit: input.limit ?? 500,
+    });
+    stats.total = entries.length;
+    for (const entry of entries) {
+      try {
+        const { profile, user } = mapDirectoryProfile(provider, entry);
+        const action = await syncUserForProvider(provider, profile);
+        stats[action] += 1;
+        if (action === 'skipped' && failures.length < 50) {
+          failures.push({ dn: user.dn, username: user.username, reason: '未匹配本地账号，且未启用 JIT 或缺少邮箱' });
+        }
+      } catch (err) {
+        stats.failed += 1;
+        if (failures.length < 50) failures.push({ dn: entry.dn, reason: getErrorMessage(err, '同步失败') });
+      }
+    }
+    const status: IdentityProviderSyncResult['status'] = stats.failed > 0
+      ? 'partial'
+      : 'success';
+    const message = `同步完成：创建 ${stats.created}，绑定 ${stats.linked}，更新 ${stats.updated}，跳过 ${stats.skipped}，失败 ${stats.failed}`;
+    await db.update(identityProviderSyncLogs).set({
+      ...stats,
+      status,
+      message,
+      details: failures,
+      completedAt: new Date(),
+    }).where(eq(identityProviderSyncLogs.id, log.id));
+    return { logId: log.id, status, ...stats, message };
+  } catch (err) {
+    const message = `同步失败：${getErrorMessage(err, '未知错误')}`;
+    await db.update(identityProviderSyncLogs).set({
+      ...stats,
+      status: 'failed',
+      message,
+      errorMessage: getErrorMessage(err, '未知错误'),
+      details: failures,
+      completedAt: new Date(),
+    }).where(eq(identityProviderSyncLogs.id, log.id));
+    return { logId: log.id, status: 'failed', ...stats, message };
+  }
+}
+
+export async function handleEnterpriseLdapLogin(input: {
+  providerId: number;
+  username: string;
+  password: string;
+  redirectTo?: string | null;
+  ip: string;
+  ua: string;
+  deviceInfo?: DeviceInfo;
+}) {
+  const provider = await getUsableProvider(input.providerId);
+  ensureDirectoryProvider(provider);
+  const lockKey = `enterprise:${provider.id}:${input.username.toLowerCase()}`;
+  const remainingLockSeconds = await checkLoginLock(lockKey);
+  if (remainingLockSeconds > 0) {
+    const remainingMinutes = Math.ceil(remainingLockSeconds / 60);
+    throw new HTTPException(423, { message: `账号已被锁定，请 ${remainingMinutes} 分钟后重试` });
+  }
+  const [loginMaxAttempts, loginLockDurationMinutes] = await Promise.all([
+    getConfigNumber('login_max_attempts', 10),
+    getConfigNumber('login_lock_duration_minutes', 30),
+  ]);
+  const lockDurationSeconds = loginLockDurationMinutes * 60;
+  const failCredentials = async () => {
+    await Promise.all([
+      recordLoginLog({
+        ip: input.ip,
+        ua: input.ua,
+        username: input.username,
+        status: 'fail',
+        message: `企业身份源 ${provider.name} 目录账号或密码错误`,
+        tenantId: provider.tenantId ?? null,
+      }),
+      recordLoginFailure(lockKey, loginMaxAttempts, lockDurationSeconds),
+    ]);
+    throw new HTTPException(400, { message: '目录账号或密码错误' });
+  };
+
+  let entry: Entry;
+  try {
+    const entries = await searchDirectoryEntries(provider, {
+      mode: 'login',
+      username: input.username,
+      limit: 2,
+    });
+    if (entries.length !== 1) await failCredentials();
+    entry = entries[0];
+  } catch (err) {
+    if (err instanceof HTTPException) throw err;
+    await recordLoginLog({
+      ip: input.ip,
+      ua: input.ua,
+      username: input.username,
+      status: 'fail',
+      message: `企业身份源 ${provider.name} 目录查询失败`,
+      tenantId: provider.tenantId ?? null,
+    });
+    throw new HTTPException(400, { message: '目录登录暂不可用，请联系管理员' });
+  }
+
+  const client = await prepareDirectoryClient(provider);
+  try {
+    await client.bind(entry.dn, input.password);
+  } catch (err) {
+    if (err instanceof InvalidCredentialsError) await failCredentials();
+    await recordLoginLog({
+      ip: input.ip,
+      ua: input.ua,
+      username: input.username,
+      status: 'fail',
+      message: `企业身份源 ${provider.name} 目录认证失败`,
+      tenantId: provider.tenantId ?? null,
+    });
+    throw new HTTPException(400, { message: '目录认证失败，请联系管理员' });
+  } finally {
+    await client.unbind().catch(() => undefined);
+  }
+
+  const { profile } = mapDirectoryProfile(provider, entry);
+  const user = await findOrCreateUserForProvider(provider, profile);
+  if (user.status === 'disabled') {
+    await recordLoginLog({
+      ip: input.ip,
+      ua: input.ua,
+      username: input.username,
+      status: 'fail',
+      message: '账号已被禁用',
+      userId: user.id,
+      tenantId: user.tenantId ?? null,
+    });
+    throw new HTTPException(403, { message: '账号已被禁用' });
+  }
+  await clearLoginAttempts(lockKey);
+  const loginResult = await finalizeLogin(
+    user,
+    { ip: input.ip, ua: input.ua, deviceInfo: input.deviceInfo },
+    { logMessage: `企业身份源 ${provider.name} LDAP 登录成功` },
+  );
+  return { loginResult, redirectTo: input.redirectTo ?? null };
 }
 
 export async function handleEnterpriseOidcCallback(code: string, state: string, deviceInfo?: DeviceInfo) {

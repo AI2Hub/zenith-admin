@@ -104,7 +104,7 @@ export const TenantIdentityProviderDTO = z
     tenantName: z.string().nullable().optional(),
     name: z.string(),
     code: z.string(),
-    type: z.enum(['oidc', 'saml']),
+    type: z.enum(['oidc', 'saml', 'ldap', 'ad']),
     status: z.enum(['enabled', 'disabled']),
     issuer: z.string().nullable().optional(),
     authorizationEndpoint: z.string().nullable().optional(),
@@ -117,6 +117,18 @@ export const TenantIdentityProviderDTO = z
     samlSsoUrl: z.string().nullable().optional(),
     samlEntityId: z.string().nullable().optional(),
     samlCertificate: z.string(),
+    ldapUrl: z.string().nullable().optional(),
+    ldapStartTls: z.boolean(),
+    ldapSkipTlsVerify: z.boolean(),
+    ldapBaseDn: z.string().nullable().optional(),
+    ldapBindDn: z.string().nullable().optional(),
+    ldapBindPassword: z.string(),
+    ldapUserFilter: z.string().nullable().optional(),
+    ldapUserSearchFilter: z.string().nullable().optional(),
+    ldapSyncFilter: z.string().nullable().optional(),
+    ldapGroupBaseDn: z.string().nullable().optional(),
+    ldapGroupFilter: z.string().nullable().optional(),
+    ldapTimeoutMs: z.number().int(),
     attributeMapping: z.record(z.string(), z.string()),
     jitEnabled: z.boolean(),
     defaultRoleIds: z.array(z.number().int()),
@@ -132,7 +144,7 @@ export const TenantIdentityProviderSummaryDTO = z
     id: z.number().int(),
     name: z.string(),
     code: z.string(),
-    type: z.enum(['oidc', 'saml']),
+    type: z.enum(['oidc', 'saml', 'ldap', 'ad']),
   })
   .openapi('TenantIdentityProviderSummary');
 
@@ -142,3 +154,37 @@ export const EnterpriseIdentityDiscoveryDTO = z
     providers: z.array(TenantIdentityProviderSummaryDTO),
   })
   .openapi('EnterpriseIdentityDiscovery');
+
+export const LdapDirectoryUserDTO = z
+  .object({
+    dn: z.string(),
+    subject: z.string(),
+    email: z.string().nullable().optional(),
+    username: z.string(),
+    nickname: z.string(),
+    phone: z.string().nullable().optional(),
+    department: z.string().nullable().optional(),
+  })
+  .openapi('LdapDirectoryUser');
+
+export const IdentityProviderConnectionTestResultDTO = z
+  .object({
+    ok: z.boolean(),
+    message: z.string(),
+    sampleUsers: z.array(LdapDirectoryUserDTO),
+  })
+  .openapi('IdentityProviderConnectionTestResult');
+
+export const IdentityProviderSyncResultDTO = z
+  .object({
+    logId: z.number().int(),
+    status: z.enum(['success', 'failed', 'partial']),
+    total: z.number().int(),
+    created: z.number().int(),
+    linked: z.number().int(),
+    updated: z.number().int(),
+    skipped: z.number().int(),
+    failed: z.number().int(),
+    message: z.string(),
+  })
+  .openapi('IdentityProviderSyncResult');

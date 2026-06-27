@@ -458,13 +458,15 @@ export const identityProviderAttributeMappingSchema = z.object({
   email: z.string().max(64).optional(),
   username: z.string().max(64).optional(),
   nickname: z.string().max(64).optional(),
+  phone: z.string().max(64).optional(),
+  department: z.string().max(64).optional(),
 });
 
 export const createTenantIdentityProviderSchema = z.object({
   tenantId: z.number().int().positive().nullable().optional(),
   name: z.string().min(1, '身份源名称不能为空').max(100),
   code: z.string().min(1, '身份源编码不能为空').max(64).regex(/^[a-z][a-z0-9_-]*$/, '编码只能包含小写字母、数字、中划线和下划线，且以字母开头'),
-  type: z.enum(['oidc', 'saml']),
+  type: z.enum(['oidc', 'saml', 'ldap', 'ad']),
   status: z.enum(['enabled', 'disabled']).default('disabled'),
   issuer: z.string().max(512).nullable().optional(),
   authorizationEndpoint: z.string().max(512).nullable().optional(),
@@ -477,11 +479,25 @@ export const createTenantIdentityProviderSchema = z.object({
   samlSsoUrl: z.string().max(512).nullable().optional(),
   samlEntityId: z.string().max(512).nullable().optional(),
   samlCertificate: z.string().max(4096).optional(),
+  ldapUrl: z.string().max(512).nullable().optional(),
+  ldapStartTls: z.boolean().default(false),
+  ldapSkipTlsVerify: z.boolean().default(false),
+  ldapBaseDn: z.string().max(512).nullable().optional(),
+  ldapBindDn: z.string().max(512).nullable().optional(),
+  ldapBindPassword: z.string().max(1024).optional(),
+  ldapUserFilter: z.string().max(1000).nullable().optional(),
+  ldapUserSearchFilter: z.string().max(1000).nullable().optional(),
+  ldapSyncFilter: z.string().max(1000).nullable().optional(),
+  ldapGroupBaseDn: z.string().max(512).nullable().optional(),
+  ldapGroupFilter: z.string().max(1000).nullable().optional(),
+  ldapTimeoutMs: z.number().int().min(1000).max(60000).default(5000),
   attributeMapping: identityProviderAttributeMappingSchema.default({
     subject: 'sub',
     email: 'email',
     username: 'preferred_username',
     nickname: 'name',
+    phone: 'phone_number',
+    department: 'department',
   }),
   jitEnabled: z.boolean().default(false),
   defaultRoleIds: z.array(z.number().int().positive()).default([]),
@@ -489,6 +505,23 @@ export const createTenantIdentityProviderSchema = z.object({
 });
 
 export const updateTenantIdentityProviderSchema = createTenantIdentityProviderSchema.partial();
+
+export const searchIdentityProviderUsersSchema = z.object({
+  keyword: z.string().max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export const syncIdentityProviderUsersSchema = z.object({
+  limit: z.number().int().min(1).max(5000).default(500),
+});
+
+export const enterpriseLdapLoginSchema = z.object({
+  providerId: z.number().int().positive(),
+  username: z.string().min(1, '请输入目录账号').max(128),
+  password: z.string().min(1, '请输入目录密码').max(512),
+  redirectTo: z.string().max(512).nullable().optional(),
+  deviceInfo: z.record(z.string(), z.unknown()).optional(),
+});
 
 
 // ─── 租户 Schema ────────────────────────────────────────────────────────────

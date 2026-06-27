@@ -51,6 +51,7 @@
 		"hono-rate-limiter": "^0.5.3",
 		"ioredis": "^5.11.1",
 		"ip-range-check": "^0.2.0",
+		"ldapts": "^8.1.8",
 		"mssql": "^11.0.1",
 		"mysql2": "^3.22.5",
 		"node-ip2region": "^1.0.2",
