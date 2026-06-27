@@ -2758,19 +2758,8 @@ export interface WorkflowTask {
   transferChain?: number[];
   /** 委派来源（仅委派期间设置；回执任务为 null） */
   delegatedFromId?: number | null;
-  /** 外部审批回调 ID（task.status='waiting' + externalApproval 启用时生效） */
+  /** 外部审批回调 ID（task.status='waiting' + externalApproval 启用时生效；派发/恢复由 workflow_jobs 接管） */
   externalCallbackId?: string | null;
-  externalDispatchStatus?: WorkflowTaskExternalDispatchStatus | null;
-  /** 触发器调度/执行状态（trigger 节点副作用恢复与幂等） */
-  triggerDispatchStatus?: WorkflowTriggerExecutionStatus | null;
-  /** 触发器调度尝试次数 */
-  triggerAttempt?: number;
-  /** 触发器本次调度开始时间 */
-  triggerStartedAt?: string | null;
-  /** 触发器下一次恢复重试时间 */
-  triggerNextRetryAt?: string | null;
-  /** 触发器最近一次调度错误 */
-  triggerLastError?: string | null;
   /** 当前节点配置中的操作按钮设置（仅审批节点） */
   actionButtons?: Partial<Record<WorkflowActionButtonKey, WorkflowActionButtonConfig>> | null;
   createdAt: string;
@@ -3211,6 +3200,56 @@ export interface WorkflowTriggerExecution {
   responseBody: string | null;
   errorMessage: string | null;
   durationMs: number | null;
+  tenantId: number | null;
+  createdAt: string;
+}
+
+// ─── 统一作业账本（workflow_jobs）────────────────────────────────────────────
+export type WorkflowJobType =
+  | 'delay_wake' | 'task_timeout' | 'trigger_dispatch' | 'external_dispatch'
+  | 'subprocess_spawn' | 'subprocess_join' | 'event_dispatch' | 'webhook_delivery';
+
+export type WorkflowJobStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'dead' | 'canceled';
+export type WorkflowJobExecutionStatus = 'running' | 'succeeded' | 'failed';
+
+export interface WorkflowJob {
+  id: number;
+  jobType: WorkflowJobType;
+  status: WorkflowJobStatus;
+  instanceId: number | null;
+  taskId: number | null;
+  nodeKey: string | null;
+  idempotencyKey: string | null;
+  traceId: string | null;
+  payload: Record<string, unknown>;
+  priority: number;
+  attempts: number;
+  maxAttempts: number;
+  runAt: string;
+  lockedAt: string | null;
+  lockedBy: string | null;
+  lastError: string | null;
+  result: Record<string, unknown> | null;
+  tenantId: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkflowJobExecution {
+  id: number;
+  jobId: number;
+  jobType: WorkflowJobType;
+  attempt: number;
+  status: WorkflowJobExecutionStatus;
+  requestUrl: string | null;
+  requestMethod: string | null;
+  requestBody: string | null;
+  responseStatus: number | null;
+  responseBody: string | null;
+  errorMessage: string | null;
+  durationMs: number | null;
+  startedAt: string | null;
+  finishedAt: string | null;
   tenantId: number | null;
   createdAt: string;
 }

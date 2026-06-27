@@ -1597,10 +1597,14 @@ export const workflowFormTypeEnum = pgEnum('workflow_form_type', ['designer', 'c
 export const workflowInstanceStatusEnum = pgEnum('workflow_instance_status', ['draft', 'running', 'approved', 'rejected', 'withdrawn', 'cancelled']);
 export const workflowTaskStatusEnum = pgEnum('workflow_task_status', ['pending', 'approved', 'rejected', 'skipped', 'waiting']);
 export const workflowEventSignModeEnum = pgEnum('workflow_event_sign_mode', ['hmacSha256', 'none']);
-export const workflowEventDeliveryStatusEnum = pgEnum('workflow_event_delivery_status', ['pending', 'success', 'failed', 'retrying']);
-export const workflowTriggerExecutionStatusEnum = pgEnum('workflow_trigger_execution_status', ['pending', 'running', 'success', 'failed', 'retrying']);
-export const workflowTaskExternalDispatchStatusEnum = pgEnum('workflow_task_external_dispatch_status', ['pending', 'dispatched', 'failed', 'fallback']);
 export const workflowApproveMethodEnum = pgEnum('workflow_approve_method', ['and', 'or', 'sequential', 'ratio']);
+// 统一作业账本枚举
+export const workflowJobTypeEnum = pgEnum('workflow_job_type', [
+  'delay_wake', 'task_timeout', 'trigger_dispatch', 'external_dispatch',
+  'subprocess_spawn', 'subprocess_join', 'event_dispatch', 'webhook_delivery',
+]);
+export const workflowJobStatusEnum = pgEnum('workflow_job_status', ['pending', 'running', 'succeeded', 'failed', 'dead', 'canceled']);
+export const workflowJobExecutionStatusEnum = pgEnum('workflow_job_execution_status', ['running', 'succeeded', 'failed']);
 export const workflowNodeTypeEnum = pgEnum('workflow_node_type', [
   'start',
   'approve',
@@ -1934,30 +1938,12 @@ export const workflowTasks = pgTable('workflow_tasks', {
   approveMethod: workflowApproveMethodEnum('approve_method'),
   /** 比例会签阈值（1–100 百分比），仅 approveMethod='ratio' 时有意义 */
   approveRatio: integer('approve_ratio'),
-  /** 外部审批：回调 ID（task.status='waiting' 期间有效） */
+  /** 外部审批：回调 ID（task.status='waiting' 期间有效；派发/恢复由 workflow_jobs 接管） */
   externalCallbackId: varchar('external_callback_id', { length: 64 }).unique(),
-  /** 外部审批：调度状态 */
-  externalDispatchStatus: workflowTaskExternalDispatchStatusEnum('external_dispatch_status'),
-  /** 触发器：调度/执行状态，用于 outbox 重放幂等与恢复 */
-  triggerDispatchStatus: workflowTriggerExecutionStatusEnum('trigger_dispatch_status'),
-  /** 触发器：已调度尝试次数 */
-  triggerAttempt: integer('trigger_attempt').default(0).notNull(),
-  /** 触发器：本次调度开始时间，用于识别 running 卡死 */
-  triggerStartedAt: timestamp('trigger_started_at', { withTimezone: true }),
-  /** 触发器：下一次恢复重试时间 */
-  triggerNextRetryAt: timestamp('trigger_next_retry_at', { withTimezone: true }),
-  /** 触发器：最近一次调度错误 */
-  triggerLastError: text('trigger_last_error'),
-  /** delay 节点的唤醒时间（status='waiting' 期间有效，由调度器扫描） */
-  wakeAt: timestamp('wake_at', { withTimezone: true }),
   /** 子流程（multi 多实例）：期望子实例总数（仅 subProcess 多实例 waiting 任务有值；单实例/非子流程为 null） */
   subTotal: integer('sub_total'),
   /** 子流程（multi 多实例）：已结束的子实例数（用于汇聚 join 判定） */
   subDone: integer('sub_done').default(0).notNull(),
-  /** 审批超时截止时间（仅 pending 任务，由调度器扫描；waiting/已完成任务为 null） */
-  timeoutAt: timestamp('timeout_at', { withTimezone: true }),
-  /** 已发送的超时提醒次数（用于 action='remind' 时限制提醒上限） */
-  timeoutRemindCount: integer('timeout_remind_count').default(0).notNull(),
   /** 任务最初的处理人（创建时快照，转办/委派不会修改） */
   originalAssigneeId: integer('original_assignee_id').references(() => users.id, { onDelete: 'set null' }),
   /** 转办/委派链路上经手过的处理人 ID（含原始创建人） */
@@ -2013,64 +1999,64 @@ export const workflowEventSubscriptions = pgTable('workflow_event_subscriptions'
 export type WorkflowEventSubscriptionRow = typeof workflowEventSubscriptions.$inferSelect;
 export type NewWorkflowEventSubscription = typeof workflowEventSubscriptions.$inferInsert;
 
-export const workflowEventDeliveries = pgTable('workflow_event_deliveries', {
+// ─── 工作流统一作业账本 ────────────────────────────────────────────────────────
+// 所有"系统级异步动作"（delay 唤醒 / 审批超时 / 触发器派发 / 外部审批派发 /
+// 子流程发起·汇聚 / 事件派发 / Webhook 投递）统一落到本表，由统一 Worker 消费。
+// 取代旧的 workflow_event_outbox / workflow_trigger_executions / workflow_event_deliveries
+// 以及 workflow_tasks 上的 trigger*/external*/wakeAt/timeout* 调度列。
+export const workflowJobs = pgTable('workflow_jobs', {
   id: serial('id').primaryKey(),
-  subscriptionId: integer('subscription_id').notNull().references(() => workflowEventSubscriptions.id, { onDelete: 'cascade' }),
-  instanceId: integer('instance_id'),
-  taskId: integer('task_id'),
-  eventId: varchar('event_id', { length: 64 }).notNull(),
-  eventType: varchar('event_type', { length: 64 }).notNull(),
-  payload: jsonb('payload'),
-  attempt: integer('attempt').default(0).notNull(),
-  status: workflowEventDeliveryStatusEnum('status').default('pending').notNull(),
-  requestUrl: varchar('request_url', { length: 512 }),
-  requestHeaders: text('request_headers'),
-  responseStatus: integer('response_status'),
-  responseBody: text('response_body'),
-  errorMessage: text('error_message'),
-  durationMs: integer('duration_ms'),
-  nextRetryAt: timestamp('next_retry_at', { withTimezone: true }),
-  startedAt: timestamp('started_at', { withTimezone: true }),
-  finishedAt: timestamp('finished_at', { withTimezone: true }),
-  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
-
-export type WorkflowEventDeliveryRow = typeof workflowEventDeliveries.$inferSelect;
-export type NewWorkflowEventDelivery = typeof workflowEventDeliveries.$inferInsert;
-
-export const workflowEventOutbox = pgTable('workflow_event_outbox', {
-  id: serial('id').primaryKey(),
-  eventId: varchar('event_id', { length: 64 }).notNull().unique(),
-  eventType: varchar('event_type', { length: 64 }).notNull(),
-  instanceId: integer('instance_id'),
-  definitionId: integer('definition_id'),
-  taskId: integer('task_id'),
-  payload: jsonb('payload').notNull(),
-  status: varchar('status', { length: 16 }).notNull().default('pending'),
+  /** 作业类型，决定派发到哪个 handler */
+  jobType: workflowJobTypeEnum('job_type').notNull(),
+  status: workflowJobStatusEnum('status').notNull().default('pending'),
+  /** 关联运行态（纯事件派发可空） */
+  instanceId: integer('instance_id').references(() => workflowInstances.id, { onDelete: 'cascade' }),
+  taskId: integer('task_id').references(() => workflowTasks.id, { onDelete: 'cascade' }),
+  nodeKey: varchar('node_key', { length: 64 }),
+  /** 幂等键（如 delay:{taskId} / trigger:{taskId}:{attempt} / event:{eventId}），唯一去重 */
+  idempotencyKey: varchar('idempotency_key', { length: 160 }).unique(),
+  /** 贯穿一次推进的所有异步动作，串起任务/事件/触发器/Webhook/子流程 */
+  traceId: varchar('trace_id', { length: 64 }),
+  /** 执行所需的上下文（事件 payload / 触发器配置 / 子流程参数等） */
+  payload: jsonb('payload').notNull().default(sql`'{}'::jsonb`),
+  /** 优先级（复用实例 priority：low/normal/high/urgent，数值越小越先） */
+  priority: integer('priority').notNull().default(100),
+  /** 已尝试次数 */
   attempts: integer('attempts').notNull().default(0),
-  errorMessage: text('error_message'),
-  nextRetryAt: timestamp('next_retry_at', { withTimezone: true }),
-  processedAt: timestamp('processed_at', { withTimezone: true }),
+  /** 最大尝试次数（超过进死信） */
+  maxAttempts: integer('max_attempts').notNull().default(1),
+  /** 何时应执行（delay=wakeAt、timeout=timeoutAt、retry=退避时间） */
+  runAt: timestamp('run_at', { withTimezone: true }).notNull().defaultNow(),
+  /** 领取锁定时间（FOR UPDATE SKIP LOCKED 领取后写入，用于识别卡死 running） */
+  lockedAt: timestamp('locked_at', { withTimezone: true }),
+  /** 领取者标识（worker/进程） */
+  lockedBy: varchar('locked_by', { length: 64 }),
+  /** 最近一次错误 */
+  lastError: text('last_error'),
+  /** 执行结果（成功时写入，供审计/串联） */
+  result: jsonb('result'),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+  ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
-  index('workflow_event_outbox_status_idx').on(t.status, t.nextRetryAt),
-  index('workflow_event_outbox_instance_idx').on(t.instanceId),
+  index('workflow_jobs_due_idx').on(t.status, t.runAt),
+  index('workflow_jobs_type_status_idx').on(t.jobType, t.status),
+  index('workflow_jobs_trace_idx').on(t.traceId),
+  index('workflow_jobs_instance_idx').on(t.instanceId),
 ]);
 
-export type WorkflowEventOutboxRow = typeof workflowEventOutbox.$inferSelect;
-export type NewWorkflowEventOutbox = typeof workflowEventOutbox.$inferInsert;
+export type WorkflowJobRow = typeof workflowJobs.$inferSelect;
+export type NewWorkflowJob = typeof workflowJobs.$inferInsert;
 
-export const workflowTriggerExecutions = pgTable('workflow_trigger_executions', {
+// 作业每一次执行尝试的审计日志（取代 workflow_trigger_executions，泛化到所有 jobType）
+export const workflowJobExecutions = pgTable('workflow_job_executions', {
   id: serial('id').primaryKey(),
-  instanceId: integer('instance_id').notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),
-  taskId: integer('task_id').references(() => workflowTasks.id, { onDelete: 'set null' }),
-  nodeKey: varchar('node_key', { length: 64 }).notNull(),
-  nodeName: varchar('node_name', { length: 64 }),
-  triggerType: varchar('trigger_type', { length: 32 }).notNull(),
-  status: workflowTriggerExecutionStatusEnum('status').default('pending').notNull(),
-  attempt: integer('attempt').default(0).notNull(),
+  jobId: integer('job_id').notNull().references(() => workflowJobs.id, { onDelete: 'cascade' }),
+  jobType: workflowJobTypeEnum('job_type').notNull(),
+  attempt: integer('attempt').notNull().default(0),
+  status: workflowJobExecutionStatusEnum('status').notNull().default('running'),
+  /** HTTP 类作业（trigger/external/webhook）的请求/响应明细 */
   requestUrl: varchar('request_url', { length: 512 }),
   requestMethod: varchar('request_method', { length: 16 }),
   requestBody: text('request_body'),
@@ -2078,12 +2064,17 @@ export const workflowTriggerExecutions = pgTable('workflow_trigger_executions', 
   responseBody: text('response_body'),
   errorMessage: text('error_message'),
   durationMs: integer('duration_ms'),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('workflow_job_executions_job_idx').on(t.jobId),
+  index('workflow_job_executions_type_idx').on(t.jobType, t.status),
+]);
 
-export type WorkflowTriggerExecutionRow = typeof workflowTriggerExecutions.$inferSelect;
-export type NewWorkflowTriggerExecution = typeof workflowTriggerExecutions.$inferInsert;
+export type WorkflowJobExecutionRow = typeof workflowJobExecutions.$inferSelect;
+export type NewWorkflowJobExecution = typeof workflowJobExecutions.$inferInsert;
 
 // ─── 流程评论 / 沟通时间线 ────────────────────────────────────────────────────
 // 审批人 / 抄送人 / 发起人均可在实例下自由留言（不影响审批流转），支持 @ 提及
@@ -3231,6 +3222,17 @@ export const workflowTaskUrgesRelations = relations(workflowTaskUrges, ({ one })
   task: one(workflowTasks, { fields: [workflowTaskUrges.taskId], references: [workflowTasks.id] }),
   instance: one(workflowInstances, { fields: [workflowTaskUrges.instanceId], references: [workflowInstances.id] }),
   urger: one(users, { fields: [workflowTaskUrges.urgerId], references: [users.id] }),
+}));
+
+export const workflowJobsRelations = relations(workflowJobs, ({ one, many }) => ({
+  instance: one(workflowInstances, { fields: [workflowJobs.instanceId], references: [workflowInstances.id] }),
+  task: one(workflowTasks, { fields: [workflowJobs.taskId], references: [workflowTasks.id] }),
+  tenant: one(tenants, { fields: [workflowJobs.tenantId], references: [tenants.id] }),
+  executions: many(workflowJobExecutions),
+}));
+
+export const workflowJobExecutionsRelations = relations(workflowJobExecutions, ({ one }) => ({
+  job: one(workflowJobs, { fields: [workflowJobExecutions.jobId], references: [workflowJobs.id] }),
 }));
 
 export const chatConversationsRelations = relations(chatConversations, ({ one, many }) => ({
