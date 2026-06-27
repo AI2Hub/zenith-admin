@@ -215,42 +215,42 @@ export default function AnnouncementsPage() {
     return (
       <>
         {markAllReadButton && (
-        <SearchToolbar>
-          {markAllReadButton}
-        </SearchToolbar>
+          <SearchToolbar>
+            {markAllReadButton}
+          </SearchToolbar>
         )}
 
         {list.length === 0 && !loading ? (
-        <Empty
-          image={<IllustrationNoContent style={{ width: 120, height: 120 }} />}
-          darkModeImage={<IllustrationNoContentDark style={{ width: 120, height: 120 }} />}
-          description={(() => {
-            if (tab === 'unread') return '暂无未读公告';
-            if (tab === 'read') return '暂无已读公告';
-            return '暂无公告';
-          })()}
-          style={{ padding: '48px 0' }}
-        />
-      ) : (
-        <ConfigurableTable
-          bordered
-          loading={loading}
-          onRefresh={() => void fetchList(page)}
-          refreshLoading={loading}
-          dataSource={list}
-          rowKey="id"
-          columns={columns}
-          pagination={{
-            total,
-            currentPage: page,
-            pageSize: 10,
-            showSizeChanger: false,
-            onPageChange: (p) => void fetchList(p),
-          }}
-          onRow={(record) => ({
-            style: { opacity: (record as AnnouncementWithRead).isRead ? 0.7 : 1 },
-          })}
-        />
+          <Empty
+            image={<IllustrationNoContent style={{ width: 120, height: 120 }} />}
+            darkModeImage={<IllustrationNoContentDark style={{ width: 120, height: 120 }} />}
+            description={(() => {
+              if (tab === 'unread') return '暂无未读公告';
+              if (tab === 'read') return '暂无已读公告';
+              return '暂无公告';
+            })()}
+            style={{ padding: '48px 0' }}
+          />
+        ) : (
+          <ConfigurableTable
+            bordered
+            loading={loading}
+            onRefresh={() => void fetchList(page)}
+            refreshLoading={loading}
+            dataSource={list}
+            rowKey="id"
+            columns={columns}
+            pagination={{
+              total,
+              currentPage: page,
+              pageSize: 10,
+              showSizeChanger: false,
+              onPageChange: (p) => void fetchList(p),
+            }}
+            onRow={(record) => ({
+              style: { opacity: (record as AnnouncementWithRead).isRead ? 0.7 : 1 },
+            })}
+          />
         )}
       </>
     );
