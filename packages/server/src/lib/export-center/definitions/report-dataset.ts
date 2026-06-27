@@ -34,6 +34,24 @@ function mapFieldType(type?: string): ExportColumnType | undefined {
   return undefined; // string / date 按文本原样输出，避免二次格式化
 }
 
+/**
+ * 单次导出任务内复用取数结果，避免 countRows / streamRows / resolveColumns 重复执行查询。
+ * 短 TTL 自然过期，同一 (datasetId+params+limit) 30s 内只取一次。
+ */
+const fetchMemo = new Map<string, { at: number; promise: ReturnType<typeof getDatasetData> }>();
+const MEMO_TTL_MS = 30_000;
+
+function fetchDatasetOnce(q: { datasetId: number; params?: Record<string, unknown>; limit: number }) {
+  const key = JSON.stringify(q);
+  const now = Date.now();
+  for (const [k, v] of fetchMemo) if (now - v.at > MEMO_TTL_MS) fetchMemo.delete(k);
+  const hit = fetchMemo.get(key);
+  if (hit && now - hit.at <= MEMO_TTL_MS) return hit.promise;
+  const promise = getDatasetData(q.datasetId, q.params, q.limit);
+  fetchMemo.set(key, { at: now, promise });
+  return promise;
+}
+
 export const reportDatasetExportDefinition = defineExport<ReportDatasetExportQuery, Record<string, unknown>>({
   entity: 'report.dataset',
   moduleName: '报表数据集',
@@ -50,7 +68,7 @@ export const reportDatasetExportDefinition = defineExport<ReportDatasetExportQue
   },
   columns: [],
   resolveColumns: async (query) => {
-    const { datasetId, params } = pickQuery(query);
+    const { datasetId, params, limit } = pickQuery(query);
     const row = await ensureDatasetExists(datasetId);
     const fields = (row.fields ?? []) as ReportField[];
     const computed = (row.computedFields ?? []) as ReportComputedField[];
@@ -60,8 +78,8 @@ export const reportDatasetExportDefinition = defineExport<ReportDatasetExportQue
     ];
     let defs = declared;
     if (defs.length === 0) {
-      // 未声明字段：探测一行推断列
-      const probe = await getDatasetData(datasetId, params, 1);
+      // 未声明字段：复用任务内取数结果推断列
+      const probe = await fetchDatasetOnce({ datasetId, params, limit });
       defs = probe.columns.map((name) => ({ name, label: name, type: undefined }));
     }
     return defs.map<ExportColumn>((f) => ({
@@ -73,12 +91,12 @@ export const reportDatasetExportDefinition = defineExport<ReportDatasetExportQue
   },
   countRows: async (query) => {
     const { datasetId, params, limit } = pickQuery(query);
-    const data = await getDatasetData(datasetId, params, limit);
+    const data = await fetchDatasetOnce({ datasetId, params, limit });
     return data.total ?? data.rows.length;
   },
   streamRows: async (query) => {
     const { datasetId, params, limit } = pickQuery(query);
-    const data = await getDatasetData(datasetId, params, limit);
+    const data = await fetchDatasetOnce({ datasetId, params, limit });
     return data.rows;
   },
 });

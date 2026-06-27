@@ -38,11 +38,9 @@ function parseCsv(text: string): ReportDataResult {
     const cells = parseCsvLine(lines[i]);
     const row: Record<string, unknown> = {};
     headers.forEach((h, idx) => {
-      const raw = cells[idx] ?? '';
-      // 仅当数字往返无损时才转 number，避免手机号/前导零/大整数被破坏
-      const asNum = Number(raw);
-      const num = raw !== '' && Number.isFinite(asNum) && String(asNum) === raw ? asNum : raw;
-      row[h] = num;
+      // CSV 一律保留为字符串，避免手机号/前导零/大整数/科学计数被 Number() 破坏；
+      // 数值聚合与格式化由下游 toNumber()/字段格式统一处理。
+      row[h] = (cells[idx] ?? '').trim();
     });
     rows.push(row);
   }

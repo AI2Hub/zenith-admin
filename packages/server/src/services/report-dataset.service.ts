@@ -22,7 +22,7 @@ import { currentUserOrNull } from '../lib/context';
 import { applyComputedFields } from '../lib/report-formula';
 import { runExternalQuery } from '../lib/report-external-db';
 import { ensureDatasourceExists, resolveApiHeaders } from './report-datasource.service';
-import { isSqlLikeType, isExternalDbType } from '@zenith/shared';
+import { isSqlLikeType, isExternalDbType, REPORT_DATASOURCE_TYPES } from '@zenith/shared';
 import type { ReportDatasetRow } from '../db/schema';
 import type {
   ReportDataset, ReportDataResult, ReportField, ReportFieldType, ReportDatasetContent, ReportDatasetParam,
@@ -239,8 +239,8 @@ export async function listDatasets(query: {
     conds.push(or(ilike(reportDatasets.name, kw), ilike(reportDatasets.remark, kw)));
   }
   if (datasourceId) conds.push(eq(reportDatasets.datasourceId, datasourceId));
-  if (type === 'api' || type === 'sql' || type === 'mysql' || type === 'postgresql' || type === 'sqlserver' || type === 'static') {
-    conds.push(eq(reportDatasets.type, type));
+  if (type && (REPORT_DATASOURCE_TYPES as readonly string[]).includes(type)) {
+    conds.push(eq(reportDatasets.type, type as ReportDatasourceType));
   }
   if (status === 'enabled' || status === 'disabled') conds.push(eq(reportDatasets.status, status));
   const where = conds.length ? and(...conds) : undefined;
