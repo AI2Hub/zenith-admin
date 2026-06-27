@@ -1,15 +1,16 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createReportVersionSchema, createReportShareSchema, updateReportShareSchema } from '@zenith/shared';
+import { createReportVersionSchema, createReportShareSchema, updateReportShareSchema, createReportCommentSchema } from '@zenith/shared';
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import {
   ErrorResponse, jsonContent, validationHook, commonErrorResponses, ok, okMsg, IdParam, okBody,
 } from '../lib/openapi-schemas';
-import { ReportDashboardVersionDTO, ReportDashboardShareDTO } from '../lib/openapi-dtos';
+import { ReportDashboardVersionDTO, ReportDashboardShareDTO, ReportDashboardCommentDTO } from '../lib/openapi-dtos';
 import {
   listVersions, createVersion, restoreVersion, toggleFavorite,
   listShares, createShare, updateShare, deleteShare,
 } from '../services/report-ops.service';
+import { listComments, createComment, deleteComment } from '../services/report-comment.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -19,6 +20,10 @@ const RestoreParam = z.object({
 });
 const ShareIdParam = z.object({
   shareId: z.coerce.number().int().positive().openapi({ param: { name: 'shareId', in: 'path' }, example: 1 }),
+});
+const CommentIdParam = z.object({
+  id: z.coerce.number().int().positive().openapi({ param: { name: 'id', in: 'path' }, example: 1 }),
+  commentId: z.coerce.number().int().positive().openapi({ param: { name: 'commentId', in: 'path' }, example: 1 }),
 });
 
 // ── 版本 ──

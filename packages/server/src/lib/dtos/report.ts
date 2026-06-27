@@ -267,3 +267,47 @@ export const ReportPrintRenderResultDTO = z
 export const ReportNl2SqlResultDTO = z
   .object({ sql: z.string() })
   .openapi('ReportNl2SqlResult');
+
+// ─── 数据预警 ────────────────────────────────────────────────────────────────
+export const ReportAlertRuleDTO = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    datasetId: z.number().int(),
+    datasetName: z.string().nullable().optional(),
+    field: z.string().nullable().optional(),
+    aggregate: z.enum(['sum', 'avg', 'max', 'min', 'count', 'first']),
+    op: z.enum(['gt', 'gte', 'lt', 'lte', 'eq', 'neq']),
+    threshold: z.number(),
+    cron: z.string().nullable().optional(),
+    channels: z.array(z.enum(['email', 'inApp'])),
+    recipients: z.string().nullable().optional(),
+    enabled: z.boolean(),
+    lastCheckedAt: z.string().nullable().optional(),
+    lastTriggered: z.boolean().nullable().optional(),
+    lastValue: z.number().nullable().optional(),
+    remark: z.string().nullable().optional(),
+    ...auditFields,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('ReportAlertRule');
+
+/** 预警评估结果 */
+export const ReportAlertEvalResultDTO = z
+  .object({ value: z.number(), triggered: z.boolean() })
+  .openapi('ReportAlertEvalResult');
+
+// ─── 仪表盘评论 ──────────────────────────────────────────────────────────────
+export const ReportDashboardCommentDTO = z
+  .object({
+    id: z.number().int(),
+    dashboardId: z.number().int(),
+    widgetId: z.string().nullable().optional(),
+    content: z.string(),
+    userId: z.number().int(),
+    userName: z.string().nullable().optional(),
+    userAvatar: z.string().nullable().optional(),
+    createdAt: z.string(),
+  })
+  .openapi('ReportDashboardComment');
