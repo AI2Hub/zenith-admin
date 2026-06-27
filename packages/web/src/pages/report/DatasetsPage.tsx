@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Button, Form, Input, Select, Table, Tag, Toast, Modal, Space, Typography, Empty } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Select, Table, Tag, Toast, Modal, Space, Typography, Empty, Switch, InputNumber, TextArea } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus, Play } from 'lucide-react';
+import { Search, RotateCcw, Plus, Play, Upload as UploadIcon } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -15,27 +15,32 @@ import { usePagination } from '@/hooks/usePagination';
 import type {
   ReportDataset, ReportDatasource, ReportDatasourceType, ReportField, ReportDataResult,
   ReportApiDatasetContent, ReportSqlDatasetContent, ReportComputedField, PaginatedResponse,
+  ReportStaticDatasetContent, ReportFieldFormat,
 } from '@zenith/shared';
 
 interface SearchParams { keyword: string; status: string }
 const defaultSearchParams: SearchParams = { keyword: '', status: '' };
 
 function isSqlAuthoringType(type: ReportDatasourceType | null) {
-  return type === 'sql' || type === 'mysql' || type === 'postgresql';
+  return type === 'sql' || type === 'mysql' || type === 'postgresql' || type === 'sqlserver';
 }
 
 function datasourceTypeLabel(type: ReportDatasourceType) {
   if (type === 'api') return 'API';
   if (type === 'sql') return 'SQL';
   if (type === 'mysql') return 'MySQL';
-  return 'PostgreSQL';
+  if (type === 'postgresql') return 'PostgreSQL';
+  if (type === 'sqlserver') return 'SQL Server';
+  return '静态';
 }
 
 function datasourceTypeTag(type: ReportDatasourceType) {
   if (type === 'api') return <Tag color="blue" size="small">API</Tag>;
   if (type === 'sql') return <Tag color="violet" size="small">SQL</Tag>;
   if (type === 'mysql') return <Tag color="cyan" size="small">MySQL</Tag>;
-  return <Tag color="indigo" size="small">PostgreSQL</Tag>;
+  if (type === 'postgresql') return <Tag color="indigo" size="small">PostgreSQL</Tag>;
+  if (type === 'sqlserver') return <Tag color="orange" size="small">SQL Server</Tag>;
+  return <Tag color="grey" size="small">静态</Tag>;
 }
 
 const COMPUTED_FIELD_TYPE_OPTIONS = [
@@ -45,9 +50,44 @@ const COMPUTED_FIELD_TYPE_OPTIONS = [
   { value: 'boolean', label: '布尔' },
 ];
 
+const FIELD_FORMAT_KIND_OPTIONS = [
+  { value: '', label: '无' },
+  { value: 'number', label: '数字' },
+  { value: 'percent', label: '百分比' },
+  { value: 'currency', label: '货币' },
+  { value: 'date', label: '日期' },
+  { value: 'datetime', label: '日期时间' },
+  { value: 'dict', label: '字典' },
+];
+
+interface ParseFileResult {
+  columns: string[];
+  rows: Record<string, unknown>[];
+  total: number;
+}
+
+function inferColumns(rows: Record<string, unknown>[]): string[] {
+  const set = new Set<string>();
+  rows.forEach((row) => Object.keys(row).forEach((key) => set.add(key)));
+  return Array.from(set);
+}
+
+function inferFieldType(rows: Record<string, unknown>[], name: string): ReportField['type'] {
+  const sample = rows.find((row) => row[name] !== null && row[name] !== undefined)?.[name];
+  if (typeof sample === 'number') return 'number';
+  if (typeof sample === 'boolean') return 'boolean';
+  if (typeof sample === 'string' && /^\d{4}-\d{2}-\d{2}/.test(sample)) return 'date';
+  return 'string';
+}
+
+function fieldsFromColumns(columns: string[], rows: Record<string, unknown>[] = []): ReportField[] {
+  return columns.map((name) => ({ name, label: name, type: inferFieldType(rows, name) }));
+}
+
 export default function DatasetsPage() {
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi | null>(null);
+  const staticFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [data, setData] = useState<PaginatedResponse<ReportDataset> | null>(null);
   const [loading, setLoading] = useState(false);
@@ -69,10 +109,14 @@ export default function DatasetsPage() {
   const [selectedDsId, setSelectedDsId] = useState<number | null>(null);
   const [fields, setFields] = useState<ReportField[]>([]);
   const [computedFields, setComputedFields] = useState<ReportComputedField[]>([]);
+  const [materialize, setMaterialize] = useState<{ enabled: boolean; cron?: string }>({ enabled: false, cron: '' });
+  const [staticJsonText, setStaticJsonText] = useState('[]');
+  const [staticColumns, setStaticColumns] = useState<string[]>([]);
+  const [staticUploading, setStaticUploading] = useState(false);
   const [preview, setPreview] = useState<ReportDataResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  const selectedType: ReportDatasourceType | null = selectedDsId ? dsTypeMap.get(selectedDsId) ?? null : null;
+  const selectedType: ReportDatasourceType | null = selectedDsId ? dsTypeMap.get(selectedDsId) ?? editing?.type ?? null : null;
 
   const fetchList = useCallback(async (p = page, ps = pageSize, params?: SearchParams) => {
     const active = params ?? searchParamsRef.current;
@@ -102,6 +146,18 @@ export default function DatasetsPage() {
     setSelectedDsId(ds?.datasourceId ?? null);
     setFields(ds?.fields ?? []);
     setComputedFields(ds?.computedFields ?? []);
+    setMaterialize({ enabled: ds?.materialize?.enabled ?? false, cron: ds?.materialize?.cron ?? '' });
+    if (ds?.type === 'static') {
+      const content = (ds.content ?? {}) as ReportStaticDatasetContent;
+      const rows = Array.isArray(content.data) ? content.data : [];
+      const columns = content.columns?.length ? content.columns : inferColumns(rows);
+      setStaticJsonText(JSON.stringify(rows, null, 2));
+      setStaticColumns(columns);
+      setPreview(columns.length || rows.length ? { columns, rows: rows.slice(0, 50), total: rows.length } : null);
+      return;
+    }
+    setStaticJsonText('[]');
+    setStaticColumns([]);
     setPreview(null);
   }
   function openCreate() { setEditing(null); resetModalExtra(null); setModalVisible(true); }
@@ -123,6 +179,56 @@ export default function DatasetsPage() {
       }
     : { status: 'enabled', cacheTtl: 0 };
 
+  function parseStaticRows(showToast = true): Record<string, unknown>[] | null {
+    try {
+      const parsed = JSON.parse(staticJsonText || '[]') as unknown;
+      if (!Array.isArray(parsed)) {
+        if (showToast) Toast.error('静态数据必须是 JSON 数组');
+        return null;
+      }
+      const valid = parsed.every((row) => row && typeof row === 'object' && !Array.isArray(row));
+      if (!valid) {
+        if (showToast) Toast.error('静态数据数组的每一项都必须是对象');
+        return null;
+      }
+      return parsed as Record<string, unknown>[];
+    } catch {
+      if (showToast) Toast.error('静态数据不是合法 JSON');
+      return null;
+    }
+  }
+
+  function applyStaticPreview(rows: Record<string, unknown>[], columns?: string[]) {
+    const cols = columns?.length ? columns : inferColumns(rows);
+    setStaticColumns(cols);
+    setPreview({ columns: cols, rows: rows.slice(0, 50), total: rows.length });
+  }
+
+  function handleStaticJsonBlur() {
+    const rows = parseStaticRows(true);
+    if (!rows) return;
+    applyStaticPreview(rows);
+  }
+
+  async function handleStaticFile(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    setStaticUploading(true);
+    try {
+      const res = await request.postForm<ParseFileResult>('/api/report/datasets/parse-file', formData, { silent: true });
+      if (res.code !== 0) {
+        Toast.error(res.message || '文件解析失败');
+        return;
+      }
+      setStaticJsonText(JSON.stringify(res.data.rows, null, 2));
+      applyStaticPreview(res.data.rows, res.data.columns);
+      setFields(fieldsFromColumns(res.data.columns, res.data.rows));
+      Toast.success(`解析成功，共 ${res.data.total} 行`);
+    } finally {
+      setStaticUploading(false);
+    }
+  }
+
   /** 根据当前表单值构造 content（按选中数据源类型）*/
   function buildContent(values: Record<string, unknown>): Record<string, unknown> | null {
     if (isSqlAuthoringType(selectedType)) {
@@ -136,6 +242,13 @@ export default function DatasetsPage() {
         catch { Toast.error('参数不是合法 JSON'); return null; }
       }
       return { itemsPath: String(values.itemsPath ?? '') || null, params: params ?? null };
+    }
+    if (selectedType === 'static') {
+      const rows = parseStaticRows(true);
+      if (!rows) return null;
+      const inferred = inferColumns(rows);
+      const columns = staticColumns.length && inferred.every((col) => staticColumns.includes(col)) ? staticColumns : inferred;
+      return { data: rows, columns };
     }
     return {};
   }
@@ -157,9 +270,24 @@ export default function DatasetsPage() {
     return list;
   }
 
+  function normalizeFields(): ReportField[] {
+    return fields.map((field) => ({
+      ...field,
+      name: field.name.trim(),
+      label: field.label.trim() || field.name.trim(),
+      ...(field.format ? { format: field.format } : {}),
+    }));
+  }
+
   async function handlePreview() {
     const values = formApi.current?.getValues() as Record<string, unknown>;
     if (!selectedDsId) { Toast.warning('请先选择数据源'); return; }
+    if (selectedType === 'static') {
+      const rows = parseStaticRows(true);
+      if (!rows) return;
+      applyStaticPreview(rows);
+      return;
+    }
     const content = buildContent(values ?? {});
     if (content === null) return;
     const normalizedComputedFields = normalizeComputedFields();
@@ -178,7 +306,7 @@ export default function DatasetsPage() {
 
   function applyFieldsFromPreview() {
     if (!preview) return;
-    setFields(preview.columns.map((c) => ({ name: c, label: c, type: 'string' })));
+    setFields(fieldsFromColumns(preview.columns, preview.rows));
     Toast.success(`已生成 ${preview.columns.length} 个字段`);
   }
 
@@ -196,9 +324,13 @@ export default function DatasetsPage() {
       name: values.name,
       datasourceId: selectedDsId,
       content,
-      fields,
+      fields: normalizeFields(),
       computedFields: normalizedComputedFields,
       cacheTtl: Number(values.cacheTtl) || 0,
+      materialize: {
+        enabled: materialize.enabled,
+        ...(materialize.cron?.trim() ? { cron: materialize.cron.trim() } : {}),
+      },
       status: values.status,
       remark: values.remark || undefined,
     };
@@ -215,6 +347,37 @@ export default function DatasetsPage() {
   async function handleDelete(id: number) {
     const res = await request.delete(`/api/report/datasets/${id}`);
     if (res.code === 0) { Toast.success('删除成功'); void fetchList(); }
+  }
+
+  async function handleRefreshMaterialize(record: ReportDataset) {
+    const res = await request.post(`/api/report/datasets/${record.id}/materialize`);
+    if (res.code === 0) Toast.success(res.message || '物化刷新成功');
+  }
+
+  function updateField(index: number, patch: Partial<ReportField>) {
+    setFields((prev) => prev.map((field, i) => (i === index ? { ...field, ...patch } : field)));
+  }
+
+  function updateFieldFormat(index: number, kind: ReportFieldFormat['kind'] | '') {
+    setFields((prev) => prev.map((field, i) => {
+      if (i !== index) return field;
+      if (!kind) {
+        const { format: _format, ...rest } = field;
+        return rest;
+      }
+      const nextFormat: ReportFieldFormat = {
+        kind,
+        ...(kind === 'currency' ? { currencySymbol: field.format?.currencySymbol ?? '¥' } : {}),
+        ...(field.format?.decimals != null && ['number', 'percent', 'currency'].includes(kind) ? { decimals: field.format.decimals } : {}),
+        ...(field.format?.thousands != null && ['number', 'currency'].includes(kind) ? { thousands: field.format.thousands } : {}),
+        ...(kind === 'dict' && field.format?.dictCode ? { dictCode: field.format.dictCode } : {}),
+      };
+      return { ...field, format: nextFormat };
+    }));
+  }
+
+  function patchFieldFormat(index: number, patch: Partial<ReportFieldFormat>) {
+    setFields((prev) => prev.map((field, i) => (i === index && field.format ? { ...field, format: { ...field.format, ...patch } } : field)));
   }
 
   function updateComputedField(index: number, patch: Partial<ReportComputedField>) {
@@ -244,9 +407,10 @@ export default function DatasetsPage() {
       render: (s: string) => s === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag>,
     },
     createOperationColumn<ReportDataset>({
-      width: 140,
-      desktopInlineKeys: ['edit', 'delete'],
+      width: 180,
+      desktopInlineKeys: ['refreshMaterialize', 'edit', 'delete'],
       actions: (record) => [
+        ...(record.materialize?.enabled && hasPermission('report:dataset:update') ? [{ key: 'refreshMaterialize', label: '刷新物化', onClick: () => void handleRefreshMaterialize(record) }] : []),
         ...(hasPermission('report:dataset:update') ? [{ key: 'edit', label: '编辑', onClick: () => openEdit(record) }] : []),
         ...(hasPermission('report:dataset:delete') ? [{
           key: 'delete', label: '删除', danger: true,
@@ -298,7 +462,14 @@ export default function DatasetsPage() {
         width={760}
       >
         <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={formInitValues}
-          labelPosition="left" labelWidth={72} onValueChange={(v) => { if (v.datasourceId !== undefined) setSelectedDsId(v.datasourceId as number); }}>
+          labelPosition="left" labelWidth={72} onValueChange={(v) => {
+            if (v.datasourceId === undefined) return;
+            setSelectedDsId((prev) => {
+              const next = v.datasourceId as number;
+              if (prev !== next) setPreview(null);
+              return next;
+            });
+          }}>
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear />
           <Form.Select field="datasourceId" label="数据源" style={{ width: '100%' }} rules={[{ required: true, message: '请选择数据源' }]}
             placeholder="选择数据源"
@@ -316,8 +487,54 @@ export default function DatasetsPage() {
               <Form.TextArea field="paramsText" label="附加参数" placeholder={'选填，JSON 键值，如：\n{ "status": "paid" }'} autosize={{ minRows: 2, maxRows: 5 }} />
             </>
           )}
+          {selectedType === 'static' && (
+            <>
+              <Form.Slot label="静态数据">
+                <TextArea
+                  value={staticJsonText}
+                  onChange={setStaticJsonText}
+                  onBlur={handleStaticJsonBlur}
+                  placeholder={'粘贴 JSON 数组，例如：\n[{"city":"北京","sales":120}]'}
+                  autosize={{ minRows: 4, maxRows: 10 }}
+                  style={{ fontFamily: 'var(--semi-font-family-mono, monospace)' }}
+                />
+              </Form.Slot>
+              <Form.Slot label="文件">
+                <Space>
+                  <Button icon={<UploadIcon size={14} />} loading={staticUploading} onClick={() => staticFileInputRef.current?.click()}>上传 Excel/CSV</Button>
+                  <Typography.Text type="tertiary" size="small">支持 .xlsx / .xls / .csv，解析后自动生成字段</Typography.Text>
+                </Space>
+                <input
+                  ref={staticFileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.currentTarget.files?.[0];
+                    if (file) void handleStaticFile(file);
+                    e.currentTarget.value = '';
+                  }}
+                />
+              </Form.Slot>
+            </>
+          )}
 
           <Form.InputNumber field="cacheTtl" label="缓存(秒)" min={0} max={86400} style={{ width: '100%' }} helpText="0=不缓存；命中按数据集+参数缓存" />
+          <Form.Slot label="物化快照">
+            <Space vertical align="start" style={{ width: '100%' }}>
+              <Switch checked={materialize.enabled} onChange={(enabled) => setMaterialize((prev) => ({ ...prev, enabled }))} />
+              {materialize.enabled && (
+                <Input
+                  value={materialize.cron ?? ''}
+                  onChange={(cron) => setMaterialize((prev) => ({ ...prev, cron }))}
+                  placeholder="0 */10 * * * *"
+                  showClear
+                  style={{ width: '100%' }}
+                />
+              )}
+              <Typography.Text type="tertiary" size="small">启用后取数优先返回快照（忽略运行时参数），适合大屏降压；Cron 留空=仅手动。</Typography.Text>
+            </Space>
+          </Form.Slot>
           <Form.Select field="status" label="状态" style={{ width: '100%' }}
             optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]} />
           <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 1, maxRows: 2 }} />
@@ -340,6 +557,65 @@ export default function DatasetsPage() {
             <Empty description="点击「试跑预览」查看取数结果" style={{ padding: '16px 0' }} />
           )}
         </div>
+
+        {fields.length > 0 && (
+          <div style={{ borderTop: '1px solid var(--semi-color-border)', marginTop: 12, paddingTop: 12 }}>
+            <Typography.Text strong>字段设置</Typography.Text>
+            <Space vertical align="start" style={{ width: '100%', marginTop: 8 }}>
+              {fields.map((field, index) => (
+                <div key={`${field.name}-${index}`} style={{ width: '100%', display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                  <Typography.Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ width: 110, lineHeight: '32px' }}>{field.name}</Typography.Text>
+                  <Input placeholder="标题" value={field.label} onChange={(v) => updateField(index, { label: v })} style={{ width: 120 }} showClear />
+                  <Select
+                    value={field.type}
+                    optionList={COMPUTED_FIELD_TYPE_OPTIONS}
+                    onChange={(v) => updateField(index, { type: v as ReportField['type'] })}
+                    style={{ width: 105 }}
+                  />
+                  <Select
+                    value={field.format?.kind ?? ''}
+                    optionList={FIELD_FORMAT_KIND_OPTIONS}
+                    onChange={(v) => updateFieldFormat(index, v as ReportFieldFormat['kind'] | '')}
+                    style={{ width: 115 }}
+                  />
+                  {field.format && ['number', 'percent', 'currency'].includes(field.format.kind) && (
+                    <InputNumber
+                      value={field.format.decimals}
+                      placeholder="小数"
+                      min={0}
+                      max={8}
+                      style={{ width: 88 }}
+                      onChange={(v) => patchFieldFormat(index, { decimals: typeof v === 'number' ? v : undefined })}
+                    />
+                  )}
+                  {field.format && ['number', 'currency'].includes(field.format.kind) && (
+                    <Space style={{ height: 32 }}>
+                      <Typography.Text type="tertiary" size="small">千分位</Typography.Text>
+                      <Switch size="small" checked={field.format.thousands ?? true} onChange={(thousands) => patchFieldFormat(index, { thousands })} />
+                    </Space>
+                  )}
+                  {field.format?.kind === 'currency' && (
+                    <Input
+                      placeholder="符号"
+                      value={field.format.currencySymbol ?? '¥'}
+                      onChange={(currencySymbol) => patchFieldFormat(index, { currencySymbol })}
+                      style={{ width: 78 }}
+                    />
+                  )}
+                  {field.format?.kind === 'dict' && (
+                    <Input
+                      placeholder="字典编码"
+                      value={field.format.dictCode ?? ''}
+                      onChange={(dictCode) => patchFieldFormat(index, { dictCode })}
+                      style={{ width: 140 }}
+                      showClear
+                    />
+                  )}
+                </div>
+              ))}
+            </Space>
+          </div>
+        )}
 
         <div style={{ borderTop: '1px solid var(--semi-color-border)', marginTop: 12, paddingTop: 12 }}>
           <Space style={{ marginBottom: 6 }}>

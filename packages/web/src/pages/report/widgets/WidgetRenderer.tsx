@@ -9,7 +9,9 @@ import {
   makeBarSpec, makeLineSpec, makeAreaSpec, makePieSpec, makeScatterSpec, makeTreemapSpec, makeMixedBarLineSpec,
   useChartPalette, chartOptions, type ChartPalette,
 } from '@/components/charts';
-import type { ReportWidget, ReportField, ReportDataResult, ReportConditionalFormat, ReportWidgetOptions } from '@zenith/shared';
+import { formatReportValue } from '@zenith/shared';
+import type { ReportWidget, ReportField, ReportDataResult, ReportConditionalFormat, ReportWidgetOptions, DictItem } from '@zenith/shared';
+import { request } from '@/utils/request';
 
 // ─── 工具 ────────────────────────────────────────────────────────────────────
 function toNumber(v: unknown): number {
@@ -113,6 +115,30 @@ export function WidgetRenderer({ widget, data, loading, error, filterValues, onC
   const palette = useChartPalette();
   const { ref, width, height } = useElementSize<HTMLDivElement>();
   const chartHeight = Math.max(80, height - 4);
+  const [dictMaps, setDictMaps] = useState<Record<string, Record<string, string>>>({});
+
+  const tableDictCodes = useMemo(() => {
+    if (widget.type !== 'table') return [];
+    const cols = widget.options?.columns ?? [];
+    return Array.from(new Set(cols
+      .map((col) => col.format?.kind === 'dict' ? col.format.dictCode?.trim() : '')
+      .filter((code): code is string => !!code)));
+  }, [widget]);
+
+  useEffect(() => {
+    if (!tableDictCodes.length) return;
+    let cancelled = false;
+    void Promise.all(tableDictCodes.map(async (code) => {
+      const res = await request.get<DictItem[]>(`/api/dicts/code/${encodeURIComponent(code)}/items`, { silent: true });
+      if (res.code !== 0) return [code, {}] as const;
+      const map = Object.fromEntries(res.data.map((item) => [item.value, item.label]));
+      return [code, map] as const;
+    })).then((entries) => {
+      if (cancelled) return;
+      setDictMaps((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
+    });
+    return () => { cancelled = true; };
+  }, [tableDictCodes]);
 
   const content = useMemo(() => {
     const o = widget.options ?? {};
@@ -193,7 +219,14 @@ export function WidgetRenderer({ widget, data, loading, error, filterValues, onC
       const tableColumns = cols.map((c) => ({
         title: c.label || c.name,
         dataIndex: c.name,
-        render: (val: unknown) => <span style={cellStyle(c.name, val, o.conditionalFormats)}>{val == null ? '' : String(val)}</span>,
+        render: (val: unknown, record: Record<string, unknown>) => {
+          if (record.__rk === '__summary' && c.name === cols[0]?.name) {
+            return <span style={cellStyle(c.name, val, o.conditionalFormats)}>{val == null ? '' : String(val)}</span>;
+          }
+          const dictMap = c.format?.kind === 'dict' && c.format.dictCode ? dictMaps[c.format.dictCode] : undefined;
+          const text = c.format ? formatReportValue(val, c.format, dictMap) : val == null ? '' : String(val);
+          return <span style={cellStyle(c.name, val, o.conditionalFormats)}>{text}</span>;
+        },
       }));
       const dataSource: Record<string, unknown>[] = rows.map((r, i) => ({ ...r, __rk: i }));
       if (o.showSummary && cols.length) {
@@ -330,7 +363,7 @@ export function WidgetRenderer({ widget, data, loading, error, filterValues, onC
     }
     const spec = makeLineSpec({ data: chartData, xField: o.categoryField, series, palette, smooth: o.smooth, point: true });
     return <LineChart {...spec} options={chartOptions} height={chartHeight} onClick={onChartClick} />;
-  }, [widget, data, loading, error, palette, width, height, chartHeight, filterValues, onCategoryClick]);
+  }, [widget, data, loading, error, palette, width, height, chartHeight, filterValues, onCategoryClick, dictMaps]);
 
   return <div ref={ref} style={{ width: '100%', height: '100%' }}>{content}</div>;
 }

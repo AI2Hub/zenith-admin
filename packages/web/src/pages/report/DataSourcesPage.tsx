@@ -24,17 +24,21 @@ const TYPE_OPTIONS = [
   { value: 'sql', label: 'SQL（内置只读主库）' },
   { value: 'mysql', label: 'MySQL（外部库）' },
   { value: 'postgresql', label: 'PostgreSQL（外部库）' },
+  { value: 'sqlserver', label: 'SQL Server（外部库）' },
+  { value: 'static', label: '静态数据（JSON/文件）' },
 ];
 
 function typeTag(type: ReportDatasourceType) {
   if (type === 'api') return <Tag color="blue" size="small">API</Tag>;
   if (type === 'sql') return <Tag color="violet" size="small">SQL</Tag>;
   if (type === 'mysql') return <Tag color="cyan" size="small">MySQL</Tag>;
-  return <Tag color="indigo" size="small">PostgreSQL</Tag>;
+  if (type === 'postgresql') return <Tag color="indigo" size="small">PostgreSQL</Tag>;
+  if (type === 'sqlserver') return <Tag color="orange" size="small">SQL Server</Tag>;
+  return <Tag color="grey" size="small">静态</Tag>;
 }
 
-function isExternalDbType(type: unknown): type is 'mysql' | 'postgresql' {
-  return type === 'mysql' || type === 'postgresql';
+function isExternalDbType(type: unknown): type is 'mysql' | 'postgresql' | 'sqlserver' {
+  return type === 'mysql' || type === 'postgresql' || type === 'sqlserver';
 }
 
 export default function DataSourcesPage() {
@@ -90,7 +94,7 @@ export default function DataSourcesPage() {
         method: apiConfig.method ?? 'GET',
         headersText: apiConfig.headers ? JSON.stringify(apiConfig.headers, null, 2) : '',
         host: externalConfig.host ?? '',
-        port: externalConfig.port ?? (editing.type === 'postgresql' ? 5432 : 3306),
+        port: externalConfig.port ?? (editing.type === 'postgresql' ? 5432 : editing.type === 'sqlserver' ? 1433 : 3306),
         database: externalConfig.database ?? '',
         user: externalConfig.user ?? '',
         password: '',
@@ -200,6 +204,7 @@ export default function DataSourcesPage() {
           return <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%', color: 'var(--semi-color-text-1)' }}>{(r.config as ReportApiDatasourceConfig).url ?? '-'}</Typography.Text>;
         }
         if (r.type === 'sql') return <span style={{ color: 'var(--semi-color-text-2)' }}>内置只读主库</span>;
+        if (r.type === 'static') return <span style={{ color: 'var(--semi-color-text-2)' }}>静态容器</span>;
         const cfg = r.config as ReportExternalDbConfig;
         const text = `${cfg.user ?? '-'}@${cfg.host ?? '-'}:${cfg.port ?? '-'}/${cfg.database ?? '-'}`;
         return <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%', color: 'var(--semi-color-text-1)' }}>{text}</Typography.Text>;
@@ -287,6 +292,7 @@ export default function DataSourcesPage() {
                 onChange={(v) => {
                   if (v === 'mysql') formApi.current?.setValue('port', 3306);
                   if (v === 'postgresql') formApi.current?.setValue('port', 5432);
+                  if (v === 'sqlserver') formApi.current?.setValue('port', 1433);
                 }}
               />
               {values.type === 'api' ? (
@@ -313,6 +319,10 @@ export default function DataSourcesPage() {
                     <Button onClick={handleTestConnection} loading={testing}>测试连接</Button>
                   </Form.Slot>
                 </>
+              ) : values.type === 'static' ? (
+                <Form.Slot label="说明">
+                  <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13 }}>静态数据源仅作容器，数据在「数据集」中以 JSON 粘贴或上传 Excel/CSV 维护。</span>
+                </Form.Slot>
               ) : (
                 <Form.Slot label="说明">
                   <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13 }}>内置只读主库，无需额外连接配置。SQL 语句在「数据集」中编写。</span>
