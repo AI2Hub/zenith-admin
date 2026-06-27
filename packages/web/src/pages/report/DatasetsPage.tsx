@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Button, Form, Input, Select, Table, Tag, Toast, Modal, Space, Typography, Empty, Switch, InputNumber, TextArea } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus, Play, Upload as UploadIcon } from 'lucide-react';
+import { Search, RotateCcw, Plus, Play, Upload as UploadIcon, Sparkles } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -115,6 +115,9 @@ export default function DatasetsPage() {
   const [staticUploading, setStaticUploading] = useState(false);
   const [preview, setPreview] = useState<ReportDataResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [aiAskVisible, setAiAskVisible] = useState(false);
+  const [aiQuestion, setAiQuestion] = useState('');
+  const [aiGenerating, setAiGenerating] = useState(false);
 
   const selectedType: ReportDatasourceType | null = selectedDsId ? dsTypeMap.get(selectedDsId) ?? editing?.type ?? null : null;
 
@@ -147,6 +150,8 @@ export default function DatasetsPage() {
     setFields(ds?.fields ?? []);
     setComputedFields(ds?.computedFields ?? []);
     setMaterialize({ enabled: ds?.materialize?.enabled ?? false, cron: ds?.materialize?.cron ?? '' });
+    setAiAskVisible(false);
+    setAiQuestion('');
     if (ds?.type === 'static') {
       const content = (ds.content ?? {}) as ReportStaticDatasetContent;
       const rows = Array.isArray(content.data) ? content.data : [];
@@ -302,6 +307,27 @@ export default function DatasetsPage() {
       if (res.code === 0) { setPreview(res.data); }
       else { Toast.error(res.message || '预览失败'); setPreview(null); }
     } finally { setPreviewLoading(false); }
+  }
+
+  async function handleGenerateSql() {
+    const question = aiQuestion.trim();
+    if (!question) { Toast.warning('请先输入问题'); return; }
+    setAiGenerating(true);
+    try {
+      const res = await request.post<{ sql: string }>(
+        '/api/report/ai/nl2sql',
+        { question, datasetId: editing?.id },
+        { silent: true },
+      );
+      if (res.code === 0) {
+        formApi.current?.setValue('sql', res.data.sql);
+        Toast.success('SQL 已生成');
+      } else {
+        Toast.error(res.message || '生成失败');
+      }
+    } finally {
+      setAiGenerating(false);
+    }
   }
 
   function applyFieldsFromPreview() {
@@ -477,9 +503,27 @@ export default function DatasetsPage() {
           />
 
           {isSqlAuthoringType(selectedType) && (
-            <Form.TextArea field="sql" label="SQL" placeholder="SELECT col1, col2 FROM your_table WHERE ..."
-              autosize={{ minRows: 4, maxRows: 10 }} style={{ fontFamily: 'var(--semi-font-family-mono, monospace)' }}
-              rules={[{ required: true, message: '请输入 SQL' }]} />
+            <>
+              <Form.TextArea field="sql" label="SQL" placeholder="SELECT col1, col2 FROM your_table WHERE ..."
+                autosize={{ minRows: 4, maxRows: 10 }} style={{ fontFamily: 'var(--semi-font-family-mono, monospace)' }}
+                rules={[{ required: true, message: '请输入 SQL' }]} />
+              <Form.Slot label="AI 问数">
+                <div style={{ width: '100%' }}>
+                  <Button icon={<Sparkles size={14} />} onClick={() => setAiAskVisible((v) => !v)}>AI 问数</Button>
+                  {aiAskVisible && (
+                    <Space vertical align="start" style={{ width: '100%', marginTop: 8 }}>
+                      <TextArea
+                        value={aiQuestion}
+                        onChange={setAiQuestion}
+                        placeholder="例如：统计最近 7 天每天的订单金额"
+                        autosize={{ minRows: 2, maxRows: 4 }}
+                      />
+                      <Button type="primary" icon={<Sparkles size={14} />} loading={aiGenerating} onClick={handleGenerateSql}>生成 SQL</Button>
+                    </Space>
+                  )}
+                </div>
+              </Form.Slot>
+            </>
           )}
           {selectedType === 'api' && (
             <>

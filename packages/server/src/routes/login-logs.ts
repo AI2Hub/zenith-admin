@@ -1,9 +1,9 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../middleware/guard';
-import { PaginationQuery, validationHook, commonErrorResponses, ok, okPaginated, okBody, okExcel, excelStreamBody, okCsv, csvStreamBody, okMsg } from '../lib/openapi-schemas';
+import { PaginationQuery, validationHook, commonErrorResponses, ok, okPaginated, okBody, okMsg } from '../lib/openapi-schemas';
 import { LoginLogDTO, LoginLogStatsDTO } from '../lib/openapi-dtos';
-import { listLoginLogs, loginLogStats, exportLoginLogs, exportLoginLogsAsCsv, cleanLoginLogs, getCleanLoginLogsBeforeAudit } from '../services/login-logs.service';
+import { listLoginLogs, loginLogStats, cleanLoginLogs, getCleanLoginLogsBeforeAudit } from '../services/login-logs.service';
 
 const loginLogsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -37,32 +37,6 @@ const statsRoute = defineOpenAPIRoute({
   handler: async (c) => c.json(okBody(await loginLogStats(c.req.valid('query').days)), 200),
 });
 
-const exportRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/export', tags: ['LoginLogs'], summary: '导出登录日志 Excel',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:log:login' })] as const,
-    responses: { ...okExcel('Excel 文件') },
-  }),
-  handler: async (c) => {
-    const { stream, filename } = await exportLoginLogs();
-    return excelStreamBody(c, stream, filename);
-  },
-});
-
-const exportCsvRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/export/csv', tags: ['LoginLogs'], summary: '导出登录日志 CSV',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:log:login' })] as const,
-    responses: { ...okCsv('CSV 文件') },
-  }),
-  handler: async (c) => {
-    const { stream, filename } = await exportLoginLogsAsCsv();
-    return csvStreamBody(c, stream, filename);
-  },
-});
-
 const cleanRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'delete', path: '/clean', tags: ['LoginLogs'], summary: '清除登录日志',
@@ -84,6 +58,6 @@ const cleanRoute = defineOpenAPIRoute({
   },
 });
 
-loginLogsRoute.openapiRoutes([listRoute, statsRoute, exportRoute, exportCsvRoute, cleanRoute] as const);
+loginLogsRoute.openapiRoutes([listRoute, statsRoute, cleanRoute] as const);
 
 export default loginLogsRoute;
