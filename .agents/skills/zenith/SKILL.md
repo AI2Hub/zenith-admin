@@ -92,6 +92,7 @@ MSW Mock 的详细代码模板见 [crud-mock.md](./references/crud-mock.md)。
 **前端：**
 - [ ] 页面组件已创建，使用 `SearchToolbar` + `ConfigurableTable`
 - [ ] 搜索项较多的列表页使用 `SearchToolbar` 结构化模式，移动端至少露出一个高频搜索/筛选项（优先关键词；无关键词时选最常用且区分度最高的筛选项，如渠道/类型/作用域）、查询、新增等高频入口，其他筛选进底部筛选抽屉，低频操作进更多菜单
+- [ ] 页面级多 Tab 使用 `page-container page-tabs-page`；每个 `TabPane` 内承载本 tab 的工具栏、表格/空状态/面板，tab 相关操作按钮不要放在 TabBar 外侧
 - [ ] 操作列通过 `createOperationColumn` 创建；桌面端按需用 `desktopInlineKeys` 保留高频内联按钮，移动端自动收纳到更多菜单；状态列紧靠操作列左侧也 `fixed: 'right'`
 - [ ] ConfigurableTable 传入了 `onRefresh` 和 `refreshLoading`
 - [ ] 需要导出时使用 `ExportButton`，后端已注册导出中心实体，query 使用当前提交的筛选条件

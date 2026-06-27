@@ -494,6 +494,35 @@ export default function XxxPage() {
 
 ## 关键规范说明
 
+### 页面级多 Tab 布局
+
+当页面最外层是多个业务 Tab（如「列表/统计」「配置/日志」「全部/未读/已读」）时，使用统一页面壳层：
+
+```tsx
+return (
+  <div className="page-container page-tabs-page">
+    <Tabs activeKey={activeTab} onChange={handleTabChange} type="line" lazyRender keepDOM={false}>
+      <TabPane tab="列表" itemKey="list">
+        <SearchToolbar>
+          {/* 当前 tab 的筛选与操作按钮 */}
+        </SearchToolbar>
+        <ConfigurableTable bordered ... />
+      </TabPane>
+      <TabPane tab="统计分析" itemKey="stats">
+        <StatsPanel />
+      </TabPane>
+    </Tabs>
+  </div>
+);
+```
+
+规则：
+
+- 每个 `TabPane` 内承载该 tab 的完整内容：`SearchToolbar`、操作按钮、空状态、`ConfigurableTable` 或统计面板。
+- 禁止把 `TabPane` 写成空 tab 后在 `Tabs` 外部根据 `activeTab` 渲染表格、空状态或按钮。
+- tab 相关操作按钮（如「全部标记为已读」「清理日志」「刷新当前 tab」）放在对应 `TabPane` 内的 `SearchToolbar`，不要放在 TabBar 右侧。
+- `page-tabs-page` 只用于页面最外层业务 Tabs；抽屉、弹窗、卡片内代码示例、左右分栏内部小 tabs 不使用。
+
 ### 弹窗表单布局规范
 
 **必须在 Form 中加 `labelPosition="left"` 以实现 label 与输入框同行。**

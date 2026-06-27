@@ -55,6 +55,7 @@
 - **操作列创建**（Step 8）：所有表格操作列通过 `packages/web/src/components/ResponsiveTableActions.tsx` 的 `createOperationColumn` 创建；该工具统一处理 `fixed: 'right'`、列设置不可隐藏、移动端列宽收窄和更多菜单
 - **状态列固定**（Step 8）：状态列必须紧靠操作列左侧，并同样设置 `fixed: 'right'`
 - **搜索栏布局**（Step 8）：使用 `SearchToolbar` 组件（`packages/web/src/components/SearchToolbar.tsx`）。简单页面可继续使用 children 写法；筛选/操作较多时必须使用结构化模式（`primary` / `filters` / `actions`，必要时用 `mobilePrimary` / `mobileFilters` / `mobileActions` 覆盖移动端）。移动端至少露出一个高频搜索/筛选项：优先关键词搜索；没有关键词搜索时，选择最常用且区分度最高的筛选项（如渠道、类型、作用域、状态）放在 `mobilePrimary`。其他筛选放入底部筛选抽屉，导出/导入/批量等低频操作放入更多菜单。参考 `packages/web/src/pages/system/positions/PositionsPage.tsx`
+- **页面级多 Tab 布局**（Step 8）：当页面最外层就是多个业务 Tab（如「列表/统计」「配置/日志」「全部/未读/已读」）时，根节点统一写 `<div className="page-container page-tabs-page">`，直接子节点写 `<Tabs type="line" ...>`，每个 `<TabPane>` 内放该 tab 的 `SearchToolbar`、操作按钮、空状态和 `ConfigurableTable`。**禁止**把 TabPane 留空后在 Tabs 外部根据 `activeTab` 渲染共用表格/按钮；像「全部标记为已读」这类 tab 相关操作必须放入对应 TabPane 内部的 `SearchToolbar`。抽屉、弹窗、卡片内代码示例、左右分栏内部小 tabs 不使用 `page-tabs-page`。
 - **移动端更多菜单操作项**（Step 8）：`SearchToolbar` 的 `mobileActions` 中只放低频操作按钮；普通操作按钮统一使用无边框视觉（`theme="borderless"`，危险操作保留 `type="danger"`），导出操作优先使用 `ExportButton variant="flat"`。公共样式会兜底把更多菜单里的按钮渲染成无边框，但页面代码仍应按无边框语义书写。
 - **表格样式**（Step 8）：统一 `<ConfigurableTable bordered ... />`
 - **表格列公共工具**（Step 8）：`createdAtColumn`（创建时间预置列）和 `renderEllipsis`（省略列 render）从 `'../../utils/table-columns'` 导入；**禁止**内联写 `<Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>`
