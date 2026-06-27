@@ -118,19 +118,19 @@ export async function getLatestEngineHealthMetrics(): Promise<{ workflowHealth: 
 
 const ACTION_META: Record<WorkflowEngineActionKey, { label: string; run: () => Promise<Record<string, number>> }> = {
   'replay-outbox': {
-    label: '事件 Outbox 重放',
+    label: '事件投递兜底（作业账本）',
     run: async () => {
-      const { replayWorkflowEventOutbox } = await import('../lib/workflow-event-bus');
-      const r = await replayWorkflowEventOutbox();
-      return { scanned: r.scanned, dispatched: r.dispatched, failed: r.failed };
+      const { drainWorkflowJobs } = await import('../lib/workflow-jobs');
+      const r = await drainWorkflowJobs();
+      return { recovered: r.recovered, processed: r.processed };
     },
   },
   'recover-delays': {
-    label: '延时任务恢复扫描',
+    label: '延时任务兜底（作业账本）',
     run: async () => {
-      const { recoverDueDelayTasks } = await import('./workflow-resume.service');
-      const r = await recoverDueDelayTasks();
-      return { scanned: r.scanned, resumed: r.resumed, skipped: r.skipped, failed: r.failed };
+      const { drainWorkflowJobs } = await import('../lib/workflow-jobs');
+      const r = await drainWorkflowJobs();
+      return { recovered: r.recovered, processed: r.processed };
     },
   },
   'recover-subprocess': {
@@ -142,19 +142,19 @@ const ACTION_META: Record<WorkflowEngineActionKey, { label: string; run: () => P
     },
   },
   'process-timeouts': {
-    label: '超时任务处理',
+    label: '超时任务兜底（作业账本）',
     run: async () => {
-      const { processWorkflowTaskTimeouts } = await import('../lib/workflow-timeout-processor');
-      const r = await processWorkflowTaskTimeouts();
-      return { processed: r.processed, reminded: r.reminded, approved: r.approved, rejected: r.rejected, escalated: r.escalated };
+      const { drainWorkflowJobs } = await import('../lib/workflow-jobs');
+      const r = await drainWorkflowJobs();
+      return { recovered: r.recovered, processed: r.processed };
     },
   },
   'recover-triggers': {
-    label: '触发器恢复重派',
+    label: '触发器兜底（作业账本）',
     run: async () => {
-      const { recoverPendingWorkflowTriggers } = await import('../lib/workflow-subscribers/trigger');
-      const r = await recoverPendingWorkflowTriggers();
-      return { scanned: r.scanned, dispatched: r.dispatched, skipped: r.skipped };
+      const { drainWorkflowJobs } = await import('../lib/workflow-jobs');
+      const r = await drainWorkflowJobs();
+      return { recovered: r.recovered, processed: r.processed };
     },
   },
 };

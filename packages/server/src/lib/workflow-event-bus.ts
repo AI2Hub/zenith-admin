@@ -11,7 +11,6 @@
  */
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import { and, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import type {
   WorkflowEvent,
   WorkflowEventType,
@@ -19,10 +18,9 @@ import type {
   WorkflowNodeEventPayload,
   WorkflowTaskEventPayload,
 } from '@zenith/shared';
-import { db } from '../db';
-import { workflowEventOutbox } from '../db/schema';
 import logger from './logger';
 import { formatDateTime } from './datetime';
+import { enqueueJob } from './workflow-jobs/engine';
 
 type EventHandler<E extends WorkflowEvent = WorkflowEvent> = (event: E) => void | Promise<void>;
 
@@ -98,114 +96,32 @@ class WorkflowEventBus {
     if (rejected?.status === 'rejected') throw rejected.reason;
   }
 
-  /** 公开：仅派发到进程内订阅者（不写 outbox）。供 event_dispatch 作业 handler 调用。 */
-  async dispatchInProcess(full: WorkflowEvent): Promise<void> {
-    await this.dispatchToHandlers(full);
-  }
-
-  private async persistAndDispatch(full: WorkflowEvent): Promise<void> {
-    let outboxId: number | null = null;
-    try {
-      const [row] = await db.insert(workflowEventOutbox).values({
-        eventId: full.eventId,
-        eventType: full.type,
-        instanceId: 'instanceId' in full ? full.instanceId ?? null : null,
-        definitionId: full.definitionId ?? null,
-        taskId: 'task' in full ? full.task.id : null,
-        payload: full,
-        status: 'pending',
-        tenantId: full.tenantId ?? null,
-      }).onConflictDoNothing({ target: workflowEventOutbox.eventId }).returning({ id: workflowEventOutbox.id });
-      outboxId = row?.id ?? null;
-    } catch (err) {
-      logger.error('[workflow-event-bus] outbox persist failed; dispatching in-memory only', { type: full.type, eventId: full.eventId, err });
-    }
-
-    try {
-      await this.dispatchToHandlers(full);
-      if (outboxId != null) {
-        await db.update(workflowEventOutbox).set({
-          status: 'success',
-          processedAt: new Date(),
-          errorMessage: null,
-        }).where(and(eqId(outboxId), inArray(workflowEventOutbox.status, ['pending', 'processing', 'failed'])));
-      }
-    } catch (err) {
-      if (outboxId != null) {
-        await db.update(workflowEventOutbox).set({
-          status: 'failed',
-          attempts: sql`${workflowEventOutbox.attempts} + 1`,
-          errorMessage: err instanceof Error ? err.message.slice(0, 1024) : String(err).slice(0, 1024),
-          nextRetryAt: new Date(Date.now() + 60_000),
-        }).where(eqId(outboxId));
-      }
-    }
-  }
-
-  /** 发射事件（先写 outbox，再异步派发；失败事件由恢复任务重放） */
+  /**
+   * 发射事件：① 立即派发到进程内订阅者（ws/通知/会话/自动化/节点监听，低延迟）；
+   * ② 入队 event_dispatch 作业用于 Webhook 持久化扇出（各订阅独立重试/死信）。
+   */
   emit(event: Omit<WorkflowEvent, 'eventId' | 'occurredAt'> & { eventId?: string; occurredAt?: string }): void {
     const full = this.normalize(event);
-    void this.persistAndDispatch(full).catch((err) => {
-      logger.error('[workflow-event-bus] persist dispatch failed', { type: full.type, eventId: full.eventId, err });
+    void this.dispatchToHandlers(full).catch((err) => {
+      logger.error('[workflow-event-bus] in-process dispatch failed', { type: full.type, eventId: full.eventId, err });
+    });
+    void enqueueJob({
+      jobType: 'event_dispatch',
+      instanceId: 'instanceId' in full ? full.instanceId ?? null : null,
+      taskId: 'task' in full ? full.task.id : null,
+      payload: { event: full },
+      tenantId: full.tenantId ?? null,
+      maxAttempts: 3,
+      idempotencyKey: `event:${full.eventId}`,
+      traceId: full.eventId,
+    }).catch((err) => {
+      logger.error('[workflow-event-bus] enqueue event_dispatch failed', { type: full.type, eventId: full.eventId, err });
     });
   }
-
-  async replayPending(limit = 100): Promise<{ scanned: number; dispatched: number; failed: number }> {
-    const now = new Date();
-    const rows = await db.select().from(workflowEventOutbox)
-      .where(and(
-        inArray(workflowEventOutbox.status, ['pending', 'failed']),
-        or(isNull(workflowEventOutbox.nextRetryAt), lte(workflowEventOutbox.nextRetryAt, now)),
-      ))
-      .orderBy(workflowEventOutbox.id)
-      .limit(Math.max(1, Math.min(limit, 500)));
-
-    let dispatched = 0;
-    let failed = 0;
-    for (const row of rows) {
-      const [claimed] = await db.update(workflowEventOutbox)
-        .set({ status: 'processing' })
-        .where(and(eqId(row.id), inArray(workflowEventOutbox.status, ['pending', 'failed'])))
-        .returning({ id: workflowEventOutbox.id });
-      if (!claimed) continue;
-      try {
-        await this.dispatchToHandlers(row.payload as WorkflowEvent);
-        await db.update(workflowEventOutbox).set({
-          status: 'success',
-          processedAt: new Date(),
-          errorMessage: null,
-          nextRetryAt: null,
-        }).where(eqId(row.id));
-        dispatched += 1;
-      } catch (err) {
-        failed += 1;
-        await db.update(workflowEventOutbox).set({
-          status: 'failed',
-          attempts: sql`${workflowEventOutbox.attempts} + 1`,
-          errorMessage: err instanceof Error ? err.message.slice(0, 1024) : String(err).slice(0, 1024),
-          nextRetryAt: new Date(Date.now() + 60_000),
-        }).where(eqId(row.id));
-      }
-    }
-    return { scanned: rows.length, dispatched, failed };
-  }
-}
-
-function eqId(id: number) {
-  return sql`${workflowEventOutbox.id} = ${id}`;
 }
 
 export const workflowEventBus = new WorkflowEventBus();
 
 export function getWorkflowEventBusIntrospection(): ReturnType<WorkflowEventBus['introspect']> {
   return workflowEventBus.introspect();
-}
-
-export async function replayWorkflowEventOutbox(): Promise<{ scanned: number; dispatched: number; failed: number }> {
-  return workflowEventBus.replayPending();
-}
-
-/** 仅派发到进程内订阅者（不写 outbox）。供 event_dispatch 作业 handler 使用。 */
-export async function dispatchWorkflowEventToHandlers(event: WorkflowEvent): Promise<void> {
-  await workflowEventBus.dispatchInProcess(event);
 }

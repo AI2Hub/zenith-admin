@@ -28,12 +28,6 @@ export function mapTask(
     delegatedFromId: row.delegatedFromId ?? null,
     actionButtons: actionButtons ?? null,
     externalCallbackId: row.externalCallbackId ?? null,
-    externalDispatchStatus: row.externalDispatchStatus ?? null,
-    triggerDispatchStatus: row.triggerDispatchStatus ?? null,
-    triggerAttempt: row.triggerAttempt ?? 0,
-    triggerStartedAt: formatNullableDateTime(row.triggerStartedAt),
-    triggerNextRetryAt: formatNullableDateTime(row.triggerNextRetryAt),
-    triggerLastError: row.triggerLastError ?? null,
     createdAt: formatDateTime(row.createdAt),
   };
 }
@@ -224,7 +218,7 @@ import { count, countDistinct, eq, ne, and, desc, ilike, or, inArray, sql, gt } 
 import { escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { pageOffset } from '../lib/pagination';
-import { workflowEventOutbox, workflowInstances, workflowTasks, workflowTaskUrges, workflowDefinitions, workflowCategories, workflowTriggerExecutions, inAppMessages, users, userRoles } from '../db/schema';
+import { workflowJobs, workflowJobExecutions, workflowInstances, workflowTasks, workflowTaskUrges, workflowDefinitions, workflowCategories, inAppMessages, users, userRoles } from '../db/schema';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { getDataScopeCondition } from '../lib/data-scope';
 import { advanceFlow, getInitialTasks, validateFlowData, findReturnPrevTarget, type AdvanceResult, type TaskAction } from '../lib/workflow-engine';
@@ -236,8 +230,9 @@ import { resolveAssigneeIds, buildStarterContext } from './workflow-assignee-res
 import { resolveFormSnapshot } from './workflow-forms.service';
 import type { DbExecutor } from '../db/types';
 import { createHash, randomBytes } from 'node:crypto';
-import { delayScheduler } from '../lib/delay-scheduler';
+import { enqueueJob, cancelJobs } from '../lib/workflow-jobs/engine';
 import { computeTimeoutAt } from '../lib/workflow-timeout';
+import type { WorkflowTriggerNodeConfig } from '@zenith/shared';
 import { workflowEventBus } from '../lib/workflow-event-bus';
 import { generateSerialNo } from './workflow-serial.service';
 import { resolveActiveDelegate } from './workflow-delegations.service';
@@ -435,6 +430,46 @@ function computeDelayWakeAt(nodeConfig: TaskAction['nodeConfig'], formData: Reco
   return dayjs().add(value, unit).toDate();
 }
 
+/** 触发器最大尝试次数：continue=1，block=1+maxRetries（封顶 11） */
+function resolveTriggerMaxAttempts(cfg?: WorkflowTriggerNodeConfig): number {
+  const onFailure = cfg?.onFailure ?? 'continue';
+  if (onFailure === 'continue') return 1;
+  return Math.min(11, Math.max(1, (cfg?.maxRetries ?? 0) + 1));
+}
+
+/**
+ * 为新建任务挂载异步作业（统一作业账本）。
+ * 取代旧的 delayScheduler / trigger·external 订阅者派发 / timeoutAt 列扫描。
+ * 子流程（spawn/join）仍走既有 maybeSpawnSubProcessChild / 恢复巡检，不在此处理。
+ * 默认用 db 执行器（在提交后的事件发射循环中调用）。
+ */
+async function armTaskAsyncJobs(task: typeof workflowTasks.$inferSelect, instance: typeof workflowInstances.$inferSelect, executor: DbExecutor = db): Promise<void> {
+  const snapshot = instance.definitionSnapshot as { flowData?: WorkflowFlowData } | null;
+  const cfg = snapshot?.flowData?.nodes.find((n) => n.data.key === task.nodeKey)?.data;
+  if (!cfg) return;
+  const tenantId = instance.tenantId ?? null;
+  const base = { instanceId: instance.id, nodeKey: task.nodeKey, taskId: task.id, tenantId, payload: { taskId: task.id } } as const;
+
+  if (task.nodeType === 'delay' && task.status === 'waiting') {
+    await enqueueJob({ ...base, jobType: 'delay_wake', runAt: computeDelayWakeAt(cfg, (instance.formData ?? {}) as Record<string, unknown>), maxAttempts: 3, idempotencyKey: `delay_wake:${task.id}` }, executor);
+    return;
+  }
+  if (task.nodeType === 'trigger') {
+    await enqueueJob({ ...base, jobType: 'trigger_dispatch', maxAttempts: resolveTriggerMaxAttempts(cfg.triggerConfig), idempotencyKey: `trigger_dispatch:${task.id}` }, executor);
+    return;
+  }
+  if (task.nodeType === 'approve' && task.status === 'waiting' && task.externalCallbackId && cfg.externalApproval?.enabled) {
+    await enqueueJob({ ...base, jobType: 'external_dispatch', maxAttempts: 3, idempotencyKey: `external_dispatch:${task.id}` }, executor);
+    return;
+  }
+  if ((task.nodeType === 'approve' || task.nodeType === 'handler') && task.status === 'pending') {
+    const timeoutAt = computeTimeoutAt(cfg.timeout);
+    if (timeoutAt) {
+      await enqueueJob({ ...base, jobType: 'task_timeout', runAt: timeoutAt, maxAttempts: 3, idempotencyKey: `task_timeout:${task.id}` }, executor);
+    }
+  }
+}
+
 /**
  * 根据子流程节点配置的 subProcessFieldMapping，构造子实例 formData。
  * value 支持模板占位：
@@ -617,9 +652,7 @@ async function createChildInstanceAndMaterialize(
     }
     if (t.status === 'approved') emitTaskEvent('task.approved', mapTask(t), meta);
     if (t.status === 'rejected') emitTaskEvent('task.rejected', mapTask(t), meta);
-    if (t.nodeType === 'delay' && t.status === 'waiting' && t.wakeAt) {
-      delayScheduler.scheduleAt(t.id, t.wakeAt);
-    }
+    await armTaskAsyncJobs(t, childInst);
     if (t.nodeType === 'subProcess') {
       // 子实例内部又遇到 subProcess：递归 spawn（支持嵌套单/多实例）
       void maybeSpawnSubProcessChild(childInst, t, actor).catch((err) => {
@@ -1248,7 +1281,7 @@ export async function handleNodeExecutionError(input: {
     if (task.assigneeId && task.status === 'pending') emitTaskEvent('task.assigned', mapTask(task), meta);
     if (task.status === 'approved') emitTaskEvent('task.approved', mapTask(task), meta);
     if (task.status === 'rejected') emitTaskEvent('task.rejected', mapTask(task), meta);
-    if (task.nodeType === 'delay' && task.status === 'waiting' && task.wakeAt) delayScheduler.scheduleAt(task.id, task.wakeAt);
+    await armTaskAsyncJobs(task, updated.row);
     if (task.nodeType === 'subProcess') {
       void maybeSpawnSubProcessChild(updated.row, task, input.actor).catch((err) => {
         logger.error('[subProcess] spawn child failed after catchNode recovery', { instanceId: updated.row.id, taskId: task.id, err });
@@ -1324,7 +1357,6 @@ async function expandTasksToRows(
         nodeType: 'delay',
         assigneeId: null,
         status: 'waiting' as const,
-        wakeAt,
       });
       continue;
     }
@@ -1342,8 +1374,6 @@ async function expandTasksToRows(
           nodeType: 'trigger',
           assigneeId: null,
           status: 'waiting' as const,
-          triggerDispatchStatus: 'pending' as const,
-          triggerAttempt: 0,
           ...(isCallback ? { externalCallbackId: randomBytes(16).toString('hex') } : {}),
         });
         continue;
@@ -1387,7 +1417,6 @@ async function expandTasksToRows(
     }
 
     if (t.nodeType !== 'approve' && t.nodeType !== 'handler') {
-      const isTrigger = t.nodeType === 'trigger';
       rows.push({
         instanceId: ctx.instanceId,
         nodeKey: t.nodeKey,
@@ -1396,7 +1425,6 @@ async function expandTasksToRows(
         assigneeId: t.assigneeId,
         status: (t.nodeType as string) === 'ccNode' ? 'skipped' as const : 'approved' as const,
         actionAt: (t.nodeType as string) === 'ccNode' ? null : new Date(),
-        ...(isTrigger ? { triggerDispatchStatus: 'pending' as const, triggerAttempt: 0 } : {}),
       });
       continue;
     }
@@ -1411,7 +1439,6 @@ async function expandTasksToRows(
         assigneeId: null,
         status: 'waiting' as const,
         externalCallbackId: randomBytes(16).toString('hex'),
-        externalDispatchStatus: 'pending' as const,
       });
       continue;
     }
@@ -1587,8 +1614,6 @@ async function expandTasksToRows(
         taskOrder: method === 'sequential' ? idx : null,
         approveMethod: assignList.length > 1 ? method : null,
         approveRatio: assignList.length > 1 ? ratioPct : null,
-        // 仅给 pending 的任务设置 timeoutAt；waiting 的在提升时重算
-        timeoutAt: isPending ? timeoutAt : null,
       });
     });
   }
@@ -1729,8 +1754,11 @@ async function checkNodeCompletion(
     if (nextWaiting) {
       const nextTimeoutCfg = flowData?.nodes.find((n) => n.data.key === nodeKey)?.data.timeout;
       const nextTimeoutAt = computeTimeoutAt(nextTimeoutCfg);
-      await tx.update(workflowTasks).set({ status: 'pending', timeoutAt: nextTimeoutAt, timeoutRemindCount: 0 })
+      await tx.update(workflowTasks).set({ status: 'pending' })
         .where(eq(workflowTasks.id, nextWaiting.id));
+      if (nextTimeoutAt) {
+        await enqueueJob({ jobType: 'task_timeout', taskId: nextWaiting.id, instanceId, nodeKey, payload: { taskId: nextWaiting.id }, runAt: nextTimeoutAt, maxAttempts: 3, idempotencyKey: `task_timeout:${nextWaiting.id}` }, tx);
+      }
     }
     return { completed: false, method };
   }
@@ -2216,40 +2244,45 @@ export async function getInstanceDetail(id: number) {
   });
 }
 
-function mapRuntimeOutboxEvent(row: typeof workflowEventOutbox.$inferSelect): WorkflowRuntimeOutboxEvent {
+function mapRuntimeOutboxEvent(row: typeof workflowJobs.$inferSelect): WorkflowRuntimeOutboxEvent {
+  const event = (row.payload as { event?: { eventId?: string; type?: string } } | null)?.event;
   return {
     id: row.id,
-    eventId: row.eventId,
-    eventType: row.eventType,
+    eventId: event?.eventId ?? row.idempotencyKey ?? String(row.id),
+    eventType: event?.type ?? 'event_dispatch',
     taskId: row.taskId ?? null,
     status: row.status,
     attempts: row.attempts,
-    errorMessage: row.errorMessage ?? null,
-    nextRetryAt: formatNullableDateTime(row.nextRetryAt),
-    processedAt: formatNullableDateTime(row.processedAt),
+    errorMessage: row.lastError ?? null,
+    nextRetryAt: row.status === 'pending' ? formatNullableDateTime(row.runAt) : null,
+    processedAt: row.status === 'succeeded' ? formatNullableDateTime(row.updatedAt) : null,
     createdAt: formatDateTime(row.createdAt),
   };
 }
 
-function mapRuntimeTriggerExecution(row: typeof workflowTriggerExecutions.$inferSelect) {
+// TODO(workflow-jobs P5): job_executions 未存 nodeName/triggerType，nodeKey/instanceId 取自父 job
+function mapRuntimeTriggerExecution(row: { exec: typeof workflowJobExecutions.$inferSelect; job: typeof workflowJobs.$inferSelect }) {
+  const { exec, job } = row;
+  const status: 'running' | 'success' | 'failed' =
+    exec.status === 'succeeded' ? 'success' : exec.status === 'failed' ? 'failed' : 'running';
   return {
-    id: row.id,
-    instanceId: row.instanceId,
-    taskId: row.taskId ?? null,
-    nodeKey: row.nodeKey,
-    nodeName: row.nodeName ?? null,
-    triggerType: row.triggerType as WorkflowTriggerType,
-    status: row.status,
-    attempt: row.attempt,
-    requestUrl: row.requestUrl ?? null,
-    requestMethod: row.requestMethod ?? null,
-    requestBody: row.requestBody ?? null,
-    responseStatus: row.responseStatus ?? null,
-    responseBody: row.responseBody ?? null,
-    errorMessage: row.errorMessage ?? null,
-    durationMs: row.durationMs ?? null,
-    tenantId: row.tenantId ?? null,
-    createdAt: formatDateTime(row.createdAt),
+    id: exec.id,
+    instanceId: job.instanceId ?? 0,
+    taskId: job.taskId ?? null,
+    nodeKey: job.nodeKey ?? '',
+    nodeName: null as string | null,
+    triggerType: 'webhook' as WorkflowTriggerType,
+    status,
+    attempt: exec.attempt,
+    requestUrl: exec.requestUrl ?? null,
+    requestMethod: exec.requestMethod ?? null,
+    requestBody: exec.requestBody ?? null,
+    responseStatus: exec.responseStatus ?? null,
+    responseBody: exec.responseBody ?? null,
+    errorMessage: exec.errorMessage ?? null,
+    durationMs: exec.durationMs ?? null,
+    tenantId: exec.tenantId ?? null,
+    createdAt: formatDateTime(exec.createdAt),
   };
 }
 
@@ -2258,6 +2291,7 @@ function buildRuntimeIssues(input: {
   tasks: ReturnType<typeof mapTask>[];
   triggerExecutions: ReturnType<typeof mapRuntimeTriggerExecution>[];
   outboxEvents: WorkflowRuntimeOutboxEvent[];
+  jobs: typeof workflowJobs.$inferSelect[];
 }): WorkflowRuntimeIssue[] {
   const issues: WorkflowRuntimeIssue[] = [];
   const activeTasks = input.tasks.filter((task) => task.status === 'pending' || task.status === 'waiting');
@@ -2269,28 +2303,31 @@ function buildRuntimeIssues(input: {
       description: '实例状态仍为 running，但没有 pending/waiting 任务，可能存在推进中断或状态未回写。',
     });
   }
-  for (const task of input.tasks) {
-    if (task.status !== 'pending' && task.status !== 'waiting') continue;
-    if (task.externalDispatchStatus === 'failed' || task.externalDispatchStatus === 'fallback') {
+  // 外部审批 / 触发器作业失败（workflow_jobs）
+  for (const job of input.jobs) {
+    if (job.status !== 'failed' && job.status !== 'dead') continue;
+    if (job.jobType === 'external_dispatch') {
       issues.push({
         severity: 'critical',
         source: 'task',
-        taskId: task.id,
-        nodeKey: task.nodeKey,
+        taskId: job.taskId ?? undefined,
+        nodeKey: job.nodeKey ?? undefined,
         title: '外部审批分派失败',
-        description: `任务 externalDispatchStatus=${task.externalDispatchStatus}，需要检查外部审批配置或人工介入。`,
+        description: job.lastError ?? '外部审批作业失败，需要检查外部审批配置或人工介入。',
       });
-    }
-    if (task.nodeType === 'trigger' && task.triggerDispatchStatus === 'failed') {
+    } else if (job.jobType === 'trigger_dispatch') {
       issues.push({
         severity: 'critical',
         source: 'trigger',
-        taskId: task.id,
-        nodeKey: task.nodeKey,
+        taskId: job.taskId ?? undefined,
+        nodeKey: job.nodeKey ?? undefined,
         title: '触发器执行失败',
-        description: task.triggerLastError ?? '触发器已进入 failed 状态，流程仍在等待该节点。',
+        description: job.lastError ?? '触发器作业已失败，流程仍在等待该节点。',
       });
     }
+  }
+  for (const task of input.tasks) {
+    if (task.status !== 'pending' && task.status !== 'waiting') continue;
     if (task.nodeType === 'trigger' && task.status === 'waiting' && !input.triggerExecutions.some((item) => item.taskId === task.id)) {
       issues.push({
         severity: 'warning',
@@ -2368,18 +2405,21 @@ export async function getInstanceRuntimeDiagnostics(id: number): Promise<Workflo
       cfg?.operations?.includes('signature') ?? false,
     );
   });
-  const [triggerRows, outboxRows] = await Promise.all([
-    db.select().from(workflowTriggerExecutions)
-      .where(eq(workflowTriggerExecutions.instanceId, id))
-      .orderBy(desc(workflowTriggerExecutions.id))
+  const [triggerExecRows, eventJobRows, instanceJobs] = await Promise.all([
+    db.select({ exec: workflowJobExecutions, job: workflowJobs })
+      .from(workflowJobExecutions)
+      .innerJoin(workflowJobs, eq(workflowJobExecutions.jobId, workflowJobs.id))
+      .where(and(eq(workflowJobs.instanceId, id), eq(workflowJobExecutions.jobType, 'trigger_dispatch')))
+      .orderBy(desc(workflowJobExecutions.id))
       .limit(50),
-    db.select().from(workflowEventOutbox)
-      .where(eq(workflowEventOutbox.instanceId, id))
-      .orderBy(desc(workflowEventOutbox.id))
+    db.select().from(workflowJobs)
+      .where(and(eq(workflowJobs.instanceId, id), eq(workflowJobs.jobType, 'event_dispatch')))
+      .orderBy(desc(workflowJobs.id))
       .limit(80),
+    db.select().from(workflowJobs).where(eq(workflowJobs.instanceId, id)).limit(200),
   ]);
-  const triggerExecutions = triggerRows.map(mapRuntimeTriggerExecution);
-  const outboxEvents = outboxRows.map(mapRuntimeOutboxEvent);
+  const triggerExecutions = triggerExecRows.map(mapRuntimeTriggerExecution);
+  const outboxEvents = eventJobRows.map(mapRuntimeOutboxEvent);
   const instance = mapInstance(row, {
     definitionName: row.definition?.name ?? null,
     categoryId: row.definition?.categoryId ?? null,
@@ -2396,7 +2436,7 @@ export async function getInstanceRuntimeDiagnostics(id: number): Promise<Workflo
     activeTasks,
     triggerExecutions,
     outboxEvents,
-    issues: buildRuntimeIssues({ inst: row, tasks, triggerExecutions, outboxEvents }),
+    issues: buildRuntimeIssues({ inst: row, tasks, triggerExecutions, outboxEvents, jobs: instanceJobs }),
     snapshot: {
       formData: (row.formData ?? null) as Record<string, unknown> | null,
       formSnapshot: row.formSnapshot ?? null,
@@ -2597,9 +2637,7 @@ function emitInstanceStartEvents(
     if (t.status === 'rejected') {
       emitTaskEvent('task.rejected', mapTask(t), { definitionId: instance.definitionId, tenantId: instance.tenantId, actor });
     }
-    if (t.nodeType === 'delay' && t.status === 'waiting' && t.wakeAt) {
-      delayScheduler.scheduleAt(t.id, t.wakeAt);
-    }
+    void armTaskAsyncJobs(t, instance).catch((err) => logger.error('[workflow-jobs] arm task jobs failed', { taskId: t.id, err }));
     if (t.nodeType === 'subProcess') {
       void maybeSpawnSubProcessChild(instance, t, actor).catch((err) => {
         logger.error('[subProcess] spawn child failed', { instanceId: instance.id, taskId: t.id, err });
@@ -2877,9 +2915,7 @@ export async function approveTaskCore(
     if (t.status === 'rejected') {
       emitTaskEvent('task.rejected', mapTask(t), meta);
     }
-    if (t.nodeType === 'delay' && t.status === 'waiting' && t.wakeAt) {
-      delayScheduler.scheduleAt(t.id, t.wakeAt);
-    }
+    await armTaskAsyncJobs(t, updated.row);
     if (t.nodeType === 'subProcess') {
       void maybeSpawnSubProcessChild(updated.row, t, actor).catch((err) => {
         logger.error('[subProcess] spawn child failed', { instanceId: updated.row.id, taskId: t.id, err });
@@ -3166,9 +3202,7 @@ export async function rejectTaskCore(
       if (t.assigneeId && t.status === 'pending') emitTaskEvent('task.assigned', mapTask(t), meta);
       if (t.status === 'approved') emitTaskEvent('task.approved', mapTask(t), meta);
       if (t.status === 'rejected') emitTaskEvent('task.rejected', mapTask(t), meta);
-      if (t.nodeType === 'delay' && t.status === 'waiting' && t.wakeAt) {
-        delayScheduler.scheduleAt(t.id, t.wakeAt);
-      }
+      await armTaskAsyncJobs(t, updated.row);
       if (t.nodeType === 'subProcess') {
         void maybeSpawnSubProcessChild(updated.row, t, actor).catch((err) => {
           logger.error('[subProcess] spawn child failed', { instanceId: updated.row.id, taskId: t.id, err });
@@ -3315,8 +3349,6 @@ export async function systemTransferTaskToManager(
       comment,
       transferChain: nextChain,
       originalAssigneeId: task.originalAssigneeId ?? task.assigneeId ?? null,
-      timeoutRemindCount: 0,
-      timeoutAt: newTimeoutAt,
     })
     .where(and(eq(workflowTasks.id, task.id), eq(workflowTasks.status, 'pending')))
     .returning();
@@ -3532,7 +3564,7 @@ export async function reduceSignTask(taskId: number, targetTaskIds: number[], co
       emitNodeEvent('node.entered', { instanceId: inst.id, ...meta, nodeKey: t.nodeKey, nodeName: t.nodeName, nodeType: t.nodeType });
       emitTaskEvent('task.created', mapTask(t), meta);
       if (t.assigneeId && t.status === 'pending') emitTaskEvent('task.assigned', mapTask(t), meta);
-      if (t.nodeType === 'delay' && t.status === 'waiting' && t.wakeAt) delayScheduler.scheduleAt(t.id, t.wakeAt);
+      await armTaskAsyncJobs(t, instRow);
       if (t.nodeType === 'subProcess') {
         void maybeSpawnSubProcessChild(instRow, t, actor).catch((err) => {
           logger.error('[subProcess] spawn child failed', { instanceId: inst.id, taskId: t.id, err });

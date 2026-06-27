@@ -1,7 +1,7 @@
 import { and, asc, eq, gte, desc, ilike, or, inArray, sql, type SQL } from 'drizzle-orm';
 import dayjs from 'dayjs';
 import { db } from '../db';
-import { workflowInstances, workflowTasks, workflowDefinitions, workflowCategories, users } from '../db/schema';
+import { workflowInstances, workflowTasks, workflowDefinitions, workflowCategories, workflowJobs, users } from '../db/schema';
 import { currentUser } from '../lib/context';
 import { tenantCondition } from '../lib/tenant';
 import { pageOffset } from '../lib/pagination';
@@ -119,15 +119,18 @@ export async function getWorkflowAnalytics(query: { definitionId?: number } = {}
       .where(and(...instConds, inArray(workflowInstances.status, FINISHED), gte(workflowInstances.updatedAt, since14)))
       .groupBy(sql`to_char(${workflowInstances.updatedAt}, 'YYYY-MM-DD')`),
     // 9. 已超时挂起任务数
+    // TODO(workflow-jobs P5): timeout/due-soon counts now use pending task_timeout jobs; jobs may slightly lag task state.
     db.select({ count: sql<number>`count(*)::int` })
       .from(workflowTasks)
       .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
-      .where(and(...instConds, eq(workflowTasks.status, 'pending'), sql`${workflowTasks.timeoutAt} is not null and ${workflowTasks.timeoutAt} < now()`)),
+      .innerJoin(workflowJobs, eq(workflowJobs.taskId, workflowTasks.id))
+      .where(and(...instConds, eq(workflowTasks.status, 'pending'), eq(workflowJobs.jobType, 'task_timeout'), eq(workflowJobs.status, 'pending'), sql`${workflowJobs.runAt} <= now()`)),
     // 10. 24h 内即将超时的挂起任务数
     db.select({ count: sql<number>`count(*)::int` })
       .from(workflowTasks)
       .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
-      .where(and(...instConds, eq(workflowTasks.status, 'pending'), sql`${workflowTasks.timeoutAt} is not null and ${workflowTasks.timeoutAt} >= now() and ${workflowTasks.timeoutAt} < now() + interval '24 hours'`)),
+      .innerJoin(workflowJobs, eq(workflowJobs.taskId, workflowTasks.id))
+      .where(and(...instConds, eq(workflowTasks.status, 'pending'), eq(workflowJobs.jobType, 'task_timeout'), eq(workflowJobs.status, 'pending'), sql`${workflowJobs.runAt} > now() and ${workflowJobs.runAt} < now() + interval '24 hours'`)),
   ]);
 
   const statusCounts = statusRows.map((r) => ({ status: r.status, count: r.count }));
@@ -189,7 +192,9 @@ export async function listOverdueTasks(query: { page?: number; pageSize?: number
   const instTenant = tenantCondition(workflowInstances, user);
   const conds: SQL[] = [
     eq(workflowTasks.status, 'pending'),
-    sql`${workflowTasks.timeoutAt} is not null and ${workflowTasks.timeoutAt} < now()`,
+    eq(workflowJobs.jobType, 'task_timeout'),
+    eq(workflowJobs.status, 'pending'),
+    sql`${workflowJobs.runAt} <= now()`,
   ];
   if (instTenant) conds.push(instTenant);
   if (query.definitionId) conds.push(eq(workflowInstances.definitionId, query.definitionId));
@@ -199,6 +204,7 @@ export async function listOverdueTasks(query: { page?: number; pageSize?: number
     db.select({ c: sql<number>`count(*)::int` })
       .from(workflowTasks)
       .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
+      .innerJoin(workflowJobs, eq(workflowJobs.taskId, workflowTasks.id))
       .where(where),
     db.select({
       taskId: workflowTasks.id,
@@ -209,14 +215,15 @@ export async function listOverdueTasks(query: { page?: number; pageSize?: number
       nodeName: workflowTasks.nodeName,
       assigneeId: workflowTasks.assigneeId,
       assigneeName: assignee.nickname,
-      timeoutAt: workflowTasks.timeoutAt,
+      timeoutAt: workflowJobs.runAt,
     })
       .from(workflowTasks)
       .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
+      .innerJoin(workflowJobs, eq(workflowJobs.taskId, workflowTasks.id))
       .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
       .leftJoin(assignee, eq(workflowTasks.assigneeId, assignee.id))
       .where(where)
-      .orderBy(asc(workflowTasks.timeoutAt))
+      .orderBy(asc(workflowJobs.runAt))
       .limit(pageSize)
       .offset(pageOffset(page, pageSize)),
   ]);

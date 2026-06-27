@@ -625,36 +625,10 @@ handlerRegistry.set('databaseBackup', async (params) => {
   return `数据库备份完成 (${type}), ID: ${backup.id}`;
 });
 
-handlerRegistry.set('retryWorkflowEventDeliveries', async () => {
-  const { retryWorkflowEventDeliveries } = await import('./workflow-subscribers/webhook');
-  const { retried } = await retryWorkflowEventDeliveries();
-  return `重试了 ${retried} 个事件投递`;
-});
-
-handlerRegistry.set('replayWorkflowEventOutbox', async () => {
-  const { replayWorkflowEventOutbox } = await import('./workflow-event-bus');
-  const r = await replayWorkflowEventOutbox();
-  return `工作流事件 outbox：扫描 ${r.scanned}，重放成功 ${r.dispatched}，失败 ${r.failed}`;
-});
-
-handlerRegistry.set('processWorkflowTaskTimeouts', async () => {
-  const { processWorkflowTaskTimeouts } = await import('./workflow-timeout-processor');
-  const r = await processWorkflowTaskTimeouts();
-  return `扫描 ${r.processed} 个超时任务：提醒 ${r.reminded}，自动通过 ${r.approved}，自动拒绝 ${r.rejected}，升级转交 ${r.escalated}`;
-});
-
 handlerRegistry.set('recoverStuckWorkflowSubProcesses', async () => {
   const { recoverStuckSubProcesses } = await import('./workflow-subprocess-recovery');
   const r = await recoverStuckSubProcesses();
   return `子流程恢复扫描：重新发起 ${r.spawned} 个、重新唤醒 ${r.resumed} 个、多实例汇聚对账 ${r.reconciled} 个`;
-});
-
-handlerRegistry.set('recoverWorkflowRuntimeSideEffects', async () => {
-  const { recoverPendingExternalApprovals } = await import('./workflow-subscribers/external-approver');
-  const { recoverPendingWorkflowTriggers } = await import('./workflow-subscribers/trigger');
-  const external = await recoverPendingExternalApprovals();
-  const trigger = await recoverPendingWorkflowTriggers();
-  return `工作流运行时副作用恢复：外部审批扫描 ${external.scanned}/派发 ${external.dispatched}；触发器扫描 ${trigger.scanned}/派发 ${trigger.dispatched}/跳过 ${trigger.skipped}`;
 });
 
 handlerRegistry.set('publishScheduledAnnouncements', async () => {

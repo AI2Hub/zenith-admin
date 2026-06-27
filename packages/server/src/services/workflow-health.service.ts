@@ -1,7 +1,7 @@
-import { and, desc, eq, inArray, lte } from 'drizzle-orm';
+import { and, desc, eq, inArray, lte, type SQL } from 'drizzle-orm';
 import type { WorkflowHealthIssue, WorkflowHealthSummary } from '@zenith/shared';
 import { db } from '../db';
-import { workflowEventOutbox, workflowInstances, workflowTasks, workflowTriggerExecutions } from '../db/schema';
+import { workflowJobExecutions, workflowJobs, workflowInstances, workflowTasks } from '../db/schema';
 import { currentUser } from '../lib/context';
 import { formatDateTime } from '../lib/datetime';
 import { tenantCondition } from '../lib/tenant';
@@ -67,27 +67,49 @@ export async function getWorkflowHealthSummary(thresholdMinutes = 30): Promise<W
     .filter((row) => row.task.nodeType === 'trigger')
     .map((row) => row.task.id);
   const triggerExecutions = triggerTaskIds.length > 0
-    ? await db.select({ taskId: workflowTriggerExecutions.taskId })
-      .from(workflowTriggerExecutions)
-      .where(inArray(workflowTriggerExecutions.taskId, triggerTaskIds))
+    ? await db.select({ taskId: workflowJobs.taskId })
+      .from(workflowJobExecutions)
+      .innerJoin(workflowJobs, eq(workflowJobExecutions.jobId, workflowJobs.id))
+      .where(and(eq(workflowJobExecutions.jobType, 'trigger_dispatch'), inArray(workflowJobs.taskId, triggerTaskIds)))
     : [];
   const triggerTaskIdsWithExecution = new Set(triggerExecutions.map((row) => row.taskId).filter((id): id is number => typeof id === 'number'));
+
+  const taskIds = taskRows.map((row) => row.task.id);
+  const taskJobRows = taskIds.length > 0
+    ? await db.select().from(workflowJobs).where(and(
+      inArray(workflowJobs.taskId, taskIds),
+      inArray(workflowJobs.jobType, ['external_dispatch', 'trigger_dispatch', 'delay_wake', 'task_timeout']),
+    ))
+    : [];
+  const jobsByTask = new Map<number, Array<typeof workflowJobs.$inferSelect>>();
+  for (const job of taskJobRows) {
+    if (!job.taskId) continue;
+    const items = jobsByTask.get(job.taskId) ?? [];
+    items.push(job);
+    jobsByTask.set(job.taskId, items);
+  }
+  const findJob = (taskId: number, jobType: typeof workflowJobs.$inferSelect['jobType']) =>
+    jobsByTask.get(taskId)?.find((job) => job.jobType === jobType) ?? null;
 
   const issues: WorkflowHealthIssue[] = [];
   for (const row of taskRows) {
     const { task } = row;
-    if (task.externalDispatchStatus === 'failed' || task.externalDispatchStatus === 'fallback') {
+    const externalJob = findJob(task.id, 'external_dispatch');
+    const triggerJob = findJob(task.id, 'trigger_dispatch');
+    const delayJob = findJob(task.id, 'delay_wake');
+    const timeoutJob = findJob(task.id, 'task_timeout');
+    if (externalJob && ['failed', 'dead'].includes(externalJob.status)) {
       issues.push(taskIssue({
         type: 'external_dispatch_failed',
         severity: 'critical',
         title: '外部审批分派失败',
-        description: `外部审批任务处于 ${task.externalDispatchStatus} 状态，需要检查外部审批配置或手动处理。`,
+        description: externalJob.lastError ?? `外部审批分派作业处于 ${externalJob.status} 状态，需要检查外部审批配置或手动处理。`,
         row,
         now,
       }));
       continue;
     }
-    if (task.externalDispatchStatus === 'pending') {
+    if (externalJob?.status === 'pending') {
       issues.push(taskIssue({
         type: 'external_dispatch_pending',
         severity: 'warning',
@@ -98,13 +120,13 @@ export async function getWorkflowHealthSummary(thresholdMinutes = 30): Promise<W
       }));
       continue;
     }
-    if (task.nodeType === 'trigger' && task.status === 'waiting' && task.triggerDispatchStatus === 'failed') {
+    if (task.nodeType === 'trigger' && task.status === 'waiting' && triggerJob && ['failed', 'dead'].includes(triggerJob.status)) {
       issues.push(taskIssue({
         type: 'trigger_execution_failed',
         severity: 'critical',
         title: '触发器执行失败',
-        description: task.triggerLastError
-          ? `触发器最终执行失败：${task.triggerLastError}`
+        description: triggerJob.lastError
+          ? `触发器最终执行失败：${triggerJob.lastError}`
           : '触发器最终执行失败，流程仍在等待该节点处理。',
         row,
         now,
@@ -133,52 +155,54 @@ export async function getWorkflowHealthSummary(thresholdMinutes = 30): Promise<W
       }));
       continue;
     }
-    if (task.nodeType === 'delay' && task.status === 'waiting' && task.wakeAt && task.wakeAt <= now) {
+    if (task.nodeType === 'delay' && task.status === 'waiting' && delayJob?.status === 'pending' && delayJob.runAt <= now) {
       issues.push(taskIssue({
         type: 'delay_overdue',
         severity: 'critical',
         title: '延迟节点已到期未唤醒',
-        description: '延迟任务 wakeAt 已到期但仍在等待。',
+        description: '延迟唤醒作业 runAt 已到期但任务仍在等待。',
         row,
         now,
       }));
       continue;
     }
-    if (task.status === 'pending' && task.timeoutAt && task.timeoutAt <= now) {
+    if (task.status === 'pending' && timeoutJob?.status === 'pending' && timeoutJob.runAt <= now) {
       issues.push(taskIssue({
         type: 'task_timeout_overdue',
         severity: 'warning',
         title: '审批任务已超时未处理',
-        description: '审批任务 timeoutAt 已到期，等待超时处理器执行。',
+        description: '审批超时作业 runAt 已到期，等待超时处理器执行。',
         row,
         now,
       }));
     }
   }
 
-  const outboxTenant = tenantCondition(workflowEventOutbox, user);
-  const outboxConditions = [
-    inArray(workflowEventOutbox.status, ['pending', 'failed']),
-    lte(workflowEventOutbox.createdAt, cutoff),
+  const outboxTenant = tenantCondition(workflowJobs, user);
+  const outboxConditions: SQL[] = [
+    eq(workflowJobs.jobType, 'event_dispatch'),
+    inArray(workflowJobs.status, ['pending', 'failed', 'dead']),
+    lte(workflowJobs.createdAt, cutoff),
   ];
   if (outboxTenant) outboxConditions.push(outboxTenant);
-  const outboxRows = await db.select().from(workflowEventOutbox)
+  const outboxRows = await db.select().from(workflowJobs)
     .where(and(...outboxConditions))
-    .orderBy(desc(workflowEventOutbox.id))
+    .orderBy(desc(workflowJobs.id))
     .limit(100);
   for (const row of outboxRows) {
-    const failed = row.status === 'failed';
+    const failed = row.status === 'failed' || row.status === 'dead';
     issues.push({
       id: `outbox:${row.id}`,
       type: failed ? 'workflow_event_outbox_failed' : 'workflow_event_outbox_pending',
       severity: failed ? 'critical' : 'warning',
       title: failed ? '工作流事件 outbox 重放失败' : '工作流事件 outbox 待处理过久',
-      description: failed ? (row.errorMessage ?? '事件重放失败，请查看服务日志。') : '事件已进入 outbox 但超过阈值仍未处理。',
+      // TODO(workflow-jobs P5): event_dispatch jobs no longer expose old outbox eventType/status fields one-to-one.
+      description: failed ? (row.lastError ?? '事件派发作业失败，请查看服务日志。') : '事件派发作业超过阈值仍未处理。',
       instanceId: row.instanceId ?? null,
       taskId: row.taskId ?? null,
       nodeKey: null,
       nodeName: null,
-      status: row.status,
+      status: failed ? 'failed' : 'pending',
       ageMinutes: ageMinutes(row.createdAt, now),
       createdAt: formatDateTime(row.createdAt),
     });

@@ -1,6 +1,5 @@
 import type { WorkflowEvent } from '@zenith/shared';
 import { findMatchingSubscriptions } from '../../../services/workflow-event-subscriptions.service';
-import { dispatchWorkflowEventToHandlers } from '../../workflow-event-bus';
 import { enqueueJob } from '../engine';
 import { registerJobHandler } from '../registry';
 import { WorkflowJobPermanentError } from '../errors';
@@ -10,9 +9,9 @@ import type { WorkflowJobContext } from '../types';
 const WEBHOOK_MAX_ATTEMPTS = 5;
 
 /**
- * event_dispatch：派发一个工作流事件。
- * 取代 event-bus 的 outbox 重放：① 派发到进程内订阅者（ws/通知/会话/自动化/节点监听）；
- * ② 为每个匹配的 Webhook 订阅入队独立的 webhook_delivery 作业（各自重试/死信）。
+ * event_dispatch：工作流事件的持久化 Webhook 扇出。
+ * 进程内订阅者（ws/通知/会话/自动化/节点监听）已由 event-bus.emit 立即派发，
+ * 本作业只负责为每个匹配的 Webhook 订阅入队独立的 webhook_delivery 作业（各自重试/死信）。
  * payload: { event }
  */
 async function handle({ payload }: WorkflowJobContext): Promise<void> {
@@ -21,7 +20,6 @@ async function handle({ payload }: WorkflowJobContext): Promise<void> {
     throw new WorkflowJobPermanentError('event_dispatch: payload.event 缺失');
   }
 
-  // ① Webhook 扇出：为每个匹配订阅入队独立投递作业（幂等：event+sub）
   const subs = await findMatchingSubscriptions({
     definitionId: event.definitionId ?? 0,
     eventType: event.type,
@@ -39,9 +37,6 @@ async function handle({ payload }: WorkflowJobContext): Promise<void> {
       traceId: event.eventId,
     });
   }
-
-  // ② 进程内订阅者派发（失败则整体重试，订阅者须幂等——与旧 outbox 重放语义一致）
-  await dispatchWorkflowEventToHandlers(event);
 }
 
 registerJobHandler('event_dispatch', handle);

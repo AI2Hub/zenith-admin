@@ -22,9 +22,10 @@ import type {
   WorkflowEngineOutboxEvent,
   WorkflowFlowData,
   WorkflowInstancePriority,
+  WorkflowTriggerExecutionStatus,
 } from '@zenith/shared';
 import { db } from '../db';
-import { workflowDefinitions, workflowEventOutbox, workflowInstances, workflowTasks, workflowTriggerExecutions, users } from '../db/schema';
+import { workflowDefinitions, workflowInstances, workflowJobExecutions, workflowJobs, workflowTasks, users } from '../db/schema';
 import { currentUser } from '../lib/context';
 import { getDataScopeCondition } from '../lib/data-scope';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../lib/datetime';
@@ -139,6 +140,24 @@ function countBy<T extends string>(values: T[]): Record<string, number> {
   }, {});
 }
 
+function payloadRecord(payload: unknown): Record<string, unknown> {
+  return payload && typeof payload === 'object' && !Array.isArray(payload) ? payload as Record<string, unknown> : {};
+}
+
+function payloadString(payload: unknown, key: string): string | null {
+  const value = payloadRecord(payload)[key];
+  return typeof value === 'string' ? value : null;
+}
+
+function mapJobStatusToTriggerStatus(job: typeof workflowJobs.$inferSelect, execution?: typeof workflowJobExecutions.$inferSelect): WorkflowTriggerExecutionStatus {
+  if (execution?.status === 'succeeded' || job.status === 'succeeded') return 'success';
+  if (execution?.status === 'running' || job.status === 'running') return 'running';
+  // TODO(workflow-jobs P5): infer legacy retrying from failed jobs with retry budget, since executions only store running/succeeded/failed.
+  if (job.status === 'failed' && job.attempts < job.maxAttempts) return 'retrying';
+  if (job.status === 'pending') return 'pending';
+  return 'failed';
+}
+
 function validateDefinitions(rows: Array<typeof workflowDefinitions.$inferSelect>): WorkflowEngineDefinitionSnapshot {
   const nodeTypes: string[] = [];
   let edgeCount = 0;
@@ -187,8 +206,8 @@ function mapRuntimeTask(row: {
   assigneeName: string | null;
   priority: string;
   externalCallbackId: string | null;
-  externalDispatchStatus: typeof workflowTasks.$inferSelect['externalDispatchStatus'];
-  triggerDispatchStatus: typeof workflowTasks.$inferSelect['triggerDispatchStatus'];
+  externalDispatchStatus: WorkflowEngineRuntimeTask['externalDispatchStatus'];
+  triggerDispatchStatus: WorkflowEngineRuntimeTask['triggerDispatchStatus'];
   triggerAttempt: number;
   triggerNextRetryAt: Date | null;
   triggerLastError: string | null;
@@ -224,42 +243,54 @@ function mapRuntimeTask(row: {
   };
 }
 
-function mapTriggerExecution(row: typeof workflowTriggerExecutions.$inferSelect & { instanceTitle?: string | null }): WorkflowEngineTriggerExecution {
+function mapTriggerExecution(row: {
+  execution: typeof workflowJobExecutions.$inferSelect;
+  job: typeof workflowJobs.$inferSelect;
+  instanceTitle?: string | null;
+}): WorkflowEngineTriggerExecution {
+  const triggerType = payloadString(row.job.payload, 'triggerType') ?? payloadString(row.job.payload, 'type') ?? 'webhook';
   return {
-    id: row.id,
-    instanceId: row.instanceId,
-    taskId: row.taskId ?? null,
-    nodeKey: row.nodeKey,
-    nodeName: row.nodeName ?? null,
-    triggerType: row.triggerType as WorkflowEngineTriggerExecution['triggerType'],
-    status: row.status,
-    attempt: row.attempt,
-    requestUrl: row.requestUrl ?? null,
-    requestMethod: row.requestMethod ?? null,
-    requestBody: row.requestBody ?? null,
-    responseStatus: row.responseStatus ?? null,
-    responseBody: row.responseBody ?? null,
-    errorMessage: row.errorMessage ?? null,
-    durationMs: row.durationMs ?? null,
-    tenantId: row.tenantId ?? null,
-    createdAt: formatDateTime(row.createdAt),
+    id: row.execution.id,
+    instanceId: row.job.instanceId ?? 0,
+    taskId: row.job.taskId ?? null,
+    nodeKey: row.job.nodeKey ?? payloadString(row.job.payload, 'nodeKey') ?? '',
+    nodeName: payloadString(row.job.payload, 'nodeName'),
+    triggerType: triggerType as WorkflowEngineTriggerExecution['triggerType'],
+    status: mapJobStatusToTriggerStatus(row.job, row.execution),
+    attempt: row.execution.attempt,
+    requestUrl: row.execution.requestUrl ?? null,
+    requestMethod: row.execution.requestMethod ?? null,
+    requestBody: row.execution.requestBody ?? null,
+    responseStatus: row.execution.responseStatus ?? null,
+    responseBody: row.execution.responseBody ?? null,
+    errorMessage: row.execution.errorMessage ?? row.job.lastError ?? null,
+    durationMs: row.execution.durationMs ?? null,
+    tenantId: row.execution.tenantId ?? row.job.tenantId ?? null,
+    createdAt: formatDateTime(row.execution.createdAt),
     instanceTitle: row.instanceTitle ?? null,
   };
 }
 
-function mapOutboxEvent(row: typeof workflowEventOutbox.$inferSelect & { instanceTitle?: string | null }, now: Date): WorkflowEngineOutboxEvent {
+function mapOutboxEvent(row: typeof workflowJobs.$inferSelect & { instanceTitle?: string | null }, now: Date): WorkflowEngineOutboxEvent {
+  const status = row.status === 'succeeded'
+    ? 'success'
+    : row.status === 'running'
+      ? 'processing'
+      : row.status === 'failed' || row.status === 'dead'
+        ? 'failed'
+        : 'pending';
   return {
     id: row.id,
-    eventId: row.eventId,
-    eventType: row.eventType,
+    eventId: payloadString(row.payload, 'eventId') ?? row.idempotencyKey ?? String(row.id),
+    eventType: payloadString(row.payload, 'eventType') ?? row.jobType,
     instanceId: row.instanceId ?? null,
     instanceTitle: row.instanceTitle ?? null,
     taskId: row.taskId ?? null,
-    status: row.status,
+    status,
     attempts: row.attempts,
-    errorMessage: row.errorMessage ?? null,
-    nextRetryAt: formatNullableDateTime(row.nextRetryAt),
-    processedAt: formatNullableDateTime(row.processedAt),
+    errorMessage: row.lastError ?? null,
+    nextRetryAt: row.status === 'failed' ? formatNullableDateTime(row.runAt) : null,
+    processedAt: row.status === 'succeeded' ? formatNullableDateTime(row.updatedAt) : null,
     ageMinutes: ageMinutes(row.createdAt, now) ?? 0,
     createdAt: formatDateTime(row.createdAt),
   };
@@ -553,8 +584,8 @@ function buildEventSeries(rows: Array<{ createdAt: Date; status: string }>, now:
     const idx = slotIndexOf(row.createdAt, firstStart);
     if (idx < 0 || idx >= out.length) continue;
     out[idx].total += 1;
-    if (row.status === 'success') out[idx].success += 1;
-    else if (row.status === 'failed') out[idx].failed += 1;
+    if (row.status === 'success' || row.status === 'succeeded') out[idx].success += 1;
+    else if (row.status === 'failed' || row.status === 'dead') out[idx].failed += 1;
   }
   return out;
 }
@@ -590,9 +621,13 @@ export async function getWorkflowEngineIntrospection(
   const systemWide = options.systemWide === true;
   const user = systemWide ? null : currentUser();
   const assigneeUsers = alias(users, 'workflow_engine_task_assignee');
+  const externalJob = alias(workflowJobs, 'workflow_engine_external_job');
+  const triggerJob = alias(workflowJobs, 'workflow_engine_trigger_job');
+  const timeoutJob = alias(workflowJobs, 'workflow_engine_timeout_job');
+  const delayJob = alias(workflowJobs, 'workflow_engine_delay_job');
   const instTenant = user ? tenantCondition(workflowInstances, user) : undefined;
   const defTenant = user ? tenantCondition(workflowDefinitions, user) : undefined;
-  const outboxTenant = user ? tenantCondition(workflowEventOutbox, user) : undefined;
+  const outboxTenant = user ? tenantCondition(workflowJobs, user) : undefined;
   const taskScope = user
     ? await getDataScopeCondition({
         currentUserId: user.userId,
@@ -616,16 +651,19 @@ export async function getWorkflowEngineIntrospection(
   const thresholds = await getWorkflowEngineThresholds();
   const apdexT = thresholds.apdexThresholdMs;
   // 事件处理延迟（毫秒）SQL 片段 + 「近 24h 成功且已处理」过滤片段，复用于 P95/P99/直方图/Apdex。
-  const evLatency = sql`extract(epoch from (${workflowEventOutbox.processedAt} - ${workflowEventOutbox.createdAt})) * 1000`;
-  const evDone24h = and(eq(workflowEventOutbox.status, 'success'), isNotNull(workflowEventOutbox.processedAt), gte(workflowEventOutbox.createdAt, since24h));
-  const trDone24h = and(eq(workflowTriggerExecutions.status, 'success'), isNotNull(workflowTriggerExecutions.durationMs), gte(workflowTriggerExecutions.createdAt, since24h));
-  const trDuration = sql`${workflowTriggerExecutions.durationMs}`;
+  // TODO(workflow-jobs P5): event latency now approximates old processedAt-createdAt using job updatedAt-createdAt.
+  const evLatency = sql`extract(epoch from (${workflowJobs.updatedAt} - ${workflowJobs.createdAt})) * 1000`;
+  const evDone24h = and(eq(workflowJobs.jobType, 'event_dispatch'), eq(workflowJobs.status, 'succeeded'), gte(workflowJobs.createdAt, since24h));
+  const trDone24h = and(eq(workflowJobExecutions.jobType, 'trigger_dispatch'), eq(workflowJobExecutions.status, 'succeeded'), isNotNull(workflowJobExecutions.durationMs), gte(workflowJobExecutions.createdAt, since24h));
+  const trDuration = sql`${workflowJobExecutions.durationMs}`;
   const terminalStatuses = ['approved', 'rejected', 'withdrawn', 'cancelled'] as const;
   const canceledStatuses = ['withdrawn', 'cancelled'] as const;
   const outboxScopeConds: SQL[] = [];
   if (outboxTenant) outboxScopeConds.push(outboxTenant);
-  outboxScopeConds.push(or(isNull(workflowEventOutbox.instanceId), instanceBaseWhere ?? sql`true`)!);
+  outboxScopeConds.push(eq(workflowJobs.jobType, 'event_dispatch'));
+  outboxScopeConds.push(or(isNull(workflowJobs.instanceId), instanceBaseWhere ?? sql`true`)!);
   const triggerScopeConds: SQL[] = [];
+  triggerScopeConds.push(eq(workflowJobExecutions.jobType, 'trigger_dispatch'));
   if (instTenant) triggerScopeConds.push(instTenant);
   if (taskScope) triggerScopeConds.push(taskScope);
 
@@ -664,13 +702,28 @@ export async function getWorkflowEngineIntrospection(
       assigneeName: assigneeUsers.nickname,
       priority: workflowInstances.priority,
       externalCallbackId: workflowTasks.externalCallbackId,
-      externalDispatchStatus: workflowTasks.externalDispatchStatus,
-      triggerDispatchStatus: workflowTasks.triggerDispatchStatus,
-      triggerAttempt: workflowTasks.triggerAttempt,
-      triggerNextRetryAt: workflowTasks.triggerNextRetryAt,
-      triggerLastError: workflowTasks.triggerLastError,
-      timeoutAt: workflowTasks.timeoutAt,
-      wakeAt: workflowTasks.wakeAt,
+      externalDispatchStatus: sql<WorkflowEngineRuntimeTask['externalDispatchStatus']>`
+        case
+          when ${externalJob.status} = 'pending' then 'pending'
+          when ${externalJob.status} = 'running' then 'dispatched'
+          when ${externalJob.status} = 'succeeded' then 'dispatched'
+          when ${externalJob.status} in ('failed', 'dead') then 'failed'
+          else null
+        end`,
+      triggerDispatchStatus: sql<WorkflowEngineRuntimeTask['triggerDispatchStatus']>`
+        case
+          when ${triggerJob.status} = 'pending' then 'pending'
+          when ${triggerJob.status} = 'running' then 'running'
+          when ${triggerJob.status} = 'succeeded' then 'success'
+          when ${triggerJob.status} = 'failed' and ${triggerJob.attempts} < ${triggerJob.maxAttempts} then 'retrying'
+          when ${triggerJob.status} in ('failed', 'dead') then 'failed'
+          else null
+        end`,
+      triggerAttempt: sql<number>`coalesce(${triggerJob.attempts}, 0)`.mapWith(Number),
+      triggerNextRetryAt: triggerJob.runAt,
+      triggerLastError: triggerJob.lastError,
+      timeoutAt: timeoutJob.runAt,
+      wakeAt: delayJob.runAt,
       createdAt: workflowTasks.createdAt,
     })
       .from(workflowTasks)
@@ -678,51 +731,57 @@ export async function getWorkflowEngineIntrospection(
       .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
       .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
       .leftJoin(assigneeUsers, eq(workflowTasks.assigneeId, assigneeUsers.id))
+      .leftJoin(externalJob, and(eq(externalJob.taskId, workflowTasks.id), eq(externalJob.jobType, 'external_dispatch')))
+      .leftJoin(triggerJob, and(eq(triggerJob.taskId, workflowTasks.id), eq(triggerJob.jobType, 'trigger_dispatch')))
+      .leftJoin(timeoutJob, and(eq(timeoutJob.taskId, workflowTasks.id), eq(timeoutJob.jobType, 'task_timeout')))
+      .leftJoin(delayJob, and(eq(delayJob.taskId, workflowTasks.id), eq(delayJob.jobType, 'delay_wake')))
       .where(and(
         ...taskBaseConds,
         or(
           eq(workflowTasks.status, 'pending'),
           eq(workflowTasks.status, 'waiting'),
-          eq(workflowTasks.externalDispatchStatus, 'failed'),
-          eq(workflowTasks.triggerDispatchStatus, 'failed'),
-          eq(workflowTasks.triggerDispatchStatus, 'retrying'),
+          inArray(externalJob.status, ['failed', 'dead']),
+          inArray(triggerJob.status, ['failed', 'dead']),
         )!,
       ))
       .orderBy(asc(workflowTasks.createdAt))
       .limit(300),
-    db.select({ row: workflowTriggerExecutions, instanceTitle: workflowInstances.title })
-      .from(workflowTriggerExecutions)
-      .innerJoin(workflowInstances, eq(workflowTriggerExecutions.instanceId, workflowInstances.id))
+    db.select({ execution: workflowJobExecutions, job: workflowJobs, instanceTitle: workflowInstances.title })
+      .from(workflowJobExecutions)
+      .innerJoin(workflowJobs, eq(workflowJobExecutions.jobId, workflowJobs.id))
+      .innerJoin(workflowInstances, eq(workflowJobs.instanceId, workflowInstances.id))
       .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
       .where(whereOrUndefined([
         ...(instTenant ? [instTenant] : []),
         ...(taskScope ? [taskScope] : []),
-        notInArray(workflowTriggerExecutions.status, ['success']),
+        eq(workflowJobExecutions.jobType, 'trigger_dispatch'),
+        notInArray(workflowJobExecutions.status, ['succeeded']),
       ]))
-      .orderBy(desc(workflowTriggerExecutions.id))
+      .orderBy(desc(workflowJobExecutions.id))
       .limit(100),
-    db.select({ row: workflowEventOutbox, instanceTitle: workflowInstances.title })
-      .from(workflowEventOutbox)
-      .leftJoin(workflowInstances, eq(workflowEventOutbox.instanceId, workflowInstances.id))
+    db.select({ row: workflowJobs, instanceTitle: workflowInstances.title })
+      .from(workflowJobs)
+      .leftJoin(workflowInstances, eq(workflowJobs.instanceId, workflowInstances.id))
       .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
       .where(whereOrUndefined([
         ...(outboxTenant ? [outboxTenant] : []),
-        or(isNull(workflowEventOutbox.instanceId), instanceBaseWhere ?? sql`true`)!,
-        notInArray(workflowEventOutbox.status, ['success']),
+        eq(workflowJobs.jobType, 'event_dispatch'),
+        or(isNull(workflowJobs.instanceId), instanceBaseWhere ?? sql`true`)!,
+        notInArray(workflowJobs.status, ['succeeded']),
       ]))
-      .orderBy(desc(workflowEventOutbox.id))
+      .orderBy(desc(workflowJobs.id))
       .limit(100),
     db.select({
-      total1h: sql<number>`count(*) filter (where ${gte(workflowEventOutbox.createdAt, since1h)})`.mapWith(Number),
-      success1h: sql<number>`count(*) filter (where ${and(eq(workflowEventOutbox.status, 'success'), gte(workflowEventOutbox.createdAt, since1h))})`.mapWith(Number),
-      failed1h: sql<number>`count(*) filter (where ${and(eq(workflowEventOutbox.status, 'failed'), gte(workflowEventOutbox.createdAt, since1h))})`.mapWith(Number),
-      total24h: sql<number>`count(*) filter (where ${gte(workflowEventOutbox.createdAt, since24h)})`.mapWith(Number),
-      success24h: sql<number>`count(*) filter (where ${and(eq(workflowEventOutbox.status, 'success'), gte(workflowEventOutbox.createdAt, since24h))})`.mapWith(Number),
-      failed24h: sql<number>`count(*) filter (where ${and(eq(workflowEventOutbox.status, 'failed'), gte(workflowEventOutbox.createdAt, since24h))})`.mapWith(Number),
-      totalPrev24h: sql<number>`count(*) filter (where ${and(gte(workflowEventOutbox.createdAt, since48h), lt(workflowEventOutbox.createdAt, since24h))})`.mapWith(Number),
-      successPrev24h: sql<number>`count(*) filter (where ${and(eq(workflowEventOutbox.status, 'success'), gte(workflowEventOutbox.createdAt, since48h), lt(workflowEventOutbox.createdAt, since24h))})`.mapWith(Number),
-      failedPrev24h: sql<number>`count(*) filter (where ${and(eq(workflowEventOutbox.status, 'failed'), gte(workflowEventOutbox.createdAt, since48h), lt(workflowEventOutbox.createdAt, since24h))})`.mapWith(Number),
-      pendingRetry: sql<number>`count(*) filter (where ${inArray(workflowEventOutbox.status, ['pending', 'processing', 'retrying'])})`.mapWith(Number),
+      total1h: sql<number>`count(*) filter (where ${gte(workflowJobs.createdAt, since1h)})`.mapWith(Number),
+      success1h: sql<number>`count(*) filter (where ${and(eq(workflowJobs.status, 'succeeded'), gte(workflowJobs.createdAt, since1h))})`.mapWith(Number),
+      failed1h: sql<number>`count(*) filter (where ${and(inArray(workflowJobs.status, ['failed', 'dead']), gte(workflowJobs.createdAt, since1h))})`.mapWith(Number),
+      total24h: sql<number>`count(*) filter (where ${gte(workflowJobs.createdAt, since24h)})`.mapWith(Number),
+      success24h: sql<number>`count(*) filter (where ${and(eq(workflowJobs.status, 'succeeded'), gte(workflowJobs.createdAt, since24h))})`.mapWith(Number),
+      failed24h: sql<number>`count(*) filter (where ${and(inArray(workflowJobs.status, ['failed', 'dead']), gte(workflowJobs.createdAt, since24h))})`.mapWith(Number),
+      totalPrev24h: sql<number>`count(*) filter (where ${and(gte(workflowJobs.createdAt, since48h), lt(workflowJobs.createdAt, since24h))})`.mapWith(Number),
+      successPrev24h: sql<number>`count(*) filter (where ${and(eq(workflowJobs.status, 'succeeded'), gte(workflowJobs.createdAt, since48h), lt(workflowJobs.createdAt, since24h))})`.mapWith(Number),
+      failedPrev24h: sql<number>`count(*) filter (where ${and(inArray(workflowJobs.status, ['failed', 'dead']), gte(workflowJobs.createdAt, since48h), lt(workflowJobs.createdAt, since24h))})`.mapWith(Number),
+      pendingRetry: sql<number>`count(*) filter (where ${inArray(workflowJobs.status, ['pending', 'running'])})`.mapWith(Number),
       avgLatencyMs: sql<number | null>`avg(${evLatency}) filter (where ${evDone24h})`.mapWith(Number),
       p95LatencyMs: sql<number | null>`percentile_cont(0.95) within group (order by ${evLatency}) filter (where ${evDone24h})`.mapWith(Number),
       p99LatencyMs: sql<number | null>`percentile_cont(0.99) within group (order by ${evLatency}) filter (where ${evDone24h})`.mapWith(Number),
@@ -737,19 +796,19 @@ export async function getWorkflowEngineIntrospection(
       apdexTolerating: sql<number>`count(*) filter (where ${evDone24h} and ${evLatency} > ${apdexT} and ${evLatency} <= ${apdexT * 4})`.mapWith(Number),
       apdexFrustrated: sql<number>`count(*) filter (where ${evDone24h} and ${evLatency} > ${apdexT * 4})`.mapWith(Number),
     })
-      .from(workflowEventOutbox)
-      .leftJoin(workflowInstances, eq(workflowEventOutbox.instanceId, workflowInstances.id))
+      .from(workflowJobs)
+      .leftJoin(workflowInstances, eq(workflowJobs.instanceId, workflowInstances.id))
       .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
       .where(whereOrUndefined(outboxScopeConds)),
     db.select({
-      total24h: sql<number>`count(*) filter (where ${gte(workflowTriggerExecutions.createdAt, since24h)})`.mapWith(Number),
-      success24h: sql<number>`count(*) filter (where ${and(eq(workflowTriggerExecutions.status, 'success'), gte(workflowTriggerExecutions.createdAt, since24h))})`.mapWith(Number),
-      failed24h: sql<number>`count(*) filter (where ${and(eq(workflowTriggerExecutions.status, 'failed'), gte(workflowTriggerExecutions.createdAt, since24h))})`.mapWith(Number),
-      retrying24h: sql<number>`count(*) filter (where ${and(eq(workflowTriggerExecutions.status, 'retrying'), gte(workflowTriggerExecutions.createdAt, since24h))})`.mapWith(Number),
-      totalPrev24h: sql<number>`count(*) filter (where ${and(gte(workflowTriggerExecutions.createdAt, since48h), lt(workflowTriggerExecutions.createdAt, since24h))})`.mapWith(Number),
-      successPrev24h: sql<number>`count(*) filter (where ${and(eq(workflowTriggerExecutions.status, 'success'), gte(workflowTriggerExecutions.createdAt, since48h), lt(workflowTriggerExecutions.createdAt, since24h))})`.mapWith(Number),
-      failedPrev24h: sql<number>`count(*) filter (where ${and(eq(workflowTriggerExecutions.status, 'failed'), gte(workflowTriggerExecutions.createdAt, since48h), lt(workflowTriggerExecutions.createdAt, since24h))})`.mapWith(Number),
-      retryingPrev24h: sql<number>`count(*) filter (where ${and(eq(workflowTriggerExecutions.status, 'retrying'), gte(workflowTriggerExecutions.createdAt, since48h), lt(workflowTriggerExecutions.createdAt, since24h))})`.mapWith(Number),
+      total24h: sql<number>`count(*) filter (where ${gte(workflowJobExecutions.createdAt, since24h)})`.mapWith(Number),
+      success24h: sql<number>`count(*) filter (where ${and(eq(workflowJobExecutions.status, 'succeeded'), gte(workflowJobExecutions.createdAt, since24h))})`.mapWith(Number),
+      failed24h: sql<number>`count(*) filter (where ${and(eq(workflowJobExecutions.status, 'failed'), gte(workflowJobExecutions.createdAt, since24h))})`.mapWith(Number),
+      retrying24h: sql<number>`count(*) filter (where ${and(eq(workflowJobExecutions.status, 'failed'), sql`${workflowJobs.attempts} < ${workflowJobs.maxAttempts}`, gte(workflowJobExecutions.createdAt, since24h))})`.mapWith(Number),
+      totalPrev24h: sql<number>`count(*) filter (where ${and(gte(workflowJobExecutions.createdAt, since48h), lt(workflowJobExecutions.createdAt, since24h))})`.mapWith(Number),
+      successPrev24h: sql<number>`count(*) filter (where ${and(eq(workflowJobExecutions.status, 'succeeded'), gte(workflowJobExecutions.createdAt, since48h), lt(workflowJobExecutions.createdAt, since24h))})`.mapWith(Number),
+      failedPrev24h: sql<number>`count(*) filter (where ${and(eq(workflowJobExecutions.status, 'failed'), gte(workflowJobExecutions.createdAt, since48h), lt(workflowJobExecutions.createdAt, since24h))})`.mapWith(Number),
+      retryingPrev24h: sql<number>`count(*) filter (where ${and(eq(workflowJobExecutions.status, 'failed'), sql`${workflowJobs.attempts} < ${workflowJobs.maxAttempts}`, gte(workflowJobExecutions.createdAt, since48h), lt(workflowJobExecutions.createdAt, since24h))})`.mapWith(Number),
       avgDurationMs: sql<number | null>`avg(${trDuration}) filter (where ${trDone24h})`.mapWith(Number),
       p95DurationMs: sql<number | null>`percentile_cont(0.95) within group (order by ${trDuration}) filter (where ${trDone24h})`.mapWith(Number),
       p99DurationMs: sql<number | null>`percentile_cont(0.99) within group (order by ${trDuration}) filter (where ${trDone24h})`.mapWith(Number),
@@ -761,8 +820,9 @@ export async function getWorkflowEngineIntrospection(
       th5: sql<number>`count(*) filter (where ${trDone24h} and ${trDuration} >= 1000 and ${trDuration} < 5000)`.mapWith(Number),
       th6: sql<number>`count(*) filter (where ${trDone24h} and ${trDuration} >= 5000)`.mapWith(Number),
     })
-      .from(workflowTriggerExecutions)
-      .innerJoin(workflowInstances, eq(workflowTriggerExecutions.instanceId, workflowInstances.id))
+      .from(workflowJobExecutions)
+      .innerJoin(workflowJobs, eq(workflowJobExecutions.jobId, workflowJobs.id))
+      .innerJoin(workflowInstances, eq(workflowJobs.instanceId, workflowInstances.id))
       .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
       .where(whereOrUndefined(triggerScopeConds)),
     db.select({
@@ -775,11 +835,11 @@ export async function getWorkflowEngineIntrospection(
       .from(workflowInstances)
       .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
       .where(instanceBaseWhere),
-    db.select({ createdAt: workflowEventOutbox.createdAt, status: workflowEventOutbox.status })
-      .from(workflowEventOutbox)
-      .leftJoin(workflowInstances, eq(workflowEventOutbox.instanceId, workflowInstances.id))
+    db.select({ createdAt: workflowJobs.createdAt, status: workflowJobs.status })
+      .from(workflowJobs)
+      .leftJoin(workflowInstances, eq(workflowJobs.instanceId, workflowInstances.id))
       .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
-      .where(whereOrUndefined([...outboxScopeConds, gte(workflowEventOutbox.createdAt, since24h)]))
+      .where(whereOrUndefined([...outboxScopeConds, gte(workflowJobs.createdAt, since24h)]))
       .limit(SERIES_ROW_LIMIT),
     db.select({ createdAt: workflowInstances.createdAt, updatedAt: workflowInstances.updatedAt, status: workflowInstances.status })
       .from(workflowInstances)
@@ -820,7 +880,7 @@ export async function getWorkflowEngineIntrospection(
     if (row.nodeType === 'subProcess' && row.status === 'waiting') queues.push('subProcessJoin');
     return queues.map((queue) => mapRuntimeTask({ ...row, queue }, now));
   });
-  const triggerExecutions = triggerRows.map(({ row, instanceTitle }) => mapTriggerExecution({ ...row, instanceTitle }));
+  const triggerExecutions = triggerRows.map((row) => mapTriggerExecution(row));
   const outboxEvents = outboxRows.map(({ row, instanceTitle }) => mapOutboxEvent({ ...row, instanceTitle }, now));
   const eventBus = getWorkflowEventBusIntrospection();
   const scheduler = getSchedulerIntrospection();
@@ -835,6 +895,8 @@ export async function getWorkflowEngineIntrospection(
   const pendingOutbox = outboxEvents.filter((event) => event.status === 'pending');
   const retryingOutbox = outboxEvents.filter((event) => event.status === 'retrying' || event.status === 'processing');
   const failedOutbox = outboxEvents.filter((event) => event.status === 'failed');
+  const workflowJobsDrainRegistered = scheduler.systemRecurringJobs.some((item) => item.name === 'workflow-jobs-drain')
+    || scheduler.systemQueueWorkers.some((item) => item.name === 'workflow-jobs' || item.name === 'workflow-jobs-drain');
 
   const queues = [
     queueSnapshot({
@@ -923,10 +985,10 @@ export async function getWorkflowEngineIntrospection(
       metric('已到期', overdueDelayTasks.length, overdueDelayTasks.length > 0 ? 'warning' : 'healthy'),
       metric('队列 worker', scheduler.systemQueueWorkers.some((item) => item.name === 'workflow-delay-wakeup') ? '已注册' : '未注册', scheduler.systemQueueWorkers.some((item) => item.name === 'workflow-delay-wakeup') ? 'healthy' : 'warning'),
     ]),
-    component('timeoutProcessor', worstStatus([queueStatus('timeouts'), scheduler.registeredHandlers.includes('processWorkflowTaskTimeouts') ? 'healthy' : 'warning']), [
+    component('timeoutProcessor', worstStatus([queueStatus('timeouts'), workflowJobsDrainRegistered ? 'healthy' : 'warning']), [
       metric('待处理超时', timeoutTasks.length, timeoutTasks.length > 0 ? 'warning' : 'healthy'),
       metric('近 24h 到期', pendingTasks.filter((task) => isDateTimeDue(task.timeoutAt, dueSoon)).length),
-      metric('Cron Handler', scheduler.registeredHandlers.includes('processWorkflowTaskTimeouts') ? '已注册' : '未注册', scheduler.registeredHandlers.includes('processWorkflowTaskTimeouts') ? 'healthy' : 'warning'),
+      metric('Job Drain', workflowJobsDrainRegistered ? '已注册' : '未注册', workflowJobsDrainRegistered ? 'healthy' : 'warning'),
     ]),
     component('triggerDispatcher', worstStatus([queueStatus('triggerDispatch'), componentStatusByIssue('triggerDispatcher')]), [
       metric('任务数', triggerTasks.length),

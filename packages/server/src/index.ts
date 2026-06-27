@@ -184,9 +184,6 @@ import nginxSitesRoutes from './routes/nginx-sites';
 import stripAnsi from 'strip-ansi';
 import { initCronScheduler, stopAllJobs } from './lib/pg-boss-scheduler';
 import { registerWsWorkflowSubscriber } from './lib/workflow-subscribers/ws';
-import { registerWebhookWorkflowSubscriber } from './lib/workflow-subscribers/webhook';
-import { registerTriggerWorkflowSubscriber } from './lib/workflow-subscribers/trigger';
-import { registerExternalApproverSubscriber } from './lib/workflow-subscribers/external-approver';
 import { registerNodeListenersSubscriber } from './lib/workflow-subscribers/node-listeners';
 import { registerNotificationWorkflowSubscriber } from './lib/workflow-subscribers/notification';
 import { registerChatWorkflowSubscriber } from './lib/workflow-subscribers/chat';
@@ -565,19 +562,9 @@ try {
   logger.error('Failed to initialize cron scheduler', err);
 }
 
-try {
-  const { delayScheduler } = await import('./lib/delay-scheduler');
-  await delayScheduler.initialize();
-} catch (err) {
-  logger.error('Failed to initialize delay scheduler', err);
-}
-
-// 注册工作流事件总线的内置订阅者
+// 注册工作流事件总线的内置订阅者（delay/trigger/external/webhook 已统一为 workflow_jobs 作业）
 registerWsWorkflowSubscriber();
-registerWebhookWorkflowSubscriber();
 registerOpenWebhookSubscriber();
-registerTriggerWorkflowSubscriber();
-registerExternalApproverSubscriber();
 registerNodeListenersSubscriber();
 registerNotificationWorkflowSubscriber();
 registerChatWorkflowSubscriber();

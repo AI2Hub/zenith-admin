@@ -47,15 +47,19 @@ export async function registerSystemTasks(): Promise<void> {
     },
   });
 
-  const { retryWorkflowEventDeliveries } = await import('./workflow-subscribers/webhook');
+  const { registerWorkflowJobWorker, drainWorkflowJobs } = await import('./workflow-jobs');
+  await registerWorkflowJobWorker();
   await registerSystemRecurringJob({
-    name: 'workflow-event-delivery-retry',
-    title: '工作流事件投递重试',
+    name: 'workflow-jobs-drain',
+    title: '工作流作业兜底扫描',
     module: '工作流',
-    cronExpression: '*/5 * * * *',
-    description: '定期重试工作流 Webhook 事件投递。',
+    cronExpression: '* * * * *',
+    description: '每分钟兜底领取到期的工作流作业并回收卡死的运行中作业（统一作业账本的崩溃恢复）。',
     allowManualRun: true,
-    run: retryWorkflowEventDeliveries,
+    run: async () => {
+      const r = await drainWorkflowJobs();
+      return `工作流作业兜底：恢复卡死 ${r.recovered}，处理到期 ${r.processed}`;
+    },
   });
 
   const { retryAppWebhookDeliveries } = await import('../services/app-webhooks.service');
@@ -67,28 +71,6 @@ export async function registerSystemTasks(): Promise<void> {
     description: '定期重试开放应用 Webhook 投递。',
     allowManualRun: true,
     run: retryAppWebhookDeliveries,
-  });
-
-  const { replayWorkflowEventOutbox } = await import('./workflow-event-bus');
-  await registerSystemRecurringJob({
-    name: 'workflow-event-outbox-replay',
-    title: '工作流事件 Outbox 重放',
-    module: '工作流',
-    cronExpression: '* * * * *',
-    description: '每分钟重放待处理的工作流事件 Outbox，保证事件最终投递。',
-    allowManualRun: true,
-    run: replayWorkflowEventOutbox,
-  });
-
-  const { recoverDueDelayTasks } = await import('../services/workflow-resume.service');
-  await registerSystemRecurringJob({
-    name: 'workflow-delay-recovery',
-    title: '工作流延时任务恢复',
-    module: '工作流',
-    cronExpression: '* * * * *',
-    description: '兜底扫描已到期的 delay 节点任务并恢复执行。',
-    allowManualRun: true,
-    run: recoverDueDelayTasks,
   });
 
   const { publishDueScheduledMessages } = await import('../services/channel.service');
