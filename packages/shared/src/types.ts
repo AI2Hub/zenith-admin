@@ -5950,3 +5950,57 @@ export interface ReportPrintRenderResult {
   grid: ReportPrintGrid;
   pageConfig: ReportPrintPageConfig;
 }
+
+// ─── 报表中心 · 第八期：数据预警 + 协作 ────────────────────────────────────────
+
+/** 预警比较运算符 */
+export type ReportAlertOp = 'gt' | 'gte' | 'lt' | 'lte' | 'eq' | 'neq';
+/** 预警聚合方式 */
+export type ReportAlertAggregate = 'sum' | 'avg' | 'max' | 'min' | 'count' | 'first';
+
+/** 数据预警规则 */
+export interface ReportAlertRule {
+  id: number;
+  name: string;
+  /** 监控的数据集 */
+  datasetId: number;
+  datasetName?: string | null;
+  /** 监控字段（count 可空） */
+  field?: string | null;
+  /** 聚合方式 */
+  aggregate: ReportAlertAggregate;
+  /** 比较运算符 */
+  op: ReportAlertOp;
+  /** 阈值 */
+  threshold: number;
+  /** 评估 Cron（留空=仅手动） */
+  cron?: string | null;
+  /** 通知渠道 */
+  channels: ('email' | 'inApp')[];
+  /** 收件人邮箱（逗号分隔）；inApp 推给创建者 */
+  recipients?: string | null;
+  enabled: boolean;
+  /** 最近评估时间（只读） */
+  lastCheckedAt?: string | null;
+  /** 最近是否触发（只读） */
+  lastTriggered?: boolean | null;
+  /** 最近评估的实际值（只读） */
+  lastValue?: number | null;
+  remark?: string | null;
+  createdBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 仪表盘评论（协作批注） */
+export interface ReportDashboardComment {
+  id: number;
+  dashboardId: number;
+  /** 关联组件 id（可空，整盘评论） */
+  widgetId?: string | null;
+  content: string;
+  userId: number;
+  userName?: string | null;
+  userAvatar?: string | null;
+  createdAt: string;
+}

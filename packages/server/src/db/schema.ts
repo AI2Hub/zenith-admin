@@ -4690,6 +4690,62 @@ export const reportPrintTemplatesRelations = relations(reportPrintTemplates, ({ 
   dataset: one(reportDatasets, { fields: [reportPrintTemplates.datasetId], references: [reportDatasets.id] }),
 }));
 
+/** 数据预警规则：监控某数据集聚合值，超阈值时通知 */
+export const reportAlertRules = pgTable('report_alert_rules', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 64 }).notNull(),
+  datasetId: integer('dataset_id').notNull().references((): AnyPgColumn => reportDatasets.id, { onDelete: 'cascade' }),
+  /** 监控字段（count 可空） */
+  field: varchar('field', { length: 128 }),
+  /** 聚合方式：sum/avg/max/min/count/first */
+  aggregate: varchar('aggregate', { length: 16 }).notNull().default('sum'),
+  /** 比较运算符：gt/gte/lt/lte/eq/neq */
+  op: varchar('op', { length: 8 }).notNull().default('gt'),
+  /** 阈值 */
+  threshold: real('threshold').notNull().default(0),
+  /** 评估 Cron（留空=仅手动） */
+  cron: varchar('cron', { length: 64 }),
+  /** 通知渠道：email / inApp */
+  channels: jsonb('channels').$type<Array<'email' | 'inApp'>>().notNull().default(sql`'[]'::jsonb`),
+  recipients: varchar('recipients', { length: 512 }),
+  enabled: boolean('enabled').notNull().default(true),
+  lastCheckedAt: timestamp('last_checked_at'),
+  lastTriggered: boolean('last_triggered'),
+  lastValue: real('last_value'),
+  remark: varchar('remark', { length: 256 }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  index('report_alert_rules_dataset_idx').on(t.datasetId),
+]);
+export type ReportAlertRuleRow = typeof reportAlertRules.$inferSelect;
+export type NewReportAlertRule = typeof reportAlertRules.$inferInsert;
+
+export const reportAlertRulesRelations = relations(reportAlertRules, ({ one }) => ({
+  dataset: one(reportDatasets, { fields: [reportAlertRules.datasetId], references: [reportDatasets.id] }),
+}));
+
+/** 仪表盘评论（协作批注） */
+export const reportDashboardComments = pgTable('report_dashboard_comments', {
+  id: serial('id').primaryKey(),
+  dashboardId: integer('dashboard_id').notNull().references((): AnyPgColumn => reportDashboards.id, { onDelete: 'cascade' }),
+  /** 关联组件 id（可空，整盘评论） */
+  widgetId: varchar('widget_id', { length: 64 }),
+  content: varchar('content', { length: 1000 }).notNull(),
+  userId: integer('user_id').notNull().references((): AnyPgColumn => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('report_dashboard_comments_dashboard_idx').on(t.dashboardId),
+]);
+export type ReportDashboardCommentRow = typeof reportDashboardComments.$inferSelect;
+export type NewReportDashboardComment = typeof reportDashboardComments.$inferInsert;
+
+export const reportDashboardCommentsRelations = relations(reportDashboardComments, ({ one }) => ({
+  dashboard: one(reportDashboards, { fields: [reportDashboardComments.dashboardId], references: [reportDashboards.id] }),
+  user: one(users, { fields: [reportDashboardComments.userId], references: [users.id] }),
+}));
+
 /** 报表仪表盘：网格布局 + 组件配置 */
 export const reportDashboards = pgTable('report_dashboards', {
   id: serial('id').primaryKey(),

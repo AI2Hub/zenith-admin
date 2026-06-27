@@ -2857,6 +2857,31 @@ export const reportNl2SqlSchema = z.object({
 });
 export type ReportNl2SqlInput = z.input<typeof reportNl2SqlSchema>;
 
+// ─── 数据预警 ────────────────────────────────────────────────────────────────
+export const createReportAlertSchema = z.object({
+  name: z.string().min(1, '名称不能为空').max(64),
+  datasetId: z.number().int().positive('请选择数据集'),
+  field: z.string().max(128).nullable().optional(),
+  aggregate: z.enum(['sum', 'avg', 'max', 'min', 'count', 'first']).default('sum'),
+  op: z.enum(['gt', 'gte', 'lt', 'lte', 'eq', 'neq']).default('gt'),
+  threshold: z.number(),
+  cron: z.string().max(64).nullable().optional(),
+  channels: z.array(z.enum(['email', 'inApp'])).min(1, '至少选择一个通知通道'),
+  recipients: z.string().max(512).optional(),
+  enabled: z.boolean().default(true),
+  remark: z.string().max(256).optional(),
+});
+export const updateReportAlertSchema = createReportAlertSchema.partial();
+export type CreateReportAlertInput = z.input<typeof createReportAlertSchema>;
+export type UpdateReportAlertInput = z.input<typeof updateReportAlertSchema>;
+
+// ─── 仪表盘评论 ──────────────────────────────────────────────────────────────
+export const createReportCommentSchema = z.object({
+  widgetId: z.string().max(64).nullable().optional(),
+  content: z.string().min(1, '评论内容不能为空').max(1000),
+});
+export type CreateReportCommentInput = z.input<typeof createReportCommentSchema>;
+
 // ─── 开放平台：API Scope ──────────────────────────────────────────────────────
 export const createApiScopeSchema = z.object({
   code: z
