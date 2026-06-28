@@ -22,7 +22,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { FileText, RotateCcw, Search } from 'lucide-react';
 import dayjs from 'dayjs';
-import type { WorkflowApproveMethod, WorkflowAssigneeType, WorkflowCategory, WorkflowDefinition, WorkflowFlowData, WorkflowInstance, WorkflowNodeConfig, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowRuntimeOutboxEvent, WorkflowTask, WorkflowTriggerExecution } from '@zenith/shared';
+import type { WorkflowApproveMethod, WorkflowAssigneeType, WorkflowCategory, WorkflowDefinition, WorkflowExecutionToken, WorkflowFlowData, WorkflowInstance, WorkflowNodeConfig, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowRuntimeOutboxEvent, WorkflowTask, WorkflowTriggerExecution } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { UserAvatar } from '@/components/UserAvatar';
 import { formatDateTime } from '@/utils/date';
@@ -717,6 +717,23 @@ export default function WorkflowMonitorPage() {
       { title: '创建时间', dataIndex: 'createdAt', width: 210 },
     ];
 
+    const tokenColumns: ColumnProps<WorkflowExecutionToken>[] = [
+      { title: 'ID', dataIndex: 'id', width: 70 },
+      { title: '节点', dataIndex: 'nodeName', width: 150, render: (v: string | null, r) => v ?? r.nodeKey },
+      { title: '状态', dataIndex: 'status', width: 150, render: (v: WorkflowExecutionToken['status'], r) => (
+        <Space spacing={4}>
+          <Tag size="small" color={v === 'active' ? 'green' : v === 'consumed' ? 'grey' : 'red'}>{{ active: '活动', consumed: '已消费', dead: '已终止' }[v]}</Tag>
+          {r.parkedAtJoin && <Tag size="small" color="amber" type="light">汇聚等待</Tag>}
+        </Space>
+      ) },
+      { title: '分支', dataIndex: 'branchPath', width: 150, render: (bp: WorkflowExecutionToken['branchPath']) => bp.length === 0 ? '主路径' : bp.map((f) => `${f.index + 1}/${f.total}`).join(' · ') },
+      { title: '深度', dataIndex: 'depth', width: 70 },
+      { title: '父 Token', dataIndex: 'parentTokenId', width: 90, render: (v: number | null) => v ? `#${v}` : '—' },
+      { title: '作用域', dataIndex: 'scopeKey', width: 180, ellipsis: { showTitle: true }, render: (v: string | null) => v ?? '—' },
+      { title: '创建', dataIndex: 'createdAt', width: 180 },
+      { title: '消费/终止', dataIndex: 'consumedAt', width: 180, render: (v: string | null) => v ?? '—' },
+    ];
+
     const inst = diagnostics.instance;
     const flowData = resolveWorkflowFlowData(inst, null);
     const diagNodes = buildDiagNodes(flowData, diagnostics.tasks, inst.currentNodeKeys ?? []);
@@ -954,6 +971,14 @@ export default function WorkflowMonitorPage() {
           </TabPane>
           <TabPane tab={`事件派发 ${diagnostics.outboxEvents.length}`} itemKey="outbox">
             <ConfigurableTable bordered columns={outboxColumns} dataSource={diagnostics.outboxEvents} rowKey="id" pagination={false} scroll={{ x: 1200 }} />
+          </TabPane>
+          <TabPane tab={`执行 Token ${diagnostics.tokens.length}`} itemKey="tokens">
+            <div style={{ marginBottom: 10 }}>
+              <Typography.Text type="tertiary" size="small">
+                显式执行 Token = 活动执行路径的权威单元：fork 沿分支栈分裂、join 凑齐后汇聚消费；已消费/终止 token 保留为执行树血缘。
+              </Typography.Text>
+            </div>
+            <ConfigurableTable bordered columns={tokenColumns} dataSource={diagnostics.tokens} rowKey="id" pagination={false} scroll={{ x: 1200 }} />
           </TabPane>
           <TabPane tab="流程图" itemKey="graph">
             <div style={{ marginBottom: 10 }}>

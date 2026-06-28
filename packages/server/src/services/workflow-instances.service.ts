@@ -1181,6 +1181,7 @@ export async function handleNodeExecutionError(input: {
       }).returning();
       await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date(), comment: errorComment })
         .where(and(eq(workflowTasks.instanceId, lockedInst.id), inArray(workflowTasks.status, ['pending', 'waiting'])));
+      await killInstanceTokens(tx, lockedInst.id);
       const [row] = await tx.update(workflowInstances)
         .set({ status: 'rejected', currentNodeKey: null })
         .where(eq(workflowInstances.id, lockedInst.id))
@@ -1203,6 +1204,7 @@ export async function handleNodeExecutionError(input: {
         }).returning();
         await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date(), comment: errorComment })
           .where(and(eq(workflowTasks.instanceId, lockedInst.id), inArray(workflowTasks.status, ['pending', 'waiting'])));
+        await killInstanceTokens(tx, lockedInst.id);
         const [row] = await tx.update(workflowInstances)
           .set({ status: 'rejected', currentNodeKey: null })
           .where(eq(workflowInstances.id, lockedInst.id))
@@ -1218,6 +1220,21 @@ export async function handleNodeExecutionError(input: {
         status: 'pending',
         comment: errorComment,
       }).returning();
+      // Token 一致性：消费失败节点 token，在 catch 节点新建 frontier token（其余分支 token 保留）
+      const liveToks = await loadLiveTokens(tx, lockedInst.id);
+      const failedTok = liveToks.find((t) => t.nodeKey === input.nodeKey);
+      if (failedTok) {
+        await tx.update(workflowTokens).set({ status: 'consumed', consumedAt: new Date() }).where(eq(workflowTokens.id, failedTok.id));
+      }
+      await tx.insert(workflowTokens).values({
+        instanceId: lockedInst.id,
+        nodeKey: catchCfg.key,
+        status: 'active',
+        branchPath: [],
+        parentTokenId: failedTok?.id ?? null,
+        scopeKey: null,
+        tenantId: lockedInst.tenantId,
+      });
       const [row] = await tx.update(workflowInstances)
         .set({ currentNodeKey: catchCfg.key })
         .where(eq(workflowInstances.id, lockedInst.id))

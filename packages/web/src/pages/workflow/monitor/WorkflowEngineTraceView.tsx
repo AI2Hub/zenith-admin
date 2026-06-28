@@ -130,10 +130,11 @@ export default function WorkflowEngineTraceView({ instanceId }: Props) {
             {trace.map((entry) => {
               const m = statusMeta(entry.status);
               const isJob = entry.kind === 'job';
+              const isToken = entry.kind === 'token';
               return (
                 <Timeline.Item key={entry.key} time={entry.at} type={m.timeline}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <Tag size="small" color={isJob ? 'violet' : 'cyan'} type="light">{isJob ? '作业' : '任务'}</Tag>
+                    <Tag size="small" color={isJob ? 'violet' : isToken ? 'teal' : 'cyan'} type="light">{isJob ? '作业' : isToken ? '令牌' : '任务'}</Tag>
                     <Typography.Text strong>{entry.title}</Typography.Text>
                     <Tag size="small" color={m.color}>{m.text}</Tag>
                     {entry.nodeName && <Typography.Text type="tertiary" size="small">@ {entry.nodeName}</Typography.Text>}
