@@ -2,10 +2,10 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { commonErrorResponses, ok, okPaginated, okBody, validationHook, PaginationQuery, IdParam, jsonContent, BatchIdsBody } from '../lib/openapi-schemas';
-import { WorkflowEngineActionResultDTO, WorkflowEngineHealthHistoryDTO, WorkflowEngineIntrospectionDTO, WorkflowJobDTO, WorkflowJobDetailDTO, WorkflowJobListQuery, WorkflowJobRetryBody, WorkflowJobSummaryItemDTO, WorkflowJobBatchResultDTO } from '../lib/openapi-dtos';
+import { WorkflowEngineActionResultDTO, WorkflowEngineHealthHistoryDTO, WorkflowEngineIntrospectionDTO, WorkflowJobDTO, WorkflowJobDetailDTO, WorkflowJobChainDTO, WorkflowJobListQuery, WorkflowJobRetryBody, WorkflowJobSummaryItemDTO, WorkflowJobBatchResultDTO } from '../lib/openapi-dtos';
 import { getWorkflowEngineIntrospection } from '../services/workflow-engine-introspection.service';
 import { getWorkflowEngineHealthHistory, runWorkflowEngineAction } from '../services/workflow-engine-ops.service';
-import { listWorkflowJobs, getWorkflowJobDetail, retryWorkflowJob, skipWorkflowJob, getWorkflowJobsSummary, batchRetryWorkflowJobs, batchSkipWorkflowJobs } from '../services/workflow-jobs.service';
+import { listWorkflowJobs, getWorkflowJobDetail, getWorkflowJobChain, retryWorkflowJob, skipWorkflowJob, getWorkflowJobsSummary, batchRetryWorkflowJobs, batchSkipWorkflowJobs } from '../services/workflow-jobs.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -106,6 +106,23 @@ const jobsSummaryRoute = defineOpenAPIRoute({
   },
 });
 
+const jobChainRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get',
+    path: '/jobs/chain/{traceId}',
+    tags: ['WorkflowEngine'],
+    summary: '工作流作业链路（同 traceId 的完整异步 fan-out，含跨实例/子流程串联）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:instance:monitor' })] as const,
+    request: { params: z.object({ traceId: z.string().min(1).max(64) }) },
+    responses: { ...commonErrorResponses, ...ok(WorkflowJobChainDTO, '作业链路') },
+  }),
+  handler: async (c) => {
+    const { traceId } = c.req.valid('param');
+    return c.json(okBody(await getWorkflowJobChain(traceId)), 200);
+  },
+});
+
 const jobDetailRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get',
@@ -194,6 +211,6 @@ const jobsBatchSkipRoute = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([introspectionRoute, healthHistoryRoute, actionRoute, jobsListRoute, jobsSummaryRoute, jobDetailRoute, jobRetryRoute, jobSkipRoute, jobsBatchRetryRoute, jobsBatchSkipRoute] as const);
+router.openapiRoutes([introspectionRoute, healthHistoryRoute, actionRoute, jobsListRoute, jobsSummaryRoute, jobChainRoute, jobDetailRoute, jobRetryRoute, jobSkipRoute, jobsBatchRetryRoute, jobsBatchSkipRoute] as const);
 
 export default router;

@@ -21,6 +21,7 @@ import type {
 import logger from './logger';
 import { formatDateTime } from './datetime';
 import { enqueueJob } from './workflow-jobs/engine';
+import { currentTraceId } from './context';
 import type { DbExecutor } from '../db/types';
 
 type EventHandler<E extends WorkflowEvent = WorkflowEvent> = (event: E) => void | Promise<void>;
@@ -124,7 +125,7 @@ class WorkflowEventBus {
       tenantId: full.tenantId ?? null,
       maxAttempts: 3,
       idempotencyKey: `event:${full.eventId}`,
-      traceId: full.eventId,
+      traceId: currentTraceId() ?? full.eventId,
     }, executor);
     // 事务内入队需等待，确保与状态变更原子提交；非事务则 best-effort
     if (executor) {
@@ -150,7 +151,7 @@ class WorkflowEventBus {
       tenantId: full.tenantId ?? null,
       maxAttempts: 3,
       idempotencyKey: `event:${full.eventId}`,
-      traceId: full.eventId,
+      traceId: currentTraceId() ?? full.eventId,
     }, executor);
     return full;
   }

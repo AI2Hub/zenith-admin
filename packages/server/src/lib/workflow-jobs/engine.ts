@@ -6,6 +6,7 @@ import { workflowJobs, workflowJobExecutions } from '../../db/schema';
 import type { WorkflowJobRow, NewWorkflowJob } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { registerSystemQueueWorker, sendSystemJobAfter } from '../pg-boss-scheduler';
+import { currentTraceId, runWithTraceId } from '../context';
 import logger from '../logger';
 import {
   WORKFLOW_JOB_QUEUE,
@@ -49,7 +50,7 @@ export async function enqueueJob(input: EnqueueJobInput, executor: DbExecutor = 
     taskId: input.taskId ?? null,
     nodeKey: input.nodeKey ?? null,
     idempotencyKey: input.idempotencyKey ?? null,
-    traceId: input.traceId ?? null,
+    traceId: input.traceId ?? currentTraceId() ?? null,
     priority: input.priority ?? 100,
     maxAttempts: input.maxAttempts ?? 1,
     runAt,
@@ -224,7 +225,8 @@ async function executeClaimedJob(job: WorkflowJobRow): Promise<void> {
 
   const payload = (job.payload ?? {}) as Record<string, unknown>;
   try {
-    const result = (await handler({ job, attempt, payload })) ?? {};
+    // 在作业自身 traceId 作用域内执行：handler 内部新入队的作业/事件继承该 traceId，形成跨异步/跨实例链路
+    const result = (await runWithTraceId(job.traceId ?? randomUUID(), () => handler({ job, attempt, payload }))) ?? {};
     await db.update(workflowJobs).set({
       status: 'succeeded', lockedAt: null, lastError: null, result: result.result ?? null, updatedAt: new Date(),
     }).where(eq(workflowJobs.id, job.id));

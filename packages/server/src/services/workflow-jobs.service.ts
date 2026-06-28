@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, or, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, or, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../db';
 import { workflowJobs, workflowJobExecutions, workflowInstances, workflowDefinitions } from '../db/schema';
@@ -103,6 +103,48 @@ export async function getWorkflowJobDetail(id: number) {
     .where(eq(workflowJobExecutions.jobId, id))
     .orderBy(desc(workflowJobExecutions.id));
   return { ...mapJob(row.job, { instanceTitle: row.instanceTitle, definitionName: row.definitionName }), executions: execs.map(mapExecution) };
+}
+
+/**
+ * 链路视图：返回同一 traceId 关联的全部作业（按创建时间升序，即一次操作触发的完整异步 fan-out，
+ * 含跨实例/子流程串联）+ 每个作业的执行明细 + 状态统计。
+ */
+export async function getWorkflowJobChain(traceId: string) {
+  const rows = await db.select({ job: workflowJobs, instanceTitle: workflowInstances.title, definitionName: workflowDefinitions.name })
+    .from(workflowJobs)
+    .leftJoin(workflowInstances, eq(workflowJobs.instanceId, workflowInstances.id))
+    .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
+    .where(eq(workflowJobs.traceId, traceId))
+    .orderBy(asc(workflowJobs.createdAt), asc(workflowJobs.id));
+  const jobIds = rows.map((r) => r.job.id);
+  const execs = jobIds.length > 0
+    ? await db.select().from(workflowJobExecutions).where(inArray(workflowJobExecutions.jobId, jobIds)).orderBy(asc(workflowJobExecutions.id))
+    : [];
+  const execByJob = new Map<number, WorkflowJobExecutionRow[]>();
+  for (const e of execs) {
+    const list = execByJob.get(e.jobId) ?? [];
+    list.push(e);
+    execByJob.set(e.jobId, list);
+  }
+  const jobs = rows.map((r) => ({
+    ...mapJob(r.job, { instanceTitle: r.instanceTitle, definitionName: r.definitionName }),
+    executions: (execByJob.get(r.job.id) ?? []).map(mapExecution),
+  }));
+  const countBy = (s: WorkflowJobRow['status']) => jobs.filter((j) => j.status === s).length;
+  return {
+    traceId,
+    jobs,
+    stats: {
+      total: jobs.length,
+      pending: countBy('pending'),
+      running: countBy('running'),
+      succeeded: countBy('succeeded'),
+      failed: countBy('failed'),
+      dead: countBy('dead'),
+      canceled: countBy('canceled'),
+      instanceIds: [...new Set(jobs.map((j) => j.instanceId).filter((v): v is number => v != null))],
+    },
+  };
 }
 
 export async function retryWorkflowJob(id: number, payload?: Record<string, unknown>) {

@@ -22,7 +22,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RotateCcw, Search } from 'lucide-react';
-import type { PaginatedResponse, WorkflowJob, WorkflowJobBatchResult, WorkflowJobExecution, WorkflowJobStatus, WorkflowJobSummaryItem, WorkflowJobType } from '@zenith/shared';
+import type { PaginatedResponse, WorkflowJob, WorkflowJobBatchResult, WorkflowJobChain, WorkflowJobExecution, WorkflowJobStatus, WorkflowJobSummaryItem, WorkflowJobType } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -159,6 +159,9 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
   const [execView, setExecView] = useState<'timeline' | 'table'>('timeline');
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [batchLoading, setBatchLoading] = useState(false);
+  const [chain, setChain] = useState<WorkflowJobChain | null>(null);
+  const [chainVisible, setChainVisible] = useState(false);
+  const [chainLoading, setChainLoading] = useState(false);
 
   const fetchList = useCallback(async (p = page, ps = pageSize, st = status, kw = keyword) => {
     setLoading(true);
@@ -221,6 +224,18 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
       if (res.code === 0) setDetail(res.data);
     } finally {
       setDetailLoading(false);
+    }
+  }, []);
+
+  const openChain = useCallback(async (traceId: string) => {
+    setChainVisible(true);
+    setChain(null);
+    setChainLoading(true);
+    try {
+      const res = await request.get<WorkflowJobChain>(`/api/workflows/engine/jobs/chain/${encodeURIComponent(traceId)}`);
+      if (res.code === 0) setChain(res.data);
+    } finally {
+      setChainLoading(false);
     }
   }, []);
 
@@ -370,6 +385,14 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
     { title: '完成时间', dataIndex: 'finishedAt', width: 160, render: (v: string | null) => <Typography.Text size="small" type="tertiary">{v ? formatDateTime(v) : '—'}</Typography.Text> },
   ];
 
+  const chainColumns: ColumnProps<WorkflowJob & { executions: WorkflowJobExecution[] }>[] = [
+    { title: '时间', dataIndex: 'createdAt', width: 150, render: (v: string) => <Typography.Text size="small">{formatDateTime(v)}</Typography.Text> },
+    { title: '类型', dataIndex: 'jobType', width: 104, render: (v: WorkflowJobType) => <Tag color={JOB_TYPE_META[v].color} size="small">{JOB_TYPE_META[v].text}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 76, render: (v: WorkflowJobStatus) => renderStatusTag(v) },
+    { title: '节点 / 实例', render: (_: unknown, r: WorkflowJob) => <Typography.Text size="small">{r.nodeKey ?? '—'}{r.instanceId ? ` · #${r.instanceId}` : ''}</Typography.Text> },
+    { title: '尝试', width: 64, render: (_: unknown, r: WorkflowJob) => `${r.attempts}/${r.maxAttempts}` },
+  ];
+
   return (
     <>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
@@ -482,7 +505,9 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
                 { key: '优先级', value: detail.priority },
                 { key: '计划执行', value: formatDateTime(detail.runAt) },
                 { key: '幂等键', value: detail.idempotencyKey ?? '—' },
-                { key: 'TraceId', value: detail.traceId ?? '—' },
+                { key: 'TraceId', value: detail.traceId
+                  ? <Button theme="borderless" size="small" style={{ padding: 0, height: 'auto' }} onClick={() => detail.traceId && void openChain(detail.traceId)}>{detail.traceId} · 查看链路</Button>
+                  : '—' },
                 { key: '锁定', value: detail.lockedBy ? `${detail.lockedBy}（${detail.lockedAt ? formatDateTime(detail.lockedAt) : '—'}）` : '—' },
                 { key: '创建时间', value: formatDateTime(detail.createdAt) },
                 { key: '更新时间', value: formatDateTime(detail.updatedAt) },
@@ -539,6 +564,40 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
                 )}
               </Space>
             )}
+          </Space>
+        )}
+      </SideSheet>
+
+      <SideSheet
+        title={chain ? `作业链路（${chain.stats.total}）` : '作业链路'}
+        visible={chainVisible}
+        onCancel={() => setChainVisible(false)}
+        width="min(720px, 96vw)"
+      >
+        {chainLoading && <Empty description="加载中…" />}
+        {!chainLoading && chain && (
+          <Space vertical align="start" style={{ width: '100%' }} spacing={12}>
+            <Typography.Text size="small" type="tertiary" style={{ wordBreak: 'break-all' }}>traceId：{chain.traceId}</Typography.Text>
+            <Space wrap spacing={6}>
+              <Tag color="grey">共 {chain.stats.total}</Tag>
+              {chain.stats.pending > 0 && <Tag color="amber">待处理 {chain.stats.pending}</Tag>}
+              {chain.stats.running > 0 && <Tag color="blue">运行中 {chain.stats.running}</Tag>}
+              {chain.stats.succeeded > 0 && <Tag color="green">成功 {chain.stats.succeeded}</Tag>}
+              {chain.stats.failed > 0 && <Tag color="orange">失败 {chain.stats.failed}</Tag>}
+              {chain.stats.dead > 0 && <Tag color="red">死信 {chain.stats.dead}</Tag>}
+              {chain.stats.canceled > 0 && <Tag color="grey">已取消 {chain.stats.canceled}</Tag>}
+              <Tag color="violet">涉及实例 {chain.stats.instanceIds.length}</Tag>
+            </Space>
+            <Table
+              bordered
+              size="small"
+              style={{ width: '100%' }}
+              dataSource={chain.jobs}
+              rowKey="id"
+              pagination={false}
+              onRow={(record) => ({ onClick: () => { if (record) void openDetail(record.id); }, style: { cursor: 'pointer' } })}
+              columns={chainColumns}
+            />
           </Space>
         )}
       </SideSheet>

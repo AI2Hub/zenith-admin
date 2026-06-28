@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Card, Dropdown, Empty, JsonViewer, Popover, Select, Skeleton, Space, Spin, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2, DatabaseZap, Download, GaugeCircle, GitBranch, Layers, Minus, RefreshCw, Stethoscope, Timer, TimerReset, TrendingUp, Wrench, Workflow, Zap } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2, DatabaseZap, Download, GaugeCircle, GitBranch, Layers, LifeBuoy, Minus, RefreshCw, Stethoscope, Timer, TimerReset, TrendingUp, Wrench, Workflow, Zap } from 'lucide-react';
 import type {
   WorkflowEngineActionKey,
   WorkflowEngineActionResult,
@@ -22,6 +22,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { AreaChart, LineChart, chartOptions, makeAreaSpec, makeLineSpec, useChartPalette, type ChartPalette } from '@/components/charts';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
+import WorkflowBatchRecoveryModal from './WorkflowBatchRecoveryModal';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
 
@@ -549,6 +550,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
     return () => window.clearInterval(id);
   }, []);
 
+  const [batchRecoveryVisible, setBatchRecoveryVisible] = useState(false);
   const runAction = useCallback(async (action: WorkflowEngineActionKey, label: string) => {
     setActionLoading(action);
     try {
@@ -804,12 +806,15 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
           >
             <Button icon={<Wrench size={14} />} loading={actionLoading != null}>运维动作</Button>
           </Dropdown>
+          <Button icon={<LifeBuoy size={14} />} onClick={() => setBatchRecoveryVisible(true)}>批量恢复</Button>
           <Button icon={<Download size={14} />} onClick={exportReport}>导出</Button>
           <Select value={autoRefresh} optionList={AUTO_REFRESH_OPTIONS} style={{ width: 116 }} onChange={(v) => setAutoRefresh(Number(v))} />
           <Select value={thresholdMinutes} optionList={THRESHOLD_OPTIONS} style={{ width: 116 }} onChange={(value) => setThresholdMinutes(Number(value))} />
           <Button type="primary" icon={<RefreshCw size={14} />} loading={loading} onClick={() => void fetchData()}>刷新</Button>
         </Space>
       </div>
+
+      <WorkflowBatchRecoveryModal visible={batchRecoveryVisible} onClose={() => setBatchRecoveryVisible(false)} />
 
       {/* 概览 Hero：健康分 + 黄金信号 */}
       <Card bordered bodyStyle={{ padding: 16 }} style={{ borderRadius: 8 }}>

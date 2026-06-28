@@ -64,6 +64,23 @@ export function runWithCurrentUser<T>(user: JwtPayload, fn: () => T | Promise<T>
   return Promise.resolve(userOverrideStore.run(user, fn));
 }
 
+// ─── 链路关联 traceId（贯穿一次操作的作业/事件 fan-out，跨异步/跨实例/子流程串联）─────
+const traceIdStore = new AsyncLocalStorage<string>();
+
+/**
+ * 当前操作的链路关联 ID。由请求中间件（每个 HTTP 请求一枚）或 worker 执行作业时
+ * （继承作业自身 traceId）建立；脱离作用域时返回 undefined。
+ * `enqueueJob` 与事件 outbox 会自动继承它，使一次操作的全部异步副作用共享同一 traceId。
+ */
+export function currentTraceId(): string | undefined {
+  return traceIdStore.getStore();
+}
+
+/** 在给定 traceId 作用域内执行 fn：其内部新入队的作业/发射的事件都会继承该 traceId 形成链路。 */
+export function runWithTraceId<T>(traceId: string, fn: () => T | Promise<T>): Promise<T> {
+  return Promise.resolve(traceIdStore.run(traceId, fn));
+}
+
 /**
  * 在 Service 层写入"操作前实体快照"，用于审计日志 diff 展示。
  * 与 middleware/guard.ts 的 `setAuditBeforeData(c, data)` 等价，但无需透传 Context。

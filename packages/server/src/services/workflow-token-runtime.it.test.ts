@@ -12,7 +12,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { WorkflowFlowData } from '@zenith/shared';
 import type { JwtPayload } from './../middleware/auth';
-import { runWithCurrentUser } from '../lib/context';
+import { runWithCurrentUser, runWithTraceId } from '../lib/context';
 
 const RUN = process.env.WORKFLOW_DB_IT === '1';
 
@@ -22,6 +22,7 @@ describe.runIf(RUN)('workflow token runtime (DB integration)', () => {
   let svc: typeof import('./workflow-instances.service');
   let sim: typeof import('./workflow-simulation.service');
   let defsSvc: typeof import('./workflow-definitions.service');
+  let jobsSvc: typeof import('./workflow-jobs.service');
 
   let initiatorId = 0;
   let approverId = 0;
@@ -85,6 +86,7 @@ describe.runIf(RUN)('workflow token runtime (DB integration)', () => {
     svc = await import('./workflow-instances.service');
     sim = await import('./workflow-simulation.service');
     defsSvc = await import('./workflow-definitions.service');
+    jobsSvc = await import('./workflow-jobs.service');
 
     const users = await db.select({ id: schema.users.id }).from(schema.users).orderBy(schema.users.id).limit(2);
     if (users.length < 2) throw new Error('需要至少 2 个用户');
@@ -127,6 +129,23 @@ describe.runIf(RUN)('workflow token runtime (DB integration)', () => {
     expect(jobs).toHaveLength(1);
     expect(jobs[0].taskId).toBe(task.id);
     expect(jobs[0].idempotencyKey).toBe(`task_timeout:${task.id}`);
+  });
+
+  it('propagates one operation traceId across its whole job/event fan-out', async () => {
+    const traceId = `it-trace-${Date.now()}`;
+    const inst = await runWithTraceId(traceId, () => svc.createInstance(
+      { definitionId: timeoutDefId, title: 'trace' },
+      { userId: initiatorId, username: 'it-user', tenantId: null, roles: ['super_admin'] },
+    ));
+    createdInstanceIds.push(inst.id);
+    // seed 装配的 task_timeout 作业 + 发起事件 outbox 作业都应携带同一 traceId
+    const jobs = await db.select().from(schema.workflowJobs).where(eq(schema.workflowJobs.instanceId, inst.id));
+    expect(jobs.length).toBeGreaterThan(0);
+    expect(jobs.every((j) => j.traceId === traceId)).toBe(true);
+    // 链路 API 返回该 traceId 关联的全部作业
+    const chain = await jobsSvc.getWorkflowJobChain(traceId);
+    expect(chain.stats.total).toBe(jobs.length);
+    expect(chain.stats.instanceIds).toContain(inst.id);
   });
 
   it('publish hard-gate blocks definitions with critical health issues', async () => {
@@ -179,6 +198,23 @@ describe.runIf(RUN)('workflow token runtime (DB integration)', () => {
     const [after2] = await db.select({ status: schema.workflowInstances.status }).from(schema.workflowInstances).where(eq(schema.workflowInstances.id, inst.id)).limit(1);
     expect(after2.status).toBe('approved');
     expect(await activeTokens(inst.id)).toHaveLength(0);
+  });
+
+  it('batchSkipStuckTokens advances every running instance stuck at a node', async () => {
+    const a = await startParallel('batch-skip-a');
+    const b = await startParallel('batch-skip-b');
+    const res = await runWithCurrentUser(asUser(), () => svc.batchSkipStuckTokens({ definitionId: defId, nodeKey: 'a-finance' }));
+    expect(res.total).toBeGreaterThanOrEqual(2);
+    expect(res.success).toBe(res.total);
+    expect(res.failed).toBe(0);
+    // a/b 的财务分支被跳过 → join1 parked，财务前沿消失，实例仍运行
+    for (const inst of [a, b]) {
+      const toks = await activeTokens(inst.id);
+      expect(toks.some((t) => t.nodeKey === 'join1')).toBe(true);
+      expect(toks.some((t) => t.nodeKey === 'a-finance')).toBe(false);
+      const [row] = await db.select({ status: schema.workflowInstances.status }).from(schema.workflowInstances).where(eq(schema.workflowInstances.id, inst.id)).limit(1);
+      expect(row.status).toBe('running');
+    }
   });
 
   it('exposes the execution-token view (active/parked counts)', async () => {

@@ -169,6 +169,15 @@ export const WorkflowDiagnosticBundleDTO = z
   })
   .openapi('WorkflowDiagnosticBundle');
 
+/** 批量恢复结果汇总（批量推进卡死实例等运营恢复动作） */
+export const WorkflowRecoveryBatchResultDTO = z
+  .object({
+    total: z.number().int(),
+    success: z.number().int(),
+    failed: z.number().int(),
+  })
+  .openapi('WorkflowRecoveryBatchResult');
+
 export const WorkflowHealthIssueDTO = z
   .object({
     id: z.string(),

@@ -214,7 +214,7 @@ function assertLaunchMatchesFormType(
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
-import { count, countDistinct, eq, ne, and, desc, ilike, or, inArray, sql, gt } from 'drizzle-orm';
+import { count, countDistinct, eq, ne, and, asc, desc, ilike, lte, or, inArray, sql, gt } from 'drizzle-orm';
 import { escapeLike, withPagination } from '../lib/where-helpers';
 import { db } from '../db';
 import { pageOffset } from '../lib/pagination';
@@ -223,7 +223,7 @@ import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { getDataScopeCondition } from '../lib/data-scope';
 import { validateFlowData, findReturnPrevTarget, resolveRuntimeApproveMethod, type TaskAction } from '../lib/workflow-engine';
 import { advanceTokens, type AdvanceTrigger, type BranchPath } from '../lib/workflow-token-engine';
-import type { WorkflowResolvedApproveMethod, WorkflowFlowData, WorkflowTask as WorkflowTaskDto, WorkflowEventActor, WorkflowActionButtonKey, WorkflowActionButtonConfig, WorkflowFormField, WorkflowFormSettings, WorkflowStarterContext, WorkflowBatchActionResult, WorkflowCustomFormConfig, WorkflowFormType, WorkflowInstance, WorkflowInstanceFormSnapshot, WorkflowApproverDedupMode, WorkflowDeduplicateStrategy, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowRuntimeOutboxEvent, WorkflowTriggerType, WorkflowInstanceTrace, WorkflowEngineExplanation, WorkflowEngineExplanationBlocker, WorkflowEngineTraceEntry, WorkflowJobType, WorkflowExecutionToken, WorkflowExecutionTokenView } from '@zenith/shared';
+import type { WorkflowResolvedApproveMethod, WorkflowFlowData, WorkflowTask as WorkflowTaskDto, WorkflowEventActor, WorkflowActionButtonKey, WorkflowActionButtonConfig, WorkflowFormField, WorkflowFormSettings, WorkflowStarterContext, WorkflowBatchActionResult, WorkflowRecoveryBatchResult, WorkflowCustomFormConfig, WorkflowFormType, WorkflowInstance, WorkflowInstanceFormSnapshot, WorkflowApproverDedupMode, WorkflowDeduplicateStrategy, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowRuntimeOutboxEvent, WorkflowTriggerType, WorkflowInstanceTrace, WorkflowEngineExplanation, WorkflowEngineExplanationBlocker, WorkflowEngineTraceEntry, WorkflowJobType, WorkflowExecutionToken, WorkflowExecutionTokenView } from '@zenith/shared';
 import { resolveApproverDedupMode } from '@zenith/shared';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
@@ -4617,6 +4617,45 @@ export async function replayFromToken(tokenId: number, reason?: string) {
   const { tok, inst } = await loadTokenForOps(tokenId);
   if (inst.status !== 'running') throw new HTTPException(400, { message: '仅运行中实例可重放' });
   return jumpInstance(inst.id, tok.nodeKey, `[运营·从 Token #${tokenId} 重放]${reason ? ' ' + reason : ''}`);
+}
+
+const BATCH_RECOVERY_CAP = 200;
+
+/**
+ * 批量推进卡在指定节点的运行中实例：找出该流程定义下停在 nodeKey 的活动 Token，逐个 skipStuckToken 推进。
+ * 用于某节点配置错误 / 外部派发失败导致多实例集体卡死时的批量外科恢复（按候选逐个隔离，单个失败不影响其它）。
+ */
+export async function batchSkipStuckTokens(input: { definitionId: number; nodeKey: string; olderThanMinutes?: number; reason?: string }): Promise<WorkflowRecoveryBatchResult> {
+  const user = currentUser();
+  const tc = tenantCondition(workflowInstances, user);
+  const conds = [
+    eq(workflowTokens.status, 'active'),
+    eq(workflowTokens.nodeKey, input.nodeKey),
+    eq(workflowInstances.status, 'running'),
+    eq(workflowInstances.definitionId, input.definitionId),
+  ];
+  if (tc) conds.push(tc);
+  if (input.olderThanMinutes && input.olderThanMinutes > 0) {
+    conds.push(lte(workflowTokens.createdAt, new Date(Date.now() - input.olderThanMinutes * 60_000)));
+  }
+  const rows = await db.select({ tokenId: workflowTokens.id })
+    .from(workflowTokens)
+    .innerJoin(workflowInstances, eq(workflowTokens.instanceId, workflowInstances.id))
+    .where(and(...conds))
+    .orderBy(asc(workflowTokens.id))
+    .limit(BATCH_RECOVERY_CAP);
+  let success = 0;
+  let failed = 0;
+  for (const r of rows) {
+    try {
+      await skipStuckToken(r.tokenId, input.reason ?? '批量推进卡死实例');
+      success += 1;
+    } catch (err) {
+      failed += 1;
+      logger.warn('[workflow-recovery] 批量跳过卡死 Token 失败', { tokenId: r.tokenId, err });
+    }
+  }
+  return { total: rows.length, success, failed };
 }
 
 /** 导出实例诊断包（诊断 + 轨迹 + 执行 Token），供离线分析 / 工单留档 */

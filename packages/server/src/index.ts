@@ -23,6 +23,7 @@ import logger from './lib/logger';
 import { errBody } from './lib/openapi-schemas';
 import { ipAccessMiddleware } from './middleware/ip-access';
 import { httpLoggerMiddleware } from './middleware/http-logger';
+import { requestTraceMiddleware } from './middleware/request-trace';
 import { authRateLimit, captchaRateLimit, sensitiveRateLimit, bootstrapRateLimitRules, pathBoundRateLimit } from './middleware/rate-limit';
 import rateLimitRoutes from './routes/rate-limit';
 import authRoutes from './routes/auth';
@@ -229,6 +230,8 @@ if (config.otel.enabled) {
 app.use('*', requestId());
 // AsyncLocalStorage 上下文（允许 currentUser()/getCtx() 在辅助函数中零参取值）
 app.use('*', contextStorage());
+// 链路关联 traceId：贯穿请求触发的工作流作业/事件 fan-out（跨异步/跨实例）
+app.use('*', requestTraceMiddleware);
 app.use('*', secureHeaders({
   crossOriginResourcePolicy: 'cross-origin', // API 允许跨域访问
   crossOriginOpenerPolicy: false,             // 纯 API 服务，不适用

@@ -1541,6 +1541,25 @@ export const workflowHandlers = [
     return ok(summary);
   }),
 
+  http.get('/api/workflows/engine/jobs/chain/:traceId', ({ params }) => {
+    const traceId = String(params.traceId);
+    const jobs = mockWorkflowJobs
+      .filter((j) => j.traceId === traceId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() || a.id - b.id)
+      .map((j) => ({ ...j, executions: mockWorkflowJobExecutions.filter((e) => e.jobId === j.id).sort((a, b) => a.id - b.id) }));
+    const countBy = (s: string) => jobs.filter((j) => j.status === s).length;
+    return ok({
+      traceId,
+      jobs,
+      stats: {
+        total: jobs.length,
+        pending: countBy('pending'), running: countBy('running'), succeeded: countBy('succeeded'),
+        failed: countBy('failed'), dead: countBy('dead'), canceled: countBy('canceled'),
+        instanceIds: [...new Set(jobs.map((j) => j.instanceId).filter((v): v is number => v != null))],
+      },
+    });
+  }),
+
   http.get('/api/workflows/engine/jobs/:id', ({ params }) => {
     const id = Number(params.id);
     const job = mockWorkflowJobs.find((j) => j.id === id);
@@ -1718,6 +1737,11 @@ export const workflowHandlers = [
     const task = mockWorkflowTasks.find((t) => 900000 + t.id === Number(params.id));
     const inst = task ? mockWorkflowInstances.find((i) => i.id === task.instanceId) : undefined;
     return ok(inst ? withDefinitionSnapshot(withActiveNodes(inst)) : null);
+  }),
+  http.post('/api/workflows/instances/batch-skip-stuck', async ({ request }) => {
+    const body = await request.json().catch(() => ({})) as { definitionId?: number; nodeKey?: string };
+    const total = mockWorkflowInstances.filter((i) => i.definitionId === body.definitionId && i.status === 'running').length;
+    return ok({ total, success: total, failed: 0 }, `已推进 ${total}/${total} 个实例`);
   }),
   http.get('/api/workflows/instances/:id/diagnostic-bundle', ({ params }) => {
     const id = Number(params.id);

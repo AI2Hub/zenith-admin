@@ -3054,6 +3054,16 @@ export interface WorkflowInstanceBatchActionResult {
   message?: string;
 }
 
+/** 批量恢复结果汇总（批量推进卡死实例等运营恢复动作） */
+export interface WorkflowRecoveryBatchResult {
+  /** 命中的候选数量 */
+  total: number;
+  /** 成功恢复数量 */
+  success: number;
+  /** 失败数量（按候选逐个隔离，失败不影响其它） */
+  failed: number;
+}
+
 /** 子流程子实例摘要（用于父实例详情展示与跳转） */
 export interface WorkflowChildInstanceSummary {
   id: number;
@@ -3290,6 +3300,23 @@ export interface WorkflowJobExecution {
   finishedAt: string | null;
   tenantId: number | null;
   createdAt: string;
+}
+
+/** 链路视图：同一 traceId 关联的全部作业（一次操作的完整异步 fan-out）+ 执行明细 + 状态统计 */
+export interface WorkflowJobChain {
+  traceId: string;
+  jobs: (WorkflowJob & { executions: WorkflowJobExecution[] })[];
+  stats: {
+    total: number;
+    pending: number;
+    running: number;
+    succeeded: number;
+    failed: number;
+    dead: number;
+    canceled: number;
+    /** 链路涉及的实例 ID（跨实例/子流程时 > 1） */
+    instanceIds: number[];
+  };
 }
 
 /** 按作业类型聚合的状态计数（作业账本 Tab 徽标） */

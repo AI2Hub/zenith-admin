@@ -1335,6 +1335,16 @@ export const cloneFromTemplateSchema = z.object({
   categoryId: z.number().int().positive().nullable().optional(),
 });
 
+/** 批量推进卡死实例：按流程定义 + 节点 + 卡死时长筛选活动 Token 后逐个跳过推进 */
+export const batchSkipStuckTokensSchema = z.object({
+  definitionId: z.number().int().positive(),
+  nodeKey: z.string().min(1, '请指定节点').max(64),
+  olderThanMinutes: z.number().int().nonnegative().max(100000).optional(),
+  reason: z.string().max(256).optional(),
+});
+export type BatchSkipStuckTokensInput = z.infer<typeof batchSkipStuckTokensSchema>;
+
+
 // ── 审批协办 ──
 export const createWorkflowConsultSchema = z.object({
   consulteeIds: z.array(z.number().int().positive()).min(1, '请选择协办人').max(20),

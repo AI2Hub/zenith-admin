@@ -58,6 +58,22 @@ export const WorkflowJobDetailDTO = WorkflowJobDTO.extend({
   executions: z.array(WorkflowJobExecutionDTO),
 }).openapi('WorkflowJobDetail');
 
+/** 链路视图：同一 traceId 关联的全部作业 + 执行明细 + 状态统计 */
+export const WorkflowJobChainDTO = z.object({
+  traceId: z.string(),
+  jobs: z.array(WorkflowJobDetailDTO),
+  stats: z.object({
+    total: z.number().int(),
+    pending: z.number().int(),
+    running: z.number().int(),
+    succeeded: z.number().int(),
+    failed: z.number().int(),
+    dead: z.number().int(),
+    canceled: z.number().int(),
+    instanceIds: z.array(z.number().int()),
+  }),
+}).openapi('WorkflowJobChain');
+
 /** 列表查询 query（叠加 PaginationQuery） */
 export const WorkflowJobListQuery = z.object({
   jobType: z.enum(WORKFLOW_JOB_TYPES).optional(),
