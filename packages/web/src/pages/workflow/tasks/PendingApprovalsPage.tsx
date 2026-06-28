@@ -240,7 +240,7 @@ export default function PendingApprovalsPage() {
       render: (v: string) => formatDateTime(v),
     },
     createOperationColumn<PendingItem>({
-      width: 210,
+      width: 280,
       desktopInlineKeys: ['detail', 'approve', 'reject', 'consult'],
       actions: (record) => [
         {
