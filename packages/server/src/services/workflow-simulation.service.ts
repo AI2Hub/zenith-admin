@@ -21,6 +21,7 @@ import type {
   WorkflowNodeConfig,
   WorkflowSimulationEdgeResult,
   WorkflowSimulationHealthIssue,
+  WorkflowSimulationBlockingPoint,
   WorkflowSimulationNodeState,
   WorkflowSimulationResult,
   WorkflowSimulationTimelineItem,
@@ -697,6 +698,57 @@ export async function checkDefinitionHealth(input: WorkflowHealthCheckInput): Pr
   return analyzeWorkflowHealth(flowData);
 }
 
+// ── 仿真耗时预估 / 阻塞点 ──
+const TIMEOUT_UNIT_MIN: Record<string, number> = { minutes: 1, hours: 60, days: 1440 };
+const DELAY_UNIT_MIN: Record<string, number> = { minute: 1, hour: 60, day: 1440 };
+const DEFAULT_HUMAN_TASK_MIN = 480; // 人工节点未配置超时时按 ~1 工作日估算
+const DEFAULT_SUBPROCESS_MIN = 480;
+
+function estimateNodeMinutes(nodeType: string, cfg: WorkflowNodeConfig | null): number {
+  if (nodeType === 'approve' || nodeType === 'handler') {
+    const t = cfg?.timeout;
+    if (t?.enabled && t.duration > 0) return Math.round(t.duration * (TIMEOUT_UNIT_MIN[t.unit ?? 'hours'] ?? 60));
+    return DEFAULT_HUMAN_TASK_MIN;
+  }
+  if (nodeType === 'delay') {
+    if (cfg?.delayType === 'fixed' && cfg.delayValue && cfg.delayValue > 0) return Math.round(cfg.delayValue * (DELAY_UNIT_MIN[cfg.delayUnit ?? 'hour'] ?? 60));
+    return 0; // toDate 无法静态估算
+  }
+  if (nodeType === 'subProcess') return DEFAULT_SUBPROCESS_MIN;
+  return 0; // start/end/gateway/cc/trigger 视为瞬时
+}
+
+function blockingKind(nodeType: string): WorkflowSimulationBlockingPoint['kind'] {
+  if (nodeType === 'approve' || nodeType === 'handler') return 'humanTask';
+  if (nodeType === 'delay') return 'delay';
+  if (nodeType === 'subProcess') return 'subProcess';
+  if (nodeType === 'trigger') return 'external';
+  return 'blocked';
+}
+
+/** 为时间线标注每步预估耗时，并汇总总耗时与阻塞点（耗时>0 或处于等待/阻塞的步骤）。 */
+function annotateSimulationTimings(flowData: WorkflowFlowData, timeline: WorkflowSimulationTimelineItem[]): { estimatedDurationMinutes: number; blockingPoints: WorkflowSimulationBlockingPoint[] } {
+  const cfgByKey = new Map(flowData.nodes.map((n) => [n.data.key, n.data]));
+  let total = 0;
+  const blockingPoints: WorkflowSimulationBlockingPoint[] = [];
+  for (const item of timeline) {
+    const cfg = cfgByKey.get(item.nodeKey) ?? null;
+    const minutes = estimateNodeMinutes(String(item.nodeType), cfg);
+    item.estimatedMinutes = minutes;
+    total += minutes;
+    if (minutes > 0 || item.status === 'waiting' || item.status === 'blocked') {
+      blockingPoints.push({
+        nodeKey: item.nodeKey,
+        nodeName: item.nodeName,
+        kind: blockingKind(String(item.nodeType)),
+        reason: item.status === 'waiting' ? '等待人工处理' : item.status === 'blocked' ? (item.reason ?? '流程阻塞') : (item.reason ?? '预计耗时节点'),
+        estimatedMinutes: minutes,
+      });
+    }
+  }
+  return { estimatedDurationMinutes: total, blockingPoints };
+}
+
 export async function simulateWorkflow(input: SimulateWorkflowInput): Promise<WorkflowSimulationResult> {
   const flowData = await resolveFlowData(input);
   const requestUser = currentUser();
@@ -717,6 +769,8 @@ export async function simulateWorkflow(input: SimulateWorkflowInput): Promise<Wo
       nodeStates: {},
       healthIssues,
       pathSignature: [],
+      estimatedDurationMinutes: 0,
+      blockingPoints: [],
     };
   }
 
@@ -792,6 +846,7 @@ export async function simulateWorkflow(input: SimulateWorkflowInput): Promise<Wo
     }
   }
 
+  const timings = annotateSimulationTimings(flowData, ctx.timeline);
   return {
     valid: true,
     warnings: ctx.warnings,
@@ -801,5 +856,7 @@ export async function simulateWorkflow(input: SimulateWorkflowInput): Promise<Wo
     nodeStates: ctx.nodeStates,
     healthIssues,
     pathSignature: ctx.timeline.map((item) => item.nodeKey),
+    estimatedDurationMinutes: timings.estimatedDurationMinutes,
+    blockingPoints: timings.blockingPoints,
   };
 }

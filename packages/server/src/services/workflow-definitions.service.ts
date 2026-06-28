@@ -75,6 +75,7 @@ import { db } from '../db';
 import { pageOffset } from '../lib/pagination';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { validateFlowData } from '../lib/workflow-engine';
+import { buildVersionDiff } from '../lib/workflow-version-diff';
 import type { WorkflowFlowData } from '@zenith/shared';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
@@ -492,7 +493,11 @@ export async function diffVersions(definitionId: number, leftId: number, rightId
   };
 
   const [left, right] = await Promise.all([loadSide(leftId), loadSide(rightId)]);
-  return { left, right };
+  const { summary, nodeChanges, edgeChanges } = buildVersionDiff(
+    left.flowData as WorkflowFlowData | null,
+    right.flowData as WorkflowFlowData | null,
+  );
+  return { left, right, summary, nodeChanges, edgeChanges };
 }
 
 export async function disableDefinition(id: number) {

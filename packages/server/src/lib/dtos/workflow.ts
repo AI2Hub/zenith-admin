@@ -139,10 +139,44 @@ const WorkflowVersionDiffSideDTO = z.object({
   publishedAt: z.string().nullable(),
 });
 
+const WorkflowVersionFieldChangeDTO = z.object({
+  field: z.string(),
+  before: z.string(),
+  after: z.string(),
+});
+
+const WorkflowVersionNodeChangeDTO = z.object({
+  kind: z.enum(['added', 'removed', 'modified']),
+  nodeKey: z.string(),
+  nodeName: z.string(),
+  nodeType: z.string(),
+  fields: z.array(WorkflowVersionFieldChangeDTO),
+}).openapi('WorkflowVersionNodeChange');
+
+const WorkflowVersionEdgeChangeDTO = z.object({
+  kind: z.enum(['added', 'removed', 'modified']),
+  from: z.string(),
+  to: z.string(),
+  before: z.string().nullable(),
+  after: z.string().nullable(),
+}).openapi('WorkflowVersionEdgeChange');
+
+const WorkflowVersionDiffSummaryDTO = z.object({
+  nodesAdded: z.number().int(),
+  nodesRemoved: z.number().int(),
+  nodesModified: z.number().int(),
+  edgesAdded: z.number().int(),
+  edgesRemoved: z.number().int(),
+  edgesModified: z.number().int(),
+});
+
 export const WorkflowVersionDiffDTO = z
   .object({
     left: WorkflowVersionDiffSideDTO,
     right: WorkflowVersionDiffSideDTO,
+    summary: WorkflowVersionDiffSummaryDTO,
+    nodeChanges: z.array(WorkflowVersionNodeChangeDTO),
+    edgeChanges: z.array(WorkflowVersionEdgeChangeDTO),
   })
   .openapi('WorkflowVersionDiff');
 
@@ -290,7 +324,13 @@ export const WorkflowInstanceListItemDTO = WorkflowInstanceDTO.omit({
   tasks: true,
   comments: true,
   consults: true,
-}).extend({ pendingTaskId: z.number().int().optional(), pendingSignatureRequired: z.boolean().optional() }).openapi('WorkflowInstanceListItem');
+}).extend({
+  pendingTaskId: z.number().int().optional(),
+  pendingSignatureRequired: z.boolean().optional(),
+  slaLevel: z.enum(['none', 'safe', 'warning', 'overdue']).optional(),
+  slaDeadline: z.string().nullable().optional(),
+  slaOverdueSec: z.number().int().nullable().optional(),
+}).openapi('WorkflowInstanceListItem');
 
 export const WorkflowInstanceAllDTO = z
   .object({
@@ -423,6 +463,7 @@ export const WorkflowSimulationTimelineItemDTO = z
     reason: z.string().optional(),
     detail: z.string().optional(),
     nextNodeKeys: z.array(z.string()).optional(),
+    estimatedMinutes: z.number().int().optional(),
   })
   .openapi('WorkflowSimulationTimelineItem');
 
@@ -460,6 +501,16 @@ export const WorkflowSimulationHealthIssueDTO = z
   })
   .openapi('WorkflowSimulationHealthIssue');
 
+export const WorkflowSimulationBlockingPointDTO = z
+  .object({
+    nodeKey: z.string(),
+    nodeName: z.string(),
+    kind: z.enum(['humanTask', 'delay', 'external', 'subProcess', 'blocked']),
+    reason: z.string(),
+    estimatedMinutes: z.number().int(),
+  })
+  .openapi('WorkflowSimulationBlockingPoint');
+
 export const WorkflowSimulationResultDTO = z
   .object({
     valid: z.boolean(),
@@ -470,6 +521,8 @@ export const WorkflowSimulationResultDTO = z
     nodeStates: z.record(z.string(), WorkflowSimulationNodeStateDTO),
     healthIssues: z.array(WorkflowSimulationHealthIssueDTO),
     pathSignature: z.array(z.string()),
+    estimatedDurationMinutes: z.number().int(),
+    blockingPoints: z.array(WorkflowSimulationBlockingPointDTO),
   })
   .openapi('WorkflowSimulationResult');
 

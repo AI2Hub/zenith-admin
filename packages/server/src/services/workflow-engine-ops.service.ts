@@ -118,7 +118,7 @@ export async function getLatestEngineHealthMetrics(): Promise<{ workflowHealth: 
 
 const ACTION_META: Record<WorkflowEngineActionKey, { label: string; run: () => Promise<Record<string, number>> }> = {
   'replay-outbox': {
-    label: '事件投递兜底（作业账本）',
+    label: '事件派发重放（作业账本）',
     run: async () => {
       const { drainWorkflowJobs } = await import('../lib/workflow-jobs');
       const r = await drainWorkflowJobs();

@@ -71,8 +71,8 @@ const COMPONENT_LABELS: Record<ComponentKey, { name: string; description: string
     description: '进程内工作流事件派发器，负责 node/task/instance 事件同步给内置订阅者。',
   },
   outbox: {
-    name: '事件 Outbox',
-    description: '持久化工作流事件，并通过周期性 replay 兜底重放失败事件。',
+    name: '事件派发',
+    description: '持久化工作流事件，并通过周期性 replay 兜底重放失败事件派发。',
   },
   scheduler: {
     name: 'pg-boss 调度器',
@@ -402,7 +402,7 @@ function buildIssues(input: {
       id: `outbox:${event.id}`,
       severity: 'critical',
       component: 'outbox',
-      title: '事件 Outbox 重放失败',
+      title: '事件派发重放失败',
       description: event.errorMessage ?? `事件 ${event.eventType} 重放失败。`,
       refType: 'outbox',
       refId: event.id,
@@ -946,7 +946,7 @@ export async function getWorkflowEngineIntrospection(
     }),
     queueSnapshot({
       key: 'eventOutbox',
-      name: '工作流事件 Outbox',
+      name: '工作流事件派发',
       ready: pendingOutbox.length,
       delayed: retryingOutbox.length,
       failed: failedOutbox.length,

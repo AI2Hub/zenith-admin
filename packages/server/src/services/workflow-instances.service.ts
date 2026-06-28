@@ -1851,6 +1851,24 @@ export async function listMyInstances(query: { page?: number; pageSize?: number;
   };
 }
 
+type SlaTimeoutInput = { enabled?: boolean; duration?: number; unit?: 'minutes' | 'hours' | 'days' } | null | undefined;
+
+/** 根据节点超时配置与任务创建时间，计算待办 SLA：剩余/超时秒数与紧急度。 */
+function computeTaskSla(timeout: SlaTimeoutInput, createdAt: Date): { slaLevel: 'none' | 'safe' | 'warning' | 'overdue'; slaDeadline: string | null; slaOverdueSec: number | null } {
+  if (!timeout?.enabled || !timeout.duration || timeout.duration <= 0) {
+    return { slaLevel: 'none', slaDeadline: null, slaOverdueSec: null };
+  }
+  const unitMin = timeout.unit === 'minutes' ? 1 : timeout.unit === 'days' ? 1440 : 60;
+  const totalSec = timeout.duration * unitMin * 60;
+  const deadlineMs = createdAt.getTime() + totalSec * 1000;
+  const overdueSec = Math.round((Date.now() - deadlineMs) / 1000);
+  let slaLevel: 'safe' | 'warning' | 'overdue';
+  if (overdueSec >= 0) slaLevel = 'overdue';
+  else if (-overdueSec <= Math.max(3600, totalSec * 0.2)) slaLevel = 'warning';
+  else slaLevel = 'safe';
+  return { slaLevel, slaDeadline: formatDateTime(new Date(deadlineMs)), slaOverdueSec: overdueSec };
+}
+
 export async function listPendingMine(query: { page?: number; pageSize?: number; keyword?: string; definitionId?: number }) {
   const user = currentUser();
   const { page = 1, pageSize = 20, keyword, definitionId } = query;
@@ -1892,7 +1910,8 @@ export async function listPendingMine(query: { page?: number; pageSize?: number;
       const flow = (r.inst.definitionSnapshot as { flowData?: WorkflowFlowData } | null)?.flowData;
       const node = flow?.nodes.find((n) => n.data.key === r.task.nodeKey)?.data;
       const pendingSignatureRequired = node?.operations?.includes('signature') ?? false;
-      return { ...mapInstance(r.inst, { ...r, currentNodeKeys: activeNodeKeys.get(r.inst.id) }), pendingTaskId: r.task.id, pendingSignatureRequired };
+      const sla = computeTaskSla(node?.timeout, r.task.createdAt);
+      return { ...mapInstance(r.inst, { ...r, currentNodeKeys: activeNodeKeys.get(r.inst.id) }), pendingTaskId: r.task.id, pendingSignatureRequired, ...sla };
     }),
     total: Number(total),
     page,
@@ -2345,7 +2364,7 @@ function buildRuntimeIssues(input: {
         taskId: task.id,
         nodeKey: task.nodeKey,
         title: '触发器暂无执行记录',
-        description: '等待中的 trigger 任务未发现执行记录，可关注 outbox 是否重放失败或 dispatch 状态是否仍为 pending。',
+        description: '等待中的 trigger 任务未发现执行记录，可关注事件派发是否重放失败或 dispatch 状态是否仍为 pending。',
       });
     }
   }
@@ -2355,7 +2374,7 @@ function buildRuntimeIssues(input: {
         severity: 'critical',
         source: 'outbox',
         taskId: event.taskId,
-        title: 'Outbox 事件失败',
+        title: '事件派发失败',
         description: event.errorMessage ?? `事件 ${event.eventType} 已失败，请检查订阅者或事件处理日志。`,
       });
     } else if (event.status === 'pending' || event.status === 'retrying') {
@@ -2363,7 +2382,7 @@ function buildRuntimeIssues(input: {
         severity: 'warning',
         source: 'outbox',
         taskId: event.taskId,
-        title: 'Outbox 事件待处理',
+        title: '事件派发待处理',
         description: `事件 ${event.eventType} 当前为 ${event.status}，attempts=${event.attempts}。`,
       });
     }
@@ -2373,7 +2392,7 @@ function buildRuntimeIssues(input: {
       severity: 'info',
       source: 'instance',
       title: '未发现明显运行时异常',
-      description: '任务状态、触发器执行和 outbox 事件未命中内置诊断规则。',
+      description: '任务状态、触发器执行和事件派发未命中内置诊断规则。',
     });
   }
   return issues;

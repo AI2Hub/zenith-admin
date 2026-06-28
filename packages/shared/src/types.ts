@@ -3288,6 +3288,9 @@ export interface WorkflowJobBatchResult {
   skipped: number;
 }
 
+/** 待办 SLA 紧急度：none=未配置超时, safe=充裕, warning=临近, overdue=已超时 */
+export type WorkflowSlaLevel = 'none' | 'safe' | 'warning' | 'overdue';
+
 // ─── 发布前健康评分 / 分支覆盖分析 ──────────────────────────────────────────
 export type WorkflowDefinitionHealthSeverity = 'info' | 'warning' | 'critical';
 
@@ -3331,6 +3334,57 @@ export interface WorkflowDefinitionHealthReport {
   branchCoverage: WorkflowDefinitionBranchCoverageItem[];
   generatedAt: string;
 }
+
+// ─── 版本 diff 细化 ─────────────────────────────────────────────────────────
+export interface WorkflowVersionDiffSide {
+  version: number;
+  name: string;
+  label: string;
+  flowData: WorkflowFlowData | null;
+  publishedAt: string | null;
+}
+
+export interface WorkflowVersionFieldChange {
+  field: string;
+  before: string;
+  after: string;
+}
+
+export interface WorkflowVersionNodeChange {
+  kind: 'added' | 'removed' | 'modified';
+  nodeKey: string;
+  nodeName: string;
+  nodeType: string;
+  /** modified 时的字段级变更 */
+  fields: WorkflowVersionFieldChange[];
+}
+
+export interface WorkflowVersionEdgeChange {
+  kind: 'added' | 'removed' | 'modified';
+  from: string;
+  to: string;
+  /** 条件摘要变化（modified 时 before/after 均有值） */
+  before: string | null;
+  after: string | null;
+}
+
+export interface WorkflowVersionDiffSummary {
+  nodesAdded: number;
+  nodesRemoved: number;
+  nodesModified: number;
+  edgesAdded: number;
+  edgesRemoved: number;
+  edgesModified: number;
+}
+
+export interface WorkflowVersionDiff {
+  left: WorkflowVersionDiffSide;
+  right: WorkflowVersionDiffSide;
+  summary: WorkflowVersionDiffSummary;
+  nodeChanges: WorkflowVersionNodeChange[];
+  edgeChanges: WorkflowVersionEdgeChange[];
+}
+
 
 // ─── 运行轨迹 / 引擎解释（实例可观测性）─────────────────────────────────────
 export type WorkflowEngineExplanationState = 'running' | 'blocked' | 'completed' | 'rejected' | 'canceled' | 'withdrawn' | 'draft';

@@ -71,6 +71,28 @@ const HEALTH_META: Record<WorkflowSimulationHealthIssue['level'], { label: strin
   info: { label: '提示', color: 'blue' },
 };
 
+const BLOCK_META: Record<'humanTask' | 'delay' | 'external' | 'subProcess' | 'blocked', { label: string; color: 'blue' | 'cyan' | 'orange' | 'violet' | 'red' }> = {
+  humanTask: { label: '人工', color: 'blue' },
+  delay: { label: '延时', color: 'cyan' },
+  external: { label: '外部', color: 'orange' },
+  subProcess: { label: '子流程', color: 'violet' },
+  blocked: { label: '阻塞', color: 'red' },
+};
+
+/** 分钟 → 人类可读时长 */
+function formatSimDuration(min: number): string {
+  if (!min || min <= 0) return '≈0';
+  if (min < 60) return `${min} 分钟`;
+  if (min < 1440) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return m ? `${h} 小时 ${m} 分` : `${h} 小时`;
+  }
+  const d = Math.floor(min / 1440);
+  const h = Math.round((min % 1440) / 60);
+  return h ? `${d} 天 ${h} 小时` : `${d} 天`;
+}
+
 /** 画布图例：节点运行态 → 颜色，帮助用户解读流程图配色 */
 const SIMULATION_LEGEND: Array<{ label: string; color: string }> = [
   { label: '当前', color: 'var(--semi-color-primary)' },
@@ -1036,6 +1058,33 @@ export default function WorkflowSimulationDrawer({
               <Typography.Text size="small" type="tertiary">流程结构未发现阻塞级问题。</Typography.Text>
             )}
           </section>
+
+          {result && (
+            <section className="fd-simulation-section">
+              <div className="fd-simulation-section__title">
+                <span><Clock size={14} /> 预估耗时</span>
+                <Tag color="blue">{formatSimDuration(result.estimatedDurationMinutes)}</Tag>
+              </div>
+              {result.blockingPoints.length > 0 ? (
+                <div className="fd-simulation-health-list">
+                  {result.blockingPoints.slice(0, 6).map((bp, index) => {
+                    const meta = BLOCK_META[bp.kind];
+                    return (
+                      <div className="fd-simulation-health-item" key={`${bp.nodeKey}-${index}`}>
+                        <Tag size="small" color={meta.color}>{meta.label}</Tag>
+                        <div>
+                          <Typography.Text size="small">{bp.nodeName}{bp.estimatedMinutes > 0 ? ` · 约 ${formatSimDuration(bp.estimatedMinutes)}` : ''}</Typography.Text>
+                          <Typography.Text size="small" type="tertiary">{bp.reason}</Typography.Text>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <Typography.Text size="small" type="tertiary">路径上无明显阻塞点。</Typography.Text>
+              )}
+            </section>
+          )}
 
         </aside>
 

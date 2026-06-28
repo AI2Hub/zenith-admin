@@ -195,7 +195,7 @@ export async function getWorkflowHealthSummary(thresholdMinutes = 30): Promise<W
       id: `outbox:${row.id}`,
       type: failed ? 'workflow_event_outbox_failed' : 'workflow_event_outbox_pending',
       severity: failed ? 'critical' : 'warning',
-      title: failed ? '工作流事件 outbox 重放失败' : '工作流事件 outbox 待处理过久',
+      title: failed ? '事件派发重放失败' : '事件派发待处理过久',
       // TODO(workflow-jobs P5): event_dispatch jobs no longer expose old outbox eventType/status fields one-to-one.
       description: failed ? (row.lastError ?? '事件派发作业失败，请查看服务日志。') : '事件派发作业超过阈值仍未处理。',
       instanceId: row.instanceId ?? null,

@@ -12,13 +12,14 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Search } from 'lucide-react';
-import type { WorkflowInstance, WorkflowDefinition, PaginatedResponse } from '@zenith/shared';
+import type { WorkflowInstance, WorkflowDefinition, PaginatedResponse, WorkflowSlaLevel } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import WorkflowPriorityTag from '@/components/workflow/WorkflowPriorityTag';
+import WorkflowSLATag from '@/components/workflow/WorkflowSLATag';
 import WorkflowApprovalDetailSheet from '@/components/workflow/WorkflowApprovalDetailSheet';
 import { usePagination } from '@/hooks/usePagination';
 import { useQuickPhrases } from '@/hooks/useQuickPhrases';
@@ -31,7 +32,7 @@ interface SearchParams {
 
 const defaultSearchParams: SearchParams = { keyword: '', definitionId: null };
 
-type PendingItem = WorkflowInstance & { pendingTaskId: number; pendingSignatureRequired?: boolean };
+type PendingItem = WorkflowInstance & { pendingTaskId: number; pendingSignatureRequired?: boolean; slaLevel?: WorkflowSlaLevel; slaOverdueSec?: number | null; slaDeadline?: string | null };
 type SheetState = { instanceId: number; taskId: number; action: 'approve' | 'reject' | null };
 
 export default function PendingApprovalsPage() {
@@ -213,6 +214,12 @@ export default function PendingApprovalsPage() {
       dataIndex: 'priority',
       width: 80,
       render: (v: PendingItem['priority']) => <WorkflowPriorityTag priority={v} />,
+    },
+    {
+      title: '时限',
+      dataIndex: 'slaLevel',
+      width: 150,
+      render: (_: unknown, record: PendingItem) => <WorkflowSLATag level={record.slaLevel} overdueSec={record.slaOverdueSec} deadline={record.slaDeadline} />,
     },
     {
       title: '流程名称',

@@ -111,6 +111,8 @@ function buildMockSimulationResult(
       nodeStates: {},
       healthIssues: [{ level: 'error', scope: 'flow', message: '流程未配置，无法仿真', suggestion: '请先完成流程设计' }],
       pathSignature: [],
+      estimatedDurationMinutes: 0,
+      blockingPoints: [],
     };
   }
   const nodeStates: WorkflowSimulationResult['nodeStates'] = {};
@@ -190,6 +192,22 @@ function buildMockSimulationResult(
     .filter((node) => !nodeStates[node.data.key])
     .forEach((node) => { nodeStates[node.data.key] = { status: node.data.type === 'end' ? 'done' : 'skipped' }; });
   const nodeById = new Map(flowData.nodes.map((node) => [node.id, node.data]));
+  // Demo 预估耗时：approve/handler≈480 分钟、delay≈120、subProcess≈480，其余瞬时
+  const estMinutes = (t: string): number => (t === 'approve' || t === 'handler' ? 480 : t === 'subProcess' ? 480 : t === 'delay' ? 120 : 0);
+  const blockingPoints: WorkflowSimulationResult['blockingPoints'] = [];
+  let estimatedDurationMinutes = 0;
+  for (const item of timeline) {
+    const m = estMinutes(String(item.nodeType));
+    item.estimatedMinutes = m;
+    estimatedDurationMinutes += m;
+    if (m > 0 || item.status === 'waiting' || item.status === 'blocked') {
+      const kind = (item.nodeType === 'approve' || item.nodeType === 'handler') ? 'humanTask'
+        : item.nodeType === 'delay' ? 'delay'
+        : item.nodeType === 'subProcess' ? 'subProcess'
+        : item.nodeType === 'trigger' ? 'external' : 'blocked';
+      blockingPoints.push({ nodeKey: item.nodeKey, nodeName: item.nodeName, kind, reason: item.status === 'waiting' ? '等待人工处理' : '预计耗时节点', estimatedMinutes: m });
+    }
+  }
   return {
     valid: true,
     warnings: ['Demo 模式使用轻量仿真，真实环境以后端流程引擎结果为准'],
@@ -216,6 +234,8 @@ function buildMockSimulationResult(
     nodeStates,
     healthIssues: [],
     pathSignature: timeline.map((item) => item.nodeKey),
+    estimatedDurationMinutes,
+    blockingPoints,
   };
 }
 
@@ -509,7 +529,7 @@ function buildMockWorkflowEngineIntrospection(thresholdMinutes: number): Workflo
       id: `outbox:${event.id}`,
       severity: 'critical',
       component: 'outbox',
-      title: '事件 Outbox 重放失败',
+      title: '事件派发重放失败',
       description: event.errorMessage ?? `事件 ${event.eventType} 重放失败。`,
       refType: 'outbox',
       refId: event.id,
@@ -570,7 +590,7 @@ function buildMockWorkflowEngineIntrospection(thresholdMinutes: number): Workflo
       ready: byQueue('subProcessJoin').length,
       oldestAgeMinutes: byQueue('subProcessJoin').length ? Math.max(...byQueue('subProcessJoin').map((item) => item.ageMinutes)) : null,
     }),
-    queueSnapshot('eventOutbox', '工作流事件 Outbox', {
+    queueSnapshot('eventOutbox', '工作流事件派发', {
       ready: outboxEvents.filter((item) => item.status === 'pending').length,
       delayed: outboxEvents.filter((item) => item.status === 'retrying' || item.status === 'processing').length,
       failed: outboxEvents.filter((item) => item.status === 'failed').length,
@@ -678,7 +698,7 @@ function buildMockWorkflowEngineIntrospection(thresholdMinutes: number): Workflo
     },
     {
       key: 'outbox',
-      name: '事件 Outbox',
+      name: '事件派发',
       description: '持久化工作流事件并兜底重放。',
       status: worstStatus([queueStatus('eventOutbox'), issueStatus('outbox')]),
       metrics: [
@@ -1305,9 +1325,18 @@ export const workflowHandlers = [
       .filter(t => t.assigneeId === 1 && t.status === 'pending')
       .map(t => ({ instanceId: t.instanceId, taskId: t.id }));
 
-    let list = pendingTaskIds.map(({ instanceId, taskId }) => {
+    let list = pendingTaskIds.map(({ instanceId, taskId }, idx) => {
       const inst = mockWorkflowInstances.find(i => i.id === instanceId);
-      return inst ? { ...withActiveNodes(inst), pendingTaskId: taskId, tasks: undefined } : null;
+      if (!inst) return null;
+      // Demo SLA：轮换演示 已超时 / 即将超时 / 充裕 / 未配置
+      const slaCases: Array<{ slaLevel: 'overdue' | 'warning' | 'safe' | 'none'; slaOverdueSec: number | null; slaDeadline: string | null }> = [
+        { slaLevel: 'overdue', slaOverdueSec: 7200, slaDeadline: mockDateTimeOffset(-1000 * 60 * 120) },
+        { slaLevel: 'warning', slaOverdueSec: -1800, slaDeadline: mockDateTimeOffset(1000 * 60 * 30) },
+        { slaLevel: 'safe', slaOverdueSec: -86400, slaDeadline: mockDateTimeOffset(1000 * 60 * 60 * 24) },
+        { slaLevel: 'none', slaOverdueSec: null, slaDeadline: null },
+      ];
+      const sla = slaCases[idx % slaCases.length];
+      return { ...withActiveNodes(inst), pendingTaskId: taskId, tasks: undefined, ...sla };
     }).filter(Boolean) as (WorkflowInstance & { pendingTaskId: number })[];
 
     if (keyword) list = list.filter(i => i.title?.includes(keyword));
@@ -1390,7 +1419,7 @@ export const workflowHandlers = [
   http.post('/api/workflows/engine/actions/:action', ({ params }) => {
     const action = String(params.action);
     const labels: Record<string, string> = {
-      'replay-outbox': '事件 Outbox 重放',
+      'replay-outbox': '事件派发重放',
       'recover-delays': '延时任务恢复扫描',
       'recover-subprocess': '子流程恢复扫描',
       'process-timeouts': '超时任务处理',
@@ -1566,7 +1595,7 @@ export const workflowHandlers = [
           severity: 'warning',
           source: 'outbox',
           taskId: event.taskId,
-          title: 'Outbox 事件待处理',
+          title: '事件派发待处理',
           description: `${event.eventType} 当前状态为 ${event.status}，attempts=${event.attempts}。`,
         });
       }
@@ -1576,7 +1605,7 @@ export const workflowHandlers = [
         severity: 'info',
         source: 'instance',
         title: '未发现明显运行时异常',
-        description: 'Demo 诊断：任务、触发器和 outbox 均未命中异常规则。',
+        description: 'Demo 诊断：任务、触发器和事件派发均未命中异常规则。',
       });
     }
     const diagnostics: WorkflowRuntimeDiagnostics = {

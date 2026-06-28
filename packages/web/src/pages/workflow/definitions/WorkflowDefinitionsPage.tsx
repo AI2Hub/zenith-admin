@@ -1,5 +1,5 @@
 import { type ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Input, Modal, Select, Space, Tag,
+import { Button, Input, Modal, Select, Space, Tag, Typography,
   Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Ban, CircleCheck, GitCompare, Layers, LayoutTemplate, Plus, RotateCcw, Save, Search, Trash2, Upload } from 'lucide-react';
@@ -67,10 +67,24 @@ interface WorkflowVersionDiffSide {
   publishedAt: string | null;
 }
 
+interface DiffFieldChange { field: string; before: string; after: string }
+interface DiffNodeChange { kind: 'added' | 'removed' | 'modified'; nodeKey: string; nodeName: string; nodeType: string; fields: DiffFieldChange[] }
+interface DiffEdgeChange { kind: 'added' | 'removed' | 'modified'; from: string; to: string; before: string | null; after: string | null }
+interface DiffSummary { nodesAdded: number; nodesRemoved: number; nodesModified: number; edgesAdded: number; edgesRemoved: number; edgesModified: number }
+
 interface WorkflowVersionDiffData {
   left: WorkflowVersionDiffSide;
   right: WorkflowVersionDiffSide;
+  summary: DiffSummary;
+  nodeChanges: DiffNodeChange[];
+  edgeChanges: DiffEdgeChange[];
 }
+
+const DIFF_KIND_META: Record<'added' | 'removed' | 'modified', { text: string; color: 'green' | 'red' | 'orange' }> = {
+  added: { text: '新增', color: 'green' },
+  removed: { text: '删除', color: 'red' },
+  modified: { text: '修改', color: 'orange' },
+};
 
 const defaultSearchParams: SearchParams = { keyword: '', status: '', selectedCategoryId: null };
 
@@ -736,6 +750,64 @@ export default function WorkflowDefinitionsPage() {
               </Button>
             </Space>
             {diffData ? (
+              <>
+                {/* 变更摘要 */}
+                <Space wrap style={{ marginBottom: 12 }}>
+                  <Tag size="large" color="green">节点 +{diffData.summary.nodesAdded}</Tag>
+                  <Tag size="large" color="red">节点 -{diffData.summary.nodesRemoved}</Tag>
+                  <Tag size="large" color="orange">节点 ~{diffData.summary.nodesModified}</Tag>
+                  <Tag size="large" color="green">连线 +{diffData.summary.edgesAdded}</Tag>
+                  <Tag size="large" color="red">连线 -{diffData.summary.edgesRemoved}</Tag>
+                  <Tag size="large" color="orange">连线 ~{diffData.summary.edgesModified}</Tag>
+                </Space>
+
+                {/* 结构化变更列表 */}
+                {(diffData.nodeChanges.length > 0 || diffData.edgeChanges.length > 0) ? (
+                  <div style={{ marginBottom: 16, maxHeight: 320, overflow: 'auto', border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 12 }}>
+                    {diffData.nodeChanges.map((c) => (
+                      <div key={`n-${c.nodeKey}`} style={{ padding: '6px 0', borderBottom: '1px dashed var(--semi-color-border)' }}>
+                        <Space spacing={8} align="start">
+                          <Tag size="small" color={DIFF_KIND_META[c.kind].color}>{DIFF_KIND_META[c.kind].text}</Tag>
+                          <div>
+                            <Typography.Text strong size="small">{c.nodeName}</Typography.Text>
+                            <Typography.Text size="small" type="tertiary"> · {c.nodeType}</Typography.Text>
+                            {c.fields.map((f) => (
+                              <div key={f.field} style={{ fontSize: 12, marginTop: 2 }}>
+                                <Typography.Text size="small" type="tertiary">{f.field}：</Typography.Text>
+                                <Typography.Text size="small" delete type="danger">{f.before}</Typography.Text>
+                                <Typography.Text size="small" type="tertiary"> → </Typography.Text>
+                                <Typography.Text size="small" type="success">{f.after}</Typography.Text>
+                              </div>
+                            ))}
+                          </div>
+                        </Space>
+                      </div>
+                    ))}
+                    {diffData.edgeChanges.map((c, i) => (
+                      <div key={`e-${i}`} style={{ padding: '6px 0', borderBottom: '1px dashed var(--semi-color-border)' }}>
+                        <Space spacing={8} align="start">
+                          <Tag size="small" color={DIFF_KIND_META[c.kind].color}>{DIFF_KIND_META[c.kind].text}连线</Tag>
+                          <div style={{ fontSize: 12 }}>
+                            <Typography.Text size="small">{c.from} → {c.to}</Typography.Text>
+                            {c.kind === 'modified' && (
+                              <div style={{ marginTop: 2 }}>
+                                <Typography.Text size="small" delete type="danger">{c.before}</Typography.Text>
+                                <Typography.Text size="small" type="tertiary"> → </Typography.Text>
+                                <Typography.Text size="small" type="success">{c.after}</Typography.Text>
+                              </div>
+                            )}
+                            {c.kind !== 'modified' && (c.after ?? c.before) && (
+                              <Typography.Text size="small" type="tertiary"> · {c.after ?? c.before}</Typography.Text>
+                            )}
+                          </div>
+                        </Space>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ marginBottom: 16, color: 'var(--semi-color-success)' }}>两个版本的流程结构一致，未检测到节点/连线变化。</div>
+                )}
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 {[
                   { key: 'left', side: diffData.left },
@@ -750,8 +822,8 @@ export default function WorkflowDefinitionsPage() {
                       style={{
                         margin: 0,
                         padding: 12,
-                        minHeight: 360,
-                        maxHeight: 560,
+                        minHeight: 240,
+                        maxHeight: 420,
                         overflow: 'auto',
                         border: '1px solid var(--semi-color-border)',
                         borderRadius: 6,
@@ -765,6 +837,7 @@ export default function WorkflowDefinitionsPage() {
                   </div>
                 ))}
               </div>
+              </>
             ) : (
               <div style={{ color: 'var(--semi-color-text-2)' }}>请选择两个版本并点击「对比」。</div>
             )}

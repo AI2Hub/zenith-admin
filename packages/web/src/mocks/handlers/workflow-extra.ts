@@ -316,7 +316,22 @@ export const workflowExtraHandlers = [
       flowData: src.flowData ?? null,
       publishedAt: v === 0 ? null : mockDateTime(),
     });
-    return ok({ left: side(leftV), right: side(rightV) });
+    return ok({
+      left: side(leftV),
+      right: side(rightV),
+      summary: { nodesAdded: 1, nodesRemoved: 0, nodesModified: 1, edgesAdded: 1, edgesRemoved: 0, edgesModified: 1 },
+      nodeChanges: [
+        { kind: 'added', nodeKey: 'cc_finance', nodeName: '抄送财务', nodeType: '抄送', fields: [] },
+        { kind: 'modified', nodeKey: 'approver_1', nodeName: '审批人', nodeType: '审批', fields: [
+          { field: '审批人', before: '角色(1)', after: '指定成员(2)' },
+          { field: '超时策略', before: '关闭', after: '24小时 · 提醒' },
+        ] },
+      ],
+      edgeChanges: [
+        { kind: 'added', from: '审批人', to: '抄送财务', before: null, after: '无条件' },
+        { kind: 'modified', from: '条件分支', to: '结束', before: 'amount gt 1000', after: 'amount gt 5000' },
+      ],
+    });
   }),
 
   // ── T1-1 提交前审批链路预览 ──
