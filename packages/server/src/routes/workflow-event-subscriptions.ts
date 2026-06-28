@@ -20,6 +20,7 @@ import {
   getDelivery,
   retryDelivery,
   retryDeliveries,
+  replayDeliveriesByFilter,
   getDeliveryBeforeAudit,
   getDeliveriesBeforeAudit,
 } from '../services/workflow-event-subscriptions.service';
@@ -213,9 +214,31 @@ const batchRetryRoute = defineOpenAPIRoute({
   },
 });
 
+const ReplayDeliveriesBody = z.object({
+  subscriptionId: z.number().int().positive().optional(),
+  eventType: z.enum(WORKFLOW_EVENT_TYPES).optional(),
+  status: z.enum(['success', 'failed', 'pending', 'all']).optional(),
+  startAt: z.string().optional(),
+  endAt: z.string().optional(),
+});
+
+const replayDeliveriesRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/deliveries/replay', tags: ['WorkflowEventSubscriptions'], summary: '按筛选批量重放投递（含补发已成功，支持订阅/事件类型/时间范围）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:event-delivery:retry', audit: { description: '按筛选批量重放事件投递', module: '工作流管理' } })] as const,
+    request: { body: { content: jsonContent(ReplayDeliveriesBody), required: true } },
+    responses: { ...commonErrorResponses, ...ok(z.object({ count: z.number().int() }), '已加入重投队列') },
+  }),
+  handler: async (c) => {
+    const result = await replayDeliveriesByFilter(c.req.valid('json'));
+    return c.json(okBody(result, `已重放 ${result.count} 条投递`), 200);
+  },
+});
+
 router.openapiRoutes([
   list, get, getSecret, create, update, remove, toggle,
-  listDeliveriesRoute, getDeliveryRoute, retryDeliveryRoute, batchRetryRoute,
+  listDeliveriesRoute, getDeliveryRoute, retryDeliveryRoute, batchRetryRoute, replayDeliveriesRoute,
 ] as const);
 
 export default router;

@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '../db';
 import {
   workflowEventSubscriptions,
@@ -12,7 +12,7 @@ import { tenantCondition, getCreateTenantId } from '../lib/tenant';
 import { escapeLike } from '../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../lib/db-errors';
 import { pageOffset } from '../lib/pagination';
-import { formatDateTime, formatNullableDateTime } from '../lib/datetime';
+import { formatDateTime, formatNullableDateTime, parseDateRangeStart, parseDateRangeEnd } from '../lib/datetime';
 import type { WorkflowEventType } from '@zenith/shared';
 
 function maskSecret(secret: string | null | undefined): string | null {
@@ -484,4 +484,48 @@ export async function retryDeliveries(ids: number[]) {
     .set({ status: 'pending', runAt: new Date(), lastError: null })
     .where(inArray(workflowJobs.id, rows.map((row) => row.jobId)));
   return rows.length;
+}
+
+/** 按筛选批量重放投递的最大条数（防止误操作一次重投海量历史投递） */
+const DELIVERY_REPLAY_CAP = 500;
+
+export interface ReplayDeliveriesFilter {
+  subscriptionId?: number;
+  eventType?: string;
+  /** success=补发已成功；failed=重投失败/死信；pending=重排队中；all/不传=全部状态 */
+  status?: 'success' | 'failed' | 'pending' | 'all';
+  /** 起止时间（按作业创建时间，YYYY-MM-DD HH:mm:ss） */
+  startAt?: string;
+  endAt?: string;
+}
+
+/**
+ * 按筛选条件批量重放事件投递：把匹配的 webhook_delivery 作业重置为 pending 立即重投。
+ * 与「按 ids 重试」互补——支持订阅 + 事件类型 + 时间范围 + 状态维度，含**补发已成功**投递。
+ * 上限 DELIVERY_REPLAY_CAP，返回实际重放条数。
+ */
+export async function replayDeliveriesByFilter(f: ReplayDeliveriesFilter): Promise<{ count: number }> {
+  const tc = tenantCondition(workflowJobs, currentUser());
+  const conds: SQL[] = [eq(workflowJobs.jobType, 'webhook_delivery')];
+  if (tc) conds.push(tc);
+  if (f.subscriptionId) conds.push(sql`(${workflowJobs.payload}->>'subscriptionId')::int = ${f.subscriptionId}`);
+  if (f.eventType) conds.push(sql`${workflowJobs.payload}->>'eventType' = ${f.eventType}`);
+  if (f.status === 'success') conds.push(eq(workflowJobs.status, 'succeeded'));
+  else if (f.status === 'failed') conds.push(inArray(workflowJobs.status, ['failed', 'dead']));
+  else if (f.status === 'pending') conds.push(inArray(workflowJobs.status, ['pending', 'running']));
+  const start = parseDateRangeStart(f.startAt);
+  const end = parseDateRangeEnd(f.endAt);
+  if (start) conds.push(gte(workflowJobs.createdAt, start));
+  if (end) conds.push(lte(workflowJobs.createdAt, end));
+
+  const targets = await db.select({ id: workflowJobs.id })
+    .from(workflowJobs)
+    .where(and(...conds))
+    .orderBy(desc(workflowJobs.id))
+    .limit(DELIVERY_REPLAY_CAP);
+  if (targets.length === 0) return { count: 0 };
+  await db.update(workflowJobs)
+    .set({ status: 'pending', runAt: new Date(), lastError: null })
+    .where(inArray(workflowJobs.id, targets.map((t) => t.id)));
+  return { count: targets.length };
 }

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Col,
+  DatePicker,
   Form,
   Input,
   Modal,
@@ -31,7 +32,7 @@ import type {
   WorkflowEventType,
 } from '@zenith/shared';
 import { request } from '@/utils/request';
-import { formatDateTime } from '@/utils/date';
+import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -297,6 +298,41 @@ export default function WorkflowEventSubscriptionsPage() {
     if (res.code === 0) { Toast.success('已加入重试'); await fetchDeliveries(); }
   };
 
+  // 4B 按筛选批量重放（订阅内：事件类型 + 状态 + 时间范围，含补发已成功）
+  const [replayVisible, setReplayVisible] = useState(false);
+  const [replayStatus, setReplayStatus] = useState<'all' | 'success' | 'failed' | 'pending'>('failed');
+  const [replayEventType, setReplayEventType] = useState<WorkflowEventType | undefined>(undefined);
+  const [replayRange, setReplayRange] = useState<Date[] | undefined>(undefined);
+  const [replaySubmitting, setReplaySubmitting] = useState(false);
+
+  const openReplay = () => {
+    setReplayStatus('failed'); setReplayEventType(undefined); setReplayRange(undefined); setReplayVisible(true);
+  };
+
+  const handleReplay = async () => {
+    if (deliverySubId === null) return;
+    setReplaySubmitting(true);
+    try {
+      const start = replayRange?.[0];
+      const end = replayRange?.[1];
+      const body: Record<string, unknown> = { subscriptionId: deliverySubId };
+      if (replayEventType) body.eventType = replayEventType;
+      if (replayStatus !== 'all') body.status = replayStatus;
+      if (start) body.startAt = formatDateTimeForApi(start);
+      if (end) body.endAt = formatDateTimeForApi(end);
+      const res = await request.post<{ count: number }>('/api/workflows/event-subscriptions/deliveries/replay', body);
+      if (res.code === 0) {
+        Toast.success(`已重放 ${res.data.count} 条投递`);
+        setReplayVisible(false);
+        await fetchDeliveries();
+      } else {
+        Toast.warning(res.message || '重放失败');
+      }
+    } finally {
+      setReplaySubmitting(false);
+    }
+  };
+
   const columns: ColumnProps<WorkflowEventSubscription>[] = [
     { title: 'ID', dataIndex: 'id', width: 70 },
     { title: '名称', dataIndex: 'name', width: 180 },
@@ -383,8 +419,8 @@ export default function WorkflowEventSubscriptionsPage() {
       actions: (record) => [
         {
           key: 'retry',
-          label: '重试',
-          hidden: !canManageEventSubscription || (record.status !== 'failed' && record.status !== 'retrying'),
+          label: record.status === 'success' ? '重新投递' : '重试',
+          hidden: !canManageEventSubscription || record.status === 'pending',
           onClick: () => handleRetryDelivery(record.id),
         },
       ],
@@ -578,6 +614,11 @@ export default function WorkflowEventSubscriptionsPage() {
         onCancel={() => setDeliveryVisible(false)}
         width={1000}
       >
+        {canManageEventSubscription && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+            <Button size="small" icon={<RotateCcw size={13} />} onClick={openReplay}>批量重放</Button>
+          </div>
+        )}
         <ConfigurableTable<WorkflowEventDelivery>
           bordered
           loading={deliveryLoading}
@@ -589,6 +630,57 @@ export default function WorkflowEventSubscriptionsPage() {
           refreshLoading={deliveryLoading}
         />
       </SideSheet>
+
+      <AppModal
+        title="按筛选批量重放投递"
+        visible={replayVisible}
+        onCancel={() => setReplayVisible(false)}
+        onOk={() => void handleReplay()}
+        confirmLoading={replaySubmitting}
+        okText="重放"
+        closeOnEsc
+        width={460}
+      >
+        <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 12 }}>
+          将当前订阅下匹配条件的投递重新入队投递（含补发已成功），单次上限 500 条。
+        </Typography.Text>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <Typography.Text size="small" strong style={{ display: 'block', marginBottom: 4 }}>状态</Typography.Text>
+            <Select
+              style={{ width: '100%' }}
+              value={replayStatus}
+              onChange={(v) => setReplayStatus(v as 'all' | 'success' | 'failed' | 'pending')}
+              optionList={[
+                { value: 'failed', label: '失败 / 死信' },
+                { value: 'success', label: '已成功（补发）' },
+                { value: 'pending', label: '排队 / 进行中' },
+                { value: 'all', label: '全部状态' },
+              ]}
+            />
+          </div>
+          <div>
+            <Typography.Text size="small" strong style={{ display: 'block', marginBottom: 4 }}>事件类型（可选）</Typography.Text>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="全部事件类型"
+              showClear
+              value={replayEventType}
+              onChange={(v) => setReplayEventType(v as WorkflowEventType | undefined)}
+              optionList={EVENT_OPTIONS}
+            />
+          </div>
+          <div>
+            <Typography.Text size="small" strong style={{ display: 'block', marginBottom: 4 }}>时间范围（可选，按投递创建时间）</Typography.Text>
+            <DatePicker
+              type="dateTimeRange"
+              style={{ width: '100%' }}
+              value={replayRange}
+              onChange={(v) => setReplayRange(Array.isArray(v) ? (v as Date[]) : undefined)}
+            />
+          </div>
+        </div>
+      </AppModal>
     </div>
   );
 }

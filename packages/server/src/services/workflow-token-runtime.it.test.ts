@@ -148,6 +148,24 @@ describe.runIf(RUN)('workflow token runtime (DB integration)', () => {
     expect(chain.stats.instanceIds).toContain(inst.id);
   });
 
+  it('exportTraceDiagnosticBundle aggregates chain + per-instance bundles by traceId', async () => {
+    const traceId = `it-tracebundle-${Date.now()}`;
+    const inst = await runWithTraceId(traceId, () => svc.createInstance(
+      { definitionId: timeoutDefId, title: 'trace-bundle' },
+      { userId: initiatorId, username: 'it-user', tenantId: null, roles: ['super_admin'] },
+    ));
+    createdInstanceIds.push(inst.id);
+    const diag = await import('./workflow-diagnostics.service');
+    const bundle = await runWithCurrentUser(asUser(), () => diag.exportTraceDiagnosticBundle(traceId));
+    expect(bundle.traceId).toBe(traceId);
+    expect(bundle.chain.stats.instanceIds).toContain(inst.id);
+    // 链路涉及的实例都应有对应诊断包（诊断 + 轨迹 + Token）
+    expect(bundle.instances.some((b) => b.instanceId === inst.id)).toBe(true);
+    const one = bundle.instances.find((b) => b.instanceId === inst.id)!;
+    expect(one.trace).toBeTruthy();
+    expect(one.tokens).toBeTruthy();
+  });
+
   it('publish hard-gate blocks definitions with critical health issues', async () => {
     const [badDef] = await db.insert(schema.workflowDefinitions).values({
       name: 'IT 体检拦截', code: `it_gate_${Date.now()}`,

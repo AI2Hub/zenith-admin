@@ -1541,6 +1541,26 @@ export const workflowHandlers = [
     return ok(summary);
   }),
 
+  http.get('/api/workflows/engine/jobs/chain/:traceId/diagnostic-bundle', ({ params }) => {
+    const traceId = String(params.traceId);
+    const jobs = mockWorkflowJobs
+      .filter((j) => j.traceId === traceId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() || a.id - b.id)
+      .map((j) => ({ ...j, executions: mockWorkflowJobExecutions.filter((e) => e.jobId === j.id).sort((a, b) => a.id - b.id) }));
+    const countBy = (s: string) => jobs.filter((j) => j.status === s).length;
+    const instanceIds = [...new Set(jobs.map((j) => j.instanceId).filter((v): v is number => v != null))];
+    const chain = {
+      traceId, jobs,
+      stats: {
+        total: jobs.length,
+        pending: countBy('pending'), running: countBy('running'), succeeded: countBy('succeeded'),
+        failed: countBy('failed'), dead: countBy('dead'), canceled: countBy('canceled'),
+        instanceIds,
+      },
+    };
+    return ok({ traceId, generatedAt: mockDateTime(), chain, instances: [] });
+  }),
+
   http.get('/api/workflows/engine/jobs/chain/:traceId', ({ params }) => {
     const traceId = String(params.traceId);
     const jobs = mockWorkflowJobs

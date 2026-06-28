@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi';
+import { WorkflowDiagnosticBundleDTO } from './workflow-events';
 
 const WORKFLOW_JOB_TYPES = [
   'delay_wake', 'task_timeout', 'trigger_dispatch', 'external_dispatch',
@@ -81,6 +82,14 @@ export const WorkflowJobListQuery = z.object({
   instanceId: z.coerce.number().int().positive().optional(),
   keyword: z.string().optional(),
 });
+
+/** traceId 诊断包：作业链路 + 该 traceId 涉及的各实例诊断包（跨实例/子流程聚合，供工单留档/离线分析） */
+export const WorkflowTraceDiagnosticBundleDTO = z.object({
+  traceId: z.string(),
+  generatedAt: z.string(),
+  chain: WorkflowJobChainDTO,
+  instances: z.array(WorkflowDiagnosticBundleDTO),
+}).openapi('WorkflowTraceDiagnosticBundle');
 
 /** 重试 / 改参重放 body */
 export const WorkflowJobRetryBody = z.object({

@@ -21,7 +21,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { RotateCcw, Search } from 'lucide-react';
+import { Download, RotateCcw, Search } from 'lucide-react';
 import type { PaginatedResponse, WorkflowJob, WorkflowJobBatchResult, WorkflowJobChain, WorkflowJobExecution, WorkflowJobStatus, WorkflowJobSummaryItem, WorkflowJobType } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
@@ -195,6 +195,14 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
     void fetchList(1, pageSize, undefined, '');
   }, [fetchList, pageSize, resetPage]);
 
+  // 4C 死信中心：点状态汇总徽标即按该状态快速筛选（配合批量重试/跳过形成 DLQ 处置闭环）
+  const filterByStatus = useCallback((st: WorkflowJobStatus) => {
+    setStatus(st);
+    setSelectedRowKeys([]);
+    resetPage();
+    void fetchList(1, pageSize, st, keyword);
+  }, [fetchList, pageSize, keyword, resetPage]);
+
   const handleBatch = useCallback(async (action: 'retry' | 'skip') => {
     if (selectedRowKeys.length === 0) return;
     setBatchLoading(true);
@@ -236,6 +244,27 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
       if (res.code === 0) setChain(res.data);
     } finally {
       setChainLoading(false);
+    }
+  }, []);
+
+  // 4A traceId 诊断包：聚合该链路涉及实例的诊断/轨迹/Token，导出 JSON 供工单留档/离线分析
+  const [bundleLoading, setBundleLoading] = useState(false);
+  const downloadTraceBundle = useCallback(async (traceId: string) => {
+    setBundleLoading(true);
+    try {
+      const res = await request.get<unknown>(`/api/workflows/engine/jobs/chain/${encodeURIComponent(traceId)}/diagnostic-bundle`);
+      if (res.code !== 0) { Toast.warning(res.message || '导出失败'); return; }
+      const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `workflow-trace-${traceId}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      Toast.error('导出失败');
+    } finally {
+      setBundleLoading(false);
     }
   }, []);
 
@@ -400,8 +429,8 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
         <Tag size="large" color="grey">总数 {summary.total}</Tag>
         <Tag size="large" color="grey">待处理 {summary.pending}</Tag>
         <Tag size="large" color="blue">运行中 {summary.running}</Tag>
-        <Tag size="large" color="orange">失败 {summary.failed}</Tag>
-        <Tag size="large" color="red">死信 {summary.dead}</Tag>
+        <Tag size="large" color="orange" style={{ cursor: summary.failed > 0 ? 'pointer' : 'default' }} onClick={() => { if (summary.failed > 0) filterByStatus('failed'); }}>失败 {summary.failed}</Tag>
+        <Tag size="large" color="red" style={{ cursor: summary.dead > 0 ? 'pointer' : 'default' }} onClick={() => { if (summary.dead > 0) filterByStatus('dead'); }}>死信 {summary.dead}</Tag>
         <Tag size="large" color="green">成功 {summary.succeeded}</Tag>
         <Tag size="large" color="grey">已取消 {summary.canceled}</Tag>
       </div>
@@ -577,7 +606,12 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
         {chainLoading && <Empty description="加载中…" />}
         {!chainLoading && chain && (
           <Space vertical align="start" style={{ width: '100%' }} spacing={12}>
-            <Typography.Text size="small" type="tertiary" style={{ wordBreak: 'break-all' }}>traceId：{chain.traceId}</Typography.Text>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: 8 }}>
+              <Typography.Text size="small" type="tertiary" style={{ wordBreak: 'break-all' }}>traceId：{chain.traceId}</Typography.Text>
+              <Button size="small" theme="borderless" icon={<Download size={14} />} loading={bundleLoading} onClick={() => void downloadTraceBundle(chain.traceId)}>
+                导出诊断包
+              </Button>
+            </div>
             <Space wrap spacing={6}>
               <Tag color="grey">共 {chain.stats.total}</Tag>
               {chain.stats.pending > 0 && <Tag color="amber">待处理 {chain.stats.pending}</Tag>}

@@ -165,6 +165,19 @@ export const workflowEventSubscriptionsHandlers = [
     return ok({ count }, '已加入重试队列');
   }),
 
+  // 4B 按筛选批量重放（含补发已成功）
+  http.post('/api/workflows/event-subscriptions/deliveries/replay', async ({ request }) => {
+    const body = await request.json() as { subscriptionId?: number; eventType?: string; status?: 'all' | 'success' | 'failed' | 'pending' };
+    let targets = mockDeliveries.slice();
+    if (body.subscriptionId) targets = targets.filter((d) => d.subscriptionId === body.subscriptionId);
+    if (body.eventType) targets = targets.filter((d) => d.eventType === body.eventType);
+    if (body.status === 'success') targets = targets.filter((d) => d.status === 'success');
+    else if (body.status === 'failed') targets = targets.filter((d) => d.status === 'failed' || d.status === 'retrying');
+    else if (body.status === 'pending') targets = targets.filter((d) => d.status === 'pending');
+    for (const d of targets) { d.status = 'retrying'; d.nextRetryAt = mockDateTime(); }
+    return ok({ count: targets.length }, `已重放 ${targets.length} 条投递`);
+  }),
+
   http.post('/api/workflows/event-subscriptions/deliveries/:id/retry', ({ params }) => {
     const row = mockDeliveries.find((item) => item.id === Number(params.id));
     if (!row) return err('投递记录不存在', 404);
