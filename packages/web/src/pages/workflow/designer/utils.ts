@@ -706,6 +706,7 @@ function flattenNode(
     }
     dataExtra.triggerConfig = {
       triggerType: p.triggerType ?? 'webhook',
+      ...(p.connectorId == null ? {} : { connectorId: p.connectorId }),
       ...(p.webhookUrl ? { webhookUrl: p.webhookUrl } : {}),
       ...(p.httpMethod ? { httpMethod: p.httpMethod } : {}),
       ...(headers ? { headers } : {}),

@@ -2110,7 +2110,9 @@ export interface NodeListenerConfig {
 /** 触发器节点配置 */
 export interface WorkflowTriggerNodeConfig {
   triggerType: WorkflowTriggerType;
-  /** webhook / callback：目标 URL */
+  /** 经连接器调用：引用流程连接器 id（设置后由连接器提供基础地址/鉴权/超时/重试/熔断，webhookUrl 退化为相对路径） */
+  connectorId?: number;
+  /** webhook / callback：目标 URL（设置 connectorId 时作为相对 connector baseUrl 的路径，可空） */
   webhookUrl?: string;
   httpMethod?: 'GET' | 'POST' | 'PUT';
   headers?: Record<string, string>;

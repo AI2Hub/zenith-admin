@@ -240,6 +240,27 @@ describe.runIf(RUN)('workflow token runtime (DB integration)', () => {
     }
   });
 
+  it('runtime connector loader + invoke (the path trigger nodes use)', async () => {
+    const connectorsSvc = await import('./workflow-connectors.service');
+    const created = await runWithCurrentUser(asUser(), () => connectorsSvc.createWorkflowConnector({
+      name: 'IT 连接器', code: `it_conn_${Date.now()}`, type: 'http',
+      config: { baseUrl: 'http://127.0.0.1:1', method: 'GET', authType: 'none' },
+      timeoutMs: 1000, status: 'enabled',
+    }));
+    try {
+      // 运行时按 id 加载（无租户上下文，worker 安全）
+      const row = await connectorsSvc.getConnectorRowById(created.id);
+      expect(row).toBeTruthy();
+      expect(row!.code).toBe(created.code);
+      // 调用不可达地址 → ok:false（trigger-dispatch 据此走失败/重试/熔断）
+      const result = await connectorsSvc.invokeConnector(row!, { path: '/health' });
+      expect(result.ok).toBe(false);
+      expect(result.error).toBeTruthy();
+    } finally {
+      await db.delete(schema.workflowConnectors).where(eq(schema.workflowConnectors.id, created.id));
+    }
+  });
+
   it('exposes the execution-token view (active/parked counts)', async () => {
     const inst = await startParallel('token-view');
     const [instRow] = await db.select().from(schema.workflowInstances).where(eq(schema.workflowInstances.id, inst.id)).limit(1);

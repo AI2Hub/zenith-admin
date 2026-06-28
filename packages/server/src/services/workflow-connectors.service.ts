@@ -256,3 +256,12 @@ export async function getConnectorRowByCode(code: string): Promise<WorkflowConne
   const [row] = await db.select().from(workflowConnectors).where(and(...conds)).limit(1);
   return row ?? null;
 }
+
+/**
+ * 按 id 取连接器（运行时调用，无租户过滤、无需登录上下文）。
+ * connectorId 来自流程定义快照，已在设计期按租户可见性约束，运行时直接信任。
+ */
+export async function getConnectorRowById(id: number): Promise<WorkflowConnectorRow | null> {
+  const [row] = await db.select().from(workflowConnectors).where(eq(workflowConnectors.id, id)).limit(1);
+  return row ?? null;
+}

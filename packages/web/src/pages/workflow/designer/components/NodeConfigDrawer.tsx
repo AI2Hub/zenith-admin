@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { SideSheet, Tabs, TabPane, Input, TextArea, Typography, Form, Select, InputNumber, Switch, RadioGroup, Radio, Button } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
+import { request } from '@/utils/request';
 import type { FlowNode, FlowNodeType, AssigneeType, ApproveMethod, ApprovalType, RejectStrategy, EmptyAssigneeStrategy, OperationPermission, FieldPermission, TimeoutConfig, SameInitiatorStrategy, DeduplicateStrategy, ActionButtonsConfig } from '../types';
 import type { NodeListenerConfig } from '@zenith/shared';
 import { ADDABLE_NODE_TYPES, DEFAULT_APPROVER_OPERATIONS, DELAY_UNIT_OPTIONS, TRIGGER_TYPE_OPTIONS } from '../constants';
@@ -222,6 +223,13 @@ export default function NodeConfigDrawer({
     setNodeKeyError('');
     onSave(node.id, { name, key: trimmedKey, props });
   };
+
+  const [connectorOptions, setConnectorOptions] = useState<Array<{ value: number; label: string }>>([]);
+  useEffect(() => {
+    if (!visible || node?.type !== 'trigger') return;
+    void request.get<{ list: Array<{ id: number; name: string; type: string }> }>('/api/workflows/connectors?status=enabled&pageSize=100')
+      .then((res) => { if (res.code === 0) setConnectorOptions((res.data?.list ?? []).map((c) => ({ value: c.id, label: `${c.name}（${c.type}）` }))); });
+  }, [visible, node?.type]);
 
   // 判断哪些 Tab 可用
   const isApprover = node?.type === 'approver';
@@ -561,6 +569,17 @@ export default function NodeConfigDrawer({
             </Form.Slot>
             {(((props.triggerType as string) ?? 'webhook') === 'webhook' || (props.triggerType as string) === 'callback') && (
               <>
+                <Form.Slot label="连接器（可选，统一鉴权 / 超时 / 重试 / 熔断）">
+                  <Select
+                    value={typeof props.connectorId === 'number' ? props.connectorId : undefined}
+                    onChange={(v) => handlePropsChange({ connectorId: v as number | undefined })}
+                    placeholder="不使用连接器（直接调用请求地址）"
+                    style={{ width: '100%' }}
+                    showClear
+                    optionList={connectorOptions}
+                    emptyContent="无可用连接器，请先在「连接器」中创建"
+                  />
+                </Form.Slot>
                 <Form.Slot label="请求方式">
                   <Select
                     value={(props.httpMethod as string) ?? 'POST'}
@@ -574,11 +593,11 @@ export default function NodeConfigDrawer({
                     ]}
                   />
                 </Form.Slot>
-                <Form.Slot label="请求地址">
+                <Form.Slot label={typeof props.connectorId === 'number' ? '请求路径（相对连接器地址，可空）' : '请求地址'}>
                   <Input
                     value={typeof props.webhookUrl === 'string' ? props.webhookUrl : ''}
                     onChange={(v) => handlePropsChange({ webhookUrl: v })}
-                    placeholder="https://example.com/webhook"
+                    placeholder={typeof props.connectorId === 'number' ? '/api/notify（留空则调用连接器基础地址）' : 'https://example.com/webhook'}
                   />
                 </Form.Slot>
                 <Form.Slot label="自定义请求头（JSON 对象）">

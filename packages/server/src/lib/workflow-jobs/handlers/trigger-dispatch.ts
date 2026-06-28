@@ -4,6 +4,7 @@ import { db } from '../../../db';
 import { workflowTasks, workflowInstances } from '../../../db/schema';
 import type { workflowTasks as workflowTasksTable, workflowInstances as workflowInstancesTable } from '../../../db/schema';
 import { approveTaskCore, handleNodeExecutionError } from '../../../services/workflow-instances.service';
+import { invokeConnector, getConnectorRowById } from '../../../services/workflow-connectors.service';
 import { httpRequest } from '../../http-client';
 import logger from '../../logger';
 import { registerJobHandler } from '../registry';
@@ -42,7 +43,6 @@ function isDataMutationTrigger(t: WorkflowTriggerType): boolean {
 }
 
 async function executeHttpTrigger(cfg: WorkflowTriggerNodeConfig, formData: Record<string, unknown>, extras: Record<string, string>): Promise<TriggerRunResult> {
-  const url = cfg.webhookUrl ?? '';
   const method = (cfg.httpMethod ?? 'POST').toUpperCase() as 'GET' | 'POST' | 'PUT';
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -53,6 +53,26 @@ async function executeHttpTrigger(cfg: WorkflowTriggerNodeConfig, formData: Reco
     ...cfg.headers,
   };
   const bodyStr = method === 'GET' || !cfg.bodyTemplate ? null : renderTemplate(cfg.bodyTemplate, formData, extras);
+
+  // 经连接器调用：统一鉴权 / 超时 / 重试 / 熔断（webhookUrl 作为相对 connector baseUrl 的路径）
+  if (cfg.connectorId) {
+    const connector = await getConnectorRowById(cfg.connectorId);
+    if (!connector) {
+      return { status: 'failed', responseStatus: null, responseBody: null, errorMessage: `连接器 #${cfg.connectorId} 不存在`, requestUrl: '', requestMethod: method, requestBody: bodyStr };
+    }
+    const r = await invokeConnector(connector, { path: cfg.webhookUrl || undefined, method, headers, body: bodyStr ?? undefined });
+    return {
+      status: r.ok ? 'success' : 'failed',
+      responseStatus: r.status,
+      responseBody: r.responseSnippet,
+      errorMessage: r.error,
+      requestUrl: `[connector:${connector.code}] ${cfg.webhookUrl ?? ''}`.trim(),
+      requestMethod: method,
+      requestBody: bodyStr,
+    };
+  }
+
+  const url = cfg.webhookUrl ?? '';
   if (!url) {
     return { status: 'failed', responseStatus: null, responseBody: null, errorMessage: '未配置 webhookUrl', requestUrl: '', requestMethod: method, requestBody: bodyStr };
   }
