@@ -349,13 +349,6 @@ export const workflowExtraHandlers = [
     { nodeKey: 'cc_initiator', nodeName: '抄送发起人', nodeType: 'ccNode', approvers: [{ id: 1, name: '张三' }], approveMethod: null, branchLabel: null, empty: false },
   ])),
 
-  // 设计器草稿审批链路预览（3C）：演示态返回与已发布预览一致的链路
-  http.post('/api/workflows/definitions/preview-draft', () => ok([
-    { nodeKey: '__initiator__', nodeName: '发起人', nodeType: 'start', approvers: [{ id: 1, name: '张三' }], approveMethod: null, branchLabel: null, empty: false },
-    { nodeKey: 'approve_manager', nodeName: '直属主管审批', nodeType: 'approve', approvers: [{ id: 2, name: '李四' }], approveMethod: 'or', branchLabel: null, empty: false },
-    { nodeKey: 'approve_dept_head', nodeName: '部门负责人审批', nodeType: 'approve', approvers: [], approveMethod: 'and', branchLabel: '金额 > 5000', empty: true },
-  ])),
-
   // ── T1-2 主动抄送 / 转发 ──
   http.post('/api/workflows/instances/:id/forward', async ({ request }) => {
     const body = await request.json().catch(() => ({})) as { userIds?: number[] };

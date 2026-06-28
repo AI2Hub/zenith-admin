@@ -1185,14 +1185,6 @@ export const workflowHealthCheckSchema = z.object({
 });
 export type WorkflowHealthCheckInput = z.infer<typeof workflowHealthCheckSchema>;
 
-/** 设计器草稿审批链路预览（未发布的 flowData + 可选测试发起人/表单数据） */
-export const previewWorkflowDraftSchema = z.object({
-  flowData: z.looseObject({}),
-  formData: z.record(z.string(), z.unknown()).nullable().optional(),
-  starterUserId: z.number().int().positive().optional(),
-});
-export type PreviewWorkflowDraftInput = z.infer<typeof previewWorkflowDraftSchema>;
-
 // ── 主动抄送 / 转发 ──
 export const forwardInstanceSchema = z.object({
   userIds: z.array(z.number().int().positive()).min(1, '请选择抄送人').max(50),

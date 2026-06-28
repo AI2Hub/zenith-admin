@@ -55,6 +55,11 @@ export default function WorkflowApproverPreview({
 
   if (!definitionId) return null;
 
+  // 发起人（开始节点）与审批节点拆分；仅含发起人时视作无需审批
+  const startNode = nodes.find((n) => n.nodeType === 'start');
+  const flowNodes = nodes.filter((n) => n.nodeType !== 'start');
+  const initiatorName = startNode?.approvers[0]?.name ?? '发起人';
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
@@ -62,85 +67,66 @@ export default function WorkflowApproverPreview({
           按当前表单刷新
         </Button>
       </div>
-      <ApproverPreviewTimeline nodes={nodes} loading={loading} />
-    </div>
-  );
-}
-
-/**
- * 审批链路时间轴（纯展示）。发起人 → 各审批/办理/抄送/子流程节点（含分支标签、会签方式、空审批人高亮）→ 结束。
- * 供提交前预览与设计器草稿预览复用。
- */
-export function ApproverPreviewTimeline({
-  nodes,
-  loading,
-}: Readonly<{ nodes: WorkflowApproverPreviewNode[]; loading?: boolean }>) {
-  // 发起人（开始节点）与审批节点拆分；仅含发起人时视作无需审批
-  const startNode = nodes.find((n) => n.nodeType === 'start');
-  const flowNodes = nodes.filter((n) => n.nodeType !== 'start');
-  const initiatorName = startNode?.approvers[0]?.name ?? '发起人';
-
-  if (loading) {
-    return <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>;
-  }
-  if (flowNodes.length === 0) {
-    return <Empty description="该流程无需审批，提交后自动通过" style={{ padding: 24 }} />;
-  }
-
-  return (
-    <Timeline className="wf-approval-timeline" style={{ paddingLeft: 4 }}>
-      {/* 开始：发起申请 */}
-      <Timeline.Item dot={timelineDot(Send, 'var(--semi-color-primary)')}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <Typography.Text strong style={{ fontSize: 13 }}>发起申请</Typography.Text>
-          <Tag color="blue" size="small">发起人</Tag>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <UserAvatar name={initiatorName} semiSize="extra-extra-small" size={20} />
-          <Typography.Text size="small" type="tertiary">{initiatorName}</Typography.Text>
-        </div>
-      </Timeline.Item>
-
-      {/* 审批节点（提交前预测态） */}
-      {flowNodes.map((n, idx) => {
-        const meta = NODE_META[n.nodeType] ?? NODE_META.approve;
-        return (
-          <Timeline.Item key={`${n.nodeKey}-${idx}`} dot={timelineDot(meta.icon, meta.color)}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-              <Typography.Text strong style={{ fontSize: 13 }}>{n.nodeName}</Typography.Text>
-              <Tag color={meta.statusColor} size="small">{meta.status}</Tag>
-              {n.approveMethod && METHOD_LABEL[n.approveMethod] && (
-                <Tag color="light-blue" size="small">{METHOD_LABEL[n.approveMethod]}</Tag>
-              )}
-              {n.branchLabel && <Tag color="violet" size="small">{n.branchLabel}</Tag>}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
+      ) : flowNodes.length === 0 ? (
+        <Empty description="该流程无需审批，提交后自动通过" style={{ padding: 24 }} />
+      ) : (
+        <Timeline className="wf-approval-timeline" style={{ paddingLeft: 4 }}>
+          {/* 开始：发起申请 */}
+          <Timeline.Item dot={timelineDot(Send, 'var(--semi-color-primary)')}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <Typography.Text strong style={{ fontSize: 13 }}>发起申请</Typography.Text>
+              <Tag color="blue" size="small">发起人</Tag>
             </div>
-            {n.nodeType === 'subProcess' ? (
-              <Typography.Text size="small" type="tertiary">子流程</Typography.Text>
-            ) : n.approvers.length > 0 ? (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {n.approvers.map((a) => (
-                  <span key={a.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    <UserAvatar name={a.name} semiSize="extra-extra-small" size={20} />
-                    <Typography.Text size="small" type="tertiary">{a.name}</Typography.Text>
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <Typography.Text size="small" type="warning">
-                {n.empty ? '审批人将在运行时确定（自选/上级/空处理）' : '—'}
-              </Typography.Text>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <UserAvatar name={initiatorName} semiSize="extra-extra-small" size={20} />
+              <Typography.Text size="small" type="tertiary">{initiatorName}</Typography.Text>
+            </div>
           </Timeline.Item>
-        );
-      })}
 
-      {/* 结束：流程结束 */}
-      <Timeline.Item dot={timelineDot(Flag, 'var(--semi-color-tertiary)')}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Typography.Text strong style={{ fontSize: 13 }}>流程结束</Typography.Text>
-          <Tag color="grey" size="small">预计</Tag>
-        </div>
-      </Timeline.Item>
-    </Timeline>
+          {/* 审批节点（提交前预测态） */}
+          {flowNodes.map((n, idx) => {
+            const meta = NODE_META[n.nodeType] ?? NODE_META.approve;
+            return (
+              <Timeline.Item key={`${n.nodeKey}-${idx}`} dot={timelineDot(meta.icon, meta.color)}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                  <Typography.Text strong style={{ fontSize: 13 }}>{n.nodeName}</Typography.Text>
+                  <Tag color={meta.statusColor} size="small">{meta.status}</Tag>
+                  {n.approveMethod && METHOD_LABEL[n.approveMethod] && (
+                    <Tag color="light-blue" size="small">{METHOD_LABEL[n.approveMethod]}</Tag>
+                  )}
+                  {n.branchLabel && <Tag color="violet" size="small">{n.branchLabel}</Tag>}
+                </div>
+                {n.nodeType === 'subProcess' ? (
+                  <Typography.Text size="small" type="tertiary">子流程</Typography.Text>
+                ) : n.approvers.length > 0 ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {n.approvers.map((a) => (
+                      <span key={a.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <UserAvatar name={a.name} semiSize="extra-extra-small" size={20} />
+                        <Typography.Text size="small" type="tertiary">{a.name}</Typography.Text>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <Typography.Text size="small" type="warning">
+                    {n.empty ? '审批人将在运行时确定（自选/上级/空处理）' : '—'}
+                  </Typography.Text>
+                )}
+              </Timeline.Item>
+            );
+          })}
+
+          {/* 结束：流程结束 */}
+          <Timeline.Item dot={timelineDot(Flag, 'var(--semi-color-tertiary)')}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Typography.Text strong style={{ fontSize: 13 }}>流程结束</Typography.Text>
+              <Tag color="grey" size="small">预计</Tag>
+            </div>
+          </Timeline.Item>
+        </Timeline>
+      )}
+    </div>
   );
 }

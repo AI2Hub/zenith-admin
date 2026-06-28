@@ -1,10 +1,8 @@
 /**
- * 提交前审批链路预览（T1-1）+ 设计器草稿预览（3C）
+ * 提交前审批链路预览（T1-1）
  *
- * 对流程做"干跑"遍历：从 start 沿正常边走，按节点 assigneeType 解析出真实审批人姓名，
- * 供发起页/设计器在提交或发布前展示「审批人：张三 → 李四 → …」。条件/并行分支会标注分支名并展开所有分支。
- * - previewFlow：对**已发布** definitionId（租户校验）。
- * - previewFlowDraft：对设计器**未发布草稿** flowData，可指定测试发起人。
+ * 对已发布流程做"干跑"遍历：从 start 沿正常边走，按节点 assigneeType 解析出真实审批人姓名，
+ * 供发起页在提交前展示「审批人：张三 → 李四 → …」。条件/并行分支会标注分支名并展开所有分支。
  */
 import { eq, and, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
@@ -13,16 +11,21 @@ import { workflowDefinitions, users } from '../db/schema';
 import { tenantCondition } from '../lib/tenant';
 import { currentUser } from '../lib/context';
 import { resolveAssigneeIds } from './workflow-assignee-resolver.service';
-import type { WorkflowFlowData, WorkflowApproverPreviewNode, PreviewWorkflowDraftInput } from '@zenith/shared';
+import type { WorkflowFlowData, WorkflowApproverPreviewNode } from '@zenith/shared';
 
 const APPROVER_TYPES = new Set(['approve', 'handler']);
 
-/** 核心：对给定 flowData 干跑遍历，解析每个审批/办理/抄送/子流程节点的审批人。 */
-async function previewFlowData(
-  flowData: WorkflowFlowData | null,
-  initiatorId: number,
+export async function previewFlow(
+  definitionId: number,
   formData?: Record<string, unknown> | null,
 ): Promise<WorkflowApproverPreviewNode[]> {
+  const user = currentUser();
+  const tc = tenantCondition(workflowDefinitions, user);
+  const conds = [eq(workflowDefinitions.id, definitionId)];
+  if (tc) conds.push(tc);
+  const [def] = await db.select().from(workflowDefinitions).where(and(...conds)).limit(1);
+  if (!def) throw new HTTPException(404, { message: '流程定义不存在' });
+  const flowData = def.flowData as WorkflowFlowData | null;
   if (!flowData?.nodes?.length) throw new HTTPException(400, { message: '流程未配置，无法预览' });
 
   const nodeById = new Map(flowData.nodes.map((n) => [n.id, n]));
@@ -42,9 +45,9 @@ async function previewFlowData(
   const entries: Array<{ nodeKey: string; nodeName: string; nodeType: string; ids: number[]; approveMethod: string | null; branchLabel: string | null }> = [];
   const visited = new Set<string>();
 
-  // 发起人节点：始终作为链路第一个节点，展示当前（测试）发起人
-  entries.push({ nodeKey: '__initiator__', nodeName: '发起人', nodeType: 'start', ids: [initiatorId], approveMethod: null, branchLabel: null });
-  pendingIds.add(initiatorId);
+  // 发起人节点：始终作为链路第一个节点，展示当前发起人
+  entries.push({ nodeKey: '__initiator__', nodeName: '发起人', nodeType: 'start', ids: [user.userId], approveMethod: null, branchLabel: null });
+  pendingIds.add(user.userId);
 
   const walk = async (nodeId: string, branchLabel: string | null): Promise<void> => {
     if (visited.has(nodeId)) return;
@@ -56,7 +59,7 @@ async function previewFlowData(
       let ids: number[] = [];
       if (type !== 'subProcess') {
         try {
-          ids = await resolveAssigneeIds(node.data, { initiatorId, formData: fd });
+          ids = await resolveAssigneeIds(node.data, { initiatorId: user.userId, formData: fd });
         } catch {
           ids = [];
         }
@@ -98,24 +101,4 @@ async function previewFlowData(
     branchLabel: e.branchLabel,
     empty: APPROVER_TYPES.has(e.nodeType) && e.ids.length === 0,
   }));
-}
-
-export async function previewFlow(
-  definitionId: number,
-  formData?: Record<string, unknown> | null,
-): Promise<WorkflowApproverPreviewNode[]> {
-  const user = currentUser();
-  const tc = tenantCondition(workflowDefinitions, user);
-  const conds = [eq(workflowDefinitions.id, definitionId)];
-  if (tc) conds.push(tc);
-  const [def] = await db.select().from(workflowDefinitions).where(and(...conds)).limit(1);
-  if (!def) throw new HTTPException(404, { message: '流程定义不存在' });
-  return previewFlowData(def.flowData as WorkflowFlowData | null, user.userId, formData);
-}
-
-/** 设计器草稿预览：对未发布的 flowData 解析审批链路，可指定测试发起人（默认当前用户）。 */
-export async function previewFlowDraft(input: PreviewWorkflowDraftInput): Promise<WorkflowApproverPreviewNode[]> {
-  const user = currentUser();
-  const initiatorId = input.starterUserId ?? user.userId;
-  return previewFlowData(input.flowData as unknown as WorkflowFlowData, initiatorId, input.formData);
 }

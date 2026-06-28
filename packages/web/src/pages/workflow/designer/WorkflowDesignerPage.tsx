@@ -3,7 +3,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, RadioGroup, Radio, Spin, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, RadioGroup, Radio, Spin, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { ArrowLeft, Download, Eye, History, Minus, Play, Plus, Redo2, RotateCcw, Save, Send, Stethoscope, Undo2, Upload } from 'lucide-react';
 import type { WorkflowDefinition, WorkflowDefinitionSnapshot, WorkflowFlowData, WorkflowFormField, WorkflowFormType, WorkflowCustomFormConfig } from '@zenith/shared';
 import { WORKFLOW_FORM_TYPES, WORKFLOW_FORM_TYPE_LABELS, resolveApproverDedupMode } from '@zenith/shared';
@@ -47,7 +47,6 @@ import BasicInfoPanel from './components/BasicInfoPanel';
 import AdvancedSettingsPanel from './components/AdvancedSettingsPanel';
 import WorkflowSimulationDrawer from './components/WorkflowSimulationDrawer';
 import WorkflowHealthCheckDrawer from './components/WorkflowHealthCheckDrawer';
-import WorkflowApproverPreviewDrawer from './components/WorkflowApproverPreviewDrawer';
 import { useFlowHealth } from './hooks/useFlowHealth';
 import type { AdvancedSettingsData } from './components/AdvancedSettingsPanel';
 import { DEFAULT_ADVANCED_SETTINGS } from './components/advanced-settings';
@@ -126,7 +125,6 @@ export default function WorkflowDesignerPage({
   const [simulationVisible, setSimulationVisible] = useState(false);
   // 发布前体检
   const [healthVisible, setHealthVisible] = useState(false);
-  const [approverPreviewVisible, setApproverPreviewVisible] = useState(false);
   // 历史版本
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
 
@@ -485,7 +483,7 @@ export default function WorkflowDesignerPage({
   }, [advancedSettings, process]);
 
   // 3A 实时画布体检：仅在流程设计步骤启用，debounce 调用 /health-check，按 nodeKey 聚合问题
-  const { report: liveHealthReport, nodeHealth } = useFlowHealth({
+  const { nodeHealth } = useFlowHealth({
     enabled: currentStep === 3,
     buildFlowData: buildCurrentFlowData,
     formFields,
@@ -831,23 +829,6 @@ export default function WorkflowDesignerPage({
                 <Button icon={<Stethoscope size={14} />} type="tertiary" theme="borderless" onClick={() => setHealthVisible(true)}>
                   体检
                 </Button>
-                {liveHealthReport && (() => {
-                  const all = liveHealthReport.checks.flatMap((ch) => ch.issues);
-                  const err = all.filter((i) => i.severity === 'critical').length;
-                  const warn = all.filter((i) => i.severity === 'warning').length;
-                  const gradeColor: 'green' | 'blue' | 'orange' | 'red' = liveHealthReport.grade === 'A' ? 'green' : liveHealthReport.grade === 'B' ? 'blue' : liveHealthReport.grade === 'C' ? 'orange' : 'red';
-                  return (
-                    <Tooltip content={err > 0 ? `${err} 项严重、${warn} 项警告，点击查看体检详情` : warn > 0 ? `${warn} 项警告，点击查看体检详情` : '体检通过，点击查看详情'}>
-                      <Tag color={gradeColor} style={{ cursor: 'pointer' }} onClick={() => setHealthVisible(true)}>
-                        体检 {liveHealthReport.grade} · {liveHealthReport.score}
-                        {err > 0 ? ` · ${err} 严重` : warn > 0 ? ` · ${warn} 警告` : ''}
-                      </Tag>
-                    </Tooltip>
-                  );
-                })()}
-                <Button icon={<Eye size={14} />} type="tertiary" theme="borderless" onClick={() => setApproverPreviewVisible(true)}>
-                  审批人预览
-                </Button>
                 <span className="fd-canvas__toolbar-divider" />
               </>
             )}
@@ -920,14 +901,6 @@ export default function WorkflowDesignerPage({
         flowData={buildCurrentFlowData()}
         formFields={formFields}
         onClose={() => setHealthVisible(false)}
-      />
-
-      <WorkflowApproverPreviewDrawer
-        visible={approverPreviewVisible}
-        flowData={buildCurrentFlowData()}
-        formFields={localFormFields}
-        users={users}
-        onClose={() => setApproverPreviewVisible(false)}
       />
 
       {/* 节点配置抽屉 */}
