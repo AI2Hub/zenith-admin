@@ -211,14 +211,16 @@ class Tracker {
     try {
       const queued = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]') as TrackEventInput[];
       if (queued.length === 0) return;
-      localStorage.removeItem(QUEUE_KEY);
+      const events = queued.slice(0, MAX_BUFFER_SIZE);     // 单批 ≤ 后端上限，避免 100+ 触发 400
+      const rest = queued.slice(MAX_BUFFER_SIZE);
+      localStorage.setItem(QUEUE_KEY, JSON.stringify(rest)); // 先留下剩余，成功不动、失败回灌
       const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || '/api';
       const token = localStorage.getItem(TOKEN_KEY);
       fetch(`${apiBase}/analytics/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ events: queued }),
-      }).then((res) => { if (!res.ok) this.enqueue(queued); }).catch(() => this.enqueue(queued));
+        body: JSON.stringify({ events }),
+      }).then((res) => { if (!res.ok) this.enqueue(events); else if (rest.length) this.flushQueue(); }).catch(() => this.enqueue(events));
     } catch { /* ignore */ }
   }
 
