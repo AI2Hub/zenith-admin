@@ -1373,6 +1373,13 @@
       "when": 1782708108832,
       "tag": "0195_supreme_zaladane",
       "breakpoints": true
+    },
+    {
+      "idx": 196,
+      "version": "7",
+      "when": 1782711771975,
+      "tag": "0196_minor_killer_shrike",
+      "breakpoints": true
     }
   ]
 }

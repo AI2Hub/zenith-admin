@@ -19,7 +19,8 @@ import {
 } from '../services/workflow-instances.service';
 import { listInstanceComments, addInstanceComment } from '../services/workflow-comments.service';
 import { preflightMigration, migrateInstance, batchMigrate, listMigrations } from '../services/workflow-migrations.service';
-import { WorkflowMigrationPreflightDTO, WorkflowInstanceMigrationDTO } from '../lib/openapi-dtos';
+import { listCompensations, resolveCompensation } from '../services/workflow-compensations.service';
+import { WorkflowMigrationPreflightDTO, WorkflowInstanceMigrationDTO, WorkflowCompensationDTO } from '../lib/openapi-dtos';
 import { createConsult, replyConsult, listMyConsults, getConsultInstanceIdForAudit } from '../services/workflow-consults.service';
 import { getWorkflowAnalytics, listOverdueTasks } from '../services/workflow-analytics.service';
 
@@ -972,6 +973,28 @@ const migrateBatchRoute = defineOpenAPIRoute({
   handler: async (c) => { const r = await batchMigrate(c.req.valid('param').definitionId); return c.json(okBody(null, `批量迁移完成：${r.migrated}/${r.total}，失败 ${r.failed.length}`), 200); },
 });
 
-router.openapiRoutes([migratePreflightRoute, migrateRoute, migrationsRoute, migrateBatchRoute] as const);
+const compensationsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/compensations', tags: ['WorkflowInstances'], summary: '补偿/修复工单列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:instance:monitor' })] as const,
+    request: { query: PaginationQuery.extend({ status: z.string().optional(), instanceId: z.coerce.number().int().optional() }) },
+    responses: { ...commonErrorResponses, ...okPaginated(WorkflowCompensationDTO, 'ok') },
+  }),
+  handler: async (c) => c.json(okBody(await listCompensations(c.req.valid('query'))), 200),
+});
+
+const compensationResolveRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/compensations/{id}/resolve', tags: ['WorkflowInstances'], summary: '处理补偿工单',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:engine:operate', audit: { description: '处理补偿工单', module: '工作流管理' } })] as const,
+    request: { params: IdParam, body: { content: jsonContent(z.object({ action: z.enum(['resolve', 'terminate']), resolution: z.string().optional() })), required: true } },
+    responses: { ...commonErrorResponses, ...ok(WorkflowCompensationDTO, '已处理') },
+  }),
+  handler: async (c) => { const { id } = c.req.valid('param'); const b = c.req.valid('json'); return c.json(okBody(await resolveCompensation(id, b.action, b.resolution), '已处理'), 200); },
+});
+
+router.openapiRoutes([migratePreflightRoute, migrateRoute, migrationsRoute, migrateBatchRoute, compensationsRoute, compensationResolveRoute] as const);
 
 export default router;

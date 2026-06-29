@@ -229,6 +229,7 @@ import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
 import { resolveAssigneeIds, buildStarterContext } from './workflow-assignee-resolver.service';
 import { getDecisionOutputs } from './rules.service';
+import { recordCompensation } from './workflow-compensations.service';
 import { resolveFormSnapshot } from './workflow-forms.service';
 import type { DbExecutor } from '../db/types';
 import { createHash, randomBytes } from 'node:crypto';
@@ -1168,6 +1169,7 @@ export async function handleNodeExecutionError(input: {
       .for('update')
       .limit(1);
     if (!lockedInst || lockedInst.status !== 'running') return null;
+    await recordCompensation(tx, { instanceId: lockedInst.id, nodeKey: catchCfg.key, nodeName: catchCfg.label, errorMessage: input.errorMessage, action, status: action === 'toAdmin' ? 'pending' : action === 'terminate' ? 'terminated' : 'resolved', tenantId: lockedInst.tenantId });
 
     const affectedTasks = input.task
       ? await tx.update(workflowTasks).set({

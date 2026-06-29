@@ -7121,3 +7121,10 @@ export interface WorkflowInstanceMigration {
   id: number; instanceId: number; fromVersion: number; toVersion: number;
   status: string; note: string | null; createdAt: string;
 }
+
+// ─── 工作流：补偿/人工修复工单 ──────────────────────────────────────────────────
+export interface WorkflowCompensation {
+  id: number; instanceId: number; nodeKey: string; nodeName: string | null;
+  errorMessage: string | null; action: string; status: 'pending' | 'resolved' | 'terminated';
+  resolution: string | null; resolvedBy: number | null; resolvedAt: string | null; createdAt: string;
+}

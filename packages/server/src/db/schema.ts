@@ -2008,6 +2008,25 @@ export const workflowInstanceMigrations = pgTable('workflow_instance_migrations'
 export type WorkflowInstanceMigrationRow = typeof workflowInstanceMigrations.$inferSelect;
 export type NewWorkflowInstanceMigration = typeof workflowInstanceMigrations.$inferInsert;
 
+// 工作流补偿/人工修复工单（catch 节点异常生成，运维手动恢复/终止）
+export const workflowCompensations = pgTable('workflow_compensations', {
+  id: serial('id').primaryKey(),
+  instanceId: integer('instance_id').notNull(),
+  nodeKey: varchar('node_key', { length: 64 }).notNull(),
+  nodeName: varchar('node_name', { length: 64 }),
+  errorMessage: varchar('error_message', { length: 1024 }),
+  action: varchar('action', { length: 16 }).notNull().default('notify'),
+  status: varchar('status', { length: 16 }).notNull().default('pending'),
+  resolution: text('resolution'),
+  resolvedBy: integer('resolved_by').references(() => users.id, { onDelete: 'set null' }),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [index('wf_compensation_instance_idx').on(t.instanceId), index('wf_compensation_status_idx').on(t.status)]);
+
+export type WorkflowCompensationRow = typeof workflowCompensations.$inferSelect;
+export type NewWorkflowCompensation = typeof workflowCompensations.$inferInsert;
+
 
 // 流程实例
 export const workflowInstances = pgTable('workflow_instances', {

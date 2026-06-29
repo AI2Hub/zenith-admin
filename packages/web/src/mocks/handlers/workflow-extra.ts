@@ -616,6 +616,8 @@ export const workflowExtraHandlers = [
   }),
 
   // ── 管理员强制操作 ──
+  http.get('/api/workflows/instances/compensations', () => ok({ list: [], total: 0, page: 1, pageSize: 20 })),
+  http.post('/api/workflows/instances/compensations/:id/resolve', () => ok(null, '已处理')),
   http.get('/api/workflows/instances/:id/migrate/preflight', ({ params }) => {
     const inst = mockWorkflowInstances.find((i) => i.id === Number(params.id));
     if (!inst) return err('流程实例不存在', 404);

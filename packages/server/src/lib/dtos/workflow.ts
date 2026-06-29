@@ -666,3 +666,9 @@ export const WorkflowInstanceMigrationDTO = z.object({
   id: z.number().int(), instanceId: z.number().int(), fromVersion: z.number().int(), toVersion: z.number().int(),
   status: z.string(), note: z.string().nullable(), createdAt: z.string(),
 }).openapi('WorkflowInstanceMigration');
+
+export const WorkflowCompensationDTO = z.object({
+  id: z.number().int(), instanceId: z.number().int(), nodeKey: z.string(), nodeName: z.string().nullable(),
+  errorMessage: z.string().nullable(), action: z.string(), status: z.enum(['pending','resolved','terminated']),
+  resolution: z.string().nullable(), resolvedBy: z.number().int().nullable(), resolvedAt: z.string().nullable(), createdAt: z.string(),
+}).openapi('WorkflowCompensation');
