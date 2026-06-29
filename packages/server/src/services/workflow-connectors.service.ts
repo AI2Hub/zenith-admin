@@ -7,7 +7,7 @@
 import { and, desc, eq, gte, ilike, or, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../db';
-import { workflowConnectors, workflowConnectorInvocations } from '../db/schema';
+import { workflowConnectors, workflowConnectorInvocations, smsConfigs, smsTemplates } from '../db/schema';
 import type { WorkflowConnectorRow } from '../db/schema';
 import { currentUser } from '../lib/context';
 import { tenantCondition, getCreateTenantId } from '../lib/tenant';
@@ -17,6 +17,8 @@ import { formatDateTime } from '../lib/datetime';
 import { rethrowPgUniqueViolation } from '../lib/db-errors';
 import { encryptField, decryptField } from '../lib/encryption';
 import { httpRequest } from '../lib/http-client';
+import { sendMail } from '../lib/email';
+import { sendSmsByProvider, renderTemplate } from '../lib/sms-sender';
 import { breakerAllow, breakerSuccess, breakerFailure, breakerState, breakerReset } from '../lib/workflow-connector-breaker';
 import { rateLimitAcquire, rateLimitReset } from '../lib/workflow-connector-rate-limit';
 import type {
@@ -299,10 +301,42 @@ async function executeHttp(connector: WorkflowConnectorRow, req: BuiltRequest, c
   return result;
 }
 
-const RUNTIME_SUPPORTED = new Set<string>(['http', 'webhook', 'wecom', 'dingtalk', 'feishu']);
+const RUNTIME_SUPPORTED = new Set<string>(['http', 'webhook', 'wecom', 'dingtalk', 'feishu', 'email', 'sms']);
+
+/** email 连接器 adapter：复用 lib/email.sendMail；收件人/主题取 config，正文取 message/body */
+async function invokeEmail(connector: WorkflowConnectorRow, opts: ConnectorInvokeOptions): Promise<WorkflowConnectorInvokeResult> {
+  const cfg = (connector.config ?? {}) as Record<string, unknown>;
+  const to = (opts.headers?.to as string) || (cfg.to as string) || '';
+  if (!to) return fail('email 连接器缺少收件人（config.to 或 headers.to）');
+  const subject = (cfg.subject as string) || '工作流通知';
+  const started = Date.now();
+  try {
+    await sendMail(to, subject, extractMessage(opts) || subject);
+    return { ok: true, status: 200, durationMs: Date.now() - started, responseSnippet: `已发送至 ${to}`, error: null };
+  } catch (err) {
+    return { ok: false, status: null, durationMs: Date.now() - started, responseSnippet: null, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** sms 连接器 adapter：用默认启用短信配置 + config.templateCode 模板，向 config.phone/headers.phone 发送 */
+async function invokeSms(connector: WorkflowConnectorRow, opts: ConnectorInvokeOptions): Promise<WorkflowConnectorInvokeResult> {
+  const cfg = (connector.config ?? {}) as Record<string, unknown>;
+  const phone = (opts.headers?.phone as string) || (cfg.phone as string) || '';
+  if (!phone) return fail('sms 连接器缺少手机号（config.phone 或 headers.phone）');
+  const [smsCfg] = await db.select().from(smsConfigs).where(eq(smsConfigs.status, 'enabled')).limit(1);
+  if (!smsCfg) return fail('无启用的短信配置');
+  const [tpl] = await db.select().from(smsTemplates).where(eq(smsTemplates.code, String(cfg.templateCode ?? ''))).limit(1);
+  if (!tpl) return fail(`短信模板不存在：${String(cfg.templateCode ?? '')}`);
+  const vars = (opts.body && typeof opts.body === 'object' ? opts.body : {}) as Record<string, string>;
+  const started = Date.now();
+  const res = await sendSmsByProvider({ config: smsCfg, template: tpl, phone, variables: vars, renderedContent: renderTemplate(tpl.content, vars) });
+  return res.success
+    ? { ok: true, status: 200, durationMs: Date.now() - started, responseSnippet: `已发送至 ${phone}`, error: null }
+    : { ok: false, status: null, durationMs: Date.now() - started, responseSnippet: null, error: res.errorMsg ?? '短信发送失败' };
+}
 
 /**
- * 运行时调用连接器：按 type 选择 adapter（http/webhook 透传；wecom/dingtalk/feishu 通知 adapter），
+ * 运行时调用连接器：按 type 选择 adapter（http/webhook 透传；wecom/dingtalk/feishu 通知；email/sms 通道），
  * 套用超时/重试 + 熔断保护 + 调用审计。供触发器/外部审批/事件 Webhook 节点统一复用。
  */
 export async function invokeConnector(connector: WorkflowConnectorRow, opts: ConnectorInvokeOptions = {}): Promise<WorkflowConnectorInvokeResult> {
@@ -313,19 +347,21 @@ export async function invokeConnector(connector: WorkflowConnectorRow, opts: Con
   if (!RUNTIME_SUPPORTED.has(connector.type)) {
     return fail(`连接器类型「${connector.type}」暂未支持运行时调用`);
   }
+  const cbCfg = { enabled: connector.circuitBreakerEnabled, failureThreshold: connector.failureThreshold, cooldownSec: connector.cooldownSec };
+  const gate = await breakerAllow(connector.id, cbCfg);
+  if (!gate.allowed) { const r = fail('熔断已打开，快速失败'); await recordInvocation(connector, '', r, source); return r; }
+  const rl = await rateLimitAcquire(connector.id, { enabled: connector.rateLimitEnabled, windowSec: connector.rateLimitWindowSec, max: connector.rateLimitMax });
+  if (!rl.allowed) { const r = fail(`调用频率超限，请 ${rl.retryAfterSec}s 后重试`); await recordInvocation(connector, '', r, source); return r; }
+  // email / sms 通道：不走 HTTP baseUrl
+  if (connector.type === 'email' || connector.type === 'sms') {
+    const r = connector.type === 'email' ? await invokeEmail(connector, opts) : await invokeSms(connector, opts);
+    if (r.ok) await breakerSuccess(connector.id); else await breakerFailure(connector.id, cbCfg);
+    await recordInvocation(connector, connector.type, r, source);
+    return r;
+  }
   const cfg = (connector.config ?? {}) as WorkflowConnectorHttpConfig;
   if (!cfg.baseUrl) {
     const r = fail('连接器未配置 baseUrl'); await recordInvocation(connector, '', r, source); return r;
-  }
-  const cbCfg = { enabled: connector.circuitBreakerEnabled, failureThreshold: connector.failureThreshold, cooldownSec: connector.cooldownSec };
-  const gate = await breakerAllow(connector.id, cbCfg);
-  if (!gate.allowed) {
-    const r = fail('熔断已打开，快速失败'); await recordInvocation(connector, cfg.baseUrl, r, source); return r;
-  }
-  // 限流（与熔断并列）：超额快速失败，且不计入熔断失败（自我节流，非下游故障）
-  const rl = await rateLimitAcquire(connector.id, { enabled: connector.rateLimitEnabled, windowSec: connector.rateLimitWindowSec, max: connector.rateLimitMax });
-  if (!rl.allowed) {
-    const r = fail(`调用频率超限，请 ${rl.retryAfterSec}s 后重试`); await recordInvocation(connector, cfg.baseUrl, r, source); return r;
   }
   const isIm = connector.type === 'wecom' || connector.type === 'dingtalk' || connector.type === 'feishu';
   const req = isIm ? buildImRequest(connector, opts) : buildHttpRequest(connector, opts);
