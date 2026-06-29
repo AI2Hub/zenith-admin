@@ -1338,6 +1338,13 @@
       "when": 1782695580625,
       "tag": "0190_purge_legacy_workflow_cron_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 191,
+      "version": "7",
+      "when": 1782696394393,
+      "tag": "0191_purge_legacy_workflow_timeout_cron",
+      "breakpoints": true
     }
   ]
 }
