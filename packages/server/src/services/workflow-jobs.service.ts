@@ -223,3 +223,26 @@ export async function getWorkflowJobsSummary(): Promise<WorkflowJobSummaryItem[]
   }
   return ALL_JOB_TYPES.map((t) => map.get(t)!);
 }
+
+/** 死信中心：重放全部死信作业（可按 jobType 过滤），逐个 retryJob。 */
+export async function replayDeadJobs(jobType?: WorkflowJobRow['jobType']): Promise<WorkflowJobBatchResult> {
+  const conds = [eq(workflowJobs.status, 'dead')];
+  if (jobType) conds.push(eq(workflowJobs.jobType, jobType));
+  const rows = await db.select({ id: workflowJobs.id }).from(workflowJobs).where(and(...conds)).limit(500);
+  let success = 0;
+  for (const r of rows) { if (await retryJob(r.id)) success += 1; }
+  return { total: rows.length, success, skipped: rows.length - success };
+}
+
+/** 失败原因聚类：dead/failed 作业按 lastError 归一前缀聚合，便于定位高频故障。 */
+export async function getJobFailureClusters(): Promise<Array<{ reason: string; count: number; jobTypes: string[] }>> {
+  const rows = await db.select({ jobType: workflowJobs.jobType, lastError: workflowJobs.lastError })
+    .from(workflowJobs).where(inArray(workflowJobs.status, ['dead', 'failed'])).limit(2000);
+  const map = new Map<string, { count: number; types: Set<string> }>();
+  for (const r of rows) {
+    const reason = (r.lastError ?? '未知错误').replace(/\d+/g, 'N').slice(0, 60);
+    const e = map.get(reason) ?? { count: 0, types: new Set<string>() };
+    e.count++; e.types.add(r.jobType); map.set(reason, e);
+  }
+  return [...map.entries()].map(([reason, v]) => ({ reason, count: v.count, jobTypes: [...v.types] })).sort((a, b) => b.count - a.count).slice(0, 20);
+}

@@ -5,6 +5,7 @@ import {
   Empty,
   Input,
   JsonViewer,
+  Modal,
   Popconfirm,
   Radio,
   RadioGroup,
@@ -158,6 +159,9 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
   const [actingId, setActingId] = useState<number | null>(null);
   const [execView, setExecView] = useState<'timeline' | 'table'>('timeline');
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
+  const [clusters, setClusters] = useState<Array<{ reason: string; count: number; jobTypes: string[] }> | null>(null);
+  const replayDead = async () => { const r = await request.post<{ total: number; success: number }>('/api/workflows/engine/jobs/replay-dead', {}); if (r.code === 0) { Toast.success(`已重放 ${r.data?.success ?? 0}/${r.data?.total ?? 0}`); void fetchList(); onMutated?.(); } };
+  const openClusters = async () => { const r = await request.get<Array<{ reason: string; count: number; jobTypes: string[] }>>('/api/workflows/engine/jobs/failure-clusters'); setClusters(r.data ?? []); };
   const [batchLoading, setBatchLoading] = useState(false);
   const [chain, setChain] = useState<WorkflowJobChain | null>(null);
   const [chainVisible, setChainVisible] = useState(false);
@@ -457,6 +461,12 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
             />
             <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>
             <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>
+            <Button type="tertiary" onClick={() => void openClusters()}>失败聚类</Button>
+            {canOperate && (
+              <Popconfirm title="重放全部死信作业？" content="最多重放 500 条死信作业" onConfirm={() => void replayDead()}>
+                <Button type="warning">重放死信</Button>
+              </Popconfirm>
+            )}
           </>
         )}
         mobilePrimary={(
@@ -635,6 +645,14 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
           </Space>
         )}
       </SideSheet>
+      <Modal title="失败原因聚类" visible={clusters !== null} onCancel={() => setClusters(null)} footer={null} width={620}>
+        {clusters?.length ? clusters.map((c, i) => (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--semi-color-border)' }}>
+            <Typography.Text style={{ maxWidth: 420 }} ellipsis={{ showTooltip: true }}>{c.reason}</Typography.Text>
+            <Typography.Text type="tertiary" size="small">{c.jobTypes.join(',')} · {c.count}</Typography.Text>
+          </div>
+        )) : <Typography.Text type="tertiary">暂无失败/死信作业</Typography.Text>}
+      </Modal>
     </>
   );
 }

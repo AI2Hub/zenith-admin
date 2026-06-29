@@ -1703,6 +1703,19 @@ export const workflowHandlers = [
     const skipped = ids.length - success;
     return ok({ total: ids.length, success, skipped }, `已跳过 ${success} 项${skipped > 0 ? `，${skipped} 项状态不满足已跳过` : ''}`);
   }),
+  http.post('/api/workflows/engine/jobs/replay-dead', () => {
+    const dead = mockWorkflowJobs.filter((j) => j.status === 'dead');
+    dead.forEach((j) => { j.status = 'pending'; j.attempts = 0; j.updatedAt = mockDateTime(); });
+    return ok({ total: dead.length, success: dead.length, skipped: 0 }, `已重放 ${dead.length}`);
+  }),
+  http.get('/api/workflows/engine/jobs/failure-clusters', () => {
+    const map = new Map<string, { count: number; types: Set<string> }>();
+    mockWorkflowJobs.filter((j) => j.status === 'dead' || j.status === 'failed').forEach((j) => {
+      const reason = (j.lastError ?? '未知错误').replace(/\d+/g, 'N').slice(0, 60);
+      const e = map.get(reason) ?? { count: 0, types: new Set<string>() }; e.count++; e.types.add(j.jobType); map.set(reason, e);
+    });
+    return ok([...map.entries()].map(([reason, v]) => ({ reason, count: v.count, jobTypes: [...v.types] })));
+  }),
 
   http.get('/api/workflows/instances/:id/diagnostics', ({ params }) => {
     const inst = mockWorkflowInstances.find(i => i.id === Number(params.id));
