@@ -1008,7 +1008,7 @@ export async function getWorkflowEngineIntrospection(
     ]),
     component('subProcessRecovery', worstStatus([queueStatus('subProcessJoin'), componentStatusByIssue('subProcessRecovery')]), [
       metric('等待汇聚', subProcessTasks.length),
-      metric('Cron Handler', workflowJobsDrainRegistered ? '已注册' : '未注册', workflowJobsDrainRegistered ? 'healthy' : 'warning'),
+      metric('作业处理器', workflowJobsDrainRegistered ? '已注册' : '未注册', workflowJobsDrainRegistered ? 'healthy' : 'warning'),
     ]),
     component('eventBus', eventBus.totalListenerCount > 0 ? 'healthy' : 'critical', [
       metric('监听器总数', eventBus.totalListenerCount, eventBus.totalListenerCount > 0 ? 'healthy' : 'critical'),
