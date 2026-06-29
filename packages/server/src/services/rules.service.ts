@@ -276,6 +276,18 @@ export async function createTestCase(tableId: number, input: { name: string; inp
     return mapCase(row);
   } catch (err) { rethrowPgUniqueViolation(err, '用例名称已存在'); }
 }
+export async function updateTestCase(tableId: number, caseId: number, input: { name?: string; input?: Record<string, unknown>; expected?: Record<string, unknown> }) {
+  await ensureDecisionTable(tableId);
+  const patch: Partial<typeof ruleTestCases.$inferInsert> = {};
+  if (input.name !== undefined) patch.name = input.name;
+  if (input.input !== undefined) patch.input = input.input;
+  if (input.expected !== undefined) patch.expected = input.expected;
+  try {
+    const [row] = await db.update(ruleTestCases).set(patch).where(and(eq(ruleTestCases.id, caseId), eq(ruleTestCases.tableId, tableId))).returning();
+    if (!row) throw new HTTPException(404, { message: '测试用例不存在' });
+    return mapCase(row);
+  } catch (err) { rethrowPgUniqueViolation(err, '用例名称已存在'); }
+}
 export async function deleteTestCase(tableId: number, caseId: number): Promise<void> {
   await db.delete(ruleTestCases).where(and(eq(ruleTestCases.id, caseId), eq(ruleTestCases.tableId, tableId)));
 }

@@ -104,6 +104,14 @@ export const decisionTablesHandlers = [
     (mockTestCases[id] ??= []).unshift(c); return ok(c);
   }),
   http.post('/api/rules/decision-tables/:id/cases/run', ({ params }) => ok(runCases(Number(params.id)))),
+  http.put('/api/rules/decision-tables/:id/cases/:caseId', async ({ params, request }) => {
+    const arr = mockTestCases[Number(params.id)] ?? [];
+    const i = arr.findIndex((c) => c.id === Number(params.caseId));
+    if (i === -1) return fail('测试用例不存在', 404);
+    const b = (await request.json()) as { name?: string; input?: Record<string, unknown>; expected?: Record<string, unknown> };
+    arr[i] = { ...arr[i], ...b, updatedAt: mockDateTime() };
+    return ok(arr[i]);
+  }),
   http.delete('/api/rules/decision-tables/:id/cases/:caseId', ({ params }) => {
     const arr = mockTestCases[Number(params.id)] ?? []; const i = arr.findIndex((c) => c.id === Number(params.caseId));
     if (i >= 0) arr.splice(i, 1); return ok(null);

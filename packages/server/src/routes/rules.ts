@@ -6,13 +6,13 @@ import {
   ok, okPaginated, okMsg, IdParam, okBody, BatchIdsBody,
 } from '../lib/openapi-schemas';
 import { DecisionTableDTO, DecisionTableVersionDTO, RuleEvaluateResultDTO, RuleVersionDiffDTO, RuleTestCaseDTO, RuleTestRunResultDTO, RuleExecutionDTO } from '../lib/openapi-dtos';
-import { createDecisionTableSchema, updateDecisionTableSchema, createRuleTestCaseSchema } from '@zenith/shared';
+import { createDecisionTableSchema, updateDecisionTableSchema, createRuleTestCaseSchema, updateRuleTestCaseSchema } from '@zenith/shared';
 import {
   listDecisionTables, getDecisionTable, getDecisionTableBeforeAudit,
   createDecisionTable, updateDecisionTable, deleteDecisionTable, deleteDecisionTables,
   publishDecisionTable, listDecisionTableVersions, evaluateDecisionTableByKey, testEvaluateDecisionTable,
   diffDecisionTableVersions, rollbackDecisionTable,
-  listTestCases, createTestCase, deleteTestCase, runTestCases, listDecisionExecutions,
+  listTestCases, createTestCase, updateTestCase, deleteTestCase, runTestCases, listDecisionExecutions,
 } from '../services/rules.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -103,6 +103,17 @@ const caseRunRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(RuleTestRunResultDTO, 'ok') },
   }),
   handler: async (c) => c.json(okBody(await runTestCases(c.req.valid('param').id)), 200),
+});
+
+const caseUpdateRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/{id}/cases/{caseId}', tags: ['DecisionTables'], summary: '更新测试用例',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'rule:table:update', audit: { description: '更新决策表用例', module: '规则中心' } })] as const,
+    request: { params: z.object({ id: z.coerce.number().int(), caseId: z.coerce.number().int() }), body: { content: jsonContent(updateRuleTestCaseSchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(RuleTestCaseDTO, '更新成功') },
+  }),
+  handler: async (c) => { const { id, caseId } = c.req.valid('param'); return c.json(okBody(await updateTestCase(id, caseId, c.req.valid('json')), '更新成功'), 200); },
 });
 
 const caseDeleteRoute = defineOpenAPIRoute({
@@ -215,6 +226,6 @@ const executionsRoute = defineOpenAPIRoute({
   handler: async (c) => c.json(okBody(await listDecisionExecutions(c.req.valid('query'))), 200),
 });
 
-router.openapiRoutes([listRoute, executionsRoute, getRoute, versionsRoute, diffRoute, rollbackRoute, casesRoute, caseCreateRoute, caseRunRoute, caseDeleteRoute, createRouteDef, updateRoute, publishRoute, testRoute, evaluateRoute, batchDeleteRoute, deleteRoute] as const);
+router.openapiRoutes([listRoute, executionsRoute, getRoute, versionsRoute, diffRoute, rollbackRoute, casesRoute, caseCreateRoute, caseRunRoute, caseUpdateRoute, caseDeleteRoute, createRouteDef, updateRoute, publishRoute, testRoute, evaluateRoute, batchDeleteRoute, deleteRoute] as const);
 
 export default router;
