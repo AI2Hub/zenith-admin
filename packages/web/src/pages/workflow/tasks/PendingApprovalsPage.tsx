@@ -149,13 +149,21 @@ export default function PendingApprovalsPage() {
       const payload = batchMode === 'reject'
         ? { taskIds, comment: batchComment.trim() }
         : { taskIds, comment: batchComment.trim() || undefined };
-      const res = await request.post<{ succeeded: number; failed: number }>(
+      const res = await request.post<{ succeeded: number; failed: number; results?: Array<{ taskId: number; success: boolean; message?: string }> }>(
         `/api/workflows/tasks/${path}`,
         payload,
         { headers: { 'X-Idempotency-Key': `workflow-${path}-${taskIds.join('-')}` } },
       );
       if (res.code === 0) {
-        Toast.success(res.message || '批量处理完成');
+        const failed = res.data?.failed ?? 0;
+        if (failed > 0) {
+          const reasons = [...new Set((res.data?.results ?? [])
+            .filter((r) => !r.success && r.message)
+            .map((r) => r.message as string))];
+          Toast.warning(reasons.length > 0 ? `${res.message}（${reasons.join('；')}）` : (res.message || '部分任务未处理'));
+        } else {
+          Toast.success(res.message || '批量处理完成');
+        }
         setBatchMode(null);
         setBatchComment('');
         setSelectedRowKeys([]);
