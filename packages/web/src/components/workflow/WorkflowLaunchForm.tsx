@@ -20,6 +20,7 @@ import { WORKFLOW_PRIORITY_OPTIONS } from '@/components/workflow/WorkflowPriorit
 import WorkflowInitiatorApproverFields, {
   compactSelectedInitiatorApprovers,
   firstMissingInitiatorApproverNode,
+  selectedInitiatorApproversFromFormValues,
   type InitiatorApproverSelectNode,
   type SelectedInitiatorApprovers,
 } from '@/components/workflow/WorkflowInitiatorApproverFields';
@@ -98,8 +99,9 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
           } else if (dynamicFormApi.current && def.formFields && def.formFields.length > 0) {
             formData = await dynamicFormApi.current.validate() as Record<string, unknown>;
           }
+          const effectiveSelectedInitiatorApprovers = selectedInitiatorApproversFromFormValues(values, initiatorSelectNodes, def.id);
           if (options?.requireInitiatorApprovers !== false) {
-            const missing = firstMissingInitiatorApproverNode(selectedInitiatorApprovers, initiatorSelectNodes);
+            const missing = firstMissingInitiatorApproverNode(effectiveSelectedInitiatorApprovers, initiatorSelectNodes);
             if (missing) {
               Toast.error(`请选择「${missing.nodeName}」的审批人`);
               return null;
@@ -108,7 +110,7 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
           return {
             values,
             formData,
-            selectedInitiatorApprovers: compactSelectedInitiatorApprovers(selectedInitiatorApprovers, initiatorSelectNodes),
+            selectedInitiatorApprovers: compactSelectedInitiatorApprovers(effectiveSelectedInitiatorApprovers, initiatorSelectNodes),
           };
         } catch {
           return null;

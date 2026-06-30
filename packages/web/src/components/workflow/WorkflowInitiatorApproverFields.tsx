@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Select, Spin, Typography } from '@douyinfe/semi-ui';
+import { Form, Spin, Typography } from '@douyinfe/semi-ui';
 import type { WorkflowApproverPreviewNode } from '@zenith/shared';
 import { request } from '@/utils/request';
 
@@ -22,6 +22,31 @@ interface WorkflowInitiatorApproverFieldsProps {
 function pickSelected(value: SelectedInitiatorApprovers, nodeKey: string): number[] {
   const ids = value[nodeKey];
   return Array.isArray(ids) ? ids : [];
+}
+
+function formFieldSegment(value: string | number): string {
+  return String(value).replace(/[^A-Za-z0-9_]/g, '_');
+}
+
+export function initiatorApproverFieldName(nodeKey: string, definitionId?: number | null): string {
+  return `initiatorApprover__${formFieldSegment(definitionId ?? 'current')}__${formFieldSegment(nodeKey)}`;
+}
+
+function normalizeSelectedIds(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
+}
+
+export function selectedInitiatorApproversFromFormValues(
+  values: Record<string, unknown>,
+  nodes: InitiatorApproverSelectNode[],
+  definitionId?: number | null,
+): SelectedInitiatorApprovers {
+  const out: SelectedInitiatorApprovers = {};
+  for (const node of nodes) {
+    out[node.nodeKey] = normalizeSelectedIds(values[initiatorApproverFieldName(node.nodeKey, definitionId)]);
+  }
+  return out;
 }
 
 export function compactSelectedInitiatorApprovers(
@@ -59,6 +84,8 @@ export default function WorkflowInitiatorApproverFields({
       onNodesChange?.([]);
       return;
     }
+    setNodes([]);
+    onNodesChange?.([]);
     setLoading(true);
     try {
       const res = await request.post<WorkflowApproverPreviewNode[]>(
@@ -104,7 +131,9 @@ export default function WorkflowInitiatorApproverFields({
               {node.nodeName}
               {node.selectionRequired && <span style={{ color: 'var(--semi-color-danger)' }}> *</span>}
             </Typography.Text>
-            <Select
+            <Form.Select
+              field={initiatorApproverFieldName(node.nodeKey, definitionId)}
+              noLabel
               multiple
               filter
               showClear
@@ -112,9 +141,9 @@ export default function WorkflowInitiatorApproverFields({
               placeholder="请选择审批人"
               emptyContent="暂无可选审批人"
               optionList={node.selectableApprovers.map((user) => ({ value: user.id, label: user.name }))}
-              value={pickSelected(value, node.nodeKey)}
+              initValue={pickSelected(value, node.nodeKey)}
               onChange={(v) => {
-                const ids = Array.isArray(v) ? (v as number[]) : [];
+                const ids = normalizeSelectedIds(v);
                 onChange({ ...value, [node.nodeKey]: ids });
               }}
             />
