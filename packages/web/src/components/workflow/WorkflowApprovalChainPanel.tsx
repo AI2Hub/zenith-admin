@@ -247,10 +247,7 @@ export default function WorkflowApprovalChainPanel({
 
           {/* 结束：流程结束 */}
           <Timeline.Item dot={timelineDot(Flag, 'var(--semi-color-tertiary)')}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Typography.Text strong style={{ fontSize: 13 }}>流程结束</Typography.Text>
-              <Tag color="grey" size="small">预计</Tag>
-            </div>
+            <Typography.Text strong style={{ fontSize: 13 }}>流程结束</Typography.Text>
           </Timeline.Item>
         </Timeline>
       )}
