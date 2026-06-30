@@ -1056,7 +1056,7 @@ export default function DbAdminPage() {
 
   // ─── 主渲染 ──────────────────────────────────────────────────────────────────
   return (
-    <div style={{ padding: 16, height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className="page-container page-tabs-page page-container--stretch">
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
@@ -1065,9 +1065,6 @@ export default function DbAdminPage() {
         className="tabs-fill-height"
         style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
         contentStyle={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
-        tabBarStyle={{
-          marginBottom: 8,
-        }}
       >
         <TabPane tab={<span><Gauge size={14} style={{ verticalAlign: -2, marginRight: 4 }} />总览</span>} itemKey="overview" style={{ height: '100%' }}>
           <OverviewPanel
