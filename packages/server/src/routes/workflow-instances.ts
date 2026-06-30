@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../middleware/guard';
 import { idempotencyGuard } from '../middleware/idempotency';
-import { approveWorkflowTaskSchema, rejectWorkflowTaskSchema, createWorkflowInstanceWithDraftSchema, updateWorkflowInstanceSchema, transferWorkflowTaskSchema, delegateWorkflowTaskSchema, addSignWorkflowTaskSchema, reduceSignWorkflowTaskSchema, returnWorkflowTaskSchema, urgeWorkflowTaskSchema, addInstanceCcSchema, batchApproveWorkflowTaskSchema, batchRejectWorkflowTaskSchema, batchWithdrawWorkflowInstanceSchema, batchUrgeWorkflowInstanceSchema, batchSkipStuckTokensSchema, forwardInstanceSchema, createWorkflowCommentSchema, jumpWorkflowInstanceSchema, reassignWorkflowTaskSchema, createWorkflowConsultSchema, replyWorkflowConsultSchema, recallWorkflowTaskSchema } from '@zenith/shared';
+import { approveWorkflowTaskSchema, rejectWorkflowTaskSchema, createWorkflowInstanceWithDraftSchema, submitWorkflowDraftSchema, updateWorkflowInstanceSchema, transferWorkflowTaskSchema, delegateWorkflowTaskSchema, addSignWorkflowTaskSchema, reduceSignWorkflowTaskSchema, returnWorkflowTaskSchema, urgeWorkflowTaskSchema, addInstanceCcSchema, batchApproveWorkflowTaskSchema, batchRejectWorkflowTaskSchema, batchWithdrawWorkflowInstanceSchema, batchUrgeWorkflowInstanceSchema, batchSkipStuckTokensSchema, forwardInstanceSchema, createWorkflowCommentSchema, jumpWorkflowInstanceSchema, reassignWorkflowTaskSchema, createWorkflowConsultSchema, replyWorkflowConsultSchema, recallWorkflowTaskSchema } from '@zenith/shared';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okMsg, okPaginated, IdParam, okBody } from '../lib/openapi-schemas';
 import { WorkflowInstanceDTO, WorkflowInstanceListItemDTO, WorkflowInstanceAllDTO, WorkflowRuntimeDiagnosticsDTO, WorkflowInstanceTraceDTO, WorkflowExecutionTokenViewDTO, WorkflowDiagnosticBundleDTO, WorkflowRecoveryBatchResultDTO, WorkflowTaskDTO, WorkflowTaskUrgeDTO, WorkflowCommentDTO, WorkflowBatchActionResponseDTO, WorkflowInstanceBatchActionResponseDTO, WorkflowAnalyticsDTO, WorkflowOverdueTaskDTO, WorkflowTaskConsultDTO, WorkflowRelationOptionDTO } from '../lib/openapi-dtos';
 import {
@@ -696,9 +696,10 @@ const submitDraftRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
+    const body = c.req.valid('json') ?? {};
     const before = await getWorkflowInstanceBeforeAudit(id);
     if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await submitDraftInstance(id), '申请已提交'), 200);
+    return c.json(okBody(await submitDraftInstance(id, body), '申请已提交'), 200);
   },
 });
 

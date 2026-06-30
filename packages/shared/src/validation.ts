@@ -1205,6 +1205,10 @@ export type ForwardInstanceInput = z.infer<typeof forwardInstanceSchema>;
 
 
 export const workflowPriorityEnum = z.enum(['low', 'normal', 'high', 'urgent']);
+export const workflowSelectedApproversSchema = z.record(
+  z.string().min(1),
+  z.array(z.number().int().positive()).min(1, '请选择审批人').max(50),
+);
 
 export const createWorkflowInstanceSchema = z.object({
   definitionId: z.number().int().positive('请选择流程'),
@@ -1214,6 +1218,8 @@ export const createWorkflowInstanceSchema = z.object({
   priority: workflowPriorityEnum.optional(),
   /** 发起时自选抄送人（提交后立即抄送，与流程内 ccNode 并存） */
   ccUserIds: z.array(z.number().int().positive()).max(50).optional(),
+  /** 发起时按节点选择审批人：{ [nodeKey]: userIds } */
+  selectedInitiatorApprovers: workflowSelectedApproversSchema.optional(),
 });
 
 /** 审批动作附件（[{name,url,size}]）—— 各动作通用 */
@@ -1230,7 +1236,7 @@ export const approveWorkflowTaskSchema = z.object({
   signature: z.string().max(2_000_000).optional(),
   attachments: workflowTaskAttachmentsSchema.optional(),
   /** 当下一节点为 approverSelect 类型时，由当前审批人指定的下一节点审批人 ID 列表 */
-  selectedNextApprovers: z.array(z.number().int().positive()).optional(),
+  selectedNextApprovers: z.array(z.number().int().positive()).max(50).optional(),
 });
 
 export const rejectWorkflowTaskSchema = z.object({
@@ -1283,6 +1289,11 @@ export const addInstanceCcSchema = z.object({
 export const createWorkflowInstanceWithDraftSchema = createWorkflowInstanceSchema.extend({
   /** true = 保存为草稿（不进入审批流转） */
   asDraft: z.boolean().optional(),
+});
+
+export const submitWorkflowDraftSchema = z.object({
+  /** 草稿提交时补充发起人自选审批人 */
+  selectedInitiatorApprovers: workflowSelectedApproversSchema.optional(),
 });
 
 export const updateWorkflowInstanceSchema = z.object({
@@ -1439,6 +1450,7 @@ export type ReturnWorkflowTaskInput = z.infer<typeof returnWorkflowTaskSchema>;
 export type UrgeWorkflowTaskInput = z.infer<typeof urgeWorkflowTaskSchema>;
 export type AddInstanceCcInput = z.infer<typeof addInstanceCcSchema>;
 export type CreateWorkflowInstanceWithDraftInput = z.infer<typeof createWorkflowInstanceWithDraftSchema>;
+export type SubmitWorkflowDraftInput = z.infer<typeof submitWorkflowDraftSchema>;
 export type UpdateWorkflowInstanceInput = z.infer<typeof updateWorkflowInstanceSchema>;
 export type BatchApproveWorkflowTaskInput = z.infer<typeof batchApproveWorkflowTaskSchema>;
 export type BatchRejectWorkflowTaskInput = z.infer<typeof batchRejectWorkflowTaskSchema>;

@@ -227,7 +227,7 @@ import type { WorkflowResolvedApproveMethod, WorkflowFlowData, WorkflowTask as W
 import { resolveApproverDedupMode } from '@zenith/shared';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../lib/context';
-import { resolveAssigneeIds, buildStarterContext } from './workflow-assignee-resolver.service';
+import { filterSelectedApproverIds, resolveAssigneeIds, buildStarterContext } from './workflow-assignee-resolver.service';
 import { getDecisionOutputs } from './rules.service';
 import { recordCompensation } from './workflow-compensations.service';
 import { resolveFormSnapshot } from './workflow-forms.service';
@@ -1700,6 +1700,96 @@ function hasExecutableEntry(flowData: WorkflowFlowData, formData: Record<string,
   return preview.tasksToCreate.length > 0 || preview.finished || preview.rejected;
 }
 
+type SelectedApproverMap = Record<string, number[]>;
+const INITIATOR_SELECT_ASSIGNEE_TYPES = new Set(['initiatorSelect', 'initiatorSelectScope']);
+
+function normalizeSelectedApproverMap(input?: SelectedApproverMap | null): SelectedApproverMap {
+  const out: SelectedApproverMap = {};
+  for (const [nodeKey, ids] of Object.entries(input ?? {})) {
+    if (!nodeKey || !Array.isArray(ids)) continue;
+    const normalized = [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))];
+    if (normalized.length > 0) out[nodeKey] = normalized;
+  }
+  return out;
+}
+
+async function applyInitiatorSelectedApprovers(
+  flowData: WorkflowFlowData,
+  selected: SelectedApproverMap | null | undefined,
+  executor?: DbExecutor,
+): Promise<WorkflowFlowData> {
+  const normalized = normalizeSelectedApproverMap(selected);
+  const selectNodes = (flowData.nodes ?? []).filter((node) => INITIATOR_SELECT_ASSIGNEE_TYPES.has(node.data.assigneeType ?? ''));
+  if (selectNodes.length === 0) return flowData;
+
+  const selectedByNode = new Map<string, number[]>();
+  for (const node of selectNodes) {
+    const picked = await filterSelectedApproverIds(node.data, normalized[node.data.key] ?? [], executor);
+    if (picked.length === 0) {
+      throw new HTTPException(400, { message: `请选择节点「${node.data.label || node.data.key}」的审批人` });
+    }
+    selectedByNode.set(node.data.key, picked);
+  }
+
+  return {
+    ...flowData,
+    nodes: flowData.nodes.map((node) => {
+      const picked = selectedByNode.get(node.data.key);
+      if (!picked) return node;
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          userIds: picked,
+          assigneeIds: picked,
+          assigneeId: picked.length === 1 ? picked[0] : null,
+        },
+      };
+    }),
+  };
+}
+
+function findReachableNodes(
+  flowData: WorkflowFlowData,
+  fromNodeKey: string,
+  predicate: (node: WorkflowFlowData['nodes'][number]) => boolean,
+): WorkflowFlowData['nodes'] {
+  const startNode = flowData.nodes.find((node) => node.data.key === fromNodeKey);
+  if (!startNode) return [];
+  const nodeById = new Map(flowData.nodes.map((node) => [node.id, node]));
+  const result: WorkflowFlowData['nodes'] = [];
+  const visited = new Set<string>([startNode.id]);
+  const queue = [startNode.id];
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    for (const edge of flowData.edges ?? []) {
+      if (edge.source !== currentId || edge.isException || visited.has(edge.target)) continue;
+      const target = nodeById.get(edge.target);
+      if (!target || target.data.type === 'catchNode') continue;
+      visited.add(edge.target);
+      if (predicate(target)) result.push(target);
+      queue.push(edge.target);
+    }
+  }
+  return result;
+}
+
+async function assertSelectedNextApprovers(
+  flowData: WorkflowFlowData,
+  fromNodeKey: string,
+  selectedNextApprovers: number[] | undefined,
+  executor: DbExecutor,
+): Promise<void> {
+  const selectNodes = findReachableNodes(flowData, fromNodeKey, (node) => node.data.assigneeType === 'approverSelect');
+  if (selectNodes.length === 0) return;
+  for (const node of selectNodes) {
+    const picked = await filterSelectedApproverIds(node.data, selectedNextApprovers ?? [], executor);
+    if (picked.length === 0) {
+      throw new HTTPException(400, { message: `请选择节点「${node.data.label || node.data.key}」的审批人` });
+    }
+  }
+}
+
 /** 推进的触发方式（service 语义层，内部翻译为引擎触发并管理 token 落库） */
 type MaterializeTrigger =
   /** 实例发起 / 重新发起：从 start 播种 */
@@ -2972,7 +3062,7 @@ export async function getWorkflowTaskForAdminAudit(taskId: number) {
   return getInstanceForAdminAudit(task.instanceId);
 }
 
-export async function createInstance(data: { definitionId: number; title: string; formData?: Record<string, unknown> | null; asDraft?: boolean; priority?: import('@zenith/shared').WorkflowInstancePriority; ccUserIds?: number[]; bizType?: string | null; bizId?: string | null }, callerOverride?: { userId: number; username: string; tenantId: number | null; roles?: string[] }) {
+export async function createInstance(data: { definitionId: number; title: string; formData?: Record<string, unknown> | null; asDraft?: boolean; priority?: import('@zenith/shared').WorkflowInstancePriority; ccUserIds?: number[]; selectedInitiatorApprovers?: SelectedApproverMap; bizType?: string | null; bizId?: string | null }, callerOverride?: { userId: number; username: string; tenantId: number | null; roles?: string[] }) {
   const user = callerOverride
     ? { userId: callerOverride.userId, username: callerOverride.username, roles: callerOverride.roles ?? [], tenantId: callerOverride.tenantId }
     : currentUser();
@@ -3002,8 +3092,12 @@ export async function createInstance(data: { definitionId: number; title: string
       throw new HTTPException(403, { message: '当前流程不在你的可发起范围内' });
     }
   }
-  const flowData = def.flowData as WorkflowFlowData;
-  if (!flowData?.nodes?.length) throw new HTTPException(400, { message: '流程定义无效' });
+  const baseFlowData = def.flowData as WorkflowFlowData;
+  if (!baseFlowData?.nodes?.length) throw new HTTPException(400, { message: '流程定义无效' });
+  const flowData = data.asDraft
+    ? baseFlowData
+    : await applyInitiatorSelectedApprovers(baseFlowData, data.selectedInitiatorApprovers);
+  const definitionSnapshot = data.asDraft ? def : { ...def, flowData };
   const validation = validateFlowData(flowData);
   if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
   const formData: Record<string, unknown> = sanitizeFormByStartPerms(flowData, data.formData ?? {});
@@ -3015,9 +3109,9 @@ export async function createInstance(data: { definitionId: number; title: string
 
   // 草稿：仅保存表单，不进入流转、不生成业务编号、不触发事件
   if (data.asDraft) {
-    const [draft] = await db.insert(workflowInstances).values({
-      definitionId: def.id,
-      definitionSnapshot: def,
+      const [draft] = await db.insert(workflowInstances).values({
+        definitionId: def.id,
+        definitionSnapshot: def,
       title: data.title,
       formData,
       formSnapshot,
@@ -3043,7 +3137,7 @@ export async function createInstance(data: { definitionId: number; title: string
       const serialNo = await generateSerialNo(tx, def.id, serialConfig);
       const [createdInstance] = await tx.insert(workflowInstances).values({
         definitionId: def.id,
-        definitionSnapshot: def,
+        definitionSnapshot,
         title: data.title,
         serialNo,
         formData,
@@ -3281,6 +3375,9 @@ export async function approveTask(taskId: number, comment?: string, attachments?
   const flowData = (inst.definitionSnapshot as { flowData?: WorkflowFlowData } | null)?.flowData;
   const nodeCfg = flowData?.nodes.find((n) => n.data.key === task.nodeKey)?.data;
   assertActionUploadRequirement(inst, task.nodeKey, 'approve', attachments);
+  if (flowData) {
+    await assertSelectedNextApprovers(flowData, task.nodeKey, selectedNextApprovers, db);
+  }
   if (nodeCfg?.operations?.includes('opinionRequired') && !comment?.trim()) {
     throw new HTTPException(400, { message: '请填写审批意见后再提交' });
   }
@@ -4326,15 +4423,17 @@ export async function updateInstanceDraft(id: number, input: { title?: string; f
   return mapInstance(row);
 }
 
-export async function submitDraftInstance(id: number) {
+export async function submitDraftInstance(id: number, input: { selectedInitiatorApprovers?: SelectedApproverMap } = {}) {
   const user = currentUser();
   const inst = await loadOwnDraft(id);
   if (inst.status !== 'draft') throw new HTTPException(400, { message: '仅草稿可提交' });
   const [def] = await db.select().from(workflowDefinitions)
     .where(and(eq(workflowDefinitions.id, inst.definitionId), eq(workflowDefinitions.status, 'published'))).limit(1);
   if (!def) throw new HTTPException(400, { message: '流程定义不存在或已停用，无法提交' });
-  const flowData = def.flowData as WorkflowFlowData;
-  if (!flowData?.nodes?.length) throw new HTTPException(400, { message: '流程定义无效' });
+  const baseFlowData = def.flowData as WorkflowFlowData;
+  if (!baseFlowData?.nodes?.length) throw new HTTPException(400, { message: '流程定义无效' });
+  const flowData = await applyInitiatorSelectedApprovers(baseFlowData, input.selectedInitiatorApprovers);
+  const definitionSnapshot = { ...def, flowData };
   const validation = validateFlowData(flowData);
   if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
   const formData = sanitizeFormByStartPerms(flowData, (inst.formData ?? {}) as Record<string, unknown>);
@@ -4349,7 +4448,7 @@ export async function submitDraftInstance(id: number) {
   const instance = await db.transaction(async (tx) => {
     const serialNo = await generateSerialNo(tx, def.id, serialConfig);
     await tx.update(workflowInstances).set({
-      definitionSnapshot: def,
+      definitionSnapshot,
       formSnapshot,
       serialNo,
       status: 'running',

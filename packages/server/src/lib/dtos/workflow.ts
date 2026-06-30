@@ -445,6 +445,8 @@ export const WorkflowApproverPreviewNodeDTO = z
     nodeName: z.string(),
     nodeType: z.string(),
     approvers: z.array(z.object({ id: z.number().int(), name: z.string() })),
+    selectableApprovers: z.array(z.object({ id: z.number().int(), name: z.string() })).optional(),
+    selectionRequired: z.boolean().optional(),
     approveMethod: z.string().nullable().optional(),
     branchLabel: z.string().nullable().optional(),
     empty: z.boolean().optional(),

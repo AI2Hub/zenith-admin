@@ -4,7 +4,7 @@
  * 封装标准字段（标题/优先级/抄送）+ 4 个页签（填写表单/审批链路/流程图预览/节点详情）
  * 及取数校验逻辑，通过 ref 暴露 collectFormData 供外层提交/存草稿调用。
  */
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Banner, Col, Form, Row, Tabs, TabPane, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import dayjs from 'dayjs';
@@ -17,14 +17,21 @@ import BusinessFormHost, { type WorkflowBusinessFormApi } from '@/components/wor
 import WorkflowGraphView from '@/components/workflow/WorkflowGraphView';
 import WorkflowApproverPreview from '@/components/workflow/WorkflowApproverPreview';
 import { WORKFLOW_PRIORITY_OPTIONS } from '@/components/workflow/WorkflowPriorityTag';
+import WorkflowInitiatorApproverFields, {
+  compactSelectedInitiatorApprovers,
+  firstMissingInitiatorApproverNode,
+  type InitiatorApproverSelectNode,
+  type SelectedInitiatorApprovers,
+} from '@/components/workflow/WorkflowInitiatorApproverFields';
 
 export interface WorkflowLaunchFormData {
   values: Record<string, unknown>;
   formData: Record<string, unknown>;
+  selectedInitiatorApprovers?: SelectedInitiatorApprovers;
 }
 
 export interface WorkflowLaunchFormHandle {
-  collectFormData: () => Promise<WorkflowLaunchFormData | null>;
+  collectFormData: (options?: { requireInitiatorApprovers?: boolean }) => Promise<WorkflowLaunchFormData | null>;
 }
 
 interface WorkflowLaunchFormProps {
@@ -44,6 +51,13 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
     const dynamicFormApi = useRef<FormApi | null>(null);
     const businessFormApi = useRef<WorkflowBusinessFormApi | null>(null);
     const { userOptions } = useUserOptions({ immediate: true });
+    const [selectedInitiatorApprovers, setSelectedInitiatorApprovers] = useState<SelectedInitiatorApprovers>({});
+    const [initiatorSelectNodes, setInitiatorSelectNodes] = useState<InitiatorApproverSelectNode[]>([]);
+
+    useEffect(() => {
+      setSelectedInitiatorApprovers({});
+      setInitiatorSelectNodes([]);
+    }, [def.id]);
 
     // 当前登录人通过 /api/auth/me 异步加载，标题需等其就绪后再回填，避免出现占位「我」
     const lastDefId = useRef<number | null>(null);
@@ -66,7 +80,7 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
     }, [def.id, user?.nickname, user?.username]);
 
     useImperativeHandle(ref, () => ({
-      collectFormData: async () => {
+      collectFormData: async (options) => {
         if (!formApi.current) return null;
         if (def.formType === 'external') {
           Toast.error('业务系统主导流程请从对应业务模块发起');
@@ -84,12 +98,23 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
           } else if (dynamicFormApi.current && def.formFields && def.formFields.length > 0) {
             formData = await dynamicFormApi.current.validate() as Record<string, unknown>;
           }
-          return { values, formData };
+          if (options?.requireInitiatorApprovers !== false) {
+            const missing = firstMissingInitiatorApproverNode(selectedInitiatorApprovers, initiatorSelectNodes);
+            if (missing) {
+              Toast.error(`请选择「${missing.nodeName}」的审批人`);
+              return null;
+            }
+          }
+          return {
+            values,
+            formData,
+            selectedInitiatorApprovers: compactSelectedInitiatorApprovers(selectedInitiatorApprovers, initiatorSelectNodes),
+          };
         } catch {
           return null;
         }
       },
-    }), [def]);
+    }), [def, initiatorSelectNodes, selectedInitiatorApprovers]);
 
     const getPreviewFormData = () => (
       def.formType === 'custom'
@@ -170,6 +195,12 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
               />
             </Col>
           </Row>
+          <WorkflowInitiatorApproverFields
+            definitionId={def.id}
+            value={selectedInitiatorApprovers}
+            onChange={setSelectedInitiatorApprovers}
+            onNodesChange={setInitiatorSelectNodes}
+          />
         </Form>
 
         <div style={{ marginTop: 16, borderTop: '1px solid var(--semi-color-border)', paddingTop: 12 }}>

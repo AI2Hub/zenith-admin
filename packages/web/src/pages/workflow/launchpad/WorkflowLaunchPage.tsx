@@ -43,7 +43,7 @@ export default function WorkflowLaunchPage() {
 
   const handleSubmit = async (asDraft: boolean) => {
     if (!def) return;
-    const result = await launchFormRef.current?.collectFormData();
+    const result = await launchFormRef.current?.collectFormData({ requireInitiatorApprovers: !asDraft });
     if (!result) return;
     const { values, formData } = result;
     const setBusy = asDraft ? setSavingDraft : setSubmitting;
@@ -55,6 +55,7 @@ export default function WorkflowLaunchPage() {
         formData,
         priority: values.priority ?? 'normal',
         ccUserIds: Array.isArray(values.ccUserIds) ? values.ccUserIds : undefined,
+        selectedInitiatorApprovers: result.selectedInitiatorApprovers,
         ...(asDraft ? { asDraft: true } : {}),
       });
       if (res.code === 0) {

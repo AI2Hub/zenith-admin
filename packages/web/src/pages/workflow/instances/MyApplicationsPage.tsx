@@ -33,6 +33,12 @@ import WorkflowInstanceDetailPanel from '@/components/workflow/WorkflowInstanceD
 import BusinessFormHost, { type WorkflowBusinessFormApi } from '@/components/workflow/BusinessFormHost';
 import WorkflowGraphView from '@/components/workflow/WorkflowGraphView';
 import WorkflowApproverPreview from '@/components/workflow/WorkflowApproverPreview';
+import WorkflowInitiatorApproverFields, {
+  compactSelectedInitiatorApprovers,
+  firstMissingInitiatorApproverNode,
+  type InitiatorApproverSelectNode,
+  type SelectedInitiatorApprovers,
+} from '@/components/workflow/WorkflowInitiatorApproverFields';
 import WorkflowPriorityTag, { WORKFLOW_PRIORITY_OPTIONS } from '@/components/workflow/WorkflowPriorityTag';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 import { renderEllipsis } from '../../../utils/table-columns';
@@ -415,6 +421,8 @@ export default function MyApplicationsPage() {
   const [editingDraft, setEditingDraft] = useState<WorkflowInstance | null>(null);
   const [dynamicFormInitValues, setDynamicFormInitValues] = useState<Record<string, unknown>>({});
   const [formKey, setFormKey] = useState(0);
+  const [selectedInitiatorApprovers, setSelectedInitiatorApprovers] = useState<SelectedInitiatorApprovers>({});
+  const [initiatorSelectNodes, setInitiatorSelectNodes] = useState<InitiatorApproverSelectNode[]>([]);
   const priorityFilterRef = useRef('');
   priorityFilterRef.current = priorityFilter;
 
@@ -481,12 +489,16 @@ export default function MyApplicationsPage() {
     businessFormApi.current = null;
     setApplyCategoryId(null);
     setDynamicFormInitValues({});
+    setSelectedInitiatorApprovers({});
+    setInitiatorSelectNodes([]);
     businessFormApi.current = null;
   };
 
   const openApply = async () => {
     setEditingDraft(null);
     setDynamicFormInitValues({});
+    setSelectedInitiatorApprovers({});
+    setInitiatorSelectNodes([]);
     setFormKey(k => k + 1);
     await loadDefinitions();
     setApplyVisible(true);
@@ -499,11 +511,13 @@ export default function MyApplicationsPage() {
     setSelectedDef(def);
     setApplyCategoryId(def?.categoryId ?? null);
     setDynamicFormInitValues((record.formData as Record<string, unknown>) ?? {});
+    setSelectedInitiatorApprovers({});
+    setInitiatorSelectNodes([]);
     setFormKey(k => k + 1);
     setApplyVisible(true);
   };
 
-  const collectFormData = async () => {
+  const collectFormData = async (options?: { requireInitiatorApprovers?: boolean }) => {
     if (!formApi.current) return null;
     try {
       const values = await formApi.current.validate() as Record<string, unknown>;
@@ -521,14 +535,25 @@ export default function MyApplicationsPage() {
       } else if (dynamicFormApi.current && selectedDef?.formFields && selectedDef.formFields.length > 0) {
         formData = await dynamicFormApi.current.validate() as Record<string, unknown>;
       }
-      return { values, formData };
+      if (options?.requireInitiatorApprovers !== false) {
+        const missing = firstMissingInitiatorApproverNode(selectedInitiatorApprovers, initiatorSelectNodes);
+        if (missing) {
+          Toast.error(`请选择「${missing.nodeName}」的审批人`);
+          return null;
+        }
+      }
+      return {
+        values,
+        formData,
+        selectedInitiatorApprovers: compactSelectedInitiatorApprovers(selectedInitiatorApprovers, initiatorSelectNodes),
+      };
     } catch {
       return null;
     }
   };
 
   const handleSubmitApply = async () => {
-    const result = await collectFormData();
+    const result = await collectFormData({ requireInitiatorApprovers: true });
     if (!result) return;
     const { values, formData } = result;
     setSubmitting(true);
@@ -539,6 +564,7 @@ export default function MyApplicationsPage() {
         formData,
         priority: values.priority ?? 'normal',
         ccUserIds: Array.isArray(values.ccUserIds) ? values.ccUserIds : undefined,
+        selectedInitiatorApprovers: result.selectedInitiatorApprovers,
       });
       if (res.code === 0) {
         Toast.success('申请已提交');
@@ -551,7 +577,7 @@ export default function MyApplicationsPage() {
   };
 
   const handleSaveDraft = async () => {
-    const result = await collectFormData();
+    const result = await collectFormData({ requireInitiatorApprovers: false });
     if (!result) return;
     const { values, formData } = result;
     setSavingDraft(true);
@@ -576,7 +602,7 @@ export default function MyApplicationsPage() {
 
   const handleUpdateDraft = async () => {
     if (!editingDraft) return;
-    const result = await collectFormData();
+    const result = await collectFormData({ requireInitiatorApprovers: false });
     if (!result) return;
     const { values, formData } = result;
     setSavingDraft(true);
@@ -597,7 +623,7 @@ export default function MyApplicationsPage() {
 
   const handleSaveAndSubmitDraft = async () => {
     if (!editingDraft) return;
-    const result = await collectFormData();
+    const result = await collectFormData({ requireInitiatorApprovers: true });
     if (!result) return;
     const { values, formData } = result;
     setSubmitting(true);
@@ -607,7 +633,9 @@ export default function MyApplicationsPage() {
         formData,
       });
       if (updateRes.code !== 0) return;
-      const submitRes = await request.post(`/api/workflows/instances/${editingDraft.id}/submit`, {});
+      const submitRes = await request.post(`/api/workflows/instances/${editingDraft.id}/submit`, {
+        selectedInitiatorApprovers: result.selectedInitiatorApprovers,
+      });
       if (submitRes.code === 0) {
         Toast.success('申请已提交');
         closeApply();
@@ -1002,6 +1030,14 @@ export default function MyApplicationsPage() {
               showClear
               style={{ width: '100%' }}
               optionList={userOptions}
+            />
+          )}
+          {selectedDef && (
+            <WorkflowInitiatorApproverFields
+              definitionId={selectedDef.id}
+              value={selectedInitiatorApprovers}
+              onChange={setSelectedInitiatorApprovers}
+              onNodesChange={setInitiatorSelectNodes}
             />
           )}
           {selectedDef?.description && (

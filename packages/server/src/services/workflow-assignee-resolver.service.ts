@@ -34,6 +34,11 @@ export interface ResolveAssigneeContext {
   selectedNextApprovers?: number[];
 }
 
+export interface WorkflowSelectableUser {
+  id: number;
+  name: string;
+}
+
 /** 从给定部门开始向上走 levels 层，返回最终所在的部门 ID（找不到则返回 null） */
 async function walkDeptUp(exec: DbExecutor, startDeptId: number, levels: number): Promise<number | null> {
   let current: number | null = startDeptId;
@@ -92,6 +97,104 @@ async function getDeptAncestors(exec: DbExecutor, deptId: number): Promise<numbe
     current = row?.parentId ?? null;
   }
   return chain;
+}
+
+function uniquePositiveIds(ids: readonly number[] | null | undefined): number[] {
+  return [...new Set((ids ?? []).filter((id) => Number.isInteger(id) && id > 0))];
+}
+
+async function enabledUserIds(exec: DbExecutor, ids: readonly number[]): Promise<number[]> {
+  const uniq = uniquePositiveIds(ids);
+  if (uniq.length === 0) return [];
+  const rows = await exec
+    .select({ id: users.id })
+    .from(users)
+    .where(and(inArray(users.id, uniq), eq(users.status, 'enabled')));
+  return rows.map((row) => row.id);
+}
+
+async function userIdsByRoleIds(exec: DbExecutor, roleIds: readonly number[]): Promise<number[]> {
+  const uniq = uniquePositiveIds(roleIds);
+  if (uniq.length === 0) return [];
+  const rows = await exec
+    .select({ id: users.id })
+    .from(users)
+    .innerJoin(userRoles, eq(userRoles.userId, users.id))
+    .where(and(inArray(userRoles.roleId, uniq), eq(users.status, 'enabled')));
+  return rows.map((row) => row.id);
+}
+
+async function userIdsByDepartmentIds(exec: DbExecutor, deptIds: readonly number[]): Promise<number[]> {
+  const uniq = uniquePositiveIds(deptIds);
+  if (uniq.length === 0) return [];
+  const rows = await exec
+    .select({ id: users.id })
+    .from(users)
+    .where(and(inArray(users.departmentId, uniq), eq(users.status, 'enabled')));
+  return rows.map((row) => row.id);
+}
+
+async function userIdsByUserGroupIds(exec: DbExecutor, groupIds: readonly number[]): Promise<number[]> {
+  const uniq = uniquePositiveIds(groupIds);
+  if (uniq.length === 0) return [];
+  const rows = await exec
+    .select({ id: users.id })
+    .from(users)
+    .innerJoin(userGroupMembers, eq(userGroupMembers.userId, users.id))
+    .where(and(inArray(userGroupMembers.groupId, uniq), eq(users.status, 'enabled')));
+  return rows.map((row) => row.id);
+}
+
+export async function resolveSelectScopeUserIds(
+  node: WorkflowNodeConfig,
+  executor?: DbExecutor,
+): Promise<number[] | null> {
+  const exec = executor ?? db;
+  const scopeIds = uniquePositiveIds(node.selectScopeIds ?? []);
+  if (scopeIds.length === 0) return null;
+  switch (node.selectScopeType ?? 'user') {
+    case 'user':
+      return enabledUserIds(exec, scopeIds);
+    case 'role':
+      return userIdsByRoleIds(exec, scopeIds);
+    case 'department':
+      return userIdsByDepartmentIds(exec, scopeIds);
+    case 'userGroup':
+      return userIdsByUserGroupIds(exec, scopeIds);
+    default:
+      return null;
+  }
+}
+
+export async function listSelectableApprovers(
+  node: WorkflowNodeConfig,
+  executor?: DbExecutor,
+): Promise<WorkflowSelectableUser[]> {
+  const exec = executor ?? db;
+  const scopeUserIds = await resolveSelectScopeUserIds(node, exec);
+  const where = scopeUserIds
+    ? (scopeUserIds.length > 0 ? and(inArray(users.id, scopeUserIds), eq(users.status, 'enabled')) : undefined)
+    : eq(users.status, 'enabled');
+  if (scopeUserIds && scopeUserIds.length === 0) return [];
+  const rows = await exec
+    .select({ id: users.id, nickname: users.nickname, username: users.username })
+    .from(users)
+    .where(where)
+    .orderBy(users.id);
+  return rows.map((row) => ({ id: row.id, name: row.nickname ?? row.username }));
+}
+
+export async function filterSelectedApproverIds(
+  node: WorkflowNodeConfig,
+  selectedIds: readonly number[] | null | undefined,
+  executor?: DbExecutor,
+): Promise<number[]> {
+  const picked = await enabledUserIds(executor ?? db, selectedIds ?? []);
+  if (picked.length === 0) return [];
+  const scopeUserIds = await resolveSelectScopeUserIds(node, executor);
+  if (!scopeUserIds) return picked;
+  const allow = new Set(scopeUserIds);
+  return picked.filter((id) => allow.has(id));
 }
 
 /**
@@ -221,17 +324,8 @@ export async function resolveAssigneeIds(
     }
     case 'approverSelect': {
       // 由上一节点审批人在审批时选定
-      const picked = ctx.selectedNextApprovers ?? [];
-      if (picked.length === 0) break;
-      // 若设计器限定了可选范围（selectScopeIds + selectScopeType==='user'），进行交集过滤
-      const scopeType = node.selectScopeType;
-      const scopeIds = node.selectScopeIds ?? [];
-      if (scopeType === 'user' && scopeIds.length > 0) {
-        const allow = new Set(scopeIds);
-        picked.filter((id) => allow.has(id)).forEach((id) => result.add(id));
-      } else {
-        picked.forEach((id) => result.add(id));
-      }
+      const picked = await filterSelectedApproverIds(node, ctx.selectedNextApprovers ?? [], exec);
+      picked.forEach((id) => result.add(id));
       break;
     }
     case 'role': {

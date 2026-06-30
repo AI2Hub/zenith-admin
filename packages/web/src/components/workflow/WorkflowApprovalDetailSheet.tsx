@@ -268,26 +268,37 @@ export default function WorkflowApprovalDetailSheet({
     [btnReturn.jumpToNodeKey, returnTargetOptions],
   );
 
-  const hasApproverSelectDownstream = useMemo(() => {
-    if (!currentDetailDefinition || !currentTask) return false;
+  const approverSelectDownstreamNodes = useMemo(() => {
+    if (!currentDetailDefinition || !currentTask) return [];
     const flow = currentDetailDefinition.flowData;
-    if (!flow) return false;
+    if (!flow) return [];
     const startNode = flow.nodes.find((n) => n.data.key === currentTask.nodeKey);
-    if (!startNode) return false;
+    if (!startNode) return [];
+    const nodes: Array<(typeof flow.nodes)[number]> = [];
     const visited = new Set<string>([startNode.id]);
     const queue = [startNode.id];
     while (queue.length > 0) {
       const cur = queue.shift()!;
       for (const e of flow.edges) {
-        if (e.source !== cur || visited.has(e.target)) continue;
+        if (e.source !== cur || e.isException || visited.has(e.target)) continue;
         visited.add(e.target);
         const targetNode = flow.nodes.find((n) => n.id === e.target);
-        if (targetNode?.data.assigneeType === 'approverSelect') return true;
+        if (!targetNode || targetNode.data.type === 'catchNode') continue;
+        if (targetNode.data.assigneeType === 'approverSelect') nodes.push(targetNode);
         queue.push(e.target);
       }
     }
-    return false;
+    return nodes;
   }, [currentDetailDefinition, currentTask]);
+  const hasApproverSelectDownstream = approverSelectDownstreamNodes.length > 0;
+  const selectedNextApproverOptions = useMemo(() => {
+    const userScopeIds = approverSelectDownstreamNodes
+      .filter((node) => (node.data.selectScopeType ?? 'user') === 'user' && Array.isArray(node.data.selectScopeIds) && node.data.selectScopeIds.length > 0)
+      .flatMap((node) => node.data.selectScopeIds ?? []);
+    if (userScopeIds.length === 0) return userOptions;
+    const allow = new Set(userScopeIds);
+    return userOptions.filter((option) => allow.has(option.value));
+  }, [approverSelectDownstreamNodes, userOptions]);
 
   useEffect(() => {
     if (approveVisible && hasApproverSelectDownstream) void ensureUserOptions();
@@ -351,6 +362,10 @@ export default function WorkflowApprovalDetailSheet({
       if (!ensureUploadSatisfied(btnApprove, 'approve')) return;
       if (needSignature && !approveSignature) {
         Toast.error('该节点要求手写签名，请先签名');
+        return;
+      }
+      if (hasApproverSelectDownstream && selectedNextApprovers.length === 0) {
+        Toast.error('请选择下一节点审批人');
         return;
       }
       setSubmitting(true);
@@ -627,7 +642,7 @@ export default function WorkflowApprovalDetailSheet({
               filter
               style={{ width: '100%' }}
               placeholder="请选择下一节点审批人"
-              optionList={userOptions}
+              optionList={selectedNextApproverOptions}
               value={selectedNextApprovers}
               onChange={(v) => setSelectedNextApprovers((v as number[]) ?? [])}
             />

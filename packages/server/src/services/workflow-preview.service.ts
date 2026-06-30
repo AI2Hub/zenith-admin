@@ -10,10 +10,11 @@ import { db } from '../db';
 import { workflowDefinitions, users } from '../db/schema';
 import { tenantCondition } from '../lib/tenant';
 import { currentUser } from '../lib/context';
-import { resolveAssigneeIds } from './workflow-assignee-resolver.service';
+import { listSelectableApprovers, resolveAssigneeIds } from './workflow-assignee-resolver.service';
 import type { WorkflowFlowData, WorkflowApproverPreviewNode } from '@zenith/shared';
 
 const APPROVER_TYPES = new Set(['approve', 'handler']);
+const INITIATOR_SELECT_TYPES = new Set(['initiatorSelect', 'initiatorSelectScope']);
 
 export async function previewFlow(
   definitionId: number,
@@ -42,7 +43,16 @@ export async function previewFlow(
 
   const fd = (formData ?? {}) as Record<string, unknown>;
   const pendingIds = new Set<number>();
-  const entries: Array<{ nodeKey: string; nodeName: string; nodeType: string; ids: number[]; approveMethod: string | null; branchLabel: string | null }> = [];
+  const entries: Array<{
+    nodeKey: string;
+    nodeName: string;
+    nodeType: string;
+    ids: number[];
+    approveMethod: string | null;
+    branchLabel: string | null;
+    selectableApprovers?: WorkflowApproverPreviewNode['selectableApprovers'];
+    selectionRequired?: boolean;
+  }> = [];
   const visited = new Set<string>();
 
   // 发起人节点：始终作为链路第一个节点，展示当前发起人
@@ -64,7 +74,12 @@ export async function previewFlow(
           ids = [];
         }
       }
+      const isInitiatorSelect = INITIATOR_SELECT_TYPES.has(node.data.assigneeType ?? '');
+      const selectableApprovers = isInitiatorSelect
+        ? await listSelectableApprovers(node.data)
+        : undefined;
       ids.forEach((id) => pendingIds.add(id));
+      selectableApprovers?.forEach((item) => pendingIds.add(item.id));
       entries.push({
         nodeKey: node.data.key,
         nodeName: node.data.label,
@@ -72,6 +87,8 @@ export async function previewFlow(
         ids,
         approveMethod: node.data.approveMethod ?? null,
         branchLabel,
+        selectableApprovers,
+        selectionRequired: isInitiatorSelect,
       });
     }
     const outs = outEdges.get(nodeId) ?? [];
@@ -97,6 +114,8 @@ export async function previewFlow(
     nodeName: e.nodeName,
     nodeType: e.nodeType,
     approvers: e.ids.map((id) => ({ id, name: nameMap.get(id) ?? `用户#${id}` })),
+    selectableApprovers: e.selectableApprovers,
+    selectionRequired: e.selectionRequired,
     approveMethod: e.approveMethod,
     branchLabel: e.branchLabel,
     empty: APPROVER_TYPES.has(e.nodeType) && e.ids.length === 0,

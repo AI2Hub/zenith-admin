@@ -2758,6 +2758,10 @@ export interface WorkflowApproverPreviewNode {
   nodeType: WorkflowNodeType | string;
   /** 解析出的处理人（已转换为真实姓名） */
   approvers: Array<{ id: number; name: string }>;
+  /** 发起人/审批人自选节点的可选候选人 */
+  selectableApprovers?: Array<{ id: number; name: string }>;
+  /** 自选审批人选择是否必填 */
+  selectionRequired?: boolean;
   /** 多人审批方式（and/or/sequential/ratio） */
   approveMethod?: string | null;
   /** 所在分支标签（条件/并行分支时） */
