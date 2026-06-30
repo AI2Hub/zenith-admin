@@ -1200,7 +1200,11 @@ export default function UsersPage() {
           }
         }}
       >
-        <Form getFormApi={(api) => { batchPasswordFormApi.current = api; }}>
+        <Form
+          getFormApi={(api) => { batchPasswordFormApi.current = api; }}
+          labelPosition="left"
+          labelWidth={90}
+        >
           <Form.Input
             field="password"
             label="新密码"
