@@ -304,6 +304,7 @@ export default function WorkflowApprovalDetailSheet({
   const approveNeedsModal =
     btnApprove.uploadMode === 'required'
     || (currentNodeConfig?.operations?.includes('opinionRequired') ?? false)
+    || (currentNodeConfig?.operations?.includes('signature') ?? false)
     || (currentTask?.signatureRequired ?? false)
     || hasApproverSelectDownstream;
   const canQuickApprove = !approveNeedsModal && !nextApproversLoading;
