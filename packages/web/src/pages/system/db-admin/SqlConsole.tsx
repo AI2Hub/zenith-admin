@@ -5,6 +5,7 @@ import {
   Banner, Button, Dropdown, Empty, Form, List, Popconfirm, SideSheet,
   Space, Spin, Tag, Toast, Tooltip, Typography,
 } from '@douyinfe/semi-ui';
+import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import {
   Play, Eye, Download, Plus, X, Bookmark, BookmarkPlus, ArrowRight, Pencil, Trash2,
   Sparkles, Copy, Code, Ban, BarChart3,
@@ -25,6 +26,7 @@ import { rowsToJson, rowsToMarkdown } from './result-format';
 import { copyToClipboard } from './sql-format';
 
 const PAGE_SIZE = 100;
+const SAVE_FAVORITE_LABEL_WIDTH = 72;
 
 function genQueryId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
@@ -73,6 +75,12 @@ interface SqlConsoleProps {
   canQuery: boolean;
   canExport: boolean;
   monacoTheme: string;
+}
+
+interface FavoriteFormValues {
+  name: string;
+  description?: string;
+  tags?: string;
 }
 
 const DEFAULT_SQL = '-- 只读模式：仅允许 SELECT / EXPLAIN 等查询语句\nSELECT * FROM users LIMIT 50;';
@@ -127,6 +135,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
   const [editFav, setEditFav] = useState<DbQueryFavorite | null>(null);
 
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
+  const saveFavFormApi = useRef<FormApi | null>(null);
   const runQueryRef = useRef<() => void>(() => undefined);
 
   const activeTab = tabs.find((t) => t.id === activeId) ?? tabs[0];
@@ -296,22 +305,42 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
 
   const openFavorites = useCallback(() => { setFavOpen(true); void loadFavorites(); }, [loadFavorites]);
 
-  const handleSaveFavorite = useCallback(async (values: { name: string; description?: string; tags?: string }) => {
+  const closeSaveFavorite = useCallback(() => {
+    setSaveFavOpen(false);
+    setEditFav(null);
+    saveFavFormApi.current = null;
+  }, []);
+
+  const handleSaveFavorite = useCallback(async (values: FavoriteFormValues) => {
     setSaveFavLoading(true);
-    const tags = values.tags ? values.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
-    if (editFav) {
-      const res = await request.put<DbQueryFavorite>(`/api/db-admin/query-favorites/${editFav.id}`, {
-        name: values.name, description: values.description, tags, sql: editFav.sql,
-      });
-      if (res.code === 0) { Toast.success('已更新'); setSaveFavOpen(false); setEditFav(null); void loadFavorites(); }
-    } else {
-      const res = await request.post<DbQueryFavorite>('/api/db-admin/query-favorites', {
-        name: values.name, sql: editorRef.current?.getValue() ?? activeTab.sql, description: values.description, tags,
-      });
-      if (res.code === 0) { Toast.success('已收藏'); setSaveFavOpen(false); void loadFavorites(); }
+    try {
+      const tags = values.tags ? values.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
+      if (editFav) {
+        const res = await request.put<DbQueryFavorite>(`/api/db-admin/query-favorites/${editFav.id}`, {
+          name: values.name, description: values.description, tags, sql: editFav.sql,
+        });
+        if (res.code === 0) { Toast.success('已更新'); closeSaveFavorite(); void loadFavorites(); }
+      } else {
+        const res = await request.post<DbQueryFavorite>('/api/db-admin/query-favorites', {
+          name: values.name, sql: editorRef.current?.getValue() ?? activeTab.sql, description: values.description, tags,
+        });
+        if (res.code === 0) { Toast.success('已收藏'); closeSaveFavorite(); void loadFavorites(); }
+      }
+    } finally {
+      setSaveFavLoading(false);
     }
-    setSaveFavLoading(false);
-  }, [editFav, activeTab.sql, loadFavorites]);
+  }, [editFav, activeTab.sql, loadFavorites, closeSaveFavorite]);
+
+  const submitSaveFavorite = useCallback(async () => {
+    if (!saveFavFormApi.current) return;
+    let values: FavoriteFormValues;
+    try {
+      values = await saveFavFormApi.current.validate() as FavoriteFormValues;
+    } catch {
+      return;
+    }
+    await handleSaveFavorite(values);
+  }, [handleSaveFavorite]);
 
   const handleDeleteFavorite = useCallback(async (id: number) => {
     const res = await request.delete(`/api/db-admin/query-favorites/${id}`);
@@ -629,13 +658,18 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
       <AppModal
         title={editFav ? '编辑收藏' : '收藏 SQL'}
         visible={saveFavOpen}
-        onCancel={() => { setSaveFavOpen(false); setEditFav(null); }}
-        footer={null}
+        onCancel={closeSaveFavorite}
+        onOk={submitSaveFavorite}
+        okText="保存"
+        cancelText="取消"
+        okButtonProps={{ loading: saveFavLoading }}
         width={480}
       >
         <Form
-          onSubmit={(values) => void handleSaveFavorite(values as { name: string; description?: string; tags?: string })}
-          layout="vertical"
+          key={editFav ? `edit-${editFav.id}` : `new-${saveFavOpen ? 'open' : 'closed'}`}
+          getFormApi={(api) => { saveFavFormApi.current = api; }}
+          labelPosition="left"
+          labelWidth={SAVE_FAVORITE_LABEL_WIDTH}
           initValues={editFav
             ? { name: editFav.name, description: editFav.description ?? '', tags: editFav.tags.join(', ') }
             : { name: formatDateTime(new Date()) }}
@@ -644,12 +678,8 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
           <Form.TextArea field="description" label="备注" placeholder="可选，描述这条 SQL 的用途" style={{ width: '100%' }} />
           <Form.Input field="tags" label="标签" placeholder="多个标签用逗号分隔，如：报表, 监控" style={{ width: '100%' }} />
           {!editFav && (
-            <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 12 }}>将收藏当前编辑器中的 SQL 内容</Typography.Text>
+            <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginLeft: SAVE_FAVORITE_LABEL_WIDTH }}>将收藏当前编辑器中的 SQL 内容</Typography.Text>
           )}
-          <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
-            <Button onClick={() => { setSaveFavOpen(false); setEditFav(null); }}>取消</Button>
-            <Button type="primary" htmlType="submit" loading={saveFavLoading}>保存</Button>
-          </Space>
         </Form>
       </AppModal>
     </div>
