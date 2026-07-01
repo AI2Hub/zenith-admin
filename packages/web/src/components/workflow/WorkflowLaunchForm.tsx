@@ -87,7 +87,7 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
     const autoTitleRef = useRef('');
     useEffect(() => {
       const who = user?.nickname || user?.username || '我';
-      const title = initialTitle?.trim() || `${def.name} - ${who} - ${dayjs().format('YYYY-MM-DD')}`;
+      const title = initialTitle?.trim() || `${def.name} - ${who} - ${dayjs().format('YYYY-MM-DD HH:mm')}`;
       const defChanged = lastDefId.current !== def.id;
       lastDefId.current = def.id;
       const timer = setTimeout(() => {
