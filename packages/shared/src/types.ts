@@ -4200,6 +4200,50 @@ export interface WorkflowEngineActionResult {
   detail: Record<string, number>;
 }
 
+/** 引擎运维动作的筛选条件（jobType 每个动作固定，此处为附加维度） */
+export interface WorkflowEngineActionFilter {
+  /** 仅处理指定实例的作业 */
+  instanceId?: number;
+  /** 仅处理入库超过 N 分钟的作业（避开刚失败还在退避窗内的） */
+  olderThanMinutes?: number;
+  /** 单次处理上限（条数） */
+  limit?: number;
+}
+
+/** 运维动作预览的作业样本行 */
+export interface WorkflowEngineActionSampleJob {
+  id: number;
+  jobType: WorkflowJobType;
+  status: WorkflowJobStatus;
+  instanceId: number | null;
+  traceId: string | null;
+  attempts: number;
+  runAt: string;
+  createdAt: string;
+  lastError: string | null;
+}
+
+/** 运维动作预览结果：筛选后将被处理的作业统计 + 样本，供执行前确认。 */
+export interface WorkflowEngineActionPreview {
+  action: WorkflowEngineActionKey;
+  /** 动作可读名称 */
+  label: string;
+  /** 该动作固定对应的作业类型 */
+  jobTypes: WorkflowJobType[];
+  /** pending 且已到期（runAt<=now）——将被处理 */
+  duePending: number;
+  /** running 卡死——将被回收重跑 */
+  stuckRunning: number;
+  /** pending 但未到期（runAt>now）——本次不处理，仅提示 */
+  scheduledLater: number;
+  /** 本次将实际处理的总数（duePending + stuckRunning，受 limit 约束） */
+  matched: number;
+  /** 生效的单次上限 */
+  limit: number;
+  /** 样本行（默认前 10 条） */
+  sample: WorkflowEngineActionSampleJob[];
+}
+
 export type WorkflowHealthIssueType =
   | 'external_dispatch_failed'
   | 'external_dispatch_pending'

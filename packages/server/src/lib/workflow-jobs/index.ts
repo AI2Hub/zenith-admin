@@ -15,8 +15,10 @@ export {
   skipJob,
   runJob,
   drainWorkflowJobs,
+  previewDrainableJobs,
   registerWorkflowJobWorker,
   type EnqueueJobInput,
+  type DrainableFilter,
 } from './engine';
 
 export { WORKFLOW_JOB_QUEUE, WORKFLOW_JOB_DRAIN_TASK, STUCK_RUNNING_GRACE_MS } from './types';

@@ -2,9 +2,9 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../middleware/auth';
 import { guard } from '../middleware/guard';
 import { commonErrorResponses, ok, okPaginated, okBody, validationHook, PaginationQuery, IdParam, jsonContent, BatchIdsBody } from '../lib/openapi-schemas';
-import { WorkflowEngineActionResultDTO, WorkflowEngineHealthHistoryDTO, WorkflowEngineIntrospectionDTO, WorkflowJobDTO, WorkflowJobDetailDTO, WorkflowJobChainDTO, WorkflowTraceDiagnosticBundleDTO, WorkflowJobListQuery, WorkflowJobRetryBody, WorkflowJobSummaryItemDTO, WorkflowJobBatchResultDTO, WorkflowJobBatchRetryBody, WorkflowJobReplayBody, WorkflowJobReplayFilterBody, WorkflowJobReplayResultDTO, WorkflowJobReplayPreviewDTO, WorkflowJobFailureClusterQuery, WorkflowJobFailureClusterDTO, WorkflowJobRuntimeStatusDTO } from '../lib/openapi-dtos';
+import { WorkflowEngineActionResultDTO, WorkflowEngineActionFilterBody, WorkflowEngineActionPreviewDTO, WorkflowEngineHealthHistoryDTO, WorkflowEngineIntrospectionDTO, WorkflowJobDTO, WorkflowJobDetailDTO, WorkflowJobChainDTO, WorkflowTraceDiagnosticBundleDTO, WorkflowJobListQuery, WorkflowJobRetryBody, WorkflowJobSummaryItemDTO, WorkflowJobBatchResultDTO, WorkflowJobBatchRetryBody, WorkflowJobReplayBody, WorkflowJobReplayFilterBody, WorkflowJobReplayResultDTO, WorkflowJobReplayPreviewDTO, WorkflowJobFailureClusterQuery, WorkflowJobFailureClusterDTO, WorkflowJobRuntimeStatusDTO } from '../lib/openapi-dtos';
 import { getWorkflowEngineIntrospection } from '../services/workflow-engine-introspection.service';
-import { getWorkflowEngineHealthHistory, runWorkflowEngineAction } from '../services/workflow-engine-ops.service';
+import { getWorkflowEngineHealthHistory, previewWorkflowEngineAction, runWorkflowEngineAction } from '../services/workflow-engine-ops.service';
 import { listWorkflowJobs, getWorkflowJobDetail, getWorkflowJobChain, retryWorkflowJob, skipWorkflowJob, getWorkflowJobsSummary, batchRetryWorkflowJobs, batchSkipWorkflowJobs, replayDeadJobs, previewReplayJobs, getJobFailureClusters, getWorkflowJobRuntimeStatus } from '../services/workflow-jobs.service';
 import { exportTraceDiagnosticBundle } from '../services/workflow-diagnostics.service';
 
@@ -59,19 +59,44 @@ const actionRoute = defineOpenAPIRoute({
     method: 'post',
     path: '/actions/{action}',
     tags: ['WorkflowEngine'],
-    summary: '执行流程引擎运维恢复动作',
+    summary: '执行流程引擎运维恢复动作（支持按实例 / 入库时长 / 上限筛选）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'workflow:engine:operate', audit: { module: '流程引擎', description: '执行引擎运维恢复动作' } })] as const,
     request: {
       params: z.object({
         action: z.enum(ACTION_KEYS),
       }),
+      body: { content: jsonContent(WorkflowEngineActionFilterBody), required: false },
     },
     responses: { ...commonErrorResponses, ...ok(WorkflowEngineActionResultDTO, '动作执行结果') },
   }),
   handler: async (c) => {
     const { action } = c.req.valid('param');
-    return c.json(okBody(await runWorkflowEngineAction(action)), 200);
+    const filter = c.req.valid('json') ?? {};
+    return c.json(okBody(await runWorkflowEngineAction(action, filter)), 200);
+  },
+});
+
+const actionPreviewRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post',
+    path: '/actions/{action}/preview',
+    tags: ['WorkflowEngine'],
+    summary: '运维恢复动作预览（按筛选统计将处理的作业 + 样本，不执行）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:instance:monitor' })] as const,
+    request: {
+      params: z.object({
+        action: z.enum(ACTION_KEYS),
+      }),
+      body: { content: jsonContent(WorkflowEngineActionFilterBody), required: false },
+    },
+    responses: { ...commonErrorResponses, ...ok(WorkflowEngineActionPreviewDTO, '动作预览结果') },
+  }),
+  handler: async (c) => {
+    const { action } = c.req.valid('param');
+    const filter = c.req.valid('json') ?? {};
+    return c.json(okBody(await previewWorkflowEngineAction(action, filter)), 200);
   },
 });
 
@@ -279,6 +304,6 @@ const jobRuntimeStatusRoute = defineOpenAPIRoute({
 
 // 注意：静态段路由（/jobs/summary、/jobs/failure-clusters、/jobs/runtime-status 等）必须先于
 // 参数化路由 /jobs/{id} 注册，否则 GET /jobs/runtime-status 会被 /jobs/{id} 捕获并按 id 校验失败。
-router.openapiRoutes([introspectionRoute, healthHistoryRoute, actionRoute, jobsListRoute, jobsSummaryRoute, jobChainRoute, jobChainBundleRoute, jobsBatchRetryRoute, jobsBatchSkipRoute, jobsReplayDeadRoute, jobsReplayPreviewRoute, jobFailureClustersRoute, jobRuntimeStatusRoute, jobDetailRoute, jobRetryRoute, jobSkipRoute] as const);
+router.openapiRoutes([introspectionRoute, healthHistoryRoute, actionRoute, actionPreviewRoute, jobsListRoute, jobsSummaryRoute, jobChainRoute, jobChainBundleRoute, jobsBatchRetryRoute, jobsBatchSkipRoute, jobsReplayDeadRoute, jobsReplayPreviewRoute, jobFailureClustersRoute, jobRuntimeStatusRoute, jobDetailRoute, jobRetryRoute, jobSkipRoute] as const);
 
 export default router;

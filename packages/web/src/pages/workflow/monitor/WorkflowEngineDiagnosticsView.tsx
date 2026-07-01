@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Card, Dropdown, Empty, JsonViewer, Popover, Select, Skeleton, Space, Spin, Tabs, TabPane, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Card, Col, Dropdown, Empty, Form, JsonViewer, List, Modal, Popover, Row, Select, Skeleton, Space, Tabs, TabPane, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2, DatabaseZap, Download, GaugeCircle, GitBranch, Layers, LifeBuoy, Minus, RefreshCw, Stethoscope, Timer, TimerReset, TrendingUp, Wrench, Workflow, Zap } from 'lucide-react';
 import type {
   WorkflowEngineActionKey,
+  WorkflowEngineActionPreview,
   WorkflowEngineActionResult,
+  WorkflowEngineActionSampleJob,
   WorkflowEngineComponent,
   WorkflowEngineComponentStatus,
   WorkflowEngineDefinitionValidationItem,
@@ -66,6 +68,21 @@ const NODE_TYPE_LABEL: Record<string, string> = {
   start: '开始', approve: '审批', handler: '办理', end: '结束',
   exclusiveGateway: '条件网关', parallelGateway: '并行网关', inclusiveGateway: '包容网关', routeGateway: '路由网关',
   ccNode: '抄送', delay: '延时', trigger: '触发器', subProcess: '子流程', catchNode: '捕获',
+};
+
+const JOB_TYPE_LABEL: Record<string, string> = {
+  delay_wake: '延时唤醒', task_timeout: '任务超时', trigger_dispatch: '触发器派发', external_dispatch: '外部派发',
+  subprocess_spawn: '子流程发起', subprocess_join: '子流程汇聚', event_dispatch: '事件派发', webhook_delivery: 'Webhook 投递',
+  compensation_action: '补偿动作',
+};
+
+const JOB_STATUS_META: Record<string, { text: string; color: TagColor }> = {
+  pending: { text: '待处理', color: 'grey' },
+  running: { text: '运行中', color: 'blue' },
+  succeeded: { text: '成功', color: 'green' },
+  failed: { text: '失败', color: 'orange' },
+  dead: { text: '死信', color: 'red' },
+  canceled: { text: '已取消', color: 'grey' },
 };
 
 const THRESHOLD_OPTIONS = [
@@ -412,46 +429,53 @@ function QueueSaturation({ queues, palette }: Readonly<{ queues: WorkflowEngineQ
   );
 }
 
-function ComponentRow({ component, palette }: Readonly<{ component: WorkflowEngineComponent; palette: ChartPalette }>) {
+function componentHealthItem(component: WorkflowEngineComponent, palette: ChartPalette) {
   const color = statusColor(palette, component.status);
   const abnormal = component.status !== 'healthy';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '8px 4px', borderTop: '1px solid var(--semi-color-border)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: 220, flex: '0 0 auto', minWidth: 0, overflow: 'hidden' }}>
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flex: '0 0 auto' }} />
-        {renderComponentIcon(component, color)}
-        <Tooltip content={component.description} position="top">
-          <Typography.Text strong ellipsis={{ showTooltip: false }} style={{ flex: 1, minWidth: 0 }}>{component.name}</Typography.Text>
-        </Tooltip>
-        {abnormal && statusTag(component.status)}
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', rowGap: 2, flex: 1, minWidth: 0 }}>
-        {component.metrics.map((m, index) => {
-          const abnormalMetric = m.status === 'critical' || m.status === 'warning';
-          const mColor = m.status === 'critical' ? palette.danger : m.status === 'warning' ? palette.warning : undefined;
-          const mBg = m.status === 'critical'
-            ? 'var(--semi-color-danger-light-default)'
-            : 'var(--semi-color-warning-light-default)';
-          return (
-            <span key={`${m.label}-${m.value}`} style={{ display: 'inline-flex', alignItems: 'baseline' }}>
-              {index > 0 && <span aria-hidden style={{ color: palette.text2, opacity: 0.5, margin: '0 10px' }}>·</span>}
-              <Typography.Text type="tertiary" size="small">{m.label}</Typography.Text>
-              <Typography.Text
-                size="small"
-                strong
-                style={{
-                  color: mColor,
-                  marginLeft: 4,
-                  ...(abnormalMetric ? { padding: '0 6px', borderRadius: 4, background: mBg } : null),
-                }}
-              >
-                {m.unit ? `${m.value}${m.unit}` : m.value}
-              </Typography.Text>
-            </span>
-          );
-        })}
-      </div>
-    </div>
+    <List.Item
+      key={component.key}
+      align="center"
+      style={{ padding: '10px 4px' }}
+      header={(
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: 208, minWidth: 0, overflow: 'hidden' }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flex: '0 0 auto' }} />
+          {renderComponentIcon(component, color)}
+          <Tooltip content={component.description} position="top">
+            <Typography.Text strong ellipsis={{ showTooltip: false }} style={{ flex: 1, minWidth: 0 }}>{component.name}</Typography.Text>
+          </Tooltip>
+        </div>
+      )}
+      main={(
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', rowGap: 2, minWidth: 0 }}>
+          {component.metrics.map((m, index) => {
+            const abnormalMetric = m.status === 'critical' || m.status === 'warning';
+            const mColor = m.status === 'critical' ? palette.danger : m.status === 'warning' ? palette.warning : undefined;
+            const mBg = m.status === 'critical'
+              ? 'var(--semi-color-danger-light-default)'
+              : 'var(--semi-color-warning-light-default)';
+            return (
+              <span key={`${m.label}-${m.value}`} style={{ display: 'inline-flex', alignItems: 'baseline' }}>
+                {index > 0 && <span aria-hidden style={{ color: palette.text2, opacity: 0.5, margin: '0 10px' }}>·</span>}
+                <Typography.Text type="tertiary" size="small">{m.label}</Typography.Text>
+                <Typography.Text
+                  size="small"
+                  strong
+                  style={{
+                    color: mColor,
+                    marginLeft: 4,
+                    ...(abnormalMetric ? { padding: '0 6px', borderRadius: 4, background: mBg } : null),
+                  }}
+                >
+                  {m.unit ? `${m.value}${m.unit}` : m.value}
+                </Typography.Text>
+              </span>
+            );
+          })}
+        </div>
+      )}
+      extra={abnormal ? statusTag(component.status) : undefined}
+    />
   );
 }
 
@@ -550,22 +574,59 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
   }, []);
 
   const [batchRecoveryVisible, setBatchRecoveryVisible] = useState(false);
-  const runAction = useCallback(async (action: WorkflowEngineActionKey, label: string) => {
-    setActionLoading(action);
+
+  // 运维动作：筛选 + 预览 + 执行（参考作业账本「条件重放」）
+  const [actionModal, setActionModal] = useState<{ key: WorkflowEngineActionKey; label: string } | null>(null);
+  const [actionFilter, setActionFilter] = useState<{ instanceId?: number; olderThanMinutes?: number; limit: number }>({ limit: 200 });
+  const [actionFormKey, setActionFormKey] = useState(0);
+  const [actionPreview, setActionPreview] = useState<WorkflowEngineActionPreview | null>(null);
+  const [actionPreviewLoading, setActionPreviewLoading] = useState(false);
+
+  const openActionModal = useCallback((key: WorkflowEngineActionKey, label: string) => {
+    setActionModal({ key, label });
+    setActionFilter({ limit: 200 });
+    setActionPreview(null);
+    setActionFormKey((k) => k + 1);
+  }, []);
+
+  const previewAction = useCallback(async (key: WorkflowEngineActionKey, filter: { instanceId?: number; olderThanMinutes?: number; limit: number }) => {
+    setActionPreviewLoading(true);
     try {
-      const res = await request.post<WorkflowEngineActionResult>(`/api/workflows/engine/actions/${action}`);
+      const res = await request.post<WorkflowEngineActionPreview>(`/api/workflows/engine/actions/${key}/preview`, {
+        instanceId: filter.instanceId,
+        olderThanMinutes: filter.olderThanMinutes,
+        limit: filter.limit,
+      });
+      if (res.code === 0 && res.data) setActionPreview(res.data);
+    } catch {
+      Toast.error('预览失败');
+    } finally {
+      setActionPreviewLoading(false);
+    }
+  }, []);
+
+  const confirmAction = useCallback(async () => {
+    if (!actionModal) return;
+    setActionLoading(actionModal.key);
+    try {
+      const res = await request.post<WorkflowEngineActionResult>(`/api/workflows/engine/actions/${actionModal.key}`, {
+        instanceId: actionFilter.instanceId,
+        olderThanMinutes: actionFilter.olderThanMinutes,
+        limit: actionFilter.limit,
+      });
       if (res.code === 0 && res.data?.ok) {
         Toast.success({ content: res.data.message, duration: 4 });
       } else {
-        Toast.warning({ content: res.data?.message || `${label}未成功`, duration: 4 });
+        Toast.warning({ content: res.data?.message || `${actionModal.label}未成功`, duration: 4 });
       }
+      setActionModal(null);
       await fetchData();
     } catch {
-      Toast.error(`${label}执行失败`);
+      Toast.error(`${actionModal.label}执行失败`);
     } finally {
       setActionLoading(null);
     }
-  }, [fetchData]);
+  }, [actionModal, actionFilter, fetchData]);
 
   const exportReport = useCallback(() => {
     if (!data) return;
@@ -761,6 +822,22 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
     return <Empty description="暂无引擎内省数据" />;
   }
 
+  const actionSampleColumns: ColumnProps<WorkflowEngineActionSampleJob>[] = [
+    { title: 'ID', dataIndex: 'id', width: 84 },
+    { title: '类型', dataIndex: 'jobType', width: 116, render: (v: string) => JOB_TYPE_LABEL[v] ?? v },
+    {
+      title: '状态', dataIndex: 'status', width: 84,
+      render: (v: string) => { const m = JOB_STATUS_META[v]; return m ? <Tag color={m.color}>{m.text}</Tag> : <Tag>{v}</Tag>; },
+    },
+    { title: '实例', dataIndex: 'instanceId', width: 88, render: (v: number | null) => (v != null ? `#${v}` : '—') },
+    { title: '尝试', dataIndex: 'attempts', width: 64 },
+    { title: '到期时间', dataIndex: 'runAt', width: 164 },
+    {
+      title: '最近错误', dataIndex: 'lastError',
+      render: (v: string | null) => (v ? <Typography.Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 240 }}>{v}</Typography.Text> : <Typography.Text type="tertiary">—</Typography.Text>),
+    },
+  ];
+
   const t = data.telemetry;
   const errorRate = t.events.last24h.total > 0 ? (t.events.last24h.failed / t.events.last24h.total) * 100 : 0;
   const prevErrorRate = t.events.prev24h.total > 0 ? (t.events.prev24h.failed / t.events.prev24h.total) * 100 : 0;
@@ -808,8 +885,8 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
             render={(
               <Dropdown.Menu>
                 {ACTION_ITEMS.map((item) => (
-                  <Dropdown.Item key={item.key} disabled={actionLoading != null} onClick={() => void runAction(item.key, item.label)}>
-                    {actionLoading === item.key ? <Spin size="small" /> : null} {item.label}
+                  <Dropdown.Item key={item.key} disabled={actionLoading != null} onClick={() => openActionModal(item.key, item.label)}>
+                    {item.label}
                   </Dropdown.Item>
                 ))}
               </Dropdown.Menu>
@@ -826,6 +903,79 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
       </div>
 
       <WorkflowBatchRecoveryModal visible={batchRecoveryVisible} onClose={() => setBatchRecoveryVisible(false)} />
+
+      {actionModal && (
+        <Modal
+          title={`${actionModal.label} · 条件执行`}
+          visible
+          onCancel={() => setActionModal(null)}
+          okText="确认执行"
+          cancelText="取消"
+          onOk={() => void confirmAction()}
+          okButtonProps={{ loading: actionLoading === actionModal.key, type: 'warning' }}
+          width={760}
+        >
+          <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 12 }}>
+            先按条件筛选并预览将被处理的作业（到期待处理 + 卡死回收），确认后再执行。
+            {actionPreview && actionPreview.jobTypes.length > 0 && (
+              <> 作业类型：{actionPreview.jobTypes.map((jt) => JOB_TYPE_LABEL[jt] ?? jt).join(' / ')}。</>
+            )}
+          </Typography.Text>
+          <Form
+            key={actionFormKey}
+            labelPosition="left"
+            labelWidth={96}
+            initValues={actionFilter}
+            onValueChange={(values) => {
+              setActionFilter((s) => ({
+                instanceId: typeof values.instanceId === 'number' ? values.instanceId : undefined,
+                olderThanMinutes: typeof values.olderThanMinutes === 'number' ? values.olderThanMinutes : undefined,
+                limit: typeof values.limit === 'number' ? values.limit : s.limit,
+              }));
+              setActionPreview(null);
+            }}
+          >
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.InputNumber field="instanceId" label="实例 ID" placeholder="不限" min={1} style={{ width: '100%' }} />
+              </Col>
+              <Col span={8}>
+                <Form.InputNumber field="olderThanMinutes" label="入库超过" placeholder="不限" min={0} suffix="分钟" style={{ width: '100%' }} />
+              </Col>
+              <Col span={8}>
+                <Form.InputNumber field="limit" label="单次上限" min={1} max={500} suffix="条" style={{ width: '100%' }} />
+              </Col>
+            </Row>
+          </Form>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', margin: '4px 0 12px' }}>
+            <Button size="small" theme="light" loading={actionPreviewLoading} onClick={() => void previewAction(actionModal.key, actionFilter)}>预览数据</Button>
+            {actionPreview && (
+              <Typography.Text type="tertiary" size="small">
+                将处理 <b>{Math.min(actionPreview.matched, actionPreview.limit)}</b> / 匹配 {actionPreview.matched} 条
+                （到期 {actionPreview.duePending} · 卡死 {actionPreview.stuckRunning}）
+                {actionPreview.scheduledLater > 0 && ` · 未到期 ${actionPreview.scheduledLater}`}
+                {actionPreview.matched > actionPreview.limit && '（超上限部分需再次执行）'}
+              </Typography.Text>
+            )}
+          </div>
+          {actionPreview && (
+            actionPreview.sample.length > 0 ? (
+              <ConfigurableTable<WorkflowEngineActionSampleJob>
+                bordered
+                columnSettings={false}
+                size="small"
+                columns={actionSampleColumns}
+                dataSource={actionPreview.sample}
+                rowKey="id"
+                pagination={false}
+                scroll={{ y: 260 }}
+              />
+            ) : (
+              <Empty description="按当前条件没有待处理的作业" style={{ padding: 16 }} />
+            )
+          )}
+        </Modal>
+      )}
 
       {/* 概览 Hero：健康分 + 黄金信号 */}
       <Card bordered bodyStyle={{ padding: 16 }} style={{ borderRadius: 8 }}>
@@ -956,11 +1106,11 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
             </Space>
           )}
         />
-        <div>
-          {sortedComponents.map((component) => (
-            <ComponentRow key={component.key} component={component} palette={palette} />
-          ))}
-        </div>
+        <List
+          dataSource={sortedComponents}
+          size="small"
+          renderItem={(component) => componentHealthItem(component, palette)}
+        />
       </Card>
 
       {/* 运行时明细 */}

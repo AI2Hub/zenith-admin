@@ -553,3 +553,48 @@ export const WorkflowEngineActionResultDTO = z
     detail: z.record(z.string(), z.number()),
   })
   .openapi('WorkflowEngineActionResult');
+
+const WORKFLOW_ENGINE_ACTION_KEYS = ['replay-outbox', 'recover-delays', 'recover-subprocess', 'process-timeouts', 'recover-triggers', 'recover-webhooks'] as const;
+const WORKFLOW_ENGINE_JOB_TYPES = [
+  'delay_wake', 'task_timeout', 'trigger_dispatch', 'external_dispatch',
+  'subprocess_spawn', 'subprocess_join', 'event_dispatch', 'webhook_delivery',
+  'compensation_action',
+] as const;
+const WORKFLOW_ENGINE_JOB_STATUSES = ['pending', 'running', 'succeeded', 'failed', 'dead', 'canceled'] as const;
+
+/** 运维动作筛选条件（jobType 由动作固定，此处为附加维度） */
+export const WorkflowEngineActionFilterBody = z.object({
+  instanceId: z.number().int().positive().optional(),
+  olderThanMinutes: z.number().int().min(0).max(60 * 24 * 30).optional(),
+  limit: z.number().int().min(1).max(500).optional(),
+});
+
+/** 运维动作预览样本行 */
+export const WorkflowEngineActionSampleJobDTO = z
+  .object({
+    id: z.number().int(),
+    jobType: z.enum(WORKFLOW_ENGINE_JOB_TYPES),
+    status: z.enum(WORKFLOW_ENGINE_JOB_STATUSES),
+    instanceId: z.number().int().nullable(),
+    traceId: z.string().nullable(),
+    attempts: z.number().int(),
+    runAt: z.string(),
+    createdAt: z.string(),
+    lastError: z.string().nullable(),
+  })
+  .openapi('WorkflowEngineActionSampleJob');
+
+/** 运维动作预览结果：筛选后将被处理的作业统计 + 样本 */
+export const WorkflowEngineActionPreviewDTO = z
+  .object({
+    action: z.enum(WORKFLOW_ENGINE_ACTION_KEYS),
+    label: z.string(),
+    jobTypes: z.array(z.enum(WORKFLOW_ENGINE_JOB_TYPES)),
+    duePending: z.number().int(),
+    stuckRunning: z.number().int(),
+    scheduledLater: z.number().int(),
+    matched: z.number().int(),
+    limit: z.number().int(),
+    sample: z.array(WorkflowEngineActionSampleJobDTO),
+  })
+  .openapi('WorkflowEngineActionPreview');

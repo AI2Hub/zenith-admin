@@ -10,7 +10,9 @@ import { workflowEngineHealthSnapshots } from '../db/schema';
 import { formatDateTime } from '../lib/datetime';
 import logger from '../lib/logger';
 import type {
+  WorkflowEngineActionFilter,
   WorkflowEngineActionKey,
+  WorkflowEngineActionPreview,
   WorkflowEngineActionResult,
   WorkflowEngineComponentStatus,
   WorkflowEngineHealthHistory,
@@ -117,36 +119,71 @@ export async function getLatestEngineHealthMetrics(): Promise<{ workflowHealth: 
   return { workflowHealth: row?.healthScore ?? 100, workflowBacklog: row?.backlog ?? 0 };
 }
 
-/** 构造一个"按 jobType 细分"的恢复动作：仅 drain 指定类型的作业，避免"全部只 drain 一遍"。 */
-function drainAction(label: string, jobTypes: WorkflowJobType[]): { label: string; run: () => Promise<Record<string, number>> } {
-  return {
-    label,
-    run: async () => {
-      const { drainWorkflowJobs } = await import('../lib/workflow-jobs');
-      const r = await drainWorkflowJobs({ jobTypes });
-      return { recovered: r.recovered, processed: r.processed };
-    },
-  };
-}
-
-const ACTION_META: Record<WorkflowEngineActionKey, { label: string; run: () => Promise<Record<string, number>> }> = {
-  'replay-outbox': drainAction('事件派发重放（作业账本）', ['event_dispatch']),
-  'recover-delays': drainAction('延时任务兜底（作业账本）', ['delay_wake']),
-  'recover-subprocess': drainAction('子流程兜底（作业账本）', ['subprocess_spawn', 'subprocess_join']),
-  'process-timeouts': drainAction('超时任务兜底（作业账本）', ['task_timeout']),
-  'recover-triggers': drainAction('触发器兜底（作业账本）', ['trigger_dispatch']),
-  'recover-webhooks': drainAction('Webhook 投递兜底（作业账本）', ['webhook_delivery']),
+/** 各运维动作固定对应的作业类型（drain 时按类型细分，避免"全部只 drain 一遍"）。 */
+const ACTION_META: Record<WorkflowEngineActionKey, { label: string; jobTypes: WorkflowJobType[] }> = {
+  'replay-outbox': { label: '事件派发重放（作业账本）', jobTypes: ['event_dispatch'] },
+  'recover-delays': { label: '延时任务兜底（作业账本）', jobTypes: ['delay_wake'] },
+  'recover-subprocess': { label: '子流程兜底（作业账本）', jobTypes: ['subprocess_spawn', 'subprocess_join'] },
+  'process-timeouts': { label: '超时任务兜底（作业账本）', jobTypes: ['task_timeout'] },
+  'recover-triggers': { label: '触发器兜底（作业账本）', jobTypes: ['trigger_dispatch'] },
+  'recover-webhooks': { label: 'Webhook 投递兜底（作业账本）', jobTypes: ['webhook_delivery'] },
 };
+
+const ACTION_LIMIT_DEFAULT = 200;
+const ACTION_LIMIT_MAX = 500;
+function clampActionLimit(value?: number): number {
+  if (value == null || !Number.isFinite(value) || value <= 0) return ACTION_LIMIT_DEFAULT;
+  return Math.min(Math.floor(value), ACTION_LIMIT_MAX);
+}
 
 export function isWorkflowEngineActionKey(value: string): value is WorkflowEngineActionKey {
   return value in ACTION_META;
 }
 
-/** 执行一项引擎运维恢复动作（幂等扫描），返回统一结果。 */
-export async function runWorkflowEngineAction(action: WorkflowEngineActionKey): Promise<WorkflowEngineActionResult> {
+/**
+ * 运维动作执行前预览：按 jobType（动作固定）+ 实例 / 入库时长筛选，
+ * 统计将被处理的作业（到期 pending + 卡死 running）与未到期作业，并返回样本行。
+ */
+export async function previewWorkflowEngineAction(
+  action: WorkflowEngineActionKey,
+  filter?: WorkflowEngineActionFilter,
+): Promise<WorkflowEngineActionPreview> {
+  const meta = ACTION_META[action];
+  const { previewDrainableJobs } = await import('../lib/workflow-jobs');
+  const preview = await previewDrainableJobs({
+    jobTypes: meta.jobTypes,
+    instanceId: filter?.instanceId,
+    olderThanMinutes: filter?.olderThanMinutes,
+    sampleLimit: 10,
+  });
+  return {
+    action,
+    label: meta.label,
+    jobTypes: meta.jobTypes,
+    duePending: preview.duePending,
+    stuckRunning: preview.stuckRunning,
+    scheduledLater: preview.scheduledLater,
+    matched: preview.duePending + preview.stuckRunning,
+    limit: clampActionLimit(filter?.limit),
+    sample: preview.sample,
+  };
+}
+
+/** 执行一项引擎运维恢复动作（幂等扫描，支持按实例 / 入库时长 / 上限筛选），返回统一结果。 */
+export async function runWorkflowEngineAction(
+  action: WorkflowEngineActionKey,
+  filter?: WorkflowEngineActionFilter,
+): Promise<WorkflowEngineActionResult> {
   const meta = ACTION_META[action];
   try {
-    const detail = await meta.run();
+    const { drainWorkflowJobs } = await import('../lib/workflow-jobs');
+    const r = await drainWorkflowJobs({
+      jobTypes: meta.jobTypes,
+      instanceId: filter?.instanceId,
+      olderThanMinutes: filter?.olderThanMinutes,
+      limit: clampActionLimit(filter?.limit),
+    });
+    const detail: Record<string, number> = { recovered: r.recovered, processed: r.processed };
     const summary = Object.entries(detail).map(([k, v]) => `${k} ${v}`).join(' · ');
     return { action, ok: true, message: `${meta.label}完成：${summary || '无待处理项'}`, detail };
   } catch (err) {

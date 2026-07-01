@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, eq, inArray, isNotNull, lt, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, lt, lte, or, sql, type SQL } from 'drizzle-orm';
 import type { WorkflowJobType } from '@zenith/shared';
 import { db } from '../../db';
 import { workflowJobs, workflowJobExecutions } from '../../db/schema';
@@ -8,6 +8,7 @@ import type { DbExecutor } from '../../db/types';
 import { registerSystemQueueWorker, sendSystemJobAfter } from '../pg-boss-scheduler';
 import { currentTraceId, runWithTraceId } from '../context';
 import logger from '../logger';
+import { formatDateTime } from '../datetime';
 import {
   WORKFLOW_JOB_QUEUE,
   STUCK_RUNNING_GRACE_MS,
@@ -141,10 +142,26 @@ async function claimJob(jobId: number): Promise<WorkflowJobRow | null> {
 }
 
 /** 批量领取到期的 pending 作业：FOR UPDATE SKIP LOCKED，多 drain 并发安全。可选按 jobType 限定（恢复动作细分用）。 */
-async function claimDueJobs(limit: number, jobTypes?: WorkflowJobType[]): Promise<WorkflowJobRow[]> {
+/** 可 drain 作业的附加筛选（jobType/实例/入库时长），供 claim/recover/preview 复用。 */
+export interface DrainableFilter {
+  jobTypes?: WorkflowJobType[];
+  instanceId?: number;
+  olderThanMinutes?: number;
+}
+
+function drainableExtraConds(filter: DrainableFilter): SQL[] {
+  const conds: SQL[] = [];
+  if (filter.jobTypes && filter.jobTypes.length > 0) conds.push(inArray(workflowJobs.jobType, filter.jobTypes));
+  if (filter.instanceId != null) conds.push(eq(workflowJobs.instanceId, filter.instanceId));
+  if (filter.olderThanMinutes != null && filter.olderThanMinutes > 0) {
+    conds.push(lte(workflowJobs.createdAt, new Date(Date.now() - filter.olderThanMinutes * 60_000)));
+  }
+  return conds;
+}
+
+async function claimDueJobs(limit: number, filter: DrainableFilter = {}): Promise<WorkflowJobRow[]> {
   return db.transaction(async (tx) => {
-    const conds = [eq(workflowJobs.status, 'pending'), lte(workflowJobs.runAt, new Date())];
-    if (jobTypes && jobTypes.length > 0) conds.push(inArray(workflowJobs.jobType, jobTypes));
+    const conds = [eq(workflowJobs.status, 'pending'), lte(workflowJobs.runAt, new Date()), ...drainableExtraConds(filter)];
     const due = await tx.select({ id: workflowJobs.id }).from(workflowJobs)
       .where(and(...conds))
       .orderBy(asc(workflowJobs.priority), asc(workflowJobs.runAt))
@@ -261,10 +278,9 @@ export async function runJob(jobId: number): Promise<void> {
 }
 
 /** 回收卡死的 running 作业（领取后超过宽限时间仍未结束，多因进程崩溃）→ 回 pending 重跑。可选按 jobType 限定。 */
-async function recoverStuckRunning(jobTypes?: WorkflowJobType[]): Promise<number> {
+async function recoverStuckRunning(filter: DrainableFilter = {}): Promise<number> {
   const cutoff = new Date(Date.now() - STUCK_RUNNING_GRACE_MS);
-  const conds = [eq(workflowJobs.status, 'running'), isNotNull(workflowJobs.lockedAt), lt(workflowJobs.lockedAt, cutoff)];
-  if (jobTypes && jobTypes.length > 0) conds.push(inArray(workflowJobs.jobType, jobTypes));
+  const conds = [eq(workflowJobs.status, 'running'), isNotNull(workflowJobs.lockedAt), lt(workflowJobs.lockedAt, cutoff), ...drainableExtraConds(filter)];
   const reset = await db.update(workflowJobs).set({ status: 'pending', lockedAt: null, updatedAt: new Date() })
     .where(and(...conds))
     .returning({ id: workflowJobs.id });
@@ -277,27 +293,95 @@ export interface DrainWorkflowJobsOptions {
   batch?: number;
   /** 仅处理指定作业类型（恢复动作细分用；缺省=全部类型） */
   jobTypes?: WorkflowJobType[];
+  /** 仅处理指定实例的作业（运维动作筛选用） */
+  instanceId?: number;
+  /** 仅处理入库超过 N 分钟的作业（运维动作筛选用） */
+  olderThanMinutes?: number;
+  /** 单次处理上限（总数）；缺省=不限（周期任务用） */
+  limit?: number;
 }
 
 /**
- * 兜底扫描 + 崩溃恢复：由周期任务（每分钟）调用，也被引擎运维恢复动作按 jobType 细分调用。
+ * 兜底扫描 + 崩溃恢复：由周期任务（每分钟）调用，也被引擎运维恢复动作按 jobType/实例细分调用。
  * 1) 回收卡死 running；2) 批量领取到期 pending 并执行（SKIP LOCKED 并发安全）。
+ * 传入 limit 时，本次处理总数不超过该上限（供运维动作按预览规模精确执行）。
  */
 export async function drainWorkflowJobs(opts: DrainWorkflowJobsOptions = {}): Promise<{ recovered: number; processed: number }> {
   const batch = opts.batch ?? 50;
-  const { jobTypes } = opts;
-  const recovered = await recoverStuckRunning(jobTypes);
+  const filter: DrainableFilter = { jobTypes: opts.jobTypes, instanceId: opts.instanceId, olderThanMinutes: opts.olderThanMinutes };
+  const totalLimit = opts.limit != null && opts.limit > 0 ? opts.limit : Infinity;
+  const recovered = await recoverStuckRunning(filter);
   let processed = 0;
   for (let round = 0; round < 20; round++) {
-    const claimed = await claimDueJobs(batch, jobTypes);
+    if (processed >= totalLimit) break;
+    const want = totalLimit === Infinity ? batch : Math.min(batch, totalLimit - processed);
+    const claimed = await claimDueJobs(want, filter);
     if (claimed.length === 0) break;
     for (const job of claimed) {
       await executeClaimedJob(job);
       processed += 1;
     }
-    if (claimed.length < batch) break;
+    if (claimed.length < want) break;
   }
   return { recovered, processed };
+}
+
+/**
+ * 运维动作执行前预览：统计筛选后将被处理的作业（到期 pending + 卡死 running）与未到期作业，
+ * 并返回样本行，供前端展示、用户确认后再执行。
+ */
+export async function previewDrainableJobs(
+  filter: DrainableFilter & { sampleLimit?: number },
+): Promise<{
+  duePending: number;
+  stuckRunning: number;
+  scheduledLater: number;
+  sample: Array<{
+    id: number;
+    jobType: WorkflowJobType;
+    status: WorkflowJobRow['status'];
+    instanceId: number | null;
+    traceId: string | null;
+    attempts: number;
+    runAt: string;
+    createdAt: string;
+    lastError: string | null;
+  }>;
+}> {
+  const now = new Date();
+  const stuckCutoff = new Date(Date.now() - STUCK_RUNNING_GRACE_MS);
+  const extra = drainableExtraConds(filter);
+  const dueConds = and(eq(workflowJobs.status, 'pending'), lte(workflowJobs.runAt, now), ...extra);
+  const laterConds = and(eq(workflowJobs.status, 'pending'), gt(workflowJobs.runAt, now), ...extra);
+  const stuckConds = and(eq(workflowJobs.status, 'running'), isNotNull(workflowJobs.lockedAt), lt(workflowJobs.lockedAt, stuckCutoff), ...extra);
+  const [duePending, scheduledLater, stuckRunning, rows] = await Promise.all([
+    db.$count(workflowJobs, dueConds),
+    db.$count(workflowJobs, laterConds),
+    db.$count(workflowJobs, stuckConds),
+    db.select({
+      id: workflowJobs.id,
+      jobType: workflowJobs.jobType,
+      status: workflowJobs.status,
+      instanceId: workflowJobs.instanceId,
+      traceId: workflowJobs.traceId,
+      attempts: workflowJobs.attempts,
+      runAt: workflowJobs.runAt,
+      createdAt: workflowJobs.createdAt,
+      lastError: workflowJobs.lastError,
+    }).from(workflowJobs).where(or(dueConds, stuckConds)).orderBy(asc(workflowJobs.runAt)).limit(filter.sampleLimit ?? 10),
+  ]);
+  const sample = rows.map((r) => ({
+    id: r.id,
+    jobType: r.jobType,
+    status: r.status,
+    instanceId: r.instanceId,
+    traceId: r.traceId,
+    attempts: r.attempts,
+    runAt: formatDateTime(r.runAt),
+    createdAt: formatDateTime(r.createdAt),
+    lastError: r.lastError ?? null,
+  }));
+  return { duePending, stuckRunning, scheduledLater, sample };
 }
 
 /** 注册统一 Worker（出现在系统调度页，类型为「队列 Worker」） */

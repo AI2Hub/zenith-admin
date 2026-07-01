@@ -1057,6 +1057,38 @@ let simCaseSeq = 1;
 
 // ─── 流程定义 Handler ──────────────────────────────────────────────────────
 
+// 引擎运维动作 → 固定作业类型 / 标签（与后端 workflow-engine-ops.service 对齐）
+const ENGINE_ACTION_JOB_TYPES: Record<string, string[]> = {
+  'replay-outbox': ['event_dispatch'],
+  'recover-delays': ['delay_wake'],
+  'recover-subprocess': ['subprocess_spawn', 'subprocess_join'],
+  'process-timeouts': ['task_timeout'],
+  'recover-triggers': ['trigger_dispatch'],
+  'recover-webhooks': ['webhook_delivery'],
+};
+const ENGINE_ACTION_LABELS: Record<string, string> = {
+  'replay-outbox': '事件派发重放（作业账本）',
+  'recover-delays': '延时任务兜底（作业账本）',
+  'recover-subprocess': '子流程兜底（作业账本）',
+  'process-timeouts': '超时任务兜底（作业账本）',
+  'recover-triggers': '触发器兜底（作业账本）',
+  'recover-webhooks': 'Webhook 投递兜底（作业账本）',
+};
+
+/** 引擎运维动作可处理作业筛选（与后端 drain 语义一致：到期 pending + 卡死 running）。 */
+function engineDrainableCandidates(action: string, body: { instanceId?: number; olderThanMinutes?: number }) {
+  const jobTypes = ENGINE_ACTION_JOB_TYPES[action] ?? [];
+  const now = Date.now();
+  const base = mockWorkflowJobs.filter((j) =>
+    jobTypes.includes(j.jobType)
+    && (body.instanceId == null || j.instanceId === body.instanceId)
+    && (body.olderThanMinutes == null || body.olderThanMinutes <= 0 || (now - new Date(j.createdAt).getTime()) >= body.olderThanMinutes * 60000));
+  const due = base.filter((j) => j.status === 'pending' && new Date(j.runAt).getTime() <= now);
+  const later = base.filter((j) => j.status === 'pending' && new Date(j.runAt).getTime() > now);
+  const stuck = base.filter((j) => j.status === 'running');
+  return { jobTypes, due, later, stuck, targets: [...due, ...stuck] };
+}
+
 export const workflowHandlers = [
   // 获取流程定义列表（分页 + 搜索 + 状态筛选）
   http.get('/api/workflows/definitions', ({ request }) => {
@@ -1553,20 +1585,49 @@ export const workflowHandlers = [
     });
   }),
 
-  http.post('/api/workflows/engine/actions/:action', ({ params }) => {
+  http.post('/api/workflows/engine/actions/:action/preview', async ({ params, request }) => {
     const action = String(params.action);
-    const labels: Record<string, string> = {
-      'replay-outbox': '事件派发重放',
-      'recover-delays': '延时任务恢复扫描',
-      'recover-subprocess': '子流程恢复扫描',
-      'process-timeouts': '超时任务处理',
-      'recover-triggers': '触发器恢复重派',
-      'recover-webhooks': 'Webhook 投递恢复',
-    };
-    if (!(action in labels)) return err('未知运维动作', 400);
-    const detail: Record<string, number> = { scanned: 2, dispatched: 1, failed: 0 };
+    if (!(action in ENGINE_ACTION_JOB_TYPES)) return err('未知运维动作', 400);
+    const body = await request.json().catch(() => ({})) as { instanceId?: number; olderThanMinutes?: number; limit?: number };
+    const limit = Math.min(Math.max(Math.floor(body.limit ?? 200) || 200, 1), 500);
+    const { jobTypes, due, later, stuck, targets } = engineDrainableCandidates(action, body);
+    const sample = targets.slice(0, 10).map((j) => ({
+      id: j.id,
+      jobType: j.jobType,
+      status: j.status,
+      instanceId: j.instanceId ?? null,
+      traceId: j.traceId ?? null,
+      attempts: j.attempts,
+      runAt: j.runAt,
+      createdAt: j.createdAt,
+      lastError: j.lastError ?? null,
+    }));
+    return ok({
+      action,
+      label: ENGINE_ACTION_LABELS[action],
+      jobTypes,
+      duePending: due.length,
+      stuckRunning: stuck.length,
+      scheduledLater: later.length,
+      matched: due.length + stuck.length,
+      limit,
+      sample,
+    });
+  }),
+
+  http.post('/api/workflows/engine/actions/:action', async ({ params, request }) => {
+    const action = String(params.action);
+    if (!(action in ENGINE_ACTION_LABELS)) return err('未知运维动作', 400);
+    const body = await request.json().catch(() => ({})) as { instanceId?: number; olderThanMinutes?: number; limit?: number };
+    const limit = Math.min(Math.max(Math.floor(body.limit ?? 200) || 200, 1), 500);
+    const { due, stuck, targets } = engineDrainableCandidates(action, body);
+    const processed = targets.slice(0, limit);
+    processed.forEach((j) => { j.status = 'succeeded'; j.lockedAt = null; j.lockedBy = null; j.lastError = null; j.updatedAt = mockDateTime(); });
+    const detail: Record<string, number> = { recovered: stuck.length, processed: processed.length };
     const summary = Object.entries(detail).map(([k, v]) => `${k} ${v}`).join(' · ');
-    return ok({ action, ok: true, message: `${labels[action]}完成：${summary}`, detail });
+    const matched = due.length + stuck.length;
+    const more = matched > processed.length ? `，剩余 ${matched - processed.length} 条超单次上限未处理` : '';
+    return ok({ action, ok: true, message: `${ENGINE_ACTION_LABELS[action]}完成：${summary || '无待处理项'}${more}`, detail });
   }),
 
   // ── 统一作业账本（workflow_jobs）死信 / 补偿中心 ──
