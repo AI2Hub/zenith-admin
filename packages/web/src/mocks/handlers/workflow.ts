@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import type { WorkflowDefinition, WorkflowDefinitionVersion, WorkflowEngineIntrospection, WorkflowEngineOutboxEvent, WorkflowEngineRuntimeTask, WorkflowFlowData, WorkflowFormField, WorkflowInstance, WorkflowInstanceFormSnapshot, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowSimulationCase, WorkflowSimulationDecision, WorkflowSimulationResult, WorkflowTask, WorkflowTaskUrge } from '@zenith/shared';
-import { findNextApproverSelectNodes } from '@zenith/shared';
+import type { WorkflowDefinition, WorkflowDefinitionVersion, WorkflowEngineIntrospection, WorkflowEngineOutboxEvent, WorkflowEngineRuntimeTask, WorkflowFlowData, WorkflowFormField, WorkflowInstance, WorkflowInstanceFormSnapshot, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowSerialNoConfig, WorkflowSimulationCase, WorkflowSimulationDecision, WorkflowSimulationResult, WorkflowTask, WorkflowTaskUrge } from '@zenith/shared';
+import { findNextApproverSelectNodes, renderWorkflowSerialNo, resolveSerialPeriodKey, WORKFLOW_SERIAL_SAMPLE_VARS } from '@zenith/shared';
 import {
   mockWorkflowDefinitions,
   mockWorkflowInstances,
@@ -29,6 +29,8 @@ function err(message: string, code = 400) {
 
 type MockApiPayload<T = unknown> = { code: number; message: string; data: T };
 const idempotencyCache = new Map<string, MockApiPayload>();
+/** 业务编号内存计数器（按 定义ID:周期键 自增），模拟后端的 workflow_serial_counters */
+const mockSerialCounters = new Map<string, number>();
 
 function readIdempotentResponse(request: Request) {
   const key = request.headers.get('X-Idempotency-Key');
@@ -2058,11 +2060,21 @@ export const workflowHandlers = [
     const instanceId = getNextInstanceId();
     const isDraft = body.asDraft === true;
 
-    // 业务编号：仅正式发起时生成
-    const serialCfg = (def.flowData?.settings as { serialNo?: { enabled?: boolean; prefix?: string; seqLength?: number } } | undefined)?.serialNo;
+    // 业务编号：仅正式发起时生成（用内存计数器模拟按定义+周期自增）
+    const serialCfg = (def.flowData?.settings as { serialNo?: WorkflowSerialNoConfig } | undefined)?.serialNo;
     let serialNo: string | null = null;
     if (!isDraft && serialCfg?.enabled) {
-      serialNo = `${serialCfg.prefix ?? ''}${String(instanceId).padStart(serialCfg.seqLength ?? 4, '0')}`;
+      const formatDate = (pattern: string) => dayjs().format(pattern);
+      const periodKey = resolveSerialPeriodKey(serialCfg.resetPeriod ?? 'never', formatDate);
+      const counterKey = `${def.id}:${periodKey}`;
+      const ordinal = (mockSerialCounters.get(counterKey) ?? 0) + 1;
+      mockSerialCounters.set(counterKey, ordinal);
+      serialNo = renderWorkflowSerialNo(serialCfg, {
+        ordinal,
+        formatDate,
+        vars: WORKFLOW_SERIAL_SAMPLE_VARS,
+        formData: (body.formData ?? {}) as Record<string, unknown>,
+      });
     }
 
     // 创建初始审批任务（取第一个 approve 节点）；草稿不创建任务

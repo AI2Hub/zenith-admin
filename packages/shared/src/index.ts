@@ -5,3 +5,4 @@ export * from './seed-data';
 export * from './report-print';
 export * from './report-format';
 export * from './workflow-helpers';
+export * from './workflow-serial';

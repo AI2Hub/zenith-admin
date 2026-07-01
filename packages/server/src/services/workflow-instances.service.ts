@@ -227,7 +227,7 @@ import { advanceTokens, type AdvanceTrigger, type BranchPath } from '../lib/work
 import type { WorkflowResolvedApproveMethod, WorkflowFlowData, WorkflowTask as WorkflowTaskDto, WorkflowEventActor, WorkflowActionButtonKey, WorkflowActionButtonConfig, WorkflowFormField, WorkflowFormSettings, WorkflowStarterContext, WorkflowBatchActionResult, WorkflowRecoveryBatchResult, WorkflowCustomFormConfig, WorkflowFormType, WorkflowInstance, WorkflowInstanceFormSnapshot, WorkflowApproverDedupMode, WorkflowDeduplicateStrategy, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowRuntimeOutboxEvent, WorkflowTriggerType, WorkflowInstanceTrace, WorkflowEngineExplanation, WorkflowEngineExplanationBlocker, WorkflowEngineTraceEntry, WorkflowJobType, WorkflowExecutionToken, WorkflowExecutionTokenView } from '@zenith/shared';
 import { resolveApproverDedupMode, findNextApproverSelectNodes, resolveFailurePolicy } from '@zenith/shared';
 import { HTTPException } from 'hono/http-exception';
-import { currentUser } from '../lib/context';
+import { currentUser, currentUserOrNull, currentUserDetail } from '../lib/context';
 import { filterSelectedApproverIds, resolveAssigneeIds, buildStarterContext, listSelectableApprovers } from './workflow-assignee-resolver.service';
 import { getDecisionOutputs } from './rules.service';
 import { recordCompensation, addCompensationLog } from './workflow-compensations.service';
@@ -236,16 +236,43 @@ import type { DbExecutor } from '../db/types';
 import { createHash, randomBytes } from 'node:crypto';
 import { enqueueJob, cancelJobs } from '../lib/workflow-jobs/engine';
 import { computeTimeoutAt } from '../lib/workflow-timeout';
-import type { WorkflowTriggerNodeConfig, WorkflowNodeFailurePolicy } from '@zenith/shared';
+import type { WorkflowTriggerNodeConfig, WorkflowNodeFailurePolicy, WorkflowSerialNoConfig } from '@zenith/shared';
 import type { WorkflowSelectableNextApproverGroup } from '@zenith/shared';
 import { workflowEventBus } from '../lib/workflow-event-bus';
-import { generateSerialNo } from './workflow-serial.service';
+import { generateSerialNo, type SerialNoGenContext } from './workflow-serial.service';
 import { resolveActiveDelegate } from './workflow-delegations.service';
 import { loadInstanceCommentsForDetail } from './workflow-comments.service';
 import { loadInstanceConsultsForDetail } from './workflow-consults.service';
 import { isPgUniqueViolation } from '../lib/db-errors';
 import dayjs from 'dayjs';
 import logger from '../lib/logger';
+
+/**
+ * 构建业务编号生成上下文。
+ * - 未启用 → undefined；
+ * - 结构化模式 → 仅带 formData（不含动态变量，省去用户详情查询）；
+ * - 模板模式 → 解析发起人部门 / 账号 / 昵称 / 租户等动态变量。
+ */
+async function buildSerialNoContext(
+  config: WorkflowSerialNoConfig | undefined | null,
+  formData: Record<string, unknown>,
+): Promise<SerialNoGenContext | undefined> {
+  if (!config?.enabled) return undefined;
+  if (config.mode !== 'template') return { formData };
+  const user = currentUserOrNull();
+  if (!user) return { formData };
+  const detail = await currentUserDetail();
+  return {
+    formData,
+    vars: {
+      dept: detail?.department?.name ?? '',
+      deptCode: detail?.department?.code ?? '',
+      user: detail?.username ?? user.username ?? '',
+      nickname: detail?.nickname ?? '',
+      tenant: user.tenantId != null ? String(user.tenantId) : '',
+    },
+  };
+}
 
 /** 发射实例生命周期事件的辅助函数（传 executor 时在事务内入队 outbox，需 await） */
 function emitInstanceEvent(
@@ -3408,10 +3435,11 @@ export async function createInstance(data: { definitionId: number; title: string
     throw new HTTPException(400, { message: '流程定义中无可执行节点' });
   }
   const serialConfig = flowData.settings?.serialNo;
+  const serialCtx = await buildSerialNoContext(serialConfig, formData);
   let txResult: { instance: typeof workflowInstances.$inferSelect; createdTasks: typeof workflowTasks.$inferSelect[] };
   try {
     txResult = await db.transaction(async (tx) => {
-      const serialNo = await generateSerialNo(tx, def.id, serialConfig);
+      const serialNo = await generateSerialNo(tx, def.id, serialConfig, serialCtx);
       const [createdInstance] = await tx.insert(workflowInstances).values({
         definitionId: def.id,
         definitionSnapshot,
@@ -4744,8 +4772,9 @@ export async function submitDraftInstance(id: number, input: { selectedInitiator
     throw new HTTPException(400, { message: '流程定义中无可执行节点' });
   }
   const serialConfig = flowData.settings?.serialNo;
+  const serialCtx = await buildSerialNoContext(serialConfig, formData);
   const instance = await db.transaction(async (tx) => {
-    const serialNo = await generateSerialNo(tx, def.id, serialConfig);
+    const serialNo = await generateSerialNo(tx, def.id, serialConfig, serialCtx);
     await tx.update(workflowInstances).set({
       definitionSnapshot,
       formSnapshot,

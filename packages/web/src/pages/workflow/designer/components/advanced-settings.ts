@@ -15,9 +15,15 @@ export interface AdvancedSettingsData {
 
 export const DEFAULT_SERIAL_NO: Required<WorkflowSerialNoConfig> = {
   enabled: false,
+  mode: 'structured',
   prefix: '',
+  suffix: '',
+  separator: '',
   dateFormat: 'none',
   seqLength: 4,
+  seqStart: 1,
+  seqStep: 1,
+  template: '',
   resetPeriod: 'never',
 };
 
