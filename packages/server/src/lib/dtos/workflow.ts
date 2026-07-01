@@ -278,6 +278,7 @@ export const WorkflowInstanceDTO = z
     title: z.string(),
     serialNo: z.string().nullable().optional(),
     priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+    allowWithdraw: z.boolean().optional(),
     allowResubmit: z.boolean().optional(),
     allowComment: z.boolean().optional(),
     formData: z.unknown().nullable(),

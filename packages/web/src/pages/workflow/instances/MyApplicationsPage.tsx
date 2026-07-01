@@ -302,9 +302,11 @@ function InstanceDetailDrawer({
             {ccNodeOptions.length > 0 && (
               <Button onClick={() => void openCcModal()}>添加抄送人</Button>
             )}
-            <Popconfirm title="确定要撤回吗？" onConfirm={() => void handleWithdraw()}>
-              <Button type="danger">撤回申请</Button>
-            </Popconfirm>
+            {data?.allowWithdraw !== false && (
+              <Popconfirm title="确定要撤回吗？" onConfirm={() => void handleWithdraw()}>
+                <Button type="danger">撤回申请</Button>
+              </Popconfirm>
+            )}
           </Space>
         ) : null
       }
@@ -619,9 +621,11 @@ export default function MyApplicationsPage() {
 
   const selectedRunningIds = selectedRowKeys.filter((id) => (data?.list ?? []).some((item) => item.id === id && item.status === 'running'));
 
+  const selectedWithdrawableIds = selectedRowKeys.filter((id) => (data?.list ?? []).some((item) => item.id === id && item.status === 'running' && item.allowWithdraw !== false));
+
   const openBatchWithdraw = () => {
-    if (selectedRunningIds.length === 0) {
-      Toast.warning('请选择审批中的申请');
+    if (selectedWithdrawableIds.length === 0) {
+      Toast.warning('请选择审批中且允许撤回的申请');
       return;
     }
     setBatchWithdrawComment('');
@@ -629,9 +633,9 @@ export default function MyApplicationsPage() {
   };
 
   const handleBatchWithdraw = async () => {
-    const instanceIds = selectedRunningIds;
+    const instanceIds = selectedWithdrawableIds;
     if (instanceIds.length === 0) {
-      Toast.warning('请选择审批中的申请');
+      Toast.warning('请选择审批中且允许撤回的申请');
       return;
     }
     setBatchWithdrawLoading(true);
@@ -830,8 +834,8 @@ export default function MyApplicationsPage() {
     <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={() => { handleReset(); }}>重置</Button>
   );
 
-  const renderBatchWithdrawButton = () => selectedRunningIds.length > 0 ? (
-    <Button type="tertiary" icon={<Undo2 size={14} />} disabled={selectedRunningIds.length === 0} onClick={openBatchWithdraw}>批量撤回</Button>
+  const renderBatchWithdrawButton = () => selectedWithdrawableIds.length > 0 ? (
+    <Button type="tertiary" icon={<Undo2 size={14} />} disabled={selectedWithdrawableIds.length === 0} onClick={openBatchWithdraw}>批量撤回</Button>
   ) : null;
 
   const renderBatchUrgeButton = () => selectedRunningIds.length > 0 ? (
@@ -990,7 +994,7 @@ export default function MyApplicationsPage() {
         confirmLoading={batchWithdrawLoading}
         okText="确认撤回"
       >
-        <Typography.Text>确定撤回选中的 {selectedRunningIds.length} 个申请吗？</Typography.Text>
+        <Typography.Text>确定撤回选中的 {selectedWithdrawableIds.length} 个申请吗？</Typography.Text>
         <TextArea
           value={batchWithdrawComment}
           onChange={setBatchWithdrawComment}

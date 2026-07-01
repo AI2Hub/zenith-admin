@@ -73,6 +73,7 @@ export function mapInstance(
     title: row.title,
     serialNo: row.serialNo ?? null,
     priority: (row.priority ?? 'normal') as import('@zenith/shared').WorkflowInstancePriority,
+    allowWithdraw: snapshotSettings?.allowWithdraw !== false,
     allowResubmit: snapshotSettings?.allowResubmit !== false,
     allowComment: snapshotSettings?.allowComment !== false,
     formData: row.formData,

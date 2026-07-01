@@ -1002,11 +1002,15 @@ function withActiveNodes<T extends WorkflowInstance>(inst: T): T {
   const currentNodeNames = currentNodeKeys
     .map((key) => def?.flowData?.nodes.find((n) => n.data.key === key)?.data.label ?? null)
     .filter((name): name is string => typeof name === 'string' && name.length > 0);
+  const settings = (def?.flowData?.settings ?? {}) as { allowWithdraw?: boolean; allowResubmit?: boolean; allowComment?: boolean };
   return {
     ...inst,
     currentNodeKeys,
     currentNodeNames,
     currentNodeName: currentNodeNames[0] ?? resolveCurrentNodeName(inst),
+    allowWithdraw: settings.allowWithdraw !== false,
+    allowResubmit: settings.allowResubmit !== false,
+    allowComment: settings.allowComment !== false,
   };
 }
 
@@ -2051,6 +2055,9 @@ export const workflowHandlers = [
     const idx = mockWorkflowInstances.findIndex(i => i.id === Number(params.id));
     if (idx === -1) return err('流程实例不存在', 404);
     if (mockWorkflowInstances[idx].status !== 'running') return err('只有审批中的流程才能撤回');
+    const def = mockWorkflowDefinitions.find(d => d.id === mockWorkflowInstances[idx].definitionId);
+    const allowWithdraw = (def?.flowData?.settings as { allowWithdraw?: boolean } | undefined)?.allowWithdraw;
+    if (allowWithdraw === false) return err('该流程不允许发起人撤回');
     mockWorkflowInstances[idx] = {
       ...mockWorkflowInstances[idx],
       status: 'withdrawn',

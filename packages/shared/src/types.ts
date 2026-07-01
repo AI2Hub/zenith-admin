@@ -3036,6 +3036,8 @@ export interface WorkflowInstance {
   serialNo?: string | null;
   /** 加急/优先级 */
   priority?: WorkflowInstancePriority;
+  /** 是否允许发起人撤回（来自流程定义高级设置，运行中申请用于控制撤回按钮） */
+  allowWithdraw?: boolean;
   /** 是否允许驳回后重新提交（来自流程定义高级设置，列表/详情用于控制按钮） */
   allowResubmit?: boolean;
   /** 是否允许流程中评论（来自流程定义高级设置） */
