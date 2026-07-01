@@ -184,7 +184,7 @@ async function getCreatorPayload(row: typeof exportJobs.$inferSelect): Promise<J
   };
 }
 
-async function renderJobFile(row: typeof exportJobs.$inferSelect, definition: AnyExportDefinition): Promise<{ buffer: Buffer; mimeType: string; filename: string }> {
+async function renderJobFile(row: typeof exportJobs.$inferSelect, definition: AnyExportDefinition): Promise<{ buffer: Buffer; mimeType: string; filename: string; rowCount?: number | null }> {
   const creator = await getCreatorPayload(row);
   const filename = row.filename ?? buildFilename(definition, row.id, row.format);
   const ctx: ExportRuntimeContext = {
@@ -209,6 +209,7 @@ async function renderJobFile(row: typeof exportJobs.$inferSelect, definition: An
         buffer: rendered.buffer,
         mimeType: rendered.mimeType,
         filename: rendered.filename ?? filename,
+        rowCount: rendered.rowCount,
       };
     }
     const rows = await definition.streamRows(row.query as Record<string, unknown>, creator, ctx);
@@ -245,6 +246,8 @@ async function executeExportJob(row: typeof exportJobs.$inferSelect, definition:
         fileSize: savedFile.size,
         completedAt,
         expiresAt: row.expiresAt ?? calculateExpiresAt(definition, row.raw, row.sensitive),
+        // 渲染阶段回读到的真实写入行数（legacy 导出的 countRows 恒为 0，此处回写修正「进度」列）
+        ...(rendered.rowCount !== undefined ? { rowCount: rendered.rowCount } : {}),
       })
       .where(eq(exportJobs.id, row.id))
       .returning();

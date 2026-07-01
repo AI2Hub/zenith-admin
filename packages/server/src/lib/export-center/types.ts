@@ -92,6 +92,11 @@ export interface ExportRenderedFile {
   buffer: Buffer;
   mimeType: string;
   filename?: string;
+  /**
+   * 实际写入文件的数据行数（不含表头）。用于导出任务完成后回写 `row_count`，
+   * 使导出中心「进度」列显示真实行数。`null` 表示无法确定（前端显示「已完成」）。
+   */
+  rowCount?: number | null;
 }
 
 export interface ExportDefinition<

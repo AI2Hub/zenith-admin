@@ -24,6 +24,20 @@ export function csvEscapeCell(value: unknown): string {
   return str;
 }
 
+// Tracks how many data rows (excluding header) each streamed export wrote. Populated
+// by streamToExcel / streamToCsv as the stream is consumed; read via getStreamRowCount
+// once the stream has been fully drained. Uses a WeakMap so counts never leak the stream.
+const streamRowCounts = new WeakMap<ReadableStream, { value: number }>();
+
+/**
+ * Returns the number of data rows written to a stream produced by `streamToExcel` /
+ * `streamToCsv`. Only meaningful after the stream has been fully consumed. Returns
+ * `undefined` for streams not created by those helpers.
+ */
+export function getStreamRowCount(stream: ReadableStream): number | undefined {
+  return streamRowCounts.get(stream)?.value;
+}
+
 /**
  * Generate a streaming CSV ReadableStream from column definitions and data rows.
  * Prepends a UTF-8 BOM so Excel opens the file with correct encoding.
@@ -40,8 +54,9 @@ export function streamToCsv(
 ): ReadableStream {
   const encoder = new TextEncoder();
   const headerLine = columns.map((c) => csvEscapeCell(c.header)).join(',') + '\n';
+  const counter = { value: 0 };
 
-  return new ReadableStream<Uint8Array>({
+  const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       // BOM + header
       controller.enqueue(encoder.encode('\uFEFF' + headerLine));
@@ -49,6 +64,7 @@ export function streamToCsv(
         const BATCH_SIZE = 500;
         let batch: string[] = [];
         for await (const row of data) {
+          counter.value++;
           const val = (c: ExcelColumn) => c.transform ? c.transform(row[c.key]) : row[c.key];
           batch.push(columns.map((c) => csvEscapeCell(val(c))).join(','));
           if (batch.length >= BATCH_SIZE) {
@@ -67,6 +83,8 @@ export function streamToCsv(
       }
     },
   });
+  streamRowCounts.set(stream, counter);
+  return stream;
 }
 
 /** Apply column transforms to a data row, returning a plain object keyed by column key. */
@@ -163,7 +181,10 @@ export function streamToExcel(
       const passThrough = new PassThrough();
       // Return the Web ReadableStream immediately so the HTTP response can start
       // consuming it while ExcelJS writes data asynchronously.
-      resolve(Readable.toWeb(passThrough) as ReadableStream);
+      const webStream = Readable.toWeb(passThrough) as ReadableStream;
+      const counter = { value: 0 };
+      streamRowCounts.set(webStream, counter);
+      resolve(webStream);
 
       const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: passThrough });
       const sheet = workbook.addWorksheet(sheetName);
@@ -182,6 +203,7 @@ export function streamToExcel(
       // batchIterable cursors, etc.) so callers can pass either without any conversion.
       (async () => {
         for await (const row of data) {
+          counter.value++;
           sheet.addRow(applyTransforms(columns, row)).commit();
         }
         sheet.commit();

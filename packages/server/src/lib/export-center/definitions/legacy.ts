@@ -17,7 +17,7 @@ import { exportRoles, exportRolesAsCsv } from '../../../services/roles.service';
 import { exportSmsSendLogs, exportSmsSendLogsAsCsv } from '../../../services/sms-send-logs.service';
 import { exportSystemConfigs, exportSystemConfigsAsCsv } from '../../../services/system-configs.service';
 import { exportTenants, exportTenantsAsCsv } from '../../../services/tenants.service';
-import { exportToExcel, streamToCsv, type ExcelColumn } from '../../excel-export';
+import { exportToExcel, getStreamRowCount, streamToCsv, type ExcelColumn } from '../../excel-export';
 import { formatFileTimestamp, parseDateRangeEnd, parseDateRangeStart } from '../../datetime';
 import { listEventsForExport, type EventListQuery } from '../../../services/analytics.service';
 import { exportInstances } from '../../../services/workflow-analytics.service';
@@ -27,6 +27,8 @@ import type { AnyExportDefinition, ExportFormat, ExportRuntimeContext } from '..
 interface LegacyFileResult {
   stream: ReadableStream<Uint8Array> | ReadableStream;
   filename: string;
+  /** 数据行数（不含表头）。materialized 导出可直接给出；流式导出留空由 stream 计数兜底。 */
+  rowCount?: number;
 }
 
 type LegacyExporter = (query: Record<string, unknown>) => Promise<LegacyFileResult>;
@@ -127,10 +129,12 @@ function defineLegacyExport(config: {
     },
     renderFile: async (ctx) => {
       const result = ctx.format === 'csv' ? await config.csv(ctx.query) : await config.xlsx(ctx.query);
+      const buffer = await streamToBuffer(result.stream);
       return {
-        buffer: await streamToBuffer(result.stream),
+        buffer,
         filename: result.filename,
         mimeType: ctx.format === 'csv' ? CSV_MIME : XLSX_MIME,
+        rowCount: result.rowCount ?? getStreamRowCount(result.stream) ?? null,
       };
     },
   }) as AnyExportDefinition;
@@ -143,10 +147,12 @@ async function renderPaymentStream(
   filenamePrefix: string,
 ) {
   const stream = ctx.format === 'csv' ? await csv(asRecord(ctx.query)) : await xlsx(asRecord(ctx.query));
+  const buffer = await streamToBuffer(stream);
   return {
-    buffer: await streamToBuffer(stream),
+    buffer,
     filename: `${filenamePrefix}_${formatFileTimestamp()}.${ctx.format}`,
     mimeType: ctx.format === 'csv' ? CSV_MIME : XLSX_MIME,
+    rowCount: getStreamRowCount(stream) ?? null,
   };
 }
 
@@ -162,12 +168,13 @@ async function exportAnalyticsEvents(query: Record<string, unknown>, format: Exp
   };
   const rows = await listEventsForExport(q);
   if (format === 'csv') {
-    return { stream: streamToCsv(analyticsColumns, rows), filename: `events_${formatFileTimestamp()}.csv` };
+    return { stream: streamToCsv(analyticsColumns, rows), filename: `events_${formatFileTimestamp()}.csv`, rowCount: rows.length };
   }
   const buffer = await exportToExcel(analyticsColumns, rows, '埋点事件');
   return {
     stream: new Blob([buffer]).stream(),
     filename: `events_${formatFileTimestamp()}.xlsx`,
+    rowCount: rows.length,
   };
 }
 
@@ -426,10 +433,12 @@ export const legacyExportDefinitions: AnyExportDefinition[] = [
         categoryId: asPositiveNumber(ctx.query.categoryId),
         initiatorKeyword: asString(ctx.query.initiatorKeyword),
       });
+      const buffer = await streamToBuffer(result.stream);
       return {
-        buffer: await streamToBuffer(result.stream),
+        buffer,
         filename: result.filename,
         mimeType: XLSX_MIME,
+        rowCount: getStreamRowCount(result.stream) ?? null,
       };
     },
   }) as AnyExportDefinition,
