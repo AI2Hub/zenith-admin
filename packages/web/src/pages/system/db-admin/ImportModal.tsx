@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import {
-  Banner, Button, Select, Space, Table, Toast, Typography, Upload,
+  Banner, Select, Space, Table, Toast, Typography, Upload,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Upload as UploadIcon, FileText } from 'lucide-react';

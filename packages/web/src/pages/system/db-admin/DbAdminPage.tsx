@@ -50,134 +50,27 @@ import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import { formatDateTime } from '@/utils/date';
 import { RowEditModal } from './RowEditModal';
-import { EditableCell } from './EditableCell';
 import { ErDiagram, type ErSchema } from './ErDiagram';
-import { buildInsertSql, buildUpdateSql, copyToClipboard, generateCreateTableDdl } from './sql-format';
+import { buildInsertSql, buildUpdateSql, generateCreateTableDdl } from './sql-format';
 import { OverviewPanel, KindTag } from './OverviewPanel';
 import { SqlConsole, type SqlConsoleHandle } from './SqlConsole';
 import { OpsPanel } from './OpsPanel';
 import { ObjectsPanel } from './ObjectsPanel';
 import { ImportModal } from './ImportModal';
-
-async function copyRowSqlAndToast(sql: string, label: string) {
-  const ok = await copyToClipboard(sql);
-  if (ok) Toast.success(`已复制 ${label}`);
-  else Toast.warning('复制失败');
-}
-
-interface RenderEditableCellOptions {
-  columnName: string;
-  dataType?: string;
-  schema: string;
-  table: string;
-  primaryKey: string[];
-  readOnly: boolean;
-  onCellSaved: (rowKey: unknown, columnName: string, newValue: unknown) => void;
-}
-
-function renderEditableCell(opts: RenderEditableCellOptions) {
-  const Cell = (value: unknown, record: Record<string, unknown>) => (
-    <EditableCell
-      value={value}
-      columnName={opts.columnName}
-      dataType={opts.dataType}
-      schema={opts.schema}
-      table={opts.table}
-      primaryKey={opts.primaryKey}
-      record={record}
-      readOnly={opts.readOnly}
-      onSaved={(nv) => opts.onCellSaved(record.__key, opts.columnName, nv)}
-    />
-  );
-  return Cell;
-}
+import {
+  DataGrid,
+  CellDetailDrawer,
+  type CellPos,
+  type DataGridColumn,
+  type DataGridHandle,
+} from '@/components/data-grid';
+import { useTableRowsInfinite } from './useTableRowsInfinite';
+import { ColumnFilterButton } from './ColumnFilterButton';
+import { GridContextMenu, type GridMenuState } from './GridContextMenu';
+import './db-admin.css';
 
 const { Title, Text } = Typography;
 
-interface ColumnFilterDropdownProps {
-  columnName: string;
-  tempFilteredValue: unknown[];
-  setTempFilteredValue: (value: unknown[]) => void;
-  confirm: (props?: { closeDropdown?: boolean; filteredValue?: unknown[] }) => void;
-  clear: (props?: { closeDropdown?: boolean }) => void;
-  close: () => void;
-}
-
-function ColumnFilterDropdown(props: Readonly<ColumnFilterDropdownProps>) {
-  const { columnName, tempFilteredValue, setTempFilteredValue, confirm, clear, close } = props;
-  const initialRaw = Array.isArray(tempFilteredValue) && tempFilteredValue.length > 0
-    ? String(tempFilteredValue[0])
-    : '';
-  const parseInitial = (s: string): { op: string; value: string } => {
-    const m = /^(eq|neq|gt|gte|lt|lte|like|ilike|isnull|notnull)\|(.*)$/s.exec(s);
-    if (m) return { op: m[1], value: m[2] };
-    return { op: 'ilike', value: s };
-  };
-  const initial = parseInitial(initialRaw);
-  const needsValue = !['isnull', 'notnull'].includes(initial.op);
-  const buildEncoded = (op: string, value: string): string => {
-    if (op === 'isnull' || op === 'notnull') return `${op}|`;
-    return `${op}|${value}`;
-  };
-  const apply = () => {
-    const kw = initial.value.trim();
-    const op = initial.op;
-    if (op !== 'isnull' && op !== 'notnull' && kw.length === 0) {
-      confirm({ filteredValue: [] });
-      return;
-    }
-    confirm({ filteredValue: [buildEncoded(op, kw)] });
-  };
-  const reset = () => { clear(); close(); };
-  const handleOpChange = (v: unknown) => {
-    const op = String(v);
-    if (op === 'isnull' || op === 'notnull') {
-      setTempFilteredValue([buildEncoded(op, '')]);
-    } else {
-      setTempFilteredValue([buildEncoded(op, initial.value)]);
-    }
-  };
-  const handleValueChange = (v: string) => {
-    setTempFilteredValue([buildEncoded(initial.op, v)]);
-  };
-  return (
-    <div style={{ padding: 8, width: 260 }}>
-      <Space vertical align="start" style={{ width: '100%' }}>
-        <Select
-          size="small"
-          value={initial.op}
-          onChange={handleOpChange}
-          style={{ width: '100%' }}
-          optionList={[
-            { label: '包含 (ILIKE)', value: 'ilike' },
-            { label: '等于 =', value: 'eq' },
-            { label: '不等于 ≠', value: 'neq' },
-            { label: '大于 >', value: 'gt' },
-            { label: '大于等于 ≥', value: 'gte' },
-            { label: '小于 <', value: 'lt' },
-            { label: '小于等于 ≤', value: 'lte' },
-            { label: '为空 IS NULL', value: 'isnull' },
-            { label: '非空 IS NOT NULL', value: 'notnull' },
-          ]}
-        />
-        {needsValue && (
-          <Input
-            size="small"
-            autoFocus
-            value={initial.value}
-            onChange={handleValueChange}
-            onEnterPress={apply}
-            placeholder={`筛选 ${columnName}……`}
-          />
-        )}
-      </Space>
-      <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between' }}>
-        <Button size="small" theme="borderless" onClick={reset}>重置</Button>
-        <Button size="small" theme="solid" type="primary" onClick={apply}>筛选</Button>
-      </div>
-    </div>
-  );
-}
 
 interface TableItem {
   schema: string;
@@ -225,13 +118,6 @@ interface HistoryItem {
   executedAt: string;
 }
 
-interface TableRowsResponse {
-  list: Array<Record<string, unknown>>;
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
 interface PaginatedResponse<T> {
   list: T[];
   total: number;
@@ -272,17 +158,18 @@ export default function DbAdminPage() {
   const [innerTab, setInnerTab] = useState<string>('structure');
   const [structure, setStructure] = useState<TableStructure | null>(null);
   const [structureLoading, setStructureLoading] = useState(false);
-  const [rows, setRows] = useState<TableRowsResponse | null>(null);
-  const [rowsLoading, setRowsLoading] = useState(false);
-  const [rowsPage, setRowsPage] = useState(1);
-  const [rowsPageSize, setRowsPageSize] = useState(20);
   const [rowsOrderBy, setRowsOrderBy] = useState<string | undefined>(undefined);
   const [rowsOrderDir, setRowsOrderDir] = useState<'asc' | 'desc' | undefined>(undefined);
   const [rowsFilters, setRowsFilters] = useState<Record<string, string>>({});
   const [rowsSearch, setRowsSearch] = useState('');
   const [rowsSearchInput, setRowsSearchInput] = useState('');
-  const [selectedRowKeys, setSelectedRowKeys] = useState<Array<string | number>>([]);
+  const [selectedRowIndexes, setSelectedRowIndexes] = useState<Set<number>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
+
+  // 数据网格
+  const gridRef = useRef<DataGridHandle | null>(null);
+  const [gridMenu, setGridMenu] = useState<GridMenuState | null>(null);
+  const [detailState, setDetailState] = useState<{ rowIndex: number; columnName: string | null } | null>(null);
 
   // 历史
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -321,8 +208,17 @@ export default function DbAdminPage() {
 
   // 列名缓存：用于 SQL 控制台自动补全；按需在 loadStructure 后追加，透传给 SqlConsole
   const structureColumnsCacheRef = useRef<Map<string, string[]>>(new Map());
-  // 全列搜索关键字引用：在 loadRows 闭包中读最新值，避免逐处透传
-  const rowsSearchRef = useRef('');
+
+  // 表数据：无限滚动加载（滚动近底自动取下一批）
+  const rowsData = useTableRowsInfinite({
+    schema: selected?.schema,
+    table: selected?.name,
+    enabled: innerTab === 'data' && selected !== null,
+    orderBy: rowsOrderBy,
+    orderDir: rowsOrderDir,
+    filters: rowsFilters,
+    search: rowsSearch,
+  });
 
   const loadTables = useCallback(async () => {
     setTablesLoading(true);
@@ -344,38 +240,6 @@ export default function DbAdminPage() {
       );
     }
     setStructureLoading(false);
-  }, []);
-
-  const loadRows = useCallback(async (
-    item: TableItem,
-    page: number,
-    pageSize: number,
-    orderBy?: string,
-    orderDir?: 'asc' | 'desc',
-    filters?: Record<string, string>,
-  ) => {
-    setRowsLoading(true);
-    const qs = new URLSearchParams();
-    qs.set('page', String(page));
-    qs.set('pageSize', String(pageSize));
-    if (orderBy && orderDir) {
-      qs.set('orderBy', orderBy);
-      qs.set('orderDir', orderDir);
-    }
-    const activeFilters = filters
-      ? Object.fromEntries(Object.entries(filters).filter(([, v]) => v.length > 0))
-      : {};
-    if (Object.keys(activeFilters).length > 0) {
-      qs.set('filters', JSON.stringify(activeFilters));
-    }
-    if (rowsSearchRef.current.trim()) {
-      qs.set('search', rowsSearchRef.current.trim());
-    }
-    const res = await request.get<TableRowsResponse>(
-      `/api/db-admin/tables/${encodeURIComponent(item.schema)}/${encodeURIComponent(item.name)}/rows?${qs.toString()}`,
-    );
-    if (res.code === 0 && res.data) setRows(res.data);
-    setRowsLoading(false);
   }, []);
 
   const loadHistory = useCallback(async (page: number, pageSize: number) => {
@@ -402,11 +266,7 @@ export default function DbAdminPage() {
   useEffect(() => {
     if (!selected) return;
     void loadStructure(selected);
-    if (innerTab === 'data') {
-      setRowsPage(1);
-      void loadRows(selected, 1, rowsPageSize, rowsOrderBy, rowsOrderDir, rowsFilters);
-    }
-  }, [selected, innerTab, loadStructure, loadRows, rowsPageSize, rowsOrderBy, rowsOrderDir, rowsFilters]);
+  }, [selected, loadStructure]);
 
   useEffect(() => {
     if (activeTab === 'history') void loadHistory(historyPage, historyPageSize);
@@ -419,46 +279,30 @@ export default function DbAdminPage() {
   const handleSelectTable = (item: TableItem) => {
     setSelected(item);
     setStructure(null);
-    setRows(null);
-    setRowsPage(1);
     setRowsOrderBy(undefined);
     setRowsOrderDir(undefined);
     setRowsFilters({});
     setRowsSearch('');
     setRowsSearchInput('');
-    rowsSearchRef.current = '';
-    setSelectedRowKeys([]);
+    setSelectedRowIndexes(new Set());
+    gridRef.current?.clearSelection();
   };
 
   const handleRowsSort = (col: string, dir: 'asc' | 'desc' | undefined) => {
-    if (!selected) return;
-    const nextBy = dir ? col : undefined;
-    const nextDir = dir;
-    setRowsOrderBy(nextBy);
-    setRowsOrderDir(nextDir);
-    setRowsPage(1);
-    void loadRows(selected, 1, rowsPageSize, nextBy, nextDir, rowsFilters);
+    setRowsOrderBy(dir ? col : undefined);
+    setRowsOrderDir(dir);
   };
 
   const handleRowsResetAll = () => {
-    if (!selected) return;
     setRowsOrderBy(undefined);
     setRowsOrderDir(undefined);
     setRowsFilters({});
     setRowsSearch('');
     setRowsSearchInput('');
-    rowsSearchRef.current = '';
-    setRowsPage(1);
-    void loadRows(selected, 1, rowsPageSize, undefined, undefined, {});
   };
 
   const handleRunSearch = (kw: string) => {
-    if (!selected) return;
-    const trimmed = kw.trim();
-    setRowsSearch(trimmed);
-    rowsSearchRef.current = trimmed;
-    setRowsPage(1);
-    void loadRows(selected, 1, rowsPageSize, rowsOrderBy, rowsOrderDir, rowsFilters);
+    setRowsSearch(kw.trim());
   };
 
   // ─── 表名右侧快捷操作 ─────────────────────────────────────────────────────
@@ -704,16 +548,16 @@ export default function DbAdminPage() {
   const hasPrimaryKey = (structure?.primaryKey.length ?? 0) > 0;
 
   const refreshRows = useCallback(() => {
-    if (!selected) return;
-    setSelectedRowKeys([]);
-    void loadRows(selected, rowsPage, rowsPageSize, rowsOrderBy, rowsOrderDir, rowsFilters);
-  }, [selected, rowsPage, rowsPageSize, rowsOrderBy, rowsOrderDir, rowsFilters, loadRows]);
+    setSelectedRowIndexes(new Set());
+    gridRef.current?.clearSelection();
+    void rowsData.refresh();
+  }, [rowsData]);
 
   const handleBatchDelete = useCallback(async () => {
-    if (!selected || !structure || structure.primaryKey.length === 0 || !rows) return;
+    if (!selected || !structure || structure.primaryKey.length === 0) return;
     const pkCols = structure.primaryKey;
-    const targets = selectedRowKeys
-      .map((k) => rows.list[Number(k)])
+    const targets = Array.from(selectedRowIndexes)
+      .map((i) => rowsData.rows[i])
       .filter((r): r is Record<string, unknown> => Boolean(r));
     if (targets.length === 0) return;
     setBatchDeleting(true);
@@ -730,18 +574,17 @@ export default function DbAdminPage() {
       else fail++;
     }
     setBatchDeleting(false);
-    setSelectedRowKeys([]);
     if (fail === 0) Toast.success(`已删除 ${ok} 行`);
     else Toast.warning(`删除完成：成功 ${ok}，失败 ${fail}`);
-    if (selected) void loadRows(selected, rowsPage, rowsPageSize, rowsOrderBy, rowsOrderDir, rowsFilters);
-  }, [selected, structure, rows, selectedRowKeys, rowsPage, rowsPageSize, rowsOrderBy, rowsOrderDir, rowsFilters, loadRows]);
+    refreshRows();
+  }, [selected, structure, selectedRowIndexes, rowsData.rows, refreshRows]);
 
   const selectedRowsData = useCallback((): Array<Record<string, unknown>> => {
-    if (!rows) return [];
-    return selectedRowKeys
-      .map((k) => rows.list[Number(k)])
+    return Array.from(selectedRowIndexes)
+      .sort((a, b) => a - b)
+      .map((i) => rowsData.rows[i])
       .filter((r): r is Record<string, unknown> => Boolean(r));
-  }, [rows, selectedRowKeys]);
+  }, [rowsData.rows, selectedRowIndexes]);
 
   const handleBatchCopyInsert = useCallback(async () => {
     if (!selected) return;
@@ -788,31 +631,6 @@ export default function DbAdminPage() {
     setRowModalOpen(true);
   };
 
-  const handleDeleteRow = async (row: Record<string, unknown>) => {
-    if (!selected || !structure || structure.primaryKey.length === 0) return;
-    const pk: Record<string, unknown> = {};
-    for (const k of structure.primaryKey) pk[k] = row[k];
-    const res = await request.delete<{ deleted: number }>(
-      `/api/db-admin/tables/${encodeURIComponent(selected.schema)}/${encodeURIComponent(selected.name)}/rows`,
-      { pk },
-    );
-    if (res.code === 0) {
-      Toast.success('已删除');
-      refreshRows();
-    }
-  };
-
-  const renderCell = (v: unknown): React.ReactNode => {
-    if (v == null) return <Text type="quaternary">NULL</Text>;
-    if (typeof v === 'object') return <Text code>{JSON.stringify(v)}</Text>;
-    let str: string;
-    if (typeof v === 'string') str = v;
-    else if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint') str = v.toString();
-    else str = JSON.stringify(v);
-    if (str.length > 80) return <Tooltip content={<div style={{ maxWidth: 400, wordBreak: 'break-all' }}>{str}</div>}>{str.slice(0, 80) + '…'}</Tooltip>;
-    return str;
-  };
-
   const resolveDataCols = (
     str: TableStructure | null,
     list: Array<Record<string, unknown>>,
@@ -825,24 +643,6 @@ export default function DbAdminPage() {
     return filterKeys.map((n) => ({ name: n }));
   };
 
-  const handleCellSaved = useCallback(
-    (rowKey: unknown, columnName: string, newValue: unknown) => {
-      setRows((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          list: prev.list.map((r, i) => (i === rowKey ? { ...r, [columnName]: newValue } : r)),
-        };
-      });
-    },
-    [],
-  );
-
-  const makeOnCellDblClick = (colName: string) => (record?: Record<string, unknown>) => ({
-    onDoubleClick: () => { if (record) openEditRow(record, colName); },
-    style: { cursor: 'pointer' as const },
-  });
-
   const handleFkJump = useCallback((fk: ForeignKeyInfo, value?: unknown) => {
     const target = tables.find((t) => t.schema === fk.referencedSchema && t.name === fk.referencedTable);
     if (!target) {
@@ -851,8 +651,6 @@ export default function DbAdminPage() {
     }
     setSelected(target);
     setStructure(null);
-    setRows(null);
-    setRowsPage(1);
     setRowsOrderBy(undefined);
     setRowsOrderDir(undefined);
     if (value != null && fk.referencedColumns.length === 1) {
@@ -860,160 +658,107 @@ export default function DbAdminPage() {
       if (typeof value === 'string') strVal = value;
       else if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') strVal = value.toString();
       else strVal = JSON.stringify(value);
-      setRowsFilters({ [fk.referencedColumns[0]]: strVal });
+      setRowsFilters({ [fk.referencedColumns[0]]: `eq|${strVal}` });
     } else {
       setRowsFilters({});
     }
-    setSelectedRowKeys([]);
+    setSelectedRowIndexes(new Set());
     setInnerTab('data');
   }, [tables]);
 
-  const buildDataColumns = (
-    cols: Array<{ name: string; dataType?: string }>,
-    options?: {
-      sortable?: boolean;
-      filterable?: boolean;
-      editable?: { primaryKey: string[]; canWriteRow: boolean; schema?: string; table?: string };
-    },
-  ): ColumnProps<Record<string, unknown>>[] => {
-    const sortable = options?.sortable ?? false;
-    const filterable = options?.filterable ?? false;
-    const editable = options?.editable;
+  // ─── 数据网格接线 ────────────────────────────────────────────────────────────
+  const canEditRows = canWrite && isWritableTable && hasPrimaryKey;
+
+  const gridColumns = useMemo<DataGridColumn[]>(() => {
     const fkByColumn = new Map<string, ForeignKeyInfo>();
     if (structure?.foreignKeys) {
       for (const fk of structure.foreignKeys) {
         if (fk.columns.length === 1) fkByColumn.set(fk.columns[0], fk);
       }
     }
-    const inlineEnabled = Boolean(
-      editable?.canWriteRow
-      && editable.primaryKey.length > 0
-      && editable.schema
-      && editable.table,
-    );
-    const result: ColumnProps<Record<string, unknown>>[] = cols.map((c) => {
+    const base = resolveDataCols(structure, rowsData.rows, Object.keys(rowsFilters));
+    return base.map((c) => {
+      const info = structure?.columns.find((sc) => sc.name === c.name);
       const fk = fkByColumn.get(c.name);
-      const titleNode = (
-        <Space spacing={4}>
-          <Text>{c.name}</Text>
-          {c.dataType && <Text type="tertiary" size="small">{c.dataType}</Text>}
-          {fk && (
-            <Tooltip content={`外键 → ${fk.referencedSchema}.${fk.referencedTable}.${fk.referencedColumns.join(',')}`}>
-              <Tag size="small" color="blue" style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); handleFkJump(fk); }}>FK</Tag>
-            </Tooltip>
-          )}
-        </Space>
-      );
-      const col: ColumnProps<Record<string, unknown>> = {
-        title: titleNode,
-        dataIndex: c.name,
-        key: c.name,
-        width: 180,
-        ellipsis: { showTitle: false },
-        render: renderCell,
+      const isPk = structure?.primaryKey.includes(c.name) ?? false;
+      return {
+        name: c.name,
+        dataType: c.dataType,
+        isPrimaryKey: isPk,
+        pinned: isPk,
+        nullable: info?.isNullable,
+        comment: info?.comment ?? null,
+        fk: fk
+          ? { schema: fk.referencedSchema, table: fk.referencedTable, columns: fk.referencedColumns }
+          : null,
       };
-      if (inlineEnabled && editable) {
-        const isPk = editable.primaryKey.includes(c.name);
-        col.render = renderEditableCell({
-          columnName: c.name,
-          dataType: c.dataType,
-          schema: editable.schema!,
-          table: editable.table!,
-          primaryKey: editable.primaryKey,
-          readOnly: isPk,
-          onCellSaved: handleCellSaved,
-        });
-      } else if (editable?.canWriteRow) {
-        col.onCell = makeOnCellDblClick(c.name);
-      }
-      if (sortable) {
-        col.sorter = true;
-        let sortOrder: 'ascend' | 'descend' | false = false;
-        if (rowsOrderBy === c.name) sortOrder = rowsOrderDir === 'asc' ? 'ascend' : 'descend';
-        col.sortOrder = sortOrder;
-      }
-      if (filterable) {
-        const current = rowsFilters[c.name] ?? '';
-        const active = current.length > 0;
-        col.filteredValue = active ? [current] : [];
-        col.renderFilterDropdown = (renderProps) => (
-          <ColumnFilterDropdown
-            columnName={c.name}
-            tempFilteredValue={renderProps.tempFilteredValue}
-            setTempFilteredValue={renderProps.setTempFilteredValue}
-            confirm={renderProps.confirm}
-            clear={renderProps.clear}
-            close={renderProps.close}
-          />
-        );
-      }
-      return col;
     });
-    if (editable?.canWriteRow && editable.primaryKey.length > 0) {
-      const schemaName = editable.schema;
-      const tableName = editable.table;
-      const pkCols = editable.primaryKey;
-      result.push(createOperationColumn<Record<string, unknown>>({
-        width: 120,
-        desktopInlineKeys: ['edit'],
-        actions: (record) => [
-          {
-            key: 'edit',
-            label: '编辑',
-            onClick: () => openEditRow(record),
-          },
-          {
-            key: 'delete',
-            label: '删除',
-            danger: true,
-            onClick: () => {
-              Modal.confirm({
-                title: '确定要删除该行吗？',
-                content: '此操作不可恢复',
-                okButtonProps: { type: 'danger', theme: 'solid' },
-                onOk: () => handleDeleteRow(record),
-              });
-            },
-          },
-          {
-            key: 'insert-sql',
-            label: '复制为 INSERT SQL',
-            hidden: !(schemaName && tableName),
-            onClick: () => {
-              if (schemaName && tableName) {
-                const cleanRow: Record<string, unknown> = {};
-                for (const [k, v] of Object.entries(record)) {
-                  if (!k.startsWith('__')) cleanRow[k] = v;
-                }
-                void copyRowSqlAndToast(buildInsertSql(schemaName, tableName, cleanRow), 'INSERT SQL');
-              }
-            },
-          },
-          {
-            key: 'update-sql',
-            label: '复制为 UPDATE SQL',
-            hidden: !(schemaName && tableName),
-            onClick: () => {
-              if (schemaName && tableName) {
-                const cleanRow: Record<string, unknown> = {};
-                for (const [k, v] of Object.entries(record)) {
-                  if (!k.startsWith('__')) cleanRow[k] = v;
-                }
-                const pk: Record<string, unknown> = {};
-                for (const k of pkCols) pk[k] = record[k];
-                const updateChanges: Record<string, unknown> = {};
-                for (const [k, v] of Object.entries(cleanRow)) {
-                  if (!pkCols.includes(k)) updateChanges[k] = v;
-                }
-                void copyRowSqlAndToast(buildUpdateSql(schemaName, tableName, pk, updateChanges), 'UPDATE SQL');
-              }
-            },
-          },
-        ],
-      }));
+  }, [structure, rowsData.rows, rowsFilters]);
+
+  const handleGridFilterChange = useCallback((column: string, encoded: string | null) => {
+    setRowsFilters((prev) => {
+      const next = { ...prev };
+      if (encoded === null || encoded.length === 0) delete next[column];
+      else next[column] = encoded;
+      return next;
+    });
+  }, []);
+
+  const handleGridFkClick = useCallback((columnName: string, value: unknown) => {
+    const fk = structure?.foreignKeys.find((f) => f.columns.length === 1 && f.columns[0] === columnName);
+    if (fk) handleFkJump(fk, value);
+  }, [structure, handleFkJump]);
+
+  const handleGridOpenDetail = useCallback((pos: CellPos) => {
+    const cols = gridRef.current?.getVisibleColumns();
+    setDetailState({ rowIndex: pos.row, columnName: cols?.[pos.col]?.name ?? null });
+  }, []);
+
+  const handleGridDoubleClick = useCallback((rowIndex: number, columnName: string) => {
+    const row = rowsData.rows[rowIndex];
+    if (!row) return;
+    if (canEditRows) {
+      openEditRow(row, columnName);
+    } else {
+      setDetailState({ rowIndex, columnName });
     }
-    return result;
-  };
+  }, [rowsData.rows, canEditRows]);
+
+  const handleGridDeleteRows = useCallback((rowIndexes: number[]) => {
+    if (!canEditRows) return;
+    Modal.confirm({
+      title: `确定要删除选中的 ${rowIndexes.length} 行吗？`,
+      content: '此操作不可恢复',
+      okButtonProps: { type: 'danger', theme: 'solid' },
+      onOk: async () => {
+        if (!selected || !structure) return;
+        let ok = 0;
+        let fail = 0;
+        for (const idx of rowIndexes) {
+          const row = rowsData.rows[idx];
+          if (!row) continue;
+          const pk: Record<string, unknown> = {};
+          for (const k of structure.primaryKey) pk[k] = row[k];
+          const res = await request.delete<{ deleted: number }>(
+            `/api/db-admin/tables/${encodeURIComponent(selected.schema)}/${encodeURIComponent(selected.name)}/rows`,
+            { pk },
+          );
+          if (res.code === 0) ok++;
+          else fail++;
+        }
+        if (fail === 0) Toast.success(`已删除 ${ok} 行`);
+        else Toast.warning(`删除完成：成功 ${ok}，失败 ${fail}`);
+        refreshRows();
+      },
+    });
+  }, [canEditRows, selected, structure, rowsData.rows, refreshRows]);
+
+  /** 可见列顺序（pinned 优先，与 DataGrid 内部一致），供菜单/详情按 col 下标取列 */
+  const orderedGridColumns = useMemo(() => {
+    const pinned = gridColumns.filter((c) => c.pinned);
+    const normal = gridColumns.filter((c) => !c.pinned);
+    return [...pinned, ...normal];
+  }, [gridColumns]);
 
   const historyColumns: ColumnProps<HistoryItem>[] = [
     { title: '时间', dataIndex: 'executedAt', width: 180, render: (v: string) => formatDateTime(v) },
@@ -1219,150 +964,117 @@ export default function DbAdminPage() {
                         />
                       )}
                     </TabPane>
-                    <TabPane tab="数据" itemKey="data">
-                      {!rows && rowsLoading && <Spin />}
-                      {rows && (
-                        <div style={{ width: '100%' }}>
-                          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            <Text type="tertiary" size="small">
-                              共 {rows.total.toLocaleString()} 行
-                              {rowsOrderBy && (<> · 排序：<Text code>{rowsOrderBy} {rowsOrderDir}</Text></>)}
-                              {Object.keys(rowsFilters).length > 0 && (<> · 筛选：<Text code>{Object.keys(rowsFilters).join(', ')}</Text></>)}
-                              {rowsSearch && (<> · 搜索：<Text code>{rowsSearch}</Text></>)}
-                              {!hasPrimaryKey && isWritableTable && (
-                                <> · <Text type="warning">无主键，仅可插入与查看</Text></>
-                              )}
-                              {!isWritableTable && (
-                                <> · <Text type="tertiary">系统表只读</Text></>
-                              )}
-                            </Text>
-                            <Space wrap>
-                              <Input
+                    <TabPane tab="数据" itemKey="data" style={{ height: '100%' }}>
+                      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                        <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
+                          <Text type="tertiary" size="small">
+                            共 {rowsData.total.toLocaleString()} 行
+                            {rowsOrderBy && (<> · 排序：<Text code>{rowsOrderBy} {rowsOrderDir}</Text></>)}
+                            {Object.keys(rowsFilters).length > 0 && (<> · 筛选：<Text code>{Object.keys(rowsFilters).join(', ')}</Text></>)}
+                            {rowsSearch && (<> · 搜索：<Text code>{rowsSearch}</Text></>)}
+                            {!hasPrimaryKey && isWritableTable && (
+                              <> · <Text type="warning">无主键，仅可插入与查看</Text></>
+                            )}
+                            {!isWritableTable && (
+                              <> · <Text type="tertiary">系统表只读</Text></>
+                            )}
+                          </Text>
+                          <Space wrap>
+                            <Input
+                              size="small"
+                              prefix={<Search size={14} />}
+                              placeholder="全列搜索…"
+                              value={rowsSearchInput}
+                              onChange={setRowsSearchInput}
+                              onEnterPress={() => handleRunSearch(rowsSearchInput)}
+                              showClear
+                              onClear={() => { setRowsSearchInput(''); handleRunSearch(''); }}
+                              style={{ width: 200 }}
+                            />
+                            <Button size="small" onClick={() => handleRunSearch(rowsSearchInput)}>搜索</Button>
+                            {canWrite && isWritableTable && (
+                              <Button
                                 size="small"
-                                prefix={<Search size={14} />}
-                                placeholder="全列搜索…"
-                                value={rowsSearchInput}
-                                onChange={setRowsSearchInput}
-                                onEnterPress={() => handleRunSearch(rowsSearchInput)}
-                                showClear
-                                onClear={() => { setRowsSearchInput(''); handleRunSearch(''); }}
-                                style={{ width: 200 }}
-                              />
-                              <Button size="small" onClick={() => handleRunSearch(rowsSearchInput)}>搜索</Button>
-                              {canWrite && isWritableTable && (
-                                <Button
-                                  size="small"
-                                  theme="solid"
-                                  type="primary"
-                                  icon={<Plus size={14} />}
-                                  onClick={openCreateRow}
-                                  disabled={!structure}
-                                >新增行</Button>
+                                theme="solid"
+                                type="primary"
+                                icon={<Plus size={14} />}
+                                onClick={openCreateRow}
+                                disabled={!structure}
+                              >新增行</Button>
+                            )}
+                            {canWrite && isWritableTable && (
+                              <Button
+                                size="small"
+                                icon={<Upload size={14} />}
+                                onClick={() => setImportOpen(true)}
+                                disabled={!structure}
+                              >导入</Button>
+                            )}
+                            {(rowsOrderBy || Object.keys(rowsFilters).length > 0 || rowsSearch) && (
+                              <Button size="small" theme="borderless" onClick={handleRowsResetAll}>重置排序 / 筛选</Button>
+                            )}
+                          </Space>
+                        </div>
+                        {selectedRowIndexes.size > 0 && (
+                          <div style={{ marginBottom: 8, padding: '6px 12px', background: 'var(--semi-color-fill-0)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                            <Text size="small">已选 <Text strong>{selectedRowIndexes.size}</Text> 行</Text>
+                            <Space>
+                              {canEditRows && (
+                                <Popconfirm
+                                  title={`确认删除选中的 ${selectedRowIndexes.size} 行？`}
+                                  onConfirm={() => void handleBatchDelete()}
+                                >
+                                  <Button size="small" type="danger" theme="solid" loading={batchDeleting} icon={<Trash2 size={14} />}>批量删除</Button>
+                                </Popconfirm>
                               )}
-                              {canWrite && isWritableTable && (
-                                <Button
-                                  size="small"
-                                  icon={<Upload size={14} />}
-                                  onClick={() => setImportOpen(true)}
-                                  disabled={!structure}
-                                >导入</Button>
+                              <Button size="small" icon={<Copy size={14} />} onClick={() => void handleBatchCopyInsert()}>复制为 INSERT SQL</Button>
+                              {hasPrimaryKey && (
+                                <Button size="small" icon={<Copy size={14} />} onClick={() => void handleBatchCopyUpdate()}>复制为 UPDATE SQL</Button>
                               )}
-                              {(rowsOrderBy || Object.keys(rowsFilters).length > 0 || rowsSearch) && (
-                                <Button size="small" theme="borderless" onClick={handleRowsResetAll}>重置排序 / 筛选</Button>
-                              )}
+                              <Button size="small" theme="borderless" onClick={() => { gridRef.current?.clearSelection(); }}>取消选择</Button>
                             </Space>
                           </div>
-                          {selectedRowKeys.length > 0 && (
-                            <div style={{ marginBottom: 8, padding: '6px 12px', background: 'var(--semi-color-fill-0)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <Text size="small">已选 <Text strong>{selectedRowKeys.length}</Text> 行</Text>
-                              <Space>
-                                {hasPrimaryKey && isWritableTable && canWrite && (
-                                  <Popconfirm
-                                    title={`确认删除选中的 ${selectedRowKeys.length} 行？`}
-                                    onConfirm={() => void handleBatchDelete()}
-                                  >
-                                    <Button size="small" type="danger" theme="solid" loading={batchDeleting} icon={<Trash2 size={14} />}>批量删除</Button>
-                                  </Popconfirm>
-                                )}
-                                <Button size="small" icon={<Copy size={14} />} onClick={() => void handleBatchCopyInsert()}>复制为 INSERT SQL</Button>
-                                {hasPrimaryKey && (
-                                  <Button size="small" icon={<Copy size={14} />} onClick={() => void handleBatchCopyUpdate()}>复制为 UPDATE SQL</Button>
-                                )}
-                                <Button size="small" theme="borderless" onClick={() => setSelectedRowKeys([])}>取消选择</Button>
-                              </Space>
-                            </div>
+                        )}
+                        <div style={{ flex: 1, minHeight: 0 }}>
+                          {rowsData.loading && rowsData.rows.length === 0 ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}><Spin /></div>
+                          ) : (
+                            <DataGrid
+                              ref={gridRef}
+                              columns={gridColumns}
+                              rows={rowsData.rows}
+                              totalRows={rowsData.total}
+                              hasMore={rowsData.hasMore}
+                              loadingMore={rowsData.loadingMore}
+                              onLoadMore={rowsData.loadMore}
+                              sortState={rowsOrderBy && rowsOrderDir ? { column: rowsOrderBy, dir: rowsOrderDir } : null}
+                              onSortChange={(s) => handleRowsSort(s?.column ?? rowsOrderBy ?? '', s?.dir)}
+                              onOpenDetail={handleGridOpenDetail}
+                              onRowDoubleClick={handleGridDoubleClick}
+                              onCellContextMenu={(e, pos, snapshot) => {
+                                setGridMenu({
+                                  x: e.clientX,
+                                  y: e.clientY,
+                                  pos,
+                                  snapshot,
+                                  columns: gridRef.current?.getVisibleColumns() ?? orderedGridColumns,
+                                });
+                              }}
+                              headerFilterRender={(col) => (
+                                <ColumnFilterButton
+                                  columnName={col.name}
+                                  value={rowsFilters[col.name] ?? ''}
+                                  onChange={(encoded) => handleGridFilterChange(col.name, encoded)}
+                                />
+                              )}
+                              onFkClick={handleGridFkClick}
+                              onSelectedRowsChange={setSelectedRowIndexes}
+                              storageKey={selected ? `db-admin:grid:${selected.schema}.${selected.name}` : undefined}
+                              emptyText="无数据"
+                            />
                           )}
-                          <ConfigurableTable
-                            bordered
-                            loading={rowsLoading}
-                            columnSettings
-                            columnSettingsKey={selected ? `db-admin:cols:${selected.schema}.${selected.name}` : undefined}
-                            columns={buildDataColumns(
-                              resolveDataCols(structure, rows.list, Object.keys(rowsFilters)),
-                              {
-                                sortable: true,
-                                filterable: true,
-                                editable: canWrite && isWritableTable && selected
-                                  ? {
-                                      primaryKey: structure?.primaryKey ?? [],
-                                      canWriteRow: hasPrimaryKey,
-                                      schema: selected.schema,
-                                      table: selected.name,
-                                    }
-                                  : undefined,
-                              },
-                            )}
-                            dataSource={rows.list.map((r, i) => ({ ...r, __key: i }))}
-                            rowKey="__key"
-                            rowSelection={hasPrimaryKey ? {
-                              selectedRowKeys,
-                              onChange: (keys?: Array<string | number>) => setSelectedRowKeys(keys ?? []),
-                              fixed: true,
-                            } : undefined}
-                            pagination={{
-                              currentPage: rowsPage,
-                              pageSize: rowsPageSize,
-                              total: rows.total,
-                              pageSizeOpts: [20, 50, 100, 200],
-                              onPageChange: (p) => {
-                                setRowsPage(p);
-                                if (selected) void loadRows(selected, p, rowsPageSize, rowsOrderBy, rowsOrderDir, rowsFilters);
-                              },
-                              onPageSizeChange: (size) => {
-                                setRowsPageSize(size);
-                                setRowsPage(1);
-                                if (selected) void loadRows(selected, 1, size, rowsOrderBy, rowsOrderDir, rowsFilters);
-                              },
-                            }}
-                            size="small"
-                            scroll={{ x: 'max-content' }}
-                            resizable
-                            onChange={({ filters: columnFilters, sorter, extra }) => {
-                              const changeType = extra?.changeType;
-                              if (changeType === 'sorter') {
-                                const s = sorter as { dataIndex?: string; sortOrder?: 'ascend' | 'descend' | false } | undefined;
-                                if (!s?.dataIndex) return;
-                                if (s.sortOrder === 'ascend') handleRowsSort(s.dataIndex, 'asc');
-                                else if (s.sortOrder === 'descend') handleRowsSort(s.dataIndex, 'desc');
-                                else handleRowsSort(s.dataIndex, undefined);
-                              } else if (changeType === 'filter' && Array.isArray(columnFilters)) {
-                                // 将 Table 传出的 per-column filteredValue 汇总为与后端交互的平坑结构
-                                const next: Record<string, string> = {};
-                                for (const f of columnFilters as Array<{ dataIndex?: string; filteredValue?: unknown[] }>) {
-                                  if (!f.dataIndex) continue;
-                                  const v = Array.isArray(f.filteredValue) && f.filteredValue.length > 0
-                                    ? String(f.filteredValue[0]).trim()
-                                    : '';
-                                  if (v) next[f.dataIndex] = v;
-                                }
-                                setRowsFilters(next);
-                                setRowsPage(1);
-                                if (selected) void loadRows(selected, 1, rowsPageSize, rowsOrderBy, rowsOrderDir, next);
-                              }
-                            }}
-                          />
                         </div>
-                      )}
+                      </div>
                     </TabPane>
                     <TabPane tab={`索引（${structure?.indexes.length ?? 0}）`} itemKey="indexes">
                       {structureLoading && <Spin />}
@@ -1514,6 +1226,32 @@ export default function DbAdminPage() {
           onSuccess={() => { setImportOpen(false); refreshRows(); }}
         />
       )}
+
+      <CellDetailDrawer
+        visible={detailState !== null}
+        onClose={() => setDetailState(null)}
+        columns={gridColumns}
+        row={detailState !== null ? (rowsData.rows[detailState.rowIndex] ?? null) : null}
+        rowNumber={detailState !== null ? detailState.rowIndex + 1 : null}
+        columnName={detailState?.columnName ?? null}
+      />
+
+      <GridContextMenu
+        menu={gridMenu}
+        onClose={() => setGridMenu(null)}
+        rows={rowsData.rows}
+        schema={selected?.schema}
+        table={selected?.name}
+        primaryKey={structure?.primaryKey ?? []}
+        canEditRows={canEditRows}
+        onFilterByValue={(column, encoded) => handleGridFilterChange(column, encoded)}
+        onOpenDetail={handleGridOpenDetail}
+        onEditRow={(rowIndex, focusField) => {
+          const row = rowsData.rows[rowIndex];
+          if (row) openEditRow(row, focusField);
+        }}
+        onDeleteRows={handleGridDeleteRows}
+      />
     </div>
   );
 }

@@ -1,0 +1,392 @@
+/* DataGrid：全部颜色走 Semi CSS 变量，主题切换自动适配 */
+
+.dg-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 4px;
+  background: var(--semi-color-bg-2);
+  overflow: hidden;
+}
+
+.dg-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  outline: none;
+  position: relative;
+}
+
+/* ── 表头 ─────────────────────────────────────────── */
+.dg-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  /* 不透明底色 + 半透明填充叠加，避免 sticky 透出滚动内容 */
+  background-color: var(--semi-color-bg-2);
+  background-image: linear-gradient(var(--semi-color-fill-0), var(--semi-color-fill-0));
+  border-bottom: 1px solid var(--semi-color-border);
+  user-select: none;
+}
+
+.dg-header-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  height: 34px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--semi-color-text-1);
+  border-right: 1px solid var(--semi-color-border);
+  box-sizing: border-box;
+  flex-shrink: 0;
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.dg-header-cell:hover {
+  background: var(--semi-color-fill-0);
+}
+
+.dg-header-cell__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dg-header-cell__type {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--semi-color-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+}
+
+.dg-header-cell__icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.dg-header-cell__sort {
+  display: inline-flex;
+  color: var(--semi-color-primary);
+}
+
+.dg-pk-icon {
+  color: var(--semi-color-warning);
+  flex-shrink: 0;
+}
+
+/* 列宽拖拽手柄 */
+.dg-resize-handle {
+  position: absolute;
+  right: -3px;
+  top: 0;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 2;
+}
+
+.dg-resize-handle:hover,
+.dg-resize-handle--active {
+  background: var(--semi-color-primary-light-active);
+}
+
+/* ── 行号列（表头 + 单元格通用） ───────────────────── */
+.dg-rownum {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--semi-color-text-2);
+  border-right: 1px solid var(--semi-color-border);
+  box-sizing: border-box;
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+  background-color: var(--semi-color-bg-2);
+  background-image: linear-gradient(var(--semi-color-fill-0), var(--semi-color-fill-0));
+}
+
+.dg-rownum:hover {
+  background-image: linear-gradient(var(--semi-color-fill-1), var(--semi-color-fill-1));
+}
+
+.dg-rownum--selected,
+.dg-row--odd .dg-rownum--selected,
+.dg-row:hover .dg-rownum--selected {
+  color: var(--semi-color-primary);
+  font-weight: 600;
+  background-image: linear-gradient(var(--semi-color-primary-light-default), var(--semi-color-primary-light-default));
+}
+
+.dg-header .dg-rownum {
+  z-index: 6;
+  cursor: default;
+}
+
+/* 固定数据列：单元格本身已有不透明底色（.dg-cell 的 background-color），只需 sticky 定位 */
+.dg-cell--pinned {
+  position: sticky;
+  z-index: 2;
+}
+
+.dg-header-cell--pinned {
+  position: sticky;
+  z-index: 6;
+  background-color: var(--semi-color-bg-2);
+  background-image: linear-gradient(var(--semi-color-fill-0), var(--semi-color-fill-0));
+}
+
+/* ── 数据行 ───────────────────────────────────────── */
+.dg-body {
+  position: relative;
+  width: max-content;
+  min-width: 100%;
+}
+
+.dg-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+
+.dg-row--odd .dg-cell {
+  background-image: linear-gradient(var(--semi-color-fill-0), var(--semi-color-fill-0));
+}
+
+.dg-row:hover .dg-cell {
+  background-image: linear-gradient(var(--semi-color-fill-1), var(--semi-color-fill-1));
+}
+
+.dg-cell {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 12px;
+  color: var(--semi-color-text-0);
+  border-right: 1px solid var(--semi-color-border);
+  border-bottom: 1px solid var(--semi-color-border);
+  box-sizing: border-box;
+  flex-shrink: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+  background-color: var(--semi-color-bg-2);
+  position: relative;
+}
+
+.dg-cell-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+/* 选中态：叠加主色高亮（放在 zebra/hover 之后保证优先级） */
+.dg-cell--selected,
+.dg-row:hover .dg-cell--selected,
+.dg-row--odd .dg-cell--selected {
+  background-image: linear-gradient(var(--semi-color-primary-light-default), var(--semi-color-primary-light-default));
+}
+
+/* active cell 焦点框 */
+.dg-cell--active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid var(--semi-color-primary);
+  pointer-events: none;
+}
+
+/* ── 类型化内容 ───────────────────────────────────── */
+.dg-null {
+  color: var(--semi-color-text-3);
+  font-style: italic;
+}
+
+.dg-bool {
+  font-family: var(--semi-font-family-regular, inherit);
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 3px;
+  line-height: 18px;
+}
+
+.dg-bool--true {
+  color: var(--semi-color-success);
+  background: var(--semi-color-success-light-default);
+}
+
+.dg-bool--false {
+  color: var(--semi-color-text-2);
+  background: var(--semi-color-fill-0);
+}
+
+.dg-json {
+  font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;
+  font-size: 11px;
+  color: var(--semi-color-text-1);
+}
+
+.dg-cell--numeric {
+  justify-content: flex-end;
+}
+
+.dg-cell--numeric .dg-cell-text {
+  text-align: right;
+  font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;
+  font-size: 11.5px;
+}
+
+/* hover 角标操作 */
+.dg-cell-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.dg-cell:hover .dg-cell-actions {
+  display: inline-flex;
+}
+
+.dg-cell-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: var(--semi-color-fill-1);
+  color: var(--semi-color-text-2);
+  cursor: pointer;
+}
+
+.dg-cell-action:hover {
+  background: var(--semi-color-primary-light-default);
+  color: var(--semi-color-primary);
+}
+
+/* ── 加载更多 / 空态 ──────────────────────────────── */
+.dg-loadmore {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+}
+
+.dg-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 120px;
+  color: var(--semi-color-text-2);
+  font-size: 13px;
+}
+
+/* ── 状态条 ───────────────────────────────────────── */
+.dg-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px;
+  height: 30px;
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+  border-top: 1px solid var(--semi-color-border);
+  background: var(--semi-color-bg-1);
+  flex-shrink: 0;
+}
+
+.dg-statusbar__spacer {
+  flex: 1;
+}
+
+/* ── 详情 Drawer ──────────────────────────────────── */
+.dg-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+  flex-wrap: wrap;
+}
+
+.dg-transpose-row {
+  display: flex;
+  gap: 12px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--semi-color-border);
+  font-size: 12px;
+  align-items: baseline;
+}
+
+.dg-transpose-row:hover {
+  background: var(--semi-color-fill-0);
+}
+
+.dg-transpose-row--active {
+  background: var(--semi-color-primary-light-default);
+}
+
+.dg-transpose-key {
+  width: 180px;
+  flex-shrink: 0;
+  color: var(--semi-color-text-1);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dg-transpose-type {
+  width: 110px;
+  flex-shrink: 0;
+  color: var(--semi-color-text-3);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dg-transpose-value {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+  color: var(--semi-color-text-0);
+  cursor: pointer;
+}
