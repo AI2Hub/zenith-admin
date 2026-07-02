@@ -1,11 +1,11 @@
 import { http, HttpResponse } from 'msw';
-import type { AsyncTask, AsyncTaskStatus, AsyncTaskTypeMeta } from '@zenith/shared';
-import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
+import type { AsyncTask, AsyncTaskItem, AsyncTaskItemStatus, AsyncTaskStats, AsyncTaskStatus, AsyncTaskTypeMeta } from '@zenith/shared';
+import { mockDateOffset, mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 
 /**
  * 任务中心 Mock：用「按读取时间推进」策略模拟异步任务执行。
  * Demo 模式无 WS，前端 useMyAsyncTasks 存在进行中任务时每 3s 轮询，
- * 每次读取时按提交参数和已流逝时间重算进度，效果与真实后台执行一致。
+ * 每次读取时按提交参数和已流逝时间重算进度（含软失败明细、硬失败自动重试）。
  */
 
 const taskTypes: AsyncTaskTypeMeta[] = [
@@ -13,8 +13,12 @@ const taskTypes: AsyncTaskTypeMeta[] = [
     taskType: 'demo-batch',
     title: '批量处理演示',
     module: '业务示例',
-    description: '模拟逐条批量处理：可配置总条数、单条耗时与模拟失败点；失败/取消后支持断点恢复续跑。',
+    description: '模拟逐条批量处理：硬失败点触发任务失败（自动重试），软失败间隔演示行级明细。',
     allowConcurrent: true,
+    enabled: true,
+    maxAttempts: 3,
+    retryDelayMs: 5000,
+    retentionDays: null,
   },
   {
     taskType: 'demo-serial',
@@ -22,24 +26,32 @@ const taskTypes: AsyncTaskTypeMeta[] = [
     module: '业务示例',
     description: '模拟多阶段长任务（不定进度）；同一用户同时只允许一个实例，演示重复提交拦截。',
     allowConcurrent: false,
+    enabled: true,
+    maxAttempts: 1,
+    retryDelayMs: 5000,
+    retentionDays: null,
   },
 ];
 
 const SERIAL_STAGES = ['准备数据', '汇总统计', '生成报告', '归档结果'];
+/** Demo 模式重试退避固定 5 秒（真实后端为指数退避） */
+const RETRY_DELAY_MS = 5000;
 
-/** 运行态模拟参数（不随 AsyncTask 返回，仅 mock 内部使用） */
 interface SimState {
-  /** 本次执行开始的毫秒时间戳 */
   startedAtMs: number;
-  /** 本次执行的起点（断点恢复时 = 已处理数 / 已完成阶段数） */
   resumeFrom: number;
   itemDelayMs: number;
   failAtItem: number | null;
+  failEveryN: number | null;
   stageDelayMs: number;
 }
 
 let nextId = 3;
+let nextItemId = 1;
 const sims = new Map<number, SimState>();
+/** 等待自动重试的任务：taskId → 重试时间戳 */
+const retryAt = new Map<number, number>();
+const itemsByTask = new Map<number, AsyncTaskItem[]>();
 
 const tasks: AsyncTask[] = [
   {
@@ -57,6 +69,8 @@ const tasks: AsyncTask[] = [
     errorMessage: null,
     cancelRequested: false,
     attempts: 1,
+    maxAttempts: 3,
+    nextRunAt: null,
     createdBy: 1,
     createdByName: '管理员',
     tenantId: null,
@@ -77,28 +91,70 @@ const tasks: AsyncTask[] = [
     failedCount: 0,
     progressNote: '已处理 29/80 条',
     result: null,
-    errorMessage: '模拟失败：第 30 条处理异常（断点恢复后将从第 30 条继续）',
+    errorMessage: '模拟失败：第 30 条处理异常（自动重试已用尽，可断点恢复续跑）',
     cancelRequested: false,
-    attempts: 1,
+    attempts: 3,
+    maxAttempts: 3,
+    nextRunAt: null,
     createdBy: 1,
     createdByName: '管理员',
     tenantId: null,
     startedAt: mockDateTimeOffset(-1800 * 1000),
-    completedAt: mockDateTimeOffset(-1797 * 1000),
+    completedAt: mockDateTimeOffset(-1700 * 1000),
     createdAt: mockDateTimeOffset(-1800 * 1000),
-    updatedAt: mockDateTimeOffset(-1797 * 1000),
+    updatedAt: mockDateTimeOffset(-1700 * 1000),
   },
 ];
+
+function upsertItem(taskId: number, itemKey: string, patch: Omit<AsyncTaskItem, 'id' | 'taskId' | 'itemKey' | 'createdAt' | 'updatedAt'>) {
+  const list = itemsByTask.get(taskId) ?? [];
+  const existing = list.find((item) => item.itemKey === itemKey);
+  if (existing) {
+    Object.assign(existing, patch, { updatedAt: mockDateTime() });
+  } else {
+    list.push({
+      id: nextItemId++,
+      taskId,
+      itemKey,
+      createdAt: mockDateTime(),
+      updatedAt: mockDateTime(),
+      ...patch,
+    });
+    itemsByTask.set(taskId, list);
+  }
+}
 
 function finalize(task: AsyncTask, status: AsyncTaskStatus) {
   task.status = status;
   task.completedAt = mockDateTime();
   task.updatedAt = task.completedAt;
+  task.nextRunAt = null;
   sims.delete(task.id);
 }
 
-/** 按流逝时间推进单个 running 任务 */
+function scheduleRetry(task: AsyncTask, message: string) {
+  const ts = Date.now() + RETRY_DELAY_MS;
+  task.status = 'pending';
+  task.errorMessage = message;
+  task.progressNote = `执行失败，${Math.round(RETRY_DELAY_MS / 1000)} 秒后自动重试（第 ${task.attempts + 1}/${task.maxAttempts} 次）`;
+  task.nextRunAt = mockDateTimeOffset(RETRY_DELAY_MS);
+  task.updatedAt = mockDateTime();
+  retryAt.set(task.id, ts);
+  sims.delete(task.id);
+}
+
+/** 按流逝时间推进单个任务（含重试等待 → 自动重启） */
 function tickTask(task: AsyncTask) {
+  // 等待重试的任务到点自动重新执行
+  if (task.status === 'pending' && retryAt.has(task.id)) {
+    if (Date.now() >= (retryAt.get(task.id) ?? 0)) {
+      retryAt.delete(task.id);
+      task.errorMessage = null;
+      task.nextRunAt = null;
+      startSim(task);
+    }
+    return;
+  }
   if (task.status !== 'running') return;
   const sim = sims.get(task.id);
   if (!sim) return;
@@ -121,25 +177,45 @@ function tickTask(task: AsyncTask) {
     return;
   }
 
-  // demo-batch
+  // demo-batch：逐条推进 + 软失败明细 + 硬失败重试
   const total = task.totalCount ?? 100;
   const reached = Math.min(sim.resumeFrom + Math.floor(elapsed / sim.itemDelayMs), total);
-  // 仅首次执行在失败点抛错（断点恢复后 attempts > 1 跳过）
-  if (sim.failAtItem !== null && task.attempts === 1 && reached >= sim.failAtItem) {
-    task.processedCount = sim.failAtItem - 1;
-    task.progressNote = `已处理 ${task.processedCount}/${total} 条`;
-    task.errorMessage = `模拟失败：第 ${sim.failAtItem} 条处理异常（断点恢复后将从第 ${sim.failAtItem} 条继续）`;
-    finalize(task, 'failed');
-    return;
+  let failed = Math.trunc(Number((task.payload as { __failedBase?: number }).__failedBase ?? 0));
+  // 从断点已有的失败数开始重算本轮区间
+  failed = task.failedCount;
+  for (let i = task.processedCount + 1; i <= reached; i++) {
+    // 硬失败：仅第一次执行触发
+    if (sim.failAtItem !== null && i === sim.failAtItem && task.attempts === 1) {
+      task.processedCount = i - 1;
+      task.progressNote = `已处理 ${task.processedCount}/${total} 条`;
+      const message = `模拟失败：第 ${sim.failAtItem} 条处理异常（自动重试后从断点续跑）`;
+      if (task.attempts < task.maxAttempts) {
+        scheduleRetry(task, message);
+      } else {
+        task.errorMessage = message;
+        finalize(task, 'failed');
+      }
+      return;
+    }
+    const softFailed = sim.failEveryN !== null && i % sim.failEveryN === 0;
+    if (softFailed) failed++;
+    upsertItem(task.id, `item-${i}`, {
+      label: `第 ${i} 条记录`,
+      status: softFailed ? 'failed' : 'success',
+      message: softFailed ? `模拟软失败：第 ${i} 条数据校验不通过` : null,
+      data: null,
+      attempt: task.attempts,
+    });
+    task.processedCount = i;
   }
-  task.processedCount = reached;
-  task.progressNote = `已处理 ${reached}/${total} 条`;
+  task.failedCount = failed;
+  task.progressNote = `已处理 ${task.processedCount}/${total} 条${failed > 0 ? `，失败 ${failed} 条` : ''}`;
   if (task.cancelRequested) {
     finalize(task, 'cancelled');
     return;
   }
-  if (reached >= total) {
-    task.result = { processed: reached, failed: task.failedCount, message: `批量处理完成，共 ${reached} 条` };
+  if (task.processedCount >= total) {
+    task.result = { processed: task.processedCount, failed, message: `批量处理完成，共 ${task.processedCount} 条${failed > 0 ? `，失败 ${failed} 条` : ''}` };
     finalize(task, 'success');
     return;
   }
@@ -151,13 +227,12 @@ function tickAll() {
 }
 
 function serialResumeStage(task: AsyncTask): number {
-  // 与后端一致：checkpoint 在执行阶段前保存 → 恢复时重跑中断的那个阶段
   const match = task.progressNote?.match(/^阶段 (\d+)\//);
   return match ? Math.max(Number(match[1]) - 1, 0) : 0;
 }
 
 function startSim(task: AsyncTask) {
-  const payload = task.payload as { totalItems?: number; itemDelayMs?: number; failAtItem?: number; stageDelayMs?: number };
+  const payload = task.payload as { totalItems?: number; itemDelayMs?: number; failAtItem?: number; failEveryN?: number; stageDelayMs?: number };
   task.status = 'running';
   task.attempts += 1;
   task.startedAt = task.startedAt ?? mockDateTime();
@@ -167,6 +242,7 @@ function startSim(task: AsyncTask) {
     resumeFrom: task.taskType === 'demo-serial' ? serialResumeStage(task) : task.processedCount,
     itemDelayMs: Math.max(Number(payload.itemDelayMs ?? 200), 10),
     failAtItem: payload.failAtItem ? Number(payload.failAtItem) : null,
+    failEveryN: payload.failEveryN && Number(payload.failEveryN) > 1 ? Number(payload.failEveryN) : null,
     stageDelayMs: Math.max(Number(payload.stageDelayMs ?? 4000), 500),
   });
 }
@@ -181,10 +257,12 @@ function paginate(url: URL, source: AsyncTask[]) {
   const taskType = url.searchParams.get('taskType') ?? '';
   const status = (url.searchParams.get('status') ?? '') as AsyncTaskStatus | '';
   const keyword = url.searchParams.get('keyword') ?? '';
+  const createdBy = url.searchParams.get('createdBy') ?? '';
   const filtered = source.filter((task) => {
     if (taskType && task.taskType !== taskType) return false;
     if (status && task.status !== status) return false;
     if (keyword && !task.title.includes(keyword) && !task.taskType.includes(keyword)) return false;
+    if (createdBy && !(task.createdByName ?? '').includes(createdBy)) return false;
     return true;
   }).sort((a, b) => b.id - a.id);
   return {
@@ -198,6 +276,39 @@ function paginate(url: URL, source: AsyncTask[]) {
 export const asyncTasksHandlers = [
   http.get('/api/async-tasks/types', () => HttpResponse.json({ code: 0, message: 'ok', data: taskTypes })),
 
+  http.put('/api/async-tasks/types/:taskType/config', async ({ params, request }) => {
+    const meta = taskTypes.find((item) => item.taskType === String(params.taskType));
+    if (!meta) return HttpResponse.json({ code: 404, message: '任务类型未注册', data: null }, { status: 404 });
+    const body = await request.json() as Partial<AsyncTaskTypeMeta>;
+    meta.enabled = body.enabled ?? meta.enabled;
+    meta.allowConcurrent = body.allowConcurrent ?? meta.allowConcurrent;
+    meta.maxAttempts = body.maxAttempts ?? meta.maxAttempts;
+    meta.retryDelayMs = body.retryDelayMs ?? meta.retryDelayMs;
+    meta.retentionDays = body.retentionDays !== undefined ? body.retentionDays : meta.retentionDays;
+    return HttpResponse.json({ code: 0, message: '策略已更新', data: meta });
+  }),
+
+  http.get('/api/async-tasks/stats', () => {
+    tickAll();
+    const counts: Record<string, number> = { pending: 0, running: 0, success: 0, failed: 0, cancelled: 0 };
+    for (const task of tasks) counts[task.status] = (counts[task.status] ?? 0) + 1;
+    const stats: AsyncTaskStats = {
+      total: tasks.length,
+      pending: counts.pending,
+      running: counts.running,
+      success: counts.success,
+      failed: counts.failed,
+      cancelled: counts.cancelled,
+      avgDurationMs: 12_400,
+      daily: Array.from({ length: 7 }, (_, i) => ({
+        date: mockDateOffset(-(6 - i)),
+        submitted: [3, 5, 2, 6, 4, 7, tasks.length][i] ?? 3,
+        failed: [0, 1, 0, 1, 0, 2, counts.failed][i] ?? 0,
+      })),
+    };
+    return HttpResponse.json({ code: 0, message: 'ok', data: stats });
+  }),
+
   http.get('/api/async-tasks/mine', ({ request }) => {
     tickAll();
     return HttpResponse.json({ code: 0, message: 'ok', data: paginate(new URL(request.url), tasks) });
@@ -209,8 +320,57 @@ export const asyncTasksHandlers = [
   }),
 
   http.post('/api/async-tasks/cleanup', () => {
-    // Demo 数据都在保留期内，仅演示接口联通
     return HttpResponse.json({ code: 0, message: '已清理 0 条任务记录', data: { cleaned: 0 } });
+  }),
+
+  http.post('/api/async-tasks/batch-cancel', async ({ request }) => {
+    tickAll();
+    const { ids } = await request.json() as { ids: number[] };
+    let affected = 0;
+    for (const id of ids) {
+      const task = findTask(id);
+      if (!task) continue;
+      if (task.status === 'pending') {
+        retryAt.delete(task.id);
+        task.cancelRequested = true;
+        finalize(task, 'cancelled');
+        affected++;
+      } else if (task.status === 'running') {
+        task.cancelRequested = true;
+        affected++;
+      }
+    }
+    return HttpResponse.json({ code: 0, message: `已请求取消 ${affected} 个任务`, data: { affected } });
+  }),
+
+  http.post('/api/async-tasks/batch-delete', async ({ request }) => {
+    const { ids } = await request.json() as { ids: number[] };
+    let affected = 0;
+    for (const id of ids) {
+      const index = tasks.findIndex((item) => item.id === id && ['success', 'failed', 'cancelled'].includes(item.status));
+      if (index >= 0) {
+        itemsByTask.delete(tasks[index].id);
+        tasks.splice(index, 1);
+        affected++;
+      }
+    }
+    return HttpResponse.json({ code: 0, message: `已删除 ${affected} 个任务记录`, data: { affected } });
+  }),
+
+  http.get('/api/async-tasks/:id/items', ({ params, request }) => {
+    tickAll();
+    const taskId = Number(params.id);
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get('page')) || 1;
+    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const status = (url.searchParams.get('status') ?? '') as AsyncTaskItemStatus | '';
+    const all = (itemsByTask.get(taskId) ?? []).filter((item) => !status || item.status === status)
+      .sort((a, b) => b.id - a.id);
+    return HttpResponse.json({
+      code: 0,
+      message: 'ok',
+      data: { list: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize },
+    });
   }),
 
   http.get('/api/async-tasks/:id', ({ params }) => {
@@ -225,6 +385,7 @@ export const asyncTasksHandlers = [
     const task = findTask(Number(params.id));
     if (!task) return HttpResponse.json({ code: 404, message: '任务不存在', data: null }, { status: 404 });
     if (task.status === 'pending') {
+      retryAt.delete(task.id);
       task.cancelRequested = true;
       finalize(task, 'cancelled');
     } else if (task.status === 'running') {
@@ -245,6 +406,7 @@ export const asyncTasksHandlers = [
     task.cancelRequested = false;
     task.errorMessage = null;
     task.completedAt = null;
+    task.nextRunAt = null;
     startSim(task); // 保留 processedCount 作为断点续跑起点
     return HttpResponse.json({ code: 0, message: '已从断点恢复', data: task });
   }),
@@ -264,6 +426,8 @@ export const asyncTasksHandlers = [
     task.attempts = 0;
     task.startedAt = null;
     task.completedAt = null;
+    task.nextRunAt = null;
+    itemsByTask.delete(task.id);
     startSim(task);
     return HttpResponse.json({ code: 0, message: '已重新开始', data: task });
   }),
@@ -275,6 +439,7 @@ export const asyncTasksHandlers = [
       return HttpResponse.json({ code: 400, message: '进行中的任务不能删除，请先取消', data: null }, { status: 400 });
     }
     sims.delete(tasks[index].id);
+    itemsByTask.delete(tasks[index].id);
     tasks.splice(index, 1);
     return HttpResponse.json({ code: 0, message: '已删除', data: null });
   }),
@@ -286,10 +451,14 @@ export const asyncTasksHandlers = [
       totalItems?: number;
       itemDelayMs?: number;
       failAtItem?: number | null;
+      failEveryN?: number | null;
       stageDelayMs?: number;
     };
     const meta = taskTypes.find((item) => item.taskType === body.taskType);
     if (!meta) return HttpResponse.json({ code: 400, message: '任务类型未注册', data: null }, { status: 400 });
+    if (!meta.enabled) {
+      return HttpResponse.json({ code: 400, message: `「${meta.title}」已暂停提交，请联系管理员`, data: null }, { status: 400 });
+    }
     if (!meta.allowConcurrent) {
       const unfinished = tasks.some((t) => t.taskType === body.taskType && ['pending', 'running'].includes(t.status));
       if (unfinished) {
@@ -305,7 +474,12 @@ export const asyncTasksHandlers = [
       module: '业务示例',
       status: 'pending',
       payload: body.taskType === 'demo-batch'
-        ? { totalItems, itemDelayMs: body.itemDelayMs ?? 200, ...(body.failAtItem ? { failAtItem: body.failAtItem } : {}) }
+        ? {
+            totalItems,
+            itemDelayMs: body.itemDelayMs ?? 200,
+            ...(body.failAtItem ? { failAtItem: body.failAtItem } : {}),
+            ...(body.failEveryN ? { failEveryN: body.failEveryN } : {}),
+          }
         : { stageDelayMs: body.stageDelayMs ?? 4000 },
       totalCount: body.taskType === 'demo-batch' ? totalItems : null,
       processedCount: 0,
@@ -315,6 +489,8 @@ export const asyncTasksHandlers = [
       errorMessage: null,
       cancelRequested: false,
       attempts: 0,
+      maxAttempts: meta.maxAttempts,
+      nextRunAt: null,
       createdBy: 1,
       createdByName: '管理员',
       tenantId: null,

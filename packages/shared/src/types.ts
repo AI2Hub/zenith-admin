@@ -1497,6 +1497,10 @@ export interface AsyncTask {
   errorMessage: string | null;
   cancelRequested: boolean;
   attempts: number;
+  /** 最大执行次数（提交时从类型策略快照；失败自动重试直到用尽） */
+  maxAttempts: number;
+  /** 下次自动重试时间（退避中）；null = 无待定重试 */
+  nextRunAt: string | null;
   createdBy: number | null;
   createdByName: string | null;
   tenantId: number | null;
@@ -1506,7 +1510,7 @@ export interface AsyncTask {
   updatedAt: string;
 }
 
-/** 任务类型元信息（注册表） */
+/** 任务类型元信息（注册默认值 + 运行时策略合并后的生效值） */
 export interface AsyncTaskTypeMeta {
   taskType: string;
   title: string;
@@ -1514,6 +1518,43 @@ export interface AsyncTaskTypeMeta {
   description: string | null;
   /** false：同一用户存在未结束任务时禁止重复提交 */
   allowConcurrent: boolean;
+  /** false：暂停新提交 */
+  enabled: boolean;
+  maxAttempts: number;
+  /** 重试退避基数（毫秒），实际延迟 = retryDelayMs * 2^(attempts-1) */
+  retryDelayMs: number;
+  /** 已结束任务保留天数；null = 跟随全局 */
+  retentionDays: number | null;
+}
+
+export type AsyncTaskItemStatus = 'pending' | 'success' | 'failed' | 'skipped';
+
+/** 任务项明细（行级处理状态） */
+export interface AsyncTaskItem {
+  id: number;
+  taskId: number;
+  itemKey: string;
+  label: string | null;
+  status: AsyncTaskItemStatus;
+  message: string | null;
+  data: Record<string, unknown> | null;
+  attempt: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 任务中心统计概览 */
+export interface AsyncTaskStats {
+  total: number;
+  pending: number;
+  running: number;
+  success: number;
+  failed: number;
+  cancelled: number;
+  /** 近 24 小时完成任务平均耗时（毫秒）；无数据为 null */
+  avgDurationMs: number | null;
+  /** 近 7 天每日提交/失败数（date: YYYY-MM-DD） */
+  daily: Array<{ date: string; submitted: number; failed: number }>;
 }
 
 export type WsMessage =

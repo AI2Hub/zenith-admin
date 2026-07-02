@@ -1,9 +1,9 @@
-import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, lt, lte, notInArray, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { asyncTasks, users } from '../../db/schema';
+import { asyncTaskItems, asyncTasks, asyncTaskTypeConfigs, users } from '../../db/schema';
 import type { AsyncTaskRow } from '../../db/schema';
-import { registerSystemQueueWorker, sendSystemJob } from '../pg-boss-scheduler';
+import { registerSystemQueueWorker, sendSystemJob, sendSystemJobAfter } from '../pg-boss-scheduler';
 import { currentUser, runWithCurrentUser } from '../context';
 import { getCreateTenantId } from '../tenant';
 import type { JwtPayload } from '../../middleware/auth';
@@ -13,11 +13,14 @@ import {
   ASYNC_TASK_RETENTION_DAYS,
   HEARTBEAT_STALE_MS,
   PENDING_REDISPATCH_MS,
+  RETRY_BACKOFF_MAX_MS,
+  type TaskItemReport,
   type TaskProgressResult,
   type TaskProgressUpdate,
   type TaskRunContext,
 } from './types';
 import { getTaskHandler } from './registry';
+import { ensureTaskTypeConfig, getTaskTypePolicy } from './config';
 import { pushTaskProgress } from './map';
 
 const UNFINISHED_STATUSES = ['pending', 'running'] as const;
@@ -28,6 +31,8 @@ export interface SubmitAsyncTaskInput {
   /** 任务标题；缺省用注册表中的默认标题 */
   title?: string;
   payload?: Record<string, unknown>;
+  /** 幂等键：相同 key 重复提交时直接返回已存在的任务（不新建） */
+  idempotencyKey?: string | null;
 }
 
 /** 提交异步任务（在业务路由的 HTTP 上下文中调用）：写任务表 + 入队 */
@@ -35,7 +40,11 @@ export async function submitAsyncTask(input: SubmitAsyncTaskInput): Promise<Asyn
   const handler = getTaskHandler(input.taskType);
   if (!handler) throw new HTTPException(400, { message: `任务类型 "${input.taskType}" 未注册` });
   const user = currentUser();
-  if (handler.allowConcurrent === false) {
+  const policy = await getTaskTypePolicy(input.taskType);
+  if (!policy.enabled) {
+    throw new HTTPException(400, { message: `「${handler.title}」已暂停提交，请联系管理员` });
+  }
+  if (!policy.allowConcurrent) {
     const unfinished = await db.$count(asyncTasks, and(
       eq(asyncTasks.taskType, input.taskType),
       eq(asyncTasks.createdBy, user.userId),
@@ -45,12 +54,29 @@ export async function submitAsyncTask(input: SubmitAsyncTaskInput): Promise<Asyn
       throw new HTTPException(400, { message: `已有进行中的「${handler.title}」任务，请等待其结束后再提交` });
     }
   }
-  const [row] = await db.insert(asyncTasks).values({
+  const idempotencyKey = input.idempotencyKey?.slice(0, 128) || null;
+  const values = {
     taskType: input.taskType,
     title: input.title?.slice(0, 128) || handler.title,
     payload: input.payload ?? {},
+    maxAttempts: policy.maxAttempts,
+    idempotencyKey,
     tenantId: getCreateTenantId(user),
-  }).returning();
+  };
+  let row: AsyncTaskRow | undefined;
+  if (idempotencyKey) {
+    [row] = await db.insert(asyncTasks).values(values)
+      .onConflictDoNothing({ target: asyncTasks.idempotencyKey }).returning();
+    if (!row) {
+      // 幂等命中：返回已存在的任务
+      const [existing] = await db.select().from(asyncTasks)
+        .where(eq(asyncTasks.idempotencyKey, idempotencyKey)).limit(1);
+      if (existing) return existing;
+      throw new HTTPException(500, { message: '任务提交异常，请重试' });
+    }
+  } else {
+    [row] = await db.insert(asyncTasks).values(values).returning();
+  }
   await enqueueAsyncTask(row.id);
   return row;
 }
@@ -97,20 +123,57 @@ async function applyProgress(taskId: number, update: TaskProgressUpdate): Promis
   return { cancelRequested: row.cancelRequested };
 }
 
+/** 批量 upsert 任务项明细（按 taskId+itemKey 幂等，重试覆盖旧状态） */
+async function applyItemReports(taskId: number, attempt: number, items: TaskItemReport[]): Promise<void> {
+  if (items.length === 0) return;
+  const values = items.map((item) => ({
+    taskId,
+    itemKey: item.key.slice(0, 128),
+    label: item.label?.slice(0, 256) ?? null,
+    status: item.status,
+    message: item.message?.slice(0, 2000) ?? null,
+    data: item.data ?? null,
+    attempt,
+  }));
+  await db.insert(asyncTaskItems).values(values)
+    .onConflictDoUpdate({
+      target: [asyncTaskItems.taskId, asyncTaskItems.itemKey],
+      set: {
+        label: sql`excluded.label`,
+        status: sql`excluded.status`,
+        message: sql`excluded.message`,
+        data: sql`excluded.data`,
+        attempt: sql`excluded.attempt`,
+        updatedAt: new Date(),
+      },
+    });
+}
+
+/** 计算第 attempts 次失败后的重试延迟：base * 2^(attempts-1)，上限 15 分钟 */
+function retryDelayFor(attempts: number, baseMs: number): number {
+  return Math.min(baseMs * 2 ** Math.max(attempts - 1, 0), RETRY_BACKOFF_MAX_MS);
+}
+
 /** 执行一个任务（由队列 Worker 调用）；返回写入调度中心运行日志的消息 */
 export async function runAsyncTask(taskId: number): Promise<string> {
-  // 原子领取：仅 pending 可被领取，重复投递/并发消费天然无害
+  // 原子领取：仅 pending 且到达 nextRunAt（重试退避）可被领取，重复投递/并发消费天然无害
+  const now = new Date();
   const [claimed] = await db.update(asyncTasks)
     .set({
       status: 'running',
       attempts: sql`${asyncTasks.attempts} + 1`,
       startedAt: sql`coalesce(${asyncTasks.startedAt}, now())`,
-      heartbeatAt: new Date(),
+      heartbeatAt: now,
+      nextRunAt: null,
       errorMessage: null,
     })
-    .where(and(eq(asyncTasks.id, taskId), eq(asyncTasks.status, 'pending')))
+    .where(and(
+      eq(asyncTasks.id, taskId),
+      eq(asyncTasks.status, 'pending'),
+      or(isNull(asyncTasks.nextRunAt), lte(asyncTasks.nextRunAt, now)),
+    ))
     .returning();
-  if (!claimed) return `任务 #${taskId} 无需执行（已被领取或已结束）`;
+  if (!claimed) return `任务 #${taskId} 无需执行（已被领取、已结束或未到重试时间）`;
   pushTaskProgress(claimed, { force: true });
 
   const handler = getTaskHandler(claimed.taskType);
@@ -129,6 +192,7 @@ export async function runAsyncTask(taskId: number): Promise<string> {
     checkpoint: claimed.checkpoint ?? null,
     attempt: claimed.attempts, // 领取时已 +1，returning 返回的是自增后的值
     progress: (update) => applyProgress(claimed.id, update),
+    reportItems: (items) => applyItemReports(claimed.id, claimed.attempts, items),
     isCancelRequested: async () => {
       const [row] = await db.select({ cancelRequested: asyncTasks.cancelRequested, status: asyncTasks.status })
         .from(asyncTasks).where(eq(asyncTasks.id, claimed.id)).limit(1);
@@ -158,9 +222,40 @@ export async function runAsyncTask(taskId: number): Promise<string> {
     if (finalRow) pushTaskProgress(finalRow, { force: true });
     return finalStatus === 'cancelled' ? `任务 #${taskId}「${claimed.title}」已取消` : `任务 #${taskId}「${claimed.title}」执行成功`;
   } catch (err) {
-    const message = err instanceof Error ? err.message : '任务执行失败';
+    const message = (err instanceof Error ? err.message : '任务执行失败').slice(0, 2000);
+
+    // 自动重试：未用尽 maxAttempts 且未请求取消 → 回到 pending，按退避延迟重投（保留 checkpoint 断点续跑）
+    const [currentRow] = await db.select({ cancelRequested: asyncTasks.cancelRequested })
+      .from(asyncTasks).where(eq(asyncTasks.id, taskId)).limit(1);
+    const canRetry = claimed.attempts < claimed.maxAttempts && !(currentRow?.cancelRequested ?? false);
+    if (canRetry) {
+      const policy = await getTaskTypePolicy(claimed.taskType);
+      const delayMs = retryDelayFor(claimed.attempts, policy.retryDelayMs);
+      const nextRunAt = new Date(Date.now() + delayMs);
+      const [retryRow] = await db.update(asyncTasks)
+        .set({
+          status: 'pending',
+          errorMessage: message,
+          progressNote: `执行失败，${Math.round(delayMs / 1000)} 秒后自动重试（第 ${claimed.attempts + 1}/${claimed.maxAttempts} 次）`,
+          nextRunAt,
+          heartbeatAt: null,
+        })
+        .where(and(eq(asyncTasks.id, taskId), eq(asyncTasks.status, 'running')))
+        .returning();
+      if (retryRow) {
+        pushTaskProgress(retryRow, { force: true });
+        await sendSystemJobAfter(ASYNC_TASK_QUEUE, { taskId }, nextRunAt, {
+          retryLimit: 0,
+          singletonKey: `async-task-retry-${taskId}-${claimed.attempts}`,
+          retentionSeconds: 60 * 60 * 24,
+        });
+        logger.warn(`[task-center] 任务 #${taskId} 第 ${claimed.attempts} 次执行失败，${Math.round(delayMs / 1000)}s 后自动重试：${message}`);
+        return `任务 #${taskId} 执行失败，已安排第 ${claimed.attempts + 1}/${claimed.maxAttempts} 次自动重试`;
+      }
+    }
+
     const [failedRow] = await db.update(asyncTasks)
-      .set({ status: 'failed', errorMessage: message.slice(0, 2000), completedAt: new Date() })
+      .set({ status: 'failed', errorMessage: message, completedAt: new Date() })
       .where(and(eq(asyncTasks.id, taskId), eq(asyncTasks.status, 'running')))
       .returning();
     if (failedRow) pushTaskProgress(failedRow, { force: true });
@@ -192,7 +287,7 @@ export async function requestCancelAsyncTask(taskId: number): Promise<AsyncTaskR
 /** 断点恢复：保留进度与 checkpoint，从中断处继续（failed / cancelled 可用） */
 export async function resumeAsyncTask(taskId: number): Promise<AsyncTaskRow> {
   const [row] = await db.update(asyncTasks)
-    .set({ status: 'pending', cancelRequested: false, errorMessage: null, completedAt: null, heartbeatAt: null })
+    .set({ status: 'pending', cancelRequested: false, errorMessage: null, completedAt: null, heartbeatAt: null, nextRunAt: null })
     .where(and(eq(asyncTasks.id, taskId), inArray(asyncTasks.status, ['failed', 'cancelled'])))
     .returning();
   if (!row) throw new HTTPException(400, { message: '仅失败或已取消的任务可以断点恢复' });
@@ -201,8 +296,12 @@ export async function resumeAsyncTask(taskId: number): Promise<AsyncTaskRow> {
   return row;
 }
 
-/** 重新开始：清空进度 / 断点 / 结果，从头执行（任意已结束状态可用） */
+/** 重新开始：清空进度 / 断点 / 结果 / 明细，从头执行（任意已结束状态可用） */
 export async function restartAsyncTask(taskId: number): Promise<AsyncTaskRow> {
+  const [existing] = await db.select({ taskType: asyncTasks.taskType }).from(asyncTasks)
+    .where(eq(asyncTasks.id, taskId)).limit(1);
+  if (!existing) throw new HTTPException(404, { message: '任务不存在' });
+  const policy = await getTaskTypePolicy(existing.taskType);
   const [row] = await db.update(asyncTasks)
     .set({
       status: 'pending',
@@ -214,13 +313,16 @@ export async function restartAsyncTask(taskId: number): Promise<AsyncTaskRow> {
       errorMessage: null,
       cancelRequested: false,
       attempts: 0,
+      maxAttempts: policy.maxAttempts, // 重新开始时按当前策略重新快照
       startedAt: null,
       completedAt: null,
       heartbeatAt: null,
+      nextRunAt: null,
     })
     .where(and(eq(asyncTasks.id, taskId), inArray(asyncTasks.status, TERMINAL_STATUSES)))
     .returning();
   if (!row) throw new HTTPException(400, { message: '仅已结束的任务可以重新开始' });
+  await db.delete(asyncTaskItems).where(eq(asyncTaskItems.taskId, taskId));
   await enqueueAsyncTask(row.id);
   pushTaskProgress(row, { force: true });
   return row;
@@ -255,26 +357,56 @@ export async function drainAsyncTasks(): Promise<{ recovered: number; redispatch
     await enqueueAsyncTask(id);
   }
 
-  // 长时间停留 pending → 兜底重投（原子领取保证重复投递无害）
+  // 长时间停留 pending 且已到执行时间 → 兜底重投（原子领取保证重复投递无害；退避中的重试任务不提前投）
   const pendingCutoff = new Date(Date.now() - PENDING_REDISPATCH_MS);
   const stalePending = await db.select({ id: asyncTasks.id }).from(asyncTasks)
-    .where(and(eq(asyncTasks.status, 'pending'), lt(asyncTasks.updatedAt, pendingCutoff)));
+    .where(and(
+      eq(asyncTasks.status, 'pending'),
+      lt(asyncTasks.updatedAt, pendingCutoff),
+      or(isNull(asyncTasks.nextRunAt), lte(asyncTasks.nextRunAt, new Date())),
+    ));
   for (const { id } of stalePending) await enqueueAsyncTask(id);
 
   return { recovered: cancelledRows.length + recoveredRows.length, redispatched: stalePending.length };
 }
 
-/** 清理超过保留期的已结束任务记录，返回清理数量 */
+/** 清理超过保留期的已结束任务记录（支持类型级保留期覆盖），返回清理数量 */
 export async function cleanupAsyncTasks(retentionDays = ASYNC_TASK_RETENTION_DAYS): Promise<number> {
-  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-  const rows = await db.delete(asyncTasks)
-    .where(and(inArray(asyncTasks.status, TERMINAL_STATUSES), lt(asyncTasks.completedAt, cutoff)))
-    .returning({ id: asyncTasks.id });
-  return rows.length;
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  // 类型级覆盖：按各自保留期清理
+  const overrides = await db.select({ taskType: asyncTaskTypeConfigs.taskType, retentionDays: asyncTaskTypeConfigs.retentionDays })
+    .from(asyncTaskTypeConfigs).where(gt(asyncTaskTypeConfigs.retentionDays, 0));
+  let cleaned = 0;
+  const overriddenTypes: string[] = [];
+  for (const override of overrides) {
+    if (override.retentionDays == null) continue;
+    overriddenTypes.push(override.taskType);
+    const cutoff = new Date(now - override.retentionDays * dayMs);
+    const rows = await db.delete(asyncTasks)
+      .where(and(
+        eq(asyncTasks.taskType, override.taskType),
+        inArray(asyncTasks.status, TERMINAL_STATUSES),
+        lt(asyncTasks.completedAt, cutoff),
+      ))
+      .returning({ id: asyncTasks.id });
+    cleaned += rows.length;
+  }
+  // 其余类型走全局保留期
+  const globalCutoff = new Date(now - retentionDays * dayMs);
+  const conditions = [inArray(asyncTasks.status, TERMINAL_STATUSES), lt(asyncTasks.completedAt, globalCutoff)];
+  if (overriddenTypes.length > 0) conditions.push(notInArray(asyncTasks.taskType, overriddenTypes));
+  const rows = await db.delete(asyncTasks).where(and(...conditions)).returning({ id: asyncTasks.id });
+  return cleaned + rows.length;
 }
 
 /** 注册任务中心队列 Worker（启动时调用一次；会出现在系统调度页） */
 export async function registerAsyncTaskWorker(): Promise<void> {
+  // 为所有已注册任务类型落库默认策略（已存在则保留用户修改）
+  const { listTaskHandlers } = await import('./registry');
+  for (const handler of listTaskHandlers()) {
+    await ensureTaskTypeConfig(handler).catch((err) => logger.warn('[task-center] 类型策略初始化失败', { taskType: handler.taskType, err }));
+  }
   await registerSystemQueueWorker<{ taskId: number }>({
     name: ASYNC_TASK_QUEUE,
     title: '异步任务执行 Worker',

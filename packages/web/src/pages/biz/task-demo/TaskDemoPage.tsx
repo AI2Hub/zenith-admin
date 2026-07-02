@@ -6,17 +6,19 @@
  * ③ 前端 useMyAsyncTasks 实时展示进度（WS 推送 + 轮询兜底），支持取消 / 断点恢复 / 重新开始。
  */
 import { useEffect, useState, type CSSProperties } from 'react';
-import { Banner, Button, Collapse, InputNumber, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Collapse, InputNumber, Modal, Select, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Info, Play, RefreshCw } from 'lucide-react';
-import type { AsyncTask, AsyncTaskStatus, AsyncTaskTypeMeta } from '@zenith/shared';
+import type { AsyncTask, AsyncTaskItem, AsyncTaskItemStatus, AsyncTaskStatus, AsyncTaskTypeMeta, PaginatedResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
+import { usePagination } from '@/hooks/usePagination';
 import { formatDateTime } from '@/utils/date';
+import { renderEllipsis } from '@/utils/table-columns';
 
 const DEMO_TASK_TYPES = ['demo-batch', 'demo-serial'];
 
@@ -27,6 +29,13 @@ const statusTagMap = {
   failed: { color: 'red', label: '失败' },
   cancelled: { color: 'grey', label: '已取消' },
 } as const satisfies Record<AsyncTaskStatus, { color: 'blue' | 'cyan' | 'green' | 'red' | 'grey'; label: string }>;
+
+const itemStatusTagMap = {
+  pending: { color: 'blue', label: '待处理' },
+  success: { color: 'green', label: '成功' },
+  failed: { color: 'red', label: '失败' },
+  skipped: { color: 'grey', label: '跳过' },
+} as const satisfies Record<AsyncTaskItemStatus, { color: 'blue' | 'green' | 'red' | 'grey'; label: string }>;
 
 const codeStyle: CSSProperties = {
   background: 'var(--semi-color-fill-0)', borderRadius: 6, padding: 12, margin: 0,
@@ -47,11 +56,17 @@ registerTaskHandler({
   title: '批量处理演示',
   module: '业务示例',
   allowConcurrent: true,          // false = 同一用户存在未结束任务时拒绝重复提交
+  maxAttempts: 3,                 // 失败自动重试（指数退避），保留断点续跑
+  retryDelayMs: 5000,             // 退避基数：5s → 10s → 20s…（上限 15 分钟）
   async run(ctx) {
     let processed = Number(ctx.checkpoint?.processed ?? 0);   // 断点恢复：跳过已处理条目
     for (let i = processed + 1; i <= total; i++) {
-      await handleOneItem(i);                                 // 业务处理
+      const ok = await handleOneItem(i);                      // 业务处理
       processed = i;
+      await ctx.reportItems([{                                // 行级明细（可选）
+        key: \`item-\${i}\`, status: ok ? 'success' : 'failed',
+        message: ok ? null : '数据校验不通过',
+      }]);
       const { cancelRequested } = await ctx.progress({        // 进度 + 断点 + 心跳 + WS 推送
         processed, total,
         note: \`已处理 \${processed}/\${total} 条\`,
@@ -68,6 +83,7 @@ const row = await submitAsyncTask({
   taskType: 'demo-batch',
   title: '批量处理演示（500 条）',
   payload: { totalItems: 500, itemDelayMs: 100 },
+  idempotencyKey: \`import-\${fileId}\`,   // 幂等：相同 key 重复提交返回同一任务
 });
 // 前端 · 实时进度（WS 推送 + 轮询兜底）
 const { tasks, refresh } = useMyAsyncTasks({ taskTypes: ['demo-batch'] });`;
@@ -77,10 +93,18 @@ export default function TaskDemoPage() {
   const [totalItems, setTotalItems] = useState(60);
   const [itemDelayMs, setItemDelayMs] = useState(300);
   const [failAtItem, setFailAtItem] = useState<number | null>(null);
+  const [failEveryN, setFailEveryN] = useState<number | null>(null);
   const [stageDelayMs, setStageDelayMs] = useState(4000);
   const [submitting, setSubmitting] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
   const [types, setTypes] = useState<AsyncTaskTypeMeta[]>([]);
+
+  // 行级明细抽屉
+  const [itemsTask, setItemsTask] = useState<AsyncTask | null>(null);
+  const [items, setItems] = useState<AsyncTaskItem[]>([]);
+  const [itemsTotal, setItemsTotal] = useState(0);
+  const [itemsLoading, setItemsLoading] = useState(false);
+  const { pageSize: itemsPageSize, setPage: setItemsPage, buildPagination: buildItemsPagination } = usePagination(10);
 
   const { tasks, loading, refresh } = useMyAsyncTasks({ taskTypes: DEMO_TASK_TYPES });
 
@@ -92,11 +116,30 @@ export default function TaskDemoPage() {
 
   const currentTypeMeta = types.find((t) => t.taskType === taskType);
 
+  const fetchItems = async (taskId: number, p = 1, ps = itemsPageSize) => {
+    setItemsLoading(true);
+    try {
+      const res = await request.get<PaginatedResponse<AsyncTaskItem>>(`/api/async-tasks/${taskId}/items?page=${p}&pageSize=${ps}`, { silent: true });
+      if (res.code === 0) {
+        setItems(res.data.list);
+        setItemsTotal(res.data.total);
+      }
+    } finally {
+      setItemsLoading(false);
+    }
+  };
+
+  const openItems = (task: AsyncTask) => {
+    setItemsTask(task);
+    setItemsPage(1);
+    void fetchItems(task.id, 1);
+  };
+
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
       const body = taskType === 'demo-batch'
-        ? { taskType, totalItems, itemDelayMs, ...(failAtItem ? { failAtItem } : {}) }
+        ? { taskType, totalItems, itemDelayMs, ...(failAtItem ? { failAtItem } : {}), ...(failEveryN ? { failEveryN } : {}) }
         : { taskType, stageDelayMs };
       const res = await request.post<AsyncTask>('/api/task-demo/submit', body);
       if (res.code === 0) {
@@ -141,7 +184,12 @@ export default function TaskDemoPage() {
       render: (value: string) => <Tag color={value === 'demo-batch' ? 'blue' : 'purple'}>{value}</Tag>,
     },
     { title: '进度', dataIndex: 'processedCount', width: 220, render: (_: number, record: AsyncTask) => <AsyncTaskProgress task={record} /> },
-    { title: '执行次数', dataIndex: 'attempts', width: 90 },
+    {
+      title: '执行次数',
+      dataIndex: 'attempts',
+      width: 100,
+      render: (value: number, record: AsyncTask) => <Typography.Text size="small">{value} / {record.maxAttempts}</Typography.Text>,
+    },
     { title: '提交时间', dataIndex: 'createdAt', width: 190, render: (value: string) => formatDateTime(value) },
     {
       title: '状态',
@@ -149,10 +197,10 @@ export default function TaskDemoPage() {
       width: 100,
       fixed: 'right',
       render: (value: AsyncTaskStatus, record: AsyncTask) => {
+        if (value === 'running' && record.cancelRequested) return <Tag color="orange">取消中</Tag>;
+        if (value === 'pending' && record.nextRunAt) return <Tag color="orange">等待重试</Tag>;
         const meta = statusTagMap[value];
-        return value === 'running' && record.cancelRequested
-          ? <Tag color="orange">取消中</Tag>
-          : <Tag color={meta.color}>{meta.label}</Tag>;
+        return <Tag color={meta.color}>{meta.label}</Tag>;
       },
     },
     createOperationColumn<AsyncTask>({
@@ -183,6 +231,12 @@ export default function TaskDemoPage() {
           onClick: () => void runAction(record, 'restart', '已重新开始（进度清零）'),
         },
         {
+          key: 'items',
+          label: '明细',
+          hidden: record.taskType !== 'demo-batch',
+          onClick: () => openItems(record),
+        },
+        {
           key: 'result',
           label: '查看结果',
           hidden: record.status !== 'success' && !record.errorMessage,
@@ -190,6 +244,22 @@ export default function TaskDemoPage() {
         },
       ],
     }),
+  ];
+
+  const itemColumns: ColumnProps<AsyncTaskItem>[] = [
+    { title: '标识', dataIndex: 'itemKey', width: 110 },
+    { title: '名称', dataIndex: 'label', width: 130, render: (value: string | null) => value ?? '-' },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 90,
+      render: (value: AsyncTaskItemStatus) => {
+        const meta = itemStatusTagMap[value];
+        return <Tag color={meta.color}>{meta.label}</Tag>;
+      },
+    },
+    { title: '信息', dataIndex: 'message', width: 220, render: renderEllipsis },
+    { title: '执行轮次', dataIndex: 'attempt', width: 90 },
   ];
 
   return (
@@ -200,9 +270,9 @@ export default function TaskDemoPage() {
         style={bannerStyle}
         description={
           <span>
-            演示业务模块如何对接<strong>任务中心</strong>：提交长耗时批量任务 → 实时进度（WS 推送 + 轮询兜底）→ 取消 / 断点恢复 / 重新开始。
-            「批量处理演示」可配置失败点，失败后用「断点恢复」从中断处继续；「串行阶段演示」不允许重复提交（存在未结束任务时提交会被拒绝）。
-            管理员可在 系统设置 → 任务中心 全局监控所有任务。
+            演示业务模块如何对接<strong>任务中心</strong>：提交长耗时批量任务 → 实时进度（WS 推送 + 轮询兜底）→ 取消 / 断点恢复 / 重新开始 / 自动重试 / 行级明细。
+            「批量处理演示」硬失败点触发整个任务失败（最多自动重试 3 次，保留断点续跑），软失败间隔演示行级明细（任务继续，失败条目计入明细）；
+            「串行阶段演示」不允许重复提交。管理员可在 系统设置 → 任务中心 全局监控并调整类型策略。
           </span>
         }
       />
@@ -222,13 +292,22 @@ export default function TaskDemoPage() {
             <InputNumber prefix="总条数" value={totalItems} min={1} max={10000} onNumberChange={(v) => setTotalItems(v || 60)} style={{ width: 150 }} />
             <InputNumber prefix="单条耗时(ms)" value={itemDelayMs} min={10} max={5000} step={50} onNumberChange={(v) => setItemDelayMs(v || 300)} style={{ width: 180 }} />
             <InputNumber
-              prefix="失败点(可选)"
+              prefix="硬失败点(可选)"
               value={failAtItem ?? undefined}
               min={1}
               max={10000}
-              placeholder="第 N 条失败"
+              placeholder="第 N 条任务失败"
               onChange={(v) => setFailAtItem(typeof v === 'number' ? v : null)}
-              style={{ width: 180 }}
+              style={{ width: 190 }}
+            />
+            <InputNumber
+              prefix="软失败间隔(可选)"
+              value={failEveryN ?? undefined}
+              min={2}
+              max={10000}
+              placeholder="每 N 条失败一条"
+              onChange={(v) => setFailEveryN(typeof v === 'number' ? v : null)}
+              style={{ width: 200 }}
             />
           </>
         ) : (
@@ -263,6 +342,27 @@ export default function TaskDemoPage() {
           <pre style={codeStyle}>{SNIPPET_SUBMIT}</pre>
         </Collapse.Panel>
       </Collapse>
+
+      <SideSheet
+        title={itemsTask ? `任务项明细 - #${itemsTask.id} ${itemsTask.title}` : '任务项明细'}
+        visible={!!itemsTask}
+        onCancel={() => setItemsTask(null)}
+        width={680}
+      >
+        {itemsTask && (
+          <ConfigurableTable
+            bordered
+            columns={itemColumns}
+            dataSource={items}
+            loading={itemsLoading}
+            pagination={buildItemsPagination(itemsTotal, (p, ps) => void fetchItems(itemsTask.id, p, ps))}
+            rowKey="id"
+            size="small"
+            empty="该任务尚未上报行级明细"
+            scroll={{ x: 640 }}
+          />
+        )}
+      </SideSheet>
     </div>
   );
 }

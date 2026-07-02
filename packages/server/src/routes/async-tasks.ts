@@ -2,42 +2,88 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditBeforeData } from '../middleware/guard';
 import {
-  commonErrorResponses, IdParam, ok, okMsg, okPaginated,
+  BatchIdsBody, commonErrorResponses, IdParam, jsonContent, ok, okMsg, okPaginated,
   okBody, PaginationQuery, validationHook,
 } from '../lib/openapi-schemas';
-import { AsyncTaskCleanupResultDTO, AsyncTaskDTO, AsyncTaskTypeMetaDTO } from '../lib/openapi-dtos';
 import {
+  AsyncTaskBatchResultDTO, AsyncTaskCleanupResultDTO, AsyncTaskDTO,
+  AsyncTaskItemDTO, AsyncTaskStatsDTO, AsyncTaskTypeMetaDTO,
+} from '../lib/openapi-dtos';
+import {
+  batchCancelTasks,
+  batchDeleteTasks,
   cancelTask,
   cleanupFinishedTasks,
   deleteAsyncTask,
   getAsyncTask,
+  getAsyncTaskStats,
+  listAsyncTaskItems,
   listAsyncTasks,
   listAsyncTaskTypes,
   listMyAsyncTasks,
   restartTask,
   resumeTask,
+  updateAsyncTaskTypePolicy,
 } from '../services/async-tasks.service';
 
 const asyncTasksRoute = new OpenAPIHono({ defaultHook: validationHook });
 
 const AsyncTaskStatusQuery = z.enum(['pending', 'running', 'success', 'failed', 'cancelled']);
+const AsyncTaskItemStatusQuery = z.enum(['pending', 'success', 'failed', 'skipped']);
 
 const ListQuery = PaginationQuery.extend({
   taskType: z.string().optional(),
   status: AsyncTaskStatusQuery.optional(),
   keyword: z.string().optional(),
+  createdBy: z.string().optional(),
   startTime: z.string().optional(),
   endTime: z.string().optional(),
 });
 
+const UpdateTypePolicyBody = z.object({
+  enabled: z.boolean(),
+  allowConcurrent: z.boolean(),
+  maxAttempts: z.number().int().min(1).max(10),
+  retryDelayMs: z.number().int().min(1000).max(900_000),
+  retentionDays: z.number().int().min(1).max(3650).nullable().optional(),
+});
+
 const typesRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'get', path: '/types', tags: ['AsyncTasks'], summary: '已注册的任务类型',
+    method: 'get', path: '/types', tags: ['AsyncTasks'], summary: '已注册的任务类型（含生效策略）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware] as const,
     responses: { ...commonErrorResponses, ...ok(z.array(AsyncTaskTypeMetaDTO), '任务类型列表') },
   }),
-  handler: (c) => c.json(okBody(listAsyncTaskTypes()), 200),
+  handler: async (c) => c.json(okBody(await listAsyncTaskTypes()), 200),
+});
+
+const updateTypePolicyRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/types/{taskType}/config', tags: ['AsyncTasks'], summary: '更新任务类型运行时策略',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:async-task:config', audit: { description: '更新任务类型策略', module: '任务中心' } })] as const,
+    request: {
+      params: z.object({ taskType: z.string().min(1).openapi({ param: { name: 'taskType', in: 'path' } }) }),
+      body: { content: jsonContent(UpdateTypePolicyBody), required: true },
+    },
+    responses: { ...commonErrorResponses, ...ok(AsyncTaskTypeMetaDTO, '更新后的类型策略') },
+  }),
+  handler: async (c) => {
+    const { taskType } = c.req.valid('param');
+    const meta = await updateAsyncTaskTypePolicy(taskType, c.req.valid('json'));
+    return c.json(okBody(meta, '策略已更新'), 200);
+  },
+});
+
+const statsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/stats', tags: ['AsyncTasks'], summary: '任务中心统计概览',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:async-task:list' })] as const,
+    responses: { ...commonErrorResponses, ...ok(AsyncTaskStatsDTO, '统计概览') },
+  }),
+  handler: async (c) => c.json(okBody(await getAsyncTaskStats()), 200),
 });
 
 const mineRoute = defineOpenAPIRoute({
@@ -71,6 +117,51 @@ const getOneRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务详情') },
   }),
   handler: async (c) => c.json(okBody(await getAsyncTask(c.req.valid('param').id)), 200),
+});
+
+const itemsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/items', tags: ['AsyncTasks'], summary: '任务项明细（行级状态，创建者本人或管理员）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: {
+      params: IdParam,
+      query: PaginationQuery.extend({
+        status: AsyncTaskItemStatusQuery.optional(),
+        keyword: z.string().optional(),
+      }),
+    },
+    responses: { ...commonErrorResponses, ...okPaginated(AsyncTaskItemDTO, '任务项明细') },
+  }),
+  handler: async (c) => c.json(okBody(await listAsyncTaskItems(c.req.valid('param').id, c.req.valid('query'))), 200),
+});
+
+const batchCancelRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/batch-cancel', tags: ['AsyncTasks'], summary: '批量取消任务',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:async-task:manage', audit: { description: '批量取消异步任务', module: '任务中心' } })] as const,
+    request: { body: { content: jsonContent(BatchIdsBody), required: true } },
+    responses: { ...commonErrorResponses, ...ok(AsyncTaskBatchResultDTO, '批量取消结果') },
+  }),
+  handler: async (c) => {
+    const result = await batchCancelTasks(c.req.valid('json').ids);
+    return c.json(okBody(result, `已请求取消 ${result.affected} 个任务`), 200);
+  },
+});
+
+const batchDeleteRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/batch-delete', tags: ['AsyncTasks'], summary: '批量删除任务记录（仅已结束）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:async-task:manage', audit: { description: '批量删除异步任务', module: '任务中心' } })] as const,
+    request: { body: { content: jsonContent(BatchIdsBody), required: true } },
+    responses: { ...commonErrorResponses, ...ok(AsyncTaskBatchResultDTO, '批量删除结果') },
+  }),
+  handler: async (c) => {
+    const result = await batchDeleteTasks(c.req.valid('json').ids);
+    return c.json(okBody(result, `已删除 ${result.affected} 个任务记录`), 200);
+  },
 });
 
 const cancelRoute = defineOpenAPIRoute({
@@ -136,7 +227,8 @@ const cleanupRoute = defineOpenAPIRoute({
 });
 
 asyncTasksRoute.openapiRoutes([
-  typesRoute, mineRoute, listRoute, cleanupRoute, getOneRoute,
+  typesRoute, updateTypePolicyRoute, statsRoute, mineRoute, listRoute, cleanupRoute,
+  batchCancelRoute, batchDeleteRoute, getOneRoute, itemsRoute,
   cancelRoute, resumeRoute, restartRoute, deleteRoute,
 ] as const);
 

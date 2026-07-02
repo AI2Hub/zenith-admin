@@ -27,6 +27,7 @@ import CallOverlayHost from '@/webrtc/CallOverlayHost';
 import { useChatNotifier } from '@/pages/chat/useChatNotifier';
 import AppLogo from '@/components/AppLogo';
 import AnnouncementDetailModal from '@/components/AnnouncementDetailModal';
+import TaskTray from '@/components/TaskTray';
 import BreadcrumbMenuPopover from '@/components/BreadcrumbMenuPopover';
 import { TopNavWithOverflow } from './TopNavWithOverflow';
 import { TabSwitcher } from './TabSwitcher';
@@ -1268,6 +1269,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
           <div style={{ width: 1, height: 16, backgroundColor: 'var(--color-border)', margin: '0 4px' }} />
         </>
       )}
+      <TaskTray />
       <Popover
         visible={announcementPopVisible}
         onVisibleChange={(v) => { setAnnouncementPopVisible(v); if (v) fetchRecentAnnouncements(); }}

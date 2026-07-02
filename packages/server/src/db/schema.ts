@@ -14,6 +14,7 @@ export const exportJobStatusEnum = pgEnum('export_job_status', ['pending', 'runn
 export const exportJobExecutionModeEnum = pgEnum('export_job_execution_mode', ['sync', 'async']);
 export const exportJobDeleteReasonEnum = pgEnum('export_job_delete_reason', ['expired', 'manual', 'file_missing']);
 export const asyncTaskStatusEnum = pgEnum('async_task_status', ['pending', 'running', 'success', 'failed', 'cancelled']);
+export const asyncTaskItemStatusEnum = pgEnum('async_task_item_status', ['pending', 'success', 'failed', 'skipped']);
 export const systemSchedulerTaskTypeEnum = pgEnum('system_scheduler_task_type', ['recurring', 'queue']);
 export const systemSchedulerRunStatusEnum = pgEnum('system_scheduler_run_status', ['running', 'success', 'failed']);
 export const systemSchedulerTriggerTypeEnum = pgEnum('system_scheduler_trigger_type', ['schedule', 'manual', 'queue']);
@@ -480,6 +481,12 @@ export const asyncTasks = pgTable('async_tasks', {
   cancelRequested: boolean('cancel_requested').notNull().default(false),
   /** 已领取执行次数（断点恢复不清零，重新开始清零） */
   attempts: integer('attempts').notNull().default(0),
+  /** 最大执行次数快照（提交时从类型策略解析；失败且 attempts < maxAttempts 时自动重试） */
+  maxAttempts: integer('max_attempts').notNull().default(1),
+  /** 下次允许执行时间（自动重试退避）；null = 立即可执行 */
+  nextRunAt: timestamp('next_run_at'),
+  /** 幂等键：相同 key 的重复提交返回已存在任务 */
+  idempotencyKey: varchar('idempotency_key', { length: 128 }),
   /** 执行心跳（progress 更新时刷新），兜底扫描据此回收卡死任务 */
   heartbeatAt: timestamp('heartbeat_at'),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
@@ -493,10 +500,52 @@ export const asyncTasks = pgTable('async_tasks', {
   index('async_tasks_status_idx').on(t.status),
   index('async_tasks_created_by_idx').on(t.createdBy),
   index('async_tasks_created_at_idx').on(t.createdAt),
+  unique('uniq_async_tasks_idempotency_key').on(t.idempotencyKey),
 ]);
 
 export type AsyncTaskRow = typeof asyncTasks.$inferSelect;
 export type NewAsyncTask = typeof asyncTasks.$inferInsert;
+
+/** 任务项明细（可选层）：行级处理状态，导入/批量场景的逐行错误报告 */
+export const asyncTaskItems = pgTable('async_task_items', {
+  id: serial('id').primaryKey(),
+  taskId: integer('task_id').notNull().references(() => asyncTasks.id, { onDelete: 'cascade' }),
+  /** 业务标识（行号、用户ID、单号等），同一任务内唯一，重试时按 key 覆盖 */
+  itemKey: varchar('item_key', { length: 128 }).notNull(),
+  label: varchar('label', { length: 256 }),
+  status: asyncTaskItemStatusEnum('status').notNull().default('pending'),
+  /** 错误信息 / 备注 */
+  message: text('message'),
+  data: jsonb('data').$type<Record<string, unknown>>(),
+  /** 在第几次执行中处理 */
+  attempt: integer('attempt').notNull().default(1),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  unique('uniq_async_task_item').on(t.taskId, t.itemKey),
+  index('async_task_items_task_idx').on(t.taskId),
+  index('async_task_items_task_status_idx').on(t.taskId, t.status),
+]);
+
+export type AsyncTaskItemRow = typeof asyncTaskItems.$inferSelect;
+export type NewAsyncTaskItem = typeof asyncTaskItems.$inferInsert;
+
+/** 任务类型运行时策略（注册时写入默认值，任务中心「任务类型」页可覆盖） */
+export const asyncTaskTypeConfigs = pgTable('async_task_type_configs', {
+  taskType: varchar('task_type', { length: 64 }).primaryKey(),
+  /** false = 暂停提交（存量任务不受影响） */
+  enabled: boolean('enabled').notNull().default(true),
+  allowConcurrent: boolean('allow_concurrent').notNull().default(true),
+  maxAttempts: integer('max_attempts').notNull().default(1),
+  /** 重试退避基数（毫秒），实际延迟 = retryDelayMs * 2^(attempts-1)，上限 15 分钟 */
+  retryDelayMs: integer('retry_delay_ms').notNull().default(5000),
+  /** 已结束任务保留天数；null = 跟随全局（30 天） */
+  retentionDays: integer('retention_days'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+
+export type AsyncTaskTypeConfigRow = typeof asyncTaskTypeConfigs.$inferSelect;
 
 export const exportJobDownloads = pgTable('export_job_downloads', {
   id: serial('id').primaryKey(),
@@ -3373,9 +3422,14 @@ export const exportJobDownloadsRelations = relations(exportJobDownloads, ({ one 
   tenant: one(tenants, { fields: [exportJobDownloads.tenantId], references: [tenants.id] }),
 }));
 
-export const asyncTasksRelations = relations(asyncTasks, ({ one }) => ({
+export const asyncTasksRelations = relations(asyncTasks, ({ one, many }) => ({
   tenant: one(tenants, { fields: [asyncTasks.tenantId], references: [tenants.id] }),
   createdByUser: one(users, { fields: [asyncTasks.createdBy], references: [users.id] }),
+  items: many(asyncTaskItems),
+}));
+
+export const asyncTaskItemsRelations = relations(asyncTaskItems, ({ one }) => ({
+  task: one(asyncTasks, { fields: [asyncTaskItems.taskId], references: [asyncTasks.id] }),
 }));
 
 export const cronJobsRelations = relations(cronJobs, ({ many }) => ({

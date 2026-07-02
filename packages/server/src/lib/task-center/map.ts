@@ -24,6 +24,8 @@ export function mapAsyncTask(row: AsyncTaskRowWithCreator): AsyncTask {
     errorMessage: row.errorMessage ?? null,
     cancelRequested: row.cancelRequested,
     attempts: row.attempts,
+    maxAttempts: row.maxAttempts,
+    nextRunAt: formatNullableDateTime(row.nextRunAt),
     createdBy: row.createdBy ?? null,
     createdByName: row.createdByUser?.nickname || row.createdByUser?.username || null,
     tenantId: row.tenantId ?? null,

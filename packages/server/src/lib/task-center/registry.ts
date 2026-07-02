@@ -1,6 +1,6 @@
 import type { AsyncTaskTypeMeta } from '@zenith/shared';
 import logger from '../logger';
-import type { TaskHandlerRegistration } from './types';
+import { RETRY_BACKOFF_MAX_MS, type TaskHandlerRegistration, type TaskTypeRuntimePolicy } from './types';
 
 const handlers = new Map<string, TaskHandlerRegistration>();
 
@@ -16,19 +16,39 @@ export function getTaskHandler(taskType: string): TaskHandlerRegistration | unde
   return handlers.get(taskType);
 }
 
-export function getTaskTypeMeta(taskType: string): AsyncTaskTypeMeta | null {
-  const handler = handlers.get(taskType);
-  if (!handler) return null;
+export function listTaskHandlers(): TaskHandlerRegistration[] {
+  return [...handlers.values()].sort((a, b) => a.taskType.localeCompare(b.taskType));
+}
+
+/** 注册默认策略（未套用 DB 覆盖）；生效策略请用 config.ts 的 getTaskTypePolicy */
+export function registrationDefaults(handler: TaskHandlerRegistration): TaskTypeRuntimePolicy {
+  return {
+    enabled: true,
+    allowConcurrent: handler.allowConcurrent ?? true,
+    maxAttempts: Math.min(Math.max(Math.trunc(handler.maxAttempts ?? 1), 1), 10),
+    retryDelayMs: Math.min(Math.max(Math.trunc(handler.retryDelayMs ?? 5000), 1000), RETRY_BACKOFF_MAX_MS),
+    retentionDays: handler.retentionDays ?? null,
+  };
+}
+
+/** 基础元信息 + 指定策略合并为对外 Meta */
+export function buildTaskTypeMeta(handler: TaskHandlerRegistration, policy: TaskTypeRuntimePolicy): AsyncTaskTypeMeta {
   return {
     taskType: handler.taskType,
     title: handler.title,
     module: handler.module,
     description: handler.description ?? null,
-    allowConcurrent: handler.allowConcurrent ?? true,
+    allowConcurrent: policy.allowConcurrent,
+    enabled: policy.enabled,
+    maxAttempts: policy.maxAttempts,
+    retryDelayMs: policy.retryDelayMs,
+    retentionDays: policy.retentionDays,
   };
 }
 
-export function listTaskTypeMetas(): AsyncTaskTypeMeta[] {
-  return [...handlers.keys()].map((taskType) => getTaskTypeMeta(taskType)!)
-    .sort((a, b) => a.taskType.localeCompare(b.taskType));
+/** 同步版元信息（注册默认值，不含 DB 覆盖）：仅用于展示兜底（如 mapAsyncTask 的 module 字段） */
+export function getTaskTypeMeta(taskType: string): AsyncTaskTypeMeta | null {
+  const handler = handlers.get(taskType);
+  if (!handler) return null;
+  return buildTaskTypeMeta(handler, registrationDefaults(handler));
 }
