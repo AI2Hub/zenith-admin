@@ -17,8 +17,8 @@ import { TOKEN_KEY } from '@zenith/shared';
 import type { DbQueryFavorite } from '@zenith/shared';
 import { config } from '@/config';
 import { request } from '@/utils/request';
-import ConfigurableTable from '@/components/ConfigurableTable';
 import { AppModal } from '@/components/AppModal';
+import { DataGrid, CellDetailDrawer, type CellPos, type DataGridColumn, type DataGridHandle } from '@/components/data-grid';
 import { formatDateTime } from '@/utils/date';
 import { ExplainView } from './ExplainView';
 import { ResultChart } from './ResultChart';
@@ -89,19 +89,6 @@ const DEFAULT_SQL = '-- 只读模式：仅允许 SELECT / EXPLAIN 等查询语�
 let completionTables: ConsoleTableRef[] = [];
 let completionColumns: Map<string, string[]> = new Map();
 let completionDisposable: { dispose: () => void } | null = null;
-
-function renderResultCell(v: unknown): React.ReactNode {
-  if (v == null) return <Text type="quaternary">NULL</Text>;
-  if (typeof v === 'object') return <Text code>{JSON.stringify(v)}</Text>;
-  let str: string;
-  if (typeof v === 'string') str = v;
-  else if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint') str = v.toString();
-  else str = JSON.stringify(v);
-  if (str.length > 80) {
-    return <Tooltip content={<div style={{ maxWidth: 400, wordBreak: 'break-all' }}>{str}</div>}>{str.slice(0, 80) + '…'}</Tooltip>;
-  }
-  return str;
-}
 
 export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function SqlConsole(props, ref) {
   const { tables, structureColumnsCache, canQuery, canExport, monacoTheme } = props;
@@ -353,22 +340,18 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
     Toast.success(`已加载「${fav.name}」`);
   }, [addTab]);
 
-  const resultColumns = useMemo(() => {
+  const resultGridColumns = useMemo<DataGridColumn[]>(() => {
     if (!activeTab.result) return [];
-    return activeTab.result.columns.map((c) => ({
-      title: (
-        <Space spacing={4}>
-          <Text>{c.name}</Text>
-          {c.dataType && <Text type="tertiary" size="small">{c.dataType}</Text>}
-        </Space>
-      ),
-      dataIndex: c.name,
-      key: c.name,
-      width: 180,
-      ellipsis: { showTitle: false },
-      render: renderResultCell,
-    }));
+    return activeTab.result.columns.map((c) => ({ name: c.name, dataType: c.dataType }));
   }, [activeTab.result]);
+
+  // 结果集单元格详情（Enter / 角标 / 双击）
+  const resultGridRef = useRef<DataGridHandle | null>(null);
+  const [resultDetail, setResultDetail] = useState<{ rowIndex: number; columnName: string | null } | null>(null);
+  const openResultDetail = useCallback((pos: CellPos) => {
+    const cols = resultGridRef.current?.getVisibleColumns();
+    setResultDetail({ rowIndex: pos.row, columnName: cols?.[pos.col]?.name ?? null });
+  }, []);
 
   const result = activeTab.result;
   const error = activeTab.error;
@@ -570,21 +553,36 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
             </div>
           )}
           {result.rows.length === 0 ? <Empty title="无结果" /> : (
-            <ConfigurableTable
-              bordered
-              columns={resultColumns}
-              dataSource={result.rows.map((r, i) => ({ ...r, __key: i }))}
-              rowKey="__key"
-              loading={queryLoading}
-              pagination={result.paginated ? {
-                currentPage: result.page ?? 1,
-                pageSize: result.pageSize ?? PAGE_SIZE,
-                total: result.total ?? 0,
-                onPageChange: (p: number) => void loadPage(p),
-              } : { pageSize: 20, pageSizeOpts: [20, 50, 100] }}
-              size="small"
-              scroll={{ x: 'max-content' }}
-            />
+            <>
+              {result.paginated && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <Button
+                    size="small"
+                    disabled={(result.page ?? 1) <= 1 || queryLoading}
+                    onClick={() => void loadPage((result.page ?? 1) - 1)}
+                  >上一页</Button>
+                  <Text type="tertiary" size="small">
+                    第 {result.page ?? 1} / {Math.max(1, Math.ceil((result.total ?? 0) / (result.pageSize ?? PAGE_SIZE)))} 页
+                  </Text>
+                  <Button
+                    size="small"
+                    disabled={queryLoading || (result.page ?? 1) >= Math.ceil((result.total ?? 0) / (result.pageSize ?? PAGE_SIZE))}
+                    onClick={() => void loadPage((result.page ?? 1) + 1)}
+                  >下一页</Button>
+                </div>
+              )}
+              <div style={{ height: 'min(560px, 62vh)' }}>
+                <DataGrid
+                  ref={resultGridRef}
+                  columns={resultGridColumns}
+                  rows={result.rows}
+                  totalRows={result.paginated ? (result.total ?? result.rowCount) : result.rowCount}
+                  onOpenDetail={openResultDetail}
+                  onRowDoubleClick={(rowIndex, columnName) => setResultDetail({ rowIndex, columnName })}
+                  emptyText="无结果"
+                />
+              </div>
+            </>
           )}
         </div>
       )}
@@ -682,6 +680,15 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
           )}
         </Form>
       </AppModal>
+
+      <CellDetailDrawer
+        visible={resultDetail !== null}
+        onClose={() => setResultDetail(null)}
+        columns={resultGridColumns}
+        row={resultDetail !== null ? (result?.rows[resultDetail.rowIndex] ?? null) : null}
+        rowNumber={resultDetail !== null ? resultDetail.rowIndex + 1 : null}
+        columnName={resultDetail?.columnName ?? null}
+      />
     </div>
   );
 });

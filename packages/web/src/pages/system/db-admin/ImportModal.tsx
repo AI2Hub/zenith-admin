@@ -1,12 +1,16 @@
-import { useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import {
-  Banner, Select, Space, Table, Toast, Typography, Upload,
+  Banner, Select, Space, Spin, Table, Tabs, TabPane, Toast, Typography, Upload,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Upload as UploadIcon, FileText } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import { request } from '@/utils/request';
 import { parseCsv, parseJsonRows } from './csv-parse';
+
+// Univer 体积大，仅在切到「从 Excel 粘贴」页签时按需加载
+const SpreadsheetPasteTab = lazy(() =>
+  import('./SpreadsheetPasteTab').then((m) => ({ default: m.SpreadsheetPasteTab })));
 
 const { Text } = Typography;
 
@@ -52,6 +56,7 @@ function coerce(value: unknown, dataType: string): unknown {
 
 export function ImportModal(props: Readonly<Props>) {
   const { open, schema, table, columns, onClose, onSuccess } = props;
+  const [sourceTab, setSourceTab] = useState<string>('file');
   const [fileName, setFileName] = useState('');
   const [headers, setHeaders] = useState<string[]>([]);
   const [rawRows, setRawRows] = useState<Array<Record<string, unknown>>>([]);
@@ -65,6 +70,18 @@ export function ImportModal(props: Readonly<Props>) {
     resetRef.current?.();
   };
 
+  /** 数据就绪（文件解析 / 表格粘贴共用）：自动按同名映射列 */
+  const acceptData = (label: string, hdrs: string[], rows: Array<Record<string, unknown>>) => {
+    setHeaders(hdrs);
+    setRawRows(rows);
+    setFileName(label);
+    setParseError(null);
+    const colNames = new Set(columns.map((c) => c.name));
+    const auto: Record<string, string> = {};
+    for (const h of hdrs) auto[h] = colNames.has(h) ? h : SKIP;
+    setMapping(auto);
+  };
+
   const handleFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -73,15 +90,7 @@ export function ImportModal(props: Readonly<Props>) {
         const isJson = file.name.toLowerCase().endsWith('.json');
         const parsed = isJson ? parseJsonRows(text) : parseCsv(text);
         if (parsed.rows.length === 0) { setParseError('文件中没有可导入的数据行'); return; }
-        setHeaders(parsed.headers);
-        setRawRows(parsed.rows);
-        setFileName(file.name);
-        setParseError(null);
-        // 自动按同名映射文件列 -> 表列
-        const colNames = new Set(columns.map((c) => c.name));
-        const auto: Record<string, string> = {};
-        for (const h of parsed.headers) auto[h] = colNames.has(h) ? h : SKIP;
-        setMapping(auto);
+        acceptData(file.name, parsed.headers, parsed.rows);
       } catch (e) {
         setParseError(e instanceof Error ? e.message : '解析失败');
       }
@@ -157,25 +166,46 @@ export function ImportModal(props: Readonly<Props>) {
       width={860}
     >
       <Space vertical align="start" style={{ width: '100%' }} spacing={12}>
-        <Upload
-          accept=".csv,.json"
-          limit={1}
-          draggable
-          action=""
-          uploadTrigger="custom"
-          beforeUpload={({ file }) => {
-            if (file.fileInstance) handleFile(file.fileInstance);
-            return false;
-          }}
-          onRemove={() => reset()}
+        <Tabs
+          type="line"
+          size="small"
+          activeKey={sourceTab}
+          onChange={(k) => { setSourceTab(k); reset(); }}
           style={{ width: '100%' }}
         >
-          <div style={{ padding: '20px 16px', textAlign: 'center', border: '1px dashed var(--semi-color-border)', borderRadius: 6, width: '100%' }}>
-            <UploadIcon size={24} style={{ color: 'var(--semi-color-text-2)' }} />
-            <div style={{ marginTop: 6 }}><Text>点击或拖拽上传 CSV / JSON 文件</Text></div>
-            <Text type="tertiary" size="small">CSV 首行须为列名；JSON 须为对象数组</Text>
-          </div>
-        </Upload>
+          <TabPane tab="文件上传 (CSV / JSON)" itemKey="file">
+            <Upload
+              accept=".csv,.json"
+              limit={1}
+              draggable
+              action=""
+              uploadTrigger="custom"
+              beforeUpload={({ file }) => {
+                if (file.fileInstance) handleFile(file.fileInstance);
+                return false;
+              }}
+              onRemove={() => reset()}
+              style={{ width: '100%', marginTop: 8 }}
+            >
+              <div style={{ padding: '20px 16px', textAlign: 'center', border: '1px dashed var(--semi-color-border)', borderRadius: 6, width: '100%' }}>
+                <UploadIcon size={24} style={{ color: 'var(--semi-color-text-2)' }} />
+                <div style={{ marginTop: 6 }}><Text>点击或拖拽上传 CSV / JSON 文件</Text></div>
+                <Text type="tertiary" size="small">CSV 首行须为列名；JSON 须为对象数组</Text>
+              </div>
+            </Upload>
+          </TabPane>
+          <TabPane tab="从 Excel 粘贴" itemKey="paste">
+            <div style={{ marginTop: 8 }}>
+              {sourceTab === 'paste' && (
+                <Suspense fallback={<div style={{ padding: 48, textAlign: 'center' }}><Spin /></div>}>
+                  <SpreadsheetPasteTab
+                    onData={(hdrs, rows) => acceptData(`表格粘贴（${rows.length} 行）`, hdrs, rows)}
+                  />
+                </Suspense>
+              )}
+            </div>
+          </TabPane>
+        </Tabs>
 
         {parseError && <Banner type="danger" fullMode={false} closeIcon={null} description={parseError} style={{ width: '100%' }} />}
 
