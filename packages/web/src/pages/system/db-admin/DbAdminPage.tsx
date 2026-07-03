@@ -689,6 +689,17 @@ export default function DbAdminPage() {
   // ─── 数据网格接线 ────────────────────────────────────────────────────────────
   const canEditRows = canWrite && isWritableTable && hasPrimaryKey;
 
+  /** 不可编辑的具体原因（结构加载完成后才判定，避免误报） */
+  const readOnlyReason = useMemo<string | null>(() => {
+    if (!selected) return null;
+    if (!canWrite) return '无编辑权限（system:db-admin:write）';
+    if (selected.kind === 'view') return '视图只读';
+    if (selected.kind === 'matview') return '物化视图只读';
+    if (!isWritableTable) return '系统表只读';
+    if (structure && structure.primaryKey.length === 0) return '无主键，无法定位行，仅可插入与查看';
+    return null;
+  }, [selected, canWrite, isWritableTable, structure]);
+
   const gridColumns = useMemo<DataGridColumn[]>(() => {
     const fkByColumn = new Map<string, ForeignKeyInfo>();
     if (structure?.foreignKeys) {
@@ -1033,11 +1044,11 @@ export default function DbAdminPage() {
                             {rowsOrderBy && (<> · 排序：<Text code>{rowsOrderBy} {rowsOrderDir}</Text></>)}
                             {Object.keys(rowsFilters).length > 0 && (<> · 筛选：<Text code>{Object.keys(rowsFilters).join(', ')}</Text></>)}
                             {rowsSearch && (<> · 搜索：<Text code>{rowsSearch}</Text></>)}
-                            {!hasPrimaryKey && isWritableTable && (
-                              <> · <Text type="warning">无主键，仅可插入与查看</Text></>
+                            {readOnlyReason && (
+                              <> · <Text type="warning">{readOnlyReason}</Text></>
                             )}
-                            {!isWritableTable && (
-                              <> · <Text type="tertiary">系统表只读</Text></>
+                            {canEditRows && pendingCount === 0 && (
+                              <> · <Text type="tertiary">双击单元格可编辑（主键列除外）</Text></>
                             )}
                           </Text>
                           <Space wrap>
