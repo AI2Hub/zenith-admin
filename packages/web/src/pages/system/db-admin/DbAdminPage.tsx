@@ -298,6 +298,9 @@ export default function DbAdminPage() {
   }, [activeTab, erSchema, erLoading, loadEr]);
 
   const handleSelectTable = (item: TableItem) => {
+    // 重复选中同一张表（如双击）直接忽略：setSelected 同引用不会重跑加载 effect，
+    // 若继续执行清理会把已加载的结构清空且不再恢复
+    if (selected && selected.schema === item.schema && selected.name === item.name) return;
     const doSelect = () => {
       setSelected(item);
       setStructure(null);
