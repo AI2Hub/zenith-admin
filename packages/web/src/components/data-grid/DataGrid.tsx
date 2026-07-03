@@ -323,7 +323,8 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
     [columns],
   );
   const gridEditor = useGridEditor({ pkColumns, onCountsChange: onPendingCountChange });
-  const [editing, setEditing] = useState<{ pos: CellPos; initialText?: string } | null>(null);
+  /** 编辑态：新增行草稿用 clientId 跟随（滚动加载追加数据后仍指向同一草稿行） */
+  const [editing, setEditing] = useState<{ pos: CellPos; initialText?: string; newRowClientId?: number } | null>(null);
   const editingRef = useRef(editing);
   editingRef.current = editing;
   const rowsRef = useRef(rows);
@@ -389,12 +390,13 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
   });
   const virtualItems = rowVirtualizer.getVirtualItems();
 
-  // 滚近底部加载更多
+  // 滚近底部加载更多（正在编辑新增行草稿时抑制：追加数据会推移草稿行位置）
   const onLoadMoreRef = useRef(onLoadMore);
   onLoadMoreRef.current = onLoadMore;
   const lastVisibleIndex = virtualItems.length > 0 ? virtualItems[virtualItems.length - 1].index : -1;
   useEffect(() => {
     if (!hasMore || loadingMore || rows.length === 0) return;
+    if (editingRef.current?.newRowClientId !== undefined) return;
     if (lastVisibleIndex >= rows.length - LOAD_MORE_THRESHOLD) {
       onLoadMoreRef.current?.();
     }
@@ -440,9 +442,12 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
     const col = visibleColumnsRef.current[pos.col];
     if (!col) return false;
     const isNewRow = pos.row >= dataRowCountRef.current;
+    let newRowClientId: number | undefined;
     if (isNewRow) {
-      // 新增行草稿：所有列可编辑（含主键，留空由 DB 默认值生成）
-      if (!newRowAtRef.current(pos.row)) return false;
+      // 新增行草稿：所有列可编辑（含主键，留空由 DB 默认值生成）；记录 clientId 跟随
+      const draft = newRowAtRef.current(pos.row);
+      if (!draft) return false;
+      newRowClientId = draft.clientId;
     } else {
       if (!canEditColumnRef.current(col)) return false;
       const row = rowsRef.current[pos.row];
@@ -452,7 +457,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
     }
     ensureCellVisible(pos);
     dispatchSel({ type: 'moveTo', pos, shift: false });
-    setEditing({ pos, initialText });
+    setEditing({ pos, initialText, newRowClientId });
     return true;
   }, [ensureCellVisible, editable]);
 
@@ -477,9 +482,9 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
     const cur = editingRef.current;
     if (cur) {
       const col = visibleColumnsRef.current[cur.pos.col];
-      const draft = newRowAtRef.current(cur.pos.row);
-      if (col && draft) {
-        gridEditorRef.current.updateNewRowCell(draft.clientId, col.name, value);
+      if (col && cur.newRowClientId !== undefined) {
+        // 新增行草稿：clientId 直达，免疫行下标漂移
+        gridEditorRef.current.updateNewRowCell(cur.newRowClientId, col.name, value);
       } else if (col) {
         const row = rowsRef.current[cur.pos.row];
         if (row) gridEditorRef.current.stageCell(row, col.name, value);
@@ -774,15 +779,18 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
     },
     getEffectiveRows: () => displayRowsRef.current,
     addNewRow: (initial?: Record<string, unknown>) => {
-      // 新行追加在尾部：其行下标 = 数据行数 + 追加前的草稿数（state 更新前读取恰为该值）
       const targetRow = dataRowCountRef.current + gridEditorRef.current.state.newRows.length;
-      gridEditorRef.current.addNewRow(initial ?? {});
+      const clientId = gridEditorRef.current.addNewRow(initial ?? {});
       requestAnimationFrame(() => {
+        // 用 clientId 实时解析行下标：期间若滚动加载追加了数据也不会漂移
+        const draftIdx = gridEditorRef.current.state.newRows.findIndex((d) => d.clientId === clientId);
+        if (draftIdx === -1) return;
+        const liveRow = dataRowCountRef.current + draftIdx;
         const firstEditable = visibleColumnsRef.current.findIndex((c) => !c.isPrimaryKey);
-        const pos = { row: targetRow, col: Math.max(0, firstEditable) };
-        rowVirtualizer.scrollToIndex(targetRow);
+        const pos = { row: liveRow, col: Math.max(0, firstEditable) };
+        rowVirtualizer.scrollToIndex(liveRow);
         dispatchSel({ type: 'moveTo', pos, shift: false });
-        setEditing({ pos });
+        setEditing({ pos, newRowClientId: clientId });
       });
       return targetRow;
     },
@@ -948,21 +956,29 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
             })}
             {editing && (() => {
               const col = visibleColumns[editing.pos.col];
-              const displayRow = displayRows[editing.pos.row];
-              if (!col || !displayRow) return null;
+              if (!col) return null;
+              // 新增行草稿按 clientId 实时解析行下标（免疫滚动加载导致的下标漂移）
+              let liveRow = editing.pos.row;
+              if (editing.newRowClientId !== undefined) {
+                const draftIdx = gridEditor.state.newRows.findIndex((d) => d.clientId === editing.newRowClientId);
+                if (draftIdx === -1) return null; // 草稿已被移除
+                liveRow = dataRowCount + draftIdx;
+              }
+              const displayRow = displayRows[liveRow];
+              if (!displayRow) return null;
               const pinned = pinnedLefts[editing.pos.col] !== undefined;
               const left = pinned
                 ? (scrollRef.current?.scrollLeft ?? 0) + (pinnedLefts[editing.pos.col] ?? 0)
                 : colOffsets[editing.pos.col];
               return (
                 <CellEditorOverlay
-                  key={`${editing.pos.row}:${col.name}`}
+                  key={`${editing.newRowClientId ?? liveRow}:${col.name}`}
                   column={col}
                   kind={kinds[editing.pos.col]}
                   value={displayRow[col.name]}
                   rect={{
                     left,
-                    top: editing.pos.row * rowHeight,
+                    top: liveRow * rowHeight,
                     width: widths[editing.pos.col],
                     height: rowHeight,
                   }}
