@@ -10,6 +10,8 @@ interface GridStatusBarProps {
   total?: number;
   hasMore?: boolean;
   loadingMore?: boolean;
+  /** 数据整体刷新中（stale-while-revalidate：旧数据仍在展示） */
+  refreshing?: boolean;
   selectedRowCount: number;
   selectedCellCount: number;
   columns: DataGridColumn[];
@@ -22,7 +24,7 @@ interface GridStatusBarProps {
 /** 网格底部状态条：加载进度 · 选区统计 · 列设置 */
 export const GridStatusBar = memo(function GridStatusBar(props: GridStatusBarProps) {
   const {
-    loaded, total, hasMore, loadingMore,
+    loaded, total, hasMore, loadingMore, refreshing,
     selectedRowCount, selectedCellCount,
     columns, hiddenColumns, onToggleColumn, onResetColumns, extra,
   } = props;
@@ -60,7 +62,7 @@ export const GridStatusBar = memo(function GridStatusBar(props: GridStatusBarPro
     <div className="dg-statusbar">
       {extra}
       <span>{loadedText}</span>
-      {loadingMore && <Spin size="small" />}
+      {(loadingMore || refreshing) && <Spin size="small" />}
       {!hasMore && total !== undefined && loaded < total && (
         <Text type="warning" size="small">已达查询上限</Text>
       )}

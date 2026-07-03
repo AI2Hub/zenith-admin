@@ -113,9 +113,11 @@ export interface DataGridProps {
   loadingMore?: boolean;
   /** 滚动接近底部时触发 */
   onLoadMore?: () => void;
-  /** 受控排序状态（表头点击循环 asc → desc → none） */
+  /** 受控排序状态（表头点击循环 asc → desc → none；服务端排序） */
   sortState?: SortState | null;
   onSortChange?: (s: SortState | null) => void;
+  /** 数据刷新中（旧数据保持显示，状态条示忙）——配合 stale-while-revalidate 防闪烁 */
+  refreshing?: boolean;
   /** 打开单元格详情（Enter / 角标 / 右键菜单由父层调用） */
   onOpenDetail?: (pos: CellPos) => void;
   /** 双击单元格（db-admin 用于打开行编辑） */

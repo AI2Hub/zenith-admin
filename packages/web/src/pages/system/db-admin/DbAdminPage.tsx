@@ -307,6 +307,8 @@ export default function DbAdminPage() {
   };
 
   const handleRowsSort = (col: string, dir: 'asc' | 'desc' | undefined) => {
+    // 服务端重排后行下标语义失效，清空选区（暂存按主键定位不受影响）
+    gridRef.current?.clearSelection();
     setRowsOrderBy(dir ? col : undefined);
     setRowsOrderDir(dir);
   };
@@ -1106,6 +1108,7 @@ export default function DbAdminPage() {
                               totalRows={rowsData.total}
                               hasMore={rowsData.hasMore}
                               loadingMore={rowsData.loadingMore}
+                              refreshing={rowsData.refreshing}
                               onLoadMore={rowsData.loadMore}
                               sortState={rowsOrderBy && rowsOrderDir ? { column: rowsOrderBy, dir: rowsOrderDir } : null}
                               onSortChange={(s) => handleRowsSort(s?.column ?? rowsOrderBy ?? '', s?.dir)}
@@ -1312,7 +1315,8 @@ export default function DbAdminPage() {
         onFilterByValue={(column, encoded) => handleGridFilterChange(column, encoded)}
         onOpenDetail={handleGridOpenDetail}
         onEditRow={(rowIndex, focusField) => {
-          const row = rowsData.rows[rowIndex];
+          // 用网格显示顺序取行（本地排序后与 rowsData.rows 下标可能不同），并携带暂存值
+          const row = (gridRef.current?.getEffectiveRows() ?? rowsData.rows)[rowIndex];
           if (row) openEditRow(row, focusField);
         }}
         onDeleteRows={handleGridDeleteRows}

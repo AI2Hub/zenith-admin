@@ -23,18 +23,22 @@ interface Params {
 }
 
 /**
- * 表数据无限滚动加载：分批消费现有 GET /rows 接口（200 行/批），
- * 排序 / 筛选 / 搜索 / 换表时自动重置；generation 计数丢弃过期响应。
+ * 表数据无限滚动加载：分批消费现有 GET /rows 接口（200 行/批）。
+ * 防闪烁（stale-while-revalidate）：同一张表内排序 / 筛选 / 搜索变化时保留旧数据展示，
+ * 新数据到达后一次性替换（refreshing 标记）；换表则立即清空。
  */
 export function useTableRowsInfinite(params: Params) {
   const { schema, table, enabled, orderBy, orderDir, filters, search } = params;
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const pagesRef = useRef(0);
   const generationRef = useRef(0);
   const fetchingMoreRef = useRef(false);
+  /** 表身份：变化时才清空旧数据 */
+  const identityRef = useRef('');
 
   const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
 
@@ -59,19 +63,26 @@ export function useTableRowsInfinite(params: Params) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schema, table, orderBy, orderDir, filtersKey, search]);
 
-  // 参数变化：重置并加载第一页
+  // 参数变化：重置并加载第一页（同表保留旧数据防闪烁；换表立即清空）
   useEffect(() => {
     const gen = ++generationRef.current;
     pagesRef.current = 0;
     fetchingMoreRef.current = false;
-    setRows([]);
-    setTotal(0);
     setLoadingMore(false);
+    const identity = `${schema ?? ''}\u0001${table ?? ''}`;
+    const identityChanged = identity !== identityRef.current;
+    identityRef.current = identity;
+    if (identityChanged) {
+      setRows([]);
+      setTotal(0);
+    }
     if (!enabled || !schema || !table) {
       setLoading(false);
+      setRefreshing(false);
       return;
     }
-    setLoading(true);
+    if (identityChanged) setLoading(true);
+    else setRefreshing(true);
     void (async () => {
       const data = await fetchPage(1);
       if (gen !== generationRef.current) return;
@@ -81,6 +92,7 @@ export function useTableRowsInfinite(params: Params) {
         pagesRef.current = 1;
       }
       setLoading(false);
+      setRefreshing(false);
     })();
   }, [enabled, schema, table, fetchPage]);
 
@@ -130,5 +142,5 @@ export function useTableRowsInfinite(params: Params) {
     setLoadingMore(false);
   }, [enabled, schema, table, fetchPage]);
 
-  return { rows, total, loading, loadingMore, hasMore, loadMore, refresh, maxRows: MAX_ROWS };
+  return { rows, total, loading, refreshing, loadingMore, hasMore, loadMore, refresh, maxRows: MAX_ROWS };
 }

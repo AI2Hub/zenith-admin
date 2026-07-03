@@ -10,8 +10,8 @@ import {
   useState,
 } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Spin, Toast } from '@douyinfe/semi-ui';
-import { ArrowDown, ArrowUp, KeyRound, Link2 } from 'lucide-react';
+import { Dropdown, Spin, Toast } from '@douyinfe/semi-ui';
+import { ArrowDown, ArrowUp, ArrowUpDown, Database, KeyRound, Link2, X } from 'lucide-react';
 
 import type {
   CellPos,
@@ -20,9 +20,11 @@ import type {
   DataGridProps,
   SelectionSnapshot,
   SelectionState,
+  SortState,
 } from './types';
 import { columnKind, isNumericKind, shortTypeName, type CellKind } from './grid-format';
 import { coerceCellInput } from './cell-coercion';
+import { sortRowsLocally } from './local-sort';
 import { COL_MIN_WIDTH, ROW_NUMBER_WIDTH, estimateColumnWidths } from './column-width';
 import {
   EMPTY_SELECTION,
@@ -192,8 +194,8 @@ const GridRow = memo(function GridRow(props: GridRowProps) {
 
 export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataGrid(props, ref) {
   const {
-    columns, rows, totalRows, hasMore, loadingMore, onLoadMore,
-    sortState, onSortChange,
+    columns, rows: rawRows, totalRows, hasMore, loadingMore, onLoadMore,
+    sortState, onSortChange, refreshing,
     onOpenDetail, onRowDoubleClick, onCellContextMenu,
     headerFilterRender, onFkClick, onSelectedRowsChange,
     editable, isColumnEditable, onPendingCountChange,
@@ -203,6 +205,14 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
   } = props;
 
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // ── 当前页本地排序（与服务端排序互斥；纯内存重排，零请求零闪烁） ──
+  const [localSort, setLocalSort] = useState<SortState | null>(null);
+  const rows = useMemo(() => {
+    if (!localSort) return rawRows;
+    const col = columns.find((c) => c.name === localSort.column);
+    return sortRowsLocally(rawRows, col, localSort.dir);
+  }, [rawRows, localSort, columns]);
 
   // ── 列状态：隐藏 + 宽度（storageKey 持久化） ──
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
@@ -319,10 +329,11 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
 
-  // 换表时清空暂存与编辑态
+  // 换表时清空暂存与编辑态与本地排序
   useEffect(() => {
     gridEditor.discardAll();
     setEditing(null);
+    setLocalSort(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [columnsKey, storageKey]);
 
@@ -691,6 +702,8 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
   // ── 排序 ──
   const handleHeaderClick = useCallback((name: string) => {
     if (!onSortChange) return;
+    setLocalSort(null);
+    dispatchSel({ type: 'clear' });
     if (sortState?.column === name) {
       if (sortState.dir === 'asc') onSortChange({ column: name, dir: 'desc' });
       else onSortChange(null);
@@ -698,6 +711,24 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
       onSortChange({ column: name, dir: 'asc' });
     }
   }, [sortState, onSortChange]);
+
+  /** 排序菜单动作：server（数据库排序）/ local（当前页排序）/ 清除 */
+  const applySort = useCallback((mode: 'server' | 'local' | 'clear', name: string, dir?: 'asc' | 'desc') => {
+    dispatchSel({ type: 'clear' });
+    if (mode === 'clear') {
+      setLocalSort(null);
+      onSortChange?.(null);
+      return;
+    }
+    if (mode === 'server') {
+      setLocalSort(null);
+      onSortChange?.(dir ? { column: name, dir } : null);
+      return;
+    }
+    // 本地排序与服务端排序互斥
+    if (sortState) onSortChange?.(null);
+    setLocalSort(dir ? { column: name, dir } : null);
+  }, [onSortChange, sortState]);
 
   // ── 列设置 ──
   const handleToggleColumn = useCallback((name: string, visible: boolean) => {
@@ -806,8 +837,41 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
             #
           </div>
           {visibleColumns.map((col, ci) => {
-            const sorted = sortState?.column === col.name ? sortState.dir : null;
+            const serverSorted = sortState?.column === col.name ? sortState.dir : null;
+            const localSorted = localSort?.column === col.name ? localSort.dir : null;
+            const sorted = serverSorted ?? localSorted;
             const pinned = pinnedLefts[ci] !== undefined;
+            const sortMenu = (
+              <Dropdown.Menu>
+                <Dropdown.Item
+                  icon={<Database size={13} />}
+                  active={serverSorted === 'asc'}
+                  onClick={() => applySort('server', col.name, 'asc')}
+                >数据库升序排序</Dropdown.Item>
+                <Dropdown.Item
+                  icon={<Database size={13} />}
+                  active={serverSorted === 'desc'}
+                  onClick={() => applySort('server', col.name, 'desc')}
+                >数据库降序排序</Dropdown.Item>
+                <Dropdown.Divider />
+                <Dropdown.Item
+                  icon={<ArrowUp size={13} />}
+                  active={localSorted === 'asc'}
+                  onClick={() => applySort('local', col.name, 'asc')}
+                >当前页升序排序</Dropdown.Item>
+                <Dropdown.Item
+                  icon={<ArrowDown size={13} />}
+                  active={localSorted === 'desc'}
+                  onClick={() => applySort('local', col.name, 'desc')}
+                >当前页降序排序</Dropdown.Item>
+                <Dropdown.Divider />
+                <Dropdown.Item
+                  icon={<X size={13} />}
+                  disabled={!serverSorted && !localSorted}
+                  onClick={() => applySort('clear', col.name)}
+                >清除排序</Dropdown.Item>
+              </Dropdown.Menu>
+            );
             return (
               <div
                 key={col.name}
@@ -823,11 +887,21 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
                   <span className="dg-header-cell__type">{shortTypeName(col.dataType)}</span>
                 )}
                 <span className="dg-header-cell__icons" onClick={(e) => e.stopPropagation()}>
-                  {sorted && (
-                    <span className="dg-header-cell__sort" onClick={() => handleHeaderClick(col.name)}>
-                      {sorted === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
-                    </span>
-                  )}
+                  {localSorted && <span className="dg-sort-badge">页</span>}
+                  <Dropdown trigger="click" position="bottomRight" render={sortMenu} getPopupContainer={() => document.body}>
+                    <button
+                      type="button"
+                      className="dg-cell-action dg-header-sort-btn"
+                      aria-label={`排序 ${col.name}`}
+                      style={sorted ? { color: 'var(--semi-color-primary)', background: 'var(--semi-color-primary-light-default)' } : undefined}
+                    >
+                      {(() => {
+                        if (sorted === 'asc') return <ArrowUp size={12} />;
+                        if (sorted === 'desc') return <ArrowDown size={12} />;
+                        return <ArrowUpDown size={12} />;
+                      })()}
+                    </button>
+                  </Dropdown>
                   {headerFilterRender?.(col)}
                 </span>
                 <span
@@ -914,6 +988,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
           total={totalRows}
           hasMore={hasMore}
           loadingMore={loadingMore}
+          refreshing={refreshing}
           selectedRowCount={selection.rows.size}
           selectedCellCount={selectionCellCount(selection, visibleColumns.length)}
           columns={columns}

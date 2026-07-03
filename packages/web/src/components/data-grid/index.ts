@@ -13,6 +13,7 @@ export type {
 } from './types';
 export { columnKind, copyValue, displayValue, shortTypeName } from './grid-format';
 export type { CellKind } from './grid-format';
+export { sortRowsLocally } from './local-sort';
 export {
   snapshotColumnNames,
   snapshotToCsv,

@@ -80,6 +80,27 @@
   flex-shrink: 0;
 }
 
+/* 排序按钮：未激活时弱化，悬停/激活恢复 */
+.dg-header-sort-btn {
+  opacity: 0.45;
+}
+
+.dg-header-cell:hover .dg-header-sort-btn,
+.dg-header-sort-btn[style] {
+  opacity: 1;
+}
+
+/* 「当前页排序」标记 */
+.dg-sort-badge {
+  font-size: 10px;
+  line-height: 14px;
+  padding: 0 3px;
+  border-radius: 2px;
+  color: var(--semi-color-primary);
+  background: var(--semi-color-primary-light-default);
+  flex-shrink: 0;
+}
+
 .dg-header-cell__sort {
   display: inline-flex;
   color: var(--semi-color-primary);
