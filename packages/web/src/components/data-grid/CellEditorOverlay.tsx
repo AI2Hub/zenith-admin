@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, DatePicker, Input, Select, Space, TextArea, TimePicker, Typography } from '@douyinfe/semi-ui';
+import { Button, DatePicker, Select, Space, TextArea, TimePicker, Typography } from '@douyinfe/semi-ui';
 
 import type { DataGridColumn } from './types';
 import type { CellKind } from './grid-format';
@@ -49,12 +49,23 @@ export function CellEditorOverlay(props: CellEditorOverlayProps) {
     onCancel();
   };
 
+  /** 面板式编辑器（下拉/日期/多行）：允许比单元格宽 */
   const baseStyle: React.CSSProperties = {
     position: 'absolute',
     left: rect.left,
     top: rect.top,
     minWidth: Math.max(rect.width, 160),
     width: Math.max(rect.width, 160),
+    zIndex: 4,
+  };
+
+  /** 内联式编辑器（单行文本/数字）：精确贴合单元格矩形 */
+  const inlineStyle: React.CSSProperties = {
+    position: 'absolute',
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
     zIndex: 4,
   };
 
@@ -151,14 +162,14 @@ export function CellEditorOverlay(props: CellEditorOverlayProps) {
     );
   }
 
-  // ── 默认：单行文本 / 数字 ──
+  // ── 默认：单行文本 / 数字（真内联：贴合单元格） ──
   return (
     <SingleLineEditor
       kind={kind}
       column={column}
       value={value}
       initialText={initialText}
-      style={baseStyle}
+      style={inlineStyle}
       stop={stop}
       nullable={nullable}
       onCommit={commitOnce}
@@ -229,16 +240,23 @@ function TemporalEditor(props: InnerEditorProps) {
   );
 }
 
+/** 单行内联编辑器：原生 input 精确覆盖单元格（dbx 风格，无浮层感） */
 function SingleLineEditor(props: InnerEditorProps) {
   const { kind, value, initialText, style, stop, nullable, onCommit, onCancel } = props;
   const [text, setText] = useState(initialText ?? editorTextForValue(value, kind));
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const numeric = kind === 'int' || kind === 'number';
 
   useEffect(() => {
     const t = setTimeout(() => {
       inputRef.current?.focus();
       if (!initialText) inputRef.current?.select();
+      else {
+        // 打字进入编辑：光标落在初始字符之后
+        const len = inputRef.current?.value.length ?? 0;
+        inputRef.current?.setSelectionRange(len, len);
+      }
     }, 20);
     return () => clearTimeout(t);
   }, [initialText]);
@@ -247,6 +265,7 @@ function SingleLineEditor(props: InnerEditorProps) {
     const result = coerceCellInput(text, { kind, original: value, nullable });
     if (!result.ok) {
       setError(result.error);
+      inputRef.current?.focus();
       return;
     }
     onCommit(result.value, move);
@@ -254,13 +273,15 @@ function SingleLineEditor(props: InnerEditorProps) {
 
   return (
     <div style={style} {...stop}>
-      <Input
-        size="small"
-        ref={inputRef as never}
+      <input
+        ref={inputRef}
+        className={`dg-inline-input${numeric ? ' dg-inline-input--numeric' : ''}${error ? ' dg-inline-input--error' : ''}`}
         value={text}
-        onChange={(v: string) => { setText(v); setError(null); }}
-        validateStatus={error ? 'error' : 'default'}
-        style={{ width: '100%', background: 'var(--semi-color-bg-2)' }}
+        spellCheck={false}
+        autoCapitalize="off"
+        autoCorrect="off"
+        inputMode={numeric ? 'decimal' : undefined}
+        onChange={(e) => { setText(e.target.value); setError(null); }}
         onKeyDown={(e: React.KeyboardEvent) => {
           if (e.key === 'Enter') { e.preventDefault(); tryCommit('down'); }
           else if (e.key === 'Tab') { e.preventDefault(); tryCommit('right'); }

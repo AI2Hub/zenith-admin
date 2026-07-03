@@ -142,13 +142,14 @@
   cursor: default;
 }
 
-/* 固定数据列：单元格本身已有不透明底色（.dg-cell 的 background-color），只需 sticky 定位 */
-.dg-cell--pinned {
+/* 固定数据列：单元格本身已有不透明底色（.dg-cell 的 background-color），只需 sticky 定位。
+   双类选择器确保特异性高于 .dg-cell 的 position: relative，不受规则顺序影响 */
+.dg-cell.dg-cell--pinned {
   position: sticky;
   z-index: 2;
 }
 
-.dg-header-cell--pinned {
+.dg-header-cell.dg-header-cell--pinned {
   position: sticky;
   z-index: 6;
   background-color: var(--semi-color-bg-2);
@@ -249,12 +250,43 @@
   box-shadow: var(--semi-shadow-elevated);
 }
 
+/* 真内联单行编辑器：精确覆盖单元格（dbx 风格） */
+.dg-inline-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0 7px;
+  border: 2px solid var(--semi-color-primary);
+  border-radius: 0;
+  outline: none;
+  background: var(--semi-color-bg-2);
+  color: var(--semi-color-text-0);
+  font-size: 12px;
+  font-family: inherit;
+  line-height: normal;
+}
+
+.dg-inline-input--numeric {
+  text-align: right;
+  font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;
+  font-size: 11.5px;
+}
+
+.dg-inline-input--error {
+  border-color: var(--semi-color-danger);
+}
+
 .dg-editor-error {
   margin-top: 2px;
   background: var(--semi-color-bg-3);
   border-radius: 3px;
   padding: 2px 6px;
   box-shadow: var(--semi-shadow-elevated);
+  position: relative;
+  z-index: 5;
+  width: max-content;
+  max-width: 320px;
 }
 
 /* ── 类型化内容 ───────────────────────────────────── */
