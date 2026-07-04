@@ -12,7 +12,7 @@ const MOCK_REFRESH_TOKEN = 'mock-refresh-token-demo';
 // 偏好设置 & 收藏菜单 mock 状态（模块级可变，模拟服务端持久化）
 let mockPreferencesStore: Record<string, unknown> | null = null;
 let mockFavoriteMenusStore: number[] = [];
-let mockMfaFactors: MfaFactor[] = [];
+const mockMfaFactors: MfaFactor[] = [];
 let nextMfaFactorId = 1;
 
 /** 获取所有叶子菜单权限 */

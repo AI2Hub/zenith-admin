@@ -180,9 +180,8 @@ function tickTask(task: AsyncTask) {
   // demo-batch：逐条推进 + 软失败明细 + 硬失败重试
   const total = task.totalCount ?? 100;
   const reached = Math.min(sim.resumeFrom + Math.floor(elapsed / sim.itemDelayMs), total);
-  let failed = Math.trunc(Number((task.payload as { __failedBase?: number }).__failedBase ?? 0));
   // 从断点已有的失败数开始重算本轮区间
-  failed = task.failedCount;
+  let failed = task.failedCount;
   for (let i = task.processedCount + 1; i <= reached; i++) {
     // 硬失败：仅第一次执行触发
     if (sim.failAtItem !== null && i === sim.failAtItem && task.attempts === 1) {
