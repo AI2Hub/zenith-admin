@@ -285,6 +285,33 @@
   opacity: 0.65;
 }
 
+/* 快速输入草稿行（借鉴 dbx quickEntry：表尾常驻空行，点击即新增） */
+.dg-quick-entry .dg-cell,
+.dg-quick-entry .dg-rownum {
+  cursor: cell;
+  border-bottom: 1px dashed var(--semi-color-border);
+}
+
+.dg-quick-entry:hover .dg-cell {
+  background-image: linear-gradient(var(--semi-color-fill-0), var(--semi-color-fill-0));
+}
+
+.dg-quick-entry__rownum {
+  color: var(--semi-color-text-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dg-quick-entry__placeholder {
+  color: var(--semi-color-text-3);
+  font-size: 12px;
+  font-style: italic;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
 /* 编辑器面板（多行 / 日期） */
 .dg-editor-panel {
   background: var(--semi-color-bg-3);

@@ -11,7 +11,7 @@ import {
 } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Dropdown, Spin, Toast } from '@douyinfe/semi-ui';
-import { ArrowDown, ArrowUp, ArrowUpDown, Database, KeyRound, Link2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Database, KeyRound, Link2, Plus, X } from 'lucide-react';
 
 import type {
   CellPos,
@@ -787,6 +787,24 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
     }
   }, [columns, rows, storageKey]);
 
+  // ── 快速输入草稿行（借鉴 dbx quickEntry：表尾常驻空行，点击即升级为正式新增行） ──
+  const startNewRowEditAt = useCallback((col: number, initialText?: string) => {
+    const clientId = gridEditorRef.current.addNewRow({});
+    requestAnimationFrame(() => {
+      // 用 clientId 实时解析行下标：期间若滚动加载追加了数据也不会漂移
+      const draftIdx = gridEditorRef.current.state.newRows.findIndex((d) => d.clientId === clientId);
+      if (draftIdx === -1) return;
+      const liveRow = dataRowCountRef.current + draftIdx;
+      const pos = { row: liveRow, col };
+      rowVirtualizer.scrollToIndex(liveRow);
+      dispatchSel({ type: 'moveTo', pos, shift: false });
+      setEditing({ pos, initialText, newRowClientId: clientId });
+    });
+    return clientId;
+  }, [rowVirtualizer]);
+
+  const quickEntryEnabled = editable && pkColumns.length > 0 && rowStatusFilter === 'all' && !loadingMore && rawRows.length > 0;
+
   // ── 对外句柄 ──
   useImperativeHandle(ref, () => ({
     getSelectionSnapshot: (): SelectionSnapshot =>
@@ -874,7 +892,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
     (sum, w, i) => (visibleColumns[i].pinned ? sum : sum + w),
     0,
   );
-  const bodyHeight = rowVirtualizer.getTotalSize() + (loadingMore ? 36 : 0);
+  const bodyHeight = rowVirtualizer.getTotalSize() + (loadingMore ? 36 : 0) + (quickEntryEnabled ? rowHeight : 0);
 
   return (
     <div className={`dg-root${className ? ` ${className}` : ''}`}>
@@ -1041,6 +1059,34 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
                 />
               );
             })()}
+            {quickEntryEnabled && (
+              <div
+                className="dg-row dg-quick-entry"
+                style={{ transform: `translateY(${rowVirtualizer.getTotalSize()}px)`, height: rowHeight }}
+              >
+                <div className="dg-rownum dg-quick-entry__rownum" style={{ width: ROW_NUMBER_WIDTH, height: rowHeight }}>
+                  <Plus size={13} />
+                </div>
+                {visibleColumns.map((col, ci) => {
+                  const pinned = pinnedLefts[ci] !== undefined;
+                  return (
+                    <div
+                      key={col.name}
+                      className={`dg-cell dg-quick-entry__cell${pinned ? ' dg-cell--pinned' : ''}`}
+                      style={{ width: widths[ci], height: rowHeight, left: pinnedLefts[ci] }}
+                      onMouseDown={(e) => {
+                        if (e.button !== 0) return;
+                        e.preventDefault();
+                        scrollRef.current?.focus({ preventScroll: true });
+                        startNewRowEditAt(ci);
+                      }}
+                    >
+                      {ci === 0 && <span className="dg-quick-entry__placeholder">点击新增一行…</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {loadingMore && (
               <div className="dg-loadmore" style={{ top: rowVirtualizer.getTotalSize() }}>
                 <Spin size="small" />
