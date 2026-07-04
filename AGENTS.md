@@ -52,7 +52,8 @@ npm run db:seed        # 填充初始种子数据
 - **图标**：统一使用 `lucide-react`，禁止引入 `@douyinfe/semi-icons`
 - **路由**：`react-router-dom` v7，页面组件位于 `packages/web/src/pages/`
 - **认证状态**：`useAuth` hook，token 存储在 `localStorage`，key 为 `zenith_token`（来自 `@zenith/shared` constants）
-- **HTTP 请求**：封装在 `src/utils/request.ts`，自动附加 Bearer token 和处理 401 跳转
+- **HTTP 请求**：封装在 `src/utils/request.ts`，自动附加 Bearer token 和处理 401 跳转（仅作传输层）
+- **服务端状态**：统一由 **TanStack Query v5** 管理。域 hooks 位于 `src/hooks/queries/<域>.ts`（keys 含 `all`/`lists`/`list(params)`/`detail(id)`），queryFn 统一 `request.get(url).then(unwrap)`（`unwrap` 来自 `src/lib/query.ts`）；分页列表加 `placeholderData: keepPreviousData`；mutation 在域 hooks `onSuccess` 中 `invalidateQueries`；页面搜索用 draft/submitted 拆分，`handleSearch`/`handleReset` 必须显式 `invalidateQueries({ queryKey: xxxKeys.lists })`（查询必回源）。**禁止**在页面手写 `loading`/`data` state + `fetchXxx` + `useEffect` 拉取模式；轮询用 `refetchInterval`；WebSocket/SSE/流式与一次性下载除外。会员 SPA 用独立 `memberQueryClient`（`member/lib/member-query.ts`）。详见 `docs/frontend/data-fetching.md`
 - **环境变量**：`VITE_API_BASE_URL`（API 地址）、`VITE_APP_TITLE`（应用名）
 
 ### 共享层（`packages/shared`）

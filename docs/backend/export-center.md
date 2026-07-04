@@ -99,10 +99,10 @@ export const xxxExportDefinition = defineExport<Record<string, unknown>, XxxExpo
 
 ```tsx
 function buildExportQuery(): Record<string, unknown> {
-  const params = searchParamsRef.current;
+  // 使用当前已提交的筛选条件（submittedParams），与列表查询保持一致
   return {
-    keyword: params.keyword || undefined,
-    status: params.status || undefined,
+    keyword: submittedParams.keyword || undefined,
+    status: submittedParams.status || undefined,
   };
 }
 

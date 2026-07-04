@@ -1,26 +1,120 @@
 # CRUD 前端实现参考（以「xxx管理」为范例）
 
-本文档提供前端页面的完整代码模板，对照 `packages/web/src/pages/users/UsersPage.tsx` 的实际实现。
+本文档提供前端页面的完整代码模板，对照 `packages/web/src/pages/system/tenant-packages/TenantPackagesPage.tsx`（标准列表页）与 `packages/web/src/pages/users/UsersPage.tsx`（复杂页面）的实际实现。
 
 > **占位符约定**：`xxx` = 小写（表名、API 路径、文件名）；`Xxx` = 大驼峰（TypeScript 类型、组件名）；替换时请将所有 `xxx`/`Xxx` 替换为实际实体名。
+
+---
+
+## 数据获取架构（必读）
+
+前端服务端状态统一由 **TanStack Query v5** 管理，分两层：
+
+- **传输层**：`packages/web/src/utils/request.ts`（token 刷新、401/429/503、错误 Toast）。**禁止**在页面里手写 `loading`/`data` state + `fetchXxx` useCallback + `useEffect` 初始拉取的旧模式。
+- **服务端状态层**：`packages/web/src/hooks/queries/<域>.ts` 域 hooks 文件 + 页面内 `useQuery`/`useMutation`。基建位于 `packages/web/src/lib/query.ts`（`queryClient`、`unwrap()`、`toQueryString()`、`LOOKUP_STALE_TIME`）。
+
+核心约定：
+
+1. queryFn 统一 `request.get<T>(url).then(unwrap)`；`unwrap` 在 `code !== 0` 时抛 `ApiError`（request 层已自动 Toast，调用方无需重复提示）。
+2. 每个域文件导出 keys 常量对象，必须包含 `all` / `lists` / `list(params)` / `detail(id)`。
+3. 分页列表查询必须 `placeholderData: keepPreviousData`（翻页不闪白屏）。
+4. **查询/重置必回源**：`handleSearch` / `handleReset` 除更新参数外必须显式 `invalidateQueries({ queryKey: xxxKeys.lists })` —— 条件未变化时 query key 不变，不失效则 staleTime 内不发请求，而本系统「查询」按钮兼具刷新语义。
+5. mutation 的 `onSuccess` 在域 hooks 中统一 `invalidateQueries({ queryKey: xxxKeys.all })`；成功 Toast 留在页面代码。
+6. 下拉源等低频 lookup 数据用 `staleTime: LOOKUP_STALE_TIME`（5 分钟），全局共享缓存；已有共享 lookup（`useAllUsers` / `useFlatDepartments` / `useDepartmentTree` / `useMenuTree` / `useAllRoles` / `useAllPositions` / `useDictItems` 等）直接 import，**禁止重复定义**。
+7. 轮询页面用 `refetchInterval`（毫秒），禁止手写 `setInterval` 拉数据。
+8. 一次性动作（文件下载 `request.download`、验密、诊断类）可保留直接调用；WebSocket / SSE / xterm 流式逻辑不走 TanStack Query。
 
 ---
 
 ## 文件位置
 
 ```text
-packages/web/src/pages/xxx/XxxPage.tsx
+packages/web/src/hooks/queries/xxxs.ts     # 域 hooks（查询 + 变更）
+packages/web/src/pages/xxx/XxxPage.tsx     # 页面组件
 ```
+
+---
+
+## 域 hooks 文件模板（hooks/queries/xxxs.ts）
+
+```ts
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { PaginatedResponse, Xxx } from '@zenith/shared';
+import { request } from '@/utils/request';
+import { toQueryString, unwrap } from '@/lib/query';
+
+export interface XxxListParams {
+  page: number;
+  pageSize: number;
+  keyword?: string;
+  status?: string;
+  // 时间范围筛选：只放已转换的字符串（formatDateTimeForApi），禁止 Date 对象进 params
+  // startTime?: string;
+  // endTime?: string;
+}
+
+export const xxxKeys = {
+  all: ['xxxs'] as const,
+  lists: ['xxxs', 'list'] as const,
+  list: (params: XxxListParams) => ['xxxs', 'list', params] as const,
+  detail: (id: number | undefined) => ['xxxs', 'detail', id] as const,
+};
+
+export function useXxxList(params: XxxListParams) {
+  return useQuery({
+    queryKey: xxxKeys.list(params),
+    queryFn: () => request.get<PaginatedResponse<Xxx>>(`/api/xxxs${toQueryString(params)}`).then(unwrap),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useXxxDetail(id: number | undefined, enabled = true) {
+  return useQuery({
+    queryKey: xxxKeys.detail(id),
+    queryFn: () => request.get<Xxx>(`/api/xxxs/${id}`).then(unwrap),
+    enabled: enabled && id !== undefined,
+  });
+}
+
+/** 新增（无 id）或更新（有 id） */
+export function useSaveXxx() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
+      (id === undefined
+        ? request.post<Xxx>('/api/xxxs', values)
+        : request.put<Xxx>(`/api/xxxs/${id}`, values)
+      ).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: xxxKeys.all }),
+  });
+}
+
+/** 删除：单个（length===1 走单删接口）或批量 */
+export function useDeleteXxxs() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: number[]) =>
+      (ids.length === 1
+        ? request.delete<null>(`/api/xxxs/${ids[0]}`)
+        : request.delete<null>('/api/xxxs/batch', { ids })
+      ).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: xxxKeys.all }),
+  });
+}
+```
+
+> 如页面存在关联下拉源（如全量 Yyy 列表），在 Yyy 的域文件中定义 `useAllYyys()`（key `['yyys','all']`，`staleTime: LOOKUP_STALE_TIME`，可选 `{ enabled }` 参数），供跨页共享。
 
 ---
 
 ## 完整页面模板
 
 ```tsx
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Button, Form, Input, Select, Spin,
-  Toast, Modal, Switch,
+  Toast, Modal, Switch, Row, Col,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -30,13 +124,12 @@ import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
-import { request } from '@/utils/request';
-import { formatDateTime } from '@/utils/date';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
-import type { Xxx, PaginatedResponse } from '@zenith/shared';
+import { useDeleteXxxs, useSaveXxx, useXxxDetail, useXxxList, xxxKeys } from '@/hooks/queries/xxxs';
+import type { Xxx } from '@zenith/shared';
 
 // ─── 搜索参数类型 ────────────────────────────────────────────────────────
 interface SearchParams {
@@ -57,125 +150,78 @@ const defaultSearchParams: SearchParams = {
 export default function XxxPage() {
   const { hasPermission } = usePermission();
   const formApi = useRef<FormApi | null>(null);
+  const queryClient = useQueryClient();
 
-  // ─── 状态 ──────────────────────────────────────────────────────────────
-  const [data, setData] = useState<PaginatedResponse<Xxx> | null>(null);
-  const [loading, setLoading] = useState(false);
-  const { page, pageSize, setPage, setPageSize, buildPagination } = usePagination();
-  const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
-  // ⚠️ ref 同步最新搜索参数，避免 fetchXxxs 将 searchParams 放入 deps 导致输入时自动触发搜索
-  const searchParamsRef = useRef<SearchParams>(defaultSearchParams);
-  searchParamsRef.current = searchParams;
+  // ─── 搜索状态：draft 绑输入框，submitted 进 query key ────────────────────
+  const { page, pageSize, setPage, buildPagination } = usePagination();
+  const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearchParams);
+  const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearchParams);
 
-  // 弹窗状态
+  // ─── 列表查询（key 驱动：page/pageSize/submittedParams 变化自动请求）────
+  const listQuery = useXxxList({
+    page,
+    pageSize,
+    keyword: submittedParams.keyword || undefined,
+    status: submittedParams.status || undefined,
+    // 如有时间范围（Date → 字符串后再进 params）：
+    // startTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[0]) : undefined,
+    // endTime: submittedParams.timeRange ? formatDateTimeForApi(submittedParams.timeRange[1]) : undefined,
+  });
+  const list = listQuery.data?.list ?? [];
+  const total = listQuery.data?.total ?? 0;
+
+  // ─── 弹窗状态（编辑详情懒加载：enabled 门控 + 行数据回退）───────────────
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingXxx, setEditingXxx] = useState<Xxx | null>(null);  // null=新增，有值=编辑
-  const [submitting, setSubmitting] = useState(false);
-  const [modalDetailLoading, setModalDetailLoading] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<Xxx | null>(null);  // null=新增
+  const detailQuery = useXxxDetail(editingRecord?.id, modalVisible);
+  const editingXxx = editingRecord ? (detailQuery.data ?? editingRecord) : null;
+  const modalDetailLoading = !!editingRecord && detailQuery.isFetching;
 
-  // 状态切换 loading（per-row）
-  const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
+  // ─── 变更 hooks ────────────────────────────────────────────────────────
+  const saveMutation = useSaveXxx();
+  const toggleStatusMutation = useSaveXxx();  // 行级 Switch 专用实例，便于按行显示 pending
+  const deleteMutation = useDeleteXxxs();
+  const togglingId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
 
-  // 字典数据（使用 useDictItems 加载）
+  // 字典数据（内部已是 useQuery，全局共享缓存）
   const { items: statusItems } = useDictItems('common_status');
 
-  // 如需加载下拉选项（如关联实体列表），在此初始化：
-  // const [allYyys, setAllYyys] = useState<Yyy[]>([]);
-
-  // ─── 初始化（并行加载下拉数据）──────────────────────────────────────────
-  useEffect(() => {
-    // 如需关联数据，在此并行加载：
-    // Promise.all([
-    //   request.get<Yyy[]>('/api/yyys'),
-    // ]).then(([yyyRes]) => {
-    //   if (yyyRes.code === 0) setAllYyys(yyyRes.data);
-    // });
-  }, []);
-
-  // ─── 数据加载 ──────────────────────────────────────────────────────────
-  // params 为可选：不传时从 ref 读取最新值（避免 stale closure）；
-  // 显式传 defaultSearchParams 时用于重置后立即刷新
-  const fetchXxxs = useCallback(
-    async (p = page, ps = pageSize, params?: SearchParams) => {
-      const activeParams = params ?? searchParamsRef.current;
-      setLoading(true);
-      try {
-        const queryObj: Record<string, string> = {
-          page: String(p),
-          pageSize: String(ps),
-        };
-        if (activeParams.keyword) queryObj.keyword = activeParams.keyword;
-        if (activeParams.status) queryObj.status = activeParams.status;
-        // 如有时间范围：
-        // if (activeParams.timeRange) {
-        //   queryObj.startTime = formatDateTimeForApi(activeParams.timeRange[0]);
-        //   queryObj.endTime = formatDateTimeForApi(activeParams.timeRange[1]);
-        // }
-
-        const query = new URLSearchParams(queryObj).toString();
-        const res = await request.get<PaginatedResponse<Xxx>>(`/api/xxxs?${query}`);
-        if (res.code === 0) {
-          setData(res.data);
-          setPage(res.data.page);
-          setPageSize(res.data.pageSize);
-        }
-      } finally {
-        setLoading(false);
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [page, pageSize],  // 不加 searchParams，靠 ref 读取最新值
-  );
-
-  useEffect(() => {
-    void fetchXxxs();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);  // 仅首次加载，后续通过 handleSearch / handlePageChange 触发
-
-  // ─── 搜索 / 重置 ────────────────────────────────────────────────────────
+  // ─── 搜索 / 重置（必须显式失效，保证点击必回源）─────────────────────────
   function handleSearch() {
     setPage(1);
-    void fetchXxxs(1, pageSize);  // 从 ref 读取最新 searchParams，无需传参
+    setSubmittedParams(draftParams);
+    void queryClient.invalidateQueries({ queryKey: xxxKeys.lists });
   }
 
   function handleReset() {
-    setSearchParams(defaultSearchParams);
     setPage(1);
-    void fetchXxxs(1, pageSize, defaultSearchParams);  // 重置后立即传入默认值
+    setDraftParams(defaultSearchParams);
+    setSubmittedParams(defaultSearchParams);
+    void queryClient.invalidateQueries({ queryKey: xxxKeys.lists });
   }
 
   // ─── 导出（导出中心）──────────────────────────────────────────────────
   function buildExportQuery(): Record<string, unknown> {
-    const params = searchParamsRef.current;
     return {
-      keyword: params.keyword || undefined,
-      status: params.status || undefined,
+      keyword: submittedParams.keyword || undefined,
+      status: submittedParams.status || undefined,
     };
   }
 
   // ─── 新增 / 编辑 ──────────────────────────────────────────────────────
   function openCreate() {
-    setEditingXxx(null);
+    setEditingRecord(null);
     setModalVisible(true);
   }
 
-  async function openEdit(record: Xxx) {
-    setEditingXxx(record);
+  function openEdit(record: Xxx) {
+    setEditingRecord(record);   // 详情由 detailQuery 自动加载（30s 内缓存命中则秒开）
     setModalVisible(true);
-    setModalDetailLoading(true);
-    const res = await request.get<Xxx>(`/api/xxxs/${record.id}`);
-    setModalDetailLoading(false);
-    if (res.code === 0 && res.data) {
-      setEditingXxx(res.data);
-    } else {
-      Toast.error(res.message || '获取信息失败');
-    }
   }
 
   function closeModal() {
     setModalVisible(false);
-    setEditingXxx(null);
-    setModalDetailLoading(false);
+    setEditingRecord(null);
   }
 
   // Form 初始值（编辑时回填，新增时清空）
@@ -189,63 +235,40 @@ export default function XxxPage() {
     : { status: 'enabled' };
 
   async function handleModalOk() {
-    let values: any;
+    let values: Record<string, unknown>;
     try {
-      values = await formApi.current?.validate();
+      values = (await formApi.current?.validate()) ?? {};
     } catch {
       throw new Error('validation');  // 阻止 Modal 关闭
     }
-
-    setSubmitting(true);
-    try {
-      const res = editingXxx
-        ? await request.put(`/api/xxxs/${editingXxx.id}`, values)
-        : await request.post('/api/xxxs', values);
-
-      if (res.code === 0) {
-        Toast.success(editingXxx ? '更新成功' : '创建成功');
-        closeModal();
-        void fetchXxxs();
-      } else {
-        throw new Error(res.message);  // 阻止 Modal 关闭
-      }
-    } finally {
-      setSubmitting(false);
-    }
+    // mutateAsync 失败时抛 ApiError → Modal 保持打开（错误 Toast 由 request 层弹出）
+    await saveMutation.mutateAsync({ id: editingRecord?.id, values });
+    Toast.success(editingRecord ? '更新成功' : '创建成功');
+    closeModal();
   }
 
   // ─── 删除 ──────────────────────────────────────────────────────────────
   async function handleDelete(id: number) {
-    const res = await request.delete(`/api/xxxs/${id}`);
-    if (res.code === 0) {
-      Toast.success('删除成功');
-      void fetchXxxs();
-    }
+    await deleteMutation.mutateAsync([id]);
+    Toast.success('删除成功');
   }
 
   // ─── 状态切换（Switch 直接修改）────────────────────────────────────────
-  // status 字段为 'enabled'|'disabled' 时使用此模式
-  // boolean 字段时改为 { isEnabled: checked }
+  // status 字段为 'enabled'|'disabled' 时使用此模式；boolean 字段改为 { isEnabled: checked }
   function handleToggleStatus(record: Xxx, checked: boolean) {
-    const doToggle = async () => {
-      setTogglingIds((prev) => new Set(prev).add(record.id));
-      try {
-        await request.put(`/api/xxxs/${record.id}`, { status: checked ? 'enabled' : 'disabled' });
-        Toast.success(checked ? '已启用' : '已停用');
-        void fetchXxxs();
-      } catch (err: unknown) {
-        Toast.error((err as { message?: string })?.message || '操作失败');
-      } finally {
-        setTogglingIds((prev) => { const s = new Set(prev); s.delete(record.id); return s; });
-      }
+    const doToggle = () => {
+      toggleStatusMutation.mutate(
+        { id: record.id, values: { status: checked ? 'enabled' : 'disabled' } },
+        { onSuccess: () => Toast.success(checked ? '已启用' : '已停用') },
+      );
     };
     if (checked) {
-      void doToggle();
+      doToggle();
     } else {
       Modal.confirm({
         title: '确认停用',
         content: `停用后「${record.name}」将不再可用，确认停用？`,
-        onOk: () => void doToggle(),
+        onOk: doToggle,
       });
     }
   }
@@ -261,17 +284,11 @@ export default function XxxPage() {
       title: '描述',
       dataIndex: 'description',
       width: 260,
-      render: (val) => val || '-',
+      render: renderEllipsis,
     },
-    {
-      title: '创建时间',
-      dataIndex: 'createdAt',
-      width: 170,
-      render: (t) => formatDateTime(t),  // 必须用 formatDateTime，禁止原生方法
-    },
+    createdAtColumn,  // 创建时间预置列（自动 formatDateTime）
     {
       // 状态列：放在操作列左侧紧靠操作列，必须 fixed: 'right'
-      // 使用 Switch 直接切换，停用时弹二次确认
       title: '状态',
       dataIndex: 'status',
       width: 80,
@@ -279,7 +296,7 @@ export default function XxxPage() {
       render: (_: unknown, record: Xxx) => (
         <Switch
           checked={record.status === 'enabled'}
-          loading={togglingIds.has(record.id)}
+          loading={togglingId === record.id}
           disabled={!hasPermission('system:xxx:update')}
           onChange={(checked) => handleToggleStatus(record, checked)}
           size="small"
@@ -315,8 +332,8 @@ export default function XxxPage() {
     <Input
       prefix={<Search size={14} />}
       placeholder="搜索名称..."
-      value={searchParams.keyword}
-      onChange={(v) => setSearchParams((p) => ({ ...p, keyword: v }))}
+      value={draftParams.keyword}
+      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
       showClear
       style={{ width: 220 }}
       onEnterPress={handleSearch}
@@ -326,9 +343,9 @@ export default function XxxPage() {
   const renderStatusFilter = () => (
     <Select
       placeholder="全部状态"
-      value={searchParams.status || undefined}
+      value={draftParams.status || undefined}
       onChange={(v) =>
-        setSearchParams((p) => ({ ...p, status: (v as string) ?? '' }))
+        setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))
       }
       showClear
       style={{ width: 120 }}
@@ -402,14 +419,14 @@ export default function XxxPage() {
       <ConfigurableTable
         bordered
         columns={columns}
-        dataSource={data?.list ?? []}
-        loading={loading}
+        dataSource={list}
+        loading={listQuery.isFetching}
         rowKey="id"
         size="small"
         empty="暂无数据"
-        onRefresh={() => void fetchXxxs()}
-        refreshLoading={loading}
-        pagination={buildPagination(data?.total ?? 0, fetchXxxs)}
+        onRefresh={() => void listQuery.refetch()}
+        refreshLoading={listQuery.isFetching}
+        pagination={buildPagination(total)}
       />
 
       {/* 新增/编辑弹窗（共用一个） */}
@@ -419,17 +436,17 @@ export default function XxxPage() {
         - 字段较少或含 TreeSelect/TextArea 等宽字段 → width 480-520，单列布局
       */}
       <AppModal
-        title={editingXxx ? '编辑XXX' : '新增XXX'}
+        title={editingRecord ? '编辑XXX' : '新增XXX'}
         visible={modalVisible}
         onOk={handleModalOk}
         onCancel={closeModal}
-        okButtonProps={{ loading: submitting, disabled: modalDetailLoading }}
+        okButtonProps={{ loading: saveMutation.isPending, disabled: modalDetailLoading }}
         width={660}
         closeOnEsc
       >
         <Spin spinning={modalDetailLoading} wrapperClassName="modal-spin-wrapper">
           <Form
-            key={editingXxx?.id ?? 'new'}  // key 变化时强制重置 Form 内部状态
+            key={editingRecord?.id ?? 'new'}  // key 变化时强制重置 Form 内部状态
             getFormApi={(api) => {
               formApi.current = api;
             }}
@@ -494,6 +511,14 @@ export default function XxxPage() {
 
 ## 关键规范说明
 
+### 数据获取补充规范
+
+- **弹窗内交互态从查询数据播种**（如授权勾选）：`useEffect(() => { if (visible) setCheckedIds(detailQuery.data?.menuIds ?? []); }, [visible, detailQuery.data]);`
+- **轮询**：`useQuery({ ..., refetchInterval: 5000 })`；条件轮询用函数形式 `refetchInterval: (query) => hasRunning(query.state.data) ? 5000 : false`。
+- **上传进度**：`request.postForm(url, formData, { onProgress })` 包进 mutationFn，参数形如 `{ formData, onProgress }`（参考 `hooks/queries/users.ts` 的 import mutation）。
+- **enabled 门控查询的 loading 判断**：`enabled: false` 时 `isPending` 恒为 true，整页 loading 判断必须写成 `(!!id && query.isPending)`，否则新建模式会卡死在 Spin。
+- **member C 端 SPA**（`src/member/`）：使用独立 `memberQueryClient`（`member/lib/member-query.ts`）+ `memberRequest` 传输层，hooks 位于 `member/hooks/queries.ts`，其余约定与后台一致。
+
 ### 页面级多 Tab 布局
 
 当页面最外层是多个业务 Tab（如「列表/统计」「配置/日志」「全部/未读/已读」）时，使用统一页面壳层：
@@ -522,6 +547,7 @@ return (
 - 禁止把 `TabPane` 写成空 tab 后在 `Tabs` 外部根据 `activeTab` 渲染表格、空状态或按钮。
 - tab 相关操作按钮（如「全部标记为已读」「清理日志」「刷新当前 tab」）放在对应 `TabPane` 内的 `SearchToolbar`，不要放在 TabBar 右侧。
 - `page-tabs-page` 只用于页面最外层业务 Tabs；抽屉、弹窗、卡片内代码示例、左右分栏内部小 tabs 不使用。
+- 非激活 tab 的查询建议用 `enabled: activeTab === 'xxx'` 门控，切换时自动懒加载并缓存。
 
 ### 弹窗表单布局规范
 
@@ -569,7 +595,7 @@ import { Row, Col } from '@douyinfe/semi-ui';
 
 ### 状态字段显示
 
-- 使用 `useDictItems('common_status')` 获取字典选项
+- 使用 `useDictItems('common_status')` 获取字典选项（内部为 useQuery，同一 code 全局共享缓存、自动去重）
 - 表格中用 `<DictTag dictCode="common_status" value={status} />` 或手动 `find` 映射
 
 ### 时间格式化与省略文本
@@ -606,16 +632,24 @@ createOperationColumn<Xxx>({
 ### 搜索参数与分页联动
 
 ```ts
-// ✅ 正确：handleSearch 和 handleReset 直接传参，不等 state 异步更新
+// ✅ 正确：draft/submitted 拆分 + 显式失效
+// - draftParams 绑定输入框，输入过程不触发请求
+// - submittedParams 进入 query key，变化自动请求
+// - invalidateQueries 保证「条件未变时点查询」也强制回源刷新
 function handleSearch() {
   setPage(1);
-  void fetchXxxs(1, pageSize);  // 直接传入 page=1
+  setSubmittedParams(draftParams);
+  void queryClient.invalidateQueries({ queryKey: xxxKeys.lists });
 }
 
 function handleReset() {
-  setSearchParams(defaultSearchParams);
-  void fetchXxxs(1, pageSize, defaultSearchParams);  // 直接传入重置后的 params
+  setPage(1);
+  setDraftParams(defaultSearchParams);
+  setSubmittedParams(defaultSearchParams);
+  void queryClient.invalidateQueries({ queryKey: xxxKeys.lists });
 }
+
+// 翻页：buildPagination(total) 内部 setPage/setPageSize → key 变化自动请求，无需回调
 ```
 
 ### 权限控制
@@ -636,7 +670,7 @@ const { hasPermission } = usePermission();
 > 仅在用户确认需要批量操作时添加，并非所有列表都需要。
 
 ```tsx
-// 1. 状态声明
+// 1. 状态声明（deleteMutation 复用上文 useDeleteXxxs）
 const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
 
 // 2. 批量删除 handler
@@ -646,12 +680,9 @@ const handleBatchDelete = () => {
     content: '删除后无法恢复，请谨慎操作。',
     okButtonProps: { type: 'danger', theme: 'solid' },
     onOk: async () => {
-      const res = await request.delete<null>('/api/xxxs/batch', { ids: selectedRowKeys });
-      if (res.code === 0) {
-        Toast.success('批量删除成功');
-        setSelectedRowKeys([]);
-        void fetchXxxs();
-      }
+      await deleteMutation.mutateAsync(selectedRowKeys);
+      Toast.success('批量删除成功');
+      setSelectedRowKeys([]);
     },
   });
 };
@@ -670,13 +701,13 @@ const handleBatchDelete = () => {
     onChange: (keys) => setSelectedRowKeys(keys as number[]),
   }}
   bordered
-  onRefresh={() => void fetchXxxs(page, pageSize)}
-  refreshLoading={loading}
+  onRefresh={() => void listQuery.refetch()}
+  refreshLoading={listQuery.isFetching}
   ...
 />
 ```
 
-> `request.delete(url, body)` 支持传请求体（`packages/web/src/utils/request.ts` 已实现）。
+> `request.delete(url, body)` 支持传请求体（`packages/web/src/utils/request.ts` 已实现）；`useDeleteXxxs` 内部据 ids 长度自动选择单删/批量接口。
 
 ---
 
@@ -716,11 +747,11 @@ const columns: ColumnProps<Region>[] = [
   virtualized
   scroll={{ y: 'calc(100vh - 260px)' }}  // 只设 y，不设 x
   columns={columns}
-  dataSource={data}
+  dataSource={list}
   rowKey="id"
   pagination={false}
-  onRefresh={fetchData}
-  refreshLoading={loading}
+  onRefresh={() => void treeQuery.refetch()}
+  refreshLoading={treeQuery.isFetching}
 />
 ```
 
@@ -755,19 +786,19 @@ const columns: ColumnProps<Region>[] = [
   bordered
   columns={columns}
   dataSource={list}
-  loading={loading}
+  loading={listQuery.isFetching}
   rowKey="id"
-  onRefresh={() => void fetchXxxs(page, pageSize)}   // ← 必须传
-  refreshLoading={loading}                            // ← 必须传
-  pagination={{ ... }}
+  onRefresh={() => void listQuery.refetch()}   // ← 必须传
+  refreshLoading={listQuery.isFetching}        // ← 必须传
+  pagination={buildPagination(total)}
 />
 ```
 
 规则：
 
-- `onRefresh`：刷新当前页数据，保持分页位置不变；若组件无独立数据加载（如结构/上下文驱动的表格），可不传
-- `refreshLoading`：通常与 `loading` 保持一致，按钮转圈期间防重复点击
-- SideSheet / Modal 内的**次级**表格（投递记录、操作历史等）同样需要传入对应的刷新函数
+- `onRefresh`：调用当前列表查询的 `refetch()`，保持分页位置不变；若组件无独立数据加载（如结构/上下文驱动的表格），可不传
+- `refreshLoading`：与 `loading` 一样统一使用 `listQuery.isFetching`，按钮转圈期间防重复点击
+- SideSheet / Modal 内的**次级**表格（投递记录、操作历史等）同样需要传入对应查询的 `refetch`
 
 ---
 
@@ -898,4 +929,4 @@ export default function XxxPage() {
 - 导出字段、Excel / CSV 格式、权限、同步 / 异步策略、文件留存、合并表头与自定义样式均写在导出实体定义中。
 - 前端统一使用 `ExportButton`，通过 `entity` 指定导出实体编码，通过 `query` 传递当前提交的筛选条件。
 - 列表页默认同步明文导出；大数据或特殊敏感场景由实体定义的 `execution` 策略调整。
-- 若导出需带筛选条件，统一使用“当前提交查询参数”（通常来自 `searchParamsRef.current`）构造 query，避免 stale closure。
+- 若导出需带筛选条件，统一使用「当前提交查询参数」（`submittedParams`，而非 draft）构造 query，与列表查询保持一致。

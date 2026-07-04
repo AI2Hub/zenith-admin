@@ -31,6 +31,10 @@
 - 在 401（无法续期）场景下跳转登录页
 - 支持 `silent` 静默错误提示、`skipAuth` 跳过 401 自动刷新、`postForm` 上传进度和 `download` 文件下载
 
+::: tip request.ts 只是传输层
+业务代码不直接调用 `request.get` 拉取页面数据。服务端状态（列表、详情、下拉源等）统一通过 TanStack Query 的域 hooks 管理（`hooks/queries/`），queryFn 内部才使用 `request.get(url).then(unwrap)`。完整规范见[数据获取与服务端状态](/frontend/data-fetching)。
+:::
+
 ## 与后端的协作方式
 
 ### 请求头
@@ -143,10 +147,11 @@ VITE_WS_BASE_URL=wss://api.yourdomain.com
 | `MEMBER_TOKEN_KEY` | `zenith_member_token` | 会员 Access Token |
 | `MEMBER_REFRESH_TOKEN_KEY` | `zenith_member_refresh_token` | 会员 Refresh Token |
 
-`memberRequest` 携带会员 token；401 时调用 `POST /api/member/auth/refresh` 刷新，失败后清理会员 token 并跳转 `/member.html#/login`。会员端不要复用后台的 `request.ts`。
+`memberRequest` 携带会员 token；401 时调用 `POST /api/member/auth/refresh` 刷新，失败后清理会员 token 并跳转 `/member.html#/login`。会员端不要复用后台的 `request.ts`。会员端服务端状态同样由 TanStack Query 管理，使用独立的 `memberQueryClient`（`member/lib/member-query.ts`）与域 hooks（`member/hooks/queries.ts`）。
 
 ## 开发建议
 
 - 新增接口前，先确认是否已有共享类型或校验 schema
 - 对需要登录的页面，优先复用现有登录态与跳转机制
 - 请求错误处理尽量集中在封装层，不把每个页面都写成“各自为战”
+- 页面数据获取遵循[数据获取与服务端状态](/frontend/data-fetching)中的域 hooks 模式，不在组件里手写 fetch 状态机

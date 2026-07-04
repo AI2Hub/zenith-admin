@@ -103,10 +103,10 @@ const columns = [
   virtualized
   scroll={{ y: 'calc(100vh - 260px)' }}   // 不设 scroll.x
   columns={columns}
-  dataSource={data}
+  dataSource={list}
   rowKey="id"
-  onRefresh={() => void fetchList()}
-  refreshLoading={loading}
+  onRefresh={() => void listQuery.refetch()}
+  refreshLoading={listQuery.isFetching}
 />
 ```
 
@@ -192,23 +192,20 @@ const { hasPermission } = usePermission();
 
 ## 分页规范
 
-分页统一使用 `Table` 内置 `pagination` 配置，不单独放置 `Pagination` 组件：
+分页统一使用 `Table` 内置 `pagination` 配置，不单独放置 `Pagination` 组件。列表页通过 `usePagination()` 管理分页状态，`buildPagination(total)` 生成配置——page/pageSize 进入查询 key，翻页自动触发请求（数据获取见[数据获取与服务端状态](/frontend/data-fetching)）：
 
 ```tsx
+const { page, pageSize, buildPagination } = usePagination();
+const listQuery = useXxxList({ page, pageSize, ...submittedParams });
+
 <ConfigurableTable
   bordered
-  dataSource={list}
+  dataSource={listQuery.data?.list ?? []}
   columns={columns}
-  onRefresh={() => void fetchList()}
-  refreshLoading={loading}
-  pagination={{
-    currentPage: page,
-    pageSize,
-    total,
-    showSizeChanger: true,
-    pageSizeOpts: [10, 20, 50, 100],
-    onChange: (p, size) => { setPage(p); setPageSize(size); },
-  }}
+  loading={listQuery.isFetching}
+  onRefresh={() => void listQuery.refetch()}
+  refreshLoading={listQuery.isFetching}
+  pagination={buildPagination(listQuery.data?.total ?? 0)}
 />
 ```
 

@@ -60,6 +60,7 @@ zenith-admin/
 - `packages/web/src/layouts/`：后台主布局
 - `packages/web/src/components/`：公共组件
 - `packages/web/src/hooks/`：认证、主题等逻辑
+- `packages/web/src/hooks/queries/`：TanStack Query 域 hooks（服务端状态，按业务域拆分）
 - `packages/web/src/lib/`：前端通用库封装
 - `packages/web/src/member/`：会员前台独立 SPA
 - `packages/web/src/mocks/`：MSW Demo 模式数据与 handlers

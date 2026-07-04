@@ -121,6 +121,7 @@ export default defineConfig({
           { text: 'Swagger / OpenAPI', link: '/backend/swagger' },
           { text: '前端 UI 规范', link: '/frontend/ui-conventions' },
           { text: '认证与请求', link: '/frontend/auth-request' },
+          { text: '数据获取与服务端状态', link: '/frontend/data-fetching' },
           { text: '公共组件', link: '/frontend/components' },
           { text: '文件预览组件', link: '/frontend/file-preview' },
           { text: '路由与菜单', link: '/frontend/routing' },
