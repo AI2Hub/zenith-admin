@@ -20,8 +20,8 @@
 
 | 层 | 文件 |
 |----|------|
-| 路由 | `routes/analytics.ts`、`routes/frontend-errors.ts` |
-| Service | `services/analytics.service.ts`、`analytics-event-meta.service.ts`、`analytics-settings.service.ts`、`analytics-rollup.service.ts`、`frontend-errors.service.ts`、`error-alert.service.ts` |
+| 路由 | `routes/analytics/analytics.ts`、`routes/analytics/frontend-errors.ts` |
+| Service | `services/analytics/analytics.service.ts`、`analytics-event-meta.service.ts`、`analytics-settings.service.ts`、`analytics-rollup.service.ts`、`frontend-errors.service.ts`、`error-alert.service.ts` |
 | 公共库 | `lib/analytics-helpers.ts`（UA / 地域 / 指纹 / 性能评级）、`lib/source-map-symbolicate.ts`（堆栈还原） |
 | DTO | `lib/dtos/analytics.ts`、`lib/dtos/frontend-errors.ts` |
 
@@ -33,7 +33,7 @@
 ```text
 tracker.ts / error-reporter.ts
   ↓ POST /api/analytics/events 或 POST /api/frontend-errors
-routes/analytics.ts / routes/frontend-errors.ts
+routes/analytics/analytics.ts / routes/analytics/frontend-errors.ts
   ↓ Service 写入、UA/IP 解析、会话维护、错误指纹计算
 user_events / analytics_sessions / error_groups / error_events
   ↓ 查询接口实时聚合，定时任务维护 analytics_daily_rollup 与保留清理

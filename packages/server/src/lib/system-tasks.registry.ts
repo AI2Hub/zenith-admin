@@ -1,5 +1,5 @@
 import { registerSystemRecurringJob } from './pg-boss-scheduler';
-import { cleanupSystemSchedulerRuns } from '../services/system-scheduler.service';
+import { cleanupSystemSchedulerRuns } from '../services/tasks/system-scheduler.service';
 
 /**
  * 启动时注册的系统级周期任务入口。
@@ -7,7 +7,7 @@ import { cleanupSystemSchedulerRuns } from '../services/system-scheduler.service
  * 新增系统后台任务时优先放在这里，页面会自动从 pg-boss-scheduler 的注册表读取。
  */
 export async function registerSystemTasks(): Promise<void> {
-  const { cleanupExpiredExportFiles } = await import('../services/export-jobs.service');
+  const { cleanupExpiredExportFiles } = await import('../services/tasks/export-jobs.service');
   await registerSystemRecurringJob({
     name: 'export-file-cleanup',
     title: '导出文件自动清理',
@@ -33,7 +33,7 @@ export async function registerSystemTasks(): Promise<void> {
     run: cleanupSystemSchedulerRuns,
   });
 
-  const { runDueWorkflowSchedules } = await import('../services/workflow-schedules.service');
+  const { runDueWorkflowSchedules } = await import('../services/workflow/workflow-schedules.service');
   await registerSystemRecurringJob({
     name: 'workflow-schedule-tick',
     title: '工作流定时发起扫描',
@@ -62,7 +62,7 @@ export async function registerSystemTasks(): Promise<void> {
     },
   });
 
-  const { retryAppWebhookDeliveries } = await import('../services/app-webhooks.service');
+  const { retryAppWebhookDeliveries } = await import('../services/open-platform/app-webhooks.service');
   await registerSystemRecurringJob({
     name: 'app-webhook-delivery-retry',
     title: '开放应用 Webhook 重试',
@@ -73,7 +73,7 @@ export async function registerSystemTasks(): Promise<void> {
     run: retryAppWebhookDeliveries,
   });
 
-  const { publishDueScheduledMessages } = await import('../services/channel.service');
+  const { publishDueScheduledMessages } = await import('../services/messaging/channel.service');
   await registerSystemRecurringJob({
     name: 'channel-scheduled-publish',
     title: '频道定时消息发布',
@@ -87,7 +87,7 @@ export async function registerSystemTasks(): Promise<void> {
     },
   });
 
-  const { runMpKfSessionTimeouts } = await import('../services/mp-kf-session.service');
+  const { runMpKfSessionTimeouts } = await import('../services/mp/mp-kf-session.service');
   await registerSystemRecurringJob({
     name: 'mp-kf-session-tick',
     title: '公众号客服会话维护',
@@ -98,7 +98,7 @@ export async function registerSystemTasks(): Promise<void> {
     run: runMpKfSessionTimeouts,
   });
 
-  const { runDueMpBroadcasts } = await import('../services/mp-broadcast.service');
+  const { runDueMpBroadcasts } = await import('../services/mp/mp-broadcast.service');
   await registerSystemRecurringJob({
     name: 'mp-broadcast-tick',
     title: '公众号群发任务扫描',
@@ -109,7 +109,7 @@ export async function registerSystemTasks(): Promise<void> {
     run: runDueMpBroadcasts,
   });
 
-  const { runWorkflowEngineHealthCapture } = await import('../services/workflow-engine-ops.service');
+  const { runWorkflowEngineHealthCapture } = await import('../services/workflow/workflow-engine-ops.service');
   await registerSystemRecurringJob({
     name: 'workflow-engine-health-capture',
     title: '流程引擎健康采集',

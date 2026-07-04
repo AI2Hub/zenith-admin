@@ -16,7 +16,7 @@
 - **信令**：`invite` / `accept` / `offer` / `answer` / `ICE candidate` 等通过 WebSocket 中继。事件清单见 [WebSocket 事件 · rtc](./websocket-events.md#音视频通话信令-rtc)。
 - **媒体**：浏览器间 P2P。服务端**不经手媒体流**，仅做信令转发、群通话 `join` 房间登记和断线清理。
 - **关键文件**：
-  - 服务端：`routes/ws.ts`（信令中继）、`lib/rtc-manager.ts`（群通话房间）、`services/chat.service.ts`（`getRtcConfig` / `postCallRecord`）。
+  - 服务端：`routes/platform/ws.ts`（信令中继）、`lib/rtc-manager.ts`（群通话房间）、`services/chat/chat.service.ts`（`getRtcConfig` / `postCallRecord`）。
   - 前端：`webrtc/callManager.ts`（单例通话管理器）、`webrtc/CallOverlayHost.tsx`（全局来电/通话宿主，挂载于 `AdminLayout`）、`CallWindow.tsx` / `MediaTile.tsx`。
 
 ## 配置（ICE 服务器）

@@ -5,7 +5,7 @@
 ## 1. 统一支付门面（需求 ②④）
 
 ```ts
-// services/payment.service.ts —— 业务模块唯一入口
+// services/payment/payment.service.ts —— 业务模块唯一入口
 createPayment(input: {
   bizType: string; bizId: string; amount: number; subject: string; body?: string;
   payMethod: PayMethod; channelConfigId?: number;   // 不传则用 isDefault 渠道
@@ -103,7 +103,7 @@ paymentEventBus.on('payment.succeeded', async (e) => {
 });
 ```
 
-> 实际案例参考会员钱包充值：下单时 `bizType='member_recharge'`，订阅 `payment.succeeded` 入账（`services/payment-subscribers.ts`）。
+> 实际案例参考会员钱包充值：下单时 `bizType='member_recharge'`，订阅 `payment.succeeded` 入账（`services/payment/payment-subscribers.ts`）。
 
 ## 3. 幂等要求（重要）
 

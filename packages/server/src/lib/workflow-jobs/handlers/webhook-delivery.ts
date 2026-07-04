@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import type { WorkflowEvent } from '@zenith/shared';
 import { db } from '../../../db';
 import { workflowEventSubscriptions } from '../../../db/schema';
-import { invokeConnector, getConnectorRowById } from '../../../services/workflow-connectors.service';
+import { invokeConnector, getConnectorRowById } from '../../../services/workflow/workflow-connectors.service';
 import { httpPost } from '../../http-client';
 import { registerJobHandler } from '../registry';
 import { WorkflowJobSkip, WorkflowJobError, WorkflowJobPermanentError } from '../errors';

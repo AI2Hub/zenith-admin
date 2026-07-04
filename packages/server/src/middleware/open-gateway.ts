@@ -18,8 +18,8 @@ import {
   OPEN_SIGNATURE_TIMESTAMP_WINDOW,
 } from '@zenith/shared';
 import { signRequest, timingSafeEqualHex } from '../lib/open-signature';
-import { getOpenApiApp, recordOpenApiCall, type OpenApiAppContext } from '../services/open-gateway.service';
-import { getRatePlanRowById, getDefaultRatePlanRow } from '../services/rate-plans.service';
+import { getOpenApiApp, recordOpenApiCall, type OpenApiAppContext } from '../services/open-platform/open-gateway.service';
+import { getRatePlanRowById, getDefaultRatePlanRow } from '../services/open-platform/rate-plans.service';
 import { openEventBus } from '../lib/open-event-bus';
 
 declare module 'hono' {

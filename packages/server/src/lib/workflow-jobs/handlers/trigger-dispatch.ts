@@ -3,8 +3,8 @@ import type { WorkflowTriggerNodeConfig, WorkflowTriggerType } from '@zenith/sha
 import { db } from '../../../db';
 import { workflowTasks, workflowInstances } from '../../../db/schema';
 import type { workflowTasks as workflowTasksTable, workflowInstances as workflowInstancesTable } from '../../../db/schema';
-import { approveTaskCore, handleNodeExecutionError } from '../../../services/workflow-instances.service';
-import { invokeConnector, getConnectorRowById } from '../../../services/workflow-connectors.service';
+import { approveTaskCore, handleNodeExecutionError } from '../../../services/workflow/workflow-instances.service';
+import { invokeConnector, getConnectorRowById } from '../../../services/workflow/workflow-connectors.service';
 import { httpRequest } from '../../http-client';
 import logger from '../../logger';
 import { registerJobHandler } from '../registry';

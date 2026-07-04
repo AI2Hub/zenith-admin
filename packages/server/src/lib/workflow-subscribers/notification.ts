@@ -17,7 +17,7 @@ import type { InAppMessageType, WorkflowNotifyChannels, WorkflowFlowData } from 
 import { workflowEventBus } from '../workflow-event-bus';
 import { sendMail } from '../email';
 import { sendSmsByProvider, renderTemplate } from '../sms-sender';
-import { findDefaultSmsConfig } from '../../services/sms-configs.service';
+import { findDefaultSmsConfig } from '../../services/messaging/sms-configs.service';
 import logger from '../logger';
 
 interface NotifyContext {

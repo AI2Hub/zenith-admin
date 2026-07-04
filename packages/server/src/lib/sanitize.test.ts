@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeBody } from '../lib/sanitize';
+import { sanitizeBody } from './sanitize';
 
 describe('sanitizeBody', () => {
   it('should return empty string for null/undefined', () => {

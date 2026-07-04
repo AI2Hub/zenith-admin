@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../../../db';
 import { workflowTasks, workflowInstances } from '../../../db/schema';
-import { maybeSpawnSubProcessChild, handleNodeExecutionError } from '../../../services/workflow-instances.service';
+import { maybeSpawnSubProcessChild, handleNodeExecutionError } from '../../../services/workflow/workflow-instances.service';
 import { registerJobHandler } from '../registry';
 import { WorkflowJobSkip, WorkflowJobPermanentError, WorkflowJobError } from '../errors';
 import type { WorkflowJobContext } from '../types';

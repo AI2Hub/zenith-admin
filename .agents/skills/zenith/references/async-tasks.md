@@ -2,7 +2,7 @@
 
 > **触发场景**：业务功能包含**长耗时操作**——批量删除/更新、Excel 导入、报表生成、数据迁移、消息群发、第三方同步等无法同步完成的操作。此类需求**禁止自建轮询表或后台线程**，必须接入任务中心（`packages/server/src/lib/task-center/`）。
 >
-> 完整文档：[docs/backend/task-center.md](../../../../docs/backend/task-center.md)；可运行示例：`packages/server/src/routes/task-demo.ts` + `packages/web/src/pages/biz/task-demo/TaskDemoPage.tsx`。
+> 完整文档：[docs/backend/task-center.md](../../../../docs/backend/task-center.md)；可运行示例：`packages/server/src/routes/tasks/task-demo.ts` + `packages/web/src/pages/biz/task-demo/TaskDemoPage.tsx`。
 
 ---
 
@@ -28,10 +28,10 @@
 
 ### ① 注册 handler（模块加载时执行一次）
 
-新建 `packages/server/src/services/xxx-tasks.ts`（或就近放在业务 service），在 `packages/server/src/index.ts` 启动流程中、`registerSystemTasks()` **之前**调用注册函数（参考 `registerTaskDemoHandlers()` 的挂载位置）：
+新建 `packages/server/src/services/{业务域}/xxx-tasks.ts`（或就近放在业务 service），在 `packages/server/src/index.ts` 启动流程中、`registerSystemTasks()` **之前**调用注册函数（参考 `registerTaskDemoHandlers()` 的挂载位置）：
 
 ```ts
-import { registerTaskHandler } from '../lib/task-center';
+import { registerTaskHandler } from '../../lib/task-center';
 
 export function registerXxxTaskHandlers(): void {
   registerTaskHandler({
@@ -78,7 +78,7 @@ export function registerXxxTaskHandlers(): void {
 业务路由 handler 中（HTTP 上下文内）：
 
 ```ts
-import { mapAsyncTask, submitAsyncTask } from '../lib/task-center';
+import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
 
 const row = await submitAsyncTask({
   taskType: 'xxx-batch-import',

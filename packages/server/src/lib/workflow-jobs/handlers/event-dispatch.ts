@@ -1,5 +1,5 @@
 import type { WorkflowEvent } from '@zenith/shared';
-import { findMatchingSubscriptions } from '../../../services/workflow-event-subscriptions.service';
+import { findMatchingSubscriptions } from '../../../services/workflow/workflow-event-subscriptions.service';
 import { enqueueJob } from '../engine';
 import { registerJobHandler } from '../registry';
 import { WorkflowJobPermanentError } from '../errors';

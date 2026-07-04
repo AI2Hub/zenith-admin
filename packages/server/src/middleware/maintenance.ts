@@ -1,7 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import { verifyToken } from '../lib/jwt';
 import type { JwtPayload } from './auth';
-import { getMaintenanceStatus } from '../services/maintenance.service';
+import { getMaintenanceStatus } from '../services/ops/maintenance.service';
 import { SUPER_ADMIN_CODE } from '@zenith/shared';
 
 /** Paths exempt from maintenance mode blocking */

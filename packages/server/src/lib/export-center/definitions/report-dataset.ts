@@ -3,7 +3,7 @@
  * 列结构动态：由数据集声明字段 + 计算字段决定（fields 为空时探测一行推断列）。
  * 数据来源 getDatasetData（含参数解析 / 计算字段 / 缓存）。xlsx + csv 均支持。
  */
-import { ensureDatasetExists, getDatasetData } from '../../../services/report-dataset.service';
+import { ensureDatasetExists, getDatasetData } from '../../../services/report/report-dataset.service';
 import { defineExport } from '../registry';
 import type { ExportColumn, ExportColumnType } from '../types';
 import type { ReportField, ReportComputedField } from '@zenith/shared';

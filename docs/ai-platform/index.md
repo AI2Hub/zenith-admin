@@ -33,7 +33,7 @@
 
 ### 流式输出
 
-聊天接口为 `POST /api/ai/conversations/{id}/chat`，由 `packages/server/src/routes/ai-chat.ts` 注册在 `/api/ai/conversations` 下。接口使用 `streamSSE` 返回服务端事件：
+聊天接口为 `POST /api/ai/conversations/{id}/chat`，由 `packages/server/src/routes/ai/ai-chat.ts` 注册在 `/api/ai/conversations` 下。接口使用 `streamSSE` 返回服务端事件：
 
 | SSE 事件 | 说明 |
 | --- | --- |
@@ -81,7 +81,7 @@ PDF 能力用于上传展示与预览，不会在聊天接口中自动解析 PDF
 
 ## AI 服务商管理
 
-系统级服务商配置由 `packages/server/src/routes/ai-providers.ts` 与 `packages/server/src/services/ai-providers.service.ts` 提供，前端页面为 `packages/web/src/pages/ai/providers/AIProvidersPage.tsx`，菜单路径为 `/ai/providers`。
+系统级服务商配置由 `packages/server/src/routes/ai/ai-providers.ts` 与 `packages/server/src/services/ai/ai-providers.service.ts` 提供，前端页面为 `packages/web/src/pages/ai/providers/AIProvidersPage.tsx`，菜单路径为 `/ai/providers`。
 
 ### 支持的供应商类型
 
@@ -121,7 +121,7 @@ PDF 能力用于上传展示与预览，不会在聊天接口中自动解析 PDF
 
 ## 个人 AI 配置
 
-个人配置由 `packages/server/src/routes/user-ai-config.ts` 与 `packages/server/src/services/user-ai-config.service.ts` 提供，挂载路径为 `/api/ai/user-configs`。
+个人配置由 `packages/server/src/routes/ai/user-ai-config.ts` 与 `packages/server/src/services/ai/user-ai-config.service.ts` 提供，挂载路径为 `/api/ai/user-configs`。
 
 聊天页启动时会读取系统配置 `ai_allow_user_custom_key`：
 
@@ -136,7 +136,7 @@ PDF 能力用于上传展示与预览，不会在聊天接口中自动解析 PDF
 
 ## 提示词模板
 
-提示词模板由 `packages/server/src/routes/ai-prompt-templates.ts` 与 `packages/server/src/services/ai-prompt-templates.service.ts` 提供，前端页面为 `packages/web/src/pages/ai/prompts/PromptTemplatesPage.tsx`，菜单路径为 `/ai/prompts`。
+提示词模板由 `packages/server/src/routes/ai/ai-prompt-templates.ts` 与 `packages/server/src/services/ai/ai-prompt-templates.service.ts` 提供，前端页面为 `packages/web/src/pages/ai/prompts/PromptTemplatesPage.tsx`，菜单路径为 `/ai/prompts`。
 
 模板范围由 `ai_prompt_scope` 枚举定义：
 
@@ -161,7 +161,7 @@ PDF 能力用于上传展示与预览，不会在聊天接口中自动解析 PDF
 
 ## 使用统计
 
-用量统计由 `packages/server/src/routes/ai-usage.ts` 与 `packages/server/src/services/ai-usage.service.ts` 提供，前端页面为 `packages/web/src/pages/ai/usage/AiUsagePage.tsx`，菜单路径为 `/ai/usage`。
+用量统计由 `packages/server/src/routes/ai/ai-usage.ts` 与 `packages/server/src/services/ai/ai-usage.service.ts` 提供，前端页面为 `packages/web/src/pages/ai/usage/AiUsagePage.tsx`，菜单路径为 `/ai/usage`。
 
 统计接口为 `GET /api/ai/usage/stats`，支持查询参数：
 

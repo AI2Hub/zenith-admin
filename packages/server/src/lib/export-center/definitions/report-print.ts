@@ -4,7 +4,7 @@
  * 仅 xlsx（含合并单元格与样式，无法用 CSV 表达），renderMode='custom'。
  */
 import type ExcelJS from 'exceljs';
-import { renderPrintTemplate } from '../../../services/report-print.service';
+import { renderPrintTemplate } from '../../../services/report/report-print.service';
 import { defineExport } from '../registry';
 import type { ReportPrintCellStyle } from '@zenith/shared';
 

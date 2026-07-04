@@ -1,7 +1,7 @@
 import { desc } from 'drizzle-orm';
 import { db } from '../../../db';
 import { members } from '../../../db/schema';
-import { buildMemberWhere } from '../../../services/admin-members.service';
+import { buildMemberWhere } from '../../../services/member/admin-members.service';
 import { MEMBER_STATUS_LABELS, type MemberStatus } from '@zenith/shared';
 import { defineExport } from '../registry';
 import type { ExportColumn } from '../types';

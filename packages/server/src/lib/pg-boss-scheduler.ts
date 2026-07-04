@@ -15,7 +15,7 @@ import { cleanExpiredSessions } from './session-manager';
 import { createPgDumpBackup, createDrizzleExportBackup } from './db-backup';
 import { formatFileTimestamp, formatDateTime } from './datetime';
 import { config } from '../config';
-import { notifyUsersWithCard } from '../services/chat-notify.service';
+import { notifyUsersWithCard } from '../services/chat/chat-notify.service';
 import type { ChatCard } from '@zenith/shared';
 import { sendMail } from './email';
 import { httpPost } from './http-client';
@@ -626,99 +626,99 @@ handlerRegistry.set('databaseBackup', async (params) => {
 });
 
 handlerRegistry.set('publishScheduledAnnouncements', async () => {
-  const { publishScheduledAnnouncements } = await import('../services/announcements.service');
+  const { publishScheduledAnnouncements } = await import('../services/messaging/announcements.service');
   const count = await publishScheduledAnnouncements();
   return `自动发布了 ${count} 条定时公告`;
 });
 
 handlerRegistry.set('cleanupTerminalRecordings', async () => {
-  const { cleanupRecordings } = await import('../services/terminal-recordings.service');
+  const { cleanupRecordings } = await import('../services/ops/terminal-recordings.service');
   const r = await cleanupRecordings();
   return `清理终端录屏：按保留天数删除 ${r.deletedByAge} 条、按容量删除 ${r.deletedBySize} 条，释放约 ${(r.freedBytes / 1024 / 1024).toFixed(2)} MB`;
 });
 
 handlerRegistry.set('closeExpiredPaymentOrders', async () => {
-  const { closeExpiredOrders } = await import('../services/payment-reconciliation.service');
+  const { closeExpiredOrders } = await import('../services/payment/payment-reconciliation.service');
   const count = await closeExpiredOrders();
   return `关闭过期支付订单 ${count} 笔`;
 });
 
 handlerRegistry.set('paymentReconciliation', async () => {
-  const { runReconciliation } = await import('../services/payment-reconciliation.service');
+  const { runReconciliation } = await import('../services/payment/payment-reconciliation.service');
   const r = await runReconciliation();
   return `支付对账完成：核对 ${r.checked} 笔，纠正 ${r.fixed} 笔`;
 });
 
 handlerRegistry.set('dispatchPaymentEvents', async () => {
-  const { dispatchPendingPaymentEvents } = await import('../services/payment-outbox.service');
+  const { dispatchPendingPaymentEvents } = await import('../services/payment/payment-outbox.service');
   const count = await dispatchPendingPaymentEvents();
   return `补投支付事件 ${count} 条`;
 });
 
 handlerRegistry.set('retryPaymentWebhooks', async () => {
-  const { retryPendingDeliveries } = await import('../services/payment-webhook.service');
+  const { retryPendingDeliveries } = await import('../services/payment/payment-webhook.service');
   const count = await retryPendingDeliveries();
   return `重试支付 Webhook 投递 ${count} 条`;
 });
 
 handlerRegistry.set('analyticsRollupDaily', async (params) => {
-  const { rebuildRollup } = await import('../services/analytics-rollup.service');
+  const { rebuildRollup } = await import('../services/analytics/analytics-rollup.service');
   const days = Number(params) || 2;
   const n = await rebuildRollup(days);
   return `重建每日聚合 ${n} 条`;
 });
 
 handlerRegistry.set('analyticsRetention', async () => {
-  const { runAnalyticsRetention } = await import('../services/analytics-rollup.service');
+  const { runAnalyticsRetention } = await import('../services/analytics/analytics-rollup.service');
   const r = await runAnalyticsRetention();
   return `数据保留清理：埋点 ${r.events} 条、会话 ${r.sessions} 条、错误 ${r.errors} 条`;
 });
 
 handlerRegistry.set('evaluateErrorAlerts', async () => {
-  const { evaluateAlerts } = await import('../services/error-alert.service');
+  const { evaluateAlerts } = await import('../services/analytics/error-alert.service');
   const r = await evaluateAlerts();
   return `错误告警评估：规则 ${r.evaluated} 条，触发 ${r.triggered} 条`;
 });
 
 handlerRegistry.set('sampleSystemMetrics', async () => {
-  const { persistMetricSample } = await import('../services/monitor-history.service');
+  const { persistMetricSample } = await import('../services/platform/monitor-history.service');
   const ok = await persistMetricSample();
   return ok ? '已记录系统指标采样' : '采样器未预热，跳过';
 });
 
 handlerRegistry.set('evaluateMonitorAlerts', async () => {
-  const { evaluateMonitorAlerts } = await import('../services/monitor-alert.service');
+  const { evaluateMonitorAlerts } = await import('../services/platform/monitor-alert.service');
   const r = await evaluateMonitorAlerts();
   return `监控告警评估：规则 ${r.evaluated} 条，触发 ${r.fired} 条，恢复 ${r.resolved} 条`;
 });
 
 handlerRegistry.set('cleanupSystemMetrics', async (params) => {
-  const { cleanupMetricSamples } = await import('../services/monitor-history.service');
+  const { cleanupMetricSamples } = await import('../services/platform/monitor-history.service');
   const days = Number(params) || 7;
   const n = await cleanupMetricSamples(days);
   return `清理系统指标采样：删除 ${n} 条（保留 ${days} 天）`;
 });
 
 handlerRegistry.set('cleanupUploadSessions', async () => {
-  const { cleanupStaleUploadSessions } = await import('../services/upload-sessions.service');
+  const { cleanupStaleUploadSessions } = await import('../services/files/upload-sessions.service');
   const r = await cleanupStaleUploadSessions();
   return `清理分片上传：过期会话 ${r.staleSessions} 个、孤儿临时目录 ${r.orphanDirs} 个，释放约 ${(r.freedBytes / 1024 / 1024).toFixed(2)} MB`;
 });
 
 handlerRegistry.set('dispatchReportSubscriptions', async () => {
-  const { dispatchDueSubscriptions } = await import('../services/report-subscription.service');
+  const { dispatchDueSubscriptions } = await import('../services/report/report-subscription.service');
   const r = await dispatchDueSubscriptions();
   return `报表订阅分发：检查 ${r.checked} 个，推送 ${r.pushed} 个`;
 });
 
 handlerRegistry.set('refreshReportMaterializations', async () => {
-  const { dispatchDueMaterializations } = await import('../services/report-dataset.service');
+  const { dispatchDueMaterializations } = await import('../services/report/report-dataset.service');
   const r = await dispatchDueMaterializations();
   return `报表物化刷新：检查 ${r.checked} 个，刷新 ${r.refreshed} 个`;
 });
 
 handlerRegistry.set('dispatchReportAlerts', async () => {
-  const { dispatchDueAlerts } = await import('../services/report-alert.service');
+  const { dispatchDueAlerts } = await import('../services/report/report-alert.service');
   const r = await dispatchDueAlerts();
   return `报表预警分发：检查 ${r.checked} 个，触发 ${r.triggered} 个`;
 });

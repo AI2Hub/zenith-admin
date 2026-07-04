@@ -4,7 +4,7 @@
 
 示例模块代码位于后台「业务示例 → 支付接入示例」菜单，对应表 `biz_pay_demos`，业务类型标识 `bizType = 'biz_pay_demo'`。它刻意做得极简（一个商品/事项 + 一笔金额），方便你照搬到真实业务（订单、充值、开通会员等）。
 
-> 与会员钱包充值（`bizType='member_recharge'`）是同一套接入模式，可对照阅读 `services/member-wallet.service.ts` 与 `services/payment-subscribers.ts`。
+> 与会员钱包充值（`bizType='member_recharge'`）是同一套接入模式，可对照阅读 `services/member/member-wallet.service.ts` 与 `services/payment/payment-subscribers.ts`。
 
 ## 1. 场景与流程
 
@@ -67,7 +67,7 @@ export const bizPayDemos = pgTable('biz_pay_demos', {
 业务只需提供 `bizType` / `bizId` / 金额 / 支付方式，门面据 `payMethod` 自动选渠道并返回支付参数。
 
 ```ts
-// services/biz-pay-demo.service.ts
+// services/payment/biz-pay-demo.service.ts
 export const BIZ_PAY_DEMO_TYPE = 'biz_pay_demo';
 
 export async function payBizPayDemo(id: number, input: { payMethod: PaymentMethod; openId?: string }, clientIp?: string) {
@@ -98,7 +98,7 @@ export async function payBizPayDemo(id: number, input: { payMethod: PaymentMetho
 在模块初始化处订阅 `payment.succeeded`，按 `bizType` 过滤后履约。**履约必须幂等**——支付成功事件可能被低延迟投递与 cron 兜底重复投递（at-least-once）。
 
 ```ts
-// services/biz-pay-demo-subscribers.ts
+// services/payment/biz-pay-demo-subscribers.ts
 paymentEventBus.on('payment.succeeded', (e) => {
   if (e.bizType !== BIZ_PAY_DEMO_TYPE) return;
   return markBizPayDemoPaid({ bizId: e.bizId, orderNo: e.orderNo, amount: e.amount }).catch((err) => {

@@ -1,7 +1,7 @@
 import { db } from '../../../db';
 import { users } from '../../../db/schema';
 import type { JwtPayload } from '../../../middleware/auth';
-import { buildUsersListWhere, findUsersWithRelations, mapUsers, type ListUsersQuery } from '../../../services/users.service';
+import { buildUsersListWhere, findUsersWithRelations, mapUsers, type ListUsersQuery } from '../../../services/identity/users.service';
 import { defineExport } from '../registry';
 
 interface UserExportRow extends Record<string, unknown> {

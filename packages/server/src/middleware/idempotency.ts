@@ -16,7 +16,7 @@
  * 用法（在 createRoute 的 middleware 数组中声明）：
  *
  * ```ts
- * import { idempotencyGuard } from '../middleware/idempotency';
+ * import { idempotencyGuard } from './idempotency';
  *
  * const route = createRoute({
  *   method: 'post',

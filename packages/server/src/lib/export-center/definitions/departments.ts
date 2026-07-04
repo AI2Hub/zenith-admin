@@ -3,7 +3,7 @@ import { db } from '../../../db';
 import { departments } from '../../../db/schema';
 import { currentUser } from '../../context';
 import { tenantCondition } from '../../tenant';
-import { buildLeaderMap } from '../../../services/departments.service';
+import { buildLeaderMap } from '../../../services/identity/departments.service';
 import { defineExport } from '../registry';
 import type { ExportColumn } from '../types';
 

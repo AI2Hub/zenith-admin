@@ -2,7 +2,7 @@ import { desc } from 'drizzle-orm';
 import { db } from '../../../db';
 import { smsSendLogs } from '../../../db/schema';
 import { batchIterable } from '../../excel-export';
-import { buildListWhere, type ListSmsSendLogsQuery } from '../../../services/sms-send-logs.service';
+import { buildListWhere, type ListSmsSendLogsQuery } from '../../../services/messaging/sms-send-logs.service';
 import { defineExport } from '../registry';
 import type { ExportColumn } from '../types';
 

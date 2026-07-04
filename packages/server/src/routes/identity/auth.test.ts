@@ -1,0 +1,327 @@
+/**
+ * auth 路由接口测试
+ *
+ * 覆盖要点：
+ *  1. GET  /api/auth/captcha  — 验证码关闭 → `{enabled: false}`
+ *  2. GET  /api/auth/captcha  — 验证码开启 → 返回 SVG
+ *  3. POST /api/auth/login    — body 缺少必填字段 → 400 验证错误
+ *  4. POST /api/auth/login    — 用户名/密码类型错误 → 400
+ *  5. GET  /api/auth/me       — 无 Authorization → 401
+ *  6. GET  /api/auth/me       — 无效 JWT → 401
+ *  7. GET  /api/auth/me       — 有效 JWT + 用户不存在 → 404
+ *  8. GET  /api/auth/me       — 有效 JWT + 用户存在 → 200
+ *
+ * Mock 策略：
+ *  - db / redis / session-manager / system-config / email / logger 全部 mock
+ *  - JWT 使用固定测试密钥签名，与 config.jwtSecret mock 对齐
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
+import { sign } from 'hono/jwt';
+import { contextStorage } from 'hono/context-storage';
+
+const TEST_JWT_SECRET = 'unit-test-only-fake-secret-do-not-use-in-production';
+
+// ─── Mocks（必须在 import 模块前声明，vitest 会 hoist） ───────────────────────
+vi.mock('../../config', () => ({
+  config: {
+    jwtSecret: 'unit-test-only-fake-secret-do-not-use-in-production',
+    jwtRefreshSecret: 'unit-test-only-fake-refresh-secret',
+    port: 3300,
+    databaseUrl: 'mock://localhost/test',
+    multiTenantMode: false,
+    redis: { keyPrefix: 'test:' },
+    log: { level: 'silent', dir: 'logs', maxFiles: '30d' },
+    oauth: { github: {}, dingtalk: {}, wechatWork: {}, callbackBaseUrl: '' },
+  },
+}));
+
+vi.mock('../../db', () => {
+  const db = {
+    select: vi.fn(),
+    insert: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    $count: vi.fn(),
+    transaction: vi.fn(async (callback: (tx: typeof db) => unknown) => callback(db)),
+    query: {
+      users: { findFirst: vi.fn(), findMany: vi.fn() },
+    },
+  };
+  return { db };
+});
+
+vi.mock('../../lib/redis', () => ({
+  default: {
+    get: vi.fn(),
+    set: vi.fn(),
+    del: vi.fn(),
+    exists: vi.fn(),
+    expire: vi.fn(),
+    scan: vi.fn(),
+    // rate-limit 中间件（hono-rate-limiter）在模块加载时构造 RedisStore → 调用 script('LOAD')；
+    // 新版会在构造期即加载脚本，故 mock 必须提供这些方法，否则 RedisStore 构造抛错导致路由 import 失败。
+    script: vi.fn().mockResolvedValue('mock-sha'),
+    evalsha: vi.fn().mockResolvedValue([1, 60]),
+    decr: vi.fn().mockResolvedValue(0),
+  },
+}));
+
+vi.mock('../../lib/session-manager', () => ({
+  generateTokenId: () => 'mock-token-id',
+  registerSession: vi.fn(),
+  touchSession: vi.fn(),
+  isTokenBlacklisted: vi.fn().mockResolvedValue(false),
+  forceLogout: vi.fn(),
+  removeSession: vi.fn(),
+  checkLoginLock: vi.fn().mockResolvedValue({ isLocked: false, attempts: 0 }),
+  recordLoginFailure: vi.fn(),
+  clearLoginAttempts: vi.fn(),
+  getOnlineSessions: vi.fn().mockResolvedValue([]),
+  unlockUser: vi.fn(),
+}));
+
+vi.mock('../../lib/system-config', () => ({
+  getConfigBoolean: vi.fn().mockResolvedValue(false),
+  getConfigNumber: vi.fn().mockResolvedValue(90),
+  getConfigString: vi.fn().mockResolvedValue(''),
+}));
+
+vi.mock('../../lib/email', () => ({
+  sendMail: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../lib/logger', () => ({
+  default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+}));
+
+vi.mock('../../middleware/logger', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  httpLogger: async (_c: any, next: () => Promise<void>) => next(),
+}));
+
+// 限流中间件依赖 hono-rate-limiter 的 RedisStore（构造期加载 Lua 脚本 + 请求期 evalsha）。
+// 单测聚焦认证逻辑本身，将三个限流器 mock 为 passthrough，避免脚本行为与 redis mock 漂移导致 500。
+vi.mock('../../middleware/rate-limit', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  authRateLimit: async (_c: any, next: () => Promise<void>) => next(),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  captchaRateLimit: async (_c: any, next: () => Promise<void>) => next(),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sensitiveRateLimit: async (_c: any, next: () => Promise<void>) => next(),
+}));
+
+vi.mock('../../lib/permissions', () => ({
+  isSuperAdmin: vi.fn().mockReturnValue(false),
+  getUserPermissions: vi.fn().mockResolvedValue(['user:read']),
+  clearUserPermissionCache: vi.fn(),
+}));
+
+// ─── Imports（在 mock 声明之后） ──────────────────────────────────────────────
+import { db } from '../../db';
+import authRoutes from './auth';
+
+const dbMock = vi.mocked(db);
+
+// ─── 工具：可 await 的链式 query builder mock ─────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function createChain(result: unknown[]): any {
+  const chain: Record<string, unknown> = {};
+  const methods = ['from', 'where', 'innerJoin', 'leftJoin', 'limit', 'offset', 'orderBy', 'groupBy', 'values', 'returning'];
+  for (const m of methods) {
+    chain[m] = vi.fn(() => chain);
+  }
+  chain.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+    Promise.resolve(result).then(resolve, reject);
+  chain.catch = (fn: (e: unknown) => unknown) => Promise.resolve(result).catch(fn);
+  chain.finally = (fn: () => void) => Promise.resolve(result).finally(fn);
+  return chain;
+}
+
+// ─── 工具：生成测试用 JWT ──────────────────────────────────────────────────────
+async function makeToken(payload: object = {}) {
+  const now = Math.floor(Date.now() / 1000);
+  return sign(
+    { userId: 1, username: 'admin', roles: ['admin'], tenantId: null, jti: 'test-jti', iat: now, exp: now + 3600, ...payload },
+    TEST_JWT_SECRET,
+    'HS256',
+  );
+}
+
+// ─── 测试应用 ─────────────────────────────────────────────────────────────────
+function buildApp() {
+  const app = new Hono();
+  app.use('*', contextStorage());
+  app.route('/api/auth', authRoutes);
+  // 与 src/index.ts 保持一致的 HTTPException 全局处理
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  app.onError((err: any, c) => {
+    if (err instanceof HTTPException) {
+      return c.json({ code: err.status, message: err.message, data: null }, err.status);
+    }
+    return c.json({ code: 500, message: '服务器内部错误', data: null }, 500);
+  });
+  return app;
+}
+
+// ─── Setup ───────────────────────────────────────────────────────────────────
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+describe('GET /api/auth/captcha', () => {
+  it('验证码关闭时返回 enabled: false', async () => {
+    const app = buildApp();
+    const res = await app.request('/api/auth/captcha');
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.code).toBe(0);
+    expect(body.data.enabled).toBe(false);
+  });
+});
+
+describe('POST /api/auth/login - 参数校验', () => {
+  it('body 为空时返回 400', async () => {
+    const app = buildApp();
+    const res = await app.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.code).toBe(400);
+  });
+
+  it('username 过短时返回 400', async () => {
+    const app = buildApp();
+    const res = await app.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: '', password: 'pass' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('password 缺失时返回 400', async () => {
+    const app = buildApp();
+    const res = await app.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'admin' }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('GET /api/auth/me - 认证中间件', () => {
+  it('无 Authorization 头 → 401', async () => {
+    const app = buildApp();
+    const res = await app.request('/api/auth/me');
+    const body = await res.json();
+
+    expect(res.status).toBe(401);
+    expect(body.code).toBe(401);
+    expect(body.message).toBe('未登录');
+  });
+
+  it('无效 JWT → 401', async () => {
+    const app = buildApp();
+    const res = await app.request('/api/auth/me', {
+      headers: { Authorization: 'Bearer invalid.jwt.token' },
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(401);
+    expect(body.code).toBe(401);
+  });
+
+  it('过期的 JWT → 401', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const expiredToken = await sign(
+      { userId: 1, username: 'admin', roles: ['admin'], tenantId: null, iat: now - 10, exp: now - 1 },
+      TEST_JWT_SECRET,
+      'HS256',
+    );
+    const app = buildApp();
+    const res = await app.request('/api/auth/me', {
+      headers: { Authorization: `Bearer ${expiredToken}` },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('有效 JWT 但用户不存在 → 404', async () => {
+    const token = await makeToken();
+    dbMock.select.mockReturnValueOnce(createChain([])); // users 查询 → 空
+
+    const app = buildApp();
+    const res = await app.request('/api/auth/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.code).toBe(404);
+  });
+
+  it('有效 JWT + 用户存在 → 200 返回用户信息', async () => {
+    const token = await makeToken({ userId: 1 });
+    const now = new Date();
+    const mockUser = {
+      id: 1,
+      username: 'admin',
+      nickname: '管理员',
+      email: 'admin@zenith.com',
+      password: 'hashed',
+      avatar: null,
+      phone: null,
+      status: 'enabled',
+      departmentId: null,
+      tenantId: null,
+      remark: null,
+      lastLoginAt: null,
+      lastLoginIp: null,
+      passwordUpdatedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    // getMyProfile 第一个查询走 RQB（db.query.users.findFirst，with department/userPositions/userRoles）；
+    // 必须提供 userPositions/department，否则 user.userPositions.map(...) 在 undefined 上抛错 → 500。
+    (dbMock.query.users.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ...mockUser,
+      userRoles: [],
+      userPositions: [],
+      department: null,
+    });
+    // getMyProfile 末尾查询最近登录日志（db.select），返回空数组即可（prevLogin = null）
+    dbMock.select.mockReturnValueOnce(createChain([]));
+
+    const app = buildApp();
+    const res = await app.request('/api/auth/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.code).toBe(0);
+    expect(body.data.username).toBe('admin');
+    expect(body.data).not.toHaveProperty('password'); // 密码字段不应暴露
+  });
+
+  it('会员 token（type=member）访问管理端 → 401 无效的访问令牌（反向隔离）', async () => {
+    const token = await makeToken({ type: 'member', memberId: 1 });
+    const app = buildApp();
+    const res = await app.request('/api/auth/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(401);
+    expect(body.message).toBe('无效的访问令牌');
+  });
+});

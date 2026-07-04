@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateCaptcha, verifyCaptcha, cleanExpiredCaptchas, getCaptchaStoreSize } from '../lib/captcha';
+import { generateCaptcha, verifyCaptcha, cleanExpiredCaptchas, getCaptchaStoreSize } from './captcha';
 
 describe('captcha', () => {
   it('should generate a captcha with id and image', () => {

@@ -2,7 +2,7 @@ import { desc } from 'drizzle-orm';
 import { db } from '../../../db';
 import { operationLogs } from '../../../db/schema';
 import { batchIterable } from '../../excel-export';
-import { buildWhere, type ListOperationLogsQuery } from '../../../services/operation-logs.service';
+import { buildWhere, type ListOperationLogsQuery } from '../../../services/platform/operation-logs.service';
 import { defineExport } from '../registry';
 import type { ExportColumn } from '../types';
 

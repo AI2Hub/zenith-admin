@@ -24,7 +24,7 @@
 
 ## Service 层（Step 5）
 
-- **Service 层职责**（Step 5）：业务逻辑、数据映射（`mapXxx`）、前置校验（`ensureXxx`）放在 `packages/server/src/services/xxx.service.ts`；route handler 只负责取参数、调 service、返回响应
+- **Service 层职责**（Step 5）：业务逻辑、数据映射（`mapXxx`）、前置校验（`ensureXxx`）放在 `packages/server/src/services/{业务域}/xxx.service.ts`；route handler 只负责取参数、调 service、返回响应
 - **Service 禁止事项**（Step 5）：**禁止**在 service 中调用 `c.json()`、直接引用 Hono 上下文 `c`、使用 `console.*`
 - **HTTPException 抛出**（Step 5）：Service 层业务校验失败统一 `throw new HTTPException(statusCode, { message })`（来自 `hono/http-exception`），由全局 `onError` 统一处理
 - **DB 唯一约束**（Step 5）：PG 错误码 `23505` 统一在 service 的写入 `try-catch` 中通过 `rethrowPgUniqueViolation(err, msg)` 映射为 `HTTPException(400)`
@@ -37,15 +37,15 @@
 
 ## Route 层（Step 6-7）
 
-- **薄路由约定**（Step 6）：**禁止在路由 handler 中直接调用 `db.*`**。所有 DB 访问与业务逻辑必须放在 `services/xxx.service.ts`
+- **薄路由约定**（Step 6）：**禁止在路由 handler 中直接调用 `db.*`**。所有 DB 访问与业务逻辑必须放在 `services/{业务域}/xxx.service.ts`
 - **DTO 中心化**（Step 6）：实体 DTO 必须定义在 `packages/server/src/lib/dtos/` 对应子文件，通过 `packages/server/src/lib/openapi-dtos.ts` 统一导出；**严禁**在路由文件内本地声明带 `.openapi('EntityName')` 的实体 DTO
 - **响应辅助函数**（Step 6）：路由 `responses:` 中的 200 响应统一使用展开语法：`...ok(DTO, desc)`（单对象）、`...okPaginated(DTO, desc)`（分页列表）、`...okMsg(desc)`（仅 message 无 data）；**禁止**直接写 `200: { content: jsonContent(apiResponse(DTO)), description }`
-- **响应码规范**（Step 6）：响应体统一使用 `okBody(data, msg?)` / `errBody(msg, code?)` 构造（来自 `'../lib/openapi-schemas'`），**禁止内联写** `{ code: 0 as const, message, data }` / `{ code: 400, message, data: null }` 字面量对象；每个 `c.json(...)` 第二参数必须显式带状态码 `, 200)` / `, 404)` 等
-- **commonErrorResponses**（Step 6）：所有路由的 `responses:` 块必须包含 `...commonErrorResponses`（涵盖 400/401/403/404/500），从 `'../lib/openapi-schemas'` 导入
-- **Path Param 规范**（Step 6）：数值型 `id` 参数统一使用 `IdParam`（`import { IdParam } from '../lib/openapi-schemas'`）；字符串型或自定义名参数必须在字段上添加 `.openapi({ param: { name: '...', in: 'path' }, example: '...' })`
+- **响应码规范**（Step 6）：响应体统一使用 `okBody(data, msg?)` / `errBody(msg, code?)` 构造（来自 `'../../lib/openapi-schemas'`），**禁止内联写** `{ code: 0 as const, message, data }` / `{ code: 400, message, data: null }` 字面量对象；每个 `c.json(...)` 第二参数必须显式带状态码 `, 200)` / `, 404)` 等
+- **commonErrorResponses**（Step 6）：所有路由的 `responses:` 块必须包含 `...commonErrorResponses`（涵盖 400/401/403/404/500），从 `'../../lib/openapi-schemas'` 导入
+- **Path Param 规范**（Step 6）：数值型 `id` 参数统一使用 `IdParam`（`import { IdParam } from '../../lib/openapi-schemas'`）；字符串型或自定义名参数必须在字段上添加 `.openapi({ param: { name: '...', in: 'path' }, example: '...' })`
 - **分页查询规范**（Step 6）：列表接口的查询参数统一用 `PaginationQuery.extend({ ... })` 扩展额外字段，**禁止**内联声明 `page: z.coerce.number().optional()`
 - **批量操作路由顺序**（Step 6）：`DELETE /batch` 必须注册在 `DELETE /{id}` 之前，防止路由冲突
-- **LIKE 查询转义**（Step 5, Step 6）：所有使用 `like()` / `ilike()` 的模糊查询，**必须**通过 `escapeLike(keyword)` 转义用户输入中的 `%`、`_`、`\\`，防止 LIKE 通配符注入；`escapeLike` 来自 `'../lib/where-helpers'`
+- **LIKE 查询转义**（Step 5, Step 6）：所有使用 `like()` / `ilike()` 的模糊查询，**必须**通过 `escapeLike(keyword)` 转义用户输入中的 `%`、`_`、`\\`，防止 LIKE 通配符注入；`escapeLike` 来自 `'../../lib/where-helpers'`
 - **外呼 HTTP 调用**（Step 5, Step 6）：服务端任何对外 HTTP 请求**必须**通过 `packages/server/src/lib/http-client.ts` 的 `httpRequest` / `httpGet` / `httpPost` 等；**禁止**直接使用全局 `fetch()`
 
 ---

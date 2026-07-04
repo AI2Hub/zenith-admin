@@ -13,7 +13,7 @@ import type { WorkflowInstance, WorkflowInstancePriority, WorkflowInstanceStatus
 import { db } from '../db';
 import { workflowInstances } from '../db/schema';
 import { workflowEventBus } from './workflow-event-bus';
-import { createInstance } from '../services/workflow-instances.service';
+import { createInstance } from '../services/workflow/workflow-instances.service';
 
 export interface StartWorkflowForBizInput {
   /** 已发布的流程定义 ID */

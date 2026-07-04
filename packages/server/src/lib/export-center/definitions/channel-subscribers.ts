@@ -1,5 +1,5 @@
 import { HTTPException } from 'hono/http-exception';
-import { exportChannelSubscribers } from '../../../services/channel.service';
+import { exportChannelSubscribers } from '../../../services/messaging/channel.service';
 import { defineExport } from '../registry';
 import type { ExportColumn } from '../types';
 

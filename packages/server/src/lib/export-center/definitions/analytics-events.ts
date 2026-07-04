@@ -1,4 +1,4 @@
-import { listEventsForExport, countEventsForExport, type EventListQuery } from '../../../services/analytics.service';
+import { listEventsForExport, countEventsForExport, type EventListQuery } from '../../../services/analytics/analytics.service';
 import { parseDateRangeEnd, parseDateRangeStart } from '../../datetime';
 import { defineExport } from '../registry';
 import type { ExportColumn } from '../types';

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validatePassword, type PasswordPolicy } from '../lib/password-policy';
+import { validatePassword, type PasswordPolicy } from './password-policy';
 
 describe('validatePassword', () => {
   const defaultPolicy: PasswordPolicy = {

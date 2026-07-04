@@ -2,7 +2,7 @@ import {
   countWorkflowInstancesForExport,
   getWorkflowInstancesForExport,
   type WorkflowInstanceExportQuery,
-} from '../../../services/workflow-analytics.service';
+} from '../../../services/workflow/workflow-analytics.service';
 import { defineExport } from '../registry';
 import type { ExportColumn } from '../types';
 

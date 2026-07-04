@@ -3,7 +3,7 @@ import ipRangeCheck from 'ip-range-check';
 import { getConfigBoolean, getConfigValue } from '../lib/system-config';
 import { errBody } from '../lib/openapi-schemas';
 import { getClientIp } from '../lib/request-helpers';
-import { writeIpAccessLog } from '../services/ip-access-logs.service';
+import { writeIpAccessLog } from '../services/platform/ip-access-logs.service';
 
 /** 免检路径：这些接口无需经过 IP 访问控制 */
 const EXEMPT_PATHS = new Set([

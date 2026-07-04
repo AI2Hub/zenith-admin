@@ -15,7 +15,7 @@ import type { ChatCard } from '@zenith/shared';
 import { workflowEventBus } from '../workflow-event-bus';
 import {
   getSystemChannelId, publishTargeted, markChannelTaskCardsDone,
-} from '../../services/channel.service';
+} from '../../services/messaging/channel.service';
 import logger from '../logger';
 
 async function loadInstanceLabel(instanceId: number): Promise<string> {

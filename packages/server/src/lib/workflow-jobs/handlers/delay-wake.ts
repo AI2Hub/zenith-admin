@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../../../db';
 import { workflowTasks, workflowInstances } from '../../../db/schema';
-import { approveTaskCore } from '../../../services/workflow-instances.service';
+import { approveTaskCore } from '../../../services/workflow/workflow-instances.service';
 import { registerJobHandler } from '../registry';
 import { WorkflowJobSkip, WorkflowJobPermanentError } from '../errors';
 import type { WorkflowJobContext } from '../types';

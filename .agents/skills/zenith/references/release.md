@@ -50,12 +50,12 @@ npm test
 
 ```powershell
 # PowerShell（在 packages/server 目录执行）
-$env:MEMBER_FUNDS_DB_IT='1'; npx vitest run src/services/member-funds.it.test.ts
+$env:MEMBER_FUNDS_DB_IT='1'; npx vitest run src/services/member/member-funds.it.test.ts
 ```
 
 ```bash
 # Bash（在 packages/server 目录执行）
-MEMBER_FUNDS_DB_IT=1 npx vitest run src/services/member-funds.it.test.ts
+MEMBER_FUNDS_DB_IT=1 npx vitest run src/services/member/member-funds.it.test.ts
 ```
 
 > 本次发布涉及积分 / 钱包 / 优惠券 / 支付相关改动时，该集成测试**必须**运行并通过；其余改动 PG 不可用时可跳过。

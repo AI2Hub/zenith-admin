@@ -1,7 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '../../../db';
 import { workflowTasks, workflowInstances } from '../../../db/schema';
-import { resumeParentSubProcess, reconcileMultiSubProcess } from '../../../services/workflow-instances.service';
+import { resumeParentSubProcess, reconcileMultiSubProcess } from '../../../services/workflow/workflow-instances.service';
 import { registerJobHandler } from '../registry';
 import { WorkflowJobSkip, WorkflowJobPermanentError } from '../errors';
 import type { WorkflowJobContext } from '../types';

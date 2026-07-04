@@ -1,0 +1,229 @@
+import { eq } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
+import dayjs from 'dayjs';
+import { db } from '../../db';
+import { rateLimitRules } from '../../db/schema';
+import type { RateLimitRuleRow } from '../../db/schema';
+import redis from '../../lib/redis';
+import { config } from '../../config';
+import { formatDateTime } from '../../lib/datetime';
+import {
+  listRuleConfigs,
+  refreshRateLimitRules,
+  unblockRateLimitKey,
+  PREDEFINED_NAMES,
+  type RuleConfig,
+} from '../../middleware/rate-limit';
+
+const STATS_PREFIX = `${config.redis.keyPrefix}rlstats:`;
+
+function mapRule(row: RateLimitRuleRow) {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    windowMs: row.windowMs,
+    limit: row.limit,
+    keyType: row.keyType,
+    enabled: row.enabled,
+    blockedMessage: row.blockedMessage,
+    pathPatterns: row.pathPatterns ?? [],
+    createdAt: formatDateTime(row.createdAt),
+    updatedAt: formatDateTime(row.updatedAt),
+  };
+}
+
+/** 列出 DB 中所有规则；若 DB 为空则用默认规则填充并落库 */
+export async function listRateLimitRules() {
+  let rows = await db.select().from(rateLimitRules);
+  if (rows.length === 0) {
+    const defaults = listRuleConfigs();
+    if (defaults.length > 0) {
+      await db.insert(rateLimitRules).values(
+        defaults.map((r) => ({
+          name: r.name,
+          description: r.description,
+          windowMs: r.windowMs,
+          limit: r.limit,
+          keyType: r.keyType,
+          enabled: r.enabled,
+          blockedMessage: r.blockedMessage,
+        })),
+      );
+      rows = await db.select().from(rateLimitRules);
+    }
+  }
+  return rows.map(mapRule);
+}
+
+export async function getRateLimitRuleBeforeAudit(id: number) {
+  const [row] = await db.select().from(rateLimitRules).where(eq(rateLimitRules.id, id));
+  if (!row) throw new HTTPException(404, { message: '规则不存在' });
+  return mapRule(row);
+}
+
+export interface UpdateRateLimitRuleInput {
+  windowMs?: number;
+  limit?: number;
+  keyType?: 'ip' | 'user' | 'ip_path';
+  enabled?: boolean;
+  description?: string | null;
+  blockedMessage?: string | null;
+  pathPatterns?: string[];
+}
+
+export interface CreateRateLimitRuleInput {
+  name: string;
+  description?: string | null;
+  windowMs: number;
+  limit: number;
+  keyType: 'ip' | 'user' | 'ip_path';
+  enabled: boolean;
+  blockedMessage?: string | null;
+  pathPatterns?: string[];
+}
+
+export async function updateRateLimitRule(id: number, patch: UpdateRateLimitRuleInput) {
+  const [row] = await db.select().from(rateLimitRules).where(eq(rateLimitRules.id, id));
+  if (!row) throw new HTTPException(404, { message: '规则不存在' });
+  await db
+    .update(rateLimitRules)
+    .set({
+      ...(patch.windowMs === undefined ? {} : { windowMs: patch.windowMs }),
+      ...(patch.limit === undefined ? {} : { limit: patch.limit }),
+      ...(patch.keyType === undefined ? {} : { keyType: patch.keyType }),
+      ...(patch.enabled === undefined ? {} : { enabled: patch.enabled }),
+      ...(patch.description === undefined ? {} : { description: patch.description }),
+      ...(patch.blockedMessage === undefined ? {} : { blockedMessage: patch.blockedMessage }),
+      ...(patch.pathPatterns === undefined ? {} : { pathPatterns: patch.pathPatterns }),
+    })
+    .where(eq(rateLimitRules.id, id));
+  await refreshRateLimitRules();
+  const [updated] = await db.select().from(rateLimitRules).where(eq(rateLimitRules.id, id));
+  return mapRule(updated);
+}
+
+export async function createRateLimitRule(input: CreateRateLimitRuleInput) {
+  const [existing] = await db.select({ id: rateLimitRules.id }).from(rateLimitRules).where(eq(rateLimitRules.name, input.name));
+  if (existing) throw new HTTPException(400, { message: `规则名称 "${input.name}" 已存在` });
+  const [row] = await db
+    .insert(rateLimitRules)
+    .values({
+      name: input.name,
+      description: input.description ?? null,
+      windowMs: input.windowMs,
+      limit: input.limit,
+      keyType: input.keyType,
+      enabled: input.enabled,
+      blockedMessage: input.blockedMessage ?? null,
+      pathPatterns: input.pathPatterns ?? [],
+    })
+    .returning();
+  await refreshRateLimitRules();
+  return mapRule(row);
+}
+
+export async function deleteRateLimitRule(id: number) {
+  const [row] = await db.select().from(rateLimitRules).where(eq(rateLimitRules.id, id));
+  if (!row) throw new HTTPException(404, { message: '规则不存在' });
+  if (PREDEFINED_NAMES.has(row.name)) throw new HTTPException(400, { message: '内置规则不可删除' });
+  await db.delete(rateLimitRules).where(eq(rateLimitRules.id, id));
+  await refreshRateLimitRules();
+  return { deleted: true };
+}
+
+async function readNumber(key: string): Promise<number> {
+  const v = await redis.get(key);
+  return v ? Number(v) || 0 : 0;
+}
+
+interface RecentBlock {
+  at: string;
+  key: string;
+  path: string;
+}
+
+async function readRecent(name: string): Promise<RecentBlock[]> {
+  const raw = await redis.zrevrange(`${STATS_PREFIX}${name}:recent`, 0, 99);
+  return raw.map((item) => {
+    const [ts, key, path = ''] = item.split('|');
+    return {
+      at: formatDateTime(new Date(Number(ts) || 0)),
+      key: key ?? '',
+      path,
+    };
+  });
+}
+
+interface HourlyPoint {
+  hour: string;
+  hits: number;
+  blocked: number;
+}
+
+async function readHourlySeries(name: string): Promise<HourlyPoint[]> {
+  const [hitsMap, blockedMap] = await Promise.all([
+    redis.hgetall(`${STATS_PREFIX}${name}:hourly:hits`),
+    redis.hgetall(`${STATS_PREFIX}${name}:hourly:blocked`),
+  ]);
+  const now = dayjs().startOf('hour');
+  const series: HourlyPoint[] = [];
+  for (let i = 23; i >= 0; i--) {
+    const t = now.subtract(i, 'hour');
+    const hk = t.format('YYYY-MM-DD HH');
+    series.push({
+      hour: t.format('MM-DD HH:00'),
+      hits: Number(hitsMap[hk] ?? 0) || 0,
+      blocked: Number(blockedMap[hk] ?? 0) || 0,
+    });
+  }
+  return series;
+}
+
+/** 聚合所有规则的统计数据（命中/拦截/最近拦截） */
+export async function getRateLimitStats() {
+  const cfgs: RuleConfig[] = listRuleConfigs();
+  const items = await Promise.all(
+    cfgs.map(async (cfg) => {
+      const [hit, blocked, recent, hourlySeries] = await Promise.all([
+        readNumber(`${STATS_PREFIX}${cfg.name}:hit`),
+        readNumber(`${STATS_PREFIX}${cfg.name}:blocked`),
+        readRecent(cfg.name),
+        readHourlySeries(cfg.name),
+      ]);
+      return {
+        name: cfg.name,
+        description: cfg.description,
+        windowMs: cfg.windowMs,
+        limit: cfg.limit,
+        keyType: cfg.keyType,
+        enabled: cfg.enabled,
+        hitCount: hit,
+        blockedCount: blocked,
+        blockRate: hit > 0 ? Math.round((blocked / hit) * 10000) / 100 : 0,
+        recentBlocks: recent,
+        hourlySeries,
+      };
+    }),
+  );
+  return { items };
+}
+
+/** 解封指定 key（清除 Redis 计数窗口） */
+export async function unblockRateLimit(name: string, key: string) {
+  if (!key) throw new HTTPException(400, { message: 'key 不能为空' });
+  const ok = await unblockRateLimitKey(name, key);
+  return { unblocked: ok };
+}
+
+/** 清空指定规则的统计（hit / blocked / recent） */
+export async function resetRateLimitStats(name: string) {
+  await redis.del(
+    `${STATS_PREFIX}${name}:hit`,
+    `${STATS_PREFIX}${name}:blocked`,
+    `${STATS_PREFIX}${name}:recent`,
+    `${STATS_PREFIX}${name}:hourly:hits`,
+    `${STATS_PREFIX}${name}:hourly:blocked`,
+  );
+  return { reset: true };
+}

@@ -1,4 +1,4 @@
-import { listProcesses } from '../../../services/processes.service';
+import { listProcesses } from '../../../services/ops/processes.service';
 import { defineExport } from '../registry';
 import type { ExportColumn } from '../types';
 
