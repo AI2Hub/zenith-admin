@@ -28,7 +28,7 @@ const yuan = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
 const receiverTypeOptions = Object.entries(PAYMENT_SHARING_RECEIVER_TYPE_LABELS).map(([value, label]) => ({ value, label }));
 const ORDER_STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red' } as const satisfies Record<PaymentSharingOrderStatus, string>;
 
-interface ReceiverFormValues { name: string; receiverType: PaymentSharingReceiverType; account: string; ratioPercent?: number; status?: 'enabled' | 'disabled'; remark?: string; }
+interface ReceiverFormValues { name: string; receiverType: PaymentSharingReceiverType; account: string; ratioPercent?: number; autoShare?: boolean; status?: 'enabled' | 'disabled'; remark?: string; }
 interface DispatchFormValues { orderNo: string; receiverId: number; amountYuan?: number; remark?: string; }
 
 export default function PaymentSharingPage() {
@@ -81,13 +81,17 @@ export default function PaymentSharingPage() {
   function openCreateReceiver() { setEditingReceiver(null); setReceiverModal(true); }
   function openEditReceiver(r: PaymentSharingReceiver) { setEditingReceiver(r); setReceiverModal(true); }
   const receiverInit: ReceiverFormValues = editingReceiver
-    ? { name: editingReceiver.name, receiverType: editingReceiver.receiverType, account: editingReceiver.account, ratioPercent: editingReceiver.ratioBps != null ? editingReceiver.ratioBps / 100 : undefined, status: editingReceiver.status, remark: editingReceiver.remark ?? '' }
-    : { name: '', receiverType: 'merchant', account: '', status: 'enabled' };
+    ? { name: editingReceiver.name, receiverType: editingReceiver.receiverType, account: editingReceiver.account, ratioPercent: editingReceiver.ratioBps != null ? editingReceiver.ratioBps / 100 : undefined, autoShare: editingReceiver.autoShare, status: editingReceiver.status, remark: editingReceiver.remark ?? '' }
+    : { name: '', receiverType: 'merchant', account: '', autoShare: false, status: 'enabled' };
 
   async function handleReceiverOk() {
     let values: ReceiverFormValues;
     try { values = (await receiverFormApi.current?.validate()) as ReceiverFormValues; } catch { throw new Error('validation'); }
-    const payload = { name: values.name, receiverType: values.receiverType, account: values.account, ratioBps: values.ratioPercent != null ? Math.round(values.ratioPercent * 100) : undefined, status: values.status, remark: values.remark || undefined };
+    if (values.autoShare && values.ratioPercent == null) {
+      Toast.warning('开启自动分账需先设置默认比例');
+      throw new Error('validation');
+    }
+    const payload = { name: values.name, receiverType: values.receiverType, account: values.account, ratioBps: values.ratioPercent != null ? Math.round(values.ratioPercent * 100) : undefined, autoShare: values.autoShare ?? false, status: values.status, remark: values.remark || undefined };
     await saveReceiverMutation.mutateAsync({ id: editingReceiver?.id, values: payload });
     Toast.success(editingReceiver ? '更新成功' : '创建成功');
     setReceiverModal(false);
@@ -126,6 +130,7 @@ export default function PaymentSharingPage() {
     { title: '类型', dataIndex: 'receiverType', width: 90, render: (v: PaymentSharingReceiverType) => PAYMENT_SHARING_RECEIVER_TYPE_LABELS[v] },
     { title: '账号', dataIndex: 'account', width: 200, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 180 }}>{v}</Typography.Text> },
     { title: '默认比例', dataIndex: 'ratioBps', width: 110, render: (v: number | null) => (v == null ? '-' : `${(v / 100).toFixed(2)}%`) },
+    { title: '自动分账', dataIndex: 'autoShare', width: 100, render: (v: boolean) => (v ? <Tag color="green">自动</Tag> : <Tag color="grey">手动</Tag>) },
     createdAtColumn as ColumnProps<PaymentSharingReceiver>,
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
@@ -295,6 +300,7 @@ export default function PaymentSharingPage() {
           <Form.Select field="receiverType" label="类型" style={{ width: '100%' }} optionList={receiverTypeOptions} rules={[{ required: true, message: '请选择类型' }]} />
           <Form.Input field="account" label="账号" placeholder="商户号 / 个人 openid" rules={[{ required: true, message: '账号不能为空' }]} />
           <Form.InputNumber field="ratioPercent" label="默认比例(%)" min={0} max={100} step={0.01} precision={2} style={{ width: '100%' }} placeholder="可选，发起分账时可覆盖" />
+          <Form.Switch field="autoShare" label="自动分账" extraText="开启后支付成功将按默认比例自动向该接收方发起分账" />
           <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]} />
           <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
         </Form>

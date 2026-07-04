@@ -26,7 +26,8 @@ sequenceDiagram
 - 端点挂 `/api/public/payment/notify/{channel}`，`security: []`、无 `authMiddleware`（参照 `routes/workflow/workflow-external-callback.ts`）；
 - **先验签再处理**，验签失败立即拒绝并记 `payment_notify_logs`；
 - 微信：按 `Wechatpay-Serial` 自动下载平台证书（12h 缓存，应对证书轮换）RSA-SHA256 验签 + `AES-256-GCM` 解密 `resource`，根据 `event_type` 区分支付 / 退款；支付宝：`RSA2` / `RSA` 验签支付通知；
-- 回调处理**幂等**：靠 `markOrderPaid` / `finalizeRefund` 的**原子条件更新**（仅在订单 / 退款单尚未终态时更新），重放无害。
+- 回调处理**幂等**：靠 `markOrderPaid` / `finalizeRefund` 的**原子条件更新**（仅在订单 / 退款单尚未终态时更新），重放无害；
+- **失败 ACK 触发渠道重发**：验签通过但本地落库失败时，返回渠道格式的失败 ACK（微信 `500 {code:'FAIL'}`、支付宝 `failure`），由渠道按其重试策略重发通知，而非静默吞错后仅靠查单兜底。
 
 ## 2. Outbox 可靠投递
 
@@ -55,6 +56,8 @@ flowchart LR
 | `closeExpiredPaymentOrders` | 关闭超 `expiredAt` 仍处于 `pending` / `paying` 的订单 |
 | `paymentReconciliation` | 对创建超过 2 分钟且仍 `paying` 的订单主动查单（`queryPayment`），纠正状态（回调兜底） |
 | `dispatchPaymentEvents` | 补投 Outbox 中遗留的 `pending` 履约事件 |
+| `retryFailedSharing` | 重试渠道调用失败的分账单（渠道未受理且未达重试上限，防止分账单永久卡失败态） |
+| `generateDailySettlements` | T+1 自动结算：每日为昨日账期按渠道 × 租户生成结算批次（无交易跳过，唯一索引幂等） |
 
 后台「系统管理 → 定时任务」UI 即可配置 Cron 表达式，无需改调度框架。详见 [定时任务](../backend/cron-jobs)。
 

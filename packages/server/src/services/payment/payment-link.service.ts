@@ -201,7 +201,9 @@ export async function payByLink(token: string, input: PayByLinkInput): Promise<{
   try {
     return await createPayment({
       bizType: row.bizType,
-      bizId: row.linkNo,
+      // 每次下单生成唯一 bizId（linkNo:随机后缀）：同一链接可由多位付款人并发支付，
+      // 不能共享 bizId，否则会命中下单业务幂等（payment_orders_active_biz_uq）错误复用他人订单
+      bizId: `${row.linkNo}:${randomBytes(8).toString('hex')}`,
       subject: row.subject,
       amount,
       payMethod,

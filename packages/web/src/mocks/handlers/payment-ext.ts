@@ -19,16 +19,17 @@ const yuanToCent = (n: number) => Math.round(n);
 
 // ─── 对账中心 ───────────────────────────────────────────────────────────────
 const reconBatches: PaymentReconBatch[] = [
-  { id: 1, batchNo: 'RECON1700000000001', channel: 'wechat', billDate: '2024-01-01', status: 'done', localCount: 2, localAmount: 11800, channelCount: 2, channelAmount: 11800, matchedCount: 2, diffCount: 0, remark: '演示批次', createdAt: SEED, updatedAt: SEED },
+  { id: 1, batchNo: 'RECON1700000000001', channel: 'wechat', billDate: '2024-01-01', status: 'done', localCount: 3, localAmount: 16800, channelCount: 3, channelAmount: 16700, matchedCount: 2, diffCount: 1, remark: '演示批次', createdAt: SEED, updatedAt: SEED },
 ];
 const reconItemsByBatch: Record<number, PaymentReconItem[]> = {
   1: [
-    { id: 1, batchId: 1, orderNo: 'PAY1700000000001', channelTradeNo: '4200001234567890', localAmount: 9900, channelAmount: 9900, localStatus: 'success', channelStatus: 'SUCCESS', result: 'matched', remark: null, createdAt: SEED },
-    { id: 2, batchId: 1, orderNo: 'PAY1700000000003', channelTradeNo: '4200009876543210', localAmount: 1900, channelAmount: 1900, localStatus: 'refunded', channelStatus: 'SUCCESS', result: 'matched', remark: null, createdAt: SEED },
+    { id: 1, batchId: 1, orderNo: 'PAY1700000000001', channelTradeNo: '4200001234567890', localAmount: 9900, channelAmount: 9900, localStatus: 'success', channelStatus: 'SUCCESS', result: 'matched', handleStatus: null, handleRemark: null, handledAt: null, remark: null, createdAt: SEED },
+    { id: 2, batchId: 1, orderNo: 'PAY1700000000003', channelTradeNo: '4200009876543210', localAmount: 1900, channelAmount: 1900, localStatus: 'refunded', channelStatus: 'SUCCESS', result: 'matched', handleStatus: null, handleRemark: null, handledAt: null, remark: null, createdAt: SEED },
+    { id: 3, batchId: 1, orderNo: 'PAY1700000000004', channelTradeNo: '4200005555666677', localAmount: 5000, channelAmount: 4900, localStatus: 'success', channelStatus: 'SUCCESS', result: 'amount_diff', handleStatus: 'pending', handleRemark: null, handledAt: null, remark: null, createdAt: SEED },
   ],
 };
 let nextBatchId = 2;
-let nextItemId = 3;
+let nextItemId = 4;
 
 function sampleBill(channel: PaymentChannel): string {
   const lines = ['订单号,渠道交易号,金额(分),状态'];
@@ -82,7 +83,7 @@ const reconHandlers = [
       else if (local) result = 'local_only';
       else result = 'channel_only';
       if (result === 'matched') matched++;
-      items.push({ id: nextItemId++, batchId: nextBatchId, orderNo, channelTradeNo: ch?.tradeNo ?? local?.tradeNo ?? null, localAmount: local?.amount ?? null, channelAmount: ch?.amount ?? null, localStatus: local?.status ?? null, channelStatus: ch ? 'SUCCESS' : null, result, remark: null, createdAt: mockDateTime() });
+      items.push({ id: nextItemId++, batchId: nextBatchId, orderNo, channelTradeNo: ch?.tradeNo ?? local?.tradeNo ?? null, localAmount: local?.amount ?? null, channelAmount: ch?.amount ?? null, localStatus: local?.status ?? null, channelStatus: ch ? 'SUCCESS' : null, result, handleStatus: result === 'matched' ? null : 'pending', handleRemark: null, handledAt: null, remark: null, createdAt: mockDateTime() });
     }
     const batch: PaymentReconBatch = {
       id: nextBatchId, batchNo: `RECON${Date.now()}`, channel: body.channel, billDate: body.billDate, status: 'done',
@@ -101,8 +102,23 @@ const reconHandlers = [
   http.get('/api/payment/recon/batches/:id/items', ({ params, request }) => {
     const url = new URL(request.url);
     const result = url.searchParams.get('result') ?? '';
-    const items = (reconItemsByBatch[Number(params.id)] ?? []).filter((i) => !result || i.result === result);
+    const handleStatus = url.searchParams.get('handleStatus') ?? '';
+    const items = (reconItemsByBatch[Number(params.id)] ?? []).filter((i) => (!result || i.result === result) && (!handleStatus || i.handleStatus === handleStatus));
     return ok(paginate(items, url));
+  }),
+  http.patch('/api/payment/recon/items/:id/handle', async ({ params, request }) => {
+    const body = (await request.json()) as { action: 'adjusted' | 'suspended' | 'ignored'; remark?: string };
+    for (const items of Object.values(reconItemsByBatch)) {
+      const item = items.find((i) => i.id === Number(params.id));
+      if (item) {
+        if (item.handleStatus !== 'pending') return HttpResponse.json({ code: 400, message: '该差异已被处理，请刷新后查看', data: null });
+        item.handleStatus = body.action;
+        item.handleRemark = body.remark ?? null;
+        item.handledAt = mockDateTime();
+        return ok(item, '处理成功');
+      }
+    }
+    return notFound('对账明细不存在');
   }),
   http.delete('/api/payment/recon/batches/:id', ({ params }) => {
     const i = reconBatches.findIndex((x) => x.id === Number(params.id));

@@ -5,7 +5,7 @@
  * 内部负责：解析渠道配置、解密密钥组装 AdapterContext、订单状态机、事务落库、
  * 回调验签后处理、发支付事件。所有渠道差异封装在适配器内，业务层无感知。
  */
-import { and, desc, eq, gte, isNull, like, lte, ne, notInArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, like, lte, ne, notInArray, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import { db } from '../../db';
@@ -27,6 +27,7 @@ import { getDataScopeCondition } from '../../lib/data-scope';
 import { escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { decryptField } from '../../lib/encryption';
+import { isPgUniqueViolation } from '../../lib/db-errors';
 import logger from '../../lib/logger';
 import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared';
 import type {
@@ -269,6 +270,67 @@ interface InternalCreatePaymentInput extends CreatePaymentInput {
   tenantId?: number | null;
 }
 
+/** 查找同业务单（bizType+bizId）的活跃订单（pending/paying），与部分唯一索引 payment_orders_active_biz_uq 对应 */
+async function findActiveBizOrder(bizType: string, bizId: string): Promise<PaymentOrderRow | null> {
+  const [row] = await db
+    .select()
+    .from(paymentOrders)
+    .where(and(eq(paymentOrders.bizType, bizType), eq(paymentOrders.bizId, bizId), inArray(paymentOrders.status, ['pending', 'paying'])))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * 下单业务幂等：同 bizType+bizId 已存在未过期活跃单时直接复用（重新生成支付参数，渠道侧同 outTradeNo 幂等）；
+ * 金额/支付方式变化或已过期时，先主动查单防边界支付，再关闭旧单放行新建。
+ * 返回 null 表示无可复用订单（调用方继续新建流程）。
+ */
+async function reuseActiveBizOrder(input: InternalCreatePaymentInput): Promise<{ orderNo: string; payParams: CreatePaymentResult } | null> {
+  const existing = await findActiveBizOrder(input.bizType, input.bizId);
+  if (!existing) return null;
+
+  const expired = existing.expiredAt != null && existing.expiredAt.getTime() <= Date.now();
+  const reusable = !expired && existing.amount === input.amount && existing.payMethod === input.payMethod;
+
+  if (!reusable) {
+    // 参数已变化或旧单过期：先同步渠道状态（防止用户恰好已扫码支付），再清场
+    const synced = await syncOrderStatus(existing);
+    if (synced.status === 'success' || synced.status === 'refunding' || synced.status === 'refunded') {
+      throw new HTTPException(400, { message: `该业务单已支付成功，请勿重复下单（订单号 ${existing.orderNo}）` });
+    }
+    if (synced.status === 'pending' || synced.status === 'paying') {
+      const config = await loadOrderConfig(existing);
+      if (config) {
+        try {
+          await getAdapter(existing.channel).closePayment(buildAdapterContext(config), existing);
+        } catch (err) {
+          logger.warn('[payment] close stale biz order failed', { orderNo: existing.orderNo, err: errMessage(err) });
+        }
+      }
+      await markOrderClosed(existing);
+    }
+    return null;
+  }
+
+  const config = await loadOrderConfig(existing);
+  if (!config) return null;
+  try {
+    const ctx = buildAdapterContext(config);
+    assertNotifyUrl(ctx.notifyUrl);
+    const payParams = await getAdapter(existing.channel).createPayment(ctx, existing);
+    await db.update(paymentOrders).set({ status: 'paying' }).where(and(eq(paymentOrders.id, existing.id), eq(paymentOrders.status, 'pending')));
+    logger.info('[payment] reuse active biz order', { orderNo: existing.orderNo, bizType: input.bizType, bizId: input.bizId });
+    return { orderNo: existing.orderNo, payParams };
+  } catch (err) {
+    // 渠道重下单失败可能因原单已被支付/受理，同步一次状态后再决定
+    const synced = await syncOrderStatus(existing);
+    if (synced.status === 'success' || synced.status === 'refunding' || synced.status === 'refunded') {
+      throw new HTTPException(400, { message: `该业务单已支付成功，请勿重复下单（订单号 ${existing.orderNo}）` });
+    }
+    throw err;
+  }
+}
+
 export async function createPayment(input: InternalCreatePaymentInput): Promise<{ orderNo: string; payParams: CreatePaymentResult }> {
   const channel = PAYMENT_METHOD_CHANNEL[input.payMethod];
   if (input.payMethod === 'wechat_jsapi' && !input.openId?.trim()) {
@@ -285,37 +347,54 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
   }
   const userId = input.userId ?? user?.userId ?? null;
 
-  // ── B 档：支付方式启停校验 + 风控限额校验（命中即拦截下单）──────────────────
+  // ── B 档：支付方式启停校验 ────────────────────────────────────────────────────
   await assertMethodEnabled(input.payMethod);
+
+  // ── 业务幂等：同业务单存在活跃订单时直接复用（不重复风控/落单）──────────────────
+  const reused = await reuseActiveBizOrder(input);
+  if (reused) return reused;
+
+  // ── B 档：风控限额校验（仅对真正新建的订单，命中即拦截下单）───────────────────
   await assertWithinRiskLimits({ channel, bizType: input.bizType, amount: input.amount, openId: input.openId ?? null, userId, tenantId });
 
   const orderNo = genNo('PAY');
   const expireMinutes = input.expireMinutes ?? 30;
   const expiredAt = new Date(Date.now() + expireMinutes * 60_000);
 
-  const [orderRow] = await db
-    .insert(paymentOrders)
-    .values({
-      orderNo,
-      outTradeNo: orderNo,
-      bizType: input.bizType,
-      bizId: input.bizId,
-      subject: input.subject,
-      body: input.body ?? null,
-      amount: input.amount,
-      currency: 'CNY',
-      channel,
-      channelConfigId: config.id,
-      payMethod: input.payMethod,
-      status: 'pending',
-      userId,
-      openId: input.openId ?? null,
-      clientIp: input.clientIp ?? null,
-      departmentId,
-      expiredAt,
-      tenantId,
-    })
-    .returning();
+  let orderRow: PaymentOrderRow;
+  try {
+    [orderRow] = await db
+      .insert(paymentOrders)
+      .values({
+        orderNo,
+        outTradeNo: orderNo,
+        bizType: input.bizType,
+        bizId: input.bizId,
+        subject: input.subject,
+        body: input.body ?? null,
+        amount: input.amount,
+        currency: 'CNY',
+        channel,
+        channelConfigId: config.id,
+        payMethod: input.payMethod,
+        status: 'pending',
+        userId,
+        openId: input.openId ?? null,
+        clientIp: input.clientIp ?? null,
+        departmentId,
+        expiredAt,
+        tenantId,
+      })
+      .returning();
+  } catch (err) {
+    // 并发下单撞 payment_orders_active_biz_uq：复用对方刚创建的活跃单
+    if (isPgUniqueViolation(err)) {
+      const raced = await reuseActiveBizOrder(input);
+      if (raced) return raced;
+      throw new HTTPException(400, { message: '该业务单存在处理中的支付订单，请稍后重试' });
+    }
+    throw err;
+  }
 
   try {
     const ctx = buildAdapterContext(config);
@@ -623,6 +702,14 @@ async function applyNotify(channel: PaymentChannel, result: NotifyResult): Promi
   }
 }
 
+/** 业务处理失败时的渠道失败应答：渠道将按各自重试策略再次通知（与验签失败的安全拒绝区分开）。 */
+function buildFailureAck(channel: PaymentChannel): NotifyResult['ack'] {
+  if (channel === 'wechat') {
+    return { body: JSON.stringify({ code: 'FAIL', message: '业务处理失败，请重试' }), contentType: 'application/json', status: 500 };
+  }
+  return { body: 'failure', contentType: 'text/plain', status: 200 };
+}
+
 /** 处理渠道异步回调：遍历该渠道启用配置逐个验签，成功后处理业务并落日志，返回需回写渠道的 ACK */
 export async function handleNotify(
   channel: PaymentChannel,
@@ -666,7 +753,9 @@ export async function handleNotify(
   try {
     await applyNotify(channel, chosen.result);
   } catch (err) {
+    // 验签已通过但本地落库失败：返回失败 ACK 让渠道重发通知（幂等保护已就位），避免静默吞错后只能依赖查单兜底
     logger.error('[payment] apply notify failed', { channel, err: errMessage(err) });
+    return { ack: buildFailureAck(channel) };
   }
   return { ack: chosen.result.ack };
 }

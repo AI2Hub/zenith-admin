@@ -2,8 +2,11 @@
  * 支付分账/分润 Service。
  * 维护分账接收方，针对成功订单发起单笔分账（走渠道 adapter.profitShare 模拟实现），
  * 状态机：pending → processing → success/failed，留存渠道分账单号。
+ * 自动分账：订阅 payment.succeeded，对启用 autoShare 的接收方按 ratioBps 自动发起，
+ * 确定性分账单号（SHR{orderNo}R{receiverId}）+ 唯一索引保证事件重复投递幂等；
+ * 渠道调用失败的分账单由 cron retryFailedSharingOrders 兜底重试（上限 3 次）。
  */
-import { and, desc, eq, like } from 'drizzle-orm';
+import { and, desc, eq, isNull, like, lt, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import { db } from '../../db';
@@ -11,6 +14,7 @@ import {
   paymentOrders,
   paymentSharingOrders,
   paymentSharingReceivers,
+  type PaymentOrderRow,
   type PaymentSharingOrderRow,
   type PaymentSharingReceiverRow,
 } from '../../db/schema';
@@ -20,6 +24,7 @@ import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers'
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { buildAdapterContext, loadOrderConfig } from './payment.service';
 import { getAdapter } from '../../lib/payment/registry';
+import { paymentEventBus } from '../../lib/payment-event-bus';
 import logger from '../../lib/logger';
 import type {
   CreatePaymentSharingReceiverInput,
@@ -28,6 +33,9 @@ import type {
   PaymentSharingOrderStatus,
   PaymentSharingReceiver,
 } from '@zenith/shared';
+
+/** 单笔分账渠道调用次数上限（首次 + 重试） */
+const MAX_SHARING_ATTEMPTS = 3;
 
 function genNo(): string {
   return `SHR${Date.now()}${randomInt(1000, 9999)}`;
@@ -41,6 +49,7 @@ export function mapReceiver(row: PaymentSharingReceiverRow): PaymentSharingRecei
     receiverType: row.receiverType,
     account: row.account,
     ratioBps: row.ratioBps ?? null,
+    autoShare: row.autoShare,
     status: row.status,
     remark: row.remark ?? null,
     createdAt: formatDateTime(row.createdAt),
@@ -105,6 +114,7 @@ export async function createReceiver(input: CreatePaymentSharingReceiverInput): 
       receiverType: input.receiverType ?? 'merchant',
       account: input.account,
       ratioBps: input.ratioBps ?? null,
+      autoShare: input.autoShare ?? false,
       status: input.status ?? 'enabled',
       remark: input.remark ?? null,
       tenantId: getCreateTenantId(currentUser()),
@@ -120,6 +130,7 @@ export async function updateReceiver(id: number, input: UpdatePaymentSharingRece
   if (input.receiverType !== undefined) set.receiverType = input.receiverType;
   if (input.account !== undefined) set.account = input.account;
   if (input.ratioBps !== undefined) set.ratioBps = input.ratioBps ?? null;
+  if (input.autoShare !== undefined) set.autoShare = input.autoShare;
   if (input.status !== undefined) set.status = input.status;
   if (input.remark !== undefined) set.remark = input.remark ?? null;
   const tc = tenantCondition(paymentSharingReceivers, currentUser());
@@ -200,6 +211,20 @@ export async function dispatchSharing(input: DispatchSharingInput): Promise<Paym
     })
     .returning();
 
+  const updated = await executeSharingAtChannel(created, order, receiver);
+  if (updated.row.status === 'failed') {
+    if (updated.error instanceof HTTPException) throw updated.error;
+    throw new HTTPException(502, { message: '渠道分账请求失败，可在分账列表中重试' });
+  }
+  return mapSharingOrder({ ...updated.row, receiverName: receiver.name });
+}
+
+/** 调渠道执行分账并落状态（不抛出渠道异常，统一转 failed + attempts 累加，供手动/自动/重试三路径复用）。 */
+async function executeSharingAtChannel(
+  sharing: PaymentSharingOrderRow,
+  order: PaymentOrderRow,
+  receiver: PaymentSharingReceiverRow,
+): Promise<{ row: PaymentSharingOrderRow; error?: unknown }> {
   try {
     const config = await loadOrderConfig(order);
     if (!config) throw new HTTPException(400, { message: '支付渠道配置不存在，无法分账' });
@@ -207,20 +232,119 @@ export async function dispatchSharing(input: DispatchSharingInput): Promise<Paym
     if (!adapter.profitShare) throw new HTTPException(400, { message: `渠道 ${order.channel} 暂不支持分账` });
     const res = await adapter.profitShare(buildAdapterContext(config), order, {
       account: receiver.account,
-      amount,
+      amount: sharing.amount,
       name: receiver.name,
       receiverType: receiver.receiverType,
     });
     const status: PaymentSharingOrderStatus = res.status === 'success' ? 'success' : res.status === 'failed' ? 'failed' : 'processing';
     const [updated] = await db
       .update(paymentSharingOrders)
-      .set({ status, channelSharingNo: res.channelSharingNo ?? null, finishedAt: status === 'success' || status === 'failed' ? new Date() : null })
-      .where(eq(paymentSharingOrders.id, created.id))
+      .set({
+        status,
+        channelSharingNo: res.channelSharingNo ?? null,
+        attempts: sharing.attempts + 1,
+        finishedAt: status === 'success' || status === 'failed' ? new Date() : null,
+      })
+      .where(eq(paymentSharingOrders.id, sharing.id))
       .returning();
-    return mapSharingOrder({ ...updated, receiverName: receiver.name });
+    return { row: updated };
   } catch (err) {
-    await db.update(paymentSharingOrders).set({ status: 'failed', finishedAt: new Date() }).where(eq(paymentSharingOrders.id, created.id));
-    logger.error('[payment-sharing] dispatch failed', { orderNo: order.orderNo, err });
-    throw err;
+    logger.error('[payment-sharing] channel dispatch failed', { sharingNo: sharing.sharingNo, orderNo: order.orderNo, err });
+    const [updated] = await db
+      .update(paymentSharingOrders)
+      .set({ status: 'failed', attempts: sharing.attempts + 1, finishedAt: new Date() })
+      .where(eq(paymentSharingOrders.id, sharing.id))
+      .returning();
+    return { row: updated, error: err };
   }
+}
+
+// ─── 自动分账（payment.succeeded 订阅者）──────────────────────────────────────
+
+/** 确定性分账单号：同订单同接收方全局唯一，配合 sharing_no 唯一约束实现事件重复投递幂等。 */
+function autoSharingNo(orderNo: string, receiverId: number): string {
+  return `SHR${orderNo}R${receiverId}`;
+}
+
+/** 支付成功后自动分账：对启用 autoShare 且配置了 ratioBps 的接收方逐个发起。
+ * 幂等：确定性 sharingNo + onConflictDoNothing，重复事件不会重复建单；
+ * 合计校验：所有自动分账金额之和不超过订单实付。 */
+export async function autoShareOrder(orderNo: string): Promise<void> {
+  const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.orderNo, orderNo)).limit(1);
+  if (!order) return;
+  if (!['success', 'refunding', 'refunded'].includes(order.status)) return;
+
+  const tenantCond = order.tenantId == null
+    ? isNull(paymentSharingReceivers.tenantId)
+    : or(eq(paymentSharingReceivers.tenantId, order.tenantId), isNull(paymentSharingReceivers.tenantId));
+  const receivers = await db
+    .select()
+    .from(paymentSharingReceivers)
+    .where(and(eq(paymentSharingReceivers.status, 'enabled'), eq(paymentSharingReceivers.autoShare, true), tenantCond));
+  if (receivers.length === 0) return;
+
+  const paid = order.paidAmount ?? order.amount;
+  let allocated = 0;
+  for (const receiver of receivers) {
+    if (receiver.ratioBps == null || receiver.ratioBps <= 0) continue;
+    const amount = Math.round((paid * receiver.ratioBps) / 10000);
+    if (amount <= 0) continue;
+    if (allocated + amount > paid) {
+      logger.warn('[payment-sharing] auto share skipped: total ratio exceeds paid amount', { orderNo, receiverId: receiver.id });
+      continue;
+    }
+    allocated += amount;
+
+    const [created] = await db
+      .insert(paymentSharingOrders)
+      .values({
+        sharingNo: autoSharingNo(order.orderNo, receiver.id),
+        orderNo: order.orderNo,
+        receiverId: receiver.id,
+        amount,
+        status: 'processing',
+        remark: '自动分账',
+        tenantId: order.tenantId,
+      })
+      .onConflictDoNothing({ target: paymentSharingOrders.sharingNo })
+      .returning();
+    if (!created) continue; // 已建过（事件重复投递），由重试 cron 兜底失败单
+    await executeSharingAtChannel(created, order, receiver);
+  }
+}
+
+let sharingSubscribersRegistered = false;
+/** 注册自动分账订阅者（支付成功后按接收方配置自动发起分账）。 */
+export function registerSharingSubscribers(): void {
+  if (sharingSubscribersRegistered) return;
+  sharingSubscribersRegistered = true;
+  paymentEventBus.on('payment.succeeded', (e) => {
+    return autoShareOrder(e.orderNo).catch((err) => {
+      logger.error('[payment-sharing] auto share failed', { orderNo: e.orderNo, err });
+      throw err;
+    });
+  });
+  logger.info('Payment sharing subscribers registered');
+}
+
+// ─── 失败分账重试（cron 兜底）────────────────────────────────────────────────
+
+/** 重试渠道调用失败的分账单：仅处理 channelSharingNo 为空（渠道未受理）且未达尝试上限的 failed 单，
+ * 防止渠道已受理的单被重复分账。返回扫描条数。 */
+export async function retryFailedSharingOrders(): Promise<{ scanned: number; succeeded: number }> {
+  const rows = await db
+    .select()
+    .from(paymentSharingOrders)
+    .where(and(eq(paymentSharingOrders.status, 'failed'), isNull(paymentSharingOrders.channelSharingNo), lt(paymentSharingOrders.attempts, MAX_SHARING_ATTEMPTS)))
+    .limit(50);
+  let succeeded = 0;
+  for (const sharing of rows) {
+    const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.orderNo, sharing.orderNo)).limit(1);
+    const [receiver] = await db.select().from(paymentSharingReceivers).where(eq(paymentSharingReceivers.id, sharing.receiverId)).limit(1);
+    if (!order || !receiver) continue;
+    if (receiver.status !== 'enabled') continue;
+    const updated = await executeSharingAtChannel(sharing, order, receiver);
+    if (updated.row.status === 'success') succeeded++;
+  }
+  return { scanned: rows.length, succeeded };
 }

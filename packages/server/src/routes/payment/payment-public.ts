@@ -28,6 +28,7 @@ const notifyRoute = defineOpenAPIRoute({
     responses: {
       200: { description: '回调处理 ACK（渠道要求的纯文本或 JSON）', content: { 'text/plain': { schema: z.string() } } },
       401: { description: '验签失败 ACK', content: { 'text/plain': { schema: z.string() } } },
+      500: { description: '业务处理失败 ACK（渠道将按其重试策略重发通知）', content: { 'text/plain': { schema: z.string() } } },
     },
   }),
   handler: async (c) => {
@@ -35,7 +36,7 @@ const notifyRoute = defineOpenAPIRoute({
     const rawBody = await c.req.raw.clone().text();
     const ip = getClientIp(c);
     const { ack } = await handleNotify(channel, rawBody, c.req.raw.headers, ip);
-    return c.text(ack.body, ack.status as 200 | 401);
+    return c.text(ack.body, ack.status as 200 | 401 | 500);
   },
 });
 

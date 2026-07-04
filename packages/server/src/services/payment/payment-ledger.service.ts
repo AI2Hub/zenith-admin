@@ -47,7 +47,8 @@ export interface RecordLedgerInput {
   tenantId?: number | null;
 }
 
-/** 记一条资金流水（幂等：退款按 refundNo+type 去重，其余按 orderNo+type 去重）。 */
+/** 记一条资金流水（幂等：退款按 refundNo 去重，收款/手续费按 orderNo+type 去重；
+ * 先查后插为快路径，并发窗口由部分唯一索引 + ON CONFLICT DO NOTHING 兜底）。 */
 export async function recordLedgerEntry(input: RecordLedgerInput): Promise<void> {
   if (input.amount <= 0) return;
   if (input.type === 'refund' && input.refundNo) {
@@ -57,18 +58,21 @@ export async function recordLedgerEntry(input: RecordLedgerInput): Promise<void>
     const exists = await db.$count(paymentLedgerEntries, and(eq(paymentLedgerEntries.orderNo, input.orderNo), eq(paymentLedgerEntries.type, input.type)));
     if (exists > 0) return;
   }
-  await db.insert(paymentLedgerEntries).values({
-    entryNo: genNo(),
-    direction: input.direction,
-    type: input.type,
-    amount: input.amount,
-    orderNo: input.orderNo ?? null,
-    refundNo: input.refundNo ?? null,
-    channel: input.channel ?? null,
-    bizType: input.bizType ?? null,
-    remark: input.remark ?? null,
-    tenantId: input.tenantId ?? null,
-  });
+  await db
+    .insert(paymentLedgerEntries)
+    .values({
+      entryNo: genNo(),
+      direction: input.direction,
+      type: input.type,
+      amount: input.amount,
+      orderNo: input.orderNo ?? null,
+      refundNo: input.refundNo ?? null,
+      channel: input.channel ?? null,
+      bizType: input.bizType ?? null,
+      remark: input.remark ?? null,
+      tenantId: input.tenantId ?? null,
+    })
+    .onConflictDoNothing();
 }
 
 export interface ListLedgerQuery {

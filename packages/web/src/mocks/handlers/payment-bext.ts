@@ -136,8 +136,8 @@ const settlementHandlers = [
 
 // ─── 分账（接收方 + 分账单）────────────────────────────────────────────────────
 const receivers: PaymentSharingReceiver[] = [
-  { id: 1, name: '合作商户 A', receiverType: 'merchant', account: '1600000001', ratioBps: 1000, status: 'enabled', remark: '10% 分成', createdAt: SEED, updatedAt: SEED },
-  { id: 2, name: '推广个人 B', receiverType: 'personal', account: 'oXYZ888', ratioBps: 500, status: 'enabled', remark: '5% 分成', createdAt: SEED, updatedAt: SEED },
+  { id: 1, name: '合作商户 A', receiverType: 'merchant', account: '1600000001', ratioBps: 1000, autoShare: true, status: 'enabled', remark: '10% 分成', createdAt: SEED, updatedAt: SEED },
+  { id: 2, name: '推广个人 B', receiverType: 'personal', account: 'oXYZ888', ratioBps: 500, autoShare: false, status: 'enabled', remark: '5% 分成', createdAt: SEED, updatedAt: SEED },
 ];
 let nextReceiverId = 3;
 const sharingOrders: PaymentSharingOrder[] = [
@@ -162,7 +162,7 @@ const sharingHandlers = [
     const now = mockDateTime();
     const item: PaymentSharingReceiver = {
       id: nextReceiverId++, name: b.name ?? '', receiverType: b.receiverType ?? 'merchant', account: b.account ?? '',
-      ratioBps: b.ratioBps ?? null, status: b.status ?? 'enabled', remark: b.remark ?? null, createdAt: now, updatedAt: now,
+      ratioBps: b.ratioBps ?? null, autoShare: b.autoShare ?? false, status: b.status ?? 'enabled', remark: b.remark ?? null, createdAt: now, updatedAt: now,
     };
     receivers.push(item);
     return ok(item, '创建成功');

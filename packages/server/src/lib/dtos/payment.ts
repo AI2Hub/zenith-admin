@@ -207,6 +207,9 @@ export const PaymentReconItemDTO = z
     localStatus: z.string().nullable().optional(),
     channelStatus: z.string().nullable().optional(),
     result: reconResultEnum,
+    handleStatus: z.enum(['pending', 'adjusted', 'suspended', 'ignored']).nullable().optional(),
+    handleRemark: z.string().nullable().optional(),
+    handledAt: z.string().nullable().optional(),
     remark: z.string().nullable().optional(),
     createdAt: z.string(),
   })
@@ -335,6 +338,7 @@ export const PaymentSharingReceiverDTO = z
     receiverType: sharingReceiverTypeEnum,
     account: z.string(),
     ratioBps: z.number().int().nullable().optional(),
+    autoShare: z.boolean(),
     status: z.enum(['enabled', 'disabled']),
     remark: z.string().nullable().optional(),
     createdAt: z.string(),

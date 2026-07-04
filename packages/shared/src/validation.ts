@@ -2083,10 +2083,17 @@ export const createPaymentSharingReceiverSchema = z.object({
   receiverType: z.enum(['merchant', 'personal']).default('merchant'),
   account: z.string().min(1).max(128),
   ratioBps: z.number().int().min(0).max(10000).optional(), // 万分比
+  autoShare: z.boolean().default(false),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(256).optional(),
 });
 export const updatePaymentSharingReceiverSchema = createPaymentSharingReceiverSchema.partial();
+
+/** 对账差异处理 */
+export const handlePaymentReconItemSchema = z.object({
+  action: z.enum(['adjusted', 'suspended', 'ignored']),
+  remark: z.string().max(256).optional(),
+});
 
 /** 支付链接 */
 export const createPaymentLinkSchema = z.object({
@@ -2128,6 +2135,7 @@ export type CreatePaymentFeeRuleInput = z.infer<typeof createPaymentFeeRuleSchem
 export type UpdatePaymentFeeRuleInput = z.infer<typeof updatePaymentFeeRuleSchema>;
 export type CreatePaymentSharingReceiverInput = z.infer<typeof createPaymentSharingReceiverSchema>;
 export type UpdatePaymentSharingReceiverInput = z.infer<typeof updatePaymentSharingReceiverSchema>;
+export type HandlePaymentReconItemInput = z.infer<typeof handlePaymentReconItemSchema>;
 export type CreatePaymentLinkInput = z.infer<typeof createPaymentLinkSchema>;
 export type UpdatePaymentLinkInput = z.infer<typeof updatePaymentLinkSchema>;
 export type CreatePaymentRiskRuleInput = z.infer<typeof createPaymentRiskRuleSchema>;

@@ -145,17 +145,39 @@ export async function matchFeeRule(channel: PaymentChannel, payMethod: PaymentMe
   return exact ?? rows[0];
 }
 
-/** 支付成功后结算手续费：回写订单 feeAmount/netAmount + 记台账（幂等：已算过则跳过）。 */
+/** 支付成功后结算手续费：回写订单 feeAmount/netAmount + 记台账。
+ * 幂等与并发安全：feeAmount 回写用条件 UPDATE（仅未计费订单命中）充当 claim，
+ * 台账插入由 recordLedgerEntry 的唯一索引 + ON CONFLICT 兜底，事件重复投递/并发双投均不会重复记账。 */
 export async function settleOrderFee(orderNo: string): Promise<void> {
   const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.orderNo, orderNo)).limit(1);
   if (!order) return;
   const amount = order.paidAmount ?? order.amount;
-  const rule = order.feeAmount == null ? await matchFeeRule(order.channel, order.payMethod, order.tenantId) : null;
-  const fee = order.feeAmount ?? (rule ? computeFeeByRule(rule, amount) : 0);
-  if (order.feeAmount == null || order.netAmount == null) {
-    await db.update(paymentOrders).set({ feeAmount: fee, netAmount: amount - fee }).where(eq(paymentOrders.id, order.id));
+  let fee = order.feeAmount;
+  let ruleName: string | null = null;
+
+  if (fee == null) {
+    const rule = await matchFeeRule(order.channel, order.payMethod, order.tenantId);
+    fee = rule ? computeFeeByRule(rule, amount) : 0;
+    ruleName = rule?.name ?? null;
+    const claimed = await db
+      .update(paymentOrders)
+      .set({ feeAmount: fee, netAmount: amount - fee })
+      .where(and(eq(paymentOrders.id, order.id), isNull(paymentOrders.feeAmount)))
+      .returning({ feeAmount: paymentOrders.feeAmount });
+    if (claimed.length === 0) {
+      // 竞争失败：另一次投递已计费，读回真实费用仅做台账补偿（崩溃恢复场景）
+      const [fresh] = await db.select({ feeAmount: paymentOrders.feeAmount }).from(paymentOrders).where(eq(paymentOrders.id, order.id)).limit(1);
+      fee = fresh?.feeAmount ?? fee;
+      ruleName = null;
+    }
+  } else if (order.netAmount == null) {
+    await db
+      .update(paymentOrders)
+      .set({ netAmount: amount - fee })
+      .where(and(eq(paymentOrders.id, order.id), isNull(paymentOrders.netAmount)));
   }
-  if (fee > 0) {
+
+  if (fee != null && fee > 0) {
     await recordLedgerEntry({
       direction: 'out',
       type: 'fee',
@@ -164,7 +186,7 @@ export async function settleOrderFee(orderNo: string): Promise<void> {
       channel: order.channel,
       bizType: order.bizType,
       tenantId: order.tenantId,
-      remark: rule ? `手续费（${rule.name}）` : '手续费',
+      remark: ruleName ? `手续费（${ruleName}）` : '手续费',
     });
   }
 }

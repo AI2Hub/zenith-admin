@@ -1,4 +1,4 @@
-import type { PaymentChannel, PaymentMethod, PaymentOrderStatus, PaymentRefundStatus, PaymentRefundApprovalStatus, PaymentReconStatus, PaymentReconResult, PaymentWebhookDeliveryStatus, PaymentLedgerDirection, PaymentLedgerType, PaymentSettlementStatus, PaymentSharingReceiverType, PaymentSharingOrderStatus, PaymentLinkStatus, PaymentRiskScope, MemberStatus, PointTxType, WalletTxType, CouponType, CouponValidType, CouponTemplateStatus, MemberCouponStatus, WorkflowFormType } from './constants';
+import type { PaymentChannel, PaymentMethod, PaymentOrderStatus, PaymentRefundStatus, PaymentRefundApprovalStatus, PaymentReconStatus, PaymentReconResult, PaymentReconHandleStatus, PaymentWebhookDeliveryStatus, PaymentLedgerDirection, PaymentLedgerType, PaymentSettlementStatus, PaymentSharingReceiverType, PaymentSharingOrderStatus, PaymentLinkStatus, PaymentRiskScope, MemberStatus, PointTxType, WalletTxType, CouponType, CouponValidType, CouponTemplateStatus, MemberCouponStatus, WorkflowFormType } from './constants';
 
 export type EntityStatus = 'enabled' | 'disabled';
 
@@ -5647,6 +5647,10 @@ export interface PaymentReconItem {
   localStatus?: string | null;
   channelStatus?: string | null;
   result: PaymentReconResult;
+  /** 差异处理状态：null=无需处理（一致项） */
+  handleStatus?: PaymentReconHandleStatus | null;
+  handleRemark?: string | null;
+  handledAt?: string | null;
   remark?: string | null;
   createdAt: string;
 }
@@ -5753,6 +5757,8 @@ export interface PaymentSharingReceiver {
   receiverType: PaymentSharingReceiverType;
   account: string;
   ratioBps?: number | null; // 万分比
+  /** 自动分账：支付成功后按 ratioBps 自动发起分账 */
+  autoShare: boolean;
   status: 'enabled' | 'disabled';
   remark?: string | null;
   createdAt: string;

@@ -80,13 +80,17 @@
 
 ### 结算管理
 
-- **生成批次**：聚合指定渠道、账期内成功订单，`净额 = 收款(gross) − 手续费(fee) − 退款(refund)`；
+- **生成批次**：聚合指定渠道、账期内成功订单，`净额 = 收款(gross) − 手续费(fee) − 退款(refund)`；账期内存在未计费订单时批次备注自动标注；
+- **幂等**：同租户 + 渠道 + 账期唯一（DB 唯一索引），重复生成返回业务错误；
+- **T+1 自动结算**：定时任务 `generateDailySettlements` 每日 01:10 为昨日账期按渠道 × 租户自动生成批次（无交易跳过）；
 - **状态机**：`pending → settling → settled / failed`，仅允许声明的合法流转；标记到账（settled）时记一条结算资金台账（`type=settlement`）。
 
 ### 分账 / 分润
 
-- **接收方**：商户 / 个人两类，记录账号与默认分账比例（万分比，可在发起时覆盖）；
-- **发起分账**：校验订单已支付成功、接收方启用，创建分账单（`processing`）后调用渠道适配器 `profitShare()`（微信 / 支付宝提供与现有 adapter 同档次的模拟实现），落地 `success / failed` 与渠道分账单号；状态机 `pending → processing → success / failed`。
+- **接收方**：商户 / 个人两类，记录账号与默认分账比例（万分比，可在发起时覆盖）；支持**自动分账**开关（`autoShare`）；
+- **发起分账**：校验订单已支付成功、接收方启用，创建分账单（`processing`）后调用渠道适配器 `profitShare()`（微信 / 支付宝提供与现有 adapter 同档次的模拟实现），落地 `success / failed` 与渠道分账单号；状态机 `pending → processing → success / failed`；
+- **自动分账**：订阅 `payment.succeeded`，对启用 `autoShare` 且配置比例的接收方自动发起；确定性分账单号（`SHR{orderNo}R{receiverId}`）+ 唯一约束保证事件重复投递幂等，合计金额不超实付；
+- **失败重试**：定时任务 `retryFailedSharing` 每 10 分钟重试渠道调用失败（渠道未受理、`channelSharingNo` 为空）且未达上限（3 次）的分账单。
 
 ### 支付链接 / 收款码
 
@@ -102,7 +106,7 @@
 ### 风控限额
 
 - 规则作用域：`global`（全局）/ `channel`（按渠道）/ `bizType`（按业务类型）；
-- 下单前（`createPayment` 内）逐条校验命中规则：**单笔上限**、**当日累计金额**、**当日笔数**、**黑名单**（`openId` / `userId`），任一超限即抛 `HTTPException(400)` 拦截下单。
+- 下单前（`createPayment` 内）逐条校验命中规则：**单笔上限**、**当日累计金额**、**当日笔数**、**黑名单**（`openId` / `userId`），任一超限即抛 `HTTPException(400)` 拦截下单。当日累计口径为**已支付订单**（`success` / `refunding` / `refunded`，按 `paidAt` 归日），未支付的 `pending` / `paying` 不计入，避免误伤正常下单。
 
 ### 支付方式管理
 

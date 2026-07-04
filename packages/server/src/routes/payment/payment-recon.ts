@@ -20,12 +20,15 @@ import {
   createReconBatch,
   deleteReconBatch,
   generateSampleBill,
+  handleReconItem,
 } from '../../services/payment/payment-recon.service';
+import { handlePaymentReconItemSchema } from '@zenith/shared';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const channelEnum = z.enum(['wechat', 'alipay']);
 const reconStatusEnum = z.enum(['pending', 'comparing', 'done', 'failed']);
 const reconResultEnum = z.enum(['matched', 'local_only', 'channel_only', 'amount_diff', 'status_diff']);
+const reconHandleStatusEnum = z.enum(['pending', 'adjusted', 'suspended', 'ignored']);
 const billDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '账单日期须为 YYYY-MM-DD');
 
 const listRoute = defineOpenAPIRoute({
@@ -93,10 +96,22 @@ const itemsRoute = defineOpenAPIRoute({
     method: 'get', path: '/batches/{id}/items', tags: ['支付中心-对账'], summary: '对账明细（可按差异类型筛选）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'payment:recon:list' })] as const,
-    request: { params: IdParam, query: PaginationQuery.extend({ result: reconResultEnum.optional() }) },
+    request: { params: IdParam, query: PaginationQuery.extend({ result: reconResultEnum.optional(), handleStatus: reconHandleStatusEnum.optional() }) },
     responses: { ...okPaginated(PaymentReconItemDTO, '对账明细'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await listReconItems(c.req.valid('param').id, c.req.valid('query'))), 200),
+});
+
+const handleItemRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'patch', path: '/items/{id}/handle', tags: ['支付中心-对账'], summary: '处理对账差异（调账/挂账/忽略）',
+    description: '将待处理差异流转为已调账/挂账/已忽略；选择「已调账」时按差异金额自动记入资金台账（type=adjust）。',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'payment:recon:handle', audit: { description: '处理支付对账差异', module: '支付中心' } })] as const,
+    request: { params: IdParam, body: { content: jsonContent(handlePaymentReconItemSchema), required: true } },
+    responses: { ...ok(PaymentReconItemDTO, '处理成功'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await handleReconItem(c.req.valid('param').id, c.req.valid('json')), '处理成功'), 200),
 });
 
 const deleteRoute = defineOpenAPIRoute({
@@ -115,6 +130,6 @@ const deleteRoute = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([listRoute, createBatchRoute, sampleRoute, detailRoute, itemsRoute, deleteRoute] as const);
+router.openapiRoutes([listRoute, createBatchRoute, sampleRoute, detailRoute, itemsRoute, handleItemRoute, deleteRoute] as const);
 
 export default router;

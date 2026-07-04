@@ -15,15 +15,22 @@ import {
   paymentReconKeys,
   useCreatePaymentReconBatch,
   useDeletePaymentReconBatch,
+  useHandlePaymentReconItem,
   usePaymentReconBatchList,
   usePaymentReconItems,
   usePaymentReconSampleBill,
 } from '@/hooks/queries/payment-recon';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_RECON_RESULT_LABELS, PAYMENT_RECON_STATUS_LABELS } from '@zenith/shared';
-import type { PaymentChannel, PaymentReconBatch, PaymentReconItem, PaymentReconResult, PaymentReconStatus } from '@zenith/shared';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_RECON_HANDLE_STATUS_LABELS, PAYMENT_RECON_RESULT_LABELS, PAYMENT_RECON_STATUS_LABELS } from '@zenith/shared';
+import type { PaymentChannel, PaymentReconBatch, PaymentReconHandleStatus, PaymentReconItem, PaymentReconResult, PaymentReconStatus } from '@zenith/shared';
 
 const STATUS_COLOR = { pending: 'grey', comparing: 'blue', done: 'green', failed: 'red' } as const satisfies Record<PaymentReconStatus, string>;
 const RESULT_COLOR = { matched: 'green', local_only: 'amber', channel_only: 'orange', amount_diff: 'red', status_diff: 'red' } as const satisfies Record<PaymentReconResult, string>;
+const HANDLE_COLOR = { pending: 'amber', adjusted: 'green', suspended: 'orange', ignored: 'grey' } as const satisfies Record<PaymentReconHandleStatus, string>;
+const HANDLE_ACTION_OPTIONS = [
+  { value: 'adjusted', label: '已调账（差额自动记入资金台账）' },
+  { value: 'suspended', label: '挂账（暂缓处理，保留差异）' },
+  { value: 'ignored', label: '忽略（确认无需处理）' },
+];
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
 
 interface SearchParams { channel: string; status: string; }
@@ -38,6 +45,7 @@ interface ReconFormValues {
 
 export default function PaymentReconPage() {
   const { hasPermission } = usePermission();
+  const canHandle = hasPermission('payment:recon:handle');
   const queryClient = useQueryClient();
   const formApi = useRef<FormApi | null>(null);
   const { page, pageSize, setPage, buildPagination } = usePagination();
@@ -48,6 +56,9 @@ export default function PaymentReconPage() {
 
   const [detailBatch, setDetailBatch] = useState<PaymentReconBatch | null>(null);
   const [itemResult, setItemResult] = useState('');
+  const [itemHandleStatus, setItemHandleStatus] = useState('');
+  const [handlingItem, setHandlingItem] = useState<PaymentReconItem | null>(null);
+  const handleFormApi = useRef<FormApi | null>(null);
   const {
     page: itemPage,
     pageSize: itemPageSize,
@@ -68,12 +79,14 @@ export default function PaymentReconPage() {
     page: itemPage,
     pageSize: itemPageSize,
     result: itemResult || undefined,
+    handleStatus: itemHandleStatus || undefined,
   }, !!detailBatch);
   const itemsData = itemsQuery.data?.list ?? [];
   const itemsTotal = itemsQuery.data?.total ?? 0;
   const sampleBillMutation = usePaymentReconSampleBill();
   const createMutation = useCreatePaymentReconBatch();
   const deleteMutation = useDeletePaymentReconBatch();
+  const handleItemMutation = useHandlePaymentReconItem();
 
   function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: paymentReconKeys.lists }); }
   function handleReset() { setDraftParams(defaultSearch); setPage(1); setSubmittedParams(defaultSearch); void queryClient.invalidateQueries({ queryKey: paymentReconKeys.lists }); }
@@ -122,12 +135,32 @@ export default function PaymentReconPage() {
   function openItems(record: PaymentReconBatch) {
     setDetailBatch(record);
     setItemResult('');
+    setItemHandleStatus('');
     setItemPage(1);
   }
 
   function handleItemResultChange(value: string) {
     setItemResult(value);
     setItemPage(1);
+  }
+
+  function handleItemHandleStatusChange(value: string) {
+    setItemHandleStatus(value);
+    setItemPage(1);
+  }
+
+  async function handleHandleOk() {
+    if (!handlingItem) return;
+    let values: { action: 'adjusted' | 'suspended' | 'ignored'; remark?: string };
+    try {
+      values = (await handleFormApi.current?.validate()) as { action: 'adjusted' | 'suspended' | 'ignored'; remark?: string };
+    } catch {
+      throw new Error('validation');
+    }
+    await handleItemMutation.mutateAsync({ id: handlingItem.id, values: { action: values.action, remark: values.remark || undefined } });
+    Toast.success('差异已处理');
+    setHandlingItem(null);
+    handleFormApi.current = null;
   }
 
   const columns: ColumnProps<PaymentReconBatch>[] = [
@@ -172,7 +205,25 @@ export default function PaymentReconPage() {
     { title: '本地状态', dataIndex: 'localStatus', width: 100, render: (v: string | null) => v || '-' },
     { title: '渠道状态', dataIndex: 'channelStatus', width: 100, render: (v: string | null) => v || '-' },
     { title: '结果', dataIndex: 'result', width: 120, render: (v: PaymentReconResult) => <Tag color={RESULT_COLOR[v]}>{PAYMENT_RECON_RESULT_LABELS[v]}</Tag> },
-    { title: '备注', dataIndex: 'remark', width: 180, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v || '-'}</Typography.Text> },
+    {
+      title: '处理状态', dataIndex: 'handleStatus', width: 110,
+      render: (v: PaymentReconHandleStatus | null, r: PaymentReconItem) => {
+        if (v == null) return <Typography.Text type="tertiary">无需处理</Typography.Text>;
+        const tag = <Tag color={HANDLE_COLOR[v]}>{PAYMENT_RECON_HANDLE_STATUS_LABELS[v]}</Tag>;
+        return r.handleRemark ? <Typography.Text ellipsis={{ showTooltip: { opts: { content: r.handleRemark } } }}>{tag}</Typography.Text> : tag;
+      },
+    },
+    { title: '备注', dataIndex: 'remark', width: 150, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 130 }}>{v || '-'}</Typography.Text> },
+    createOperationColumn<PaymentReconItem>({
+      width: 90,
+      actions: (r) => [
+        ...(canHandle && r.handleStatus === 'pending' ? [{
+          key: 'handle',
+          label: '处理',
+          onClick: () => setHandlingItem(r),
+        }] : []),
+      ],
+    }),
   ];
 
   const renderChannelFilter = () => (
@@ -247,17 +298,26 @@ export default function PaymentReconPage() {
         </Form>
       </AppModal>
 
-      <AppModal title={`对账明细${detailBatch ? `（${detailBatch.batchNo}）` : ''}`} visible={!!detailBatch} onCancel={() => setDetailBatch(null)} footer={null} width={900} closeOnEsc>
+      <AppModal title={`对账明细${detailBatch ? `（${detailBatch.batchNo}）` : ''}`} visible={!!detailBatch} onCancel={() => setDetailBatch(null)} footer={null} width={1000} closeOnEsc>
         <Spin spinning={itemsQuery.isFetching}>
-          <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
             <Select placeholder="全部结果" value={itemResult || undefined} onChange={(v) => handleItemResultChange((v as string) ?? '')} showClear style={{ width: 180 }}
               optionList={Object.entries(PAYMENT_RECON_RESULT_LABELS).map(([value, label]) => ({ value, label }))} />
+            <Select placeholder="全部处理状态" value={itemHandleStatus || undefined} onChange={(v) => handleItemHandleStatusChange((v as string) ?? '')} showClear style={{ width: 160 }}
+              optionList={Object.entries(PAYMENT_RECON_HANDLE_STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
           </div>
           <ConfigurableTable
             bordered columns={itemColumns} dataSource={itemsData} loading={itemsQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
             onRefresh={() => void itemsQuery.refetch()} refreshLoading={itemsQuery.isFetching} pagination={buildItemPagination(itemsTotal)}
           />
         </Spin>
+      </AppModal>
+
+      <AppModal title={`处理差异${handlingItem?.orderNo ? `（${handlingItem.orderNo}）` : ''}`} visible={!!handlingItem} onOk={handleHandleOk} onCancel={() => { setHandlingItem(null); handleFormApi.current = null; }} okButtonProps={{ loading: handleItemMutation.isPending }} width={520} closeOnEsc>
+        <Form key={handlingItem?.id ?? 'closed'} getFormApi={(api) => { handleFormApi.current = api; }} initValues={{ action: 'adjusted' }} labelPosition="left" labelWidth={100}>
+          <Form.Select field="action" label="处理方式" style={{ width: '100%' }} optionList={HANDLE_ACTION_OPTIONS} rules={[{ required: true, message: '请选择处理方式' }]} />
+          <Form.TextArea field="remark" label="处理备注" autosize rows={2} placeholder="可选，如：渠道账单延迟，已人工核实" />
+        </Form>
       </AppModal>
     </div>
   );

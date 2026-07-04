@@ -661,6 +661,18 @@ handlerRegistry.set('retryPaymentWebhooks', async () => {
   return `重试支付 Webhook 投递 ${count} 条`;
 });
 
+handlerRegistry.set('retryFailedSharing', async () => {
+  const { retryFailedSharingOrders } = await import('../services/payment/payment-sharing.service');
+  const r = await retryFailedSharingOrders();
+  return `重试失败分账单 ${r.scanned} 条，成功 ${r.succeeded} 条`;
+});
+
+handlerRegistry.set('generateDailySettlements', async () => {
+  const { generateDailySettlements } = await import('../services/payment/payment-settlement.service');
+  const r = await generateDailySettlements();
+  return `T+1 自动结算：生成 ${r.generated} 个批次，跳过 ${r.skipped} 个（已存在）`;
+});
+
 handlerRegistry.set('analyticsRollupDaily', async (params) => {
   const { rebuildRollup } = await import('../services/analytics/analytics-rollup.service');
   const days = Number(params) || 2;

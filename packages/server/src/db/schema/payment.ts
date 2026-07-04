@@ -1,4 +1,5 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, unique, text, index, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, unique, uniqueIndex, text, index, jsonb } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { statusEnum } from './common';
 import { auditColumns, departments, tenants, users } from './core';
 
@@ -90,6 +91,9 @@ export const paymentOrders = pgTable('payment_orders', {
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   unique('payment_orders_channel_out_trade_no_uq').on(t.channel, t.outTradeNo),
+  // 业务幂等：同一业务单（bizType+bizId）最多存在一笔进行中订单（pending/paying），
+  // 并发下单时唯一冲突由 createPayment 捕获后复用已有活跃单
+  uniqueIndex('payment_orders_active_biz_uq').on(t.bizType, t.bizId).where(sql`${t.status} in ('pending', 'paying')`),
   index('payment_orders_biz_idx').on(t.bizType, t.bizId),
   index('payment_orders_status_idx').on(t.status),
   index('payment_orders_expired_idx').on(t.expiredAt),
@@ -181,6 +185,8 @@ export const paymentReconStatusEnum = pgEnum('payment_recon_status', ['pending',
 
 export const paymentReconResultEnum = pgEnum('payment_recon_result', ['matched', 'local_only', 'channel_only', 'amount_diff', 'status_diff']);
 
+export const paymentReconHandleStatusEnum = pgEnum('payment_recon_handle_status', ['pending', 'adjusted', 'suspended', 'ignored']);
+
 export const paymentReconBatches = pgTable('payment_recon_batches', {
   id: serial('id').primaryKey(),
   batchNo: varchar('batch_no', { length: 64 }).notNull().unique(),
@@ -214,6 +220,11 @@ export const paymentReconItems = pgTable('payment_recon_items', {
   localStatus: varchar('local_status', { length: 32 }),
   channelStatus: varchar('channel_status', { length: 32 }),
   result: paymentReconResultEnum('result').notNull(),
+  /** 差异处理状态：NULL=无需处理（比对一致）；差异项默认 pending，人工处理后流转为 adjusted/suspended/ignored */
+  handleStatus: paymentReconHandleStatusEnum('handle_status'),
+  handleRemark: varchar('handle_remark', { length: 256 }),
+  handledAt: timestamp('handled_at', { withTimezone: true }),
+  handledById: integer('handled_by_id').references(() => users.id, { onDelete: 'set null' }),
   remark: varchar('remark', { length: 256 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [index('payment_recon_items_batch_idx').on(t.batchId)]);
@@ -283,7 +294,13 @@ export const paymentLedgerEntries = pgTable('payment_ledger_entries', {
   remark: varchar('remark', { length: 256 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('payment_ledger_order_idx').on(t.orderNo), index('payment_ledger_type_idx').on(t.type)]);
+}, (t) => [
+  index('payment_ledger_order_idx').on(t.orderNo),
+  index('payment_ledger_type_idx').on(t.type),
+  // 记账幂等（DB 层兜底）：同一订单的收款/手续费各至多一条；同一退款单至多一条退款流水
+  uniqueIndex('payment_ledger_order_type_uq').on(t.orderNo, t.type).where(sql`${t.orderNo} is not null and ${t.type} in ('payment', 'fee')`),
+  uniqueIndex('payment_ledger_refund_uq').on(t.refundNo).where(sql`${t.refundNo} is not null and ${t.type} = 'refund'`),
+]);
 
 export type PaymentLedgerEntryRow = typeof paymentLedgerEntries.$inferSelect;
 
@@ -333,7 +350,12 @@ export const paymentSettlementBatches = pgTable('payment_settlement_batches', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_settlement_batches_status_idx').on(t.status)]);
+}, (t) => [
+  index('payment_settlement_batches_status_idx').on(t.status),
+  // 结算幂等：同租户+渠道+账期至多生成一个批次（tenantId 为 NULL 时按全局口径去重）
+  uniqueIndex('payment_settlement_period_uq').on(t.channel, t.periodStart, t.periodEnd, t.tenantId).where(sql`${t.tenantId} is not null`),
+  uniqueIndex('payment_settlement_period_global_uq').on(t.channel, t.periodStart, t.periodEnd).where(sql`${t.tenantId} is null`),
+]);
 
 export type PaymentSettlementBatchRow = typeof paymentSettlementBatches.$inferSelect;
 
@@ -350,6 +372,8 @@ export const paymentSharingReceivers = pgTable('payment_sharing_receivers', {
   receiverType: paymentSharingReceiverTypeEnum('receiver_type').notNull().default('merchant'),
   account: varchar('account', { length: 128 }).notNull(),
   ratioBps: integer('ratio_bps'),
+  /** 自动分账：支付成功后按 ratioBps 自动向该接收方发起分账 */
+  autoShare: boolean('auto_share').notNull().default(false),
   status: statusEnum('status').notNull().default('enabled'),
   remark: varchar('remark', { length: 256 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
@@ -370,6 +394,8 @@ export const paymentSharingOrders = pgTable('payment_sharing_orders', {
   amount: integer('amount').notNull(),
   status: paymentSharingOrderStatusEnum('status').notNull().default('pending'),
   channelSharingNo: varchar('channel_sharing_no', { length: 128 }),
+  /** 渠道分账已尝试次数（失败重试用，达上限后不再自动重试） */
+  attempts: integer('attempts').notNull().default(0),
   finishedAt: timestamp('finished_at', { withTimezone: true }),
   remark: varchar('remark', { length: 256 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),

@@ -15,6 +15,7 @@ export interface PaymentReconItemListParams {
   page: number;
   pageSize: number;
   result?: string;
+  handleStatus?: string;
 }
 
 export const paymentReconKeys = {
@@ -63,6 +64,15 @@ export function useDeletePaymentReconBatch() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/payment/recon/batches/${id}`).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: paymentReconKeys.all }),
+  });
+}
+
+export function useHandlePaymentReconItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, values }: { id: number; values: { action: 'adjusted' | 'suspended' | 'ignored'; remark?: string } }) =>
+      request.patch<PaymentReconItem>(`/api/payment/recon/items/${id}/handle`, values).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: paymentReconKeys.all }),
   });
 }

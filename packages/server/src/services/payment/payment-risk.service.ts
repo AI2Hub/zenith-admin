@@ -163,9 +163,9 @@ export async function assertWithinRiskLimits(input: RiskCheckInput): Promise<voi
     if (rule.singleLimit != null && input.amount > rule.singleLimit) {
       throw new HTTPException(400, { message: `单笔金额超过限额（${rule.name}）` });
     }
-    // 当日累计金额 / 笔数（按规则作用域聚合当日成功+处理中订单）
+    // 当日累计金额 / 笔数（按规则作用域聚合当日已支付订单；未支付的 pending/paying 不计入，避免误伤正常下单）
     if (rule.dailyLimit != null || rule.dailyCountLimit != null) {
-      const scopeConds = [gte(paymentOrders.createdAt, startOfToday()), inArray(paymentOrders.status, ['paying', 'success', 'refunding', 'refunded'])];
+      const scopeConds = [gte(paymentOrders.paidAt, startOfToday()), inArray(paymentOrders.status, ['success', 'refunding', 'refunded'])];
       if (rule.scope === 'channel') scopeConds.push(eq(paymentOrders.channel, input.channel));
       if (rule.scope === 'bizType') scopeConds.push(eq(paymentOrders.bizType, input.bizType));
       const where = input.tenantId == null ? and(...scopeConds, isNull(paymentOrders.tenantId)) : and(...scopeConds, eq(paymentOrders.tenantId, input.tenantId));

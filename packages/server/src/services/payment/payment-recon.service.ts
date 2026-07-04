@@ -2,6 +2,7 @@
  * 支付对账中心 Service。
  * 上传渠道对账单（CSV），与本地订单逐笔比对，生成差异报表
  * （一致 / 本地有渠道无 / 渠道有本地无 / 金额不一致）。
+ * 差异处理流：差异项创建时置 handleStatus=pending，人工处理流转为 已调账/挂账/已忽略。
  */
 import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
@@ -17,8 +18,9 @@ import {
 import { currentUser } from '../../lib/context';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { mergeWhere, withPagination } from '../../lib/where-helpers';
-import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
-import type { PaymentChannel, PaymentReconBatch, PaymentReconItem, PaymentReconResult, PaymentReconStatus } from '@zenith/shared';
+import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { recordLedgerEntry } from './payment-ledger.service';
+import type { HandlePaymentReconItemInput, PaymentChannel, PaymentReconBatch, PaymentReconHandleStatus, PaymentReconItem, PaymentReconResult, PaymentReconStatus } from '@zenith/shared';
 
 function genNo(prefix: string): string {
   return `${prefix}${Date.now()}${randomInt(1000, 9999)}`;
@@ -54,6 +56,9 @@ export function mapReconItem(row: PaymentReconItemRow): PaymentReconItem {
     localStatus: row.localStatus ?? null,
     channelStatus: row.channelStatus ?? null,
     result: row.result,
+    handleStatus: row.handleStatus ?? null,
+    handleRemark: row.handleRemark ?? null,
+    handledAt: formatNullableDateTime(row.handledAt),
     remark: row.remark ?? null,
     createdAt: formatDateTime(row.createdAt),
   };
@@ -152,6 +157,7 @@ export interface ListReconItemsQuery {
   page?: number;
   pageSize?: number;
   result?: PaymentReconResult;
+  handleStatus?: PaymentReconHandleStatus;
 }
 
 export async function listReconItems(batchId: number, q: ListReconItemsQuery) {
@@ -160,6 +166,7 @@ export async function listReconItems(batchId: number, q: ListReconItemsQuery) {
   const pageSize = q.pageSize ?? 20;
   const conds = [eq(paymentReconItems.batchId, batchId)];
   if (q.result) conds.push(eq(paymentReconItems.result, q.result));
+  if (q.handleStatus) conds.push(eq(paymentReconItems.handleStatus, q.handleStatus));
   const where = and(...conds);
   const [total, list] = await Promise.all([
     db.$count(paymentReconItems, where),
@@ -206,6 +213,7 @@ export async function createReconBatch(input: CreateReconInput): Promise<Payment
       localStatus: local?.status ?? null,
       channelStatus: ch?.status ?? null,
       result,
+      handleStatus: result === 'matched' ? null : 'pending', // 差异项进入待处理队列
       remark: null,
     });
   }
@@ -241,6 +249,59 @@ export async function createReconBatch(input: CreateReconInput): Promise<Payment
 export async function deleteReconBatch(id: number): Promise<void> {
   await getReconBatch(id);
   await db.delete(paymentReconBatches).where(eq(paymentReconBatches.id, id));
+}
+
+// ─── 差异处理流 ───────────────────────────────────────────────────────────────
+
+/** 按差异类型推导调账方向与金额：金额不一致按差额；渠道单边按渠道金额入账；本地单边按本地金额出账。 */
+export function computeAdjustment(item: Pick<PaymentReconItemRow, 'result' | 'localAmount' | 'channelAmount'>): { direction: 'in' | 'out'; amount: number } | null {
+  if (item.result === 'amount_diff' && item.localAmount != null && item.channelAmount != null) {
+    const delta = item.channelAmount - item.localAmount;
+    if (delta === 0) return null;
+    return { direction: delta > 0 ? 'in' : 'out', amount: Math.abs(delta) };
+  }
+  if (item.result === 'channel_only' && item.channelAmount != null && item.channelAmount > 0) {
+    return { direction: 'in', amount: item.channelAmount };
+  }
+  if (item.result === 'local_only' && item.localAmount != null && item.localAmount > 0) {
+    return { direction: 'out', amount: item.localAmount };
+  }
+  return null;
+}
+
+/** 处理对账差异项：pending → adjusted/suspended/ignored（条件更新防重复处理）。
+ * 选择「已调账」时按差异金额自动记一条资金台账（type=adjust），完成资金闭环。 */
+export async function handleReconItem(itemId: number, input: HandlePaymentReconItemInput): Promise<PaymentReconItem> {
+  const user = currentUser();
+  const [item] = await db.select().from(paymentReconItems).where(eq(paymentReconItems.id, itemId)).limit(1);
+  if (!item) throw new HTTPException(404, { message: '对账明细不存在' });
+  const tc = tenantCondition(paymentReconBatches, user);
+  const [batch] = await db.select().from(paymentReconBatches).where(and(eq(paymentReconBatches.id, item.batchId), tc)).limit(1);
+  if (!batch) throw new HTTPException(404, { message: '对账批次不存在' });
+  if (item.handleStatus == null) throw new HTTPException(400, { message: '该明细比对一致，无需处理' });
+
+  const [updated] = await db
+    .update(paymentReconItems)
+    .set({ handleStatus: input.action, handleRemark: input.remark ?? null, handledAt: new Date(), handledById: user.userId })
+    .where(and(eq(paymentReconItems.id, itemId), eq(paymentReconItems.handleStatus, 'pending')))
+    .returning();
+  if (!updated) throw new HTTPException(400, { message: '该差异已被处理，请刷新后查看' });
+
+  if (input.action === 'adjusted') {
+    const adj = computeAdjustment(item);
+    if (adj) {
+      await recordLedgerEntry({
+        direction: adj.direction,
+        type: 'adjust',
+        amount: adj.amount,
+        orderNo: item.orderNo,
+        channel: batch.channel,
+        tenantId: batch.tenantId,
+        remark: `对账调账（批次 ${batch.batchNo}）${input.remark ? `：${input.remark}` : ''}`,
+      });
+    }
+  }
+  return mapReconItem(updated);
 }
 
 /** Demo/演示：用本地订单生成一份带表头的模拟渠道账单 CSV（金额取实付）。 */

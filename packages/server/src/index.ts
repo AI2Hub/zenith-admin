@@ -201,6 +201,7 @@ import { registerBizLeaveSubscribers } from './services/biz-demo/biz-leave-subsc
 import { registerBizPayDemoSubscribers } from './services/payment/biz-pay-demo-subscribers';
 import { registerLedgerSubscribers } from './services/payment/payment-ledger.service';
 import { registerFeeSubscribers } from './services/payment/payment-fee.service';
+import { registerSharingSubscribers } from './services/payment/payment-sharing.service';
 import workflowEventSubscriptionsRoutes from './routes/workflow/workflow-event-subscriptions';
 import workflowTriggerExecutionsRoutes from './routes/workflow/workflow-trigger-executions';
 import workflowExternalCallbackRoutes from './routes/workflow/workflow-external-callback';
@@ -590,4 +591,5 @@ registerBizLeaveSubscribers();
 registerBizPayDemoSubscribers();
 registerLedgerSubscribers();
 registerFeeSubscribers();
+registerSharingSubscribers();
 logger.info('Workflow event subscribers registered');

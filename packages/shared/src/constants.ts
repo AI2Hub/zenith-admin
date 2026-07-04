@@ -160,6 +160,12 @@ export const PAYMENT_RECON_RESULT_LABELS: Record<PaymentReconResult, string> = {
   matched: '一致', local_only: '本地有渠道无', channel_only: '渠道有本地无', amount_diff: '金额不一致', status_diff: '状态不一致',
 };
 
+export const PAYMENT_RECON_HANDLE_STATUSES = ['pending', 'adjusted', 'suspended', 'ignored'] as const;
+export type PaymentReconHandleStatus = typeof PAYMENT_RECON_HANDLE_STATUSES[number];
+export const PAYMENT_RECON_HANDLE_STATUS_LABELS: Record<PaymentReconHandleStatus, string> = {
+  pending: '待处理', adjusted: '已调账', suspended: '挂账', ignored: '已忽略',
+};
+
 export const PAYMENT_WEBHOOK_DELIVERY_STATUSES = ['pending', 'success', 'failed'] as const;
 export type PaymentWebhookDeliveryStatus = typeof PAYMENT_WEBHOOK_DELIVERY_STATUSES[number];
 export const PAYMENT_WEBHOOK_DELIVERY_STATUS_LABELS: Record<PaymentWebhookDeliveryStatus, string> = {
