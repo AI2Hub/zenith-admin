@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import { reportError } from '@/utils/error-reporter';
 import { addBreadcrumb } from '@/utils/breadcrumbs';
+import { ApiError } from '@/lib/query';
 
 /**
  * 全局前端异常兜底 + 上报。
@@ -13,6 +14,10 @@ import { addBreadcrumb } from '@/utils/breadcrumbs';
  * - 白屏检测：加载后根节点长时间无内容
  *
  * 同时向用户弹出 Toast（去重 + 限流），并记录行为面包屑用于错误现场还原。
+ *
+ * 以下两类「约定内」的 Promise 拒绝不提示也不上报（Modal onOk 依约定重抛以保持弹窗打开）：
+ * - `ApiError`：统一响应业务错误，request 层已自动弹出错误 Toast
+ * - 控制流标记（如 `throw new Error('validation')`）：页面已自行提示（表单内联错误 / Toast）
  */
 export function useGlobalErrorHandler() {
   const recentRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -39,6 +44,10 @@ export function useGlobalErrorHandler() {
 
     function handleUnhandledRejection(event: PromiseRejectionEvent) {
       const reason = event.reason;
+      // 业务错误（unwrap 抛出）：request 层已弹出错误 Toast，避免重复提示；属预期流程，不上报
+      if (reason instanceof ApiError) return;
+      // Modal onOk 控制流标记（throw new Error('validation') 等单词消息）：页面已自行提示
+      if (reason instanceof Error && reason.name === 'Error' && /^\w+$/.test(reason.message)) return;
       const message = reason instanceof Error ? reason.message : String(reason || '发生了未处理的异步错误');
       console.error('[GlobalErrorHandler] 未处理的 Promise rejection:', reason);
       showToast(`操作失败：${message}`);

@@ -9,7 +9,7 @@
 | 类型 | 来源 |
 |------|------|
 | `js_error` | 未捕获的运行时错误（window error） |
-| `promise_rejection` | 未处理的 Promise 拒绝 |
+| `promise_rejection` | 未处理的 Promise 拒绝（不含约定内拒绝：`ApiError` 业务错误与弹窗 `onOk` 控制流标记如 `Error('validation')`，二者已由 request 层 / 页面自行提示，不提示也不上报） |
 | `resource_error` | 图片 / 脚本 / 样式等资源加载失败 |
 | `console_error` | `console.error` 调用 |
 | `http_error` | 失败的 fetch/XHR 请求（5xx / 网络错误，由 SDK API 监控转报） |
