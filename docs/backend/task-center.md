@@ -35,12 +35,9 @@ submitAsyncTask()  ──►  async_tasks 表（status=pending，快照 maxAttem
 核心文件：
 
 - `packages/server/src/lib/task-center/` — 框架（registry / config / runner / map）
-- `packages/server/src/services/tasks/async-tasks.service.ts` + `routes/tasks/async-tasks.ts` — 查询与操作 API
-- `packages/server/src/routes/tasks/task-demo.ts` — 业务接入示例（演示任务类型）
-- `packages/web/src/hooks/useAsyncTasks.ts` — 前端实时进度 Hook
-- `packages/web/src/components/TaskTray.tsx` — 全局任务托盘（顶栏）
-- `packages/web/src/pages/system/task-center/TaskCenterPage.tsx` — 管理端全局监控页（任务列表 / 任务类型策略）
-- `packages/web/src/pages/biz/task-demo/TaskDemoPage.tsx` — 业务示例页（可模拟提交）
+- `packages/server/src/lib/task-center/` — 框架（registry / config / runner / map）
+- `packages/server/src/{routes,services}/tasks/` — 查询与操作 API、业务接入示例（演示任务类型）
+- 前端：`useAsyncTasks` Hook（实时进度）、`TaskTray` 全局任务托盘（顶栏）、管理端全局监控页 `/system/task-center`（任务列表 / 任务类型策略）、业务示例页 `/biz/task-demo`（可模拟提交）
 
 数据表：`async_tasks`（任务实例）、`async_task_items`（行级明细，可选层）、`async_task_type_configs`（类型级运行时策略）。
 
@@ -181,7 +178,7 @@ WS 事件：`task:progress`（推送给任务创建者，payload 为 `AsyncTask`
 
 ## 全局任务托盘
 
-顶栏「我的任务」入口（`packages/web/src/components/TaskTray.tsx`，挂载于 AdminLayout）跨页面展示当前用户的进行中 / 最近 10 分钟完成的任务：Badge 显示进行中数量，Popover 内实时进度条并支持直接取消。数据源与业务页共享 `useMyAsyncTasks`（WS 实时 + 轮询兜底），提交任务后无论跳到哪个页面都能看到进度。
+顶栏「我的任务」入口（`TaskTray` 组件，挂载于 AdminLayout）跨页面展示当前用户的进行中 / 最近 10 分钟完成的任务：Badge 显示进行中数量，Popover 内实时进度条并支持直接取消。数据源与业务页共享 `useMyAsyncTasks`（WS 实时 + 轮询兜底），提交任务后无论跳到哪个页面都能看到进度。
 
 ## 与导出中心的分工
 

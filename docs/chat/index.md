@@ -1,6 +1,6 @@
 # 即时通讯
 
-Zenith Admin 的即时通讯模块提供后台用户之间的单聊、群聊、消息搜索、媒体消息、表情回应、投票、卡片消息、Webhook 机器人和 WebSocket 实时同步能力。后端路由挂载在 `/api/chat`、`/api/chat-bots`、`/api/public/chat/webhook` 与 `/api/ws`，前端页面位于 `packages/web/src/pages/chat/ChatPage.tsx`，浮动快捷入口由 `QuickChatButton` 提供。
+Zenith Admin 的即时通讯模块提供后台用户之间的单聊、群聊、消息搜索、媒体消息、表情回应、投票、卡片消息、Webhook 机器人和 WebSocket 实时同步能力。后端路由挂载在 `/api/chat`、`/api/chat-bots`、`/api/public/chat/webhook` 与 `/api/ws`，前端页面菜单路径为 `/chat`，浮动快捷入口由 `QuickChatButton` 提供。
 
 ---
 
@@ -235,7 +235,7 @@ ICE 配置通过 `GET /api/chat/rtc/config` 获取。通话结束后可调用 `P
 
 ### Webhook 机器人
 
-Webhook 机器人由后台页面 `packages/web/src/pages/system/chat-bots/ChatBotsPage.tsx` 管理，菜单路径为 `/system/chat-bots`，权限码为：
+Webhook 机器人由后台「聊天机器人」页面管理，菜单路径为 `/system/chat-bots`，权限码为：
 
 - `chat:bot:list`
 - `chat:bot:create`
