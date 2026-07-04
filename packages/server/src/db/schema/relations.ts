@@ -14,7 +14,7 @@ import { dbBackups } from './db-admin';
 import { ruleDecisionTables, ruleDecisionTableVersions, ruleTestCases } from './rules';
 import { chatConversationMembers, chatConversations, chatMessageReactions, chatMessages, chatWebhooks } from './chat';
 import { channelAutoReplies, channelConversations, channelMenus, channelMessages, channelMessageTargets, channelQuickReplies, channels, channelSubscriptions } from './channels';
-import { paymentChannelConfigs, paymentOrders, paymentReconBatches, paymentReconItems, paymentRefunds, paymentSharingOrders, paymentSharingReceivers, paymentWebhookDeliveries, paymentWebhookEndpoints } from './payment';
+import { paymentChannelConfigs, paymentOrders, paymentReconBatches, paymentReconItems, paymentRefunds, paymentSharingOrders, paymentSharingReceivers, paymentTransfers, paymentWebhookDeliveries, paymentWebhookEndpoints } from './payment';
 import { aiConversations, aiMessages, aiPromptTemplates, aiProviderConfigs, userAiConfigs } from './ai';
 import { appWebhookDeliveries, appWebhookSubscriptions, oauth2AuthorizationCodes, oauth2Clients, oauth2Tokens, oauth2UserGrants, ratePlans } from './open-platform';
 import { checkinMilestones, coupons, memberCheckinMilestoneAwards, memberCheckins, memberCoupons, memberLevels, memberPointAccounts, memberPointTransactions, members, memberWallets, memberWalletTransactions } from './member';
@@ -116,6 +116,11 @@ export const paymentSharingReceiversRelations = relations(paymentSharingReceiver
 
 export const paymentSharingOrdersRelations = relations(paymentSharingOrders, ({ one }) => ({
   receiver: one(paymentSharingReceivers, { fields: [paymentSharingOrders.receiverId], references: [paymentSharingReceivers.id] }),
+}));
+
+export const paymentTransfersRelations = relations(paymentTransfers, ({ one }) => ({
+  channelConfig: one(paymentChannelConfigs, { fields: [paymentTransfers.channelConfigId], references: [paymentChannelConfigs.id] }),
+  operator: one(users, { fields: [paymentTransfers.operatorId], references: [users.id] }),
 }));
 
 export const tenantsRelations = relations(tenants, ({ one, many }) => ({

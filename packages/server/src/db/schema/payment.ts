@@ -279,7 +279,7 @@ export type NewPaymentWebhookDelivery = typeof paymentWebhookDeliveries.$inferIn
 // ─── 资金流水台账 ─────────────────────────────────────────────────────────────
 export const paymentLedgerDirectionEnum = pgEnum('payment_ledger_direction', ['in', 'out']);
 
-export const paymentLedgerTypeEnum = pgEnum('payment_ledger_type', ['payment', 'refund', 'fee', 'settlement', 'adjust']);
+export const paymentLedgerTypeEnum = pgEnum('payment_ledger_type', ['payment', 'refund', 'fee', 'settlement', 'adjust', 'transfer']);
 
 export const paymentLedgerEntries = pgTable('payment_ledger_entries', {
   id: serial('id').primaryKey(),
@@ -459,9 +459,46 @@ export type PaymentRiskRuleRow = typeof paymentRiskRules.$inferSelect;
 
 export type NewPaymentRiskRule = typeof paymentRiskRules.$inferInsert;
 
-// ─── 支付方式配置 ─────────────────────────────────────────────────────────────
-export const paymentMethodConfigs = pgTable('payment_method_configs', {
+// ─── 转账/代付单 ─────────────────────────────────────────────────────────────
+export const paymentTransferStatusEnum = pgEnum('payment_transfer_status', ['pending', 'processing', 'success', 'failed']);
+
+export const paymentTransfers = pgTable('payment_transfers', {
   id: serial('id').primaryKey(),
+  transferNo: varchar('transfer_no', { length: 64 }).notNull().unique(),
+  /** 商户转账单号（渠道幂等键，与 transferNo 相同值单独存列便于对账） */
+  outTransferNo: varchar('out_transfer_no', { length: 64 }).notNull(),
+  channel: paymentChannelEnum('channel').notNull(),
+  channelConfigId: integer('channel_config_id').references(() => paymentChannelConfigs.id, { onDelete: 'set null' }),
+  /** 收款账号（微信 openid / 支付宝登录账号） */
+  receiverAccount: varchar('receiver_account', { length: 128 }).notNull(),
+  receiverName: varchar('receiver_name', { length: 64 }),
+  amount: integer('amount').notNull(),
+  remark: varchar('remark', { length: 256 }),
+  status: paymentTransferStatusEnum('status').notNull().default('pending'),
+  channelTransferNo: varchar('channel_transfer_no', { length: 128 }),
+  failReason: varchar('fail_reason', { length: 512 }),
+  /** 渠道调用已尝试次数（仅渠道未受理的失败单可人工重试） */
+  attempts: integer('attempts').notNull().default(0),
+  bizType: varchar('biz_type', { length: 64 }),
+  bizId: varchar('biz_id', { length: 128 }),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+  operatorId: integer('operator_id').references(() => users.id, { onDelete: 'set null' }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  unique('payment_transfers_channel_out_no_uq').on(t.channel, t.outTransferNo),
+  index('payment_transfers_status_idx').on(t.status),
+  index('payment_transfers_biz_idx').on(t.bizType, t.bizId),
+]);
+
+export type PaymentTransferRow = typeof paymentTransfers.$inferSelect;
+
+export type NewPaymentTransfer = typeof paymentTransfers.$inferInsert;
+
+// ─── 支付方式配置 ─────────────────────────────────────────────────────────────
+export const paymentMethodConfigs = pgTable('payment_method_configs', {  id: serial('id').primaryKey(),
   method: paymentMethodEnum('method').notNull().unique(),
   channel: paymentChannelEnum('channel').notNull(),
   label: varchar('label', { length: 64 }).notNull(),

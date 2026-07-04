@@ -1,4 +1,4 @@
-import type { PaymentChannel, PaymentMethod, PaymentOrderStatus, PaymentRefundStatus, PaymentRefundApprovalStatus, PaymentReconStatus, PaymentReconResult, PaymentReconHandleStatus, PaymentWebhookDeliveryStatus, PaymentLedgerDirection, PaymentLedgerType, PaymentSettlementStatus, PaymentSharingReceiverType, PaymentSharingOrderStatus, PaymentLinkStatus, PaymentRiskScope, MemberStatus, PointTxType, WalletTxType, CouponType, CouponValidType, CouponTemplateStatus, MemberCouponStatus, WorkflowFormType } from './constants';
+import type { PaymentChannel, PaymentMethod, PaymentOrderStatus, PaymentRefundStatus, PaymentRefundApprovalStatus, PaymentReconStatus, PaymentReconResult, PaymentReconHandleStatus, PaymentWebhookDeliveryStatus, PaymentLedgerDirection, PaymentLedgerType, PaymentSettlementStatus, PaymentSharingReceiverType, PaymentSharingOrderStatus, PaymentLinkStatus, PaymentRiskScope, PaymentTransferStatus, MemberStatus, PointTxType, WalletTxType, CouponType, CouponValidType, CouponTemplateStatus, MemberCouponStatus, WorkflowFormType } from './constants';
 
 export type EntityStatus = 'enabled' | 'disabled';
 
@@ -5776,6 +5776,27 @@ export interface PaymentSharingOrder {
   channelSharingNo?: string | null;
   finishedAt?: string | null;
   remark?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentTransfer {
+  id: number;
+  transferNo: string;
+  outTransferNo: string;
+  channel: PaymentChannel;
+  receiverAccount: string;
+  receiverName?: string | null;
+  amount: number; // 分
+  remark?: string | null;
+  status: PaymentTransferStatus;
+  channelTransferNo?: string | null;
+  failReason?: string | null;
+  attempts: number;
+  bizType?: string | null;
+  bizId?: string | null;
+  finishedAt?: string | null;
+  operatorName?: string | null;
   createdAt: string;
   updatedAt: string;
 }

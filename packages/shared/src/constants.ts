@@ -178,10 +178,10 @@ export const PAYMENT_LEDGER_DIRECTION_LABELS: Record<PaymentLedgerDirection, str
   in: '收入', out: '支出',
 };
 
-export const PAYMENT_LEDGER_TYPES = ['payment', 'refund', 'fee', 'settlement', 'adjust'] as const;
+export const PAYMENT_LEDGER_TYPES = ['payment', 'refund', 'fee', 'settlement', 'adjust', 'transfer'] as const;
 export type PaymentLedgerType = typeof PAYMENT_LEDGER_TYPES[number];
 export const PAYMENT_LEDGER_TYPE_LABELS: Record<PaymentLedgerType, string> = {
-  payment: '收款', refund: '退款', fee: '手续费', settlement: '结算', adjust: '调整',
+  payment: '收款', refund: '退款', fee: '手续费', settlement: '结算', adjust: '调整', transfer: '转账',
 };
 
 // ─── 支付中心扩展 · B 档（费率 / 结算 / 分账 / 支付链接 / 风控 / 支付方式 / 报表）──
@@ -213,6 +213,12 @@ export const PAYMENT_RISK_SCOPES = ['global', 'channel', 'bizType'] as const;
 export type PaymentRiskScope = typeof PAYMENT_RISK_SCOPES[number];
 export const PAYMENT_RISK_SCOPE_LABELS: Record<PaymentRiskScope, string> = {
   global: '全局', channel: '按渠道', bizType: '按业务类型',
+};
+
+export const PAYMENT_TRANSFER_STATUSES = ['pending', 'processing', 'success', 'failed'] as const;
+export type PaymentTransferStatus = typeof PAYMENT_TRANSFER_STATUSES[number];
+export const PAYMENT_TRANSFER_STATUS_LABELS: Record<PaymentTransferStatus, string> = {
+  pending: '待发起', processing: '处理中', success: '转账成功', failed: '转账失败',
 };
 
 export const PAYMENT_REPORT_GROUP_BYS = ['bizType', 'channel', 'day'] as const;

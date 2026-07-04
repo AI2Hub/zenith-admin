@@ -12,7 +12,7 @@ const reconStatusEnum = z.enum(['pending', 'comparing', 'done', 'failed']);
 const reconResultEnum = z.enum(['matched', 'local_only', 'channel_only', 'amount_diff', 'status_diff']);
 const webhookDeliveryStatusEnum = z.enum(['pending', 'success', 'failed']);
 const ledgerDirectionEnum = z.enum(['in', 'out']);
-const ledgerTypeEnum = z.enum(['payment', 'refund', 'fee', 'settlement', 'adjust']);
+const ledgerTypeEnum = z.enum(['payment', 'refund', 'fee', 'settlement', 'adjust', 'transfer']);
 
 export const PaymentChannelConfigDTO = z
   .object({
@@ -362,6 +362,38 @@ export const PaymentSharingOrderDTO = z
     updatedAt: z.string(),
   })
   .openapi('PaymentSharingOrder');
+
+export const PaymentTransferDTO = z
+  .object({
+    id: z.number().int(),
+    transferNo: z.string(),
+    outTransferNo: z.string(),
+    channel: channelEnum,
+    receiverAccount: z.string(),
+    receiverName: z.string().nullable().optional(),
+    amount: z.number().int(),
+    remark: z.string().nullable().optional(),
+    status: z.enum(['pending', 'processing', 'success', 'failed']),
+    channelTransferNo: z.string().nullable().optional(),
+    failReason: z.string().nullable().optional(),
+    attempts: z.number().int(),
+    bizType: z.string().nullable().optional(),
+    bizId: z.string().nullable().optional(),
+    finishedAt: z.string().nullable().optional(),
+    operatorName: z.string().nullable().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('PaymentTransfer');
+
+export const PaymentTransferSummaryDTO = z
+  .object({
+    totalAmount: z.number().int(),
+    successCount: z.number().int(),
+    processingCount: z.number().int(),
+    failedCount: z.number().int(),
+  })
+  .openapi('PaymentTransferSummary');
 
 export const PaymentLinkDTO = z
   .object({

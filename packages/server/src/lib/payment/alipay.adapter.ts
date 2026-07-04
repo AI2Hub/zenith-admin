@@ -19,6 +19,9 @@ import type {
   ProfitShareResult,
   RefundQueryResult,
   RefundResult,
+  TransferInput,
+  TransferQueryResult,
+  TransferResult,
 } from './types';
 
 const PROD_GATEWAY = 'https://openapi.alipay.com/gateway.do';
@@ -291,10 +294,59 @@ export const alipayAdapter: PaymentChannelAdapter = {
     }
   },
 
-  async profitShare(_ctx: AdapterContext, order, receiver: ProfitShareReceiver): Promise<ProfitShareResult> {
-    // 模拟实现：支付宝「分账请求」(alipay.trade.order.settle) 需签约分账协议，此处生成渠道分账单号即时返回成功。
+  async profitShare(_ctx: AdapterContext, order, receiver: ProfitShareReceiver, _outSharingNo: string): Promise<ProfitShareResult> {
+    // 模拟实现：支付宝「分账请求」(alipay.trade.order.settle) 需签约分账协议并预先绑定分账关系，第一期保持模拟。
     logger.info('[alipay] simulate profit share', { orderNo: order.orderNo, account: receiver.account, amount: receiver.amount });
     await Promise.resolve();
     return { channelSharingNo: `ALISHARE${Date.now()}${Math.floor(Math.random() * 1e6)}`, status: 'success' };
+  },
+
+  async transfer(ctx: AdapterContext, input: TransferInput): Promise<TransferResult> {
+    if (ctx.config.sandbox) {
+      logger.info('[alipay] simulate transfer (sandbox)', { outTransferNo: input.outTransferNo, amount: input.amount });
+      await Promise.resolve();
+      return { channelTransferNo: `ALITRF${Date.now()}${Math.floor(Math.random() * 1e6)}`, status: 'success' };
+    }
+    const res = await alipayApiCall(
+      ctx,
+      'alipay.fund.trans.uni.transfer',
+      {
+        out_biz_no: input.outTransferNo,
+        trans_amount: yuan(input.amount),
+        product_code: 'TRANS_ACCOUNT_NO_PWD',
+        biz_scene: 'DIRECT_TRANSFER',
+        order_title: (input.remark || '转账').slice(0, 128),
+        payee_info: {
+          identity: input.receiverAccount,
+          identity_type: 'ALIPAY_LOGON_ID',
+          name: input.receiverName || undefined,
+        },
+      },
+      'alipay_fund_trans_uni_transfer_response',
+    );
+    // code=10000 且 status=SUCCESS 表示转账成功；DEALING 为处理中
+    const status: TransferResult['status'] = res.status === 'SUCCESS' ? 'success' : res.status === 'DEALING' ? 'processing' : 'failed';
+    return { channelTransferNo: res.order_id ?? res.pay_fund_order_id, status, raw: res };
+  },
+
+  async queryTransfer(ctx: AdapterContext, input): Promise<TransferQueryResult> {
+    if (ctx.config.sandbox) {
+      await Promise.resolve();
+      return { status: 'success' };
+    }
+    const res = await alipayApiCall(
+      ctx,
+      'alipay.fund.trans.common.query',
+      { out_biz_no: input.outTransferNo, product_code: 'TRANS_ACCOUNT_NO_PWD', biz_scene: 'DIRECT_TRANSFER' },
+      'alipay_fund_trans_common_query_response',
+    );
+    const status: TransferQueryResult['status'] = res.status === 'SUCCESS' ? 'success' : res.status === 'DEALING' ? 'processing' : 'failed';
+    return {
+      status,
+      channelTransferNo: res.order_id ?? res.pay_fund_order_id,
+      finishedAt: res.pay_date ? new Date(res.pay_date) : undefined,
+      failReason: res.fail_reason ?? res.error_code,
+      raw: res,
+    };
   },
 };

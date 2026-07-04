@@ -20,6 +20,7 @@ import type {
   PaymentSettlementStatus,
   PaymentSharingOrder,
   PaymentSharingReceiver,
+  PaymentTransfer,
 } from '@zenith/shared';
 
 const SEED = PAYMENT_MOCK_SEED_TIME;
@@ -428,6 +429,82 @@ const reportHandlers = [
   }),
 ];
 
+// ─── 转账/代付 ────────────────────────────────────────────────────────────────
+const transfers: PaymentTransfer[] = [
+  { id: 1, transferNo: 'TRF1700000000001', outTransferNo: 'TRF1700000000001', channel: 'wechat', receiverAccount: 'oDEMO_openid_001', receiverName: '张三', amount: 5000, remark: '活动奖励发放', status: 'success', channelTransferNo: 'WXTRF202401010001', failReason: null, attempts: 1, bizType: 'activity_reward', bizId: 'ACT-1', finishedAt: SEED, operatorName: '管理员', createdAt: SEED, updatedAt: SEED },
+  { id: 2, transferNo: 'TRF1700000000002', outTransferNo: 'TRF1700000000002', channel: 'alipay', receiverAccount: 'demo@alipay.com', receiverName: null, amount: 12000, remark: '供应商结算', status: 'processing', channelTransferNo: 'ALITRF202401010002', failReason: null, attempts: 1, bizType: null, bizId: null, finishedAt: null, operatorName: '管理员', createdAt: SEED, updatedAt: SEED },
+  { id: 3, transferNo: 'TRF1700000000003', outTransferNo: 'TRF1700000000003', channel: 'wechat', receiverAccount: 'oDEMO_openid_003', receiverName: null, amount: 800, remark: '红包补发', status: 'failed', channelTransferNo: null, failReason: '收款账号不存在', attempts: 1, bizType: null, bizId: null, finishedAt: SEED, operatorName: '管理员', createdAt: SEED, updatedAt: SEED },
+];
+let nextTransferId = 4;
+
+const transferHandlers = [
+  http.get('/api/payment/transfers/summary', () => {
+    const success = transfers.filter((t) => t.status === 'success');
+    return ok({
+      totalAmount: success.reduce((s, t) => s + t.amount, 0),
+      successCount: success.length,
+      processingCount: transfers.filter((t) => t.status === 'processing').length,
+      failedCount: transfers.filter((t) => t.status === 'failed').length,
+    });
+  }),
+  http.get('/api/payment/transfers', ({ request }) => {
+    const url = new URL(request.url);
+    const keyword = url.searchParams.get('keyword') ?? '';
+    const channel = url.searchParams.get('channel') ?? '';
+    const status = url.searchParams.get('status') ?? '';
+    const filtered = transfers.filter(
+      (t) =>
+        (!keyword || t.transferNo.includes(keyword) || t.receiverAccount.includes(keyword)) &&
+        (!channel || t.channel === channel) &&
+        (!status || t.status === status),
+    );
+    return ok(paginate([...filtered].reverse(), url));
+  }),
+  http.get('/api/payment/transfers/:id', ({ params }) => {
+    const t = transfers.find((x) => x.id === Number(params.id));
+    return t ? ok(t) : notFound('转账单不存在');
+  }),
+  http.post('/api/payment/transfers', async ({ request }) => {
+    const b = (await request.json()) as { channel: PaymentChannel; receiverAccount: string; receiverName?: string; amount: number; remark?: string };
+    const now = mockDateTime();
+    const no = `TRF${Date.now()}`;
+    const item: PaymentTransfer = {
+      id: nextTransferId++, transferNo: no, outTransferNo: no, channel: b.channel, receiverAccount: b.receiverAccount,
+      receiverName: b.receiverName ?? null, amount: b.amount, remark: b.remark ?? null, status: 'success',
+      channelTransferNo: `${b.channel === 'wechat' ? 'WXTRF' : 'ALITRF'}${Date.now()}`, failReason: null, attempts: 1,
+      bizType: null, bizId: null, finishedAt: now, operatorName: '管理员', createdAt: now, updatedAt: now,
+    };
+    transfers.push(item);
+    recordMockLedgerEntry({ direction: 'out', type: 'transfer', amount: item.amount, orderNo: item.transferNo, refundNo: null, channel: item.channel, bizType: item.bizType, remark: `转账支出（${item.receiverAccount}）` });
+    return ok(item, '转账已受理');
+  }),
+  http.post('/api/payment/transfers/:id/query', ({ params }) => {
+    const t = transfers.find((x) => x.id === Number(params.id));
+    if (!t) return notFound('转账单不存在');
+    if (t.status === 'processing') {
+      t.status = 'success';
+      t.finishedAt = mockDateTime();
+      t.updatedAt = mockDateTime();
+      recordMockLedgerEntry({ direction: 'out', type: 'transfer', amount: t.amount, orderNo: t.transferNo, refundNo: null, channel: t.channel, bizType: t.bizType ?? null, remark: `转账支出（${t.receiverAccount}）` });
+    }
+    return ok(t, '查单完成');
+  }),
+  http.post('/api/payment/transfers/:id/retry', ({ params }) => {
+    const t = transfers.find((x) => x.id === Number(params.id));
+    if (!t) return notFound('转账单不存在');
+    if (t.status !== 'failed') return badRequest('仅失败的转账单可重试');
+    if (t.channelTransferNo) return badRequest('渠道已受理该转账单，请通过「查单」同步结果');
+    t.status = 'success';
+    t.channelTransferNo = `${t.channel === 'wechat' ? 'WXTRF' : 'ALITRF'}${Date.now()}`;
+    t.failReason = null;
+    t.attempts += 1;
+    t.finishedAt = mockDateTime();
+    t.updatedAt = mockDateTime();
+    recordMockLedgerEntry({ direction: 'out', type: 'transfer', amount: t.amount, orderNo: t.transferNo, refundNo: null, channel: t.channel, bizType: t.bizType ?? null, remark: `转账支出（${t.receiverAccount}）` });
+    return ok(t, '重试完成');
+  }),
+];
+
 export const paymentBExtHandlers = [
   ...feeHandlers,
   ...settlementHandlers,
@@ -436,4 +513,5 @@ export const paymentBExtHandlers = [
   ...riskHandlers,
   ...methodHandlers,
   ...reportHandlers,
+  ...transferHandlers,
 ];

@@ -662,15 +662,28 @@ handlerRegistry.set('retryPaymentWebhooks', async () => {
 });
 
 handlerRegistry.set('retryFailedSharing', async () => {
-  const { retryFailedSharingOrders } = await import('../services/payment/payment-sharing.service');
+  const { retryFailedSharingOrders, syncProcessingSharingOrders } = await import('../services/payment/payment-sharing.service');
   const r = await retryFailedSharingOrders();
-  return `重试失败分账单 ${r.scanned} 条，成功 ${r.succeeded} 条`;
+  const s = await syncProcessingSharingOrders();
+  return `重试失败分账单 ${r.scanned} 条（成功 ${r.succeeded}），同步处理中分账单 ${s.scanned} 条（完结 ${s.finished}）`;
 });
 
 handlerRegistry.set('generateDailySettlements', async () => {
   const { generateDailySettlements } = await import('../services/payment/payment-settlement.service');
   const r = await generateDailySettlements();
   return `T+1 自动结算：生成 ${r.generated} 个批次，跳过 ${r.skipped} 个（已存在）`;
+});
+
+handlerRegistry.set('syncPaymentTransfers', async () => {
+  const { syncProcessingTransfers } = await import('../services/payment/payment-transfer.service');
+  const r = await syncProcessingTransfers();
+  return `同步处理中转账单 ${r.scanned} 条，完结 ${r.finished} 条`;
+});
+
+handlerRegistry.set('autoPaymentRecon', async () => {
+  const { autoReconcileYesterday } = await import('../services/payment/payment-recon.service');
+  const r = await autoReconcileYesterday();
+  return `自动对账：生成 ${r.generated} 个批次，跳过 ${r.skipped} 个`;
 });
 
 handlerRegistry.set('analyticsRollupDaily', async (params) => {

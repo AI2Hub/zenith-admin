@@ -3,12 +3,14 @@
  * 上传渠道对账单（CSV），与本地订单逐笔比对，生成差异报表
  * （一致 / 本地有渠道无 / 渠道有本地无 / 金额不一致）。
  * 差异处理流：差异项创建时置 handleStatus=pending，人工处理流转为 已调账/挂账/已忽略。
+ * 自动对账：sandbox 渠道用本地订单生成模拟账单（演示闭环），真实渠道调 adapter.downloadBill 拉取渠道账单。
  */
-import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import { db } from '../../db';
 import {
+  paymentChannelConfigs,
   paymentOrders,
   paymentReconBatches,
   paymentReconItems,
@@ -18,8 +20,12 @@ import {
 import { currentUser } from '../../lib/context';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { mergeWhere, withPagination } from '../../lib/where-helpers';
-import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { formatDate, formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { recordLedgerEntry } from './payment-ledger.service';
+import { buildAdapterContext } from './payment.service';
+import { getAdapter } from '../../lib/payment/registry';
+import logger from '../../lib/logger';
+import type { SQL } from 'drizzle-orm';
 import type { HandlePaymentReconItemInput, PaymentChannel, PaymentReconBatch, PaymentReconHandleStatus, PaymentReconItem, PaymentReconResult, PaymentReconStatus } from '@zenith/shared';
 
 function genNo(prefix: string): string {
@@ -99,10 +105,9 @@ export function parseChannelBill(text: string): ChannelRecord[] {
   return out;
 }
 
-async function loadLocalPaidRows(channel: PaymentChannel, billDate: string) {
+async function loadLocalPaidRowsScoped(channel: PaymentChannel, billDate: string, orderWhere?: SQL) {
   const start = parseDateTimeInput(`${billDate} 00:00:00`);
   const end = parseDateTimeInput(`${billDate} 23:59:59`);
-  const tc = tenantCondition(paymentOrders, currentUser());
   return db
     .select({
       orderNo: paymentOrders.orderNo,
@@ -120,9 +125,13 @@ async function loadLocalPaidRows(channel: PaymentChannel, billDate: string) {
           start ? gte(paymentOrders.paidAt, start) : undefined,
           end ? lte(paymentOrders.paidAt, end) : undefined,
         ),
-        tc,
+        orderWhere,
       ),
     );
+}
+
+async function loadLocalPaidRows(channel: PaymentChannel, billDate: string) {
+  return loadLocalPaidRowsScoped(channel, billDate, tenantCondition(paymentOrders, currentUser()));
 }
 
 export interface ListReconBatchesQuery {
@@ -182,11 +191,23 @@ export interface CreateReconInput {
   remark?: string;
 }
 
-/** 创建对账批次：解析渠道账单 + 拉本地订单 + 逐笔比对 + 落库统计。 */
+/** 创建对账批次（路由入口）：按当前登录用户租户口径。 */
 export async function createReconBatch(input: CreateReconInput): Promise<PaymentReconBatch> {
-  const tenantId = getCreateTenantId(currentUser());
+  const user = currentUser();
+  return createReconBatchScoped(input, { tenantId: getCreateTenantId(user), orderWhere: tenantCondition(paymentOrders, user) });
+}
+
+interface ReconScope {
+  /** 批次归属租户 */
+  tenantId: number | null;
+  /** 本地订单聚合的租户过滤（undefined = 不过滤） */
+  orderWhere?: SQL;
+}
+
+/** 对账核心：解析渠道账单 + 拉本地订单 + 逐笔比对 + 落库统计。不依赖请求上下文，供路由与定时任务复用。 */
+async function createReconBatchScoped(input: CreateReconInput, scope: ReconScope): Promise<PaymentReconBatch> {
   const channelRecords = parseChannelBill(input.billText);
-  const localRows = await loadLocalPaidRows(input.channel, input.billDate);
+  const localRows = await loadLocalPaidRowsScoped(input.channel, input.billDate, scope.orderWhere);
 
   const localMap = new Map(localRows.map((r) => [r.orderNo, { amount: r.paidAmount ?? r.amount, status: r.status, channelTradeNo: r.channelTradeNo }]));
   const channelMap = new Map(channelRecords.map((r) => [r.orderNo, r]));
@@ -235,7 +256,7 @@ export async function createReconBatch(input: CreateReconInput): Promise<Payment
         matchedCount: matched,
         diffCount,
         remark: input.remark ?? null,
-        tenantId,
+        tenantId: scope.tenantId,
       })
       .returning();
     if (items.length > 0) {
@@ -312,4 +333,80 @@ export async function generateSampleBill(channel: PaymentChannel, billDate: stri
     lines.push(`${r.orderNo},${r.channelTradeNo ?? ''},${r.paidAmount ?? r.amount},SUCCESS`);
   }
   return lines.join('\n');
+}
+
+// ─── 自动对账（拉取渠道账单）──────────────────────────────────────────────────
+
+async function resolveReconConfig(channel: PaymentChannel) {
+  const [preferred] = await db
+    .select()
+    .from(paymentChannelConfigs)
+    .where(and(eq(paymentChannelConfigs.channel, channel), eq(paymentChannelConfigs.status, 'enabled'), eq(paymentChannelConfigs.isDefault, true)))
+    .limit(1);
+  if (preferred) return preferred;
+  const [anyEnabled] = await db
+    .select()
+    .from(paymentChannelConfigs)
+    .where(and(eq(paymentChannelConfigs.channel, channel), eq(paymentChannelConfigs.status, 'enabled')))
+    .limit(1);
+  return anyEnabled ?? null;
+}
+
+/** 自动拉取渠道账单并对账：sandbox 渠道用本地订单生成模拟账单（演示可闭环），
+ * 真实渠道调 adapter.downloadBill（微信 tradebill；支付宝暂不支持自动拉取）。 */
+export async function autoReconcile(channel: PaymentChannel, billDate: string, scope: ReconScope): Promise<PaymentReconBatch> {
+  const config = await resolveReconConfig(channel);
+  if (!config) throw new HTTPException(400, { message: `渠道 ${channel} 无启用配置，无法自动对账` });
+
+  let billText: string;
+  let source: string;
+  if (config.sandbox) {
+    const rows = await loadLocalPaidRowsScoped(channel, billDate, scope.orderWhere);
+    const lines = ['订单号,渠道交易号,金额(分),状态'];
+    for (const r of rows) lines.push(`${r.orderNo},${r.channelTradeNo ?? ''},${r.paidAmount ?? r.amount},SUCCESS`);
+    billText = lines.join('\n');
+    source = '自动对账（沙箱模拟账单）';
+  } else {
+    const adapter = getAdapter(channel);
+    if (!adapter.downloadBill) throw new HTTPException(400, { message: `渠道 ${channel} 暂不支持自动拉取账单，请手动上传` });
+    billText = await adapter.downloadBill(buildAdapterContext(config), billDate);
+    source = '自动对账（渠道账单）';
+  }
+  return createReconBatchScoped({ channel, billDate, billText, remark: source }, scope);
+}
+
+/** 路由入口：按当前登录用户租户口径自动对账。 */
+export async function autoReconcileForCurrentUser(channel: PaymentChannel, billDate: string): Promise<PaymentReconBatch> {
+  const user = currentUser();
+  return autoReconcile(channel, billDate, { tenantId: getCreateTenantId(user), orderWhere: tenantCondition(paymentOrders, user) });
+}
+
+/** Cron：为昨日账期按渠道自动对账（全局口径）。当日已存在该渠道账期批次则跳过，避免重复。 */
+export async function autoReconcileYesterday(): Promise<{ generated: number; skipped: number }> {
+  const billDate = formatDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
+  let generated = 0;
+  let skipped = 0;
+  for (const channel of ['wechat', 'alipay'] as const) {
+    const config = await resolveReconConfig(channel);
+    if (!config) {
+      skipped++;
+      continue;
+    }
+    const exists = await db.$count(
+      paymentReconBatches,
+      and(eq(paymentReconBatches.channel, channel), eq(paymentReconBatches.billDate, billDate), isNull(paymentReconBatches.tenantId)),
+    );
+    if (exists > 0) {
+      skipped++;
+      continue;
+    }
+    try {
+      await autoReconcile(channel, billDate, { tenantId: null });
+      generated++;
+    } catch (err) {
+      skipped++;
+      logger.warn('[payment-recon] auto reconcile skipped', { channel, billDate, err: err instanceof Error ? err.message : err });
+    }
+  }
+  return { generated, skipped };
 }

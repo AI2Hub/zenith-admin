@@ -56,8 +56,18 @@ flowchart LR
 | `closeExpiredPaymentOrders` | 关闭超 `expiredAt` 仍处于 `pending` / `paying` 的订单 |
 | `paymentReconciliation` | 对创建超过 2 分钟且仍 `paying` 的订单主动查单（`queryPayment`），纠正状态（回调兜底） |
 | `dispatchPaymentEvents` | 补投 Outbox 中遗留的 `pending` 履约事件 |
-| `retryFailedSharing` | 重试渠道调用失败的分账单（渠道未受理且未达重试上限，防止分账单永久卡失败态） |
+| `retryFailedSharing` | 重试渠道调用失败的分账单（渠道未受理且未达重试上限），并同步 `processing` 分账单终态 |
 | `generateDailySettlements` | T+1 自动结算：每日为昨日账期按渠道 × 租户生成结算批次（无交易跳过，唯一索引幂等） |
+| `syncPaymentTransfers` | 查询渠道转账结果，同步 `processing` 转账单终态（成功自动记台账） |
+| `autoPaymentRecon` | 每日拉取昨日渠道账单自动对账（沙箱渠道生成模拟账单；已有批次跳过） |
+
+### 对账自动拉取
+
+「对账中心」支持两种建批方式：手动上传渠道账单 CSV，或**自动拉取**（页面按钮 `POST /api/payment/recon/auto` / 定时任务）：
+
+- **沙箱渠道**（`sandbox=true`）：用本地订单生成模拟账单，演示环境可完整闭环；
+- **微信生产渠道**：调 `GET /v3/bill/tradebill` 获取下载链接 → 签名下载交易账单 → 按表头解析（商户订单号 / 微信订单号 / 订单金额 / 交易状态）转换为内部标准 CSV 后比对；
+- **支付宝生产渠道**：账单为 zip 压缩包，暂不支持自动拉取，需手动上传。
 
 后台「系统管理 → 定时任务」UI 即可配置 Cron 表达式，无需改调度框架。详见 [定时任务](../backend/cron-jobs)。
 

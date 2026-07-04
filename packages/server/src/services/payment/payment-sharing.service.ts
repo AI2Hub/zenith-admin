@@ -235,7 +235,7 @@ async function executeSharingAtChannel(
       amount: sharing.amount,
       name: receiver.name,
       receiverType: receiver.receiverType,
-    });
+    }, sharing.sharingNo);
     const status: PaymentSharingOrderStatus = res.status === 'success' ? 'success' : res.status === 'failed' ? 'failed' : 'processing';
     const [updated] = await db
       .update(paymentSharingOrders)
@@ -347,4 +347,38 @@ export async function retryFailedSharingOrders(): Promise<{ scanned: number; suc
     if (updated.row.status === 'success') succeeded++;
   }
   return { scanned: rows.length, succeeded };
+}
+
+/** 同步渠道已受理（processing）分账单的终态：调 adapter.queryProfitShare 查询分账结果并回写。 */
+export async function syncProcessingSharingOrders(): Promise<{ scanned: number; finished: number }> {
+  const rows = await db
+    .select()
+    .from(paymentSharingOrders)
+    .where(eq(paymentSharingOrders.status, 'processing'))
+    .limit(50);
+  let finished = 0;
+  for (const sharing of rows) {
+    const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.orderNo, sharing.orderNo)).limit(1);
+    if (!order) continue;
+    const config = await loadOrderConfig(order);
+    if (!config) continue;
+    const adapter = getAdapter(order.channel);
+    if (!adapter.queryProfitShare) continue;
+    try {
+      const res = await adapter.queryProfitShare(buildAdapterContext(config), order, sharing.sharingNo);
+      if (res.status === 'processing') continue;
+      await db
+        .update(paymentSharingOrders)
+        .set({
+          status: res.status,
+          channelSharingNo: res.channelSharingNo ?? sharing.channelSharingNo,
+          finishedAt: res.finishedAt ?? new Date(),
+        })
+        .where(and(eq(paymentSharingOrders.id, sharing.id), eq(paymentSharingOrders.status, 'processing')));
+      finished++;
+    } catch (err) {
+      logger.warn('[payment-sharing] query profit share failed', { sharingNo: sharing.sharingNo, err });
+    }
+  }
+  return { scanned: rows.length, finished };
 }

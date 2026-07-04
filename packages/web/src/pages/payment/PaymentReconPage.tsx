@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Modal, Select, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Search, RotateCcw, Plus } from 'lucide-react';
+import { Search, RotateCcw, Plus, CloudDownload } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -13,6 +13,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import {
   paymentReconKeys,
+  useAutoPaymentRecon,
   useCreatePaymentReconBatch,
   useDeletePaymentReconBatch,
   useHandlePaymentReconItem,
@@ -53,6 +54,8 @@ export default function PaymentReconPage() {
   const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [autoModalVisible, setAutoModalVisible] = useState(false);
+  const autoFormApi = useRef<FormApi | null>(null);
 
   const [detailBatch, setDetailBatch] = useState<PaymentReconBatch | null>(null);
   const [itemResult, setItemResult] = useState('');
@@ -87,6 +90,7 @@ export default function PaymentReconPage() {
   const createMutation = useCreatePaymentReconBatch();
   const deleteMutation = useDeletePaymentReconBatch();
   const handleItemMutation = useHandlePaymentReconItem();
+  const autoMutation = useAutoPaymentRecon();
 
   function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: paymentReconKeys.lists }); }
   function handleReset() { setDraftParams(defaultSearch); setPage(1); setSubmittedParams(defaultSearch); void queryClient.invalidateQueries({ queryKey: paymentReconKeys.lists }); }
@@ -130,6 +134,19 @@ export default function PaymentReconPage() {
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync(id);
     Toast.success('删除成功');
+  }
+
+  async function handleAutoOk() {
+    let values: { channel: PaymentChannel; billDate: Date | string };
+    try {
+      values = (await autoFormApi.current?.validate()) as { channel: PaymentChannel; billDate: Date | string };
+    } catch {
+      throw new Error('validation');
+    }
+    const batch = await autoMutation.mutateAsync({ channel: values.channel, billDate: formatDateForApi(values.billDate) });
+    Toast.success(`对账完成：匹配 ${batch.matchedCount} 笔，差异 ${batch.diffCount} 笔`);
+    setAutoModalVisible(false);
+    autoFormApi.current = null;
   }
 
   function openItems(record: PaymentReconBatch) {
@@ -253,6 +270,9 @@ export default function PaymentReconPage() {
   const renderCreateButton = () => hasPermission('payment:recon:create') ? (
     <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>新建对账</Button>
   ) : null;
+  const renderAutoButton = () => hasPermission('payment:recon:create') ? (
+    <Button type="primary" icon={<CloudDownload size={14} />} onClick={() => setAutoModalVisible(true)}>自动拉取</Button>
+  ) : null;
 
   return (
     <div className="page-container">
@@ -263,12 +283,14 @@ export default function PaymentReconPage() {
             {renderStatusFilter()}
             {renderSearchButton()}
             {renderResetButton()}
+            {renderAutoButton()}
             {renderCreateButton()}
           </>
         )}
         mobilePrimary={(
           <>
             {renderSearchButton()}
+            {renderAutoButton()}
             {renderCreateButton()}
           </>
         )}
@@ -311,6 +333,14 @@ export default function PaymentReconPage() {
             onRefresh={() => void itemsQuery.refetch()} refreshLoading={itemsQuery.isFetching} pagination={buildItemPagination(itemsTotal)}
           />
         </Spin>
+      </AppModal>
+
+      <AppModal title="自动拉取渠道账单对账" visible={autoModalVisible} onOk={handleAutoOk} onCancel={() => { setAutoModalVisible(false); autoFormApi.current = null; }} okButtonProps={{ loading: autoMutation.isPending }} width={480} closeOnEsc>
+        <Form key={autoModalVisible ? 'auto' : 'closed'} getFormApi={(api) => { autoFormApi.current = api; }} initValues={{ channel: 'wechat' }} labelPosition="left" labelWidth={100}>
+          <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={[{ value: 'wechat', label: '微信支付' }, { value: 'alipay', label: '支付宝' }]} rules={[{ required: true, message: '请选择渠道' }]} />
+          <Form.DatePicker field="billDate" label="账单日期" type="date" style={{ width: '100%' }} rules={[{ required: true, message: '请选择账单日期' }]} />
+          <Typography.Text type="tertiary" size="small">沙箱渠道生成模拟账单演示闭环；生产微信渠道自动下载交易账单，支付宝暂需手动上传。</Typography.Text>
+        </Form>
       </AppModal>
 
       <AppModal title={`处理差异${handlingItem?.orderNo ? `（${handlingItem.orderNo}）` : ''}`} visible={!!handlingItem} onOk={handleHandleOk} onCancel={() => { setHandlingItem(null); handleFormApi.current = null; }} okButtonProps={{ loading: handleItemMutation.isPending }} width={520} closeOnEsc>

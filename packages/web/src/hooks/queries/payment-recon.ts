@@ -60,6 +60,15 @@ export function useCreatePaymentReconBatch() {
   });
 }
 
+export function useAutoPaymentRecon() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (values: { channel: string; billDate: string }) =>
+      request.post<PaymentReconBatch>('/api/payment/recon/auto', values).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: paymentReconKeys.all }),
+  });
+}
+
 export function useDeletePaymentReconBatch() {
   const qc = useQueryClient();
   return useMutation({

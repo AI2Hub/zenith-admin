@@ -2095,6 +2095,18 @@ export const handlePaymentReconItemSchema = z.object({
   remark: z.string().max(256).optional(),
 });
 
+/** 转账/代付 */
+export const createPaymentTransferSchema = z.object({
+  channel: paymentChannelZ,
+  channelConfigId: z.number().int().positive().optional(),
+  receiverAccount: z.string().min(1).max(128),
+  receiverName: z.string().max(64).optional(),
+  amount: z.number().int().positive('转账金额必须大于 0'), // 分
+  remark: z.string().max(256).optional(),
+  bizType: z.string().max(64).optional(),
+  bizId: z.string().max(128).optional(),
+});
+
 /** 支付链接 */
 export const createPaymentLinkSchema = z.object({
   subject: z.string().min(1).max(256),
@@ -2136,6 +2148,7 @@ export type UpdatePaymentFeeRuleInput = z.infer<typeof updatePaymentFeeRuleSchem
 export type CreatePaymentSharingReceiverInput = z.infer<typeof createPaymentSharingReceiverSchema>;
 export type UpdatePaymentSharingReceiverInput = z.infer<typeof updatePaymentSharingReceiverSchema>;
 export type HandlePaymentReconItemInput = z.infer<typeof handlePaymentReconItemSchema>;
+export type CreatePaymentTransferInput = z.infer<typeof createPaymentTransferSchema>;
 export type CreatePaymentLinkInput = z.infer<typeof createPaymentLinkSchema>;
 export type UpdatePaymentLinkInput = z.infer<typeof updatePaymentLinkSchema>;
 export type CreatePaymentRiskRuleInput = z.infer<typeof createPaymentRiskRuleSchema>;

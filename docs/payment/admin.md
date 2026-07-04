@@ -71,6 +71,7 @@
 | 风控限额 | `/payment/risk-rules` | `payment:risk:list` | 全局 / 按渠道 / 按业务类型限额规则（单笔上限、当日累计、当日笔数、黑名单），下单前拦截 |
 | 支付方式 | `/payment/methods` | `payment:method:list` | 管理可用支付方式（启停 / 排序 / 名称 / 图标），控制下单可选项 |
 | 财务报表 | `/payment/reports` | `payment:report:view` | 按业务类型 / 渠道 / 日聚合收款·手续费·退款·净额·笔数，柱状图可视化 |
+| 转账管理 | `/payment/transfers` | `payment:transfer:list` | 发起转账/代付（微信零钱 / 支付宝账户），查单同步、失败重试（仅渠道未受理），成功自动记台账 |
 
 ### 手续费 / 费率
 
@@ -88,9 +89,17 @@
 ### 分账 / 分润
 
 - **接收方**：商户 / 个人两类，记录账号与默认分账比例（万分比，可在发起时覆盖）；支持**自动分账**开关（`autoShare`）；
-- **发起分账**：校验订单已支付成功、接收方启用，创建分账单（`processing`）后调用渠道适配器 `profitShare()`（微信 / 支付宝提供与现有 adapter 同档次的模拟实现），落地 `success / failed` 与渠道分账单号；状态机 `pending → processing → success / failed`；
+- **发起分账**：校验订单已支付成功、接收方启用，创建分账单（`processing`）后调用渠道适配器 `profitShare()`，落地 `success / failed` 与渠道分账单号；状态机 `pending → processing → success / failed`；
+- **渠道实现**：微信为**真实分账 API**（`/v3/profitsharing/orders` 请求分账 + 查询分账结果，接收方未添加时自动调 `receivers/add` 后重试；`sandbox=true` 时保持模拟）；支付宝第一期保持模拟；
 - **自动分账**：订阅 `payment.succeeded`，对启用 `autoShare` 且配置比例的接收方自动发起；确定性分账单号（`SHR{orderNo}R{receiverId}`）+ 唯一约束保证事件重复投递幂等，合计金额不超实付；
-- **失败重试**：定时任务 `retryFailedSharing` 每 10 分钟重试渠道调用失败（渠道未受理、`channelSharingNo` 为空）且未达上限（3 次）的分账单。
+- **失败重试与状态同步**：定时任务 `retryFailedSharing` 每 10 分钟重试渠道调用失败（渠道未受理、`channelSharingNo` 为空）且未达上限（3 次）的分账单，并对 `processing` 单调用 `queryProfitShare` 同步终态。
+
+### 转账 / 代付
+
+- **渠道实现**：微信「商家转账到零钱」（`/v3/transfer/batches` 单笔批次 + 明细查单）、支付宝「单笔转账」（`alipay.fund.trans.uni.transfer` + `common.query`）；`sandbox=true` 渠道为模拟即时成功；
+- **状态机**：`pending → processing → success / failed`；微信受理成功即 `processing`，终态由查单同步（手动「查单」或 cron `syncPaymentTransfers` 每 5 分钟兜底）；
+- **资金安全**：`outTransferNo` 为渠道幂等键（`(channel, out_transfer_no)` 唯一）；**仅渠道未受理**（`channelTransferNo` 为空）且未达重试上限（3 次）的失败单允许人工重试，杜绝双付；发起/重试接口挂 `idempotencyGuard` 防重复提交并写审计日志；
+- **台账联动**：转账成功自动记资金台账（`type=transfer`, `direction=out`，按转账单号幂等）。
 
 ### 支付链接 / 收款码
 
@@ -126,6 +135,7 @@
 | `GET/POST /api/payment/fee-rules`，`GET/PUT/DELETE /api/payment/fee-rules/{id}` | 费率规则 CRUD |
 | `GET /api/payment/settlements`，`POST /api/payment/settlements/generate`，`POST /api/payment/settlements/{id}/status`，`DELETE /api/payment/settlements/{id}` | 结算批次：列表 / 生成 / 状态流转 / 删除 |
 | `GET/POST /api/payment/sharing/receivers`，`GET/PUT/DELETE /api/payment/sharing/receivers/{id}`，`GET/POST /api/payment/sharing/orders` | 分账接收方 CRUD 与分账单列表 / 发起 |
+| `GET/POST /api/payment/transfers`，`GET /api/payment/transfers/summary`，`GET /api/payment/transfers/{id}`，`POST /api/payment/transfers/{id}/query`，`POST /api/payment/transfers/{id}/retry` | 转账单列表 / 发起 / 汇总 / 详情 / 查单同步 / 失败重试 |
 | `GET/POST /api/payment/links`，`GET/PUT/DELETE /api/payment/links/{id}` | 支付链接 CRUD |
 | `GET/POST /api/payment/risk-rules`，`GET/PUT/DELETE /api/payment/risk-rules/{id}` | 风控规则 CRUD |
 | `GET /api/payment/methods`，`GET /api/payment/methods/enabled`，`PUT /api/payment/methods/{id}` | 支付方式配置列表 / 可用列表 / 编辑 |

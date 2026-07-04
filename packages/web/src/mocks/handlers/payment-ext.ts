@@ -41,6 +41,49 @@ function sampleBill(channel: PaymentChannel): string {
   return lines.join('\n');
 }
 
+/** 解析账单并与本地订单比对，生成批次 + 明细（供手动上传与自动拉取两个入口复用）。 */
+function createBatchFromBill(channel: PaymentChannel, billDate: string, billText: string, remark: string | null): PaymentReconBatch {
+  const channelRecords = new Map<string, { amount: number; tradeNo?: string }>();
+  for (const raw of billText.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const cols = line.split(',').map((c) => c.trim());
+    if (cols.length < 3 || /^(订单号|order)/i.test(cols[0])) continue;
+    const amt = Number(cols[2]);
+    if (Number.isFinite(amt)) channelRecords.set(cols[0], { amount: yuanToCent(amt), tradeNo: cols[1] });
+  }
+  const localMap = new Map(
+    mockPaymentOrders
+      .filter((o) => o.channel === channel && (o.status === 'success' || o.status === 'refunding' || o.status === 'refunded'))
+      .map((o) => [o.orderNo, { amount: o.paidAmount ?? o.amount, status: o.status, tradeNo: o.channelTradeNo }]),
+  );
+  const items: PaymentReconItem[] = [];
+  let matched = 0;
+  let localAmount = 0;
+  let channelAmount = 0;
+  for (const orderNo of new Set([...localMap.keys(), ...channelRecords.keys()])) {
+    const local = localMap.get(orderNo);
+    const ch = channelRecords.get(orderNo);
+    if (local) localAmount += local.amount;
+    if (ch) channelAmount += ch.amount;
+    let result: PaymentReconResult;
+    if (local && ch) result = local.amount === ch.amount ? 'matched' : 'amount_diff';
+    else if (local) result = 'local_only';
+    else result = 'channel_only';
+    if (result === 'matched') matched++;
+    items.push({ id: nextItemId++, batchId: nextBatchId, orderNo, channelTradeNo: ch?.tradeNo ?? local?.tradeNo ?? null, localAmount: local?.amount ?? null, channelAmount: ch?.amount ?? null, localStatus: local?.status ?? null, channelStatus: ch ? 'SUCCESS' : null, result, handleStatus: result === 'matched' ? null : 'pending', handleRemark: null, handledAt: null, remark: null, createdAt: mockDateTime() });
+  }
+  const batch: PaymentReconBatch = {
+    id: nextBatchId, batchNo: `RECON${Date.now()}`, channel, billDate, status: 'done',
+    localCount: localMap.size, localAmount, channelCount: channelRecords.size, channelAmount,
+    matchedCount: matched, diffCount: items.length - matched, remark, createdAt: mockDateTime(), updatedAt: mockDateTime(),
+  };
+  reconBatches.push(batch);
+  reconItemsByBatch[nextBatchId] = items;
+  nextBatchId++;
+  return batch;
+}
+
 const reconHandlers = [
   http.get('/api/payment/recon/batches', ({ request }) => {
     const url = new URL(request.url);
@@ -55,44 +98,12 @@ const reconHandlers = [
   }),
   http.post('/api/payment/recon/batches', async ({ request }) => {
     const body = (await request.json()) as { channel: PaymentChannel; billDate: string; billText: string; remark?: string };
-    const channelRecords = new Map<string, { amount: number; tradeNo?: string }>();
-    for (const raw of body.billText.split(/\r?\n/)) {
-      const line = raw.trim();
-      if (!line) continue;
-      const cols = line.split(',').map((c) => c.trim());
-      if (cols.length < 3 || /^(订单号|order)/i.test(cols[0])) continue;
-      const amt = Number(cols[2]);
-      if (Number.isFinite(amt)) channelRecords.set(cols[0], { amount: yuanToCent(amt), tradeNo: cols[1] });
-    }
-    const localMap = new Map(
-      mockPaymentOrders
-        .filter((o) => o.channel === body.channel && (o.status === 'success' || o.status === 'refunding' || o.status === 'refunded'))
-        .map((o) => [o.orderNo, { amount: o.paidAmount ?? o.amount, status: o.status, tradeNo: o.channelTradeNo }]),
-    );
-    const items: PaymentReconItem[] = [];
-    let matched = 0;
-    let localAmount = 0;
-    let channelAmount = 0;
-    for (const orderNo of new Set([...localMap.keys(), ...channelRecords.keys()])) {
-      const local = localMap.get(orderNo);
-      const ch = channelRecords.get(orderNo);
-      if (local) localAmount += local.amount;
-      if (ch) channelAmount += ch.amount;
-      let result: PaymentReconResult;
-      if (local && ch) result = local.amount === ch.amount ? 'matched' : 'amount_diff';
-      else if (local) result = 'local_only';
-      else result = 'channel_only';
-      if (result === 'matched') matched++;
-      items.push({ id: nextItemId++, batchId: nextBatchId, orderNo, channelTradeNo: ch?.tradeNo ?? local?.tradeNo ?? null, localAmount: local?.amount ?? null, channelAmount: ch?.amount ?? null, localStatus: local?.status ?? null, channelStatus: ch ? 'SUCCESS' : null, result, handleStatus: result === 'matched' ? null : 'pending', handleRemark: null, handledAt: null, remark: null, createdAt: mockDateTime() });
-    }
-    const batch: PaymentReconBatch = {
-      id: nextBatchId, batchNo: `RECON${Date.now()}`, channel: body.channel, billDate: body.billDate, status: 'done',
-      localCount: localMap.size, localAmount, channelCount: channelRecords.size, channelAmount,
-      matchedCount: matched, diffCount: items.length - matched, remark: body.remark ?? null, createdAt: mockDateTime(), updatedAt: mockDateTime(),
-    };
-    reconBatches.push(batch);
-    reconItemsByBatch[nextBatchId] = items;
-    nextBatchId++;
+    const batch = createBatchFromBill(body.channel, body.billDate, body.billText, body.remark ?? null);
+    return ok(batch, '对账完成');
+  }),
+  http.post('/api/payment/recon/auto', async ({ request }) => {
+    const body = (await request.json()) as { channel: PaymentChannel; billDate: string };
+    const batch = createBatchFromBill(body.channel, body.billDate, sampleBill(body.channel), '自动对账（沙箱模拟账单）');
     return ok(batch, '对账完成');
   }),
   http.get('/api/payment/recon/batches/:id', ({ params }) => {

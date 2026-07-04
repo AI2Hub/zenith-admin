@@ -21,6 +21,7 @@ import {
   deleteReconBatch,
   generateSampleBill,
   handleReconItem,
+  autoReconcileForCurrentUser,
 } from '../../services/payment/payment-recon.service';
 import { handlePaymentReconItemSchema } from '@zenith/shared';
 
@@ -102,6 +103,21 @@ const itemsRoute = defineOpenAPIRoute({
   handler: async (c) => c.json(okBody(await listReconItems(c.req.valid('param').id, c.req.valid('query'))), 200),
 });
 
+const autoRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/auto', tags: ['支付中心-对账'], summary: '自动拉取渠道账单并对账',
+    description: '沙箱渠道用本地订单生成模拟账单（演示闭环）；生产渠道调用渠道账单下载 API（微信交易账单；支付宝暂不支持需手动上传）。',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'payment:recon:create', audit: { description: '自动拉取渠道账单对账', module: '支付中心' } })] as const,
+    request: { body: { content: jsonContent(z.object({ channel: channelEnum, billDate })), required: true } },
+    responses: { ...ok(PaymentReconBatchDTO, '对账完成'), ...commonErrorResponses },
+  }),
+  handler: async (c) => {
+    const { channel, billDate: date } = c.req.valid('json');
+    return c.json(okBody(await autoReconcileForCurrentUser(channel, date), '对账完成'), 200);
+  },
+});
+
 const handleItemRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'patch', path: '/items/{id}/handle', tags: ['支付中心-对账'], summary: '处理对账差异（调账/挂账/忽略）',
@@ -130,6 +146,6 @@ const deleteRoute = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([listRoute, createBatchRoute, sampleRoute, detailRoute, itemsRoute, handleItemRoute, deleteRoute] as const);
+router.openapiRoutes([listRoute, createBatchRoute, sampleRoute, autoRoute, detailRoute, itemsRoute, handleItemRoute, deleteRoute] as const);
 
 export default router;

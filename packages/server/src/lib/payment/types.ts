@@ -64,6 +64,43 @@ export interface ProfitShareResult {
   raw?: unknown;
 }
 
+/** 分账结果查询（processing 单的状态同步） */
+export interface ProfitShareQueryResult {
+  status: 'processing' | 'success' | 'failed';
+  channelSharingNo?: string;
+  finishedAt?: Date;
+  raw?: unknown;
+}
+
+/** 转账/代付入参（渠道无关的标准化字段） */
+export interface TransferInput {
+  /** 商户转账单号（幂等键，渠道侧按此去重） */
+  outTransferNo: string;
+  /** 收款账号（微信=openid，支付宝=登录账号/2088 用户号） */
+  receiverAccount: string;
+  /** 收款人姓名（可选；微信大额需实名校验，本实现不传） */
+  receiverName?: string;
+  /** 转账金额（分） */
+  amount: number;
+  /** 转账备注/标题 */
+  remark?: string;
+}
+
+export interface TransferResult {
+  /** 渠道转账单号（受理成功即返回） */
+  channelTransferNo?: string;
+  status: 'processing' | 'success' | 'failed';
+  raw?: unknown;
+}
+
+export interface TransferQueryResult {
+  status: 'processing' | 'success' | 'failed';
+  channelTransferNo?: string;
+  finishedAt?: Date;
+  failReason?: string;
+  raw?: unknown;
+}
+
 /** 回调验签 + 解析后的标准化结果 */
 export interface NotifyResult {
   /** 验签是否通过 */
@@ -104,10 +141,25 @@ export interface PaymentChannelAdapter {
   verifyNotify(ctx: AdapterContext, rawBody: string, headers: Headers): Promise<NotifyResult>;
   /**
    * 发起单笔分账（可选）。
-   * 渠道侧真实分账 API（微信「请求分账」、支付宝「分账请求」）需商户开通分账权限并签约接收方，
-   * 此处提供模拟实现：生成渠道分账单号并即时返回成功，便于联调与演示。
+   * `outSharingNo` 为本地分账单号，作为渠道侧商户分账单号（幂等键 / 后续查询凭据）。
+   * `sandbox=true` 时为模拟实现（生成渠道分账单号即时成功，便于联调与演示）；
+   * 生产模式走渠道真实分账 API（微信「请求分账」需商户开通分账权限）。
    */
-  profitShare?(ctx: AdapterContext, order: PaymentOrderRow, receiver: ProfitShareReceiver): Promise<ProfitShareResult>;
+  profitShare?(ctx: AdapterContext, order: PaymentOrderRow, receiver: ProfitShareReceiver, outSharingNo: string): Promise<ProfitShareResult>;
+  /** 查询分账结果（可选，用于同步 processing 分账单） */
+  queryProfitShare?(ctx: AdapterContext, order: PaymentOrderRow, outSharingNo: string): Promise<ProfitShareQueryResult>;
+  /**
+   * 转账/代付（可选）：微信商家转账到零钱、支付宝单笔转账。
+   * `sandbox=true` 时为模拟实现（即时成功）。
+   */
+  transfer?(ctx: AdapterContext, input: TransferInput): Promise<TransferResult>;
+  /** 查询转账结果（可选，用于同步 processing 转账单） */
+  queryTransfer?(ctx: AdapterContext, input: Pick<TransferInput, 'outTransferNo'>): Promise<TransferQueryResult>;
+  /**
+   * 下载渠道对账单（可选）：返回内部标准 CSV（`订单号,渠道交易号,金额(分),状态`）。
+   * `sandbox=true` 时由调用方（recon service）用本地订单生成模拟账单，不会调用此方法。
+   */
+  downloadBill?(ctx: AdapterContext, billDate: string): Promise<string>;
   /**
    * 连通性测试（可选）。
    * 向渠道发起一个轻量的探测请求（如查询一个不存在的订单号），
