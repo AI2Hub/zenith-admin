@@ -80,14 +80,26 @@ export default defineConfig(({ mode }) => {
       })] : []),
     ],
     resolve: {
-      alias: {
-        '@': fileURLToPath(new URL('./src', import.meta.url)),
-      },
+      alias: [
+        { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
+        // 精确匹配裸导入 '@douyinfe/semi-ui' → 本地无副作用影子 barrel（见该文件头部说明）：
+        // 官方 barrel 被声明为 sideEffect，全量 re-export 无法摇树，
+        // aiChatDialogue/MarkdownRender 等重组件会被拖进首屏（~550KB gzip）。
+        // 子路径导入（lib/es/*、react19-adapter）不受影响。
+        { find: /^@douyinfe\/semi-ui$/, replacement: fileURLToPath(new URL('./src/lib/semi-ui-barrel.ts', import.meta.url)) },
+      ],
     },
     build: {
       ...(buildTarget ? { target: buildTarget } : {}),
       chunkSizeWarningLimit: 900,
       rollupOptions: {
+        // 影子 barrel（semi-ui-barrel.ts）是纯 re-export，但 @zenith/web 未声明
+        // package.json#sideEffects，源码文件默认被视为有副作用、无法摇树；
+        // 此处精确豁免该文件（返回 undefined 的模块走默认判定）。
+        treeshake: {
+          moduleSideEffects: (id: string): boolean | undefined =>
+            id.replaceAll('\\', '/').endsWith('/src/lib/semi-ui-barrel.ts') ? false : undefined,
+        },
         // 多入口：后台管理（index.html）+ 会员前台（member.html）
         input: {
           main: fileURLToPath(new URL('./index.html', import.meta.url)),
@@ -100,6 +112,9 @@ export default defineConfig(({ mode }) => {
           // vendor-embedpdf），导致入口 HTML 被迫 preload 这些重型包、首屏体积暴涨。
           // 原生 groups 的指派是权威的，且动态 name() 完整保留了原有按包分组策略。
           codeSplitting: {
+            // 仅捕获组内直接匹配的模块：默认的递归捕获会让先建的组（如 aiChatDialogue）
+            // 连带吞掉 typography/tooltip/locale 等公共依赖，入口为取公共件被迫预载整包
+            includeDependenciesRecursively: false,
             groups: [
               {
                 // Vite 运行时 helper（preload polyfill 等虚拟模块）必须独立成组且优先级最高：
@@ -140,6 +155,16 @@ export default defineConfig(({ mode }) => {
                     }
                   }
 
+                  // semi-foundation 同样按模块拆分：整包聚合会让入口为取 button/nav 等
+                  // 基础 foundation 连带预载 markdownRender(→mdx/acorn)、jsonViewer(50KB)
+                  // 等重型 foundation
+                  if (normalizedId.includes('/node_modules/@douyinfe/semi-foundation/lib/es/')) {
+                    const moduleName = normalizedId.split('/node_modules/@douyinfe/semi-foundation/lib/es/')[1]?.split('/')[0];
+                    if (moduleName) {
+                      return `vendor-semi-fd-${sanitizeChunkName(moduleName)}`;
+                    }
+                  }
+
                   // ⚠️ 必须用 /node_modules/ 前缀精确匹配包目录，不能用宽泛子串：
                   // 曾用 includes('/react/') 把 @tiptap/react、@monaco-editor/react 等
                   // 错聚进 vendor-react，诱发跨组合并把重库拖进首屏
@@ -152,6 +177,13 @@ export default defineConfig(({ mode }) => {
 
                   if (normalizedId.includes('/node_modules/@iconify/react/')) {
                     return 'vendor-iconify';
+                  }
+
+                  // lucide-react 走自动分包：每个图标是独立模块，按包聚合会把全应用
+                  // 数百个图标的并集塞进单一 chunk 并被入口预载；自动分包让各页面
+                  // 只携带自己用到的图标
+                  if (normalizedId.includes('/node_modules/lucide-react/')) {
+                    return null;
                   }
 
                   const packageName = getPackageName(normalizedId);

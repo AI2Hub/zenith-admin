@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Popover, Input, List, Pagination } from '@douyinfe/semi-ui';
 import { Search, ChevronDown, X } from 'lucide-react';
-import { ALL_ICON_NAMES, renderLucideIcon } from '@/utils/icons';
+import { useAllIconNames, renderLucideIcon } from '@/utils/icons';
 import './IconPicker.css';
 
 interface IconPickerProps {
@@ -17,12 +17,13 @@ export default function IconPicker({ value, onChange, style }: Readonly<IconPick
   const [search, setSearch] = useState('');
   const [visible, setVisible] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const allIconNames = useAllIconNames();
 
   const filteredNames = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return ALL_ICON_NAMES;
-    return ALL_ICON_NAMES.filter((name) => name.toLowerCase().includes(q));
-  }, [search]);
+    if (!q) return allIconNames;
+    return allIconNames.filter((name) => name.toLowerCase().includes(q));
+  }, [search, allIconNames]);
 
   const pageNames = useMemo(
     () => filteredNames.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
@@ -58,7 +59,7 @@ export default function IconPicker({ value, onChange, style }: Readonly<IconPick
       <Input
         size="small"
         prefix={<Search size={13} />}
-        placeholder={`搜索图标（共 ${ALL_ICON_NAMES.length} 个）…`}
+        placeholder={`搜索图标（共 ${allIconNames.length} 个）…`}
         value={search}
         onChange={handleSearchChange}
         className="icon-picker-search"

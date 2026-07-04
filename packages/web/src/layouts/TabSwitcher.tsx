@@ -8,7 +8,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button, Input, List, Popover, Typography } from '@douyinfe/semi-ui';
 import { ChevronDown, Search, X } from 'lucide-react';
 import { pinyinMatch } from '@/utils/pinyin';
-import { renderLucideIcon } from '@/utils/icons';
+import { renderLucideIcon, useLucideIconsReady } from '@/utils/icons';
 import type { TabItem } from '@/hooks/useTabsStore';
 
 interface TabSwitcherProps {
@@ -20,6 +20,7 @@ interface TabSwitcherProps {
 }
 
 export function TabSwitcher({ tabs, activeKey, onNavigate, onClose, pathIconMap }: TabSwitcherProps) {
+  useLucideIconsReady();
   const [visible, setVisible] = useState(false);
   const [search, setSearch] = useState('');
   const [focusedIdx, setFocusedIdx] = useState(0);

@@ -19,7 +19,7 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { config } from '@/config';
-import { renderLucideIcon } from '@/utils/icons';
+import { renderLucideIcon, useLucideIconsReady } from '@/utils/icons';
 import NProgress from '@/components/NProgress';
 import Watermark from '@/components/Watermark';
 // 重依赖懒加载：快捷聊天（Semi Chat 组件树）、音视频通话、聊天通知、锁屏（lunar 农历 ~300KB）均不进首屏 chunk
@@ -717,6 +717,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [preferences.enableLockScreen, hasPassword, lock, collapsed, handleCollapseChange, isContentFullscreen]);
 
+  const iconsReady = useLucideIconsReady();
   const navItems = useMemo(
     () => menuTree.map(menuToNavItem).filter((item): item is NavItem => item !== null).map((item) => {
       if (item.itemKey === '/chat' && chatUnreadCount > 0) {
@@ -724,7 +725,9 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
       }
       return item;
     }),
-    [menuTree, chatUnreadCount]
+    // iconsReady: 图标注册表异步加载完成后重建 nav 项以补齐菜单图标
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [menuTree, chatUnreadCount, iconsReady]
   );
 
   const handleSidebarOpenChange = useCallback(

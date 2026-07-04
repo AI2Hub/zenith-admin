@@ -1,31 +1,30 @@
-import { describe, it, expect } from 'vitest';
-import { ICON_REGISTRY, ALL_ICON_NAMES, renderLucideIcon } from './icons';
-import { render } from '@testing-library/react';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { ensureLucideIcons, renderLucideIcon } from './icons';
+import { render, renderHook } from '@testing-library/react';
+import { useAllIconNames, useLucideIconsReady } from './icons';
 
-describe('icons utility', () => {
-  it('should export an ICON_REGISTRY object', () => {
-    expect(ICON_REGISTRY).toBeDefined();
-    expect(typeof ICON_REGISTRY).toBe('object');
+describe('icons utility (async registry)', () => {
+  beforeAll(async () => {
+    await ensureLucideIcons();
   });
 
-  it('should have a list of all icon names', () => {
-    expect(Array.isArray(ALL_ICON_NAMES)).toBe(true);
-    expect(ALL_ICON_NAMES.length).toBeGreaterThan(0);
+  it('useLucideIconsReady should be true after ensure', () => {
+    const { result } = renderHook(() => useLucideIconsReady());
+    expect(result.current).toBe(true);
   });
 
-  it('ALL_ICON_NAMES should be sorted alphabetically', () => {
-    const sorted = [...ALL_ICON_NAMES].sort((a, b) => a.localeCompare(b));
-    expect(ALL_ICON_NAMES).toEqual(sorted);
+  it('should have a sorted list of all icon names', () => {
+    const { result } = renderHook(() => useAllIconNames());
+    expect(Array.isArray(result.current)).toBe(true);
+    expect(result.current.length).toBeGreaterThan(0);
+    const sorted = [...result.current].sort((a, b) => a.localeCompare(b));
+    expect(result.current).toEqual(sorted);
   });
 
-  it('should filter out createLucideIcon from registry', () => {
-    expect(ICON_REGISTRY['createLucideIcon']).toBeUndefined();
-    expect(ALL_ICON_NAMES).not.toContain('createLucideIcon');
-  });
-
-  it('should not contain keys ending with Icon', () => {
-    const hasIconSuffix = ALL_ICON_NAMES.some(name => name.endsWith('Icon'));
-    expect(hasIconSuffix).toBe(false);
+  it('should filter out createLucideIcon and *Icon aliases', () => {
+    const { result } = renderHook(() => useAllIconNames());
+    expect(result.current).not.toContain('createLucideIcon');
+    expect(result.current.some((name) => name.endsWith('Icon'))).toBe(false);
   });
 
   it('renderLucideIcon should return null for unknown icon', () => {
