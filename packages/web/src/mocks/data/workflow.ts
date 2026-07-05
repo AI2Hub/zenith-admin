@@ -31,7 +31,7 @@ const LEAVE_FLOW_DATA = {
     { id: 'e5', source: 'approve_2', target: 'end_1' },
     { id: 'e6', source: 'cc_1', target: 'end_1' },
   ],
-  settings: { allowWithdraw: true, allowComment: true, summaryFields: ['leaveType', 'leaveDates', 'days'] },
+  settings: { allowWithdraw: true, allowResubmit: true, notifyInitiator: true, allowComment: true, summaryFields: ['leaveType', 'leaveDates', 'days'] },
 };
 
 const EXPENSE_FLOW_DATA = {
@@ -46,7 +46,7 @@ const EXPENSE_FLOW_DATA = {
     { id: 'e2', source: 'approve_1', target: 'approve_2' },
     { id: 'e3', source: 'approve_2', target: 'end_1' },
   ],
-  settings: { allowWithdraw: true, allowComment: true, summaryFields: ['expenseType', 'amount', 'occurDate'] },
+  settings: { allowWithdraw: true, allowResubmit: true, notifyInitiator: true, allowComment: true, summaryFields: ['expenseType', 'amount', 'occurDate'] },
 };
 
 const BIZ_LEAVE_CUSTOM_FORM = {

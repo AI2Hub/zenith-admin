@@ -13,7 +13,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Search } from 'lucide-react';
-import type { WorkflowInstance, WorkflowSlaLevel } from '@zenith/shared';
+import type { WorkflowInstance, WorkflowInstanceSummaryItem, WorkflowSlaLevel } from '@zenith/shared';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import WorkflowSummaryLine from '@/components/workflow/WorkflowSummaryLine';
@@ -45,7 +45,7 @@ interface SearchParams {
 
 const defaultSearchParams: SearchParams = { keyword: '', definitionId: null };
 
-type PendingItem = WorkflowInstance & { pendingTaskId: number; pendingSignatureRequired?: boolean; requiresIndividual?: boolean; slaLevel?: WorkflowSlaLevel; slaOverdueSec?: number | null; slaDeadline?: string | null };
+type PendingItem = WorkflowInstance & { pendingTaskId: number; pendingSignatureRequired?: boolean; requiresIndividual?: boolean; slaLevel?: WorkflowSlaLevel; slaOverdueSec?: number | null; slaDeadline?: string | null; summary?: WorkflowInstanceSummaryItem[] };
 type SheetState = { instanceId: number; taskId: number; action: 'approve' | 'reject' | null };
 
 export default function PendingApprovalsPage() {
