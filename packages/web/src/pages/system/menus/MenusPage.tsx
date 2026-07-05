@@ -527,7 +527,6 @@ export default function MenusPage() {
                   field="isExternal"
                   label={<Tooltip content="选择是外链则路由地址需要以 http(s):// 开头">是否外链</Tooltip>}
                   type="button"
-                  initValue={false}
                   onChange={(e) => setIsExternalVal((e.target as HTMLInputElement).value as unknown as boolean)}
                 >
                   <Radio value={true}>是</Radio>
@@ -541,7 +540,6 @@ export default function MenusPage() {
                   field="embed"
                   label={<Tooltip content="内嵌：在系统内以 iframe 打开外链，保留侧边栏与页签；新窗口：浏览器新标签页打开">打开方式</Tooltip>}
                   type="button"
-                  initValue={false}
                 >
                   <Radio value={false}>新窗口</Radio>
                   <Radio value={true}>内嵌</Radio>
@@ -554,7 +552,6 @@ export default function MenusPage() {
                   field="keepAlive"
                   label={<Tooltip content="开启后，多页签模式下切换页签保留该页面状态（搜索条件、滚动位置等），关闭页签时释放">页面缓存</Tooltip>}
                   type="button"
-                  initValue={false}
                 >
                   <Radio value={true}>开启</Radio>
                   <Radio value={false}>关闭</Radio>
@@ -567,7 +564,7 @@ export default function MenusPage() {
               </Col>
             )}
             <Col span={12}>
-              <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" initValue={0} min={0} style={{ width: '100%' }} />
+              <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" min={0} style={{ width: '100%' }} />
             </Col>
           </Row>
 
