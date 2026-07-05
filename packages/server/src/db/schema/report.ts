@@ -251,6 +251,8 @@ export const reportDashboardSubscriptions = pgTable('report_dashboard_subscripti
   enabled: boolean('enabled').notNull().default(true),
   remark: varchar('remark', { length: 256 }),
   lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+  /** 上次推送的 KPI 快照（widgetId → 数值），用于下次推送计算环比趋势 */
+  lastSummary: jsonb('last_summary').$type<Record<string, number>>().notNull().default(sql`'{}'::jsonb`),
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),

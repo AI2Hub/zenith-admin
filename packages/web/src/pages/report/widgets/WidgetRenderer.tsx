@@ -276,11 +276,17 @@ export function WidgetRenderer({ widget, data, loading, error, filterValues, onC
         }
         dataSource.push(totalRow);
       }
+      // 大数据量（未分页 >100 行）启用虚拟滚动，防整表渲染卡顿；虚拟化要求固定列宽 + scroll.y
+      const paginated = !!o.pageSize && o.pageSize > 0;
+      const useVirtual = !paginated && dataSource.length > 100;
       return (
-        <div style={{ height: '100%', overflow: 'auto' }}>
+        <div style={{ height: '100%', overflow: useVirtual ? 'hidden' : 'auto' }}>
           <Table
-            size="small" bordered={false} columns={tableColumns} dataSource={dataSource} rowKey="__rk"
-            pagination={o.pageSize && o.pageSize > 0 ? { pageSize: o.pageSize } : false}
+            size="small" bordered={false}
+            columns={useVirtual ? tableColumns.map((c) => ({ width: 140, ...c })) : tableColumns}
+            dataSource={dataSource} rowKey="__rk"
+            pagination={paginated ? { pageSize: o.pageSize } : false}
+            {...(useVirtual ? { virtualized: { itemSize: 36 }, scroll: { y: Math.max(80, chartHeight - 36), x: cols.length * 140 } } : {})}
             onRow={interactive ? (record) => ({ onClick: () => handleCat(String((record as Record<string, unknown>)[cols[0]?.name] ?? '')), style: { cursor: 'pointer' } }) : undefined}
           />
         </div>

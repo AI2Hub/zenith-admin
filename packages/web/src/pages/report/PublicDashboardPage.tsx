@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { Button, Input, Spin, Empty, Toast } from '@douyinfe/semi-ui';
 import { Lock } from 'lucide-react';
 import './report-grid.css';
 import './report-screen.css';
 import { ScreenCanvas } from './widgets/ScreenCanvas';
 import { FilterBar } from './widgets/FilterBar';
+import { filterValuesFromSearch, withFilterParam } from './widgets/filter-url';
 import type { ReportWidget, ReportFilter, ReportGridItem, ReportCanvasItem } from '@zenith/shared';
 import { reportDashboardKeys, usePublicReportDashboard, usePublicReportDashboardData } from '@/hooks/queries/report-dashboards';
 import { useQueryClient } from '@tanstack/react-query';
@@ -17,6 +18,7 @@ function defaultFilterValue(f: ReportFilter): unknown {
 
 export default function PublicDashboardPage() {
   const { token } = useParams<{ token: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [needPwd, setNeedPwd] = useState(false);
   const [pwdInput, setPwdInput] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -35,15 +37,15 @@ export default function PublicDashboardPage() {
     if (res.code === 0) {
       setNeedPwd(false);
       setError(null);
-      const fv: Record<string, unknown> = {};
-      for (const f of res.data.filters ?? []) fv[f.id] = defaultFilterValue(f);
-      setFilterValues(fv);
+      // URL 优先 > 默认值：分享带筛选状态的链接可直接还原
+      setFilterValues(filterValuesFromSearch(res.data.filters ?? [], searchParams, defaultFilterValue));
     } else if (res.code === 401) {
       setNeedPwd(true);
       if (password) Toast.error('访问密码错误');
     } else {
       setError(res.message || '链接不存在或已失效');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- searchParams 为初始化时的闭包快照，回写不重置
   }, [dashboardQuery.data, password]);
 
   function load(pwd?: string) {
@@ -53,6 +55,7 @@ export default function PublicDashboardPage() {
 
   function onFilterChange(fid: string, val: unknown) {
     setFilterValues((p) => ({ ...p, [fid]: val }));
+    setSearchParams((prev) => withFilterParam(prev, fid, val), { replace: true });
   }
 
   if (dashboardQuery.isFetching && !dashboard && !needPwd) return <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}><Spin size="large" /></div>;

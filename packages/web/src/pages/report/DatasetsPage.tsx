@@ -26,7 +26,7 @@ import {
 import type {
   ReportDataset, ReportDatasource, ReportDatasourceType, ReportField, ReportDataResult,
   ReportApiDatasetContent, ReportSqlDatasetContent, ReportComputedField,
-  ReportStaticDatasetContent, ReportFieldFormat,
+  ReportStaticDatasetContent, ReportFieldFormat, ReportDatasetParam,
 } from '@zenith/shared';
 
 interface SearchParams { keyword: string; status: string }
@@ -112,6 +112,8 @@ export default function DatasetsPage() {
   const [selectedDsId, setSelectedDsId] = useState<number | null>(null);
   const [fields, setFields] = useState<ReportField[]>([]);
   const [computedFields, setComputedFields] = useState<ReportComputedField[]>([]);
+  const [paramDefs, setParamDefs] = useState<ReportDatasetParam[]>([]);
+  const [previewParamValues, setPreviewParamValues] = useState<Record<string, unknown>>({});
   const [materialize, setMaterialize] = useState<{ enabled: boolean; cron?: string }>({ enabled: false, cron: '' });
   const [staticJsonText, setStaticJsonText] = useState('[]');
   const [staticColumns, setStaticColumns] = useState<string[]>([]);
@@ -142,6 +144,8 @@ export default function DatasetsPage() {
     setSelectedDsId(ds?.datasourceId ?? null);
     setFields(ds?.fields ?? []);
     setComputedFields(ds?.computedFields ?? []);
+    setParamDefs(ds?.params ?? []);
+    setPreviewParamValues({});
     setMaterialize({ enabled: ds?.materialize?.enabled ?? false, cron: ds?.materialize?.cron ?? '' });
     setAiAskVisible(false);
     setAiQuestion('');
@@ -272,6 +276,32 @@ export default function DatasetsPage() {
     }));
   }
 
+  function normalizeParamDefs(): ReportDatasetParam[] | null {
+    const list = paramDefs
+      .map((p) => ({ ...p, name: p.name.trim(), label: p.label.trim() || p.name.trim() }))
+      .filter((p) => p.name || p.label);
+    if (list.some((p) => !p.name)) {
+      Toast.error('请完整填写参数的参数名');
+      return null;
+    }
+    if (list.some((p) => p.name.startsWith('__'))) {
+      Toast.error('参数名不能以 __ 开头（系统变量保留前缀）');
+      return null;
+    }
+    return list;
+  }
+
+  /** 试跑预览用的参数值：显式输入优先，其次参数默认值 */
+  function buildPreviewParams(defs: ReportDatasetParam[]): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const d of defs) {
+      const v = previewParamValues[d.name];
+      if (v !== undefined && v !== '') out[d.name] = v;
+      else if (d.defaultValue !== undefined && d.defaultValue !== null) out[d.name] = d.defaultValue;
+    }
+    return out;
+  }
+
   async function handlePreview() {
     const values = formApi.current?.getValues() as Record<string, unknown>;
     if (!selectedDsId) { Toast.warning('请先选择数据源'); return; }
@@ -285,8 +315,16 @@ export default function DatasetsPage() {
     if (content === null) return;
     const normalizedComputedFields = normalizeComputedFields();
     if (normalizedComputedFields === null) return;
+    const normalizedParams = normalizeParamDefs();
+    if (normalizedParams === null) return;
     try {
-      const res = await previewMutation.mutateAsync({ datasourceId: selectedDsId, content, computedFields: normalizedComputedFields, limit: 50 });
+      const res = await previewMutation.mutateAsync({
+        datasourceId: selectedDsId,
+        content,
+        params: buildPreviewParams(normalizedParams),
+        computedFields: normalizedComputedFields,
+        limit: 50,
+      });
       setPreview(res);
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : '预览失败');
@@ -321,12 +359,15 @@ export default function DatasetsPage() {
     if (content === null) throw new Error('content');
     const normalizedComputedFields = normalizeComputedFields();
     if (normalizedComputedFields === null) throw new Error('computedFields');
+    const normalizedParams = normalizeParamDefs();
+    if (normalizedParams === null) throw new Error('params');
 
     const payload = {
       name: values.name,
       datasourceId: selectedDsId,
       content,
       fields: normalizeFields(),
+      params: normalizedParams,
       computedFields: normalizedComputedFields,
       cacheTtl: Number(values.cacheTtl) || 0,
       materialize: {
@@ -379,6 +420,10 @@ export default function DatasetsPage() {
 
   function updateComputedField(index: number, patch: Partial<ReportComputedField>) {
     setComputedFields((prev) => prev.map((field, i) => (i === index ? { ...field, ...patch } : field)));
+  }
+
+  function updateParamDef(index: number, patch: Partial<ReportDatasetParam>) {
+    setParamDefs((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)));
   }
 
   const columns: ColumnProps<ReportDataset>[] = [
@@ -563,6 +608,22 @@ export default function DatasetsPage() {
               当前字段：{fields.length} 个{fields.length ? `（${fields.slice(0, 6).map((f) => f.name).join(', ')}${fields.length > 6 ? '…' : ''}）` : ''}
             </Typography.Text>
           </Space>
+          {selectedType !== 'static' && paramDefs.length > 0 && (
+            <Space wrap style={{ marginBottom: 8 }}>
+              <Typography.Text type="tertiary" size="small">试跑参数：</Typography.Text>
+              {paramDefs.filter((p) => p.name.trim()).map((p) => (
+                <Input
+                  key={p.name}
+                  prefix={p.label || p.name}
+                  placeholder={p.defaultValue != null ? `默认 ${p.defaultValue}` : (p.required ? '必填' : '选填')}
+                  value={previewParamValues[p.name] == null ? '' : String(previewParamValues[p.name])}
+                  onChange={(v) => setPreviewParamValues((prev) => ({ ...prev, [p.name]: v }))}
+                  style={{ width: 200 }}
+                  showClear
+                />
+              ))}
+            </Space>
+          )}
           {preview ? (
             <div style={{ maxHeight: 240, overflow: 'auto', border: '1px solid var(--semi-color-border)', borderRadius: 6 }}>
               <Table size="small" bordered={false} columns={previewColumns} dataSource={previewData} rowKey="__rk" pagination={false}
@@ -629,6 +690,48 @@ export default function DatasetsPage() {
                 </div>
               ))}
             </Space>
+          </div>
+        )}
+
+        {selectedType !== 'static' && (
+          <div style={{ borderTop: '1px solid var(--semi-color-border)', marginTop: 12, paddingTop: 12 }}>
+            <Space style={{ marginBottom: 6 }}>
+              <Typography.Text strong>参数定义</Typography.Text>
+              <Button size="small" onClick={() => setParamDefs((prev) => [...prev, { name: '', label: '', type: 'string' }])}>添加参数</Button>
+            </Space>
+            <div>
+              <Typography.Text type="tertiary" size="small">
+                SQL 中用 {'${参数名}'} 引用（自动绑定参数防注入）；API 数据集作为请求参数注入。仪表盘筛选器可绑定到参数。
+              </Typography.Text>
+            </div>
+            {paramDefs.length > 0 && (
+              <Space vertical align="start" style={{ width: '100%', marginTop: 8 }}>
+                {paramDefs.map((p, index) => (
+                  <Space key={index} align="start" style={{ width: '100%' }}>
+                    <Input placeholder="参数名" value={p.name} onChange={(v) => updateParamDef(index, { name: v })} style={{ width: 130 }} showClear />
+                    <Input placeholder="标题" value={p.label} onChange={(v) => updateParamDef(index, { label: v })} style={{ width: 110 }} showClear />
+                    <Select
+                      value={p.type}
+                      optionList={COMPUTED_FIELD_TYPE_OPTIONS}
+                      onChange={(v) => updateParamDef(index, { type: v as ReportDatasetParam['type'] })}
+                      style={{ width: 100 }}
+                    />
+                    <Input
+                      placeholder="默认值"
+                      value={p.defaultValue == null ? '' : String(p.defaultValue)}
+                      onChange={(v) => updateParamDef(index, { defaultValue: v === '' ? null : v })}
+                      style={{ width: 130 }}
+                      showClear
+                    />
+                    <Space style={{ height: 32 }}>
+                      <Typography.Text type="tertiary" size="small">必填</Typography.Text>
+                      <Switch size="small" checked={p.required ?? false} onChange={(required) => updateParamDef(index, { required })} />
+                    </Space>
+                    <Button theme="borderless" type="danger" onClick={() => setParamDefs((prev) => prev.filter((_, i) => i !== index))}>删除</Button>
+                  </Space>
+                ))}
+              </Space>
+            )}
           </div>
         )}
 

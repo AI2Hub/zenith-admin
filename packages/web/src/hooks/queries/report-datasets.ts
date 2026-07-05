@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse, ReportDataset, ReportDataResult, ReportDatasource } from '@zenith/shared';
+import type { PaginatedResponse, ReportDataset, ReportDataResult, ReportDatasource, ReportDatasetPreviewInput } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 
@@ -8,13 +8,6 @@ export interface ReportDatasetListParams {
   pageSize: number;
   keyword?: string;
   status?: string;
-}
-
-export interface ReportDatasetPreviewInput {
-  datasourceId: number;
-  content: Record<string, unknown>;
-  computedFields: unknown[];
-  limit: number;
 }
 
 export interface ParseReportDatasetFileResult {

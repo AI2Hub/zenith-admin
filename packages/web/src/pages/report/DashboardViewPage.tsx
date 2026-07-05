@@ -9,6 +9,7 @@ import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { ScreenCanvas } from './widgets/ScreenCanvas';
 import { FilterBar } from './widgets/FilterBar';
+import { filterValuesFromSearch, withFilterParam } from './widgets/filter-url';
 import type { ReportWidget, ReportFilter, ReportGridItem, ReportCanvasItem } from '@zenith/shared';
 import {
   useCreateReportDashboardComment,
@@ -27,7 +28,7 @@ export default function DashboardViewPage() {
   const { id } = useParams<{ id: string }>();
   const dashboardId = Number(id);
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { hasPermission } = usePermission();
 
   const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
@@ -54,15 +55,19 @@ export default function DashboardViewPage() {
   const createCommentMutation = useCreateReportDashboardComment();
   const deleteCommentMutation = useDeleteReportDashboardComment();
 
+  // 初始化筛选值：URL 优先 > 筛选器默认值（仅在仪表盘加载/切换时执行，
+  // 后续 URL 回写不重置状态，避免写 URL → 触发本 effect 的循环）
   useEffect(() => {
     if (!dashboard) return;
-    const fv: Record<string, unknown> = {};
-    for (const f of dashboard.filters ?? []) {
-      const fromUrl = searchParams.get(f.id);
-      fv[f.id] = fromUrl != null ? fromUrl : defaultFilterValue(f);
-    }
-    setFilterValues(fv);
-  }, [dashboard, searchParams]);
+    setFilterValues(filterValuesFromSearch(dashboard.filters ?? [], searchParams, defaultFilterValue));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅随仪表盘变化初始化（searchParams 为闭包快照）
+  }, [dashboard]);
+
+  /** 更新筛选值并回写 URL（replace，不产生历史记录），分享/刷新可保留筛选状态 */
+  function updateFilter(filterId: string, value: unknown) {
+    setFilterValues((p) => ({ ...p, [filterId]: value }));
+    setSearchParams((prev) => withFilterParam(prev, filterId, value), { replace: true });
+  }
 
   useEffect(() => {
     const onFs = () => setIsFs(!!document.fullscreenElement);
@@ -72,7 +77,7 @@ export default function DashboardViewPage() {
 
   function handleCategoryClick(w: ReportWidget, value: string) {
     if (w.interaction?.enabled && w.interaction.setFilterId) {
-      setFilterValues((p) => ({ ...p, [w.interaction!.setFilterId as string]: value }));
+      updateFilter(w.interaction.setFilterId, value);
     }
     if (w.drilldown?.enabled) {
       const dd = w.drilldown;
@@ -155,7 +160,7 @@ export default function DashboardViewPage() {
 
       <div ref={exportRef} style={isCanvas ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : undefined}>
         <div style={isCanvas ? { padding: '0 12px' } : undefined}>
-          <FilterBar filters={filters} values={filterValues} onChange={(fid, val) => setFilterValues((p) => ({ ...p, [fid]: val }))} />
+          <FilterBar filters={filters} values={filterValues} onChange={updateFilter} />
         </div>
 
         {widgets.length === 0 ? (

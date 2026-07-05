@@ -6991,7 +6991,6 @@ export interface ReportWidgetOptions {
   src?: string;
   /** 图片填充方式 */
   fit?: 'contain' | 'cover' | 'fill';
-  [key: string]: unknown;
 }
 
 /** 仪表盘组件配置 */

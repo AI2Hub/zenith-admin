@@ -160,7 +160,7 @@ export default function PrintTemplatesPage() {
       width: 96,
       fixed: 'right' as const,
       render: (_: unknown, record: ReportPrintTemplate) => (
-        <ExportButton entity="report.print" query={{ templateId: record.id }} formats={['xlsx']} variant="flat" />
+        <ExportButton entity="report.print" query={{ templateId: record.id, params: defaultParamValues(record) }} formats={['xlsx']} variant="flat" />
       ),
     }] : []),
     createOperationColumn<ReportPrintTemplate>({
