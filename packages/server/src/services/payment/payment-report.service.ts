@@ -6,7 +6,7 @@
  * 性能：历史日期走日切快照表 payment_report_daily（cron rebuildPaymentReportDaily 预聚合），
  * 仅当日数据实时聚合台账后合并，避免大表全量扫描；支持环比（对比上一等长周期）。
  */
-import { and, gte, lt, lte, sql, type SQL } from 'drizzle-orm';
+import { and, gte, lte, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import { paymentLedgerEntries, paymentReportDaily } from '../../db/schema';
 import { currentUser } from '../../lib/context';
