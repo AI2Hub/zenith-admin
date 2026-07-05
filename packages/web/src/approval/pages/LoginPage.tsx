@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Form, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -15,6 +15,11 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   let formApi: FormApi | null = null;
+
+  // 已登录（admin 同域 token 存在）时直接进列表
+  useEffect(() => {
+    if (localStorage.getItem(TOKEN_KEY)) navigate('/', { replace: true });
+  }, [navigate]);
 
   const submit = async () => {
     if (!formApi || submitting) return;

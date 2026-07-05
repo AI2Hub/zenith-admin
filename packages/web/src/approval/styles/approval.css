@@ -109,6 +109,173 @@
   font-size: 13px;
 }
 
+.ap-tabs {
+  padding: 0 12px;
+  background: var(--semi-color-bg-1);
+}
+
+.ap-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ap-search {
+  padding: 8px 12px;
+  background: var(--semi-color-bg-1);
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.ap-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--semi-color-danger);
+  flex-shrink: 0;
+}
+
+.ap-card__footer {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--semi-color-border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ap-pull-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+  /* 高度由 touchmove 逐帧驱动（跟手），不加 transition 避免布局动画 */
+}
+
+.ap-load-sentinel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 0;
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+}
+
+.ap-section {
+  background: var(--semi-color-bg-1);
+  border: 1px solid var(--semi-color-border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.ap-section__title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+}
+
+.ap-progress-hint {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--semi-color-primary-light-default);
+  color: var(--semi-color-primary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.ap-comment {
+  display: flex;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.ap-comment:last-of-type {
+  border-bottom: none;
+}
+
+.ap-comment__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ap-comment__name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ap-comment__time {
+  font-size: 11px;
+  color: var(--semi-color-text-2);
+}
+
+.ap-comment__quote {
+  margin-top: 4px;
+  padding: 4px 8px;
+  border-left: 2px solid var(--semi-color-border);
+  background: var(--semi-color-fill-0);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-comment__content {
+  margin-top: 2px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ap-comment-input {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin-top: 10px;
+}
+
+.ap-comment-input .semi-input-textarea-wrapper {
+  flex: 1;
+}
+
+.ap-sheet .semi-sidesheet-inner {
+  border-radius: 12px 12px 0 0;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.ap-sheet__body {
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
+}
+
+.ap-sheet__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.ap-phrases {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.ap-phrases__item {
+  cursor: pointer;
+  user-select: none;
+}
+
 .ap-login {
   min-height: 100vh;
   min-height: 100dvh;

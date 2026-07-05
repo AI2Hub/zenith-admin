@@ -1,13 +1,18 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
-import { LogOut, Plus, RefreshCw } from 'lucide-react';
+import { Badge, Button, Input, Modal, Spin, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Check, LogOut, Plus, RefreshCw, Search } from 'lucide-react';
 import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@zenith/shared';
 import { formatDateTime } from '@/utils/date';
+import { UserAvatar } from '@/components/UserAvatar';
 import WorkflowSummaryLine from '@/components/workflow/WorkflowSummaryLine';
 import WorkflowSLATag from '@/components/workflow/WorkflowSLATag';
 import WorkflowPriorityTag from '@/components/workflow/WorkflowPriorityTag';
-import { useApprovalList, type ApprovalListItem, type ApprovalTab } from '../lib/queries';
+import {
+  useApprovalCounts, useApprovalList, useMarkCcRead, useTaskAction,
+  type ApprovalListItem, type ApprovalTab,
+} from '../lib/queries';
+import { useInfiniteSentinel, usePullRefresh } from '../lib/usePullRefresh';
 
 type TagColor = 'amber' | 'blue' | 'green' | 'grey' | 'orange' | 'purple' | 'red';
 
@@ -21,14 +26,35 @@ const STATUS_MAP: Record<string, { text: string; color: TagColor }> = {
   cancelled: { text: '已取消', color: 'purple' },
 };
 
-const TABS: Array<{ key: ApprovalTab; label: string }> = [
-  { key: 'pending', label: '待办' },
-  { key: 'handled', label: '已办' },
-  { key: 'mine', label: '我的申请' },
-];
+const TASK_RESULT_MAP: Record<string, { text: string; color: TagColor }> = {
+  approved: { text: '我已同意', color: 'green' },
+  rejected: { text: '我已拒绝', color: 'red' },
+  skipped: { text: '已跳过', color: 'grey' },
+};
 
-function TaskCard({ item, tab, onOpen }: Readonly<{ item: ApprovalListItem; tab: ApprovalTab; onOpen: () => void }>) {
+const EMPTY_TEXT: Record<ApprovalTab, string> = {
+  pending: '没有待办，休息一下 🎉',
+  handled: '暂无已办记录',
+  mine: '还没有发起过申请',
+  cc: '暂无抄送',
+};
+
+interface CardProps {
+  item: ApprovalListItem;
+  tab: ApprovalTab;
+  onOpen: () => void;
+  onQuickApprove?: () => void;
+  quickApproving?: boolean;
+}
+
+function TaskCard({ item, tab, onOpen, onQuickApprove, quickApproving }: Readonly<CardProps>) {
   const status = STATUS_MAP[item.status];
+  const myResult = tab === 'handled' && item.myTaskStatus ? TASK_RESULT_MAP[item.myTaskStatus] : null;
+  const ccUnread = tab === 'cc' && item.ccTaskId != null && !item.ccReadAt;
+  // 极速同意：无需签名/加签选人时展示（意见必填等由服务端校验兜底，失败引导进详情）
+  const canQuick = tab === 'pending' && onQuickApprove != null
+    && !item.requiresIndividual && !item.pendingSignatureRequired;
+
   return (
     <div
       className="ap-card"
@@ -38,19 +64,40 @@ function TaskCard({ item, tab, onOpen }: Readonly<{ item: ApprovalListItem; tab:
       onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
     >
       <div className="ap-card__title-row">
+        {ccUnread && <span className="ap-dot" aria-label="未读" />}
         <span className="ap-card__title">{item.title}</span>
         {(item.priority === 'high' || item.priority === 'urgent') && <WorkflowPriorityTag priority={item.priority} />}
-        {status && <Tag size="small" color={status.color} style={{ flexShrink: 0 }}>{status.text}</Tag>}
+        {myResult
+          ? <Tag size="small" color={myResult.color} style={{ flexShrink: 0 }}>{myResult.text}</Tag>
+          : status && <Tag size="small" color={status.color} style={{ flexShrink: 0 }}>{status.text}</Tag>}
       </div>
       <WorkflowSummaryLine items={item.summary} />
       <div className="ap-card__meta">
-        {tab === 'pending' && <WorkflowSLATag level={item.slaLevel} overdueSec={item.slaOverdueSec} deadline={item.slaDeadline} />}
-        <span>{item.definitionName ?? '—'}</span>
-        <span>·</span>
+        <UserAvatar name={item.initiatorName ?? '—'} avatar={item.initiatorAvatar ?? undefined} size={18} semiSize="extra-extra-small" />
         <span>{item.initiatorName ?? '—'}</span>
         <span>·</span>
-        <span>{formatDateTime(item.createdAt)}</span>
+        <span>{item.definitionName ?? '—'}</span>
+        <span>·</span>
+        <span>{tab === 'handled' && item.myActionAt ? formatDateTime(item.myActionAt) : formatDateTime(item.createdAt)}</span>
       </div>
+      {tab === 'pending' && (
+        <div className="ap-card__footer">
+          <WorkflowSLATag level={item.slaLevel} overdueSec={item.slaOverdueSec} deadline={item.slaDeadline} />
+          <span style={{ flex: 1 }} />
+          {canQuick && (
+            <Button
+              size="small"
+              theme="light"
+              type="primary"
+              icon={<Check size={13} />}
+              loading={quickApproving}
+              onClick={(e) => { e.stopPropagation(); onQuickApprove(); }}
+            >
+              极速同意
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -59,10 +106,31 @@ export default function TaskListPage() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<ApprovalTab>('pending');
   const [size, setSize] = useState(10);
-  const listQuery = useApprovalList(tab, size);
+  const [keywordDraft, setKeywordDraft] = useState('');
+  const [keyword, setKeyword] = useState('');
+  const listQuery = useApprovalList(tab, size, keyword);
+  const countsQuery = useApprovalCounts();
+  const markCcRead = useMarkCcRead();
+  const quickAction = useTaskAction();
+  const [quickTaskId, setQuickTaskId] = useState<number | null>(null);
+
   const data = listQuery.data;
+  const list = data?.list ?? [];
   const total = data?.total ?? 0;
-  const hasMore = (data?.list ?? []).length < total;
+  const hasMore = list.length < total;
+
+  const refetch = useCallback(async () => {
+    await Promise.all([listQuery.refetch(), countsQuery.refetch()]);
+  }, [listQuery, countsQuery]);
+  const { scrollRef, pull, refreshing } = usePullRefresh(refetch);
+  const sentinelRef = useInfiniteSentinel(hasMore, listQuery.isFetching, () => setSize((s) => s + 10));
+
+  const switchTab = (k: string) => {
+    setTab(k as ApprovalTab);
+    setSize(10);
+    setKeywordDraft('');
+    setKeyword('');
+  };
 
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY);
@@ -72,12 +140,46 @@ export default function TaskListPage() {
   };
 
   const openItem = (item: ApprovalListItem) => {
+    if (tab === 'cc' && item.ccTaskId != null && !item.ccReadAt) {
+      markCcRead.mutate(item.ccTaskId);
+    }
     if (tab === 'pending' && item.pendingTaskId) {
       navigate(`/detail/${item.id}/${item.pendingTaskId}`);
     } else {
       navigate(`/detail/${item.id}`);
     }
   };
+
+  const quickApprove = (item: ApprovalListItem) => {
+    const pendingTaskId = item.pendingTaskId;
+    if (!pendingTaskId) return;
+    Modal.confirm({
+      title: '极速同意',
+      content: `确认同意「${item.title}」？`,
+      okText: '同意',
+      onOk: async () => {
+        setQuickTaskId(pendingTaskId);
+        try {
+          await quickAction.mutateAsync({ taskId: pendingTaskId, action: 'approve', body: { comment: '' } });
+          const rest = Math.max(0, (countsQuery.data?.pending ?? total) - 1);
+          Toast.success(rest > 0 ? `已同意，还剩 ${rest} 条待办` : '已同意，待办清零 🎉');
+        } catch (err) {
+          // 意见必填 / 必传附件 / 下游选人等场景由服务端拦截，引导进详情处理
+          const msg = err instanceof Error ? err.message : '';
+          Toast.info(msg ? `${msg}，请进入详情处理` : '请进入详情处理');
+          navigate(`/detail/${item.id}/${pendingTaskId}`);
+        } finally {
+          setQuickTaskId(null);
+        }
+      },
+    });
+  };
+
+  const badge = (label: string, count: number | undefined) => (
+    count && count > 0
+      ? <span className="ap-tab-label">{label}<Badge count={count > 99 ? '99+' : count} type="danger" /></span>
+      : label
+  );
 
   return (
     <div className="ap-page">
@@ -86,8 +188,8 @@ export default function TaskListPage() {
         <Button
           theme="borderless"
           icon={<RefreshCw size={16} />}
-          loading={listQuery.isFetching}
-          onClick={() => void listQuery.refetch()}
+          loading={listQuery.isFetching && !refreshing}
+          onClick={() => void refetch()}
           aria-label="刷新"
         />
         <Button theme="solid" type="primary" size="small" icon={<Plus size={14} />} onClick={() => navigate('/launch')}>
@@ -98,27 +200,54 @@ export default function TaskListPage() {
       <Tabs
         type="line"
         activeKey={tab}
-        onChange={(k) => { setTab(k as ApprovalTab); setSize(10); }}
+        onChange={switchTab}
         tabPaneMotion={false}
-        style={{ padding: '0 12px', background: 'var(--semi-color-bg-1)' }}
+        className="ap-tabs"
       >
-        {TABS.map((t) => <TabPane key={t.key} tab={t.label} itemKey={t.key} />)}
+        <TabPane tab={badge('待办', countsQuery.data?.pending)} itemKey="pending" />
+        <TabPane tab="已办" itemKey="handled" />
+        <TabPane tab="我的申请" itemKey="mine" />
+        <TabPane tab={badge('抄送我', countsQuery.data?.ccUnread)} itemKey="cc" />
       </Tabs>
-      <div className="ap-body">
-        {(data?.list ?? []).map((item) => (
-          <TaskCard key={`${item.id}-${item.pendingTaskId ?? 0}`} item={item} tab={tab} onOpen={() => openItem(item)} />
+      <div className="ap-search">
+        <Input
+          prefix={<Search size={14} />}
+          placeholder="搜索标题 / 流程名称"
+          value={keywordDraft}
+          onChange={setKeywordDraft}
+          onEnterPress={() => { setKeyword(keywordDraft.trim()); setSize(10); }}
+          onClear={() => { setKeywordDraft(''); setKeyword(''); setSize(10); }}
+          showClear
+        />
+      </div>
+      <div className="ap-body" ref={scrollRef}>
+        {(pull > 0 || refreshing) && (
+          <div className="ap-pull-indicator" style={{ height: pull }}>
+            {refreshing ? <Spin size="small" /> : <span>{pull >= 56 ? '松开刷新' : '下拉刷新'}</span>}
+          </div>
+        )}
+        {list.map((item) => (
+          <TaskCard
+            key={`${item.id}-${item.pendingTaskId ?? item.ccTaskId ?? 0}`}
+            item={item}
+            tab={tab}
+            onOpen={() => openItem(item)}
+            onQuickApprove={tab === 'pending' ? () => quickApprove(item) : undefined}
+            quickApproving={quickTaskId === item.pendingTaskId && quickAction.isPending}
+          />
         ))}
-        {!listQuery.isFetching && (data?.list ?? []).length === 0 && (
-          <div className="ap-empty">{tab === 'pending' ? '没有待办，休息一下 🎉' : '暂无数据'}</div>
+        {!listQuery.isFetching && list.length === 0 && (
+          <div className="ap-empty">{keyword ? '没有匹配的结果' : EMPTY_TEXT[tab]}</div>
         )}
         {hasMore && (
-          <Button block theme="light" loading={listQuery.isFetching} onClick={() => setSize((s) => s + 10)}>
-            加载更多（{(data?.list ?? []).length}/{total}）
-          </Button>
+          <div ref={sentinelRef} className="ap-load-sentinel">
+            <Spin size="small" />
+            <span>加载中…</span>
+          </div>
         )}
-        {(data?.list ?? []).length > 0 && (
-          <Typography.Text type="tertiary" size="small" style={{ display: 'block', textAlign: 'center', marginTop: 8 }}>
-            共 {total} 条
+        {!hasMore && list.length > 0 && (
+          <Typography.Text type="tertiary" size="small" style={{ display: 'block', textAlign: 'center', margin: '8px 0' }}>
+            共 {total} 条 · 已全部加载
           </Typography.Text>
         )}
       </div>

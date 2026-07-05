@@ -1503,9 +1503,9 @@ export const workflowHandlers = [
 
     const pendingTaskIds = mockWorkflowTasks
       .filter(t => t.assigneeId === 1 && t.status === 'pending')
-      .map(t => ({ instanceId: t.instanceId, taskId: t.id }));
+      .map(t => ({ instanceId: t.instanceId, taskId: t.id, signatureRequired: t.signatureRequired ?? false }));
 
-    let list = pendingTaskIds.map(({ instanceId, taskId }, idx) => {
+    let list = pendingTaskIds.map(({ instanceId, taskId, signatureRequired }, idx) => {
       const inst = mockWorkflowInstances.find(i => i.id === instanceId);
       if (!inst) return null;
       // Demo SLA：轮换演示 已超时 / 即将超时 / 充裕 / 未配置
@@ -1523,7 +1523,7 @@ export const workflowHandlers = [
       const snap = inst.formSnapshot as { fields?: WorkflowFormField[] } | WorkflowFormField[] | null;
       const snapFields = Array.isArray(snap) ? snap : snap?.fields ?? [];
       const summary = buildWorkflowSummaryItems(snapFields, (inst.formData ?? {}) as Record<string, unknown>, settings?.summaryFields);
-      return { ...withActiveNodes(inst), pendingTaskId: taskId, tasks: undefined, ...sla, summary };
+      return { ...withActiveNodes(inst), pendingTaskId: taskId, pendingSignatureRequired: signatureRequired, requiresIndividual: false, tasks: undefined, ...sla, summary };
     }).filter(Boolean) as (WorkflowInstance & { pendingTaskId: number })[];
 
     if (keyword) list = list.filter(i => i.title?.includes(keyword));

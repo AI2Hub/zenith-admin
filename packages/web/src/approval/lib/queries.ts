@@ -4,10 +4,13 @@
 import { QueryClient, keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   PaginatedResponse,
+  WorkflowComment,
   WorkflowDefinition,
   WorkflowInstance,
   WorkflowInstanceSummaryItem,
+  WorkflowQuickPhrase,
   WorkflowSlaLevel,
+  WorkflowTaskStatus,
 } from '@zenith/shared';
 import { approvalRequest, unwrapApproval } from './approval-request';
 
@@ -17,42 +20,66 @@ export const approvalQueryClient = new QueryClient({
   },
 });
 
-export type ApprovalTab = 'pending' | 'handled' | 'mine';
+export type ApprovalTab = 'pending' | 'handled' | 'mine' | 'cc';
 
 export type ApprovalListItem = WorkflowInstance & {
   pendingTaskId?: number;
+  pendingSignatureRequired?: boolean;
   requiresIndividual?: boolean;
   slaLevel?: WorkflowSlaLevel;
   slaOverdueSec?: number | null;
   slaDeadline?: string | null;
   summary?: WorkflowInstanceSummaryItem[];
+  myTaskStatus?: WorkflowTaskStatus | null;
+  myActionAt?: string | null;
 };
 
 const TAB_ENDPOINT: Record<ApprovalTab, string> = {
   pending: '/api/workflows/instances/pending-mine',
   handled: '/api/workflows/instances/handled-mine',
   mine: '/api/workflows/instances',
+  cc: '/api/workflows/instances/cc-mine',
 };
 
 export const approvalKeys = {
   all: ['approval'] as const,
-  list: (tab: ApprovalTab, size: number) => ['approval', 'list', tab, size] as const,
+  list: (tab: ApprovalTab, size: number, keyword: string) => ['approval', 'list', tab, size, keyword] as const,
   lists: ['approval', 'list'] as const,
   detail: (id: number | null) => ['approval', 'detail', id] as const,
   definitions: ['approval', 'definitions'] as const,
   me: ['approval', 'me'] as const,
+  counts: ['approval', 'counts'] as const,
+  phrases: ['approval', 'quick-phrases'] as const,
 };
 
 /** 累积加载：固定 page=1、递增 pageSize（移动端"加载更多"语义，缓存 key 稳定） */
-export function useApprovalList(tab: ApprovalTab, size: number) {
+export function useApprovalList(tab: ApprovalTab, size: number, keyword = '') {
   return useQuery({
-    queryKey: approvalKeys.list(tab, size),
+    queryKey: approvalKeys.list(tab, size, keyword),
     queryFn: () =>
       approvalRequest
-        .get<PaginatedResponse<ApprovalListItem>>(`${TAB_ENDPOINT[tab]}?page=1&pageSize=${size}`)
+        .get<PaginatedResponse<ApprovalListItem>>(
+          `${TAB_ENDPOINT[tab]}?page=1&pageSize=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`,
+        )
         .then(unwrapApproval),
     placeholderData: keepPreviousData,
     refetchInterval: tab === 'pending' ? 30_000 : false,
+  });
+}
+
+/** 待办总数 + 抄送未读数（Tab 角标），30s 轮询 */
+export function useApprovalCounts() {
+  return useQuery({
+    queryKey: approvalKeys.counts,
+    queryFn: async () => {
+      const [pending, ccUnread] = await Promise.all([
+        approvalRequest.get<{ count: number }>('/api/workflows/instances/pending-mine/count', { silent: true }).then(unwrapApproval),
+        approvalRequest.get<{ count: number }>('/api/workflows/instances/cc-mine/unread-count', { silent: true }).then(unwrapApproval),
+      ]);
+      return { pending: pending.count, ccUnread: ccUnread.count };
+    },
+    refetchInterval: 30_000,
+    retry: false,
   });
 }
 
@@ -82,6 +109,60 @@ export function useTaskAction() {
         })
         .then(unwrapApproval),
     onSuccess: () => qc.invalidateQueries({ queryKey: approvalKeys.all }),
+  });
+}
+
+/** 发起人撤回（running 实例） */
+export function useWithdrawInstance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, comment }: { id: number; comment?: string }) =>
+      approvalRequest.post<unknown>(`/api/workflows/instances/${id}/withdraw`, comment ? { comment } : {}).then(unwrapApproval),
+    onSuccess: () => qc.invalidateQueries({ queryKey: approvalKeys.all }),
+  });
+}
+
+/** 发起人催办当前审批人 */
+export function useUrgeInstance() {
+  return useMutation({
+    mutationFn: ({ id, message }: { id: number; message?: string }) =>
+      approvalRequest.post<unknown>(`/api/workflows/instances/${id}/urge`, message ? { message } : {}).then(unwrapApproval),
+  });
+}
+
+/** 抄送已读标记 */
+export function useMarkCcRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ccTaskId: number) =>
+      approvalRequest.post<unknown>(`/api/workflows/instances/cc/${ccTaskId}/read`, {}, { silent: true }).then(unwrapApproval),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: approvalKeys.counts });
+      void qc.invalidateQueries({ queryKey: approvalKeys.lists });
+    },
+  });
+}
+
+/** 发表评论（轻页仅文本，不含 @提及 / 附件） */
+export function useAddApprovalComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ instanceId, content }: { instanceId: number; content: string }) =>
+      approvalRequest
+        .post<WorkflowComment>(`/api/workflows/instances/${instanceId}/comments`, { content, mentions: [], attachments: [], parentId: null })
+        .then(unwrapApproval),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: approvalKeys.detail(vars.instanceId) }),
+  });
+}
+
+/** 审批意见常用语（系统预置 + 我的） */
+export function useApprovalQuickPhrases(enabled: boolean) {
+  return useQuery({
+    queryKey: approvalKeys.phrases,
+    queryFn: () => approvalRequest.get<WorkflowQuickPhrase[]>('/api/workflows/quick-phrases', { silent: true }).then(unwrapApproval),
+    staleTime: 5 * 60_000,
+    enabled,
+    retry: false,
   });
 }
 

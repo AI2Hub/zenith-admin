@@ -1,14 +1,16 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Banner, Button, Empty, Form, Modal, Skeleton, TabPane, Tabs, Tag, Toast, Typography,
+  Avatar, Banner, Button, Empty, Form, Popconfirm, SideSheet, Skeleton, Tag, TextArea, Toast, Typography,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { ChevronLeft } from 'lucide-react';
+import { BellRing, ChevronLeft, RotateCcw, Send } from 'lucide-react';
 import type { WorkflowActionButtonConfig, WorkflowFieldPermission, WorkflowTask } from '@zenith/shared';
 import { applyFieldPermissionsToFields, hasEditableFieldPermission } from '@zenith/shared';
 import { formatDateTime } from '@/utils/date';
 import ApprovalTimeline from '@/components/ApprovalTimeline';
+import FileAttachment from '@/components/FileAttachment';
+import { uploadedFileToAttachment } from '@/components/FileAttachment/utils';
 import SignaturePad from '@/components/SignaturePad';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import WorkflowPriorityTag from '@/components/workflow/WorkflowPriorityTag';
@@ -20,7 +22,10 @@ import {
   resolveWorkflowFormType,
 } from '@/utils/workflow-snapshot';
 import { approvalRequest, unwrapApproval } from '../lib/approval-request';
-import { useApprovalDetail, useApprovalMe, useTaskAction } from '../lib/queries';
+import {
+  useAddApprovalComment, useApprovalDetail, useApprovalMe, useApprovalQuickPhrases,
+  useTaskAction, useUrgeInstance, useWithdrawInstance,
+} from '../lib/queries';
 
 type TagColor = 'amber' | 'blue' | 'green' | 'grey' | 'orange' | 'purple' | 'red';
 
@@ -49,6 +54,21 @@ function resolveBtn(
   return override ? { ...defaults, ...override } : defaults;
 }
 
+/** 详情页头部骨架（返回键常驻，避免加载时无法退出） */
+function PageShell({ title, tag, children }: Readonly<{ title: string; tag?: React.ReactNode; children: React.ReactNode }>) {
+  const navigate = useNavigate();
+  return (
+    <div className="ap-page">
+      <div className="ap-header">
+        <Button theme="borderless" icon={<ChevronLeft size={18} />} onClick={() => navigate(-1)} aria-label="返回" />
+        <span className="ap-header__title">{title}</span>
+        {tag}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export default function TaskDetailPage() {
   const navigate = useNavigate();
   const params = useParams<{ instanceId: string; taskId?: string }>();
@@ -58,15 +78,21 @@ export default function TaskDetailPage() {
   const detailQuery = useApprovalDetail(Number.isFinite(instanceId) ? instanceId : null);
   const meQuery = useApprovalMe();
   const actionMutation = useTaskAction();
+  const withdrawMutation = useWithdrawInstance();
+  const urgeMutation = useUrgeInstance();
+  const commentMutation = useAddApprovalComment();
   const detail = detailQuery.data ?? null;
   const me = meQuery.data ?? null;
 
   const [action, setAction] = useState<ActionKind>(null);
   const [signature, setSignature] = useState('');
+  const [commentDraft, setCommentDraft] = useState('');
   const [userOptions, setUserOptions] = useState<Array<{ value: number; label: string }>>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const actionFormApi = useRef<FormApi | null>(null);
   const detailFormApi = useRef<FormApi | null>(null);
+
+  const phrasesQuery = useApprovalQuickPhrases(action === 'approve' || action === 'reject');
 
   const def = useMemo(() => resolveWorkflowDetailDefinition(detail), [detail]);
   const formType = useMemo(() => resolveWorkflowFormType(detail, def), [detail, def]);
@@ -77,7 +103,16 @@ export default function TaskDetailPage() {
     () => (taskId != null ? detail?.tasks?.find((t) => t.id === taskId) ?? null : null),
     [detail, taskId],
   );
-  const actionable = currentTask?.status === 'pending' && me != null && currentTask.assigneeId === me.id;
+  const actionable = currentTask?.status === 'pending' && me != null && currentTask.assigneeId === me.id
+    && detail?.status === 'running';
+  const isInitiator = me != null && detail?.initiatorId === me.id;
+  const initiatorActionable = !actionable && isInitiator && detail?.status === 'running';
+
+  // 当前进度：所有 pending 审批任务（节点 + 等待人）
+  const pendingTasks = useMemo(
+    () => (detail?.tasks ?? []).filter((t) => t.status === 'pending' && t.nodeType !== 'ccNode'),
+    [detail],
+  );
 
   const nodeCfg = useMemo(
     () => flowData?.nodes.find((n) => n.data.key === currentTask?.nodeKey)?.data ?? null,
@@ -97,6 +132,7 @@ export default function TaskDetailPage() {
   const opinionRequired = nodeCfg?.operations?.includes('opinionRequired') ?? false;
 
   const status = detail ? STATUS_MAP[detail.status] : null;
+  const comments = detail?.comments ?? [];
 
   const collectFormUpdates = async (): Promise<Record<string, unknown> | undefined> => {
     if (!formEditable || !viewerPerms || !detailFormApi.current) return undefined;
@@ -159,16 +195,50 @@ export default function TaskDetailPage() {
       await actionMutation.mutateAsync({ taskId, action, body });
       Toast.success(action === 'approve' ? '已同意' : action === 'reject' ? '已驳回' : '已转办');
       setAction(null);
-      navigate(-1);
+      navigate('/', { replace: true });
     } catch { /* 表单校验失败或请求失败（request 层已 Toast） */ }
+  };
+
+  const withdraw = async () => {
+    if (!detail) return;
+    try {
+      await withdrawMutation.mutateAsync({ id: detail.id });
+      Toast.success('已撤回');
+      navigate('/', { replace: true });
+    } catch { /* request 层已 Toast */ }
+  };
+
+  const urge = async () => {
+    if (!detail) return;
+    try {
+      await urgeMutation.mutateAsync({ id: detail.id });
+      Toast.success('已发送催办提醒');
+    } catch { /* request 层已 Toast */ }
+  };
+
+  const sendComment = async () => {
+    const text = commentDraft.trim();
+    if (!detail || !text) return;
+    try {
+      await commentMutation.mutateAsync({ instanceId: detail.id, content: text });
+      setCommentDraft('');
+      Toast.success('评论已发送');
+    } catch { /* request 层已 Toast */ }
+  };
+
+  const appendPhrase = (text: string) => {
+    const api = actionFormApi.current;
+    if (!api) return;
+    const cur = (api.getValue('comment') as string | undefined) ?? '';
+    api.setValue('comment', cur ? `${cur} ${text}` : text);
   };
 
   const renderForm = () => {
     if (formType !== 'designer') {
-      return <Banner type="info" closeIcon={null} description="该流程使用业务自定义表单，请到桌面端查看表单内容；流转记录可在下方查看。" />;
+      return <Banner type="info" closeIcon={null} description="该流程使用业务自定义表单，请到桌面端查看表单内容。" />;
     }
     if (visibleFields.length === 0) {
-      return <Empty description="当前节点无可见表单字段" style={{ padding: '24px 0' }} />;
+      return <Typography.Text type="tertiary" size="small">当前节点无可见表单字段</Typography.Text>;
     }
     return (
       <WorkflowFormRenderer
@@ -183,40 +253,34 @@ export default function TaskDetailPage() {
 
   if (detailQuery.isLoading) {
     return (
-      <div className="ap-page">
-        <div className="ap-header">
-          <Button theme="borderless" icon={<ChevronLeft size={18} />} onClick={() => navigate(-1)} aria-label="返回" />
-          <span className="ap-header__title">加载中…</span>
-        </div>
+      <PageShell title="加载中…">
         <div className="ap-body"><Skeleton placeholder={<Skeleton.Paragraph rows={6} />} loading active /></div>
-      </div>
+      </PageShell>
     );
   }
 
   if (!detail) {
     return (
-      <div className="ap-page">
-        <div className="ap-header">
-          <Button theme="borderless" icon={<ChevronLeft size={18} />} onClick={() => navigate(-1)} aria-label="返回" />
-          <span className="ap-header__title">申请详情</span>
-        </div>
+      <PageShell title="申请详情">
         <div className="ap-body"><Empty description="流程不存在或无权查看" style={{ paddingTop: 60 }} /></div>
-      </div>
+      </PageShell>
     );
   }
 
+  const hasFooter = actionable || initiatorActionable;
+  const sheetTitle = action === 'approve' ? (btnApprove.displayName ?? '同意')
+    : action === 'reject' ? (btnReject.displayName ?? '拒绝')
+    : (btnTransfer.displayName ?? '转办');
+
   return (
-    <div className="ap-page">
-      <div className="ap-header">
-        <Button theme="borderless" icon={<ChevronLeft size={18} />} onClick={() => navigate(-1)} aria-label="返回" />
-        <span className="ap-header__title">{detail.title}</span>
-        {status && <Tag color={status.color}>{status.text}</Tag>}
-      </div>
-      <div className={`ap-body${actionable ? ' ap-body--with-footer' : ''}`}>
+    <PageShell title={detail.title} tag={status && <Tag color={status.color}>{status.text}</Tag>}>
+      <div className={`ap-body${hasFooter ? ' ap-body--with-footer' : ''}`}>
         {detail.status === 'suspended' && (
           <Banner type="warning" closeIcon={null} description={`流程已挂起${detail.suspendReason ? `：${detail.suspendReason}` : ''}，恢复前不可审批`} style={{ marginBottom: 12 }} />
         )}
-        <div className="ap-card" style={{ cursor: 'default' }}>
+
+        {/* 基本信息 + 当前进度 */}
+        <div className="ap-section">
           <div className="ap-card__meta" style={{ marginTop: 0 }}>
             {(detail.priority === 'high' || detail.priority === 'urgent') && <WorkflowPriorityTag priority={detail.priority} />}
             <span>{detail.definitionName ?? '—'}</span>
@@ -225,26 +289,84 @@ export default function TaskDetailPage() {
             <span>·</span>
             <span>{formatDateTime(detail.createdAt)}</span>
           </div>
+          {detail.status === 'running' && pendingTasks.length > 0 && (
+            <div className="ap-progress-hint">
+              当前节点「{pendingTasks[0].nodeName}」，等待
+              {' '}{[...new Set(pendingTasks.map((t) => t.assigneeName ?? `用户#${t.assigneeId}`))].slice(0, 3).join('、')}
+              {pendingTasks.length > 3 ? ` 等 ${pendingTasks.length} 人` : ''} 处理
+            </div>
+          )}
         </div>
-        <Tabs type="line" tabPaneMotion={false}>
-          <TabPane tab="审批表单" itemKey="form">
-            <div style={{ padding: '12px 2px' }}>{renderForm()}</div>
-          </TabPane>
-          <TabPane tab="流转记录" itemKey="timeline">
-            <div style={{ padding: '12px 2px' }}>
-              <ApprovalTimeline
-                tasks={detail.tasks ?? []}
-                flowNodes={linearizeApprovalNodes(flowData)}
-                initiator={{ name: detail.initiatorName, avatar: detail.initiatorAvatar, submittedAt: detail.createdAt }}
-                instanceStatus={detail.status}
-                finishedAt={detail.updatedAt}
-                currentUserId={me?.id ?? null}
+
+        {/* 审批表单 */}
+        <div className="ap-section">
+          <div className="ap-section__title">审批表单{formEditable && <Tag size="small" color="blue" style={{ marginLeft: 6 }}>可编辑</Tag>}</div>
+          {renderForm()}
+        </div>
+
+        {/* 流转记录 */}
+        <div className="ap-section">
+          <div className="ap-section__title">流转记录</div>
+          <ApprovalTimeline
+            tasks={detail.tasks ?? []}
+            flowNodes={linearizeApprovalNodes(flowData)}
+            initiator={{ name: detail.initiatorName, avatar: detail.initiatorAvatar, submittedAt: detail.createdAt }}
+            instanceStatus={detail.status}
+            finishedAt={detail.updatedAt}
+            currentUserId={me?.id ?? null}
+          />
+        </div>
+
+        {/* 沟通评论 */}
+        <div className="ap-section">
+          <div className="ap-section__title">沟通评论{comments.length > 0 ? `（${comments.length}）` : ''}</div>
+          {comments.length === 0 && (
+            <Typography.Text type="tertiary" size="small">暂无评论</Typography.Text>
+          )}
+          {comments.map((c) => (
+            <div key={c.id} className="ap-comment">
+              <Avatar size="extra-small" src={c.userAvatar ?? undefined} style={{ flexShrink: 0 }}>
+                {(c.userName ?? 'U').slice(0, 1)}
+              </Avatar>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="ap-comment__head">
+                  <span className="ap-comment__name">{c.userName ?? `用户#${c.userId}`}</span>
+                  <span className="ap-comment__time">{formatDateTime(c.createdAt)}</span>
+                </div>
+                {c.parentSummary && (
+                  <div className="ap-comment__quote">{c.parentSummary.userName ?? '—'}：{c.parentSummary.content}</div>
+                )}
+                <div className="ap-comment__content">{c.content}</div>
+                {c.attachments && c.attachments.length > 0 && (
+                  <FileAttachment mode="view" showTitle={false} value={c.attachments.map((a, i) => uploadedFileToAttachment(a, i))} />
+                )}
+              </div>
+            </div>
+          ))}
+          {detail.allowComment !== false && (
+            <div className="ap-comment-input">
+              <TextArea
+                value={commentDraft}
+                onChange={setCommentDraft}
+                placeholder="发表评论，与流程相关人员沟通…"
+                autosize={{ minRows: 1, maxRows: 4 }}
+                maxCount={2000}
+              />
+              <Button
+                theme="solid"
+                type="primary"
+                icon={<Send size={14} />}
+                loading={commentMutation.isPending}
+                disabled={!commentDraft.trim()}
+                onClick={() => void sendComment()}
+                aria-label="发送评论"
               />
             </div>
-          </TabPane>
-        </Tabs>
+          )}
+        </div>
       </div>
 
+      {/* 底部操作条：审批人 */}
       {actionable && (
         <div className="ap-footer-bar">
           {btnTransfer.enabled && (
@@ -259,47 +381,86 @@ export default function TaskDetailPage() {
         </div>
       )}
 
-      <Modal
-        title={action === 'approve' ? (btnApprove.displayName ?? '同意') : action === 'reject' ? (btnReject.displayName ?? '拒绝') : (btnTransfer.displayName ?? '转办')}
+      {/* 底部操作条：发起人（撤回 / 催办） */}
+      {initiatorActionable && (
+        <div className="ap-footer-bar">
+          <Popconfirm title="确定撤回该申请？" content="撤回后流程终止，可重新发起" onConfirm={() => void withdraw()}>
+            <Button theme="light" type="danger" icon={<RotateCcw size={14} />} loading={withdrawMutation.isPending}>撤回</Button>
+          </Popconfirm>
+          <Button
+            theme="solid"
+            type="primary"
+            icon={<BellRing size={14} />}
+            loading={urgeMutation.isPending}
+            onClick={() => void urge()}
+          >
+            催办
+          </Button>
+        </div>
+      )}
+
+      {/* 审批操作底部抽屉 */}
+      <SideSheet
+        placement="bottom"
+        height="auto"
+        title={sheetTitle}
         visible={action != null}
         onCancel={() => setAction(null)}
-        onOk={() => void submitAction()}
-        okButtonProps={{ loading: actionMutation.isPending }}
-        closeOnEsc
-        style={{ maxWidth: 'calc(100vw - 32px)' }}
+        className="ap-sheet"
       >
-        <Form getFormApi={(api) => { actionFormApi.current = api; }}>
-          {action === 'transfer' && (
-            <Form.Select
-              field="targetUserId"
-              label="转办给"
-              placeholder="选择接收人"
-              filter
-              loading={usersLoading}
-              optionList={userOptions}
-              rules={[{ required: true, message: '请选择接收人' }]}
-              style={{ width: '100%' }}
+        <div className="ap-sheet__body">
+          <Form getFormApi={(api) => { actionFormApi.current = api; }}>
+            {action === 'transfer' && (
+              <Form.Select
+                field="targetUserId"
+                label="转办给"
+                placeholder="选择接收人"
+                filter
+                loading={usersLoading}
+                optionList={userOptions}
+                rules={[{ required: true, message: '请选择接收人' }]}
+                style={{ width: '100%' }}
+              />
+            )}
+            <Form.TextArea
+              field="comment"
+              label={action === 'approve' ? (btnApprove.opinionName ?? '审批意见') : action === 'reject' ? (btnReject.opinionName ?? '拒绝原因') : (btnTransfer.opinionName ?? '转办说明')}
+              rows={3}
+              placeholder={action === 'reject' || (action === 'approve' && opinionRequired) ? '必填' : '选填'}
+              rules={action === 'reject' || (action === 'approve' && opinionRequired)
+                ? [{ required: true, message: '请填写意见' }]
+                : undefined}
             />
-          )}
-          <Form.TextArea
-            field="comment"
-            label={action === 'approve' ? (btnApprove.opinionName ?? '审批意见') : action === 'reject' ? (btnReject.opinionName ?? '拒绝原因') : (btnTransfer.opinionName ?? '转办说明')}
-            rows={3}
-            placeholder={action === 'reject' || (action === 'approve' && opinionRequired) ? '必填' : '选填'}
-            rules={action === 'reject' || (action === 'approve' && opinionRequired)
-              ? [{ required: true, message: '请填写意见' }]
-              : undefined}
-          />
-        </Form>
-        {action === 'approve' && needSignature && (
-          <div style={{ marginTop: 8 }}>
-            <Typography.Text type="secondary" size="small">手写签名（必填）</Typography.Text>
-            <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, marginTop: 6, overflow: 'hidden' }}>
-              <SignaturePad value={signature} onChange={setSignature} width={window.innerWidth > 480 ? 400 : window.innerWidth - 96} height={140} />
+          </Form>
+          {(action === 'approve' || action === 'reject') && (phrasesQuery.data?.length ?? 0) > 0 && (
+            <div className="ap-phrases">
+              {(phrasesQuery.data ?? []).slice(0, 8).map((p) => (
+                <Tag key={p.id} className="ap-phrases__item" onClick={() => appendPhrase(p.content)}>{p.content}</Tag>
+              ))}
             </div>
+          )}
+          {action === 'approve' && needSignature && (
+            <div style={{ marginTop: 8 }}>
+              <Typography.Text type="secondary" size="small">手写签名（必填）</Typography.Text>
+              <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, marginTop: 6, overflow: 'hidden' }}>
+                <SignaturePad value={signature} onChange={setSignature} width={Math.min(400, window.innerWidth - 64)} height={140} />
+              </div>
+            </div>
+          )}
+          <div className="ap-sheet__actions">
+            <Button block theme="light" onClick={() => setAction(null)}>取消</Button>
+            <Button
+              block
+              theme="solid"
+              type={action === 'reject' ? 'danger' : 'primary'}
+              loading={actionMutation.isPending}
+              onClick={() => void submitAction()}
+            >
+              确认{sheetTitle}
+            </Button>
           </div>
-        )}
-      </Modal>
-    </div>
+        </div>
+      </SideSheet>
+    </PageShell>
   );
 }

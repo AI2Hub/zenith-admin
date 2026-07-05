@@ -7,6 +7,7 @@ import dayjs from 'dayjs';
 import { applyFieldPermissionsToFields } from '@zenith/shared';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import { canLaunchOnMobile } from '../lib/launch';
+import { recordRecentDefinition } from '../lib/recent';
 import { useApprovalMe, useLaunchInstance, usePublishedDefinitions } from '../lib/queries';
 
 export default function LaunchFormPage() {
@@ -44,6 +45,7 @@ export default function LaunchFormPage() {
         formData,
         priority: 'normal',
       });
+      recordRecentDefinition(def.id);
       Toast.success('提交成功');
       navigate('/', { replace: true });
     } catch { /* 校验或请求失败（request 层已 Toast） */ }
