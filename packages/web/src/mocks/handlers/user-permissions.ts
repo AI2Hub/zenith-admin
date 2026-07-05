@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockUsers } from '@/mocks/data/users';
 import { mockRoles } from '@/mocks/data/roles';
+import { mockUserGroups } from '@/mocks/data/user-groups';
 
 // In-memory store for user-level menu/data permissions
 const userMenuMap: Record<number, number[]> = {};
@@ -13,6 +14,22 @@ function getMostPermissive(scopes: Array<string | null>): string | null {
   const valid = scopes.filter((s): s is string => s !== null);
   if (valid.length === 0) return null;
   return valid.reduce((best, curr) => (SCOPE_PRIORITY[curr] ?? 0) > (SCOPE_PRIORITY[best] ?? 0) ? curr : best, valid[0]);
+}
+
+/** 用户所在启用用户组继承的角色/菜单/数据权限 */
+function getGroupInheritance(userId: number) {
+  const memberGroups = mockUserGroups.filter((g) => g.status === 'enabled' && g.memberIds.includes(userId));
+  const groupRoles = memberGroups
+    .flatMap((g) => g.roleIds)
+    .map((rid) => mockRoles.find((r) => r.id === rid))
+    .filter((r): r is NonNullable<typeof r> => !!r);
+  const groupMenuIds = [...new Set(groupRoles.flatMap((r) => r.menuIds ?? []))];
+  const groupDataScope = getMostPermissive(groupRoles.map((r) => r.dataScope ?? null));
+  const groupDeptScopeIds = [...new Set(
+    groupRoles.filter((r) => r.dataScope === 'custom').flatMap((r) => r.deptScopeIds ?? [])
+  )];
+  const groups = memberGroups.filter((g) => g.roleIds.length > 0).map((g) => ({ id: g.id, name: g.name }));
+  return { groupMenuIds, groupDataScope, groupDeptScopeIds, groups };
 }
 
 export const userPermissionsHandlers = [
@@ -54,6 +71,7 @@ export const userPermissionsHandlers = [
     const roleDeptScopeIds = [...new Set(
       userRoles.filter((r) => r.dataScope === 'custom').flatMap((r) => r.deptScopeIds ?? [])
     )];
+    const { groupDataScope, groupDeptScopeIds, groups } = getGroupInheritance(userId);
 
     return HttpResponse.json({
       code: 0, message: 'ok',
@@ -62,6 +80,9 @@ export const userPermissionsHandlers = [
         deptScopeIds: userDeptScopeMap[userId] ?? [],
         roleDataScope,
         roleDeptScopeIds,
+        groupDataScope,
+        groupDeptScopeIds,
+        groups,
       },
     });
   }),
@@ -83,14 +104,15 @@ export const userPermissionsHandlers = [
 
     const userRoleIds = (user as { roleIds?: number[] }).roleIds ?? [];
     const userRoles = mockRoles.filter((r) => userRoleIds.includes(r.id));
+    const { groupMenuIds, groupDataScope, groupDeptScopeIds, groups } = getGroupInheritance(userId);
 
     const directMenuIds = userMenuMap[userId] ?? [];
     const roleMenuIds = [...new Set(userRoles.flatMap((r) => r.menuIds ?? []))];
-    const effectiveMenuIds = [...new Set([...directMenuIds, ...roleMenuIds])];
+    const effectiveMenuIds = [...new Set([...directMenuIds, ...roleMenuIds, ...groupMenuIds])];
 
     const userDataScope = userDataScopeMap[userId] ?? null;
     const roleDataScope = getMostPermissive(userRoles.map((r) => r.dataScope ?? null));
-    const effectiveDataScope = getMostPermissive([userDataScope, roleDataScope]) ?? 'self';
+    const effectiveDataScope = getMostPermissive([userDataScope, roleDataScope, groupDataScope]) ?? 'self';
 
     const userDeptScopeIds = userDeptScopeMap[userId] ?? [];
     const roleDeptScopeIds = [...new Set(
@@ -98,7 +120,7 @@ export const userPermissionsHandlers = [
     )];
     const effectiveDeptScopeIds =
       effectiveDataScope === 'custom'
-        ? [...new Set([...(userDataScope === 'custom' ? userDeptScopeIds : []), ...roleDeptScopeIds])]
+        ? [...new Set([...(userDataScope === 'custom' ? userDeptScopeIds : []), ...roleDeptScopeIds, ...groupDeptScopeIds])]
         : [];
 
     return HttpResponse.json({
@@ -106,13 +128,17 @@ export const userPermissionsHandlers = [
       data: {
         directMenuIds,
         roleMenuIds,
+        groupMenuIds,
         effectiveMenuIds,
         userDataScope,
         roleDataScope,
+        groupDataScope,
         effectiveDataScope,
         userDeptScopeIds,
         roleDeptScopeIds,
+        groupDeptScopeIds,
         effectiveDeptScopeIds,
+        groups,
       },
     });
   }),

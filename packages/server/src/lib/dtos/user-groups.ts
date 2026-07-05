@@ -23,6 +23,7 @@ export const UserGroupDTO = z
     departmentName: z.string().nullable().optional(),
     memberCount: z.number().int().openapi({ example: 5 }),
     memberPreview: z.array(UserGroupMemberPreviewDTO).optional(),
+    roleCount: z.number().int().optional().openapi({ description: '绑定的角色数量' }),
     status: z.enum(['enabled', 'disabled']),
     ...auditFields,
     createdAt: z.string(),
@@ -40,3 +41,12 @@ export const UserGroupMemberDTO = z
     joinedAt: z.string(),
   })
   .openapi('UserGroupMember');
+
+export const UserGroupRoleDTO = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    code: z.string(),
+    status: z.enum(['enabled', 'disabled']),
+  })
+  .openapi('UserGroupRole');

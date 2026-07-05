@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm';
-import { departments, menus, positions, roleDeptScopes, roleMenus, roles, tenantPackageMenus, tenantPackages, tenants, userDeptScopes, userGroupMembers, userGroups, userMenus, userPositions, userRoles, users } from './core';
+import { departments, menus, positions, roleDeptScopes, roleMenus, roles, tenantPackageMenus, tenantPackages, tenants, userDeptScopes, userGroupMembers, userGroupRoles, userGroups, userMenus, userPositions, userRoles, users } from './core';
 import { businessFiles, fileStorageConfigs, managedFiles, uploadChunks, uploadSessions } from './files';
 import { asyncTaskItems, asyncTasks, exportJobDownloads, exportJobs } from './tasks';
 import { cronJobLogs, cronJobs, systemConfigs } from './system';
@@ -175,11 +175,17 @@ export const userGroupsRelations = relations(userGroups, ({ one, many }) => ({
   owner: one(users, { fields: [userGroups.ownerId], references: [users.id], relationName: 'userGroupOwner' }),
   department: one(departments, { fields: [userGroups.departmentId], references: [departments.id] }),
   members: many(userGroupMembers),
+  groupRoles: many(userGroupRoles),
 }));
 
 export const userGroupMembersRelations = relations(userGroupMembers, ({ one }) => ({
   group: one(userGroups, { fields: [userGroupMembers.groupId], references: [userGroups.id] }),
   user: one(users, { fields: [userGroupMembers.userId], references: [users.id] }),
+}));
+
+export const userGroupRolesRelations = relations(userGroupRoles, ({ one }) => ({
+  group: one(userGroups, { fields: [userGroupRoles.groupId], references: [userGroups.id] }),
+  role: one(roles, { fields: [userGroupRoles.roleId], references: [roles.id] }),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -208,6 +214,7 @@ export const rolesRelations = relations(roles, ({ one, many }) => ({
   roleMenus: many(roleMenus),
   userRoles: many(userRoles),
   deptScopes: many(roleDeptScopes),
+  userGroupRoles: many(userGroupRoles),
 }));
 
 export const menusRelations = relations(menus, ({ many }) => ({

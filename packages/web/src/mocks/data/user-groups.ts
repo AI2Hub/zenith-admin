@@ -2,6 +2,7 @@ import type { UserGroup } from '@zenith/shared';
 
 interface MockUserGroup extends UserGroup {
   memberIds: number[];
+  roleIds: number[];
 }
 
 export const mockUserGroups: MockUserGroup[] = [
@@ -16,6 +17,8 @@ export const mockUserGroups: MockUserGroup[] = [
     departmentName: '研发部',
     memberCount: 3,
     memberIds: [1, 2, 3],
+    roleIds: [2],
+    roleCount: 1,
     status: 'enabled',
     createdAt: '2026-05-01 09:00:00',
     updatedAt: '2026-05-01 09:00:00',
@@ -31,6 +34,8 @@ export const mockUserGroups: MockUserGroup[] = [
     departmentName: null,
     memberCount: 2,
     memberIds: [1, 4],
+    roleIds: [],
+    roleCount: 0,
     status: 'enabled',
     createdAt: '2026-05-02 10:30:00',
     updatedAt: '2026-05-02 10:30:00',

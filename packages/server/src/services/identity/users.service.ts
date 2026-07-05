@@ -735,6 +735,46 @@ function getMostPermissiveScope(scopes: Array<string | null>): string | null {
   return valid.reduce((best, curr) => (SCOPE_PRIORITY[curr] ?? 0) > (SCOPE_PRIORITY[best] ?? 0) ? curr : best, valid[0]);
 }
 
+const groupRolesWith = {
+  columns: {},
+  with: {
+    group: {
+      columns: { id: true, name: true, status: true },
+      with: {
+        groupRoles: {
+          columns: {},
+          with: {
+            role: {
+              columns: { dataScope: true },
+              with: {
+                roleMenus: { columns: { menuId: true } },
+                deptScopes: { columns: { deptId: true } },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+/** 提取启用状态用户组继承的角色信息（菜单/数据权限），并返回带角色的组名列表 */
+function extractGroupInheritance(
+  memberships: Array<{ group: { id: number; name: string; status: string; groupRoles: Array<{ role: { dataScope: string; roleMenus: Array<{ menuId: number }>; deptScopes: Array<{ deptId: number }> } }> } }>,
+) {
+  const enabled = memberships.filter((m) => m.group.status === 'enabled');
+  const groupRoles = enabled.flatMap((m) => m.group.groupRoles.map((gr) => gr.role));
+  const groupMenuIds = [...new Set(groupRoles.flatMap((r) => r.roleMenus.map((rm) => rm.menuId)))];
+  const groupDataScope = getMostPermissiveScope(groupRoles.map((r) => r.dataScope));
+  const groupDeptScopeIds = [...new Set(
+    groupRoles.filter((r) => r.dataScope === 'custom').flatMap((r) => r.deptScopes.map((ds) => ds.deptId))
+  )];
+  const groups = enabled
+    .filter((m) => m.group.groupRoles.length > 0)
+    .map((m) => ({ id: m.group.id, name: m.group.name }));
+  return { groupMenuIds, groupDataScope, groupDeptScopeIds, groups };
+}
+
 export async function getUserDataPermission(userId: number) {
   const user = await db.query.users.findFirst({
     where: eq(users.id, userId),
@@ -750,6 +790,7 @@ export async function getUserDataPermission(userId: number) {
           },
         },
       },
+      userGroupMembers: groupRolesWith,
     },
   });
   if (!user) throw new HTTPException(404, { message: '用户不存在' });
@@ -759,11 +800,15 @@ export async function getUserDataPermission(userId: number) {
       .filter((ur) => ur.role.dataScope === 'custom')
       .flatMap((ur) => ur.role.deptScopes.map((ds) => ds.deptId))
   )];
+  const { groupDataScope, groupDeptScopeIds, groups } = extractGroupInheritance(user.userGroupMembers ?? []);
   return {
     userDataScope: user.userDataScope ?? null,
     deptScopeIds: user.userDeptScopes.map((ds) => ds.deptId),
     roleDataScope,
     roleDeptScopeIds,
+    groupDataScope,
+    groupDeptScopeIds,
+    groups,
   };
 }
 
@@ -812,17 +857,20 @@ export async function getUserEffectivePermissions(userId: number) {
           },
         },
       },
+      userGroupMembers: groupRolesWith,
     },
   });
   if (!user) throw new HTTPException(404, { message: '用户不存在' });
 
+  const { groupMenuIds, groupDataScope, groupDeptScopeIds, groups } = extractGroupInheritance(user.userGroupMembers ?? []);
+
   const directMenuIds = user.userMenus.map((m) => m.menuId);
   const roleMenuIds = [...new Set(user.userRoles.flatMap((ur) => ur.role.roleMenus.map((rm) => rm.menuId)))];
-  const effectiveMenuIds = [...new Set([...directMenuIds, ...roleMenuIds])];
+  const effectiveMenuIds = [...new Set([...directMenuIds, ...roleMenuIds, ...groupMenuIds])];
 
   const userDataScope = user.userDataScope ?? null;
   const roleDataScope = getMostPermissiveScope(user.userRoles.map((ur) => ur.role.dataScope));
-  const effectiveDataScope = getMostPermissiveScope([userDataScope, roleDataScope]) ?? 'self';
+  const effectiveDataScope = getMostPermissiveScope([userDataScope, roleDataScope, groupDataScope]) ?? 'self';
 
   const userDeptScopeIds = user.userDeptScopes.map((ds) => ds.deptId);
   const roleDeptScopeIds = [...new Set(
@@ -831,18 +879,22 @@ export async function getUserEffectivePermissions(userId: number) {
       .flatMap((ur) => ur.role.deptScopes.map((ds) => ds.deptId))
   )];
   const effectiveDeptScopeIds = effectiveDataScope === 'custom'
-    ? [...new Set([...(userDataScope === 'custom' ? userDeptScopeIds : []), ...roleDeptScopeIds])]
+    ? [...new Set([...(userDataScope === 'custom' ? userDeptScopeIds : []), ...roleDeptScopeIds, ...groupDeptScopeIds])]
     : [];
 
   return {
     directMenuIds,
     roleMenuIds,
+    groupMenuIds,
     effectiveMenuIds,
     userDataScope,
     roleDataScope,
+    groupDataScope,
     effectiveDataScope,
     userDeptScopeIds,
     roleDeptScopeIds,
+    groupDeptScopeIds,
     effectiveDeptScopeIds,
+    groups,
   };
 }

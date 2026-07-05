@@ -3,11 +3,12 @@
  *
  * 布局：
  *  - 角色数据权限（只读）：显示角色最宽松数据权限及自定义部门列表
+ *  - 用户组继承权限（只读）：显示用户组绑定角色继承的最宽松数据权限
  *  - 用户直接数据权限（可编辑）：可选「跟随角色」(null) 或单独指定
- *  - 最终有效权限（只读）：取两者中最宽松的
+ *  - 最终有效权限（只读）：取三者中最宽松的
  */
 import { useState, useEffect } from 'react';
-import { Typography, Divider, Toast } from '@douyinfe/semi-ui';
+import { Typography, Divider, Toast, Tag } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
 import type { Department } from '@zenith/shared';
 import { DataScopePanel, DATA_SCOPE_OPTIONS } from '@/components/permissions/DataScopePanel';
@@ -30,11 +31,10 @@ function scopeLabel(scope: string | null): string {
 
 const SCOPE_PRIORITY: Record<string, number> = { all: 5, dept: 4, dept_only: 3, custom: 2, self: 1 };
 
-function getMostPermissive(a: string | null, b: string | null): string {
-  if (!a && !b) return 'self';
-  if (!a) return b ?? 'self';
-  if (!b) return a;
-  return (SCOPE_PRIORITY[a] ?? 0) >= (SCOPE_PRIORITY[b] ?? 0) ? a : b;
+function getMostPermissive(scopes: Array<string | null>): string {
+  const valid = scopes.filter((s): s is string => s !== null);
+  if (valid.length === 0) return 'self';
+  return valid.reduce((best, curr) => ((SCOPE_PRIORITY[curr] ?? 0) > (SCOPE_PRIORITY[best] ?? 0) ? curr : best), valid[0]);
 }
 
 export function UserDataScopeModal({ userId, userName, visible, deptTree, onClose }: Props) {
@@ -42,6 +42,9 @@ export function UserDataScopeModal({ userId, userName, visible, deptTree, onClos
   const [deptScopeIds, setDeptScopeIds] = useState<number[]>([]);
   const [roleDataScope, setRoleDataScope] = useState<string | null>(null);
   const [roleDeptScopeIds, setRoleDeptScopeIds] = useState<number[]>([]);
+  const [groupDataScope, setGroupDataScope] = useState<string | null>(null);
+  const [groupDeptScopeIds, setGroupDeptScopeIds] = useState<number[]>([]);
+  const [groups, setGroups] = useState<Array<{ id: number; name: string }>>([]);
   const permissionQuery = useUserDataPermission(userId, visible);
   const saveMutation = useSaveUserDataPermission();
 
@@ -51,6 +54,9 @@ export function UserDataScopeModal({ userId, userName, visible, deptTree, onClos
     setDeptScopeIds(permissionQuery.data.deptScopeIds);
     setRoleDataScope(permissionQuery.data.roleDataScope);
     setRoleDeptScopeIds(permissionQuery.data.roleDeptScopeIds);
+    setGroupDataScope(permissionQuery.data.groupDataScope ?? null);
+    setGroupDeptScopeIds(permissionQuery.data.groupDeptScopeIds ?? []);
+    setGroups(permissionQuery.data.groups ?? []);
   }, [visible, permissionQuery.data]);
 
   const handleSave = async () => {
@@ -63,10 +69,10 @@ export function UserDataScopeModal({ userId, userName, visible, deptTree, onClos
     onClose();
   };
 
-  const effectiveScope = getMostPermissive(userDataScope, roleDataScope);
+  const effectiveScope = getMostPermissive([userDataScope, roleDataScope, groupDataScope]);
   const effectiveDeptIds =
     effectiveScope === 'custom'
-      ? [...new Set([...(userDataScope === 'custom' ? deptScopeIds : []), ...roleDeptScopeIds])]
+      ? [...new Set([...(userDataScope === 'custom' ? deptScopeIds : []), ...roleDeptScopeIds, ...groupDeptScopeIds])]
       : [];
 
   return (
@@ -89,6 +95,26 @@ export function UserDataScopeModal({ userId, userName, visible, deptTree, onClos
           readonly
         />
       </div>
+
+      {/* 用户组继承权限（只读，仅在有绑定角色的组时展示） */}
+      {groups.length > 0 && (
+        <>
+          <Divider margin={12} />
+          <div style={{ marginBottom: 12 }}>
+            <Text strong style={{ display: 'block', marginBottom: 6 }}>
+              用户组继承权限（只读）
+              {groups.map((g) => <Tag key={g.id} size="small" color="orange" style={{ marginLeft: 6 }}>{g.name}</Tag>)}
+            </Text>
+            <DataScopePanel
+              dataScope={groupDataScope ?? 'self'}
+              deptScopeIds={groupDeptScopeIds}
+              deptTree={deptTree}
+              loading={permissionQuery.isFetching}
+              readonly
+            />
+          </div>
+        </>
+      )}
 
       <Divider margin={12} />
 

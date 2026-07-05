@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { mockUserGroups, getNextUserGroupId } from '@/mocks/data/user-groups';
 import { mockUsers } from '@/mocks/data/users';
+import { mockRoles } from '@/mocks/data/roles';
 import { mockDateTime } from '@/mocks/utils/date';
 import type { UserGroup } from '@zenith/shared';
 
@@ -14,12 +15,12 @@ interface CreateBody {
 }
 
 function publicView(g: typeof mockUserGroups[number]): UserGroup {
-  const { memberIds: _memberIds, ...rest } = g;
+  const { memberIds: _memberIds, roleIds: _roleIds, ...rest } = g;
   const memberPreview = g.memberIds.slice(0, 5).map((uid) => {
     const u = mockUsers.find((mu) => mu.id === uid);
     return u ? { id: u.id, nickname: u.nickname, avatar: u.avatar ?? null } : null;
   }).filter((x): x is NonNullable<typeof x> => x !== null);
-  return { ...rest, memberCount: g.memberIds.length, memberPreview };
+  return { ...rest, memberCount: g.memberIds.length, memberPreview, roleCount: g.roleIds.length };
 }
 
 export const userGroupsHandlers = [
@@ -86,6 +87,26 @@ export const userGroupsHandlers = [
     return HttpResponse.json({ code: 0, message: '移除成功', data: null });
   }),
 
+  http.get('/api/user-groups/:id/roles', ({ params }) => {
+    const grp = mockUserGroups.find((g) => g.id === Number(params.id));
+    if (!grp) return HttpResponse.json({ code: 404, message: '用户组不存在', data: null });
+    const list = grp.roleIds
+      .map((rid) => mockRoles.find((r) => r.id === rid))
+      .filter((r): r is NonNullable<typeof r> => !!r)
+      .map((r) => ({ id: r.id, name: r.name, code: r.code, status: r.status }));
+    return HttpResponse.json({ code: 0, message: 'ok', data: list });
+  }),
+
+  http.put('/api/user-groups/:id/roles', async ({ params, request }) => {
+    const grp = mockUserGroups.find((g) => g.id === Number(params.id));
+    if (!grp) return HttpResponse.json({ code: 404, message: '用户组不存在', data: null });
+    const body = await request.json() as { roleIds: number[] };
+    grp.roleIds = Array.isArray(body?.roleIds) ? body.roleIds : [];
+    grp.roleCount = grp.roleIds.length;
+    grp.updatedAt = mockDateTime();
+    return HttpResponse.json({ code: 0, message: '保存成功', data: null });
+  }),
+
   http.get('/api/user-groups/:id', ({ params }) => {
     const grp = mockUserGroups.find((g) => g.id === Number(params.id));
     if (!grp) return HttpResponse.json({ code: 404, message: '用户组不存在', data: null });
@@ -109,6 +130,8 @@ export const userGroupsHandlers = [
       departmentName: null,
       memberCount: 0,
       memberIds: [],
+      roleIds: [],
+      roleCount: 0,
       status: body.status ?? 'enabled',
       createdAt: now,
       updatedAt: now,

@@ -41,6 +41,7 @@ export async function getUserMenuIds(userId: number): Promise<number[]> {
 }
 
 async function fetchUserPermissionData(userId: number): Promise<{ permissions: string[]; menuIds: number[] }> {
+  const menuColumns = { id: true, permission: true, visible: true } as const;
   const user = await db.query.users.findFirst({
     where: eq(users.id, userId),
     columns: { tenantId: true },
@@ -53,15 +54,7 @@ async function fetchUserPermissionData(userId: number): Promise<{ permissions: s
             with: {
               roleMenus: {
                 columns: {},
-                with: {
-                  menu: {
-                    columns: {
-                      id: true,
-                      permission: true,
-                      visible: true,
-                    },
-                  },
-                },
+                with: { menu: { columns: menuColumns } },
               },
             },
           },
@@ -69,12 +62,29 @@ async function fetchUserPermissionData(userId: number): Promise<{ permissions: s
       },
       userMenus: {
         columns: {},
+        with: { menu: { columns: menuColumns } },
+      },
+      // 用户组绑定的角色：组内成员自动继承（仅启用状态的组生效）
+      userGroupMembers: {
+        columns: {},
         with: {
-          menu: {
-            columns: {
-              id: true,
-              permission: true,
-              visible: true,
+          group: {
+            columns: { status: true },
+            with: {
+              groupRoles: {
+                columns: {},
+                with: {
+                  role: {
+                    columns: {},
+                    with: {
+                      roleMenus: {
+                        columns: {},
+                        with: { menu: { columns: menuColumns } },
+                      },
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -88,7 +98,10 @@ async function fetchUserPermissionData(userId: number): Promise<{ permissions: s
 
   const roleMenuRows = user.userRoles.flatMap(({ role }) => role.roleMenus.map(({ menu }) => menu));
   const directMenuRows = user.userMenus.map(({ menu }) => menu);
-  let allMenuRows = [...roleMenuRows, ...directMenuRows];
+  const groupMenuRows = (user.userGroupMembers ?? [])
+    .filter(({ group }) => group.status === 'enabled')
+    .flatMap(({ group }) => group.groupRoles.flatMap(({ role }) => role.roleMenus.map(({ menu }) => menu)));
+  let allMenuRows = [...roleMenuRows, ...directMenuRows, ...groupMenuRows];
 
   // 多租户：将有效菜单/权限交集到租户套餐白名单内；保留不可见的内置工具菜单（个人中心/消息等），避免锁死。
   const packageMenuIds = await getTenantPackageMenuIdSet(user.tenantId);

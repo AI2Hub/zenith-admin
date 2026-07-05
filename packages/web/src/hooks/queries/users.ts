@@ -26,12 +26,17 @@ export interface UserDataPermission {
   deptScopeIds: number[];
   roleDataScope: string | null;
   roleDeptScopeIds: number[];
+  groupDataScope: string | null;
+  groupDeptScopeIds: number[];
+  groups: Array<{ id: number; name: string }>;
 }
 
 export interface UserEffectivePermissions {
   directMenuIds: number[];
   roleMenuIds: number[];
+  groupMenuIds: number[];
   effectiveMenuIds: number[];
+  groups: Array<{ id: number; name: string }>;
 }
 
 export const userKeys = {

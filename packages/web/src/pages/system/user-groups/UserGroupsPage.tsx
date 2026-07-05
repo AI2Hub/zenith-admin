@@ -35,14 +35,17 @@ import { usePagination } from '@/hooks/usePagination';
 import { useFlatDepartments } from '@/hooks/queries/departments';
 import {
   useAssignUserGroupMembers,
+  useAssignUserGroupRoles,
   useDeleteUserGroups,
   useSaveUserGroup,
   userGroupKeys,
   useUserGroupDetail,
   useUserGroupList,
   useUserGroupMembers,
+  useUserGroupRoles,
 } from '@/hooks/queries/user-groups';
 import { useAllUsers } from '@/hooks/queries/users';
+import { useAllRoles } from '@/hooks/queries/roles';
 
 interface SearchParams {
   keyword: string;
@@ -97,10 +100,17 @@ export default function UserGroupsPage() {
   const [memberGroup, setMemberGroup] = useState<UserGroup | null>(null);
   const [memberIds, setMemberIds] = useState<number[]>([]);
   const membersQuery = useUserGroupMembers(memberGroup?.id, memberSheetVisible);
+  // 角色分配
+  const [roleModalVisible, setRoleModalVisible] = useState(false);
+  const [roleGroup, setRoleGroup] = useState<UserGroup | null>(null);
+  const [roleIds, setRoleIds] = useState<number[]>([]);
+  const groupRolesQuery = useUserGroupRoles(roleGroup?.id, roleModalVisible);
+  const allRolesQuery = useAllRoles({ enabled: roleModalVisible });
   const saveMutation = useSaveUserGroup();
   const toggleStatusMutation = useSaveUserGroup();
   const deleteMutation = useDeleteUserGroups();
   const assignMembersMutation = useAssignUserGroupMembers();
+  const assignRolesMutation = useAssignUserGroupRoles();
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
 
   const departmentTreeData = useMemo<TreeNodeData[]>(() => {
@@ -135,6 +145,10 @@ export default function UserGroupsPage() {
   useEffect(() => {
     if (memberSheetVisible) setMemberIds((membersQuery.data ?? []).map((m) => m.id));
   }, [memberSheetVisible, membersQuery.data]);
+
+  useEffect(() => {
+    if (roleModalVisible) setRoleIds((groupRolesQuery.data ?? []).map((r) => r.id));
+  }, [roleModalVisible, groupRolesQuery.data]);
 
   const handleSearch = () => {
     setPage(1);
@@ -205,6 +219,19 @@ export default function UserGroupsPage() {
     setMemberSheetVisible(true);
   };
 
+  const openRoles = (group: UserGroup) => {
+    setRoleGroup(group);
+    setRoleModalVisible(true);
+  };
+
+  const handleSaveRoles = async () => {
+    if (!roleGroup) return;
+    await assignRolesMutation.mutateAsync({ id: roleGroup.id, roleIds });
+    Toast.success('角色已更新，组内成员即时生效');
+    setRoleModalVisible(false);
+    setRoleGroup(null);
+  };
+
   const openEdit = (record: UserGroup) => {
     setEditingRecord(record);
     setModalVisible(true);
@@ -259,6 +286,15 @@ export default function UserGroupsPage() {
         );
       },
     },
+    {
+      title: '角色', dataIndex: 'roleCount', width: 80,
+      render: (v: number | undefined, record: UserGroup) => (
+        <Tag color={v ? 'violet' : 'grey'} style={{ cursor: hasPermission('system:user-groups:assign') ? 'pointer' : 'default' }}
+          onClick={() => hasPermission('system:user-groups:assign') && openRoles(record)}>
+          {v ?? 0}
+        </Tag>
+      ),
+    },
     createdAtColumn,
     {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
@@ -273,14 +309,20 @@ export default function UserGroupsPage() {
       ),
     },
     createOperationColumn<UserGroup>({
-      width: 220,
-      desktopInlineKeys: ['members', 'edit', 'delete'],
+      width: 260,
+      desktopInlineKeys: ['members', 'roles', 'edit', 'delete'],
       actions: (record) => [
         {
           key: 'members',
           label: '成员',
           hidden: !hasPermission('system:user-groups:assign'),
           onClick: () => { void openMembers(record); },
+        },
+        {
+          key: 'roles',
+          label: '角色',
+          hidden: !hasPermission('system:user-groups:assign'),
+          onClick: () => { void openRoles(record); },
         },
         {
           key: 'edit',
@@ -487,6 +529,30 @@ export default function UserGroupsPage() {
           />
         )}
       </SideSheet>
+
+      <AppModal
+        title={`分配角色 — ${roleGroup?.name ?? ''}`}
+        visible={roleModalVisible}
+        onCancel={() => { setRoleModalVisible(false); setRoleGroup(null); }}
+        onOk={handleSaveRoles}
+        confirmLoading={assignRolesMutation.isPending}
+        width={480}
+      >
+        <Spin spinning={groupRolesQuery.isFetching || allRolesQuery.isFetching} wrapperClassName="modal-spin-wrapper">
+          <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
+            组内成员将自动继承所选角色的菜单与数据权限（与成员直接分配的角色取并集）
+          </div>
+          <Select
+            multiple
+            filter
+            placeholder="请选择角色"
+            style={{ width: '100%' }}
+            value={roleIds}
+            onChange={(v) => setRoleIds((v as number[]) ?? [])}
+            optionList={(allRolesQuery.data ?? []).map((r) => ({ value: r.id, label: `${r.name}（${r.code}）` }))}
+          />
+        </Spin>
+      </AppModal>
     </div>
   );
 }

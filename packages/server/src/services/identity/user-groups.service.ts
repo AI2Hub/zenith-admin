@@ -1,10 +1,11 @@
 import { and, asc, desc, eq, inArray, like, or, sql } from 'drizzle-orm';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
-import { userGroups, userGroupMembers, users, departments } from '../../db/schema';
+import { userGroups, userGroupMembers, userGroupRoles, users, departments, roles } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
+import { clearUserPermissionCache } from '../../lib/permissions';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime } from '../../lib/datetime';
 
@@ -19,6 +20,7 @@ interface RawGroupRow {
   departmentName: string | null;
   status: 'enabled' | 'disabled';
   memberCount: number;
+  roleCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,6 +36,7 @@ function mapGroup(row: RawGroupRow) {
     departmentId: row.departmentId,
     departmentName: row.departmentName,
     memberCount: row.memberCount ?? 0,
+    roleCount: row.roleCount ?? 0,
     status: row.status,
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
@@ -41,6 +44,8 @@ function mapGroup(row: RawGroupRow) {
 }
 
 const memberCountSql = sql<number>`(SELECT COUNT(*)::int FROM ${userGroupMembers} WHERE ${userGroupMembers.groupId} = ${userGroups.id})`;
+
+const roleCountSql = sql<number>`(SELECT COUNT(*)::int FROM ${userGroupRoles} WHERE ${userGroupRoles.groupId} = ${userGroups.id})`;
 
 function baseSelect() {
   return db
@@ -55,6 +60,7 @@ function baseSelect() {
       departmentName: departments.name,
       status: userGroups.status,
       memberCount: memberCountSql,
+      roleCount: roleCountSql,
       createdAt: userGroups.createdAt,
       updatedAt: userGroups.updatedAt,
     })
@@ -166,6 +172,11 @@ export async function updateUserGroup(id: number, input: UpdateUserGroupInput) {
       .where(and(eq(userGroups.id, id), tc))
       .returning();
     if (!row) throw new HTTPException(404, { message: '用户组不存在' });
+    // 组状态切换影响成员继承权限的生效性，清成员缓存即时生效
+    if (input.status !== undefined) {
+      const members = await db.select({ userId: userGroupMembers.userId }).from(userGroupMembers).where(eq(userGroupMembers.groupId, id));
+      for (const m of members) clearUserPermissionCache(m.userId);
+    }
     return getUserGroup(row.id);
   } catch (err) {
     if (err instanceof HTTPException) throw err;
@@ -272,12 +283,15 @@ export async function listGroupMembers(groupId: number) {
 
 export async function setGroupMembers(groupId: number, userIds: number[]) {
   await ensureGroupAccessible(groupId);
+  const previous = await db.select({ userId: userGroupMembers.userId }).from(userGroupMembers).where(eq(userGroupMembers.groupId, groupId));
   await db.transaction(async (tx) => {
     await tx.delete(userGroupMembers).where(eq(userGroupMembers.groupId, groupId));
     if (userIds.length > 0) {
       await tx.insert(userGroupMembers).values(userIds.map(uid => ({ groupId, userId: uid })));
     }
   });
+  // 组可能绑定角色：成员进出影响其继承权限，前后成员均需清缓存
+  for (const uid of new Set([...previous.map((r) => r.userId), ...userIds])) clearUserPermissionCache(uid);
 }
 
 export async function addGroupMembers(groupId: number, userIds: number[]) {
@@ -291,6 +305,7 @@ export async function addGroupMembers(groupId: number, userIds: number[]) {
   const toAdd = userIds.filter(id => !exists.has(id));
   if (toAdd.length > 0) {
     await db.insert(userGroupMembers).values(toAdd.map(uid => ({ groupId, userId: uid })));
+    for (const uid of toAdd) clearUserPermissionCache(uid);
   }
 }
 
@@ -299,4 +314,53 @@ export async function removeGroupMembers(groupId: number, userIds: number[]) {
   if (userIds.length === 0) return;
   await db.delete(userGroupMembers)
     .where(and(eq(userGroupMembers.groupId, groupId), inArray(userGroupMembers.userId, userIds)));
+  for (const uid of userIds) clearUserPermissionCache(uid);
+}
+
+// ─── 角色管理 ────────────────────────────────────────────────────────────────
+
+/** 用户组已绑定的角色列表 */
+export async function listGroupRoles(groupId: number) {
+  await ensureGroupAccessible(groupId);
+  const rows = await db
+    .select({ id: roles.id, name: roles.name, code: roles.code, status: roles.status })
+    .from(userGroupRoles)
+    .innerJoin(roles, eq(roles.id, userGroupRoles.roleId))
+    .where(eq(userGroupRoles.groupId, groupId))
+    .orderBy(asc(roles.id));
+  return rows;
+}
+
+/** 全量覆盖用户组绑定的角色，组内成员的继承权限即时生效 */
+export async function setGroupRoles(groupId: number, roleIds: number[]) {
+  await ensureGroupAccessible(groupId);
+  const uniqueRoleIds = [...new Set(roleIds)];
+  if (uniqueRoleIds.length > 0) {
+    const tc = tenantCondition(roles, currentUser());
+    const found = await db.select({ id: roles.id }).from(roles)
+      .where(tc ? and(inArray(roles.id, uniqueRoleIds), tc) : inArray(roles.id, uniqueRoleIds));
+    if (found.length !== uniqueRoleIds.length) throw new HTTPException(400, { message: '包含不存在的角色' });
+  }
+  await db.transaction(async (tx) => {
+    await tx.delete(userGroupRoles).where(eq(userGroupRoles.groupId, groupId));
+    if (uniqueRoleIds.length > 0) {
+      await tx.insert(userGroupRoles).values(uniqueRoleIds.map((roleId) => ({ groupId, roleId })));
+    }
+  });
+  // 组内所有成员的权限受影响，清缓存即时生效
+  const members = await db.select({ userId: userGroupMembers.userId }).from(userGroupMembers).where(eq(userGroupMembers.groupId, groupId));
+  for (const m of members) clearUserPermissionCache(m.userId);
+}
+
+export async function getUserGroupRolesBeforeAudit(groupId: number) {
+  const group = await getUserGroupBeforeAudit(groupId);
+  if (!group) return null;
+  const groupRoles = await listGroupRoles(groupId);
+  return {
+    id: group.id,
+    name: group.name,
+    code: group.code,
+    roleIds: groupRoles.map((r) => r.id),
+    roles: groupRoles.map((r) => ({ id: r.id, name: r.name, code: r.code })),
+  };
 }

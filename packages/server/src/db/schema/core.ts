@@ -212,6 +212,13 @@ export const userGroupMembers = pgTable('user_group_members', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [primaryKey({ columns: [t.groupId, t.userId] })]);
 
+// ─── 用户组-角色关联表 ────────────────────────────────────────────────────────
+// 用户组绑定角色后，组内成员自动继承这些角色的菜单/数据权限（与直接分配角色并集）。
+export const userGroupRoles = pgTable('user_group_roles', {
+  groupId: integer('group_id').notNull().references(() => userGroups.id, { onDelete: 'cascade' }),
+  roleId: integer('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
+}, (t) => [primaryKey({ columns: [t.groupId, t.roleId] })]);
+
 // ─── 角色-菜单关联表 ──────────────────────────────────────────────────────────
 export const roleMenus = pgTable('role_menus', {
   roleId: integer('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),

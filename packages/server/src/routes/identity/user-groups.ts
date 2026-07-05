@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, conflictResponse, ok, okPaginated, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
-import { UserGroupDTO, UserGroupMemberDTO } from '../../lib/openapi-dtos';
+import { UserGroupDTO, UserGroupMemberDTO, UserGroupRoleDTO } from '../../lib/openapi-dtos';
 import {
   listAllUserGroups,
   listUserGroups,
@@ -18,6 +18,9 @@ import {
   addGroupMembers,
   removeGroupMembers,
   getUserGroupMembersBeforeAudit,
+  listGroupRoles,
+  setGroupRoles,
+  getUserGroupRolesBeforeAudit,
 } from '../../services/identity/user-groups.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -33,6 +36,7 @@ const createSchema = z.object({
 const updateSchema = createSchema.partial();
 const BatchDeleteBody = z.object({ ids: z.array(z.number()) });
 const MembersBody = z.object({ userIds: z.array(z.number().int().positive()) });
+const RolesBody = z.object({ roleIds: z.array(z.number().int().positive()) });
 
 const allRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -204,6 +208,37 @@ const removeMembersRoute = defineOpenAPIRoute({
   },
 });
 
+const listGroupRolesRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/roles', tags: ['UserGroups'], summary: '获取用户组绑定的角色',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:user-groups:list' })] as const,
+    request: { params: IdParam },
+    responses: { ...ok(z.array(UserGroupRoleDTO), '角色列表'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await listGroupRoles(c.req.valid('param').id)), 200),
+});
+
+const setGroupRolesRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/{id}/roles', tags: ['UserGroups'], summary: '设置用户组角色（全量覆盖，组内成员自动继承）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:user-groups:assign', audit: { description: '分配用户组角色', module: '用户组管理' } })] as const,
+    request: { params: IdParam, body: { content: jsonContent(RolesBody), required: true } },
+    responses: { ...okMsg('保存成功'), ...commonErrorResponses },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const { roleIds } = c.req.valid('json');
+    const before = await getUserGroupRolesBeforeAudit(id);
+    if (before) setAuditBeforeData(c, before);
+    await setGroupRoles(id, roleIds);
+    const after = await getUserGroupRolesBeforeAudit(id);
+    if (after) setAuditAfterData(c, after);
+    return c.json(okBody(null, '保存成功'), 200);
+  },
+});
+
 router.openapiRoutes([
   allRoute,
   listRoute,
@@ -211,6 +246,8 @@ router.openapiRoutes([
   setMembersRoute,
   addMembersRoute,
   removeMembersRoute,
+  listGroupRolesRoute,
+  setGroupRolesRoute,
   getRoute,
   createRouteDef,
   updateRouteDef,

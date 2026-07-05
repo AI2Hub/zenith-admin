@@ -27,6 +27,7 @@ export const userGroupKeys = {
   list: (params: UserGroupListParams) => ['user-groups', 'list', params] as const,
   detail: (id: number | undefined) => ['user-groups', 'detail', id] as const,
   members: (id: number | undefined) => ['user-groups', 'members', id] as const,
+  roles: (id: number | undefined) => ['user-groups', 'roles', id] as const,
 };
 
 export function useUserGroupList(params: UserGroupListParams) {
@@ -77,5 +78,33 @@ export function useAssignUserGroupMembers() {
     mutationFn: ({ id, userIds }: { id: number; userIds: number[] }) =>
       request.put<null>(`/api/user-groups/${id}/members`, { userIds }).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: userGroupKeys.all }),
+  });
+}
+
+export interface UserGroupRole {
+  id: number;
+  name: string;
+  code: string;
+  status: 'enabled' | 'disabled';
+}
+
+export function useUserGroupRoles(id: number | undefined, enabled = true) {
+  return useQuery({
+    queryKey: userGroupKeys.roles(id),
+    queryFn: () => request.get<UserGroupRole[]>(`/api/user-groups/${id}/roles`).then(unwrap),
+    enabled: enabled && id !== undefined,
+  });
+}
+
+export function useAssignUserGroupRoles() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, roleIds }: { id: number; roleIds: number[] }) =>
+      request.put<null>(`/api/user-groups/${id}/roles`, { roleIds }).then(unwrap),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: userGroupKeys.all });
+      // 组角色变化影响成员的继承权限展示
+      void qc.invalidateQueries({ queryKey: ['users'] });
+    },
   });
 }

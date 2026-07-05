@@ -3,10 +3,10 @@
  *
  * Tabs：
  *  1. 直接授权   — 可编辑，显示用户直接授权的菜单
- *  2. 最终有效权限 — 只读，显示角色继承 ∪ 直接授权，并用 Tag 标注来源
+ *  2. 最终有效权限 — 只读，显示角色继承 ∪ 用户组继承 ∪ 直接授权，并用 Tag 标注来源
  */
 import { useState, useEffect } from 'react';
-import { Tabs, TabPane, Toast, Tag } from '@douyinfe/semi-ui';
+import { Tabs, TabPane, Toast, Tag, Space } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
 import { MenuPermissionPanel } from '@/components/permissions/MenuPermissionPanel';
 import { useMenuTree } from '@/hooks/queries/menus';
@@ -22,6 +22,8 @@ type Props = Readonly<{
 export function UserMenuPermissionModal({ userId, userName, visible, onClose }: Props) {
   const [directMenuIds, setDirectMenuIds] = useState<number[]>([]);
   const [roleMenuIds, setRoleMenuIds] = useState<number[]>([]);
+  const [groupMenuIds, setGroupMenuIds] = useState<number[]>([]);
+  const [groups, setGroups] = useState<Array<{ id: number; name: string }>>([]);
   const [effectiveMenuIds, setEffectiveMenuIds] = useState<number[]>([]);
   const [activeTab, setActiveTab] = useState('direct');
   const menuTreeQuery = useMenuTree({ enabled: visible });
@@ -37,32 +39,31 @@ export function UserMenuPermissionModal({ userId, userName, visible, onClose }: 
     if (!visible || !permissionsQuery.data) return;
     setDirectMenuIds(permissionsQuery.data.directMenuIds);
     setRoleMenuIds(permissionsQuery.data.roleMenuIds);
+    setGroupMenuIds(permissionsQuery.data.groupMenuIds ?? []);
+    setGroups(permissionsQuery.data.groups ?? []);
     setEffectiveMenuIds(permissionsQuery.data.effectiveMenuIds);
   }, [visible, permissionsQuery.data]);
 
   const handleSave = async () => {
     await saveMenusMutation.mutateAsync({ userId, menuIds: directMenuIds });
     Toast.success('菜单权限已更新');
-    const effectiveSet = new Set([...directMenuIds, ...roleMenuIds]);
+    const effectiveSet = new Set([...directMenuIds, ...roleMenuIds, ...groupMenuIds]);
     setEffectiveMenuIds([...effectiveSet]);
     onClose();
   };
 
-  /** 构造有效权限 Tab 里的来源 Tag */
+  /** 构造有效权限 Tab 里的来源 Tag（同一菜单可能有多个来源） */
   function buildLabelSuffix(): Record<string, React.ReactNode> {
     const directSet = new Set(directMenuIds);
     const roleSet = new Set(roleMenuIds);
+    const groupSet = new Set(groupMenuIds);
     const result: Record<string, React.ReactNode> = {};
     for (const id of effectiveMenuIds) {
-      const inDirect = directSet.has(id);
-      const inRole = roleSet.has(id);
-      if (inDirect && inRole) {
-        result[String(id)] = <Tag size="small" color="purple" style={{ marginLeft: 4 }}>角色+用户</Tag>;
-      } else if (inRole) {
-        result[String(id)] = <Tag size="small" color="blue" style={{ marginLeft: 4 }}>角色</Tag>;
-      } else {
-        result[String(id)] = <Tag size="small" color="green" style={{ marginLeft: 4 }}>用户</Tag>;
-      }
+      const tags: React.ReactNode[] = [];
+      if (roleSet.has(id)) tags.push(<Tag key="role" size="small" color="blue">角色</Tag>);
+      if (groupSet.has(id)) tags.push(<Tag key="group" size="small" color="orange">用户组</Tag>);
+      if (directSet.has(id)) tags.push(<Tag key="direct" size="small" color="green">用户</Tag>);
+      result[String(id)] = <Space spacing={4} style={{ marginLeft: 4 }}>{tags}</Space>;
     }
     return result;
   }
@@ -89,7 +90,12 @@ export function UserMenuPermissionModal({ userId, userName, visible, onClose }: 
         </TabPane>
         <TabPane tab="最终有效权限" itemKey="effective">
           <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
-            最终权限 = 角色权限 ∪ 用户直接授权，仅供预览
+            最终权限 = 角色权限 ∪ 用户组继承 ∪ 用户直接授权，仅供预览
+            {groups.length > 0 && (
+              <span style={{ marginLeft: 8 }}>
+                继承自用户组：{groups.map((g) => <Tag key={g.id} size="small" color="orange" style={{ marginLeft: 4 }}>{g.name}</Tag>)}
+              </span>
+            )}
           </div>
           <MenuPermissionPanel
             allMenus={menuTreeQuery.data ?? []}

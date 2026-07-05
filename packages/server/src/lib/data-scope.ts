@@ -52,10 +52,34 @@ export async function getDataScopeCondition(options: DataScopeOptions): Promise<
           },
         },
       },
+      // 用户组绑定的角色：组内成员继承其数据权限（仅启用状态的组生效）
+      userGroupMembers: {
+        columns: {},
+        with: {
+          group: {
+            columns: { status: true },
+            with: {
+              groupRoles: {
+                columns: {},
+                with: {
+                  role: {
+                    columns: { dataScope: true, code: true },
+                    with: { deptScopes: { columns: { deptId: true } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       userDeptScopes: { columns: { deptId: true } },
     },
   });
-  const userRoleList = userData?.userRoles.map((ur) => ur.role) ?? [];
+  const directRoleList = userData?.userRoles.map((ur) => ur.role) ?? [];
+  const groupRoleList = (userData?.userGroupMembers ?? [])
+    .filter(({ group }) => group.status === 'enabled')
+    .flatMap(({ group }) => group.groupRoles.map((gr) => gr.role));
+  const userRoleList = [...directRoleList, ...groupRoleList];
   const userDirectScope = userData?.userDataScope ?? null;
 
   // ── 2. 计算有效权限（多角色 + 用户直接权限取最宽松原则）─────────────────────────────────────

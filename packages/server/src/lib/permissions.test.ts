@@ -94,6 +94,37 @@ describe('getUserPermissions', () => {
     expect(perms).toHaveLength(2);
   });
 
+  it('合并启用用户组继承的角色权限，忽略禁用组', async () => {
+    findUserMock.mockResolvedValueOnce({
+      userRoles: [],
+      userMenus: [],
+      userGroupMembers: [
+        {
+          group: {
+            status: 'enabled',
+            groupRoles: [
+              { role: { roleMenus: [{ menu: { id: 20, permission: 'group:perm', visible: true } }] } },
+            ],
+          },
+        },
+        {
+          group: {
+            status: 'disabled',
+            groupRoles: [
+              { role: { roleMenus: [{ menu: { id: 21, permission: 'disabled:perm', visible: true } }] } },
+            ],
+          },
+        },
+      ],
+    } as never);
+
+    const perms = await getUserPermissions(30);
+
+    expect(perms).toContain('group:perm');
+    expect(perms).not.toContain('disabled:perm');
+    clearUserPermissionCache(30);
+  });
+
   it('对权限码进行去重', async () => {
     findUserMock.mockResolvedValueOnce(createUserResult([
       [{ id: 10, permission: 'user:read' }],

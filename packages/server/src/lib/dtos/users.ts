@@ -65,6 +65,9 @@ export const UserDataPermissionDTO = z
     deptScopeIds: z.array(z.number().int()).openapi({ description: '用户直接指定的部门 ID 列表' }),
     roleDataScope: z.string().nullable().openapi({ description: '角色最宽松数据权限' }),
     roleDeptScopeIds: z.array(z.number().int()).openapi({ description: '角色指定的部门 ID 列表' }),
+    groupDataScope: z.string().nullable().openapi({ description: '用户组继承的最宽松数据权限' }),
+    groupDeptScopeIds: z.array(z.number().int()).openapi({ description: '用户组继承的指定部门 ID 列表' }),
+    groups: z.array(z.object({ id: z.number().int(), name: z.string() })).openapi({ description: '带角色绑定的所属用户组' }),
   })
   .openapi('UserDataPermission');
 
@@ -72,12 +75,16 @@ export const UserEffectivePermissionsDTO = z
   .object({
     directMenuIds: z.array(z.number().int()),
     roleMenuIds: z.array(z.number().int()),
+    groupMenuIds: z.array(z.number().int()).openapi({ description: '用户组继承的菜单 ID 列表' }),
     effectiveMenuIds: z.array(z.number().int()),
     userDataScope: z.enum(dataScopeValues).nullable(),
     roleDataScope: z.string().nullable(),
+    groupDataScope: z.string().nullable(),
     effectiveDataScope: z.string(),
     userDeptScopeIds: z.array(z.number().int()),
     roleDeptScopeIds: z.array(z.number().int()),
+    groupDeptScopeIds: z.array(z.number().int()),
     effectiveDeptScopeIds: z.array(z.number().int()),
+    groups: z.array(z.object({ id: z.number().int(), name: z.string() })).openapi({ description: '带角色绑定的所属用户组' }),
   })
   .openapi('UserEffectivePermissions');
