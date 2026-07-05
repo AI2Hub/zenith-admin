@@ -24,6 +24,7 @@ export function mapTask(
   assigneeAvatar?: string | null,
   actionButtons?: Partial<Record<WorkflowActionButtonKey, WorkflowActionButtonConfig>> | null,
   signatureRequired?: boolean,
+  transfers?: import('@zenith/shared').WorkflowTaskTransfer[] | null,
 ) {
   return {
     id: row.id,
@@ -41,7 +42,7 @@ export function mapTask(
     signatureRequired: signatureRequired ?? false,
     actionAt: formatNullableDateTime(row.actionAt),
     originalAssigneeId: row.originalAssigneeId ?? null,
-    transferChain: Array.isArray(row.transferChain) ? row.transferChain : [],
+    transfers: transfers ?? null,
     delegatedFromId: row.delegatedFromId ?? null,
     actionButtons: actionButtons ?? null,
     externalCallbackId: row.externalCallbackId ?? null,

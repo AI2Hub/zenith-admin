@@ -10,8 +10,15 @@ import { formatDateTime, formatDurationBetween } from '@/utils/date';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
 
-const TASK_STATUS_MAP: Record<string, { text: string; color: TagColor }> = {
-  pending:  { text: '待审批', color: 'blue'  },
+const TRANSFER_ACTION_LABEL: Record<string, string> = {
+  transfer: '转办',
+  delegate: '委派',
+  reassign: '管理员改派',
+  handover: '离职交接',
+  timeout: '超时转交',
+};
+
+const TASK_STATUS_MAP: Record<string, { text: string; color: TagColor }> = {  pending:  { text: '待审批', color: 'blue'  },
   approved: { text: '已通过', color: 'green' },
   rejected: { text: '已驳回', color: 'red'   },
   skipped:  { text: '已跳过', color: 'grey'  },
@@ -211,15 +218,18 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
               </div>
             )}
 
-            {/* 转办链路 / 委派提示 */}
-            {((task.transferChain?.length ?? 0) > 0 || task.delegatedFromId) && (
-              <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
-                {(task.transferChain?.length ?? 0) > 0 && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            {/* 转办明细 / 委派提示 */}
+            {((task.transfers?.length ?? 0) > 0 || task.delegatedFromId) && (
+              <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
+                {(task.transfers ?? []).map((tr) => (
+                  <span key={tr.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                     <Forward size={12} />
-                    <span>已经手 {task.transferChain!.length} 人</span>
+                    <span>
+                      {TRANSFER_ACTION_LABEL[tr.action] ?? tr.action}：{tr.fromUserName ?? '—'} → {tr.toUserName ?? `用户#${tr.toUserId}`}
+                      {tr.reason ? `（${tr.reason}）` : ''}
+                    </span>
                   </span>
-                )}
+                ))}
                 {task.delegatedFromId && (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--semi-color-warning)' }}>
                     <UserCog size={12} />

@@ -124,7 +124,10 @@ export const workflowDefinitions = pgTable('workflow_definitions', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [
+  // 发起工作台 / 交接扫描 / 自动化均按 (租户, published) 过滤
+  index('workflow_definitions_tenant_status_idx').on(t.tenantId, t.status),
+]);
 
 export type WorkflowDefinitionRow = typeof workflowDefinitions.$inferSelect;
 
@@ -261,8 +264,8 @@ export const workflowDataSources = pgTable('workflow_data_sources', {
   /** 请求方法 GET / POST */
   method: varchar('method', { length: 8 }).notNull().default('GET'),
   url: varchar('url', { length: 1024 }).notNull(),
-  /** 附加请求头（如鉴权 token），JSON 键值 */
-  headers: jsonb('headers').$type<Record<string, string>>(),
+  /** 附加请求头（如鉴权 token）：JSON 键值对 AES-256-GCM 加密存储（经 lib/secret-crypto） */
+  headersEncrypted: text('headers_encrypted'),
   /** 响应中数组所在路径，点分隔（如 data.list），留空表示响应根即数组 */
   itemsPath: varchar('items_path', { length: 128 }),
   /** 每项取值字段 */
@@ -362,7 +365,7 @@ export type WorkflowSimulationCaseRow = typeof workflowSimulationCases.$inferSel
 // 运行中实例迁移记录（append-only）：旧版本→新版本，节点映射快照与结果
 export const workflowInstanceMigrations = pgTable('workflow_instance_migrations', {
   id: serial('id').primaryKey(),
-  instanceId: integer('instance_id').notNull(),
+  instanceId: integer('instance_id').notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),
   definitionId: integer('definition_id').notNull(),
   fromVersion: integer('from_version').notNull(),
   toVersion: integer('to_version').notNull(),
@@ -492,8 +495,6 @@ export const workflowTasks = pgTable('workflow_tasks', {
   subDone: integer('sub_done').default(0).notNull(),
   /** 任务最初的处理人（创建时快照，转办/委派不会修改） */
   originalAssigneeId: integer('original_assignee_id').references(() => users.id, { onDelete: 'set null' }),
-  /** 转办/委派链路上经手过的处理人 ID（含原始创建人） */
-  transferChain: jsonb('transfer_chain').$type<number[]>().default([]).notNull(),
   /** 委派来源（仅委派时设置，原 assignee 接手时清空） */
   delegatedFromId: integer('delegated_from_id').references(() => users.id, { onDelete: 'set null' }),
   /** 退回模式 backToOrigin：被退回任务记录发起退回的来源节点 key，通过后直接跳回该节点 */
@@ -501,11 +502,39 @@ export const workflowTasks = pgTable('workflow_tasks', {
   /** 抄送已读时间（仅 ccNode 任务有意义；null 表示未读） */
   ccReadAt: timestamp('cc_read_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [
+  // 会签完成检查 / 详情任务加载 / 待办扫描的高频组合条件
+  index('workflow_tasks_instance_status_idx').on(t.instanceId, t.status),
+]);
 
 export type WorkflowTaskRow = typeof workflowTasks.$inferSelect;
 
 export type NewWorkflowTask = typeof workflowTasks.$inferInsert;
+
+/** 转办动作类型：转办 / 委派 / 管理员改派 / 离职交接 / 超时升级转交 */
+export const workflowTaskTransferActionEnum = pgEnum('workflow_task_transfer_action', ['transfer', 'delegate', 'reassign', 'handover', 'timeout']);
+
+// 任务转办明细（替代原 transfer_chain 数组：完整回答"谁在何时因何把任务交给了谁"）
+export const workflowTaskTransfers = pgTable('workflow_task_transfers', {
+  id: serial('id').primaryKey(),
+  taskId: integer('task_id').notNull().references(() => workflowTasks.id, { onDelete: 'cascade' }),
+  instanceId: integer('instance_id').notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),
+  /** 移出方（系统超时转交等场景可能无原处理人） */
+  fromUserId: integer('from_user_id').references(() => users.id, { onDelete: 'set null' }),
+  /** 接收方 */
+  toUserId: integer('to_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  action: workflowTaskTransferActionEnum('action').notNull(),
+  reason: varchar('reason', { length: 500 }),
+  /** 操作人（本人转办=fromUserId；管理员改派/交接=管理员；系统超时=null） */
+  operatorId: integer('operator_id').references(() => users.id, { onDelete: 'set null' }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('wf_task_transfers_task_idx').on(t.taskId),
+  index('wf_task_transfers_instance_idx').on(t.instanceId),
+]);
+
+export type WorkflowTaskTransferRow = typeof workflowTaskTransfers.$inferSelect;
 
 // ─── 显式执行 Token（活动路径 / 网关汇聚的权威来源）──────────────────────────
 // 每条活动执行路径 = 一行 token。替代"扫已完成任务行 + 重算 BFS"的隐式推导：
@@ -562,10 +591,11 @@ export const workflowEventSubscriptions = pgTable('workflow_event_subscriptions'
   description: varchar('description', { length: 256 }),
   /** 为 null 表示订阅全部流程；否则仅订阅指定流程 */
   definitionId: integer('definition_id').references(() => workflowDefinitions.id, { onDelete: 'cascade' }),
-  /** 订阅的事件类型列表，存为 JSON 数组字符串 */
-  events: text('events').notNull(),
+  /** 订阅的事件类型列表 */
+  events: jsonb('events').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   url: varchar('url', { length: 512 }).notNull(),
-  secret: varchar('secret', { length: 256 }),
+  /** HMAC 密钥（AES-256-GCM 加密存储，经 lib/secret-crypto） */
+  secretEncrypted: text('secret_encrypted'),
   signMode: workflowEventSignModeEnum('sign_mode').default('hmacSha256').notNull(),
   /** 自定义请求头，JSON 字符串 */
   headers: text('headers'),
@@ -654,7 +684,7 @@ export const workflowJobExecutions = pgTable('workflow_job_executions', {
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
-  index('workflow_job_executions_job_idx').on(t.jobId),
+  index('workflow_job_executions_job_idx').on(t.jobId, t.attempt),
   index('workflow_job_executions_type_idx').on(t.jobType, t.status),
 ]);
 

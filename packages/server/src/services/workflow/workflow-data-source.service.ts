@@ -11,6 +11,7 @@ import { escapeLike } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { httpRequest } from '../../lib/http-client';
+import { decryptSecret, encryptSecret } from '../../lib/secret-crypto';
 import type { WorkflowDataSourceRow } from '../../db/schema';
 import type {
   WorkflowDataSource, WorkflowDataSourceOption,
@@ -20,13 +21,52 @@ import type {
 const OPTIONS_CACHE_TTL = 30_000;
 const optionsCache = new Map<string, { data: WorkflowDataSourceOption[]; expire: number }>();
 
+/** 脱敏占位：GET 返回请求头的值统一替换为该占位；更新时值为占位则保留旧值 */
+const HEADER_MASK = '******';
+
+/** 解密请求头（AES-256-GCM 存储的 JSON 键值对；解密失败按无请求头处理） */
+function decryptHeaders(encrypted: string | null | undefined): Record<string, string> | null {
+  if (!encrypted) return null;
+  try {
+    const v = JSON.parse(decryptSecret(encrypted)) as unknown;
+    if (v && typeof v === 'object' && !Array.isArray(v)) return v as Record<string, string>;
+  } catch { /* 解密/解析失败按无请求头处理 */ }
+  return null;
+}
+
+function encryptHeaders(headers: Record<string, string> | null | undefined): string | null {
+  if (!headers || Object.keys(headers).length === 0) return null;
+  return encryptSecret(JSON.stringify(headers));
+}
+
+/** 请求头脱敏：键保留、值统一打码（编辑回填时值为打码占位则沿用旧值） */
+function maskHeaders(headers: Record<string, string> | null): Record<string, string> | null {
+  if (!headers) return null;
+  return Object.fromEntries(Object.keys(headers).map((k) => [k, HEADER_MASK]));
+}
+
+/** 合并更新：传入值为脱敏占位的键沿用旧值，其余按传入覆盖 */
+function mergeHeadersForUpdate(
+  incoming: Record<string, string> | null | undefined,
+  existingEncrypted: string | null,
+): string | null {
+  if (incoming === undefined) return existingEncrypted;
+  if (incoming === null) return null;
+  const existing = decryptHeaders(existingEncrypted) ?? {};
+  const merged: Record<string, string> = {};
+  for (const [k, v] of Object.entries(incoming)) {
+    merged[k] = v === HEADER_MASK ? (existing[k] ?? '') : v;
+  }
+  return encryptHeaders(merged);
+}
+
 export function mapDataSource(row: WorkflowDataSourceRow): WorkflowDataSource {
   return {
     id: row.id,
     name: row.name,
     method: (row.method === 'POST' ? 'POST' : 'GET'),
     url: row.url,
-    headers: row.headers ?? null,
+    headers: maskHeaders(decryptHeaders(row.headersEncrypted)),
     itemsPath: row.itemsPath ?? null,
     valueField: row.valueField,
     labelField: row.labelField,
@@ -72,7 +112,7 @@ export async function createDataSource(input: CreateWorkflowDataSourceInput): Pr
       name: input.name,
       method: input.method ?? 'GET',
       url: input.url,
-      headers: input.headers,
+      headersEncrypted: encryptHeaders(input.headers),
       itemsPath: input.itemsPath,
       valueField: input.valueField,
       labelField: input.labelField,
@@ -88,12 +128,13 @@ export async function createDataSource(input: CreateWorkflowDataSourceInput): Pr
 }
 
 export async function updateDataSource(id: number, input: UpdateWorkflowDataSourceInput): Promise<WorkflowDataSource> {
+  const existing = await ensureDataSourceExists(id);
   try {
     const [row] = await db.update(workflowDataSources).set({
       name: input.name,
       method: input.method,
       url: input.url,
-      headers: input.headers,
+      headersEncrypted: mergeHeadersForUpdate(input.headers, existing.headersEncrypted),
       itemsPath: input.itemsPath,
       valueField: input.valueField,
       labelField: input.labelField,
@@ -147,7 +188,7 @@ export async function fetchDataSourceOptions(id: number, keyword?: string): Prom
 
   let json: unknown;
   try {
-    const res = await httpRequest(url, { method, headers: src.headers ?? undefined, body, timeout: 10_000 });
+    const res = await httpRequest(url, { method, headers: decryptHeaders(src.headersEncrypted) ?? undefined, body, timeout: 10_000 });
     if (!res.ok) throw new HTTPException(502, { message: `数据源返回状态 ${res.status}` });
     json = await res.json();
   } catch (err) {

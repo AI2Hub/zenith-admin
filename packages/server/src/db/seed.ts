@@ -582,8 +582,8 @@ async function seedRest() {
 
   // ── 流程远程数据源（数据来源：@zenith/shared SEED_WORKFLOW_DATA_SOURCES）──────
   await db.insert(workflowDataSources).values(
-    SEED_WORKFLOW_DATA_SOURCES.map(({ id, name, method, url, headers, itemsPath, valueField, labelField, keywordParam, status, remark }) =>
-      ({ id, name, method, url, headers: headers ?? undefined, itemsPath: itemsPath ?? undefined, valueField, labelField, keywordParam: keywordParam ?? undefined, status, remark: remark ?? undefined })),
+    SEED_WORKFLOW_DATA_SOURCES.map(({ id, name, method, url, itemsPath, valueField, labelField, keywordParam, status, remark }) =>
+      ({ id, name, method, url, headersEncrypted: null, itemsPath: itemsPath ?? undefined, valueField, labelField, keywordParam: keywordParam ?? undefined, status, remark: remark ?? undefined })),
   ).onConflictDoNothing({ target: workflowDataSources.id });
   await db.execute(sql`SELECT setval('workflow_data_sources_id_seq', GREATEST((SELECT MAX(id) FROM workflow_data_sources), 1))`);
   logger.info('  ✔ Workflow data sources seeded (onConflictDoNothing)');

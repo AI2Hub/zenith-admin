@@ -2250,9 +2250,21 @@ export const workflowHandlers = [
       const inst = mockWorkflowInstances.find(i => i.id === t.instanceId);
       return inst?.status === 'running' || inst?.status === 'suspended';
     });
+    let nextTransferId = 90_000;
     const results = open.map(t => {
       const inst = mockWorkflowInstances.find(i => i.id === t.instanceId);
-      t.transferChain = [...new Set([...(t.transferChain ?? []), t.assigneeId].filter((v): v is number => v != null))];
+      const fromName = t.assigneeName ?? null;
+      t.transfers = [...(t.transfers ?? []), {
+        id: nextTransferId++,
+        fromUserId: t.assigneeId,
+        fromUserName: fromName,
+        toUserId: body.toUserId,
+        toUserName: target.nickname ?? target.username,
+        action: 'handover',
+        reason: body.comment ?? null,
+        operatorName: '管理员',
+        createdAt: mockDateTime(),
+      }];
       t.assigneeId = body.toUserId;
       t.assigneeName = target.nickname ?? target.username;
       t.comment = `[离职交接]${body.comment ? ' ' + body.comment : ''}`;
@@ -2353,7 +2365,6 @@ export const workflowHandlers = [
         comment: receiptComment,
         actionAt: null,
         originalAssigneeId: current.delegatedFromId,
-        transferChain: [],
         delegatedFromId: null,
         actionButtons: current.actionButtons,
         createdAt: now,
@@ -2424,7 +2435,6 @@ export const workflowHandlers = [
         comment: receiptComment,
         actionAt: null,
         originalAssigneeId: current.delegatedFromId,
-        transferChain: [],
         delegatedFromId: null,
         actionButtons: current.actionButtons,
         createdAt: now,
@@ -2470,9 +2480,9 @@ export const workflowHandlers = [
     const current = mockWorkflowTasks[taskIdx];
     if (current.status !== 'pending') return err('该任务已处理');
     if (body.targetUserId === current.assigneeId) return err('转办人不能是当前处理人');
-    const chain = current.transferChain ?? [];
+    const handled = new Set((current.transfers ?? []).flatMap(tr => [tr.fromUserId, tr.toUserId]).filter((v): v is number => v != null));
     const original = current.originalAssigneeId ?? current.assigneeId;
-    if (chain.includes(body.targetUserId) || body.targetUserId === original) {
+    if (handled.has(body.targetUserId) || body.targetUserId === original) {
       return err('禁止将任务转回曾经经手的处理人');
     }
     mockWorkflowTasks[taskIdx] = {
@@ -2482,7 +2492,17 @@ export const workflowHandlers = [
       comment: `[转办] ${body.comment ?? ''}`,
       attachments: body.attachments && body.attachments.length > 0 ? body.attachments : undefined,
       originalAssigneeId: current.originalAssigneeId ?? current.assigneeId,
-      transferChain: current.assigneeId ? [...chain, current.assigneeId] : chain,
+      transfers: [...(current.transfers ?? []), {
+        id: Date.now(),
+        fromUserId: current.assigneeId,
+        fromUserName: current.assigneeName ?? null,
+        toUserId: body.targetUserId,
+        toUserName: `用户${body.targetUserId}`,
+        action: 'transfer',
+        reason: body.comment ?? null,
+        operatorName: current.assigneeName ?? null,
+        createdAt: mockDateTime(),
+      }],
     };
     return ok(mockWorkflowTasks[taskIdx]);
   }),
@@ -2495,9 +2515,9 @@ export const workflowHandlers = [
     const current = mockWorkflowTasks[taskIdx];
     if (current.status !== 'pending') return err('该任务已处理');
     if (body.targetUserId === current.assigneeId) return err('委派人不能是当前处理人');
-    const chain = current.transferChain ?? [];
+    const delegateHandled = new Set((current.transfers ?? []).flatMap(tr => [tr.fromUserId, tr.toUserId]).filter((v): v is number => v != null));
     const original = current.originalAssigneeId ?? current.assigneeId;
-    if (chain.includes(body.targetUserId) || body.targetUserId === original) {
+    if (delegateHandled.has(body.targetUserId) || body.targetUserId === original) {
       return err('禁止将任务委派给曾经经手的处理人');
     }
     mockWorkflowTasks[taskIdx] = {
@@ -2507,7 +2527,17 @@ export const workflowHandlers = [
       comment: `[委派] ${body.comment ?? ''}`,
       attachments: body.attachments && body.attachments.length > 0 ? body.attachments : undefined,
       originalAssigneeId: current.originalAssigneeId ?? current.assigneeId,
-      transferChain: current.assigneeId ? [...chain, current.assigneeId] : chain,
+      transfers: [...(current.transfers ?? []), {
+        id: Date.now(),
+        fromUserId: current.assigneeId,
+        fromUserName: current.assigneeName ?? null,
+        toUserId: body.targetUserId,
+        toUserName: `用户${body.targetUserId}`,
+        action: 'delegate',
+        reason: body.comment ?? null,
+        operatorName: current.assigneeName ?? null,
+        createdAt: mockDateTime(),
+      }],
       delegatedFromId: current.delegatedFromId ?? current.assigneeId,
     };
     return ok(mockWorkflowTasks[taskIdx]);

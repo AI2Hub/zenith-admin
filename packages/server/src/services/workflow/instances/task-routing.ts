@@ -11,6 +11,7 @@ import { advanceAndMaterialize, checkNodeCompletion } from './materialize';
 import { emitInstanceEvent, emitNodeEvent, emitTaskEvent } from './shared';
 import { assertActionUploadRequirement, getOwnPendingTask, rejectTaskCore } from './task-actions';
 import type { WorkflowTaskAttachment } from './task-actions';
+import { loadTaskHandledUserIds, recordTaskTransfer } from './transfers';
 
 /** 转办：将当前任务的处理人改为目标用户 */
 export async function transferTask(taskId: number, targetUserId: number, comment?: string, attachments?: WorkflowTaskAttachment[]) {
@@ -19,10 +20,10 @@ export async function transferTask(taskId: number, targetUserId: number, comment
   if (targetUserId === task.assigneeId) {
     throw new HTTPException(400, { message: '转办人不能是当前处理人' });
   }
-  const chain: number[] = Array.isArray(task.transferChain) ? task.transferChain : [];
+  const handled = await loadTaskHandledUserIds(task.id);
   const original = task.originalAssigneeId ?? task.assigneeId;
-  // 禁止折返：转给链路上曾经出现过的人（含原始 assignee）
-  if (chain.includes(targetUserId) || targetUserId === original) {
+  // 禁止折返：转给经手过的人（含原始 assignee）
+  if (handled.has(targetUserId) || targetUserId === original) {
     throw new HTTPException(400, { message: '禁止将任务转回曾经经手的处理人' });
   }
   const [target] = await db.select({ id: users.id, nickname: users.nickname })
@@ -30,18 +31,20 @@ export async function transferTask(taskId: number, targetUserId: number, comment
   if (!target) throw new HTTPException(400, { message: '转办人不存在' });
   const transferSuffix = comment ? `：${comment}` : '';
   const transferComment = `[转办] 由 ${actor.name ?? '系统'} 转办${transferSuffix}`;
-  const nextChain = task.assigneeId ? [...chain, task.assigneeId] : chain;
   const [updated] = await db.update(workflowTasks)
     .set({
       assigneeId: targetUserId,
       comment: transferComment,
       attachments: attachments ?? null,
-      transferChain: nextChain,
       originalAssigneeId: task.originalAssigneeId ?? task.assigneeId ?? null,
     })
     .where(and(eq(workflowTasks.id, task.id), eq(workflowTasks.status, 'pending')))
     .returning();
   if (!updated) throw new HTTPException(409, { message: '任务状态已变化，无法转办' });
+  await recordTaskTransfer(db, {
+    taskId: task.id, instanceId: inst.id, fromUserId: task.assigneeId, toUserId: targetUserId,
+    action: 'transfer', reason: comment ?? null, operatorId: actor.userId, tenantId: inst.tenantId,
+  });
   emitTaskEvent('task.transferred', mapTask(updated, target.nickname),
     { definitionId: inst.definitionId, tenantId: inst.tenantId, actor, comment: transferComment });
   return mapTask(updated, target.nickname);
@@ -60,18 +63,19 @@ export async function systemTransferTaskToManager(
 ): Promise<void> {
   const [target] = await db.select({ nickname: users.nickname })
     .from(users).where(eq(users.id, managerId)).limit(1);
-  const chain: number[] = Array.isArray(task.transferChain) ? task.transferChain : [];
-  const nextChain = task.assigneeId ? [...new Set([...chain, task.assigneeId])] : chain;
   const [updated] = await db.update(workflowTasks)
     .set({
       assigneeId: managerId,
       comment,
-      transferChain: nextChain,
       originalAssigneeId: task.originalAssigneeId ?? task.assigneeId ?? null,
     })
     .where(and(eq(workflowTasks.id, task.id), eq(workflowTasks.status, 'pending')))
     .returning();
   if (!updated) return;
+  await recordTaskTransfer(db, {
+    taskId: task.id, instanceId: inst.id, fromUserId: task.assigneeId, toUserId: managerId,
+    action: 'timeout', reason: comment, operatorId: null, tenantId: inst.tenantId,
+  });
   emitTaskEvent('task.transferred', mapTask(updated, target?.nickname ?? null), {
     definitionId: inst.definitionId,
     tenantId: inst.tenantId,
@@ -87,9 +91,9 @@ export async function delegateTask(taskId: number, targetUserId: number, comment
   if (targetUserId === task.assigneeId) {
     throw new HTTPException(400, { message: '委派人不能是当前处理人' });
   }
-  const chain: number[] = Array.isArray(task.transferChain) ? task.transferChain : [];
+  const handled = await loadTaskHandledUserIds(task.id);
   const original = task.originalAssigneeId ?? task.assigneeId;
-  if (chain.includes(targetUserId) || targetUserId === original) {
+  if (handled.has(targetUserId) || targetUserId === original) {
     throw new HTTPException(400, { message: '禁止将任务委派给曾经经手的处理人' });
   }
   const [target] = await db.select({ id: users.id, nickname: users.nickname })
@@ -97,7 +101,6 @@ export async function delegateTask(taskId: number, targetUserId: number, comment
   if (!target) throw new HTTPException(400, { message: '委派人不存在' });
   const delegateSuffix = comment ? `：${comment}` : '';
   const delegateComment = `[委派] 由 ${actor.name ?? '系统'} 委派${delegateSuffix}`;
-  const nextChain = task.assigneeId ? [...chain, task.assigneeId] : chain;
   // delegatedFromId 仅在首次委派时设置（保留最原始的委派人，以便回执时返还）
   const delegatedFromId = task.delegatedFromId ?? task.assigneeId ?? null;
   const [updated] = await db.update(workflowTasks)
@@ -105,13 +108,16 @@ export async function delegateTask(taskId: number, targetUserId: number, comment
       assigneeId: targetUserId,
       comment: delegateComment,
       attachments: attachments ?? null,
-      transferChain: nextChain,
       originalAssigneeId: task.originalAssigneeId ?? task.assigneeId ?? null,
       delegatedFromId,
     })
     .where(and(eq(workflowTasks.id, task.id), eq(workflowTasks.status, 'pending')))
     .returning();
   if (!updated) throw new HTTPException(409, { message: '任务状态已变化，无法委派' });
+  await recordTaskTransfer(db, {
+    taskId: task.id, instanceId: inst.id, fromUserId: task.assigneeId, toUserId: targetUserId,
+    action: 'delegate', reason: comment ?? null, operatorId: actor.userId, tenantId: inst.tenantId,
+  });
   emitTaskEvent('task.transferred', mapTask(updated, target.nickname),
     { definitionId: inst.definitionId, tenantId: inst.tenantId, actor, comment: delegateComment });
   return mapTask(updated, target.nickname);

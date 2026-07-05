@@ -2489,6 +2489,19 @@ export interface WorkflowInstanceSummaryItem {
   value: string;
 }
 
+/** 任务转办明细（转办/委派/管理员改派/离职交接/超时升级留痕） */
+export interface WorkflowTaskTransfer {
+  id: number;
+  fromUserId: number | null;
+  fromUserName?: string | null;
+  toUserId: number;
+  toUserName?: string | null;
+  action: 'transfer' | 'delegate' | 'reassign' | 'handover' | 'timeout';
+  reason?: string | null;
+  operatorName?: string | null;
+  createdAt: string;
+}
+
 /** 离职交接影响范围预览 */
 export interface WorkflowHandoverPreview {
   fromUserName: string;
@@ -2701,6 +2714,7 @@ export interface WorkflowDataSource {
   name: string;
   method: 'GET' | 'POST';
   url: string;
+  /** 附加请求头（服务端 AES-256-GCM 加密存储；API 返回时值统一脱敏为 ******，更新时传 ****** 表示沿用旧值） */
   headers?: Record<string, string> | null;
   itemsPath?: string | null;
   valueField: string;
@@ -3208,8 +3222,8 @@ export interface WorkflowTask {
   actionAt: string | null;
   /** 任务原始处理人（创建时快照，转办/委派不会修改） */
   originalAssigneeId?: number | null;
-  /** 转办/委派经手过的处理人 ID 链（含原始创建人之后的所有 assignee） */
-  transferChain?: number[];
+  /** 转办明细（详情场景填充：转办/委派/改派/交接/超时升级留痕，含双方与操作人姓名） */
+  transfers?: WorkflowTaskTransfer[] | null;
   /** 委派来源（仅委派期间设置；回执任务为 null） */
   delegatedFromId?: number | null;
   /** 外部审批回调 ID（task.status='waiting' + externalApproval 启用时生效；派发/恢复由 workflow_jobs 接管） */

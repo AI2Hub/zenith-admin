@@ -10,6 +10,7 @@ import { buildStarterContext } from '../workflow-assignee-resolver.service';
 import logger from '../../../lib/logger';
 import { emitInstanceStartEvents } from './lifecycle';
 import { mapInstance, mapTask } from './mapping';
+import { recordTaskTransfer } from './transfers';
 import { advanceAndMaterialize, killInstanceTokens } from './materialize';
 import { getInstanceDetail } from './queries';
 import { emitInstanceEvent, emitNodeEvent, emitTaskEvent } from './shared';
@@ -152,7 +153,8 @@ export async function resumeInstance(id: number) {
   return mapInstance(instance);
 }
 
-/** 管理员改派：将未处理任务的处理人替换为指定用户 */export async function reassignTask(taskId: number, targetUserId: number, comment?: string) {
+/** 管理员改派：将未处理任务的处理人替换为指定用户（action 区分常规改派与离职交接） */
+export async function reassignTask(taskId: number, targetUserId: number, comment?: string, action: 'reassign' | 'handover' = 'reassign') {
   const user = currentUser();
   const [task] = await db.select().from(workflowTasks).where(eq(workflowTasks.id, taskId)).limit(1);
   if (!task) throw new HTTPException(404, { message: '任务不存在' });
@@ -166,15 +168,17 @@ export async function resumeInstance(id: number) {
   if (tc) instConditions.push(tc);
   const [inst] = await db.select().from(workflowInstances).where(and(...instConditions)).limit(1);
   if (!inst) throw new HTTPException(404, { message: '任务不存在或无权操作' });
-  const chain = Array.isArray(task.transferChain) ? task.transferChain : [];
-  const note = `[管理员改派]${comment ? ' ' + comment : ''}`;
+  const note = action === 'handover' ? (comment ?? '[离职交接]') : `[管理员改派]${comment ? ' ' + comment : ''}`;
   const [updated] = await db.update(workflowTasks).set({
     assigneeId: targetUserId,
     delegatedFromId: null,
-    transferChain: [...new Set([...chain, task.assigneeId].filter((v): v is number => v != null))],
     comment: note,
   }).where(and(eq(workflowTasks.id, taskId), inArray(workflowTasks.status, ['pending', 'waiting']))).returning();
   if (!updated) throw new HTTPException(409, { message: '任务状态已变化，无法改派' });
+  await recordTaskTransfer(db, {
+    taskId, instanceId: inst.id, fromUserId: task.assigneeId, toUserId: targetUserId,
+    action, reason: comment ?? null, operatorId: user.userId, tenantId: inst.tenantId,
+  });
   const actor = { userId: user.userId, name: user.username };
   emitTaskEvent('task.transferred', mapTask(updated), { definitionId: inst.definitionId, tenantId: inst.tenantId, actor });
   return mapTask(updated);
@@ -445,7 +449,7 @@ export async function handoverTasks(input: { fromUserId: number; toUserId: numbe
   // 逐条小事务改派：单条失败不阻断其余，完整复用改派的转办链/事件/通知链路
   for (const t of tasks) {
     try {
-      await reassignTask(t.id, toUserId, note);
+      await reassignTask(t.id, toUserId, note, 'handover');
       succeeded += 1;
       results.push({ taskId: t.id, title: t.title, nodeName: t.nodeName, success: true });
     } catch (err) {

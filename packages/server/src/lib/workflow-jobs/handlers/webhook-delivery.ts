@@ -3,6 +3,7 @@ import type { WorkflowEvent } from '@zenith/shared';
 import { db } from '../../../db';
 import { workflowEventSubscriptions } from '../../../db/schema';
 import { invokeConnector, getConnectorRowById } from '../../../services/workflow/workflow-connectors.service';
+import { decryptSubscriptionSecret } from '../../../services/workflow/workflow-event-subscriptions.service';
 import { httpPost } from '../../http-client';
 import { registerJobHandler } from '../registry';
 import { WorkflowJobSkip, WorkflowJobError, WorkflowJobPermanentError } from '../errors';
@@ -48,8 +49,9 @@ async function handle({ payload, attempt, job }: WorkflowJobContext): Promise<Wo
     'X-Zenith-Attempt': String(attempt),
     ...parseHeaders(sub.headers),
   };
-  if (sub.signMode === 'hmacSha256' && sub.secret) {
-    headers['X-Zenith-Signature'] = `t=${timestamp},v1=${signHmac(sub.secret, timestamp, bodyStr)}`;
+  if (sub.signMode === 'hmacSha256' && sub.secretEncrypted) {
+    const secret = decryptSubscriptionSecret(sub.secretEncrypted);
+    if (secret) headers['X-Zenith-Signature'] = `t=${timestamp},v1=${signHmac(secret, timestamp, bodyStr)}`;
   }
 
   const detail: WorkflowJobResult = { requestUrl: sub.url, requestMethod: 'POST', requestBody: bodyStr };

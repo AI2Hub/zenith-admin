@@ -13,6 +13,7 @@ import { escapeLike } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
+import { decryptSecret, encryptSecret } from '../../lib/secret-crypto';
 import type { WorkflowEventType } from '@zenith/shared';
 
 function maskSecret(secret: string | null | undefined): string | null {
@@ -21,13 +22,13 @@ function maskSecret(secret: string | null | undefined): string | null {
   return `${secret.slice(0, 4)}****${secret.slice(-4)}`;
 }
 
-function parseEvents(raw: string | null | undefined): string[] {
-  if (!raw) return [];
+/** 解密订阅密钥（AES-256-GCM 存储；解密失败按无密钥处理并保底不抛错） */
+export function decryptSubscriptionSecret(encrypted: string | null | undefined): string | null {
+  if (!encrypted) return null;
   try {
-    const v = JSON.parse(raw);
-    return Array.isArray(v) ? v.filter((s) => typeof s === 'string') : [];
+    return decryptSecret(encrypted);
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -56,9 +57,9 @@ export function mapSubscription(
     description: row.description ?? null,
     definitionId: row.definitionId,
     definitionName: definitionName ?? null,
-    events: parseEvents(row.events),
+    events: Array.isArray(row.events) ? row.events : [],
     url: row.url,
-    secretMasked: maskSecret(row.secret),
+    secretMasked: maskSecret(decryptSubscriptionSecret(row.secretEncrypted)),
     signMode: row.signMode,
     headers: parseHeaders(row.headers),
     connectorId: row.connectorId ?? null,
@@ -136,7 +137,7 @@ export async function getSubscriptionBeforeAudit(id: number) {
 
 export async function getSubscriptionSecret(id: number) {
   const row = await ensureSubscriptionExists(id);
-  return { id: row.id, secret: row.secret ?? null };
+  return { id: row.id, secret: decryptSubscriptionSecret(row.secretEncrypted) };
 }
 
 export interface UpsertSubscriptionInput {
@@ -160,9 +161,9 @@ export async function createSubscription(input: UpsertSubscriptionInput) {
       name: input.name,
       description: input.description ?? null,
       definitionId: input.definitionId ?? null,
-      events: JSON.stringify(input.events),
+      events: input.events,
       url: input.url,
-      secret: input.secret ?? null,
+      secretEncrypted: input.secret ? encryptSecret(input.secret) : null,
       signMode: input.signMode ?? 'hmacSha256',
       headers: input.headers ? JSON.stringify(input.headers) : null,
       connectorId: input.connectorId ?? null,
@@ -189,10 +190,10 @@ export async function updateSubscription(id: number, input: Partial<UpsertSubscr
   if (input.definitionId !== undefined) patch.definitionId = input.definitionId;
   if (input.events !== undefined) {
     if (input.events.length === 0) throw new HTTPException(400, { message: '至少订阅一个事件类型' });
-    patch.events = JSON.stringify(input.events);
+    patch.events = input.events;
   }
   if (input.url !== undefined) patch.url = input.url;
-  if (input.secret !== undefined) patch.secret = input.secret;
+  if (input.secret !== undefined) patch.secretEncrypted = input.secret ? encryptSecret(input.secret) : null;
   if (input.signMode !== undefined) patch.signMode = input.signMode;
   if (input.headers !== undefined) patch.headers = input.headers ? JSON.stringify(input.headers) : null;
   if (input.connectorId !== undefined) patch.connectorId = input.connectorId;
@@ -237,7 +238,7 @@ export async function findMatchingSubscriptions(params: {
     tenantCond,
     defCond,
   ));
-  return rows.filter((r) => parseEvents(r.events).includes(eventType));
+  return rows.filter((r) => (Array.isArray(r.events) ? r.events : []).includes(eventType));
 }
 
 // ─── 投递记录 ──────────────────────────────────────────────────────────────

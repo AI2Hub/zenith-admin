@@ -13,6 +13,7 @@ import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../../lib/context';
 import { loadInstanceCommentsForDetail } from '../workflow-comments.service';
 import { loadInstanceConsultsForDetail } from '../workflow-consults.service';
+import { loadInstanceTransfersByTask } from './transfers';
 import { mapInstance, mapTask } from './mapping';
 
 type InstanceStatus = 'draft' | 'running' | 'approved' | 'rejected' | 'withdrawn';
@@ -430,11 +431,12 @@ export async function getInstanceDetail(id: number) {
   }
   if (!allowed) throw new HTTPException(403, { message: '无权查看' });
   const snapshot = row.definitionSnapshot as { flowData?: WorkflowFlowData } | null;
+  const transfersByTask = await loadInstanceTransfersByTask(id);
   const tasks = row.tasks.map((t) => {
     const cfg = snapshot?.flowData?.nodes.find((n) => n.data.key === t.nodeKey)?.data;
     const actionButtons = cfg?.actionButtons;
     const signatureRequired = cfg?.operations?.includes('signature') ?? false;
-    return mapTask(t, t.assignee?.nickname, t.assignee?.avatar, actionButtons ?? null, signatureRequired);
+    return mapTask(t, t.assignee?.nickname, t.assignee?.avatar, actionButtons ?? null, signatureRequired, transfersByTask.get(t.id) ?? null);
   });
   // 子流程：查询本实例发起的子实例（按父任务关联到节点 key）
   const childRows = await db.select({

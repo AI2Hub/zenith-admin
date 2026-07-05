@@ -16,6 +16,7 @@ import { mapInstance, mapTask } from './mapping';
 import { advanceAndMaterialize, checkNodeCompletion, killInstanceTokens } from './materialize';
 import type { MaterializeTrigger } from './materialize';
 import { emitInstanceEvent, emitNodeEvent, emitTaskEvent } from './shared';
+import { hasUserHandledTask } from './transfers';
 
 export type WorkflowTaskAttachment = { name: string; url: string; size?: number };
 
@@ -61,8 +62,9 @@ export async function listTaskSelectableNextApprovers(taskId: number): Promise<W
   if (!task) throw new HTTPException(404, { message: '任务不存在或无权操作' });
   if (task.assigneeId !== user.userId) {
     // 任务已转办/委派给他人：曾经手的用户返回空组而非 404（审批面板关闭前的缓存刷新会重取本查询）
-    const chain: number[] = Array.isArray(task.transferChain) ? task.transferChain : [];
-    const wasMine = chain.includes(user.userId) || task.originalAssigneeId === user.userId || task.delegatedFromId === user.userId;
+    const wasMine = task.originalAssigneeId === user.userId
+      || task.delegatedFromId === user.userId
+      || await hasUserHandledTask(task.id, user.userId);
     if (!wasMine) throw new HTTPException(404, { message: '任务不存在或无权操作' });
     return [];
   }
@@ -597,7 +599,6 @@ async function processDelegatedReceipt(
       approveMethod: task.approveMethod,
       approveRatio: task.approveRatio,
       originalAssigneeId: delegatorId,
-      transferChain: [],
       delegatedFromId: null,
       comment: receiptComment,
     }).returning();
