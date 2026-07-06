@@ -4,6 +4,32 @@
 
 ---
 
+## v0.83.0 - 2026-07-06
+
+### Added
+
+#### 文件存储
+
+- **对象读写权限（canned ACL）**：文件存储配置新增对象 ACL 选项（default / private / public-read / public-read-write，default 为继承 Bucket），上传链路（简单上传 + 分片初始化）按配置注入各云厂商 ACL 头（OSS / S3 / COS / OBS / BOS）；shared 新增 `FILE_OBJECT_ACL_SUPPORT` 支持矩阵，前端选项、Zod 校验、上传链路三处共用；配置表单含 S3 桶 ACL 禁用与公共读风险提示；云厂商拒绝设置 ACL 的已知错误统一映射为友好业务提示
+
+#### 站内信
+
+- **批量操作**：我的消息页面支持多选，新增「批量标记已读」「批量删除」（`POST /api/in-app-messages/batch-read`、`DELETE /api/in-app-messages/batch`），仅作用于当前用户自己的消息，操作后顶栏未读角标经 WS 实时同步
+
+### Changed
+
+- **审批结果通知类型**：站内信「审批被驳回」由 错误(error) 调整为 警告(warning)，「流程已撤回」由 警告(warning) 调整为 通知(info)，避免正常业务结果被误读为系统故障
+- **移除侧边栏待办角标**：工作流「待我审批」菜单不再展示待办数量红点角标（WS 实时刷新与新待办弹窗提醒保留）
+- **空状态插画统一**：纯展示型空状态（顶栏公告 / 消息弹层、任务托盘、我的消息、公告中心、表单未选择）由带添加符号的 NoContent 插画更换为中性 Idle 插画，仅保留真正可添加数据场景使用 NoContent；业务表单组件缺失改用 Failure 插画
+- **移动审批轻页样式**：调整高度与滚动行为，改善页面滚动体验
+
+### Fixed
+
+- **Modal 底部间距**：`footer={null}` 的弹窗底部间距缺失（Semi 默认由 footer margin 提供），全局补齐 body 为最后元素时的 20px 底部内边距
+- **MSW handler 顺序**：站内信批量删除 mock 注册顺序在 `/:id` 之后导致被吞掉，调整为优先匹配
+
+---
+
 ## v0.82.0 - 2026-07-05
 
 ### Added
