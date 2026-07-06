@@ -170,8 +170,8 @@ export function registerNotificationWorkflowSubscriber(): void {
     const label = inst.serialNo ? `${inst.title}（${inst.serialNo}）` : inst.title;
     const map = {
       approved: { title: '审批通过', content: `你发起的流程「${label}」已审批通过`, type: 'success' as const },
-      rejected: { title: '审批被驳回', content: `你发起的流程「${label}」已被驳回`, type: 'error' as const },
-      withdrawn: { title: '流程已撤回', content: `你发起的流程「${label}」已撤回`, type: 'warning' as const },
+      rejected: { title: '审批被驳回', content: `你发起的流程「${label}」已被驳回`, type: 'warning' as const },
+      withdrawn: { title: '流程已撤回', content: `你发起的流程「${label}」已撤回`, type: 'info' as const },
     };
     const m = map[status];
     const { channels, notifyInitiator: shouldNotify } = await loadNotifyContext(event.instanceId);
