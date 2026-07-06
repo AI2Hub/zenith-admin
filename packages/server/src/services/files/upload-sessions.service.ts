@@ -8,7 +8,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { InitChunkUploadInput } from '@zenith/shared';
 import { db } from '../../db';
 import { uploadSessions, uploadChunks, managedFiles, fileStorageConfigs } from '../../db/schema';
-import { buildUploadObjectKey, uploadObjectByConfig, extractBucketName, getMultipartDriver } from '../../lib/file-storage';
+import { buildUploadObjectKey, uploadObjectByConfig, extractBucketName, getMultipartDriver, mapObjectAclError } from '../../lib/file-storage';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
 import { getConfigNumber } from '../../lib/system-config';
@@ -84,7 +84,7 @@ export async function initChunkUpload(input: InitChunkUploadInput) {
   // 云原生 multipart：先在云端初始化拿到 multipartUploadId；否则走本地暂存
   const driver = getMultipartDriver(defaultConfig.provider);
   const multipartUploadId = driver
-    ? await driver.init(defaultConfig, objectKey, input.mimeType ?? undefined)
+    ? await driver.init(defaultConfig, objectKey, input.mimeType ?? undefined).catch((err) => { throw mapObjectAclError(err); })
     : null;
 
   await db.insert(uploadSessions).values({

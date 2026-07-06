@@ -12,6 +12,7 @@ import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import type { FileStorageConfigRow, ManagedFileRow } from '../db/schema';
 import { FILE_OBJECT_ACL_SUPPORT } from '@zenith/shared';
+import { HTTPException } from 'hono/http-exception';
 import { formatDate } from './datetime';
 
 // esdk-obs-nodejs 是 CJS 模块，无官方类型声明，运行时通过 require 加载
@@ -244,8 +245,33 @@ interface UploadObjectInput {
   mimeType?: string;
 }
 
+/**
+ * 将云厂商「拒绝设置对象 ACL」的已知错误映射为友好业务错误，其余原样返回。
+ * 覆盖：阿里云 OSS 阻止公共访问（ecCode 0016-00000901）、AWS S3 桶禁用 ACL（Bucket owner enforced）。
+ */
+export function mapObjectAclError(err: unknown): unknown {
+  const message = String((err as { message?: unknown })?.message ?? '');
+  const name = String((err as { name?: unknown })?.name ?? '');
+  const code = String((err as { code?: unknown })?.code ?? '');
+  if (message.includes('Put public object acl is not allowed')) {
+    return new HTTPException(400, { message: 'Bucket 已开启「阻止公共访问」防护，禁止上传公共读/公共读写文件；请在云控制台关闭该防护，或将文件配置的读写权限改为「私有 / 继承 Bucket」' });
+  }
+  if (name === 'AccessControlListNotSupported' || code === 'AccessControlListNotSupported') {
+    return new HTTPException(400, { message: '目标桶已禁用 ACL（Object Ownership 为 Bucket owner enforced），无法按对象设置读写权限；请在桶设置中启用 ACL，或将文件配置的读写权限改为「继承 Bucket」' });
+  }
+  return err;
+}
+
 /** 按存储配置上传一个对象（参数化 objectKey + Node 流），供简单上传与分片合并复用 */
 export async function uploadObjectByConfig(config: FileStorageConfigRow, input: UploadObjectInput): Promise<void> {
+  try {
+    await doUploadObjectByConfig(config, input);
+  } catch (err) {
+    throw mapObjectAclError(err);
+  }
+}
+
+async function doUploadObjectByConfig(config: FileStorageConfigRow, input: UploadObjectInput): Promise<void> {
   const { objectKey, stream, size, mimeType } = input;
   const objectAcl = resolveObjectAcl(config);
 
