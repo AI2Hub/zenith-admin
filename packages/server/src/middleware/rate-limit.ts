@@ -10,7 +10,7 @@ import { db } from '../db';
 import { rateLimitRules } from '../db/schema';
 import { currentUser } from '../lib/context';
 
-export type RateLimitName = 'auth' | 'captcha' | 'sensitive' | 'report_public_share';
+export type RateLimitName = 'auth' | 'captcha' | 'sensitive' | 'report_public_share' | 'chat_send';
 export type RateLimitKeyType = 'ip' | 'user' | 'ip_path';
 
 export interface RuleConfig {
@@ -29,6 +29,7 @@ const DEFAULTS: Record<RateLimitName, RuleConfig> = {
   captcha:   { name: 'captcha',   description: '验证码接口限流',        windowMs: 60 * 1000,          limit: 30, keyType: 'ip', enabled: true, blockedMessage: '验证码请求过于频繁，请稍后再试', pathPatterns: [] },
   sensitive: { name: 'sensitive', description: '敏感操作（注册/重置）限流', windowMs: 60 * 60 * 1000,  limit: 5,  keyType: 'ip', enabled: true, blockedMessage: '操作过于频繁，请 1 小时后重试', pathPatterns: [] },
   report_public_share: { name: 'report_public_share', description: '报表公开分享访问限流（无需登录，防滥用/防爆破）', windowMs: 60 * 1000, limit: 120, keyType: 'ip', enabled: true, blockedMessage: '访问过于频繁，请稍后再试', pathPatterns: ['/api/report/public/*'] },
+  chat_send: { name: 'chat_send', description: '聊天消息发送限流（按用户）', windowMs: 60 * 1000, limit: 60, keyType: 'user', enabled: true, blockedMessage: '消息发送过于频繁，请稍后再试', pathPatterns: [] },
 };
 
 const ruleCache = new Map<string, RuleConfig>(Object.entries(DEFAULTS));
@@ -162,7 +163,7 @@ export const captchaRateLimit: MiddlewareHandler = makeNamed('captcha');
 export const sensitiveRateLimit: MiddlewareHandler = makeNamed('sensitive');
 
 /** 内置规则名称集合（不可删除） */
-export const PREDEFINED_NAMES = new Set(['auth', 'captcha', 'sensitive', 'report_public_share']);
+export const PREDEFINED_NAMES = new Set(['auth', 'captcha', 'sensitive', 'report_public_share', 'chat_send']);
 
 /** 通过规则名称动态应用限流（支持自定义规则） */
 export function namedRateLimit(name: string): MiddlewareHandler {

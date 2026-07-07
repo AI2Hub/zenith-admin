@@ -19,6 +19,7 @@ const rules: MockRule[] = [
   { id: 1, name: 'auth',      description: '登录接口限流',          windowMs: 3 * 60 * 1000,     limit: 20, keyType: 'ip', enabled: false,  blockedMessage: '登录尝试过于频繁，请 3 分钟后再试',  pathPatterns: [],  createdAt: mockDateTime(), updatedAt: mockDateTime() },
   { id: 2, name: 'captcha',   description: '验证码接口限流',        windowMs: 60 * 1000,         limit: 30, keyType: 'ip', enabled: true,  blockedMessage: '验证码请求过于频繁，请稍后再试',     pathPatterns: [],  createdAt: mockDateTime(), updatedAt: mockDateTime() },
   { id: 3, name: 'sensitive', description: '敏感操作（注册/重置）限流', windowMs: 60 * 60 * 1000, limit: 5,  keyType: 'ip', enabled: false, blockedMessage: '操作过于频繁，请 1 小时后重试',     pathPatterns: [],  createdAt: mockDateTime(), updatedAt: mockDateTime() },
+  { id: 4, name: 'chat_send', description: '聊天消息发送限流（按用户）', windowMs: 60 * 1000,      limit: 60, keyType: 'user', enabled: true, blockedMessage: '消息发送过于频繁，请稍后再试',    pathPatterns: [],  createdAt: mockDateTime(), updatedAt: mockDateTime() },
 ];
 
 const stats = {
@@ -30,6 +31,9 @@ const stats = {
     { at: mockDateTimeOffset(-1 * 60 * 60 * 1000), key: '192.0.2.55', path: '/api/auth/captcha' },
   ] },
   sensitive: { hit: 187, blocked: 0, recent: [] as { at: string; key: string; path: string }[] },
+  chat_send: { hit: 4560, blocked: 1, recent: [
+    { at: mockDateTimeOffset(-40 * 60 * 1000), key: 'u:2', path: '/api/chat/conversations/1/messages' },
+  ] },
 };
 
 export const rateLimitHandlers = [
@@ -59,7 +63,7 @@ export const rateLimitHandlers = [
     const id = Number(params.id);
     const idx = rules.findIndex((r) => r.id === id);
     if (idx === -1) return HttpResponse.json({ code: 404, message: '规则不存在', data: null }, { status: 404 });
-    if (['auth', 'captcha', 'sensitive'].includes(rules[idx].name)) {
+    if (['auth', 'captcha', 'sensitive', 'chat_send'].includes(rules[idx].name)) {
       return HttpResponse.json({ code: 400, message: '内置规则不可删除', data: null }, { status: 400 });
     }
     rules.splice(idx, 1);

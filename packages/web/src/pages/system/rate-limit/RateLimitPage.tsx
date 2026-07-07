@@ -56,7 +56,7 @@ interface CreateForm {
   pathPatterns: string[];
 }
 
-const PREDEFINED_NAMES = new Set(['auth', 'captcha', 'sensitive']);
+const PREDEFINED_NAMES = new Set(['auth', 'captcha', 'sensitive', 'report_public_share', 'chat_send']);
 
 const KEY_TYPE_OPTIONS = [
   { label: 'IP 地址', value: 'ip' },

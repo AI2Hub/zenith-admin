@@ -694,6 +694,18 @@ export const SEED_RATE_LIMIT_RULES = [
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
   },
+  {
+    name: 'chat_send',
+    description: '聊天消息发送限流（按用户）',
+    windowMs: 60 * 1000,
+    limit: 60,
+    keyType: 'user' as const,
+    enabled: true,
+    blockedMessage: '消息发送过于频繁，请稍后再试',
+    pathPatterns: [],
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
 ];
 
 // ─── 定时任务 ─────────────────────────────────────────────────────────────────

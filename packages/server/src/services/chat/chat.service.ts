@@ -5,6 +5,7 @@ import {
   departments, positions, userPositions,
 } from '../../db/schema';
 import { scheduleSendToUsers, isUserOnline, getUserLastSeen } from '../../lib/ws-manager';
+import { invalidateConversationMembers } from '../../lib/chat-member-cache';
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
@@ -1430,6 +1431,7 @@ export async function addGroupMember(conversationId: number, targetUserId: numbe
   if (alreadyIn) throw new HTTPException(400, { message: '该用户已在群聊中' });
 
   await db.insert(chatConversationMembers).values({ conversationId, userId: targetUserId });
+  invalidateConversationMembers(conversationId);
 
   await appendSystemMessage(conversationId, `${target.nickname} 加入了群聊`);
 
@@ -1463,6 +1465,7 @@ export async function removeConversation(conversationId: number): Promise<void> 
     eq(chatConversationMembers.conversationId, conversationId),
     eq(chatConversationMembers.userId, me.userId),
   ));
+  invalidateConversationMembers(conversationId);
 
   const remainCount = await db.$count(chatConversationMembers, eq(chatConversationMembers.conversationId, conversationId));
   if (conv.type === 'group' && remainCount > 0) {
@@ -1573,6 +1576,7 @@ export async function removeGroupMember(conversationId: number, targetUserId: nu
     eq(chatConversationMembers.conversationId, conversationId),
     eq(chatConversationMembers.userId, targetUserId),
   ));
+  invalidateConversationMembers(conversationId);
 
   await appendSystemMessage(
     conversationId,

@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, unique, text, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, unique, text, jsonb, index } from 'drizzle-orm/pg-core';
 import { auditColumns, tenants, users } from './core';
 
 // ─── 聊天会话表 ───────────────────────────────────────────────────────────────
@@ -31,7 +31,11 @@ export const chatConversationMembers = pgTable('chat_conversation_members', {
   isMuted: boolean('is_muted').notNull().default(false),
   lastReadAt: timestamp('last_read_at', { withTimezone: true }),
   joinedAt: timestamp('joined_at').defaultNow().notNull(),
-}, (t) => [primaryKey({ columns: [t.conversationId, t.userId] })]);
+}, (t) => [
+  primaryKey({ columns: [t.conversationId, t.userId] }),
+  // 反查“我参与的所有会话”（listConversations），PK 前缀无法覆盖 user_id 查询
+  index('chat_conversation_members_user_idx').on(t.userId),
+]);
 
 export type ChatConversationMemberRow = typeof chatConversationMembers.$inferSelect;
 
@@ -50,7 +54,12 @@ export const chatMessages = pgTable('chat_messages', {
   extra: jsonb('extra'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [
+  // 会话消息游标分页（WHERE conversation_id = ? AND id < ? ORDER BY id DESC）及最新消息聚合
+  index('chat_messages_conversation_id_idx').on(t.conversationId, t.id),
+  // sender FK 无自动索引：加速按发送者过滤搜索及用户删除时的 ON DELETE SET NULL
+  index('chat_messages_sender_idx').on(t.senderId),
+]);
 
 export type ChatMessageRow = typeof chatMessages.$inferSelect;
 

@@ -183,6 +183,13 @@
       "when": 1783425374720,
       "tag": "0025_fair_screwball",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1783428434370,
+      "tag": "0026_hot_queen_noir",
+      "breakpoints": true
     }
   ]
 }

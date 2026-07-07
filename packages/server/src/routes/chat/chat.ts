@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
+import { namedRateLimit } from '../../middleware/rate-limit';
 import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
@@ -266,7 +267,7 @@ chatRouter.openapi(
   createRoute({
     method: 'post', path: '/conversations/{id}/messages', tags: ['Chat'], summary: '发送消息',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware] as const,
+    middleware: [authMiddleware, namedRateLimit('chat_send')] as const,
     request: { params: IdParam, body: { content: jsonContent(sendMessageSchema) } },
     responses: { ...commonErrorResponses, ...ok(ChatMessageDTO, '消息') },
   }),
@@ -659,7 +660,7 @@ chatRouter.openapi(
   createRoute({
     method: 'post', path: '/messages/forward', tags: ['Chat'], summary: '转发消息（逐条或合并）',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware] as const,
+    middleware: [authMiddleware, namedRateLimit('chat_send')] as const,
     request: {
       body: {
         content: jsonContent(z.object({
