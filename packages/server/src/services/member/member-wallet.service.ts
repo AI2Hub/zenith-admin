@@ -231,7 +231,7 @@ export interface ListWalletTxQuery {
   pageSize: number;
 }
 
-export async function listWalletTransactions(q: ListWalletTxQuery) {
+export function buildWalletTxWhere(q: { memberId?: number; memberKeyword?: string; type?: WalletTxType }): SQL | undefined {
   const conds: SQL[] = [];
   if (q.memberId) {
     conds.push(eq(memberWalletTransactions.memberId, q.memberId));
@@ -247,7 +247,11 @@ export async function listWalletTransactions(q: ListWalletTxQuery) {
     }
   }
   if (q.type) conds.push(eq(memberWalletTransactions.type, q.type));
-  const where = conds.length ? and(...conds) : undefined;
+  return conds.length ? and(...conds) : undefined;
+}
+
+export async function listWalletTransactions(q: ListWalletTxQuery) {
+  const where = buildWalletTxWhere(q);
 
   const [total, rows] = await Promise.all([
     db.$count(memberWalletTransactions, where),

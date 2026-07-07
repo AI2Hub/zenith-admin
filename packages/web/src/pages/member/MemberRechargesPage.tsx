@@ -6,8 +6,10 @@ import { Search, RotateCcw } from 'lucide-react';
 import type { MemberRecharge, PaymentChannel, PaymentOrderStatus } from '@zenith/shared';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared';
 import { usePagination } from '@/hooks/usePagination';
+import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import ExportButton from '@/components/ExportButton';
 import { renderEllipsis } from '../../utils/table-columns';
 import { formatDateForApi } from '@/utils/date';
 import { memberAdminKeys, useMemberRechargeList } from '@/hooks/queries/member-admin';
@@ -29,6 +31,7 @@ const STATUS_COLORS: Record<PaymentOrderStatus, string> = {
 };
 
 export default function MemberRechargesPage() {
+  const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
   const [draftParams, setDraftParams] = useState<SearchParams>(defaultSearch);
   const [submittedParams, setSubmittedParams] = useState<SearchParams>(defaultSearch);
@@ -117,6 +120,19 @@ export default function MemberRechargesPage() {
 
   const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
   const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const buildExportQuery = () => {
+    const [ds, de] = submittedParams.dateRange ?? [];
+    return {
+      ...(submittedParams.keyword ? { keyword: submittedParams.keyword } : {}),
+      ...(submittedParams.status ? { status: submittedParams.status } : {}),
+      ...(submittedParams.channel ? { channel: submittedParams.channel } : {}),
+      ...(ds ? { dateStart: formatDateForApi(ds) } : {}),
+      ...(de ? { dateEnd: formatDateForApi(de) } : {}),
+    };
+  };
+  const renderExportButton = (variant?: 'flat') => hasPermission('member:recharge:list') ? (
+    <ExportButton entity="member.recharges" query={buildExportQuery()} variant={variant} />
+  ) : null;
 
   return (
     <div className="page-container">
@@ -129,6 +145,7 @@ export default function MemberRechargesPage() {
             {renderDateRangeFilter()}
             {renderSearchButton()}
             {renderResetButton()}
+            {renderExportButton()}
           </>
         )}
         mobilePrimary={(
@@ -144,6 +161,7 @@ export default function MemberRechargesPage() {
             {renderDateRangeFilter()}
           </>
         )}
+        mobileActions={renderExportButton('flat')}
         filterTitle="充值记录筛选"
         onFilterApply={handleSearch}
         onFilterReset={handleReset}

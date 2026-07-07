@@ -34,18 +34,12 @@ function mapMemberCheckin(row: MemberCheckinRow, memberNickname?: string | null)
     pointsAwarded: row.pointsAwarded,
     experienceAwarded: row.experienceAwarded,
     isMakeup: row.isMakeup,
+    remark: row.remark ?? null,
     createdAt: formatDateTime(row.createdAt),
   };
 }
 
-export async function listMemberCheckins(params: {
-  page: number;
-  pageSize: number;
-  memberId?: number;
-  memberKeyword?: string;
-  dateStart?: string;
-  dateEnd?: string;
-}) {
+export function buildCheckinWhere(params: { memberId?: number; memberKeyword?: string; dateStart?: string; dateEnd?: string }): SQL | undefined {
   const conditions: SQL[] = [];
   if (params.memberId) {
     conditions.push(eq(memberCheckins.memberId, params.memberId));
@@ -60,8 +54,18 @@ export async function listMemberCheckins(params: {
   }
   if (params.dateStart) conditions.push(gte(memberCheckins.checkinDate, params.dateStart));
   if (params.dateEnd) conditions.push(lte(memberCheckins.checkinDate, params.dateEnd));
+  return conditions.length > 0 ? and(...conditions) : undefined;
+}
 
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+export async function listMemberCheckins(params: {
+  page: number;
+  pageSize: number;
+  memberId?: number;
+  memberKeyword?: string;
+  dateStart?: string;
+  dateEnd?: string;
+}) {
+  const where = buildCheckinWhere(params);
   const baseQuery = db
     .select({
       id: memberCheckins.id,
@@ -72,6 +76,7 @@ export async function listMemberCheckins(params: {
       pointsAwarded: memberCheckins.pointsAwarded,
       experienceAwarded: memberCheckins.experienceAwarded,
       isMakeup: memberCheckins.isMakeup,
+      remark: memberCheckins.remark,
       createdAt: memberCheckins.createdAt,
     })
     .from(memberCheckins)
@@ -94,6 +99,7 @@ export async function listMemberCheckins(params: {
       pointsAwarded: row.pointsAwarded,
       experienceAwarded: row.experienceAwarded,
       isMakeup: row.isMakeup,
+      remark: row.remark ?? null,
       createdAt: formatDateTime(row.createdAt),
     })),
     total,
@@ -364,11 +370,12 @@ function isValidDateStr(value: string): boolean {
 }
 
 /**
- * 补签：mode='admin' 由后台为会员补签（不消耗积分）；mode='self' 会员自助补签（消耗设置中的积分）。
+ * 补签：mode='admin' 由后台为会员补签（不消耗积分，须提供原因 reason 记入备注）；
+ * mode='self' 会员自助补签（消耗设置中的积分）。
  * 仅可补签 [今天-makeupMaxDays, 昨天] 区间内、尚未签到的日期；连续天数以补签日前一天为基准计算。
  */
-export async function doMakeupCheckin(params: { memberId: number; date: string; mode: 'admin' | 'self' }) {
-  const { memberId, date, mode } = params;
+export async function doMakeupCheckin(params: { memberId: number; date: string; mode: 'admin' | 'self'; reason?: string }) {
+  const { memberId, date, mode, reason } = params;
   if (!isValidDateStr(date)) throw new HTTPException(400, { message: '补签日期格式不正确' });
   const target = dayjs(date);
   const dateStr = target.format('YYYY-MM-DD');
@@ -423,6 +430,7 @@ export async function doMakeupCheckin(params: { memberId: number; date: string; 
         pointsAwarded: points,
         experienceAwarded: experience,
         isMakeup: true,
+        remark: mode === 'admin' && reason ? reason : null,
       });
 
       if (points > 0) {

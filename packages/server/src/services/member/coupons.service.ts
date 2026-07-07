@@ -315,7 +315,7 @@ export interface ListMemberCouponsQuery {
 }
 
 /** 后台：领券记录分页 */
-export async function listMemberCoupons(q: ListMemberCouponsQuery) {
+export function buildMemberCouponWhere(q: { memberId?: number; memberKeyword?: string; couponId?: number; status?: MemberCouponRow['status'] }): SQL | undefined {
   const conds: SQL[] = [];
   if (q.memberId) {
     conds.push(eq(memberCoupons.memberId, q.memberId));
@@ -332,7 +332,11 @@ export async function listMemberCoupons(q: ListMemberCouponsQuery) {
   }
   if (q.couponId) conds.push(eq(memberCoupons.couponId, q.couponId));
   if (q.status) conds.push(eq(memberCoupons.status, q.status));
-  const where = conds.length ? and(...conds) : undefined;
+  return conds.length ? and(...conds) : undefined;
+}
+
+export async function listMemberCoupons(q: ListMemberCouponsQuery) {
+  const where = buildMemberCouponWhere(q);
 
   const [total, rows] = await Promise.all([
     db.$count(memberCoupons, where),

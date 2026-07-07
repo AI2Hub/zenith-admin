@@ -9,6 +9,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import { MemberSelect } from '@/components/MemberSelect';
 import { formatDateForApi } from '@/utils/date';
@@ -57,14 +58,14 @@ export default function CheckinLogsPage() {
   };
 
   const handleMakeup = async () => {
-    let values: { memberId?: number; date?: Date } | undefined;
+    let values: { memberId?: number; date?: Date; reason?: string } | undefined;
     try {
       values = await makeupFormApi.current!.validate();
     } catch {
       throw new Error('validation');
     }
-    if (!values?.memberId || !values?.date) throw new Error('请完整填写补签信息');
-    await makeupMutation.mutateAsync({ memberId: values.memberId, date: formatDateForApi(values.date) });
+    if (!values?.memberId || !values?.date || !values?.reason) throw new Error('请完整填写补签信息');
+    await makeupMutation.mutateAsync({ memberId: values.memberId, date: formatDateForApi(values.date), reason: values.reason });
     Toast.success('补签成功');
     setMakeupVisible(false);
   };
@@ -84,6 +85,7 @@ export default function CheckinLogsPage() {
         <Tag color={value ? 'orange' : 'green'} size="small">{value ? '补签' : '正常'}</Tag>
       ),
     },
+    { title: '备注', dataIndex: 'remark', width: 180, render: (v?: string | null) => v || '-' },
     { title: '签到时间', dataIndex: 'createdAt', width: 180 },
   ];
 
@@ -111,6 +113,17 @@ export default function CheckinLogsPage() {
 
   const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
   const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const buildExportQuery = () => {
+    const [ds, de] = submittedParams.dateRange ?? [];
+    return {
+      ...(submittedParams.memberKeyword ? { memberKeyword: submittedParams.memberKeyword } : {}),
+      ...(ds ? { dateStart: formatDateForApi(ds) } : {}),
+      ...(de ? { dateEnd: formatDateForApi(de) } : {}),
+    };
+  };
+  const renderExportButton = (variant?: 'flat') => hasPermission('member:checkin:log:list') ? (
+    <ExportButton entity="member.checkins" query={buildExportQuery()} variant={variant} />
+  ) : null;
   const renderMakeupButton = () => hasPermission('member:checkin:makeup') ? (
     <Button type="primary" icon={<CalendarPlus size={14} />} onClick={() => setMakeupVisible(true)}>
       会员补签
@@ -126,6 +139,7 @@ export default function CheckinLogsPage() {
             {renderDateRangeFilter()}
             {renderSearchButton()}
             {renderResetButton()}
+            {renderExportButton()}
             {renderMakeupButton()}
           </>
         )}
@@ -137,6 +151,7 @@ export default function CheckinLogsPage() {
           </>
         )}
         mobileFilters={renderDateRangeFilter()}
+        mobileActions={renderExportButton('flat')}
         filterTitle="签到记录筛选"
         onFilterApply={handleSearch}
         onFilterReset={handleReset}
@@ -171,6 +186,8 @@ export default function CheckinLogsPage() {
         >
           <MemberSelect field="memberId" label="会员" required />
           <Form.DatePicker field="date" label="补签日期" type="date" style={{ width: '100%' }} rules={[{ required: true, message: '请选择补签日期' }]} />
+          <Form.TextArea field="reason" label="补签原因" placeholder="必填，将记入签到备注与操作审计" maxCount={256} rows={2}
+            rules={[{ required: true, message: '请填写补签原因' }, { min: 2, message: '至少 2 个字符' }]} />
         </Form>
       </AppModal>
     </div>

@@ -24,6 +24,12 @@ import { analyticsEventsExportDefinition } from './analytics-events';
 import { paymentOrdersExportDefinition } from './payment-orders';
 import { paymentRefundsExportDefinition } from './payment-refunds';
 import { workflowInstancesExportDefinition } from './workflow-instances';
+import { memberPointTxExportDefinition } from './member-point-transactions';
+import { memberWalletTxExportDefinition } from './member-wallet-transactions';
+import { memberCouponRecordsExportDefinition } from './member-coupon-records';
+import { memberCheckinsExportDefinition } from './member-checkins';
+import { memberRechargesExportDefinition } from './member-recharges';
+import { memberLoginLogsExportDefinition } from './member-login-logs';
 
 let registered = false;
 
@@ -53,6 +59,12 @@ const definitions = [
   paymentOrdersExportDefinition,
   paymentRefundsExportDefinition,
   workflowInstancesExportDefinition,
+  memberPointTxExportDefinition,
+  memberWalletTxExportDefinition,
+  memberCouponRecordsExportDefinition,
+  memberCheckinsExportDefinition,
+  memberRechargesExportDefinition,
+  memberLoginLogsExportDefinition,
 ] as unknown as AnyExportDefinition[];
 
 export function registerExportDefinitions(): void {

@@ -162,16 +162,22 @@ const makeupCheckinRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'member:checkin:makeup', audit: { description: '会员补签', module: '会员签到' } })] as const,
     request: {
       params: IdParam,
-      body: { content: jsonContent(z.object({ date: z.string().openapi({ example: '2026-06-18' }) })), required: true },
+      body: {
+        content: jsonContent(z.object({
+          date: z.string().openapi({ example: '2026-06-18' }),
+          reason: z.string().min(2, '请填写补签原因').max(256).openapi({ description: '补签原因（记入签到备注与操作审计）' }),
+        })),
+        required: true,
+      },
     },
     responses: { ...commonErrorResponses, ...ok(MakeupCheckinResultDTO, '补签成功') },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    const { date } = c.req.valid('json');
+    const { date, reason } = c.req.valid('json');
     setAuditBeforeData(c, await getMakeupCheckinBeforeAudit(id, date));
-    const result = await doMakeupCheckin({ memberId: id, date, mode: 'admin' });
-    setAuditAfterData(c, await getMakeupCheckinBeforeAudit(id, date));
+    const result = await doMakeupCheckin({ memberId: id, date, mode: 'admin', reason });
+    setAuditAfterData(c, { ...(await getMakeupCheckinBeforeAudit(id, date)), makeupReason: reason });
     return c.json(okBody(result, '补签成功'), 200);
   },
 });

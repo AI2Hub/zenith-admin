@@ -6202,6 +6202,8 @@ export interface MemberCheckin {
   pointsAwarded: number;
   experienceAwarded: number;
   isMakeup?: boolean;
+  /** 备注（管理端补签原因）*/
+  remark?: string | null;
   createdAt: string;
 }
 

@@ -162,6 +162,13 @@
       "when": 1783420115287,
       "tag": "0022_large_iron_monger",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1783421832869,
+      "tag": "0023_lazy_doctor_octopus",
+      "breakpoints": true
     }
   ]
 }

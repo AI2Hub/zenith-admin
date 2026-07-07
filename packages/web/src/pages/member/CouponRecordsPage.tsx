@@ -9,6 +9,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { renderEllipsis } from '../../utils/table-columns';
 import { memberAdminKeys, useCouponRecordList, useRevokeCouponRecord } from '@/hooks/queries/member-admin';
@@ -122,6 +123,14 @@ export default function CouponRecordsPage() {
 
   const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
   const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const buildExportQuery = () => ({
+    ...(submittedParams.memberKeyword ? { memberKeyword: submittedParams.memberKeyword } : {}),
+    ...(submittedParams.couponId ? { couponId: String(submittedParams.couponId) } : {}),
+    ...(submittedParams.status ? { status: submittedParams.status } : {}),
+  });
+  const renderExportButton = (variant?: 'flat') => hasPermission('member:coupon:list') ? (
+    <ExportButton entity="member.coupon-records" query={buildExportQuery()} variant={variant} />
+  ) : null;
 
   return (
     <div className="page-container">
@@ -133,6 +142,7 @@ export default function CouponRecordsPage() {
             {renderStatusFilter()}
             {renderSearchButton()}
             {renderResetButton()}
+            {renderExportButton()}
           </>
         )}
         mobilePrimary={(
@@ -147,6 +157,7 @@ export default function CouponRecordsPage() {
             {renderStatusFilter()}
           </>
         )}
+        mobileActions={renderExportButton('flat')}
         filterTitle="领券记录筛选"
         onFilterApply={handleSearch}
         onFilterReset={handleReset}

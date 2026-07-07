@@ -258,7 +258,10 @@ export const memberLoginLogs = pgTable('member_login_logs', {
   status: loginStatusEnum('status').notNull(),
   message: varchar('message', { length: 256 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  // 后台按会员查询登录轨迹 + 清理任务按时间扫描
+  index('member_login_logs_member_created_idx').on(t.memberId, t.createdAt),
+]);
 
 export type MemberLoginLogRow = typeof memberLoginLogs.$inferSelect;
 
@@ -291,6 +294,8 @@ export const memberCheckins = pgTable('member_checkins', {
   pointsAwarded: integer('points_awarded').notNull().default(0),
   experienceAwarded: integer('experience_awarded').notNull().default(0),
   isMakeup: boolean('is_makeup').notNull().default(false),
+  /** 备注（管理端补签时记录补签原因）*/
+  remark: varchar('remark', { length: 256 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   unique().on(t.memberId, t.checkinDate),

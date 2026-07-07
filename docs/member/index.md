@@ -145,6 +145,28 @@
 
 ---
 
+## 例行维护任务与数据导出
+
+系统周期任务 `member-housekeeping`（每天 02:10，调度中心可手动执行）依次处理：
+
+1. **优惠券过期**：`member_coupons` 中已过 `expire_at` 的未使用券批量置为 `expired`，保证统计与展示口径准确。
+2. **积分不活跃过期**：由 system_config `member_point_expire_days` 控制（默认 `0` 不启用）；账户超过 N 天无任何积分变动时，余额通过 `changePoints(type='expire')` 清零并写 `bizType = 'points_inactive_expire'` 流水，可审计可对账。
+3. **登录日志清理**：由 system_config `member_login_log_retention_days` 控制（默认 `180`，`0` 不清理），删除超期的 `member_login_logs`（表带 `(member_id, created_at)` 复合索引）。
+
+会员域已注册 6 个导出中心实体（execution 为 `auto`，大数据量自动转异步任务）：
+
+| 实体 | 页面 | 权限码 |
+|------|------|--------|
+| `member.members` | 会员管理 | `member:member:list` |
+| `member.point-transactions` | 积分管理 | `member:point:list` |
+| `member.wallet-transactions` | 钱包管理 | `member:wallet:list` |
+| `member.coupon-records` | 领券记录 | `member:coupon:list` |
+| `member.checkins` | 签到记录 | `member:checkin:log:list` |
+| `member.recharges` | 充值记录 | `member:recharge:list` |
+| `member.login-logs` | 登录日志 | `member:loginlog:list` |
+
+---
+
 ## 优惠券
 
 优惠券模板存储在 `coupons` 表，会员领券记录存储在 `member_coupons` 表。
@@ -187,6 +209,8 @@
 执行签到时，系统在事务内写入签到记录；若奖励积分大于 0，会原子累加积分账户 `balance`、`total_earned` 与 `version`，并写入 `bizType = 'checkin'` 的积分流水。经验奖励累加到 `members.experience`，并等额累加成长值触发自动定级（见「成长值与自动定级」）。
 
 前台签到接口 `POST /api/member/checkin` 带 `idempotencyGuard({ ttlSeconds: 5 })`。
+
+管理端补签（`POST /api/members/{id}/checkin/makeup`）**必须提供 `reason`**（2-256 字符），原因记入 `member_checkins.remark` 与操作审计；会员自助补签消耗设置中的积分，无需原因。
 
 ---
 

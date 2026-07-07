@@ -354,7 +354,7 @@ function mapMemberLoginLog(r: LoginLogRowWithNickname) {
   };
 }
 
-function buildLoginLogWhere(q: MemberLoginLogQuery): SQL | undefined {
+export function buildLoginLogWhere(q: Omit<MemberLoginLogQuery, 'page' | 'pageSize'>): SQL | undefined {
   const conds: SQL[] = [];
   if (q.keyword) {
     const kw = `%${escapeLike(q.keyword)}%`;

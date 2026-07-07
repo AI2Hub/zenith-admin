@@ -657,6 +657,8 @@ export const SEED_SYSTEM_CONFIGS: SystemConfig[] = [
   { id: 28, configKey: 'mfa_remember_device_days',       configValue: '30',    configType: 'number',  description: '可信设备免 MFA 天数',                    createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 29, configKey: 'login_risk_enabled',             configValue: 'false', configType: 'boolean', description: '是否启用登录风险策略',                    createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 30, configKey: 'login_risk_new_device_action',   configValue: 'allow', configType: 'string',  description: '新设备登录动作：allow/challenge',        createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 31, configKey: 'member_point_expire_days',       configValue: '0',     configType: 'number',  description: '会员积分不活跃过期天数：账户超过 N 天无任何积分变动时余额自动过期清零（expire 流水可审计），0 表示积分永不过期', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 32, configKey: 'member_login_log_retention_days', configValue: '180',  configType: 'number',  description: '会员登录日志保留天数，超期日志由每日例行维护任务删除，0 表示不清理', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── 限流规则 ─────────────────────────────────────────────────────────────────

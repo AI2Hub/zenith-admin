@@ -11,6 +11,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import ExportButton from '@/components/ExportButton';
 import { MemberSelect } from '@/components/MemberSelect';
 import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
 import {
@@ -104,6 +105,13 @@ export default function MemberWalletPage() {
 
   const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
   const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const buildExportQuery = () => ({
+    ...(submittedParams.memberKeyword ? { memberKeyword: submittedParams.memberKeyword } : {}),
+    ...(submittedParams.type ? { type: submittedParams.type } : {}),
+  });
+  const renderExportButton = (variant?: 'flat') => hasPermission('member:wallet:list') ? (
+    <ExportButton entity="member.wallet-transactions" query={buildExportQuery()} variant={variant} />
+  ) : null;
   const renderAdjustButton = () => hasPermission('member:wallet:adjust') ? (
     <Button type="primary" icon={<WalletCards size={14} />} onClick={() => openModal('adjust')}>调整余额</Button>
   ) : null;
@@ -120,6 +128,7 @@ export default function MemberWalletPage() {
             {renderTypeFilter()}
             {renderSearchButton()}
             {renderResetButton()}
+            {renderExportButton()}
             {renderAdjustButton()}
             {renderRefundButton()}
           </>
@@ -133,6 +142,7 @@ export default function MemberWalletPage() {
           </>
         )}
         mobileFilters={renderTypeFilter()}
+        mobileActions={renderExportButton('flat')}
         filterTitle="钱包流水筛选"
         onFilterApply={handleSearch}
         onFilterReset={handleReset}

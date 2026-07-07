@@ -156,4 +156,15 @@ export async function registerSystemTasks(): Promise<void> {
     allowManualRun: true,
     run: runTenantExpiryCheck,
   });
+
+  const { runMemberHousekeeping } = await import('../services/member/member-housekeeping.service');
+  await registerSystemRecurringJob({
+    name: 'member-housekeeping',
+    title: '会员数据例行维护',
+    module: '会员中心',
+    cronExpression: '10 2 * * *',
+    description: '每天将到期未使用的优惠券置为已过期；按 member_point_expire_days 清零长期不活跃账户的积分（expire 流水可审计）；按 member_login_log_retention_days 清理超期会员登录日志。',
+    allowManualRun: true,
+    run: runMemberHousekeeping,
+  });
 }

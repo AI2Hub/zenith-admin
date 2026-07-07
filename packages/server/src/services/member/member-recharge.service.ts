@@ -64,7 +64,7 @@ function mapRecharge(r: RechargeRow) {
   };
 }
 
-function buildRechargeWhere(q: MemberRechargeQuery): SQL | undefined {
+export function buildRechargeWhere(q: Omit<MemberRechargeQuery, 'page' | 'pageSize'>): SQL | undefined {
   const conds: SQL[] = [eq(paymentOrders.bizType, WALLET_RECHARGE_BIZ_TYPE)];
   if (q.keyword) {
     const kw = `%${escapeLike(q.keyword)}%`;

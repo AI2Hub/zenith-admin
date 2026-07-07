@@ -273,6 +273,7 @@ export const MemberCheckinDTO = z
     pointsAwarded: z.number().int(),
     experienceAwarded: z.number().int(),
     isMakeup: z.boolean().optional(),
+    remark: z.string().nullable().optional(),
     createdAt: z.string(),
   })
   .openapi('MemberCheckin');

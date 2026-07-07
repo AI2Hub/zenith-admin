@@ -170,7 +170,7 @@ export const checkinHandlers = [
   // ── 后台为会员补签 ────────────────────────────────────────────
   http.post('/api/members/:id/checkin/makeup', async ({ params, request }) => {
     const memberId = Number(params.id);
-    const body = await request.json() as { date: string };
+    const body = await request.json() as { date: string; reason?: string };
     const reward = getReward(1);
     const created = {
       id: memberCheckins.length ? Math.max(...memberCheckins.map((item) => item.id)) + 1 : 1,
@@ -181,6 +181,7 @@ export const checkinHandlers = [
       pointsAwarded: reward?.points ?? 0,
       experienceAwarded: reward?.experience ?? 0,
       isMakeup: true,
+      remark: body.reason ?? null,
       createdAt: mockDateTime(),
     };
     memberCheckins.unshift(created);

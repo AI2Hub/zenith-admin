@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type {
   CheckinMilestone,
   CheckinRule,
@@ -126,6 +126,11 @@ export const memberAdminKeys = {
   checkinMilestones: ['member-admin', 'checkins', 'milestones'] as const,
 };
 
+/** 精准失效：只失效受影响的资源段，避免全量 memberAdminKeys.all 造成跨模块缓存污染 */
+function invalidate(qc: QueryClient, keys: ReadonlyArray<readonly unknown[]>) {
+  for (const key of keys) void qc.invalidateQueries({ queryKey: key });
+}
+
 export function useMemberList(params: MemberListParams) {
   return useQuery({
     queryKey: memberAdminKeys.memberList(params),
@@ -147,9 +152,8 @@ export function useSaveMember() {
     mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
       (id ? request.put<Member>(`/api/members/${id}`, values) : request.post<Member>('/api/members', values)).then(unwrap),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: memberAdminKeys.all });
-      // 同步失效 MemberSelect 等会员下拉源缓存（members-lookup.ts）
-      void qc.invalidateQueries({ queryKey: ['members'] });
+      // levels 含各等级会员数，stats 含会员总量；['members'] 为 MemberSelect 等下拉源（members-lookup.ts）
+      invalidate(qc, [memberAdminKeys.members, memberAdminKeys.levels, memberAdminKeys.stats, ['members']]);
     },
   });
 }
@@ -159,16 +163,20 @@ export function useDeleteMember() {
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/members/${id}`).then(unwrap),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: memberAdminKeys.all });
-      void qc.invalidateQueries({ queryKey: ['members'] });
+      invalidate(qc, [memberAdminKeys.members, memberAdminKeys.levels, memberAdminKeys.stats, ['members']]);
     },
   });
 }
 
 export function useResetMemberPassword() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, values }: { id: number; values: Record<string, unknown> }) =>
       request.post<null>(`/api/members/${id}/reset-password`, values).then(unwrap),
+    onSuccess: () => {
+      // 详情/概览中的 hasPassword 展示需要回源
+      invalidate(qc, [memberAdminKeys.members]);
+    },
   });
 }
 
@@ -178,8 +186,7 @@ export function useAdjustMemberGrowth() {
     mutationFn: ({ id, values }: { id: number; values: { delta: number; remark?: string } }) =>
       request.post<Member>(`/api/members/${id}/growth`, values).then(unwrap),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: memberAdminKeys.all });
-      void qc.invalidateQueries({ queryKey: ['members'] });
+      invalidate(qc, [memberAdminKeys.members, memberAdminKeys.levels, memberAdminKeys.stats, ['members']]);
     },
   });
 }
@@ -188,7 +195,7 @@ export function useBatchMemberStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (values: { ids: number[]; status: string }) => request.put<null>('/api/members/batch-status', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    onSuccess: () => invalidate(qc, [memberAdminKeys.members, memberAdminKeys.stats]),
   });
 }
 
@@ -196,7 +203,7 @@ export function useBatchMemberLevel() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (values: { ids: number[]; levelId: number | null }) => request.put<null>('/api/members/batch-level', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    onSuccess: () => invalidate(qc, [memberAdminKeys.members, memberAdminKeys.levels, memberAdminKeys.stats]),
   });
 }
 
@@ -213,7 +220,7 @@ export function useSaveMemberLevel() {
   return useMutation({
     mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
       (id ? request.put<MemberLevel>(`/api/member-levels/${id}`, values) : request.post<MemberLevel>('/api/member-levels', values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    onSuccess: () => invalidate(qc, [memberAdminKeys.levels, memberAdminKeys.members, memberAdminKeys.stats]),
   });
 }
 
@@ -221,7 +228,7 @@ export function useDeleteMemberLevel() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/member-levels/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    onSuccess: () => invalidate(qc, [memberAdminKeys.levels, memberAdminKeys.members, memberAdminKeys.stats]),
   });
 }
 
@@ -238,7 +245,8 @@ export function useAdjustMemberPoints() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (values: Record<string, unknown>) => request.post<null>('/api/member-points/adjust', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    // members 段含列表积分余额与详情概览
+    onSuccess: () => invalidate(qc, [memberAdminKeys.points, memberAdminKeys.members, memberAdminKeys.stats]),
   });
 }
 
@@ -256,7 +264,7 @@ export function useAdjustMemberWallet() {
   return useMutation({
     mutationFn: (values: { memberId: number; amount: number; remark?: string }) =>
       request.post<null>('/api/member-wallets/adjust', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    onSuccess: () => invalidate(qc, [memberAdminKeys.wallets, memberAdminKeys.members, memberAdminKeys.stats]),
   });
 }
 
@@ -265,7 +273,7 @@ export function useRefundMemberWallet() {
   return useMutation({
     mutationFn: (values: { memberId: number; amount: number; remark?: string }) =>
       request.post<null>('/api/member-wallets/refund', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    onSuccess: () => invalidate(qc, [memberAdminKeys.wallets, memberAdminKeys.members, memberAdminKeys.stats]),
   });
 }
 
@@ -312,7 +320,7 @@ export function useSaveCoupon() {
   return useMutation({
     mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
       (id ? request.put<Coupon>(`/api/coupons/${id}`, values) : request.post<Coupon>('/api/coupons', values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    onSuccess: () => invalidate(qc, [memberAdminKeys.coupons, memberAdminKeys.stats]),
   });
 }
 
@@ -320,7 +328,7 @@ export function useDeleteCoupon() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/coupons/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    onSuccess: () => invalidate(qc, [memberAdminKeys.coupons, memberAdminKeys.couponRecords, memberAdminKeys.stats]),
   });
 }
 
@@ -329,7 +337,8 @@ export function useIssueCoupon() {
   return useMutation({
     mutationFn: ({ id, memberId }: { id: number; memberId: number }) =>
       request.post<null>(`/api/coupons/${id}/issue`, { memberId }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    // members 段覆盖详情概览的持券数
+    onSuccess: () => invalidate(qc, [memberAdminKeys.coupons, memberAdminKeys.couponRecords, memberAdminKeys.members, memberAdminKeys.stats]),
   });
 }
 
@@ -345,7 +354,7 @@ export function useRevokeCouponRecord() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<null>(`/api/coupons/records/${id}/revoke`, {}).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    onSuccess: () => invalidate(qc, [memberAdminKeys.couponRecords, memberAdminKeys.members, memberAdminKeys.stats]),
   });
 }
 
@@ -368,7 +377,7 @@ export function useSaveCheckinSettings() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (values: Record<string, unknown>) => request.put<CheckinSettings>('/api/checkin-settings', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    onSuccess: () => invalidate(qc, [memberAdminKeys.checkins]),
   });
 }
 
@@ -377,7 +386,7 @@ export function useSaveCheckinRule() {
   return useMutation({
     mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
       (id ? request.put<CheckinRule>(`/api/checkin-rules/${id}`, values) : request.post<CheckinRule>('/api/checkin-rules', values)).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    onSuccess: () => invalidate(qc, [memberAdminKeys.checkins]),
   });
 }
 
@@ -385,7 +394,7 @@ export function useDeleteCheckinRule() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/checkin-rules/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    onSuccess: () => invalidate(qc, [memberAdminKeys.checkins]),
   });
 }
 
@@ -400,9 +409,10 @@ export function useCheckinLogList(params: CheckinLogListParams) {
 export function useMakeupCheckin() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ memberId, date }: { memberId: number; date: string }) =>
-      request.post<null>(`/api/members/${memberId}/checkin/makeup`, { date }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    mutationFn: ({ memberId, date, reason }: { memberId: number; date: string; reason: string }) =>
+      request.post<null>(`/api/members/${memberId}/checkin/makeup`, { date, reason }).then(unwrap),
+    // 补签联动签到记录、积分流水、会员概览与看板
+    onSuccess: () => invalidate(qc, [memberAdminKeys.checkins, memberAdminKeys.points, memberAdminKeys.members, memberAdminKeys.stats]),
   });
 }
 
@@ -421,7 +431,7 @@ export function useSaveCheckinMilestone() {
         ? request.put<CheckinMilestone>(`/api/checkin-milestones/${id}`, values)
         : request.post<CheckinMilestone>('/api/checkin-milestones', values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    onSuccess: () => invalidate(qc, [memberAdminKeys.checkins]),
   });
 }
 
@@ -429,6 +439,6 @@ export function useDeleteCheckinMilestone() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/checkin-milestones/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberAdminKeys.all }),
+    onSuccess: () => invalidate(qc, [memberAdminKeys.checkins]),
   });
 }

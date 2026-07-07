@@ -11,6 +11,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import ExportButton from '@/components/ExportButton';
 import { MemberSelect } from '@/components/MemberSelect';
 import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
 import { memberAdminKeys, useAdjustMemberPoints, useMemberPointTransactions } from '@/hooks/queries/member-admin';
@@ -93,6 +94,13 @@ export default function MemberPointsPage() {
 
   const renderSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
   const renderResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
+  const buildExportQuery = () => ({
+    ...(submittedParams.memberKeyword ? { memberKeyword: submittedParams.memberKeyword } : {}),
+    ...(submittedParams.type ? { type: submittedParams.type } : {}),
+  });
+  const renderExportButton = (variant?: 'flat') => hasPermission('member:point:list') ? (
+    <ExportButton entity="member.point-transactions" query={buildExportQuery()} variant={variant} />
+  ) : null;
   const renderAdjustButton = () => hasPermission('member:point:adjust') ? (
     <Button type="primary" icon={<Coins size={14} />} onClick={() => setAdjustVisible(true)}>调整积分</Button>
   ) : null;
@@ -106,6 +114,7 @@ export default function MemberPointsPage() {
             {renderTypeFilter()}
             {renderSearchButton()}
             {renderResetButton()}
+            {renderExportButton()}
             {renderAdjustButton()}
           </>
         )}
@@ -117,6 +126,7 @@ export default function MemberPointsPage() {
           </>
         )}
         mobileFilters={renderTypeFilter()}
+        mobileActions={renderExportButton('flat')}
         filterTitle="积分流水筛选"
         onFilterApply={handleSearch}
         onFilterReset={handleReset}

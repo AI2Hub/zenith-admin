@@ -171,7 +171,7 @@ export interface ListPointTxQuery {
   pageSize: number;
 }
 
-export async function listPointTransactions(q: ListPointTxQuery) {
+export function buildPointTxWhere(q: { memberId?: number; memberKeyword?: string; type?: PointTxType }): SQL | undefined {
   const conds: SQL[] = [];
   if (q.memberId) {
     conds.push(eq(memberPointTransactions.memberId, q.memberId));
@@ -187,7 +187,11 @@ export async function listPointTransactions(q: ListPointTxQuery) {
     }
   }
   if (q.type) conds.push(eq(memberPointTransactions.type, q.type));
-  const where = conds.length ? and(...conds) : undefined;
+  return conds.length ? and(...conds) : undefined;
+}
+
+export async function listPointTransactions(q: ListPointTxQuery) {
+  const where = buildPointTxWhere(q);
 
   const [total, rows] = await Promise.all([
     db.$count(memberPointTransactions, where),
