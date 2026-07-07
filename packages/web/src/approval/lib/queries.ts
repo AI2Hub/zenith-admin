@@ -4,11 +4,13 @@
 import { QueryClient, keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   PaginatedResponse,
+  WorkflowApproverPreviewNode,
   WorkflowComment,
   WorkflowDefinition,
   WorkflowInstance,
   WorkflowInstanceSummaryItem,
   WorkflowQuickPhrase,
+  WorkflowSelectableNextApproverGroup,
   WorkflowSlaLevel,
   WorkflowTaskStatus,
 } from '@zenith/shared';
@@ -50,6 +52,9 @@ export const approvalKeys = {
   me: ['approval', 'me'] as const,
   counts: ['approval', 'counts'] as const,
   phrases: ['approval', 'quick-phrases'] as const,
+  chainPreview: (definitionId: number | null, reloadKey: number) => ['approval', 'chain-preview', definitionId, reloadKey] as const,
+  nextApprovers: (taskId: number | null) => ['approval', 'next-approvers', taskId] as const,
+  users: ['approval', 'users'] as const,
 };
 
 /** 累积加载：固定 page=1、递增 pageSize（移动端"加载更多"语义，缓存 key 稳定） */
@@ -181,5 +186,53 @@ export function useLaunchInstance() {
     mutationFn: (values: Record<string, unknown>) =>
       approvalRequest.post<WorkflowInstance>('/api/workflows/instances', values).then(unwrapApproval),
     onSuccess: () => qc.invalidateQueries({ queryKey: approvalKeys.all }),
+  });
+}
+
+/** 提交前审批链路预测（含发起人自选节点候选人），表单变更经防抖 reloadKey 重新预测 */
+export function useApprovalChainPreview(
+  definitionId: number | null,
+  reloadKey: number,
+  getFormData?: () => Record<string, unknown>,
+) {
+  return useQuery({
+    queryKey: approvalKeys.chainPreview(definitionId, reloadKey),
+    queryFn: () =>
+      approvalRequest
+        .post<WorkflowApproverPreviewNode[]>(
+          `/api/workflows/definitions/${definitionId}/preview`,
+          { formData: getFormData ? getFormData() : null },
+          { silent: true },
+        )
+        .then(unwrapApproval),
+    enabled: definitionId != null,
+    // 同一流程刷新预测时保留旧数据避免闪空；切换流程则重新加载
+    placeholderData: (prev, prevQuery) =>
+      prevQuery?.queryKey[2] === definitionId ? prev : undefined,
+  });
+}
+
+/** 审批时下游「自选下一审批人」节点分组（无则为空数组） */
+export function useSelectableNextApprovers(taskId: number | null, enabled: boolean) {
+  return useQuery({
+    queryKey: approvalKeys.nextApprovers(taskId),
+    queryFn: () =>
+      approvalRequest
+        .get<WorkflowSelectableNextApproverGroup[]>(`/api/workflows/tasks/${taskId}/selectable-next-approvers`, { silent: true })
+        .then(unwrapApproval),
+    enabled: enabled && taskId != null,
+  });
+}
+
+/** 全量用户（转办候选），按需加载 */
+export function useApprovalUsers(enabled: boolean) {
+  return useQuery({
+    queryKey: approvalKeys.users,
+    queryFn: () =>
+      approvalRequest
+        .get<Array<{ id: number; nickname: string | null; username: string }>>('/api/users/all', { silent: true })
+        .then(unwrapApproval),
+    enabled,
+    staleTime: 5 * 60_000,
   });
 }

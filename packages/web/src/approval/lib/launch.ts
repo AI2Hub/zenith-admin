@@ -1,10 +1,6 @@
 import type { WorkflowDefinition } from '@zenith/shared';
 
-/** 是否可在轻页发起：仅设计器表单且不含「发起人自选审批人」节点 */
+/** 是否可在轻页发起：仅设计器表单（业务自定义表单需到桌面端）；发起人自选审批人已由轻页选人组件支持 */
 export function canLaunchOnMobile(def: WorkflowDefinition): boolean {
-  if (def.formType !== 'designer') return false;
-  const hasInitiatorSelect = def.flowData?.nodes.some(
-    (n) => n.data.assigneeType === 'initiatorSelect' || n.data.assigneeType === 'initiatorSelectScope',
-  ) ?? false;
-  return !hasInitiatorSelect;
+  return def.formType === 'designer';
 }

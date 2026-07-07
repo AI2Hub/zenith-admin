@@ -29,6 +29,29 @@ export const mockUsers: MockUser[] = [
     createdAt: '2024-01-01 00:00:00',
     updatedAt: '2024-01-01 00:00:00',
   },
+  // 与工作流 mock 数据（李四/王五/赵六）对齐的演示用户，供转办/自选审批人选人
+  ...[
+    { id: 2, username: 'lisi', nickname: '李四' },
+    { id: 3, username: 'wangwu', nickname: '王五' },
+    { id: 4, username: 'zhaoliu', nickname: '赵六' },
+  ].map(({ id, username, nickname }): MockUser => ({
+    id,
+    username,
+    nickname,
+    email: `${username}@zenith.dev`,
+    password: DEMO_INITIAL_CREDENTIAL,
+    avatar: undefined,
+    departmentId: 1,
+    departmentName: '总部',
+    positionIds: [],
+    positions: [],
+    gender: null,
+    roles: [normalUserRole],
+    passwordUpdatedAt: '2024-01-01 00:00:00',
+    status: 'enabled',
+    createdAt: '2024-01-01 00:00:00',
+    updatedAt: '2024-01-01 00:00:00',
+  })),
 ];
 
 /** 下一个可用 ID（内存自增） */

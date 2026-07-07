@@ -19,7 +19,7 @@ const LEAVE_FLOW_DATA = {
     { id: 'start_1', type: 'start', position: { x: 300, y: 50 }, data: { key: 'start_1', type: 'start' as const, label: '开始' } },
     { id: 'approve_1', type: 'approve', position: { x: 300, y: 150 }, data: { key: 'approve_1', type: 'approve' as const, label: '直属主管审批', assigneeId: 2, assigneeName: '李四' } },
     { id: 'gw_1', type: 'exclusiveGateway', position: { x: 300, y: 280 }, data: { key: 'gw_1', type: 'exclusiveGateway' as const, label: '请假时长判断' } },
-    { id: 'approve_2', type: 'approve', position: { x: 150, y: 400 }, data: { key: 'approve_2', type: 'approve' as const, label: 'HR 审批', assigneeId: 3, assigneeName: '王五' } },
+    { id: 'approve_2', type: 'approve', position: { x: 150, y: 400 }, data: { key: 'approve_2', type: 'approve' as const, label: 'HR 审批', assigneeType: 'approverSelect' as const, selectScopeType: 'user' as const } },
     { id: 'cc_1', type: 'ccNode', position: { x: 450, y: 400 }, data: { key: 'cc_1', type: 'ccNode' as const, label: '抄送HR', assigneeIds: [3], assigneeNames: ['王五'] } },
     { id: 'end_1', type: 'end', position: { x: 300, y: 520 }, data: { key: 'end_1', type: 'end' as const, label: '结束' } },
   ],
@@ -342,7 +342,7 @@ export const mockWorkflowTasks: WorkflowTask[] = [
     actionAt: null,
     createdAt: '2026-03-28 14:01:00',
   },
-  // 实例 3 的任务（待审批 - 作为待我审批的数据，assigneeId=1 即当前登录用户）
+  // 实例 3 的任务（待审批 - 作为待我审批的数据，assigneeId=1 即当前登录用户；启用转办演示移动端选人）
   {
     id: 5,
     instanceId: 3,
@@ -355,6 +355,7 @@ export const mockWorkflowTasks: WorkflowTask[] = [
     status: 'pending',
     comment: null,
     actionAt: null,
+    actionButtons: { transfer: { enabled: true } },
     createdAt: '2026-04-01 10:00:00',
   },
   // 实例 4 的任务（已驳回）

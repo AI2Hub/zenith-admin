@@ -305,10 +305,16 @@
   flex: 1;
 }
 
-.ap-sheet .semi-sidesheet-inner {
+/* 底部抽屉宽屏居中：inner 为 absolute 定位，需 left/right 归零 + margin auto；
+   !important 用于抵消 global.css 窄屏 SideSheet 的 95vw/100vw !important 规则 */
+.semi-sidesheet.ap-sheet .semi-sidesheet-inner {
   border-radius: 12px 12px 0 0;
-  max-width: 640px;
-  margin: 0 auto;
+  width: 100% !important;
+  max-width: 640px !important;
+  left: 0;
+  right: 0;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .ap-sheet__body {
@@ -354,4 +360,197 @@
   font-size: 13px;
   color: var(--semi-color-text-2);
   margin: 14px 2px 8px;
+}
+
+/* 人员选择：触发字段（chips/placeholder + 右箭头） */
+.ap-picker-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 6px 10px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 6px;
+  background: var(--semi-color-bg-1);
+  cursor: pointer;
+}
+
+.ap-picker-field:active {
+  background: var(--semi-color-fill-0);
+}
+
+.ap-picker-field--error {
+  border-color: var(--semi-color-danger);
+}
+
+.ap-picker-field--disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ap-picker-field__placeholder {
+  flex: 1;
+  font-size: 13px;
+  color: var(--semi-color-text-2);
+}
+
+.ap-picker-field__chips {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+.ap-picker-field__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.ap-picker-field__arrow {
+  flex-shrink: 0;
+  color: var(--semi-color-text-2);
+}
+
+/* 人员选择：底部抽屉内部 */
+.ap-picker__search {
+  width: 100%;
+}
+
+.ap-picker__selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ap-picker__list {
+  margin-top: 6px;
+  max-height: 46vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ap-picker__loading {
+  text-align: center;
+  padding: 24px 0;
+}
+
+.ap-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--semi-color-fill-0);
+  cursor: pointer;
+}
+
+.ap-picker__item:last-child {
+  border-bottom: none;
+}
+
+.ap-picker__item:active {
+  background: var(--semi-color-fill-0);
+}
+
+.ap-picker__item-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-picker__item--checked .ap-picker__item-name {
+  color: var(--semi-color-primary);
+}
+
+.ap-picker__item-check {
+  flex-shrink: 0;
+  color: var(--semi-color-primary);
+}
+
+/* 发起页审批链路（提交前预测态，竖向紧凑时间线） */
+.ap-chain__node {
+  display: flex;
+  gap: 10px;
+}
+
+.ap-chain__rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.ap-chain__icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--semi-color-primary-light-default);
+  color: var(--semi-color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ap-chain__icon--warning {
+  background: var(--semi-color-warning-light-default);
+  color: var(--semi-color-warning);
+}
+
+.ap-chain__link {
+  width: 1px;
+  flex: 1;
+  min-height: 8px;
+  background: var(--semi-color-border);
+}
+
+.ap-chain__content {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 14px;
+}
+
+.ap-chain__node:last-child .ap-chain__content {
+  padding-bottom: 2px;
+}
+
+.ap-chain__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 24px;
+}
+
+.ap-chain__approvers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+}
+
+.ap-chain__approver {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ap-chain__picker {
+  margin-top: 6px;
+}
+
+.ap-chain__error {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--semi-color-danger);
 }

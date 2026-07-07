@@ -21,10 +21,10 @@ import {
   resolveWorkflowFormFields,
   resolveWorkflowFormType,
 } from '@/utils/workflow-snapshot';
-import { approvalRequest, unwrapApproval } from '../lib/approval-request';
+import ApproverPickerField from '../components/ApproverPicker';
 import {
-  useAddApprovalComment, useApprovalDetail, useApprovalMe, useApprovalQuickPhrases,
-  useTaskAction, useUrgeInstance, useWithdrawInstance,
+  useAddApprovalComment, useApprovalDetail, useApprovalMe, useApprovalQuickPhrases, useApprovalUsers,
+  useSelectableNextApprovers, useTaskAction, useUrgeInstance, useWithdrawInstance,
 } from '../lib/queries';
 
 type TagColor = 'amber' | 'blue' | 'green' | 'grey' | 'orange' | 'purple' | 'red';
@@ -87,8 +87,10 @@ export default function TaskDetailPage() {
   const [action, setAction] = useState<ActionKind>(null);
   const [signature, setSignature] = useState('');
   const [commentDraft, setCommentDraft] = useState('');
-  const [userOptions, setUserOptions] = useState<Array<{ value: number; label: string }>>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
+  // 下一节点自选审批人：nodeKey -> userIds；转办接收人（单选）
+  const [selectedNext, setSelectedNext] = useState<Record<string, number[]>>({});
+  const [highlightNextMissing, setHighlightNextMissing] = useState(false);
+  const [transferTarget, setTransferTarget] = useState<number[]>([]);
   const actionFormApi = useRef<FormApi | null>(null);
   const detailFormApi = useRef<FormApi | null>(null);
 
@@ -107,6 +109,17 @@ export default function TaskDetailPage() {
     && detail?.status === 'running';
   const isInitiator = me != null && detail?.initiatorId === me.id;
   const initiatorActionable = !actionable && isInitiator && detail?.status === 'running';
+
+  // 下游「自选下一审批人」节点（有则同意时必选）；转办候选用户
+  const nextApproversQuery = useSelectableNextApprovers(taskId, actionable);
+  const nextGroups = useMemo(() => nextApproversQuery.data ?? [], [nextApproversQuery.data]);
+  const usersQuery = useApprovalUsers(action === 'transfer');
+  const transferCandidates = useMemo(
+    () => (usersQuery.data ?? [])
+      .filter((u) => u.id !== me?.id)
+      .map((u) => ({ id: u.id, name: u.nickname || u.username })),
+    [usersQuery.data, me],
+  );
 
   // 当前进度：所有 pending 审批任务（节点 + 等待人）
   const pendingTasks = useMemo(
@@ -144,35 +157,13 @@ export default function TaskDetailPage() {
     return Object.keys(updates).length > 0 ? updates : undefined;
   };
 
-  const openAction = async (kind: Exclude<ActionKind, null>) => {
-    if (kind === 'approve' && taskId != null) {
-      // 下游存在「自选下一审批人」节点时，轻页不承载选人交互，引导去桌面端
-      try {
-        const groups = await approvalRequest
-          .get<Array<unknown>>(`/api/workflows/tasks/${taskId}/selectable-next-approvers`, { silent: true })
-          .then(unwrapApproval);
-        if ((groups?.length ?? 0) > 0) {
-          Toast.info('下一节点需要您指定审批人，请到桌面端处理该任务');
-          return;
-        }
-      } catch { /* 拉取失败不阻断，交由服务端校验兜底 */ }
-    }
+  const openAction = (kind: Exclude<ActionKind, null>) => {
     if (kind === 'approve' && btnApprove.uploadMode === 'required') {
       Toast.info('该节点要求上传附件，请到桌面端处理');
       return;
     }
-    if (kind === 'transfer' && userOptions.length === 0) {
-      setUsersLoading(true);
-      try {
-        const users = await approvalRequest
-          .get<Array<{ id: number; nickname: string | null; username: string }>>('/api/users/all', { silent: true })
-          .then(unwrapApproval);
-        setUserOptions((users ?? []).filter((u) => u.id !== me?.id).map((u) => ({ value: u.id, label: u.nickname || u.username })));
-      } finally {
-        setUsersLoading(false);
-      }
-    }
     setSignature('');
+    setHighlightNextMissing(false);
     setAction(kind);
   };
 
@@ -186,11 +177,31 @@ export default function TaskDetailPage() {
       }
       let body: Record<string, unknown>;
       if (action === 'approve') {
-        body = { comment: values.comment ?? '', signature: signature || undefined, formUpdates: await collectFormUpdates() };
+        const missing = nextGroups.find((g) => (selectedNext[g.nodeKey] ?? []).length === 0);
+        if (missing) {
+          setHighlightNextMissing(true);
+          Toast.error(`请为「${missing.label}」选择审批人`);
+          return;
+        }
+        const compactNext: Record<string, number[]> = {};
+        for (const g of nextGroups) {
+          const ids = selectedNext[g.nodeKey] ?? [];
+          if (ids.length > 0) compactNext[g.nodeKey] = ids;
+        }
+        body = {
+          comment: values.comment ?? '',
+          signature: signature || undefined,
+          formUpdates: await collectFormUpdates(),
+          selectedNextApprovers: Object.keys(compactNext).length > 0 ? compactNext : undefined,
+        };
       } else if (action === 'reject') {
         body = { comment: values.comment };
       } else {
-        body = { targetUserId: values.targetUserId, comment: values.comment };
+        if (transferTarget.length === 0) {
+          Toast.error('请选择接收人');
+          return;
+        }
+        body = { targetUserId: transferTarget[0], comment: values.comment };
       }
       await actionMutation.mutateAsync({ taskId, action, body });
       Toast.success(action === 'approve' ? '已同意' : action === 'reject' ? '已驳回' : '已转办');
@@ -370,13 +381,13 @@ export default function TaskDetailPage() {
       {actionable && (
         <div className="ap-footer-bar">
           {btnTransfer.enabled && (
-            <Button theme="light" onClick={() => void openAction('transfer')}>{btnTransfer.displayName ?? '转办'}</Button>
+            <Button theme="light" onClick={() => openAction('transfer')}>{btnTransfer.displayName ?? '转办'}</Button>
           )}
           {btnReject.enabled && (
-            <Button theme="light" type="danger" onClick={() => void openAction('reject')}>{btnReject.displayName ?? '拒绝'}</Button>
+            <Button theme="light" type="danger" onClick={() => openAction('reject')}>{btnReject.displayName ?? '拒绝'}</Button>
           )}
           {btnApprove.enabled && (
-            <Button theme="solid" type="primary" onClick={() => void openAction('approve')}>{btnApprove.displayName ?? '同意'}</Button>
+            <Button theme="solid" type="primary" onClick={() => openAction('approve')}>{btnApprove.displayName ?? '同意'}</Button>
           )}
         </div>
       )}
@@ -409,19 +420,43 @@ export default function TaskDetailPage() {
         className="ap-sheet"
       >
         <div className="ap-sheet__body">
-          <Form getFormApi={(api) => { actionFormApi.current = api; }}>
-            {action === 'transfer' && (
-              <Form.Select
-                field="targetUserId"
-                label="转办给"
+          {action === 'transfer' && (
+            <div style={{ marginBottom: 12 }}>
+              <Typography.Text type="secondary" size="small" style={{ display: 'block', marginBottom: 6 }}>转办给</Typography.Text>
+              <ApproverPickerField
+                title="转办给"
+                candidates={transferCandidates}
+                value={transferTarget}
+                onChange={setTransferTarget}
+                multiple={false}
                 placeholder="选择接收人"
-                filter
-                loading={usersLoading}
-                optionList={userOptions}
-                rules={[{ required: true, message: '请选择接收人' }]}
-                style={{ width: '100%' }}
+                loading={usersQuery.isLoading}
               />
-            )}
+            </div>
+          )}
+          {action === 'approve' && nextGroups.map((g) => {
+            const ids = selectedNext[g.nodeKey] ?? [];
+            const missing = highlightNextMissing && ids.length === 0;
+            return (
+              <div key={g.nodeKey} style={{ marginBottom: 12 }}>
+                <Typography.Text type="secondary" size="small" style={{ display: 'block', marginBottom: 6 }}>
+                  下一节点「{g.label}」审批人（必选）
+                </Typography.Text>
+                <ApproverPickerField
+                  title={g.label}
+                  candidates={g.selectableApprovers}
+                  value={ids}
+                  onChange={(next) => {
+                    setSelectedNext((prev) => ({ ...prev, [g.nodeKey]: next }));
+                    if (next.length > 0) setHighlightNextMissing(false);
+                  }}
+                  error={missing}
+                />
+                {missing && <span className="ap-chain__error">请选择该节点的审批人</span>}
+              </div>
+            );
+          })}
+          <Form getFormApi={(api) => { actionFormApi.current = api; }}>
             <Form.TextArea
               field="comment"
               label={action === 'approve' ? (btnApprove.opinionName ?? '审批意见') : action === 'reject' ? (btnReject.opinionName ?? '拒绝原因') : (btnTransfer.opinionName ?? '转办说明')}

@@ -1523,7 +1523,12 @@ export const workflowHandlers = [
       const snap = inst.formSnapshot as { fields?: WorkflowFormField[] } | WorkflowFormField[] | null;
       const snapFields = Array.isArray(snap) ? snap : snap?.fields ?? [];
       const summary = buildWorkflowSummaryItems(snapFields, (inst.formData ?? {}) as Record<string, unknown>, settings?.summaryFields);
-      return { ...withActiveNodes(inst), pendingTaskId: taskId, pendingSignatureRequired: signatureRequired, requiresIndividual: false, tasks: undefined, ...sla, summary };
+      // 与服务端一致：下游紧邻节点含 approverSelect 时需逐条选人，不可极速同意
+      const task = mockWorkflowTasks.find(t => t.id === taskId);
+      const flowForNext = ((inst.definitionSnapshot as { flowData?: WorkflowFlowData } | null)?.flowData
+        ?? (def?.flowData as WorkflowFlowData | undefined));
+      const requiresIndividual = !!task && !!flowForNext && findNextApproverSelectNodes(flowForNext, task.nodeKey).length > 0;
+      return { ...withActiveNodes(inst), pendingTaskId: taskId, pendingSignatureRequired: signatureRequired, requiresIndividual, tasks: undefined, ...sla, summary };
     }).filter(Boolean) as (WorkflowInstance & { pendingTaskId: number })[];
 
     if (keyword) list = list.filter(i => i.title?.includes(keyword));
