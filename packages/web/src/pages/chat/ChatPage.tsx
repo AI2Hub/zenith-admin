@@ -15,6 +15,7 @@ import {
   Search, MessageSquarePlus, Send, CornerDownLeft, RotateCcw, Smile, ImagePlus, MoreHorizontal,
   Pin, PinOff, Star, X, Paperclip, Bookmark, History, Forward, Trash2, BellOff, Images, AlertCircle,
   ArrowLeft, ExternalLink, BarChart3, MessageSquare, Eye, Download, Mic, Bell, Phone, Video, Compass, BadgeCheck,
+  Archive, ArchiveRestore, ChevronRight,
 } from 'lucide-react';
 import { useWebSocket, sendWsMessage, useWsConnected } from '@/hooks/useWebSocket';
 import { useAuth } from '@/hooks/useAuth';
@@ -44,11 +45,13 @@ import { ForwardedMessagesModal } from './components/ForwardedMessagesModal';
 import { VotePollModal } from './components/VotePollModal';
 import { MessageBubble } from './components/MessageBubble';
 import { ChannelMessageView } from './components/ChannelMessageView';
+import { ComposerExtras } from './components/ComposerExtras';
 
 import { MessageContent } from './components/MessageContent';
 import WorkflowApprovalDetailSheet from '@/components/workflow/WorkflowApprovalDetailSheet';
 import { useVoiceRecorder } from './useVoiceRecorder';
 import { getChatNotifyPrefs, setChatNotifyPrefs } from './notifyPrefs';
+import { usePermission } from '@/hooks/usePermission';
 import { callManager } from '@/webrtc/useCallManager';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -335,6 +338,28 @@ export default function ChatPage({
   const { user: authUser } = useAuth();
   const currentUserId = authUser?.id ?? null;
   const currentUserNickname = authUser?.nickname ?? authUser?.username ?? '我';
+  const { hasPermission } = usePermission();
+
+  // 导出当前会话聊天记录（走导出中心，xlsx 同步下载）
+  const [exportingChat, setExportingChat] = useState(false);
+  const handleExportChat = useCallback(async (convId: number) => {
+    setExportingChat(true);
+    try {
+      const res = await request.post<{ job: { id: number; status: string; fileId: string | null; filename: string | null }; mode: string }>('/api/export-jobs', {
+        entity: 'chat.messages', format: 'xlsx', query: { conversationId: convId }, raw: false, watermark: true, executionMode: 'sync',
+      });
+      if (res.code !== 0 || !res.data) { Toast.error(res.message ?? '导出失败'); return; }
+      const { job, mode } = res.data;
+      if (job.status === 'success' && job.fileId) {
+        await request.download(`/api/export-jobs/${job.id}/download`, job.filename ?? '聊天记录.xlsx');
+        Toast.success('导出完成');
+        return;
+      }
+      Toast.success(mode === 'async' ? '导出任务已提交，可在导出中心查看进度' : '导出任务已创建');
+    } finally {
+      setExportingChat(false);
+    }
+  }, []);
 
   const activeConv = conversations.find((c) => c.id === activeConvId) ?? null;
   const activeChannel = channels.find((c) => c.id === activeChannelId) ?? null;
@@ -343,6 +368,9 @@ export default function ChatPage({
 
   // 未读分隔线：进入会话时按 unreadCount 定位首条未读消息
   const [unreadDivider, setUnreadDivider] = useState<{ convId: number; messageId: number } | null>(null);
+
+  // 已归档会话折叠分组：是否展开查看归档列表
+  const [showArchived, setShowArchived] = useState(false);
 
   // 禁言状态：个人禁言优先；全员禁言豁免群主/管理员
   const [muteTick, setMuteTick] = useState(0);
@@ -1840,14 +1868,22 @@ export default function ChatPage({
     return name.toLowerCase().includes(convSearch.toLowerCase());
   });
 
+  // 归档分组：搜索时跨归档全量匹配；平时归档会话收进折叠组
+  const archivedConvs = filteredConvs.filter((c) => c.isArchived ?? false);
+  const archivedUnread = archivedConvs.reduce((s, c) => s + c.unreadCount, 0);
+  const visibleConvs = convSearch
+    ? filteredConvs
+    : filteredConvs.filter((c) => (showArchived ? (c.isArchived ?? false) : !(c.isArchived ?? false)));
+  const showArchiveToggle = !convSearch && (archivedConvs.length > 0 || showArchived);
+
   // 仿微信：频道与会话合并为同一个列表，按最后消息时间倒序排列（置顶会话优先），不再将频道单独置顶
   const filteredChannels = convSearch
     ? channels.filter((ch) => ch.name.toLowerCase().includes(convSearch.toLowerCase()))
-    : channels;
+    : (showArchived ? [] : channels);
   const parseMsgTime = (s?: string | null) => (s ? new Date(s.replace(' ', 'T')).getTime() : 0);
   const leftListItems: LeftListItem[] = [
     ...filteredChannels.map((ch): LeftListItem => ({ kind: 'channel', sortTime: parseMsgTime(ch.lastMessage?.createdAt), pinned: false, channel: ch })),
-    ...filteredConvs.map((conv): LeftListItem => ({ kind: 'conv', sortTime: parseMsgTime(conv.lastMessage?.createdAt ?? conv.updatedAt), pinned: conv.isPinned ?? false, conv })),
+    ...visibleConvs.map((conv): LeftListItem => ({ kind: 'conv', sortTime: parseMsgTime(conv.lastMessage?.createdAt ?? conv.updatedAt), pinned: conv.isPinned ?? false, conv })),
   ].sort((a, b) => (a.pinned !== b.pinned ? (a.pinned ? -1 : 1) : b.sortTime - a.sortTime));
 
   const totalUnread = conversations.reduce((s, c) => s + c.unreadCount, 0);
@@ -2037,6 +2073,29 @@ export default function ChatPage({
 
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }}>
           <Spin spinning={loadingConvs}>
+            {leftPaneMode === 'conversations' && showArchiveToggle && (
+              <button
+                type="button"
+                onClick={() => setShowArchived((v) => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                  padding: '8px 12px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                  background: showArchived ? 'var(--semi-color-fill-0)' : 'transparent',
+                  borderBottom: '1px solid var(--semi-color-border)',
+                }}
+              >
+                {showArchived
+                  ? <ArrowLeft size={14} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }} />
+                  : <Archive size={14} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }} />}
+                <Text strong style={{ fontSize: 12, flex: 1 }}>
+                  {showArchived ? '返回会话列表' : `已归档（${archivedConvs.length}）`}
+                </Text>
+                {!showArchived && archivedUnread > 0 && (
+                  <Badge count={archivedUnread} overflowCount={99} type="danger" />
+                )}
+                {!showArchived && <ChevronRight size={14} style={{ color: 'var(--semi-color-text-3)', flexShrink: 0 }} />}
+              </button>
+            )}
             {leftPaneMode === 'conversations' && (
               <SemiList
                 className="chat-conv-list"
@@ -2408,6 +2467,22 @@ export default function ChatPage({
                     >
                       {(leftPaneContextMenu.conv.isMuted ?? false) ? '取消免打扰' : '免打扰'}
                     </Dropdown.Item>
+                    <Dropdown.Item
+                      icon={(leftPaneContextMenu.conv.isArchived ?? false) ? <ArchiveRestore size={13} /> : <Archive size={13} />}
+                      onClick={() => {
+                        const { conv } = leftPaneContextMenu;
+                        const isArchived = conv.isArchived ?? false;
+                        void request.patch(`/api/chat/conversations/${conv.id}/archive`, { archive: !isArchived }).then((r) => {
+                          if ((r as { code: number }).code === 0) {
+                            setConversations((prev) => prev.map((c) => c.id === conv.id ? { ...c, isArchived: !isArchived } : c));
+                            Toast.success(isArchived ? '已取消归档' : '已归档，可在「已归档」分组中查看');
+                          }
+                        });
+                        setLeftPaneContextMenu(null);
+                      }}
+                    >
+                      {(leftPaneContextMenu.conv.isArchived ?? false) ? '取消归档' : '归档会话'}
+                    </Dropdown.Item>
                     <Dropdown.Divider />
                     <Dropdown.Item
                       type="danger"
@@ -2609,6 +2684,18 @@ export default function ChatPage({
                         }}
                       />
                     </Tooltip>
+                    {hasPermission('chat:message:export') && (
+                      <Tooltip content="导出聊天记录">
+                        <Button
+                          size="small"
+                          theme="borderless"
+                          type="tertiary"
+                          icon={<Download size={15} />}
+                          loading={exportingChat}
+                          onClick={() => { if (activeConvId) void handleExportChat(activeConvId); }}
+                        />
+                      </Tooltip>
+                    )}
                     {activeConv.type === 'group' && (
                       <Tooltip content={showMembers ? '关闭群信息' : '群信息'}>
                         <Button
@@ -3471,6 +3558,18 @@ export default function ChatPage({
                   disabled={!activeConvId}
                 />
               </Tooltip>
+              <ComposerExtras
+                conversationId={activeConvId}
+                draft={input}
+                onInsert={(text) => {
+                  setInput((prev) => (prev ? `${prev}${text}` : text));
+                  inputRef.current?.focus();
+                }}
+                onScheduled={() => {
+                  setInput('');
+                  if (activeConvId) saveDraft(activeConvId, '');
+                }}
+              />
               {voiceRecorder.supported && (
                 <Tooltip content="按住说话（点击开始/结束录音）">
                   <Button

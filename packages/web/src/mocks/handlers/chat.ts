@@ -12,6 +12,32 @@ import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 const CURRENT_USER_ID = 1;
 const CURRENT_USER_NICKNAME = '管理员';
 
+// ── 常用语（内存态） ──
+interface MockQuickReply { id: number; content: string; sort: number; createdAt: string; updatedAt: string }
+const mockQuickReplies: MockQuickReply[] = [
+  { id: 1, content: '收到，我马上处理。', sort: 0, createdAt: mockDateTime(), updatedAt: mockDateTime() },
+  { id: 2, content: '好的，稍后同步进展。', sort: 1, createdAt: mockDateTime(), updatedAt: mockDateTime() },
+  { id: 3, content: '这个问题我确认一下再回复你。', sort: 2, createdAt: mockDateTime(), updatedAt: mockDateTime() },
+];
+let nextQuickReplyId = 4;
+
+// ── 定时消息（内存态） ──
+interface MockScheduled {
+  id: number; conversationId: number; conversationName: string | null;
+  type: 'text'; content: string; extra: null;
+  scheduledAt: string; status: 'pending' | 'sent' | 'canceled' | 'failed';
+  failReason: string | null; sentMessageId: number | null;
+  createdAt: string; updatedAt: string;
+}
+const mockScheduledMessages: MockScheduled[] = [];
+let nextScheduledId = 1;
+
+function convDisplayName(convId: number): string | null {
+  const conv = mockChatConversations.find((c) => c.id === convId);
+  if (!conv) return null;
+  return conv.type === 'group' ? (conv.name ?? null) : (conv.targetUser?.nickname ?? null);
+}
+
 function addSystemMessage(conversationId: number, content: string) {
   const newMsg: ChatMessage = {
     id: getNextMsgId(),
@@ -485,6 +511,89 @@ export const chatHandlers = [
     const body = await request.json() as { mute: boolean };
     const conv = mockChatConversations.find((c) => c.id === convId);
     if (conv) conv.isMuted = body.mute;
+    return HttpResponse.json({ code: 0, message: 'ok', data: null });
+  }),
+
+  // 归档 / 取消归档
+  http.patch('/api/chat/conversations/:id/archive', async ({ params, request }) => {
+    const convId = Number(params.id);
+    const body = await request.json() as { archive: boolean };
+    const conv = mockChatConversations.find((c) => c.id === convId);
+    if (conv) conv.isArchived = body.archive;
+    return HttpResponse.json({ code: 0, message: 'ok', data: null });
+  }),
+
+  // ── 常用语 ──
+  http.get('/api/chat/quick-replies', () =>
+    HttpResponse.json({ code: 0, message: 'ok', data: [...mockQuickReplies].sort((a, b) => a.sort - b.sort || a.id - b.id) }),
+  ),
+
+  http.post('/api/chat/quick-replies', async ({ request }) => {
+    const body = await request.json() as { content: string; sort?: number };
+    if (!body.content?.trim()) return HttpResponse.json({ code: 400, message: '内容不能为空', data: null }, { status: 400 });
+    const item: MockQuickReply = { id: nextQuickReplyId++, content: body.content.trim(), sort: body.sort ?? 0, createdAt: mockDateTime(), updatedAt: mockDateTime() };
+    mockQuickReplies.push(item);
+    return HttpResponse.json({ code: 0, message: 'ok', data: item });
+  }),
+
+  http.put('/api/chat/quick-replies/:id', async ({ params, request }) => {
+    const id = Number(params.id);
+    const body = await request.json() as { content?: string; sort?: number };
+    const item = mockQuickReplies.find((q) => q.id === id);
+    if (!item) return HttpResponse.json({ code: 404, message: '常用语不存在', data: null }, { status: 404 });
+    if (body.content !== undefined) item.content = body.content;
+    if (body.sort !== undefined) item.sort = body.sort;
+    item.updatedAt = mockDateTime();
+    return HttpResponse.json({ code: 0, message: 'ok', data: item });
+  }),
+
+  http.delete('/api/chat/quick-replies/:id', ({ params }) => {
+    const id = Number(params.id);
+    const idx = mockQuickReplies.findIndex((q) => q.id === id);
+    if (idx === -1) return HttpResponse.json({ code: 404, message: '常用语不存在', data: null }, { status: 404 });
+    mockQuickReplies.splice(idx, 1);
+    return HttpResponse.json({ code: 0, message: 'ok', data: null });
+  }),
+
+  // ── 定时消息 ──
+  http.post('/api/chat/conversations/:id/scheduled-messages', async ({ params, request }) => {
+    const convId = Number(params.id);
+    const body = await request.json() as { content: string; scheduledAt: string };
+    if (!body.content?.trim()) return HttpResponse.json({ code: 400, message: '内容不能为空', data: null }, { status: 400 });
+    const item: MockScheduled = {
+      id: nextScheduledId++,
+      conversationId: convId,
+      conversationName: convDisplayName(convId),
+      type: 'text',
+      content: body.content,
+      extra: null,
+      scheduledAt: body.scheduledAt,
+      status: 'pending',
+      failReason: null,
+      sentMessageId: null,
+      createdAt: mockDateTime(),
+      updatedAt: mockDateTime(),
+    };
+    mockScheduledMessages.push(item);
+    return HttpResponse.json({ code: 0, message: 'ok', data: item });
+  }),
+
+  http.get('/api/chat/scheduled-messages', ({ request }) => {
+    const url = new URL(request.url);
+    const status = url.searchParams.get('status');
+    const list = mockScheduledMessages
+      .filter((m) => !status || m.status === status)
+      .sort((a, b) => b.scheduledAt.localeCompare(a.scheduledAt));
+    return HttpResponse.json({ code: 0, message: 'ok', data: list });
+  }),
+
+  http.patch('/api/chat/scheduled-messages/:id/cancel', ({ params }) => {
+    const id = Number(params.id);
+    const item = mockScheduledMessages.find((m) => m.id === id);
+    if (!item) return HttpResponse.json({ code: 404, message: '定时消息不存在', data: null }, { status: 404 });
+    if (item.status !== 'pending') return HttpResponse.json({ code: 400, message: '仅待发送的定时消息可取消', data: null }, { status: 400 });
+    item.status = 'canceled';
+    item.updatedAt = mockDateTime();
     return HttpResponse.json({ code: 0, message: 'ok', data: null });
   }),
 

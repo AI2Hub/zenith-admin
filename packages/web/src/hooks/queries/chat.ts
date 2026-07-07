@@ -6,6 +6,8 @@ import type {
   ChatConversation,
   ChatGroupMember,
   ChatOrgData,
+  ChatQuickReply,
+  ChatScheduledMessage,
 } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
@@ -35,6 +37,8 @@ export const chatKeys = {
   users: (params: ChatUserSearchParams) => ['chat', 'list', 'users', params] as const,
   groupMembers: (conversationId: number | undefined) => ['chat', 'conversations', conversationId, 'members'] as const,
   orgData: ['chat', 'org-data'] as const,
+  quickReplies: ['chat', 'quick-replies'] as const,
+  scheduledMessages: ['chat', 'scheduled-messages'] as const,
   channelMessages: (params: ChannelMessageParams) => ['chat', 'list', 'channel-messages', params] as const,
   channelMenus: (channelId: number | undefined) => ['chat', 'channels', channelId, 'menus'] as const,
 };
@@ -125,6 +129,64 @@ export function useSetChatMuteAll() {
     mutationFn: ({ conversationId, muteAll }: { conversationId: number; muteAll: boolean }) =>
       request.patch<null>(`/api/chat/conversations/${conversationId}/mute-all`, { muteAll }).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.all }),
+  });
+}
+
+// ─── 常用语（个人快捷回复） ───────────────────────────────────────────────────
+
+export function useChatQuickReplies(enabled = true) {
+  return useQuery({
+    queryKey: chatKeys.quickReplies,
+    queryFn: () => request.get<ChatQuickReply[]>('/api/chat/quick-replies', { silent: true }).then(unwrap),
+    enabled,
+    staleTime: LOOKUP_STALE_TIME,
+  });
+}
+
+export function useSaveChatQuickReply() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, content }: { id?: number; content: string }) =>
+      (id === undefined
+        ? request.post<ChatQuickReply>('/api/chat/quick-replies', { content })
+        : request.put<ChatQuickReply>(`/api/chat/quick-replies/${id}`, { content })
+      ).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.quickReplies }),
+  });
+}
+
+export function useDeleteChatQuickReply() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => request.delete<null>(`/api/chat/quick-replies/${id}`).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.quickReplies }),
+  });
+}
+
+// ─── 定时消息 ─────────────────────────────────────────────────────────────────
+
+export function useMyScheduledMessages(enabled = true) {
+  return useQuery({
+    queryKey: chatKeys.scheduledMessages,
+    queryFn: () => request.get<ChatScheduledMessage[]>('/api/chat/scheduled-messages', { silent: true }).then(unwrap),
+    enabled,
+  });
+}
+
+export function useCreateScheduledMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ conversationId, content, scheduledAt }: { conversationId: number; content: string; scheduledAt: string }) =>
+      request.post<ChatScheduledMessage>(`/api/chat/conversations/${conversationId}/scheduled-messages`, { content, scheduledAt }).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.scheduledMessages }),
+  });
+}
+
+export function useCancelScheduledMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => request.patch<null>(`/api/chat/scheduled-messages/${id}/cancel`, {}).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.scheduledMessages }),
   });
 }
 

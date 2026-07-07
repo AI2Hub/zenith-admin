@@ -8,7 +8,7 @@ import {
 import {
   ChatMessageDTO, ChatConversationDTO, ChatUserDTO, ChatGroupMemberDTO, ChatLinkPreviewDTO, ChatMessageExtraDTO,
   ChatMessageSearchItemDTO, ChatMessageContextDTO, ChatReactionGroupDTO, ChatReadStateDTO, ChatPresenceDTO, RtcConfigDTO,
-  ChatOrgDataDTO,
+  ChatOrgDataDTO, ChatQuickReplyDTO, ChatScheduledMessageDTO,
 } from '../../lib/openapi-dtos';
 import { chatCallRecordSchema } from '@zenith/shared';
 import {
@@ -21,8 +21,14 @@ import {
   getLinkPreview, listPinnedMessages, listFavoriteMessages, listGlobalFavoriteMessages,
   toggleMessageFavorite, toggleMessagePin, listAnnouncementHistory, deleteAnnouncementHistory, forwardMessages, deleteMessagesForUser, toggleReaction, submitVote,
   getConversationReadStates, getPresenceForUsers, getRtcConfig, postCallRecord,
-  setMemberRole, muteMember, setMuteAll, getChatOrgData,
+  setMemberRole, muteMember, setMuteAll, getChatOrgData, archiveConversation,
 } from '../../services/chat/chat.service';
+import {
+  listMyQuickReplies, createQuickReply, updateQuickReply, deleteQuickReply,
+} from '../../services/chat/chat-quick-replies.service';
+import {
+  createScheduledMessage, listMyScheduledMessages, cancelScheduledMessage,
+} from '../../services/chat/chat-scheduled.service';
 
 const chatRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -442,6 +448,162 @@ chatRouter.openapi(
     const { name, memberIds } = c.req.valid('json');
     const conv = await createGroupConversation(name, memberIds ?? []);
     return c.json(okBody(conv), 200);
+  },
+);
+
+// ─── 归档 / 取消归档 ──────────────────────────────────────────────────────────
+
+chatRouter.openapi(
+  createRoute({
+    method: 'patch', path: '/conversations/{id}/archive', tags: ['Chat'], summary: '归档或取消归档会话',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: {
+      params: IdParam,
+      body: { content: jsonContent(z.object({ archive: z.boolean() })) },
+    },
+    responses: { ...commonErrorResponses, ...okMsg('操作成功') },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const { archive } = c.req.valid('json');
+    await archiveConversation(id, archive);
+    return c.json(okBody(null), 200);
+  },
+);
+
+// ─── 常用语（个人快捷回复） ───────────────────────────────────────────────────
+
+chatRouter.openapi(
+  createRoute({
+    method: 'get', path: '/quick-replies', tags: ['Chat'], summary: '我的常用语列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    responses: { ...commonErrorResponses, ...ok(z.array(ChatQuickReplyDTO), '常用语列表') },
+  }),
+  async (c) => {
+    const list = await listMyQuickReplies();
+    return c.json(okBody(list), 200);
+  },
+);
+
+chatRouter.openapi(
+  createRoute({
+    method: 'post', path: '/quick-replies', tags: ['Chat'], summary: '新增常用语',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: {
+      body: {
+        content: jsonContent(z.object({
+          content: z.string().min(1, '内容不能为空').max(500),
+          sort: z.number().int().min(0).max(9999).optional(),
+        })),
+      },
+    },
+    responses: { ...commonErrorResponses, ...ok(ChatQuickReplyDTO, '常用语') },
+  }),
+  async (c) => {
+    const body = c.req.valid('json');
+    const item = await createQuickReply(body.content, body.sort);
+    return c.json(okBody(item), 200);
+  },
+);
+
+chatRouter.openapi(
+  createRoute({
+    method: 'put', path: '/quick-replies/{id}', tags: ['Chat'], summary: '更新常用语',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: {
+      params: IdParam,
+      body: {
+        content: jsonContent(z.object({
+          content: z.string().min(1).max(500).optional(),
+          sort: z.number().int().min(0).max(9999).optional(),
+        })),
+      },
+    },
+    responses: { ...commonErrorResponses, ...ok(ChatQuickReplyDTO, '常用语') },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const body = c.req.valid('json');
+    const item = await updateQuickReply(id, body);
+    return c.json(okBody(item), 200);
+  },
+);
+
+chatRouter.openapi(
+  createRoute({
+    method: 'delete', path: '/quick-replies/{id}', tags: ['Chat'], summary: '删除常用语',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...okMsg('删除成功') },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    await deleteQuickReply(id);
+    return c.json(okBody(null), 200);
+  },
+);
+
+// ─── 定时消息 ─────────────────────────────────────────────────────────────────
+
+chatRouter.openapi(
+  createRoute({
+    method: 'post', path: '/conversations/{id}/scheduled-messages', tags: ['Chat'], summary: '创建定时消息',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: {
+      params: IdParam,
+      body: {
+        content: jsonContent(z.object({
+          content: z.string().min(1, '内容不能为空').max(4096),
+          /** 计划发送时间（YYYY-MM-DD HH:mm:ss） */
+          scheduledAt: z.string().min(1, '定时时间不能为空'),
+        })),
+      },
+    },
+    responses: { ...commonErrorResponses, ...ok(ChatScheduledMessageDTO, '定时消息') },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const body = c.req.valid('json');
+    const item = await createScheduledMessage(id, { content: body.content, scheduledAt: body.scheduledAt });
+    return c.json(okBody(item), 200);
+  },
+);
+
+chatRouter.openapi(
+  createRoute({
+    method: 'get', path: '/scheduled-messages', tags: ['Chat'], summary: '我的定时消息列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: {
+      query: z.object({ status: z.enum(['pending', 'sent', 'canceled', 'failed']).optional() }),
+    },
+    responses: { ...commonErrorResponses, ...ok(z.array(ChatScheduledMessageDTO), '定时消息列表') },
+  }),
+  async (c) => {
+    const { status } = c.req.valid('query');
+    const list = await listMyScheduledMessages(status);
+    return c.json(okBody(list), 200);
+  },
+);
+
+chatRouter.openapi(
+  createRoute({
+    method: 'patch', path: '/scheduled-messages/{id}/cancel', tags: ['Chat'], summary: '取消定时消息',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...okMsg('已取消') },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    await cancelScheduledMessage(id);
+    return c.json(okBody(null), 200);
   },
 );
 

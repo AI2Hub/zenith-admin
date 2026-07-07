@@ -312,6 +312,7 @@ export const SEED_MENUS: Menu[] = [
 
   // ── 消息中心 ─────────────────────────────────────────────────────────────────
   { id: 310, parentId: 0,   title: '消息中心',   name: 'ChatCenter',              path: '/chat',                      component: 'chat/ChatPage',                                  icon: 'MessagesSquare',    type: 'menu',      sort: 7,  status: 'enabled', visible: true,  createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 315, parentId: 310, title: '导出聊天记录', name: undefined,               path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'chat:message:export', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 
   // ── 数据分析 ─────────────────────────────────────────────────────────────────
   { id: 600, parentId: 0, title: '数据分析',   name: 'Analytics',               path: undefined,                    component: undefined,                                        icon: 'BarChart2',         type: 'directory', sort: 8,  status: 'enabled', visible: true,  createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -550,7 +551,7 @@ export const SEED_ROLES: Role[] = [
     status: 'enabled',
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
-    menuIds: [1, 202, 203, 310],
+    menuIds: [1, 202, 203, 310, 315],
   },
 ];
 

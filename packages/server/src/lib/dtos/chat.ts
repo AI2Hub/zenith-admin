@@ -230,6 +230,7 @@ export const ChatConversationDTO = z
     unreadCount: z.number().int(),
     isPinned: z.boolean(),
     isStarred: z.boolean(),
+    isArchived: z.boolean().optional(),
     muteAll: z.boolean().optional(),
     myRole: z.enum(['owner', 'admin', 'member']).optional(),
     myMutedUntil: z.string().nullable().optional(),
@@ -238,6 +239,33 @@ export const ChatConversationDTO = z
     updatedAt: z.string(),
   })
   .openapi('ChatConversation');
+
+export const ChatQuickReplyDTO = z
+  .object({
+    id: z.number().int(),
+    content: z.string(),
+    sort: z.number().int(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('ChatQuickReply');
+
+export const ChatScheduledMessageDTO = z
+  .object({
+    id: z.number().int(),
+    conversationId: z.number().int(),
+    conversationName: z.string().nullable(),
+    type: z.enum(['text', 'image', 'file', 'system', 'forward', 'vote', 'voice', 'card']),
+    content: z.string(),
+    extra: ChatMessageExtraDTO.nullable().optional(),
+    scheduledAt: z.string(),
+    status: z.enum(['pending', 'sent', 'canceled', 'failed']),
+    failReason: z.string().nullable(),
+    sentMessageId: z.number().int().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('ChatScheduledMessage');
 
 export const ChatReadStateDTO = z
   .object({

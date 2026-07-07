@@ -87,6 +87,20 @@ export async function registerSystemTasks(): Promise<void> {
     },
   });
 
+  const { dispatchDueScheduledMessages } = await import('../services/chat/chat-scheduled.service');
+  await registerSystemRecurringJob({
+    name: 'chat-scheduled-dispatch',
+    title: '聊天定时消息派发',
+    module: '消息中心',
+    cronExpression: '* * * * *',
+    description: '每分钟派发到期的聊天定时消息（以发送者身份复用发送链路）。',
+    allowManualRun: true,
+    run: async () => {
+      await dispatchDueScheduledMessages();
+      return '聊天定时消息派发扫描完成';
+    },
+  });
+
   const { runMpKfSessionTimeouts } = await import('../services/mp/mp-kf-session.service');
   await registerSystemRecurringJob({
     name: 'mp-kf-session-tick',

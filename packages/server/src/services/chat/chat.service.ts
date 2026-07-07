@@ -380,6 +380,7 @@ export async function listConversations(): Promise<ChatConversation[]> {
       isPinned: chatConversationMembers.isPinned,
       isStarred: chatConversationMembers.isStarred,
       isMuted: chatConversationMembers.isMuted,
+      isArchived: chatConversationMembers.isArchived,
       role: chatConversationMembers.role,
       mutedUntil: chatConversationMembers.mutedUntil,
     })
@@ -393,6 +394,7 @@ export async function listConversations(): Promise<ChatConversation[]> {
   const pinnedMap = new Map(memberRows.map((r) => [r.conversationId, r.isPinned]));
   const starredMap = new Map(memberRows.map((r) => [r.conversationId, r.isStarred]));
   const mutedMap = new Map(memberRows.map((r) => [r.conversationId, r.isMuted]));
+  const archivedMap = new Map(memberRows.map((r) => [r.conversationId, r.isArchived]));
   const myRoleMap = new Map(memberRows.map((r) => [r.conversationId, r.role]));
   const myMutedUntilMap = new Map(memberRows.map((r) => [r.conversationId, r.mutedUntil]));
 
@@ -523,6 +525,7 @@ export async function listConversations(): Promise<ChatConversation[]> {
     isPinned: pinnedMap.get(conv.id) ?? false,
     isStarred: starredMap.get(conv.id) ?? false,
     isMuted: mutedMap.get(conv.id) ?? false,
+    isArchived: archivedMap.get(conv.id) ?? false,
     muteAll: conv.muteAll,
     myRole: myRoleMap.get(conv.id) ?? 'member',
     myMutedUntil: formatNullableDateTime(myMutedUntilMap.get(conv.id) ?? null),
@@ -661,6 +664,20 @@ export async function muteConversation(conversationId: number, mute: boolean): P
   const me = currentUser();
   const [updated] = await db.update(chatConversationMembers)
     .set({ isMuted: mute })
+    .where(and(
+      eq(chatConversationMembers.conversationId, conversationId),
+      eq(chatConversationMembers.userId, me.userId),
+    ))
+    .returning({ id: chatConversationMembers.conversationId });
+  if (!updated) throw new HTTPException(403, { message: '无权操作该会话' });
+}
+
+// ─── 归档 / 取消归档 ──────────────────────────────────────────────────────────
+
+export async function archiveConversation(conversationId: number, archive: boolean): Promise<void> {
+  const me = currentUser();
+  const [updated] = await db.update(chatConversationMembers)
+    .set({ isArchived: archive })
     .where(and(
       eq(chatConversationMembers.conversationId, conversationId),
       eq(chatConversationMembers.userId, me.userId),

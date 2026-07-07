@@ -4757,6 +4757,8 @@ export interface ChatConversation {
   isPinned: boolean;
   isStarred: boolean;
   isMuted: boolean;
+  /** 会话归档（收进「已归档」折叠分组） */
+  isArchived?: boolean;
   /** 全员禁言开关（群聊） */
   muteAll?: boolean;
   /** 我在该会话中的角色 */
@@ -4804,6 +4806,34 @@ export interface ChatOrgUser {
 export interface ChatOrgData {
   departments: ChatOrgDepartment[];
   users: ChatOrgUser[];
+}
+
+/** 个人快捷回复（常用语） */
+export interface ChatQuickReply {
+  id: number;
+  content: string;
+  sort: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ChatScheduledStatus = 'pending' | 'sent' | 'canceled' | 'failed';
+
+/** 定时消息 */
+export interface ChatScheduledMessage {
+  id: number;
+  conversationId: number;
+  /** 目标会话展示名（群名或对方昵称） */
+  conversationName: string | null;
+  type: ChatMessageType;
+  content: string;
+  extra: ChatMessageExtra | null;
+  scheduledAt: string;
+  status: ChatScheduledStatus;
+  failReason: string | null;
+  sentMessageId: number | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** 聊天入站 Webhook 机器人 */

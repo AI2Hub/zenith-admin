@@ -31,6 +31,8 @@ export const chatConversationMembers = pgTable('chat_conversation_members', {
   isPinned: boolean('is_pinned').notNull().default(false),
   isStarred: boolean('is_starred').notNull().default(false),
   isMuted: boolean('is_muted').notNull().default(false),
+  /** 会话归档（收进「已归档」折叠分组，不影响未读计数） */
+  isArchived: boolean('is_archived').notNull().default(false),
   /** 被禁言至（null = 未禁言；9999 年 = 永久禁言） */
   mutedUntil: timestamp('muted_until', { withTimezone: true }),
   lastReadAt: timestamp('last_read_at', { withTimezone: true }),
@@ -102,3 +104,43 @@ export const chatWebhooks = pgTable('chat_webhooks', {
 export type ChatWebhookRow = typeof chatWebhooks.$inferSelect;
 
 export type NewChatWebhook = typeof chatWebhooks.$inferInsert;
+
+// ─── 个人快捷回复（常用语） ───────────────────────────────────────────────────
+export const chatQuickReplies = pgTable('chat_quick_replies', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  content: varchar('content', { length: 500 }).notNull(),
+  sort: integer('sort').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  index('chat_quick_replies_user_idx').on(t.userId),
+]);
+
+export type ChatQuickReplyRow = typeof chatQuickReplies.$inferSelect;
+
+// ─── 定时消息 ─────────────────────────────────────────────────────────────────
+export const chatScheduledStatusEnum = pgEnum('chat_scheduled_status', ['pending', 'sent', 'canceled', 'failed']);
+
+export const chatScheduledMessages = pgTable('chat_scheduled_messages', {
+  id: serial('id').primaryKey(),
+  conversationId: integer('conversation_id').notNull().references(() => chatConversations.id, { onDelete: 'cascade' }),
+  senderId: integer('sender_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: chatMessageTypeEnum('type').notNull().default('text'),
+  content: text('content').notNull(),
+  extra: jsonb('extra'),
+  /** 计划发送时间 */
+  scheduledAt: timestamp('scheduled_at', { withTimezone: true }).notNull(),
+  status: chatScheduledStatusEnum('status').notNull().default('pending'),
+  failReason: varchar('fail_reason', { length: 255 }),
+  /** 发送成功后关联的正式消息 ID */
+  sentMessageId: integer('sent_message_id'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  // 派发器扫描到期任务
+  index('chat_scheduled_messages_due_idx').on(t.status, t.scheduledAt),
+  index('chat_scheduled_messages_sender_idx').on(t.senderId),
+]);
+
+export type ChatScheduledMessageRow = typeof chatScheduledMessages.$inferSelect;

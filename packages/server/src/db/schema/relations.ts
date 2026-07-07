@@ -12,7 +12,7 @@ import { workflowAutomations, workflowCategories, workflowComments, workflowDefi
 import { emailSendLogs, emailTemplates, inAppMessages, inAppTemplates, smsConfigs, smsSendLogs, smsTemplates } from './messaging';
 import { dbBackups } from './db-admin';
 import { ruleDecisionTables, ruleDecisionTableVersions, ruleTestCases } from './rules';
-import { chatConversationMembers, chatConversations, chatMessageReactions, chatMessages, chatWebhooks } from './chat';
+import { chatConversationMembers, chatConversations, chatMessageReactions, chatMessages, chatWebhooks, chatQuickReplies, chatScheduledMessages } from './chat';
 import { channelAutoReplies, channelConversations, channelMenus, channelMessages, channelMessageTargets, channelQuickReplies, channels, channelSubscriptions } from './channels';
 import { paymentApps, paymentChannelConfigs, paymentOrders, paymentReconBatches, paymentReconItems, paymentRefunds, paymentSharingOrders, paymentSharingReceivers, paymentTransfers, paymentWebhookDeliveries, paymentWebhookEndpoints } from './payment';
 import { aiConversations, aiMessages, aiPromptTemplates, aiProviderConfigs, userAiConfigs } from './ai';
@@ -520,6 +520,15 @@ export const chatMessageReactionsRelations = relations(chatMessageReactions, ({ 
 export const chatWebhooksRelations = relations(chatWebhooks, ({ one }) => ({
   conversation: one(chatConversations, { fields: [chatWebhooks.conversationId], references: [chatConversations.id] }),
   tenant: one(tenants, { fields: [chatWebhooks.tenantId], references: [tenants.id] }),
+}));
+
+export const chatQuickRepliesRelations = relations(chatQuickReplies, ({ one }) => ({
+  user: one(users, { fields: [chatQuickReplies.userId], references: [users.id] }),
+}));
+
+export const chatScheduledMessagesRelations = relations(chatScheduledMessages, ({ one }) => ({
+  conversation: one(chatConversations, { fields: [chatScheduledMessages.conversationId], references: [chatConversations.id] }),
+  sender: one(users, { fields: [chatScheduledMessages.senderId], references: [users.id] }),
 }));
 
 // ─── 通知模块 relations ─────────────────────────────────────────────────────
