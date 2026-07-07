@@ -50,7 +50,9 @@ import WorkflowApprovalDetailSheet from '@/components/workflow/WorkflowApprovalD
 import { useVoiceRecorder } from './useVoiceRecorder';
 import { getChatNotifyPrefs, setChatNotifyPrefs } from './notifyPrefs';
 import { callManager } from '@/webrtc/useCallManager';
-import { useDiscoverableChannels } from '@/hooks/queries/chat';
+import { useQueryClient } from '@tanstack/react-query';
+import dayjs from 'dayjs';
+import { useDiscoverableChannels, chatKeys } from '@/hooks/queries/chat';
 
 const { Text, Title } = Typography;
 
@@ -336,6 +338,39 @@ export default function ChatPage({
 
   const activeConv = conversations.find((c) => c.id === activeConvId) ?? null;
   const activeChannel = channels.find((c) => c.id === activeChannelId) ?? null;
+
+  const queryClient = useQueryClient();
+
+  // 未读分隔线：进入会话时按 unreadCount 定位首条未读消息
+  const [unreadDivider, setUnreadDivider] = useState<{ convId: number; messageId: number } | null>(null);
+
+  // 禁言状态：个人禁言优先；全员禁言豁免群主/管理员
+  const [muteTick, setMuteTick] = useState(0);
+  const muteState = useMemo(() => {
+    void muteTick; // 禁言到期时触发重算
+    if (!activeConv || activeConv.type !== 'group') return null;
+    const until = activeConv.myMutedUntil ? dayjs(activeConv.myMutedUntil) : null;
+    if (until?.isAfter(dayjs())) {
+      return {
+        placeholder: until.year() >= 9000 ? '你已被禁言' : `你已被禁言，${until.format('MM-DD HH:mm')} 解除`,
+        until,
+      };
+    }
+    if (activeConv.muteAll && (activeConv.myRole ?? 'member') === 'member') {
+      return { placeholder: '全员禁言中，仅群主和管理员可发言', until: null };
+    }
+    return null;
+  }, [activeConv, muteTick]);
+
+  // 限时禁言到期后自动恢复输入框
+  useEffect(() => {
+    if (!muteState?.until || muteState.until.year() >= 9000) return;
+    const ms = muteState.until.diff(dayjs()) + 1000;
+    if (ms <= 0 || ms > 24 * 3600 * 1000) return;
+    const timer = setTimeout(() => setMuteTick((v) => v + 1), ms);
+    return () => clearTimeout(timer);
+  }, [muteState]);
+
   const mentionState = useMemo(() => {
     if (activeConv?.type !== 'group') return null;
     const cursor = inputRef.current?.selectionStart ?? input.length;
@@ -697,7 +732,7 @@ export default function ChatPage({
     }
   }, [fetchFavoriteMessages, leftPaneMode]);
 
-  const fetchMessages = useCallback(async (convId: number, beforeId?: number) => {
+  const fetchMessages = useCallback(async (convId: number, beforeId?: number): Promise<ChatMessage[] | null> => {
     setLoadingMsgs(true);
     const qs = beforeId ? `beforeId=${beforeId}&limit=30` : 'limit=30';
     const res = await request.get<{ list: ChatMessage[]; hasMore: boolean }>(
@@ -720,7 +755,9 @@ export default function ChatPage({
         setFirstItemIndex(VIRTUOSO_FIRST_INDEX_BUFFER);
       }
       setHasMore(res.data.hasMore);
+      return newMsgs;
     }
+    return null;
   }, []);
 
   const DRAFT_STORAGE_KEY = 'zenith_chat_drafts';
@@ -785,11 +822,26 @@ export default function ChatPage({
     setMediaHasMore(false);
     // 恢复目标会话草稿
     setInput(loadDraft(conv.id));
-    await fetchMessages(conv.id);
+    const loaded = await fetchMessages(conv.id);
+    // 定位未读分隔线：unreadCount 只统计他人消息，从尾部倒推
+    if (conv.unreadCount > 0 && loaded && loaded.length > 0) {
+      let remaining = conv.unreadCount;
+      let anchorId: number | null = null;
+      for (let i = loaded.length - 1; i >= 0; i--) {
+        if (loaded[i].senderId !== currentUserId && loaded[i].senderId !== null) {
+          remaining--;
+          if (remaining === 0) { anchorId = loaded[i].id; break; }
+        }
+      }
+      // 未读数超出本页加载范围时，退化为标记在最早一条
+      setUnreadDivider({ convId: conv.id, messageId: anchorId ?? loaded[0].id });
+    } else {
+      setUnreadDivider(null);
+    }
     await request.post(`/api/chat/conversations/${conv.id}/read`, {}, { silent: true });
     setConversations((prev) => prev.map((c) => c.id === conv.id ? { ...c, unreadCount: 0, hasMentionUnread: false } : c));
     setTimeout(() => virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' }), 100);
-  }, [activeConvId, fetchMessages, input, loadDraft, onConvChange, saveDraft]);
+  }, [activeConvId, currentUserId, fetchMessages, input, loadDraft, onConvChange, saveDraft]);
 
   const handleNewDirectChat = useCallback(async (user: ChatUser) => {
     setShowNewChat(false);
@@ -1624,16 +1676,21 @@ export default function ChatPage({
         void refreshGroupAvatarMembers(conversationId);
       }
     } else if (wsMsg.type === 'chat:group-update') {
-      const { conversationId, name, announcement } = wsMsg.payload;
+      const { conversationId, name, announcement, muteAll } = wsMsg.payload;
       setConversations((prev) =>
         prev.map((c) => c.id === conversationId
           ? {
             ...c,
             ...(name === undefined ? {} : { name }),
             ...(announcement === undefined ? {} : { announcement }),
+            ...(muteAll === undefined ? {} : { muteAll }),
           }
           : c),
       );
+    } else if (wsMsg.type === 'chat:member-update') {
+      // 角色/禁言变更：刷新会话列表（myRole/myMutedUntil）与成员面板
+      void fetchConversations();
+      void queryClient.invalidateQueries({ queryKey: chatKeys.groupMembers(wsMsg.payload.conversationId) });
     } else if (wsMsg.type === 'chat:read') {
       const { conversationId, userId, readAt } = wsMsg.payload;
       if (conversationId !== activeConvId || userId === currentUserId) return;
@@ -1648,7 +1705,7 @@ export default function ChatPage({
       });
       setLastSeenMap((prev) => ({ ...prev, [userId]: online ? null : lastSeen }));
     }
-  }, [activeChannelId, activeConvId, appendMessageOnce, applyMessageUpdate, conversations, currentUserId, fetchConversations, refreshGroupAvatarMembers]);
+  }, [activeChannelId, activeConvId, appendMessageOnce, applyMessageUpdate, conversations, currentUserId, fetchConversations, queryClient, refreshGroupAvatarMembers]);
 
   const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
     isAtBottomRef.current = atBottom;
@@ -2823,8 +2880,16 @@ export default function ChatPage({
                   }}
                   itemContent={(virtualIndex, msg) => { // NOSONAR
                     const realIndex = virtualIndex - firstItemIndex;
+                    const showUnreadDivider = unreadDivider?.convId === activeConvId && unreadDivider.messageId === msg.id;
                     return (
                       <div style={{ padding: isQuick ? '0 12px 16px' : '0 20px 16px' }}>
+                        {showUnreadDivider && (
+                          <div aria-label="以下为新消息" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px' }}>
+                            <span style={{ flex: 1, height: 1, background: 'var(--semi-color-danger-light-active)' }} />
+                            <span style={{ fontSize: 11, color: 'var(--semi-color-danger)', flexShrink: 0 }}>以下为新消息</span>
+                            <span style={{ flex: 1, height: 1, background: 'var(--semi-color-danger-light-active)' }} />
+                          </div>
+                        )}
                         <MessageBubble
                           msg={msg}
                           isSelf={msg.senderId === currentUserId}
@@ -3506,7 +3571,8 @@ export default function ChatPage({
                 onChange={(e) => { setInput(e.target.value); setMentionClosed(false); handleTyping(e.target.value); }}
                 onKeyDown={handleKeyDown}
                 onPaste={handleInputPaste}
-                placeholder="输入消息…"
+                placeholder={muteState ? muteState.placeholder : '输入消息…'}
+                disabled={!!muteState}
                 rows={isQuick ? 2 : 3}
                 style={{
                   width: '100%', resize: 'none', borderRadius: 8, padding: '8px 48px 8px 12px',
@@ -3515,13 +3581,14 @@ export default function ChatPage({
                   color: 'var(--semi-color-text-0)',
                   fontSize: 14, fontFamily: 'inherit', outline: 'none',
                   lineHeight: 1.5, boxSizing: 'border-box',
+                  ...(muteState ? { cursor: 'not-allowed', opacity: 0.6 } : {}),
                 }}
               />
               <Button
                 theme="solid" type="primary"
                 icon={<Send size={14} />}
                 loading={sending}
-                disabled={!input.trim() && pendingImages.length === 0 && pendingFiles.length === 0}
+                disabled={!!muteState || (!input.trim() && pendingImages.length === 0 && pendingFiles.length === 0)}
                 onClick={() => { void handleSend(); }}
                 style={{
                   position: 'absolute', bottom: 8, right: 8,

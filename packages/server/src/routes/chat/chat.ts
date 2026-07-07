@@ -8,6 +8,7 @@ import {
 import {
   ChatMessageDTO, ChatConversationDTO, ChatUserDTO, ChatGroupMemberDTO, ChatLinkPreviewDTO, ChatMessageExtraDTO,
   ChatMessageSearchItemDTO, ChatMessageContextDTO, ChatReactionGroupDTO, ChatReadStateDTO, ChatPresenceDTO, RtcConfigDTO,
+  ChatOrgDataDTO,
 } from '../../lib/openapi-dtos';
 import { chatCallRecordSchema } from '@zenith/shared';
 import {
@@ -20,6 +21,7 @@ import {
   getLinkPreview, listPinnedMessages, listFavoriteMessages, listGlobalFavoriteMessages,
   toggleMessageFavorite, toggleMessagePin, listAnnouncementHistory, deleteAnnouncementHistory, forwardMessages, deleteMessagesForUser, toggleReaction, submitVote,
   getConversationReadStates, getPresenceForUsers, getRtcConfig, postCallRecord,
+  setMemberRole, muteMember, setMuteAll, getChatOrgData,
 } from '../../services/chat/chat.service';
 
 const chatRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -425,13 +427,36 @@ chatRouter.openapi(
     method: 'post', path: '/conversations/group', tags: ['Chat'], summary: '创建群聊',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware] as const,
-    request: { body: { content: jsonContent(z.object({ name: z.string().min(1, '群名不能为空').max(64) })) } },
+    request: {
+      body: {
+        content: jsonContent(z.object({
+          name: z.string().min(1, '群名不能为空').max(64),
+          /** 初始群成员（可选，不含群主自己） */
+          memberIds: z.array(z.number().int().positive()).max(19).optional(),
+        })),
+      },
+    },
     responses: { ...commonErrorResponses, ...ok(ChatConversationDTO, '群聊信息') },
   }),
   async (c) => {
-    const { name } = c.req.valid('json');
-    const conv = await createGroupConversation(name);
+    const { name, memberIds } = c.req.valid('json');
+    const conv = await createGroupConversation(name, memberIds ?? []);
     return c.json(okBody(conv), 200);
+  },
+);
+
+// ─── 组织架构选人数据 ─────────────────────────────────────────────────────────
+
+chatRouter.openapi(
+  createRoute({
+    method: 'get', path: '/org-users', tags: ['Chat'], summary: '获取组织架构选人数据（部门+用户）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    responses: { ...commonErrorResponses, ...ok(ChatOrgDataDTO, '组织架构数据') },
+  }),
+  async (c) => {
+    const data = await getChatOrgData();
+    return c.json(okBody(data), 200);
   },
 );
 
@@ -557,7 +582,7 @@ chatRouter.openapi(
 
 chatRouter.openapi(
   createRoute({
-    method: 'delete', path: '/conversations/{id}/members/{userId}', tags: ['Chat'], summary: '移除群成员（群主专属）',
+    method: 'delete', path: '/conversations/{id}/members/{userId}', tags: ['Chat'], summary: '移除群成员（群主/管理员）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware] as const,
     request: {
@@ -576,7 +601,7 @@ chatRouter.openapi(
 
 chatRouter.openapi(
   createRoute({
-    method: 'patch', path: '/conversations/{id}/group-info', tags: ['Chat'], summary: '更新群聊名称或公告（群主专属）',
+    method: 'patch', path: '/conversations/{id}/group-info', tags: ['Chat'], summary: '更新群聊名称或公告（群主/管理员）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware] as const,
     request: {
@@ -619,6 +644,71 @@ chatRouter.openapi(
   },
 );
 
+// ─── 群管理员 / 禁言 ──────────────────────────────────────────────────────────
+
+chatRouter.openapi(
+  createRoute({
+    method: 'patch', path: '/conversations/{id}/members/{userId}/role', tags: ['Chat'], summary: '设置/取消群管理员（群主专属）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: {
+      params: z.object({ id: z.coerce.number().int().positive(), userId: z.coerce.number().int().positive() }),
+      body: { content: jsonContent(z.object({ role: z.enum(['admin', 'member']) })) },
+    },
+    responses: { ...commonErrorResponses, ...okMsg('设置成功') },
+  }),
+  async (c) => {
+    const { id, userId } = c.req.valid('param');
+    const { role } = c.req.valid('json');
+    await setMemberRole(id, userId, role);
+    return c.json(okBody(null), 200);
+  },
+);
+
+chatRouter.openapi(
+  createRoute({
+    method: 'patch', path: '/conversations/{id}/members/{userId}/mute', tags: ['Chat'], summary: '禁言/解除禁言群成员（群主/管理员）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: {
+      params: z.object({ id: z.coerce.number().int().positive(), userId: z.coerce.number().int().positive() }),
+      body: {
+        content: jsonContent(z.object({
+          mute: z.boolean(),
+          /** 禁言时长（分钟），不传 = 永久禁言 */
+          durationMinutes: z.number().int().positive().max(43200).optional(),
+        })),
+      },
+    },
+    responses: { ...commonErrorResponses, ...okMsg('操作成功') },
+  }),
+  async (c) => {
+    const { id, userId } = c.req.valid('param');
+    const { mute, durationMinutes } = c.req.valid('json');
+    await muteMember(id, userId, mute, durationMinutes);
+    return c.json(okBody(null), 200);
+  },
+);
+
+chatRouter.openapi(
+  createRoute({
+    method: 'patch', path: '/conversations/{id}/mute-all', tags: ['Chat'], summary: '开启/关闭全员禁言（群主/管理员）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: {
+      params: IdParam,
+      body: { content: jsonContent(z.object({ muteAll: z.boolean() })) },
+    },
+    responses: { ...commonErrorResponses, ...okMsg('设置成功') },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const { muteAll } = c.req.valid('json');
+    await setMuteAll(id, muteAll);
+    return c.json(okBody(null), 200);
+  },
+);
+
 chatRouter.openapi(
   createRoute({
     method: 'get', path: '/conversations/{id}/announcement-history', tags: ['Chat'], summary: '获取群公告历史',
@@ -636,7 +726,7 @@ chatRouter.openapi(
 
 chatRouter.openapi(
   createRoute({
-    method: 'delete', path: '/conversations/{id}/announcement-history/{messageId}', tags: ['Chat'], summary: '删除群公告历史（群主专属）',
+    method: 'delete', path: '/conversations/{id}/announcement-history/{messageId}', tags: ['Chat'], summary: '删除群公告历史（群主/管理员）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware] as const,
     request: {

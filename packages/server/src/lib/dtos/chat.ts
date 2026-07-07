@@ -19,9 +19,27 @@ export const ChatGroupMemberDTO = z
     nickname: z.string(),
     username: z.string(),
     avatar: z.string().nullable().optional(),
-    role: z.enum(['owner', 'member']),
+    role: z.enum(['owner', 'admin', 'member']),
+    mutedUntil: z.string().nullable().optional(),
   })
   .openapi('ChatGroupMember');
+
+export const ChatOrgDataDTO = z
+  .object({
+    departments: z.array(z.object({
+      id: z.number().int(),
+      name: z.string(),
+      parentId: z.number().int(),
+    })),
+    users: z.array(z.object({
+      id: z.number().int(),
+      nickname: z.string(),
+      username: z.string(),
+      avatar: z.string().nullable(),
+      departmentId: z.number().int().nullable(),
+    })),
+  })
+  .openapi('ChatOrgData');
 
 export const ChatLinkPreviewDTO = z
   .object({
@@ -212,6 +230,9 @@ export const ChatConversationDTO = z
     unreadCount: z.number().int(),
     isPinned: z.boolean(),
     isStarred: z.boolean(),
+    muteAll: z.boolean().optional(),
+    myRole: z.enum(['owner', 'admin', 'member']).optional(),
+    myMutedUntil: z.string().nullable().optional(),
     ...auditFields,
     createdAt: z.string(),
     updatedAt: z.string(),

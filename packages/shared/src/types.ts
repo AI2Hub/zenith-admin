@@ -1665,7 +1665,8 @@ export type WsMessage =
   | { type: 'chat:read'; payload: { conversationId: number; userId: number; readAt: string } }
   | { type: 'chat:member-join'; payload: { conversationId: number; user: { id: number; nickname: string; avatar: string | null } } }
   | { type: 'chat:member-leave'; payload: { conversationId: number; userId: number } }
-  | { type: 'chat:group-update'; payload: { conversationId: number; name?: string | null; announcement?: string | null } }
+  | { type: 'chat:group-update'; payload: { conversationId: number; name?: string | null; announcement?: string | null; muteAll?: boolean } }
+  | { type: 'chat:member-update'; payload: { conversationId: number } }
   | { type: 'chat:typing'; payload: { conversationId: number; userId: number; nickname: string } }
   | { type: 'chat:reaction'; payload: { conversationId: number; messageId: number; reactions: ChatReactionGroup[] } }
   | { type: 'chat:edit'; payload: ChatMessage }
@@ -4566,7 +4567,7 @@ export interface ChatVoteData {
   votes: ChatVoteRecord[];
   isClosed: boolean;
 }
-export type ChatMemberRole = 'owner' | 'member';
+export type ChatMemberRole = 'owner' | 'admin' | 'member';
 
 export interface ChatLinkPreview {
   url: string;
@@ -4731,6 +4732,8 @@ export interface ChatGroupMember {
   username: string;
   avatar?: string | null;
   role: ChatMemberRole;
+  /** 被禁言至（null = 未禁言；9999 年 = 永久） */
+  mutedUntil?: string | null;
 }
 
 export interface ChatConversation {
@@ -4754,6 +4757,12 @@ export interface ChatConversation {
   isPinned: boolean;
   isStarred: boolean;
   isMuted: boolean;
+  /** 全员禁言开关（群聊） */
+  muteAll?: boolean;
+  /** 我在该会话中的角色 */
+  myRole?: ChatMemberRole;
+  /** 我被禁言至（null = 未禁言） */
+  myMutedUntil?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -4773,6 +4782,28 @@ export interface ChatPresence {
   online: boolean;
   /** 最近在线时间，online=true 时为 null */
   lastSeen: string | null;
+}
+
+/** 组织架构选人：部门节点 */
+export interface ChatOrgDepartment {
+  id: number;
+  name: string;
+  parentId: number;
+}
+
+/** 组织架构选人：用户节点 */
+export interface ChatOrgUser {
+  id: number;
+  nickname: string;
+  username: string;
+  avatar: string | null;
+  departmentId: number | null;
+}
+
+/** 组织架构选人数据（部门 + 用户扁平列表，前端组树） */
+export interface ChatOrgData {
+  departments: ChatOrgDepartment[];
+  users: ChatOrgUser[];
 }
 
 /** 聊天入站 Webhook 机器人 */

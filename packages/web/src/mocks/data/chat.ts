@@ -119,17 +119,20 @@ export const mockChatConversations: ChatConversation[] = [
     isPinned: false,
     isStarred: false,
     isMuted: false,
+    muteAll: false,
+    myRole: 'owner',
+    myMutedUntil: null,
     createdAt: '2024-01-02 10:00:00',
     updatedAt: '2024-01-02 10:05:00',
   },
 ];
 
 // 群聊成员 Map: conversationId -> 成员列表
-export const mockGroupMembers: Record<number, { id: number; nickname: string; username: string; avatar: null; role: 'owner' | 'member' }[]> = {
+export const mockGroupMembers: Record<number, { id: number; nickname: string; username: string; avatar: null; role: 'owner' | 'admin' | 'member'; mutedUntil: string | null }[]> = {
   2: [
-    { id: 1, nickname: '管理员', username: 'admin', avatar: null, role: 'owner' },
-    { id: 2, nickname: '张三', username: 'zhangsan', avatar: null, role: 'member' },
-    { id: 3, nickname: '李四', username: 'lisi', avatar: null, role: 'member' },
+    { id: 1, nickname: '管理员', username: 'admin', avatar: null, role: 'owner', mutedUntil: null },
+    { id: 2, nickname: '张三', username: 'zhangsan', avatar: null, role: 'admin', mutedUntil: null },
+    { id: 3, nickname: '李四', username: 'lisi', avatar: null, role: 'member', mutedUntil: null },
   ],
 };
 

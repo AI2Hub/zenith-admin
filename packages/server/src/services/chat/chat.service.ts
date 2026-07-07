@@ -380,6 +380,8 @@ export async function listConversations(): Promise<ChatConversation[]> {
       isPinned: chatConversationMembers.isPinned,
       isStarred: chatConversationMembers.isStarred,
       isMuted: chatConversationMembers.isMuted,
+      role: chatConversationMembers.role,
+      mutedUntil: chatConversationMembers.mutedUntil,
     })
     .from(chatConversationMembers)
     .where(eq(chatConversationMembers.userId, me.userId));
@@ -391,6 +393,8 @@ export async function listConversations(): Promise<ChatConversation[]> {
   const pinnedMap = new Map(memberRows.map((r) => [r.conversationId, r.isPinned]));
   const starredMap = new Map(memberRows.map((r) => [r.conversationId, r.isStarred]));
   const mutedMap = new Map(memberRows.map((r) => [r.conversationId, r.isMuted]));
+  const myRoleMap = new Map(memberRows.map((r) => [r.conversationId, r.role]));
+  const myMutedUntilMap = new Map(memberRows.map((r) => [r.conversationId, r.mutedUntil]));
 
   // 批量拉取会话基本信息 & 最后消息 & 消息时间（三者都只依赖 convIds，并行执行）
   const latestMsgIdSub = db
@@ -519,6 +523,9 @@ export async function listConversations(): Promise<ChatConversation[]> {
     isPinned: pinnedMap.get(conv.id) ?? false,
     isStarred: starredMap.get(conv.id) ?? false,
     isMuted: mutedMap.get(conv.id) ?? false,
+    muteAll: conv.muteAll,
+    myRole: myRoleMap.get(conv.id) ?? 'member',
+    myMutedUntil: formatNullableDateTime(myMutedUntilMap.get(conv.id) ?? null),
     createdAt: formatDateTime(conv.createdAt),
     updatedAt: formatDateTime(conv.updatedAt),
   }));
@@ -612,6 +619,9 @@ export async function getOrCreateDirectConversation(targetUserId: number): Promi
     isPinned: false,
     isStarred: false,
     isMuted: false,
+    muteAll: false,
+    myRole: 'member',
+    myMutedUntil: null,
     createdAt: formatDateTime(conv.createdAt),
     updatedAt: formatDateTime(conv.updatedAt),
   };
@@ -848,8 +858,8 @@ export async function deleteAnnouncementHistory(conversationId: number, messageI
       eq(chatConversationMembers.userId, me.userId),
     ),
   });
-  if (member?.role !== 'owner') {
-    throw new HTTPException(403, { message: '只有群主才能删除公告历史' });
+  if (member?.role !== 'owner' && member?.role !== 'admin') {
+    throw new HTTPException(403, { message: '只有群主或管理员才能删除公告历史' });
   }
 
   const msg = await db.query.chatMessages.findFirst({ where: eq(chatMessages.id, messageId) });
@@ -1023,7 +1033,7 @@ export async function sendMessage(conversationId: number, input: SendChatMessage
   const me = currentUser();
 
   // 鉴权 & 发送者信息并行查询
-  const [member, sender] = await Promise.all([
+  const [member, sender, conv] = await Promise.all([
     db.query.chatConversationMembers.findFirst({
       where: and(
         eq(chatConversationMembers.conversationId, conversationId),
@@ -1034,8 +1044,20 @@ export async function sendMessage(conversationId: number, input: SendChatMessage
       where: eq(users.id, me.userId),
       columns: { id: true, nickname: true, avatar: true },
     }),
+    db.query.chatConversations.findFirst({
+      where: eq(chatConversations.id, conversationId),
+      columns: { id: true, muteAll: true },
+    }),
   ]);
   if (!member) throw new HTTPException(403, { message: '无权向该会话发送消息' });
+
+  // 禁言校验：个人禁言优先，全员禁言豁免群主/管理员
+  if (member.mutedUntil && member.mutedUntil > new Date()) {
+    throw new HTTPException(403, { message: '你已被禁言，暂时无法发言' });
+  }
+  if (conv?.muteAll && member.role === 'member') {
+    throw new HTTPException(403, { message: '全员禁言中，仅群主和管理员可发言' });
+  }
 
   const [row] = await db.insert(chatMessages).values({
     conversationId,
@@ -1357,9 +1379,21 @@ export function getPresenceForUsers(userIds: number[]): ChatPresence[] {
 
 // ─── 创建群聊 ──────────────────────────────────────────────────────────────────
 
-export async function createGroupConversation(name: string): Promise<ChatConversation> {
+export async function createGroupConversation(name: string, memberIds: number[] = []): Promise<ChatConversation> {
   const me = currentUser();
   const myNickname = await getUserNickname(me.userId);
+
+  // 过滤自己 + 去重 + 校验用户存在，容量上限 20（含群主）
+  const uniqueIds = [...new Set(memberIds)].filter((id) => id !== me.userId);
+  const validMembers = uniqueIds.length > 0
+    ? await db.query.users.findMany({
+        where: and(inArray(users.id, uniqueIds), eq(users.status, 'enabled')),
+        columns: { id: true, nickname: true },
+      })
+    : [];
+  if (validMembers.length + 1 > 20) {
+    throw new HTTPException(400, { message: '群成员已达上限（20人）' });
+  }
 
   const [conv] = await db.insert(chatConversations).values({
     type: 'group',
@@ -1368,10 +1402,16 @@ export async function createGroupConversation(name: string): Promise<ChatConvers
   }).returning();
 
   await db.insert(chatConversationMembers).values([
-    { conversationId: conv.id, userId: me.userId, role: 'owner' },
+    { conversationId: conv.id, userId: me.userId, role: 'owner' as const },
+    ...validMembers.map((u) => ({ conversationId: conv.id, userId: u.id })),
   ]);
 
   await appendSystemMessage(conv.id, `${myNickname ?? '群主'} 创建了群聊`);
+  if (validMembers.length > 0) {
+    const names = validMembers.slice(0, 5).map((u) => u.nickname).join('、');
+    const suffix = validMembers.length > 5 ? ` 等 ${validMembers.length} 人` : '';
+    await appendSystemMessage(conv.id, `${myNickname ?? '群主'} 邀请 ${names}${suffix} 加入了群聊`);
+  }
 
   return {
     id: conv.id,
@@ -1385,6 +1425,9 @@ export async function createGroupConversation(name: string): Promise<ChatConvers
     isPinned: false,
     isStarred: false,
     isMuted: false,
+    muteAll: false,
+    myRole: 'owner',
+    myMutedUntil: null,
     createdAt: formatDateTime(conv.createdAt),
     updatedAt: formatDateTime(conv.updatedAt),
   };
@@ -1493,17 +1536,18 @@ export async function listGroupMembers(conversationId: number) {
     .select({
       id: users.id, nickname: users.nickname, username: users.username, avatar: users.avatar,
       role: chatConversationMembers.role,
+      mutedUntil: chatConversationMembers.mutedUntil,
     })
     .from(chatConversationMembers)
     .innerJoin(users, eq(chatConversationMembers.userId, users.id))
     .where(eq(chatConversationMembers.conversationId, conversationId))
     .orderBy(
-      sql`case when ${chatConversationMembers.role} = 'owner' then 0 else 1 end`,
+      sql`case when ${chatConversationMembers.role} = 'owner' then 0 when ${chatConversationMembers.role} = 'admin' then 1 else 2 end`,
       asc(chatConversationMembers.joinedAt),
       asc(users.id),
     );
 
-  return rows;
+  return rows.map((r) => ({ ...r, mutedUntil: formatNullableDateTime(r.mutedUntil) }));
 }
 
 // ─── 获取可聊天的用户列表 ──────────────────────────────────────────────────────
@@ -1530,6 +1574,37 @@ export async function listChatUsers(keyword?: string) {
   return rows;
 }
 
+// ─── 组织架构选人数据 ─────────────────────────────────────────────────────────
+
+export async function getChatOrgData() {
+  const me = currentUser();
+
+  const [deptRows, userRows] = await Promise.all([
+    db
+      .select({ id: departments.id, name: departments.name, parentId: departments.parentId })
+      .from(departments)
+      .where(and(
+        eq(departments.status, 'enabled'),
+        me.tenantId ? eq(departments.tenantId, me.tenantId) : undefined,
+      ))
+      .orderBy(asc(departments.sort), asc(departments.id)),
+    db
+      .select({
+        id: users.id, nickname: users.nickname, username: users.username,
+        avatar: users.avatar, departmentId: users.departmentId,
+      })
+      .from(users)
+      .where(and(
+        ne(users.id, me.userId),
+        eq(users.status, 'enabled'),
+        me.tenantId ? eq(users.tenantId, me.tenantId) : undefined,
+      ))
+      .orderBy(asc(users.id)),
+  ]);
+
+  return { departments: deptRows, users: userRows };
+}
+
 // ─── 移除群成员 ──────────────────────────────────────────────────────────────
 
 export async function removeGroupMember(conversationId: number, targetUserId: number): Promise<void> {
@@ -1542,18 +1617,18 @@ export async function removeGroupMember(conversationId: number, targetUserId: nu
   if (!conv) throw new HTTPException(404, { message: '会话不存在' });
   if (conv.type !== 'group') throw new HTTPException(400, { message: '只有群聊才能移除成员' });
 
-  // 操作者必须是 owner
+  // 操作者必须是群主或管理员
   const operatorMember = await db.query.chatConversationMembers.findFirst({
     where: and(
       eq(chatConversationMembers.conversationId, conversationId),
       eq(chatConversationMembers.userId, me.userId),
     ),
   });
-  if (operatorMember?.role !== 'owner') {
-    throw new HTTPException(403, { message: '只有群主才能移除成员' });
+  if (operatorMember?.role !== 'owner' && operatorMember?.role !== 'admin') {
+    throw new HTTPException(403, { message: '只有群主或管理员才能移除成员' });
   }
   if (targetUserId === me.userId) {
-    throw new HTTPException(400, { message: '群主不能移除自己，请先转让群主' });
+    throw new HTTPException(400, { message: '不能移除自己，请使用退出群聊' });
   }
 
   // 先确认目标用户在群中
@@ -1565,6 +1640,12 @@ export async function removeGroupMember(conversationId: number, targetUserId: nu
   });
   if (!targetMemberExists) {
     throw new HTTPException(404, { message: '该用户不在群聊中' });
+  }
+  if (targetMemberExists.role === 'owner') {
+    throw new HTTPException(400, { message: '不能移除群主' });
+  }
+  if (operatorMember.role === 'admin' && targetMemberExists.role === 'admin') {
+    throw new HTTPException(403, { message: '管理员不能移除其他管理员' });
   }
 
   const targetUser = await db.query.users.findFirst({
@@ -1607,15 +1688,15 @@ export async function updateGroupInfo(
   if (!conv) throw new HTTPException(404, { message: '会话不存在' });
   if (conv.type !== 'group') throw new HTTPException(400, { message: '只有群聊才能修改信息' });
 
-  // owner 才能改
+  // owner / admin 可改
   const member = await db.query.chatConversationMembers.findFirst({
     where: and(
       eq(chatConversationMembers.conversationId, conversationId),
       eq(chatConversationMembers.userId, me.userId),
     ),
   });
-  if (member?.role !== 'owner') {
-    throw new HTTPException(403, { message: '只有群主才能修改群聊信息' });
+  if (member?.role !== 'owner' && member?.role !== 'admin') {
+    throw new HTTPException(403, { message: '只有群主或管理员才能修改群聊信息' });
   }
 
   const normalizedName = updates.name === undefined ? undefined : (updates.name.trim() || null);
@@ -1723,6 +1804,146 @@ export async function transferGroupOwnership(conversationId: number, newOwnerId:
     conversationId,
     `${myNickname ?? '原群主'} 将群主转让给 ${newOwner?.nickname ?? '新群主'}`,
   );
+}
+
+// ─── 群管理员 / 禁言管理 ──────────────────────────────────────────────────────
+
+/** 永久禁言的哨兵时间（年份 >= 9000 视为永久） */
+const MUTE_FOREVER = new Date('9999-12-31T00:00:00Z');
+
+async function getGroupConversation(conversationId: number) {
+  const conv = await db.query.chatConversations.findFirst({
+    where: eq(chatConversations.id, conversationId),
+  });
+  if (!conv) throw new HTTPException(404, { message: '会话不存在' });
+  if (conv.type !== 'group') throw new HTTPException(400, { message: '仅群聊支持该操作' });
+  return conv;
+}
+
+async function getConversationMember(conversationId: number, userId: number) {
+  return db.query.chatConversationMembers.findFirst({
+    where: and(
+      eq(chatConversationMembers.conversationId, conversationId),
+      eq(chatConversationMembers.userId, userId),
+    ),
+  });
+}
+
+async function broadcastMemberUpdate(conversationId: number): Promise<void> {
+  const members = await db
+    .select({ userId: chatConversationMembers.userId })
+    .from(chatConversationMembers)
+    .where(eq(chatConversationMembers.conversationId, conversationId));
+  scheduleSendToUsers(members, { type: 'chat:member-update', payload: { conversationId } });
+}
+
+function formatMuteDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes} 分钟`;
+  if (minutes < 1440) return `${Math.round(minutes / 60)} 小时`;
+  return `${Math.round(minutes / 1440)} 天`;
+}
+
+/** 设置/取消群管理员（群主专属） */
+export async function setMemberRole(conversationId: number, targetUserId: number, role: 'admin' | 'member'): Promise<void> {
+  const me = currentUser();
+  await getGroupConversation(conversationId);
+
+  const operator = await getConversationMember(conversationId, me.userId);
+  if (operator?.role !== 'owner') {
+    throw new HTTPException(403, { message: '只有群主才能设置管理员' });
+  }
+  if (targetUserId === me.userId) {
+    throw new HTTPException(400, { message: '不能修改自己的角色' });
+  }
+
+  const target = await getConversationMember(conversationId, targetUserId);
+  if (!target) throw new HTTPException(404, { message: '该用户不在群聊中' });
+  if (target.role === 'owner') throw new HTTPException(400, { message: '不能修改群主角色' });
+  if (target.role === role) return;
+
+  await db.update(chatConversationMembers)
+    .set({ role })
+    .where(and(
+      eq(chatConversationMembers.conversationId, conversationId),
+      eq(chatConversationMembers.userId, targetUserId),
+    ));
+
+  const [myNickname, targetNickname] = await Promise.all([
+    getUserNickname(me.userId),
+    getUserNickname(targetUserId),
+  ]);
+  await appendSystemMessage(conversationId, role === 'admin'
+    ? `${myNickname ?? '群主'} 将 ${targetNickname ?? '成员'} 设为管理员`
+    : `${myNickname ?? '群主'} 取消了 ${targetNickname ?? '成员'} 的管理员身份`);
+  await broadcastMemberUpdate(conversationId);
+}
+
+/** 禁言/解除禁言群成员（群主/管理员；管理员不能禁言管理员） */
+export async function muteMember(conversationId: number, targetUserId: number, mute: boolean, durationMinutes?: number): Promise<void> {
+  const me = currentUser();
+  await getGroupConversation(conversationId);
+
+  const operator = await getConversationMember(conversationId, me.userId);
+  if (operator?.role !== 'owner' && operator?.role !== 'admin') {
+    throw new HTTPException(403, { message: '只有群主或管理员才能禁言成员' });
+  }
+  if (targetUserId === me.userId) {
+    throw new HTTPException(400, { message: '不能禁言自己' });
+  }
+
+  const target = await getConversationMember(conversationId, targetUserId);
+  if (!target) throw new HTTPException(404, { message: '该用户不在群聊中' });
+  if (target.role === 'owner') throw new HTTPException(400, { message: '不能禁言群主' });
+  if (operator.role === 'admin' && target.role === 'admin') {
+    throw new HTTPException(403, { message: '管理员不能禁言其他管理员' });
+  }
+
+  const mutedUntil = mute
+    ? (durationMinutes && durationMinutes > 0 ? new Date(Date.now() + durationMinutes * 60_000) : MUTE_FOREVER)
+    : null;
+  await db.update(chatConversationMembers)
+    .set({ mutedUntil })
+    .where(and(
+      eq(chatConversationMembers.conversationId, conversationId),
+      eq(chatConversationMembers.userId, targetUserId),
+    ));
+
+  const [myNickname, targetNickname] = await Promise.all([
+    getUserNickname(me.userId),
+    getUserNickname(targetUserId),
+  ]);
+  const durationText = durationMinutes && durationMinutes > 0 ? `（${formatMuteDuration(durationMinutes)}）` : '（永久）';
+  await appendSystemMessage(conversationId, mute
+    ? `${targetNickname ?? '成员'} 已被 ${myNickname ?? '管理员'} 禁言${durationText}`
+    : `${targetNickname ?? '成员'} 已被 ${myNickname ?? '管理员'} 解除禁言`);
+  await broadcastMemberUpdate(conversationId);
+}
+
+/** 开启/关闭全员禁言（群主/管理员；群主与管理员不受禁言限制） */
+export async function setMuteAll(conversationId: number, muteAll: boolean): Promise<void> {
+  const me = currentUser();
+  const conv = await getGroupConversation(conversationId);
+
+  const operator = await getConversationMember(conversationId, me.userId);
+  if (operator?.role !== 'owner' && operator?.role !== 'admin') {
+    throw new HTTPException(403, { message: '只有群主或管理员才能设置全员禁言' });
+  }
+  if (conv.muteAll === muteAll) return;
+
+  await db.update(chatConversations)
+    .set({ muteAll })
+    .where(eq(chatConversations.id, conversationId));
+
+  const members = await db
+    .select({ userId: chatConversationMembers.userId })
+    .from(chatConversationMembers)
+    .where(eq(chatConversationMembers.conversationId, conversationId));
+  scheduleSendToUsers(members, { type: 'chat:group-update', payload: { conversationId, muteAll } });
+
+  const myNickname = await getUserNickname(me.userId);
+  await appendSystemMessage(conversationId, muteAll
+    ? `${myNickname ?? '管理员'} 开启了全员禁言`
+    : `${myNickname ?? '管理员'} 解除了全员禁言`);
 }
 
 // ─── 消息表情回应 ─────────────────────────────────────────────────────────────

@@ -4,7 +4,9 @@ import {
   mockChatConversations, mockChatUsers, getMockConvMessages,
   addMockMessage, getNextMsgId, mockChatMessages, mockGroupMembers,
 } from '@/mocks/data/chat';
-import { mockDateTime } from '@/mocks/utils/date';
+import { mockDepartments } from '@/mocks/data/departments';
+import { mockUsers } from '@/mocks/data/users';
+import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 
 // 当前 demo 用户 ID（对应 admin = 1）
 const CURRENT_USER_ID = 1;
@@ -75,6 +77,25 @@ export const chatHandlers = [
         )
       : mockChatUsers;
     return HttpResponse.json({ code: 0, message: 'ok', data: filtered });
+  }),
+
+  // 组织架构选人数据（部门 + 用户）
+  http.get('/api/chat/org-users', () => {
+    return HttpResponse.json({
+      code: 0,
+      message: 'ok',
+      data: {
+        departments: mockDepartments
+          .filter((d) => d.status === 'enabled')
+          .map((d) => ({ id: d.id, name: d.name, parentId: d.parentId })),
+        users: mockUsers
+          .filter((u) => u.id !== CURRENT_USER_ID && u.status === 'enabled')
+          .map((u) => ({
+            id: u.id, nickname: u.nickname, username: u.username,
+            avatar: u.avatar ?? null, departmentId: u.departmentId ?? null,
+          })),
+      },
+    });
   }),
 
   // 会话列表
@@ -338,7 +359,7 @@ export const chatHandlers = [
 
   // 创建群聊
   http.post('/api/chat/conversations/group', async ({ request }) => {
-    const body = await request.json() as { name: string };
+    const body = await request.json() as { name: string; memberIds?: number[] };
     if (!body.name?.trim()) {
       return HttpResponse.json({ code: 400, message: '群聊名称不能为空', data: null }, { status: 400 });
     }
@@ -354,14 +375,25 @@ export const chatHandlers = [
       isPinned: false,
       isStarred: false,
       isMuted: false,
+      muteAll: false,
+      myRole: 'owner' as const,
+      myMutedUntil: null,
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
     };
     mockChatConversations.unshift(newConv);
+    const initialMembers = (body.memberIds ?? [])
+      .map((id) => mockUsers.find((u) => u.id === id))
+      .filter((u): u is NonNullable<typeof u> => !!u && u.id !== CURRENT_USER_ID)
+      .map((u) => ({ id: u.id, nickname: u.nickname, username: u.username, avatar: null, role: 'member' as const, mutedUntil: null }));
     mockGroupMembers[newConv.id] = [
-      { id: 1, nickname: '管理员', username: 'admin', avatar: null, role: 'owner' },
+      { id: 1, nickname: '管理员', username: 'admin', avatar: null, role: 'owner', mutedUntil: null },
+      ...initialMembers,
     ];
     addSystemMessage(newConv.id, `${CURRENT_USER_NICKNAME} 创建了群聊`);
+    if (initialMembers.length > 0) {
+      addSystemMessage(newConv.id, `${CURRENT_USER_NICKNAME} 邀请 ${initialMembers.map((m) => m.nickname).join('、')} 加入了群聊`);
+    }
     return HttpResponse.json({ code: 0, message: 'ok', data: newConv });
   }),
 
@@ -369,9 +401,9 @@ export const chatHandlers = [
   http.get('/api/chat/conversations/:id/members', ({ params }) => {
     const convId = Number(params.id);
     const members = [...(mockGroupMembers[convId] ?? [])].sort((a, b) => {
-      const rank = (m: { role: 'owner' | 'member'; username: string; nickname: string }) => {
+      const rank = (m: { role: 'owner' | 'admin' | 'member' }) => {
         if (m.role === 'owner') return 0;
-        if (m.username === 'admin' || m.nickname.includes('管理员')) return 1;
+        if (m.role === 'admin') return 1;
         return 2;
       };
       const r = rank(a) - rank(b);
@@ -379,6 +411,54 @@ export const chatHandlers = [
       return a.id - b.id;
     });
     return HttpResponse.json({ code: 0, message: 'ok', data: members });
+  }),
+
+  // 设置/取消群管理员
+  http.patch('/api/chat/conversations/:id/members/:userId/role', async ({ params, request }) => {
+    const convId = Number(params.id);
+    const targetId = Number(params.userId);
+    const body = await request.json() as { role: 'admin' | 'member' };
+    const target = mockGroupMembers[convId]?.find((m) => m.id === targetId);
+    if (!target) return HttpResponse.json({ code: 404, message: '该用户不在群聊中', data: null }, { status: 404 });
+    if (target.role === 'owner') return HttpResponse.json({ code: 400, message: '不能修改群主角色', data: null }, { status: 400 });
+    target.role = body.role;
+    addSystemMessage(convId, body.role === 'admin'
+      ? `${CURRENT_USER_NICKNAME} 将 ${target.nickname} 设为管理员`
+      : `${CURRENT_USER_NICKNAME} 取消了 ${target.nickname} 的管理员身份`);
+    return HttpResponse.json({ code: 0, message: 'ok', data: null });
+  }),
+
+  // 禁言/解除禁言群成员
+  http.patch('/api/chat/conversations/:id/members/:userId/mute', async ({ params, request }) => {
+    const convId = Number(params.id);
+    const targetId = Number(params.userId);
+    const body = await request.json() as { mute: boolean; durationMinutes?: number };
+    const target = mockGroupMembers[convId]?.find((m) => m.id === targetId);
+    if (!target) return HttpResponse.json({ code: 404, message: '该用户不在群聊中', data: null }, { status: 404 });
+    if (target.role === 'owner') return HttpResponse.json({ code: 400, message: '不能禁言群主', data: null }, { status: 400 });
+    if (body.mute) {
+      target.mutedUntil = body.durationMinutes
+        ? mockDateTimeOffset(body.durationMinutes * 60 * 1000)
+        : '9999-12-31 00:00:00';
+      addSystemMessage(convId, `${target.nickname} 已被 ${CURRENT_USER_NICKNAME} 禁言${body.durationMinutes ? '' : '（永久）'}`);
+    } else {
+      target.mutedUntil = null;
+      addSystemMessage(convId, `${target.nickname} 已被 ${CURRENT_USER_NICKNAME} 解除禁言`);
+    }
+    return HttpResponse.json({ code: 0, message: 'ok', data: null });
+  }),
+
+  // 全员禁言开关
+  http.patch('/api/chat/conversations/:id/mute-all', async ({ params, request }) => {
+    const convId = Number(params.id);
+    const body = await request.json() as { muteAll: boolean };
+    const conv = mockChatConversations.find((c) => c.id === convId);
+    if (!conv) return HttpResponse.json({ code: 404, message: '会话不存在', data: null }, { status: 404 });
+    conv.muteAll = body.muteAll;
+    addSystemMessage(convId, body.muteAll
+      ? `${CURRENT_USER_NICKNAME} 开启了全员禁言`
+      : `${CURRENT_USER_NICKNAME} 解除了全员禁言`);
+    return HttpResponse.json({ code: 0, message: 'ok', data: null });
   }),
 
   // 置顶 / 取消置顶
@@ -426,7 +506,7 @@ export const chatHandlers = [
     if (!mockGroupMembers[convId]) mockGroupMembers[convId] = [];
     const already = mockGroupMembers[convId].some((m) => m.id === body.userId);
     if (already) return HttpResponse.json({ code: 400, message: '已是群成员', data: null }, { status: 400 });
-    mockGroupMembers[convId].push({ ...user, avatar: null, role: 'member' });
+    mockGroupMembers[convId].push({ ...user, avatar: null, role: 'member', mutedUntil: null });
     addSystemMessage(convId, `${user.nickname} 加入了群聊`);
     return HttpResponse.json({ code: 0, message: 'ok', data: null });
   }),

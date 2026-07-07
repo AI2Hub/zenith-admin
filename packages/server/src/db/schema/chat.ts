@@ -4,13 +4,15 @@ import { auditColumns, tenants, users } from './core';
 // ─── 聊天会话表 ───────────────────────────────────────────────────────────────
 export const chatConversationTypeEnum = pgEnum('chat_conversation_type', ['direct', 'group']);
 
-export const chatMemberRoleEnum = pgEnum('chat_member_role', ['owner', 'member']);
+export const chatMemberRoleEnum = pgEnum('chat_member_role', ['owner', 'admin', 'member']);
 
 export const chatConversations = pgTable('chat_conversations', {
   id: serial('id').primaryKey(),
   type: chatConversationTypeEnum('type').notNull().default('direct'),
   name: varchar('name', { length: 64 }),
   announcement: varchar('announcement', { length: 500 }),
+  /** 全员禁言开关（群主/管理员不受限） */
+  muteAll: boolean('mute_all').notNull().default(false),
   ...auditColumns(),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -29,6 +31,8 @@ export const chatConversationMembers = pgTable('chat_conversation_members', {
   isPinned: boolean('is_pinned').notNull().default(false),
   isStarred: boolean('is_starred').notNull().default(false),
   isMuted: boolean('is_muted').notNull().default(false),
+  /** 被禁言至（null = 未禁言；9999 年 = 永久禁言） */
+  mutedUntil: timestamp('muted_until', { withTimezone: true }),
   lastReadAt: timestamp('last_read_at', { withTimezone: true }),
   joinedAt: timestamp('joined_at').defaultNow().notNull(),
 }, (t) => [

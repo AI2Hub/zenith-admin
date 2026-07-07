@@ -5,6 +5,7 @@ import type {
   ChannelMessage,
   ChatConversation,
   ChatGroupMember,
+  ChatOrgData,
 } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
@@ -33,6 +34,7 @@ export const chatKeys = {
   discoverableChannels: (params: DiscoverableChannelParams) => ['chat', 'list', 'discoverable-channels', params] as const,
   users: (params: ChatUserSearchParams) => ['chat', 'list', 'users', params] as const,
   groupMembers: (conversationId: number | undefined) => ['chat', 'conversations', conversationId, 'members'] as const,
+  orgData: ['chat', 'org-data'] as const,
   channelMessages: (params: ChannelMessageParams) => ['chat', 'list', 'channel-messages', params] as const,
   channelMenus: (channelId: number | undefined) => ['chat', 'channels', channelId, 'menus'] as const,
 };
@@ -63,6 +65,15 @@ export function useChatGroupMembers(conversationId: number | undefined, enabled 
   });
 }
 
+export function useChatOrgData(enabled = true) {
+  return useQuery({
+    queryKey: chatKeys.orgData,
+    queryFn: () => request.get<ChatOrgData>('/api/chat/org-users', { silent: true }).then(unwrap),
+    enabled,
+    staleTime: LOOKUP_STALE_TIME,
+  });
+}
+
 export function useAddChatGroupMember() {
   const qc = useQueryClient();
   return useMutation({
@@ -90,6 +101,33 @@ export function useTransferChatGroupOwner() {
   });
 }
 
+export function useSetChatMemberRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ conversationId, userId, role }: { conversationId: number; userId: number; role: 'admin' | 'member' }) =>
+      request.patch<null>(`/api/chat/conversations/${conversationId}/members/${userId}/role`, { role }).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.all }),
+  });
+}
+
+export function useMuteChatMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ conversationId, userId, mute, durationMinutes }: { conversationId: number; userId: number; mute: boolean; durationMinutes?: number }) =>
+      request.patch<null>(`/api/chat/conversations/${conversationId}/members/${userId}/mute`, { mute, ...(durationMinutes ? { durationMinutes } : {}) }).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.all }),
+  });
+}
+
+export function useSetChatMuteAll() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ conversationId, muteAll }: { conversationId: number; muteAll: boolean }) =>
+      request.patch<null>(`/api/chat/conversations/${conversationId}/mute-all`, { muteAll }).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.all }),
+  });
+}
+
 export function useUpdateChatGroupInfo() {
   const qc = useQueryClient();
   return useMutation({
@@ -102,8 +140,8 @@ export function useUpdateChatGroupInfo() {
 export function useCreateChatGroup() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) =>
-      request.post<ChatConversation>('/api/chat/conversations/group', { name }).then(unwrap),
+    mutationFn: ({ name, memberIds }: { name: string; memberIds?: number[] }) =>
+      request.post<ChatConversation>('/api/chat/conversations/group', { name, ...(memberIds?.length ? { memberIds } : {}) }).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: chatKeys.all }),
   });
 }
