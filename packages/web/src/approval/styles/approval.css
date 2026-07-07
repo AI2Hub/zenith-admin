@@ -255,6 +255,36 @@
   white-space: nowrap;
 }
 
+/* 中间凸起「发起」按钮（主流 App 中央 + 样式） */
+.ap-tabbar__item--launch {
+  gap: 3px;
+  padding-top: 0;
+  overflow: visible;
+}
+
+.ap-tabbar__item--launch:active {
+  background: none;
+}
+
+.ap-tabbar__launch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-top: -14px;
+  border-radius: 50%;
+  background: var(--semi-color-primary);
+  color: var(--semi-color-white);
+  box-shadow: 0 4px 10px rgb(0 100 250 / 30%), 0 0 0 4px var(--semi-color-bg-1);
+  transition: transform 0.15s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.ap-tabbar__item--launch:active .ap-tabbar__launch {
+  transform: scale(0.92);
+  background: var(--semi-color-primary-active);
+}
+
 .ap-search {
   flex-shrink: 0;
   display: flex;

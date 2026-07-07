@@ -39,7 +39,7 @@ const EMPTY_TEXT: Record<ApprovalTab, string> = {
   cc: '暂无抄送',
 };
 
-/** 底部标签栏（主流 App TabBar）：图标 + 文字 + 角标 */
+/** 底部标签栏（主流 App TabBar）：图标 + 文字 + 角标，中间为凸起「发起」按钮 */
 const TAB_ITEMS: { key: ApprovalTab; label: string; icon: LucideIcon }[] = [
   { key: 'pending', label: '待办', icon: ClipboardCheck },
   { key: 'handled', label: '已办', icon: CircleCheckBig },
@@ -274,9 +274,6 @@ export default function TaskListPage() {
           onClick={() => void refetch()}
           aria-label="刷新"
         />
-        <Button theme="solid" type="primary" size="small" icon={<Plus size={14} />} onClick={() => navigate('/launch')}>
-          发起
-        </Button>
         <Button theme="borderless" icon={<LogOut size={16} />} onClick={logout} aria-label="退出" />
       </div>
       <div className="ap-search">
@@ -348,10 +345,10 @@ export default function TaskListPage() {
         </div>
       ) : (
         <nav className="ap-tabbar" role="tablist" aria-label="审批分类">
-          {TAB_ITEMS.map(({ key, label, icon: Icon }) => {
+          {TAB_ITEMS.map(({ key, label, icon: Icon }, index) => {
             const count = tabCounts[key] ?? 0;
             const active = tab === key;
-            return (
+            const tabButton = (
               <button
                 key={key}
                 type="button"
@@ -367,6 +364,20 @@ export default function TaskListPage() {
                 <span className="ap-tabbar__label">{label}</span>
               </button>
             );
+            if (index !== 2) return tabButton;
+            return [
+              <button
+                key="launch"
+                type="button"
+                className="ap-tabbar__item ap-tabbar__item--launch"
+                onClick={() => navigate('/launch')}
+                aria-label="发起申请"
+              >
+                <span className="ap-tabbar__launch"><Plus size={24} strokeWidth={2.4} /></span>
+                <span className="ap-tabbar__label">发起</span>
+              </button>,
+              tabButton,
+            ];
           })}
         </nav>
       )}
