@@ -49,6 +49,12 @@ export const CronJobStatsPerJobDTO = z.object({
   failCount: z.number().int(),
   successRate: z.number(),
   avgDurationMs: z.number().int().nullable(),
+  /** P95 耗时（长尾性能） */
+  p95DurationMs: z.number().int().nullable(),
+  /** 近 10 次执行状态（旧 → 新） */
+  recentResults: z.array(z.enum(['success', 'fail', 'running'])),
+  /** 当前连续失败次数 */
+  consecutiveFails: z.number().int(),
   lastRunStatus: z.enum(['success', 'fail', 'running']).nullable(),
   lastRunAt: z.string().nullable(),
 }).openapi('CronJobStatsPerJob');
@@ -58,7 +64,15 @@ export const CronJobDailyStatDTO = z.object({
   total: z.number().int(),
   successCount: z.number().int(),
   failCount: z.number().int(),
+  /** 当日已完成执行的平均耗时 */
+  avgDurationMs: z.number().int().nullable(),
 }).openapi('CronJobDailyStat');
+
+export const CronJobHourlyStatDTO = z.object({
+  hour: z.number().int().min(0).max(23),
+  total: z.number().int(),
+  failCount: z.number().int(),
+}).openapi('CronJobHourlyStat');
 
 export const CronJobRecentLogDTO = z.object({
   id: z.number().int(),
@@ -81,5 +95,7 @@ export const CronJobStatsDTO = z.object({
   todayAvgDurationMs: z.number().int().nullable(),
   perJob: z.array(CronJobStatsPerJobDTO),
   dailyStats: z.array(CronJobDailyStatDTO),
+  /** 近 7 天按小时执行分布 */
+  hourlyStats: z.array(CronJobHourlyStatDTO),
   recentLogs: z.array(CronJobRecentLogDTO),
 }).openapi('CronJobStats');

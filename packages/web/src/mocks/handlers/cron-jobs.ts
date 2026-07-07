@@ -69,10 +69,28 @@ export const cronJobsHandlers = [
       const totalRuns = 20 + (i * 7 % 80);
       const successCount = Math.floor(totalRuns * (0.7 + (i * 3 % 30) / 100));
       const failCount = totalRuns - successCount;
+      // 近 10 次执行状态（确定性生成；第 2 个任务演示连续失败告警）
+      let recentResults: Array<'success' | 'fail' | 'running'>;
+      if (i === 1) {
+        recentResults = ['success', 'success', 'fail', 'success', 'success', 'success', 'fail', 'fail', 'fail', 'fail'];
+      } else {
+        recentResults = Array.from({ length: Math.min(10, totalRuns) }, (_, j) =>
+          (j * 7 + i * 3) % 9 === 0 ? 'fail' : 'success');
+      }
+      let consecutiveFails = 0;
+      for (let j = recentResults.length - 1; j >= 0; j--) {
+        if (recentResults[j] === 'running') continue;
+        if (recentResults[j] !== 'fail') break;
+        consecutiveFails++;
+      }
+      const avgDurationMs = 800 + (i * 137 % 2600);
       return {
         jobId: job.id, jobName: job.name, totalRuns, successCount, failCount,
         successRate: Math.round((successCount / totalRuns) * 100),
-        avgDurationMs: 800 + (i * 137 % 2600),
+        avgDurationMs,
+        p95DurationMs: Math.round(avgDurationMs * (1.6 + (i % 4) * 0.45)),
+        recentResults,
+        consecutiveFails,
         lastRunStatus: job.lastRunStatus ?? (failCount > successCount ? 'fail' : 'success'),
         lastRunAt: job.lastRunAt ?? mockDateTimeOffset(-(i + 1) * 1800000),
       };
@@ -83,7 +101,21 @@ export const cronJobsHandlers = [
       const offset = idx - 13;
       const total = 12 + ((idx * 5 + 3) % 22);
       const failCount = (idx * 3) % 5;
-      return { date: mockDateOffset(offset), total, successCount: total - failCount, failCount };
+      return {
+        date: mockDateOffset(offset), total, successCount: total - failCount, failCount,
+        avgDurationMs: 900 + ((idx * 173) % 1400),
+      };
+    });
+
+    // 近 7 天按小时执行分布（凌晨批处理高峰 + 工作时段小幅增量）
+    const hourlyStats = Array.from({ length: 24 }, (_, hour) => {
+      let total = 2 + ((hour * 3) % 5);
+      if (hour >= 1 && hour <= 4) total += 14 - hour * 2;
+      if (hour >= 9 && hour <= 18) total += 4;
+      let failCount = 0;
+      if ((hour * 7) % 11 === 0) failCount = 2;
+      else if (hour % 5 === 0) failCount = 1;
+      return { hour, total, failCount };
     });
 
     // 最近 12 条执行记录
@@ -116,6 +148,7 @@ export const cronJobsHandlers = [
         todayAvgDurationMs: 1450,
         perJob,
         dailyStats,
+        hourlyStats,
         recentLogs,
       },
     });

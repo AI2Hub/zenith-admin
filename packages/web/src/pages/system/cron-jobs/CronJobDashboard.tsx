@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
-import { Row, Col, Card, Table, Typography, Tag, Empty, Spin } from '@douyinfe/semi-ui';
+import { Row, Col, Card, Table, Typography, Tag, Empty, Spin, Tooltip } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import {
-  AreaChart,
+  BarChart,
+  CommonChart,
   PieChart,
   chartOptions,
-  makeAreaSpec,
+  makeBarSpec,
+  makeMixedBarLineSpec,
   makePieSpec,
   useChartPalette,
 } from '@/components/charts';
@@ -17,9 +19,9 @@ import { useCronJobStats } from '@/hooks/queries/cron-jobs';
 const SUCCESS_COLOR = '#10b981';
 const FAIL_COLOR = '#ef4444';
 const RUNNING_COLOR = '#3b82f6';
+const DURATION_COLOR = '#8b5cf6';
 const TREND_DAYS = 14;
-const PANEL_TABLE_SCROLL_Y = 392;
-const PANEL_PREVIEW_HEIGHT = 428;
+const PANEL_PREVIEW_HEIGHT = 300;
 
 interface UpcomingItem {
   key: string;
@@ -28,6 +30,12 @@ interface UpcomingItem {
   time: Date;
   timeStr: string;
   dateLabel: string;
+}
+
+interface HealthIssue {
+  key: string;
+  level: 'danger' | 'warning' | 'tertiary';
+  text: string;
 }
 
 interface Props {
@@ -47,6 +55,33 @@ function statusMeta(status: CronRunStatus | null): { label: string; color: 'gree
     case 'running': return { label: '运行中', color: 'blue' };
     default: return { label: '从未执行', color: 'grey' };
   }
+}
+
+const RESULT_META: Record<CronRunStatus, { color: string; label: string }> = {
+  success: { color: SUCCESS_COLOR, label: '成功' },
+  fail: { color: FAIL_COLOR, label: '失败' },
+  running: { color: RUNNING_COLOR, label: '运行中' },
+};
+
+/** GitHub Actions 风格近 N 次执行状态块（旧 → 新） */
+function RecentResultBlocks({ results }: Readonly<{ results: CronRunStatus[] }>) {
+  if (results.length === 0) return <Typography.Text type="tertiary">—</Typography.Text>;
+  return (
+    <div style={{ display: 'inline-flex', gap: 3, alignItems: 'center' }} aria-label={`近 ${results.length} 次执行`}>
+      {results.map((r, i) => (
+        <Tooltip key={`${i}-${r}`} content={`第 ${i - results.length} 次：${RESULT_META[r].label}`} position="top">
+          <span style={{
+            width: 8,
+            height: 16,
+            borderRadius: 2,
+            background: RESULT_META[r].color,
+            opacity: r === 'success' ? 0.75 : 1,
+            display: 'inline-block',
+          }} />
+        </Tooltip>
+      ))}
+    </div>
+  );
 }
 
 function calcUpcoming(jobs: CronJob[], total = 30): UpcomingItem[] {
@@ -74,6 +109,12 @@ function calcUpcoming(jobs: CronJob[], total = 30): UpcomingItem[] {
   return results.toSorted((a, b) => a.time.getTime() - b.time.getTime()).slice(0, total);
 }
 
+const ISSUE_DOT: Record<HealthIssue['level'], string> = {
+  danger: 'var(--semi-color-danger)',
+  warning: 'var(--semi-color-warning)',
+  tertiary: 'var(--semi-color-text-3)',
+};
+
 export default function CronJobDashboard({ jobs }: Readonly<Props>) {
   const palette = useChartPalette();
   const statsQuery = useCronJobStats();
@@ -92,7 +133,30 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
 
   const disabledJobs = stats ? stats.totalJobs - stats.enabledJobs : 0;
   const neverRunCount = stats ? stats.perJob.filter((p) => p.totalRuns === 0).length : 0;
+  const failingJobs = stats ? stats.perJob.filter((p) => p.consecutiveFails >= 2) : [];
   const todayRunning = stats ? Math.max(0, stats.todayRuns - stats.todaySuccesses - stats.todayFails) : 0;
+
+  // 任务健康问题清单（连续失败 / 低成功率 / 从未执行）
+  const healthIssues = useMemo<HealthIssue[]>(() => {
+    if (!stats) return [];
+    const issues: HealthIssue[] = [];
+    for (const p of stats.perJob) {
+      if (p.consecutiveFails >= 2) {
+        issues.push({ key: `cf-${p.jobId}`, level: 'danger', text: `「${p.jobName}」连续失败 ${p.consecutiveFails} 次，最近执行 ${p.lastRunAt ?? '—'}` });
+      } else if (p.totalRuns >= 5 && p.successRate < 70) {
+        issues.push({ key: `sr-${p.jobId}`, level: 'warning', text: `「${p.jobName}」成功率仅 ${p.successRate}%（${p.failCount}/${p.totalRuns} 次失败）` });
+      }
+    }
+    const neverRun = stats.perJob.filter((p) => p.totalRuns === 0);
+    if (neverRun.length > 0) {
+      issues.push({
+        key: 'never-run',
+        level: 'tertiary',
+        text: `${neverRun.length} 个任务从未执行：${neverRun.map((p) => p.jobName).join('、')}`,
+      });
+    }
+    return issues;
+  }, [stats]);
 
   const statItems = [
     { label: '任务总数', value: stats?.totalJobs ?? '—', sub: stats ? `启用 ${stats.enabledJobs} · 禁用 ${disabledJobs}` : null, color: undefined as string | undefined },
@@ -100,7 +164,7 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
     { label: '今日执行', value: stats?.todayRuns ?? '—', sub: stats ? `运行中 ${todayRunning}` : null, color: undefined },
     { label: '今日成功率', value: todaySuccessRate === null ? '—' : `${todaySuccessRate}%`, sub: stats ? `成功 ${stats.todaySuccesses} · 失败 ${stats.todayFails}` : null, color: rateColor },
     { label: '今日平均耗时', value: stats ? formatDuration(stats.todayAvgDurationMs) : '—', sub: '已完成执行', color: undefined },
-    { label: '从未执行', value: stats ? neverRunCount : '—', sub: stats ? `共 ${stats.totalJobs} 个任务` : null, color: neverRunCount > 0 ? 'var(--semi-color-warning)' : undefined },
+    { label: '连续失败', value: stats ? failingJobs.length : '—', sub: stats ? `从未执行 ${neverRunCount} 个` : null, color: failingJobs.length > 0 ? 'var(--semi-color-danger)' : undefined },
   ];
 
   const filledDaily = useMemo(() => {
@@ -108,22 +172,54 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
     const today = dayjs();
     return Array.from({ length: TREND_DAYS }, (_, i) => {
       const date = today.subtract(TREND_DAYS - 1 - i, 'day').format('YYYY-MM-DD');
-      return map.get(date) ?? { date, total: 0, successCount: 0, failCount: 0 };
+      return map.get(date) ?? { date, total: 0, successCount: 0, failCount: 0, avgDurationMs: null };
     });
   }, [stats]);
 
-  const trendSpec = useMemo(() => makeAreaSpec({
-    data: filledDaily,
+  // 近 14 天：柱 = 执行次数，线 = 平均耗时（右轴）
+  const trendSpec = useMemo(() => makeMixedBarLineSpec({
+    data: filledDaily.map((d) => ({ ...d, avgDurationMs: d.avgDurationMs ?? 0 })),
     xField: 'date',
+    palette,
+    bar: { field: 'total', name: '执行次数', color: palette.dataColors[0] ?? palette.primary },
+    line: { field: 'avgDurationMs', name: '平均耗时', color: DURATION_COLOR },
+    axis: {
+      xLabel: (d) => d.slice(5),
+      rightLabel: (v) => formatDuration(v),
+    },
+    tooltip: {
+      title: (x) => `日期：${x}`,
+      barValue: (v, datum) => `${v} 次（成功 ${datum?.successCount ?? 0} · 失败 ${datum?.failCount ?? 0}）`,
+      lineValue: (v) => formatDuration(v),
+    },
+  }), [filledDaily, palette]);
+
+  // 近 7 天 24 小时执行分布（成功/失败堆叠）
+  const hourlyData = useMemo(() => {
+    const map = new Map((stats?.hourlyStats ?? []).map((h) => [h.hour, h]));
+    return Array.from({ length: 24 }, (_, hour) => {
+      const h = map.get(hour);
+      return {
+        hourLabel: `${hour}`,
+        successCount: (h?.total ?? 0) - (h?.failCount ?? 0),
+        failCount: h?.failCount ?? 0,
+      };
+    });
+  }, [stats]);
+
+  const hourlySpec = useMemo(() => makeBarSpec({
+    data: hourlyData,
+    xField: 'hourLabel',
     series: [
       { field: 'successCount', name: '成功', color: SUCCESS_COLOR },
       { field: 'failCount', name: '失败', color: FAIL_COLOR },
     ],
     palette,
-    fillOpacity: 0.25,
-    axis: { xLabel: (d) => d.slice(5) },
-    tooltip: { title: (x) => `日期：${x}`, value: (v) => `${v} 次` },
-  }), [filledDaily, palette]);
+    stack: true,
+    barMaxWidth: 14,
+    axis: { xLabel: (v) => `${v}时` },
+    tooltip: { title: (x) => `${x}:00 - ${x}:59`, value: (v) => `${v} 次` },
+  }), [hourlyData, palette]);
 
   const donutData = useMemo(() => {
     if (!stats) return [];
@@ -146,7 +242,19 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
   }), [donutData, palette, stats?.todayRuns]);
 
   const perJobColumns: ColumnProps<CronJobStatsPerJob>[] = [
-    { title: '任务名称', dataIndex: 'jobName', ellipsis: { showTitle: true } },
+    {
+      title: '任务名称', dataIndex: 'jobName', ellipsis: { showTitle: true },
+      render: (v: string, record: CronJobStatsPerJob) => (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%' }}>
+          <Typography.Text ellipsis={{ showTooltip: true }}>{v}</Typography.Text>
+          {record.consecutiveFails >= 2 && <Tag color="red" size="small">连败 {record.consecutiveFails}</Tag>}
+        </span>
+      ),
+    },
+    {
+      title: '近 10 次', dataIndex: 'recentResults', width: 130,
+      render: (v: CronRunStatus[]) => <RecentResultBlocks results={v ?? []} />,
+    },
     {
       title: '最近状态', dataIndex: 'lastRunStatus', width: 96,
       render: (v: CronRunStatus | null, record: CronJobStatsPerJob) => {
@@ -154,18 +262,23 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
         return <span title={record.lastRunAt ?? undefined}><Tag color={meta.color} size="small" type="light">{meta.label}</Tag></span>;
       },
     },
-    { title: '总执行', dataIndex: 'totalRuns', width: 90, align: 'right' },
+    { title: '总执行', dataIndex: 'totalRuns', width: 84, align: 'right' },
     {
-      title: '成功', dataIndex: 'successCount', width: 90, align: 'right',
-      render: (v: number) => <span style={{ color: 'var(--semi-color-success)' }}>{v}</span>,
-    },
-    {
-      title: '失败', dataIndex: 'failCount', width: 90, align: 'right',
+      title: '失败', dataIndex: 'failCount', width: 76, align: 'right',
       render: (v: number) => (v > 0 ? <span style={{ color: 'var(--semi-color-danger)' }}>{v}</span> : <span>{v}</span>),
     },
     {
-      title: '平均耗时', dataIndex: 'avgDurationMs', width: 96, align: 'right',
+      title: '平均耗时', dataIndex: 'avgDurationMs', width: 92, align: 'right',
       render: (v: number | null) => formatDuration(v),
+    },
+    {
+      title: 'P95 耗时', dataIndex: 'p95DurationMs', width: 92, align: 'right',
+      render: (v: number | null, record: CronJobStatsPerJob) => {
+        const text = formatDuration(v);
+        // P95 显著高于平均（>2.5x）提示长尾恶化
+        const slowTail = v != null && record.avgDurationMs != null && record.avgDurationMs > 0 && v > record.avgDurationMs * 2.5;
+        return <span style={slowTail ? { color: 'var(--semi-color-warning)' } : undefined} title={slowTail ? 'P95 显著高于平均耗时，存在长尾执行' : undefined}>{text}</span>;
+      },
     },
     {
       title: '成功率', dataIndex: 'successRate', width: 84, align: 'right',
@@ -194,7 +307,7 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
       render: (v: number | null, record: CronJobRecentLog) => (record.status === 'running' ? '运行中' : formatDuration(v)),
     },
     {
-      title: '执行次数', dataIndex: 'executionCount', width: 104, align: 'right',
+      title: '执行次数', dataIndex: 'executionCount', width: 130, align: 'right',
       render: (v: number) => `第 ${v} 次`,
     },
     {
@@ -230,10 +343,21 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
         ))}
       </div>
 
+      {healthIssues.length > 0 && (
+        <Card title="任务健康提醒" style={{ marginBottom: 16 }} bodyStyle={{ padding: '8px 16px 12px' }}>
+          {healthIssues.map((issue) => (
+            <div key={issue.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0' }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: ISSUE_DOT[issue.level], flexShrink: 0 }} />
+              <Typography.Text type={issue.level === 'tertiary' ? 'tertiary' : undefined}>{issue.text}</Typography.Text>
+            </div>
+          ))}
+        </Card>
+      )}
+
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={14}>
-          <Card title={`近 ${TREND_DAYS} 天执行趋势`}>
-            <AreaChart {...trendSpec} options={chartOptions} height={260} />
+          <Card title={`近 ${TREND_DAYS} 天执行次数与平均耗时`}>
+            <CommonChart {...trendSpec} options={chartOptions} height={260} />
           </Card>
         </Col>
         <Col span={10}>
@@ -251,17 +375,8 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={14}>
-          <Card title="任务执行统计">
-            <Table
-              size="small"
-              rowKey="jobId"
-              dataSource={stats?.perJob ?? []}
-              columns={perJobColumns}
-              pagination={false}
-              scroll={{ y: PANEL_TABLE_SCROLL_Y }}
-              empty={<Empty description="暂无任务" />}
-              loading={loading}
-            />
+          <Card title="近 7 天 24 小时执行分布">
+            <BarChart {...hourlySpec} options={chartOptions} height={PANEL_PREVIEW_HEIGHT} />
           </Card>
         </Col>
         <Col span={10}>
@@ -309,6 +424,18 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
           </Card>
         </Col>
       </Row>
+
+      <Card title="任务执行统计" style={{ marginBottom: 16 }}>
+        <Table
+          size="small"
+          rowKey="jobId"
+          dataSource={stats?.perJob ?? []}
+          columns={perJobColumns}
+          pagination={false}
+          empty={<Empty description="暂无任务" />}
+          loading={loading}
+        />
+      </Card>
 
       <Card title="最近执行记录">
         <Table

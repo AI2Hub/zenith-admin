@@ -1358,6 +1358,12 @@ export interface CronJobStatsPerJob {
   failCount: number;
   successRate: number;
   avgDurationMs: number | null;
+  /** P95 耗时（长尾性能），无已完成执行时为 null */
+  p95DurationMs: number | null;
+  /** 近 10 次执行状态（旧 → 新） */
+  recentResults: CronRunStatus[];
+  /** 当前连续失败次数（最近一次成功后归零） */
+  consecutiveFails: number;
   lastRunStatus: CronRunStatus | null;
   lastRunAt: string | null;
 }
@@ -1366,6 +1372,15 @@ export interface CronJobDailyStat {
   date: string;
   total: number;
   successCount: number;
+  failCount: number;
+  /** 当日已完成执行的平均耗时 */
+  avgDurationMs: number | null;
+}
+
+export interface CronJobHourlyStat {
+  /** 0-23 */
+  hour: number;
+  total: number;
   failCount: number;
 }
 
@@ -1390,6 +1405,8 @@ export interface CronJobStats {
   todayAvgDurationMs: number | null;
   perJob: CronJobStatsPerJob[];
   dailyStats: CronJobDailyStat[];
+  /** 近 7 天按小时执行分布（识别调度高峰） */
+  hourlyStats: CronJobHourlyStat[];
   recentLogs: CronJobRecentLog[];
 }
 

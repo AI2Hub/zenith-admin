@@ -139,7 +139,7 @@ export async function clearCronJobLogs(months: number, jobId?: number) {
 }
 
 export async function getCronJobStats() {
-  const [allJobs, [summaryRow], perJobAggRows, dailyRows, recentRows] = await Promise.all([
+  const [allJobs, [summaryRow], perJobAggRows, dailyRows, hourlyRows, recentPerJobRows, recentRows] = await Promise.all([
     db.select({
       id: cronJobs.id,
       name: cronJobs.name,
@@ -159,16 +159,34 @@ export async function getCronJobStats() {
       successCount: sql<number>`CAST(COUNT(*) FILTER (WHERE ${cronJobLogs.status} = 'success') AS int)`,
       failCount: sql<number>`CAST(COUNT(*) FILTER (WHERE ${cronJobLogs.status} = 'fail') AS int)`,
       avgDurationMs: sql<number | null>`CAST(ROUND(AVG(${cronJobLogs.durationMs})) AS int)`,
+      p95DurationMs: sql<number | null>`CAST(ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ${cronJobLogs.durationMs}) FILTER (WHERE ${cronJobLogs.durationMs} IS NOT NULL)) AS int)`,
     }).from(cronJobLogs).groupBy(cronJobLogs.jobId),
     db.select({
       date: sql<string>`to_char(date(${cronJobLogs.startedAt}), 'YYYY-MM-DD')`,
       total: sql<number>`CAST(COUNT(*) AS int)`,
       successCount: sql<number>`CAST(COUNT(*) FILTER (WHERE ${cronJobLogs.status} = 'success') AS int)`,
       failCount: sql<number>`CAST(COUNT(*) FILTER (WHERE ${cronJobLogs.status} = 'fail') AS int)`,
+      avgDurationMs: sql<number | null>`CAST(ROUND(AVG(${cronJobLogs.durationMs})) AS int)`,
     }).from(cronJobLogs)
       .where(sql`${cronJobLogs.startedAt} >= CURRENT_DATE - INTERVAL '13 days'`)
       .groupBy(sql`date(${cronJobLogs.startedAt})`)
       .orderBy(sql`date(${cronJobLogs.startedAt})`),
+    db.select({
+      hour: sql<number>`CAST(EXTRACT(HOUR FROM ${cronJobLogs.startedAt}) AS int)`,
+      total: sql<number>`CAST(COUNT(*) AS int)`,
+      failCount: sql<number>`CAST(COUNT(*) FILTER (WHERE ${cronJobLogs.status} = 'fail') AS int)`,
+    }).from(cronJobLogs)
+      .where(sql`${cronJobLogs.startedAt} >= CURRENT_DATE - INTERVAL '6 days'`)
+      .groupBy(sql`EXTRACT(HOUR FROM ${cronJobLogs.startedAt})`)
+      .orderBy(sql`EXTRACT(HOUR FROM ${cronJobLogs.startedAt})`),
+    // 每任务最近 10 次执行状态（窗口函数），返回时按时间升序（旧 → 新）
+    db.execute<{ job_id: number; status: 'success' | 'fail' | 'running' }>(sql`
+      SELECT job_id, status FROM (
+        SELECT ${cronJobLogs.jobId} AS job_id, ${cronJobLogs.status} AS status, ${cronJobLogs.startedAt} AS started_at,
+               ROW_NUMBER() OVER (PARTITION BY ${cronJobLogs.jobId} ORDER BY ${cronJobLogs.startedAt} DESC) AS rn
+        FROM ${cronJobLogs}
+      ) t WHERE rn <= 10 ORDER BY job_id, started_at ASC
+    `),
     db.select({
       id: cronJobLogs.id,
       jobId: cronJobLogs.jobId,
@@ -182,11 +200,26 @@ export async function getCronJobStats() {
   ]);
 
   const aggMap = new Map(perJobAggRows.map(r => [r.jobId, r]));
+  const recentMap = new Map<number, Array<'success' | 'fail' | 'running'>>();
+  for (const row of recentPerJobRows) {
+    const list = recentMap.get(row.job_id) ?? [];
+    list.push(row.status);
+    recentMap.set(row.job_id, list);
+  }
+
   const perJob = allJobs
     .map(job => {
       const agg = aggMap.get(job.id);
       const total = Number(agg?.totalRuns ?? 0);
       const success = Number(agg?.successCount ?? 0);
+      const recentResults = recentMap.get(job.id) ?? [];
+      // 连续失败：从最新往回数 fail（running 跳过不中断）
+      let consecutiveFails = 0;
+      for (let i = recentResults.length - 1; i >= 0; i--) {
+        if (recentResults[i] === 'running') continue;
+        if (recentResults[i] !== 'fail') break;
+        consecutiveFails++;
+      }
       return {
         jobId: job.id,
         jobName: job.name,
@@ -195,6 +228,9 @@ export async function getCronJobStats() {
         failCount: Number(agg?.failCount ?? 0),
         successRate: total > 0 ? Math.round((success / total) * 100) : 0,
         avgDurationMs: agg?.avgDurationMs == null ? null : Number(agg.avgDurationMs),
+        p95DurationMs: agg?.p95DurationMs == null ? null : Number(agg.p95DurationMs),
+        recentResults,
+        consecutiveFails,
         lastRunStatus: job.lastRunStatus,
         lastRunAt: formatNullableDateTime(job.lastRunAt),
       };
@@ -214,6 +250,12 @@ export async function getCronJobStats() {
       date: r.date,
       total: Number(r.total),
       successCount: Number(r.successCount),
+      failCount: Number(r.failCount),
+      avgDurationMs: r.avgDurationMs == null ? null : Number(r.avgDurationMs),
+    })),
+    hourlyStats: hourlyRows.map(r => ({
+      hour: Number(r.hour),
+      total: Number(r.total),
       failCount: Number(r.failCount),
     })),
     recentLogs: recentRows.map(r => ({
