@@ -65,8 +65,9 @@ export function ThemeProvider({ children }: Readonly<{ children: ReactNode }>) {
 
   const setThemeMode = useCallback((nextMode: ThemeMode) => {
     const nextIsDark = nextMode === 'dark' || (nextMode === 'system' && prefersDark);
-    if (nextIsDark === isDark) {
-      // 明暗不变（如 dark → system 且系统为深色）无需过渡动画
+    const reduceMotion = serverSyncedPreferences?.reduceMotion ?? false;
+    if (nextIsDark === isDark || reduceMotion) {
+      // 明暗不变（如 dark → system 且系统为深色）或用户偏好减弱动效时不做过渡动画
       setThemeModeInternal(nextMode);
     } else {
       // View Transition 圆形扩散：DOM 变更与 React 状态更新须同步发生在快照回调内
@@ -81,7 +82,7 @@ export function ThemeProvider({ children }: Readonly<{ children: ReactNode }>) {
       return;
     }
     persistThemePrefs({ colorMode: nextMode });
-  }, [setThemeModeInternal, syncPreferences, prefersDark, isDark, themeColor]);
+  }, [setThemeModeInternal, syncPreferences, prefersDark, isDark, themeColor, serverSyncedPreferences?.reduceMotion]);
 
   const updateThemeColor = useCallback((nextColor: string) => {
     setLocalThemeColor(nextColor);

@@ -274,6 +274,8 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
     applyBorderRadius(preferences.borderRadius ?? 'medium');
   }, [preferences.borderRadius]);
 
+  const reduceMotion = preferences.reduceMotion ?? false;
+
   // ─── 水印配置 ──────────────────────────────────────────────────────────────
   const [watermarkConfig, setWatermarkConfig] = useState({ enabled: false, content: '', fontSize: 14, opacity: 0.15 });
 
@@ -395,6 +397,36 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
   const [newLockPassword, setNewLockPassword] = useState('');
   const [confirmLockPassword, setConfirmLockPassword] = useState('');
   const { isLocked, lock, verifyLockPassword, doUnlock, setLockPassword, clearLockPassword, hasPassword } = useLockScreen();
+
+  // ─── 无操作自动锁屏 ─────────────────────────────────────────────────────────
+  const autoLockMinutes = Number(preferences.autoLockMinutes) || 0;
+  useEffect(() => {
+    if (autoLockMinutes <= 0 || !(preferences.enableLockScreen ?? false) || isLocked || !hasPassword()) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let lastReset = 0;
+    const arm = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => lock(), autoLockMinutes * 60_000);
+    };
+    // 活动事件高频触发，1s 节流重置计时
+    const onActivity = () => {
+      const now = Date.now();
+      if (now - lastReset > 1000) {
+        lastReset = now;
+        arm();
+      }
+    };
+    const onVisibility = () => { if (!document.hidden) onActivity(); };
+    const events = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'] as const;
+    events.forEach((e) => window.addEventListener(e, onActivity, { passive: true, capture: true }));
+    document.addEventListener('visibilitychange', onVisibility);
+    arm();
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, onActivity, { capture: true }));
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [autoLockMinutes, preferences.enableLockScreen, isLocked, hasPassword, lock]);
   const dragSrcKey = useRef<string | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   const [exitingTabKeys, setExitingTabKeys] = useState<Set<string>>(new Set());
@@ -1615,14 +1647,21 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
             <Dropdown.Divider />
             <Dropdown.Item
               icon={<LogOut size={14} strokeWidth={1.5} />}
-              onClick={() => Modal.confirm({
-                title: '确认退出',
-                content: '确定要退出登录吗？',
-                okText: '退出',
-                cancelText: '取消',
-                okButtonProps: { type: 'danger', theme: 'solid' },
-                onOk: () => { disconnectWs(); clearLockPassword(); onLogout(); },
-              })}
+              onClick={() => {
+                const doLogout = () => { disconnectWs(); clearLockPassword(); onLogout(); };
+                if (!(preferences.confirmLogout ?? true)) {
+                  doLogout();
+                  return;
+                }
+                Modal.confirm({
+                  title: '确认退出',
+                  content: '确定要退出登录吗？',
+                  okText: '退出',
+                  cancelText: '取消',
+                  okButtonProps: { type: 'danger', theme: 'solid' },
+                  onOk: doLogout,
+                });
+              }}
             >
               退出登录
             </Dropdown.Item>
@@ -1663,8 +1702,8 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
   useEffect(() => {
     if (!(preferences.scrollMenuIntoView ?? true) || effectiveCollapsed) return;
     const el = document.querySelector('.admin-sidebar__nav .semi-navigation-item-selected');
-    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, [currentSelectedKeys, effectiveCollapsed, preferences.scrollMenuIntoView]);
+    el?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+  }, [currentSelectedKeys, effectiveCollapsed, preferences.scrollMenuIntoView, reduceMotion]);
   const layoutClassName = [
     'admin-layout',
     preferences.sidebarDarkMode ? 'admin-layout--sidebar-dark' : '',
@@ -1672,6 +1711,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
     isContentFullscreen ? 'admin-layout--content-fullscreen' : '',
     preferences.grayscale ? 'admin-layout--grayscale' : '',
     preferences.colorBlind ? 'admin-layout--color-blind' : '',
+    reduceMotion ? 'admin-layout--reduce-motion' : '',
     (preferences.contentWidth ?? 'fluid') === 'fixed' ? 'admin-layout--content-fixed' : '',
   ].filter(Boolean).join(' ');
   const sectionDarkThemeStyle = useMemo<CSSProperties>(() => {
@@ -2005,7 +2045,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
           )}
           {/* Tabs bar — shown above breadcrumb for all layouts */}
           {preferences.enableTabs && tabs.length > 0 && (
-            <div ref={tabsBarRef} className={`admin-tabs-bar${preferences.showBreadcrumb ? ' admin-tabs-bar--with-breadcrumb' : ''}`} data-tab-animation={preferences.tabAnimation} data-tab-style={preferences.tabStyle ?? 'line'}>
+            <div ref={tabsBarRef} className={`admin-tabs-bar${preferences.showBreadcrumb ? ' admin-tabs-bar--with-breadcrumb' : ''}`} data-tab-animation={reduceMotion ? 'none' : preferences.tabAnimation} data-tab-style={preferences.tabStyle ?? 'line'}>
               <div ref={tabsScrollRef} className="admin-tabs-bar__scroll">
               {tabs.map((tab, tabIndex) => {
                   const isEntering = enteringTabKeys.has(tab.key);
@@ -2127,7 +2167,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
                     keepAlivePaths={keepAlivePaths}
                     openPaths={openTabPaths}
                     refreshVersion={tabRefreshVersion}
-                    animationClass={preferences.routeAnimation && preferences.routeAnimation !== 'none'
+                    animationClass={!reduceMotion && preferences.routeAnimation && preferences.routeAnimation !== 'none'
                       ? `route-anim--${preferences.routeAnimation}`
                       : undefined}
                   />
@@ -2135,7 +2175,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
                   <div
                     key={outletRefreshKey}
                     style={{ height: '100%' }}
-                    className={preferences.routeAnimation && preferences.routeAnimation !== 'none'
+                    className={!reduceMotion && preferences.routeAnimation && preferences.routeAnimation !== 'none'
                       ? `route-anim--${preferences.routeAnimation}`
                       : undefined}
                   >
@@ -2350,6 +2390,19 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
                   checked={preferences.colorBlind ?? false}
                   onChange={(v) => setPreferences({ colorBlind: v, ...(v ? { grayscale: false } : {}) })}
                 />
+              </div>
+              )}
+
+              {/* ── 减弱动效 ── */}
+              {matchesPref(['动效', '动画', '减弱动效', '性能', '晕动', '过渡']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  减弱动效
+                  <Tooltip content="关闭路由切换、标签页、主题切换扩散等装饰性动画与过渡；加载指示不受影响。适合低配设备或对动效敏感的用户" position="right">
+                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+                  </Tooltip>
+                </span>
+                <Switch checked={preferences.reduceMotion ?? false} onChange={(v) => setPreferences({ reduceMotion: v })} />
               </div>
               )}
 
@@ -2584,6 +2637,19 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
               </div>
               )}
 
+              {/* ── 退出登录确认 ── */}
+              {matchesPref(['退出确认', '退出登录', '二次确认', '注销', '登出']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  退出登录二次确认
+                  <Tooltip content="关闭后点击「退出登录」将直接退出，不再弹出确认框" position="right">
+                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+                  </Tooltip>
+                </span>
+                <Switch checked={preferences.confirmLogout ?? true} onChange={(v) => setPreferences({ confirmLogout: v })} />
+              </div>
+              )}
+
               {/* ── 文件默认视图 ── */}
               {matchesPref(['文件视图', '文件列表', '文件管理', '列表', '网格', '文件']) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2639,6 +2705,27 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
                   >
                     修改密码
                   </Button>
+                </div>
+              )}
+              {(preferences.enableLockScreen ?? false) && hasPassword() && matchesPref(['自动锁屏', '锁屏', '无操作', '空闲', '闲置']) && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    无操作自动锁屏
+                    <Tooltip content="超过设定时长没有任何鼠标/键盘操作时自动锁定屏幕" position="right">
+                      <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+                    </Tooltip>
+                  </span>
+                  <Select
+                    style={{ width: 110 }}
+                    value={autoLockMinutes}
+                    onChange={(v) => setPreferences({ autoLockMinutes: v as number })}
+                    optionList={[
+                      { value: 0, label: '关闭' },
+                      { value: 5, label: '5 分钟' },
+                      { value: 10, label: '10 分钟' },
+                      { value: 30, label: '30 分钟' },
+                    ]}
+                  />
                 </div>
               )}
 

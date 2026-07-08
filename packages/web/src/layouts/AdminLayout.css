@@ -1832,6 +1832,17 @@
   color: var(--color-text);
 }
 
+/* ===== 减弱动效模式 ===== */
+/* 置零布局内所有装饰性过渡与动画时长；排除加载指示类（spin / progress / loading），保持功能性反馈 */
+.admin-layout--reduce-motion *:not([class*="spin"]):not([class*="progress"]):not([class*="loading"]),
+.admin-layout--reduce-motion *:not([class*="spin"]):not([class*="progress"]):not([class*="loading"])::before,
+.admin-layout--reduce-motion *:not([class*="spin"]):not([class*="progress"]):not([class*="loading"])::after {
+  transition-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+}
+
 /* ===== 偏好设置分区标题 ===== */
 .prefs-section-title {
   display: flex;

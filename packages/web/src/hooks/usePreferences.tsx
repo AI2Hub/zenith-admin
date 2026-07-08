@@ -133,6 +133,12 @@ export interface UserPreferences {
   enableShortcuts: boolean;
   /** 登录后默认进入的页面路径，'/' 表示首页仪表盘 */
   homePath: string;
+  /** 无操作自动锁屏（分钟），0 = 关闭；需开启屏幕锁并设置密码后生效 */
+  autoLockMinutes: number;
+  /** 减弱动效：禁用路由/标签页/主题切换扩散等装饰性动画与过渡（加载指示不受影响） */
+  reduceMotion: boolean;
+  /** 退出登录前弹出二次确认框 */
+  confirmLogout: boolean;
   /** 标签栏右侧显示标签切换器（chevron 下拉列表） */
   showTabSwitcher: boolean;
   /** Web 终端个性化配置（主题/字体/默认 shell/文件夹收藏） */
@@ -187,6 +193,9 @@ export const defaultPreferences: UserPreferences = {
   showProgressBar: true,
   enableShortcuts: true,
   homePath: '/',
+  autoLockMinutes: 0,
+  reduceMotion: false,
+  confirmLogout: true,
   showTabSwitcher: true,
   terminal: {
     defaultShell: '',
