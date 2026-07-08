@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Spin, Toast } from '@douyinfe/semi-ui';
 import { REFRESH_TOKEN_KEY, TOKEN_KEY, type LoginResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
+import { markPostLoginHome } from '@/lib/post-login';
 
 export default function EnterpriseCallbackPage() {
   const [searchParams] = useSearchParams();
@@ -36,6 +37,8 @@ export default function EnterpriseCallbackPage() {
           localStorage.setItem(TOKEN_KEY, res.data.loginResult.token.accessToken);
           localStorage.setItem(REFRESH_TOKEN_KEY, res.data.loginResult.token.refreshToken);
           Toast.success('登录成功');
+          // 整页刷新最终落地 BASE_URL（首页），打标记供 HomeEntry 应用默认首页偏好
+          markPostLoginHome();
           navigate(res.data.redirectTo || '/', { replace: true });
           globalThis.location.href = import.meta.env.BASE_URL;
           return;

@@ -7,6 +7,7 @@ import { Icon } from '@iconify/react';
 import { REFRESH_TOKEN_KEY, TOKEN_KEY, type RegisterInput, type OAuthProviderType, type LoginResult, type LoginResponse, type TenantIdentityProviderSummary } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { config } from '@/config';
+import { markPostLoginHome } from '@/lib/post-login';
 import AppLogo from '@/components/AppLogo';
 import AppModal from '@/components/AppModal';
 import ForgotPasswordModal from './ForgotPasswordModal';
@@ -33,6 +34,12 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState('login');
   const [retrySeconds, setRetrySeconds] = useState(0);
+
+  // 登录成功后的统一跳转：落地首页时打标记，供 HomeEntry 按偏好 homePath 二次跳转
+  const navigateAfterLogin = (target: string) => {
+    if (target === '/') markPostLoginHome();
+    navigate(target, { replace: true });
+  };
 
   useEffect(() => {
     if (retrySeconds <= 0) return;
@@ -79,7 +86,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
           setMfaChallenge(res.data);
           return;
         }
-        navigate(redirectTo, { replace: true });
+        navigateAfterLogin(redirectTo);
         return;
       }
       if (res.code === 429 && res.retryAfterSeconds) {
@@ -98,7 +105,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     try {
       const res = await onVerifyMfa(mfaChallenge.challengeId, String(values.code ?? ''), Boolean(values.rememberDevice));
       if (res.code === 0) {
-        navigate(redirectTo, { replace: true });
+        navigateAfterLogin(redirectTo);
         return;
       }
       Toast.error(res.message);
@@ -113,7 +120,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     try {
       const res = await onRegister(values);
       if (res.code === 0) {
-        navigate(redirectTo, { replace: true });
+        navigateAfterLogin(redirectTo);
         return;
       }
       if (res.code === 429 && res.retryAfterSeconds) {
@@ -361,7 +368,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
         localStorage.setItem(TOKEN_KEY, res.data.loginResult.token.accessToken);
         localStorage.setItem(REFRESH_TOKEN_KEY, res.data.loginResult.token.refreshToken);
         setDirectoryProvider(null);
-        navigate(res.data.redirectTo || redirectTo, { replace: true });
+        navigateAfterLogin(res.data.redirectTo || redirectTo);
         return;
       }
       Toast.error(res.message);

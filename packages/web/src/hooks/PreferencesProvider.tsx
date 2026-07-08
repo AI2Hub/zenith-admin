@@ -27,6 +27,7 @@ function savePreferences(prefs: UserPreferences) {
 
 export function PreferencesProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [prefs, setPrefs] = useState<UserPreferences>(loadPreferences);
+  const [ready, setReady] = useState(false);
   const prefsRef = useRef(prefs);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -70,7 +71,8 @@ export function PreferencesProvider({ children }: Readonly<{ children: ReactNode
         // 老用户服务器端暂无偏好时，把本地缓存迁移到服务器。
         scheduleSync(prefsRef.current);
       })
-      .catch(() => { /* ignore */ });
+      .catch(() => { /* ignore */ })
+      .finally(() => { if (!cancelled) setReady(true); });
     return () => { cancelled = true; };
   }, [applyLocalPreferences, scheduleSync]);
 
@@ -92,8 +94,8 @@ export function PreferencesProvider({ children }: Readonly<{ children: ReactNode
   }, [applyLocalPreferences, syncNow]);
 
   const value = useMemo(
-    () => ({ preferences: prefs, setPreferences, resetPreferences }),
-    [prefs, setPreferences, resetPreferences],
+    () => ({ preferences: prefs, setPreferences, resetPreferences, ready }),
+    [prefs, setPreferences, resetPreferences, ready],
   );
 
   return (

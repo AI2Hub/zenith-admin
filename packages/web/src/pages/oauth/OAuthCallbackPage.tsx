@@ -3,6 +3,7 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { Spin, Toast } from '@douyinfe/semi-ui';
 import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@zenith/shared';
 import { request } from '@/utils/request';
+import { markPostLoginHome } from '@/lib/post-login';
 
 export default function OAuthCallbackPage() {
   const { provider } = useParams<{ provider: string }>();
@@ -29,6 +30,7 @@ export default function OAuthCallbackPage() {
           localStorage.setItem(TOKEN_KEY, res.data.token.accessToken);
           localStorage.setItem(REFRESH_TOKEN_KEY, res.data.token.refreshToken);
           Toast.success('登录成功');
+          markPostLoginHome();
           navigate('/', { replace: true });
           // 强制刷新以重新获取用户信息
           globalThis.location.href = import.meta.env.BASE_URL;

@@ -1182,6 +1182,58 @@
   background: var(--semi-color-fill-0);
 }
 
+/* ── Chrome 风格 ── */
+.admin-tabs-bar[data-tab-style="chrome"] {
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.admin-tabs-bar[data-tab-style="chrome"] .admin-tabs-bar__scroll {
+  gap: 0;
+  padding: 0 14px;
+  align-items: flex-end;
+}
+
+[data-tab-style="chrome"] .admin-tab-item {
+  padding: 7px 16px;
+  margin-top: 5px;
+  border-radius: 9px 9px 0 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+[data-tab-style="chrome"] .admin-tab-item:hover:not(.admin-tab-item--active) {
+  background: var(--semi-color-fill-0);
+}
+
+[data-tab-style="chrome"] .admin-tab-item--active {
+  z-index: 1;
+  background: var(--semi-color-primary-light-default);
+  color: var(--semi-color-primary);
+  font-weight: 500;
+}
+
+/* Chrome 标志性左右外凹圆弧：radial-gradient 在标签底部两侧补出反向圆角 */
+[data-tab-style="chrome"] .admin-tab-item--active::before,
+[data-tab-style="chrome"] .admin-tab-item--active::after {
+  content: '';
+  position: absolute;
+  top: auto;
+  bottom: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 0;
+}
+
+[data-tab-style="chrome"] .admin-tab-item--active::before {
+  left: -9px;
+  background: radial-gradient(circle at 0 0, transparent 8.5px, var(--semi-color-primary-light-default) 9px);
+}
+
+[data-tab-style="chrome"] .admin-tab-item--active::after {
+  left: auto;
+  right: -9px;
+  background: radial-gradient(circle at 100% 0, transparent 8.5px, var(--semi-color-primary-light-default) 9px);
+}
+
 .admin-tab-item__icon {
   display: inline-flex;
   align-items: center;

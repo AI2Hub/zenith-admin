@@ -2,15 +2,15 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { RouteErrorBoundary } from '@/components/PageErrorBoundary';
 import { UserAvatar } from '@/components/UserAvatar';
-import { BackTop, Badge, Banner, Breadcrumb, Button, ColorPicker, Divider, Dropdown, Empty, Input, List, Notification, Popover, Select, Tooltip, Modal, Nav, Typography, SideSheet, Switch, InputNumber, RadioGroup, Radio, Toast } from '@douyinfe/semi-ui';
+import { BackTop, Badge, Banner, Breadcrumb, Button, ColorPicker, Divider, Dropdown, Empty, Input, List, Notification, Popover, Select, TextArea, Tooltip, Modal, Nav, Typography, SideSheet, Switch, InputNumber, RadioGroup, Radio, Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
 import { IllustrationIdle, IllustrationIdleDark } from '@douyinfe/semi-illustrations';
-import { Bell, Building2, Check, Info, Expand, Shrink, Megaphone, Sun, Moon, Monitor, MoreHorizontal, User as UserIcon, Settings, LogOut, X, Palette, Pin, RotateCcw, PinOff, XCircle, ChevronLeft, ChevronRight, Trash2, Lock, Copy, Route, Keyboard, Search, Star, Clock, Wrench, ExternalLink, Menu as MenuIcon, Files, Smartphone } from 'lucide-react';
+import { Bell, Building2, Check, Info, Expand, Shrink, Megaphone, Sun, Moon, Monitor, MoreHorizontal, User as UserIcon, Settings, LogOut, X, Palette, Pin, RotateCcw, PinOff, XCircle, ChevronLeft, ChevronRight, Trash2, Lock, Copy, ClipboardPaste, Route, Keyboard, Search, Star, Clock, Wrench, ExternalLink, Menu as MenuIcon, Files, Smartphone } from 'lucide-react';
 import { pinyinMatch, ensurePinyin } from '@/utils/pinyin';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
 import type { User, Menu, InAppMessage, Announcement, Tenant, WsMessage, SystemConfig } from '@zenith/shared';
 import type { ThemeMode } from '@/hooks/useTheme';
-import { usePreferences, type NavLayout, type TableSizePreference, type RouteAnimation, type BorderRadiusPreference } from '@/hooks/usePreferences';
+import { usePreferences, sanitizeImportedPreferences, type NavLayout, type TableSizePreference, type RouteAnimation, type BorderRadiusPreference, type TabStyle } from '@/hooks/usePreferences';
 import { THEME_COLOR_PRESETS, getThemeColorVars } from '@/lib/theme-color';
 import { applyBorderRadius } from '@/lib/border-radius';
 import { useThemeController } from '@/providers/theme-controller';
@@ -356,6 +356,37 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
       .then(() => Toast.success('偏好设置已复制到剪贴板'))
       .catch(() => Toast.error('复制失败，请重试'));
   }, [preferences]);
+
+  // ─── 导入偏好 ─────────────────────────────────────────────────────────────
+  const [importPrefsVisible, setImportPrefsVisible] = useState(false);
+  const [importPrefsText, setImportPrefsText] = useState('');
+  const handleImportPreferences = useCallback(() => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(importPrefsText);
+    } catch {
+      Toast.error('JSON 解析失败，请检查格式');
+      return;
+    }
+    const sanitized = sanitizeImportedPreferences(parsed);
+    if (!sanitized) {
+      Toast.error('未识别到有效的偏好设置字段');
+      return;
+    }
+    setPreferences(sanitized);
+    setImportPrefsVisible(false);
+    setImportPrefsText('');
+    Toast.success(`已导入 ${Object.keys(sanitized).length} 项设置`);
+  }, [importPrefsText, setPreferences]);
+
+  // 默认首页候选：当前用户可见的菜单页面
+  const homePathOptions = useMemo(() => [
+    { value: '/', label: '首页（默认）' },
+    ...flatMenus.map((m) => ({
+      value: m.path,
+      label: m.breadcrumb.length ? `${m.breadcrumb.join(' / ')} / ${m.title}` : m.title,
+    })),
+  ], [flatMenus]);
   const [shortcutsVisible, setShortcutsVisible] = useState(false);
   const { favorites, isFavorite, toggle: toggleFavorite } = useFavoriteMenus();
   const [isContentFullscreen, setIsContentFullscreen] = useState(false);
@@ -2508,6 +2539,25 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
 
               {prefSection('通用')}
 
+              {/* ── 默认首页 ── */}
+              {matchesPref(['默认首页', '首页', '登录跳转', '落地页', '默认页面', '登录页面']) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                  登录默认页面
+                  <Tooltip content="登录成功后进入的页面；不影响日常点击「首页」菜单的行为" position="right">
+                    <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+                  </Tooltip>
+                </span>
+                <Select
+                  filter
+                  style={{ width: 170 }}
+                  value={preferences.homePath ?? '/'}
+                  onChange={(v) => setPreferences({ homePath: (v as string) || '/' })}
+                  optionList={homePathOptions}
+                />
+              </div>
+              )}
+
               {/* ── 页面加载进度条 ── */}
               {matchesPref(['进度条', '加载进度', '页面加载', '顶部进度', 'NProgress']) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2740,17 +2790,18 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
                 </RadioGroup>
               </div>
               )}
-              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签风格', '风格', '线条', '胶囊', '卡片', '标签页', '标签']) && (
+              {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签风格', '风格', '线条', '胶囊', '卡片', 'chrome', '谷歌', '标签页', '标签']) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>标签页风格</span>
                 <RadioGroup
                   type="button"
                   value={preferences.tabStyle ?? 'line'}
-                  onChange={(e) => setPreferences({ tabStyle: e.target.value as 'line' | 'pill' | 'card' })}
+                  onChange={(e) => setPreferences({ tabStyle: e.target.value as TabStyle })}
                 >
                   <Radio value="line">线条</Radio>
                   <Radio value="pill">胶囊</Radio>
                   <Radio value="card">卡片</Radio>
+                  <Radio value="chrome">Chrome</Radio>
                 </RadioGroup>
               </div>
               )}
@@ -2804,16 +2855,26 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
               </div>
               )}
 
-              {/* ── 复制 / 重置 ── */}
-              <div className="prefs-reset-btn" style={{ display: 'flex', gap: 12 }}>
-                <Button
-                  theme="light"
-                  block
-                  icon={<Copy size={14} />}
-                  onClick={handleCopyPreferences}
-                >
-                  复制偏好
-                </Button>
+              {/* ── 复制 / 导入 / 重置 ── */}
+              <div className="prefs-reset-btn" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <Button
+                    theme="light"
+                    block
+                    icon={<Copy size={14} />}
+                    onClick={handleCopyPreferences}
+                  >
+                    复制偏好
+                  </Button>
+                  <Button
+                    theme="light"
+                    block
+                    icon={<ClipboardPaste size={14} />}
+                    onClick={() => setImportPrefsVisible(true)}
+                  >
+                    导入偏好
+                  </Button>
+                </div>
                 <Button
                   type="danger"
                   theme="light"
@@ -2904,6 +2965,32 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
                 </div>
               </div>
             ))}
+          </AppModal>
+
+          {/* ─── 导入偏好 Modal ─── */}
+          <AppModal
+            title="导入偏好设置"
+            visible={importPrefsVisible}
+            onCancel={() => {
+              setImportPrefsVisible(false);
+              setImportPrefsText('');
+            }}
+            onOk={handleImportPreferences}
+            okText="导入"
+            cancelText="取消"
+            width={480}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <Typography.Text type="secondary" size="small">
+                粘贴通过「复制偏好」导出的 JSON 配置。未知字段与非法值会被自动忽略，导入后立即生效并同步到服务器。
+              </Typography.Text>
+              <TextArea
+                rows={10}
+                value={importPrefsText}
+                onChange={(v) => setImportPrefsText(v)}
+                placeholder={'{\n  "navLayout": "vertical",\n  "themeColor": "wechat",\n  ...\n}'}
+              />
+            </div>
           </AppModal>
 
           {/* ─── 锁屏密码设置 Modal ─── */}

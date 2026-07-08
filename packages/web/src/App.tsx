@@ -7,6 +7,8 @@ import { initTracker, identify, resetIdentity } from '@/utils/tracker';
 import ElectronTitleBar from '@/components/ElectronTitleBar';
 import { PermissionContext } from '@/hooks/usePermission';
 import { PreferencesProvider } from '@/hooks/PreferencesProvider';
+import { usePreferences } from '@/hooks/usePreferences';
+import { hasPostLoginHome, clearPostLoginHome } from '@/lib/post-login';
 import { ThemeProvider } from '@/providers/ThemeProvider';
 import { request } from '@/utils/request';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -58,6 +60,30 @@ const PageLoadingDots = () => (
 
 /** 固定路由路径，不通过菜单动态加载 */
 const FIXED_ROUTES = new Set(['/profile', '/announcements', '/inbox', '/system/firewall', '/system/nginx-sites']);
+
+/**
+ * 首页入口：登录后一次性应用「默认首页」偏好。
+ * 仅当本次会话由登录落地首页（post-login 标记存在）且偏好 homePath 指向其他页面时跳转；
+ * 用户日常手动访问 '/' 不受影响，始终进入首页仪表盘。
+ */
+function HomeEntry() {
+  const { preferences, ready } = usePreferences();
+  const [postLogin] = useState(hasPostLoginHome);
+  // 偏好就绪后消费一次性标记（无论是否跳转）
+  useEffect(() => {
+    if (ready) clearPostLoginHome();
+  }, [ready]);
+  const homePath = (preferences.homePath ?? '/').trim();
+  const safeTarget = homePath.startsWith('/') && !homePath.startsWith('//') && homePath !== '/' && !homePath.startsWith('/login');
+  if (postLogin && !ready) {
+    // 等待服务器偏好返回（毫秒级），避免跳转决策使用默认值
+    return <DashboardSkeleton />;
+  }
+  if (postLogin && safeTarget) {
+    return <Navigate to={homePath} replace />;
+  }
+  return <Suspense fallback={<DashboardSkeleton />}><DashboardPage /></Suspense>;
+}
 
 /** 未登录时保存来源路径并跳转登录 */
 function RedirectToLogin() {
@@ -203,7 +229,7 @@ function AdminRouteLoader({ user, permissions, logout, updateUser }: Readonly<Ad
         <Route path="/reset-password" element={<Navigate to="/" replace />} />
         <Route path="/" element={<AdminLayout user={user} onLogout={logout} presetMenus={menus} />}>
         {/* 固定路由 */}
-        <Route index element={<Suspense fallback={<DashboardSkeleton />}><DashboardPage /></Suspense>} />
+        <Route index element={<HomeEntry />} />
         <Route path="profile" element={<Suspense fallback={routeFallback}><ProfilePage user={user} onUserUpdate={updateUser} /></Suspense>} />
         <Route path="announcements" element={<Suspense fallback={routeFallback}><AnnouncementsPage /></Suspense>} />
         <Route path="inbox" element={<Suspense fallback={routeFallback}><InboxPage /></Suspense>} />

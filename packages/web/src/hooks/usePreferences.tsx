@@ -3,7 +3,7 @@ import type { ThemeMode } from '@/hooks/useTheme';
 
 export type NavLayout = 'vertical' | 'horizontal' | 'mixed' | 'double';
 export type TabAnimation = 'none' | 'fade' | 'slide' | 'scale';
-export type TabStyle = 'line' | 'pill' | 'card';
+export type TabStyle = 'line' | 'pill' | 'card' | 'chrome';
 export type TableSizePreference = 'small' | 'default' | 'middle';
 export type RouteAnimation = 'none' | 'fade' | 'slide-up' | 'slide-left';
 export type BorderRadiusPreference = 'none' | 'small' | 'medium' | 'large';
@@ -131,6 +131,8 @@ export interface UserPreferences {
   showProgressBar: boolean;
   /** 全局键盘快捷键（Alt+L 锁屏 / Alt+S 侧边栏 / Alt+C 内容全屏 / Ctrl+K 搜索菜单） */
   enableShortcuts: boolean;
+  /** 登录后默认进入的页面路径，'/' 表示首页仪表盘 */
+  homePath: string;
   /** 标签栏右侧显示标签切换器（chevron 下拉列表） */
   showTabSwitcher: boolean;
   /** Web 终端个性化配置（主题/字体/默认 shell/文件夹收藏） */
@@ -184,6 +186,7 @@ export const defaultPreferences: UserPreferences = {
   showBackTop: true,
   showProgressBar: true,
   enableShortcuts: true,
+  homePath: '/',
   showTabSwitcher: true,
   terminal: {
     defaultShell: '',
@@ -213,6 +216,50 @@ export interface PreferencesContextValue {
   preferences: UserPreferences;
   setPreferences: (partial: Partial<UserPreferences>) => void;
   resetPreferences: () => void;
+  /** 服务器偏好已拉取完成（成功或失败均视为就绪），用于依赖偏好的一次性决策（如登录后默认首页跳转） */
+  ready: boolean;
+}
+
+/** 枚举型偏好的合法值白名单（导入校验用），须与各 union type 保持一致 */
+const PREF_ENUM_VALUES: Partial<Record<keyof UserPreferences, readonly string[]>> = {
+  navLayout: ['vertical', 'horizontal', 'mixed', 'double'],
+  tabStyle: ['line', 'pill', 'card', 'chrome'],
+  tabAnimation: ['none', 'fade', 'slide', 'scale'],
+  routeAnimation: ['none', 'fade', 'slide-up', 'slide-left'],
+  tableSize: ['small', 'default', 'middle'],
+  colorMode: ['light', 'dark', 'system'],
+  contentWidth: ['fluid', 'fixed'],
+  openTabBehavior: ['append', 'insert-next'],
+  tabDoubleClickAction: ['refresh', 'close', 'none'],
+  tabEvictPolicy: ['fifo', 'lru'],
+  filesViewMode: ['list', 'grid'],
+  borderRadius: ['none', 'small', 'medium', 'large'],
+};
+
+/**
+ * 校验并过滤导入的偏好 JSON：
+ * 仅保留 defaultPreferences 中已知的 key 且基础类型匹配的项，枚举字段额外校验合法值；
+ * 无任何有效字段时返回 null。
+ */
+export function sanitizeImportedPreferences(raw: unknown): Partial<UserPreferences> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const source = raw as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
+  for (const [key, defVal] of Object.entries(defaultPreferences) as [keyof UserPreferences, unknown][]) {
+    if (!(key in source)) continue;
+    const val = source[key];
+    if (key === 'terminal') {
+      if (val && typeof val === 'object' && !Array.isArray(val)) {
+        result[key] = { ...defaultPreferences.terminal, ...(val as Record<string, unknown>) };
+      }
+      continue;
+    }
+    if (typeof val !== typeof defVal) continue;
+    const allowed = PREF_ENUM_VALUES[key];
+    if (allowed && !allowed.includes(val as string)) continue;
+    result[key] = val;
+  }
+  return Object.keys(result).length > 0 ? (result as Partial<UserPreferences>) : null;
 }
 
 export const PreferencesContext = createContext<PreferencesContextValue | null>(null);
