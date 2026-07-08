@@ -48,7 +48,7 @@ npm run db:seed        # 填充初始种子数据
 
 ### 前端（`packages/web`）
 
-- **UI 库**：Semi Design v2（`@douyinfe/semi-ui`）— 使用 Semi Design 组件时先查阅 `.agents/skills/semi-ui-skills/`
+- **UI 库**：Semi Design v2（`@douyinfe/semi-ui`
 - **图标**：统一使用 `lucide-react`，禁止引入 `@douyinfe/semi-icons`
 - **路由**：`react-router-dom` v7，页面组件位于 `packages/web/src/pages/`
 - **认证状态**：`useAuth` hook，token 存储在 `localStorage`，key 为 `zenith_token`（来自 `@zenith/shared` constants）
@@ -249,7 +249,6 @@ import { SearchToolbar } from '../../components/SearchToolbar';
 
 - 修改数据库 schema 后，必须运行 `npm run db:generate` 再 `npm run db:migrate`，不能直接修改 SQL
 - `@zenith/shared` 中新增类型/schema 后，无需重新构建，server 和 web 会直接引用源文件
-- Semi Design 组件查询请使用 `.agents/skills/semi-ui-skills/SKILL.md` 中的 MCP 工具流程
 - CORS 默认允许所有来源（开发配置），生产环境可通过 `CORS_ORIGIN` 收紧跨域来源
 
 ### 列表规范
