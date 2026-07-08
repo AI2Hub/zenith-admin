@@ -75,7 +75,7 @@ export function PasswordStrengthMeter({ password, policy }: PasswordStrengthMete
               style={{
                 flex: 1,
                 height: 4,
-                borderRadius: 2,
+                borderRadius: 'var(--semi-border-radius-small)',
                 background: i <= strength ? color : 'var(--semi-color-fill-2)',
                 transition: 'background 0.25s ease',
               }}

@@ -97,7 +97,7 @@ export default function MaintenanceOverlay({ info, onResolved }: Readonly<Props>
           <div
             style={{
               background: 'var(--semi-color-fill-1)',
-              borderRadius: 8,
+              borderRadius: 'var(--semi-border-radius-medium)',
               padding: '10px 20px',
             }}
           >

@@ -27,7 +27,7 @@ export default function ColorPickerInput({
     return (
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, ...style }}>
         <span style={{
-          width: 20, height: 20, borderRadius: 4,
+          width: 20, height: 20, borderRadius: 'var(--semi-border-radius-small)',
           border: '1px solid var(--semi-color-border)',
           background: value || 'transparent',
         }} />

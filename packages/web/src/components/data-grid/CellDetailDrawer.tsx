@@ -106,7 +106,7 @@ export function CellDetailDrawer(props: CellDetailDrawerProps) {
           {detail.isNull ? (
             <div className="dg-empty"><span className="dg-null">NULL</span></div>
           ) : (
-            <div style={{ height: 'calc(100vh - 220px)', border: '1px solid var(--semi-color-border)', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ height: 'calc(100vh - 220px)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)', overflow: 'hidden' }}>
               <Editor
                 value={detail.text}
                 language={detail.language}

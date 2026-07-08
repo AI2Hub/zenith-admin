@@ -420,7 +420,7 @@ export default function PendingApprovalsPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {myConsults.map((c) => (
-              <div key={c.id} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 12 }}>
+              <div key={c.id} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
                   <Typography.Text strong>{c.inviterName ?? `用户#${c.inviterId}`}</Typography.Text>
                   <Typography.Text type="tertiary" size="small">邀请你协办</Typography.Text>

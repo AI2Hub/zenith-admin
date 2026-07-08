@@ -198,7 +198,7 @@ export default function FirewallPage() {
           marginBottom: 16,
           padding: 16,
           border: '1px solid var(--semi-color-border)',
-          borderRadius: 8,
+          borderRadius: 'var(--semi-border-radius-medium)',
           background: 'var(--semi-color-bg-1)',
         }}
       >

@@ -349,7 +349,7 @@ export default function MpAutoRepliesPage() {
               <Form.Slot label="图文文章">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {articles.map((a, idx) => (
-                    <div key={idx} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 12, position: 'relative' }}>
+                    <div key={idx} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12, position: 'relative' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                         <Typography.Text type="secondary" size="small">文章 {idx + 1}</Typography.Text>
                         {articles.length > 1 && (
@@ -387,7 +387,7 @@ export default function MpAutoRepliesPage() {
           {hotwords.length === 0 ? <Typography.Text type="tertiary">暂无未命中热词记录</Typography.Text> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 360, overflowY: 'auto' }}>
               {hotwords.map((h) => (
-                <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', border: '1px solid var(--semi-color-border)', borderRadius: 6 }}>
+                <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
                   <Tag color="orange" type="light">{h.count} 次</Tag>
                   <span style={{ flex: 1 }}>{h.keyword}</span>
                   <Typography.Text type="tertiary" size="small">{h.lastAt}</Typography.Text>

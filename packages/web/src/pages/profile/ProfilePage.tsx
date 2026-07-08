@@ -780,7 +780,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
               onClick={() => void handleApplyPreset(url)}
               style={{
                 border: user.avatar === url ? '2px solid var(--semi-color-primary)' : '2px solid transparent',
-                borderRadius: 8, padding: 4, cursor: 'pointer', background: 'var(--semi-color-fill-0)',
+                borderRadius: 'var(--semi-border-radius-medium)', padding: 4, cursor: 'pointer', background: 'var(--semi-color-fill-0)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 transition: 'border-color 0.2s, box-shadow 0.2s',
               }}
@@ -792,7 +792,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                 alt="预设头像"
                 width={72}
                 height={72}
-                style={{ borderRadius: 4, display: 'block' }}
+                style={{ borderRadius: 'var(--semi-border-radius-small)', display: 'block' }}
                 loading="lazy"
               />
             </button>
@@ -884,7 +884,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
       >
         <Text
           type="warning"
-          style={{ display: 'block', marginBottom: 12, padding: '8px 12px', background: 'var(--semi-color-warning-light-default)', borderRadius: 6 }}
+          style={{ display: 'block', marginBottom: 12, padding: '8px 12px', background: 'var(--semi-color-warning-light-default)', borderRadius: 'var(--semi-border-radius-medium)' }}
         >
           ⚠️ 请立即复制并安全保存此 Token，关闭后将无法再次查看完整内容。
         </Text>

@@ -109,7 +109,7 @@ function MonitorTerminal({ sessionId, takeover }: { readonly sessionId: string; 
         {status === 'ended' && <Typography.Text type="warning" size="small">会话已结束</Typography.Text>}
         {status === 'error' && <Typography.Text type="danger" size="small">会话不存在或连接失败</Typography.Text>}
       </div>
-      <div ref={ref} style={{ flex: 1, minHeight: 0, background: toXtermTheme(themeDef).background, borderRadius: 4, padding: 4 }} />
+      <div ref={ref} style={{ flex: 1, minHeight: 0, background: toXtermTheme(themeDef).background, borderRadius: 'var(--semi-border-radius-small)', padding: 4 }} />
     </div>
   );
 }

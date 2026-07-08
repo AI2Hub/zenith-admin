@@ -88,8 +88,8 @@ export default function MpStatisticsPage() {
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
                   {Array.from({ length: 8 }, (_, i) => `sk-stat-${i}`).map((key) => (
-                    <div key={key} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 16, background: 'var(--semi-color-bg-1)', display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <Skeleton.Avatar style={{ width: 40, height: 40, borderRadius: 8, flexShrink: 0 }} />
+                    <div key={key} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--semi-color-bg-1)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <Skeleton.Avatar style={{ width: 40, height: 40, borderRadius: 'var(--semi-border-radius-medium)', flexShrink: 0 }} />
                       <div style={{ flex: 1 }}>
                         <Skeleton.Title style={{ width: '60%', marginBottom: 8 }} />
                         <Skeleton.Paragraph rows={1} style={{ width: '40%' }} />
@@ -99,7 +99,7 @@ export default function MpStatisticsPage() {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
                   {Array.from({ length: 2 }, (_, i) => `sk-trend-${i}`).map((key) => (
-                    <Card key={key} style={{ borderRadius: 8 }} bodyStyle={{ padding: 16 }}>
+                    <Card key={key} style={{ borderRadius: 'var(--semi-border-radius-medium)' }} bodyStyle={{ padding: 16 }}>
                       <Skeleton.Title style={{ width: '40%', marginBottom: 12 }} />
                       <Skeleton.Image style={{ width: '100%', height: 180 }} />
                     </Card>
@@ -112,8 +112,8 @@ export default function MpStatisticsPage() {
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
               {CARD_DEFS.map((c) => (
-                <div key={c.key} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 16, background: 'var(--semi-color-bg-1)', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 8, background: `${c.color}1a`, color: c.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{c.icon}</div>
+                <div key={c.key} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--semi-color-bg-1)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 'var(--semi-border-radius-medium)', background: `${c.color}1a`, color: c.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{c.icon}</div>
                   <div>
                     <div style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.1 }}>{(stats?.[c.key] as number) ?? 0}</div>
                     <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)' }}>{c.label}</div>
@@ -168,7 +168,7 @@ export default function MpStatisticsPage() {
 
 function DatacubeTable({ title, head, rows }: Readonly<{ title: string; head: string[]; rows: string[][] }>) {
   return (
-    <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 12, background: 'var(--semi-color-bg-1)' }}>
+    <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12, background: 'var(--semi-color-bg-1)' }}>
       <Typography.Text strong style={{ fontSize: 13 }}>{title}</Typography.Text>
       <table style={{ width: '100%', marginTop: 8, fontSize: 12, borderCollapse: 'collapse' }}>
         <thead>
@@ -186,7 +186,7 @@ function DatacubeTable({ title, head, rows }: Readonly<{ title: string; head: st
 
 function TrendCard({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
-    <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 16, background: 'var(--semi-color-bg-1)' }}>
+    <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--semi-color-bg-1)' }}>
       <Typography.Text strong>{title}</Typography.Text>
       {children}
     </div>

@@ -289,7 +289,7 @@ export default function RuleTablesPage() {
     return (
       <div style={{ marginTop: 14 }}>
         <Text strong>规则</Text>
-        <div style={{ marginTop: 8, overflowX: 'auto', border: '1px solid var(--semi-color-border)', borderRadius: 6 }}>
+        <div style={{ marginTop: 8, overflowX: 'auto', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
             <thead>
               <tr>
@@ -337,7 +337,7 @@ export default function RuleTablesPage() {
   const renderCaseEditor = () => {
     if (!caseRow) return null;
     return (
-      <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 12, marginBottom: 12 }}>
+      <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12, marginBottom: 12 }}>
         <Space vertical align="start" style={{ width: '100%' }}>
           <Space style={{ width: '100%', justifyContent: 'space-between' }}>
             <Text strong>{editingCase ? '编辑用例' : '新增用例'}</Text>
@@ -382,7 +382,7 @@ export default function RuleTablesPage() {
     if (!res) return null;
     const diff = diffCaseOutputs(res);
     return (
-      <div style={{ marginTop: 8, padding: 8, background: 'var(--semi-color-fill-0)', borderRadius: 6 }}>
+      <div style={{ marginTop: 8, padding: 8, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)' }}>
         <Space spacing={8}>
           <Tag color={res.pass ? 'green' : 'red'}>{res.pass ? '通过' : '失败'}</Tag>
           <Text size="small" type="tertiary">实际输出 / 期望输出</Text>
@@ -453,7 +453,7 @@ export default function RuleTablesPage() {
           <Form.Select field="hitPolicy" label="命中策略" optionList={HIT_POLICIES} onChange={(v) => setEditorHitPolicy(v as RuleHitPolicy)} style={{ width: '100%' }} />
           <Form.TextArea field="description" label="描述" autosize={{ minRows: 2, maxRows: 3 }} maxCount={500} />
         </Form>
-        <div style={{ marginTop: 12, padding: 12, borderRadius: 6, background: draftErrors.length > 0 ? 'var(--semi-color-danger-light-default)' : draftWarnings.length > 0 ? 'var(--semi-color-warning-light-default)' : 'var(--semi-color-success-light-default)' }}>
+        <div style={{ marginTop: 12, padding: 12, borderRadius: 'var(--semi-border-radius-medium)', background: draftErrors.length > 0 ? 'var(--semi-color-danger-light-default)' : draftWarnings.length > 0 ? 'var(--semi-color-warning-light-default)' : 'var(--semi-color-success-light-default)' }}>
           <Space spacing={8} align="start" vertical style={{ width: '100%' }}>
             <Space spacing={8}>
               <Tag color={draftErrors.length > 0 ? 'red' : draftWarnings.length > 0 ? 'orange' : 'green'}>规则体检</Tag>
@@ -478,7 +478,7 @@ export default function RuleTablesPage() {
           ))}
         {renderTestRulePreview()}
         {testResult && (
-          <div style={{ marginTop: 12, background: 'var(--semi-color-fill-0)', padding: 12, borderRadius: 6 }}>
+          <div style={{ marginTop: 12, background: 'var(--semi-color-fill-0)', padding: 12, borderRadius: 'var(--semi-border-radius-medium)' }}>
             <Space spacing={8} align="center">
               <Tag color={testResult.matched ? 'green' : 'red'}>{testResult.matched ? '命中' : '未命中'}</Tag>
               {testResult.matched && <Text type="tertiary" size="small">命中行 {testResult.matchedRowIds.join(', ')}</Text>}
@@ -489,7 +489,7 @@ export default function RuleTablesPage() {
               <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
                 <Text strong>命中解释</Text>
                 {testExplanations.map((row) => (
-                  <div key={row.rowId} style={{ padding: 8, border: '1px solid var(--semi-color-border)', borderRadius: 6, background: row.matched ? 'var(--semi-color-success-light-default)' : 'var(--semi-color-bg-0)' }}>
+                  <div key={row.rowId} style={{ padding: 8, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', background: row.matched ? 'var(--semi-color-success-light-default)' : 'var(--semi-color-bg-0)' }}>
                     <Space spacing={8} align="center">
                       <Tag color={row.matched ? 'green' : 'grey'}>行 {row.index + 1}</Tag>
                       <Text size="small">{row.label || row.rowId}</Text>
@@ -521,7 +521,7 @@ export default function RuleTablesPage() {
           )}
         />
         {diff && (
-          <pre style={{ marginTop: 12, background: 'var(--semi-color-fill-0)', padding: 12, borderRadius: 6, whiteSpace: 'pre-wrap' }}>
+          <pre style={{ marginTop: 12, background: 'var(--semi-color-fill-0)', padding: 12, borderRadius: 'var(--semi-border-radius-medium)', whiteSpace: 'pre-wrap' }}>
             {`v${diff.from} → 当前\n` + (diff.changes.length ? diff.changes.map((c) => `[${c.op}] ${c.kind} ${c.ref}: ${c.detail}`).join('\n') : '无差异')}
           </pre>
         )}
@@ -541,7 +541,7 @@ export default function RuleTablesPage() {
         </div>
         {renderCaseEditor()}
         {runRes && (
-          <div style={{ marginBottom: 12, background: 'var(--semi-color-fill-0)', padding: 12, borderRadius: 6 }}>
+          <div style={{ marginBottom: 12, background: 'var(--semi-color-fill-0)', padding: 12, borderRadius: 'var(--semi-border-radius-medium)' }}>
             <Space spacing={8}>
               <Tag color={runRes.failed > 0 ? 'red' : 'green'}>通过 {runRes.passed}/{runRes.total}</Tag>
               <Tag color={runRes.coverage < 100 ? 'orange' : 'green'}>覆盖率 {runRes.coverage}%</Tag>

@@ -109,7 +109,7 @@ function TracerouteViz({ hops }: { hops: HopInfo[] }) {
                 {hop.avgRtt !== null && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <div style={{
-                      height: 12, borderRadius: 3,
+                      height: 12, borderRadius: 'var(--semi-border-radius-small)',
                       width: `${Math.max((hop.avgRtt / maxRtt) * 140, 4)}px`,
                       background: rttColor(hop.avgRtt),
                       transition: 'width 0.4s ease',
@@ -328,7 +328,7 @@ export default function NetworkDiagPage() {
       </div>
 
       {/* 输出区 */}
-      <div style={{ flex: 1, minHeight: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--semi-color-border)' }}>
+      <div style={{ flex: 1, minHeight: 0, borderRadius: 'var(--semi-border-radius-medium)', overflow: 'hidden', border: '1px solid var(--semi-color-border)' }}>
         {tool === 'traceroute'
           ? (
             <Tabs type="line" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}

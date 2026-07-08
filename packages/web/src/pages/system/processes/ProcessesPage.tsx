@@ -376,7 +376,7 @@ export default function ProcessesPage() {
           <>
             {/* 搜索框 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6,
-              border: '1px solid var(--semi-color-border)', borderRadius: 6,
+              border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)',
               padding: '0 8px', background: 'var(--semi-color-bg-1)', width: 240 }}>
               <Search size={14} style={{ color: '#8c8c8c', flexShrink: 0 }} />
               <input
@@ -443,7 +443,7 @@ export default function ProcessesPage() {
         actions={<ExportButton entity="system.processes" query={buildExportQuery()} />}
         mobilePrimary={(
           <div style={{ display: 'flex', alignItems: 'center', gap: 6,
-            border: '1px solid var(--semi-color-border)', borderRadius: 6,
+            border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)',
             padding: '0 8px', background: 'var(--semi-color-bg-1)', width: 240 }}>
             <Search size={14} style={{ color: '#8c8c8c', flexShrink: 0 }} />
             <input
@@ -607,7 +607,7 @@ export default function ProcessesPage() {
             {detailProcess.env && Object.keys(detailProcess.env).length > 0 && (
               <div style={{ marginTop: 16 }}>
                 <Typography.Title heading={6} style={{ marginBottom: 8 }}>环境变量（{Object.keys(detailProcess.env).length}）</Typography.Title>
-                <div style={{ maxHeight: 220, overflow: 'auto', border: '1px solid var(--semi-color-border)', borderRadius: 4 }}>
+                <div style={{ maxHeight: 220, overflow: 'auto', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'monospace' }}>
                     <tbody>
                       {Object.entries(detailProcess.env).map(([k, v]) => (

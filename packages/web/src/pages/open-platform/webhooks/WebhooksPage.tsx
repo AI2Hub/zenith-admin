@@ -319,7 +319,7 @@ export default function WebhooksPage() {
       {/* 一次性 secret */}
       <Modal title="请复制保存 Webhook 签名密钥" visible={secretModal} onCancel={() => setSecretModal(false)} footer={<Button type="primary" onClick={() => setSecretModal(false)}>我已复制，关闭</Button>} closeOnEsc={false} maskClosable={false}>
         <Banner type="warning" description="该签名密钥仅显示一次，用于校验 Webhook 请求的 X-Zenith-Signature。请立即复制保存。" style={{ marginBottom: 16 }} />
-        <Paragraph copyable style={{ wordBreak: 'break-all', background: 'var(--semi-color-fill-0)', padding: 8, borderRadius: 4 }}>{oneTimeSecret}</Paragraph>
+        <Paragraph copyable style={{ wordBreak: 'break-all', background: 'var(--semi-color-fill-0)', padding: 8, borderRadius: 'var(--semi-border-radius-small)' }}>{oneTimeSecret}</Paragraph>
       </Modal>
 
       {/* 投递日志抽屉 */}

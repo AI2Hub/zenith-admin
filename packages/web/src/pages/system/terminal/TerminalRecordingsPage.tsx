@@ -504,7 +504,7 @@ export default function TerminalRecordingsPage() {
                         alignItems: 'baseline',
                         gap: 12,
                         padding: '5px 16px',
-                        borderRadius: 4,
+                        borderRadius: 'var(--semi-border-radius-small)',
                         background: keyLabel ? 'var(--semi-color-danger-light-default)' : undefined,
                       }}
                     >

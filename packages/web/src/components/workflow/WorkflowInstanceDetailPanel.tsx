@@ -136,7 +136,7 @@ function InstanceComments({ instance }: Readonly<{ instance: WorkflowInstance }>
                 {c.parentSummary && (
                   <div style={{
                     marginTop: 4, padding: '4px 8px', borderLeft: '2px solid var(--semi-color-border)',
-                    background: 'var(--semi-color-fill-0)', borderRadius: 4, fontSize: 12, color: 'var(--semi-color-text-2)',
+                    background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-small)', fontSize: 12, color: 'var(--semi-color-text-2)',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
                     {c.parentSummary.userName ?? '—'}：{c.parentSummary.content}
@@ -167,7 +167,7 @@ function InstanceComments({ instance }: Readonly<{ instance: WorkflowInstance }>
           {replyTo && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px',
-              background: 'var(--semi-color-fill-0)', borderRadius: 4, fontSize: 12, color: 'var(--semi-color-text-2)',
+              background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-small)', fontSize: 12, color: 'var(--semi-color-text-2)',
             }}>
               <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 回复 {replyTo.userName ?? `用户#${replyTo.userId}`}：{replyTo.content}
@@ -360,7 +360,7 @@ export default function WorkflowInstanceDetailPanel({
         )}
       </div>
       {instance.status === 'suspended' && (
-        <div style={{ marginTop: 8, padding: '6px 10px', borderRadius: 6, background: 'var(--semi-color-warning-light-default)', fontSize: 12, color: 'var(--semi-color-warning-dark)' }}>
+        <div style={{ marginTop: 8, padding: '6px 10px', borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--semi-color-warning-light-default)', fontSize: 12, color: 'var(--semi-color-warning-dark)' }}>
           该流程已挂起{instance.suspendedAt ? `（${formatDateTime(instance.suspendedAt)}）` : ''}，待办暂不可处理，超时计时已冻结。
           {instance.suspendReason ? ` 原因：${instance.suspendReason}` : ''}
         </div>
@@ -427,7 +427,7 @@ export default function WorkflowInstanceDetailPanel({
           <TabPane tab={`协办 (${consults.length})`} itemKey="consults">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {consults.map((c: WorkflowTaskConsult) => (
-                <div key={c.id} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: '8px 12px' }}>
+                <div key={c.id} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: '8px 12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <Typography.Text strong>{c.inviterName ?? `用户#${c.inviterId}`}</Typography.Text>
                     <Typography.Text type="tertiary" size="small">邀请</Typography.Text>
@@ -455,7 +455,7 @@ export default function WorkflowInstanceDetailPanel({
                     key={c.id}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                      padding: '8px 12px', border: '1px solid var(--semi-color-border)', borderRadius: 6,
+                      padding: '8px 12px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>

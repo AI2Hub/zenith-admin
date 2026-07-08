@@ -77,7 +77,7 @@ export default function RichTextEditor({
     <div
       style={{
         border: '1px solid var(--semi-color-border)',
-        borderRadius: 4,
+        borderRadius: 'var(--semi-border-radius-small)',
         overflow: 'hidden',
         zIndex: 0,
       }}

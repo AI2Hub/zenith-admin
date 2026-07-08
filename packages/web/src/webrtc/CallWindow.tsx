@@ -35,7 +35,7 @@ export function CallWindow({ snapshot, self }: Readonly<{ snapshot: CallSnapshot
 
   if (snapshot.minimized) {
     return (
-      <div style={{ position: 'fixed', right: 24, bottom: 24, zIndex: 2000, width: 240, background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 12, boxShadow: '0 8px 28px rgba(0,0,0,0.28)', padding: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ position: 'fixed', right: 24, bottom: 24, zIndex: 2000, width: 240, background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-large)', boxShadow: '0 8px 28px rgba(0,0,0,0.28)', padding: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--semi-color-success)', flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

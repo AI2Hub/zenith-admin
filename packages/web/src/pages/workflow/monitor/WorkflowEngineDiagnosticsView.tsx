@@ -281,7 +281,7 @@ function GoldenTile({ icon, label, value, accent, sub, delta }: Readonly<{ icon:
         flex: '1 1 170px',
         minWidth: 150,
         padding: '12px 14px',
-        borderRadius: 8,
+        borderRadius: 'var(--semi-border-radius-medium)',
         background: 'var(--semi-color-fill-0)',
         border: '1px solid var(--semi-color-border)',
       }}
@@ -333,7 +333,7 @@ function HistogramBars({ buckets, color }: Readonly<{ buckets: WorkflowEngineHis
       {buckets.map((b) => (
         <div key={b.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Typography.Text type="tertiary" size="small" style={{ width: 64, minWidth: 64, textAlign: 'right' }}>{b.label}</Typography.Text>
-          <div style={{ flex: 1, minWidth: 0, height: 12, background: 'var(--semi-color-fill-0)', borderRadius: 3, overflow: 'hidden' }}>
+          <div style={{ flex: 1, minWidth: 0, height: 12, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-small)', overflow: 'hidden' }}>
             <div style={{ width: `${(b.count / max) * 100}%`, height: '100%', background: color, opacity: 0.85 }} />
           </div>
           <Typography.Text size="small" style={{ width: 64, minWidth: 64 }}>
@@ -363,7 +363,7 @@ function ApdexBar({ data, palette }: Readonly<{ data: WorkflowEngineIntrospectio
         <Typography.Text strong style={{ fontSize: 20, color: scoreColor }}>{a.score != null ? a.score.toFixed(2) : '—'}</Typography.Text>
         <Typography.Text type="tertiary" size="small">Apdex · T={a.thresholdMs}ms</Typography.Text>
       </div>
-      <div style={{ display: 'flex', height: 12, borderRadius: 3, overflow: 'hidden', background: 'var(--semi-color-fill-0)' }}>
+      <div style={{ display: 'flex', height: 12, borderRadius: 'var(--semi-border-radius-small)', overflow: 'hidden', background: 'var(--semi-color-fill-0)' }}>
         {seg.map((s) => s.v > 0 && (
           <div key={s.label} title={`${s.label} ${s.v}`} style={{ width: `${(s.v / a.total) * 100}%`, background: s.color }} />
         ))}
@@ -371,7 +371,7 @@ function ApdexBar({ data, palette }: Readonly<{ data: WorkflowEngineIntrospectio
       <Space spacing={12} style={{ marginTop: 6 }}>
         {seg.map((s) => (
           <Space key={s.label} spacing={4} align="center">
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: s.color, display: 'inline-block' }} />
+            <span style={{ width: 8, height: 8, borderRadius: 'var(--semi-border-radius-small)', background: s.color, display: 'inline-block' }} />
             <Typography.Text type="tertiary" size="small">{s.label} {s.v}</Typography.Text>
           </Space>
         ))}
@@ -394,7 +394,7 @@ function QueueSaturation({ queues, palette }: Readonly<{ queues: WorkflowEngineQ
       <Space spacing={16} wrap style={{ marginBottom: 2 }}>
         {QUEUE_SEGMENTS.map((seg) => (
           <Space key={seg.key} spacing={4} align="center">
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: segColor[seg.key], display: 'inline-block' }} />
+            <span style={{ width: 8, height: 8, borderRadius: 'var(--semi-border-radius-small)', background: segColor[seg.key], display: 'inline-block' }} />
             <Typography.Text type="tertiary" size="small">{seg.label}</Typography.Text>
           </Space>
         ))}
@@ -407,7 +407,7 @@ function QueueSaturation({ queues, palette }: Readonly<{ queues: WorkflowEngineQ
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor(palette, q.status), display: 'inline-block', flex: '0 0 auto' }} />
               <Typography.Text size="small" ellipsis={{ showTooltip: true }}>{q.name}</Typography.Text>
             </div>
-            <div style={{ flex: 1, minWidth: 120, height: 16, borderRadius: 4, background: 'var(--semi-color-fill-0)', display: 'flex', overflow: 'hidden' }}>
+            <div style={{ flex: 1, minWidth: 120, height: 16, borderRadius: 'var(--semi-border-radius-small)', background: 'var(--semi-color-fill-0)', display: 'flex', overflow: 'hidden' }}>
               {QUEUE_SEGMENTS.map((seg) => {
                 const v = q[seg.key];
                 if (!v) return null;
@@ -466,7 +466,7 @@ function componentHealthItem(component: WorkflowEngineComponent, palette: ChartP
                   style={{
                     color: mColor,
                     marginLeft: 4,
-                    ...(abnormalMetric ? { padding: '0 6px', borderRadius: 4, background: mBg } : null),
+                    ...(abnormalMetric ? { padding: '0 6px', borderRadius: 'var(--semi-border-radius-small)', background: mBg } : null),
                   }}
                 >
                   {m.unit ? `${m.value}${m.unit}` : m.value}
@@ -781,12 +781,12 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <Skeleton loading placeholder={<Skeleton.Paragraph rows={2} style={{ width: '100%' }} />} active />
-        <Card bordered bodyStyle={{ padding: 16 }} style={{ borderRadius: 8 }}>
+        <Card bordered bodyStyle={{ padding: 16 }} style={{ borderRadius: 'var(--semi-border-radius-medium)' }}>
           <Skeleton loading placeholder={<Skeleton.Paragraph rows={4} style={{ width: '100%' }} />} active />
         </Card>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <Card bordered style={{ borderRadius: 8, flex: '1 1 380px' }}><Skeleton loading placeholder={<Skeleton.Image style={{ width: '100%', height: 150 }} />} active /></Card>
-          <Card bordered style={{ borderRadius: 8, flex: '1 1 380px' }}><Skeleton loading placeholder={<Skeleton.Image style={{ width: '100%', height: 150 }} />} active /></Card>
+          <Card bordered style={{ borderRadius: 'var(--semi-border-radius-medium)', flex: '1 1 380px' }}><Skeleton loading placeholder={<Skeleton.Image style={{ width: '100%', height: 150 }} />} active /></Card>
+          <Card bordered style={{ borderRadius: 'var(--semi-border-radius-medium)', flex: '1 1 380px' }}><Skeleton loading placeholder={<Skeleton.Image style={{ width: '100%', height: 150 }} />} active /></Card>
         </div>
       </div>
     );
@@ -950,7 +950,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
       )}
 
       {/* 概览 Hero：健康分 + 黄金信号 */}
-      <Card bordered bodyStyle={{ padding: 16 }} style={{ borderRadius: 8 }}>
+      <Card bordered bodyStyle={{ padding: 16 }} style={{ borderRadius: 'var(--semi-border-radius-medium)' }}>
         <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
           <Popover content={<ScoreBreakdown data={data} palette={palette} />} position="rightTop" showArrow>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: 188, cursor: 'help' }}>
@@ -998,18 +998,18 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
 
       {/* 趋势：事件吞吐 + 实例生命周期 */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 8, flex: '1 1 380px', minWidth: 300 }}>
+        <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 'var(--semi-border-radius-medium)', flex: '1 1 380px', minWidth: 300 }}>
           <SectionTitle icon={<Zap size={16} color="var(--semi-color-primary)" />} title="事件吞吐趋势" desc="近 24h 成功 / 失败（按小时）" />
           <AreaChart {...eventTrendSpec} options={chartOptions} height={150} />
         </Card>
-        <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 8, flex: '1 1 380px', minWidth: 300 }}>
+        <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 'var(--semi-border-radius-medium)', flex: '1 1 380px', minWidth: 300 }}>
           <SectionTitle icon={<Workflow size={16} color="var(--semi-color-primary)" />} title="实例生命周期趋势" desc="近 24h 发起 / 完结（按小时）" />
           <LineChart {...instanceTrendSpec} options={chartOptions} height={150} />
         </Card>
       </div>
 
       {/* 健康趋势历史 */}
-      <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 8 }}>
+      <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 'var(--semi-border-radius-medium)' }}>
         <SectionTitle
           icon={<GaugeCircle size={16} color="var(--semi-color-primary)" />}
           title="健康趋势"
@@ -1033,7 +1033,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
       </Card>
 
       {/* 活动问题 */}
-      <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 8 }}>
+      <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 'var(--semi-border-radius-medium)' }}>
         <SectionTitle
           icon={<AlertTriangle size={16} color={data.issues.length > 0 ? 'var(--semi-color-warning)' : 'var(--semi-color-success)'} />}
           title="活动问题"
@@ -1044,28 +1044,28 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
       </Card>
 
       {/* 队列饱和度 */}
-      <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 8 }}>
+      <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 'var(--semi-border-radius-medium)' }}>
         <SectionTitle icon={<Layers size={16} color="var(--semi-color-primary)" />} title="队列饱和度" desc="各内部队列积压构成与最老等待" extra={<Typography.Text type="tertiary" size="small">总积压 {backlog} · 阈值 {data.thresholds.backlogWarn}/{data.thresholds.backlogCritical}</Typography.Text>} />
         <QueueSaturation queues={data.queues} palette={palette} />
       </Card>
 
       {/* 延迟分布 + Apdex */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 8, flex: '1 1 360px', minWidth: 300 }}>
+        <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 'var(--semi-border-radius-medium)', flex: '1 1 360px', minWidth: 300 }}>
           <SectionTitle icon={<Timer size={16} color="var(--semi-color-primary)" />} title="事件处理延迟分布" desc={`P95 ${formatMs(t.events.p95LatencyMs)} · P99 ${formatMs(t.events.p99LatencyMs)}`} />
           <HistogramBars buckets={t.events.latencyHistogram} color={palette.primary} />
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--semi-color-border)' }}>
             <ApdexBar data={data} palette={palette} />
           </div>
         </Card>
-        <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 8, flex: '1 1 360px', minWidth: 300 }}>
+        <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 'var(--semi-border-radius-medium)', flex: '1 1 360px', minWidth: 300 }}>
           <SectionTitle icon={<Zap size={16} color="var(--semi-color-primary)" />} title="触发器耗时分布" desc={`均值 ${formatMs(t.triggers.avgDurationMs)} · P95 ${formatMs(t.triggers.p95DurationMs)} · P99 ${formatMs(t.triggers.p99DurationMs)}`} />
           <HistogramBars buckets={t.triggers.durationHistogram} color={palette.active} />
         </Card>
       </div>
 
       {/* 组件健康矩阵 */}
-      <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 8 }}>
+      <Card bordered bodyStyle={{ padding: 14 }} style={{ borderRadius: 'var(--semi-border-radius-medium)' }}>
         <SectionTitle
           icon={<GaugeCircle size={16} color="var(--semi-color-primary)" />}
           title="组件健康矩阵"

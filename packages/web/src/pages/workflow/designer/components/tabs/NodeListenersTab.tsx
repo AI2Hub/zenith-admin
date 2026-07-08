@@ -81,7 +81,7 @@ export default function NodeListenersTab({ value, onChange }: Readonly<NodeListe
             key={`listener-${idx}`}
             style={{
               border: '1px solid var(--semi-color-border)',
-              borderRadius: 6,
+              borderRadius: 'var(--semi-border-radius-medium)',
               padding: 12,
               width: '100%',
               background: 'var(--semi-color-fill-0)',

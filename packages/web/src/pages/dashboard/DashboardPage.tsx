@@ -149,7 +149,7 @@ export default function DashboardPage() {
         <Skeleton active loading placeholder={
           <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'flex-end', gap: 12, padding: '0 8px' }}>
             {[60, 80, 45, 90, 55, 70].map((h) => (
-              <Skeleton.Button key={h} style={{ flex: 1, height: `${h}%`, borderRadius: 4 }} />
+              <Skeleton.Button key={h} style={{ flex: 1, height: `${h}%`, borderRadius: 'var(--semi-border-radius-small)' }} />
             ))}
           </div>
         } />
@@ -301,7 +301,7 @@ export default function DashboardPage() {
               <Card key={item.key} className="dashboard-stat-card" bodyStyle={{ padding: '16px 20px' }}>
                 <Skeleton active loading placeholder={
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <Skeleton.Avatar style={{ width: 44, height: 44, borderRadius: 10 }} />
+                    <Skeleton.Avatar style={{ width: 44, height: 44, borderRadius: 'var(--semi-border-radius-large)' }} />
                     <div style={{ flex: 1 }}>
                       <Skeleton.Title style={{ width: 60, height: 22, marginBottom: 6 }} />
                       <Skeleton.Paragraph rows={1} style={{ width: 80 }} />
@@ -314,7 +314,7 @@ export default function DashboardPage() {
               <Card key={item.key} className="dashboard-stat-card" bodyStyle={{ padding: '16px 20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div style={{
-                    width: 44, height: 44, borderRadius: 10,
+                    width: 44, height: 44, borderRadius: 'var(--semi-border-radius-large)',
                     background: `${item.color}18`,
                     color: item.color,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',

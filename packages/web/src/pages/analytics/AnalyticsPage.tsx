@@ -145,9 +145,9 @@ function StatCard({
   color = 'var(--semi-color-primary)',
 }: Readonly<{ icon: ReactNode; label: string; value: ReactNode; sub?: ReactNode; color?: string }>) {
   return (
-    <Card bodyStyle={{ padding: 16 }} style={{ borderRadius: 14 }}>
+    <Card bodyStyle={{ padding: 16 }} style={{ borderRadius: 'var(--semi-border-radius-large)' }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-        <div style={{ width: 38, height: 38, borderRadius: 12, display: 'grid', placeItems: 'center', color, background: `color-mix(in srgb, ${color} 10%, transparent)` }}>
+        <div style={{ width: 38, height: 38, borderRadius: 'var(--semi-border-radius-large)', display: 'grid', placeItems: 'center', color, background: `color-mix(in srgb, ${color} 10%, transparent)` }}>
           {icon}
         </div>
         <div style={{ minWidth: 0 }}>
@@ -279,9 +279,9 @@ function OverviewTab() {
           placeholder={
             <div style={gridStyle}>
               {Array.from({ length: 9 }, (_, i) => `sk-stat-${i}`).map((key) => (
-                <Card key={key} bodyStyle={{ padding: 16 }} style={{ borderRadius: 14 }}>
+                <Card key={key} bodyStyle={{ padding: 16 }} style={{ borderRadius: 'var(--semi-border-radius-large)' }}>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                    <Skeleton.Avatar style={{ width: 38, height: 38, borderRadius: 12, flexShrink: 0 }} />
+                    <Skeleton.Avatar style={{ width: 38, height: 38, borderRadius: 'var(--semi-border-radius-large)', flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <Skeleton.Paragraph rows={1} style={{ width: '50%', marginBottom: 8 }} />
                       <Skeleton.Title style={{ width: '70%', marginBottom: 6 }} />
@@ -1049,7 +1049,7 @@ function RetentionTab() {
                         style={{
                           textAlign: 'center',
                           padding: '8px 6px',
-                          borderRadius: 6,
+                          borderRadius: 'var(--semi-border-radius-medium)',
                           fontSize: 12,
                           fontVariantNumeric: 'tabular-nums',
                           background: value == null ? 'transparent' : `color-mix(in srgb, var(--semi-color-primary) ${Math.round(opacity * 100)}%, transparent)`,

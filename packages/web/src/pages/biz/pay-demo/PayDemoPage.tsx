@@ -45,7 +45,7 @@ const PAY_METHOD_OPTIONS = Object.entries(PAYMENT_METHOD_LABELS).map(([value, la
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
 
 const codeStyle: CSSProperties = {
-  background: 'var(--semi-color-fill-0)', borderRadius: 6, padding: 12, margin: 0,
+  background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12, margin: 0,
   overflowX: 'auto', fontSize: 12, lineHeight: 1.6,
   fontFamily: 'var(--semi-font-family-mono, ui-monospace, monospace)',
 };

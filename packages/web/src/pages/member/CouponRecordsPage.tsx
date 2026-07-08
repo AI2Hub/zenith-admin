@@ -217,7 +217,7 @@ export default function CouponRecordsPage() {
           <div style={{ color: 'var(--semi-color-danger)', fontSize: 13, marginBottom: 12 }}>券码不存在，请检查输入</div>
         )}
         {preview && (
-          <div style={{ background: 'var(--semi-color-fill-0)', borderRadius: 8, padding: '12px 16px', marginBottom: 12 }}>
+          <div style={{ background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', padding: '12px 16px', marginBottom: 12 }}>
             <Descriptions size="small" row data={[
               { key: '优惠券', value: preview.coupon?.name ?? `#${preview.couponId}` },
               { key: '持有会员', value: preview.memberName ?? `#${preview.memberId}` },

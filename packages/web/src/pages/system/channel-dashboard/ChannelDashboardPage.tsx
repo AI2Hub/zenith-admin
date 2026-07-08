@@ -164,7 +164,7 @@ export default function ChannelDashboardPage() {
             {loading ? (
               <Skeleton active loading placeholder={
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <Skeleton.Avatar style={{ width: 44, height: 44, borderRadius: 10 }} />
+                  <Skeleton.Avatar style={{ width: 44, height: 44, borderRadius: 'var(--semi-border-radius-large)' }} />
                   <div style={{ flex: 1 }}>
                     <Skeleton.Title style={{ width: 60, height: 22, marginBottom: 6 }} />
                     <Skeleton.Paragraph rows={1} style={{ width: 80 }} />

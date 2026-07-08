@@ -17,7 +17,7 @@ import type { PaymentReportGroupBy, PaymentReportRow } from '@zenith/shared';
 const yuan = formatYuan;
 const groupByOptions = Object.entries(PAYMENT_REPORT_GROUP_BY_LABELS).map(([value, label]) => ({ value, label }));
 
-const sectionStyle: CSSProperties = { background: 'var(--semi-color-bg-1)', border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: '16px 20px' };
+const sectionStyle: CSSProperties = { background: 'var(--semi-color-bg-1)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: '16px 20px' };
 
 interface StatCardProps { readonly title: string; readonly value: string | number; readonly accent?: string; readonly delta?: number | null; }
 function StatCard({ title, value, accent, delta }: StatCardProps) {

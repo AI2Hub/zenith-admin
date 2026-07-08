@@ -65,7 +65,7 @@ function ButtonEditor({ value, onChange }: { value: EditableButton[]; onChange: 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {value.map((b, i) => (
-        <div key={i} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 8 }}>
+        <div key={i} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 8 }}>
           <Space wrap align="center">
             <Input size="small" style={{ width: 130 }} placeholder="一级菜单名" value={b.name} onChange={(v) => update(i, { name: v })} />
             <Select size="small" style={{ width: 160 }} value={b.type ?? ''} optionList={BTN_TYPES} onChange={(v) => update(i, { type: v as string })} />

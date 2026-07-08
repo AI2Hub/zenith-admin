@@ -46,7 +46,7 @@ function CompensationActionEditor({ value, onChange, connectorOptions }: CompPro
     try { set({ fieldValues: JSON.parse(t) as Record<string, string> }); } catch { /* 保留文本，等待修正 */ }
   };
   return (
-    <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 12, marginBottom: 10 }}>
+    <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12, marginBottom: 10 }}>
       <Row label="动作类型">
         <Select value={v.type} optionList={COMP_TYPE_OPTIONS} onChange={(t) => set({ type: t as WorkflowCompensationActionType })} style={{ width: '100%' }} />
       </Row>

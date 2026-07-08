@@ -178,7 +178,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
               cursor: 'pointer',
               marginTop: 28,
               flexShrink: 0,
-              borderRadius: 4,
+              borderRadius: 'var(--semi-border-radius-small)',
               overflow: 'hidden',
               border: '1px solid var(--semi-color-border)',
               padding: 0,
@@ -200,7 +200,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
         disabled={retrySeconds > 0}
         block
         size="large"
-        style={{ marginTop: 8, borderRadius: 8, height: 42 }}
+        style={{ marginTop: 8, borderRadius: 'var(--semi-border-radius-medium)', height: 42 }}
       >
         {retrySeconds > 0 ? `${retrySeconds}s 后可重试` : '登录'}
       </Button>
@@ -225,7 +225,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
         <div style={{
           width: 36,
           height: 36,
-          borderRadius: 8,
+          borderRadius: 'var(--semi-border-radius-medium)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -258,7 +258,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
         loading={loading}
         block
         size="large"
-        style={{ marginTop: 8, borderRadius: 8, height: 42 }}
+        style={{ marginTop: 8, borderRadius: 'var(--semi-border-radius-medium)', height: 42 }}
       >
         验证并登录
       </Button>
@@ -320,7 +320,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
         disabled={retrySeconds > 0}
         block
         size="large"
-        style={{ marginTop: 8, borderRadius: 8, height: 42 }}
+        style={{ marginTop: 8, borderRadius: 'var(--semi-border-radius-medium)', height: 42 }}
       >
         {retrySeconds > 0 ? `${retrySeconds}s 后可重试` : '注册'}
       </Button>
@@ -514,7 +514,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
             <div style={{
               marginTop: 20,
               padding: '10px 14px',
-              borderRadius: 8,
+              borderRadius: 'var(--semi-border-radius-medium)',
               background: 'var(--semi-color-primary-light-default)',
               border: '1px solid var(--semi-color-primary-light-active)',
               fontSize: 13,

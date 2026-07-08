@@ -255,7 +255,7 @@ export default function WorkflowFormInlineEditor({
         />
       )}
       {settings.description && (
-        <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--semi-color-fill-0)', borderRadius: 6 }}>
+        <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)' }}>
           <Typography.Text type="secondary" size="small">{settings.description}</Typography.Text>
         </div>
       )}
@@ -271,7 +271,7 @@ export default function WorkflowFormInlineEditor({
             labelWidth={settings.labelWidth}
           />
           {previewState === 'approval' ? (
-            <div style={{ marginTop: 16, padding: 12, border: '1px solid var(--semi-color-border)', borderRadius: 6 }}>
+            <div style={{ marginTop: 16, padding: 12, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
               <Typography.Text strong size="small" style={{ display: 'block', marginBottom: 8 }}>审批意见</Typography.Text>
               <TextArea placeholder="请输入审批意见" rows={2} disabled />
               <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -667,7 +667,7 @@ function HealthIssueRow({ issue, onLocate }: Readonly<{ issue: FormIssue; onLoca
       disabled={!onLocate}
       style={{
         display: 'flex', alignItems: 'flex-start', gap: 8, width: '100%', textAlign: 'left',
-        padding: '8px 10px', borderRadius: 6, cursor: onLocate ? 'pointer' : 'default',
+        padding: '8px 10px', borderRadius: 'var(--semi-border-radius-medium)', cursor: onLocate ? 'pointer' : 'default',
         background: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)',
       }}
     >

@@ -249,7 +249,7 @@ export default function MpKfSessionsPage() {
           <StatCard label="今日已结束" value={stats.closedToday} color="#8c8c8c" />
           <StatCard label="今日平均等待(秒)" value={stats.avgWaitSeconds} color="#1677ff" />
           <StatCard label="今日满意度" value={stats.avgRating} color="#eb2f96" />
-          <div style={{ flex: 1, minWidth: 220, border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 220, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <Text type="tertiary" size="small">客服负载：</Text>
             {stats.agents.length === 0 && <Text type="tertiary" size="small">暂无客服</Text>}
             {stats.agents.map((a) => (
@@ -262,7 +262,7 @@ export default function MpKfSessionsPage() {
       )}
 
       <div style={{ display: 'flex', gap: 12, height: 'calc(100vh - 280px)', minHeight: 420 }}>
-        <div style={{ width: 340, border: '1px solid var(--semi-color-border)', borderRadius: 8, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ width: 340, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Tabs type="line" activeKey={tab} onChange={handleTabChange} style={{ padding: '0 8px' }}>
             <TabPane tab="待接入" itemKey="waiting" />
             <TabPane tab="进行中" itemKey="active" />
@@ -302,7 +302,7 @@ export default function MpKfSessionsPage() {
           </div>
         </div>
 
-        <div style={{ flex: 1, border: '1px solid var(--semi-color-border)', borderRadius: 8, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {!detail ? (
             <Empty image={<MessageSquare size={48} color="var(--semi-color-text-2)" />} description="请选择左侧会话" style={{ margin: 'auto' }} />
           ) : (
@@ -347,7 +347,7 @@ export default function MpKfSessionsPage() {
                             <div style={{
                               background: out ? 'var(--semi-color-primary)' : 'var(--semi-color-fill-0)',
                               color: out ? '#fff' : 'var(--semi-color-text-0)',
-                              padding: '8px 12px', borderRadius: 8, wordBreak: 'break-word', whiteSpace: 'pre-wrap',
+                              padding: '8px 12px', borderRadius: 'var(--semi-border-radius-medium)', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
                             }}>{msgPreview(m)}</div>
                             <Text type="tertiary" size="small" style={{ display: 'block', textAlign: out ? 'right' : 'left', marginTop: 2 }}>{m.createdAt?.slice(5, 16)}</Text>
                           </div>
@@ -435,7 +435,7 @@ export default function MpKfSessionsPage() {
 
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div style={{ minWidth: 130, border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: '8px 16px' }}>
+    <div style={{ minWidth: 130, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: '8px 16px' }}>
       <Title heading={3} style={{ margin: 0, color }}>{value}</Title>
       <Text type="tertiary" size="small">{label}</Text>
     </div>

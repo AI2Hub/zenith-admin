@@ -34,7 +34,7 @@ const EVENT_OPTIONS = [
 const DELIVERY_STATUS_COLOR = { pending: 'grey', success: 'green', failed: 'red' } as const satisfies Record<PaymentWebhookDelivery['status'], string>;
 const codeBlockStyle: CSSProperties = {
   maxHeight: 260, overflow: 'auto', fontSize: 12, background: 'var(--semi-color-fill-0)',
-  padding: 12, borderRadius: 4, wordBreak: 'break-all', whiteSpace: 'pre-wrap', margin: 0,
+  padding: 12, borderRadius: 'var(--semi-border-radius-small)', wordBreak: 'break-all', whiteSpace: 'pre-wrap', margin: 0,
 };
 
 interface EndpointSearchParams { keyword: string; status: string; }

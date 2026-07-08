@@ -51,7 +51,7 @@ export function JoinInviteModal({
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
           <span
             style={{
-              width: 56, height: 56, borderRadius: 12, background: 'var(--semi-color-primary-light-default)',
+              width: 56, height: 56, borderRadius: 'var(--semi-border-radius-large)', background: 'var(--semi-color-primary-light-default)',
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             }}
           >

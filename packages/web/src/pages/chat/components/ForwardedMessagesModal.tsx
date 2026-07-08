@@ -33,7 +33,7 @@ export function ForwardedMessagesModal({
               padding: '8px 10px',
               marginBottom: 12,
               background: 'var(--semi-color-fill-0)',
-              borderRadius: 8,
+              borderRadius: 'var(--semi-border-radius-medium)',
               border: '1px solid var(--semi-color-border)',
             }}
             main={(
@@ -54,7 +54,7 @@ export function ForwardedMessagesModal({
                     <img
                       src={item.asset?.thumbnailUrl ?? item.content}
                       alt={item.asset?.name ?? '图片'}
-                      style={{ maxWidth: '100%', maxHeight: 260, borderRadius: 6, display: 'block', cursor: 'zoom-in' }}
+                      style={{ maxWidth: '100%', maxHeight: 260, borderRadius: 'var(--semi-border-radius-medium)', display: 'block', cursor: 'zoom-in' }}
                     />
                   </a>
                 ) : item.type === 'file' ? (

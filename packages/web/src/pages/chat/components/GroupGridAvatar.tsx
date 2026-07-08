@@ -49,7 +49,7 @@ export function GroupGridAvatar({
         width: size,
         height: size,
         flexShrink: 0,
-        borderRadius: 8,
+        borderRadius: 'var(--semi-border-radius-medium)',
         padding: 2,
         boxSizing: 'border-box',
         background: 'var(--semi-color-fill-0)',
@@ -83,7 +83,7 @@ export function GroupGridAvatar({
             style={{
               width: cellSize,
               height: cellSize,
-              borderRadius: 3,
+              borderRadius: 'var(--semi-border-radius-small)',
               background: cell.char ? getAvatarColor(`${name}-${idx}`) : 'var(--semi-color-fill-1)',
               display: 'inline-flex',
               alignItems: 'center',

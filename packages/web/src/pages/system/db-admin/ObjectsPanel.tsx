@@ -126,7 +126,7 @@ export function ObjectsPanel({ active }: Readonly<{ active: boolean }>) {
       )}
 
       <AppModal title={`定义 · ${defTitle}`} visible={defText !== null} onCancel={() => setDefText(null)} footer={null} width={760}>
-        <pre style={{ margin: 0, padding: 12, background: 'var(--semi-color-fill-0)', borderRadius: 6, maxHeight: '60vh', overflow: 'auto', fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+        <pre style={{ margin: 0, padding: 12, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', maxHeight: '60vh', overflow: 'auto', fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
           {defText}
         </pre>
       </AppModal>

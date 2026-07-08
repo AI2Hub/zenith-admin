@@ -130,7 +130,7 @@ export default function WorkflowHealthCheckDrawer({ visible, flowData, definitio
               <Typography.Title heading={6} style={{ marginBottom: 8 }}>分支覆盖分析（{report.branchCoverage.length} 个网关）</Typography.Title>
               <Space vertical align="start" style={{ width: '100%' }} spacing={8}>
                 {report.branchCoverage.map((g) => (
-                  <div key={g.nodeKey} style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--semi-color-border)', borderRadius: 6 }}>
+                  <div key={g.nodeKey} style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
                     <Space spacing={8} style={{ flexWrap: 'wrap' }}>
                       <Typography.Text strong size="small">{g.nodeName}</Typography.Text>
                       <Tag size="small" color="grey">{g.branchCount} 分支</Tag>

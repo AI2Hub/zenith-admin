@@ -222,7 +222,7 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
     ...(bordered
       ? {
           border: '1px solid var(--semi-color-border)',
-          borderRadius: 6,
+          borderRadius: 'var(--semi-border-radius-medium)',
           background: 'var(--semi-color-bg-1)',
         }
       : null),
@@ -238,7 +238,7 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
     ...(bordered
       ? {
           border: '1px solid var(--semi-color-border)',
-          borderRadius: 6,
+          borderRadius: 'var(--semi-border-radius-medium)',
           background: 'var(--semi-color-bg-1)',
         }
       : null),

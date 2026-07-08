@@ -22,7 +22,7 @@ const yuan = formatYuan;
 const sectionStyle: CSSProperties = {
   background: 'var(--semi-color-bg-1)',
   border: '1px solid var(--semi-color-border)',
-  borderRadius: 6,
+  borderRadius: 'var(--semi-border-radius-medium)',
   padding: '16px 20px',
 };
 

@@ -174,7 +174,7 @@ export default function LogFilesPage() {
           style={{
             backgroundColor: 'var(--semi-color-warning-light-default)',
             color: 'inherit',
-            borderRadius: 3,
+            borderRadius: 'var(--semi-border-radius-small)',
             padding: '0 1px',
             fontWeight: 600,
           }}
@@ -253,7 +253,7 @@ export default function LogFilesPage() {
                         fontSize: 10,
                         fontWeight: 600,
                         padding: '1px 4px',
-                        borderRadius: 3,
+                        borderRadius: 'var(--semi-border-radius-small)',
                         lineHeight: '14px',
                         background: file.isGzip ? 'var(--semi-color-fill-2)' : 'var(--semi-color-primary-light-default)',
                         color: file.isGzip ? 'var(--semi-color-text-2)' : 'var(--semi-color-primary)',
@@ -437,7 +437,7 @@ export default function LogFilesPage() {
                           background: isActiveMatchLine ? 'var(--semi-color-primary-light-default)' : 'transparent',
                           borderLeft: isActiveMatchLine ? '3px solid var(--semi-color-primary)' : '3px solid transparent',
                           paddingLeft: isActiveMatchLine ? 6 : 0,
-                          borderRadius: 4,
+                          borderRadius: 'var(--semi-border-radius-small)',
                         }}
                       >
                         {showLineNumbers && (

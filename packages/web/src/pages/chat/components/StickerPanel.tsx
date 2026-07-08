@@ -77,7 +77,7 @@ export function StickerPanel({
               onClick={() => onSelect(emoji)}
               title={emoji.name ?? '表情'}
               style={{
-                width: '100%', aspectRatio: '1', border: '1px solid var(--semi-color-border)', borderRadius: 8,
+                width: '100%', aspectRatio: '1', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)',
                 background: 'var(--semi-color-bg-2)', cursor: 'pointer', padding: 4, overflow: 'hidden',
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               }}

@@ -484,7 +484,7 @@ export default function FilePreviewModal({
         fullscreenable={false}
         width="min(960px, 92vw)"
         style={{ top: '4vh' }}
-        bodyStyle={{ padding: 0, overflow: 'hidden', borderRadius: 8 }}
+        bodyStyle={{ padding: 0, overflow: 'hidden', borderRadius: 'var(--semi-border-radius-medium)' }}
         keepDOM={false}
       >
         <VideoPlayer
@@ -502,7 +502,7 @@ export default function FilePreviewModal({
             { label: '1.5x', value: 1.5 },
             { label: '2x', value: 2 },
           ]}
-          style={{ borderRadius: 8 }}
+          style={{ borderRadius: 'var(--semi-border-radius-medium)' }}
         />
       </AppModal>
     );

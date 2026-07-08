@@ -548,13 +548,13 @@ export default function OAuth2AppsPage() {
         <div style={{ marginBottom: 8 }}>
           <Text strong>Client ID：</Text>
         </div>
-        <Paragraph copyable style={{ wordBreak: 'break-all', background: 'var(--semi-color-fill-0)', padding: 8, borderRadius: 4 }}>
+        <Paragraph copyable style={{ wordBreak: 'break-all', background: 'var(--semi-color-fill-0)', padding: 8, borderRadius: 'var(--semi-border-radius-small)' }}>
           {oneTimeClientId}
         </Paragraph>
         <div style={{ marginTop: 12, marginBottom: 8 }}>
           <Text strong>Client Secret：</Text>
         </div>
-        <Paragraph copyable style={{ wordBreak: 'break-all', background: 'var(--semi-color-fill-0)', padding: 8, borderRadius: 4 }}>
+        <Paragraph copyable style={{ wordBreak: 'break-all', background: 'var(--semi-color-fill-0)', padding: 8, borderRadius: 'var(--semi-border-radius-small)' }}>
           {oneTimeSecret}
         </Paragraph>
       </Modal>

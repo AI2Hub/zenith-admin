@@ -119,7 +119,7 @@ export default function PaymentEventsPage() {
         const danger = (key === 'outboxFailed' || key === 'webhookFailed24h') && value > 0;
         return (
           <Col key={key} xs={12} sm={8} xl={3}>
-            <div style={{ background: 'var(--semi-color-bg-1)', border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: '12px 14px' }}>
+            <div style={{ background: 'var(--semi-color-bg-1)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: '12px 14px' }}>
               <Typography.Text type="tertiary" size="small">{label}</Typography.Text>
               <div style={{ marginTop: 6 }}>
                 <Typography.Text strong type={danger ? 'danger' : undefined} style={{ fontSize: 22, lineHeight: '28px' }}>

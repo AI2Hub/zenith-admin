@@ -216,7 +216,7 @@ export default function ChannelCustomerServicePage() {
       {channels.length === 0 ? (
         <Empty description="暂无可服务的运营号" style={{ padding: 60 }} />
       ) : (
-        <div style={{ flex: 1, display: 'flex', minHeight: 0, border: '1px solid var(--semi-color-border)', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'flex', minHeight: 0, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', overflow: 'hidden' }}>
           {/* 会话列表 */}
           <div style={{ width: 320, borderRight: '1px solid var(--semi-color-border)', display: 'flex', flexDirection: 'column', flexShrink: 0, minHeight: 0 }}>
             {/* 筛选区 */}
@@ -369,7 +369,7 @@ export default function ChannelCustomerServicePage() {
                           {isOut ? (m.senderUserName ? `${m.senderUserName}（客服）` : '自动回复') : (m.senderUserName ?? '用户')} · {formatDateTime(m.createdAt)}
                         </Text>
                         <div style={{
-                          maxWidth: '70%', padding: '8px 12px', borderRadius: 8, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                          maxWidth: '70%', padding: '8px 12px', borderRadius: 'var(--semi-border-radius-medium)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                           background: isOut ? 'var(--semi-color-primary)' : 'var(--semi-color-fill-0)',
                           color: isOut ? '#fff' : 'var(--semi-color-text-0)',
                         }}>

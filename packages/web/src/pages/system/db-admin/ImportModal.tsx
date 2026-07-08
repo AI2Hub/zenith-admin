@@ -181,7 +181,7 @@ export function ImportModal(props: Readonly<Props>) {
               onRemove={() => reset()}
               style={{ width: '100%', marginTop: 8 }}
             >
-              <div style={{ padding: '20px 16px', textAlign: 'center', border: '1px dashed var(--semi-color-border)', borderRadius: 6, width: '100%' }}>
+              <div style={{ padding: '20px 16px', textAlign: 'center', border: '1px dashed var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', width: '100%' }}>
                 <UploadIcon size={24} style={{ color: 'var(--semi-color-text-2)' }} />
                 <div style={{ marginTop: 6 }}><Text>点击或拖拽上传 CSV / JSON 文件</Text></div>
                 <Text type="tertiary" size="small">CSV 首行须为列名；JSON 须为对象数组</Text>

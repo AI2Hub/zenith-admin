@@ -294,7 +294,7 @@ function FolderPickerModal({ visible, title, initialPath, drives = [], onConfirm
       </Breadcrumb>
 
       {/* 文件夹列表（无卡片边框，简洁风格） */}
-      <div style={{ height: 280, overflowY: 'auto', background: 'var(--semi-color-fill-0)', borderRadius: 6 }}>
+      <div style={{ height: 280, overflowY: 'auto', background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)' }}>
         {pickerLoading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
             <Spin size="middle" />
@@ -1223,7 +1223,7 @@ export default function FileManagerPage() {
                 onClick={closeCtxMenu}
                 onContextMenu={(e) => { e.preventDefault(); closeCtxMenu(); }}
               />
-              <div style={{ position: 'fixed', left: ctxEntry.x, top: ctxEntry.y, zIndex: 1001, minWidth: 150, background: 'var(--semi-color-bg-3)', border: '1px solid var(--semi-color-border)', borderRadius: 6, boxShadow: 'var(--semi-shadow-elevated)', padding: '4px 0' }}>
+              <div style={{ position: 'fixed', left: ctxEntry.x, top: ctxEntry.y, zIndex: 1001, minWidth: 150, background: 'var(--semi-color-bg-3)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', boxShadow: 'var(--semi-shadow-elevated)', padding: '4px 0' }}>
                 {ctxMenuItems.map((item) => (
                   <button
                     key={item.label}

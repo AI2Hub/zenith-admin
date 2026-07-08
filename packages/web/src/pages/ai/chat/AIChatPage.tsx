@@ -162,7 +162,7 @@ function PdfFileCard({ filename, size, onClick, url, uploading }: PdfFileCardPro
         style={{
           width: 36,
           height: 36,
-          borderRadius: 6,
+          borderRadius: 'var(--semi-border-radius-medium)',
           background: 'var(--semi-color-danger-light-default)',
           display: 'flex',
           alignItems: 'center',
@@ -198,7 +198,7 @@ function PdfFileCard({ filename, size, onClick, url, uploading }: PdfFileCardPro
     alignItems: 'center',
     gap: 10,
     padding: '10px 14px',
-    borderRadius: 10,
+    borderRadius: 'var(--semi-border-radius-large)',
     background: 'var(--semi-color-bg-2)',
     border: '1px solid var(--semi-color-border)',
     maxWidth: 260,
@@ -972,7 +972,7 @@ export default function AIChatPage() {
                         />
                       </Configure>
                     )}
-                    style={{ borderRadius: 12 }}
+                    style={{ borderRadius: 'var(--semi-border-radius-large)' }}
                   />
                 </div>
               </div>

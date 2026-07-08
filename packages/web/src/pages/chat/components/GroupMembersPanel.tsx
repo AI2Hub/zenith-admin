@@ -261,7 +261,7 @@ export function GroupMembersPanel({
         ) : (
           <>
             {conv.announcement && (
-              <div style={{ padding: '6px 8px', background: 'var(--semi-color-warning-light-default)', borderRadius: 6, fontSize: 12, color: 'var(--semi-color-text-1)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              <div style={{ padding: '6px 8px', background: 'var(--semi-color-warning-light-default)', borderRadius: 'var(--semi-border-radius-medium)', fontSize: 12, color: 'var(--semi-color-text-1)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                 📢 {conv.announcement}
               </div>
             )}
@@ -292,7 +292,7 @@ export function GroupMembersPanel({
           </Tooltip>
         </div>
         {canManage && joinRequests.length > 0 && (
-          <div style={{ marginBottom: 10, padding: 8, background: 'var(--semi-color-warning-light-default)', borderRadius: 6 }}>
+          <div style={{ marginBottom: 10, padding: 8, background: 'var(--semi-color-warning-light-default)', borderRadius: 'var(--semi-border-radius-medium)' }}>
             <Text strong style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6, fontSize: 12 }}>
               <UserCheck size={13} />入群申请（{joinRequests.length}）
             </Text>
@@ -323,7 +323,7 @@ export function GroupMembersPanel({
           </div>
         )}
         {showAdd && (
-          <div style={{ marginBottom: 10, padding: 8, background: 'var(--semi-color-fill-0)', borderRadius: 6 }}>
+          <div style={{ marginBottom: 10, padding: 8, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)' }}>
             <Tabs size="small" defaultActiveKey="search">
               <TabPane tab="搜索" itemKey="search">
                 <div style={{ paddingTop: 6 }}>

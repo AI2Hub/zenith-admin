@@ -107,7 +107,7 @@ export function TabSwitcher({ tabs, activeKey, onNavigate, onClose, pathIconMap 
                   style={{
                     padding: '5px 8px',
                     cursor: 'pointer',
-                    borderRadius: 6,
+                    borderRadius: 'var(--semi-border-radius-medium)',
                     margin: '1px 4px',
                     background: isFocused
                       ? 'var(--semi-color-fill-1)'

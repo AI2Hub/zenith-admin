@@ -529,7 +529,7 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
           gap: 4,
           ...(isDropTarget ? {
             background: 'var(--semi-color-primary-light-default)',
-            borderRadius: 4,
+            borderRadius: 'var(--semi-border-radius-small)',
             outline: '2px solid var(--semi-color-primary)',
             outlineOffset: '-1px',
           } : {}),

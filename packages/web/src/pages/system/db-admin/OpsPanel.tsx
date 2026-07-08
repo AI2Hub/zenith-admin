@@ -174,7 +174,7 @@ function MaintenancePanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
     { title: '死元组', dataIndex: 'deadTuples', width: 160, render: (v: number, r) => (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ minWidth: 56 }}>{v.toLocaleString()}</span>
-        <div style={{ flex: 1, height: 6, background: 'var(--semi-color-fill-1)', borderRadius: 3, overflow: 'hidden', minWidth: 40 }}>
+        <div style={{ flex: 1, height: 6, background: 'var(--semi-color-fill-1)', borderRadius: 'var(--semi-border-radius-small)', overflow: 'hidden', minWidth: 40 }}>
           <div style={{ height: '100%', width: `${Math.min(r.deadRatio, 100)}%`, background: r.deadRatio > 20 ? 'var(--semi-color-danger)' : r.deadRatio > 10 ? 'var(--semi-color-warning)' : 'var(--semi-color-success)' }} />
         </div>
         <Text type={r.deadRatio > 20 ? 'danger' : undefined} size="small">{r.deadRatio}%</Text>
@@ -302,7 +302,7 @@ function IndexHealthPanel() {
             <div style={{ width: '100%' }}>
               <Text strong style={{ display: 'block', marginBottom: 6 }}>重复索引（同表相同列集，存在冗余）</Text>
               {data.duplicate.map((g) => (
-                <div key={`${g.schema}.${g.table}.${g.columns.join(',')}`} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 10, marginBottom: 8 }}>
+                <div key={`${g.schema}.${g.table}.${g.columns.join(',')}`} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 10, marginBottom: 8 }}>
                   <Text type="tertiary" size="small">{g.schema === 'public' ? g.table : `${g.schema}.${g.table}`} · 列 ({g.columns.join(', ')})</Text>
                   <div style={{ marginTop: 6 }}>
                     {g.indexes.map((idx) => (
@@ -363,7 +363,7 @@ function DriftPanel() {
           />
           <Space vertical align="start" style={{ width: '100%' }} spacing={10}>
             {data.drifts.map((d) => (
-              <div key={`${d.schema}.${d.table}`} style={{ width: '100%', border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 10 }}>
+              <div key={`${d.schema}.${d.table}`} style={{ width: '100%', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 10 }}>
                 <Space spacing={8} style={{ marginBottom: d.columns.length > 0 ? 8 : 0 }}>
                   <Text strong>{d.schema === 'public' ? d.table : `${d.schema}.${d.table}`}</Text>
                   <Tag color={STATUS_LABEL[d.status].color} size="small">{STATUS_LABEL[d.status].text}</Tag>

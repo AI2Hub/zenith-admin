@@ -43,7 +43,7 @@ function StatCard({ title, value, icon, color, secondary }: StatCardProps) {
         <div style={{
           width: 44,
           height: 44,
-          borderRadius: 10,
+          borderRadius: 'var(--semi-border-radius-large)',
           background: `${color}18`,
           color,
           display: 'flex',

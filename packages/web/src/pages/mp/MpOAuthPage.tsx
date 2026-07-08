@@ -91,7 +91,7 @@ export default function MpOAuthPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <Typography.Text type="secondary" size="small">授权跳转链接（在微信内打开）</Typography.Text>
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-              <Typography.Paragraph copyable={false} style={{ flex: 1, wordBreak: 'break-all', margin: 0, padding: 8, background: 'var(--semi-color-fill-0)', borderRadius: 6, fontSize: 12 }}>{genUrl}</Typography.Paragraph>
+              <Typography.Paragraph copyable={false} style={{ flex: 1, wordBreak: 'break-all', margin: 0, padding: 8, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', fontSize: 12 }}>{genUrl}</Typography.Paragraph>
               <Button icon={<Copy size={14} />} onClick={() => void copy(genUrl)}>复制</Button>
             </div>
           </div>
@@ -100,7 +100,7 @@ export default function MpOAuthPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, borderTop: '1px solid var(--semi-color-border)', paddingTop: 12 }}>
           <Typography.Text type="secondary" size="small">本系统提供的公开回调端点（可作为 redirect_uri，返回 openid/unionid JSON）<Tag size="small" type="light" color="green" style={{ marginLeft: 6 }}>公开</Tag></Typography.Text>
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-            <Typography.Paragraph style={{ flex: 1, wordBreak: 'break-all', margin: 0, padding: 8, background: 'var(--semi-color-fill-0)', borderRadius: 6, fontSize: 12 }}>{callbackUrl || '请先选择公众号'}</Typography.Paragraph>
+            <Typography.Paragraph style={{ flex: 1, wordBreak: 'break-all', margin: 0, padding: 8, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', fontSize: 12 }}>{callbackUrl || '请先选择公众号'}</Typography.Paragraph>
             {callbackUrl && <Button icon={<Copy size={14} />} onClick={() => void copy(callbackUrl)}>复制</Button>}
           </div>
         </div>
@@ -117,7 +117,7 @@ export default function MpOAuthPage() {
           <Button type="primary" icon={<Link2 size={14} />} loading={jsConfigMutation.isPending} disabled={!currentId} onClick={handleJsConfig}>生成签名</Button>
         </div>
         {jsConfig && (
-          <Typography.Paragraph style={{ wordBreak: 'break-all', margin: 0, padding: 8, background: 'var(--semi-color-fill-0)', borderRadius: 6, fontSize: 12, fontFamily: 'monospace' }}>
+          <Typography.Paragraph style={{ wordBreak: 'break-all', margin: 0, padding: 8, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', fontSize: 12, fontFamily: 'monospace' }}>
             {`wx.config({\n  appId: '${jsConfig.appId}',\n  timestamp: ${jsConfig.timestamp},\n  nonceStr: '${jsConfig.nonceStr}',\n  signature: '${jsConfig.signature}',\n  jsApiList: [...]\n})`}
           </Typography.Paragraph>
         )}

@@ -88,7 +88,7 @@ function ColorInput({ value, onChange }: { readonly value?: string; readonly onC
             display: 'inline-flex',
             width: 16,
             height: 16,
-            borderRadius: 3,
+            borderRadius: 'var(--semi-border-radius-small)',
             background: isValidHex(text) ? text : '#e5e7eb',
             border: '1px solid rgba(0,0,0,0.15)',
             cursor: 'pointer',

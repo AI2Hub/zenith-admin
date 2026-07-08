@@ -282,7 +282,7 @@ export function CronBuilderPopover({ value, onApply }: CronBuilderPopoverProps) 
         )}
       </div>
 
-      <div style={{ background: 'var(--semi-color-fill-2)', borderRadius: 6, padding: '8px 12px', marginBottom: 12 }}>
+      <div style={{ background: 'var(--semi-color-fill-2)', borderRadius: 'var(--semi-border-radius-medium)', padding: '8px 12px', marginBottom: 12 }}>
         <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 2 }}>生成表达式</Typography.Text>
         <Typography.Text code style={{ fontSize: 13 }}>{isCustom ? (value || '—') : expr}</Typography.Text>
         {desc && <Typography.Text type="secondary" size="small" style={{ display: 'block', marginTop: 4 }}>{desc}</Typography.Text>}

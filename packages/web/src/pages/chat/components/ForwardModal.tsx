@@ -61,7 +61,7 @@ export function ForwardModal({
             <Text type="tertiary" style={{ fontSize: 12 }}>暂无其他会话</Text>
           </div>
         )}
-        style={{ maxHeight: 320, overflowY: 'auto', borderRadius: 8 }}
+        style={{ maxHeight: 320, overflowY: 'auto', borderRadius: 'var(--semi-border-radius-medium)' }}
         renderItem={(conv: ChatConversation) => {
           const name = conv.type === 'direct' ? (conv.targetUser?.nickname ?? '未知用户') : (conv.name ?? '群聊');
           const isChecked = selected.includes(conv.id);

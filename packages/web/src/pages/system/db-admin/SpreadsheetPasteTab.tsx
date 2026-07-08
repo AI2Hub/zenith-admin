@@ -120,7 +120,7 @@ export function SpreadsheetPasteTab({ onData }: Readonly<SpreadsheetPasteTabProp
           width: '100%',
           height: 320,
           border: '1px solid var(--semi-color-border)',
-          borderRadius: 6,
+          borderRadius: 'var(--semi-border-radius-medium)',
           overflow: 'hidden',
         }}
       />

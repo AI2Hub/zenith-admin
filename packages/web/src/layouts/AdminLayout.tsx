@@ -2023,7 +2023,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
                           onClick={() => toggleFavorite(currentMenu.id)}
                           style={{
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            width: 22, height: 22, border: 0, borderRadius: 4, background: 'transparent',
+                            width: 22, height: 22, border: 0, borderRadius: 'var(--semi-border-radius-small)', background: 'transparent',
                             cursor: 'pointer', flexShrink: 0, padding: 0,
                             color: faved ? 'var(--semi-color-warning)' : 'var(--semi-color-text-2)',
                             transition: 'color 0.15s',
@@ -3043,7 +3043,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
                         {keys.map((k, i) => (
                           <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                             {i > 0 && <span style={{ color: 'var(--semi-color-text-3)', fontSize: 10 }}>+</span>}
-                            <kbd style={{ display: 'inline-flex', alignItems: 'center', padding: '1px 5px', background: 'var(--semi-color-bg-1)', border: '1px solid var(--semi-color-border)', borderRadius: 3, fontSize: 11, fontFamily: 'inherit', color: 'var(--semi-color-text-0)', boxShadow: '0 1px 0 var(--semi-color-border)', whiteSpace: 'nowrap' }}>{k}</kbd>
+                            <kbd style={{ display: 'inline-flex', alignItems: 'center', padding: '1px 5px', background: 'var(--semi-color-bg-1)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)', fontSize: 11, fontFamily: 'inherit', color: 'var(--semi-color-text-0)', boxShadow: '0 1px 0 var(--semi-color-border)', whiteSpace: 'nowrap' }}>{k}</kbd>
                           </span>
                         ))}
                       </span>

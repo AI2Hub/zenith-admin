@@ -130,7 +130,7 @@ export default function MpMessagesPage() {
           (thread ?? []).map((m: MpMessage) => (
             <div key={m.id} style={{ display: 'flex', justifyContent: m.direction === 'out' ? 'flex-end' : 'flex-start', marginBottom: 12 }}>
               <div style={{
-                maxWidth: '70%', padding: '8px 12px', borderRadius: 8, wordBreak: 'break-word', fontSize: 13, lineHeight: 1.5,
+                maxWidth: '70%', padding: '8px 12px', borderRadius: 'var(--semi-border-radius-medium)', wordBreak: 'break-word', fontSize: 13, lineHeight: 1.5,
                 background: m.direction === 'out' ? 'var(--semi-color-primary)' : 'var(--semi-color-bg-2)',
                 color: m.direction === 'out' ? '#fff' : 'var(--semi-color-text-0)',
               }}>

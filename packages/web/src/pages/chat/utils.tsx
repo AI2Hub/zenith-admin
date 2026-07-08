@@ -142,7 +142,7 @@ export function renderTextWithMentions(content: string, isSelf: boolean, mention
               color: isSelf ? '#fff' : 'var(--semi-color-primary)',
               fontWeight: 600,
               background: isSelf ? 'rgba(255,255,255,0.14)' : 'var(--semi-color-primary-light-default)',
-              borderRadius: 4,
+              borderRadius: 'var(--semi-border-radius-small)',
               padding: '0 2px',
             }}
           >

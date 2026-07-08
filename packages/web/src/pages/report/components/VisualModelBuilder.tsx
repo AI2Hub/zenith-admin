@@ -68,7 +68,7 @@ export function VisualModelBuilder({ initial, onGenerate }: Readonly<Props>) {
   }
 
   return (
-    <Space vertical align="start" spacing={8} style={{ width: '100%', marginTop: 8, padding: 12, border: '1px solid var(--semi-color-border)', borderRadius: 6 }}>
+    <Space vertical align="start" spacing={8} style={{ width: '100%', marginTop: 8, padding: 12, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
       <Space wrap>
         <Select filter placeholder="选择数据表" value={model.table || undefined} style={{ width: 240 }}
           optionList={tables.map((t) => ({ value: t, label: t }))} loading={tablesQuery.isFetching}

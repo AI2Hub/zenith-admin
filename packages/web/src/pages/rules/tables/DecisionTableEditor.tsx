@@ -170,7 +170,7 @@ export default function DecisionTableEditor({ inputs, outputs, rules, hitPolicy,
         ) : (
           <>
             {rules.length > 0 && (
-              <div style={{ overflowX: 'auto', maxHeight: '54vh', marginTop: 8, border: '1px solid var(--semi-color-border)', borderRadius: 6 }}>
+              <div style={{ overflowX: 'auto', maxHeight: '54vh', marginTop: 8, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
                 <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: 12, minWidth: '100%' }}>
                   <thead>
                     <tr>

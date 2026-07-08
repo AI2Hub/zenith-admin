@@ -258,7 +258,7 @@ export default function WorkflowTriggerExecutionsPage() {
             {detail.errorMessage && (
               <div>
                 <Typography.Text type="tertiary" size="small">错误信息</Typography.Text>
-                <pre style={{ background: 'var(--semi-color-fill-0)', padding: 12, borderRadius: 4, marginTop: 4, color: 'var(--semi-color-danger)' }}>
+                <pre style={{ background: 'var(--semi-color-fill-0)', padding: 12, borderRadius: 'var(--semi-border-radius-small)', marginTop: 4, color: 'var(--semi-color-danger)' }}>
                   {detail.errorMessage}
                 </pre>
               </div>
@@ -286,7 +286,7 @@ function CodeBlock({ label, content }: Readonly<{ label: string; content: string
   return (
     <div>
       <Typography.Text type="tertiary" size="small">{label}</Typography.Text>
-      <pre style={{ background: 'var(--semi-color-fill-0)', padding: 12, borderRadius: 4, marginTop: 4, maxHeight: 320, overflow: 'auto' }}>
+      <pre style={{ background: 'var(--semi-color-fill-0)', padding: 12, borderRadius: 'var(--semi-border-radius-small)', marginTop: 4, maxHeight: 320, overflow: 'auto' }}>
         {pretty}
       </pre>
     </div>

@@ -499,7 +499,7 @@ export default function CacheManagePage() {
               color: 'var(--semi-color-text-2)',
               fontSize: 14,
               border: '1px dashed var(--semi-color-border)',
-              borderRadius: 4,
+              borderRadius: 'var(--semi-border-radius-small)',
             }}
           >
             请点击左侧分类查看对应的缓存键
@@ -515,7 +515,7 @@ export default function CacheManagePage() {
         <div
           style={{
             display: 'flex', alignItems: 'center', gap: 22, padding: '10px 16px', flexWrap: 'wrap',
-            background: 'var(--semi-color-bg-1)', border: '1px solid var(--semi-color-border)', borderRadius: 6,
+            background: 'var(--semi-color-bg-1)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 132 }}>

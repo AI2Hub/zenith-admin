@@ -579,7 +579,7 @@ export default function WorkflowAutomationsPage() {
 
         <div style={{ marginTop: 12 }}>
           {actions.map((a, idx) => (
-            <div key={`${a.type}-${idx}`} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 12, marginBottom: 12 }}>
+            <div key={`${a.type}-${idx}`} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12, marginBottom: 12 }}>
               <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 8 }}>
                 <Space>
                   <Tag color={ACTION_TYPE_META[a.type].color}>{ACTION_TYPE_META[a.type].label}</Tag>

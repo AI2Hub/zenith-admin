@@ -34,7 +34,7 @@ export function UserSearchList({ onSelect, excludeIds }: Readonly<{ onSelect: (u
           key={u.id}
           align="center"
           onClick={() => onSelect(u)}
-          style={{ padding: '8px 4px', cursor: 'pointer', borderRadius: 6 }}
+          style={{ padding: '8px 4px', cursor: 'pointer', borderRadius: 'var(--semi-border-radius-medium)' }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--semi-color-fill-0)'; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
           header={<UserAvatar name={u.nickname} avatar={u.avatar} />}

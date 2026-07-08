@@ -359,7 +359,7 @@ export default function MonitorPage() {
         <div>
           <div style={{ display: 'flex', gap: 24, marginBottom: 24 }}>
             {['a', 'b', 'c', 'd', 'e', 'f'].map((k) => (
-              <Skeleton.Button key={k} style={{ width: 64, height: 32, borderRadius: 4 }} />
+              <Skeleton.Button key={k} style={{ width: 64, height: 32, borderRadius: 'var(--semi-border-radius-small)' }} />
             ))}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>

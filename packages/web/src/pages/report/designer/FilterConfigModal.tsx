@@ -42,7 +42,7 @@ export function FilterConfigModal({ visible, filters, datasets, onChange, onClos
           const isSelect = f.type === 'select' || f.type === 'multiSelect';
           const src = f.optionSource;
           return (
-            <div key={f.id} style={{ width: '100%', border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 12 }}>
+            <div key={f.id} style={{ width: '100%', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12 }}>
               <Space wrap style={{ width: '100%' }}>
                 <Input prefix="标签" value={f.label} style={{ width: 180 }} onChange={(v) => patch(i, { label: v })} />
                 <Select value={f.type} style={{ width: 130 }} optionList={TYPES} onChange={(v) => patch(i, { type: v as ReportFilterType })} />

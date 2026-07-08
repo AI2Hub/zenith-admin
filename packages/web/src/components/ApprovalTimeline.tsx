@@ -146,7 +146,7 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
             <div style={isMine ? {
               background: 'color-mix(in srgb, var(--semi-color-warning) 8%, transparent)',
               border: '1px solid color-mix(in srgb, var(--semi-color-warning) 28%, transparent)',
-              borderRadius: 8,
+              borderRadius: 'var(--semi-border-radius-medium)',
               padding: '8px 10px',
             } : undefined}>
             {/* 节点名称 + 状态 Tag */}
@@ -199,7 +199,7 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
                 marginTop: 6,
                 padding: '8px 10px',
                 backgroundColor: 'var(--semi-color-fill-0)',
-                borderRadius: 6,
+                borderRadius: 'var(--semi-border-radius-medium)',
               }}>
                 <Typography.Text size="small" type="secondary">{task.comment}</Typography.Text>
               </div>
@@ -214,7 +214,7 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
             {task.signature && (
               <div style={{ marginTop: 6 }}>
                 <Typography.Text size="small" type="tertiary" style={{ display: 'block', marginBottom: 2 }}>手写签名</Typography.Text>
-                <img src={task.signature} alt="签名" style={{ maxHeight: 80, border: '1px solid var(--semi-color-border)', borderRadius: 4, background: '#fff' }} />
+                <img src={task.signature} alt="签名" style={{ maxHeight: 80, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)', background: '#fff' }} />
               </div>
             )}
 
@@ -260,7 +260,7 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
                 marginTop: 8,
                 padding: '8px 10px',
                 backgroundColor: 'var(--semi-color-fill-0)',
-                borderRadius: 6,
+                borderRadius: 'var(--semi-border-radius-medium)',
                 fontSize: 12,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>

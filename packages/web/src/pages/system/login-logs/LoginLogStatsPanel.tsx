@@ -53,7 +53,7 @@ function StatCard({ title, value, sub, icon, accent }: StatCardProps) {
         style={{
           width: 44,
           height: 44,
-          borderRadius: 10,
+          borderRadius: 'var(--semi-border-radius-large)',
           flexShrink: 0,
           display: 'flex',
           alignItems: 'center',

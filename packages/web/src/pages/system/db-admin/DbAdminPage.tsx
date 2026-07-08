@@ -1048,7 +1048,7 @@ export default function DbAdminPage() {
                           </Space>
                         </div>
                         {selectedRowIndexes.size > 0 && (
-                          <div style={{ marginBottom: 8, padding: '6px 12px', background: 'var(--semi-color-fill-0)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                          <div style={{ marginBottom: 8, padding: '6px 12px', background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-small)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                             <Text size="small">已选 <Text strong>{selectedRowIndexes.size}</Text> 行</Text>
                             <Space>
                               {canEditRows && (
@@ -1316,7 +1316,7 @@ export default function DbAdminPage() {
           </Space>
         }
       >
-        <div style={{ height: 360, border: '1px solid var(--semi-color-border)', borderRadius: 4, overflow: 'hidden' }}>
+        <div style={{ height: 360, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)', overflow: 'hidden' }}>
           <MonacoEditor
             value={sqlPreview ?? ''}
             language="sql"

@@ -288,7 +288,7 @@ export default function LogViewerPage() {
       </div>
 
       {/* 输出区（ANSI 色彩渲染） */}
-      <div style={{ flex: 1, minHeight: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--semi-color-border)' }}>
+      <div style={{ flex: 1, minHeight: 0, borderRadius: 'var(--semi-border-radius-medium)', overflow: 'hidden', border: '1px solid var(--semi-color-border)' }}>
         <div
           ref={scrollRef}
           style={{

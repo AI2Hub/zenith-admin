@@ -21,7 +21,7 @@ function CodeBlock({ code }: { code: string }) {
       >
         复制
       </Button>
-      <pre style={{ background: 'var(--semi-color-fill-0)', padding: 14, borderRadius: 6, overflow: 'auto', fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+      <pre style={{ background: 'var(--semi-color-fill-0)', padding: 14, borderRadius: 'var(--semi-border-radius-medium)', overflow: 'auto', fontSize: 12, lineHeight: 1.6, margin: 0 }}>
         <code>{code}</code>
       </pre>
     </div>

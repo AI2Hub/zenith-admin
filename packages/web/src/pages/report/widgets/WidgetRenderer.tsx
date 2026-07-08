@@ -214,7 +214,7 @@ export function WidgetRenderer({ widget, data, loading, error, filterValues, onC
           )}
           {progress != null && (
             <div style={{ marginTop: 2 }}>
-              <div style={{ height: 6, borderRadius: 3, background: 'var(--semi-color-fill-1)', overflow: 'hidden' }}>
+              <div style={{ height: 6, borderRadius: 'var(--semi-border-radius-small)', background: 'var(--semi-color-fill-1)', overflow: 'hidden' }}>
                 <div style={{ width: `${progress}%`, height: '100%', background: 'var(--semi-color-primary)' }} />
               </div>
               <div style={{ fontSize: 11, color: 'var(--semi-color-text-2)', marginTop: 2 }}>目标 {fmtNumber(target ?? 0, o.decimals)}（{progress.toFixed(0)}%）</div>
@@ -565,7 +565,7 @@ function FlipperDigit({ digit }: { readonly digit: string }) {
         width: 34,
         height,
         overflow: 'hidden',
-        borderRadius: 8,
+        borderRadius: 'var(--semi-border-radius-medium)',
         background: 'linear-gradient(180deg, #142753 0%, #0e1b3a 100%)',
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.18), 0 6px 18px rgba(0,0,0,0.18)',
         border: '1px solid rgba(90,216,255,0.22)',
@@ -695,7 +695,7 @@ function ScrollList({ rows, cat, val, speed, showRank, onClick }: { readonly row
                   style={{
                     flex: '0 0 24px',
                     height: 22,
-                    borderRadius: 11,
+                    borderRadius: 'var(--semi-border-radius-large)',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -856,7 +856,7 @@ function Funnel({ rows, cat, val, onClick }: { readonly rows: Record<string, unk
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--semi-color-text-1)' }}>
               <span>{String(r[cat] ?? '')}</span><span>{fmtNumber(v)}</span>
             </div>
-            <div style={{ margin: '2px auto', width: `${Math.max(8, pct)}%`, height: 18, background: `var(--semi-color-primary)`, opacity: 0.4 + 0.6 * (pct / 100), borderRadius: 3 }} />
+            <div style={{ margin: '2px auto', width: `${Math.max(8, pct)}%`, height: 18, background: `var(--semi-color-primary)`, opacity: 0.4 + 0.6 * (pct / 100), borderRadius: 'var(--semi-border-radius-small)' }} />
           </div>
         );
       })}

@@ -480,7 +480,7 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
                         {coverUrl
                           ? (
                             <div style={{ position: 'relative' }}>
-                              <img src={coverUrl} alt="封面" style={{ width: 120, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--semi-color-border)' }} />
+                              <img src={coverUrl} alt="封面" style={{ width: 120, height: 80, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', border: '1px solid var(--semi-color-border)' }} />
                               <Button
                                 theme="borderless"
                                 type="danger"
@@ -514,7 +514,7 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
 
                 const newsPreview = (
                   <Form.Slot label="预览">
-                    <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, overflow: 'hidden', width: '100%' }}>
+                    <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', overflow: 'hidden', width: '100%' }}>
                       {coverUrl && <img src={coverUrl} alt="封面预览" style={{ width: '100%', height: 140, objectFit: 'cover', display: 'block' }} />}
                       <div style={{ padding: 12 }}>
                         <Typography.Title heading={6} style={{ margin: 0 }}>{(values.title ?? '').trim() || '图文标题'}</Typography.Title>
@@ -551,7 +551,7 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
                           {imageUrl
                             ? (
                               <div style={{ position: 'relative' }}>
-                                <img src={imageUrl} alt="图片" style={{ maxWidth: 240, maxHeight: 180, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--semi-color-border)' }} />
+                                <img src={imageUrl} alt="图片" style={{ maxWidth: 240, maxHeight: 180, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', border: '1px solid var(--semi-color-border)' }} />
                                 <Button
                                   theme="borderless"
                                   type="danger"

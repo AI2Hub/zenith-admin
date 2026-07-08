@@ -47,7 +47,7 @@ export default function MenuSearchInput({ menus }: MenuSearchInputProps) {
           width: 32,
           height: 32,
           border: 0,
-          borderRadius: 6,
+          borderRadius: 'var(--semi-border-radius-medium)',
           background: 'transparent',
           color: 'var(--semi-color-text-2)',
           cursor: 'pointer',

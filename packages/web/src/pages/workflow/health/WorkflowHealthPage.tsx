@@ -38,7 +38,7 @@ const ISSUE_TYPE_OPTIONS = [
 
 function SummaryItem({ label, value, danger }: Readonly<{ label: string; value: number; danger?: boolean }>) {
   return (
-    <div style={{ minWidth: 120, padding: '10px 12px', border: '1px solid var(--semi-color-border)', borderRadius: 8 }}>
+    <div style={{ minWidth: 120, padding: '10px 12px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
       <Typography.Text type="tertiary" size="small">{label}</Typography.Text>
       <div style={{ fontSize: 22, fontWeight: 600, color: danger ? 'var(--semi-color-danger)' : 'var(--semi-color-text-0)' }}>{value}</div>
     </div>

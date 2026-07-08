@@ -141,7 +141,7 @@ export function ExplainView({
         treeData.length === 0 ? (
           <Empty title="无法解析查询计划" />
         ) : (
-          <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 8, overflow: 'auto', maxHeight: 460 }}>
+          <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 8, overflow: 'auto', maxHeight: 460 }}>
             <Tree
               treeData={treeData}
               expandedKeys={expandedKeys}

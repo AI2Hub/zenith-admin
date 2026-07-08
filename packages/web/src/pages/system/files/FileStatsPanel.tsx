@@ -34,7 +34,7 @@ const FILE_TYPE_CONFIG = [
 const sectionStyle: React.CSSProperties = {
   background: 'var(--semi-color-bg-1)',
   border: '1px solid var(--semi-color-border)',
-  borderRadius: 6,
+  borderRadius: 'var(--semi-border-radius-medium)',
   padding: '16px 20px',
 };
 
@@ -156,7 +156,7 @@ export default function FileStatsPanel() {
               <div key={type} style={{ ...sectionStyle, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {/* 图标 + 右侧内容 */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 9, background: bgColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 'var(--semi-border-radius-large)', background: bgColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <Icon size={19} color={color} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -174,8 +174,8 @@ export default function FileStatsPanel() {
                     <span style={{ fontSize: 11, color: 'var(--semi-color-text-2)' }}>占比</span>
                     <span style={{ fontSize: 11, fontWeight: 600, color }}>{percent.toFixed(1)}%</span>
                   </div>
-                  <div style={{ height: 5, background: 'var(--semi-color-fill-1)', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${Math.min(percent, 100)}%`, background: color, borderRadius: 3, transition: 'width 0.6s ease' }} />
+                  <div style={{ height: 5, background: 'var(--semi-color-fill-1)', borderRadius: 'var(--semi-border-radius-small)', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.min(percent, 100)}%`, background: color, borderRadius: 'var(--semi-border-radius-small)', transition: 'width 0.6s ease' }} />
                   </div>
                 </div>
               </div>

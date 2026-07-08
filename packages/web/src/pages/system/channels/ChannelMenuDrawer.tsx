@@ -139,7 +139,7 @@ export function ChannelMenuDrawer({ channelId, channelName, visible, readOnly = 
         {menusQuery.isFetching ? null : tops.length === 0 ? (
           <Empty description="暂无菜单，点击下方按钮新增" style={{ padding: 24 }} />
         ) : tops.map((t, ti) => (
-          <div key={ti} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 12 }}>
+          <div key={ti} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <Text strong style={{ flexShrink: 0 }}>一级菜单 {ti + 1}</Text>
               <Input value={t.name} onChange={(v) => updateTop(ti, { name: v })} placeholder="菜单名称（≤6 字）" maxLength={32} style={{ flex: 1 }} disabled={readOnly} />

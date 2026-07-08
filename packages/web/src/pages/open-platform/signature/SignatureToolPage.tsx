@@ -10,7 +10,7 @@ const { Text, Title, Paragraph } = Typography;
 const codeBlockStyle: React.CSSProperties = {
   background: 'var(--semi-color-fill-0)',
   padding: 12,
-  borderRadius: 6,
+  borderRadius: 'var(--semi-border-radius-medium)',
   wordBreak: 'break-all',
   whiteSpace: 'pre-wrap',
   fontFamily: 'monospace',

@@ -295,7 +295,7 @@ export default function PaymentLinksPage() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '8px 0' }}>
             <Typography.Title heading={6}>{qrLink.subject}</Typography.Title>
             <Typography.Text strong style={{ fontSize: 18, color: '#10b981' }}>{yuan(qrLink.amount)}</Typography.Text>
-            <div ref={qrContainerRef} style={{ padding: 12, background: '#fff', borderRadius: 8 }}>
+            <div ref={qrContainerRef} style={{ padding: 12, background: '#fff', borderRadius: 'var(--semi-border-radius-medium)' }}>
               <QRCodeSVG value={publicUrl(qrLink.token)} size={200} level="M" />
             </div>
             <Input value={publicUrl(qrLink.token)} readonly style={{ width: '100%' }} />

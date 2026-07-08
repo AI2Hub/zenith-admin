@@ -339,7 +339,7 @@ export default function WorkflowConnectorsPage() {
               {testResult.responseSnippet && (
                 <div style={{ marginTop: 10 }}>
                   <Typography.Text strong size="small">响应预览</Typography.Text>
-                  <pre style={{ marginTop: 4, maxHeight: '40vh', overflow: 'auto', background: 'var(--semi-color-fill-0)', padding: 8, borderRadius: 6, fontSize: 12, wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{testResult.responseSnippet}</pre>
+                  <pre style={{ marginTop: 4, maxHeight: '40vh', overflow: 'auto', background: 'var(--semi-color-fill-0)', padding: 8, borderRadius: 'var(--semi-border-radius-medium)', fontSize: 12, wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{testResult.responseSnippet}</pre>
                 </div>
               )}
             </div>
@@ -371,7 +371,7 @@ export default function WorkflowConnectorsPage() {
               { label: '平均耗时', value: `${monitorStats?.avgDurationMs ?? 0}ms`, color: undefined },
             ] as const).map((s) => (
               <Col span={Math.floor(24 / 5)} key={s.label}>
-                <div style={{ background: 'var(--semi-color-fill-0)', borderRadius: 8, padding: '10px 12px' }}>
+                <div style={{ background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', padding: '10px 12px' }}>
                   <Typography.Text type="tertiary" size="small" style={{ display: 'block' }}>{s.label}</Typography.Text>
                   <Typography.Text strong style={{ fontSize: 18, color: s.color }}>{s.value}</Typography.Text>
                 </div>

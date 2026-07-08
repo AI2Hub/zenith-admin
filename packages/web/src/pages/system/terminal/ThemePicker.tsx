@@ -7,7 +7,7 @@ function Line({ w, color, op = 0.85 }: { w: number; color: string; op?: number }
       style={{
         width: w,
         height: 4,
-        borderRadius: 2,
+        borderRadius: 'var(--semi-border-radius-small)',
         background: color,
         opacity: op,
         flexShrink: 0,
@@ -55,7 +55,7 @@ function ThemeCard({
       onMouseLeave={() => setHovered(false)}
       style={{
         cursor: 'pointer',
-        borderRadius: 8,
+        borderRadius: 'var(--semi-border-radius-medium)',
         overflow: 'hidden',
         border: `2px solid ${borderColor}`,
         transition: 'border-color 0.15s',
@@ -72,8 +72,8 @@ function ThemeCard({
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#ffbd2e' }} />
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#27c93f' }} />
           <div style={{ flex: 1 }} />
-          <div style={{ width: 20, height: 4, borderRadius: 3, background: theme.blue, opacity: 0.7 }} />
-          <div style={{ width: 28, height: 4, borderRadius: 3, background: theme.green, opacity: 0.7 }} />
+          <div style={{ width: 20, height: 4, borderRadius: 'var(--semi-border-radius-small)', background: theme.blue, opacity: 0.7 }} />
+          <div style={{ width: 28, height: 4, borderRadius: 'var(--semi-border-radius-small)', background: theme.green, opacity: 0.7 }} />
         </div>
 
         {/* Fake syntax lines */}
@@ -138,7 +138,7 @@ function ThemeCard({
             style={{
               fontSize: 10,
               padding: '1px 5px',
-              borderRadius: 8,
+              borderRadius: 'var(--semi-border-radius-medium)',
               background: 'var(--semi-color-primary)',
               color: '#fff',
               lineHeight: '14px',

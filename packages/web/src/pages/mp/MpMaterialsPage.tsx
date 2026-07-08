@@ -116,7 +116,7 @@ export default function MpMaterialsPage() {
       title: '预览', dataIndex: 'url', width: 90,
       render: (v: string | null, r: MpMaterial) => (
         (r.type === 'image' || r.type === 'thumb') && v
-          ? <img src={v} alt={r.name} style={{ width: 56, height: 42, objectFit: 'cover', borderRadius: 4, border: '1px solid var(--semi-color-border)' }} />
+          ? <img src={v} alt={r.name} style={{ width: 56, height: 42, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-small)', border: '1px solid var(--semi-color-border)' }} />
           : <Tag type="light">{TYPE_OPTIONS.find((t) => t.value === r.type)?.label ?? r.type}</Tag>
       ),
     },

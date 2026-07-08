@@ -175,7 +175,7 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
       maskClosable
       width={600}
       className="cmd-palette-modal"
-      style={{ overflow: 'hidden', borderRadius: 10, padding: 0 }}
+      style={{ overflow: 'hidden', borderRadius: 'var(--semi-border-radius-large)', padding: 0 }}
       bodyStyle={{ padding: 0, overflow: 'hidden' }}
       zIndex={9999}
       keepDOM={false}
@@ -219,7 +219,7 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
                 width: 20,
                 height: 20,
                 border: 'none',
-                borderRadius: 4,
+                borderRadius: 'var(--semi-border-radius-small)',
                 background: 'var(--semi-color-fill-1)',
                 color: 'var(--semi-color-text-2)',
                 cursor: 'pointer',
@@ -236,7 +236,7 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
               color: 'var(--semi-color-text-2)',
               background: 'var(--semi-color-fill-0)',
               border: '1px solid var(--semi-color-border)',
-              borderRadius: 4,
+              borderRadius: 'var(--semi-border-radius-small)',
               padding: '1px 5px',
               fontFamily: 'monospace',
               flexShrink: 0,
@@ -352,7 +352,7 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
                       alignItems: 'center',
                       justifyContent: 'center',
                       flexShrink: 0,
-                      borderRadius: 6,
+                      borderRadius: 'var(--semi-border-radius-medium)',
                       background: isSelected ? 'var(--semi-color-primary)' : 'var(--semi-color-fill-1)',
                       color: isSelected ? '#fff' : 'var(--semi-color-primary)',
                     }}
@@ -396,7 +396,7 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
                         color: 'var(--semi-color-primary)',
                         background: 'var(--semi-color-primary-light-default)',
                         border: '1px solid var(--semi-color-primary-light-hover)',
-                        borderRadius: 4,
+                        borderRadius: 'var(--semi-border-radius-small)',
                         padding: '1px 5px',
                         fontFamily: 'monospace',
                         flexShrink: 0,
@@ -423,11 +423,11 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
             color: 'var(--semi-color-text-2)',
           }}
         >
-          <span><kbd style={{ fontFamily: 'monospace', fontSize: 10, padding: '0 3px', border: '1px solid var(--semi-color-border)', borderRadius: 3 }}>↑↓</kbd> 导航</span>
-          <span><kbd style={{ fontFamily: 'monospace', fontSize: 10, padding: '0 3px', border: '1px solid var(--semi-color-border)', borderRadius: 3 }}>↵</kbd> 跳转</span>
-          <span><kbd style={{ fontFamily: 'monospace', fontSize: 10, padding: '0 3px', border: '1px solid var(--semi-color-border)', borderRadius: 3 }}>ESC</kbd> 关闭</span>
+          <span><kbd style={{ fontFamily: 'monospace', fontSize: 10, padding: '0 3px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)' }}>↑↓</kbd> 导航</span>
+          <span><kbd style={{ fontFamily: 'monospace', fontSize: 10, padding: '0 3px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)' }}>↵</kbd> 跳转</span>
+          <span><kbd style={{ fontFamily: 'monospace', fontSize: 10, padding: '0 3px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)' }}>ESC</kbd> 关闭</span>
           <span style={{ marginLeft: 'auto' }}>
-            <kbd style={{ fontFamily: 'monospace', fontSize: 10, padding: '0 3px', border: '1px solid var(--semi-color-border)', borderRadius: 3 }}>Ctrl K</kbd> 快速打开
+            <kbd style={{ fontFamily: 'monospace', fontSize: 10, padding: '0 3px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)' }}>Ctrl K</kbd> 快速打开
           </span>
         </div>
       </div>

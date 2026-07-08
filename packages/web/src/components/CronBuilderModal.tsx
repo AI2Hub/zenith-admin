@@ -302,7 +302,7 @@ export function CronBuilderModal({ visible, value, onClose, onApply }: CronBuild
         style={{
           background: 'var(--semi-color-fill-0)',
           border: '1px solid var(--semi-color-border)',
-          borderRadius: 8,
+          borderRadius: 'var(--semi-border-radius-medium)',
           padding: '10px 14px',
           marginBottom: 16,
         }}
@@ -318,7 +318,7 @@ export function CronBuilderModal({ visible, value, onClose, onApply }: CronBuild
           style={{
             background: 'var(--semi-color-success-light-default)',
             border: '1px solid var(--semi-color-success-light-active)',
-            borderRadius: 8,
+            borderRadius: 'var(--semi-border-radius-medium)',
             padding: '8px 14px',
             marginBottom: 16,
           }}
@@ -352,7 +352,7 @@ export function CronBuilderModal({ visible, value, onClose, onApply }: CronBuild
                 alignItems: 'center',
                 gap: 2,
                 padding: '6px 12px',
-                borderRadius: 8,
+                borderRadius: 'var(--semi-border-radius-medium)',
                 border: `1px solid ${isActive ? 'var(--semi-color-primary)' : 'var(--semi-color-border)'}`,
                 background: isActive ? 'var(--semi-color-primary-light-default)' : 'var(--semi-color-bg-2)',
                 cursor: 'pointer',
@@ -376,7 +376,7 @@ export function CronBuilderModal({ visible, value, onClose, onApply }: CronBuild
       <div
         style={{
           border: '1px solid var(--semi-color-primary-light-active)',
-          borderRadius: 8,
+          borderRadius: 'var(--semi-border-radius-medium)',
           padding: '12px 16px',
           background: 'var(--semi-color-primary-light-default)',
         }}

@@ -225,7 +225,7 @@ export function ChannelTemplateDrawer({ visible, onClose, onChanged }: Readonly<
                 {imageUrl
                   ? (
                     <div style={{ position: 'relative' }}>
-                      <img src={imageUrl} alt="图片" style={{ maxWidth: 240, maxHeight: 180, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--semi-color-border)' }} />
+                      <img src={imageUrl} alt="图片" style={{ maxWidth: 240, maxHeight: 180, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', border: '1px solid var(--semi-color-border)' }} />
                       <Button
                         theme="borderless"
                         type="danger"
@@ -264,7 +264,7 @@ export function ChannelTemplateDrawer({ visible, onClose, onChanged }: Readonly<
                   {coverUrl
                     ? (
                       <div style={{ position: 'relative' }}>
-                        <img src={coverUrl} alt="封面" style={{ width: 120, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--semi-color-border)' }} />
+                        <img src={coverUrl} alt="封面" style={{ width: 120, height: 80, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', border: '1px solid var(--semi-color-border)' }} />
                         <Button
                           theme="borderless"
                           type="danger"

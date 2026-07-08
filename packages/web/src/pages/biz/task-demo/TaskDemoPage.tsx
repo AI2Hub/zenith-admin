@@ -38,7 +38,7 @@ const itemStatusTagMap = {
 } as const satisfies Record<AsyncTaskItemStatus, { color: 'blue' | 'green' | 'red' | 'grey'; label: string }>;
 
 const codeStyle: CSSProperties = {
-  background: 'var(--semi-color-fill-0)', borderRadius: 6, padding: 12, margin: 0,
+  background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12, margin: 0,
   overflowX: 'auto', fontSize: 12, lineHeight: 1.6,
   fontFamily: 'var(--semi-font-family-mono, ui-monospace, monospace)',
 };

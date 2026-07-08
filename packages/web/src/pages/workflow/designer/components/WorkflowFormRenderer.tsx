@@ -201,7 +201,7 @@ function SignaturePad({ value, onChange, disabled, width = 360, height = 150 }: 
         height={height}
         style={{
           border: '1px dashed var(--semi-color-border)',
-          borderRadius: 6,
+          borderRadius: 'var(--semi-border-radius-medium)',
           background: 'var(--semi-color-bg-1)',
           touchAction: 'none',
           cursor: disabled ? 'not-allowed' : 'crosshair',
@@ -346,7 +346,7 @@ function DetailTableInput({ value, onChange, columns, disabled }: Readonly<Detai
   }
 
   return (
-    <div className="wf-detail-table" style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, overflow: 'hidden' }}>
+    <div className="wf-detail-table" style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', overflow: 'hidden' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
         <thead>
           <tr style={{ background: 'var(--semi-color-fill-0)' }}>
@@ -1061,7 +1061,7 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
         return (
           <Form.Slot label={field.label} {...extraProps}>
             {sig
-              ? <img src={sig} alt="签名" style={{ maxWidth: '100%', maxHeight: 150, border: '1px solid var(--semi-color-border)', borderRadius: 6 }} />
+              ? <img src={sig} alt="签名" style={{ maxWidth: '100%', maxHeight: 150, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }} />
               : <Typography.Text type="tertiary">（未签名）</Typography.Text>}
           </Form.Slot>
         );
@@ -1311,7 +1311,7 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
 
     case 'description':
       return (
-        <div style={{ marginBottom: 16, padding: '12px', background: 'var(--semi-color-fill-0)', borderRadius: 6 }}>
+        <div style={{ marginBottom: 16, padding: '12px', background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)' }}>
           <Typography.Text type="secondary">
             {field.description || '说明文字'}
           </Typography.Text>

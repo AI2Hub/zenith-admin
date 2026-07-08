@@ -58,7 +58,7 @@ function StatCard({ icon, label, value, sub, accent }: Readonly<StatCardProps>) 
       style={{
         background: 'var(--semi-color-bg-1)',
         border: '1px solid var(--semi-color-border)',
-        borderRadius: 8,
+        borderRadius: 'var(--semi-border-radius-medium)',
         padding: '14px 16px',
         display: 'flex',
         flexDirection: 'column',
@@ -153,7 +153,7 @@ export function OverviewPanel({ onSelectTable }: Readonly<{ onSelectTable?: (sch
             style={{
               background: 'var(--semi-color-bg-1)',
               border: '1px solid var(--semi-color-border)',
-              borderRadius: 8,
+              borderRadius: 'var(--semi-border-radius-medium)',
               padding: 16,
             }}
           >

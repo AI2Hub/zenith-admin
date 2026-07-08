@@ -101,7 +101,7 @@ export function TemplateGalleryModal({ visible, onCancel, categoryId = null, onC
                 key={tpl.id}
                 style={{
                   border: '1px solid var(--semi-color-border)',
-                  borderRadius: 8,
+                  borderRadius: 'var(--semi-border-radius-medium)',
                   padding: '16px 14px 12px',
                   display: 'flex',
                   flexDirection: 'column',

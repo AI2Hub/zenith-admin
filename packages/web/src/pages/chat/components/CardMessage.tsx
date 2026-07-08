@@ -28,7 +28,7 @@ export function CardMessage({
   const [hovered, setHovered] = useState(false);
   if (!card) {
     return (
-      <div style={{ padding: '8px 12px', background: 'var(--semi-color-fill-1)', borderRadius: 8 }}>
+      <div style={{ padding: '8px 12px', background: 'var(--semi-color-fill-1)', borderRadius: 'var(--semi-border-radius-medium)' }}>
         <Text type="tertiary">卡片数据异常</Text>
       </div>
     );
@@ -57,7 +57,7 @@ export function CardMessage({
         maxWidth: 360,
         background: 'var(--semi-color-bg-2)',
         border: `1px solid ${clickable && hovered ? 'var(--semi-color-primary)' : 'var(--semi-color-border)'}`,
-        borderRadius: 10,
+        borderRadius: 'var(--semi-border-radius-large)',
         overflow: 'hidden',
         cursor: clickable ? 'pointer' : 'default',
         transition: 'border-color 0.2s ease, box-shadow 0.2s ease',

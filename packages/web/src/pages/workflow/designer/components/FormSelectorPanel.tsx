@@ -92,7 +92,7 @@ export default function FormSelectorPanel({ formId, formName, onSelect }: Readon
             flex: 1,
             minHeight: 520,
             border: '1px solid var(--semi-color-border)',
-            borderRadius: 8,
+            borderRadius: 'var(--semi-border-radius-medium)',
             overflow: 'hidden',
             background: 'var(--semi-color-bg-1)',
           }}

@@ -471,7 +471,7 @@ export default function MpMenuPage() {
           </div>
 
           {/* ── 编辑面板 ── */}
-          <div style={{ flex: 1, minWidth: 260, background: 'var(--semi-color-fill-0)', borderRadius: 8, minHeight: 300, border: '1px solid var(--semi-color-border)' }}>
+          <div style={{ flex: 1, minWidth: 260, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', minHeight: 300, border: '1px solid var(--semi-color-border)' }}>
             {sel ? (
               <div style={{ padding: '16px 20px' }}>
                 {/* 删除按钮 */}
@@ -494,7 +494,7 @@ export default function MpMenuPage() {
                   </FieldRow>
 
                   {selIsContainer ? (
-                    <div style={{ padding: '12px 16px', background: 'var(--semi-color-bg-1)', borderRadius: 6, fontSize: 12, color: 'var(--semi-color-text-2)', lineHeight: '20px', border: '1px solid var(--semi-color-border)' }}>
+                    <div style={{ padding: '12px 16px', background: 'var(--semi-color-bg-1)', borderRadius: 'var(--semi-border-radius-medium)', fontSize: 12, color: 'var(--semi-color-text-2)', lineHeight: '20px', border: '1px solid var(--semi-color-border)' }}>
                       该一级菜单含子菜单，作为容器仅需设置名称。<br />
                       删除全部子菜单后可为其单独设置动作。
                     </div>

@@ -28,7 +28,7 @@ export function MediaTile({
   }, [stream]);
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', background: '#1c1c20', borderRadius: 10, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%', background: '#1c1c20', borderRadius: 'var(--semi-border-radius-large)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <video
         ref={videoRef}
         autoPlay
@@ -46,7 +46,7 @@ export function MediaTile({
         </div>
       )}
       {label && (
-        <div style={{ position: 'absolute', left: 8, bottom: 8, display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 6, background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 12, maxWidth: 'calc(100% - 16px)' }}>
+        <div style={{ position: 'absolute', left: 8, bottom: 8, display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 'var(--semi-border-radius-medium)', background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 12, maxWidth: 'calc(100% - 16px)' }}>
           {audioOnly && <MicOff size={12} />}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
         </div>

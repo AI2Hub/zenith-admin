@@ -80,7 +80,7 @@ function renderJson(value: Record<string, unknown> | null) {
   if (!value || Object.keys(value).length === 0) return <Typography.Text type="tertiary">-</Typography.Text>;
   return (
     <pre style={{
-      background: 'var(--semi-color-fill-0)', borderRadius: 6, padding: 12, margin: 0,
+      background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12, margin: 0,
       overflowX: 'auto', fontSize: 12, lineHeight: 1.6,
       fontFamily: 'var(--semi-font-family-mono, ui-monospace, monospace)',
     }}>
@@ -110,7 +110,7 @@ function StatsCards({ stats }: { stats: AsyncTaskStats | null }) {
     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
       {items.map((item) => (
         <div key={item.label} style={{
-          flex: '1 1 140px', minWidth: 140, padding: '10px 16px', borderRadius: 8,
+          flex: '1 1 140px', minWidth: 140, padding: '10px 16px', borderRadius: 'var(--semi-border-radius-medium)',
           background: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)',
         }}>
           <Typography.Text type="tertiary" size="small">{item.label}</Typography.Text>
@@ -118,15 +118,15 @@ function StatsCards({ stats }: { stats: AsyncTaskStats | null }) {
         </div>
       ))}
       <div style={{
-        flex: '2 1 260px', minWidth: 260, padding: '10px 16px', borderRadius: 8,
+        flex: '2 1 260px', minWidth: 260, padding: '10px 16px', borderRadius: 'var(--semi-border-radius-medium)',
         background: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)',
       }}>
         <Typography.Text type="tertiary" size="small">近 7 天提交趋势（红色为失败）</Typography.Text>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 34, marginTop: 4 }}>
           {(stats?.daily ?? []).map((day) => (
             <div key={day.date} title={`${day.date}：提交 ${day.submitted}，失败 ${day.failed}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%', gap: 1 }}>
-              <div style={{ height: `${Math.max((day.failed / maxDaily) * 100, day.failed > 0 ? 8 : 0)}%`, background: 'var(--semi-color-danger)', borderRadius: 2 }} />
-              <div style={{ height: `${Math.max(((day.submitted - day.failed) / maxDaily) * 100, day.submitted - day.failed > 0 ? 8 : 2)}%`, background: 'var(--semi-color-primary)', borderRadius: 2, opacity: 0.75 }} />
+              <div style={{ height: `${Math.max((day.failed / maxDaily) * 100, day.failed > 0 ? 8 : 0)}%`, background: 'var(--semi-color-danger)', borderRadius: 'var(--semi-border-radius-small)' }} />
+              <div style={{ height: `${Math.max(((day.submitted - day.failed) / maxDaily) * 100, day.submitted - day.failed > 0 ? 8 : 2)}%`, background: 'var(--semi-color-primary)', borderRadius: 'var(--semi-border-radius-small)', opacity: 0.75 }} />
             </div>
           ))}
           {(!stats || stats.daily.length === 0) && <Typography.Text type="tertiary" size="small">暂无数据</Typography.Text>}

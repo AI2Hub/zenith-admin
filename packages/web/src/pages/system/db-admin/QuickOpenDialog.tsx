@@ -106,7 +106,7 @@ export function QuickOpenDialog({ visible, tables, onClose, onSelect }: Readonly
               width: '100%',
               padding: '7px 10px',
               border: 'none',
-              borderRadius: 4,
+              borderRadius: 'var(--semi-border-radius-small)',
               cursor: 'pointer',
               textAlign: 'left',
               background: i === activeIdx ? 'var(--semi-color-primary-light-default)' : 'transparent',

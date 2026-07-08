@@ -73,7 +73,7 @@ function RecentResultBlocks({ results }: Readonly<{ results: CronRunStatus[] }>)
           <span style={{
             width: 8,
             height: 16,
-            borderRadius: 2,
+            borderRadius: 'var(--semi-border-radius-small)',
             background: RESULT_META[r].color,
             opacity: r === 'success' ? 0.75 : 1,
             display: 'inline-block',
@@ -406,7 +406,7 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
                         gap: 12,
                         padding: '5px 4px',
                         alignItems: 'center',
-                        borderRadius: 4,
+                        borderRadius: 'var(--semi-border-radius-small)',
                       }}>
                         <Typography.Text style={{ fontFamily: 'monospace', minWidth: 68, flexShrink: 0, color: 'var(--semi-color-primary)' }}>
                           {item.timeStr}

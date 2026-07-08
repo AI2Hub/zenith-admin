@@ -192,7 +192,7 @@ export default function SshProfilesManager({ onConnect, onBrowseSftp }: Readonly
         key={p.id}
         style={{
           padding: '6px 8px',
-          borderRadius: 6,
+          borderRadius: 'var(--semi-border-radius-medium)',
           marginBottom: 4,
           border: '1px solid var(--semi-color-border)',
           background: 'var(--semi-color-bg-2)',

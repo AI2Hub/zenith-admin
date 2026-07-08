@@ -355,7 +355,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
               onKeyDown={(e) => { if (e.key === 'Enter') setActiveId(t.id); }}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
-                padding: '4px 10px', borderRadius: 6, fontSize: 13,
+                padding: '4px 10px', borderRadius: 'var(--semi-border-radius-medium)', fontSize: 13,
                 border: '1px solid var(--semi-color-border)',
                 background: active ? 'var(--semi-color-primary-light-default)' : 'var(--semi-color-bg-1)',
                 color: active ? 'var(--semi-color-primary)' : 'var(--semi-color-text-1)',
@@ -378,7 +378,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
         </Tooltip>
       </div>
 
-      <div style={{ width: '100%', border: '1px solid var(--semi-color-border)', borderRadius: 6, overflow: 'hidden' }}>
+      <div style={{ width: '100%', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', overflow: 'hidden' }}>
         <Editor
           key="db-admin-sql-editor"
           height="240px"
@@ -532,7 +532,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
             )}
           </div>
           {showChart && result.rows.length > 0 && (
-            <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 12, marginBottom: 8 }}>
+            <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12, marginBottom: 8 }}>
               <ResultChart columns={result.columns} rows={result.rows} />
             </div>
           )}

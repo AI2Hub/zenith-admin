@@ -24,7 +24,7 @@ function formatRaw(raw: string | null | undefined): string {
 
 const codeBlockStyle: CSSProperties = {
   maxHeight: 260, overflow: 'auto', fontSize: 12, background: 'var(--semi-color-fill-0)',
-  padding: 12, borderRadius: 4, wordBreak: 'break-all', whiteSpace: 'pre-wrap', margin: 0,
+  padding: 12, borderRadius: 'var(--semi-border-radius-small)', wordBreak: 'break-all', whiteSpace: 'pre-wrap', margin: 0,
 };
 
 export default function PaymentLogsPage() {

@@ -317,7 +317,7 @@ export function MessageBubble({
       style={{
         display: 'flex', flexDirection: isSelf ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-end',
         background: bubbleBackground,
-        borderRadius: 8,
+        borderRadius: 'var(--semi-border-radius-medium)',
         padding: bubblePadding,
         transition: 'background 0.3s ease',
         cursor: multiSelectMode ? 'pointer' : 'default',
@@ -374,7 +374,7 @@ export function MessageBubble({
               style={{
                 border: 'none',
                 background: 'var(--semi-color-fill-1)', borderLeft: '3px solid var(--semi-color-primary)',
-                padding: '4px 8px', borderRadius: 4, marginBottom: 4, fontSize: 12,
+                padding: '4px 8px', borderRadius: 'var(--semi-border-radius-small)', marginBottom: 4, fontSize: 12,
                 color: 'var(--semi-color-text-2)',
                 cursor: replied ? 'pointer' : 'default',
                 textAlign: 'left', display: 'block', width: '100%', maxWidth: '100%',
@@ -449,7 +449,7 @@ export function MessageBubble({
                       type="primary"
                       icon={<Check size={11} />}
                       onClick={handleConfirmInlineEdit}
-                      style={{ padding: '2px 8px', height: 22, borderRadius: 11 }}
+                      style={{ padding: '2px 8px', height: 22, borderRadius: 'var(--semi-border-radius-large)' }}
                     />
                     <Button
                       size="small"
@@ -457,7 +457,7 @@ export function MessageBubble({
                       type="tertiary"
                       icon={<XIcon size={11} />}
                       onClick={handleCancelInlineEdit}
-                      style={{ padding: '2px 6px', height: 22, borderRadius: 11 }}
+                      style={{ padding: '2px 6px', height: 22, borderRadius: 'var(--semi-border-radius-large)' }}
                     />
                   </div>
                 </div>
@@ -508,7 +508,7 @@ export function MessageBubble({
                     display: 'inline-flex', alignItems: 'center', gap: 3,
                     background: reacted ? 'var(--semi-color-primary-light-default)' : 'var(--semi-color-fill-1)',
                     border: reacted ? '1px solid var(--semi-color-primary)' : '1px solid var(--semi-color-border)',
-                    borderRadius: 12, padding: '1px 7px', fontSize: 13, cursor: 'pointer',
+                    borderRadius: 'var(--semi-border-radius-large)', padding: '1px 7px', fontSize: 13, cursor: 'pointer',
                     lineHeight: 1.5,
                   }}
                 >
@@ -526,7 +526,7 @@ export function MessageBubble({
                 width: 26, height: 26,
                 background: 'var(--semi-color-fill-0)',
                 border: '1px dashed var(--semi-color-border)',
-                borderRadius: 13, cursor: 'pointer', fontSize: 14, color: 'var(--semi-color-text-3)',
+                borderRadius: 'var(--semi-border-radius-large)', cursor: 'pointer', fontSize: 14, color: 'var(--semi-color-text-3)',
               }}
             >
               +

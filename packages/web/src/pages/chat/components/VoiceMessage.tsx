@@ -93,7 +93,7 @@ export function VoiceMessage({ msg, isSelf }: Readonly<{ msg: ChatMessage; isSel
           return (
             <span
               key={bar.id}
-              style={{ width: 2, height: h, borderRadius: 2, background: barColor, opacity: playing ? 0.9 : 0.55 }}
+              style={{ width: 2, height: h, borderRadius: 'var(--semi-border-radius-small)', background: barColor, opacity: playing ? 0.9 : 0.55 }}
             />
           );
         })}

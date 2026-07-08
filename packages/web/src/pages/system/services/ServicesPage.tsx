@@ -265,7 +265,7 @@ export default function ServicesPage() {
       >
         <pre ref={logsPreRef} style={{
           fontFamily: 'monospace', fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
-          background: 'var(--semi-color-fill-0)', padding: 12, borderRadius: 6,
+          background: 'var(--semi-color-fill-0)', padding: 12, borderRadius: 'var(--semi-border-radius-medium)',
           height: 'calc(100vh - 120px)', overflow: 'auto', margin: 0,
         }}>
           {logs || '（暂无日志）'}

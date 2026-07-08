@@ -206,7 +206,7 @@ export default function CategorySidebar({ categories, selectedId, onSelect, onCh
                 value={selectedColor}
                 onChange={e => setSelectedColor(e.target.value)}
                 placeholder="自定义 #hex"
-                style={{ width: 110, border: '1px solid var(--semi-color-border)', borderRadius: 4, padding: '4px 8px', fontSize: 13, outline: 'none' }}
+                style={{ width: 110, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)', padding: '4px 8px', fontSize: 13, outline: 'none' }}
               />
             </div>
           </Form.Slot>

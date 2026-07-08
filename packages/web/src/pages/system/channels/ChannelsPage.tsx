@@ -246,7 +246,7 @@ export default function ChannelsPage() {
               {avatarUrl
                 ? (
                   <div style={{ position: 'relative', width: 64, height: 64 }}>
-                    <img src={avatarUrl} alt="头像" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--semi-color-border)' }} />
+                    <img src={avatarUrl} alt="头像" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', border: '1px solid var(--semi-color-border)' }} />
                     <Button
                       theme="borderless" type="danger" size="small" icon={<Trash2 size={14} />}
                       style={{ position: 'absolute', top: -8, right: -8, background: 'var(--semi-color-bg-2)' }}

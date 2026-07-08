@@ -532,7 +532,7 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
       />
 
       {canOperate && selectedRowKeys.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, padding: '8px 12px', background: 'var(--semi-color-primary-light-default)', borderRadius: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, padding: '8px 12px', background: 'var(--semi-color-primary-light-default)', borderRadius: 'var(--semi-border-radius-medium)' }}>
           <Typography.Text size="small">已选 <b>{selectedRowKeys.length}</b> 项</Typography.Text>
           <Popconfirm title={`确定批量重试选中的 ${selectedRowKeys.length} 项？`} content="不满足条件（成功/运行中）的将自动跳过" onConfirm={() => void handleBatch('retry')}>
             <Button size="small" type="primary" loading={batchLoading}>批量重试</Button>
@@ -597,7 +597,7 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
             {detail.lastError && (
               <div style={{ width: '100%' }}>
                 <Typography.Text strong type="danger">最近错误</Typography.Text>
-                <div style={{ marginTop: 4, padding: 8, background: 'var(--semi-color-danger-light-default)', borderRadius: 6, wordBreak: 'break-all', fontSize: 12 }}>{detail.lastError}</div>
+                <div style={{ marginTop: 4, padding: 8, background: 'var(--semi-color-danger-light-default)', borderRadius: 'var(--semi-border-radius-medium)', wordBreak: 'break-all', fontSize: 12 }}>{detail.lastError}</div>
               </div>
             )}
 
@@ -795,7 +795,7 @@ function RuntimeStatusBar() {
     : '暂无注册节点';
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 24, padding: '10px 16px', marginBottom: 12, border: '1px solid var(--semi-color-border)', borderRadius: 8, background: 'var(--semi-color-bg-1)' }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 24, padding: '10px 16px', marginBottom: 12, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--semi-color-bg-1)' }}>
       <Typography.Text strong style={{ marginRight: 4 }}>运行状态</Typography.Text>
       <Tooltip content={<pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{workerTip}</pre>}>
         <div>{stat('存活 Worker', `${status?.activeWorkers ?? '-'} / ${status?.totalWorkers ?? '-'}`)}</div>
@@ -843,7 +843,7 @@ export default function WorkflowJobsView() {
                   <Tag
                     size="small"
                     color={problem > 0 ? 'red' : 'grey'}
-                    style={{ minWidth: 18, textAlign: 'center', padding: '0 6px', borderRadius: 9 }}
+                    style={{ minWidth: 18, textAlign: 'center', padding: '0 6px', borderRadius: 'var(--semi-border-radius-large)' }}
                   >
                     {item.total}
                   </Tag>

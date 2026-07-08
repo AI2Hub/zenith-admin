@@ -159,14 +159,14 @@ export function UserAvatarModal({ visible, user, onClose, onUpdated }: UserAvata
               onClick={() => void handleApplyPreset(url)}
               style={{
                 border: user.avatar === url ? '2px solid var(--semi-color-primary)' : '2px solid transparent',
-                borderRadius: 8, padding: 4, cursor: 'pointer', background: 'var(--semi-color-fill-0)',
+                borderRadius: 'var(--semi-border-radius-medium)', padding: 4, cursor: 'pointer', background: 'var(--semi-color-fill-0)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 transition: 'border-color 0.2s',
               }}
               onMouseEnter={(e) => { if (user.avatar !== url) e.currentTarget.style.borderColor = 'var(--semi-color-primary-light-hover)'; }}
               onMouseLeave={(e) => { if (user.avatar !== url) e.currentTarget.style.borderColor = 'transparent'; }}
             >
-              <img src={url} alt="预设头像" width={72} height={72} style={{ borderRadius: 4, display: 'block' }} loading="lazy" />
+              <img src={url} alt="预设头像" width={72} height={72} style={{ borderRadius: 'var(--semi-border-radius-small)', display: 'block' }} loading="lazy" />
             </button>
           ))}
         </div>

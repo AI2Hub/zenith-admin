@@ -219,7 +219,7 @@ function TextBlock({ children, maxHeight = 280 }: { readonly children: ReactNode
       style={{
         background: 'var(--semi-color-fill-0)',
         border: '1px solid var(--semi-color-border)',
-        borderRadius: 8,
+        borderRadius: 'var(--semi-border-radius-medium)',
         color: 'var(--semi-color-text-0)',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
         fontSize: 12,
@@ -274,7 +274,7 @@ function KpiCard({
   readonly value: number;
 }) {
   return (
-    <Card bodyStyle={{ padding: 18 }} style={{ borderRadius: 14 }}>
+    <Card bodyStyle={{ padding: 18 }} style={{ borderRadius: 'var(--semi-border-radius-large)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
         <div>
           <Text type="tertiary">{label}</Text>
@@ -284,7 +284,7 @@ function KpiCard({
           style={{
             alignItems: 'center',
             background: `${color}1a`,
-            borderRadius: 12,
+            borderRadius: 'var(--semi-border-radius-large)',
             color,
             display: 'flex',
             height: 42,

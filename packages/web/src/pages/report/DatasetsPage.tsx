@@ -673,7 +673,7 @@ export default function DatasetsPage() {
             </Space>
           )}
           {preview ? (
-            <div style={{ maxHeight: 240, overflow: 'auto', border: '1px solid var(--semi-color-border)', borderRadius: 6 }}>
+            <div style={{ maxHeight: 240, overflow: 'auto', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
               <Table size="small" bordered={false} columns={previewColumns} dataSource={previewData} rowKey="__rk" pagination={false}
                 scroll={{ x: Math.max(600, previewColumns.length * 140) }} />
             </div>

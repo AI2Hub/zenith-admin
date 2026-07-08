@@ -2260,7 +2260,7 @@ export default function ChatPage({
                                     fontSize: 11,
                                     lineHeight: '16px',
                                     padding: '0 4px',
-                                    borderRadius: 4,
+                                    borderRadius: 'var(--semi-border-radius-small)',
                                     color: 'var(--semi-color-danger)',
                                     background: 'var(--semi-color-danger-light-default)',
                                   }}
@@ -2903,7 +2903,7 @@ export default function ChatPage({
                     <div
                       style={{
                         display: 'flex', alignItems: 'center', gap: 8,
-                        padding: '8px 10px', borderRadius: 8,
+                        padding: '8px 10px', borderRadius: 'var(--semi-border-radius-medium)',
                         background: 'var(--semi-color-warning-light-default)',
                         border: '1px solid var(--semi-color-warning-light-active)',
                         color: 'var(--semi-color-warning)',
@@ -2941,14 +2941,14 @@ export default function ChatPage({
                             <div key={item.id} style={{ display: 'flex', justifyContent: 'flex-end' }}>
                               {item.type === 'image' ? (
                                 <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
-                                  <img src={item.previewUrl} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8, display: 'block', opacity: 0.55 }} />
-                                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 8, background: 'rgba(0,0,0,0.45)', gap: 6 }}>
+                                  <img src={item.previewUrl} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', display: 'block', opacity: 0.55 }} />
+                                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--semi-border-radius-medium)', background: 'rgba(0,0,0,0.45)', gap: 6 }}>
                                     <Progress type="circle" percent={item.progress ?? 0} size="small" showInfo={false} stroke="#fff" orbitStroke="rgba(255,255,255,0.25)" />
                                     <span style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>{item.progress ?? 0}%</span>
                                   </div>
                                 </div>
                               ) : (
-                                <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 6, padding: '8px 14px', background: 'var(--semi-color-primary-light-default)', border: '1px solid var(--semi-color-primary-light-active)', borderRadius: 12, maxWidth: 260, fontSize: 13, color: 'var(--semi-color-text-0)' }}>
+                                <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 6, padding: '8px 14px', background: 'var(--semi-color-primary-light-default)', border: '1px solid var(--semi-color-primary-light-active)', borderRadius: 'var(--semi-border-radius-large)', maxWidth: 260, fontSize: 13, color: 'var(--semi-color-text-0)' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{item.name}</span>
                                     <span style={{ flexShrink: 0, fontSize: 12, color: 'var(--semi-color-primary)', fontWeight: 600 }}>{item.progress ?? 0}%</span>
@@ -2967,7 +2967,7 @@ export default function ChatPage({
                           <div
                             style={{
                               display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
-                              padding: '8px 10px', borderRadius: 8,
+                              padding: '8px 10px', borderRadius: 'var(--semi-border-radius-medium)',
                               background: 'var(--semi-color-warning-light-default)',
                               border: '1px solid var(--semi-color-warning-light-active)',
                               color: 'var(--semi-color-warning)',
@@ -2980,7 +2980,7 @@ export default function ChatPage({
                           </div>
                         )}
                         {pinnedMessages.length > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10, padding: '8px 10px', borderRadius: 8, background: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10, padding: '8px 10px', borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)' }}>
                             <Text strong style={{ fontSize: 12 }}><Pin size={12} style={{ marginRight: 4, verticalAlign: 'text-bottom' }} />置顶消息</Text>
                               <SemiList
                                 dataSource={pinnedMessages}
@@ -3001,7 +3001,7 @@ export default function ChatPage({
                                         type="button"
                                         title="取消置顶"
                                         onClick={(event) => { event.stopPropagation(); void handleTogglePinMessage(item); }}
-                                        style={{ flexShrink: 0, border: 'none', background: 'transparent', padding: 2, cursor: 'pointer', color: 'var(--semi-color-text-2)', display: 'flex', alignItems: 'center', borderRadius: 4 }}
+                                        style={{ flexShrink: 0, border: 'none', background: 'transparent', padding: 2, cursor: 'pointer', color: 'var(--semi-color-text-2)', display: 'flex', alignItems: 'center', borderRadius: 'var(--semi-border-radius-small)' }}
                                         onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--semi-color-danger)'; }}
                                         onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--semi-color-text-2)'; }}
                                       >
@@ -3103,7 +3103,7 @@ export default function ChatPage({
                           padding: '8px 12px', margin: '4px 0',
                           background: 'var(--semi-color-danger-light-default)',
                           border: '1px solid var(--semi-color-danger-light-active)',
-                          borderRadius: 8,
+                          borderRadius: 'var(--semi-border-radius-medium)',
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
@@ -3220,7 +3220,7 @@ export default function ChatPage({
                             key={item.id}
                             type="button"
                             onClick={() => { void openImagePreview(item, mediaItems.filter((m) => m.type === 'image')); }}
-                            style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', aspectRatio: '1', overflow: 'hidden', borderRadius: 4 }}
+                            style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', aspectRatio: '1', overflow: 'hidden', borderRadius: 'var(--semi-border-radius-small)' }}
                           >
                             <img
                               src={item.extra?.asset?.thumbnailUrl ?? item.content}
@@ -3240,7 +3240,7 @@ export default function ChatPage({
                           return (
                             <SemiList.Item
                               key={item.id}
-                              style={{ padding: '8px 10px', background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}
+                              style={{ padding: '8px 10px', background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', marginBottom: 8, overflow: 'hidden' }}
                             >
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minWidth: 0 }}>
                                 <span style={{ fontSize: 22, flexShrink: 0 }}>{getFileTypeIcon(asset?.name ?? '')}</span>
@@ -3291,13 +3291,13 @@ export default function ChatPage({
                                 href={urlMatch}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                style={{ display: 'flex', gap: 10, padding: '10px 12px', background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 8, textDecoration: 'none', color: 'inherit', alignItems: 'flex-start', width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}
+                                style={{ display: 'flex', gap: 10, padding: '10px 12px', background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', textDecoration: 'none', color: 'inherit', alignItems: 'flex-start', width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}
                               >
                                 {preview?.image && (
                                   <img
                                     src={preview.image}
                                     alt=""
-                                    style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
+                                    style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', flexShrink: 0 }}
                                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                   />
                                 )}
@@ -3310,7 +3310,7 @@ export default function ChatPage({
                                   </Text>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                                     {preview?.favicon && (
-                                      <img src={preview.favicon} alt="" style={{ width: 12, height: 12, borderRadius: 2 }}
+                                      <img src={preview.favicon} alt="" style={{ width: 12, height: 12, borderRadius: 'var(--semi-border-radius-small)' }}
                                         onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                       />
                                     )}
@@ -3448,7 +3448,7 @@ export default function ChatPage({
             ) : (
               <>
             {replyTo && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '4px 10px', background: 'var(--semi-color-fill-0)', borderRadius: 6, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '4px 10px', background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', fontSize: 12, color: 'var(--semi-color-text-2)' }}>
                 <CornerDownLeft size={12} />
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   回复 {replyTo.senderName}：{getReplyPreviewText(replyTo)}
@@ -3476,7 +3476,7 @@ export default function ChatPage({
                         setPreviewCurrentIndex(idx);
                         setPreviewVisible(true);
                       }}
-                      style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', width: '100%', height: '100%', display: 'block', borderRadius: 6, overflow: 'hidden' }}
+                      style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', width: '100%', height: '100%', display: 'block', borderRadius: 'var(--semi-border-radius-medium)', overflow: 'hidden' }}
                     >
                       <img
                         src={item.previewUrl}
@@ -3518,7 +3518,7 @@ export default function ChatPage({
                       gap: 6,
                       padding: '4px 8px',
                       background: 'var(--semi-color-fill-0)',
-                      borderRadius: 6,
+                      borderRadius: 'var(--semi-border-radius-medium)',
                       border: '1px solid var(--semi-color-border)',
                       maxWidth: 220,
                       position: 'relative',
@@ -3568,7 +3568,7 @@ export default function ChatPage({
                     left: emojiAnchor.left,
                     zIndex: 9999,
                     background: 'var(--semi-color-bg-3)',
-                    borderRadius: 10,
+                    borderRadius: 'var(--semi-border-radius-large)',
                     boxShadow: 'var(--semi-shadow-elevated)',
                     overflow: 'hidden',
                   }}
@@ -3649,7 +3649,7 @@ export default function ChatPage({
                 </Tooltip>
               )}
               {voiceRecorder.isRecording && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 4, padding: '2px 10px', borderRadius: 14, background: 'var(--semi-color-danger-light-default)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 4, padding: '2px 10px', borderRadius: 'var(--semi-border-radius-large)', background: 'var(--semi-color-danger-light-default)' }}>
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--semi-color-danger)', animation: 'qcVoicePulse 1s infinite' }} />
                   <Text style={{ fontSize: 12, color: 'var(--semi-color-danger)', fontVariantNumeric: 'tabular-nums' }}>
                     录音中 {String(Math.floor(voiceRecorder.seconds / 60)).padStart(2, '0')}:{String(voiceRecorder.seconds % 60).padStart(2, '0')} / 01:00
@@ -3683,7 +3683,7 @@ export default function ChatPage({
                     zIndex: 30,
                     background: 'var(--semi-color-bg-0)',
                     border: '1px solid var(--semi-color-border)',
-                    borderRadius: 8,
+                    borderRadius: 'var(--semi-border-radius-medium)',
                     boxShadow: 'var(--semi-shadow-elevated)',
                     padding: 6,
                     maxHeight: 220,
@@ -3699,7 +3699,7 @@ export default function ChatPage({
                       style={{
                         display: 'flex', alignItems: 'center', gap: 8, width: '100%', border: 'none',
                         background: idx === mentionActiveIndex ? 'var(--semi-color-fill-1)' : 'transparent',
-                        padding: '6px 8px', textAlign: 'left', cursor: 'pointer', borderRadius: 6,
+                        padding: '6px 8px', textAlign: 'left', cursor: 'pointer', borderRadius: 'var(--semi-border-radius-medium)',
                         transition: 'background 0.1s',
                       }}
                     >
@@ -3742,7 +3742,7 @@ export default function ChatPage({
                 disabled={!!muteState}
                 rows={isQuick ? 2 : 3}
                 style={{
-                  width: '100%', resize: 'none', borderRadius: 8, padding: '8px 48px 8px 12px',
+                  width: '100%', resize: 'none', borderRadius: 'var(--semi-border-radius-medium)', padding: '8px 48px 8px 12px',
                   border: '1px solid var(--semi-color-border)',
                   background: 'var(--semi-color-bg-2)',
                   color: 'var(--semi-color-text-0)',
@@ -3759,7 +3759,7 @@ export default function ChatPage({
                 onClick={() => { void handleSend(); }}
                 style={{
                   position: 'absolute', bottom: 8, right: 8,
-                  borderRadius: 6, width: 32, height: 32, padding: 0,
+                  borderRadius: 'var(--semi-border-radius-medium)', width: 32, height: 32, padding: 0,
                 }}
               />
             </div>
@@ -3937,7 +3937,7 @@ export default function ChatPage({
                 <Text type="tertiary" style={{ fontSize: 11 }}>{formatDateTime(favPreviewMsg.createdAt)}</Text>
               </div>
             </div>
-            <div style={{ background: 'var(--semi-color-fill-0)', borderRadius: 8, padding: 12 }}>
+            <div style={{ background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12 }}>
               <MessageContent
                 msg={favPreviewMsg}
                 isSelf={false}
@@ -4053,7 +4053,7 @@ export default function ChatPage({
                   >
                     <div
                       style={{
-                        width: '100%', textAlign: 'left', border: '1px solid var(--semi-color-border)', background: 'var(--semi-color-bg-1)', borderRadius: 8,
+                        width: '100%', textAlign: 'left', border: '1px solid var(--semi-color-border)', background: 'var(--semi-color-bg-1)', borderRadius: 'var(--semi-border-radius-medium)',
                         padding: '10px 12px',
                       }}
                     >

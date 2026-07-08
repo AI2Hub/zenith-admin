@@ -359,7 +359,7 @@ export default function WorkflowDataSourcesPage() {
               </Typography.Paragraph>
               <div style={{ maxHeight: '50vh', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {testOptions.slice(0, 50).map((o) => (
-                  <div key={o.value} style={{ display: 'flex', gap: 8, padding: '4px 8px', background: 'var(--semi-color-fill-0)', borderRadius: 4 }}>
+                  <div key={o.value} style={{ display: 'flex', gap: 8, padding: '4px 8px', background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-small)' }}>
                     <Typography.Text type="tertiary" size="small" style={{ width: 140, flexShrink: 0 }} ellipsis={{ showTooltip: true }}>{o.value}</Typography.Text>
                     <Typography.Text size="small" ellipsis={{ showTooltip: true }}>{o.label}</Typography.Text>
                   </div>

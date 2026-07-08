@@ -367,7 +367,7 @@ export default function TerminalTab({ sessionId, active, shell, label, cwd, onTi
           display: 'flex', alignItems: 'center', gap: 4,
           background: 'var(--semi-color-bg-2)',
           border: '1px solid var(--semi-color-border)',
-          borderRadius: 6, padding: '3px 6px',
+          borderRadius: 'var(--semi-border-radius-medium)', padding: '3px 6px',
           boxShadow: 'var(--semi-shadow-elevated)',
         }}>
           <input
@@ -389,7 +389,7 @@ export default function TerminalTab({ sessionId, active, shell, label, cwd, onTi
             type="button"
             title={`大小写${searchCaseSensitive ? '敏感' : '不敏感'}`}
             onClick={() => setSearchCaseSensitive((v) => !v)}
-            style={{ border: 'none', background: searchCaseSensitive ? 'var(--semi-color-primary-light-default)' : 'none', borderRadius: 3, padding: '1px 4px', cursor: 'pointer', fontSize: 11, fontWeight: 700, color: searchCaseSensitive ? 'var(--semi-color-primary)' : 'var(--semi-color-text-2)' }}
+            style={{ border: 'none', background: searchCaseSensitive ? 'var(--semi-color-primary-light-default)' : 'none', borderRadius: 'var(--semi-border-radius-small)', padding: '1px 4px', cursor: 'pointer', fontSize: 11, fontWeight: 700, color: searchCaseSensitive ? 'var(--semi-color-primary)' : 'var(--semi-color-text-2)' }}
           >Aa</button>
           <button type="button" title="上一个（Shift+Enter）" onClick={() => doSearch(searchText, 'prev')} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 2, display: 'flex', color: 'var(--semi-color-text-1)' }}><ChevronUp size={14} /></button>
           <button type="button" title="下一个（Enter）" onClick={() => doSearch(searchText, 'next')} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 2, display: 'flex', color: 'var(--semi-color-text-1)' }}><ChevronDown size={14} /></button>

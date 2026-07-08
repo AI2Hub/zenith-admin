@@ -59,7 +59,7 @@ export function GroupInviteModal({
       )}
       {!getInviteMutation.isPending && invite && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-          <div style={{ padding: 12, background: '#fff', borderRadius: 8, border: '1px solid var(--semi-color-border)' }}>
+          <div style={{ padding: 12, background: '#fff', borderRadius: 'var(--semi-border-radius-medium)', border: '1px solid var(--semi-color-border)' }}>
             <QRCodeSVG value={url} size={168} />
           </div>
           <Text

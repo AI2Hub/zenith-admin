@@ -703,7 +703,7 @@ export default function WorkflowDefinitionsPage() {
 
                 {/* 结构化变更列表 */}
                 {(diffData.nodeChanges.length > 0 || diffData.edgeChanges.length > 0) ? (
-                  <div style={{ marginBottom: 16, maxHeight: 320, overflow: 'auto', border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 12 }}>
+                  <div style={{ marginBottom: 16, maxHeight: 320, overflow: 'auto', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12 }}>
                     {diffData.nodeChanges.map((c) => (
                       <div key={`n-${c.nodeKey}`} style={{ padding: '6px 0', borderBottom: '1px dashed var(--semi-color-border)' }}>
                         <Space spacing={8} align="start">
@@ -766,7 +766,7 @@ export default function WorkflowDefinitionsPage() {
                         maxHeight: 420,
                         overflow: 'auto',
                         border: '1px solid var(--semi-color-border)',
-                        borderRadius: 6,
+                        borderRadius: 'var(--semi-border-radius-medium)',
                         background: 'var(--semi-color-fill-0)',
                         fontSize: 12,
                         lineHeight: 1.6,

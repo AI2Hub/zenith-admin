@@ -204,30 +204,30 @@ export default function NginxSitesPage() {
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 16 }}>
-        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 16, background: 'var(--semi-color-bg-1)' }}>
+        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--semi-color-bg-1)' }}>
           <Text type="secondary" size="small">安装状态</Text>
           <div style={{ marginTop: 8 }}><Tag color={info?.installed ? 'green' : 'grey'}>{info?.installed ? '已安装' : '未安装'}</Tag></div>
         </div>
-        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 16, background: 'var(--semi-color-bg-1)' }}>
+        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--semi-color-bg-1)' }}>
           <Text type="secondary" size="small">运行状态</Text>
           <div style={{ marginTop: 8 }}><Tag color={runningTag.color}>{runningTag.text}</Tag></div>
         </div>
-        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 16, background: 'var(--semi-color-bg-1)' }}>
+        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--semi-color-bg-1)' }}>
           <Text type="secondary" size="small">版本</Text>
           <div style={{ marginTop: 8 }}><Text>{info?.version ?? '—'}</Text></div>
         </div>
-        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 16, background: 'var(--semi-color-bg-1)' }}>
+        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--semi-color-bg-1)' }}>
           <Text type="secondary" size="small">配置路径</Text>
           <div style={{ marginTop: 8 }}><Typography.Text style={{ wordBreak: 'break-all' }}>{info?.configPath ?? '—'}</Typography.Text></div>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12, marginBottom: 16 }}>
-        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 16, background: 'var(--semi-color-bg-1)' }}>
+        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--semi-color-bg-1)' }}>
           <Text type="secondary" size="small">sites-available / conf.d</Text>
           <div style={{ marginTop: 8 }}><Typography.Text style={{ wordBreak: 'break-all' }}>{info?.sitesAvailable ?? '—'}</Typography.Text></div>
         </div>
-        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 16, background: 'var(--semi-color-bg-1)' }}>
+        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--semi-color-bg-1)' }}>
           <Text type="secondary" size="small">sites-enabled</Text>
           <div style={{ marginTop: 8 }}><Typography.Text style={{ wordBreak: 'break-all' }}>{info?.sitesEnabled ?? '—'}</Typography.Text></div>
         </div>

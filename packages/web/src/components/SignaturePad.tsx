@@ -30,7 +30,7 @@ export default function SignaturePad({ value, onChange, width = 360, height = 14
         onPointerLeave={handlePointerUp}
         style={{
           border: '1px dashed var(--semi-color-border)',
-          borderRadius: 6,
+          borderRadius: 'var(--semi-border-radius-medium)',
           background: '#fff',
           touchAction: 'none',
           cursor: disabled ? 'not-allowed' : 'crosshair',

@@ -174,7 +174,7 @@ export default function MpDraftsPage() {
         <Spin spinning={!!editingRecord && detailQuery.isFetching} wrapperClassName="modal-spin-wrapper">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '60vh', overflow: 'auto' }}>
             {articles.map((a, i) => (
-              <div key={i} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 8, padding: 12 }}>
+              <div key={i} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <Typography.Text strong>第 {i + 1} 篇</Typography.Text>
                   {articles.length > 1 && <Button theme="borderless" type="danger" size="small" icon={<Trash2 size={13} />} onClick={() => removeArticle(i)}>移除</Button>}

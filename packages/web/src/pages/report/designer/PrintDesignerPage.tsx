@@ -352,7 +352,7 @@ export default function PrintDesignerPage() {
                 {params.length === 0 ? <Empty description="暂无参数" /> : (
                   <Space vertical align="start" style={{ width: '100%' }}>
                     {params.map((param, index) => (
-                      <div key={`${param.name}-${index}`} style={{ width: '100%', padding: 10, border: '1px solid var(--semi-color-border)', borderRadius: 6 }}>
+                      <div key={`${param.name}-${index}`} style={{ width: '100%', padding: 10, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
                         <Space vertical align="start" style={{ width: '100%' }}>
                           <Input placeholder="参数名，如 startDate" value={param.name} onChange={(v) => updateParam(index, { name: v })} showClear />
                           <Input placeholder="显示名" value={param.label} onChange={(v) => updateParam(index, { label: v })} showClear />

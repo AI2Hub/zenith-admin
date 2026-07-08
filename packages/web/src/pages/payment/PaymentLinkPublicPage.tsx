@@ -130,7 +130,7 @@ export default function PaymentLinkPublicPage() {
                 <Typography.Text type="tertiary">{link.bizType}</Typography.Text>
               </div>
 
-              <div style={{ textAlign: 'center', padding: '18px 12px', borderRadius: 10, background: 'var(--semi-color-bg-1)', border: '1px solid var(--semi-color-border)' }}>
+              <div style={{ textAlign: 'center', padding: '18px 12px', borderRadius: 'var(--semi-border-radius-large)', background: 'var(--semi-color-bg-1)', border: '1px solid var(--semi-color-border)' }}>
                 <Typography.Text type="tertiary">支付金额</Typography.Text>
                 <div style={{ marginTop: 6, fontSize: 30, fontWeight: 700, color: '#10b981' }}>{yuan(link.amount)}</div>
               </div>

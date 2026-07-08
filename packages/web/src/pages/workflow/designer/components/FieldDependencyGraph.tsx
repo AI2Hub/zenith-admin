@@ -48,7 +48,7 @@ const FieldNode = memo(({ data, selected }: NodeProps) => {
         justifyContent: 'center',
         background: d.missing ? 'var(--semi-color-danger-light-default)' : 'var(--semi-color-bg-0)',
         border: `1px solid ${selected ? 'var(--semi-color-primary)' : d.missing ? 'var(--semi-color-danger)' : 'var(--semi-color-border)'}`,
-        borderRadius: 6,
+        borderRadius: 'var(--semi-border-radius-medium)',
         boxShadow: selected ? '0 0 0 2px var(--semi-color-primary-light-default)' : 'none',
         opacity: d.dimmed ? 0.2 : 1,
         padding: '0 10px',
@@ -197,7 +197,7 @@ function FieldDependencyGraphInner({ fields }: Readonly<{ fields: WorkflowFormFi
   }
 
   return (
-    <div style={{ width: '100%', height: 560, border: '1px solid var(--semi-color-border)', borderRadius: 6, background: 'var(--semi-color-bg-0)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ width: '100%', height: 560, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--semi-color-bg-0)', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--semi-color-border)', background: 'var(--semi-color-fill-0)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <Space spacing="tight">
           <Switch size="small" checked={hideIsolated} onChange={setHideIsolated} />

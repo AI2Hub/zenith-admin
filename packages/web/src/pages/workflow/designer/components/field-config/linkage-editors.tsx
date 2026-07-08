@@ -134,7 +134,7 @@ export function AutoFillEditor({
           {targets.map((tk) => {
             const tf = candidates.find((c) => c.key === tk);
             return (
-              <div key={tk} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 8 }}>
+              <div key={tk} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 8 }}>
                 <Typography.Text size="small" strong>{tf?.label ?? tk}</Typography.Text>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
                   {options.map((opt) => (

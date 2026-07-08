@@ -834,7 +834,7 @@ export default function WorkflowMonitorPage() {
                   </Space>
                   {renderNodeConfigSummary(node)}
                   {node.tasks.length > 0 ? (
-                    <div style={{ border: '1px solid var(--semi-color-fill-1)', borderTop: 'none', borderRadius: 6 }}>
+                    <div style={{ border: '1px solid var(--semi-color-fill-1)', borderTop: 'none', borderRadius: 'var(--semi-border-radius-medium)' }}>
                       {node.tasks.map(renderNodeTaskRow)}
                     </div>
                   ) : (
@@ -883,7 +883,7 @@ export default function WorkflowMonitorPage() {
         <div
           style={{
             border: '1px solid var(--semi-color-border)',
-            borderRadius: 6,
+            borderRadius: 'var(--semi-border-radius-medium)',
             padding: 14,
             background: 'var(--semi-color-bg-1)',
           }}
@@ -903,7 +903,7 @@ export default function WorkflowMonitorPage() {
                 key={metric.label}
                 style={{
                   border: '1px solid var(--semi-color-fill-1)',
-                  borderRadius: 6,
+                  borderRadius: 'var(--semi-border-radius-medium)',
                   padding: '8px 10px',
                   minWidth: 0,
                 }}
@@ -929,7 +929,7 @@ export default function WorkflowMonitorPage() {
                       flexWrap: 'wrap',
                       padding: '7px 10px',
                       border: '1px solid var(--semi-color-fill-1)',
-                      borderRadius: 6,
+                      borderRadius: 'var(--semi-border-radius-medium)',
                     }}
                   >
                     <Typography.Text type="tertiary" size="small">#{task.id}</Typography.Text>
@@ -953,7 +953,7 @@ export default function WorkflowMonitorPage() {
             </div>
           )}
 
-          <div style={{ marginTop: 12, padding: '8px 10px', borderRadius: 6, background: 'var(--semi-color-fill-0)' }}>
+          <div style={{ marginTop: 12, padding: '8px 10px', borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--semi-color-fill-0)' }}>
             <Typography.Text type="tertiary" size="small">建议动作：</Typography.Text>
             <Typography.Text size="small">{focusDiagnosis.nextAction}</Typography.Text>
           </div>
@@ -965,7 +965,7 @@ export default function WorkflowMonitorPage() {
             {diagnostics.issues.map((issue, index) => {
               const meta = ISSUE_SEVERITY_MAP[issue.severity];
               return (
-                <div key={`${issue.source}-${issue.title}-${index}`} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--semi-color-border)', borderRadius: 6 }}>
+                <div key={`${issue.source}-${issue.title}-${index}`} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
                   <Space spacing={8} wrap>
                     <Tag color={meta.color}>{meta.text}</Tag>
                     <Tag color="grey">{ISSUE_SOURCE_MAP[issue.source]}</Tag>

@@ -90,7 +90,7 @@ export class PageErrorBoundary extends React.Component<Props, State> {
                 maxWidth: 640,
                 background: 'var(--semi-color-fill-0)',
                 border: '1px solid var(--semi-color-border)',
-                borderRadius: 8,
+                borderRadius: 'var(--semi-border-radius-medium)',
                 padding: '8px 12px',
                 fontSize: 12,
                 fontFamily: 'monospace',

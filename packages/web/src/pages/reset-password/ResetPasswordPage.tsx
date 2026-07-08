@@ -132,7 +132,7 @@ export default function ResetPasswordPage() {
       <div style={{
         width: 400, padding: '40px 36px',
         background: 'var(--semi-color-bg-2)',
-        borderRadius: 12,
+        borderRadius: 'var(--semi-border-radius-large)',
         boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
       }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
@@ -141,7 +141,7 @@ export default function ResetPasswordPage() {
             marginBottom: 20, cursor: 'pointer',
           }}>
             <div style={{
-              width: 36, height: 36, borderRadius: 8,
+              width: 36, height: 36, borderRadius: 'var(--semi-border-radius-medium)',
               background: 'var(--semi-color-primary)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: '#fff', fontWeight: 700, fontSize: 18,

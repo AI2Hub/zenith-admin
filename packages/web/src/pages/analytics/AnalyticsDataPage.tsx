@@ -617,7 +617,7 @@ export default function AnalyticsDataPage() {
         <Descriptions row data={detailData} />
         <div>
           <Typography.Title heading={6}>事件属性</Typography.Title>
-          <pre style={{ margin: 0, padding: 12, borderRadius: 6, background: 'var(--semi-color-fill-0)', overflow: 'auto' }}>
+          <pre style={{ margin: 0, padding: 12, borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--semi-color-fill-0)', overflow: 'auto' }}>
             {JSON.stringify(eventDetail.properties ?? {}, null, 2)}
           </pre>
         </div>

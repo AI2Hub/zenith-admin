@@ -44,7 +44,7 @@ export function VideoMessage({ msg, isSelf: _isSelf }: Readonly<{ msg: ChatMessa
         src={videoUrl}
         controls
         autoPlay
-        style={{ maxWidth: maxW, maxHeight: 320, borderRadius: 8, display: 'block', background: '#000' }}
+        style={{ maxWidth: maxW, maxHeight: 320, borderRadius: 'var(--semi-border-radius-medium)', display: 'block', background: '#000' }}
       >
         <track kind="captions" />
       </video>
@@ -61,7 +61,7 @@ export function VideoMessage({ msg, isSelf: _isSelf }: Readonly<{ msg: ChatMessa
         width: maxW,
         height,
         border: 'none',
-        borderRadius: 8,
+        borderRadius: 'var(--semi-border-radius-medium)',
         cursor: 'pointer',
         background: 'linear-gradient(135deg, #2b2b2b, #444)',
         display: 'flex',

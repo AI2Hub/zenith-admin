@@ -163,10 +163,10 @@ export default function WorkflowGraphView({ flowData, tasks, height = 480, insta
                 </ul>
                 <div style={{ marginTop: 6, fontSize: 11, color: 'var(--semi-color-text-2)', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ display: 'inline-block', width: 8, height: 8, background: 'var(--semi-color-danger)', borderRadius: 2 }}>{''}</span>驳回节点
+                    <span style={{ display: 'inline-block', width: 8, height: 8, background: 'var(--semi-color-danger)', borderRadius: 'var(--semi-border-radius-small)' }}>{''}</span>驳回节点
                   </span>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ display: 'inline-block', width: 8, height: 8, background: 'var(--semi-color-warning)', borderRadius: 2 }}>{''}</span>回退目标
+                    <span style={{ display: 'inline-block', width: 8, height: 8, background: 'var(--semi-color-warning)', borderRadius: 'var(--semi-border-radius-small)' }}>{''}</span>回退目标
                   </span>
                 </div>
               </div>
@@ -182,7 +182,7 @@ export default function WorkflowGraphView({ flowData, tasks, height = 480, insta
           overflow: 'auto',
           padding: 16,
           background: 'var(--semi-color-fill-0)',
-          borderRadius: 8,
+          borderRadius: 'var(--semi-border-radius-medium)',
         }}
       >
         <FlowRenderer process={process} readOnly nodeRuntime={runtimeMap} dimmedBranchIds={dimmedBranches} instanceStatus={instanceStatus} />

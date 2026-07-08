@@ -58,7 +58,7 @@ const editorLoadingFallback = (
       alignItems: 'center',
       justifyContent: 'center',
       border: '1px solid var(--semi-color-border)',
-      borderRadius: 4,
+      borderRadius: 'var(--semi-border-radius-small)',
     }}
   >
     <Spin />

@@ -151,7 +151,7 @@ export default function WorkflowApprovalChainPanel({
             size="small"
             style={{
               width: '100%',
-              ...(missing ? { boxShadow: '0 0 0 1px var(--semi-color-danger)', borderRadius: 6 } : null),
+              ...(missing ? { boxShadow: '0 0 0 1px var(--semi-color-danger)', borderRadius: 'var(--semi-border-radius-medium)' } : null),
             }}
             placeholder="请选择审批人"
             emptyContent="暂无可选审批人"

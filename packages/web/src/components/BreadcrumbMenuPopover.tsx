@@ -46,7 +46,7 @@ function MenuItem({ item, onNavigate, depth = 0 }: Readonly<MenuItemProps>) {
         gap: 8,
         padding: '6px 12px',
         cursor: isDirectory ? 'default' : 'pointer',
-        borderRadius: 4,
+        borderRadius: 'var(--semi-border-radius-small)',
         fontSize: 13,
         color: 'var(--semi-color-text-0)',
         background: 'transparent',

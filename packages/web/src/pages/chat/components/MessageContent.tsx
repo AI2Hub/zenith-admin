@@ -132,7 +132,7 @@ export function MessageContent({
           style={{
             width: 30,
             height: 30,
-            borderRadius: 8,
+            borderRadius: 'var(--semi-border-radius-medium)',
             background: isSelf ? 'rgba(255,255,255,0.2)' : 'var(--semi-color-fill-0)',
             display: 'inline-flex',
             alignItems: 'center',
@@ -246,7 +246,7 @@ export function MessageContent({
                 style={{
                   border: selected ? '1px solid var(--semi-color-primary)' : '1px solid var(--semi-color-border)',
                   background: selected ? 'var(--semi-color-primary-light-default)' : 'var(--semi-color-fill-0)',
-                  borderRadius: 8,
+                  borderRadius: 'var(--semi-border-radius-medium)',
                   padding: '8px 10px',
                   cursor: disabled ? 'not-allowed' : 'pointer',
                   textAlign: 'left',
@@ -303,7 +303,7 @@ export function MessageContent({
             marginTop: 8,
             display: 'flex',
             gap: 10,
-            borderRadius: 8,
+            borderRadius: 'var(--semi-border-radius-medium)',
             border: isSelf ? '1px solid rgba(255,255,255,0.35)' : '1px solid var(--semi-color-border)',
             background: isSelf ? 'rgba(255,255,255,0.12)' : 'var(--semi-color-bg-1)',
             color: isSelf ? '#fff' : 'inherit',
@@ -351,7 +351,7 @@ export function MessageContent({
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
               {linkPreview.favicon && (
-                <img src={linkPreview.favicon} alt="favicon" style={{ width: 14, height: 14, borderRadius: 3 }} />
+                <img src={linkPreview.favicon} alt="favicon" style={{ width: 14, height: 14, borderRadius: 'var(--semi-border-radius-small)' }} />
               )}
               <Text
                 type="tertiary"

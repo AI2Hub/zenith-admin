@@ -127,7 +127,7 @@ export default function OAuth2AuthorizePage() {
         padding: 24,
       }}
     >
-      <Card style={{ width: '100%', maxWidth: 460, borderRadius: 12 }}>
+      <Card style={{ width: '100%', maxWidth: 460, borderRadius: 'var(--semi-border-radius-large)' }}>
         {/* 应用信息 */}
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           {info.logoUrl ? (
@@ -176,7 +176,7 @@ export default function OAuth2AuthorizePage() {
         </div>
 
         {info.alreadyGranted && (
-          <div style={{ marginBottom: 12, padding: '8px 12px', background: 'var(--semi-color-success-light-default)', borderRadius: 6 }}>
+          <div style={{ marginBottom: 12, padding: '8px 12px', background: 'var(--semi-color-success-light-default)', borderRadius: 'var(--semi-border-radius-medium)' }}>
             <Text type="success" size="small">✓ 您之前已授权该应用相同的权限，确认即可继续</Text>
           </div>
         )}
