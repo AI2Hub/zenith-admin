@@ -188,7 +188,9 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
     return () => globalThis.removeEventListener('auth:user-updated', handler);
   }, []);
   const user = displayUser;
-  const [collapsed, setCollapsed] = useState(false);
+  const { preferences, setPreferences, resetPreferences } = usePreferences();
+  // hover 模式下侧边栏应保持收起：刷新页面后依据偏好恢复收起状态
+  const [collapsed, setCollapsed] = useState(() => preferences.sidebarHoverTrigger ?? false);
   const autoCollapsedRef = useRef(false);
   // hover 模式：鼠标悬浮时侧边栏临时滑出
   const [sidebarHovered, setSidebarHovered] = useState(false);
@@ -214,8 +216,7 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
     walk(menuTree, []);
     return result;
   }, [menuTree]);
-  const { preferences, setPreferences, resetPreferences } = usePreferences();
-  // hover 模式下实际用于渲染的 collapsed：开启 hover 模式且居用且悬浮内时展开
+  // hover 模式下实际用于渲染的 collapsed：开启 hover 模式且已收起且鼠标悬浮时临时展开
   const effectiveCollapsed = (preferences.sidebarHoverTrigger && collapsed && sidebarHovered) ? false : collapsed;
   const { mode, themeColor, isDark, setThemeMode, setThemeColor } = useThemeController();
 
@@ -247,6 +248,24 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
     autoCollapsedRef.current = false;
     setCollapsed(isCollapsed);
   }, []);
+
+  // ─── hover 模式开关联动 ─────────────────────────────────────────────────────
+  // 开启时收起侧边栏（含服务器偏好异步覆盖本地缓存的场景）；从开启切回关闭时还原展开。
+  // 定义在断点效果之后，确保宽窗口下 hover 模式的收起优先生效。
+  const sidebarHoverTrigger = preferences.sidebarHoverTrigger ?? false;
+  const prevHoverTriggerRef = useRef(sidebarHoverTrigger);
+  useEffect(() => {
+    const prev = prevHoverTriggerRef.current;
+    prevHoverTriggerRef.current = sidebarHoverTrigger;
+    if (sidebarHoverTrigger) {
+      autoCollapsedRef.current = false;
+      setSidebarHovered(false);
+      setCollapsed(true);
+    } else if (prev && !isBelowLg) {
+      // 仅在「开启 → 关闭」时还原，避免干扰手动收起或断点自动收起
+      setCollapsed(false);
+    }
+  }, [sidebarHoverTrigger, isBelowLg]);
 
   // ─── 水印配置 ──────────────────────────────────────────────────────────────
   const [watermarkConfig, setWatermarkConfig] = useState({ enabled: false, content: '', fontSize: 14, opacity: 0.15 });
