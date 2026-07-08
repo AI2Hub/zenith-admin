@@ -2,10 +2,10 @@
  * 结束节点
  */
 const END_LABEL: Record<string, { text: string; color: string }> = {
-  approved: { text: '已通过', color: '#0dc87c' },
-  rejected: { text: '已驳回', color: '#ff4d4f' },
-  withdrawn: { text: '已撤回', color: '#fa8c16' },
-  cancelled: { text: '已取消', color: '#8c8c8c' },
+  approved: { text: '已通过', color: 'var(--semi-color-success)' },
+  rejected: { text: '已驳回', color: 'var(--semi-color-danger)' },
+  withdrawn: { text: '已撤回', color: 'var(--semi-color-warning)' },
+  cancelled: { text: '已取消', color: 'var(--semi-color-text-2)' },
 };
 
 export default function EndNode({ status }: Readonly<{ status?: string | null }>) {

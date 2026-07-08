@@ -13,10 +13,10 @@ type Level = 0 | 1 | 2 | 3 | 4;
 
 const LEVEL_CONFIG: Record<Level, { label: string; color: string }> = {
   0: { label: '',    color: 'transparent' },
-  1: { label: '弱',  color: '#f53f3f' },
-  2: { label: '一般', color: '#ff7d00' },
-  3: { label: '良好', color: '#0fc6c2' },
-  4: { label: '强',  color: '#00b42a' },
+  1: { label: '弱',  color: 'var(--semi-color-danger)' },
+  2: { label: '一般', color: 'var(--semi-color-warning)' },
+  3: { label: '良好', color: 'var(--semi-color-info)' },
+  4: { label: '强',  color: 'var(--semi-color-success)' },
 };
 
 function calcStrength(pwd: string): Level {
@@ -88,11 +88,11 @@ export function PasswordStrengthMeter({ password, policy }: PasswordStrengthMete
         {minLengthLabel !== null && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
             {minLengthOk
-              ? <CheckCircle size={11} style={{ flexShrink: 0, color: '#00b42a' }} />
+              ? <CheckCircle size={11} style={{ flexShrink: 0, color: 'var(--semi-color-success)' }} />
               : <Circle size={11} style={{ flexShrink: 0, color: 'var(--semi-color-text-3)' }} />}
             <span style={{
               fontSize: 12,
-              color: minLengthOk ? '#00b42a' : 'var(--semi-color-text-3)',
+              color: minLengthOk ? 'var(--semi-color-success)' : 'var(--semi-color-text-3)',
               transition: 'color 0.2s',
             }}>
               {minLengthLabel}
@@ -112,7 +112,7 @@ export function PasswordStrengthMeter({ password, policy }: PasswordStrengthMete
                 alignItems: 'center',
                 gap: 4,
                 fontSize: 12,
-                color: ok ? '#00b42a' : 'var(--semi-color-text-3)',
+                color: ok ? 'var(--semi-color-success)' : 'var(--semi-color-text-3)',
                 transition: 'color 0.2s',
               }}
             >

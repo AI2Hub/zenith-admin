@@ -60,10 +60,10 @@ const SIGNAL_OPTIONS = [
 type SseStatus = 'idle' | 'connecting' | 'open' | 'error';
 
 const SSE_STATUS_META: Record<SseStatus, { color: string; text: string }> = {
-  idle:       { color: '#8c8c8c', text: '未连接' },
-  connecting: { color: '#1890ff', text: '连接中' },
-  open:       { color: '#52c41a', text: '实时推送中' },
-  error:      { color: '#ff4d4f', text: '连接断开' },
+  idle:       { color: 'var(--semi-color-text-2)', text: '未连接' },
+  connecting: { color: 'var(--semi-color-info)', text: '连接中' },
+  open:       { color: 'var(--semi-color-success)', text: '实时推送中' },
+  error:      { color: 'var(--semi-color-danger)', text: '连接断开' },
 };
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -285,8 +285,8 @@ export default function ProcessesPage() {
       sorter: (a, b) => (a?.cpu ?? 0) - (b?.cpu ?? 0),
       render: (cpu: number) => {
         let cpuColor: string | undefined;
-        if (cpu > 50) cpuColor = '#ff4d4f';
-        else if (cpu > 20) cpuColor = '#fa8c16';
+        if (cpu > 50) cpuColor = 'var(--semi-color-danger)';
+        else if (cpu > 20) cpuColor = 'var(--semi-color-warning)';
         return <span style={{ color: cpuColor }}>{cpu.toFixed(1)}%</span>;
       },
     },
@@ -312,12 +312,12 @@ export default function ProcessesPage() {
       dataIndex: platform === 'win32' ? 'priorityClass' : 'nice',
       width: platform === 'win32' ? 110 : 70,
       render: (v: unknown) => {
-        if (v === null || v === undefined || v === '') return <span style={{ color: '#bbb' }}>—</span>;
+        if (v === null || v === undefined || v === '') return <span style={{ color: 'var(--semi-color-text-3)' }}>—</span>;
         if (platform !== 'win32') {
           const n = Number(v);
           let niceColor: string | undefined;
-          if (n < 0) niceColor = '#52c41a';
-          else if (n > 0) niceColor = '#ff4d4f';
+          if (n < 0) niceColor = 'var(--semi-color-success)';
+          else if (n > 0) niceColor = 'var(--semi-color-danger)';
           return <span style={{ color: niceColor }}>{typeof v === 'number' ? String(v) : String(Number(v))}</span>;
         }
         return <span>{typeof v === 'string' ? v : String(Number(v))}</span>;

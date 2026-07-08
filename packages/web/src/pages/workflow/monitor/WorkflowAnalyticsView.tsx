@@ -40,7 +40,7 @@ function fmtPercent(rate: number | null): string {
 }
 
 function Kpi({ label, value, danger, warn }: Readonly<{ label: string; value: string | number; danger?: boolean; warn?: boolean }>) {
-  const color = danger ? '#ff4d4f' : warn ? '#faad14' : undefined;
+  const color = danger ? 'var(--semi-color-danger)' : warn ? 'var(--semi-color-warning)' : undefined;
   return (
     <Card style={{ flex: '1 1 150px', minWidth: 140 }} bodyStyle={{ padding: '14px 16px' }}>
       <Typography.Text type="tertiary" size="small">{label}</Typography.Text>
@@ -181,7 +181,7 @@ export default function WorkflowAnalyticsView({ definitions }: Readonly<{ defini
               <tbody>
                 {overdue.map((o) => {
                   const days = o.overdueSec / 86400;
-                  const lamp = days >= 1 ? '#ff4d4f' : '#faad14';
+                  const lamp = days >= 1 ? 'var(--semi-color-danger)' : 'var(--semi-color-warning)';
                   return (
                     <tr key={o.taskId} style={{ borderTop: '1px solid var(--semi-color-border)' }}>
                       <td style={{ padding: '6px 8px' }}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: lamp }} /></td>
@@ -236,7 +236,7 @@ export default function WorkflowAnalyticsView({ definitions }: Readonly<{ defini
                       <td style={{ padding: '6px 8px' }}>{n.nodeName}</td>
                       <td style={{ padding: '6px 8px', color: 'var(--semi-color-text-2)' }}>{n.definitionName}</td>
                       <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmtDuration(n.avgHandleSec)}</td>
-                      <td style={{ padding: '6px 8px', textAlign: 'right', color: n.pendingCount > 0 ? '#faad14' : undefined }}>{n.pendingCount}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', color: n.pendingCount > 0 ? 'var(--semi-color-warning)' : undefined }}>{n.pendingCount}</td>
                     </tr>
                   ))}
                 </tbody>

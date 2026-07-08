@@ -1304,7 +1304,7 @@
   justify-content: center;
   width: 14px;
   height: 14px;
-  color: var(--semi-color-primary, #4a6cf7);
+  color: var(--semi-color-primary);
   opacity: 0.7;
   flex-shrink: 0;
 }
@@ -1314,7 +1314,7 @@
   width: 6px !important;
   height: 6px !important;
   min-width: 6px !important;
-  background-color: #ff6b6b !important;
+  background-color: var(--semi-color-danger) !important;
   box-shadow: 0 0 0 1.5px var(--color-layout-bg) !important;
   border-radius: 50% !important;
   top: 2px !important;
