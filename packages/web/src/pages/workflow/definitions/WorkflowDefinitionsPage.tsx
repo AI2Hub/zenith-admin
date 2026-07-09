@@ -37,14 +37,10 @@ import {
   useWorkflowDefinitionVersions,
   workflowDefinitionKeys,
 } from '@/hooks/queries/workflow-definitions';
+import { WORKFLOW_DIFF_KIND_META as DIFF_KIND_META } from '../constants';
+import { PUBLISHABLE_STATUS_META as STATUS_MAP } from '@/lib/publishable-status';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
-
-const STATUS_MAP: Record<string, { text: string; color: TagColor }> = {
-  draft: { text: '草稿', color: 'grey' },
-  published: { text: '已发布', color: 'green' },
-  disabled: { text: '已禁用', color: 'red' },
-};
 
 const FORM_TYPE_COLOR: Record<WorkflowFormType, TagColor> = {
   designer: 'blue',
@@ -75,12 +71,6 @@ interface WorkflowDefinitionImportPayload {
   flowData: unknown;
   form?: unknown;
 }
-
-const DIFF_KIND_META: Record<'added' | 'removed' | 'modified', { text: string; color: 'green' | 'red' | 'orange' }> = {
-  added: { text: '新增', color: 'green' },
-  removed: { text: '删除', color: 'red' },
-  modified: { text: '修改', color: 'orange' },
-};
 
 const defaultSearchParams: SearchParams = { keyword: '', status: '', selectedCategoryId: null };
 

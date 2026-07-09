@@ -5,7 +5,7 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ChevronLeft, Clock, GitBranch, Mail, Send, UserPlus, type LucideIcon } from 'lucide-react';
 import dayjs from 'dayjs';
 import type { WorkflowApproverPreviewNode } from '@zenith/shared';
-import { applyFieldPermissionsToFields } from '@zenith/shared';
+import { applyFieldPermissionsToFields, WORKFLOW_APPROVE_METHOD_LABELS as METHOD_LABEL } from '@zenith/shared';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import {
   compactSelectedInitiatorApprovers,
@@ -18,8 +18,6 @@ import ApproverPickerField from '../components/ApproverPicker';
 import { canLaunchOnMobile } from '../lib/launch';
 import { recordRecentDefinition } from '../lib/recent';
 import { useApprovalChainPreview, useApprovalMe, useLaunchInstance, usePublishedDefinitions } from '../lib/queries';
-
-const METHOD_LABEL: Record<string, string> = { and: '会签', or: '或签', sequential: '顺序会签', ratio: '比例会签' };
 
 const CHAIN_ICON: Record<string, LucideIcon> = {
   approve: Clock, handler: Clock, ccNode: Mail, subProcess: GitBranch,

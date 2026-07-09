@@ -28,6 +28,7 @@ import {
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Download, RotateCcw, Search } from 'lucide-react';
 import type { WorkflowJob, WorkflowJobExecution, WorkflowJobStatus, WorkflowJobSummaryItem, WorkflowJobType } from '@zenith/shared';
+import { WORKFLOW_JOB_STATUS_META as JOB_STATUS_META } from './constants';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -89,15 +90,6 @@ const REPLAY_STATUS_OPTIONS = [
   { value: 'dead', label: '死信 (dead)' },
   { value: 'failed', label: '失败 (failed)' },
 ];
-
-const JOB_STATUS_META: Record<WorkflowJobStatus, { text: string; color: TagColor }> = {
-  pending: { text: '待处理', color: 'grey' },
-  running: { text: '运行中', color: 'blue' },
-  succeeded: { text: '成功', color: 'green' },
-  failed: { text: '失败', color: 'orange' },
-  dead: { text: '死信', color: 'red' },
-  canceled: { text: '已取消', color: 'grey' },
-};
 
 const EXEC_STATUS_META: Record<WorkflowJobExecution['status'], { text: string; color: TagColor }> = {
   running: { text: '执行中', color: 'blue' },

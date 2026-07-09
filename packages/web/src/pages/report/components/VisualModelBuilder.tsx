@@ -1,17 +1,18 @@
 import { useMemo, useState } from 'react';
 import { Button, Input, InputNumber, Select, Space, Toast, Typography } from '@douyinfe/semi-ui';
 import { Wand2 } from 'lucide-react';
-import { buildVisualSql, REPORT_VISUAL_AGGREGATE_OPTIONS, visualMetricAlias } from '@zenith/shared';
+import {
+  BASIC_COMPARISON_OPERATOR_SYMBOLS,
+  buildVisualSql,
+  REPORT_VISUAL_AGGREGATE_OPTIONS,
+  visualMetricAlias,
+} from '@zenith/shared';
 import type { ReportVisualModel, ReportVisualMetric, ReportVisualFilter } from '@zenith/shared';
 import { useReportMetaTables, useReportMetaColumns } from '@/hooks/queries/report-datasets';
 
 const OP_OPTIONS = [
-  { value: 'eq', label: '=' },
-  { value: 'neq', label: '≠' },
-  { value: 'gt', label: '>' },
-  { value: 'gte', label: '≥' },
-  { value: 'lt', label: '<' },
-  { value: 'lte', label: '≤' },
+  ...(['eq', 'neq', 'gt', 'gte', 'lt', 'lte'] as const)
+    .map((value) => ({ value, label: BASIC_COMPARISON_OPERATOR_SYMBOLS[value] })),
   { value: 'like', label: '包含' },
 ];
 

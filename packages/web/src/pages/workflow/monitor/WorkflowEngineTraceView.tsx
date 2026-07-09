@@ -3,6 +3,7 @@ import { Banner, Button, Empty, Spin, Space, Tag, Timeline, Tooltip, Typography 
 import { AlertTriangle, Clock, RefreshCw } from 'lucide-react';
 import type { WorkflowEngineTraceEntry } from '@zenith/shared';
 import { useWorkflowInstanceTrace, workflowMonitorKeys } from '@/hooks/queries/workflow-monitor';
+import { WORKFLOW_HEALTH_SEVERITY_META as SEVERITY_META } from '../constants';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'orange' | 'red' | 'violet' | 'light-blue';
 type TimelineType = 'default' | 'ongoing' | 'success' | 'warning' | 'error';
@@ -30,12 +31,6 @@ function statusMeta(status: string) {
 
 const BANNER_TYPE: Record<string, 'info' | 'warning' | 'danger' | 'success'> = {
   completed: 'success', running: 'info', blocked: 'danger', rejected: 'warning', canceled: 'info', withdrawn: 'info', draft: 'info',
-};
-
-const SEVERITY_META: Record<string, { text: string; color: TagColor }> = {
-  critical: { text: '严重', color: 'red' },
-  warning: { text: '警告', color: 'orange' },
-  info: { text: '提示', color: 'blue' },
 };
 
 function renderExecutions(entry: WorkflowEngineTraceEntry) {

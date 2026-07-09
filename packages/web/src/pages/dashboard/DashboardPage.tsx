@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Card, Typography, Tag, Space, Skeleton, Empty, List, Avatar, Descriptions } from '@douyinfe/semi-ui';
+import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import {
   AreaChart,
   LineChart,
@@ -21,6 +22,7 @@ const GithubIcon = ({ size = 18 }: { size?: number }) => (
 );
 import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
+import { useDictItems } from '@/hooks/useDictItems';
 import AnnouncementDetailModal from '@/components/AnnouncementDetailModal';
 import MonthCalendar from '@/components/MonthCalendar';
 import {
@@ -61,20 +63,6 @@ const STAT_ITEMS: Array<{
   { key: 'todayOperations', label: '今日操作',     icon: <Activity size={20} />,   color: '#FA8C16' },
 ];
 
-type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
-
-const ANNOUNCEMENT_TYPE_MAP: Record<string, { label: string; color: TagColor }> = {
-  notice: { label: '通知', color: 'blue' },
-  announcement: { label: '公告', color: 'cyan' },
-  warning: { label: '预警', color: 'orange' },
-};
-
-const ANNOUNCEMENT_PRIORITY_MAP: Record<string, { label: string; color: TagColor }> = {
-  high: { label: '高', color: 'red' },
-  medium: { label: '中', color: 'orange' },
-  low: { label: '低', color: 'green' },
-};
-
 function stripHtml(html: string): string {
   const tmp = document.createElement('div');
   tmp.innerHTML = html;
@@ -83,6 +71,14 @@ function stripHtml(html: string): string {
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const {
+    getLabel: getAnnouncementTypeLabel,
+    getColor: getAnnouncementTypeColor,
+  } = useDictItems('announcement_type');
+  const {
+    getLabel: getAnnouncementPriorityLabel,
+    getColor: getAnnouncementPriorityColor,
+  } = useDictItems('announcement_priority');
   const { permissions } = usePermission();
   const { user } = useAuth();
   const palette = useChartPalette();
@@ -201,8 +197,14 @@ export default function DashboardPage() {
         dataSource={notices.slice(0, 6)}
         size="small"
         renderItem={(n: AnnouncementWithRead) => {
-          const typeInfo = ANNOUNCEMENT_TYPE_MAP[n.type] ?? { label: n.type, color: 'blue' };
-          const priInfo = ANNOUNCEMENT_PRIORITY_MAP[n.priority] ?? { label: n.priority, color: 'grey' };
+          const typeInfo = {
+            label: getAnnouncementTypeLabel(n.type),
+            color: (getAnnouncementTypeColor(n.type) as TagColor | undefined) ?? 'blue',
+          };
+          const priInfo = {
+            label: getAnnouncementPriorityLabel(n.priority),
+            color: (getAnnouncementPriorityColor(n.priority) as TagColor | undefined) ?? 'grey',
+          };
           return (
             <List.Item
               className="notice-item notice-item--clickable"

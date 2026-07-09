@@ -27,6 +27,7 @@ import type {
   DeduplicateStrategy,
 } from './types';
 import type { WorkflowNodeFailureAction } from '@zenith/shared';
+import { WORKFLOW_APPROVE_METHOD_LABELS } from '@zenith/shared';
 
 // ─── 节点类型注册信息 ────────────────────────────────────────────────
 
@@ -168,12 +169,12 @@ export const ASSIGNEE_TYPE_OPTIONS: Array<{ value: AssigneeType; label: string; 
 ];
 
 export const APPROVE_METHOD_OPTIONS: Array<{ value: ApproveMethod; label: string; description: string }> = [
-  { value: 'or',         label: '或签',     description: '一人通过即可' },
-  { value: 'and',        label: '会签',     description: '需所有人通过' },
-  { value: 'sequential', label: '依次审批', description: '按顺序逐一审批' },
-  { value: 'ratio',      label: '比例会签', description: '达到指定百分比同意即通过' },
-  { value: 'random',     label: '随机一人', description: '系统在候选人中随机指派一人审批' },
-  { value: 'auto',       label: '自动通过', description: '无需人工审批，自动流转' },
+  { value: 'or',         label: WORKFLOW_APPROVE_METHOD_LABELS.or,         description: '一人通过即可' },
+  { value: 'and',        label: WORKFLOW_APPROVE_METHOD_LABELS.and,        description: '需所有人通过' },
+  { value: 'sequential', label: WORKFLOW_APPROVE_METHOD_LABELS.sequential, description: '按顺序逐一审批' },
+  { value: 'ratio',      label: WORKFLOW_APPROVE_METHOD_LABELS.ratio,      description: '达到指定百分比同意即通过' },
+  { value: 'random',     label: WORKFLOW_APPROVE_METHOD_LABELS.random,     description: '系统在候选人中随机指派一人审批' },
+  { value: 'auto',       label: WORKFLOW_APPROVE_METHOD_LABELS.auto,       description: '无需人工审批，自动流转' },
 ];
 
 export const EMPTY_ASSIGNEE_OPTIONS: Array<{ value: EmptyAssigneeStrategy; label: string }> = [

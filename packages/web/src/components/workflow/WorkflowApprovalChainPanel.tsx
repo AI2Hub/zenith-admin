@@ -12,6 +12,7 @@
 import { useEffect, useMemo } from 'react';
 import { Button, Empty, Select, Spin, Tag, Timeline, Typography } from '@douyinfe/semi-ui';
 import { Clock, Flag, Mail, Send, UserPlus, type LucideIcon } from 'lucide-react';
+import { WORKFLOW_APPROVE_METHOD_LABELS as METHOD_LABEL } from '@zenith/shared';
 import type { WorkflowApproverPreviewNode } from '@zenith/shared';
 import { UserAvatar } from '@/components/UserAvatar';
 import { timelineDot } from '@/components/workflow/timeline-dot';
@@ -28,7 +29,6 @@ export interface InitiatorApproverSelectNode {
 
 type TagColor = 'blue' | 'orange' | 'purple' | 'grey';
 
-const METHOD_LABEL: Record<string, string> = { and: '会签', or: '或签', sequential: '顺序会签', ratio: '比例会签' };
 const EMPTY_NODES: WorkflowApproverPreviewNode[] = [];
 
 /** 预测态各节点类型的圆点图标/颜色 + 状态标签（运行前，统一显示"待…"） */

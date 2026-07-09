@@ -1,11 +1,6 @@
 import { Typography, Tag, Space, Empty } from '@douyinfe/semi-ui';
 import type { WorkflowVersionDiff, WorkflowVersionNodeChange, WorkflowVersionEdgeChange } from '@zenith/shared';
-
-const KIND_META: Record<'added' | 'removed' | 'modified', { color: 'green' | 'red' | 'amber'; text: string }> = {
-  added: { color: 'green', text: '新增' },
-  removed: { color: 'red', text: '删除' },
-  modified: { color: 'amber', text: '修改' },
-};
+import { WORKFLOW_DIFF_KIND_META as KIND_META } from '../constants';
 
 function NodeChangeRow({ change }: Readonly<{ change: WorkflowVersionNodeChange }>) {
   const meta = KIND_META[change.kind];

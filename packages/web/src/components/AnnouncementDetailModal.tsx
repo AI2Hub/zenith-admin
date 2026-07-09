@@ -6,22 +6,11 @@ import { BookOpen, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Announcement, AnnouncementAttachment } from '@zenith/shared';
 import { formatDateTime } from '@/utils/date';
 import FileAttachment from '@/components/FileAttachment';
+import { useDictItems } from '@/hooks/useDictItems';
 
 const { Text } = Typography;
 
 type AnnouncementWithRead = Announcement & { isRead?: boolean; attachments?: AnnouncementAttachment[] };
-
-const TYPE_MAP: Record<string, { label: string; color: TagColor }> = {
-  notice: { label: '通知', color: 'blue' },
-  announcement: { label: '公告', color: 'cyan' },
-  warning: { label: '预警', color: 'orange' },
-};
-
-const PRIORITY_MAP: Record<string, { label: string; color: TagColor }> = {
-  high: { label: '紧急', color: 'red' },
-  medium: { label: '重要', color: 'orange' },
-  low: { label: '普通', color: 'cyan' },
-};
 
 interface AnnouncementDetailModalProps {
   visible: boolean;
@@ -50,13 +39,27 @@ export default function AnnouncementDetailModal({
   hasNext,
   indexLabel,
 }: Readonly<AnnouncementDetailModalProps>) {
+  const {
+    getLabel: getTypeLabel,
+    getColor: getTypeColor,
+  } = useDictItems('announcement_type');
+  const {
+    getLabel: getPriorityLabel,
+    getColor: getPriorityColor,
+  } = useDictItems('announcement_priority');
   const hasNav = onPrev !== undefined && onNext !== undefined;
 
   const typeInfo = announcement
-    ? (TYPE_MAP[announcement.type] ?? { label: announcement.type, color: 'blue' })
+    ? {
+        label: getTypeLabel(announcement.type),
+        color: (getTypeColor(announcement.type) as TagColor | undefined) ?? 'blue',
+      }
     : null;
   const priorityInfo = announcement
-    ? (PRIORITY_MAP[announcement.priority] ?? { label: announcement.priority, color: 'grey' })
+    ? {
+        label: getPriorityLabel(announcement.priority),
+        color: (getPriorityColor(announcement.priority) as TagColor | undefined) ?? 'grey',
+      }
     : null;
 
   const footer = hasNav ? (

@@ -1,6 +1,6 @@
 import { Select, Input, InputNumber, Switch, Typography, Button, Space, TextArea } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
-import { REPORT_AGGREGATE_OPTIONS } from '@zenith/shared';
+import { BASIC_COMPARISON_OPERATOR_SYMBOLS, REPORT_AGGREGATE_OPTIONS } from '@zenith/shared';
 import type { ReportWidget, ReportWidgetOptions, ReportDataset, ReportFilter, ReportDatasetParam, ReportConditionalFormat } from '@zenith/shared';
 
 type FieldOption = { value: string; label: string };
@@ -20,8 +20,9 @@ interface ConfigPanelProps {
 
 const AGG = REPORT_AGGREGATE_OPTIONS;
 const OPS = [
-  { value: 'gte', label: '≥' }, { value: 'lte', label: '≤' }, { value: 'gt', label: '>' },
-  { value: 'lt', label: '<' }, { value: 'eq', label: '=' }, { value: 'neq', label: '≠' }, { value: 'between', label: '介于' },
+  ...(['gte', 'lte', 'gt', 'lt', 'eq', 'neq'] as const)
+    .map((value) => ({ value, label: BASIC_COMPARISON_OPERATOR_SYMBOLS[value] })),
+  { value: 'between', label: '介于' },
 ];
 
 function Field({ label, children }: { readonly label: string; readonly children: React.ReactNode }) {

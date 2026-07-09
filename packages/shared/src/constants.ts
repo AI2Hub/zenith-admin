@@ -13,6 +13,7 @@ import type {
   SmsProvider,
   UserFeedbackCategory,
   UserFeedbackStatus,
+  WorkflowApproveMethod,
   WorkflowApproverDedupMode,
 } from './types';
 
@@ -114,6 +115,22 @@ export const WORKFLOW_FORM_TYPE_LABELS: Record<WorkflowFormType, string> = {
   custom: '自定义业务表单',
   external: '业务系统主导',
 };
+
+export const WORKFLOW_APPROVE_METHOD_LABELS: Record<WorkflowApproveMethod, string>
+  & Record<string, string> = {
+  or: '或签',
+  and: '会签',
+  sequential: '顺序会签',
+  ratio: '比例会签',
+  random: '随机一人',
+  auto: '自动通过',
+};
+
+export const WORKFLOW_APPROVE_METHOD_OPTIONS: Array<{
+  value: WorkflowApproveMethod;
+  label: string;
+}> = (Object.keys(WORKFLOW_APPROVE_METHOD_LABELS) as WorkflowApproveMethod[])
+  .map((value) => ({ value, label: WORKFLOW_APPROVE_METHOD_LABELS[value] }));
 
 /** 流程实例状态标签（web 各视图 / server 分析导出统一复用；Tag 颜色见 web workflow-runtime.ts） */
 export const WORKFLOW_INSTANCE_STATUS_LABELS = {
@@ -717,3 +734,20 @@ export const BASIC_COMPARISON_OPERATOR_OPTIONS: Array<{ value: BasicComparisonOp
     value,
     label: BASIC_COMPARISON_OPERATOR_LABELS[value],
   }));
+
+export const BASIC_COMPARISON_OPERATOR_SYMBOLS: Record<BasicComparisonOperator, string> = {
+  eq: '=',
+  neq: '≠',
+  gt: '>',
+  gte: '≥',
+  lt: '<',
+  lte: '≤',
+};
+
+export const BASIC_COMPARISON_SYMBOL_OPTIONS: Array<{
+  value: BasicComparisonOperator;
+  label: string;
+}> = BASIC_COMPARISON_OPERATORS.map((value) => ({
+  value,
+  label: BASIC_COMPARISON_OPERATOR_SYMBOLS[value],
+}));

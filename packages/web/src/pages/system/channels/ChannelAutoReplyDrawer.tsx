@@ -9,7 +9,9 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ImagePlus, Plus, Trash2 } from 'lucide-react';
 import type { ChannelAutoReply, ChannelMessageType, ChannelRichReplyExtra } from '@zenith/shared';
 import {
-  CHANNEL_AUTO_REPLY_MATCH_LABELS, CHANNEL_AUTO_REPLY_KEYWORD_MODE_LABELS,
+  CHANNEL_AUTO_REPLY_MATCH_LABELS,
+  CHANNEL_AUTO_REPLY_KEYWORD_MODE_LABELS,
+  CHANNEL_MESSAGE_TYPE_LABELS as REPLY_TYPE_LABELS,
 } from '@zenith/shared';
 import { config } from '@/config';
 import { usePermission } from '@/hooks/usePermission';
@@ -33,12 +35,6 @@ const MATCH_COLOR: Record<string, 'green' | 'blue' | 'orange'> = {
   subscribe: 'green',
   keyword: 'blue',
   default: 'orange',
-};
-
-const REPLY_TYPE_LABELS: Partial<Record<ChannelMessageType, string>> = {
-  text: '文本',
-  image: '图片',
-  news: '图文',
 };
 
 const REPLY_TYPE_COLOR: Partial<Record<ChannelMessageType, 'blue' | 'cyan' | 'purple'>> = {

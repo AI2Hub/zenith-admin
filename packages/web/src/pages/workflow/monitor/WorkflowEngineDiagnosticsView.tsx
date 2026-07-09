@@ -18,6 +18,10 @@ import type {
   WorkflowEngineRuntimeTask,
   WorkflowEngineTriggerExecution,
 } from '@zenith/shared';
+import {
+  WORKFLOW_ISSUE_SEVERITY_META as ISSUE_META,
+  WORKFLOW_JOB_STATUS_META as JOB_STATUS_META,
+} from './constants';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { AreaChart, LineChart, chartOptions, makeAreaSpec, makeLineSpec, useChartPalette, type ChartPalette } from '@/components/charts';
 import { formatDateTime } from '@/utils/date';
@@ -38,12 +42,6 @@ interface Props {
 const STATUS_META: Record<WorkflowEngineComponentStatus, { text: string; color: TagColor }> = {
   healthy: { text: '正常', color: 'green' },
   warning: { text: '关注', color: 'orange' },
-  critical: { text: '严重', color: 'red' },
-};
-
-const ISSUE_META: Record<WorkflowEngineRuntimeIssue['severity'], { text: string; color: TagColor }> = {
-  info: { text: '信息', color: 'blue' },
-  warning: { text: '警告', color: 'orange' },
   critical: { text: '严重', color: 'red' },
 };
 
@@ -76,15 +74,6 @@ const JOB_TYPE_LABEL: Record<string, string> = {
   delay_wake: '延时唤醒', task_timeout: '任务超时', trigger_dispatch: '触发器派发', external_dispatch: '外部派发',
   subprocess_spawn: '子流程发起', subprocess_join: '子流程汇聚', event_dispatch: '事件派发', webhook_delivery: 'Webhook 投递',
   compensation_action: '补偿动作',
-};
-
-const JOB_STATUS_META: Record<string, { text: string; color: TagColor }> = {
-  pending: { text: '待处理', color: 'grey' },
-  running: { text: '运行中', color: 'blue' },
-  succeeded: { text: '成功', color: 'green' },
-  failed: { text: '失败', color: 'orange' },
-  dead: { text: '死信', color: 'red' },
-  canceled: { text: '已取消', color: 'grey' },
 };
 
 const THRESHOLD_OPTIONS = [

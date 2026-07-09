@@ -25,6 +25,7 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Download, FileText, RotateCcw, Search, UserRoundCog } from 'lucide-react';
 import dayjs from 'dayjs';
 import type { WorkflowApproveMethod, WorkflowAssigneeType, WorkflowCategory, WorkflowDefinition, WorkflowExecutionToken, WorkflowFlowData, WorkflowInstance, WorkflowNodeConfig, WorkflowRuntimeDiagnostics, WorkflowRuntimeIssue, WorkflowRuntimeOutboxEvent, WorkflowTask, WorkflowTriggerExecution } from '@zenith/shared';
+import { WORKFLOW_ISSUE_SEVERITY_META as ISSUE_SEVERITY_MAP } from './constants';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -67,12 +68,6 @@ const WorkflowDesignerPage = lazy(() => import('@/pages/workflow/designer/Workfl
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
 
 const RUNNING_STATUSES = new Set(['draft', 'running', 'suspended']);
-
-const ISSUE_SEVERITY_MAP: Record<WorkflowRuntimeIssue['severity'], { text: string; color: TagColor }> = {
-  info: { text: '信息', color: 'blue' },
-  warning: { text: '警告', color: 'orange' },
-  critical: { text: '严重', color: 'red' },
-};
 
 const ISSUE_SOURCE_MAP: Record<WorkflowRuntimeIssue['source'], string> = {
   instance: '实例',

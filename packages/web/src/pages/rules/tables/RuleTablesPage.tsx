@@ -30,6 +30,7 @@ import {
   useSaveRuleTestCase,
   useTestRuleDecisionTable,
 } from '@/hooks/queries/rules';
+import { PUBLISHABLE_STATUS_META as STATUS } from '@/lib/publishable-status';
 
 const { Text } = Typography;
 
@@ -40,12 +41,6 @@ const HIT_POLICIES = [
   { value: 'collect', label: '收集全部' },
   { value: 'any', label: '任意命中' },
 ];
-const STATUS: Record<string, { text: string; color: string }> = {
-  draft: { text: '草稿', color: 'grey' },
-  published: { text: '已发布', color: 'green' },
-  disabled: { text: '已禁用', color: 'red' },
-};
-
 const sample = JSON.stringify;
 
 export default function RuleTablesPage() {

@@ -3,6 +3,7 @@ import { Banner, Button, Collapse, Empty, Progress, SideSheet, Space, Spin, Tag,
 import { RefreshCw } from 'lucide-react';
 import type { WorkflowDefinitionHealthIssue, WorkflowDefinitionHealthReport, WorkflowFlowData } from '@zenith/shared';
 import { useWorkflowDesignerHealthCheck } from '@/hooks/queries/workflow-designer';
+import { WORKFLOW_HEALTH_SEVERITY_META as SEVERITY_META } from '../../constants';
 
 interface Props {
   visible: boolean;
@@ -22,12 +23,6 @@ const STATUS_META: Record<string, { text: string; color: TagColor }> = {
   warn: { text: '关注', color: 'orange' },
   fail: { text: '不达标', color: 'red' },
 };
-const SEVERITY_META: Record<string, { text: string; color: TagColor }> = {
-  critical: { text: '严重', color: 'red' },
-  warning: { text: '警告', color: 'orange' },
-  info: { text: '提示', color: 'blue' },
-};
-
 function renderIssue(issue: WorkflowDefinitionHealthIssue, idx: number) {
   const sm = SEVERITY_META[issue.severity] ?? SEVERITY_META.info;
   return (

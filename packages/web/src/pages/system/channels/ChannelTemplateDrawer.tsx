@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { Button, Form, Modal, SideSheet, Space, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ImagePlus, Plus, Trash2 } from 'lucide-react';
+import { CHANNEL_MESSAGE_TYPE_LABELS as TYPE_LABELS } from '@zenith/shared';
 import type { ChannelMessageTemplate, ChannelMessageType, ChatCard, ChatMessageExtra } from '@zenith/shared';
 import { config } from '@/config';
 import { formatDateTime } from '@/utils/date';
@@ -30,12 +31,6 @@ interface Props {
   /** 模板增删改后通知父级刷新（如发布弹窗的模板下拉） */
   onChanged?: () => void;
 }
-
-const TYPE_LABELS: Partial<Record<ChannelMessageType, string>> = {
-  text: '文本',
-  image: '图片',
-  news: '图文',
-};
 
 const TYPE_COLOR: Partial<Record<ChannelMessageType, 'blue' | 'cyan' | 'purple'>> = {
   text: 'blue',
