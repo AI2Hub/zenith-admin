@@ -31,6 +31,7 @@ import { memberCheckinsExportDefinition } from './member-checkins';
 import { memberRechargesExportDefinition } from './member-recharges';
 import { memberLoginLogsExportDefinition } from './member-login-logs';
 import { chatMessagesExportDefinition } from './chat-messages';
+import { userFeedbacksExportDefinition } from './user-feedbacks';
 
 let registered = false;
 
@@ -67,6 +68,7 @@ const definitions = [
   memberRechargesExportDefinition,
   memberLoginLogsExportDefinition,
   chatMessagesExportDefinition,
+  userFeedbacksExportDefinition,
 ] as unknown as AnyExportDefinition[];
 
 export function registerExportDefinitions(): void {

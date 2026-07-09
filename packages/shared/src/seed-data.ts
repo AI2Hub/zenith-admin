@@ -8,7 +8,7 @@
  * 修改数据时只需改这一处，两端自动同步。
  */
 
-import type { Menu, Role, Department, Position, Dict, DictItem, SystemConfig, CronJob, WorkflowForm, WorkflowCategory, WorkflowDataSource, Tag, DataMaskConfig, MemberLevel, MemberTag, Coupon, EmailTemplate, SmsTemplate, InAppTemplate, Tenant, TenantPackage, AiPromptTemplate, MpAccount, MpTag, MpFan, MpMessage, MpAutoReply, MpMenu, MpMaterial, MpDraft, MpMessageTemplate, MpBroadcast, MpQrcode, MpKfAccount, MpKfSessionStatus, MpKfSessionCloseReason, MpKfSessionEventType, MpKfRoutingStrategy, MpMenuButton, MpMenuMatchRule, MpMenuStatus, ReportDatasource, ReportDataset, ReportDashboard, ApiScope, RatePlan, ReportPrintTemplate } from './types';
+import type { Menu, Role, Department, Position, Dict, DictItem, SystemConfig, CronJob, WorkflowForm, WorkflowCategory, WorkflowDataSource, Tag, DataMaskConfig, MemberLevel, MemberTag, Coupon, EmailTemplate, SmsTemplate, InAppTemplate, Tenant, TenantPackage, AiPromptTemplate, MpAccount, MpTag, MpFan, MpMessage, MpAutoReply, MpMenu, MpMaterial, MpDraft, MpMessageTemplate, MpBroadcast, MpQrcode, MpKfAccount, MpKfSessionStatus, MpKfSessionCloseReason, MpKfSessionEventType, MpKfRoutingStrategy, MpMenuButton, MpMenuMatchRule, MpMenuStatus, ReportDatasource, ReportDataset, ReportDashboard, ApiScope, RatePlan, ReportPrintTemplate, UserFeedback } from './types';
 
 const SEED_DATE = '2024-01-01 00:00:00';
 
@@ -164,6 +164,9 @@ export const SEED_MENUS: Menu[] = [
   { id: 61, parentId: 35, title: '新增公告',   name: undefined,             path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'system:announcement:create',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 62, parentId: 35, title: '编辑公告',   name: undefined,             path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 2,  status: 'enabled', visible: true,  permission: 'system:announcement:update',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 63, parentId: 35, title: '删除公告',   name: undefined,             path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 3,  status: 'enabled', visible: true,  permission: 'system:announcement:delete',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1370, parentId: 200, title: '意见反馈', name: 'SystemFeedbacks',     path: '/system/feedbacks',          component: 'system/feedbacks/FeedbacksPage',                 icon: 'MessageSquareHeart', type: 'menu',     sort: 11, status: 'enabled', visible: true,  permission: 'system:feedback:list',         createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1371, parentId: 1370, title: '处理反馈', name: undefined,            path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'system:feedback:handle',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1372, parentId: 1370, title: '删除反馈', name: undefined,            path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 2,  status: 'enabled', visible: true,  permission: 'system:feedback:delete',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
   // ── 内置隐藏菜单（不显示在侧边栏，供面包屑/标签页标题使用）──────────────────────────────
   { id: 202, parentId: 0, title: '个人中心',   name: 'Profile',             path: '/profile',                   component: 'profile/ProfilePage',                            icon: 'UserRound',         type: 'menu',      sort: 99, status: 'enabled', visible: false, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 203, parentId: 0, title: '公告中心',   name: 'Announcements',       path: '/announcements',             component: 'announcements/AnnouncementsPage',                icon: 'Megaphone',         type: 'menu',      sort: 100, status: 'enabled', visible: false, createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -663,6 +666,7 @@ export const SEED_SYSTEM_CONFIGS: SystemConfig[] = [
   { id: 33, configKey: 'member_birthday_points',         configValue: '0',     configType: 'number',  description: '会员生日礼积分：生日当天自动发放的积分数量（每年一次，流水 bizType=birthday），0 表示不发放', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 34, configKey: 'member_birthday_coupon_id',      configValue: '0',     configType: 'number',  description: '会员生日礼优惠券模板 ID：生日当天自动发放该券（每年一次），0 表示不发放', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 35, configKey: 'member_invite_reward_points',    configValue: '0',     configType: 'number',  description: '邀请奖励积分：新会员通过邀请码注册成功后发给邀请人的积分（流水 bizType=invite），0 表示不奖励', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 36, configKey: 'feedback_entry_enabled',         configValue: 'false', configType: 'boolean', description: '是否显示意见反馈入口（用户头像下拉菜单），关闭后用户无法提交反馈', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── 限流规则 ─────────────────────────────────────────────────────────────────
@@ -2045,4 +2049,12 @@ export const SEED_DECISION_TABLES = [
       { id: 'r3', when: ['-'], then: { level: 'normal', discount: 1 } },
     ],
   },
+];
+
+// ─── 意见反馈初始数据 ─────────────────────────────────────────────────────────
+export const SEED_USER_FEEDBACKS: UserFeedback[] = [
+  { id: 1, userId: 1, userNickname: '管理员', score: 5, category: 'suggestion', content: '整体体验很流畅，希望列表页支持自定义每页条数的默认值', pagePath: '/system/users', status: 'resolved', handleRemark: '已在偏好设置中支持', handledBy: 1, handlerNickname: '管理员', handledAt: '2024-01-02 10:00:00', createdAt: SEED_DATE, updatedAt: '2024-01-02 10:00:00' },
+  { id: 2, userId: 1, userNickname: '管理员', score: 3, category: 'bug', content: '导出中心偶尔出现任务状态不刷新的情况，需要手动点刷新', pagePath: '/system/export-jobs', status: 'processing', handleRemark: '排查中，疑似 WS 断线重连问题', handledBy: 1, handlerNickname: '管理员', handledAt: '2024-01-03 15:30:00', createdAt: '2024-01-03 09:00:00', updatedAt: '2024-01-03 15:30:00' },
+  { id: 3, userId: 1, userNickname: '管理员', score: 4, category: 'ux', content: '暗色模式下部分图表文字对比度偏低', pagePath: '/', status: 'pending', handleRemark: null, handledBy: null, handlerNickname: null, handledAt: null, createdAt: '2024-01-05 14:20:00', updatedAt: '2024-01-05 14:20:00' },
+  { id: 4, userId: 1, userNickname: '管理员', score: null, category: 'other', content: '建议文档站增加全文搜索', pagePath: '/system/configs', status: 'ignored', handleRemark: '文档站已有搜索入口', handledBy: 1, handlerNickname: '管理员', handledAt: '2024-01-06 11:00:00', createdAt: '2024-01-06 08:45:00', updatedAt: '2024-01-06 11:00:00' },
 ];

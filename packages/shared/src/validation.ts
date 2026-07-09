@@ -3300,3 +3300,22 @@ export const createRuleTestCaseSchema = z.object({
 });
 export const updateRuleTestCaseSchema = createRuleTestCaseSchema.partial();
 export type CreateRuleTestCaseInput = z.input<typeof createRuleTestCaseSchema>;
+
+// ─── 意见反馈 Schema ─────────────────────────────────────────────────────────
+export const createUserFeedbackSchema = z.object({
+  score: z.number().int().min(1, '评分最低 1 分').max(5, '评分最高 5 分').nullable().optional(),
+  category: z.enum(['suggestion', 'bug', 'ux', 'other']).default('suggestion'),
+  content: z.string().max(1000, '反馈内容不能超过 1000 字').nullable().optional(),
+  pagePath: z.string().max(200).nullable().optional(),
+}).refine((v) => v.score != null || (v.content != null && v.content.trim() !== ''), {
+  message: '评分与反馈内容至少填写一项',
+  path: ['content'],
+});
+
+export const handleUserFeedbackSchema = z.object({
+  status: z.enum(['pending', 'processing', 'resolved', 'ignored']),
+  handleRemark: z.string().max(500, '处理备注不能超过 500 字').nullable().optional(),
+});
+
+export type CreateUserFeedbackInput = z.input<typeof createUserFeedbackSchema>;
+export type HandleUserFeedbackInput = z.input<typeof handleUserFeedbackSchema>;

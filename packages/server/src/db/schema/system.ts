@@ -213,3 +213,33 @@ export const maintenanceLogs = pgTable('maintenance_logs', {
 export type MaintenanceLogRow = typeof maintenanceLogs.$inferSelect;
 
 export type NewMaintenanceLog = typeof maintenanceLogs.$inferInsert;
+
+// ─── 意见反馈表 ──────────────────────────────────────────────────────────────
+export const userFeedbackCategoryEnum = pgEnum('user_feedback_category', ['suggestion', 'bug', 'ux', 'other']);
+
+export const userFeedbackStatusEnum = pgEnum('user_feedback_status', ['pending', 'processing', 'resolved', 'ignored']);
+
+export const userFeedbacks = pgTable('user_feedbacks', {
+  id:           serial('id').primaryKey(),
+  userId:       integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** 满意度评分 1-5，可空（评分与内容至少其一） */
+  score:        integer('score'),
+  category:     userFeedbackCategoryEnum('category').notNull().default('suggestion'),
+  content:      varchar('content', { length: 1000 }),
+  /** 提交时所在页面路由，便于定位问题来源 */
+  pagePath:     varchar('page_path', { length: 200 }),
+  status:       userFeedbackStatusEnum('status').notNull().default('pending'),
+  handleRemark: varchar('handle_remark', { length: 500 }),
+  handledBy:    integer('handled_by').references(() => users.id, { onDelete: 'set null' }),
+  handledAt:    timestamp('handled_at'),
+  createdAt:    timestamp('created_at').defaultNow().notNull(),
+  updatedAt:    timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  index('user_feedbacks_status_idx').on(t.status),
+  index('user_feedbacks_user_idx').on(t.userId),
+  index('user_feedbacks_created_at_idx').on(t.createdAt),
+]);
+
+export type UserFeedbackRow = typeof userFeedbacks.$inferSelect;
+
+export type NewUserFeedback = typeof userFeedbacks.$inferInsert;

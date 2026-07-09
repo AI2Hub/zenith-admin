@@ -5,7 +5,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 import { BackTop, Badge, Banner, Breadcrumb, Button, ColorPicker, Divider, Dropdown, Empty, Input, List, Notification, Popover, Select, TextArea, Tooltip, Modal, Nav, Typography, SideSheet, Switch, InputNumber, RadioGroup, Radio, Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
 import { IllustrationIdle, IllustrationIdleDark } from '@douyinfe/semi-illustrations';
-import { Bell, Building2, Check, Info, Expand, Shrink, Megaphone, Sun, Moon, Monitor, MoreHorizontal, User as UserIcon, Settings, LogOut, X, Palette, Pin, RotateCcw, PinOff, XCircle, ChevronLeft, ChevronRight, Trash2, Lock, Copy, ClipboardPaste, Route, Keyboard, Search, Star, Clock, Wrench, ExternalLink, Menu as MenuIcon, Files, Smartphone } from 'lucide-react';
+import { Bell, Building2, Check, Info, Expand, Shrink, Megaphone, Sun, Moon, Monitor, MoreHorizontal, User as UserIcon, Settings, LogOut, X, Palette, Pin, RotateCcw, PinOff, XCircle, ChevronLeft, ChevronRight, Trash2, Lock, Copy, ClipboardPaste, Route, Keyboard, Search, Star, Clock, Wrench, ExternalLink, Menu as MenuIcon, Files, Smartphone, MessageSquareHeart } from 'lucide-react';
 import { pinyinMatch, ensurePinyin } from '@/utils/pinyin';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
 import type { User, Menu, InAppMessage, Announcement, Tenant, WsMessage, SystemConfig } from '@zenith/shared';
@@ -25,6 +25,8 @@ import { config } from '@/config';
 import { renderLucideIcon, useLucideIconsReady } from '@/utils/icons';
 import NProgress from '@/components/NProgress';
 import Watermark from '@/components/Watermark';
+import { FeedbackWidget } from '@/components/FeedbackWidget';
+import { usePublicConfig } from '@/hooks/queries/system-configs';
 // 重依赖懒加载：快捷聊天（Semi Chat 组件树）、音视频通话、聊天通知、锁屏（lunar 农历 ~300KB）均不进首屏 chunk
 const QuickChatButton = lazy(() => import('@/components/QuickChatButton'));
 const CallOverlayHost = lazy(() => import('@/webrtc/CallOverlayHost'));
@@ -302,6 +304,11 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
         if (res.code === 0) setQuickChatEnabled(res.data?.configValue === 'true');
       });
   }, []);
+
+  // ─── 意见反馈入口（feedback_entry_enabled 系统配置控制显隐）───────────────
+  const feedbackEntryQuery = usePublicConfig('feedback_entry_enabled');
+  const feedbackEntryEnabled = feedbackEntryQuery.data?.configValue === 'true';
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
 
   // Fullscreen
   const [isFullscreen, setIsFullscreen] = useState(!!document.fullscreenElement);
@@ -1639,6 +1646,9 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
             </Dropdown.Item>
             <Dropdown.Item icon={<Megaphone size={14} strokeWidth={1.5} />} onClick={() => navigate('/announcements')}>公告中心{announcementUnreadCount > 0 && <Badge count={announcementUnreadCount} overflowCount={99} style={{ marginLeft: 6 }} />}</Dropdown.Item>
             <Dropdown.Item icon={<Smartphone size={14} strokeWidth={1.5} />} onClick={() => window.open(`${import.meta.env.BASE_URL.replace(/\/$/, '')}/approval.html`, '_blank')}>移动审批</Dropdown.Item>
+            {feedbackEntryEnabled && (
+              <Dropdown.Item icon={<MessageSquareHeart size={14} strokeWidth={1.5} />} onClick={() => setFeedbackVisible(true)}>意见反馈</Dropdown.Item>
+            )}
             <Dropdown.Item icon={<Settings size={14} strokeWidth={1.5} />} onClick={() => setPrefsVisible(true)}>偏好设置</Dropdown.Item>
             <Dropdown.Item icon={<Keyboard size={14} strokeWidth={1.5} />} onClick={() => setShortcutsVisible(true)}>快捷键</Dropdown.Item>
             {(preferences.enableLockScreen ?? false) && hasPassword() && (
@@ -3153,6 +3163,11 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
         <Suspense fallback={null}>
           <QuickChatButton onHide={() => setPreferences({ showQuickChat: false })} />
         </Suspense>
+      )}
+
+      {/* ===== 意见反馈弹层 ===== */}
+      {feedbackEntryEnabled && (
+        <FeedbackWidget visible={feedbackVisible} onClose={() => setFeedbackVisible(false)} />
       )}
 
       {/* ===== 音视频通话全局宿主 ===== */}

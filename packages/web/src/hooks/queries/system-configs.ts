@@ -17,6 +17,7 @@ export const systemConfigKeys = {
   list: (params: SystemConfigListParams) => ['system-configs', 'list', params] as const,
   detail: (id: number | undefined) => ['system-configs', 'detail', id] as const,
   passwordPolicy: ['system-configs', 'password-policy'] as const,
+  publicConfig: (key: string) => ['system-configs', 'public', key] as const,
 };
 
 export function useSystemConfigList(params: SystemConfigListParams) {
@@ -59,6 +60,21 @@ export function useSystemPasswordPolicy() {
   return useQuery({
     queryKey: systemConfigKeys.passwordPolicy,
     queryFn: () => request.get<PasswordPolicy>('/api/system-configs/password-policy').then(unwrap),
+    staleTime: LOOKUP_STALE_TIME,
+  });
+}
+
+export interface PublicConfig {
+  configKey: string;
+  configValue: string | null;
+  configType: 'string' | 'number' | 'boolean' | 'json';
+}
+
+/** 公开读取单项系统配置（无需权限，用于全局开关类配置） */
+export function usePublicConfig(key: string) {
+  return useQuery({
+    queryKey: systemConfigKeys.publicConfig(key),
+    queryFn: () => request.get<PublicConfig>(`/api/system-configs/public/${key}`, { silent: true }).then(unwrap),
     staleTime: LOOKUP_STALE_TIME,
   });
 }

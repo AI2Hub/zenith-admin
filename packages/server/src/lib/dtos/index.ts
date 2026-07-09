@@ -63,3 +63,4 @@ export * from './report';
 export * from './export-jobs';
 export * from './open-platform';
 export * from './rules';
+export * from './user-feedbacks';

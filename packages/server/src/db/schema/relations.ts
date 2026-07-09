@@ -2,7 +2,7 @@ import { relations } from 'drizzle-orm';
 import { departments, menus, positions, roleDeptScopes, roleMenus, roles, tenantPackageMenus, tenantPackages, tenants, userDeptScopes, userGroupMembers, userGroupRoles, userGroups, userMenus, userPositions, userRoles, users } from './core';
 import { businessFiles, fileStorageConfigs, managedFiles, uploadChunks, uploadSessions } from './files';
 import { asyncTaskItems, asyncTasks, exportJobDownloads, exportJobs } from './tasks';
-import { cronJobLogs, cronJobs, systemConfigs } from './system';
+import { cronJobLogs, cronJobs, systemConfigs, userFeedbacks } from './system';
 import { loginRiskEvents, passwordResetTokens, userApiTokens, userMfaFactors, userOauthAccounts, userTrustedDevices } from './auth';
 import { identityProviderSyncLogs, tenantIdentityProviders, userIdentityAccounts } from './identity-providers';
 import { dictItems, dicts } from './dicts';
@@ -314,6 +314,11 @@ export const cronJobsRelations = relations(cronJobs, ({ many }) => ({
 
 export const cronJobLogsRelations = relations(cronJobLogs, ({ one }) => ({
   job: one(cronJobs, { fields: [cronJobLogs.jobId], references: [cronJobs.id] }),
+}));
+
+export const userFeedbacksRelations = relations(userFeedbacks, ({ one }) => ({
+  user: one(users, { fields: [userFeedbacks.userId], references: [users.id], relationName: 'feedbackSubmitter' }),
+  handler: one(users, { fields: [userFeedbacks.handledBy], references: [users.id], relationName: 'feedbackHandler' }),
 }));
 
 export const announcementsRelations = relations(announcements, ({ one, many }) => ({
