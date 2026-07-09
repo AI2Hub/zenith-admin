@@ -4,6 +4,15 @@
 
 ---
 
+## v0.86.0 - 2026-07-09
+
+### Infrastructure
+
+- **接入 TypeScript 7 原生编译器**：新增 `@typescript/native`（`npm:typescript@^7.0.2`）依赖，`tsc` CLI 使用全新 Go 原生编译器构建；`typescript-eslint` 仍解析到原有 `typescript@6.0.3`（保留其依赖的 programmatic API），两者并存互不冲突，无需改动任何 tsconfig 严格性配置。实测 server/web 冷构建耗时提速约 4-5 倍（server 116.6s → 29.2s，web 65.6s → 13.4s）。
+- **修复 Docker 构建失败（node-pty 原生编译缺工具链）**：`packages/server` 生产依赖 `node-pty` 不提供 Linux 预编译二进制，安装时需 `node-gyp` 从源码编译，缺 Python3/C++ 工具链导致 `builder`/`server` 两个镜像阶段构建失败。`Dockerfile` 补充 `apk add python3 make g++`；生产阶段（`server`）额外保留运行时依赖的 `libstdc++`，构建工具装入可清理的 apk virtual 分组，`npm ci` 完成后立即删除，避免镜像体积膨胀。经 `docker build` 全量验证及容器内 `node-pty` 运行时冒烟测试确认修复有效。
+
+---
+
 ## v0.85.0 - 2026-07-08
 
 ### Added
