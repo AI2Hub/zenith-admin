@@ -4,6 +4,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Search, RotateCcw, Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
@@ -110,6 +111,7 @@ export default function AlertsPage() {
   const [sourceType, setSourceType] = useState<'dataset' | 'metric'>('dataset');
   const [selectedAggregate, setSelectedAggregate] = useState<ReportAlertAggregate>('sum');
   const [selectedChannels, setSelectedChannels] = useState<Array<'email' | 'inApp' | 'webhook'>>(['inApp']);
+  const [cronExprValue, setCronExprValue] = useState('');
   const selectedDatasetDetailQuery = useReportDatasetDetail(selectedDatasetId ?? undefined, modalVisible && !!selectedDatasetId);
   const selectedFields = selectedDatasetDetailQuery.data?.fields ?? [];
 
@@ -150,6 +152,7 @@ export default function AlertsPage() {
     setSourceType('dataset');
     setSelectedAggregate('sum');
     setSelectedChannels(['inApp']);
+    setCronExprValue('');
     setModalVisible(true);
   }
 
@@ -159,6 +162,7 @@ export default function AlertsPage() {
     setSourceType(record.metricId ? 'metric' : 'dataset');
     setSelectedAggregate(record.aggregate);
     setSelectedChannels(record.channels);
+    setCronExprValue(record.cron ?? '');
     setModalVisible(true);
   }
 
@@ -430,6 +434,7 @@ export default function AlertsPage() {
             setSelectedAggregate(nextAggregate);
             if (nextAggregate === 'count') formApi.current?.setValue('field', undefined);
             setSelectedChannels(((values.channels ?? []) as Array<'email' | 'inApp' | 'webhook'>));
+            if (typeof values.cron === 'string') setCronExprValue(values.cron);
           }}
         >
           <Row gutter={24}>
@@ -481,7 +486,22 @@ export default function AlertsPage() {
               <Form.InputNumber field="threshold" label="阈值" style={{ width: '100%' }} rules={[{ required: true, message: '请输入阈值' }]} />
             </Col>
             <Col xs={24} md={12}>
-              <Form.Input field="cron" label="评估Cron" placeholder="0 */5 * * * *" helpText="留空=仅手动" showClear />
+              <Form.Input
+                field="cron"
+                label="评估 Cron"
+                placeholder="0 */5 * * * *"
+                helpText="留空=仅手动"
+                showClear
+                addonAfter={(
+                  <CronBuilderPopover
+                    value={cronExprValue}
+                    onApply={(expression) => {
+                      formApi.current?.setValue('cron', expression);
+                      setCronExprValue(expression);
+                    }}
+                  />
+                )}
+              />
             </Col>
             <Col xs={24} md={12}>
               <Form.Input field="timezone" label="时区" placeholder="Asia/Shanghai" rules={[{ required: true, message: '请输入 IANA 时区' }]} showClear />
