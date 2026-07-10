@@ -464,10 +464,16 @@ export async function getMyProfile() {
 
 export async function updateMyProfile(data: { nickname?: string; email?: string; phone?: string | null; gender?: string | null; avatar?: string | null }) {
   const userId = currentUser().userId;
-  if (data.email) {
-    const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, data.email)).limit(1);
-    if (existing && existing.id !== userId) throw new HTTPException(400, { message: '邮箱已被使用' });
-  }
+  const [emailDup, phoneDup] = await Promise.all([
+    data.email
+      ? db.select({ id: users.id }).from(users).where(eq(users.email, data.email)).limit(1)
+      : Promise.resolve([] as { id: number }[]),
+    data.phone
+      ? db.select({ id: users.id }).from(users).where(eq(users.phone, data.phone)).limit(1)
+      : Promise.resolve([] as { id: number }[]),
+  ]);
+  if (emailDup[0] && emailDup[0].id !== userId) throw new HTTPException(400, { message: '邮箱已被使用' });
+  if (phoneDup[0] && phoneDup[0].id !== userId) throw new HTTPException(400, { message: '手机号已被使用' });
   const [[updated], userRoleList] = await Promise.all([
     db.update(users).set({ ...data }).where(eq(users.id, userId)).returning(),
     getUserRoles(userId),

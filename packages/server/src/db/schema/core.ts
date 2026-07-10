@@ -125,6 +125,7 @@ export const users = pgTable('users', {
 }, (t) => [
   unique('users_tenant_username_unique').on(t.tenantId, t.username),
   unique('users_tenant_email_unique').on(t.tenantId, t.email),
+  unique('users_tenant_phone_unique').on(t.tenantId, t.phone),
 ]);
 
 export type UserRow = typeof users.$inferSelect;

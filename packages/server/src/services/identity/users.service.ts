@@ -268,14 +268,18 @@ export async function createUser(data: CreateUserInput) {
   // PostgreSQL NULL != NULL 导致复合唯一约束对 tenantId=NULL 的用户失效，需在应用层显式检查
   const newTenantId = getCreateTenantId(user);
   const tenantFilter = newTenantId === null ? isNull(users.tenantId) : eq(users.tenantId, newTenantId);
-  const [dupUsername, dupEmail] = await Promise.all([
+  const [dupUsername, dupEmail, dupPhone] = await Promise.all([
     db.select({ id: users.id }).from(users).where(and(eq(users.username, data.username), tenantFilter)).limit(1),
     data.email
       ? db.select({ id: users.id }).from(users).where(and(eq(users.email, data.email), tenantFilter)).limit(1)
       : Promise.resolve([] as { id: number }[]),
+    data.phone
+      ? db.select({ id: users.id }).from(users).where(and(eq(users.phone, data.phone), tenantFilter)).limit(1)
+      : Promise.resolve([] as { id: number }[]),
   ]);
   if (dupUsername.length > 0) throw new HTTPException(400, { message: '用户名已存在' });
   if (dupEmail.length > 0) throw new HTTPException(400, { message: '邮箱已存在' });
+  if (dupPhone.length > 0) throw new HTTPException(400, { message: '手机号已存在' });
   // 多租户：校验租户用户数上限
   await ensureTenantUserQuota(newTenantId);
   const hashedPassword = await bcrypt.hash(password, 10);
@@ -295,7 +299,7 @@ export async function createUser(data: CreateUserInput) {
     if (!full) throw new HTTPException(500, { message: '创建用户后回读失败' });
     return mapUser(full);
   } catch (err: unknown) {
-    rethrowPgUniqueViolation(err, '用户名或邮箱已存在');
+    rethrowPgUniqueViolation(err, '用户名、邮箱或手机号已存在');
   }
 }
 
@@ -397,13 +401,19 @@ export async function updateUser(id: number, data: UpdateUserInput) {
   const emailWhereClause = tc
     ? and(eq(users.email, data.email!), ne(users.id, id), tc)
     : and(eq(users.email, data.email!), ne(users.id, id));
+  const phoneWhereClause = tc
+    ? and(eq(users.phone, data.phone!), ne(users.id, id), tc)
+    : and(eq(users.phone, data.phone!), ne(users.id, id));
   const idWhereClause = tc ? and(eq(users.id, id), tc) : eq(users.id, id);
-  const [usernameDup, emailDup, disabledTarget] = await Promise.all([
+  const [usernameDup, emailDup, phoneDup, disabledTarget] = await Promise.all([
     data.username
       ? db.select({ id: users.id }).from(users).where(usernameWhereClause).limit(1)
       : Promise.resolve([] as { id: number }[]),
     data.email
       ? db.select({ id: users.id }).from(users).where(emailWhereClause).limit(1)
+      : Promise.resolve([] as { id: number }[]),
+    data.phone
+      ? db.select({ id: users.id }).from(users).where(phoneWhereClause).limit(1)
       : Promise.resolve([] as { id: number }[]),
     data.status === 'disabled'
       ? db.select({ id: users.id, username: users.username }).from(users).where(idWhereClause).limit(1)
@@ -411,6 +421,7 @@ export async function updateUser(id: number, data: UpdateUserInput) {
   ]);
   if (usernameDup[0]) throw new HTTPException(400, { message: '用户名已存在' });
   if (emailDup[0]) throw new HTTPException(400, { message: '邮箱已存在' });
+  if (phoneDup[0]) throw new HTTPException(400, { message: '手机号已存在' });
   if (data.status === 'disabled') {
     if (id === user.userId) throw new HTTPException(400, { message: '不允许禁用当前登录账号' });
     if (!disabledTarget[0]) throw new HTTPException(404, { message: '用户不存在' });
