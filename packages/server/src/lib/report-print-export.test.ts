@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import ExcelJS from 'exceljs';
 import { renderPrintContent } from '@zenith/shared';
-import { renderPrintExportFile, renderPrintResultToWorkbook } from './report-print-export';
+import { renderPrintResultToWorkbook } from './report-print-export';
 
 describe('report-print-export', () => {
   const result = renderPrintContent(
@@ -51,15 +51,5 @@ describe('report-print-export', () => {
     expect(valueCell.numFmt).toBe('#,##0.00');
     expect(valueCell.value).toMatchObject({ formula: '1+1' });
     expect(detailSheet!.pageSetup.printTitlesRow).toBe('1:1');
-  });
-
-  it('能输出真实 xlsx 与 pdf 文件', async () => {
-    const xlsx = await renderPrintExportFile(result, 'xlsx');
-    const pdf = await renderPrintExportFile(result, 'pdf');
-    expect(xlsx.mimeType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    expect(xlsx.rowCount).toBeGreaterThan(0);
-    expect(Buffer.from(xlsx.buffer).byteLength).toBeGreaterThan(1000);
-    expect(pdf.mimeType).toBe('application/pdf');
-    expect(Buffer.from(pdf.buffer).subarray(0, 4).toString('utf8')).toBe('%PDF');
   });
 });

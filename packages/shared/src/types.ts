@@ -61,9 +61,7 @@ export interface User {
   id: number;
   username: string;
   nickname: string;
-  email: string;
-  phone?: string | null;
-  gender?: string | null;
+  email: string | null;
   avatar?: string;
   departmentId?: number | null;
   departmentName?: string | null;
