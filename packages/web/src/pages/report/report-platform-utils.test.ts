@@ -4,6 +4,7 @@ import {
   approvalConflictMessage,
   dqRunStatusLabel,
   dqTaskSubmissionMessage,
+  formatDqPassRate,
   isRevisionConflict,
   metricLifecyclePayload,
   normalizeAclGrantValues,
@@ -51,6 +52,9 @@ describe('report platform form and lifecycle helpers', () => {
     expect(rule.config).toEqual({ min: 0, max: 1000 });
     expect(dqTaskSubmissionMessage({ id: 42 })).toContain('#42');
     expect(dqRunStatusLabel('running')).toBe('运行中');
+    expect(formatDqPassRate(100)).toBe('100.00%');
+    expect(formatDqPassRate(83.33)).toBe('83.33%');
+    expect(formatDqPassRate(null)).toBe('—');
   });
 
   it('normalizes ACL grants and keeps revoke destructive messaging explicit', () => {

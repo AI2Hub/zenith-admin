@@ -128,6 +128,11 @@ export function dqRunStatusLabel(status: ReportDqRunStatus): string {
   return DQ_RUN_STATUS_LABELS[status];
 }
 
+export function formatDqPassRate(value: number | null | undefined): string {
+  const numeric = Number(value);
+  return value == null || !Number.isFinite(numeric) ? '—' : `${numeric.toFixed(2)}%`;
+}
+
 export function dqTaskSubmissionMessage(task: Pick<AsyncTask, 'id'>): string {
   return `任务 #${task.id} 已提交，可在顶部全局任务托盘查看进度`;
 }

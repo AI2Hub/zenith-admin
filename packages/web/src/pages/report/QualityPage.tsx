@@ -33,6 +33,7 @@ import type {
 import { Plus, RotateCcw, Search } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -54,7 +55,12 @@ import {
 import { useEnabledReportDatasets } from '@/hooks/queries/report-datasets';
 import { formatDateTime } from '@/utils/date';
 import { renderEllipsis } from '@/utils/table-columns';
-import { dqRunStatusLabel, dqTaskSubmissionMessage, normalizeDqRuleFormValues } from './report-platform-utils';
+import {
+  dqRunStatusLabel,
+  dqTaskSubmissionMessage,
+  formatDqPassRate,
+  normalizeDqRuleFormValues,
+} from './report-platform-utils';
 
 const ruleTypeOptions = [
   { value: 'not_null', label: '非空' },
@@ -114,6 +120,7 @@ export default function QualityPage() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<ReportDqRule | null>(null);
   const [formRuleType, setFormRuleType] = useState<ReportDqRuleType>('not_null');
+  const [cronExprValue, setCronExprValue] = useState('');
   const [historyRule, setHistoryRule] = useState<ReportDqRule | null>(null);
   const [anomalyStatus, setAnomalyStatus] = useState<ReportDqAnomalyStatus | undefined>();
   const [runStatus, setRunStatus] = useState<ReportDqRunStatus | undefined>();
@@ -151,11 +158,13 @@ export default function QualityPage() {
   const openCreate = () => {
     setEditing(null);
     setFormRuleType('not_null');
+    setCronExprValue('');
     setModalVisible(true);
   };
   const openEdit = (record: ReportDqRule) => {
     setEditing(record);
     setFormRuleType(record.type);
+    setCronExprValue(record.cron ?? '');
     setModalVisible(true);
   };
   const saveRule = async () => {
@@ -193,8 +202,9 @@ export default function QualityPage() {
     { title: '类型', dataIndex: 'type', width: 120, render: (v) => ruleTypeOptions.find((item) => item.value === v)?.label ?? v },
     { title: '字段', dataIndex: 'field', width: 120, render: (v) => v || '—' },
     { title: '严重度', dataIndex: 'severity', width: 90, render: (v: ReportDqRule['severity']) => <Tag color={severityColor[v]}>{severityOptions.find((i) => i.value === v)?.label}</Tag> },
-    { title: '调度', width: 180, render: (_v, r) => r.cron ? `${r.cron} · ${r.timezone}` : '仅手动' },
-    { title: '最近运行', dataIndex: 'lastRunAt', width: 170, render: (v) => v ? formatDateTime(v) : '—' },
+    { title: 'Cron', dataIndex: 'cron', width: 160, render: (v) => v || '仅手动' },
+    { title: '时区', dataIndex: 'timezone', width: 130 },
+    { title: '最近运行', dataIndex: 'lastRunAt', width: 190, render: (v) => v ? formatDateTime(v) : '—' },
     {
       title: '状态', dataIndex: 'enabled', width: 90, fixed: 'right',
       render: (v: boolean, r) => <Switch size="small" checked={v} disabled={!hasPermission('report:dq:update')} loading={toggleMutation.isPending && toggleMutation.variables === r.id} onChange={() => toggleMutation.mutate(r.id)} />,
@@ -222,9 +232,9 @@ export default function QualityPage() {
     { title: '数据集 ID', dataIndex: 'datasetId', width: 110 },
     { title: '触发方式', dataIndex: 'triggerType', width: 110 },
     { title: '检查/失败行', width: 140, render: (_v, r) => `${r.checkedRows} / ${r.failedRows}` },
-    { title: '通过率', dataIndex: 'passRate', width: 100, render: (v) => v == null ? '—' : `${(Number(v) * 100).toFixed(2)}%` },
+    { title: '通过率', dataIndex: 'passRate', width: 110, render: (v) => formatDqPassRate(v) },
     { title: '耗时', dataIndex: 'durationMs', width: 100, render: (v) => v == null ? '—' : `${v}ms` },
-    { title: '开始时间', dataIndex: 'startedAt', width: 170, render: (v) => v ? formatDateTime(v) : '—' },
+    { title: '开始时间', dataIndex: 'startedAt', width: 190, render: (v) => v ? formatDateTime(v) : '—' },
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v: ReportDqRunStatus) => <Tag color={runStatusColor[v]}>{dqRunStatusLabel(v)}</Tag> },
   ];
   const anomalyColumns: ColumnProps<ReportDqAnomaly>[] = [
@@ -233,7 +243,7 @@ export default function QualityPage() {
     { title: '规则 ID', dataIndex: 'ruleId', width: 100, render: (v) => v || '—' },
     { title: '严重度', dataIndex: 'severity', width: 90, render: (v: ReportDqAnomaly['severity']) => <Tag color={severityColor[v]}>{v}</Tag> },
     { title: '详情', dataIndex: 'detail', width: 260, render: renderEllipsis },
-    { title: '发现时间', dataIndex: 'createdAt', width: 170, render: (v) => formatDateTime(v) },
+    { title: '发现时间', dataIndex: 'createdAt', width: 190, render: (v) => formatDateTime(v) },
     { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v) => <Tag>{v}</Tag> },
     createOperationColumn<ReportDqAnomaly>({
       width: 150,
@@ -249,7 +259,7 @@ export default function QualityPage() {
     { title: '通过', dataIndex: 'passedRules', width: 90 },
     { title: '失败', dataIndex: 'failedRules', width: 90 },
     { title: '维度明细', dataIndex: 'dimensions', width: 260, render: (v) => JSON.stringify(v) },
-    { title: '测量时间', dataIndex: 'measuredAt', width: 170, render: (v) => formatDateTime(v) },
+    { title: '测量时间', dataIndex: 'measuredAt', width: 190, render: (v) => formatDateTime(v) },
   ];
 
   const datasetFilter = <Select placeholder="选择数据集" filter showClear value={datasetId} optionList={datasetOptions} style={{ width: 190 }} onChange={(v) => setDatasetId(v as number | undefined)} />;
@@ -317,7 +327,10 @@ export default function QualityPage() {
             ...editing,
             ...editing.config,
           } : { type: 'not_null', severity: 'medium', timezone: 'Asia/Shanghai', enabled: true }}
-          onValueChange={(values) => { if (values.type) setFormRuleType(values.type as ReportDqRuleType); }}
+          onValueChange={(values: Record<string, unknown>) => {
+            if (values.type) setFormRuleType(values.type as ReportDqRuleType);
+            if (typeof values.cron === 'string') setCronExprValue(values.cron);
+          }}
         >
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Input field="name" label="规则名称" rules={[{ required: true, message: '请输入规则名称' }]} /></Col>
@@ -326,14 +339,30 @@ export default function QualityPage() {
             <Col xs={24} md={12}><Form.Select field="severity" label="严重度" style={{ width: '100%' }} optionList={severityOptions} rules={[{ required: true }]} /></Col>
             {!['row_count', 'custom_sql'].includes(formRuleType) && <Col xs={24} md={12}><Form.Input field="field" label="校验字段" rules={[{ required: true, message: '请输入校验字段' }]} /></Col>}
             <Col xs={24} md={12}><Form.Switch field="enabled" label="启用规则" /></Col>
-            <Col xs={24} md={12}><Form.Input field="cron" label="Cron" placeholder="留空仅手动执行" /></Col>
+            <Col xs={24} md={12}>
+              <Form.Input
+                field="cron"
+                label="Cron 表达式"
+                placeholder="留空仅手动执行"
+                showClear
+                addonAfter={(
+                  <CronBuilderPopover
+                    value={cronExprValue}
+                    onApply={(expression) => {
+                      formApi.current?.setValue('cron', expression);
+                      setCronExprValue(expression);
+                    }}
+                  />
+                )}
+              />
+            </Col>
             <Col xs={24} md={12}><Form.Input field="timezone" label="时区" rules={[{ required: true }]} /></Col>
           </Row>
           <RuleConfigFields type={formRuleType} />
         </Form>
       </AppModal>
 
-      <SideSheet title={`运行历史：${historyRule?.name ?? ''}`} visible={!!historyRule} width={720} onCancel={() => setHistoryRule(null)}>
+      <SideSheet title={`运行历史：${historyRule?.name ?? ''}`} visible={!!historyRule} width={980} onCancel={() => setHistoryRule(null)}>
         {historyQuery.isError && <Banner type="danger" description="规则运行历史加载失败" />}
         <ConfigurableTable bordered rowKey="id" columns={runColumns} dataSource={historyQuery.data?.list ?? []} loading={historyQuery.isFetching} empty={<Empty title="暂无运行记录" />} pagination={false} onRefresh={() => void historyQuery.refetch()} refreshLoading={historyQuery.isFetching} />
       </SideSheet>
