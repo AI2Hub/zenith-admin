@@ -292,16 +292,16 @@ export default function MetricsPage() {
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Input field="name" label="指标名称" rules={[{ required: true, message: '请输入指标名称' }]} /></Col>
             <Col xs={24} md={12}><Form.Input field="code" label="指标编码" disabled={!!editing} rules={[{ required: true, message: '请输入指标编码' }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="type" label="指标类型" optionList={typeOptions} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="datasetId" label="数据集" filter optionList={datasets.map((item) => ({ value: item.id, label: item.name }))} rules={[{ required: true, message: '请选择数据集' }]} /></Col>
+            <Col xs={24} md={12}><Form.Select field="type" label="指标类型" style={{ width: '100%' }} optionList={typeOptions} rules={[{ required: true }]} /></Col>
+            <Col xs={24} md={12}><Form.Select field="datasetId" label="数据集" filter style={{ width: '100%' }} optionList={datasets.map((item) => ({ value: item.id, label: item.name }))} rules={[{ required: true, message: '请选择数据集' }]} /></Col>
             <Col xs={24} md={12}><Form.Input field="sourceField" label="来源字段" placeholder="简单指标必填" /></Col>
-            <Col xs={24} md={12}><Form.Select field="aggregate" label="聚合方式" optionList={['sum', 'avg', 'max', 'min', 'count', 'distinct_count'].map((value) => ({ value, label: value }))} showClear /></Col>
+            <Col xs={24} md={12}><Form.Select field="aggregate" label="聚合方式" style={{ width: '100%' }} optionList={['sum', 'avg', 'max', 'min', 'count', 'distinct_count'].map((value) => ({ value, label: value }))} showClear /></Col>
             <Col xs={24} md={12}><Form.Input field="dimensions" label="维度字段" placeholder="逗号分隔" /></Col>
             <Col xs={24} md={12}><Form.Input field="timeField" label="时间字段" /></Col>
             <Col xs={24} md={12}><Form.Input field="unit" label="单位" /></Col>
             <Col xs={24} md={12}><Form.Input field="format" label="显示格式" placeholder="如 0,0.00" /></Col>
-            <Col xs={24} md={12}><Form.Select field="ownerId" label="负责人" filter showClear optionList={users.map((item) => ({ value: item.id, label: item.nickname || item.username }))} /></Col>
-            <Col xs={24} md={12}><Form.Select field="folderId" label="指标目录" filter showClear optionList={folders.map((item) => ({ value: item.id, label: item.name }))} /></Col>
+            <Col xs={24} md={12}><Form.Select field="ownerId" label="负责人" filter showClear style={{ width: '100%' }} optionList={users.map((item) => ({ value: item.id, label: item.nickname || item.username }))} /></Col>
+            <Col xs={24} md={12}><Form.Select field="folderId" label="指标目录" filter showClear style={{ width: '100%' }} optionList={folders.map((item) => ({ value: item.id, label: item.name }))} /></Col>
           </Row>
           <Form.TextArea field="formula" label="计算公式" placeholder="比率/复合指标必填；只允许后端安全公式语法" autosize rows={3} />
           <Form.TextArea field="caliber" label="统计口径" autosize rows={2} />
