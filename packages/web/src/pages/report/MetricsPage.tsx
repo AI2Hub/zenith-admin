@@ -177,7 +177,7 @@ export default function MetricsPage() {
     { title: '负责人', dataIndex: 'ownerName', width: 120, render: (value) => value || '—' },
     { title: '目录', dataIndex: 'folderName', width: 140, render: (value) => value || '—' },
     { title: '修订', dataIndex: 'revision', width: 80 },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 170, render: (value) => formatDateTime(value) },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 190, render: (value) => formatDateTime(value) },
     {
       title: '状态', dataIndex: 'lifecycleStatus', width: 100, fixed: 'right',
       render: (value: ReportMetric['lifecycleStatus']) => <Tag color={statusColor[value]}>{statusOptions.find((item) => item.value === value)?.label}</Tag>,
