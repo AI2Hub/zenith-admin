@@ -10,6 +10,8 @@ export interface ReportDatasourceListParams {
   keyword?: string;
   type?: string;
   status?: string;
+  ownerId?: number;
+  folderId?: number;
 }
 
 export interface TestReportDatasourceConnectionInput {

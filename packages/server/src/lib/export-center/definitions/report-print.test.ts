@@ -33,7 +33,7 @@ describe('reportPrintExportDefinition', () => {
 
     const { reportPrintExportDefinition } = await import('./report-print');
 
-    expect(reportPrintExportDefinition.formats).toEqual(['xlsx', 'pdf']);
+    expect(reportPrintExportDefinition.formats).toEqual(['xlsx', 'pdf', 'docx']);
     expect(reportPrintExportDefinition.execution.mode).toBe('auto');
     expect(reportPrintExportDefinition.execution.syncMaxRows).toBe(800);
     await expect(reportPrintExportDefinition.countRows!({ templateId: 1 })).resolves.toBe(16);
@@ -65,5 +65,29 @@ describe('reportPrintExportDefinition', () => {
     expect(file.mimeType).toBe('application/pdf');
     expect(file.filename).toBe('打印报表_99.pdf');
     expect(file.rowCount).toBe(2);
+  });
+
+  it('渲染 Word 文件时保留 DOCX MIME 与文件名', async () => {
+    renderPrintTemplate.mockResolvedValue({ sheets: [{ rowCount: 1, grid: { rows: 1, cols: 1 } }] });
+    renderPrintExportFile.mockResolvedValue({
+      buffer: Buffer.from('PK-demo'),
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      rowCount: 1,
+    });
+    const { reportPrintExportDefinition } = await import('./report-print');
+    const file = await reportPrintExportDefinition.renderFile!({
+      query: { templateId: 1 },
+      format: 'docx',
+      jobId: 100,
+      moduleName: '打印报表',
+      entity: 'report.print',
+      columns: [],
+      raw: false,
+      user: { id: 1, username: 'admin' },
+    } as never);
+
+    expect(renderPrintExportFile).toHaveBeenCalledWith(expect.anything(), 'docx');
+    expect(file.mimeType).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    expect(file.filename).toBe('打印报表_100.docx');
   });
 });

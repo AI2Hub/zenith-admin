@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button, Form, Input, Select, Table, Tag, Toast, Modal, Space, Typography, Empty, Switch, InputNumber, TextArea } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -36,9 +37,13 @@ import VisualModelBuilder from './components/VisualModelBuilder';
 import DatasetRefsModal from './components/DatasetRefsModal';
 import { useDictItems } from '@/hooks/useDictItems';
 import { renderReportDatasourceTypeTag } from './report-datasource-ui';
+import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';
+import { useAllUsers } from '@/hooks/queries/users';
+import { useReportDqAnomalyList } from '@/hooks/queries/report-dq';
+import { useReportDeprecationList } from '@/hooks/queries/report-assets';
 
-interface SearchParams { keyword: string; status: string }
-const defaultSearchParams: SearchParams = { keyword: '', status: '' };
+interface SearchParams { keyword: string; status: string; ownerId?: number; folderId?: number }
+const defaultSearchParams: SearchParams = { keyword: '', status: '', ownerId: undefined, folderId: undefined };
 
 function isSqlAuthoringType(type: ReportDatasourceType | null) {
   return type === 'sql' || type === 'mysql' || type === 'postgresql' || type === 'sqlserver';
@@ -77,6 +82,7 @@ function fieldsFromColumns(columns: string[], rows: Record<string, unknown>[] = 
 export default function DatasetsPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
+  const navigate = useNavigate();
   const formApi = useRef<FormApi | null>(null);
   const staticFileInputRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
@@ -124,8 +130,28 @@ export default function DatasetsPage() {
     pageSize,
     keyword: submittedParams.keyword || undefined,
     status: submittedParams.status || undefined,
+    ownerId: submittedParams.ownerId,
+    folderId: submittedParams.folderId,
   });
   const data = listQuery.data ?? null;
+  const users = useAllUsers().data ?? [];
+  const folders = flattenReportFolders(useReportFolderTree({ resourceType: 'dataset' }).data ?? []);
+  const anomalyQuery = useReportDqAnomalyList({ page: 1, pageSize: 200, status: 'open' });
+  const deprecationQuery = useReportDeprecationList({ page: 1, pageSize: 200, resourceType: 'dataset', published: true });
+  const warningMap = useMemo(() => {
+    const map = new Map<number, { anomalies: number; deprecated: boolean }>();
+    for (const anomaly of anomalyQuery.data?.list ?? []) {
+      const current = map.get(anomaly.datasetId) ?? { anomalies: 0, deprecated: false };
+      current.anomalies += 1;
+      map.set(anomaly.datasetId, current);
+    }
+    for (const notice of deprecationQuery.data?.list ?? []) {
+      const current = map.get(notice.resourceId) ?? { anomalies: 0, deprecated: false };
+      current.deprecated = true;
+      map.set(notice.resourceId, current);
+    }
+    return map;
+  }, [anomalyQuery.data, deprecationQuery.data]);
   const saveMutation = useSaveReportDataset();
   const batchStatusMutation = useBatchReportDatasetStatus();
   const cloneMutation = useCloneReportDataset();
@@ -178,6 +204,8 @@ export default function DatasetsPage() {
   const formInitValues = editing
     ? {
         name: editing.name,
+        ownerId: editing.ownerId ?? undefined,
+        folderId: editing.folderId ?? undefined,
         datasourceId: editing.datasourceId,
         sql: sqlContent.sql ?? '',
         itemsPath: apiContent.itemsPath ?? '',
@@ -393,6 +421,8 @@ export default function DatasetsPage() {
 
     const payload = {
       name: values.name,
+      ownerId: values.ownerId ? Number(values.ownerId) : null,
+      folderId: values.folderId ? Number(values.folderId) : null,
       datasourceId: selectedDsId,
       content,
       fields: normalizeFields(),
@@ -480,12 +510,22 @@ export default function DatasetsPage() {
   const columns: ColumnProps<ReportDataset>[] = [
     { title: '名称', dataIndex: 'name', width: 180 },
     { title: '数据源', dataIndex: 'datasourceName', width: 160, render: (v: string) => v || '-' },
+    { title: '负责人', dataIndex: 'ownerName', width: 120, render: (v: string | null) => v || '—' },
+    { title: '目录', dataIndex: 'folderName', width: 140, render: (v: string | null) => v || '—' },
     {
       title: '类型', dataIndex: 'type', width: 80,
       render: (t: ReportDatasourceType) => renderReportDatasourceTypeTag(t),
     },
     { title: '字段数', dataIndex: 'fields', width: 80, render: (f: ReportField[]) => (f?.length ?? 0) },
     { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
+    {
+      title: '治理提示', dataIndex: '__warnings', width: 150,
+      render: (_: unknown, record) => {
+        const warning = warningMap.get(record.id);
+        if (!warning) return '—';
+        return <Space spacing={4}>{warning.anomalies > 0 ? <Tag color="orange" size="small">质量异常 {warning.anomalies}</Tag> : null}{warning.deprecated ? <Tag color="red" size="small">已弃用</Tag> : null}</Space>;
+      },
+    },
     {
       title: '状态', dataIndex: 'status', width: 70, fixed: 'right',
       render: (s: string) => s === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag>,
@@ -497,6 +537,8 @@ export default function DatasetsPage() {
         ...(record.materialize?.enabled && hasPermission('report:dataset:update') ? [{ key: 'refreshMaterialize', label: '刷新物化', onClick: () => void handleRefreshMaterialize(record) }] : []),
         ...(hasPermission('report:dataset:update') ? [{ key: 'edit', label: '编辑', onClick: () => openEdit(record) }] : []),
         { key: 'refs', label: '血缘', onClick: () => setRefsTarget(record) },
+        { key: 'quality', label: '质量详情', onClick: () => navigate(`/report/quality?datasetId=${record.id}`) },
+        { key: 'governance', label: '权限与转移', onClick: () => navigate(`/report/governance?resourceType=dataset&resourceId=${record.id}`) },
         ...(hasPermission('report:dataset:create') ? [{ key: 'clone', label: '复制', onClick: () => void handleClone(record) }] : []),
         ...(hasPermission('report:dataset:list') ? [
           {
@@ -532,6 +574,16 @@ export default function DatasetsPage() {
     <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
       showClear style={{ width: 120 }} optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))} />
   );
+  const renderOwnerFilter = () => (
+    <Select placeholder="全部负责人" value={draftParams.ownerId} showClear filter style={{ width: 140 }}
+      optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))}
+      onChange={(v) => setDraftParams((p) => ({ ...p, ownerId: v as number | undefined }))} />
+  );
+  const renderFolderFilter = () => (
+    <Select placeholder="全部目录" value={draftParams.folderId} showClear filter style={{ width: 140 }}
+      optionList={folders.map((f) => ({ value: f.id, label: f.name }))}
+      onChange={(v) => setDraftParams((p) => ({ ...p, folderId: v as number | undefined }))} />
+  );
   const renderSearchBtn = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
   const renderResetBtn = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
   const renderCreateBtn = () => hasPermission('report:dataset:create')
@@ -544,10 +596,10 @@ export default function DatasetsPage() {
   return (
     <div className="page-container">
       <SearchToolbar
-        primary={<>{renderKeyword()}{renderStatusFilter()}{renderSearchBtn()}{renderResetBtn()}</>}
+        primary={<>{renderKeyword()}{renderOwnerFilter()}{renderFolderFilter()}{renderStatusFilter()}{renderSearchBtn()}{renderResetBtn()}</>}
         actions={<>{renderBatchEnableBtn()}{renderBatchDisableBtn()}{renderCreateBtn()}</>}
         mobilePrimary={<>{renderKeyword()}{renderSearchBtn()}{renderCreateBtn()}</>}
-        mobileFilters={renderStatusFilter()}
+        mobileFilters={<>{renderOwnerFilter()}{renderFolderFilter()}{renderStatusFilter()}</>}
         mobileActions={<>{renderBatchEnableBtn()}{renderBatchDisableBtn()}</>}
         filterTitle="数据集筛选"
         onFilterApply={handleSearch}
@@ -570,6 +622,7 @@ export default function DatasetsPage() {
         onCancel={closeModal}
         okButtonProps={{ loading: saveMutation.isPending }}
         width={760}
+        closeOnEsc
       >
         <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={formInitValues}
           labelPosition="left" labelWidth={72} onValueChange={(v) => {
@@ -581,6 +634,10 @@ export default function DatasetsPage() {
             });
           }}>
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear />
+          <Form.Select field="ownerId" label="负责人" filter showClear style={{ width: '100%' }}
+            optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))} />
+          <Form.Select field="folderId" label="资源目录" filter showClear style={{ width: '100%' }}
+            optionList={folders.map((f) => ({ value: f.id, label: f.name }))} />
           <Form.Select field="datasourceId" label="数据源" style={{ width: '100%' }} rules={[{ required: true, message: '请选择数据源' }]}
             placeholder="选择数据源"
             optionList={datasources.map((d) => {

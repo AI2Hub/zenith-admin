@@ -10,6 +10,50 @@ import { mockDateOffset, mockDateTime, mockDateTimeOffset } from '@/mocks/utils/
 
 const taskTypes: AsyncTaskTypeMeta[] = [
   {
+    taskType: 'report-dq-rule-run',
+    title: '报表质量规则执行',
+    module: '报表中心',
+    description: '执行数据质量规则并生成评分与异常样本。',
+    allowConcurrent: false,
+    enabled: true,
+    maxAttempts: 3,
+    retryDelayMs: 5000,
+    retentionDays: 30,
+  },
+  {
+    taskType: 'report-dataset-materialize',
+    title: '报表数据集物化',
+    module: '报表中心',
+    description: '生成可复用的数据集物化快照。',
+    allowConcurrent: false,
+    enabled: true,
+    maxAttempts: 3,
+    retryDelayMs: 5000,
+    retentionDays: 30,
+  },
+  {
+    taskType: 'report-sla-rule-evaluate',
+    title: '报表 SLA 评估',
+    module: '报表中心',
+    description: '评估数据集 SLA 并记录违规状态。',
+    allowConcurrent: false,
+    enabled: true,
+    maxAttempts: 3,
+    retryDelayMs: 5000,
+    retentionDays: 30,
+  },
+  {
+    taskType: 'report-fill-sync',
+    title: '报表填报同步',
+    module: '报表中心',
+    description: '将审核通过的填报记录同步到生成数据集。',
+    allowConcurrent: true,
+    enabled: true,
+    maxAttempts: 3,
+    retryDelayMs: 5000,
+    retentionDays: 30,
+  },
+  {
     taskType: 'demo-batch',
     title: '批量处理演示',
     module: '业务示例',
@@ -155,6 +199,47 @@ export function createImmediateMockTask(input: {
     updatedAt: now,
   };
   tasks.unshift(task);
+  return task;
+}
+
+export function createProgressingMockTask(input: {
+  taskType: 'report-dq-rule-run' | 'report-dataset-materialize' | 'report-sla-rule-evaluate' | 'report-fill-sync';
+  title: string;
+  payload?: Record<string, unknown>;
+  totalItems?: number;
+  itemDelayMs?: number;
+}): AsyncTask {
+  const meta = taskTypes.find((item) => item.taskType === input.taskType);
+  if (!meta) throw new Error(`未注册任务类型：${input.taskType}`);
+  const totalItems = Math.max(1, input.totalItems ?? 5);
+  const now = mockDateTime();
+  const task: AsyncTask = {
+    id: nextId++,
+    taskType: input.taskType,
+    title: input.title,
+    module: meta.module,
+    status: 'pending',
+    payload: { ...input.payload, totalItems, itemDelayMs: input.itemDelayMs ?? 200 },
+    totalCount: totalItems,
+    processedCount: 0,
+    failedCount: 0,
+    progressNote: '任务已提交',
+    result: null,
+    errorMessage: null,
+    cancelRequested: false,
+    attempts: 0,
+    maxAttempts: meta.maxAttempts,
+    nextRunAt: null,
+    createdBy: 1,
+    createdByName: '管理员',
+    tenantId: null,
+    startedAt: null,
+    completedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  tasks.unshift(task);
+  startSim(task);
   return task;
 }
 

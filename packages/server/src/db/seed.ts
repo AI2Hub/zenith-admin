@@ -1,11 +1,11 @@
 import { db } from './index';
-import { users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, systemConfigs, cronJobs, rateLimitRules, regions, tenants, tenantPackages, tenantPackageMenus, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskConfigs, memberLevels, memberTags, members, memberPointAccounts, memberPointTransactions, memberWallets, coupons, memberCoupons, checkinRules, checkinSettings, checkinMilestones, workflowForms, workflowDataSources, workflowConnectors, workflowTemplates, workflowDefinitions, aiPromptTemplates, paymentMethodConfigs, mpAccounts, mpTags, mpFans, mpMessages, mpAutoReplies, mpMenus, mpMaterials, mpDrafts, mpMessageTemplates, mpBroadcasts, mpQrcodes, mpKfAccounts, mpKfSessions, mpKfSessionEvents, mpKfRoutingConfigs, mpConditionalMenus, channels, channelQuickReplies, reportDatasources, reportDatasets, reportDashboards, apiScopes, ratePlans, reportPrintTemplates, ruleDecisionTables, userFeedbacks } from './schema';
+import { users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, systemConfigs, cronJobs, rateLimitRules, regions, tenants, tenantPackages, tenantPackageMenus, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskConfigs, memberLevels, memberTags, members, memberPointAccounts, memberPointTransactions, memberWallets, coupons, memberCoupons, checkinRules, checkinSettings, checkinMilestones, workflowForms, workflowDataSources, workflowConnectors, workflowTemplates, workflowDefinitions, aiPromptTemplates, paymentMethodConfigs, mpAccounts, mpTags, mpFans, mpMessages, mpAutoReplies, mpMenus, mpMaterials, mpDrafts, mpMessageTemplates, mpBroadcasts, mpQrcodes, mpKfAccounts, mpKfSessions, mpKfSessionEvents, mpKfRoutingConfigs, mpConditionalMenus, channels, channelQuickReplies, reportDatasources, reportDatasets, reportDashboards, apiScopes, ratePlans, reportPrintTemplates, ruleDecisionTables, userFeedbacks, reportFolders, reportEnvironments, reportMetrics, reportDqRules, reportQueryQuotas, reportSlaRules, reportAssetTemplates, reportFillTemplates } from './schema';
 import bcrypt from 'bcryptjs';
 import { and, eq, isNull, inArray, sql } from 'drizzle-orm';
 import { createRequire } from 'node:module';
 import logger from '../lib/logger';
 import { runAsUser } from '../lib/audit-context';
-import { SEED_MENUS, SEED_ROLES, SEED_DEPARTMENTS, SEED_POSITIONS, SEED_DICTS, SEED_DICT_ITEMS, SEED_SYSTEM_CONFIGS, SEED_CRON_JOBS, SEED_RATE_LIMIT_RULES, SEED_TAGS, SEED_DATA_MASK_CONFIGS, SEED_MEMBER_LEVELS, SEED_MEMBER_TAGS, SEED_COUPONS, SEED_EMAIL_TEMPLATES, SEED_SMS_TEMPLATES, SEED_INAPP_TEMPLATES, SEED_TENANTS, SEED_TENANT_PACKAGES, SEED_WORKFLOW_FORMS, SEED_WORKFLOW_DATA_SOURCES, SEED_WORKFLOW_CONNECTORS, SEED_WORKFLOW_TEMPLATES, SEED_WORKFLOW_DEFINITIONS, SEED_AI_PROMPT_TEMPLATES, SEED_PAYMENT_METHOD_CONFIGS, SEED_CHECKIN_MILESTONES, SEED_MP_ACCOUNTS, SEED_MP_TAGS, SEED_MP_FANS, SEED_MP_MESSAGES, SEED_MP_AUTO_REPLIES, SEED_MP_MENUS, SEED_MP_MATERIALS, SEED_MP_DRAFTS, SEED_MP_MESSAGE_TEMPLATES, SEED_MP_BROADCASTS, SEED_MP_QRCODES, SEED_MP_KF_ACCOUNTS, SEED_MP_KF_ROUTING_CONFIGS, SEED_MP_KF_SESSIONS, SEED_MP_KF_SESSION_EVENTS, SEED_MP_CONDITIONAL_MENUS, SEED_CHANNELS, SEED_CHANNEL_QUICK_REPLIES, SEED_REPORT_DATASOURCES, SEED_REPORT_DATASETS, SEED_REPORT_DASHBOARDS, SEED_API_SCOPES, SEED_RATE_PLANS, SEED_REPORT_PRINT_TEMPLATES, SEED_DECISION_TABLES, SEED_USER_FEEDBACKS } from '@zenith/shared';
+import { SEED_MENUS, SEED_ROLES, SEED_DEPARTMENTS, SEED_POSITIONS, SEED_DICTS, SEED_DICT_ITEMS, SEED_SYSTEM_CONFIGS, SEED_CRON_JOBS, SEED_RATE_LIMIT_RULES, SEED_TAGS, SEED_DATA_MASK_CONFIGS, SEED_MEMBER_LEVELS, SEED_MEMBER_TAGS, SEED_COUPONS, SEED_EMAIL_TEMPLATES, SEED_SMS_TEMPLATES, SEED_INAPP_TEMPLATES, SEED_TENANTS, SEED_TENANT_PACKAGES, SEED_WORKFLOW_FORMS, SEED_WORKFLOW_DATA_SOURCES, SEED_WORKFLOW_CONNECTORS, SEED_WORKFLOW_TEMPLATES, SEED_WORKFLOW_DEFINITIONS, SEED_AI_PROMPT_TEMPLATES, SEED_PAYMENT_METHOD_CONFIGS, SEED_CHECKIN_MILESTONES, SEED_MP_ACCOUNTS, SEED_MP_TAGS, SEED_MP_FANS, SEED_MP_MESSAGES, SEED_MP_AUTO_REPLIES, SEED_MP_MENUS, SEED_MP_MATERIALS, SEED_MP_DRAFTS, SEED_MP_MESSAGE_TEMPLATES, SEED_MP_BROADCASTS, SEED_MP_QRCODES, SEED_MP_KF_ACCOUNTS, SEED_MP_KF_ROUTING_CONFIGS, SEED_MP_KF_SESSIONS, SEED_MP_KF_SESSION_EVENTS, SEED_MP_CONDITIONAL_MENUS, SEED_CHANNELS, SEED_CHANNEL_QUICK_REPLIES, SEED_REPORT_DATASOURCES, SEED_REPORT_DATASETS, SEED_REPORT_DASHBOARDS, SEED_API_SCOPES, SEED_RATE_PLANS, SEED_REPORT_PRINT_TEMPLATES, SEED_DECISION_TABLES, SEED_USER_FEEDBACKS, SEED_REPORT_FOLDERS, SEED_REPORT_ENVIRONMENTS, SEED_REPORT_METRICS, SEED_REPORT_DQ_RULES, SEED_REPORT_QUERY_QUOTAS, SEED_REPORT_SLA_RULES, SEED_REPORT_ASSET_TEMPLATES, SEED_REPORT_FILL_TEMPLATES } from '@zenith/shared';
 import type { PaymentChannel, PaymentMethod } from '@zenith/shared';
 
 const require = createRequire(import.meta.url);
@@ -659,6 +659,20 @@ async function seedRest() {
   }
 
   // ─── 报表中心示例数据（数据来源：@zenith/shared SEED_REPORT_*）──────────────
+  await db.insert(reportFolders).values(
+    SEED_REPORT_FOLDERS.map(({ id, tenantId, parentId, name, resourceType, sort, status }) => ({
+      id, tenantId, parentId, name, resourceType, ownerId: adminUser?.id ?? null, sort, status,
+    })),
+  ).onConflictDoNothing();
+  await db.execute(sql`SELECT setval('report_folders_id_seq', GREATEST((SELECT MAX(id) FROM report_folders), 1))`);
+
+  await db.insert(reportEnvironments).values(
+    SEED_REPORT_ENVIRONMENTS.map(({ id, tenantId, code, name, kind, description, baseUrl, config, isDefault, status }) => ({
+      id, tenantId, code, name, kind, description, baseUrl, config, isDefault, status,
+    })),
+  ).onConflictDoNothing();
+  await db.execute(sql`SELECT setval('report_environments_id_seq', GREATEST((SELECT MAX(id) FROM report_environments), 1))`);
+
   await db.insert(reportDatasources).values(
     SEED_REPORT_DATASOURCES.map(({ id, name, type, config, status, remark }) => ({ id, name, type, config, status, remark })),
   ).onConflictDoNothing({ target: reportDatasources.id });
@@ -687,6 +701,68 @@ async function seedRest() {
     set: { content: sql`excluded.content`, params: sql`excluded.params`, pageConfig: sql`excluded.page_config`, updatedAt: new Date() },
   });
   await db.execute(sql`SELECT setval('report_print_templates_id_seq', GREATEST((SELECT MAX(id) FROM report_print_templates), 1))`);
+
+  // Only claim unowned built-in rows. Existing production ownership/folder placement is preserved.
+  if (adminUser) {
+    await db.update(reportDatasources).set({ ownerId: adminUser.id, folderId: 1 })
+      .where(and(inArray(reportDatasources.id, SEED_REPORT_DATASOURCES.map((row) => row.id)), isNull(reportDatasources.ownerId), isNull(reportDatasources.folderId)));
+    await db.update(reportDatasets).set({ ownerId: adminUser.id, folderId: 2 })
+      .where(and(inArray(reportDatasets.id, SEED_REPORT_DATASETS.map((row) => row.id)), isNull(reportDatasets.ownerId), isNull(reportDatasets.folderId)));
+    await db.update(reportDashboards).set({ ownerId: adminUser.id, folderId: 3 })
+      .where(and(inArray(reportDashboards.id, SEED_REPORT_DASHBOARDS.map((row) => row.id)), isNull(reportDashboards.ownerId), isNull(reportDashboards.folderId)));
+    await db.update(reportPrintTemplates).set({ ownerId: adminUser.id, folderId: 5 })
+      .where(and(inArray(reportPrintTemplates.id, SEED_REPORT_PRINT_TEMPLATES.map((row) => row.id)), isNull(reportPrintTemplates.ownerId), isNull(reportPrintTemplates.folderId)));
+  }
+
+  await db.insert(reportMetrics).values(
+    SEED_REPORT_METRICS.map(({ id, tenantId, folderId, code, name, description, type, datasetId, sourceField, formula, aggregate, dimensions, timeField, unit, format, caliber, lifecycleStatus, revision, publishedSnapshot, publishedAt, publishedBy, deprecatedAt, deprecatedBy, deprecationReason }) => ({
+      id, tenantId, folderId, ownerId: adminUser?.id ?? null, code, name, description, type, datasetId, sourceField, formula,
+      aggregate, dimensions, timeField, unit, format, caliber, lifecycleStatus, revision, publishedSnapshot,
+      publishedAt: publishedAt ? new Date(publishedAt) : null,
+      publishedBy: publishedBy == null ? null : (adminUser?.id ?? null),
+      deprecatedAt: deprecatedAt ? new Date(deprecatedAt) : null, deprecatedBy, deprecationReason,
+    })),
+  ).onConflictDoNothing();
+  await db.execute(sql`SELECT setval('report_metrics_id_seq', GREATEST((SELECT MAX(id) FROM report_metrics), 1))`);
+
+  await db.insert(reportDqRules).values(
+    SEED_REPORT_DQ_RULES.map(({ id, tenantId, datasetId, name, type, field, severity, config, cron, timezone, enabled }) => ({
+      id, tenantId, datasetId, name, type, field, severity, config, cron, timezone, enabled,
+    })),
+  ).onConflictDoNothing();
+  await db.execute(sql`SELECT setval('report_dq_rules_id_seq', GREATEST((SELECT MAX(id) FROM report_dq_rules), 1))`);
+
+  await db.insert(reportQueryQuotas).values(
+    SEED_REPORT_QUERY_QUOTAS.map(({ id, tenantId, scope, userId, maxConcurrent, dailyQueryLimit, dailyRowLimit, dailyByteLimit, dailyCostLimit, resetTimezone, enabled }) => ({
+      id, tenantId, scope, userId, maxConcurrent, dailyQueryLimit, dailyRowLimit, dailyByteLimit, dailyCostLimit, resetTimezone, enabled,
+    })),
+  ).onConflictDoNothing();
+  await db.execute(sql`SELECT setval('report_query_quotas_id_seq', GREATEST((SELECT MAX(id) FROM report_query_quotas), 1))`);
+
+  await db.insert(reportSlaRules).values(
+    SEED_REPORT_SLA_RULES.map(({ id, tenantId, datasetId, name, type, targetValue, warningValue, windowMinutes, cron, timezone, severity, channels, recipients, webhookUrl, silenceMins, enabled }) => ({
+      id, tenantId, datasetId, name, type, targetValue, warningValue, windowMinutes, cron, timezone,
+      severity, channels, recipients, webhookUrl, silenceMins, enabled,
+    })),
+  ).onConflictDoNothing();
+  await db.execute(sql`SELECT setval('report_sla_rules_id_seq', GREATEST((SELECT MAX(id) FROM report_sla_rules), 1))`);
+
+  await db.insert(reportAssetTemplates).values(
+    SEED_REPORT_ASSET_TEMPLATES.map(({ id, tenantId, folderId, code, name, type, description, content, previewFileId, version, usageCount, status }) => ({
+      id, tenantId, folderId, ownerId: adminUser?.id ?? null, code, name, type, description, content, previewFileId, version, usageCount, status,
+    })),
+  ).onConflictDoNothing();
+  await db.execute(sql`SELECT setval('report_asset_templates_id_seq', GREATEST((SELECT MAX(id) FROM report_asset_templates), 1))`);
+
+  await db.insert(reportFillTemplates).values(
+    SEED_REPORT_FILL_TEMPLATES.map(({ id, tenantId, folderId, code, name, description, formSchema, publishedSchema, publishedRevision, workflowDefinitionId, needReview, generatedDatasetId, status, revision, publishedAt, publishedBy }) => ({
+      id, tenantId, folderId, ownerId: adminUser?.id ?? null, code, name, description, formSchema, publishedSchema, publishedRevision,
+      workflowDefinitionId, needReview, generatedDatasetId, status, revision,
+      publishedAt: publishedAt ? new Date(publishedAt) : null,
+      publishedBy: publishedBy == null ? null : (adminUser?.id ?? null),
+    })),
+  ).onConflictDoNothing();
+  await db.execute(sql`SELECT setval('report_fill_templates_id_seq', GREATEST((SELECT MAX(id) FROM report_fill_templates), 1))`);
   logger.info('  ✔ Report center seeded');
 
   // ─── 意见反馈示例数据（数据来源：@zenith/shared SEED_USER_FEEDBACKS）────────

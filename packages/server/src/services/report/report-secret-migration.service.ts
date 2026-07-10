@@ -146,7 +146,9 @@ export async function backfillLegacyReportTenants(): Promise<void> {
       }
     }
     for (const row of alertRows) {
-      const tenantId = row.tenantId ?? datasetTenants.get(row.datasetId) ?? createdTenant(row.createdBy);
+      const tenantId = row.tenantId
+        ?? (row.datasetId ? datasetTenants.get(row.datasetId) : null)
+        ?? createdTenant(row.createdBy);
       if (row.tenantId === null && tenantId != null) {
         await tx.update(reportAlertRules).set({ tenantId }).where(eq(reportAlertRules.id, row.id));
       }

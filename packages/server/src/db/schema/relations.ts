@@ -20,7 +20,31 @@ import { appWebhookDeliveries, appWebhookSubscriptions, oauth2AuthorizationCodes
 import { checkinMilestones, coupons, memberCheckinMilestoneAwards, memberCheckins, memberCoupons, memberLevels, memberNotifications, memberPointAccounts, memberPointTransactions, members, memberTagBindings, memberTags, memberWallets, memberWalletTransactions } from './member';
 import { monitorAlertEvents, monitorAlertRules } from './monitor';
 import { mpAccounts, mpAutoReplies, mpBroadcasts, mpConditionalMenus, mpDrafts, mpFans, mpKfAccounts, mpKfRoutingConfigs, mpKfSessionEvents, mpKfSessions, mpMaterials, mpMenus, mpMessages, mpMessageTemplates, mpQrcodes, mpTags, mpTemplateSendLogs, mpUnmatchedKeywords } from './mp';
-import { reportAlertRules, reportDashboardCategories, reportDashboardComments, reportDashboardEmbedTokens, reportDashboards, reportDashboardShares, reportDashboardSubscriptions, reportDashboardVersions, reportDatasetExecutionLogs, reportDatasets, reportDatasources, reportDeliveryAttempts, reportDeliveryRuns, reportPrintTemplates, reportShareAccessLogs } from './report';
+import { reportAlertRules, reportDashboardCategories, reportDashboardComments, reportDashboardEmbedTokens, reportDashboards, reportDashboardShares, reportDashboardSubscriptions, reportDashboardVersions, reportDatasetExecutionLogs, reportDatasets, reportDatasources, reportDeliveryAttempts, reportDeliveryRuns, reportFolders, reportPrintTemplates, reportShareAccessLogs } from './report';
+import {
+  reportAssetTemplates,
+  reportAssetUsageLogs,
+  reportChatbiMessages,
+  reportChatbiSessions,
+  reportDeprecationNotices,
+  reportDqAnomalies,
+  reportDqRules,
+  reportDqRuns,
+  reportDqScores,
+  reportEnvironmentPromotions,
+  reportEnvironments,
+  reportFillRecords,
+  reportFillTemplates,
+  reportMaterializationSnapshots,
+  reportMetrics,
+  reportPublishApprovals,
+  reportQueryCostLogs,
+  reportQueryQuotas,
+  reportResourceAcls,
+  reportResourceTransfers,
+  reportSlaRules,
+  reportSlaViolations,
+} from './report-platform';
 
 // ─── 关联关系 ────────────────────────────────────────────────────────────────
 export const errorGroupsRelations = relations(errorGroups, ({ many, one }) => ({
@@ -826,10 +850,14 @@ export const mpKfRoutingConfigsRelations = relations(mpKfRoutingConfigs, ({ one 
 
 export const reportPrintTemplatesRelations = relations(reportPrintTemplates, ({ one }) => ({
   dataset: one(reportDatasets, { fields: [reportPrintTemplates.datasetId], references: [reportDatasets.id] }),
+  tenant: one(tenants, { fields: [reportPrintTemplates.tenantId], references: [tenants.id] }),
+  folder: one(reportFolders, { fields: [reportPrintTemplates.folderId], references: [reportFolders.id] }),
+  owner: one(users, { fields: [reportPrintTemplates.ownerId], references: [users.id], relationName: 'reportPrintTemplateOwner' }),
 }));
 
 export const reportAlertRulesRelations = relations(reportAlertRules, ({ one, many }) => ({
   dataset: one(reportDatasets, { fields: [reportAlertRules.datasetId], references: [reportDatasets.id] }),
+  metric: one(reportMetrics, { fields: [reportAlertRules.metricId], references: [reportMetrics.id] }),
   deliveryRuns: many(reportDeliveryRuns),
 }));
 
@@ -842,15 +870,48 @@ export const reportDashboardCommentsRelations = relations(reportDashboardComment
   deletedByUser: one(users, { fields: [reportDashboardComments.deletedBy], references: [users.id], relationName: 'reportDashboardCommentDeletedBy' }),
 }));
 
-export const reportDatasourcesRelations = relations(reportDatasources, ({ many }) => ({
+export const reportFoldersRelations = relations(reportFolders, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [reportFolders.tenantId], references: [tenants.id] }),
+  owner: one(users, { fields: [reportFolders.ownerId], references: [users.id], relationName: 'reportFolderOwner' }),
+  parent: one(reportFolders, { fields: [reportFolders.parentId], references: [reportFolders.id], relationName: 'reportFolderChildren' }),
+  children: many(reportFolders, { relationName: 'reportFolderChildren' }),
+  datasources: many(reportDatasources),
+  datasets: many(reportDatasets),
+  dashboards: many(reportDashboards),
+  printTemplates: many(reportPrintTemplates),
+  metrics: many(reportMetrics),
+  assetTemplates: many(reportAssetTemplates),
+  fillTemplates: many(reportFillTemplates),
+}));
+
+export const reportDatasourcesRelations = relations(reportDatasources, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [reportDatasources.tenantId], references: [tenants.id] }),
+  folder: one(reportFolders, { fields: [reportDatasources.folderId], references: [reportFolders.id] }),
+  owner: one(users, { fields: [reportDatasources.ownerId], references: [users.id], relationName: 'reportDatasourceOwner' }),
   datasets: many(reportDatasets),
   executionLogs: many(reportDatasetExecutionLogs),
+  queryCostLogs: many(reportQueryCostLogs),
+  chatbiSessions: many(reportChatbiSessions),
 }));
 
 export const reportDatasetsRelations = relations(reportDatasets, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [reportDatasets.tenantId], references: [tenants.id] }),
+  folder: one(reportFolders, { fields: [reportDatasets.folderId], references: [reportFolders.id] }),
+  owner: one(users, { fields: [reportDatasets.ownerId], references: [users.id], relationName: 'reportDatasetOwner' }),
   datasource: one(reportDatasources, { fields: [reportDatasets.datasourceId], references: [reportDatasources.id] }),
   executionLogs: many(reportDatasetExecutionLogs),
   deliveryRuns: many(reportDeliveryRuns),
+  metrics: many(reportMetrics),
+  dqRules: many(reportDqRules),
+  dqRuns: many(reportDqRuns),
+  dqScores: many(reportDqScores),
+  dqAnomalies: many(reportDqAnomalies),
+  materializationSnapshots: many(reportMaterializationSnapshots),
+  queryCostLogs: many(reportQueryCostLogs),
+  slaRules: many(reportSlaRules),
+  slaViolations: many(reportSlaViolations),
+  chatbiSessions: many(reportChatbiSessions),
+  generatedFillRecords: many(reportFillRecords),
 }));
 
 export const reportDatasetExecutionLogsRelations = relations(reportDatasetExecutionLogs, ({ one }) => ({
@@ -861,6 +922,9 @@ export const reportDatasetExecutionLogsRelations = relations(reportDatasetExecut
 }));
 
 export const reportDashboardsRelations = relations(reportDashboards, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [reportDashboards.tenantId], references: [tenants.id] }),
+  folder: one(reportFolders, { fields: [reportDashboards.folderId], references: [reportFolders.id] }),
+  owner: one(users, { fields: [reportDashboards.ownerId], references: [users.id], relationName: 'reportDashboardOwner' }),
   category: one(reportDashboardCategories, { fields: [reportDashboards.categoryId], references: [reportDashboardCategories.id] }),
   publishedByUser: one(users, { fields: [reportDashboards.publishedBy], references: [users.id] }),
   versions: many(reportDashboardVersions),
@@ -906,4 +970,167 @@ export const reportDeliveryRunsRelations = relations(reportDeliveryRuns, ({ one,
 export const reportDeliveryAttemptsRelations = relations(reportDeliveryAttempts, ({ one }) => ({
   tenant: one(tenants, { fields: [reportDeliveryAttempts.tenantId], references: [tenants.id] }),
   run: one(reportDeliveryRuns, { fields: [reportDeliveryAttempts.runId], references: [reportDeliveryRuns.id] }),
+}));
+
+export const reportMetricsRelations = relations(reportMetrics, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [reportMetrics.tenantId], references: [tenants.id] }),
+  folder: one(reportFolders, { fields: [reportMetrics.folderId], references: [reportFolders.id] }),
+  owner: one(users, { fields: [reportMetrics.ownerId], references: [users.id], relationName: 'reportMetricOwner' }),
+  dataset: one(reportDatasets, { fields: [reportMetrics.datasetId], references: [reportDatasets.id] }),
+  publishedByUser: one(users, { fields: [reportMetrics.publishedBy], references: [users.id], relationName: 'reportMetricPublishedBy' }),
+  deprecatedByUser: one(users, { fields: [reportMetrics.deprecatedBy], references: [users.id], relationName: 'reportMetricDeprecatedBy' }),
+  alertRules: many(reportAlertRules),
+}));
+
+export const reportResourceAclsRelations = relations(reportResourceAcls, ({ one }) => ({
+  tenant: one(tenants, { fields: [reportResourceAcls.tenantId], references: [tenants.id] }),
+  grantedByUser: one(users, { fields: [reportResourceAcls.grantedBy], references: [users.id], relationName: 'reportAclGrantedBy' }),
+}));
+
+export const reportPublishApprovalsRelations = relations(reportPublishApprovals, ({ one }) => ({
+  tenant: one(tenants, { fields: [reportPublishApprovals.tenantId], references: [tenants.id] }),
+  requestedByUser: one(users, { fields: [reportPublishApprovals.requestedBy], references: [users.id], relationName: 'reportApprovalRequestedBy' }),
+  decidedByUser: one(users, { fields: [reportPublishApprovals.decidedBy], references: [users.id], relationName: 'reportApprovalDecidedBy' }),
+}));
+
+export const reportResourceTransfersRelations = relations(reportResourceTransfers, ({ one }) => ({
+  tenant: one(tenants, { fields: [reportResourceTransfers.tenantId], references: [tenants.id] }),
+  fromOwner: one(users, { fields: [reportResourceTransfers.fromOwnerId], references: [users.id], relationName: 'reportTransferFromOwner' }),
+  toOwner: one(users, { fields: [reportResourceTransfers.toOwnerId], references: [users.id], relationName: 'reportTransferToOwner' }),
+  requestedByUser: one(users, { fields: [reportResourceTransfers.requestedBy], references: [users.id], relationName: 'reportTransferRequestedBy' }),
+  decidedByUser: one(users, { fields: [reportResourceTransfers.decidedBy], references: [users.id], relationName: 'reportTransferDecidedBy' }),
+}));
+
+export const reportEnvironmentsRelations = relations(reportEnvironments, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [reportEnvironments.tenantId], references: [tenants.id] }),
+  sourcePromotions: many(reportEnvironmentPromotions, { relationName: 'reportPromotionSourceEnvironment' }),
+  targetPromotions: many(reportEnvironmentPromotions, { relationName: 'reportPromotionTargetEnvironment' }),
+}));
+
+export const reportEnvironmentPromotionsRelations = relations(reportEnvironmentPromotions, ({ one }) => ({
+  tenant: one(tenants, { fields: [reportEnvironmentPromotions.tenantId], references: [tenants.id] }),
+  sourceEnvironment: one(reportEnvironments, {
+    fields: [reportEnvironmentPromotions.sourceEnvironmentId],
+    references: [reportEnvironments.id],
+    relationName: 'reportPromotionSourceEnvironment',
+  }),
+  targetEnvironment: one(reportEnvironments, {
+    fields: [reportEnvironmentPromotions.targetEnvironmentId],
+    references: [reportEnvironments.id],
+    relationName: 'reportPromotionTargetEnvironment',
+  }),
+  requestedByUser: one(users, { fields: [reportEnvironmentPromotions.requestedBy], references: [users.id], relationName: 'reportPromotionRequestedBy' }),
+  approvedByUser: one(users, { fields: [reportEnvironmentPromotions.approvedBy], references: [users.id], relationName: 'reportPromotionApprovedBy' }),
+  deployedByUser: one(users, { fields: [reportEnvironmentPromotions.deployedBy], references: [users.id], relationName: 'reportPromotionDeployedBy' }),
+}));
+
+export const reportDqRulesRelations = relations(reportDqRules, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [reportDqRules.tenantId], references: [tenants.id] }),
+  dataset: one(reportDatasets, { fields: [reportDqRules.datasetId], references: [reportDatasets.id] }),
+  runs: many(reportDqRuns),
+  anomalies: many(reportDqAnomalies),
+}));
+
+export const reportDqRunsRelations = relations(reportDqRuns, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [reportDqRuns.tenantId], references: [tenants.id] }),
+  rule: one(reportDqRules, { fields: [reportDqRuns.ruleId], references: [reportDqRules.id] }),
+  dataset: one(reportDatasets, { fields: [reportDqRuns.datasetId], references: [reportDatasets.id] }),
+  requestedByUser: one(users, { fields: [reportDqRuns.requestedBy], references: [users.id], relationName: 'reportDqRunRequestedBy' }),
+  anomalies: many(reportDqAnomalies),
+}));
+
+export const reportDqScoresRelations = relations(reportDqScores, ({ one }) => ({
+  tenant: one(tenants, { fields: [reportDqScores.tenantId], references: [tenants.id] }),
+  dataset: one(reportDatasets, { fields: [reportDqScores.datasetId], references: [reportDatasets.id] }),
+}));
+
+export const reportDqAnomaliesRelations = relations(reportDqAnomalies, ({ one }) => ({
+  tenant: one(tenants, { fields: [reportDqAnomalies.tenantId], references: [tenants.id] }),
+  dataset: one(reportDatasets, { fields: [reportDqAnomalies.datasetId], references: [reportDatasets.id] }),
+  rule: one(reportDqRules, { fields: [reportDqAnomalies.ruleId], references: [reportDqRules.id] }),
+  run: one(reportDqRuns, { fields: [reportDqAnomalies.runId], references: [reportDqRuns.id] }),
+  acknowledgedByUser: one(users, { fields: [reportDqAnomalies.acknowledgedBy], references: [users.id], relationName: 'reportDqAnomalyAcknowledgedBy' }),
+  resolvedByUser: one(users, { fields: [reportDqAnomalies.resolvedBy], references: [users.id], relationName: 'reportDqAnomalyResolvedBy' }),
+}));
+
+export const reportMaterializationSnapshotsRelations = relations(reportMaterializationSnapshots, ({ one }) => ({
+  tenant: one(tenants, { fields: [reportMaterializationSnapshots.tenantId], references: [tenants.id] }),
+  dataset: one(reportDatasets, { fields: [reportMaterializationSnapshots.datasetId], references: [reportDatasets.id] }),
+  file: one(managedFiles, { fields: [reportMaterializationSnapshots.fileId], references: [managedFiles.id] }),
+}));
+
+export const reportQueryQuotasRelations = relations(reportQueryQuotas, ({ one }) => ({
+  tenant: one(tenants, { fields: [reportQueryQuotas.tenantId], references: [tenants.id] }),
+  user: one(users, { fields: [reportQueryQuotas.userId], references: [users.id], relationName: 'reportQueryQuotaUser' }),
+}));
+
+export const reportQueryCostLogsRelations = relations(reportQueryCostLogs, ({ one }) => ({
+  tenant: one(tenants, { fields: [reportQueryCostLogs.tenantId], references: [tenants.id] }),
+  user: one(users, { fields: [reportQueryCostLogs.userId], references: [users.id], relationName: 'reportQueryCostUser' }),
+  dataset: one(reportDatasets, { fields: [reportQueryCostLogs.datasetId], references: [reportDatasets.id] }),
+  datasource: one(reportDatasources, { fields: [reportQueryCostLogs.datasourceId], references: [reportDatasources.id] }),
+}));
+
+export const reportSlaRulesRelations = relations(reportSlaRules, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [reportSlaRules.tenantId], references: [tenants.id] }),
+  dataset: one(reportDatasets, { fields: [reportSlaRules.datasetId], references: [reportDatasets.id] }),
+  violations: many(reportSlaViolations),
+}));
+
+export const reportSlaViolationsRelations = relations(reportSlaViolations, ({ one }) => ({
+  tenant: one(tenants, { fields: [reportSlaViolations.tenantId], references: [tenants.id] }),
+  rule: one(reportSlaRules, { fields: [reportSlaViolations.ruleId], references: [reportSlaRules.id] }),
+  dataset: one(reportDatasets, { fields: [reportSlaViolations.datasetId], references: [reportDatasets.id] }),
+  acknowledgedByUser: one(users, { fields: [reportSlaViolations.acknowledgedBy], references: [users.id], relationName: 'reportSlaViolationAcknowledgedBy' }),
+  resolvedByUser: one(users, { fields: [reportSlaViolations.resolvedBy], references: [users.id], relationName: 'reportSlaViolationResolvedBy' }),
+}));
+
+export const reportAssetUsageLogsRelations = relations(reportAssetUsageLogs, ({ one }) => ({
+  tenant: one(tenants, { fields: [reportAssetUsageLogs.tenantId], references: [tenants.id] }),
+  user: one(users, { fields: [reportAssetUsageLogs.userId], references: [users.id], relationName: 'reportAssetUsageUser' }),
+}));
+
+export const reportDeprecationNoticesRelations = relations(reportDeprecationNotices, ({ one }) => ({
+  tenant: one(tenants, { fields: [reportDeprecationNotices.tenantId], references: [tenants.id] }),
+  publishedByUser: one(users, { fields: [reportDeprecationNotices.publishedBy], references: [users.id], relationName: 'reportDeprecationPublishedBy' }),
+}));
+
+export const reportAssetTemplatesRelations = relations(reportAssetTemplates, ({ one }) => ({
+  tenant: one(tenants, { fields: [reportAssetTemplates.tenantId], references: [tenants.id] }),
+  folder: one(reportFolders, { fields: [reportAssetTemplates.folderId], references: [reportFolders.id] }),
+  owner: one(users, { fields: [reportAssetTemplates.ownerId], references: [users.id], relationName: 'reportAssetTemplateOwner' }),
+  previewFile: one(managedFiles, { fields: [reportAssetTemplates.previewFileId], references: [managedFiles.id] }),
+}));
+
+export const reportChatbiSessionsRelations = relations(reportChatbiSessions, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [reportChatbiSessions.tenantId], references: [tenants.id] }),
+  user: one(users, { fields: [reportChatbiSessions.userId], references: [users.id], relationName: 'reportChatbiSessionUser' }),
+  datasource: one(reportDatasources, { fields: [reportChatbiSessions.datasourceId], references: [reportDatasources.id] }),
+  dataset: one(reportDatasets, { fields: [reportChatbiSessions.datasetId], references: [reportDatasets.id] }),
+  messages: many(reportChatbiMessages),
+}));
+
+export const reportChatbiMessagesRelations = relations(reportChatbiMessages, ({ one }) => ({
+  tenant: one(tenants, { fields: [reportChatbiMessages.tenantId], references: [tenants.id] }),
+  session: one(reportChatbiSessions, { fields: [reportChatbiMessages.sessionId], references: [reportChatbiSessions.id] }),
+  user: one(users, { fields: [reportChatbiMessages.userId], references: [users.id], relationName: 'reportChatbiMessageUser' }),
+}));
+
+export const reportFillTemplatesRelations = relations(reportFillTemplates, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [reportFillTemplates.tenantId], references: [tenants.id] }),
+  folder: one(reportFolders, { fields: [reportFillTemplates.folderId], references: [reportFolders.id] }),
+  owner: one(users, { fields: [reportFillTemplates.ownerId], references: [users.id], relationName: 'reportFillTemplateOwner' }),
+  workflowDefinition: one(workflowDefinitions, { fields: [reportFillTemplates.workflowDefinitionId], references: [workflowDefinitions.id] }),
+  publishedByUser: one(users, { fields: [reportFillTemplates.publishedBy], references: [users.id], relationName: 'reportFillTemplatePublishedBy' }),
+  generatedDataset: one(reportDatasets, { fields: [reportFillTemplates.generatedDatasetId], references: [reportDatasets.id] }),
+  records: many(reportFillRecords),
+}));
+
+export const reportFillRecordsRelations = relations(reportFillRecords, ({ one }) => ({
+  tenant: one(tenants, { fields: [reportFillRecords.tenantId], references: [tenants.id] }),
+  template: one(reportFillTemplates, { fields: [reportFillRecords.templateId], references: [reportFillTemplates.id] }),
+  submitter: one(users, { fields: [reportFillRecords.submitterId], references: [users.id], relationName: 'reportFillRecordSubmitter' }),
+  reviewedByUser: one(users, { fields: [reportFillRecords.reviewedBy], references: [users.id], relationName: 'reportFillRecordReviewedBy' }),
+  workflowInstance: one(workflowInstances, { fields: [reportFillRecords.workflowInstanceId], references: [workflowInstances.id] }),
+  generatedDataset: one(reportDatasets, { fields: [reportFillRecords.generatedDatasetId], references: [reportDatasets.id] }),
 }));

@@ -281,6 +281,13 @@
       "when": 1783693498045,
       "tag": "0039_tired_warbird",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1783720461699,
+      "tag": "0040_keen_sage",
+      "breakpoints": true
     }
   ]
 }

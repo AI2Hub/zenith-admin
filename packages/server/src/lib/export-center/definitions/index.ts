@@ -32,6 +32,10 @@ import { memberRechargesExportDefinition } from './member-recharges';
 import { memberLoginLogsExportDefinition } from './member-login-logs';
 import { chatMessagesExportDefinition } from './chat-messages';
 import { userFeedbacksExportDefinition } from './user-feedbacks';
+import { reportDqRunsExportDefinition } from './report-dq-runs';
+import { reportQueryCostsExportDefinition } from './report-query-costs';
+import { reportAssetsExportDefinition } from './report-assets';
+import { reportFillRecordsExportDefinition } from './report-fill-records';
 
 let registered = false;
 
@@ -69,6 +73,10 @@ const definitions = [
   memberLoginLogsExportDefinition,
   chatMessagesExportDefinition,
   userFeedbacksExportDefinition,
+  reportDqRunsExportDefinition,
+  reportQueryCostsExportDefinition,
+  reportAssetsExportDefinition,
+  reportFillRecordsExportDefinition,
 ] as unknown as AnyExportDefinition[];
 
 export function registerExportDefinitions(): void {

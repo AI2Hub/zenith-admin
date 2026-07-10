@@ -41,10 +41,13 @@
 }
 
 .print-report-band {
-  min-height: 18px;
+  height: 16px;
+  overflow: hidden;
   font-size: 12px;
+  line-height: 16px;
   color: #374151;
-  white-space: pre-wrap;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .print-report-band--header {
@@ -56,15 +59,26 @@
 }
 
 .print-report-table {
-  width: auto;
+  width: min(var(--report-grid-width), 100%);
+  max-width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
   background: transparent;
 }
 
+.print-report-table thead {
+  display: table-header-group;
+}
+
+.print-report-table tr,
+.print-report-table td {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
 .print-report-table td {
   box-sizing: border-box;
-  min-width: 48px;
+  min-width: 0;
   height: 24px;
   padding: 4px 6px;
   font-size: 12px;
@@ -76,7 +90,8 @@
 
 .print-report-table td.print-report-cell--wrap {
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 .print-report-graphic {
@@ -91,12 +106,16 @@
   object-fit: contain;
 }
 
-@media print {
-  @page {
-    size: auto;
-    margin: 0;
-  }
+@page report-a4-portrait { size: 210mm 297mm; margin: 0; }
+@page report-a4-landscape { size: 297mm 210mm; margin: 0; }
+@page report-a3-portrait { size: 297mm 420mm; margin: 0; }
+@page report-a3-landscape { size: 420mm 297mm; margin: 0; }
+@page report-a5-portrait { size: 148mm 210mm; margin: 0; }
+@page report-a5-landscape { size: 210mm 148mm; margin: 0; }
+@page report-letter-portrait { size: 216mm 279mm; margin: 0; }
+@page report-letter-landscape { size: 279mm 216mm; margin: 0; }
 
+@media print {
   body.report-printing * {
     visibility: hidden !important;
   }
@@ -113,6 +132,8 @@
     padding: 0 !important;
     overflow: visible !important;
     background: #fff !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
   body.report-printing .print-report-actions {
@@ -121,9 +142,27 @@
 
   body.report-printing .print-report-page {
     width: var(--report-paper-width) !important;
-    min-height: var(--report-paper-height) !important;
+    height: var(--report-paper-height) !important;
+    min-height: 0 !important;
     margin: 0 !important;
     box-shadow: none !important;
+    transform: none !important;
+    zoom: 1 !important;
     break-after: page;
+    page-break-after: always;
   }
+
+  body.report-printing .print-report-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  body.report-printing .print-report-page--a4-portrait { page: report-a4-portrait; }
+  body.report-printing .print-report-page--a4-landscape { page: report-a4-landscape; }
+  body.report-printing .print-report-page--a3-portrait { page: report-a3-portrait; }
+  body.report-printing .print-report-page--a3-landscape { page: report-a3-landscape; }
+  body.report-printing .print-report-page--a5-portrait { page: report-a5-portrait; }
+  body.report-printing .print-report-page--a5-landscape { page: report-a5-landscape; }
+  body.report-printing .print-report-page--letter-portrait { page: report-letter-portrait; }
+  body.report-printing .print-report-page--letter-landscape { page: report-letter-landscape; }
 }

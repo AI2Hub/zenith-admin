@@ -97,6 +97,60 @@
   text-shadow: 0 0 12px rgba(90, 160, 255, 0.5);
 }
 
+.report-mobile-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 0 12px;
+  color: var(--semi-color-text-0);
+}
+
+.report-mobile-header--dark {
+  color: var(--semi-color-text-0);
+}
+
+.report-mobile-header__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 32px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-mobile-header__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.report-mobile-landscape-hint {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+  color: var(--semi-color-text-2);
+  background: var(--semi-color-fill-0);
+  font-size: 12px;
+  text-align: center;
+}
+
+.report-screen--dark .report-mobile-reading__item {
+  border-color: rgba(70, 150, 255, 0.28);
+  background: rgba(10, 24, 56, 0.55);
+}
+
+.report-screen--dark .report-mobile-landscape-hint {
+  border-color: rgba(70, 150, 255, 0.28);
+  color: #9fc1ea;
+  background: rgba(10, 24, 56, 0.55);
+}
+
 /* 全屏容器（大屏视图根） */
 .report-screen-root {
   display: flex;
@@ -279,19 +333,20 @@
 .report-screen--dark .report-carousel-ctrl__arrow:hover { background: rgba(86, 142, 226, 0.25); color: #fff; }
 .report-carousel-ctrl__dots { display: flex; align-items: center; gap: 7px; }
 .report-carousel-ctrl__dot {
-  width: 8px;
+  width: 18px;
   height: 8px;
   padding: 0;
   border: none;
   border-radius: 50%;
   cursor: pointer;
   background: var(--semi-color-fill-2);
-  transition: width 0.2s, background 0.2s;
+  transform: scaleX(0.45);
+  transition: transform 0.2s, background 0.2s;
 }
 .report-carousel-ctrl__dot.is-active {
-  width: 18px;
   border-radius: var(--semi-border-radius-small);
   background: var(--semi-color-primary);
+  transform: scaleX(1);
 }
 .report-screen--dark .report-carousel-ctrl__dot { background: rgba(159, 193, 234, 0.35); }
 .report-screen--dark .report-carousel-ctrl__dot.is-active { background: #4ea1ff; }
@@ -301,3 +356,22 @@
   color: var(--semi-color-text-1);
 }
 .report-screen--dark .report-carousel-ctrl__label { color: #c8ddff; }
+
+@media (max-width: 767px) {
+  .report-screen-root {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
+  .report-screen--mobile {
+    overflow-x: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report-flipper__strip,
+  .report-carousel-ctrl__dot {
+    transition: none;
+  }
+}

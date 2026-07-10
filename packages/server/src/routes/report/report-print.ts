@@ -31,6 +31,8 @@ const listRoute = defineOpenAPIRoute({
     request: {
       query: PaginationQuery.extend({
         keyword: z.string().optional(),
+        folderId: z.coerce.number().int().positive().optional(),
+        ownerId: z.coerce.number().int().positive().optional(),
         status: z.enum(['enabled', 'disabled']).optional(),
       }),
     },

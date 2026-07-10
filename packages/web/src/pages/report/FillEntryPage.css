@@ -1,0 +1,48 @@
+.fill-entry-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fill-entry-loading {
+  display: flex;
+  min-height: 360px;
+  align-items: center;
+  justify-content: center;
+}
+
+.fill-entry-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.fill-entry-header h3 {
+  margin: 8px 0 4px;
+}
+
+.fill-entry-form {
+  padding: 24px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+  background: var(--semi-color-bg-0);
+}
+
+@media (max-width: 720px) {
+  .fill-entry-header {
+    flex-direction: column;
+  }
+
+  .fill-entry-header > .semi-space {
+    width: 100%;
+  }
+
+  .fill-entry-header > .semi-space .semi-button {
+    flex: 1;
+  }
+
+  .fill-entry-form {
+    padding: 16px 12px;
+  }
+}

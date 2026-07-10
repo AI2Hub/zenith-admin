@@ -13,7 +13,7 @@ import { createImmediateMockTask } from '@/mocks/handlers/async-tasks';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 import type {
   ReportDatasource, ReportDataset, ReportDashboard, ReportDashboardCategory, ReportAlertRule,
-  ReportPrintTemplate, ReportDashboardSubscription, ReportDeliveryRun,
+  ReportPrintRenderResult, ReportPrintResolvedSubreport, ReportPrintTemplate, ReportDashboardSubscription, ReportDeliveryRun,
 } from '@zenith/shared';
 
 const ok = (data: unknown, message = 'ok') => HttpResponse.json({ code: 0, message, data });
@@ -39,6 +39,48 @@ function paginate<T>(list: T[], request: Request) {
   const pageSize = Number(url.searchParams.get('pageSize')) || 10;
   const total = list.length;
   return { list: list.slice((page - 1) * pageSize, page * pageSize), total, page, pageSize };
+}
+
+function renderMockPrintTemplate(
+  template: ReportPrintTemplate,
+  params: Record<string, unknown>,
+  limit: number,
+  path: number[] = [],
+  overrideRows?: Record<string, unknown>[],
+): ReportPrintRenderResult {
+  if (path.includes(template.id) || path.length >= 3) throw new Error('子报表存在循环引用或超过 3 层');
+  const rows = overrideRows ?? getMockDatasetData(template.datasetId).rows.slice(0, limit);
+  const bindings = template.content.datasetBindings ?? [];
+  const datasets = Object.fromEntries(bindings.map((binding) => [
+    binding.key.toLowerCase(),
+    getMockDatasetData(binding.datasetId).rows.slice(0, Math.min(limit, binding.rowLimit ?? limit)),
+  ]));
+  const resolvedSubreports: ReportPrintResolvedSubreport[] = [];
+  for (const sheet of template.content.sheets ?? [{ id: 'sheet-01', grid: template.content.grid ?? { rows: 1, cols: 1, cells: [] } }]) {
+    for (const cell of sheet.grid.cells) {
+      if (!cell.subreport) continue;
+      const child = mockReportPrintTemplates.find((item) => item.id === cell.subreport?.templateId);
+      if (!child) throw new Error(`子报表模板 #${cell.subreport.templateId} 不存在`);
+      const childParams = Object.fromEntries(Object.entries(cell.subreport.paramBindings ?? {}).map(([target, source]) => [target, params[source]]));
+      const childRows = cell.subreport.datasetKey
+        ? (cell.subreport.datasetKey.toLowerCase() === 'main' ? rows : datasets[cell.subreport.datasetKey.toLowerCase()])
+        : undefined;
+      if (cell.subreport.datasetKey && !childRows) throw new Error(`子报表数据集绑定 ${cell.subreport.datasetKey} 不存在`);
+      resolvedSubreports.push({
+        sheetId: sheet.id,
+        row: cell.row,
+        col: cell.col,
+        templateId: child.id,
+        result: renderMockPrintTemplate(child, childParams, limit, [...path, template.id], childRows),
+      });
+    }
+  }
+  return renderPrintContent(template.name, template.content, rows, params, template.pageConfig, {
+    datasets,
+    bindings,
+    subreports: resolvedSubreports,
+    renderedAt: mockDateTime(),
+  });
 }
 
 let nextDeliveryRunId = 8000;
@@ -530,11 +572,19 @@ export const reportHandlers = [
   }),
 
   // ─── 打印报表 ─────────────────────────────────────────────
-  http.post('/api/report/print/:id/render', ({ params }) => {
+  http.post('/api/report/print/:id/render', async ({ params, request }) => {
     const t = mockReportPrintTemplates.find((x) => x.id === Number(params.id));
     if (!t) return notFound('打印模板不存在');
-    const rows = getMockDatasetData(t.datasetId).rows;
-    return ok(renderPrintContent(t.name, t.content, rows, {}, t.pageConfig));
+    const body = await request.json() as { params?: Record<string, unknown>; limit?: number };
+    try {
+      return ok(renderMockPrintTemplate(t, body.params ?? {}, Math.min(Math.max(body.limit ?? 300, 1), 5000)));
+    } catch (error) {
+      return HttpResponse.json({
+        code: 400,
+        message: error instanceof Error ? error.message : '打印预览生成失败',
+        data: null,
+      }, { status: 400 });
+    }
   }),
   http.get('/api/report/print', ({ request }) => {
     const url = new URL(request.url);

@@ -146,6 +146,7 @@ function mapDeliveryRun(row: DeliveryRunQueryRow, attempts?: ReportDeliveryAttem
     targetType: row.targetType,
     subscriptionId: row.subscriptionId ?? null,
     alertRuleId: row.alertRuleId ?? null,
+    slaRuleId: row.slaRuleId ?? null,
     dashboardId: row.dashboardId ?? null,
     datasetId: row.datasetId ?? null,
     targetName: row.targetName ?? null,
@@ -190,9 +191,10 @@ async function listAttemptsForRunIds(runIds: number[]): Promise<Map<number, Repo
 export async function listDeliveryRuns(query: {
   page?: number;
   pageSize?: number;
-  targetType?: 'subscription' | 'alert';
+  targetType?: 'subscription' | 'alert' | 'sla';
   subscriptionId?: number;
   alertRuleId?: number;
+  slaRuleId?: number;
   status?: ReportDeliveryStatus;
   triggerType?: ReportDeliveryTriggerType;
   startAt?: Date;
@@ -206,6 +208,7 @@ export async function listDeliveryRuns(query: {
   if (query.targetType) conds.push(eq(reportDeliveryRuns.targetType, query.targetType));
   if (query.subscriptionId) conds.push(eq(reportDeliveryRuns.subscriptionId, query.subscriptionId));
   if (query.alertRuleId) conds.push(eq(reportDeliveryRuns.alertRuleId, query.alertRuleId));
+  if (query.slaRuleId) conds.push(eq(reportDeliveryRuns.slaRuleId, query.slaRuleId));
   if (query.status) conds.push(eq(reportDeliveryRuns.status, query.status));
   if (query.triggerType) conds.push(eq(reportDeliveryRuns.triggerType, query.triggerType));
   if (query.startAt) conds.push(gte(reportDeliveryRuns.createdAt, query.startAt));
@@ -344,11 +347,12 @@ async function pendingEmailRecipients(
 
 export async function ensureDeliveryRun(input: {
   tenantId: number | null;
-  targetType: 'subscription' | 'alert';
+  targetType: 'subscription' | 'alert' | 'sla';
   triggerType: ReportDeliveryTriggerType;
   idempotencyKey: string;
   subscriptionId?: number | null;
   alertRuleId?: number | null;
+  slaRuleId?: number | null;
   dashboardId?: number | null;
   datasetId?: number | null;
   targetName?: string | null;
@@ -363,6 +367,7 @@ export async function ensureDeliveryRun(input: {
     idempotencyKey: input.idempotencyKey.slice(0, 128),
     subscriptionId: input.subscriptionId ?? null,
     alertRuleId: input.alertRuleId ?? null,
+    slaRuleId: input.slaRuleId ?? null,
     dashboardId: input.dashboardId ?? null,
     datasetId: input.datasetId ?? null,
     targetName: input.targetName ?? null,
@@ -480,7 +485,7 @@ export async function markDeliveryRunRetryable(input: {
   return row;
 }
 
-export async function listDueRetryRunIds(targetType: 'subscription' | 'alert'): Promise<number[]> {
+export async function listDueRetryRunIds(targetType: 'subscription' | 'alert' | 'sla'): Promise<number[]> {
   const rows = await db.select({ id: reportDeliveryRuns.id })
     .from(reportDeliveryRuns)
     .where(and(

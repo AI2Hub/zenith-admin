@@ -62,6 +62,20 @@ export async function registerSystemTasks(): Promise<void> {
     },
   });
 
+  const { reconcileReportFillWorkflows } = await import('../services/report/report-fill-reconciliation.service');
+  await registerSystemRecurringJob({
+    name: 'report-fill-workflow-reconcile',
+    title: '填报审批与消费对账',
+    module: '报表填报',
+    cronExpression: '*/5 * * * *',
+    description: '有界对账填报工作流终态、缺失实例链接及已批准记录的消费同步任务。',
+    allowManualRun: true,
+    run: async () => {
+      const result = await reconcileReportFillWorkflows(100);
+      return `填报对账完成：终态 ${result.bridged}，恢复实例 ${result.resumed}，提交同步 ${result.syncSubmitted}`;
+    },
+  });
+
   const { retryAppWebhookDeliveries } = await import('../services/open-platform/app-webhooks.service');
   await registerSystemRecurringJob({
     name: 'app-webhook-delivery-retry',
@@ -180,5 +194,61 @@ export async function registerSystemTasks(): Promise<void> {
     description: '每天将到期未使用的优惠券置为已过期；按 member_point_expire_days 清零长期不活跃账户的积分（expire 流水可审计）；按 member_login_log_retention_days 清理超期会员登录日志。',
     allowManualRun: true,
     run: runMemberHousekeeping,
+  });
+
+  const { dispatchDueReportDqRules } = await import('../services/report/report-dq.service');
+  await registerSystemRecurringJob({
+    name: 'report-dq-rule-scan',
+    title: '报表数据质量规则扫描',
+    module: '报表中心',
+    cronExpression: '* * * * *',
+    description: '每分钟扫描到期的数据质量规则并提交到任务中心。',
+    allowManualRun: true,
+    run: async () => {
+      const result = await dispatchDueReportDqRules();
+      return `数据质量扫描：检查 ${result.checked} 条，提交 ${result.submitted} 条`;
+    },
+  });
+
+  const { dispatchDueReportSlaRules } = await import('../services/report/report-sla.service');
+  await registerSystemRecurringJob({
+    name: 'report-sla-rule-scan',
+    title: '报表 SLA 规则扫描',
+    module: '报表中心',
+    cronExpression: '* * * * *',
+    description: '每分钟扫描到期的 SLA 规则并提交到任务中心。',
+    allowManualRun: true,
+    run: async () => {
+      const result = await dispatchDueReportSlaRules();
+      return `SLA 扫描：检查 ${result.checked} 条，提交 ${result.submitted} 条`;
+    },
+  });
+
+  const { cleanupStaleMaterializationSnapshots } = await import('../services/report/report-materialization.service');
+  await registerSystemRecurringJob({
+    name: 'report-materialization-snapshot-cleanup',
+    title: '报表物化快照清理',
+    module: '报表中心',
+    cronExpression: '20 4 * * *',
+    description: '每天清理已过期或超过保留期的持久化物化快照及托管文件。',
+    allowManualRun: true,
+    run: async () => {
+      const count = await cleanupStaleMaterializationSnapshots();
+      return `清理了 ${count} 个物化快照`;
+    },
+  });
+
+  const { scanReportDeprecationSunsets } = await import('../services/report/report-asset.service');
+  await registerSystemRecurringJob({
+    name: 'report-asset-deprecation-scan',
+    title: '报表资产弃用扫描',
+    module: '报表中心',
+    cronExpression: '5 * * * *',
+    description: '每小时扫描已到生效时间的弃用公告；仅推进公告状态，不删除仍可能被血缘引用的资产。',
+    allowManualRun: true,
+    run: async () => {
+      const count = await scanReportDeprecationSunsets();
+      return `处理了 ${count} 条资产弃用公告`;
+    },
   });
 }

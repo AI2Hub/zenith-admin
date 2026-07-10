@@ -65,6 +65,7 @@ const ReportWidgetDTO = z.object({
   type: z.enum(REPORT_WIDGET_TYPES),
   title: z.string(),
   datasetId: z.number().int().nullable().optional(),
+  metricId: z.number().int().nullable().optional(),
   options: z.record(z.string(), z.unknown()),
   paramBindings: z.array(z.object({ filterId: z.string(), param: z.string() })).optional(),
   interaction: z.record(z.string(), z.unknown()).optional(),
@@ -85,7 +86,12 @@ const ReportFilterDTO = z.object({
 export const ReportDatasourceDTO = z
   .object({
     id: z.number().int(),
+    tenantId: z.number().int().nullable().optional(),
     name: z.string(),
+    ownerId: z.number().int().nullable().optional(),
+    ownerName: z.string().nullable().optional(),
+    folderId: z.number().int().nullable().optional(),
+    folderName: z.string().nullable().optional(),
     type: z.enum(REPORT_DATASOURCE_TYPES),
     config: z.record(z.string(), z.unknown()),
     status: z.enum(['enabled', 'disabled']),
@@ -105,6 +111,10 @@ export const ReportDatasetDTO = z
   .object({
     id: z.number().int(),
     name: z.string(),
+    ownerId: z.number().int().nullable().optional(),
+    ownerName: z.string().nullable().optional(),
+    folderId: z.number().int().nullable().optional(),
+    folderName: z.string().nullable().optional(),
     datasourceId: z.number().int(),
     datasourceName: z.string().nullable().optional(),
     type: z.enum(REPORT_DATASOURCE_TYPES),
@@ -116,6 +126,9 @@ export const ReportDatasetDTO = z
     materialize: z.object({
       enabled: z.boolean(),
       cron: z.string().optional(),
+      strategy: z.enum(['full', 'incremental']).optional(),
+      keyField: z.string().nullable().optional(),
+      deltaWindowMinutes: z.number().int().nullable().optional(),
       refreshedAt: z.string().nullable().optional(),
       refreshedAtMs: z.number().nullable().optional(),
     }).optional(),
@@ -143,13 +156,14 @@ export const ReportDatasetRefsDTO = z
       filterIds: z.array(z.string()),
     })),
     printTemplates: z.array(z.object({ id: z.number().int(), name: z.string() })),
+    metrics: z.array(z.object({ id: z.number().int(), code: z.string(), name: z.string() })),
     alerts: z.array(z.object({ id: z.number().int(), name: z.string() })),
     subscriptions: z.array(z.object({ id: z.number().int(), dashboardId: z.number().int(), name: z.string() })).optional(),
     shares: z.array(z.object({ id: z.number().int(), dashboardId: z.number().int(), name: z.string() })).optional(),
     embedTokens: z.array(z.object({ id: z.number().int(), dashboardId: z.number().int(), name: z.string() })).optional(),
     nodes: z.array(z.object({
       id: z.string(),
-      type: z.enum(['datasource', 'dataset', 'dashboard', 'widget', 'filter', 'print', 'alert', 'subscription', 'share', 'embed']),
+      type: z.enum(['datasource', 'dataset', 'metric', 'dashboard', 'widget', 'filter', 'print', 'alert', 'subscription', 'share', 'embed']),
       refId: z.number().int().nullable().optional(),
       parentId: z.string().nullable().optional(),
       label: z.string(),
@@ -173,6 +187,10 @@ export const ReportDashboardDTO = z
   .object({
     id: z.number().int(),
     name: z.string(),
+    ownerId: z.number().int().nullable().optional(),
+    ownerName: z.string().nullable().optional(),
+    folderId: z.number().int().nullable().optional(),
+    folderName: z.string().nullable().optional(),
     layout: z.array(ReportGridItemDTO),
     canvasLayout: z.array(ReportCanvasItemDTO),
     widgets: z.array(ReportWidgetDTO),
@@ -205,6 +223,9 @@ export const ReportDataResultDTO = z
     bytes: z.number().int().nullable().optional(),
     truncated: z.boolean().optional(),
     truncatedReason: z.string().nullable().optional(),
+    quotaRemaining: z.number().nullable().optional(),
+    costUnits: z.number().nullable().optional(),
+    queueDurationMs: z.number().int().nullable().optional(),
   })
   .openapi('ReportDataResult');
 
@@ -277,6 +298,12 @@ export const ReportRuntimeGovernanceDTO = z.object({
   dashboardMaxConcurrent: z.number().int(),
   datasetMaxRows: z.number().int(),
   datasetMaxBytes: z.number().int(),
+  tenantMaxConcurrent: z.number().int().optional(),
+  userMaxConcurrent: z.number().int().optional(),
+  tenantDailyQueryLimit: z.number().int().optional(),
+  userDailyQueryLimit: z.number().int().optional(),
+  tenantDailyCostLimit: z.number().optional(),
+  userDailyCostLimit: z.number().optional(),
 }).openapi('ReportRuntimeGovernance');
 
 export const ReportExecutionStatsSlowItemDTO = z.object({
@@ -301,6 +328,21 @@ export const ReportExecutionStatsDTO = z.object({
   slowCount: z.number().int(),
   truncatedCount: z.number().int(),
   governance: ReportRuntimeGovernanceDTO,
+  capacity: z.object({
+    globalLimit: z.number().int(),
+    running: z.number().int(),
+    queueDepth: z.number().int(),
+    datasourceQueues: z.number().int(),
+  }),
+  series: z.array(z.object({
+    bucket: z.string(),
+    queries: z.number().int(),
+    rows: z.number().int(),
+    bytes: z.number().int(),
+    costUnits: z.number(),
+    avgDurationMs: z.number().int(),
+    queueMs: z.number().int(),
+  })),
   topSlowQueries: z.array(ReportExecutionStatsSlowItemDTO),
 }).openapi('ReportExecutionStats');
 
@@ -418,9 +460,10 @@ export const ReportDeliveryAttemptDTO = z
 export const ReportDeliveryRunDTO = z
   .object({
     id: z.number().int(),
-    targetType: z.enum(['subscription', 'alert']),
+    targetType: z.enum(['subscription', 'alert', 'sla']),
     subscriptionId: z.number().int().nullable().optional(),
     alertRuleId: z.number().int().nullable().optional(),
+    slaRuleId: z.number().int().nullable().optional(),
     dashboardId: z.number().int().nullable().optional(),
     datasetId: z.number().int().nullable().optional(),
     targetName: z.string().nullable().optional(),
@@ -482,7 +525,7 @@ const ReportPrintGridDTO = z.object({
     row: z.number().int(),
     col: z.number().int(),
     v: z.union([z.string(), z.number(), z.boolean(), z.null()]).optional(),
-    kind: z.enum(['text', 'formula', 'image', 'qrcode', 'barcode']).optional(),
+    kind: z.enum(['text', 'formula', 'image', 'qrcode', 'barcode', 'subreport']).optional(),
     formula: z.string().optional(),
     numFmt: z.string().optional(),
     image: z.object({
@@ -491,6 +534,12 @@ const ReportPrintGridDTO = z.object({
       height: z.number().optional(),
       fit: z.enum(['contain', 'cover']).optional(),
       alt: z.string().optional(),
+    }).optional(),
+    datasetKey: z.string().optional(),
+    subreport: z.object({
+      templateId: z.number().int(),
+      datasetKey: z.string().optional(),
+      paramBindings: z.record(z.string(), z.string()).optional(),
     }).optional(),
     s: z.record(z.string(), z.unknown()).optional(),
   })),
@@ -513,7 +562,26 @@ const ReportPrintPageConfigDTO = z.object({
   repeatHeaderRows: ReportPrintRowRangeDTO.nullable().optional(),
   rowsPerPage: z.number().int().optional(),
   calculateRowsPerPage: z.boolean().optional(),
-  detailDirection: z.enum(['vertical', 'horizontal']).optional(),
+  detailDirection: z.enum(['vertical', 'horizontal', 'crosstab']).optional(),
+  crosstab: z.object({
+    rowFields: z.array(z.string()),
+    columnFields: z.array(z.string()),
+    valueFields: z.array(z.object({
+      field: z.string(),
+      aggregate: z.enum(['sum', 'avg', 'max', 'min', 'count']),
+      label: z.string().optional(),
+    })).optional(),
+    valueField: z.string().optional(),
+    aggregate: z.enum(['sum', 'avg', 'max', 'min', 'count']).optional(),
+    showRowTotals: z.boolean().optional(),
+    showColumnTotals: z.boolean().optional(),
+    emptyValue: z.union([z.string(), z.number(), z.null()]).optional(),
+    nullLabel: z.string().optional(),
+    headerRow: z.number().int().optional(),
+    dataRow: z.number().int().optional(),
+    totalRow: z.number().int().optional(),
+    startColumn: z.number().int().optional(),
+  }).optional(),
   groupByFields: z.array(z.string()).optional(),
   groupHeaderRows: ReportPrintRowRangeDTO.nullable().optional(),
   groupFooterRows: ReportPrintRowRangeDTO.nullable().optional(),
@@ -524,8 +592,14 @@ const ReportPrintPageConfigDTO = z.object({
 const ReportPrintSheetDTO: z.ZodTypeAny = z.object({
   id: z.string(),
   name: z.string(),
+  datasetKey: z.string().optional(),
   grid: ReportPrintGridDTO,
   pageConfig: ReportPrintPageConfigDTO.optional(),
+  repeatBlocks: z.array(z.object({
+    id: z.string(),
+    datasetKey: z.string(),
+    range: ReportPrintRowRangeDTO,
+  })).optional(),
 }).openapi('ReportPrintSheet');
 
 const ReportPrintRenderPageDTO: z.ZodTypeAny = z.object({
@@ -552,9 +626,27 @@ export const ReportPrintTemplateDTO = z
   .object({
     id: z.number().int(),
     name: z.string(),
+    ownerId: z.number().int().nullable().optional(),
+    ownerName: z.string().nullable().optional(),
+    folderId: z.number().int().nullable().optional(),
+    folderName: z.string().nullable().optional(),
     datasetId: z.number().int().nullable().optional(),
     datasetName: z.string().nullable().optional(),
-    content: z.object({ workbook: z.unknown().optional(), grid: ReportPrintGridDTO.optional(), sheets: z.array(ReportPrintSheetDTO).optional() }),
+    content: z.object({
+      workbook: z.unknown().optional(),
+      grid: ReportPrintGridDTO.optional(),
+      sheets: z.array(ReportPrintSheetDTO).optional(),
+      datasetBindings: z.array(z.object({
+        key: z.string(),
+        datasetId: z.number().int(),
+        params: z.record(z.string(), z.unknown()).optional(),
+        paramBindings: z.record(z.string(), z.string()).optional(),
+        rowLimit: z.number().int().optional(),
+        parentKey: z.string().nullable().optional(),
+        parentField: z.string().nullable().optional(),
+        childField: z.string().nullable().optional(),
+      })).optional(),
+    }),
     params: z.array(ReportDatasetParamDTO),
     pageConfig: ReportPrintPageConfigDTO,
     status: z.enum(['enabled', 'disabled']),
@@ -586,8 +678,10 @@ export const ReportAlertRuleDTO = z
   .object({
     id: z.number().int(),
     name: z.string(),
-    datasetId: z.number().int(),
+    datasetId: z.number().int().nullable(),
     datasetName: z.string().nullable().optional(),
+    metricId: z.number().int().nullable().optional(),
+    metricName: z.string().nullable().optional(),
     field: z.string().nullable().optional(),
     groupByField: z.string().nullable().optional(),
     aggregate: z.enum(['sum', 'avg', 'max', 'min', 'count', 'first']),

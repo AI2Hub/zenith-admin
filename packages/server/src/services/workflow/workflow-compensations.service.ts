@@ -8,6 +8,7 @@ import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { enqueueJob } from '../../lib/workflow-jobs/engine';
+import { bridgeReportFillWorkflowOutcome } from '../report/report-fill-workflow-bridge.service';
 
 type Row = typeof workflowCompensations.$inferSelect;
 const map = (r: Row) => ({
@@ -101,6 +102,12 @@ export async function resolveCompensation(id: number, action: 'resolve' | 'termi
       await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date() }).where(and(eq(workflowTasks.instanceId, row.instanceId), eq(workflowTasks.status, 'pending')));
       await tx.update(workflowTokens).set({ status: 'consumed', consumedAt: new Date() }).where(and(eq(workflowTokens.instanceId, row.instanceId), eq(workflowTokens.status, 'active')));
       await tx.update(workflowInstances).set({ status: 'rejected', currentNodeKey: null }).where(eq(workflowInstances.id, row.instanceId));
+      await bridgeReportFillWorkflowOutcome(tx, {
+        workflowInstanceId: row.instanceId,
+        outcome: 'rejected',
+        actorId: currentUser().userId,
+        comment: resolution,
+      });
     }
     const [updated] = await tx.update(workflowCompensations)
       .set({ status: action === 'terminate' ? 'terminated' : 'resolved', resolution: resolution ?? null, resolvedBy: currentUser()?.userId ?? null, resolvedAt: new Date() })

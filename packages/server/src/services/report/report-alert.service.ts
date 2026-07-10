@@ -9,6 +9,7 @@ import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUserOrNull } from '../../lib/context';
 import { assertDatasetEvaluableGlobally, ensureDatasetExists, getDatasetData } from './report-dataset.service';
+import { ensureReportMetricExists, evaluateReportMetric } from './report-metric.service';
 import {
   buildRunIdempotencyKey,
   claimRetryDeliveryRun,
@@ -44,6 +45,7 @@ import type {
 
 type AlertRowExt = ReportAlertRuleRow & {
   dataset?: { name: string } | null;
+  metric?: { name: string } | null;
   latestDelivery?: Pick<ReportAlertRule, 'lastDeliveryAt' | 'lastDeliveryStatus' | 'lastDeliveryError'> | null;
 };
 
@@ -78,11 +80,19 @@ function isNumericField(field: { type?: string; format?: { kind?: string } } | u
 }
 
 async function validateAlertDefinition(
-  datasetId: number,
+  datasetId: number | null | undefined,
+  metricId: number | null | undefined,
   field: string | null | undefined,
   groupByField: string | null | undefined,
   aggregate: ReportAlertAggregate,
 ): Promise<void> {
+  if (metricId) {
+    if (datasetId) throw new HTTPException(400, { message: '数据集与指标不能同时选择' });
+    if (groupByField) throw new HTTPException(400, { message: '指标预警不支持分组' });
+    await ensureReportMetricExists(metricId);
+    return;
+  }
+  if (!datasetId) throw new HTTPException(400, { message: '数据集或指标必须选择一个' });
   await assertDatasetEvaluableGlobally(datasetId);
   const dataset = await ensureDatasetExists(datasetId);
   const fieldMap = datasetFieldSet(
@@ -106,6 +116,8 @@ export function mapAlert(row: AlertRowExt): ReportAlertRule {
     name: row.name,
     datasetId: row.datasetId,
     datasetName: row.dataset?.name ?? null,
+    metricId: row.metricId ?? null,
+    metricName: row.metric?.name ?? null,
     field: row.field ?? null,
     groupByField: row.groupByField ?? null,
     aggregate: row.aggregate as ReportAlertAggregate,
@@ -146,15 +158,15 @@ export async function ensureAlertExists(id: number): Promise<ReportAlertRuleRow>
 export async function getAlert(id: number): Promise<ReportAlertRule> {
   const row = await db.query.reportAlertRules.findFirst({
     where: reportScopedWhere(reportAlertRules, eq(reportAlertRules.id, id)),
-    with: { dataset: { columns: { name: true } } },
+    with: { dataset: { columns: { name: true } }, metric: { columns: { name: true } } },
   });
   if (!row) throw new HTTPException(404, { message: '预警规则不存在' });
   const latestRunMap = await loadLatestAlertRuns([row.id]);
   return mapAlert({ ...row, latestDelivery: latestRunMap.get(row.id) ?? null });
 }
 
-export async function listAlerts(query: { page?: number; pageSize?: number; keyword?: string; datasetId?: number; enabled?: boolean }) {
-  const { page = 1, pageSize = 20, keyword, datasetId, enabled } = query;
+export async function listAlerts(query: { page?: number; pageSize?: number; keyword?: string; datasetId?: number; metricId?: number; enabled?: boolean }) {
+  const { page = 1, pageSize = 20, keyword, datasetId, metricId, enabled } = query;
   const conds = [];
   const tenantScope = reportTenantScope(reportAlertRules);
   if (tenantScope) conds.push(tenantScope);
@@ -163,13 +175,14 @@ export async function listAlerts(query: { page?: number; pageSize?: number; keyw
     conds.push(or(ilike(reportAlertRules.name, kw), ilike(reportAlertRules.remark, kw)));
   }
   if (datasetId) conds.push(eq(reportAlertRules.datasetId, datasetId));
+  if (metricId) conds.push(eq(reportAlertRules.metricId, metricId));
   if (enabled !== undefined) conds.push(eq(reportAlertRules.enabled, enabled));
   const where = conds.length ? and(...conds) : undefined;
   const [total, rows] = await Promise.all([
     db.$count(reportAlertRules, where),
     db.query.reportAlertRules.findMany({
       where,
-      with: { dataset: { columns: { name: true } } },
+      with: { dataset: { columns: { name: true } }, metric: { columns: { name: true } } },
       orderBy: desc(reportAlertRules.id),
       limit: pageSize,
       offset: pageOffset(page, pageSize),
@@ -180,7 +193,7 @@ export async function listAlerts(query: { page?: number; pageSize?: number; keyw
 }
 
 export async function createAlert(input: CreateReportAlertInput): Promise<ReportAlertRule> {
-  await validateAlertDefinition(input.datasetId, input.field, input.groupByField, input.aggregate ?? 'sum');
+  await validateAlertDefinition(input.datasetId, input.metricId, input.field, input.groupByField, input.aggregate ?? 'sum');
   ensureValidReportSchedule(input.cron, input.timezone ?? REPORT_DEFAULT_TIMEZONE);
   validateNotifyChannels(input.channels as ReportNotifyChannel[] | undefined ?? [], input.recipients, input.webhookUrl, currentUserOrNull()?.userId ?? null);
   const webhookUrl = prepareReportSecret(input.webhookUrl, null);
@@ -188,7 +201,8 @@ export async function createAlert(input: CreateReportAlertInput): Promise<Report
     const [row] = await db.insert(reportAlertRules).values({
       tenantId: reportCreateTenantId(),
       name: input.name,
-      datasetId: input.datasetId,
+      datasetId: input.datasetId ?? null,
+      metricId: input.metricId ?? null,
       field: input.field ?? null,
       groupByField: input.groupByField ?? null,
       aggregate: input.aggregate ?? 'sum',
@@ -215,14 +229,15 @@ export async function createAlert(input: CreateReportAlertInput): Promise<Report
 
 export async function updateAlert(id: number, input: UpdateReportAlertInput): Promise<ReportAlertRule> {
   const current = await ensureAlertExists(id);
-  const datasetId = input.datasetId ?? current.datasetId;
+  const datasetId = input.datasetId === undefined ? current.datasetId : input.datasetId;
+  const metricId = input.metricId === undefined ? current.metricId : input.metricId;
   const aggregate = (input.aggregate ?? current.aggregate) as ReportAlertAggregate;
   const field = input.field === undefined ? current.field : input.field;
   const groupByField = input.groupByField === undefined ? current.groupByField : input.groupByField;
   const cron = input.cron === undefined ? current.cron : input.cron;
   const timezone = input.timezone ?? current.timezone ?? REPORT_DEFAULT_TIMEZONE;
   const enabled = input.enabled ?? current.enabled;
-  await validateAlertDefinition(datasetId, field, groupByField, aggregate);
+  await validateAlertDefinition(datasetId, metricId, field, groupByField, aggregate);
   ensureValidReportSchedule(cron, timezone);
   validateNotifyChannels(
     (input.channels ?? current.channels ?? []) as ReportNotifyChannel[],
@@ -234,6 +249,7 @@ export async function updateAlert(id: number, input: UpdateReportAlertInput): Pr
   const [row] = await db.update(reportAlertRules).set({
     name: input.name,
     datasetId: input.datasetId,
+    metricId: input.metricId,
     field: input.field,
     groupByField: input.groupByField,
     aggregate: input.aggregate,
@@ -322,7 +338,20 @@ export function shouldNotifyTrigger(wasTriggered: boolean, silenceMins: number, 
   return now.getTime() - lastNotifiedAt.getTime() >= silenceMs;
 }
 
+export function evaluateMetricAlertValue(
+  value: number,
+  op: ReportAlertOp,
+  threshold: number,
+): { value: number; triggered: boolean; hits: ReportAlertEvalHit[] } {
+  return {
+    value,
+    triggered: compareReportValue(value, op, threshold),
+    hits: [],
+  };
+}
+
 function buildCondition(rule: ReportAlertRuleRow): string {
+  if (rule.metricId) return `指标值 ${OP_LABEL[rule.op as ReportAlertOp] ?? rule.op} ${rule.threshold ?? 0}`;
   const scope = rule.groupByField ? `按「${rule.groupByField}」分组，` : '';
   return `${scope}${rule.aggregate}(${rule.field ?? '行数'}) ${OP_LABEL[rule.op as ReportAlertOp] ?? rule.op} ${rule.threshold ?? 0}`;
 }
@@ -360,7 +389,16 @@ async function evaluateAlertState(row: ReportAlertRuleRow): Promise<{
   hits: ReportAlertEvalHit[];
   condition: string;
 }> {
-  await validateAlertDefinition(row.datasetId, row.field, row.groupByField, row.aggregate as ReportAlertAggregate);
+  await validateAlertDefinition(row.datasetId, row.metricId, row.field, row.groupByField, row.aggregate as ReportAlertAggregate);
+  if (row.metricId) {
+    const result = await evaluateReportMetric(row.metricId);
+    const op = row.op as ReportAlertOp;
+    return {
+      ...evaluateMetricAlertValue(result.value, op, row.threshold ?? 0),
+      condition: buildCondition(row),
+    };
+  }
+  if (!row.datasetId) throw new HTTPException(400, { message: '预警未配置数据来源' });
   const data = await getDatasetData(row.datasetId, undefined, 5000, { scene: 'alert', sourceRefId: row.id });
   const fieldNames = new Set((data.fields ?? []).map((field) => field.name));
   if (row.groupByField && !fieldNames.has(row.groupByField)) {

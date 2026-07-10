@@ -24,6 +24,7 @@ const listRoute = defineOpenAPIRoute({
       query: PaginationQuery.extend({
         keyword: z.string().optional(),
         datasetId: z.coerce.number().int().positive().optional(),
+        metricId: z.coerce.number().int().positive().optional(),
         enabled: z.coerce.boolean().optional(),
       }),
     },

@@ -26,12 +26,26 @@ import {
   isSensitiveReportHeader,
   REPORT_SECRET_MASK,
 } from './report-secrets';
+import { currentUserOrNull } from '../../lib/context';
+import {
+  ensureReportResourceAccess,
+  listAccessibleReportResourceIds,
+} from './report-resource-acl.service';
+import {
+  defaultReportOwnerId,
+  validateReportResourcePlacement,
+} from './report-resource.service';
 import { isExternalDbType, REPORT_DATASOURCE_TYPES } from '@zenith/shared';
 import type { ReportDatasourceRow } from '../../db/schema';
 import type {
   ReportDatasource, ReportDatasourceConfig, ReportDatasourceType, ReportExternalDbConfig, ReportApiDatasourceConfig,
   CreateReportDatasourceInput, UpdateReportDatasourceInput, ReportDatasourceTestInput, ReportLookupOption,
 } from '@zenith/shared';
+
+type DatasourceRowExt = ReportDatasourceRow & {
+  folder?: { name: string } | null;
+  owner?: { nickname: string | null; username: string } | null;
+};
 
 const DEFAULT_PORT: Record<string, number> = { mysql: 3306, postgresql: 5432, sqlserver: 1433 };
 /** 读取展示：敏感 header 值脱敏为掩码 */
@@ -70,7 +84,7 @@ export function resolveApiHeaders(headers: Record<string, string> | null | undef
 }
 
 /** DTO 映射：外部库去 password（hasPassword 标记）；API 敏感 header 脱敏 */
-export function mapDatasource(row: ReportDatasourceRow): ReportDatasource {
+export function mapDatasource(row: DatasourceRowExt): ReportDatasource {
   let config = (row.config ?? {}) as ReportDatasourceConfig;
   if (isExternalDbType(row.type)) {
     const c = config as ReportExternalDbConfig;
@@ -81,6 +95,10 @@ export function mapDatasource(row: ReportDatasourceRow): ReportDatasource {
   }
   return {
     id: row.id,
+    ownerId: row.ownerId ?? null,
+    ownerName: row.owner?.nickname || row.owner?.username || null,
+    folderId: row.folderId ?? null,
+    folderName: row.folder?.name ?? null,
     name: row.name,
     type: row.type,
     config,
@@ -193,6 +211,7 @@ export async function ensureDatasourceExists(id: number): Promise<ReportDatasour
     .where(reportScopedWhere(reportDatasources, eq(reportDatasources.id, id)))
     .limit(1);
   if (!row) throw new HTTPException(404, { message: '数据源不存在' });
+  if (currentUserOrNull()) await ensureReportResourceAccess('datasource', id, 'viewer');
   return row;
 }
 
@@ -203,16 +222,30 @@ export function ensureDatasourceEnabled(row: Pick<ReportDatasourceRow, 'status'>
 }
 
 export async function getDatasource(id: number): Promise<ReportDatasource> {
-  return mapDatasource(await ensureDatasourceExists(id));
+  await ensureDatasourceExists(id);
+  const row = await db.query.reportDatasources.findFirst({
+    where: reportScopedWhere(reportDatasources, eq(reportDatasources.id, id)),
+    with: {
+      folder: { columns: { name: true } },
+      owner: { columns: { nickname: true, username: true } },
+    },
+  });
+  if (!row) throw new HTTPException(404, { message: '数据源不存在' });
+  return mapDatasource(row);
 }
 
 export async function listDatasources(query: {
-  page?: number; pageSize?: number; keyword?: string; type?: string; status?: string;
+  page?: number; pageSize?: number; keyword?: string; folderId?: number; ownerId?: number; type?: string; status?: string;
 }) {
-  const { page = 1, pageSize = 20, keyword, type, status } = query;
+  const { page = 1, pageSize = 20, keyword, folderId, ownerId, type, status } = query;
   const conds = [];
   const tenantScope = reportTenantScope(reportDatasources);
   if (tenantScope) conds.push(tenantScope);
+  const accessibleIds = await listAccessibleReportResourceIds('datasource');
+  if (accessibleIds && accessibleIds.length === 0) return { list: [], total: 0, page, pageSize };
+  if (accessibleIds) conds.push(inArray(reportDatasources.id, accessibleIds));
+  if (folderId) conds.push(eq(reportDatasources.folderId, folderId));
+  if (ownerId) conds.push(eq(reportDatasources.ownerId, ownerId));
   if (keyword) {
     const kw = `%${escapeLike(keyword)}%`;
     conds.push(or(ilike(reportDatasources.name, kw), ilike(reportDatasources.remark, kw)));
@@ -225,8 +258,16 @@ export async function listDatasources(query: {
   const where = conds.length ? and(...conds) : undefined;
   const [total, rows] = await Promise.all([
     db.$count(reportDatasources, where),
-    db.select().from(reportDatasources).where(where)
-      .orderBy(desc(reportDatasources.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    db.query.reportDatasources.findMany({
+      where,
+      with: {
+        folder: { columns: { name: true } },
+        owner: { columns: { nickname: true, username: true } },
+      },
+      orderBy: desc(reportDatasources.id),
+      limit: pageSize,
+      offset: pageOffset(page, pageSize),
+    }),
   ]);
   return { list: rows.map(mapDatasource), total, page, pageSize };
 }
@@ -240,6 +281,9 @@ export async function listDatasourceLookup(query: {
   const conds = [];
   const tenantScope = reportTenantScope(reportDatasources);
   if (tenantScope) conds.push(tenantScope);
+  const accessibleIds = await listAccessibleReportResourceIds('datasource');
+  if (accessibleIds && accessibleIds.length === 0) return [];
+  if (accessibleIds) conds.push(inArray(reportDatasources.id, accessibleIds));
   if (keyword) {
     const kw = `%${escapeLike(keyword)}%`;
     conds.push(or(ilike(reportDatasources.name, kw), ilike(reportDatasources.remark, kw)));
@@ -259,9 +303,14 @@ export async function createDatasource(input: CreateReportDatasourceInput): Prom
   if (input.type === 'sql') ensureInternalReportDatabaseAccess();
   const config = normalizeDatasourceConfig(input.type, input.config);
   await assertDatasourceTargetSafe(input.type, config);
+  const tenantId = reportCreateTenantId();
+  const ownerId = input.ownerId ?? defaultReportOwnerId();
+  await validateReportResourcePlacement('datasource', { ownerId, folderId: input.folderId, tenantId });
   try {
     const [row] = await db.insert(reportDatasources).values({
-      tenantId: reportCreateTenantId(),
+      tenantId,
+      ownerId,
+      folderId: input.folderId ?? null,
       name: input.name,
       type: input.type,
       config,
@@ -276,7 +325,11 @@ export async function createDatasource(input: CreateReportDatasourceInput): Prom
 }
 
 export async function updateDatasource(id: number, input: UpdateReportDatasourceInput): Promise<ReportDatasource> {
+  await ensureReportResourceAccess('datasource', id, 'editor');
   const current = await ensureDatasourceExists(id);
+  if (input.ownerId !== undefined && input.ownerId !== current.ownerId) {
+    await ensureReportResourceAccess('datasource', id, 'owner');
+  }
   const nextType = (input.type ?? current.type) as ReportDatasourceType;
   if (nextType === 'sql') ensureInternalReportDatabaseAccess();
   if (input.type && input.type !== current.type) {
@@ -289,6 +342,11 @@ export async function updateDatasource(id: number, input: UpdateReportDatasource
     ? normalizeDatasourceConfig(nextType, (input.config ?? current.config) as Record<string, unknown>, currentConfig)
     : undefined;
   await assertDatasourceTargetSafe(nextType, config ?? currentConfig ?? {});
+  await validateReportResourcePlacement('datasource', {
+    ownerId: input.ownerId,
+    folderId: input.folderId,
+    tenantId: current.tenantId ?? null,
+  });
   try {
     if (isExternalDbType(current.type)) {
       await invalidateExternalDatasourcePools(current.type, current.config as ReportExternalDbConfig | null | undefined);
@@ -297,6 +355,8 @@ export async function updateDatasource(id: number, input: UpdateReportDatasource
       await invalidateExternalDatasourcePools(nextType, config as ReportExternalDbConfig);
     }
     const [row] = await db.update(reportDatasources).set({
+      ownerId: input.ownerId,
+      folderId: input.folderId,
       name: input.name,
       type: input.type,
       config,
@@ -312,6 +372,7 @@ export async function updateDatasource(id: number, input: UpdateReportDatasource
 }
 
 export async function deleteDatasource(id: number): Promise<void> {
+  await ensureReportResourceAccess('datasource', id, 'owner');
   await ensureDatasourceExists(id);
   const used = await db.$count(reportDatasets, eq(reportDatasets.datasourceId, id));
   if (used > 0) throw new HTTPException(400, { message: `该数据源被 ${used} 个数据集引用，无法删除` });
@@ -320,17 +381,29 @@ export async function deleteDatasource(id: number): Promise<void> {
 
 export async function batchSetDatasourceStatus(ids: number[], status: 'enabled' | 'disabled'): Promise<number> {
   if (ids.length === 0) return 0;
-  const result = await db.update(reportDatasources).set({ status }).where(reportScopedWhere(reportDatasources, inArray(reportDatasources.id, ids))).returning({ id: reportDatasources.id });
+  const accessible = await listAccessibleReportResourceIds('datasource', 'editor');
+  const allowedIds = accessible ? ids.filter((id) => accessible.includes(id)) : ids;
+  if (allowedIds.length === 0) return 0;
+  const result = await db.update(reportDatasources).set({ status }).where(reportScopedWhere(reportDatasources, inArray(reportDatasources.id, allowedIds))).returning({ id: reportDatasources.id });
   return result.length;
 }
 
 export async function cloneDatasource(id: number, input?: { name?: string | null }): Promise<ReportDatasource> {
+  await ensureReportResourceAccess('datasource', id, 'editor');
   const current = await ensureDatasourceExists(id);
+  const ownerId = defaultReportOwnerId();
+  await validateReportResourcePlacement('datasource', {
+    ownerId,
+    folderId: current.folderId,
+    tenantId: current.tenantId ?? reportCreateTenantId(),
+  });
   const rows = await db.select({ name: reportDatasources.name }).from(reportDatasources).where(reportTenantScope(reportDatasources));
   const name = input?.name?.trim() || buildCopyName(current.name, new Set(rows.map((row) => row.name)));
   try {
     const [row] = await db.insert(reportDatasources).values({
       tenantId: current.tenantId ?? reportCreateTenantId(),
+      ownerId,
+      folderId: current.folderId ?? null,
       name,
       type: current.type,
       config: (current.config ?? {}) as ReportDatasourceConfig,
@@ -359,6 +432,7 @@ export async function testDatasource(input: ReportDatasourceTestInput): Promise<
   let cfg: ReportExternalDbConfig;
   let datasourceId: number | null = null;
   if (input.id) {
+    await ensureReportResourceAccess('datasource', input.id, 'editor');
     const row = await ensureDatasourceExists(input.id);
     datasourceId = row.id;
     type ??= row.type;

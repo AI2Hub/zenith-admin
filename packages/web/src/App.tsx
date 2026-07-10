@@ -45,6 +45,7 @@ const SslCertificatesPage = React.lazy(() => import('@/pages/system/ssl-certific
 const DashboardDesignerPage = React.lazy(() => import('@/pages/report/designer/DashboardDesignerPage'));
 const PrintDesignerPage = React.lazy(() => import('@/pages/report/designer/PrintDesignerPage'));
 const DashboardViewPage = React.lazy(() => import('@/pages/report/DashboardViewPage'));
+const FillEntryPage = React.lazy(() => import('@/pages/report/FillEntryPage'));
 
 const routeFallback = <div style={{ padding: 24 }}><span className="page-loading__dot" style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--semi-color-primary)' }} /></div>;
 
@@ -239,6 +240,12 @@ function AdminRouteLoader({ user, permissions, logout, updateUser }: Readonly<Ad
         <Route path="report/dashboards/:id/design" element={<Suspense fallback={routeFallback}><DashboardDesignerPage /></Suspense>} />
         <Route path="report/print/:id/design" element={<Suspense fallback={routeFallback}><PrintDesignerPage /></Suspense>} />
         <Route path="report/dashboards/:id/view" element={<Suspense fallback={routeFallback}><DashboardViewPage /></Suspense>} />
+        <Route
+          path="report/fill/:code"
+          element={permissions.includes('*') || permissions.includes('report:fill:record:create') || permissions.includes('report:fill:record:update')
+            ? <Suspense fallback={routeFallback}><FillEntryPage /></Suspense>
+            : <Suspense fallback={routeFallback}><ForbiddenPage /></Suspense>}
+        />
         <Route path="system/ssl-certificates" element={<Suspense fallback={routeFallback}><SslCertificatesPage /></Suspense>} />
         <Route path="system/firewall" element={permissions.includes('*') || permissions.includes('system:firewall:view') ? <Suspense fallback={routeFallback}><FirewallPage /></Suspense> : <Suspense fallback={routeFallback}><ForbiddenPage /></Suspense>} />
         <Route path="system/nginx-sites" element={permissions.includes('*') || permissions.includes('system:nginx:view') ? <Suspense fallback={routeFallback}><NginxSitesPage /></Suspense> : <Suspense fallback={routeFallback}><ForbiddenPage /></Suspense>} />

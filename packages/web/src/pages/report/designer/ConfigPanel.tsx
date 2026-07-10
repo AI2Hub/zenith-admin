@@ -1,13 +1,14 @@
 import { Select, Input, InputNumber, Switch, Typography, Button, Space, TextArea } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
 import { BASIC_COMPARISON_OPERATOR_SYMBOLS, REPORT_AGGREGATE_OPTIONS } from '@zenith/shared';
-import type { ReportWidget, ReportWidgetOptions, ReportFilter, ReportDatasetParam, ReportConditionalFormat } from '@zenith/shared';
+import type { ReportWidget, ReportWidgetOptions, ReportFilter, ReportDatasetParam, ReportConditionalFormat, ReportMetricLookupOption } from '@zenith/shared';
 
 type FieldOption = { value: string; label: string };
 
 interface ConfigPanelProps {
   widget: ReportWidget;
   datasets: Array<{ id: number; name: string }>;
+  metrics: ReportMetricLookupOption[];
   dashboards: { id: number; name: string }[];
   fieldOptions: FieldOption[];
   filters: ReportFilter[];
@@ -16,6 +17,7 @@ interface ConfigPanelProps {
   pageCount?: number;
   onPatch: (patch: Partial<ReportWidget>) => void;
   onOptions: (patch: Partial<ReportWidgetOptions>) => void;
+  onPreview: () => void;
 }
 
 const AGG = REPORT_AGGREGATE_OPTIONS;
@@ -36,11 +38,13 @@ function Field({ label, children }: { readonly label: string; readonly children:
 
 const full = { width: '100%' } as const;
 
-export function ConfigPanel({ widget, datasets, dashboards, fieldOptions, filters, datasetParams, pageCount, onPatch, onOptions }: Readonly<ConfigPanelProps>) {
+export function ConfigPanel({ widget, datasets, metrics, dashboards, fieldOptions, filters, datasetParams, pageCount, onPatch, onOptions, onPreview }: Readonly<ConfigPanelProps>) {
   const o = widget.options ?? {};
   const t = widget.type;
   const isCartesian = t === 'bar' || t === 'line' || t === 'area';
   const isDatasetIndependent = t === 'text' || t === 'image' || t === 'iframe';
+  const supportsMetric = t === 'kpi' || t === 'gauge' || t === 'flipper' || t === 'liquid';
+  const effectiveFieldOptions = widget.metricId ? [{ value: 'value', label: '指标值' }] : fieldOptions;
   const filterOpts = filters.map((f) => ({ value: f.id, label: f.label || f.id }));
 
   function setBinding(param: string, filterId: string | undefined) {
@@ -93,17 +97,33 @@ export function ConfigPanel({ widget, datasets, dashboards, fieldOptions, filter
         <Field label="网页地址（支持 ${筛选器id} 占位）"><Input value={o.src ?? ''} onChange={(v) => onOptions({ src: v })} showClear /></Field>
       )}
       {!isDatasetIndependent && (
-        <Field label="数据集">
-          <Select style={full} value={widget.datasetId ?? undefined} placeholder="选择数据集" showClear filter
-            onChange={(v) => onPatch({ datasetId: (v as number) ?? null })}
-            optionList={datasets.map((d) => ({ value: d.id, label: d.name }))} />
-        </Field>
+        <>
+          <Field label={supportsMetric ? '数据集（与指标二选一）' : '数据集'}>
+            <Select style={full} value={widget.datasetId ?? undefined} placeholder="选择数据集" showClear filter
+              onChange={(v) => onPatch({ datasetId: (v as number) ?? null, ...(supportsMetric ? { metricId: null } : {}) })}
+              optionList={datasets.map((d) => ({ value: d.id, label: d.name }))} />
+          </Field>
+          {supportsMetric && (
+            <Field label="语义指标（与数据集二选一）">
+              <Space style={full}>
+                <Select style={{ flex: 1 }} value={widget.metricId ?? undefined} placeholder="选择已发布指标" showClear filter
+                  onChange={(v) => {
+                    const metricId = (v as number) ?? null;
+                    onPatch({ metricId, ...(metricId ? { datasetId: null, paramBindings: [] } : {}) });
+                    if (metricId) onOptions({ valueField: 'value', aggregate: 'sum' });
+                  }}
+                  optionList={metrics.filter((metric) => metric.status === 'published').map((metric) => ({ value: metric.id, label: `${metric.name}（${metric.code}）` }))} />
+                <Button disabled={!widget.metricId} onClick={onPreview}>预览</Button>
+              </Space>
+            </Field>
+          )}
+        </>
       )}
 
       {/* ── 字段映射（按类型）── */}
       {(t === 'kpi' || t === 'gauge' || t === 'flipper') && (
         <>
-          <Field label="取值字段"><Select style={full} value={o.valueField} placeholder="字段" showClear onChange={(v) => onOptions({ valueField: v as string })} optionList={fieldOptions} /></Field>
+          <Field label="取值字段"><Select style={full} value={o.valueField} placeholder="字段" showClear onChange={(v) => onOptions({ valueField: v as string })} optionList={effectiveFieldOptions} /></Field>
           <Field label="聚合方式"><Select style={full} value={o.aggregate ?? 'sum'} onChange={(v) => onOptions({ aggregate: v as ReportWidgetOptions['aggregate'] })} optionList={AGG} /></Field>
           <Field label="单位"><Input value={o.unit ?? ''} onChange={(v) => onOptions({ unit: v })} showClear /></Field>
         </>
@@ -129,7 +149,7 @@ export function ConfigPanel({ widget, datasets, dashboards, fieldOptions, filter
       )}
       {t === 'liquid' && (
         <>
-          <Field label="取值字段"><Select style={full} value={o.valueField} placeholder="字段" showClear onChange={(v) => onOptions({ valueField: v as string })} optionList={fieldOptions} /></Field>
+          <Field label="取值字段"><Select style={full} value={o.valueField} placeholder="字段" showClear onChange={(v) => onOptions({ valueField: v as string })} optionList={effectiveFieldOptions} /></Field>
           <Field label="聚合方式"><Select style={full} value={o.aggregate ?? 'sum'} onChange={(v) => onOptions({ aggregate: v as ReportWidgetOptions['aggregate'] })} optionList={AGG} /></Field>
           <Field label="最大值"><InputNumber style={full} min={0} value={o.max ?? 100} onChange={(v) => onOptions({ max: typeof v === 'number' ? v : 100 })} /></Field>
           <Field label="单位"><Input value={o.unit ?? ''} onChange={(v) => onOptions({ unit: v })} showClear /></Field>

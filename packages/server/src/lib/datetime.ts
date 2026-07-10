@@ -33,6 +33,10 @@ export function formatDateTime(date: DateInput): string {
   return toDayjsInAppTimezone(date).format(DATE_TIME_FORMAT);
 }
 
+export function currentDateTime(): string {
+  return dayjs().tz(APP_TIME_ZONE).format(DATE_TIME_FORMAT);
+}
+
 export function formatNullableDateTime(date: NullableDateInput): string | null {
   if (!date) return null;
   return formatDateTime(date);

@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button, Form, Input, Select, Switch, Toast, Modal, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -28,9 +29,11 @@ import type {
 import { REPORT_DATASOURCE_TYPE_OPTIONS } from '@zenith/shared';
 import { useDictItems } from '@/hooks/useDictItems';
 import { renderReportDatasourceTypeTag } from './report-datasource-ui';
+import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';
+import { useAllUsers } from '@/hooks/queries/users';
 
-interface SearchParams { keyword: string; type: string; status: string }
-const defaultSearchParams: SearchParams = { keyword: '', type: '', status: '' };
+interface SearchParams { keyword: string; type: string; status: string; ownerId?: number; folderId?: number }
+const defaultSearchParams: SearchParams = { keyword: '', type: '', status: '', ownerId: undefined, folderId: undefined };
 
 function isExternalDbType(type: unknown): type is 'mysql' | 'postgresql' | 'sqlserver' {
   return type === 'mysql' || type === 'postgresql' || type === 'sqlserver';
@@ -39,6 +42,7 @@ function isExternalDbType(type: unknown): type is 'mysql' | 'postgresql' | 'sqls
 export default function DataSourcesPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
+  const navigate = useNavigate();
   const formApi = useRef<FormApi | null>(null);
   const queryClient = useQueryClient();
 
@@ -56,7 +60,11 @@ export default function DataSourcesPage() {
     keyword: submittedParams.keyword || undefined,
     type: submittedParams.type || undefined,
     status: submittedParams.status || undefined,
+    ownerId: submittedParams.ownerId,
+    folderId: submittedParams.folderId,
   });
+  const users = useAllUsers().data ?? [];
+  const folders = flattenReportFolders(useReportFolderTree({ resourceType: 'datasource' }).data ?? []);
   const data = listQuery.data ?? null;
   const saveMutation = useSaveReportDatasource();
   const toggleMutation = useSaveReportDatasource();
@@ -89,6 +97,8 @@ export default function DataSourcesPage() {
         user: externalConfig.user ?? '',
         password: '',
         ssl: externalConfig.ssl ?? false,
+        ownerId: editing.ownerId ?? undefined,
+        folderId: editing.folderId ?? undefined,
         status: editing.status,
         remark: editing.remark ?? '',
       }
@@ -124,7 +134,15 @@ export default function DataSourcesPage() {
       };
     }
 
-    const payload = { name: values.name, type, config, status: values.status, remark: values.remark || undefined };
+    const payload = {
+      name: values.name,
+      ownerId: values.ownerId ? Number(values.ownerId) : null,
+      folderId: values.folderId ? Number(values.folderId) : null,
+      type,
+      config,
+      status: values.status,
+      remark: values.remark || undefined,
+    };
     await saveMutation.mutateAsync({ id: editing?.id, values: payload });
     Toast.success(editing ? '更新成功' : '创建成功');
     closeModal();
@@ -200,6 +218,8 @@ export default function DataSourcesPage() {
   const columns: ColumnProps<ReportDatasource>[] = [
     { title: '名称', dataIndex: 'name', width: 180 },
     { title: '类型', dataIndex: 'type', width: 90, render: (t: ReportDatasourceType) => renderReportDatasourceTypeTag(t) },
+    { title: '负责人', dataIndex: 'ownerName', width: 120, render: (v: string | null) => v || '—' },
+    { title: '目录', dataIndex: 'folderName', width: 140, render: (v: string | null) => v || '—' },
     {
       title: '连接', dataIndex: 'config', width: 320,
       render: (_: unknown, r: ReportDatasource) => {
@@ -249,6 +269,7 @@ export default function DataSourcesPage() {
       actions: (record) => [
         ...(hasPermission('report:datasource:update') ? [{ key: 'health', label: '检测', onClick: () => void handleHealthCheck([record.id], record.name) }] : []),
         ...(hasPermission('report:datasource:update') ? [{ key: 'edit', label: '编辑', onClick: () => openEdit(record) }] : []),
+        { key: 'governance', label: '权限与转移', onClick: () => navigate(`/report/governance?resourceType=datasource&resourceId=${record.id}`) },
         ...(hasPermission('report:datasource:create') ? [{ key: 'clone', label: '复制', onClick: () => void handleClone(record) }] : []),
         ...(hasPermission('report:datasource:delete') ? [{
           key: 'delete', label: '删除', danger: true,
@@ -270,6 +291,16 @@ export default function DataSourcesPage() {
     <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
       showClear style={{ width: 120 }} optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))} />
   );
+  const renderOwnerFilter = () => (
+    <Select placeholder="全部负责人" value={draftParams.ownerId} showClear filter style={{ width: 140 }}
+      optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))}
+      onChange={(v) => setDraftParams((p) => ({ ...p, ownerId: v as number | undefined }))} />
+  );
+  const renderFolderFilter = () => (
+    <Select placeholder="全部目录" value={draftParams.folderId} showClear filter style={{ width: 140 }}
+      optionList={folders.map((f) => ({ value: f.id, label: f.name }))}
+      onChange={(v) => setDraftParams((p) => ({ ...p, folderId: v as number | undefined }))} />
+  );
   const renderSearchBtn = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
   const renderResetBtn = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
   const renderCreateBtn = () => hasPermission('report:datasource:create')
@@ -284,10 +315,10 @@ export default function DataSourcesPage() {
   return (
     <div className="page-container">
       <SearchToolbar
-        primary={<>{renderKeyword()}{renderTypeFilter()}{renderStatusFilter()}{renderSearchBtn()}{renderResetBtn()}</>}
+        primary={<>{renderKeyword()}{renderTypeFilter()}{renderOwnerFilter()}{renderFolderFilter()}{renderStatusFilter()}{renderSearchBtn()}{renderResetBtn()}</>}
         actions={<>{renderBatchHealthBtn()}{renderBatchEnableBtn()}{renderBatchDisableBtn()}{renderCreateBtn()}</>}
         mobilePrimary={<>{renderKeyword()}{renderSearchBtn()}{renderCreateBtn()}</>}
-        mobileFilters={<>{renderTypeFilter()}{renderStatusFilter()}</>}
+        mobileFilters={<>{renderTypeFilter()}{renderOwnerFilter()}{renderFolderFilter()}{renderStatusFilter()}</>}
         mobileActions={<>{renderBatchHealthBtn()}{renderBatchEnableBtn()}{renderBatchDisableBtn()}</>}
         filterTitle="数据源筛选"
         onFilterApply={handleSearch}
@@ -310,6 +341,7 @@ export default function DataSourcesPage() {
         onCancel={closeModal}
         okButtonProps={{ loading: saveMutation.isPending }}
         width={560}
+        closeOnEsc
       >
         <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={formInitValues} labelPosition="left" labelWidth={72}>
           {({ values }) => (
@@ -327,6 +359,10 @@ export default function DataSourcesPage() {
                   if (v === 'sqlserver') formApi.current?.setValue('port', 1433);
                 }}
               />
+              <Form.Select field="ownerId" label="负责人" filter showClear style={{ width: '100%' }}
+                optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))} />
+              <Form.Select field="folderId" label="资源目录" filter showClear style={{ width: '100%' }}
+                optionList={folders.map((f) => ({ value: f.id, label: f.name }))} />
               {values.type === 'api' ? (
                 <>
                   <Form.Input field="url" label="URL" placeholder="https://api.example.com/data" rules={[{ required: true, message: '请输入 URL' }]} showClear />

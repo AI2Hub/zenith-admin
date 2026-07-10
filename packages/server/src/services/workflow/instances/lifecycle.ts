@@ -18,6 +18,7 @@ import type { SelectedApproverMap } from './initiator-select';
 import { assertLaunchMatchesFormType, buildInstanceFormSnapshot, mapInstance, mapTask } from './mapping';
 import { advanceAndMaterialize, killInstanceTokens } from './materialize';
 import { buildSerialNoContext, emitInstanceEvent, emitNodeEvent, emitTaskEvent } from './shared';
+import { bridgeReportFillWorkflowOutcome } from '../../report/report-fill-workflow-bridge.service';
 
 export async function createInstance(data: { definitionId: number; title: string; formData?: Record<string, unknown> | null; asDraft?: boolean; priority?: import('@zenith/shared').WorkflowInstancePriority; ccUserIds?: number[]; selectedInitiatorApprovers?: SelectedApproverMap; bizType?: string | null; bizId?: string | null }, callerOverride?: { userId: number; username: string; tenantId: number | null; roles?: string[] }) {
   const user = callerOverride
@@ -226,6 +227,11 @@ export async function withdrawInstance(id: number) {
       .returning();
     await killInstanceTokens(tx, id);
     const [row] = await tx.update(workflowInstances).set({ status: 'withdrawn' }).where(and(...conditions)).returning();
+    await bridgeReportFillWorkflowOutcome(tx, {
+      workflowInstanceId: id,
+      outcome: 'withdrawn',
+      actorId: user.userId,
+    });
     return { row, cancelledTasks: cancelled };
   });
   const instanceDto = mapInstance(updated);
@@ -256,6 +262,11 @@ export async function cancelInstance(id: number) {
       .returning();
     await killInstanceTokens(tx, id);
     const [row] = await tx.update(workflowInstances).set({ status: 'cancelled', currentNodeKey: null, suspendedAt: null, suspendReason: null }).where(and(...conditions)).returning();
+    await bridgeReportFillWorkflowOutcome(tx, {
+      workflowInstanceId: id,
+      outcome: 'cancelled',
+      actorId: user.userId,
+    });
     return { row, cancelledTasks: cancelled };
   });
   const instanceDto = mapInstance(updated);

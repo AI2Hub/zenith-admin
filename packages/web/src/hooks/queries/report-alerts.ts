@@ -8,6 +8,7 @@ export interface ReportAlertListParams {
   pageSize: number;
   keyword?: string;
   datasetId?: string;
+  metricId?: string;
   enabled?: boolean;
 }
 

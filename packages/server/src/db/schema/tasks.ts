@@ -2,8 +2,9 @@ import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, unique, 
 import { sql } from 'drizzle-orm';
 import { auditColumns, tenants, users } from './core';
 import { managedFiles } from './files';
+import { EXPORT_JOB_FORMATS } from '@zenith/shared';
 
-export const exportJobFormatEnum = pgEnum('export_job_format', ['xlsx', 'csv', 'pdf']);
+export const exportJobFormatEnum = pgEnum('export_job_format', EXPORT_JOB_FORMATS);
 
 export const exportJobStatusEnum = pgEnum('export_job_status', ['pending', 'running', 'success', 'failed', 'cancelled', 'expired']);
 

@@ -15,6 +15,8 @@ export interface ReportPrintTemplateListParams {
   pageSize: number;
   keyword?: string;
   status?: string;
+  ownerId?: number;
+  folderId?: number;
 }
 
 export const reportPrintKeys = {

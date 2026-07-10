@@ -6,6 +6,7 @@ import 'react-resizable/css/styles.css';
 import '../report-grid.css';
 import '../report-screen.css';
 import { WidgetRenderer } from './WidgetRenderer';
+import { useIsMobile, useMediaQuery } from '@/hooks/useMediaQuery';
 import type {
   ReportWidget, ReportGridItem, ReportCanvasItem, ReportDashboardConfig, ReportDataResult, ReportDatasetQueryOptions, ReportScreenConfig,
 } from '@zenith/shared';
@@ -43,10 +44,25 @@ function WidgetFrame({
 }) {
   const showHeader = widget.style?.showHeader !== false;
   const clickable = !!(widget.interaction?.enabled || widget.drilldown?.enabled);
+  const handleWidgetClick = () => onWidgetClick?.(widget);
   return (
-    <div className="report-widget-card" style={widget.style?.background ? { background: widget.style.background } : undefined} onClick={() => onWidgetClick?.(widget)}>
+    <div
+      className="report-widget-card"
+      style={widget.style?.background ? { background: widget.style.background } : undefined}
+    >
       {showHeader && (
-        <div className="report-widget-card__header">
+        <div
+          className="report-widget-card__header"
+          onClick={onWidgetClick ? handleWidgetClick : undefined}
+          onKeyDown={onWidgetClick ? (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              handleWidgetClick();
+            }
+          } : undefined}
+          role={onWidgetClick ? 'button' : undefined}
+          tabIndex={onWidgetClick ? 0 : undefined}
+        >
           <span className="report-widget-card__title">{widget.title || '未命名组件'}</span>
         </div>
       )}
@@ -72,6 +88,95 @@ function GridStage({ widgets, layout, filterValues, getWidgetState, getWidgetQue
         </div>
       ))}
     </GridLayout>
+  );
+}
+
+const MOBILE_WIDGET_MIN_HEIGHT: Partial<Record<ReportWidget['type'], number>> = {
+  kpi: 180,
+  flipper: 180,
+  text: 160,
+  image: 220,
+  gauge: 240,
+  liquid: 240,
+  table: 360,
+  pivot: 360,
+  iframe: 420,
+  scrollList: 300,
+};
+
+function mobileWidgetHeight(
+  widget: ReportWidget,
+  gridItem?: ReportGridItem,
+  canvasItem?: ReportCanvasItem,
+): number {
+  const minimum = MOBILE_WIDGET_MIN_HEIGHT[widget.type] ?? 280;
+  const designedHeight = canvasItem?.h ?? (gridItem ? gridItem.h * 40 + Math.max(0, gridItem.h - 1) * 12 : minimum);
+  return Math.min(480, Math.max(minimum, designedHeight));
+}
+
+function MobileReadingStage({
+  widgets,
+  layout,
+  canvasLayout,
+  config,
+  filterValues,
+  getWidgetState,
+  getWidgetQuery,
+  onWidgetQueryChange,
+  onCategoryClick,
+  onWidgetClick,
+}: Readonly<ScreenCanvasProps>) {
+  const widgetOrder = new Map(widgets.map((widget, index) => [widget.i, index]));
+  const gridPositions = new Map(layout.map((item) => [item.i, item]));
+  const canvasPositions = new Map(canvasLayout.map((item) => [item.i, item]));
+  const isCanvas = config.layoutMode === 'canvas';
+  const sortedWidgets = [...widgets].sort((left, right) => {
+    const leftPosition = isCanvas ? canvasPositions.get(left.i) : gridPositions.get(left.i);
+    const rightPosition = isCanvas ? canvasPositions.get(right.i) : gridPositions.get(right.i);
+    const leftY = leftPosition?.y ?? Number.MAX_SAFE_INTEGER;
+    const rightY = rightPosition?.y ?? Number.MAX_SAFE_INTEGER;
+    if (leftY !== rightY) return leftY - rightY;
+    const leftX = leftPosition?.x ?? Number.MAX_SAFE_INTEGER;
+    const rightX = rightPosition?.x ?? Number.MAX_SAFE_INTEGER;
+    if (leftX !== rightX) return leftX - rightX;
+    return (widgetOrder.get(left.i) ?? 0) - (widgetOrder.get(right.i) ?? 0);
+  });
+
+  return (
+    <>
+      {isCanvas ? (
+        <div className="report-mobile-landscape-hint" role="note">
+          大屏已转为纵向阅读，横屏可获得更佳效果
+        </div>
+      ) : null}
+      <div className="report-mobile-reading" data-testid="report-mobile-reading">
+        {sortedWidgets.map((widget) => {
+          const height = mobileWidgetHeight(
+            widget,
+            gridPositions.get(widget.i),
+            canvasPositions.get(widget.i),
+          );
+          return (
+            <section
+              key={widget.i}
+              className="report-mobile-reading__item"
+              data-widget-id={widget.i}
+              style={{ height, minHeight: height }}
+            >
+              <WidgetFrame
+                widget={widget}
+                state={getWidgetState(widget)}
+                filterValues={filterValues}
+                getWidgetQuery={getWidgetQuery}
+                onWidgetQueryChange={onWidgetQueryChange}
+                onCategoryClick={onCategoryClick}
+                onWidgetClick={onWidgetClick}
+              />
+            </section>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
@@ -136,6 +241,8 @@ export function ScreenCanvas(props: Readonly<ScreenCanvasProps>) {
   const { config } = props;
   const isCanvas = config.layoutMode === 'canvas';
   const isDark = config.theme === 'dark';
+  const isMobile = useIsMobile();
+  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
 
   const carousel = config.carousel;
   const pageCount = Math.max(1, carousel?.enabled ? (carousel.pageCount ?? 1) : 1);
@@ -148,18 +255,23 @@ export function ScreenCanvas(props: Readonly<ScreenCanvasProps>) {
   // 自动切换
   const intervalSec = carousel?.intervalSec ?? 0;
   useEffect(() => {
-    if (!carouselOn || intervalSec <= 0) return;
+    if (!carouselOn || intervalSec <= 0 || reduceMotion) return;
     const t = setInterval(() => setPage((p) => (p % pageCount) + 1), intervalSec * 1000);
     return () => clearInterval(t);
-  }, [carouselOn, intervalSec, pageCount]);
+  }, [carouselOn, intervalSec, pageCount, reduceMotion]);
 
   const widgets = carouselOn ? props.widgets.filter((w) => (w.page ?? 1) === page) : props.widgets;
   const visibleIds = new Set(widgets.map((w) => w.i));
   const layout = carouselOn ? props.layout.filter((l) => visibleIds.has(l.i)) : props.layout;
 
   return (
-    <div className={`report-screen${isDark ? ' report-screen--dark' : ''}`} style={{ width: '100%', height: '100%', position: 'relative' }}>
-      {isCanvas
+    <div
+      className={`report-screen${isDark ? ' report-screen--dark' : ''}${isMobile ? ' report-screen--mobile' : ''}`}
+      style={{ width: '100%', height: isMobile ? 'auto' : '100%', minHeight: isMobile ? '100%' : undefined, position: 'relative' }}
+    >
+      {isMobile
+        ? <MobileReadingStage {...props} widgets={widgets} layout={layout} />
+        : isCanvas
         ? <CanvasStage {...props} widgets={widgets} />
         : (
           <GridStage
@@ -170,6 +282,7 @@ export function ScreenCanvas(props: Readonly<ScreenCanvasProps>) {
             getWidgetQuery={props.getWidgetQuery}
             onWidgetQueryChange={props.onWidgetQueryChange}
             onCategoryClick={props.onCategoryClick}
+            onWidgetClick={props.onWidgetClick}
           />
         )}
       {carouselOn && (

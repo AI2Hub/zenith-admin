@@ -35,6 +35,8 @@ const envSchema = z.object({
   REPORT_DASHBOARD_MAX_CONCURRENT: z.coerce.number().int().min(1).max(20).default(5),
   REPORT_DATASET_MAX_ROWS: z.coerce.number().int().min(1).max(50000).default(5000),
   REPORT_DATASET_MAX_BYTES: z.coerce.number().int().min(1024).max(50 * 1024 * 1024).default(2 * 1024 * 1024),
+  REPORT_CHATBI_USER_DAILY_TOKENS: z.coerce.number().int().min(1000).default(200_000),
+  REPORT_CHATBI_TENANT_DAILY_TOKENS: z.coerce.number().int().min(1000).default(2_000_000),
   REDIS_URL: z.string().optional(),
   REDIS_HOST: z.string().default('127.0.0.1'),
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
@@ -161,6 +163,8 @@ export const config = {
     dashboardMaxConcurrent: env.REPORT_DASHBOARD_MAX_CONCURRENT,
     datasetMaxRows: env.REPORT_DATASET_MAX_ROWS,
     datasetMaxBytes: env.REPORT_DATASET_MAX_BYTES,
+    chatbiUserDailyTokens: env.REPORT_CHATBI_USER_DAILY_TOKENS,
+    chatbiTenantDailyTokens: env.REPORT_CHATBI_TENANT_DAILY_TOKENS,
   },
   redis: {
     url: env.REDIS_URL,

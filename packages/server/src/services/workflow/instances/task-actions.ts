@@ -17,6 +17,8 @@ import { advanceAndMaterialize, checkNodeCompletion, killInstanceTokens } from '
 import type { MaterializeTrigger } from './materialize';
 import { emitInstanceEvent, emitNodeEvent, emitTaskEvent } from './shared';
 import { hasUserHandledTask } from './transfers';
+import { bridgeReportFillWorkflowOutcome } from '../../report/report-fill-workflow-bridge.service';
+import { submitReportFillSyncForWorkflowInstance } from '../../report/report-fill-task.service';
 
 export type WorkflowTaskAttachment = { name: string; url: string; size?: number };
 
@@ -185,7 +187,7 @@ export async function approveTaskCore(
         .set({ currentNodeKey: task.nodeKey })
         .where(eq(workflowInstances.id, inst.id))
         .returning();
-      return { row, finished: false, rejected: false, advanced: false, approvedTask, newTasks: [] as typeof workflowTasks.$inferSelect[] };
+      return { row, finished: false, rejected: false, advanced: false, approvedTask, newTasks: [] as typeof workflowTasks.$inferSelect[], fillBridge: null };
     }
 
     const formData = mergedFormData;
@@ -214,20 +216,41 @@ export async function approveTaskCore(
       await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date() })
         .where(and(eq(workflowTasks.instanceId, inst.id), inArray(workflowTasks.status, ['pending', 'waiting'])));
       const [row] = await tx.update(workflowInstances).set({ status: 'rejected', currentNodeKey: null }).where(eq(workflowInstances.id, inst.id)).returning();
-      return { row, finished: false, rejected: true, advanced: true, approvedTask, newTasks: materialized.createdTasks };
+      const fillBridge = await bridgeReportFillWorkflowOutcome(tx, {
+        workflowInstanceId: inst.id,
+        outcome: 'rejected',
+        actorId: actor.userId,
+        comment: '工作流自动拒绝',
+      });
+      return { row, finished: false, rejected: true, advanced: true, approvedTask, newTasks: materialized.createdTasks, fillBridge };
     }
 
     if (materialized.finished) {
       const [row] = await tx.update(workflowInstances).set({ status: 'approved', currentNodeKey: null }).where(eq(workflowInstances.id, inst.id)).returning();
-      return { row, finished: true, rejected: false, advanced: true, approvedTask, newTasks: materialized.createdTasks };
+      const fillBridge = await bridgeReportFillWorkflowOutcome(tx, {
+        workflowInstanceId: inst.id,
+        outcome: 'approved',
+        actorId: actor.userId,
+        comment: comment ?? null,
+      });
+      return { row, finished: true, rejected: false, advanced: true, approvedTask, newTasks: materialized.createdTasks, fillBridge };
     }
 
     const [row] = await tx.update(workflowInstances)
       .set({ currentNodeKey: materialized.currentNodeKeys[0] ?? null })
       .where(eq(workflowInstances.id, inst.id))
       .returning();
-    return { row, finished: false, rejected: false, advanced: true, approvedTask, newTasks: materialized.createdTasks };
+    return { row, finished: false, rejected: false, advanced: true, approvedTask, newTasks: materialized.createdTasks, fillBridge: null };
   });
+
+  if (updated.fillBridge?.approved) {
+    void submitReportFillSyncForWorkflowInstance(updated.row.id).catch((error) => {
+      logger.error('[report-fill] enqueue sync task failed', {
+        workflowInstanceId: updated.row.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }
 
   const meta = { definitionId: updated.row.definitionId, tenantId: updated.row.tenantId, actor };
   emitTaskEvent('task.approved', mapTask(updated.approvedTask), { ...meta, comment });
@@ -404,6 +427,7 @@ export async function rejectTaskCore(
           rejectedTask,
           skippedTasks: [] as typeof workflowTasks.$inferSelect[],
           newTasks: [] as typeof workflowTasks.$inferSelect[],
+          fillBridge: null,
         };
       }
     }
@@ -425,7 +449,13 @@ export async function rejectTaskCore(
         .set({ status: 'rejected', currentNodeKey: null })
         .where(eq(workflowInstances.id, inst.id))
         .returning();
-      return { row, terminated: true, rejectedTask, skippedTasks: skipped, newTasks: [] as typeof workflowTasks.$inferSelect[] };
+      const fillBridge = await bridgeReportFillWorkflowOutcome(tx, {
+        workflowInstanceId: inst.id,
+        outcome: 'rejected',
+        actorId: actor.userId,
+        comment,
+      });
+      return { row, terminated: true, rejectedTask, skippedTasks: skipped, newTasks: [] as typeof workflowTasks.$inferSelect[], fillBridge };
     }
 
     // 回退：实例保持 running，在目标节点重新生成任务
@@ -448,7 +478,13 @@ export async function rejectTaskCore(
         .set({ status: 'rejected', currentNodeKey: null })
         .where(eq(workflowInstances.id, inst.id))
         .returning();
-      return { row, terminated: true, rejectedTask, skippedTasks: skipped, newTasks: [] as typeof workflowTasks.$inferSelect[] };
+      const fillBridge = await bridgeReportFillWorkflowOutcome(tx, {
+        workflowInstanceId: inst.id,
+        outcome: 'rejected',
+        actorId: actor.userId,
+        comment,
+      });
+      return { row, terminated: true, rejectedTask, skippedTasks: skipped, newTasks: [] as typeof workflowTasks.$inferSelect[], fillBridge };
     }
 
     // 回退前清场：终止所有 active token，避免旧并行分支残留 token 影响重建路径的汇聚判定
@@ -481,7 +517,13 @@ export async function rejectTaskCore(
         .set({ status: 'rejected', currentNodeKey: null })
         .where(eq(workflowInstances.id, inst.id))
         .returning();
-      return { row, terminated: true, rejectedTask, skippedTasks: skipped, newTasks: materialized.createdTasks };
+      const fillBridge = await bridgeReportFillWorkflowOutcome(tx, {
+        workflowInstanceId: inst.id,
+        outcome: 'rejected',
+        actorId: actor.userId,
+        comment,
+      });
+      return { row, terminated: true, rejectedTask, skippedTasks: skipped, newTasks: materialized.createdTasks, fillBridge };
     }
 
     if (materialized.finished) {
@@ -489,15 +531,30 @@ export async function rejectTaskCore(
         .set({ status: 'approved', currentNodeKey: null })
         .where(eq(workflowInstances.id, inst.id))
         .returning();
-      return { row, terminated: false, finished: true, rejectedTask, skippedTasks: skipped, newTasks: materialized.createdTasks };
+      const fillBridge = await bridgeReportFillWorkflowOutcome(tx, {
+        workflowInstanceId: inst.id,
+        outcome: 'approved',
+        actorId: actor.userId,
+        comment,
+      });
+      return { row, terminated: false, finished: true, rejectedTask, skippedTasks: skipped, newTasks: materialized.createdTasks, fillBridge };
     }
 
     const [row] = await tx.update(workflowInstances)
       .set({ currentNodeKey: materialized.currentNodeKeys[0] ?? null })
       .where(eq(workflowInstances.id, inst.id))
       .returning();
-    return { row, terminated: false, finished: false, rejectedTask, skippedTasks: skipped, newTasks: materialized.createdTasks };
+    return { row, terminated: false, finished: false, rejectedTask, skippedTasks: skipped, newTasks: materialized.createdTasks, fillBridge: null };
   });
+
+  if (updated.fillBridge?.approved) {
+    void submitReportFillSyncForWorkflowInstance(updated.row.id).catch((error) => {
+      logger.error('[report-fill] enqueue sync task failed', {
+        workflowInstanceId: updated.row.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }
 
   const meta = { definitionId: updated.row.definitionId, tenantId: updated.row.tenantId, actor };
   emitTaskEvent('task.rejected', mapTask(updated.rejectedTask), { ...meta, comment });

@@ -5,17 +5,26 @@ import type {
   ReportPrintCellImage,
   ReportPrintCellStyle,
   ReportPrintContent,
+  ReportPrintDatasetBinding,
   ReportPrintGrid,
   ReportPrintPageConfig,
+  ReportPrintRepeatBlock,
   ReportPrintSheet,
+  ReportPrintSubreportCell,
 } from '@zenith/shared';
 
 type Matrix<T> = { [row: number]: { [col: number]: T | null | undefined } };
 type NumericArray<T> = { [index: number]: T };
+type PrintCellCustom = {
+  printImage?: ReportPrintCellImage;
+  printKind?: ReportPrintCell['kind'];
+  printDatasetKey?: string;
+  printSubreport?: ReportPrintSubreportCell;
+};
 type SheetSnapshot = {
   id?: string;
   name?: string;
-  cellData?: Matrix<ICellData & { custom?: { printImage?: ReportPrintCellImage; printKind?: ReportPrintCell['kind'] } }>;
+  cellData?: Matrix<ICellData & { custom?: PrintCellCustom }>;
   mergeData?: IRange[];
   columnData?: Record<string, { w?: number } | undefined>;
   rowData?: Record<string, { h?: number; ah?: number } | undefined>;
@@ -23,11 +32,18 @@ type SheetSnapshot = {
   columnCount?: number;
   defaultColumnWidth?: number;
   defaultRowHeight?: number;
-  custom?: { printPageConfig?: ReportPrintPageConfig };
+  custom?: {
+    printPageConfig?: ReportPrintPageConfig;
+    printDatasetKey?: string;
+    printRepeatBlocks?: ReportPrintRepeatBlock[];
+  };
+};
+type PrintWorkbookSnapshot = IWorkbookData & {
+  custom?: { printDatasetBindings?: ReportPrintDatasetBinding[] };
 };
 
-function hasRenderableCell(cell: ICellData & { custom?: { printImage?: ReportPrintCellImage } }) {
-  return cell.v !== undefined || cell.f || cell.s || cell.custom?.printImage;
+function hasRenderableCell(cell: ICellData & { custom?: PrintCellCustom }) {
+  return cell.v !== undefined || cell.f || cell.s || cell.custom?.printImage || cell.custom?.printDatasetKey || cell.custom?.printSubreport;
 }
 
 function resolveStyle(style: ICellData['s'], styles: IWorkbookData['styles']): IStyleData | null {
@@ -126,7 +142,11 @@ function workbookBase(name: string, sheets: ReportPrintSheet[]): IWorkbookData {
       columnData: {},
       defaultColumnWidth: 96,
       defaultRowHeight: 24,
-      custom: { printPageConfig: sheet.pageConfig },
+      custom: {
+        printPageConfig: sheet.pageConfig,
+        ...(sheet.datasetKey ? { printDatasetKey: sheet.datasetKey } : {}),
+        ...(sheet.repeatBlocks?.length ? { printRepeatBlocks: sheet.repeatBlocks } : {}),
+      },
     };
   });
   return {
@@ -152,7 +172,7 @@ export function createBlankWorkbook(name: string): IWorkbookData {
 }
 
 function sheetToUniver(sheet: ReportPrintSheet, snapshot: IWorkbookData, targetSheet: NonNullable<IWorkbookData['sheets'][string]>) {
-  const cellData: NumericArray<NumericArray<ICellData & { custom?: { printImage?: ReportPrintCellImage; printKind?: ReportPrintCell['kind'] } }>> = {};
+  const cellData: NumericArray<NumericArray<ICellData & { custom?: PrintCellCustom }>> = {};
   const columnData: NumericArray<{ w?: number }> = {};
   const rowData: NumericArray<{ h?: number }> = {};
   let maxRow = Math.max(sheet.grid.rows - 1, 0);
@@ -161,11 +181,17 @@ function sheetToUniver(sheet: ReportPrintSheet, snapshot: IWorkbookData, targetS
   sheet.grid.cells.forEach((cell) => {
     if (!cellData[cell.row]) cellData[cell.row] = {};
     const style = gridStyleToUniver(cell.s, cell.numFmt);
-    const cellSnapshot: ICellData & { custom?: { printImage?: ReportPrintCellImage; printKind?: ReportPrintCell['kind'] } } = {
+    const custom: PrintCellCustom = {
+      ...(cell.image ? { printImage: cell.image } : {}),
+      ...(cell.kind ? { printKind: cell.kind } : {}),
+      ...(cell.datasetKey ? { printDatasetKey: cell.datasetKey } : {}),
+      ...(cell.subreport ? { printSubreport: cell.subreport } : {}),
+    };
+    const cellSnapshot: ICellData & { custom?: PrintCellCustom } = {
       ...(cell.v !== undefined ? { v: cell.v as ICellData['v'] } : {}),
       ...(cell.formula ? { f: cell.formula } : {}),
       ...(style ? { s: style } : {}),
-      ...(cell.image || cell.kind ? { custom: { ...(cell.image ? { printImage: cell.image } : {}), ...(cell.kind ? { printKind: cell.kind } : {}) } } : {}),
+      ...(Object.keys(custom).length ? { custom } : {}),
     };
     cellData[cell.row][cell.col] = cellSnapshot;
     maxRow = Math.max(maxRow, cell.row);
@@ -198,7 +224,11 @@ function sheetToUniver(sheet: ReportPrintSheet, snapshot: IWorkbookData, targetS
     columnData,
     defaultColumnWidth: 96,
     defaultRowHeight: 24,
-    custom: { printPageConfig: sheet.pageConfig },
+    custom: {
+      printPageConfig: sheet.pageConfig,
+      ...(sheet.datasetKey ? { printDatasetKey: sheet.datasetKey } : {}),
+      ...(sheet.repeatBlocks?.length ? { printRepeatBlocks: sheet.repeatBlocks } : {}),
+    },
   });
   snapshot.sheets[sheet.id] = targetSheet;
 }
@@ -209,6 +239,9 @@ export function printContentToUniver(content: ReportPrintContent, name = '打印
     : [{ id: 'sheet-01', name: 'Sheet1', grid: content.grid ?? { rows: 20, cols: 8, cells: [] } }];
   const snapshot = workbookBase(name, sheets);
   sheets.forEach((sheet) => sheetToUniver(sheet, snapshot, snapshot.sheets[sheet.id]!));
+  if (content.datasetBindings?.length) {
+    (snapshot as PrintWorkbookSnapshot).custom = { printDatasetBindings: content.datasetBindings };
+  }
   return snapshot;
 }
 
@@ -242,6 +275,8 @@ function snapshotSheetToGrid(sheet: SheetSnapshot, styles: IWorkbookData['styles
         ...(styleData?.n && typeof styleData.n === 'object' && 'pattern' in styleData.n && typeof styleData.n.pattern === 'string' ? { numFmt: styleData.n.pattern } : {}),
         ...(cell.custom?.printImage ? { image: cell.custom.printImage } : {}),
         ...(cell.custom?.printKind ? { kind: cell.custom.printKind } : {}),
+        ...(cell.custom?.printDatasetKey ? { datasetKey: cell.custom.printDatasetKey } : {}),
+        ...(cell.custom?.printSubreport ? { subreport: cell.custom.printSubreport } : {}),
       });
     });
   });
@@ -292,12 +327,17 @@ export function univerToPrintContent(snapshot: IWorkbookData): ReportPrintConten
       name: sheet.name ?? `Sheet${index + 1}`,
       grid: snapshotSheetToGrid(sheet, snapshot.styles ?? {}),
       ...(sheet.custom?.printPageConfig ? { pageConfig: sheet.custom.printPageConfig } : {}),
+      ...(sheet.custom?.printDatasetKey ? { datasetKey: sheet.custom.printDatasetKey } : {}),
+      ...(sheet.custom?.printRepeatBlocks?.length ? { repeatBlocks: sheet.custom.printRepeatBlocks } : {}),
     };
   });
   return {
     workbook: snapshot,
     ...(sheets[0]?.grid ? { grid: sheets[0].grid } : {}),
     sheets,
+    ...((snapshot as PrintWorkbookSnapshot).custom?.printDatasetBindings?.length
+      ? { datasetBindings: (snapshot as PrintWorkbookSnapshot).custom?.printDatasetBindings }
+      : {}),
   };
 }
 

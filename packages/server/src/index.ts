@@ -177,12 +177,26 @@ import reportPublicRoutes from './routes/report/report-public';
 import reportPrintRoutes from './routes/report/report-print';
 import reportAiRoutes from './routes/report/report-ai';
 import reportAlertsRoutes from './routes/report/report-alerts';
+import reportFoldersRoutes from './routes/report/report-folders';
+import reportMetricsRoutes from './routes/report/report-metrics';
+import reportGovernanceRoutes from './routes/report/report-governance';
+import reportEnvironmentsRoutes from './routes/report/report-environments';
 import reportMetaRoutes from './routes/report/report-meta';
 import reportExecutionsRoutes from './routes/report/report-executions';
 import reportDeliveryRunsRoutes from './routes/report/report-delivery-runs';
+import reportDqRoutes from './routes/report/report-dq';
+import reportMaterializationsRoutes from './routes/report/report-materializations';
+import reportQueryCapacityRoutes from './routes/report/report-query-capacity';
+import reportSlaRoutes from './routes/report/report-sla';
+import reportAssetsRoutes from './routes/report/report-assets';
+import reportChatbiRoutes from './routes/report/report-chatbi';
+import reportFillRoutes from './routes/report/report-fill';
 import { registerReportDatasourceTaskHandlers } from './services/report/report-datasource-tasks';
 import { registerReportDatasetTaskHandlers } from './services/report/report-dataset-tasks';
 import { registerReportDeliveryTaskHandlers } from './services/report/report-delivery-tasks';
+import { registerReportDqTaskHandlers } from './services/report/report-dq-tasks';
+import { registerReportSlaTaskHandlers } from './services/report/report-sla-tasks';
+import { registerReportFillTasks } from './services/report/report-fill-task.service';
 import {
   backfillLegacyDashboardLifecycle,
   backfillLegacyReportTenants,
@@ -390,9 +404,20 @@ app.route('/api/report/public', reportPublicRoutes);
 app.route('/api/report/print', reportPrintRoutes);
 app.route('/api/report/ai', reportAiRoutes);
 app.route('/api/report/alerts', reportAlertsRoutes);
+app.route('/api/report/folders', reportFoldersRoutes);
+app.route('/api/report/metrics', reportMetricsRoutes);
+app.route('/api/report/governance', reportGovernanceRoutes);
+app.route('/api/report/environments', reportEnvironmentsRoutes);
 app.route('/api/report/meta', reportMetaRoutes);
 app.route('/api/report/executions', reportExecutionsRoutes);
 app.route('/api/report/delivery-runs', reportDeliveryRunsRoutes);
+app.route('/api/report/dq', reportDqRoutes);
+app.route('/api/report/materializations', reportMaterializationsRoutes);
+app.route('/api/report/query-capacity', reportQueryCapacityRoutes);
+app.route('/api/report/sla', reportSlaRoutes);
+app.route('/api/report/assets', reportAssetsRoutes);
+app.route('/api/report/chatbi', reportChatbiRoutes);
+app.route('/api/report/fill', reportFillRoutes);
 app.route('/api/announcements', announcementsRoutes);
 app.route('/api/payment', paymentRoutes);
 app.route('/api/payment/recon', paymentReconRoutes);
@@ -599,6 +624,9 @@ try {
   registerReportDatasourceTaskHandlers();
   registerReportDatasetTaskHandlers();
   registerReportDeliveryTaskHandlers();
+  registerReportDqTaskHandlers();
+  registerReportSlaTaskHandlers();
+  registerReportFillTasks();
   await registerExportJobWorker();
   await registerSystemTasks();
 } catch (err) {

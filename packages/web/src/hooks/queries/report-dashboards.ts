@@ -30,6 +30,8 @@ export interface ReportDashboardListParams {
   lifecycleStatus?: ReportDashboardLifecycleStatus;
   categoryId?: number;
   favorited?: boolean;
+  ownerId?: number;
+  folderId?: number;
 }
 
 export interface ReportDashboardCommentListParams {

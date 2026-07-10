@@ -16,6 +16,7 @@ import { resolveAdminAssigneeId } from './assignees';
 import { findExceptionCatchNode, mapInstance, mapTask } from './mapping';
 import { advanceAndMaterialize, killInstanceTokens, loadLiveTokens } from './materialize';
 import { emitInstanceEvent, emitNodeEvent, emitTaskEvent } from './shared';
+import { bridgeReportFillWorkflowOutcome } from '../../report/report-fill-workflow-bridge.service';
 
 /**
  * Saga 反序回滚：对该实例此前所有已成功副作用节点（trigger/external/webhook），
@@ -54,12 +55,18 @@ async function enqueueSagaRollback(tx: DbExecutor, args: { instanceId: number; f
 }
 
 /** 终局收尾：跳过存量待办（可带注释）→（可选）杀死 token → 实例置 rejected，返回更新后的实例行 */
-async function markInstanceRejected(tx: DbExecutor, args: { instanceId: number; comment?: string; killTokens?: boolean }) {
+async function markInstanceRejected(tx: DbExecutor, args: { instanceId: number; comment?: string; killTokens?: boolean; actorId?: number | null }) {
   await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date(), ...(args.comment ? { comment: args.comment } : {}) })
     .where(and(eq(workflowTasks.instanceId, args.instanceId), inArray(workflowTasks.status, ['pending', 'waiting'])));
   if (args.killTokens) await killInstanceTokens(tx, args.instanceId);
   const [row] = await tx.update(workflowInstances).set({ status: 'rejected', currentNodeKey: null })
     .where(eq(workflowInstances.id, args.instanceId)).returning();
+  await bridgeReportFillWorkflowOutcome(tx, {
+    workflowInstanceId: args.instanceId,
+    outcome: 'rejected',
+    actorId: args.actorId,
+    comment: args.comment,
+  });
   return row;
 }
 
@@ -136,12 +143,18 @@ async function applyNodeFailurePolicy(input: {
       materialized: Awaited<ReturnType<typeof advanceAndMaterialize>>,
     ) => {
       if (materialized.rejected || (!materialized.finished && materialized.currentNodeKeys.length === 0 && materialized.createdTasks.length === 0)) {
-        const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment });
+        const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment, actorId: input.actor.userId });
         return { row, newTasks: materialized.createdTasks, finished: false, rejected: true };
       }
       if (materialized.finished) {
         const [row] = await tx.update(workflowInstances).set({ status: 'approved', currentNodeKey: null })
           .where(eq(workflowInstances.id, lockedInst.id)).returning();
+        await bridgeReportFillWorkflowOutcome(tx, {
+          workflowInstanceId: lockedInst.id,
+          outcome: 'approved',
+          actorId: input.actor.userId,
+          comment: errorComment,
+        });
         return { row, newTasks: materialized.createdTasks, finished: true, rejected: false };
       }
       const [row] = await tx.update(workflowInstances).set({ currentNodeKey: materialized.currentNodeKeys[0] ?? null })
@@ -152,7 +165,7 @@ async function applyNodeFailurePolicy(input: {
     // 终止
     if (policy.action === 'terminate') {
       await recordCompensation(tx, { instanceId: lockedInst.id, nodeKey: input.nodeKey, nodeName: input.nodeName, errorMessage: input.errorMessage, action: 'terminate', status: 'terminated', tenantId: lockedInst.tenantId });
-      const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment, killTokens: true });
+      const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment, killTokens: true, actorId: input.actor.userId });
       return { row, affectedTasks, newTasks: [] as typeof workflowTasks.$inferSelect[], repairTask: null, finished: false, rejected: true };
     }
 
@@ -191,7 +204,7 @@ async function applyNodeFailurePolicy(input: {
     const adminId = await resolveAdminAssigneeId(tx);
     if (!adminId) {
       await recordCompensation(tx, { instanceId: lockedInst.id, nodeKey: input.nodeKey, nodeName: input.nodeName, errorMessage: `${input.errorMessage}；未找到管理员`, action: ticketAction, status: 'terminated', tenantId: lockedInst.tenantId });
-      const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment, killTokens: true });
+      const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment, killTokens: true, actorId: input.actor.userId });
       return { row, affectedTasks, newTasks: [] as typeof workflowTasks.$inferSelect[], repairTask: null, finished: false, rejected: true };
     }
     const compId = await recordCompensation(tx, {
@@ -274,6 +287,12 @@ export async function resumeInstanceForCompensation(id: number): Promise<{ resum
       row = await markInstanceRejected(tx, { instanceId: inst.id });
     } else if (materialized.finished) {
       [row] = await tx.update(workflowInstances).set({ status: 'approved', currentNodeKey: null }).where(eq(workflowInstances.id, inst.id)).returning();
+      await bridgeReportFillWorkflowOutcome(tx, {
+        workflowInstanceId: inst.id,
+        outcome: 'approved',
+        actorId: currentUser().userId,
+        comment: '补偿完成，恢复推进',
+      });
     } else {
       [row] = await tx.update(workflowInstances).set({ currentNodeKey: materialized.currentNodeKeys[0] ?? null }).where(eq(workflowInstances.id, inst.id)).returning();
     }
@@ -357,7 +376,7 @@ export async function handleNodeExecutionError(input: {
         comment: errorComment,
         actionAt: new Date(),
       }).returning();
-      const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment, killTokens: true });
+      const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment, killTokens: true, actorId: input.actor.userId });
       return { row, affectedTasks, catchTask, newTasks: [] as typeof workflowTasks.$inferSelect[], finished: false, rejected: true };
     }
 
@@ -374,7 +393,7 @@ export async function handleNodeExecutionError(input: {
           comment: `${errorComment}；未找到管理员`,
           actionAt: new Date(),
         }).returning();
-        const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment, killTokens: true });
+        const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment, killTokens: true, actorId: input.actor.userId });
         return { row, affectedTasks, catchTask, newTasks: [] as typeof workflowTasks.$inferSelect[], finished: false, rejected: true };
       }
       const [catchTask] = await tx.insert(workflowTasks).values({
@@ -422,7 +441,7 @@ export async function handleNodeExecutionError(input: {
     );
 
     if (materialized.rejected || (!materialized.finished && materialized.currentNodeKeys.length === 0 && materialized.createdTasks.length === 0)) {
-      const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment });
+      const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment, actorId: input.actor.userId });
       return { row, affectedTasks, catchTask, newTasks: materialized.createdTasks, finished: false, rejected: true };
     }
     if (materialized.finished) {
@@ -430,6 +449,12 @@ export async function handleNodeExecutionError(input: {
         .set({ status: 'approved', currentNodeKey: null })
         .where(eq(workflowInstances.id, lockedInst.id))
         .returning();
+      await bridgeReportFillWorkflowOutcome(tx, {
+        workflowInstanceId: lockedInst.id,
+        outcome: 'approved',
+        actorId: input.actor.userId,
+        comment: errorComment,
+      });
       return { row, affectedTasks, catchTask, newTasks: materialized.createdTasks, finished: true, rejected: false };
     }
     const [row] = await tx.update(workflowInstances)

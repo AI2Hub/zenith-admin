@@ -234,6 +234,30 @@
   overflow-y: auto;
   background: var(--semi-color-bg-1);
 }
+@media (max-width: 900px) {
+  .report-designer {
+    height: auto;
+    min-height: 100%;
+  }
+  .report-designer__topbar {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+  }
+  .report-designer__main {
+    flex-direction: column;
+    overflow: visible;
+  }
+  .report-designer__canvas {
+    flex: none;
+    min-height: 560px;
+  }
+  .report-designer__config {
+    width: 100% !important;
+    max-height: 70vh;
+    border-top: 1px solid var(--semi-color-border);
+    border-left: 0;
+  }
+}
 .report-palette-item {
   display: flex;
   align-items: center;
@@ -265,4 +289,92 @@
   font-weight: 700;
   color: var(--semi-color-text-0);
   margin-bottom: 12px;
+}
+
+/* ── 移动端只读布局与筛选 ── */
+.report-mobile-reading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.report-mobile-reading__item {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+  background: var(--semi-color-bg-1);
+}
+
+.report-filter-compact {
+  flex-shrink: 0;
+}
+
+.report-filter-sheet .semi-sidesheet-inner {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  border-radius: var(--semi-border-radius-large) var(--semi-border-radius-large) 0 0;
+}
+
+.report-filter-sheet .semi-sidesheet-body {
+  overflow-y: auto;
+}
+
+.report-filter-compact__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.report-filter-compact__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.report-filter-compact__label {
+  color: var(--semi-color-text-1);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.report-filter-sheet .semi-select,
+.report-filter-sheet .semi-datepicker,
+.report-filter-sheet .semi-input-wrapper,
+.report-filter-sheet .semi-input-number {
+  width: 100% !important;
+  max-width: 100%;
+}
+
+@media (max-width: 767px) {
+  .report-view {
+    width: 100%;
+    min-width: 0;
+    padding: 12px;
+    overflow-x: hidden;
+    box-sizing: border-box;
+  }
+
+  .report-view__title {
+    margin-bottom: 0;
+  }
+
+  .report-widget-card__body {
+    padding: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report-grid .react-grid-item,
+  .report-palette-item {
+    transition: none;
+  }
 }

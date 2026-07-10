@@ -18,6 +18,7 @@ import { FilterConfigModal } from './FilterConfigModal';
 import AppModal from '@/components/AppModal';
 import { useReportDatasetDetail } from '@/hooks/queries/report-datasets';
 import { useReportDashboardDetail } from '@/hooks/queries/report-dashboards';
+import { useReportMetricLookup } from '@/hooks/queries/report-metrics';
 import {
   useReportDesignerDashboardLookup,
   useReportDesignerDatasets,
@@ -106,13 +107,18 @@ export default function DashboardDesignerPage() {
   const undo = useCallback(() => { const prev = past.current.pop(); if (!prev) return; future.current.push(docRef.current); setDoc(prev); }, []);
   const redo = useCallback(() => { const next = future.current.pop(); if (!next) return; past.current.push(docRef.current); setDoc(next); }, []);
 
-  const { get: getData } = useWidgetData(doc.widgets, filterValues);
+  const { get: getData, refresh: refreshWidgetData } = useWidgetData(doc.widgets, filterValues);
   const dashboardQuery = useReportDashboardDetail(dashboardId, !!dashboardId, 'draft');
   const datasetsQuery = useReportDesignerDatasets();
   const dashboardsQuery = useReportDesignerDashboardLookup(dashboardId);
+  const metricsQuery = useReportMetricLookup(
+    { status: 'published', limit: 100 },
+    hasPermission('report:metric:list'),
+  );
   const saveMutation = useSaveReportDashboardDesign();
   const datasets = datasetsQuery.data ?? [];
   const dashboards = dashboardsQuery.data ?? [];
+  const metrics = metricsQuery.data ?? [];
 
   useEffect(() => {
     seededDashboardId.current = null;
@@ -304,7 +310,7 @@ export default function DashboardDesignerPage() {
     return cols.map((c) => ({ value: c, label: c }));
   }, [selectedWidget, selectedDataset, getData]);
 
-  if ((!!dashboardId && dashboardQuery.isPending) || datasetsQuery.isPending || dashboardsQuery.isPending) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spin size="large" /></div>;
+  if ((!!dashboardId && dashboardQuery.isPending) || datasetsQuery.isPending || dashboardsQuery.isPending || metricsQuery.isPending) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spin size="large" /></div>;
 
   const renderWidgetCard = (w: ReportWidget, opts?: { drag?: boolean }) => {
     const ds = getData(w);
@@ -449,6 +455,7 @@ export default function DashboardDesignerPage() {
               key={selectedWidget.i}
               widget={selectedWidget}
               datasets={datasets}
+              metrics={metrics}
               dashboards={dashboards}
               fieldOptions={fieldOptions}
               filters={doc.filters}
@@ -456,6 +463,7 @@ export default function DashboardDesignerPage() {
               pageCount={carouselOn ? pageCount : undefined}
               onPatch={(patch) => patchWidget(selectedWidget.i, patch)}
               onOptions={(patch) => patchOptions(selectedWidget.i, patch)}
+              onPreview={refreshWidgetData}
             />
           )}
         </div>

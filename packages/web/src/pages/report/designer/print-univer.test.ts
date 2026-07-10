@@ -4,10 +4,18 @@ import { printContentToUniver, univerToPrintContent } from './print-univer';
 describe('print-univer', () => {
   it('支持多 sheet 与样式/公式/图片 roundtrip', () => {
     const content = {
+      datasetBindings: [{
+        key: 'details',
+        datasetId: 9,
+        rowLimit: 100,
+        paramBindings: { tenant: 'tenantCode' },
+      }],
       sheets: [
         {
           id: 'sheet-01',
           name: '主表',
+          datasetKey: 'details',
+          repeatBlocks: [{ id: 'detail-block', datasetKey: 'details', range: { start: 1, end: 1 } }],
           grid: {
             rows: 2,
             cols: 2,
@@ -44,6 +52,8 @@ describe('print-univer', () => {
                 v: '二维码',
                 kind: 'qrcode' as const,
                 image: { src: 'data:image/png;base64,AAAA', width: 32, height: 32 },
+                datasetKey: 'details',
+                subreport: { templateId: 12, datasetKey: 'details', paramBindings: { code: 'tenantCode' } },
               },
             ],
             merges: [{ row: 0, col: 0, rowSpan: 1, colSpan: 2 }],
@@ -63,11 +73,20 @@ describe('print-univer', () => {
 
     expect(roundtrip.sheets).toHaveLength(2);
     expect(roundtrip.sheets?.[0]?.pageConfig?.repeatHeaderRows).toEqual({ start: 0, end: 0 });
+    expect(roundtrip.datasetBindings).toEqual(content.datasetBindings);
+    expect(roundtrip.sheets?.[0]?.datasetKey).toBe('details');
+    expect(roundtrip.sheets?.[0]?.repeatBlocks).toEqual(content.sheets[0]?.repeatBlocks);
     expect(roundtrip.sheets?.[0]?.grid.colWidths?.[1]).toBe(180);
     expect(roundtrip.sheets?.[0]?.grid.rowHeights?.[1]).toBe(40);
     expect(roundtrip.sheets?.[0]?.grid.cells.find((cell) => cell.row === 1 && cell.col === 0)?.formula).toBe('=SUM(1,2)');
     expect(roundtrip.sheets?.[0]?.grid.cells.find((cell) => cell.row === 1 && cell.col === 0)?.numFmt).toBe('#,##0.00');
     expect(roundtrip.sheets?.[0]?.grid.cells.find((cell) => cell.row === 1 && cell.col === 1)?.kind).toBe('qrcode');
+    expect(roundtrip.sheets?.[0]?.grid.cells.find((cell) => cell.row === 1 && cell.col === 1)?.datasetKey).toBe('details');
+    expect(roundtrip.sheets?.[0]?.grid.cells.find((cell) => cell.row === 1 && cell.col === 1)?.subreport).toEqual({
+      templateId: 12,
+      datasetKey: 'details',
+      paramBindings: { code: 'tenantCode' },
+    });
     expect(roundtrip.sheets?.[1]?.grid.cells[0]?.kind).toBe('barcode');
   });
 });

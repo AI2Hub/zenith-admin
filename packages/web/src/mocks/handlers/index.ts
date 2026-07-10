@@ -105,6 +105,10 @@ import { portsHandlers } from './ports';
 import { nginxSitesHandlers } from './nginx-sites';
 import { firewallHandlers } from './firewall';
 import { reportHandlers } from './report';
+import { reportPlatformHandlers } from './report-platform';
+import { reportQualityCapacityHandlers } from './report-quality-capacity';
+import { reportChatbiHandlers } from './report-chatbi';
+import { reportFillHandlers } from './report-fill';
 import { fallbackHandlers } from './fallback';
 
 export const handlers = [
@@ -212,6 +216,10 @@ export const handlers = [
   ...portsHandlers,
   ...nginxSitesHandlers,
   ...firewallHandlers,
+  ...reportPlatformHandlers,
+  ...reportQualityCapacityHandlers,
+  ...reportChatbiHandlers,
+  ...reportFillHandlers,
   ...reportHandlers,
   ...decisionTablesHandlers,
   ...userFeedbacksHandlers,

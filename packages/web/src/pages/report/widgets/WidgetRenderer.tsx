@@ -216,7 +216,7 @@ export function WidgetRenderer({
       );
     }
 
-    if (!widget.datasetId) return <EmptyHint text="请在右侧选择数据集" />;
+    if (!widget.datasetId && !widget.metricId) return <EmptyHint text="请在右侧选择数据集或指标" />;
 
     // 指标卡
     if (widget.type === 'kpi') {

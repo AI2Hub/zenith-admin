@@ -59,9 +59,73 @@ import { ReportEmbed } from '@/components/ReportEmbed';
 | `dashboardId` | 要嵌入的仪表盘 ID |
 | `filterValues` | 外部注入的筛选器值（按 filterId），覆盖内部默认值 |
 | `showFilters` | 是否显示内置筛选栏（默认隐藏，由宿主控制） |
+| `readOnly` | 禁止筛选器、ref 和 `postMessage` 修改筛选值 |
+| `interceptDrilldown` | 触发回调后阻止默认钻取跳转 |
+| `allowedOrigins` | 精确宿主 origin 白名单；默认读取仪表盘配置，再回退同源 |
 | `height` | 容器高度（默认自适应内容） |
 
 嵌入为只读渲染，复用同一套组件与取数逻辑；大屏画布仪表盘按比例自适应容器。
+
+登录内嵌按 `dashboardId` 读取发布态；外部宿主使用 scoped embed token：
+
+- `GET /api/report/dashboards/{id}/embed-tokens`：Token 列表；
+- `POST /api/report/dashboards/{id}/embed-tokens`：创建限定仪表盘、来源与有效期的 Token；
+- `POST /api/report/dashboards/embed-tokens/{id}/revoke`：立即吊销；
+- `GET /api/report/public/embed/{token}`、`POST /api/report/public/embed/{token}/data`：匿名读取发布快照和取数。
+
+Token 不放在日志或 URL 查询参数中，不等价于后台 JWT；吊销、过期、来源不匹配或仪表盘未发布时拒绝访问。移动端使用同一发布快照、组件权限和查询预算，仅改变布局、紧凑度、隐藏项与组件顺序。
+
+### Embed SDK 命令与事件协议
+
+桥接协议固定为：
+
+```ts
+type Command = {
+  channel: 'zenith.report.embed';
+  version: '1.0';
+  type: 'command';
+  command: 'setFilter' | 'setFilters' | 'resetFilters' | 'refresh' | 'getState' | 'exportPng';
+  requestId?: string;
+  payload?: unknown;
+};
+```
+
+子页面事件使用相同 `channel/version`，`type: 'event'`，事件名为 `loaded`、`error`、`filterChanged`、`widgetClicked`、`drilldown`、`exportReady`、`stateSnapshot`。`requestId` 将命令和 `stateSnapshot` / `exportReady` / `error` 关联。
+
+来源规则是强制安全边界：
+
+- 仅接受 `messageEvent.source === window.parent` 且 `messageEvent.origin` 精确命中白名单的消息；
+- 白名单只接受无用户信息、query、hash 和额外 path 的 `http/https` origin；`*` 和非法值被丢弃，空白名单会禁用桥；
+- 回复始终指定精确 `targetOrigin`，不广播到 `*`；
+- 消息最大 64 KiB，字段必须严格匹配协议；filterId 必须存在且不超过 64 字符，最多 100 个筛选器，单个字符串值不超过 2,048 字符；
+- 协议版本不匹配、未知命令或只读模式修改时返回 `error`；受控 `filterValues` 始终以宿主 props 为真值，命令不能覆盖。升级协议需发布新版本，不解释未知字段。
+
+宿主 iframe 示例：
+
+```ts
+const reportOrigin = 'https://reports.example.com';
+const frame = document.querySelector<HTMLIFrameElement>('#report-frame')!;
+
+frame.addEventListener('load', () => {
+  frame.contentWindow?.postMessage({
+    channel: 'zenith.report.embed',
+    version: '1.0',
+    type: 'command',
+    command: 'setFilter',
+    requestId: 'dept-42',
+    payload: { filterId: 'f_dept', value: 42 },
+  }, reportOrigin);
+});
+
+window.addEventListener('message', (event) => {
+  if (event.origin !== reportOrigin || event.source !== frame.contentWindow) return;
+  const message = event.data;
+  if (message?.channel !== 'zenith.report.embed' || message?.version !== '1.0') return;
+  if (message.type === 'event' && message.event === 'drilldown') {
+    // 由宿主执行经过自身路由白名单验证的跳转。
+  }
+});
+```
 
 ## 评论协作
 

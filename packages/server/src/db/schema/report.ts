@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, uniqueIndex, index, jsonb, real, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, uniqueIndex, index, jsonb, real, check, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 // 报表中心 jsonb 列形态（前后端共享契约；type-only 导入，编译期即擦除）
 import type {
@@ -6,8 +6,9 @@ import type {
   ReportFilter, ReportDashboardConfig, ReportDashboardVersionSnapshot, ReportComputedField, ReportCanvasItem,
   ReportPrintContent, ReportPrintPageConfig, ReportDatasetMaterialize, ReportNotifyChannel, ReportRowRule,
   ReportScheduleMisfirePolicy, ReportDeliveryStatus, ReportDeliveryTargetType, ReportDeliveryTriggerType,
-  ReportDashboardLifecycleStatus, ReportDashboardVersionSource, ReportDashboardSnapshot,
+  ReportDashboardLifecycleStatus, ReportDashboardVersionSource, ReportDashboardSnapshot, ReportResourceType,
 } from '@zenith/shared';
+import { REPORT_RESOURCE_TYPES } from '@zenith/shared';
 import { statusEnum } from './common';
 import { auditColumns, tenants, users } from './core';
 
@@ -17,16 +18,49 @@ import { auditColumns, tenants, users } from './core';
 export const reportDatasourceTypeEnum = pgEnum('report_datasource_type', ['api', 'sql', 'mysql', 'postgresql', 'sqlserver', 'static']);
 export const reportScheduleMisfirePolicyEnum = pgEnum('report_schedule_misfire_policy', ['skip', 'fire_once']);
 export const reportDeliveryStatusEnum = pgEnum('report_delivery_status', ['pending', 'running', 'success', 'partial', 'failed', 'cancelled']);
-export const reportDeliveryTargetTypeEnum = pgEnum('report_delivery_target_type', ['subscription', 'alert']);
+export const reportDeliveryTargetTypeEnum = pgEnum('report_delivery_target_type', ['subscription', 'alert', 'sla']);
 export const reportDeliveryTriggerTypeEnum = pgEnum('report_delivery_trigger_type', ['manual', 'scheduled', 'trigger', 'recover']);
 export const reportDashboardLifecycleStatusEnum = pgEnum('report_dashboard_lifecycle_status', ['draft', 'published', 'offline']);
 export const reportDashboardVersionSourceEnum = pgEnum('report_dashboard_version_source', ['manual', 'publish', 'restore_backup']);
+export const reportResourceTypeEnum = pgEnum('report_resource_type', REPORT_RESOURCE_TYPES);
+
+/** 资源目录：按租户及资源类型组织，可嵌套并独立授权。 */
+export const reportFolders = pgTable('report_folders', {
+  id: serial('id').primaryKey(),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  parentId: integer('parent_id').references((): AnyPgColumn => reportFolders.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 64 }).notNull(),
+  resourceType: reportResourceTypeEnum('resource_type').$type<ReportResourceType>().notNull(),
+  ownerId: integer('owner_id').references(() => users.id, { onDelete: 'set null' }),
+  sort: integer('sort').notNull().default(0),
+  status: statusEnum('status').notNull().default('enabled'),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  uniqueIndex('report_folders_tenant_root_name_uq').on(t.tenantId, t.resourceType, t.name)
+    .where(sql`${t.tenantId} is not null and ${t.parentId} is null`),
+  uniqueIndex('report_folders_tenant_child_name_uq').on(t.tenantId, t.parentId, t.resourceType, t.name)
+    .where(sql`${t.tenantId} is not null and ${t.parentId} is not null`),
+  uniqueIndex('report_folders_global_root_name_uq').on(t.resourceType, t.name)
+    .where(sql`${t.tenantId} is null and ${t.parentId} is null`),
+  uniqueIndex('report_folders_global_child_name_uq').on(t.parentId, t.resourceType, t.name)
+    .where(sql`${t.tenantId} is null and ${t.parentId} is not null`),
+  index('report_folders_tenant_type_status_idx').on(t.tenantId, t.resourceType, t.status),
+  index('report_folders_parent_sort_idx').on(t.parentId, t.sort),
+  index('report_folders_owner_idx').on(t.ownerId),
+]);
+
+export type ReportFolderRow = typeof reportFolders.$inferSelect;
+export type NewReportFolder = typeof reportFolders.$inferInsert;
 
 /** 报表数据源：api=远程 HTTP；sql=内置只读主库 */
 export const reportDatasources = pgTable('report_datasources', {
   id: serial('id').primaryKey(),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
-  name: varchar('name', { length: 64 }).notNull().unique(),
+  ownerId: integer('owner_id').references(() => users.id, { onDelete: 'set null' }),
+  folderId: integer('folder_id').references(() => reportFolders.id, { onDelete: 'set null' }),
+  name: varchar('name', { length: 64 }).notNull(),
   type: reportDatasourceTypeEnum('type').notNull(),
   /** 连接配置：api→{url,method,headers}；sql→{connection:'internal'} */
   config: jsonb('config').$type<ReportDatasourceConfig>().notNull().default(sql`'{}'::jsonb`),
@@ -40,7 +74,13 @@ export const reportDatasources = pgTable('report_datasources', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('report_datasources_tenant_idx').on(t.tenantId)]);
+}, (t) => [
+  uniqueIndex('report_datasources_tenant_name_uq').on(t.tenantId, t.name).where(sql`${t.tenantId} is not null`),
+  uniqueIndex('report_datasources_global_name_uq').on(t.name).where(sql`${t.tenantId} is null`),
+  index('report_datasources_tenant_status_idx').on(t.tenantId, t.status),
+  index('report_datasources_folder_idx').on(t.folderId),
+  index('report_datasources_owner_idx').on(t.ownerId),
+]);
 
 export type ReportDatasourceRow = typeof reportDatasources.$inferSelect;
 
@@ -50,7 +90,9 @@ export type NewReportDatasource = typeof reportDatasources.$inferInsert;
 export const reportDatasets = pgTable('report_datasets', {
   id: serial('id').primaryKey(),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
-  name: varchar('name', { length: 64 }).notNull().unique(),
+  ownerId: integer('owner_id').references(() => users.id, { onDelete: 'set null' }),
+  folderId: integer('folder_id').references(() => reportFolders.id, { onDelete: 'set null' }),
+  name: varchar('name', { length: 64 }).notNull(),
   datasourceId: integer('datasource_id').notNull().references(() => reportDatasources.id, { onDelete: 'restrict' }),
   /** 从数据源继承的类型（冗余，便于取数无需 JOIN） */
   type: reportDatasourceTypeEnum('type').notNull(),
@@ -74,8 +116,12 @@ export const reportDatasets = pgTable('report_datasets', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
-  index('report_datasets_tenant_idx').on(t.tenantId),
+  uniqueIndex('report_datasets_tenant_name_uq').on(t.tenantId, t.name).where(sql`${t.tenantId} is not null`),
+  uniqueIndex('report_datasets_global_name_uq').on(t.name).where(sql`${t.tenantId} is null`),
+  index('report_datasets_tenant_status_idx').on(t.tenantId, t.status),
   index('report_datasets_datasource_idx').on(t.datasourceId),
+  index('report_datasets_folder_idx').on(t.folderId),
+  index('report_datasets_owner_idx').on(t.ownerId),
 ]);
 
 export type ReportDatasetRow = typeof reportDatasets.$inferSelect;
@@ -116,7 +162,9 @@ export type ReportDatasetExecutionLogRow = typeof reportDatasetExecutionLogs.$in
 export const reportPrintTemplates = pgTable('report_print_templates', {
   id: serial('id').primaryKey(),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
-  name: varchar('name', { length: 64 }).notNull().unique(),
+  ownerId: integer('owner_id').references(() => users.id, { onDelete: 'set null' }),
+  folderId: integer('folder_id').references(() => reportFolders.id, { onDelete: 'set null' }),
+  name: varchar('name', { length: 64 }).notNull(),
   /** 绑定的数据集（主数据源，可空）*/
   datasetId: integer('dataset_id').references((): AnyPgColumn => reportDatasets.id, { onDelete: 'set null' }),
   /** Univer 工作簿快照(编辑用) + 归一化网格(渲染/导出用)，单元格含 ${field}/#{field}/${SUM(field)} 表达式 */
@@ -130,7 +178,13 @@ export const reportPrintTemplates = pgTable('report_print_templates', {
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('report_print_templates_tenant_idx').on(t.tenantId)]);
+}, (t) => [
+  uniqueIndex('report_print_templates_tenant_name_uq').on(t.tenantId, t.name).where(sql`${t.tenantId} is not null`),
+  uniqueIndex('report_print_templates_global_name_uq').on(t.name).where(sql`${t.tenantId} is null`),
+  index('report_print_templates_tenant_status_idx').on(t.tenantId, t.status),
+  index('report_print_templates_folder_idx').on(t.folderId),
+  index('report_print_templates_owner_idx').on(t.ownerId),
+]);
 
 export type ReportPrintTemplateRow = typeof reportPrintTemplates.$inferSelect;
 
@@ -141,7 +195,8 @@ export const reportAlertRules = pgTable('report_alert_rules', {
   id: serial('id').primaryKey(),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 64 }).notNull(),
-  datasetId: integer('dataset_id').notNull().references((): AnyPgColumn => reportDatasets.id, { onDelete: 'cascade' }),
+  datasetId: integer('dataset_id').references((): AnyPgColumn => reportDatasets.id, { onDelete: 'cascade' }),
+  metricId: integer('metric_id'),
   /** 监控字段（count 可空） */
   field: varchar('field', { length: 128 }),
   /** 分组维度（可空=全局聚合；有值=按组聚合，任一组命中即触发） */
@@ -182,7 +237,9 @@ export const reportAlertRules = pgTable('report_alert_rules', {
 }, (t) => [
   index('report_alert_rules_tenant_idx').on(t.tenantId),
   index('report_alert_rules_dataset_idx').on(t.datasetId),
+  index('report_alert_rules_metric_idx').on(t.metricId),
   index('report_alert_rules_next_run_idx').on(t.nextRunAt),
+  check('report_alert_rules_source_check', sql`(${t.datasetId} IS NOT NULL) <> (${t.metricId} IS NOT NULL)`),
 ]);
 
 export type ReportAlertRuleRow = typeof reportAlertRules.$inferSelect;
@@ -217,7 +274,9 @@ export type NewReportDashboardComment = typeof reportDashboardComments.$inferIns
 export const reportDashboards = pgTable('report_dashboards', {
   id: serial('id').primaryKey(),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
-  name: varchar('name', { length: 64 }).notNull().unique(),
+  ownerId: integer('owner_id').references(() => users.id, { onDelete: 'set null' }),
+  folderId: integer('folder_id').references(() => reportFolders.id, { onDelete: 'set null' }),
+  name: varchar('name', { length: 64 }).notNull(),
   /** react-grid-layout 布局数组 */
   layout: jsonb('layout').$type<ReportGridItem[]>().notNull().default(sql`'[]'::jsonb`),
   /** 自由画布定位数组（canvas 大屏模式）*/
@@ -242,9 +301,12 @@ export const reportDashboards = pgTable('report_dashboards', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
-  index('report_dashboards_tenant_idx').on(t.tenantId),
+  uniqueIndex('report_dashboards_tenant_name_uq').on(t.tenantId, t.name).where(sql`${t.tenantId} is not null`),
+  uniqueIndex('report_dashboards_global_name_uq').on(t.name).where(sql`${t.tenantId} is null`),
+  index('report_dashboards_tenant_lifecycle_idx').on(t.tenantId, t.lifecycleStatus),
   index('report_dashboards_category_idx').on(t.categoryId),
-  index('report_dashboards_lifecycle_idx').on(t.lifecycleStatus),
+  index('report_dashboards_folder_idx').on(t.folderId),
+  index('report_dashboards_owner_idx').on(t.ownerId),
 ]);
 
 export type ReportDashboardRow = typeof reportDashboards.$inferSelect;
@@ -395,6 +457,7 @@ export const reportDeliveryRuns = pgTable('report_delivery_runs', {
   targetType: reportDeliveryTargetTypeEnum('target_type').$type<ReportDeliveryTargetType>().notNull(),
   subscriptionId: integer('subscription_id').references((): AnyPgColumn => reportDashboardSubscriptions.id, { onDelete: 'set null' }),
   alertRuleId: integer('alert_rule_id').references((): AnyPgColumn => reportAlertRules.id, { onDelete: 'set null' }),
+  slaRuleId: integer('sla_rule_id'),
   dashboardId: integer('dashboard_id').references((): AnyPgColumn => reportDashboards.id, { onDelete: 'set null' }),
   datasetId: integer('dataset_id').references((): AnyPgColumn => reportDatasets.id, { onDelete: 'set null' }),
   targetName: varchar('target_name', { length: 128 }),

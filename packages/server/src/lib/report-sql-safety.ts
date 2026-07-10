@@ -1,4 +1,5 @@
 import { HTTPException } from 'hono/http-exception';
+import { isSensitiveTable, SENSITIVE_COLUMN_RE } from './report-schema-meta';
 
 const WRITE_OR_CONTROL_KEYWORDS = new Set([
   'alter',
@@ -203,4 +204,211 @@ export function isReadonlyReportSql(input: string): boolean {
   } catch {
     return false;
   }
+}
+
+const SENSITIVE_SCHEMAS = new Set(['information_schema', 'pg_catalog', 'pg_toast', 'sys', 'mysql', 'performance_schema']);
+const FROM_TERMINATORS = new Set([
+  'except', 'fetch', 'for', 'group', 'having', 'intersect', 'limit', 'offset',
+  'order', 'qualify', 'returning', 'union', 'where', 'window',
+]);
+
+interface SqlToken {
+  kind: 'identifier' | 'word' | 'symbol';
+  value: string;
+}
+
+function unquoteIdentifier(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) return trimmed.slice(1, -1).replace(/""/g, '"');
+  if (trimmed.startsWith('`') && trimmed.endsWith('`')) return trimmed.slice(1, -1);
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) return trimmed.slice(1, -1);
+  return trimmed;
+}
+
+function normalizeQualifiedIdentifier(value: string): string {
+  return value.split('.').map((part) => unquoteIdentifier(part)).join('.').replace(/\s+/g, '').toLowerCase();
+}
+
+function tokenizeSqlStructure(input: string): SqlToken[] {
+  const tokens: SqlToken[] = [];
+  let index = 0;
+  while (index < input.length) {
+    const char = input[index];
+    const next = input[index + 1];
+    if (/\s/.test(char)) {
+      index++;
+      continue;
+    }
+    if (char === '-' && next === '-') {
+      index += 2;
+      while (index < input.length && input[index] !== '\n') index++;
+      continue;
+    }
+    if (char === '/' && next === '*') {
+      index += 2;
+      while (index < input.length && !(input[index] === '*' && input[index + 1] === '/')) index++;
+      index = Math.min(input.length, index + 2);
+      continue;
+    }
+    if (char === '\'') {
+      index++;
+      while (index < input.length) {
+        if (input[index] === '\'' && input[index + 1] === '\'') {
+          index += 2;
+          continue;
+        }
+        if (input[index++] === '\'') break;
+      }
+      continue;
+    }
+    if (char === '$') {
+      const tag = /^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/.exec(input.slice(index))?.[0];
+      if (tag) {
+        const end = input.indexOf(tag, index + tag.length);
+        index = end < 0 ? input.length : end + tag.length;
+        continue;
+      }
+    }
+    if (char === '"' || char === '`' || char === '[') {
+      const close = char === '[' ? ']' : char;
+      let value = '';
+      index++;
+      while (index < input.length) {
+        if (input[index] === close) {
+          if (close !== ']' && input[index + 1] === close) {
+            value += close;
+            index += 2;
+            continue;
+          }
+          index++;
+          break;
+        }
+        value += input[index++];
+      }
+      tokens.push({ kind: 'identifier', value });
+      continue;
+    }
+    const word = /^[A-Za-z_][A-Za-z0-9_$]*/.exec(input.slice(index))?.[0];
+    if (word) {
+      tokens.push({ kind: 'word', value: word.toLowerCase() });
+      index += word.length;
+      continue;
+    }
+    if ('(),.'.includes(char)) tokens.push({ kind: 'symbol', value: char });
+    index++;
+  }
+  return tokens;
+}
+
+function findClosingParenthesis(tokens: SqlToken[], openIndex: number): number {
+  let depth = 0;
+  for (let index = openIndex; index < tokens.length; index++) {
+    if (tokens[index].value === '(') depth++;
+    if (tokens[index].value === ')' && --depth === 0) return index;
+  }
+  return tokens.length - 1;
+}
+
+function extractCteNames(tokens: SqlToken[]): Set<string> {
+  const names = new Set<string>();
+  for (let index = 0; index < tokens.length; index++) {
+    if (tokens[index].value !== 'with') continue;
+    let cursor = index + 1;
+    if (tokens[cursor]?.value === 'recursive') cursor++;
+    while (cursor < tokens.length) {
+      const name = tokens[cursor];
+      if (!name || name.kind === 'symbol') break;
+      cursor++;
+      if (tokens[cursor]?.value === '(') cursor = findClosingParenthesis(tokens, cursor) + 1;
+      if (tokens[cursor]?.value !== 'as' || tokens[cursor + 1]?.value !== '(') break;
+      names.add(name.value.toLowerCase());
+      cursor = findClosingParenthesis(tokens, cursor + 1) + 1;
+      if (tokens[cursor]?.value !== ',') break;
+      cursor++;
+    }
+  }
+  return names;
+}
+
+function readRelation(tokens: SqlToken[], start: number): { name: string | null; end: number } {
+  let cursor = start;
+  while (tokens[cursor]?.value === 'lateral' || tokens[cursor]?.value === 'only') cursor++;
+  if (!tokens[cursor] || tokens[cursor].value === '(') return { name: null, end: cursor };
+  if (tokens[cursor].kind === 'symbol') return { name: null, end: cursor };
+  const parts = [tokens[cursor].value];
+  cursor++;
+  while (tokens[cursor]?.value === '.' && tokens[cursor + 1] && tokens[cursor + 1].kind !== 'symbol') {
+    parts.push(tokens[cursor + 1].value);
+    cursor += 2;
+  }
+  return { name: normalizeQualifiedIdentifier(parts.join('.')), end: cursor };
+}
+
+/** 提取 SELECT/WITH 中实际读取的表；CTE 名称会被排除。 */
+export function extractReportSqlTableReferences(input: string): string[] {
+  const sql = normalizeReadonlyReportSql(input);
+  const tokens = tokenizeSqlStructure(sql);
+  const ctes = extractCteNames(tokens);
+  const tables = new Set<string>();
+  const activeFromDepths = new Set<number>();
+  let depth = 0;
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index];
+    if (token.value === '(') {
+      const previous = tokens[index - 1];
+      const beginsTableGroup = previous?.value === 'from'
+        || previous?.value === 'join'
+        || (previous?.value === ',' && activeFromDepths.has(depth))
+        || (previous?.value === '(' && activeFromDepths.has(depth));
+      depth++;
+      const next = tokens[index + 1];
+      if (beginsTableGroup && next?.value !== 'select' && next?.value !== 'with') {
+        activeFromDepths.add(depth);
+        const relation = readRelation(tokens, index + 1);
+        if (relation.name && !ctes.has(relation.name)) tables.add(relation.name);
+      }
+      continue;
+    }
+    if (token.value === ')') {
+      activeFromDepths.delete(depth);
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    if (FROM_TERMINATORS.has(token.value)) activeFromDepths.delete(depth);
+    const beginsRelation = token.value === 'from'
+      || token.value === 'join'
+      || (token.value === ',' && activeFromDepths.has(depth));
+    if (!beginsRelation) continue;
+    if (token.value === 'from') activeFromDepths.add(depth);
+    const relation = readRelation(tokens, index + 1);
+    if (relation.name && !ctes.has(relation.name)) tables.add(relation.name);
+  }
+  return [...tables];
+}
+
+/** ChatBI 的第二道 SQL 防火墙：禁止系统 schema/敏感表，并强制命中冻结 allowlist。 */
+export function assertReportSqlTableAllowlist(input: string, allowedTables: readonly string[]): string {
+  const sql = normalizeReadonlyReportSql(input);
+  const sensitiveColumn = tokenizeSqlStructure(sql)
+    .find((token) => token.kind !== 'symbol' && SENSITIVE_COLUMN_RE.test(token.value));
+  if (sensitiveColumn) {
+    throw new HTTPException(400, { message: `ChatBI SQL 禁止访问敏感字段：${sensitiveColumn.value}` });
+  }
+  const references = extractReportSqlTableReferences(sql);
+  if (references.length === 0) {
+    throw new HTTPException(400, { message: 'ChatBI SQL 必须读取已授权的数据表' });
+  }
+  const allowed = new Set(allowedTables.map((name) => normalizeQualifiedIdentifier(name)));
+  for (const reference of references) {
+    const parts = reference.split('.');
+    const table = parts.at(-1)!;
+    const schema = parts.length > 1 ? parts.at(-2)! : null;
+    if ((schema && SENSITIVE_SCHEMAS.has(schema)) || isSensitiveTable(table)) {
+      throw new HTTPException(400, { message: `ChatBI SQL 禁止访问敏感表：${reference}` });
+    }
+    if (!allowed.has(reference) && !allowed.has(table)) {
+      throw new HTTPException(400, { message: `ChatBI SQL 访问了未授权的数据表：${reference}` });
+    }
+  }
+  return sql;
 }

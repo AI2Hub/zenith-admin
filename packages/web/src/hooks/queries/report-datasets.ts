@@ -19,6 +19,8 @@ export interface ReportDatasetListParams {
   pageSize: number;
   keyword?: string;
   status?: string;
+  ownerId?: number;
+  folderId?: number;
 }
 
 export interface ParseReportDatasetFileResult {

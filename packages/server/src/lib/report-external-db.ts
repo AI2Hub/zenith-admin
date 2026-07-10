@@ -6,7 +6,8 @@ import { decryptField } from './encryption';
 import { createHash } from 'node:crypto';
 import { resolveSafeOutboundHost } from './outbound-url';
 import { normalizeReadonlyReportSql } from './report-sql-safety';
-import type { ReportDatasourceType, ReportExternalDbConfig, ReportDataResult, ReportDatasetQueryOptions } from '@zenith/shared';
+import { isSensitiveTable, SENSITIVE_COLUMN_RE } from './report-schema-meta';
+import type { ReportDatasourceType, ReportExternalDbConfig, ReportDataResult, ReportDatasetQueryOptions, ReportMetaColumn } from '@zenith/shared';
 
 const QUERY_TIMEOUT_MS = 15_000;
 const MAX_ROWS = 5000;
@@ -229,6 +230,7 @@ export async function runExternalQuery(
       const total = Number((Array.isArray(countRows) ? countRows[0] : countRows)?.total ?? arr.length);
       return { columns, fields: [], rows: arr, total: Number.isFinite(total) ? total : arr.length };
     }
+
     if (type === 'sqlserver') {
       const pool = await getMssqlPool(safeConfig, tlsServerName);
       const wrapped = buildWrappedSql(stripSqlServerTopLevelOrderBy(trimmed), options, 'sqlserver');
@@ -245,6 +247,7 @@ export async function runExternalQuery(
       const total = Number((countResult.recordset ?? [])[0]?.total ?? arr.length);
       return { columns, fields: [], rows: arr, total: Number.isFinite(total) ? total : arr.length };
     }
+
     // mysql
     const pool = getMyPool(safeConfig, tlsServerName);
     const conn = await pool.getConnection();
@@ -266,6 +269,68 @@ export async function runExternalQuery(
     if (err instanceof HTTPException) throw err;
     const msg = err instanceof Error ? err.message : String(err);
     throw new HTTPException(502, { message: `外部数据库查询失败：${msg}` });
+  }
+}
+
+type ExternalMetaRow = { table_name: string; column_name: string; data_type: string };
+
+function mapExternalMetaRows(rows: ExternalMetaRow[]): Map<string, ReportMetaColumn[]> {
+  const byTable = new Map<string, ReportMetaColumn[]>();
+  for (const row of rows) {
+    const table = String(row.table_name);
+    const column = String(row.column_name);
+    if (isSensitiveTable(table) || SENSITIVE_COLUMN_RE.test(column)) continue;
+    const columns = byTable.get(table) ?? [];
+    columns.push({ name: column, type: String(row.data_type) });
+    byTable.set(table, columns);
+  }
+  return byTable;
+}
+
+/** 读取外部数据源的脱敏元数据；凭据只用于连接，返回值不含连接配置。 */
+export async function loadExternalSchemaMeta(
+  type: ReportDatasourceType,
+  config: ReportExternalDbConfig,
+): Promise<Map<string, ReportMetaColumn[]>> {
+  try {
+    const [address] = await resolveSafeOutboundHost(String(config.host ?? ''));
+    const safeConfig = { ...config, host: address.address };
+    const tlsServerName = String(config.host ?? '');
+    if (type === 'postgresql') {
+      const client = getPgPool(type, safeConfig, tlsServerName);
+      const rows = await client.unsafe<ExternalMetaRow[]>(
+        `SELECT table_name, column_name, data_type
+         FROM information_schema.columns
+         WHERE table_schema = current_schema() ORDER BY table_name, ordinal_position`,
+      );
+      return mapExternalMetaRows([...rows]);
+    }
+    if (type === 'sqlserver') {
+      const pool = await getMssqlPool(safeConfig, tlsServerName);
+      const result = await pool.request().query<ExternalMetaRow>(
+        `SELECT TABLE_NAME AS table_name, COLUMN_NAME AS column_name, DATA_TYPE AS data_type
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = SCHEMA_NAME() ORDER BY TABLE_NAME, ORDINAL_POSITION`,
+      );
+      return mapExternalMetaRows(result.recordset ?? []);
+    }
+    if (type === 'mysql') {
+      const pool = getMyPool(safeConfig, tlsServerName);
+      const [rows] = await pool.query<mysql.RowDataPacket[]>(
+        `SELECT TABLE_NAME AS table_name, COLUMN_NAME AS column_name, DATA_TYPE AS data_type
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME, ORDINAL_POSITION`,
+      );
+      return mapExternalMetaRows(rows.map((row) => ({
+        table_name: String(row.table_name),
+        column_name: String(row.column_name),
+        data_type: String(row.data_type),
+      })));
+    }
+    throw new HTTPException(400, { message: '当前数据源类型不支持 ChatBI 元数据读取' });
+  } catch (err) {
+    if (err instanceof HTTPException) throw err;
+    throw new HTTPException(502, { message: '外部数据库元数据读取失败' });
   }
 }
 

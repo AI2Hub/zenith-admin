@@ -23,10 +23,23 @@ import {
   buildDashboardSnapshot,
 } from './report-dashboard-runtime';
 import {
+  assertReportMetricEvaluableGlobally,
+  ensureReportMetricExists,
+  evaluateReportMetric,
+} from './report-metric.service';
+import {
   reportCreateTenantId,
   reportScopedWhere,
   reportTenantScope,
 } from './report-access';
+import {
+  ensureReportResourceAccess,
+  listAccessibleReportResourceIds,
+} from './report-resource-acl.service';
+import {
+  defaultReportOwnerId,
+  validateReportResourcePlacement,
+} from './report-resource.service';
 import type { ReportDashboardRow } from '../../db/schema';
 import type {
   CreateReportDashboardInput,
@@ -39,6 +52,7 @@ import type {
   ReportFilter,
   ReportGridItem,
   ReportLookupOption,
+  ReportMetricEvaluation,
   ReportWidget,
   ReportWidgetDataResult,
   UpdateReportDashboardInput,
@@ -47,6 +61,8 @@ import type {
 type DashboardRowExt = ReportDashboardRow & {
   category?: { name: string } | null;
   publishedByUser?: { nickname: string | null; username: string } | null;
+  folder?: { name: string } | null;
+  owner?: { nickname: string | null; username: string } | null;
 };
 
 export class DashboardRevisionConflictError extends Error {
@@ -75,6 +91,10 @@ export function mapDashboard(
 ): ReportDashboard {
   return {
     id: row.id,
+    ownerId: row.ownerId ?? null,
+    ownerName: row.owner?.nickname || row.owner?.username || null,
+    folderId: row.folderId ?? null,
+    folderName: row.folder?.name ?? null,
     name: snapshotOrRowValue(snapshot, 'name', row.name),
     layout: snapshotOrRowValue(snapshot, 'layout', (row.layout ?? []) as ReportGridItem[]),
     canvasLayout: snapshotOrRowValue(snapshot, 'canvasLayout', (row.canvasLayout ?? []) as ReportCanvasItem[]),
@@ -112,9 +132,16 @@ function draftSnapshotFromRow(row: ReportDashboardRow): ReportDashboardSnapshot 
   });
 }
 
-async function canPreviewDraft(): Promise<boolean> {
+async function canPreviewDraft(dashboardId: number): Promise<boolean> {
   if (!currentUserOrNull()) return false;
-  return hasPermission('report:dashboard:update');
+  if (!(await hasPermission('report:dashboard:update'))) return false;
+  try {
+    await ensureReportResourceAccess('dashboard', dashboardId, 'editor');
+    return true;
+  } catch (error) {
+    if (error instanceof HTTPException && error.status === 403) return false;
+    throw error;
+  }
 }
 
 export async function resolveDashboardSnapshotForMode(
@@ -123,7 +150,7 @@ export async function resolveDashboardSnapshotForMode(
   options?: { allowOfflinePublished?: boolean },
 ): Promise<ReportDashboardSnapshot> {
   if (mode === 'draft') {
-    if (!(await canPreviewDraft())) {
+    if (!(await canPreviewDraft(row.id))) {
       throw new HTTPException(403, { message: '仅有编辑权限的用户可预览草稿' });
     }
     return draftSnapshotFromRow(row);
@@ -139,7 +166,7 @@ export async function resolveDashboardSnapshotForMode(
   }
 
   if (publishedAccessible) return published;
-  if (row.lifecycleStatus === 'draft' && await canPreviewDraft()) return draftSnapshotFromRow(row);
+  if (row.lifecycleStatus === 'draft' && await canPreviewDraft(row.id)) return draftSnapshotFromRow(row);
   throw new HTTPException(404, { message: '仪表盘未发布' });
 }
 
@@ -148,6 +175,7 @@ export async function ensureDashboardExists(id: number): Promise<ReportDashboard
     .where(reportScopedWhere(reportDashboards, eq(reportDashboards.id, id)))
     .limit(1);
   if (!row) throw new HTTPException(404, { message: '仪表盘不存在' });
+  if (currentUserOrNull()) await ensureReportResourceAccess('dashboard', id, 'viewer');
   return row;
 }
 
@@ -155,11 +183,14 @@ export async function getDashboard(
   id: number,
   options?: { mode?: 'auto' | 'draft' | 'published'; allowOfflinePublished?: boolean },
 ): Promise<ReportDashboard> {
+  if (currentUserOrNull()) await ensureReportResourceAccess('dashboard', id, 'viewer');
   const row = await db.query.reportDashboards.findFirst({
     where: reportScopedWhere(reportDashboards, eq(reportDashboards.id, id)),
     with: {
       category: { columns: { name: true } },
       publishedByUser: { columns: { nickname: true, username: true } },
+      folder: { columns: { name: true } },
+      owner: { columns: { nickname: true, username: true } },
     },
   });
   if (!row) throw new HTTPException(404, { message: '仪表盘不存在' });
@@ -181,6 +212,8 @@ export async function listDashboards(query: {
   page?: number;
   pageSize?: number;
   keyword?: string;
+  folderId?: number;
+  ownerId?: number;
   status?: string;
   lifecycleStatus?: ReportDashboardLifecycleStatus;
   categoryId?: number;
@@ -190,6 +223,8 @@ export async function listDashboards(query: {
     page = 1,
     pageSize = 20,
     keyword,
+    folderId,
+    ownerId,
     status,
     lifecycleStatus,
     categoryId,
@@ -199,6 +234,11 @@ export async function listDashboards(query: {
   const conds = [];
   const tenantScope = reportTenantScope(reportDashboards);
   if (tenantScope) conds.push(tenantScope);
+  const accessibleIds = await listAccessibleReportResourceIds('dashboard');
+  if (accessibleIds && accessibleIds.length === 0) return { list: [], total: 0, page, pageSize };
+  if (accessibleIds) conds.push(inArray(reportDashboards.id, accessibleIds));
+  if (folderId) conds.push(eq(reportDashboards.folderId, folderId));
+  if (ownerId) conds.push(eq(reportDashboards.ownerId, ownerId));
   if (keyword) {
     const kw = `%${escapeLike(keyword)}%`;
     conds.push(or(ilike(reportDashboards.name, kw), ilike(reportDashboards.remark, kw)));
@@ -222,6 +262,8 @@ export async function listDashboards(query: {
       with: {
         category: { columns: { name: true } },
         publishedByUser: { columns: { nickname: true, username: true } },
+        folder: { columns: { name: true } },
+        owner: { columns: { nickname: true, username: true } },
       },
       orderBy: desc(reportDashboards.id),
       limit: pageSize,
@@ -255,6 +297,9 @@ export async function listDashboardLookup(query: {
   const conds = [];
   const tenantScope = reportTenantScope(reportDashboards);
   if (tenantScope) conds.push(tenantScope);
+  const accessibleIds = await listAccessibleReportResourceIds('dashboard');
+  if (accessibleIds && accessibleIds.length === 0) return [];
+  if (accessibleIds) conds.push(inArray(reportDashboards.id, accessibleIds));
   if (keyword) {
     const kw = `%${escapeLike(keyword)}%`;
     conds.push(or(ilike(reportDashboards.name, kw), ilike(reportDashboards.remark, kw)));
@@ -296,19 +341,37 @@ function buildCopyName(baseName: string, existingNames: Set<string>): string {
 
 export async function batchSetDashboardStatus(ids: number[], status: 'enabled' | 'disabled'): Promise<number> {
   if (ids.length === 0) return 0;
-  const result = await db.update(reportDashboards).set({ status }).where(reportScopedWhere(reportDashboards, inArray(reportDashboards.id, ids))).returning({ id: reportDashboards.id });
+  const accessible = await listAccessibleReportResourceIds('dashboard', 'editor');
+  const allowedIds = accessible ? ids.filter((id) => accessible.includes(id)) : ids;
+  if (allowedIds.length === 0) return 0;
+  const result = await db.update(reportDashboards).set({ status }).where(reportScopedWhere(reportDashboards, inArray(reportDashboards.id, allowedIds))).returning({ id: reportDashboards.id });
   return result.length;
 }
 
 export async function cloneDashboard(id: number, input?: { name?: string | null }): Promise<ReportDashboard> {
+  await ensureReportResourceAccess('dashboard', id, 'editor');
   const current = await ensureDashboardExists(id);
   const rows = await db.select({ name: reportDashboards.name }).from(reportDashboards).where(reportTenantScope(reportDashboards));
   const name = input?.name?.trim() || buildCopyName(current.name, new Set(rows.map((row) => row.name)));
   const snapshot = draftSnapshotFromRow(current);
-  await ensureDashboardReferences(snapshot.widgets, snapshot.filters, snapshot.categoryId ?? null);
+  await ensureDashboardReferences(
+    snapshot.widgets,
+    snapshot.filters,
+    snapshot.categoryId ?? null,
+    undefined,
+    current.tenantId ?? null,
+  );
+  const ownerId = defaultReportOwnerId();
+  await validateReportResourcePlacement('dashboard', {
+    ownerId,
+    folderId: current.folderId,
+    tenantId: current.tenantId ?? reportCreateTenantId(),
+  });
   try {
     const [row] = await db.insert(reportDashboards).values({
       tenantId: current.tenantId ?? reportCreateTenantId(),
+      ownerId,
+      folderId: current.folderId ?? null,
       name,
       layout: snapshot.layout,
       canvasLayout: snapshot.canvasLayout ?? [],
@@ -333,14 +396,21 @@ export async function cloneDashboard(id: number, input?: { name?: string | null 
 }
 
 export async function createDashboard(input: CreateReportDashboardInput): Promise<ReportDashboard> {
+  const tenantId = reportCreateTenantId();
   await ensureDashboardReferences(
     (input.widgets ?? []) as ReportWidget[],
     (input.filters ?? []) as ReportFilter[],
     input.categoryId ?? null,
+    undefined,
+    tenantId,
   );
+  const ownerId = input.ownerId ?? defaultReportOwnerId();
+  await validateReportResourcePlacement('dashboard', { ownerId, folderId: input.folderId, tenantId });
   try {
     const [row] = await db.insert(reportDashboards).values({
-      tenantId: reportCreateTenantId(),
+      tenantId,
+      ownerId,
+      folderId: input.folderId ?? null,
       name: input.name,
       layout: (input.layout ?? []) as ReportGridItem[],
       canvasLayout: (input.canvasLayout ?? []) as ReportCanvasItem[],
@@ -362,7 +432,11 @@ export async function createDashboard(input: CreateReportDashboardInput): Promis
 }
 
 export async function updateDashboardDraft(id: number, input: UpdateReportDashboardInput): Promise<ReportDashboard> {
+  await ensureReportResourceAccess('dashboard', id, 'editor');
   const current = await ensureDashboardExists(id);
+  if (input.ownerId !== undefined && input.ownerId !== current.ownerId) {
+    await ensureReportResourceAccess('dashboard', id, 'owner');
+  }
   if (input.expectedRevision !== current.revision) {
     throw new DashboardRevisionConflictError(
       '仪表盘草稿已被其他人更新，请先刷新后再保存',
@@ -386,10 +460,18 @@ export async function updateDashboardDraft(id: number, input: UpdateReportDashbo
     nextSnapshot.filters ?? [],
     nextSnapshot.categoryId ?? null,
     id,
+    current.tenantId ?? null,
   );
+  await validateReportResourcePlacement('dashboard', {
+    ownerId: input.ownerId,
+    folderId: input.folderId,
+    tenantId: current.tenantId ?? null,
+  });
 
   try {
     const [row] = await db.update(reportDashboards).set({
+      ownerId: input.ownerId,
+      folderId: input.folderId,
       name: nextSnapshot.name,
       layout: nextSnapshot.layout as ReportGridItem[],
       canvasLayout: nextSnapshot.canvasLayout as ReportCanvasItem[] | undefined,
@@ -417,6 +499,7 @@ export async function updateDashboardDraft(id: number, input: UpdateReportDashbo
 }
 
 export async function deleteDashboard(id: number): Promise<void> {
+  await ensureReportResourceAccess('dashboard', id, 'owner');
   await ensureDashboardExists(id);
   await db.delete(reportDashboards).where(eq(reportDashboards.id, id));
 }
@@ -426,11 +509,22 @@ export async function ensureDashboardReferences(
   filters: ReportFilter[],
   categoryId: number | null | undefined,
   dashboardId?: number,
+  tenantId?: number | null,
 ): Promise<void> {
   const datasetIds = new Set<number>();
+  const metricIds = new Set<number>();
   const targetDashboardIds = new Set<number>();
   for (const widget of widgets) {
+    if (widget.metricId && widget.datasetId) {
+      throw new HTTPException(400, { message: `组件「${widget.title || widget.i}」不能同时绑定数据集和指标` });
+    }
     if (widget.datasetId) datasetIds.add(widget.datasetId);
+    if (widget.metricId) {
+      if (!['kpi', 'gauge', 'flipper', 'liquid'].includes(widget.type)) {
+        throw new HTTPException(400, { message: `组件「${widget.title || widget.i}」不支持指标数据源` });
+      }
+      metricIds.add(widget.metricId);
+    }
     const targetId = widget.drilldown?.targetDashboardId;
     if (targetId && targetId !== dashboardId) targetDashboardIds.add(targetId);
   }
@@ -439,37 +533,64 @@ export async function ensureDashboardReferences(
       datasetIds.add(filter.optionSource.datasetId);
     }
   }
-  await Promise.all([
-    ...[...datasetIds].map((datasetId) => ensureDatasetExists(datasetId)),
-    ...[...targetDashboardIds].map((targetId) => ensureDashboardExists(targetId)),
+  const [datasets, metrics, targetDashboards] = await Promise.all([
+    Promise.all([...datasetIds].map((datasetId) => ensureDatasetExists(datasetId))),
+    Promise.all([...metricIds].map((metricId) => ensureReportMetricExists(metricId))),
+    Promise.all([...targetDashboardIds].map((targetId) => ensureDashboardExists(targetId))),
   ]);
+  if (tenantId !== undefined) {
+    const crossTenant = [...datasets, ...metrics, ...targetDashboards]
+      .some((resource) => (resource.tenantId ?? null) !== tenantId);
+    if (crossTenant) throw new HTTPException(400, { message: '仪表盘引用了其他租户的报表资源' });
+  }
   if (categoryId) {
-    const [category] = await db.select({ id: reportDashboardCategories.id })
+    const [category] = await db.select({ id: reportDashboardCategories.id, tenantId: reportDashboardCategories.tenantId })
       .from(reportDashboardCategories)
       .where(reportScopedWhere(reportDashboardCategories, eq(reportDashboardCategories.id, categoryId)))
       .limit(1);
     if (!category) throw new HTTPException(404, { message: '仪表盘分类不存在' });
+    if (tenantId !== undefined && (category.tenantId ?? null) !== tenantId) {
+      throw new HTTPException(400, { message: '仪表盘与分类不属于同一租户' });
+    }
   }
 }
 
 export async function assertDashboardEvaluableGlobally(id: number): Promise<void> {
   const dashboard = await ensureDashboardExists(id);
-  await assertDashboardSnapshotEvaluableGlobally(draftSnapshotFromRow(dashboard));
+  await assertDashboardSnapshotEvaluableGlobally(draftSnapshotFromRow(dashboard), dashboard.tenantId ?? null);
 }
 
 export async function assertDashboardSnapshotEvaluableGlobally(
   snapshot: ReportDashboardSnapshot,
+  tenantId?: number | null,
 ): Promise<void> {
   const datasetIds = new Set<number>();
+  const metricIds = new Set<number>();
   for (const widget of snapshot.widgets ?? []) {
     if (widget.datasetId) datasetIds.add(widget.datasetId);
+    if (widget.metricId) metricIds.add(widget.metricId);
   }
   for (const filter of snapshot.filters ?? []) {
     if (filter.optionSource?.kind === 'dataset' && filter.optionSource.datasetId) {
       datasetIds.add(filter.optionSource.datasetId);
     }
   }
-  await Promise.all([...datasetIds].map((datasetId) => assertDatasetEvaluableGlobally(datasetId)));
+  await Promise.all([
+    ...[...datasetIds].map(async (datasetId) => {
+      const dataset = await ensureDatasetExists(datasetId);
+      if (tenantId !== undefined && (dataset.tenantId ?? null) !== tenantId) {
+        throw new HTTPException(400, { message: '仪表盘引用了其他租户的数据集' });
+      }
+      await assertDatasetEvaluableGlobally(datasetId);
+    }),
+    ...[...metricIds].map(async (metricId) => {
+      const metric = await ensureReportMetricExists(metricId);
+      if (tenantId !== undefined && (metric.tenantId ?? null) !== tenantId) {
+        throw new HTTPException(400, { message: '仪表盘引用了其他租户的指标' });
+      }
+      await assertReportMetricEvaluableGlobally(metricId);
+    }),
+  ]);
 }
 
 function computeWidgetParams(widget: ReportWidget, filterValues: Record<string, unknown>): Record<string, unknown> {
@@ -486,6 +607,20 @@ function toWidgetDataError(err: unknown): { code: number; message: string } {
   if (err instanceof HTTPException) return { code: err.status, message: err.message };
   if (err instanceof Error) return { code: 500, message: err.message };
   return { code: 500, message: String(err) };
+}
+
+export function buildMetricWidgetDataResult(metric: ReportMetricEvaluation): ReportWidgetDataResult {
+  return {
+    data: {
+      columns: ['value'],
+      fields: [{ name: 'value', label: metric.code, type: 'number' }],
+      rows: [{ value: metric.value, formattedValue: metric.formattedValue, unit: metric.unit ?? null }],
+      total: 1,
+    },
+    error: null,
+    durationMs: metric.durationMs,
+    cacheHit: metric.cacheHit,
+  };
 }
 
 function resolveWidgetQuery(
@@ -520,7 +655,29 @@ export async function getDashboardData(
     query: ReportDatasetQueryOptions;
     widgetIds: string[];
   }>();
+  const metricEntryMap = new Map<string, {
+    metricId: number;
+    params: Record<string, unknown>;
+    widgetIds: string[];
+  }>();
   for (const widget of widgets ?? []) {
+    if (widget.metricId) {
+      if (!['kpi', 'gauge', 'flipper', 'liquid'].includes(widget.type)) {
+        out[widget.i] = {
+          data: null,
+          error: { code: 400, message: '当前组件类型不支持指标数据源' },
+          durationMs: 0,
+          cacheHit: false,
+        };
+        continue;
+      }
+      const params = computeWidgetParams(widget, filterValues);
+      const key = `${widget.metricId}:${JSON.stringify(params)}`;
+      const entry = metricEntryMap.get(key);
+      if (entry) entry.widgetIds.push(widget.i);
+      else metricEntryMap.set(key, { metricId: widget.metricId, params, widgetIds: [widget.i] });
+      continue;
+    }
     if (!widget.datasetId) continue;
     const params = computeWidgetParams(widget, filterValues);
     const query = resolveWidgetQuery(widget, limit, widgetQueries);
@@ -543,6 +700,22 @@ export async function getDashboardData(
         durationMs: execution.durationMs,
         cacheHit: execution.cacheHit,
       };
+    } catch (err) {
+      result = {
+        data: null,
+        error: toWidgetDataError(err),
+        durationMs: Date.now() - startedAt,
+        cacheHit: false,
+      };
+    }
+    for (const widgetId of entry.widgetIds) out[widgetId] = result;
+  });
+  await mapWithConcurrency([...metricEntryMap.values()], DASHBOARD_DATA_CONCURRENCY, async (entry) => {
+    let result: ReportWidgetDataResult;
+    const startedAt = Date.now();
+    try {
+      const metric = await evaluateReportMetric(entry.metricId, entry.params);
+      result = buildMetricWidgetDataResult(metric);
     } catch (err) {
       result = {
         data: null,

@@ -1,0 +1,168 @@
+.chatbi-page {
+  height: calc(100vh - 168px);
+  min-height: 560px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.chatbi-master,
+.chatbi-detail {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chatbi-master .nav-list-panel {
+  flex: 1;
+  min-height: 0;
+}
+
+.chatbi-master__status {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-top: 1px solid var(--semi-color-border);
+}
+
+.chatbi-detail {
+  background: var(--semi-color-bg-0);
+}
+
+.chatbi-detail > .semi-empty,
+.chatbi-detail > .semi-spin {
+  margin: auto;
+}
+
+.chatbi-detail__context,
+.chatbi-message__time {
+  margin-top: 2px;
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+}
+
+.chatbi-messages {
+  padding: 20px clamp(12px, 4vw, 56px);
+}
+
+.chatbi-message {
+  display: flex;
+  gap: 10px;
+  max-width: 1040px;
+  margin: 0 auto 18px;
+}
+
+.chatbi-message__avatar {
+  display: flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--semi-color-primary-light-default);
+  color: var(--semi-color-primary);
+}
+
+.chatbi-message--user .chatbi-message__avatar {
+  background: var(--semi-color-fill-1);
+  color: var(--semi-color-text-1);
+}
+
+.chatbi-message__body {
+  min-width: 0;
+  flex: 1;
+}
+
+.chatbi-message__plain {
+  display: inline-block;
+  padding: 9px 12px;
+  border-radius: var(--semi-border-radius-medium);
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-0);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.chatbi-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chatbi-answer .md-preview-content {
+  padding: 0;
+}
+
+.chatbi-answer__sql {
+  max-height: 260px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border-radius: var(--semi-border-radius-medium);
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-0);
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.chatbi-answer__result {
+  overflow: hidden;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+}
+
+.chatbi-answer__result-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.chatbi-answer__widget {
+  height: 340px;
+  padding: 10px;
+}
+
+.chatbi-answer__actions {
+  min-height: 28px;
+}
+
+.chatbi-composer {
+  flex-shrink: 0;
+  padding: 12px clamp(12px, 4vw, 56px);
+  border-top: 1px solid var(--semi-color-border);
+  background: var(--semi-color-bg-1);
+}
+
+.chatbi-composer .semi-input-textarea-wrapper {
+  flex: 1;
+}
+
+@media (width <= 720px) {
+  .chatbi-page {
+    height: calc(100vh - 132px);
+    min-height: 480px;
+  }
+
+  .chatbi-messages {
+    padding: 12px;
+  }
+
+  .chatbi-answer__result-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .chatbi-answer__widget {
+    height: 300px;
+  }
+
+  .chatbi-composer {
+    padding: 10px;
+  }
+}

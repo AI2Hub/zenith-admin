@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { fillPrintGrid, renderPrintContent, resolvePrintBandText } from '@zenith/shared';
-import type { ReportPrintContent, ReportPrintGrid } from '@zenith/shared';
+import type { ReportPrintContent, ReportPrintCrosstabConfig, ReportPrintGrid } from '@zenith/shared';
 
 const cellAt = (g: ReportPrintGrid, r: number, c: number) => g.cells.find((x) => x.row === r && x.col === c)?.v;
 
@@ -253,5 +253,264 @@ describe('renderPrintContent - 多 sheet / 真分页 / 分组', () => {
     expect(cellAt(result.sheets[0]!.grid, 0, 1)).toBe('A');
     expect(cellAt(result.sheets[0]!.grid, 0, 3)).toBe('B');
     expect(cellAt(result.sheets[1]!.grid, 0, 0)).toBe(3);
+  });
+});
+
+describe('renderPrintContent - 交叉表', () => {
+  const content = (crosstab: ReportPrintCrosstabConfig): ReportPrintContent => ({
+    sheets: [{
+      id: 'pivot',
+      name: '交叉表',
+      grid: {
+        rows: 3,
+        cols: 3,
+        colWidths: [120, 90, 90],
+        rowHeights: [28, 24, 26],
+        cells: [
+          { row: 0, col: 0, v: '表头', s: { bold: true, background: '#eeeeee' } },
+          { row: 1, col: 0, v: '数据' },
+          { row: 2, col: 0, v: '总计', s: { bold: true } },
+        ],
+      },
+      pageConfig: { detailDirection: 'crosstab', crosstab },
+    }],
+  });
+
+  it('空数据与单维度数据均可渲染，并处理空维度和总计', () => {
+    const config = {
+      rowFields: ['region'],
+      columnFields: ['quarter'],
+      valueFields: [{ field: 'amount', aggregate: 'sum' as const, label: '销售额' }],
+      showRowTotals: true,
+      showColumnTotals: true,
+      nullLabel: '未分类',
+      emptyValue: 0,
+      headerRow: 0,
+      dataRow: 1,
+      totalRow: 2,
+    };
+    const empty = renderPrintContent('空交叉表', content(config), []);
+    expect(empty.grid.rows).toBe(3);
+    expect(cellAt(empty.grid, 0, 0)).toBe('region');
+
+    const result = renderPrintContent('交叉表', content(config), [
+      { region: '华东', quarter: 'Q1', amount: 10 },
+      { region: '华东', quarter: 'Q2', amount: 20 },
+      { region: null, quarter: 'Q1', amount: 5 },
+    ]);
+    expect(cellAt(result.grid, 2, 0)).toBe('未分类');
+    expect(cellAt(result.grid, 2, 1)).toBe(5);
+    expect(cellAt(result.grid, 3, 1)).toBe(10);
+    expect(cellAt(result.grid, 3, 3)).toBe(30);
+    expect(cellAt(result.grid, 4, 3)).toBe(35);
+    expect(result.grid.colWidths?.[0]).toBe(120);
+  });
+
+  it('多维度、多指标支持 SUM/COUNT/AVG/MAX/MIN 且维度顺序确定', () => {
+    const result = renderPrintContent('多指标交叉表', content({
+      rowFields: ['region', 'city'],
+      columnFields: ['year', 'quarter'],
+      valueFields: [
+        { field: 'amount', aggregate: 'sum', label: 'SUM' },
+        { field: 'amount', aggregate: 'count', label: 'COUNT' },
+        { field: 'amount', aggregate: 'avg', label: 'AVG' },
+        { field: 'amount', aggregate: 'max', label: 'MAX' },
+        { field: 'amount', aggregate: 'min', label: 'MIN' },
+      ],
+      showRowTotals: true,
+      showColumnTotals: true,
+      headerRow: 0,
+      dataRow: 1,
+      totalRow: 2,
+    }), [
+      { region: 'B', city: 'B2', year: 2026, quarter: 'Q1', amount: 4 },
+      { region: 'A', city: 'A1', year: 2026, quarter: 'Q1', amount: 2 },
+      { region: 'A', city: 'A1', year: 2026, quarter: 'Q1', amount: 6 },
+      { region: 'A', city: 'A1', year: 2026, quarter: 'Q2', amount: 8 },
+    ]);
+    expect(cellAt(result.grid, 3, 0)).toBe('A');
+    expect(cellAt(result.grid, 3, 2)).toBe(8);
+    expect(cellAt(result.grid, 3, 3)).toBe(2);
+    expect(cellAt(result.grid, 3, 4)).toBe(4);
+    expect(cellAt(result.grid, 3, 5)).toBe(6);
+    expect(cellAt(result.grid, 3, 6)).toBe(2);
+    expect(result.grid.merges?.some((merge) => merge.colSpan === 5)).toBe(true);
+    expect(result.grid.merges?.some((merge) => merge.colSpan === 10)).toBe(true);
+  });
+
+  it('高基数在分配网格前被明确拒绝', () => {
+    expect(() => renderPrintContent(
+      '超限交叉表',
+      content({
+        rowFields: ['region'],
+        columnFields: ['quarter'],
+        valueFields: [{ field: 'amount', aggregate: 'sum' }],
+      }),
+      Array.from({ length: 10 }, (_, index) => ({ region: 'R', quarter: `Q${index}`, amount: index })),
+      {},
+      {},
+      { crosstabBudget: { maxDynamicColumns: 4, maxCells: 100, maxBytes: 100_000 } },
+    )).toThrow(/动态列数 5 超过上限 4/);
+  });
+
+  it('自动扩展 CJK 换行行高并保持旧模板默认行为', () => {
+    const wrapped = renderPrintContent('换行', {
+      grid: {
+        rows: 1,
+        cols: 1,
+        colWidths: [40],
+        rowHeights: [24],
+        cells: [{ row: 0, col: 0, v: '中文自动换行高度测试', s: { wrap: true, fontSize: 12 } }],
+      },
+    }, []);
+    expect(wrapped.grid.rowHeights?.[0]).toBeGreaterThan(24);
+
+    const legacy = fillPrintGrid({ rows: 1, cols: 1, rowHeights: [24], cells: [{ row: 0, col: 0, v: '旧模板' }] }, []);
+    expect(legacy.rowHeights?.[0]).toBe(24);
+  });
+});
+
+describe('renderPrintContent - 多数据集、重复块与子报表', () => {
+  it('支持页签级数据集与同页重复块', () => {
+    const result = renderPrintContent(
+      '多数据集',
+      {
+        datasetBindings: [
+          { key: 'details', datasetId: 2 },
+          { key: 'summary', datasetId: 3 },
+        ],
+        sheets: [
+          {
+            id: 'main-sheet',
+            name: '明细',
+            grid: {
+              rows: 2,
+              cols: 1,
+              cells: [
+                { row: 0, col: 0, v: '#{title}' },
+                { row: 1, col: 0, v: '${item}', datasetKey: 'details' },
+              ],
+            },
+            repeatBlocks: [{ id: 'details-block', datasetKey: 'details', range: { start: 1, end: 1 } }],
+          },
+          {
+            id: 'summary-sheet',
+            name: '摘要',
+            datasetKey: 'summary',
+            grid: { rows: 1, cols: 1, cells: [{ row: 0, col: 0, v: '${label}' }] },
+          },
+        ],
+      },
+      [{ title: '订单' }],
+      {},
+      {},
+      {
+        datasets: {
+          details: [{ item: 'A' }, { item: 'B' }],
+          summary: [{ label: 'S1' }, { label: 'S2' }],
+        },
+        bindings: [
+          { key: 'details', datasetId: 2 },
+          { key: 'summary', datasetId: 3 },
+        ],
+      },
+    );
+
+    expect(result.sheets).toHaveLength(2);
+    expect(result.sheets[0]?.grid.rows).toBe(3);
+    expect(cellAt(result.sheets[0]!.grid, 0, 0)).toBe('订单');
+    expect(cellAt(result.sheets[0]!.grid, 1, 0)).toBe('A');
+    expect(cellAt(result.sheets[0]!.grid, 2, 0)).toBe('B');
+    expect(cellAt(result.sheets[1]!.grid, 0, 0)).toBe('S1');
+    expect(cellAt(result.sheets[1]!.grid, 1, 0)).toBe('S2');
+  });
+
+  it('把已治理渲染的子报表网格嵌入锚点并移动后续行', () => {
+    const child = renderPrintContent('子报表', {
+      grid: {
+        rows: 2,
+        cols: 2,
+        cells: [
+          { row: 0, col: 0, v: '子标题' },
+          { row: 0, col: 1, v: '值' },
+          { row: 1, col: 0, v: '子数据' },
+          { row: 1, col: 1, v: 10 },
+        ],
+      },
+    }, []);
+    const parent = renderPrintContent(
+      '主报表',
+      {
+        sheets: [{
+          id: 'parent',
+          name: '主表',
+          grid: {
+            rows: 2,
+            cols: 2,
+            cells: [
+              { row: 0, col: 0, kind: 'subreport', subreport: { templateId: 2 } },
+              { row: 1, col: 0, v: '签字' },
+            ],
+            merges: [{ row: 0, col: 0, rowSpan: 1, colSpan: 2 }],
+          },
+        }],
+      },
+      [],
+      {},
+      {},
+      { subreports: [{ sheetId: 'parent', row: 0, col: 0, templateId: 2, result: child }] },
+    );
+
+    expect(parent.grid.rows).toBe(3);
+    expect(cellAt(parent.grid, 0, 0)).toBe('子标题');
+    expect(cellAt(parent.grid, 1, 1)).toBe(10);
+    expect(cellAt(parent.grid, 2, 0)).toBe('签字');
+    expect(parent.grid.cells.some((cell) => cell.subreport)).toBe(false);
+  });
+
+  it('子报表插行后同步移动下方重复块', () => {
+    const child = renderPrintContent('子报表', {
+      grid: {
+        rows: 3,
+        cols: 1,
+        cells: [
+          { row: 0, col: 0, v: '子行1' },
+          { row: 1, col: 0, v: '子行2' },
+          { row: 2, col: 0, v: '子行3' },
+        ],
+      },
+    }, []);
+    const parent = renderPrintContent(
+      '主报表',
+      {
+        datasetBindings: [{ key: 'details', datasetId: 2 }],
+        sheets: [{
+          id: 'parent',
+          name: '主表',
+          grid: {
+            rows: 3,
+            cols: 1,
+            cells: [
+              { row: 0, col: 0, v: '标题' },
+              { row: 1, col: 0, kind: 'subreport', subreport: { templateId: 2 } },
+              { row: 2, col: 0, v: '${item}', datasetKey: 'details' },
+            ],
+          },
+          repeatBlocks: [{ id: 'details', datasetKey: 'details', range: { start: 2, end: 2 } }],
+        }],
+      },
+      [],
+      {},
+      {},
+      {
+        datasets: { details: [{ item: 'A' }, { item: 'B' }] },
+        bindings: [{ key: 'details', datasetId: 2 }],
+        subreports: [{ sheetId: 'parent', row: 1, col: 0, templateId: 2, result: child }],
+      },
+    );
+
+    expect(parent.grid.rows).toBe(6);
+    expect(cellAt(parent.grid, 4, 0)).toBe('A');
+    expect(cellAt(parent.grid, 5, 0)).toBe('B');
   });
 });

@@ -1,5 +1,5 @@
 /**
- * 打印报表导出定义（Excel / PDF，接入统一导出中心）。
+ * 打印报表导出定义（Excel / PDF / Word，接入统一导出中心）。
  * 多 Sheet / 分页结果统一复用 renderPrintTemplate。
  */
 import { renderPrintTemplate } from '../../../services/report/report-print.service';
@@ -25,7 +25,7 @@ export const reportPrintExportDefinition = defineExport<ReportPrintExportQuery, 
   entity: 'report.print',
   moduleName: '打印报表',
   filenamePrefix: '打印报表',
-  formats: ['xlsx', 'pdf'],
+  formats: ['xlsx', 'pdf', 'docx'],
   renderMode: 'custom',
   permissions: { export: 'report:print:list' },
   execution: { mode: 'auto', syncMaxRows: 800, syncModeOverridesAsyncPolicies: false },
@@ -39,7 +39,8 @@ export const reportPrintExportDefinition = defineExport<ReportPrintExportQuery, 
   renderFile: async (ctx) => {
     const { templateId, params, limit } = pickQuery(ctx.query);
     const result = await renderPrintTemplate(templateId, { params, limit });
-    const rendered = await renderPrintExportFile(result, ctx.format === 'pdf' ? 'pdf' : 'xlsx');
+    const format = ctx.format === 'pdf' || ctx.format === 'docx' ? ctx.format : 'xlsx';
+    const rendered = await renderPrintExportFile(result, format);
     return {
       buffer: rendered.buffer,
       mimeType: rendered.mimeType,

@@ -8,8 +8,12 @@ import type {
   ReportAlertAggregate,
   ReportDeliveryStatus,
   ReportDeliveryTriggerType,
+  ReportChatbiSessionStatus,
   ReportDatasourceType,
   ReportFieldType,
+  ReportFillRecordStatus,
+  ReportFillSyncStatus,
+  ReportFillTemplateStatus,
   ReportScheduleMisfirePolicy,
   SendSource,
   SendStatus,
@@ -775,6 +779,45 @@ export const REPORT_DATASOURCE_TYPE_OPTIONS: Array<{ value: ReportDatasourceType
       value,
       label: `${REPORT_DATASOURCE_TYPE_LABELS[value]}（${REPORT_DATASOURCE_TYPE_DESCRIPTIONS[value]}）`,
     }));
+
+export const REPORT_CHATBI_SESSION_STATUS_LABELS: Record<ReportChatbiSessionStatus, string> = {
+  active: '进行中',
+  archived: '已归档',
+};
+
+export const REPORT_CHATBI_SESSION_STATUS_OPTIONS =
+  (Object.keys(REPORT_CHATBI_SESSION_STATUS_LABELS) as ReportChatbiSessionStatus[])
+    .map((value) => ({ value, label: REPORT_CHATBI_SESSION_STATUS_LABELS[value] }));
+
+export const REPORT_FILL_TEMPLATE_STATUS_LABELS: Record<ReportFillTemplateStatus, string> = {
+  draft: '草稿',
+  published: '已发布',
+  disabled: '已下线',
+};
+
+export const REPORT_FILL_TEMPLATE_STATUS_OPTIONS =
+  (Object.keys(REPORT_FILL_TEMPLATE_STATUS_LABELS) as ReportFillTemplateStatus[])
+    .map((value) => ({ value, label: REPORT_FILL_TEMPLATE_STATUS_LABELS[value] }));
+
+export const REPORT_FILL_RECORD_STATUS_LABELS: Record<ReportFillRecordStatus, string> = {
+  draft: '草稿',
+  submitted: '已提交',
+  in_review: '审核中',
+  approved: '已通过',
+  rejected: '已拒绝',
+  cancelled: '已取消',
+};
+
+export const REPORT_FILL_RECORD_STATUS_OPTIONS =
+  (Object.keys(REPORT_FILL_RECORD_STATUS_LABELS) as ReportFillRecordStatus[])
+    .map((value) => ({ value, label: REPORT_FILL_RECORD_STATUS_LABELS[value] }));
+
+export const REPORT_FILL_SYNC_STATUS_LABELS: Record<ReportFillSyncStatus, string> = {
+  pending: '待同步',
+  running: '同步中',
+  succeeded: '同步成功',
+  failed: '同步失败',
+};
 
 // ─── 通用比较运算符 ────────────────────────────────────────────────────
 export const BASIC_COMPARISON_OPERATORS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte'] as const;

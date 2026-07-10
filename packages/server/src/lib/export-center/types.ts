@@ -1,7 +1,8 @@
 import type ExcelJS from 'exceljs';
+import type { ExportJobFormat } from '@zenith/shared';
 import type { JwtPayload } from '../../middleware/auth';
 
-export type ExportFormat = 'xlsx' | 'csv' | 'pdf';
+export type ExportFormat = ExportJobFormat;
 export type ExportRequestMode = 'sync' | 'async' | 'auto';
 export type ExportExecutionMode = 'sync' | 'async';
 export type ExportRenderMode = 'table' | 'layout' | 'custom';

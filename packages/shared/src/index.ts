@@ -6,5 +6,6 @@ export * from './report-print';
 export * from './report-format';
 export * from './report-aggregation';
 export * from './report-visual-sql';
+export * from './report-embed';
 export * from './workflow-helpers';
 export * from './workflow-serial';

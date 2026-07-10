@@ -8,6 +8,7 @@ import type {
   ReportDataset,
   ReportFilter,
   ReportLookupOption,
+  ReportMetricEvaluation,
   ReportWidget,
 } from '@zenith/shared';
 import { request } from '@/utils/request';
@@ -29,6 +30,8 @@ export const reportDesignerKeys = {
   dashboards: (excludeId: number | undefined) => ['report', 'designer', 'dashboards', excludeId] as const,
   datasetData: (datasetId: number, params: Record<string, unknown>, limit: number) =>
     ['report', 'designer', 'dataset-data', datasetId, params, limit] as const,
+  metricData: (metricId: number, params: Record<string, unknown>) =>
+    ['report', 'designer', 'metric-data', metricId, params] as const,
   dictItems: (code: string) => ['report', 'designer', 'dict-items', code] as const,
 };
 
@@ -128,21 +131,39 @@ export function useReportDatasetDataMap(datasetIds: number[], limit = 500) {
 export function useReportWidgetData(widgets: ReportWidget[], filterValues: Record<string, unknown>, limit = 500) {
   const queryClient = useQueryClient();
   const entries = useMemo(() => {
-    const map = new Map<string, { key: string; datasetId: number; params: Record<string, unknown> }>();
+    const map = new Map<string, { key: string; source: 'dataset' | 'metric'; id: number; params: Record<string, unknown> }>();
     for (const widget of widgets ?? []) {
-      if (!widget.datasetId) continue;
+      const source = widget.metricId ? 'metric' : widget.datasetId ? 'dataset' : null;
+      const id = widget.metricId ?? widget.datasetId;
+      if (!source || !id) continue;
       const params = computeWidgetParams(widget, filterValues);
-      const key = `${widget.datasetId}:${JSON.stringify(params)}`;
-      if (!map.has(key)) map.set(key, { key, datasetId: widget.datasetId, params });
+      const key = `${source}:${id}:${JSON.stringify(params)}`;
+      if (!map.has(key)) map.set(key, { key, source, id, params });
     }
     return Array.from(map.values());
   }, [widgets, filterValues]);
 
   const stateMap = useQueries({
     queries: entries.map((entry) => ({
-      queryKey: reportDesignerKeys.datasetData(entry.datasetId, entry.params, limit),
-      queryFn: ({ signal }) =>
-        request.post<ReportDataResult>(`/api/report/datasets/${entry.datasetId}/data`, { params: entry.params, limit }, { silent: true, signal }).then(unwrap),
+      queryKey: entry.source === 'metric'
+        ? reportDesignerKeys.metricData(entry.id, entry.params)
+        : reportDesignerKeys.datasetData(entry.id, entry.params, limit),
+      queryFn: async ({ signal }) => {
+        if (entry.source === 'dataset') {
+          return request.post<ReportDataResult>(`/api/report/datasets/${entry.id}/data`, { params: entry.params, limit }, { silent: true, signal }).then(unwrap);
+        }
+        const result = await request.post<ReportMetricEvaluation>(
+          `/api/report/metrics/${entry.id}/evaluate`,
+          { params: entry.params },
+          { silent: true, signal },
+        ).then(unwrap);
+        return {
+          columns: ['value'],
+          fields: [{ name: 'value', label: result.code, type: 'number' as const, source: 'declared' as const }],
+          rows: [{ value: result.value, formattedValue: result.formattedValue }],
+          total: 1,
+        } satisfies ReportDataResult;
+      },
     })),
     combine: (results) => {
       const map = new Map<string, DatasetDataState>();
@@ -159,13 +180,15 @@ export function useReportWidgetData(widgets: ReportWidget[], filterValues: Recor
   });
 
   const get = useCallback((widget: ReportWidget): DatasetDataState => {
-    if (!widget.datasetId) return EMPTY_DATASET_STATE;
-    const key = `${widget.datasetId}:${JSON.stringify(computeWidgetParams(widget, filterValues))}`;
+    const source = widget.metricId ? 'metric' : widget.datasetId ? 'dataset' : null;
+    const id = widget.metricId ?? widget.datasetId;
+    if (!source || !id) return EMPTY_DATASET_STATE;
+    const key = `${source}:${id}:${JSON.stringify(computeWidgetParams(widget, filterValues))}`;
     return stateMap.get(key) ?? EMPTY_DATASET_STATE;
   }, [filterValues, stateMap]);
 
   const refresh = useCallback(() => {
-    void queryClient.refetchQueries({ queryKey: [...reportDesignerKeys.all, 'dataset-data'], type: 'active' });
+    void queryClient.refetchQueries({ queryKey: reportDesignerKeys.all, type: 'active' });
   }, [queryClient]);
 
   return { get, refresh };

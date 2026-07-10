@@ -7,6 +7,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { createHash } from 'node:crypto';
 import { CronExpressionParser } from 'cron-parser';
+import dayjs from 'dayjs';
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import {
@@ -19,6 +20,9 @@ import {
   reportDatasets,
   reportDatasources,
   reportPrintTemplates,
+  reportMetrics,
+  roles,
+  userRoles,
   users,
 } from '../../db/schema';
 import { config } from '../../config';
@@ -29,7 +33,8 @@ import { escapeLike } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { httpRequest } from '../../lib/http-client';
-import { currentUserOrNull } from '../../lib/context';
+import { currentUserOrNull, runWithCurrentUser } from '../../lib/context';
+import { submitAsyncTask } from '../../lib/task-center';
 import { applyComputedFields } from '../../lib/report-formula';
 import { runExternalQuery } from '../../lib/report-external-db';
 import { normalizeReadonlyReportSql } from '../../lib/report-sql-safety';
@@ -44,6 +49,36 @@ import {
   reportScopedWhere,
   reportTenantScope,
 } from './report-access';
+import {
+  ensureReportResourceAccess,
+  listAccessibleReportResourceIds,
+} from './report-resource-acl.service';
+import {
+  defaultReportOwnerId,
+  validateReportResourcePlacement,
+} from './report-resource.service';
+import {
+  beginMaterializationSnapshot,
+  completeMaterializationSnapshot,
+  failMaterializationSnapshot,
+  filterIncrementalDelta,
+  loadCurrentMaterializationSnapshot,
+  mergeIncrementalSnapshot,
+  resumeMaterializationSnapshot,
+  resolveSnapshotWatermark,
+} from './report-materialization.service';
+import {
+  acquireReportQueryCapacity,
+  calculateQueryCost,
+  getReportQueryCapacitySnapshot,
+  getReportQueryCostTrend,
+  newReportQueryRequestId,
+  persistReportQueryCost,
+  reserveReportQueryQuota,
+  resolveReportQueryIdentity,
+  settleReportQueryQuota,
+} from './report-query-capacity.service';
+import { recordReportAssetUsage } from './report-asset-usage.service';
 import { isSqlLikeType, isExternalDbType, REPORT_DATASOURCE_TYPES } from '@zenith/shared';
 import type { ReportDatasetRow } from '../../db/schema';
 import type {
@@ -53,7 +88,7 @@ import type {
   ReportRowRule, ReportDatasetRefs, ReportWidget, ReportFilter, ReportDatasetQueryOptions, ReportResultField, ReportDatasetExecutionLog,
   CreateReportDatasetInput, UpdateReportDatasetInput, ReportDatasetPreviewInput, ReportSortOrder, ReportExecutionStats,
   ReportLookupOption, ReportRuntimeGovernance,
-  ReportDashboardSnapshot,
+  ReportDashboardSnapshot, ReportPrintContent,
 } from '@zenith/shared';
 
 const PREVIEW_LIMIT = 100;
@@ -64,12 +99,19 @@ const MATVIEW_PREFIX = `${config.redis.keyPrefix}report:matview:`;
 /** 物化快照安全 TTL（秒）：即便无 cron 刷新，也不会永久冻结（默认 24h） */
 const MATVIEW_TTL_SECONDS = 24 * 60 * 60;
 
-type DatasetRowWithDs = ReportDatasetRow & { datasource?: { name: string } | null };
+type DatasetRowWithDs = ReportDatasetRow & {
+  datasource?: { name: string } | null;
+  folder?: { name: string } | null;
+  owner?: { nickname: string | null; username: string } | null;
+};
 type DatasetQueryArg = number | ReportDatasetQueryOptions | undefined;
 
 export interface DatasetExecutionContext {
   scene?: string;
   sourceRefId?: string | number | null;
+  requestId?: string;
+  effectiveTenantId?: number | null;
+  effectiveUserId?: number | null;
 }
 
 export interface DatasetExecutionResult {
@@ -223,6 +265,10 @@ function quoteSortField(field: string): string {
 export function mapDataset(row: DatasetRowWithDs): ReportDataset {
   return {
     id: row.id,
+    ownerId: row.ownerId ?? null,
+    ownerName: row.owner?.nickname || row.owner?.username || null,
+    folderId: row.folderId ?? null,
+    folderName: row.folder?.name ?? null,
     name: row.name,
     datasourceId: row.datasourceId,
     datasourceName: row.datasource?.name ?? null,
@@ -525,6 +571,7 @@ export async function ensureDatasetExists(id: number): Promise<ReportDatasetRow>
     .where(reportScopedWhere(reportDatasets, eq(reportDatasets.id, id)))
     .limit(1);
   if (!row) throw new HTTPException(404, { message: '数据集不存在' });
+  if (currentUserOrNull()) await ensureReportResourceAccess('dataset', id, 'viewer');
   return row;
 }
 
@@ -552,19 +599,28 @@ export async function assertDatasetEvaluableGlobally(datasetId: number): Promise
 export async function getDataset(id: number): Promise<ReportDataset> {
   const row = await db.query.reportDatasets.findFirst({
     where: reportScopedWhere(reportDatasets, eq(reportDatasets.id, id)),
-    with: { datasource: { columns: { name: true } } },
+    with: {
+      datasource: { columns: { name: true } },
+      folder: { columns: { name: true } },
+      owner: { columns: { nickname: true, username: true } },
+    },
   });
   if (!row) throw new HTTPException(404, { message: '数据集不存在' });
   return mapDataset(row);
 }
 
 export async function listDatasets(query: {
-  page?: number; pageSize?: number; keyword?: string; datasourceId?: number; type?: string; status?: string;
+  page?: number; pageSize?: number; keyword?: string; folderId?: number; ownerId?: number; datasourceId?: number; type?: string; status?: string;
 }) {
-  const { page = 1, pageSize = 20, keyword, datasourceId, type, status } = query;
+  const { page = 1, pageSize = 20, keyword, folderId, ownerId, datasourceId, type, status } = query;
   const conds = [];
   const tenantScope = reportTenantScope(reportDatasets);
   if (tenantScope) conds.push(tenantScope);
+  const accessibleIds = await listAccessibleReportResourceIds('dataset');
+  if (accessibleIds && accessibleIds.length === 0) return { list: [], total: 0, page, pageSize };
+  if (accessibleIds) conds.push(inArray(reportDatasets.id, accessibleIds));
+  if (folderId) conds.push(eq(reportDatasets.folderId, folderId));
+  if (ownerId) conds.push(eq(reportDatasets.ownerId, ownerId));
   if (keyword) {
     const kw = `%${escapeLike(keyword)}%`;
     conds.push(or(ilike(reportDatasets.name, kw), ilike(reportDatasets.remark, kw)));
@@ -579,7 +635,11 @@ export async function listDatasets(query: {
     db.$count(reportDatasets, where),
     db.query.reportDatasets.findMany({
       where,
-      with: { datasource: { columns: { name: true } } },
+      with: {
+        datasource: { columns: { name: true } },
+        folder: { columns: { name: true } },
+        owner: { columns: { nickname: true, username: true } },
+      },
       orderBy: desc(reportDatasets.id),
       limit: pageSize,
       offset: pageOffset(page, pageSize),
@@ -597,6 +657,9 @@ export async function listDatasetLookup(query: {
   const conds = [];
   const tenantScope = reportTenantScope(reportDatasets);
   if (tenantScope) conds.push(tenantScope);
+  const accessibleIds = await listAccessibleReportResourceIds('dataset');
+  if (accessibleIds && accessibleIds.length === 0) return [];
+  if (accessibleIds) conds.push(inArray(reportDatasets.id, accessibleIds));
   if (keyword) {
     const kw = `%${escapeLike(keyword)}%`;
     conds.push(or(ilike(reportDatasets.name, kw), ilike(reportDatasets.remark, kw)));
@@ -639,17 +702,29 @@ function buildCopyName(baseName: string, existingNames: Set<string>): string {
 
 export async function batchSetDatasetStatus(ids: number[], status: 'enabled' | 'disabled'): Promise<number> {
   if (ids.length === 0) return 0;
-  const result = await db.update(reportDatasets).set({ status }).where(reportScopedWhere(reportDatasets, inArray(reportDatasets.id, ids))).returning({ id: reportDatasets.id });
+  const accessible = await listAccessibleReportResourceIds('dataset', 'editor');
+  const allowedIds = accessible ? ids.filter((id) => accessible.includes(id)) : ids;
+  if (allowedIds.length === 0) return 0;
+  const result = await db.update(reportDatasets).set({ status }).where(reportScopedWhere(reportDatasets, inArray(reportDatasets.id, allowedIds))).returning({ id: reportDatasets.id });
   return result.length;
 }
 
 export async function cloneDataset(id: number, input?: { name?: string | null }): Promise<ReportDataset> {
+  await ensureReportResourceAccess('dataset', id, 'editor');
   const current = await ensureDatasetExists(id);
+  const ownerId = defaultReportOwnerId();
+  await validateReportResourcePlacement('dataset', {
+    ownerId,
+    folderId: current.folderId,
+    tenantId: current.tenantId ?? reportCreateTenantId(),
+  });
   const rows = await db.select({ name: reportDatasets.name }).from(reportDatasets).where(reportTenantScope(reportDatasets));
   const name = input?.name?.trim() || buildCopyName(current.name, new Set(rows.map((row) => row.name)));
   try {
     const [row] = await db.insert(reportDatasets).values({
       tenantId: current.tenantId ?? reportCreateTenantId(),
+      ownerId,
+      folderId: current.folderId ?? null,
       name,
       datasourceId: current.datasourceId,
       type: current.type,
@@ -700,9 +775,15 @@ export async function createDataset(input: CreateReportDatasetInput): Promise<Re
   const content = normalizeDatasetContent(ds.type, input.content);
   validateDatasetDefinitions(input.fields as ReportField[] | undefined, input.params as ReportDatasetParam[] | undefined, input.computedFields as ReportComputedField[] | undefined);
   assertMaterializable(input.materialize as ReportDatasetMaterialize | undefined, ds.type, content, input.params as ReportDatasetParam[] | undefined, input.rowRules as ReportRowRule[] | undefined);
+  const tenantId = reportCreateTenantId();
+  if ((ds.tenantId ?? null) !== tenantId) throw new HTTPException(400, { message: '数据集与数据源不属于同一租户' });
+  const ownerId = input.ownerId ?? defaultReportOwnerId();
+  await validateReportResourcePlacement('dataset', { ownerId, folderId: input.folderId, tenantId });
   try {
     const [row] = await db.insert(reportDatasets).values({
-      tenantId: reportCreateTenantId(),
+      tenantId,
+      ownerId,
+      folderId: input.folderId ?? null,
       name: input.name,
       datasourceId: input.datasourceId,
       type: ds.type,
@@ -724,10 +805,17 @@ export async function createDataset(input: CreateReportDatasetInput): Promise<Re
 }
 
 export async function updateDataset(id: number, input: UpdateReportDatasetInput): Promise<ReportDataset> {
+  await ensureReportResourceAccess('dataset', id, 'editor');
   const current = await ensureDatasetExists(id);
+  if (input.ownerId !== undefined && input.ownerId !== current.ownerId) {
+    await ensureReportResourceAccess('dataset', id, 'owner');
+  }
   let type: ReportDatasourceType = current.type;
   if (input.datasourceId && input.datasourceId !== current.datasourceId) {
     const ds = await ensureDatasourceExists(input.datasourceId);
+    if ((ds.tenantId ?? null) !== (current.tenantId ?? null)) {
+      throw new HTTPException(400, { message: '数据集与数据源不属于同一租户' });
+    }
     type = ds.type;
   }
   const content = input.content !== undefined ? normalizeDatasetContent(type, input.content) : undefined;
@@ -741,8 +829,15 @@ export async function updateDataset(id: number, input: UpdateReportDatasetInput)
   const effRowRules = (input.rowRules ?? current.rowRules) as ReportRowRule[] | undefined;
   validateDatasetDefinitions(effFields, effParams, effComputed);
   assertMaterializable(effMaterialize, type, effContent, effParams, effRowRules);
+  await validateReportResourcePlacement('dataset', {
+    ownerId: input.ownerId,
+    folderId: input.folderId,
+    tenantId: current.tenantId ?? null,
+  });
   try {
     const [row] = await db.update(reportDatasets).set({
+      ownerId: input.ownerId,
+      folderId: input.folderId,
       name: input.name,
       datasourceId: input.datasourceId,
       type: typeChanged ? type : undefined,
@@ -769,12 +864,13 @@ export async function updateDataset(id: number, input: UpdateReportDatasetInput)
 
 /** 收集数据集的下游引用：仪表盘（组件绑定/筛选器动态选项）、打印模板、预警规则及间接分享链路 */
 export async function collectDatasetRefs(id: number): Promise<ReportDatasetRefs> {
+  if (currentUserOrNull()) await ensureReportResourceAccess('dataset', id, 'viewer');
   const dataset = await db.query.reportDatasets.findFirst({
     where: reportScopedWhere(reportDatasets, eq(reportDatasets.id, id)),
     with: { datasource: { columns: { id: true, name: true } } },
   });
   if (!dataset) throw new HTTPException(404, { message: '数据集不存在' });
-  const [dashRows, printRows, alertRows] = await Promise.all([
+  const [dashRows, printRows, metricRows, alertRows] = await Promise.all([
     db.select({
       id: reportDashboards.id,
       name: reportDashboards.name,
@@ -784,11 +880,24 @@ export async function collectDatasetRefs(id: number): Promise<ReportDatasetRefs>
       categoryId: reportDashboards.categoryId,
     })
       .from(reportDashboards).where(reportTenantScope(reportDashboards)),
-    db.select({ id: reportPrintTemplates.id, name: reportPrintTemplates.name }).from(reportPrintTemplates)
-      .where(reportScopedWhere(reportPrintTemplates, eq(reportPrintTemplates.datasetId, id))),
+    db.select({
+      id: reportPrintTemplates.id,
+      name: reportPrintTemplates.name,
+      datasetId: reportPrintTemplates.datasetId,
+      content: reportPrintTemplates.content,
+    }).from(reportPrintTemplates).where(reportTenantScope(reportPrintTemplates)),
+    db.select({ id: reportMetrics.id, code: reportMetrics.code, name: reportMetrics.name }).from(reportMetrics)
+      .where(reportScopedWhere(reportMetrics, eq(reportMetrics.datasetId, id))),
     db.select({ id: reportAlertRules.id, name: reportAlertRules.name }).from(reportAlertRules)
       .where(reportScopedWhere(reportAlertRules, eq(reportAlertRules.datasetId, id))),
   ]);
+  const printRefs = printRows
+    .filter((item) => {
+      if (item.datasetId === id) return true;
+      const content = (item.content ?? {}) as ReportPrintContent;
+      return (content.datasetBindings ?? []).some((binding) => binding.datasetId === id);
+    })
+    .map(({ id: printId, name }) => ({ id: printId, name }));
   const dashboards = dashRows
     .map((d) => {
       const draftWidgets = ((d.widgets ?? []) as ReportWidget[])
@@ -849,10 +958,15 @@ export async function collectDatasetRefs(id: number): Promise<ReportDatasetRefs>
       edges.push({ id: `${dashboardNodeId}->${filterNodeId}`, source: dashboardNodeId, target: filterNodeId, label: '筛选器' });
     });
   });
-  printRows.forEach((item) => {
+  printRefs.forEach((item) => {
     const nodeId = `print:${item.id}`;
     nodes.push({ id: nodeId, type: 'print', refId: item.id, parentId: datasetNodeId, label: item.name });
     edges.push({ id: `${datasetNodeId}->${nodeId}`, source: datasetNodeId, target: nodeId, label: '打印' });
+  });
+  metricRows.forEach((item) => {
+    const nodeId = `metric:${item.id}`;
+    nodes.push({ id: nodeId, type: 'metric', refId: item.id, parentId: datasetNodeId, label: item.name });
+    edges.push({ id: `${datasetNodeId}->${nodeId}`, source: datasetNodeId, target: nodeId, label: '定义' });
   });
   alertRows.forEach((item) => {
     const nodeId = `alert:${item.id}`;
@@ -879,7 +993,8 @@ export async function collectDatasetRefs(id: number): Promise<ReportDatasetRefs>
   });
   return {
     dashboards,
-    printTemplates: printRows,
+    printTemplates: printRefs,
+    metrics: metricRows,
     alerts: alertRows,
     subscriptions: subscriptionRows,
     shares: shareRows,
@@ -891,11 +1006,13 @@ export async function collectDatasetRefs(id: number): Promise<ReportDatasetRefs>
 
 /** 删除数据集：存在下游引用时拒绝（防仪表盘悄悄失效 / 预警被级联误删） */
 export async function deleteDataset(id: number): Promise<void> {
+  await ensureReportResourceAccess('dataset', id, 'owner');
   await ensureDatasetExists(id);
   const refs = await collectDatasetRefs(id);
   const parts: string[] = [];
   if (refs.dashboards.length) parts.push(`仪表盘 ${refs.dashboards.map((d) => `《${d.name}》`).join('、')}`);
   if (refs.printTemplates.length) parts.push(`打印报表 ${refs.printTemplates.map((t) => `《${t.name}》`).join('、')}`);
+  if (refs.metrics.length) parts.push(`指标 ${refs.metrics.map((metric) => `《${metric.name}》`).join('、')}`);
   if (refs.alerts.length) parts.push(`预警规则 ${refs.alerts.map((a) => `《${a.name}》`).join('、')}`);
   if (refs.subscriptions?.length) parts.push(`订阅 ${refs.subscriptions.map((s) => `《${s.name}》`).join('、')}`);
   if (refs.shares?.length) parts.push(`分享 ${refs.shares.map((s) => `《${s.name}》`).join('、')}`);
@@ -1042,7 +1159,9 @@ export async function getDatasetExecutionStats(query: {
   if (query.startAt) conds.push(gte(reportDatasetExecutionLogs.executedAt, query.startAt));
   if (query.endAt) conds.push(lte(reportDatasetExecutionLogs.executedAt, query.endAt));
   const where = conds.length ? and(...conds) : undefined;
-  const [aggRows, slowRows] = await Promise.all([
+  const trendStart = query.startAt ?? dayjs().subtract(7, 'day').toDate();
+  const trendEnd = query.endAt ?? new Date();
+  const [aggRows, slowRows, series] = await Promise.all([
    db.select({
      total: sql<number>`count(*)::int`,
      successCount: sql<number>`sum(case when ${reportDatasetExecutionLogs.success} then 1 else 0 end)::int`,
@@ -1069,6 +1188,13 @@ export async function getDatasetExecutionStats(query: {
      .groupBy(reportDatasetExecutionLogs.datasetId, reportDatasets.name, reportDatasetExecutionLogs.datasourceId, reportDatasources.name, reportDatasetExecutionLogs.scene)
      .orderBy(desc(sql`max(${reportDatasetExecutionLogs.durationMs})`))
      .limit(10),
+    getReportQueryCostTrend({
+     datasetId: query.datasetId,
+     datasourceId: query.datasourceId,
+     start: formatDateTime(trendStart),
+     end: formatDateTime(trendEnd),
+     bucket: dayjs(trendEnd).diff(trendStart, 'hour', true) <= 48 ? 'hour' : 'day',
+    }),
   ]);
   const agg = aggRows[0] ?? {
    total: 0, successCount: 0, avgDurationMs: 0, p95DurationMs: 0, cacheHitCount: 0, slowCount: 0, truncatedCount: 0,
@@ -1084,6 +1210,8 @@ export async function getDatasetExecutionStats(query: {
    slowCount: Number(agg.slowCount ?? 0),
    truncatedCount: Number(agg.truncatedCount ?? 0),
    governance: getReportRuntimeGovernance(),
+   capacity: getReportQueryCapacitySnapshot(),
+   series,
    topSlowQueries: slowRows.map((row) => ({
      datasetId: row.datasetId ?? null,
      datasetName: row.datasetName ?? null,
@@ -1195,6 +1323,119 @@ export async function previewDataset(input: ReportDatasetPreviewInput): Promise<
   return runReportData(ds.type, (ds.config ?? {}) as ReportDatasourceConfig, content, params, input.limit ?? PREVIEW_LIMIT, [], computed);
 }
 
+/** ChatBI 受治理的临时 SQL 执行：复用只读执行器、容量/配额、结果上限及成本/执行日志。 */
+export async function executeGovernedReportSql(input: {
+  datasourceId: number;
+  datasetId?: number | null;
+  sql: string;
+  maxRows: number;
+  sourceRefId: string;
+}): Promise<ReportDataResult> {
+  await ensureReportResourceAccess('datasource', input.datasourceId, 'viewer');
+  const source = await ensureDatasourceExists(input.datasourceId);
+  ensureDatasourceEnabled(source);
+  if (!isSqlLikeType(source.type)) {
+    throw new HTTPException(400, { message: 'ChatBI 仅支持 SQL 类型数据源' });
+  }
+  const identity = resolveReportQueryIdentity(source.tenantId);
+  const requestId = newReportQueryRequestId();
+  const startedAt = Date.now();
+  let quotaLease: Awaited<ReturnType<typeof reserveReportQueryQuota>> | null = null;
+  let capacityLease: Awaited<ReturnType<typeof acquireReportQueryCapacity>> | null = null;
+  try {
+    quotaLease = await reserveReportQueryQuota(identity);
+    capacityLease = await acquireReportQueryCapacity(source.id);
+    const result = applyDatasetGovernance(await runReportData(
+      source.type,
+      (source.config ?? {}) as ReportDatasourceConfig,
+      { sql: normalizeReadonlyReportSql(input.sql) },
+      {},
+      { limit: Math.max(1, Math.min(input.maxRows, 1000)) },
+    ));
+    const durationMs = Date.now() - startedAt;
+    const rows = result.rows.length;
+    const bytes = result.bytes ?? estimateRowsBytes(result.rows);
+    const costUnits = calculateQueryCost({ durationMs, rows, bytes, cacheHit: false });
+    await settleReportQueryQuota(quotaLease, { rows, bytes, costUnits });
+    await Promise.all([
+      persistReportQueryCost({
+        identity,
+        datasetId: input.datasetId ?? null,
+        datasourceId: source.id,
+        scene: 'chatbi',
+        requestId,
+        queuedMs: capacityLease.queuedMs,
+        durationMs,
+        rowCount: rows,
+        byteSize: bytes,
+        costUnits,
+        cacheHit: false,
+        success: true,
+      }),
+      db.insert(reportDatasetExecutionLogs).values({
+        tenantId: source.tenantId,
+        datasetId: input.datasetId ?? null,
+        datasourceId: source.id,
+        userId: identity.userId,
+        scene: 'chatbi',
+        sourceRefId: input.sourceRefId.slice(0, 64),
+        durationMs,
+        rowCount: rows,
+        bytes,
+        truncated: result.truncated ?? false,
+        slow: durationMs >= getReportRuntimeGovernance().slowQueryMs,
+        success: true,
+        paramKeys: [],
+      }),
+    ]);
+    return { ...result, bytes, costUnits, queueDurationMs: capacityLease.queuedMs };
+  } catch (error) {
+    const durationMs = Date.now() - startedAt;
+    const costUnits = calculateQueryCost({ durationMs, rows: 0, bytes: 0, cacheHit: false });
+    if (quotaLease && !quotaLease.settled) {
+      await settleReportQueryQuota(quotaLease, { rows: 0, bytes: 0, costUnits });
+    }
+    const errorCode = error instanceof HTTPException ? String(error.status) : error instanceof Error ? error.name : 'QUERY_ERROR';
+    const errorMessage = error instanceof Error ? error.message : 'ChatBI 查询失败';
+    await Promise.all([
+      persistReportQueryCost({
+        identity,
+        datasetId: input.datasetId ?? null,
+        datasourceId: source.id,
+        scene: 'chatbi',
+        requestId,
+        queuedMs: capacityLease?.queuedMs ?? 0,
+        durationMs,
+        rowCount: 0,
+        byteSize: 0,
+        costUnits,
+        cacheHit: false,
+        success: false,
+        errorCode,
+      }),
+      db.insert(reportDatasetExecutionLogs).values({
+        tenantId: source.tenantId,
+        datasetId: input.datasetId ?? null,
+        datasourceId: source.id,
+        userId: identity.userId,
+        scene: 'chatbi',
+        sourceRefId: input.sourceRefId.slice(0, 64),
+        durationMs,
+        rowCount: 0,
+        bytes: 0,
+        slow: durationMs >= getReportRuntimeGovernance().slowQueryMs,
+        success: false,
+        errorCode: error instanceof HTTPException ? error.status : 500,
+        errorMessage: errorMessage.slice(0, 512),
+        paramKeys: [],
+      }),
+    ]);
+    throw error;
+  } finally {
+    capacityLease?.release();
+  }
+}
+
 function datasetVersionToken(row: { updatedAt: Date; datasource?: { updatedAt?: Date | null } | null }): string {
   return `${row.updatedAt.getTime()}:${row.datasource?.updatedAt?.getTime?.() ?? 0}`;
 }
@@ -1285,7 +1526,7 @@ export async function clearDatasetCache(id: number): Promise<void> {
 }
 
 /** 取已保存数据集的数据（供仪表盘组件运行时调用，支持参数 + 行级权限 + Redis 缓存）*/
-export async function getDatasetDataExecution(
+async function getDatasetDataExecutionCore(
   id: number,
   params?: Record<string, unknown>,
   query?: DatasetQueryArg,
@@ -1340,6 +1581,31 @@ export async function getDatasetDataExecution(
         }
       } catch (err) {
         logger.warn('读取报表物化快照失败', { datasetId: id, err: err instanceof Error ? err.message : String(err) });
+      }
+      const durable = await loadCurrentMaterializationSnapshot(id);
+      if (durable) {
+        const snapshot = durable.data;
+        try {
+          await redis.set(snapshotKey, JSON.stringify(snapshot), 'EX', MATVIEW_TTL_SECONDS);
+        } catch (err) {
+          logger.warn('回温报表物化快照失败', { datasetId: id, err: err instanceof Error ? err.message : String(err) });
+        }
+        const projected = applyDatasetGovernance(withFieldMetadata(
+          applyInMemoryQuery(snapshot.rows, snapshot.columns, queryOptions, snapshot.rows.length),
+          declaredFields,
+          computed,
+        ));
+        await recordDatasetExecutionLog({
+          row,
+          durationMs: Date.now() - startedAt,
+          rowCount: projected.rows.length,
+          bytes: projected.bytes ?? null,
+          truncated: projected.truncated ?? false,
+          cacheHit: true,
+          success: true,
+          runtime,
+        });
+        return { data: projected, durationMs: Date.now() - startedAt, cacheHit: true };
       }
       const live = await runReportData(row.type, config, rawContent, {}, MAX_LIMIT, declaredFields, computed);
       const snapshot = { ...live, total: live.rows.length };
@@ -1441,6 +1707,124 @@ export async function getDatasetDataExecution(
   }
 }
 
+export async function getDatasetDataExecution(
+  id: number,
+  params?: Record<string, unknown>,
+  query?: DatasetQueryArg,
+  runtime?: DatasetExecutionContext,
+): Promise<DatasetExecutionResult> {
+  const source = await db.query.reportDatasets.findFirst({
+    where: reportScopedWhere(reportDatasets, eq(reportDatasets.id, id)),
+    columns: { id: true, tenantId: true, datasourceId: true },
+  });
+  if (!source) throw new HTTPException(404, { message: '数据集不存在' });
+  const identity = resolveReportQueryIdentity(source.tenantId, runtime);
+  const requestId = runtime?.requestId ?? newReportQueryRequestId();
+  const startedAt = Date.now();
+  let quotaLease: Awaited<ReturnType<typeof reserveReportQueryQuota>> | null = null;
+  let capacityLease: Awaited<ReturnType<typeof acquireReportQueryCapacity>> | null = null;
+  try {
+    quotaLease = await reserveReportQueryQuota(identity);
+    capacityLease = await acquireReportQueryCapacity(source.datasourceId);
+    const result = await getDatasetDataExecutionCore(id, params, query, runtime);
+    const rows = result.data.rows.length;
+    const bytes = result.data.bytes ?? estimateRowsBytes(result.data.rows);
+    const durationMs = Date.now() - startedAt;
+    const costUnits = calculateQueryCost({ durationMs, rows, bytes, cacheHit: result.cacheHit });
+    try {
+      await settleReportQueryQuota(quotaLease, { rows, bytes, costUnits });
+    } catch (settleError) {
+      logger.warn('结算报表查询配额失败', {
+        datasetId: id,
+        err: settleError instanceof Error ? settleError.message : String(settleError),
+      });
+    }
+    try {
+      await persistReportQueryCost({
+        identity,
+        datasetId: id,
+        datasourceId: source.datasourceId,
+        scene: runtime?.scene ?? 'dataset',
+        requestId,
+        queuedMs: capacityLease.queuedMs,
+        durationMs,
+        rowCount: rows,
+        byteSize: bytes,
+        costUnits,
+        cacheHit: result.cacheHit,
+        success: true,
+      });
+    } catch (costLogError) {
+      logger.warn('记录报表查询成本失败', {
+        datasetId: id,
+        err: costLogError instanceof Error ? costLogError.message : String(costLogError),
+      });
+    }
+    await recordReportAssetUsage({
+      tenantId: source.tenantId,
+      resourceType: 'dataset',
+      resourceId: id,
+      action: runtime?.scene?.includes('export') ? 'export' : 'query',
+      scene: runtime?.scene ?? 'dataset',
+      durationMs,
+      rowCount: rows,
+      byteSize: bytes,
+      success: true,
+    });
+    return {
+      ...result,
+      data: { ...result.data, costUnits, queueDurationMs: capacityLease.queuedMs },
+    };
+  } catch (error) {
+    const durationMs = Date.now() - startedAt;
+    const costUnits = calculateQueryCost({ durationMs, rows: 0, bytes: 0, cacheHit: false });
+    if (quotaLease) {
+      try {
+        await settleReportQueryQuota(quotaLease, { rows: 0, bytes: 0, costUnits });
+      } catch (settleError) {
+        logger.warn('结算报表查询配额失败', {
+          datasetId: id,
+          err: settleError instanceof Error ? settleError.message : String(settleError),
+        });
+      }
+    }
+    try {
+      await persistReportQueryCost({
+        identity,
+        datasetId: id,
+        datasourceId: source.datasourceId,
+        scene: runtime?.scene ?? 'dataset',
+        requestId,
+        queuedMs: capacityLease?.queuedMs ?? 0,
+        durationMs,
+        rowCount: 0,
+        byteSize: 0,
+        costUnits,
+        cacheHit: false,
+        success: false,
+        errorCode: error instanceof HTTPException ? String(error.status) : error instanceof Error ? error.name : 'QUERY_ERROR',
+      });
+      await recordReportAssetUsage({
+        tenantId: source.tenantId,
+        resourceType: 'dataset',
+        resourceId: id,
+        action: runtime?.scene?.includes('export') ? 'export' : 'query',
+        scene: runtime?.scene ?? 'dataset',
+        durationMs,
+        success: false,
+      });
+    } catch (costLogError) {
+      logger.warn('记录报表查询成本失败', {
+        datasetId: id,
+        err: costLogError instanceof Error ? costLogError.message : String(costLogError),
+      });
+    }
+    throw error;
+  } finally {
+    capacityLease?.release();
+  }
+}
+
 export async function getDatasetData(
   id: number,
   params?: Record<string, unknown>,
@@ -1455,8 +1839,16 @@ export async function getDatasetData(
 /** 强制刷新某数据集的物化快照（手动按钮 / 到期 Cron 调用）*/
 export async function refreshMaterialization(
   id: number,
-  options?: { isCancelRequested?: () => Promise<boolean> },
-): Promise<{ rows: number; cancelled?: boolean }> {
+  options?: {
+    strategy?: 'full' | 'incremental';
+    keyField?: string | null;
+    deltaWindowMinutes?: number | null;
+    expiresAt?: string | null;
+    snapshotId?: number;
+    isCancelRequested?: () => Promise<boolean>;
+    onSnapshotStarted?: (snapshotId: number) => Promise<void>;
+  },
+): Promise<{ rows: number; snapshotId?: number; cancelled?: boolean }> {
   if (await options?.isCancelRequested?.()) return { rows: 0, cancelled: true };
   const startedAt = Date.now();
   const row = await db.query.reportDatasets.findFirst({
@@ -1464,43 +1856,220 @@ export async function refreshMaterialization(
     with: { datasource: { columns: { config: true, status: true, updatedAt: true, id: true, name: true } } },
   });
   if (!row) throw new HTTPException(404, { message: '数据集不存在' });
+  if (currentUserOrNull()) await ensureReportResourceAccess('dataset', id, 'editor');
   if (!row.datasource) throw new HTTPException(400, { message: '数据源不存在' });
   ensureDatasourceEnabled(row.datasource);
   const config = (row.datasource?.config ?? {}) as ReportDatasourceConfig;
   const content = (row.content ?? {}) as ReportDatasetContent;
-  // 物化为全局快照，无参数（保存时已校验），统一空参数 + MAX_LIMIT
   const declaredFields = (row.fields ?? []) as ReportField[];
   const computed = (row.computedFields ?? []) as ReportComputedField[];
-  const result = await runReportData(row.type, config, content, {}, MAX_LIMIT, declaredFields, computed);
-  if (await options?.isCancelRequested?.()) return { rows: result.rows.length, cancelled: true };
-  const snapshot = { ...result, total: result.rows.length };
-  const now = new Date();
   const materialize = (row.materialize ?? {}) as ReportDatasetMaterialize;
-  const [updatedRow] = await db.update(reportDatasets)
-    .set({ materialize: { ...materialize, enabled: materialize.enabled ?? true, refreshedAt: formatDateTime(now), refreshedAtMs: now.getTime() } })
-    .where(eq(reportDatasets.id, id))
-    .returning({ updatedAt: reportDatasets.updatedAt });
-  try {
-    await redis.set(materializedCacheKey(id, `${updatedRow?.updatedAt?.getTime?.() ?? row.updatedAt.getTime()}:${row.datasource.updatedAt?.getTime?.() ?? 0}`), JSON.stringify(snapshot), 'EX', MATVIEW_TTL_SECONDS);
-  } catch (err) {
-    logger.warn('写入报表物化快照失败', { datasetId: id, err: err instanceof Error ? err.message : String(err) });
+  const strategy = options?.strategy ?? materialize.strategy ?? 'full';
+  const keyField = options?.keyField ?? materialize.keyField ?? null;
+  const deltaWindowMinutes = options?.deltaWindowMinutes ?? materialize.deltaWindowMinutes ?? null;
+  assertMaterializable(
+    { ...materialize, enabled: materialize.enabled ?? true, strategy, keyField, deltaWindowMinutes },
+    row.type,
+    content,
+    (row.params ?? []) as ReportDatasetParam[],
+    (row.rowRules ?? []) as ReportRowRule[],
+  );
+  if (strategy === 'incremental') {
+    if (!keyField) throw new HTTPException(400, { message: '增量物化必须指定增量键' });
+    if (declaredFields.length && !declaredFields.some((field) => field.name === keyField)) {
+      throw new HTTPException(400, { message: `增量键不存在：${keyField}` });
+    }
   }
-  await recordDatasetExecutionLog({
-    row,
-    durationMs: Date.now() - startedAt,
-    rowCount: result.rows.length,
-    bytes: result.bytes ?? null,
-    truncated: result.truncated ?? false,
-    cacheHit: false,
-    success: true,
-    runtime: { scene: 'materialize', sourceRefId: id },
-  });
-  return { rows: result.rows.length };
+  const previous = strategy === 'incremental' ? await loadCurrentMaterializationSnapshot(id) : null;
+  const building = options?.snapshotId
+    ? await resumeMaterializationSnapshot(options.snapshotId, id)
+    : await beginMaterializationSnapshot({
+      datasetId: id,
+      tenantId: row.tenantId,
+      strategy,
+      keyField,
+      deltaWindowMinutes,
+      expiresAt: options?.expiresAt,
+    });
+  if (building.status === 'ready') return { rows: building.rowCount, snapshotId: building.id };
+  await options?.onSnapshotStarted?.(building.id);
+  try {
+    const identity = resolveReportQueryIdentity(row.tenantId);
+    const requestId = newReportQueryRequestId();
+    const queryStartedAt = Date.now();
+    let quotaLease: Awaited<ReturnType<typeof reserveReportQueryQuota>> | null = null;
+    let capacityLease: Awaited<ReturnType<typeof acquireReportQueryCapacity>> | null = null;
+    let result: ReportDataResult;
+    try {
+      quotaLease = await reserveReportQueryQuota(identity);
+      capacityLease = await acquireReportQueryCapacity(row.datasource.id);
+      const isSqlLike = isSqlLikeType(row.type);
+      const rules = isSqlLike ? resolveEffectiveRowRules(row.rowRules as ReportRowRule[] | null) : [];
+      const rawSqlText = isSqlLike ? ((content as ReportSqlDatasetContent).sql ?? '') : '';
+      const sqlText = rules.length ? applyRowRulesToSql(rawSqlText, rules) : rawSqlText;
+      const governedContent: ReportDatasetContent = rules.length
+        ? { ...(content as ReportSqlDatasetContent), sql: sqlText }
+        : content;
+      const resolvedParams = {
+        ...resolveDatasetParams((row.params ?? []) as ReportDatasetParam[], {}),
+        ...await buildSystemParams(sqlText),
+      };
+      result = await runReportData(row.type, config, governedContent, resolvedParams, MAX_LIMIT, declaredFields, computed);
+      const durationMs = Date.now() - queryStartedAt;
+      const bytes = result.bytes ?? estimateRowsBytes(result.rows);
+      const costUnits = calculateQueryCost({
+        durationMs,
+        rows: result.rows.length,
+        bytes,
+        cacheHit: false,
+      });
+      try {
+        await settleReportQueryQuota(quotaLease, { rows: result.rows.length, bytes, costUnits });
+      } catch (settleError) {
+        logger.warn('结算物化查询配额失败', {
+          datasetId: id,
+          err: settleError instanceof Error ? settleError.message : String(settleError),
+        });
+      }
+      try {
+        await persistReportQueryCost({
+          identity,
+          datasetId: id,
+          datasourceId: row.datasource.id,
+          scene: 'materialize',
+          requestId,
+          queuedMs: capacityLease.queuedMs,
+          durationMs,
+          rowCount: result.rows.length,
+          byteSize: bytes,
+          costUnits,
+          cacheHit: false,
+          success: true,
+        });
+      } catch (costLogError) {
+        logger.warn('记录物化查询成本失败', {
+          datasetId: id,
+          err: costLogError instanceof Error ? costLogError.message : String(costLogError),
+        });
+      }
+    } catch (queryError) {
+      const durationMs = Date.now() - queryStartedAt;
+      const costUnits = calculateQueryCost({ durationMs, rows: 0, bytes: 0, cacheHit: false });
+      if (quotaLease) {
+        try {
+          await settleReportQueryQuota(quotaLease, { rows: 0, bytes: 0, costUnits });
+        } catch (settleError) {
+          logger.warn('结算失败物化查询配额失败', {
+            datasetId: id,
+            err: settleError instanceof Error ? settleError.message : String(settleError),
+          });
+        }
+      }
+      try {
+        await persistReportQueryCost({
+          identity,
+          datasetId: id,
+          datasourceId: row.datasource.id,
+          scene: 'materialize',
+          requestId,
+          queuedMs: capacityLease?.queuedMs ?? 0,
+          durationMs,
+          rowCount: 0,
+          byteSize: 0,
+          costUnits,
+          cacheHit: false,
+          success: false,
+          errorCode: queryError instanceof HTTPException
+            ? String(queryError.status)
+            : queryError instanceof Error ? queryError.name : 'QUERY_ERROR',
+        });
+      } catch (costLogError) {
+        logger.warn('记录失败物化查询成本失败', {
+          datasetId: id,
+          err: costLogError instanceof Error ? costLogError.message : String(costLogError),
+        });
+      }
+      throw queryError;
+    } finally {
+      capacityLease?.release();
+    }
+    if (await options?.isCancelRequested?.()) {
+      await failMaterializationSnapshot(building.id, new Error('物化任务已取消'));
+      return { rows: result.rows.length, snapshotId: building.id, cancelled: true };
+    }
+    if (strategy === 'incremental' && result.truncated) {
+      throw new HTTPException(409, { message: '增量窗口返回数据超过安全上限，请缩短增量窗口或改用全量物化' });
+    }
+    const delta = strategy === 'incremental' && keyField
+      ? filterIncrementalDelta(result, keyField, previous?.snapshot.watermark ?? null, deltaWindowMinutes)
+      : result;
+    const snapshot = strategy === 'incremental' && keyField
+      ? mergeIncrementalSnapshot(previous?.data ?? null, delta, keyField)
+      : { ...result, total: result.rows.length };
+    const watermark = strategy === 'incremental' && keyField
+      ? resolveSnapshotWatermark(snapshot.rows, keyField)
+      : null;
+    await completeMaterializationSnapshot(building.id, snapshot, watermark);
+    const now = new Date();
+    const [updatedRow] = await db.update(reportDatasets)
+      .set({ materialize: {
+        ...materialize,
+        enabled: materialize.enabled ?? true,
+        strategy,
+        keyField,
+        deltaWindowMinutes,
+        refreshedAt: formatDateTime(now),
+        refreshedAtMs: now.getTime(),
+      } })
+      .where(eq(reportDatasets.id, id))
+      .returning({ updatedAt: reportDatasets.updatedAt });
+    try {
+      await redis.set(
+        materializedCacheKey(id, `${updatedRow?.updatedAt?.getTime?.() ?? row.updatedAt.getTime()}:${row.datasource.updatedAt?.getTime?.() ?? 0}`),
+        JSON.stringify(snapshot),
+        'EX',
+        MATVIEW_TTL_SECONDS,
+      );
+    } catch (err) {
+      logger.warn('写入报表物化快照失败', { datasetId: id, err: err instanceof Error ? err.message : String(err) });
+    }
+    await recordDatasetExecutionLog({
+      row,
+      durationMs: Date.now() - startedAt,
+      rowCount: snapshot.rows.length,
+      bytes: snapshot.bytes ?? null,
+      truncated: snapshot.truncated ?? false,
+      cacheHit: false,
+      success: true,
+      runtime: { scene: 'materialize', sourceRefId: id },
+    });
+    return { rows: snapshot.rows.length, snapshotId: building.id };
+  } catch (error) {
+    await failMaterializationSnapshot(building.id, error);
+    await recordDatasetExecutionLog({
+      row,
+      durationMs: Date.now() - startedAt,
+      rowCount: null,
+      cacheHit: false,
+      success: false,
+      error: toExecutionError(error),
+      runtime: { scene: 'materialize', sourceRefId: id },
+    });
+    throw error;
+  }
 }
 
 /** Cron 分发：扫描启用物化的数据集，按各自 cron 判断到期后刷新（pg-boss 每分钟调用）*/
 export async function dispatchDueMaterializations(): Promise<{ checked: number; refreshed: number }> {
-  const rows = await db.select({ id: reportDatasets.id, materialize: reportDatasets.materialize, status: reportDatasets.status }).from(reportDatasets);
+  const rows = await db.select({
+    id: reportDatasets.id,
+    name: reportDatasets.name,
+    materialize: reportDatasets.materialize,
+    status: reportDatasets.status,
+    ownerId: reportDatasets.ownerId,
+    createdBy: reportDatasets.createdBy,
+    updatedAt: reportDatasets.updatedAt,
+  }).from(reportDatasets);
   const now = new Date();
   let refreshed = 0;
   let checked = 0;
@@ -1512,7 +2081,32 @@ export async function dispatchDueMaterializations(): Promise<{ checked: number; 
       const prev = CronExpressionParser.parse(m.cron, { currentDate: now }).prev().toDate();
       const last = m.refreshedAtMs ?? 0;
       if (prev.getTime() > last) {
-        await refreshMaterialization(r.id);
+        const creatorId = r.ownerId ?? r.createdBy;
+        if (!creatorId) continue;
+        const [creator] = await db.select({ id: users.id, username: users.username, tenantId: users.tenantId })
+          .from(users).where(eq(users.id, creatorId)).limit(1);
+        if (!creator) continue;
+        const roleRows = await db.select({ code: roles.code }).from(userRoles)
+          .innerJoin(roles, eq(roles.id, userRoles.roleId))
+          .where(eq(userRoles.userId, creator.id));
+        await runWithCurrentUser({
+          userId: creator.id,
+          username: creator.username,
+          tenantId: creator.tenantId,
+          roles: roleRows.map((role) => role.code),
+        }, async () => {
+          await submitAsyncTask({
+            taskType: 'report-dataset-materialize',
+            title: `定时刷新物化快照 · ${r.name}`,
+            payload: {
+              datasetId: r.id,
+              strategy: m.strategy ?? 'full',
+              keyField: m.keyField ?? null,
+              deltaWindowMinutes: m.deltaWindowMinutes ?? null,
+            },
+            idempotencyKey: `report-dataset-materialize:${r.id}:scheduled:${prev.getTime()}`,
+          });
+        });
         refreshed++;
       }
     } catch (e) {

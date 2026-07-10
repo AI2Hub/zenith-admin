@@ -12,6 +12,9 @@ import { emitInstanceEvent, emitNodeEvent, emitTaskEvent } from './shared';
 import { assertActionUploadRequirement, getOwnPendingTask, rejectTaskCore } from './task-actions';
 import type { WorkflowTaskAttachment } from './task-actions';
 import { loadTaskHandledUserIds, recordTaskTransfer } from './transfers';
+import logger from '../../../lib/logger';
+import { bridgeReportFillWorkflowOutcome } from '../../report/report-fill-workflow-bridge.service';
+import { submitReportFillSyncForWorkflowInstance } from '../../report/report-fill-task.service';
 
 /** 转办：将当前任务的处理人改为目标用户 */
 export async function transferTask(taskId: number, targetUserId: number, comment?: string, attachments?: WorkflowTaskAttachment[]) {
@@ -248,7 +251,7 @@ export async function reduceSignTask(taskId: number, targetTaskIds: number[], co
     // 复核节点完成状态（例如 ratio 比例会签减签后阈值已达成，需跳过余下任务并推进流程）
     const { completed } = await checkNodeCompletion(tx, inst.id, task.nodeKey, flowData);
     if (!completed || !flowData) {
-      return { removed: updated, advanced: false, finished: false, rejected: false, row: inst, newTasks: [] as typeof workflowTasks.$inferSelect[] };
+      return { removed: updated, advanced: false, finished: false, rejected: false, row: inst, newTasks: [] as typeof workflowTasks.$inferSelect[], fillBridge: null };
     }
     // 减签触发节点完成：推进流程（checkNodeCompletion 已跳过本节点剩余 pending/waiting 任务）
     const formData = (inst.formData ?? {}) as Record<string, unknown>;
@@ -268,18 +271,39 @@ export async function reduceSignTask(taskId: number, targetTaskIds: number[], co
       await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date() })
         .where(and(eq(workflowTasks.instanceId, inst.id), inArray(workflowTasks.status, ['pending', 'waiting'])));
       const [row] = await tx.update(workflowInstances).set({ status: 'rejected', currentNodeKey: null }).where(eq(workflowInstances.id, inst.id)).returning();
-      return { removed: updated, advanced: true, finished: false, rejected: true, row, newTasks: materialized.createdTasks };
+      const fillBridge = await bridgeReportFillWorkflowOutcome(tx, {
+        workflowInstanceId: inst.id,
+        outcome: 'rejected',
+        actorId: actor.userId,
+        comment: reduceComment,
+      });
+      return { removed: updated, advanced: true, finished: false, rejected: true, row, newTasks: materialized.createdTasks, fillBridge };
     }
     if (materialized.finished) {
       const [row] = await tx.update(workflowInstances).set({ status: 'approved', currentNodeKey: null }).where(eq(workflowInstances.id, inst.id)).returning();
-      return { removed: updated, advanced: true, finished: true, rejected: false, row, newTasks: materialized.createdTasks };
+      const fillBridge = await bridgeReportFillWorkflowOutcome(tx, {
+        workflowInstanceId: inst.id,
+        outcome: 'approved',
+        actorId: actor.userId,
+        comment: reduceComment,
+      });
+      return { removed: updated, advanced: true, finished: true, rejected: false, row, newTasks: materialized.createdTasks, fillBridge };
     }
     const [row] = await tx.update(workflowInstances)
       .set({ currentNodeKey: materialized.currentNodeKeys[0] ?? null })
       .where(eq(workflowInstances.id, inst.id))
       .returning();
-    return { removed: updated, advanced: true, finished: false, rejected: false, row, newTasks: materialized.createdTasks };
+    return { removed: updated, advanced: true, finished: false, rejected: false, row, newTasks: materialized.createdTasks, fillBridge: null };
   });
+
+  if (result.fillBridge?.approved) {
+    void submitReportFillSyncForWorkflowInstance(result.row.id).catch((error) => {
+      logger.error('[report-fill] enqueue sync task failed', {
+        workflowInstanceId: result.row.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }
 
   const { removed, row: instRow } = result;
   const meta = { definitionId: inst.definitionId, tenantId: inst.tenantId, actor };

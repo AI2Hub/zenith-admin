@@ -37,9 +37,11 @@ export function truncateHistoryByBudget<T extends ChatMessage>(
   options: TruncateOptions = {},
 ): T[] {
   const maxTokens = options.maxTokens ?? 6000;
+  const maxCount = options.maxCount ?? 20;
   const kept: T[] = [];
   let budget = maxTokens;
   for (const msg of recentFirst) {
+    if (kept.length >= maxCount) break;
     const cost = estimateTokens(msg.content);
     if (kept.length > 0 && budget - cost < 0) break;
     budget -= cost;

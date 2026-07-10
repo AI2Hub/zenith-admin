@@ -8,7 +8,17 @@
  * 修改数据时只需改这一处，两端自动同步。
  */
 
-import type { Menu, Role, Department, Position, Dict, DictItem, SystemConfig, CronJob, WorkflowForm, WorkflowCategory, WorkflowDataSource, Tag, DataMaskConfig, MemberLevel, MemberTag, Coupon, EmailTemplate, SmsTemplate, InAppTemplate, Tenant, TenantPackage, AiPromptTemplate, MpAccount, MpTag, MpFan, MpMessage, MpAutoReply, MpMenu, MpMaterial, MpDraft, MpMessageTemplate, MpBroadcast, MpQrcode, MpKfAccount, MpKfSessionStatus, MpKfSessionCloseReason, MpKfSessionEventType, MpKfRoutingStrategy, MpMenuButton, MpMenuMatchRule, MpMenuStatus, ReportDatasource, ReportDataset, ReportDashboard, ApiScope, RatePlan, ReportPrintTemplate, UserFeedback } from './types';
+import type {
+  Menu, Role, Department, Position, Dict, DictItem, SystemConfig, CronJob, WorkflowForm,
+  WorkflowCategory, WorkflowDataSource, Tag, DataMaskConfig, MemberLevel, MemberTag, Coupon,
+  EmailTemplate, SmsTemplate, InAppTemplate, Tenant, TenantPackage, AiPromptTemplate, MpAccount,
+  MpTag, MpFan, MpMessage, MpAutoReply, MpMenu, MpMaterial, MpDraft, MpMessageTemplate,
+  MpBroadcast, MpQrcode, MpKfAccount, MpKfSessionStatus, MpKfSessionCloseReason,
+  MpKfSessionEventType, MpKfRoutingStrategy, MpMenuButton, MpMenuMatchRule, MpMenuStatus,
+  ReportDatasource, ReportDataset, ReportDashboard, ApiScope, RatePlan, ReportPrintTemplate,
+  UserFeedback, ReportFolder, ReportMetric, ReportEnvironment, ReportDqRule, ReportQueryQuota,
+  ReportSlaRule, ReportAssetTemplate, ReportFillTemplate,
+} from './types';
 
 const SEED_DATE = '2024-01-01 00:00:00';
 
@@ -518,6 +528,86 @@ export const SEED_MENUS: Menu[] = [
   { id: 1261, parentId: 1260, title: '新增预警', name: undefined,         path: undefined,              component: undefined,                  icon: undefined,        type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'report:alert:create',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1262, parentId: 1260, title: '编辑预警', name: undefined,         path: undefined,              component: undefined,                  icon: undefined,        type: 'button',    sort: 2,  status: 'enabled', visible: true,  permission: 'report:alert:update',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1263, parentId: 1260, title: '删除预警', name: undefined,         path: undefined,              component: undefined,                  icon: undefined,        type: 'button',    sort: 3,  status: 'enabled', visible: true,  permission: 'report:alert:delete',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1400, parentId: 1200, title: '指标中心', name: 'ReportMetrics',    path: '/report/metrics',       component: 'report/MetricsPage',       icon: 'Target',         type: 'menu',      sort: 7,  status: 'enabled', visible: true,  permission: 'report:metric:list',        createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1401, parentId: 1400, title: '新增指标', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 1, status: 'enabled', visible: true, permission: 'report:metric:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1402, parentId: 1400, title: '编辑指标', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 2, status: 'enabled', visible: true, permission: 'report:metric:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1403, parentId: 1400, title: '删除指标', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 3, status: 'enabled', visible: true, permission: 'report:metric:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1404, parentId: 1400, title: '评估指标', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 4, status: 'enabled', visible: true, permission: 'report:metric:evaluate', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1405, parentId: 1400, title: '发布指标', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 5, status: 'enabled', visible: true, permission: 'report:metric:publish', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
+  { id: 1410, parentId: 1200, title: '数据质量', name: 'ReportQuality',    path: '/report/quality',       component: 'report/QualityPage',       icon: 'BadgeCheck',     type: 'menu',      sort: 8,  status: 'enabled', visible: true,  permission: 'report:dq:list',            createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1411, parentId: 1410, title: '新增质量规则', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 1, status: 'enabled', visible: true, permission: 'report:dq:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1412, parentId: 1410, title: '编辑质量规则', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 2, status: 'enabled', visible: true, permission: 'report:dq:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1413, parentId: 1410, title: '删除质量规则', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 3, status: 'enabled', visible: true, permission: 'report:dq:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1414, parentId: 1410, title: '执行质量规则', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 4, status: 'enabled', visible: true, permission: 'report:dq:run', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1415, parentId: 1410, title: '导出质量记录', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 5, status: 'enabled', visible: true, permission: 'report:dq:export', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
+  { id: 1420, parentId: 1200, title: '资源治理', name: 'ReportGovernance', path: '/report/governance',    component: 'report/ReportGovernancePage', icon: 'ShieldCheck', type: 'menu', sort: 9, status: 'enabled', visible: true, permission: 'report:folder:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1421, parentId: 1420, title: '新增资源目录', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 1, status: 'enabled', visible: true, permission: 'report:folder:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1422, parentId: 1420, title: '编辑资源目录', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 2, status: 'enabled', visible: true, permission: 'report:folder:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1423, parentId: 1420, title: '删除资源目录', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 3, status: 'enabled', visible: true, permission: 'report:folder:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1424, parentId: 1420, title: '管理资源权限', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 4, status: 'enabled', visible: true, permission: 'report:resource:acl', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1425, parentId: 1420, title: '查看有效权限', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 5, status: 'enabled', visible: true, permission: 'report:resource:access', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1426, parentId: 1420, title: '转移资源所有权', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 6, status: 'enabled', visible: true, permission: 'report:resource:transfer', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1427, parentId: 1420, title: '查看发布审批', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 7, status: 'enabled', visible: true, permission: 'report:approval:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1428, parentId: 1420, title: '申请发布审批', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 8, status: 'enabled', visible: true, permission: 'report:approval:request', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1429, parentId: 1420, title: '处理发布审批', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 9, status: 'enabled', visible: true, permission: 'report:approval:approve', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1430, parentId: 1420, title: '查看报表环境', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 10, status: 'enabled', visible: true, permission: 'report:environment:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1431, parentId: 1420, title: '新增报表环境', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 11, status: 'enabled', visible: true, permission: 'report:environment:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1432, parentId: 1420, title: '编辑报表环境', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 12, status: 'enabled', visible: true, permission: 'report:environment:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1433, parentId: 1420, title: '删除报表环境', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 13, status: 'enabled', visible: true, permission: 'report:environment:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1434, parentId: 1420, title: '环境发布回滚', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 14, status: 'enabled', visible: true, permission: 'report:environment:promote', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1435, parentId: 1420, title: '查看物化快照', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 15, status: 'enabled', visible: true, permission: 'report:materialization:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1436, parentId: 1420, title: '刷新物化快照', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 16, status: 'enabled', visible: true, permission: 'report:materialization:refresh', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1437, parentId: 1420, title: '清理物化快照', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 17, status: 'enabled', visible: true, permission: 'report:materialization:purge', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1438, parentId: 1420, title: '查看查询配额', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 18, status: 'enabled', visible: true, permission: 'report:query-quota:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1439, parentId: 1420, title: '新增查询配额', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 19, status: 'enabled', visible: true, permission: 'report:query-quota:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1440, parentId: 1420, title: '编辑查询配额', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 20, status: 'enabled', visible: true, permission: 'report:query-quota:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1441, parentId: 1420, title: '删除查询配额', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 21, status: 'enabled', visible: true, permission: 'report:query-quota:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1442, parentId: 1420, title: '查看查询成本', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 22, status: 'enabled', visible: true, permission: 'report:query-cost:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1443, parentId: 1420, title: '查看 SLA', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 23, status: 'enabled', visible: true, permission: 'report:sla:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1444, parentId: 1420, title: '新增 SLA', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 24, status: 'enabled', visible: true, permission: 'report:sla:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1445, parentId: 1420, title: '编辑 SLA', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 25, status: 'enabled', visible: true, permission: 'report:sla:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1446, parentId: 1420, title: '删除 SLA', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 26, status: 'enabled', visible: true, permission: 'report:sla:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1447, parentId: 1420, title: '评估 SLA', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 27, status: 'enabled', visible: true, permission: 'report:sla:evaluate', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1448, parentId: 1420, title: '导出查询成本', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 28, status: 'enabled', visible: true, permission: 'report:query-cost:export', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
+  { id: 1460, parentId: 1200, title: '资产目录', name: 'ReportAssets', path: '/report/assets', component: 'report/AssetsPage', icon: 'Library', type: 'menu', sort: 10, status: 'enabled', visible: true, permission: 'report:asset:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1461, parentId: 1460, title: '查看资产用量', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 1, status: 'enabled', visible: true, permission: 'report:asset:usage', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1462, parentId: 1460, title: '查看弃用公告', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 2, status: 'enabled', visible: true, permission: 'report:deprecation:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1463, parentId: 1460, title: '新增弃用公告', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 3, status: 'enabled', visible: true, permission: 'report:deprecation:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1464, parentId: 1460, title: '编辑弃用公告', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 4, status: 'enabled', visible: true, permission: 'report:deprecation:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1465, parentId: 1460, title: '发布弃用公告', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 5, status: 'enabled', visible: true, permission: 'report:deprecation:publish', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1466, parentId: 1460, title: '删除弃用公告', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 6, status: 'enabled', visible: true, permission: 'report:deprecation:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1467, parentId: 1460, title: '查看资产模板', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 7, status: 'enabled', visible: true, permission: 'report:asset-template:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1468, parentId: 1460, title: '新增资产模板', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 8, status: 'enabled', visible: true, permission: 'report:asset-template:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1469, parentId: 1460, title: '编辑资产模板', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 9, status: 'enabled', visible: true, permission: 'report:asset-template:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1470, parentId: 1460, title: '应用资产模板', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 10, status: 'enabled', visible: true, permission: 'report:asset-template:apply', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1471, parentId: 1460, title: '删除资产模板', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 11, status: 'enabled', visible: true, permission: 'report:asset-template:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1472, parentId: 1460, title: '导出资产目录', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 12, status: 'enabled', visible: true, permission: 'report:asset:export', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1480, parentId: 1200, title: '智能问数', name: 'ReportChatBi', path: '/report/chatbi', component: 'report/ChatBiPage', icon: 'MessageSquareText', type: 'menu', sort: 11, status: 'enabled', visible: true, permission: 'report:chatbi:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1481, parentId: 1480, title: '创建问数会话', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 1, status: 'enabled', visible: true, permission: 'report:chatbi:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1482, parentId: 1480, title: '编辑问数会话', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 2, status: 'enabled', visible: true, permission: 'report:chatbi:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1483, parentId: 1480, title: '删除问数会话', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 3, status: 'enabled', visible: true, permission: 'report:chatbi:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1484, parentId: 1480, title: '执行智能问数', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 4, status: 'enabled', visible: true, permission: 'report:chatbi:ask', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1485, parentId: 1480, title: '保存问数结果', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 5, status: 'enabled', visible: true, permission: 'report:chatbi:save', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1486, parentId: 1480, title: '查看问数审计', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 6, status: 'enabled', visible: true, permission: 'report:chatbi:audit', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1487, parentId: 1480, title: '管理问数配额', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 7, status: 'enabled', visible: true, permission: 'report:chatbi:manage', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
+  { id: 1500, parentId: 1200, title: '填报模板', name: 'ReportFillTemplates', path: '/report/fill-templates', component: 'report/FillTemplatesPage', icon: 'ClipboardList', type: 'menu', sort: 12, status: 'enabled', visible: true, permission: 'report:fill:template:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1501, parentId: 1500, title: '新增填报模板', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 1, status: 'enabled', visible: true, permission: 'report:fill:template:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1502, parentId: 1500, title: '编辑填报模板', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 2, status: 'enabled', visible: true, permission: 'report:fill:template:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1503, parentId: 1500, title: '发布/下线模板', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 3, status: 'enabled', visible: true, permission: 'report:fill:template:publish', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1504, parentId: 1500, title: '克隆填报模板', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 4, status: 'enabled', visible: true, permission: 'report:fill:template:clone', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1505, parentId: 1500, title: '删除填报模板', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 5, status: 'enabled', visible: true, permission: 'report:fill:template:delete', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
+  { id: 1520, parentId: 1200, title: '填报记录', name: 'ReportFillRecords', path: '/report/fill-records', component: 'report/FillRecordsPage', icon: 'ListChecks', type: 'menu', sort: 13, status: 'enabled', visible: true, permission: 'report:fill:record:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1521, parentId: 1520, title: '创建填报记录', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 1, status: 'enabled', visible: true, permission: 'report:fill:record:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1522, parentId: 1520, title: '编辑填报记录', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 2, status: 'enabled', visible: true, permission: 'report:fill:record:update', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1523, parentId: 1520, title: '提交填报记录', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 3, status: 'enabled', visible: true, permission: 'report:fill:record:submit', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1524, parentId: 1520, title: '撤回填报记录', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 4, status: 'enabled', visible: true, permission: 'report:fill:record:cancel', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1525, parentId: 1520, title: '审核填报记录', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 5, status: 'enabled', visible: true, permission: 'report:fill:record:review', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1526, parentId: 1520, title: '导出填报记录', name: undefined, path: undefined, component: undefined, icon: undefined, type: 'button', sort: 6, status: 'enabled', visible: true, permission: 'report:fill:record:export', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   // ─── 开放平台 / 开发者门户 ────────────────────────────────────────────────────
   { id: 1300, parentId: 0,    title: '开放平台',   name: 'OpenPlatform',  path: undefined,                       component: undefined,                                   icon: 'Boxes',         type: 'directory', sort: 14, status: 'enabled', visible: true,  createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1310, parentId: 1300, title: 'API Scope',  name: 'OpenApiScopes', path: '/open-platform/api-scopes',     component: 'open-platform/api-scopes/ApiScopesPage',    icon: 'KeySquare',     type: 'menu',      sort: 2,  status: 'enabled', visible: true,  permission: 'open:scope:view',       createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -2078,6 +2168,167 @@ export const SEED_REPORT_PRINT_TEMPLATES: ReportPrintTemplate[] = [
     pageConfig: { paper: 'A4', orientation: 'portrait', margin: { top: 20, right: 20, bottom: 20, left: 20 }, header: '部门用户统计', footer: '第 {page} 页 / 共 {pages} 页' },
     status: 'enabled',
     remark: '内置示例：表头 + 明细纵向扩展 + 合计行（${SUM}），可直接预览/打印/导出',
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+];
+
+// ─── 报表中心 P2：治理、质量、容量、资产与填报基线 ─────────────────────────────
+export const SEED_REPORT_FOLDERS: ReportFolder[] = [
+  { id: 1, tenantId: null, parentId: null, name: '示例数据源', resourceType: 'datasource', ownerId: 1, sort: 10, status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2, tenantId: null, parentId: null, name: '示例数据集', resourceType: 'dataset', ownerId: 1, sort: 20, status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 3, tenantId: null, parentId: null, name: '示例仪表盘', resourceType: 'dashboard', ownerId: 1, sort: 30, status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 4, tenantId: null, parentId: null, name: '语义指标', resourceType: 'metric', ownerId: 1, sort: 40, status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 5, tenantId: null, parentId: null, name: '打印模板', resourceType: 'print_template', ownerId: 1, sort: 50, status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 6, tenantId: null, parentId: null, name: '资产模板', resourceType: 'asset_template', ownerId: 1, sort: 60, status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 7, tenantId: null, parentId: null, name: '填报模板', resourceType: 'fill_template', ownerId: 1, sort: 70, status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+];
+
+export const SEED_REPORT_ENVIRONMENTS: ReportEnvironment[] = [
+  { id: 1, tenantId: null, code: 'dev', name: '开发环境', kind: 'development', description: '报表资源开发与联调环境', baseUrl: null, config: {}, isDefault: true, status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2, tenantId: null, code: 'staging', name: '预发布环境', kind: 'staging', description: '发布审批后的验收环境', baseUrl: null, config: {}, isDefault: false, status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 3, tenantId: null, code: 'prod', name: '生产环境', kind: 'production', description: '仅允许审批通过的版本发布', baseUrl: null, config: {}, isDefault: false, status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+];
+
+export const SEED_REPORT_METRICS: ReportMetric[] = [
+  {
+    id: 1,
+    tenantId: null,
+    folderId: 4,
+    ownerId: 1,
+    code: 'department_user_total',
+    name: '部门用户总数',
+    description: '基于部门用户榜数据集汇总各部门用户数量',
+    type: 'simple',
+    datasetId: 2,
+    sourceField: 'value',
+    formula: null,
+    aggregate: 'sum',
+    dimensions: ['name'],
+    timeField: null,
+    unit: '人',
+    format: '#,##0',
+    caliber: '按当前数据集筛选条件汇总 value 字段；不包含已删除用户。',
+    lifecycleStatus: 'published',
+    revision: 1,
+    publishedSnapshot: {
+      code: 'department_user_total',
+      name: '部门用户总数',
+      type: 'simple',
+      datasetId: 2,
+      sourceField: 'value',
+      aggregate: 'sum',
+      dimensions: ['name'],
+      unit: '人',
+      format: '#,##0',
+    },
+    publishedAt: SEED_DATE,
+    publishedBy: 1,
+    deprecatedAt: null,
+    deprecatedBy: null,
+    deprecationReason: null,
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+];
+
+export const SEED_REPORT_DQ_RULES: ReportDqRule[] = [
+  {
+    id: 1, tenantId: null, datasetId: 2, name: '部门名称不能为空', type: 'not_null',
+    field: 'name', severity: 'high', config: {}, cron: '0 7 * * *', timezone: 'Asia/Shanghai',
+    enabled: true, lastRunAt: null, lastStatus: null, createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
+  {
+    id: 2, tenantId: null, datasetId: 2, name: '部门榜至少包含一行', type: 'row_count',
+    field: null, severity: 'medium', config: { minRows: 1 }, cron: null, timezone: 'Asia/Shanghai',
+    enabled: true, lastRunAt: null, lastStatus: null, createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
+];
+
+/** 数值 0 表示对应日配额不限；仍保留并发上限保护数据库。 */
+export const SEED_REPORT_QUERY_QUOTAS: ReportQueryQuota[] = [
+  {
+    id: 1, tenantId: null, scope: 'tenant', userId: null, maxConcurrent: 20,
+    dailyQueryLimit: 0, dailyRowLimit: 0, dailyByteLimit: 0, dailyCostLimit: 0,
+    resetTimezone: 'Asia/Shanghai', enabled: true, createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
+];
+
+export const SEED_REPORT_SLA_RULES: ReportSlaRule[] = [
+  {
+    id: 1, tenantId: null, datasetId: 2, name: '部门用户榜质量分',
+    type: 'dq_score', targetValue: 95, warningValue: 98, windowMinutes: 1440,
+    cron: '15 7 * * *', timezone: 'Asia/Shanghai', severity: 'high', channels: ['inApp'],
+    recipients: null, webhookUrl: null, silenceMins: 120, enabled: true,
+    lastEvaluatedAt: null, lastNotifiedAt: null, createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
+];
+
+export const SEED_REPORT_ASSET_TEMPLATES: ReportAssetTemplate[] = [
+  {
+    id: 1, tenantId: null, folderId: 6, ownerId: 1, code: 'standard_analysis_dashboard',
+    name: '标准分析仪表盘', type: 'dashboard', description: '带筛选区的空白分析仪表盘，可复用后绑定数据集。',
+    content: {
+      layout: [],
+      canvasLayout: [],
+      widgets: [],
+      filters: [],
+      config: { theme: 'light', refreshInterval: 0 },
+      status: 'enabled',
+      remark: '由报表资产模板创建',
+    },
+    previewFileId: null, version: 1, usageCount: 0, status: 'enabled',
+    createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
+];
+
+export const SEED_REPORT_FILL_TEMPLATES: ReportFillTemplate[] = [
+  {
+    id: 1,
+    tenantId: null,
+    folderId: 7,
+    ownerId: 1,
+    code: 'monthly_operation_fill',
+    name: '月度运营数据填报',
+    description: '示例填报模板：提交后进入人工审核，通过后同步到生成数据集。',
+    formSchema: {
+      fields: [
+        { key: 'period', label: '统计月份', type: 'date', dateFormat: 'YYYY-MM', required: true },
+        { key: 'department', label: '部门', type: 'text', required: true, maxLength: 64 },
+        { key: 'activeUsers', label: '活跃用户数', type: 'number', required: true, min: 0, precision: 0, unit: '人' },
+        { key: 'revenue', label: '营业收入', type: 'amount', required: true, min: 0, precision: 2, currency: 'CNY', unit: '元' },
+        { key: 'remark', label: '备注', type: 'textarea', required: false, maxLength: 500 },
+      ],
+      settings: {
+        description: '请按月填报运营数据。审核通过后数据会异步同步到报表数据集。',
+        submitButtonText: '提交审核',
+        labelPosition: 'left',
+        labelWidth: 96,
+      },
+    },
+    publishedSchema: {
+      fields: [
+        { key: 'period', label: '统计月份', type: 'date', dateFormat: 'YYYY-MM', required: true },
+        { key: 'department', label: '部门', type: 'text', required: true, maxLength: 64 },
+        { key: 'activeUsers', label: '活跃用户数', type: 'number', required: true, min: 0, precision: 0, unit: '人' },
+        { key: 'revenue', label: '营业收入', type: 'amount', required: true, min: 0, precision: 2, currency: 'CNY', unit: '元' },
+        { key: 'remark', label: '备注', type: 'textarea', required: false, maxLength: 500 },
+      ],
+      settings: {
+        description: '请按月填报运营数据。审核通过后数据会异步同步到报表数据集。',
+        submitButtonText: '提交审核',
+        labelPosition: 'left',
+        labelWidth: 96,
+      },
+    },
+    publishedRevision: 1,
+    workflowDefinitionId: null,
+    needReview: true,
+    generatedDatasetId: null,
+    status: 'published',
+    revision: 1,
+    publishedAt: SEED_DATE,
+    publishedBy: 1,
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
   },

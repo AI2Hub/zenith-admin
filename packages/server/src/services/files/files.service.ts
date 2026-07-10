@@ -21,7 +21,7 @@ export function mapManagedFile(row: typeof managedFiles.$inferSelect) {
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
-import { and, desc, asc, eq, inArray, like, or, gte, lte, sql } from 'drizzle-orm';
+import { and, desc, asc, eq, inArray, isNull, like, or, gte, lte, sql } from 'drizzle-orm';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { streamToExcel, formatDateTimeForExcel } from '../../lib/excel-export';
@@ -59,6 +59,19 @@ export async function getStoredFileForRead(id: string) {
 
 export async function readFileContent(id: string) {
   const { file, storageConfig } = await getStoredFileForRead(id);
+  return readStoredFile(file, storageConfig);
+}
+
+export async function readGeneratedManagedFile(id: string, tenantId: number | null) {
+  const tenantWhere = tenantId === null ? isNull(managedFiles.tenantId) : eq(managedFiles.tenantId, tenantId);
+  const [file] = await db.select().from(managedFiles)
+    .where(and(eq(managedFiles.id, id), tenantWhere))
+    .limit(1);
+  if (!file) throw new HTTPException(404, { message: '生成文件不存在' });
+  const [storageConfig] = await db.select().from(fileStorageConfigs)
+    .where(eq(fileStorageConfigs.id, file.storageConfigId))
+    .limit(1);
+  if (!storageConfig) throw new HTTPException(404, { message: '文件存储配置不存在' });
   return readStoredFile(file, storageConfig);
 }
 
@@ -313,6 +326,18 @@ export async function deleteManagedFile(id: string) {
   if (storageConfig) {
     await deleteStoredFile(file, storageConfig);
   }
+  await db.delete(managedFiles).where(where);
+}
+
+export async function deleteGeneratedManagedFile(id: string, tenantId: number | null): Promise<void> {
+  const tenantWhere = tenantId === null ? isNull(managedFiles.tenantId) : eq(managedFiles.tenantId, tenantId);
+  const where = and(eq(managedFiles.id, id), tenantWhere);
+  const [file] = await db.select().from(managedFiles).where(where).limit(1);
+  if (!file) return;
+  const [storageConfig] = await db.select().from(fileStorageConfigs)
+    .where(eq(fileStorageConfigs.id, file.storageConfigId))
+    .limit(1);
+  if (storageConfig) await deleteStoredFile(file, storageConfig);
   await db.delete(managedFiles).where(where);
 }
 

@@ -76,6 +76,8 @@ import type {
 } from '@zenith/shared';
 import type { ReportWidgetOptions } from '@zenith/shared';
 import { resolveReportSecret } from './report-secrets';
+import { ensureReportResourceAccess } from './report-resource-acl.service';
+import { recordReportAssetUsage } from './report-asset-usage.service';
 
 const DEFAULT_SHARE_TTL_DAYS = 30;
 const SHARE_SESSION_TTL_SECONDS = 15 * 60;
@@ -268,6 +270,7 @@ export async function listVersions(dashboardId: number): Promise<ReportDashboard
 }
 
 export async function createVersion(dashboardId: number, input?: CreateReportVersionInput): Promise<ReportDashboardVersion> {
+  await ensureReportResourceAccess('dashboard', dashboardId, 'editor');
   await ensureDashboardExists(dashboardId);
   return db.transaction(async (tx) => {
     await tx.execute(sql`SELECT ${reportDashboards.id} FROM ${reportDashboards} WHERE ${reportDashboards.id} = ${dashboardId} FOR UPDATE`);
@@ -295,14 +298,16 @@ export async function publishDashboard(
   dashboardId: number,
   input: ReportDashboardLifecycleActionInput,
 ): Promise<ReportDashboard> {
+  await ensureReportResourceAccess('dashboard', dashboardId, 'editor');
   const current = await ensureLifecycleRevision(dashboardId, input.expectedRevision);
   await ensureDashboardReferences(
     (current.widgets ?? []) as ReportWidget[],
     (current.filters ?? []) as ReportFilter[],
     current.categoryId ?? null,
     dashboardId,
+    current.tenantId ?? null,
   );
-  await assertDashboardSnapshotEvaluableGlobally(draftSnapshotFromDashboard(current));
+  await assertDashboardSnapshotEvaluableGlobally(draftSnapshotFromDashboard(current), current.tenantId ?? null);
   const snapshot = draftSnapshotFromDashboard(current);
   const row = await db.transaction(async (tx) => {
     const [updated] = await tx.update(reportDashboards).set({
@@ -327,6 +332,7 @@ export async function offlineDashboard(
   dashboardId: number,
   input: ReportDashboardLifecycleActionInput,
 ): Promise<ReportDashboard> {
+  await ensureReportResourceAccess('dashboard', dashboardId, 'editor');
   const current = await ensureLifecycleRevision(dashboardId, input.expectedRevision);
   if (!current.publishedSnapshot) throw new HTTPException(400, { message: '该仪表盘尚未发布，无法下线' });
   const [row] = await db.update(reportDashboards).set({
@@ -376,13 +382,20 @@ export async function restoreVersion(
   versionId: number,
   expectedRevision: number,
 ): Promise<ReportDashboard> {
+  await ensureReportResourceAccess('dashboard', dashboardId, 'editor');
   const current = await ensureLifecycleRevision(dashboardId, expectedRevision);
   const [version] = await db.select().from(reportDashboardVersions)
     .where(and(eq(reportDashboardVersions.id, versionId), eq(reportDashboardVersions.dashboardId, dashboardId)))
     .limit(1);
   if (!version) throw new HTTPException(404, { message: '版本不存在' });
   const snapshot = (version.snapshot ?? {}) as ReportDashboardSnapshot;
-  await ensureDashboardReferences(snapshot.widgets ?? [], snapshot.filters ?? [], snapshot.categoryId ?? null, dashboardId);
+  await ensureDashboardReferences(
+    snapshot.widgets ?? [],
+    snapshot.filters ?? [],
+    snapshot.categoryId ?? null,
+    dashboardId,
+    current.tenantId ?? null,
+  );
   const row = await db.transaction(async (tx) => {
     const [updated] = await tx.update(reportDashboards).set({
       name: snapshot.name,
@@ -482,12 +495,14 @@ function parseShareExpireAt(expireAt: string | null | undefined): Date | null | 
 }
 
 export async function createShare(dashboardId: number, input: CreateReportShareInput): Promise<ReportDashboardShare> {
+  await ensureReportResourceAccess('dashboard', dashboardId, 'editor');
   const dashboard = await ensureDashboardExists(dashboardId);
   if (dashboard.lifecycleStatus !== 'published' || !dashboard.publishedSnapshot) {
     throw new HTTPException(400, { message: '仅已发布仪表盘可创建公开分享' });
   }
   await assertDashboardSnapshotEvaluableGlobally(
     dashboard.publishedSnapshot as ReportDashboardSnapshot,
+    dashboard.tenantId ?? null,
   );
   assertPublicDashboardProjection((dashboard.publishedSnapshot.widgets ?? []) as ReportWidget[]);
   const token = randomBytes(24).toString('hex');
@@ -507,6 +522,13 @@ export async function createShare(dashboardId: number, input: CreateReportShareI
     allowedCidrs: input.allowedCidrs ?? [],
     allowedIps: input.allowedIps ?? [],
   }).returning();
+  await recordReportAssetUsage({
+    tenantId: dashboard.tenantId ?? null,
+    resourceType: 'dashboard',
+    resourceId: dashboardId,
+    action: 'share',
+    scene: 'share:create',
+  });
   return mapShare(row);
 }
 
@@ -518,7 +540,8 @@ export async function ensureShareExists(id: number): Promise<ReportDashboardShar
 }
 
 export async function updateShare(id: number, input: UpdateReportShareInput): Promise<ReportDashboardShare> {
-  await ensureShareExists(id);
+  const share = await ensureShareExists(id);
+  await ensureReportResourceAccess('dashboard', share.dashboardId, 'editor');
   const passwordHash = input.password === undefined ? undefined : (input.password ? await bcrypt.hash(input.password, 10) : null);
   const expireAt = parseShareExpireAt(input.expireAt);
   const [row] = await db.update(reportDashboardShares).set({
@@ -535,7 +558,8 @@ export async function updateShare(id: number, input: UpdateReportShareInput): Pr
 }
 
 export async function deleteShare(id: number): Promise<void> {
-  await ensureShareExists(id);
+  const share = await ensureShareExists(id);
+  await ensureReportResourceAccess('dashboard', share.dashboardId, 'editor');
   await db.delete(reportDashboardShares).where(eq(reportDashboardShares.id, id));
 }
 
@@ -844,6 +868,7 @@ export async function createEmbedToken(
   dashboardId: number,
   input: CreateReportEmbedTokenInput,
 ): Promise<ReportDashboardEmbedToken> {
+  await ensureReportResourceAccess('dashboard', dashboardId, 'editor');
   const dashboard = await ensureDashboardExists(dashboardId);
   if (dashboard.lifecycleStatus !== 'published' || !dashboard.publishedSnapshot) {
     throw new HTTPException(400, { message: '仅已发布仪表盘可创建嵌入令牌' });
@@ -859,7 +884,7 @@ export async function createEmbedToken(
       throw new HTTPException(400, { message: `固定筛选器 ${filterId} 不能同时允许调用方覆盖` });
     }
   }
-  await assertDashboardSnapshotEvaluableGlobally(snapshot);
+  await assertDashboardSnapshotEvaluableGlobally(snapshot, dashboard.tenantId ?? null);
   const token = randomBytes(24).toString('hex');
   const tokenHash = createHash('sha256').update(token).digest('hex');
   const [row] = await db.insert(reportDashboardEmbedTokens).values({
@@ -871,6 +896,13 @@ export async function createEmbedToken(
     expireAt: input.expireAt ? parseDateTimeInput(input.expireAt) : null,
     remark: input.remark ?? null,
   }).returning();
+  await recordReportAssetUsage({
+    tenantId: dashboard.tenantId ?? null,
+    resourceType: 'dashboard',
+    resourceId: dashboardId,
+    action: 'embed',
+    scene: 'embed:create',
+  });
   return mapEmbedToken(row);
 }
 
@@ -880,6 +912,7 @@ export async function revokeEmbedToken(id: number): Promise<void> {
     .where(eq(reportDashboardEmbedTokens.id, id))
     .limit(1);
   if (!existing) throw new HTTPException(404, { message: '嵌入令牌不存在' });
+  await ensureReportResourceAccess('dashboard', existing.dashboardId, 'editor');
   await ensureDashboardExists(existing.dashboardId);
   const [row] = await db.update(reportDashboardEmbedTokens).set({ revokedAt: new Date() })
     .where(eq(reportDashboardEmbedTokens.id, id))

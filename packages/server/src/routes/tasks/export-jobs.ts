@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createExportJobSchema } from '@zenith/shared';
+import { createExportJobSchema, EXPORT_JOB_FORMATS } from '@zenith/shared';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { commonErrorResponses, IdParam, jsonContent, ok, okBody, okFile, okMsg, okPaginated, PaginationQuery, validationHook } from '../../lib/openapi-schemas';
@@ -23,7 +23,7 @@ registerExportDefinitions();
 const exportJobsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
 const ExportJobStatusQuery = z.enum(['pending', 'running', 'success', 'failed', 'cancelled', 'expired']);
-const ExportJobFormatQuery = z.enum(['xlsx', 'csv', 'pdf']);
+const ExportJobFormatQuery = z.enum(EXPORT_JOB_FORMATS);
 
 const entitiesRoute = defineOpenAPIRoute({
   route: createRoute({

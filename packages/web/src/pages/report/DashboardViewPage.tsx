@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Avatar, Button, Empty, SideSheet, Space, Spin, TextArea, Toast, Typography, Tag } from '@douyinfe/semi-ui';
+import { Avatar, Banner, Button, Empty, SideSheet, Space, Spin, TextArea, Toast, Typography, Tag } from '@douyinfe/semi-ui';
 import { ArrowLeft, RotateCcw, PencilRuler, Maximize, Image, MessageSquare, Send, Trash2, CheckCircle2, CornerDownRight } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import './report-grid.css';
@@ -9,7 +9,9 @@ import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { ScreenCanvas } from './widgets/ScreenCanvas';
 import { FilterBar } from './widgets/FilterBar';
+import { MobileDashboardHeader, type MobileDashboardAction } from './widgets/MobileDashboardHeader';
 import { filterValuesFromSearch, withFilterParam } from './widgets/filter-url';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import type { ReportWidget, ReportFilter, ReportGridItem, ReportCanvasItem, ReportDatasetQueryOptions } from '@zenith/shared';
 import {
   useCreateReportDashboardComment,
@@ -19,10 +21,16 @@ import {
   useResolveReportDashboardComment,
   useReportDashboardWidgetData,
 } from '@/hooks/queries/report-dashboards';
+import { useReportDeprecationList } from '@/hooks/queries/report-assets';
+import { useReportDqAnomalyList } from '@/hooks/queries/report-dq';
 
 function defaultFilterValue(f: ReportFilter): unknown {
   if (f.defaultValue !== undefined) return f.defaultValue;
   return f.type === 'multiSelect' ? [] : undefined;
+}
+
+function defaultFilterValues(filters: readonly ReportFilter[]): Record<string, unknown> {
+  return Object.fromEntries(filters.map((filter) => [filter.id, defaultFilterValue(filter)]));
 }
 
 export default function DashboardViewPage() {
@@ -31,6 +39,7 @@ export default function DashboardViewPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { hasPermission } = usePermission();
+  const isMobile = useIsMobile();
 
   const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
   const [debouncedFilterValues, setDebouncedFilterValues] = useState<Record<string, unknown>>({});
@@ -49,7 +58,38 @@ export default function DashboardViewPage() {
   const dashboardQuery = useReportDashboardDetail(dashboardId, !!dashboardId, viewMode);
   const dashboard = dashboardQuery.data ?? null;
   const widgets = useMemo(() => dashboard?.widgets ?? [], [dashboard]);
-  const filters = dashboard?.filters ?? [];
+  const dashboardDeprecationsQuery = useReportDeprecationList({
+    page: 1,
+    pageSize: 200,
+    resourceType: 'dashboard',
+    resourceId: dashboardId,
+    published: true,
+  }, hasPermission('report:deprecation:list'));
+  const datasetDeprecationsQuery = useReportDeprecationList({
+    page: 1,
+    pageSize: 200,
+    resourceType: 'dataset',
+    published: true,
+  }, hasPermission('report:deprecation:list'));
+  const anomalyQuery = useReportDqAnomalyList(
+    { page: 1, pageSize: 200, status: 'open' },
+    hasPermission('report:dq:list'),
+  );
+  const governanceWarnings = useMemo(() => {
+    const datasetIds = new Set(widgets.flatMap((widget) => widget.datasetId ? [widget.datasetId] : []));
+    const warnings: string[] = [];
+    const dashboardNotice = dashboardDeprecationsQuery.data?.list[0];
+    if (dashboardNotice) warnings.push(`仪表盘已弃用：${dashboardNotice.message}`);
+    const deprecatedDatasetCount = (datasetDeprecationsQuery.data?.list ?? [])
+      .filter((notice) => datasetIds.has(notice.resourceId)).length;
+    if (deprecatedDatasetCount > 0) warnings.push(`${deprecatedDatasetCount} 个关联数据集已弃用`);
+    const anomalyCount = (anomalyQuery.data?.list ?? [])
+      .filter((anomaly) => datasetIds.has(anomaly.datasetId)).length;
+    if (anomalyCount > 0) warnings.push(`${anomalyCount} 个关联数据质量异常待处理`);
+    return warnings;
+  }, [anomalyQuery.data, dashboardDeprecationsQuery.data, datasetDeprecationsQuery.data, widgets]);
+  const filters = useMemo(() => dashboard?.filters ?? [], [dashboard]);
+  const filterDefaults = useMemo(() => defaultFilterValues(filters), [filters]);
   const isDark = dashboard?.config?.theme === 'dark';
   const isCanvas = dashboard?.config?.layoutMode === 'canvas';
   const screen = dashboard?.config?.screenConfig;
@@ -69,12 +109,16 @@ export default function DashboardViewPage() {
 
   // 初始化筛选值：URL 优先 > 筛选器默认值（仅在仪表盘加载/切换时执行，
   // 后续 URL 回写不重置状态，避免写 URL → 触发本 effect 的循环）
+  const initializedDashboardRef = useRef<string | null>(null);
   useEffect(() => {
     if (!dashboard) return;
+    const key = `${dashboardId}:${viewMode}`;
+    if (initializedDashboardRef.current === key) return;
+    initializedDashboardRef.current = key;
     setFilterValues(filterValuesFromSearch(dashboard.filters ?? [], searchParams, defaultFilterValue));
     setWidgetQueries({});
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅随仪表盘变化初始化（searchParams 为闭包快照）
-  }, [dashboard]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- searchParams 为初始化时的闭包快照
+  }, [dashboard, dashboardId, viewMode]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedFilterValues(filterValues), 250);
@@ -86,6 +130,16 @@ export default function DashboardViewPage() {
     setFilterValues((p) => ({ ...p, [filterId]: value }));
     setWidgetQueries({});
     setSearchParams((prev) => withFilterParam(prev, filterId, value), { replace: true });
+  }
+
+  function applyFilters(values: Record<string, unknown>) {
+    setFilterValues(values);
+    setWidgetQueries({});
+    setSearchParams((previous) => {
+      let next = new URLSearchParams(previous);
+      for (const filter of filters) next = withFilterParam(next, filter.id, values[filter.id]);
+      return next;
+    }, { replace: true });
   }
 
   const handleWidgetQueryChange = useCallback((widgetId: string, next: ReportDatasetQueryOptions) => {
@@ -184,37 +238,82 @@ export default function DashboardViewPage() {
   if (dashboardQuery.isFetching && !dashboard) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spin size="large" /></div>;
 
   const canvasState = (w: ReportWidget) => getData(w);
+  const mobileFilter = (
+    <FilterBar
+      compact
+      filters={filters}
+      values={filterValues}
+      resetValues={filterDefaults}
+      onChange={updateFilter}
+      onApply={applyFilters}
+    />
+  );
+  const mobileActions: MobileDashboardAction[] = [
+    { key: 'refresh', label: '刷新', icon: <RotateCcw size={15} />, onClick: () => refresh() },
+    { key: 'export', label: '导出图片', icon: <Image size={15} />, onClick: () => void handleExportPng(), disabled: exporting },
+    ...(hasPermission('report:dashboard:list') ? [{
+      key: 'comments',
+      label: '评论',
+      icon: <MessageSquare size={15} />,
+      onClick: openComments,
+    }] : []),
+    ...(hasPermission('report:dashboard:update') ? [{
+      key: 'edit',
+      label: '编辑',
+      icon: <PencilRuler size={15} />,
+      onClick: () => navigate(`/report/dashboards/${dashboardId}/design`),
+    }] : []),
+  ];
 
   return (
     <div
       ref={rootRef}
-      className={`report-screen-root${isCanvas ? '' : ' report-view'}`}
+      className={`report-screen-root${isCanvas && !isMobile ? '' : ' report-view'}`}
       style={isCanvas ? { background: isDark ? '#060c1f' : 'var(--semi-color-fill-0)' } : (isDark ? { background: '#0b1020' } : undefined)}
     >
-      <div className={`report-screen-header${isDark ? ' report-screen-header--dark' : ''}`} style={isCanvas ? undefined : { padding: 0, marginBottom: 12 }}>
-        <Button icon={<ArrowLeft size={16} />} theme="borderless" onClick={() => navigate('/report/dashboards')}>返回</Button>
-        <span className="report-screen-header__title" style={{ margin: 0, color: isDark ? '#eaf4ff' : 'var(--semi-color-text-0)', fontSize: isCanvas ? 20 : 18 }}>{dashboard?.name ?? '仪表盘'}</span>
-        <div style={{ flex: 1 }} />
-        <Button icon={<RotateCcw size={16} />} onClick={() => refresh()}>刷新</Button>
-        <Button icon={<Image size={16} />} loading={exporting} onClick={handleExportPng}>图片</Button>
-        <Button icon={<Maximize size={16} />} onClick={toggleFullscreen}>全屏</Button>
-        {hasPermission('report:dashboard:list') && (
-          <Button icon={<MessageSquare size={16} />} onClick={openComments}>评论</Button>
-        )}
-        {hasPermission('report:dashboard:update') && (
-          <Button icon={<PencilRuler size={16} />} onClick={() => navigate(`/report/dashboards/${dashboardId}/design`)}>编辑</Button>
-        )}
-      </div>
+      {isMobile ? (
+        <MobileDashboardHeader
+          title={dashboard?.name ?? '仪表盘'}
+          dark={isDark}
+          onBack={() => navigate('/report/dashboards')}
+          filter={mobileFilter}
+          actions={mobileActions}
+        />
+      ) : (
+        <div className={`report-screen-header${isDark ? ' report-screen-header--dark' : ''}`} style={isCanvas ? undefined : { padding: 0, marginBottom: 12 }}>
+          <Button icon={<ArrowLeft size={16} />} theme="borderless" onClick={() => navigate('/report/dashboards')}>返回</Button>
+          <span className="report-screen-header__title" style={{ margin: 0, color: isDark ? '#eaf4ff' : 'var(--semi-color-text-0)', fontSize: isCanvas ? 20 : 18 }}>{dashboard?.name ?? '仪表盘'}</span>
+          <div style={{ flex: 1 }} />
+          <Button icon={<RotateCcw size={16} />} onClick={() => refresh()}>刷新</Button>
+          <Button icon={<Image size={16} />} loading={exporting} onClick={handleExportPng}>图片</Button>
+          <Button icon={<Maximize size={16} />} onClick={toggleFullscreen}>全屏</Button>
+          {hasPermission('report:dashboard:list') && (
+            <Button icon={<MessageSquare size={16} />} onClick={openComments}>评论</Button>
+          )}
+          {hasPermission('report:dashboard:update') && (
+            <Button icon={<PencilRuler size={16} />} onClick={() => navigate(`/report/dashboards/${dashboardId}/design`)}>编辑</Button>
+          )}
+        </div>
+      )}
+
+      {governanceWarnings.length > 0 ? (
+        <Banner
+          type="warning"
+          closeIcon={null}
+          description={`${governanceWarnings.join('；')}。提示仅供风险识别，不影响当前查看。`}
+          style={{ margin: isCanvas ? '0 12px 12px' : '0 0 12px' }}
+        />
+      ) : null}
 
       <div ref={exportRef} style={isCanvas ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : undefined}>
-        <div style={isCanvas ? { padding: '0 12px' } : undefined}>
+        {!isMobile && <div style={isCanvas ? { padding: '0 12px' } : undefined}>
           <FilterBar filters={filters} values={filterValues} onChange={updateFilter} />
-        </div>
+        </div>}
 
         {widgets.length === 0 ? (
           <Empty description="该仪表盘还没有组件" style={{ paddingTop: 80 }} />
         ) : isCanvas ? (
-          <div style={isFs ? { flex: 1, minHeight: 0 } : { width: '100%', aspectRatio: aspect, maxHeight: 'calc(100vh - 160px)' }}>
+          <div style={isMobile ? undefined : (isFs ? { flex: 1, minHeight: 0 } : { width: '100%', aspectRatio: aspect, maxHeight: 'calc(100vh - 160px)' })}>
             <ScreenCanvas
               widgets={widgets}
               layout={(dashboard?.layout ?? []) as ReportGridItem[]}

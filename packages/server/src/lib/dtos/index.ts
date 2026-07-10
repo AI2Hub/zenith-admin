@@ -60,6 +60,7 @@ export * from './ssl-certificates';
 export * from './nginx-sites';
 export * from './firewall';
 export * from './report';
+export * from './report-platform';
 export * from './export-jobs';
 export * from './open-platform';
 export * from './rules';

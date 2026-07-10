@@ -24,6 +24,7 @@ import {
   useToggleReportAlertEnabled,
 } from '@/hooks/queries/report-alerts';
 import { useReportDatasetDetail, useEnabledReportDatasets } from '@/hooks/queries/report-datasets';
+import { useReportMetricLookup } from '@/hooks/queries/report-metrics';
 import type {
   CreateReportAlertInput,
   ReportAlertAggregate,
@@ -33,14 +34,16 @@ import type {
 } from '@zenith/shared';
 import { NOTIFY_CHANNEL_LABELS, REPORT_DELIVERY_STATUS_LABELS, REPORT_MISFIRE_POLICY_OPTIONS } from '@zenith/shared';
 import { useDictItems } from '@/hooks/useDictItems';
+import { switchAlertSource } from './report-platform-utils';
 
 interface SearchParams {
   keyword: string;
   datasetId: string;
+  metricId: string;
   enabled: string;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', datasetId: '', enabled: '' };
+const defaultSearchParams: SearchParams = { keyword: '', datasetId: '', metricId: '', enabled: '' };
 
 const aggregateOptions: Array<{ value: ReportAlertAggregate; label: string }> = [
   { value: 'sum', label: '求和 sum' },
@@ -77,6 +80,7 @@ const channelLabelMap: Record<'email' | 'inApp' | 'webhook', string> = {
 };
 
 function formatRule(record: ReportAlertRule) {
+  if (record.metricId) return `${record.metricName || `指标 #${record.metricId}`} ${opSymbolMap[record.op]} ${record.threshold}`;
   const scope = record.groupByField ? `按${record.groupByField}分组 · ` : '';
   return `${scope}${record.aggregate}(${record.aggregate === 'count' ? '*' : record.field || '-'}) ${opSymbolMap[record.op]} ${record.threshold}`;
 }
@@ -92,12 +96,18 @@ export default function AlertsPage() {
 
   const datasetsQuery = useEnabledReportDatasets();
   const datasets = useMemo(() => datasetsQuery.data ?? [], [datasetsQuery.data]);
+  const metricsQuery = useReportMetricLookup(
+    { status: 'published', limit: 100 },
+    hasPermission('report:metric:list'),
+  );
+  const metrics = metricsQuery.data ?? [];
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<ReportAlertRule | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [historyTarget, setHistoryTarget] = useState<ReportAlertRule | null>(null);
   const [selectedDatasetId, setSelectedDatasetId] = useState<number | null>(null);
+  const [sourceType, setSourceType] = useState<'dataset' | 'metric'>('dataset');
   const [selectedAggregate, setSelectedAggregate] = useState<ReportAlertAggregate>('sum');
   const [selectedChannels, setSelectedChannels] = useState<Array<'email' | 'inApp' | 'webhook'>>(['inApp']);
   const selectedDatasetDetailQuery = useReportDatasetDetail(selectedDatasetId ?? undefined, modalVisible && !!selectedDatasetId);
@@ -108,6 +118,7 @@ export default function AlertsPage() {
     pageSize,
     keyword: submittedParams.keyword || undefined,
     datasetId: submittedParams.datasetId || undefined,
+    metricId: submittedParams.metricId || undefined,
     enabled: submittedParams.enabled ? submittedParams.enabled === 'enabled' : undefined,
   });
   const data = listQuery.data ?? null;
@@ -136,6 +147,7 @@ export default function AlertsPage() {
   function openCreate() {
     setEditing(null);
     setSelectedDatasetId(null);
+    setSourceType('dataset');
     setSelectedAggregate('sum');
     setSelectedChannels(['inApp']);
     setModalVisible(true);
@@ -144,6 +156,7 @@ export default function AlertsPage() {
   function openEdit(record: ReportAlertRule) {
     setEditing(record);
     setSelectedDatasetId(record.datasetId);
+    setSourceType(record.metricId ? 'metric' : 'dataset');
     setSelectedAggregate(record.aggregate);
     setSelectedChannels(record.channels);
     setModalVisible(true);
@@ -158,6 +171,8 @@ export default function AlertsPage() {
     ? {
         name: editing.name,
         datasetId: editing.datasetId,
+        metricId: editing.metricId ?? undefined,
+        sourceType: editing.metricId ? 'metric' : 'dataset',
         aggregate: editing.aggregate,
         field: editing.field ?? undefined,
         groupByField: editing.groupByField ?? undefined,
@@ -174,16 +189,17 @@ export default function AlertsPage() {
         enabled: editing.enabled ? 'enabled' : 'disabled',
         remark: editing.remark ?? '',
       }
-    : { aggregate: 'sum', op: 'gt', cron: '', timezone: 'Asia/Shanghai', misfirePolicy: 'fire_once', channels: ['inApp'], silenceMins: 60, notifyOnRecover: false, enabled: 'enabled' };
+    : { sourceType: 'dataset', aggregate: 'sum', op: 'gt', cron: '', timezone: 'Asia/Shanghai', misfirePolicy: 'fire_once', channels: ['inApp'], silenceMins: 60, notifyOnRecover: false, enabled: 'enabled' };
 
   function buildPayload(values: Record<string, unknown>): CreateReportAlertInput {
     const aggregate = values.aggregate as ReportAlertAggregate;
     const channels = (values.channels ?? []) as Array<'email' | 'inApp' | 'webhook'>;
     return {
       name: String(values.name ?? ''),
-      datasetId: Number(values.datasetId),
-      field: aggregate === 'count' ? null : (values.field ? String(values.field) : null),
-      groupByField: values.groupByField ? String(values.groupByField) : null,
+      datasetId: sourceType === 'dataset' && values.datasetId ? Number(values.datasetId) : null,
+      metricId: sourceType === 'metric' && values.metricId ? Number(values.metricId) : null,
+      field: sourceType === 'metric' || aggregate === 'count' ? null : (values.field ? String(values.field) : null),
+      groupByField: sourceType === 'metric' ? null : values.groupByField ? String(values.groupByField) : null,
       aggregate,
       op: values.op as ReportAlertOp,
       threshold: Number(values.threshold),
@@ -269,7 +285,12 @@ export default function AlertsPage() {
 
   const columns: ColumnProps<ReportAlertRule>[] = [
     { title: '名称', dataIndex: 'name', width: 180 },
-    { title: '数据集', dataIndex: 'datasetName', width: 160, render: (value: string) => value || '-' },
+    {
+      title: '来源', dataIndex: 'datasetName', width: 180,
+      render: (_: unknown, record) => record.metricId
+        ? <span><Tag color="purple" size="small">指标</Tag> {record.metricName || `#${record.metricId}`}</span>
+        : <span><Tag color="blue" size="small">数据集</Tag> {record.datasetName || `#${record.datasetId}`}</span>,
+    },
     { title: '规则', dataIndex: 'id', width: 180, render: (_: unknown, record: ReportAlertRule) => formatRule(record) },
     {
       title: '通道',
@@ -355,8 +376,12 @@ export default function AlertsPage() {
       onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} showClear style={{ width: 200 }} onEnterPress={handleSearch} />
   );
   const renderDatasetFilter = () => (
-    <Select placeholder="全部数据集" value={draftParams.datasetId || undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, datasetId: value ? String(value) : '' }))}
+    <Select placeholder="全部数据集" value={draftParams.datasetId || undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, datasetId: value ? String(value) : '', metricId: '' }))}
       showClear filter style={{ width: 180 }} optionList={datasets.map((dataset) => ({ value: String(dataset.id), label: dataset.name }))} />
+  );
+  const renderMetricFilter = () => (
+    <Select placeholder="全部指标" value={draftParams.metricId || undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, metricId: value ? String(value) : '', datasetId: '' }))}
+      showClear filter style={{ width: 180 }} optionList={metrics.map((metric) => ({ value: String(metric.id), label: metric.name }))} />
   );
   const renderStatusFilter = () => (
     <Select placeholder="全部状态" value={draftParams.enabled || undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, enabled: (value as string) ?? '' }))}
@@ -374,10 +399,10 @@ export default function AlertsPage() {
   return (
     <div className="page-container">
       <SearchToolbar
-        primary={<>{renderKeyword()}{renderDatasetFilter()}{renderStatusFilter()}{renderSearchBtn()}{renderResetBtn()}</>}
+        primary={<>{renderKeyword()}{renderDatasetFilter()}{renderMetricFilter()}{renderStatusFilter()}{renderSearchBtn()}{renderResetBtn()}</>}
         actions={<>{renderBatchEnableBtn()}{renderBatchDisableBtn()}{renderCreateBtn()}</>}
         mobilePrimary={<>{renderKeyword()}{renderSearchBtn()}{renderCreateBtn()}</>}
-        mobileFilters={<>{renderDatasetFilter()}{renderStatusFilter()}</>}
+        mobileFilters={<>{renderDatasetFilter()}{renderMetricFilter()}{renderStatusFilter()}</>}
         mobileActions={<>{renderBatchEnableBtn()}{renderBatchDisableBtn()}</>}
         filterTitle="预警筛选"
         onFilterApply={handleSearch}
@@ -393,7 +418,7 @@ export default function AlertsPage() {
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(data?.total ?? 0)}
       />
 
-      <AppModal title={editing ? '编辑预警' : '新增预警'} visible={modalVisible} onOk={handleOk} onCancel={closeModal} okButtonProps={{ loading: saveMutation.isPending }} width={900}>
+      <AppModal title={editing ? '编辑预警' : '新增预警'} visible={modalVisible} onOk={handleOk} onCancel={closeModal} okButtonProps={{ loading: saveMutation.isPending }} width={900} closeOnEsc>
         <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={initValues} labelPosition="left" labelWidth={90}
           onValueChange={(values) => {
             const nextDatasetId = values.datasetId ? Number(values.datasetId) : null;
@@ -412,23 +437,43 @@ export default function AlertsPage() {
               <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear />
             </Col>
             <Col xs={24} md={12}>
-              <Form.Select field="datasetId" label="数据集" style={{ width: '100%' }} rules={[{ required: true, message: '请选择数据集' }]} filter
-                optionList={datasets.map((dataset) => ({ value: dataset.id, label: dataset.name }))} />
+              <Form.Select field="sourceType" label="来源类型" style={{ width: '100%' }}
+                optionList={[{ value: 'dataset', label: '数据集' }, { value: 'metric', label: '指标' }]}
+                onChange={(value) => {
+                  const next = value as 'dataset' | 'metric';
+                  setSourceType(next);
+                  const reset = switchAlertSource(next);
+                  Object.entries(reset).forEach(([key, item]) => formApi.current?.setValue(key, item));
+                  setSelectedDatasetId(null);
+                }} />
             </Col>
-            <Col xs={24} md={12}>
-              <Form.Select field="aggregate" label="聚合方式" style={{ width: '100%' }} optionList={aggregateOptions} />
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Select field="field" label="监控字段" style={{ width: '100%' }} disabled={selectedAggregate === 'count'}
-                placeholder={selectedAggregate === 'count' ? 'count 不需要选择字段' : '请选择监控字段'}
-                rules={selectedAggregate === 'count' ? [] : [{ required: true, message: '请选择监控字段' }]}
-                optionList={selectedFields.map((field) => ({ value: field.name, label: field.label ? `${field.label}（${field.name}）` : field.name }))} />
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Select field="groupByField" label="分组维度" style={{ width: '100%' }} showClear
-                placeholder="可选；按该字段分组聚合，任一组命中即触发"
-                optionList={selectedFields.map((field) => ({ value: field.name, label: field.label ? `${field.label}（${field.name}）` : field.name }))} />
-            </Col>
+            {sourceType === 'dataset' ? (
+              <>
+                <Col xs={24} md={12}>
+                  <Form.Select field="datasetId" label="数据集" style={{ width: '100%' }} rules={[{ required: true, message: '请选择数据集' }]} filter
+                    optionList={datasets.map((dataset) => ({ value: dataset.id, label: dataset.name }))} />
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Select field="aggregate" label="聚合方式" style={{ width: '100%' }} optionList={aggregateOptions} />
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Select field="field" label="监控字段" style={{ width: '100%' }} disabled={selectedAggregate === 'count'}
+                    placeholder={selectedAggregate === 'count' ? 'count 不需要选择字段' : '请选择监控字段'}
+                    rules={selectedAggregate === 'count' ? [] : [{ required: true, message: '请选择监控字段' }]}
+                    optionList={selectedFields.map((field) => ({ value: field.name, label: field.label ? `${field.label}（${field.name}）` : field.name }))} />
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Select field="groupByField" label="分组维度" style={{ width: '100%' }} showClear
+                    placeholder="可选；按该字段分组聚合，任一组命中即触发"
+                    optionList={selectedFields.map((field) => ({ value: field.name, label: field.label ? `${field.label}（${field.name}）` : field.name }))} />
+                </Col>
+              </>
+            ) : (
+              <Col xs={24} md={12}>
+                <Form.Select field="metricId" label="指标" style={{ width: '100%' }} rules={[{ required: true, message: '请选择指标' }]} filter
+                  optionList={metrics.filter((metric) => metric.status === 'published').map((metric) => ({ value: metric.id, label: `${metric.name}（${metric.code}）` }))} />
+              </Col>
+            )}
             <Col xs={24} md={12}>
               <Form.Select field="op" label="运算符" style={{ width: '100%' }} optionList={opOptions} />
             </Col>

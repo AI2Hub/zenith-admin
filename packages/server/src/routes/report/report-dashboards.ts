@@ -47,6 +47,8 @@ import {
   publishDashboard,
 } from '../../services/report/report-ops.service';
 import type { ReportWidget } from '@zenith/shared';
+import { recordReportAssetUsage } from '../../services/report/report-asset-usage.service';
+import { resolveReportResource } from '../../services/report/report-resource.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -61,6 +63,8 @@ const ConflictResponse = z.object({
 
 const ListQuery = PaginationQuery.extend({
   keyword: z.string().optional(),
+  folderId: z.coerce.number().int().positive().optional(),
+  ownerId: z.coerce.number().int().positive().optional(),
   status: z.enum(['enabled', 'disabled']).optional(),
   lifecycleStatus: reportDashboardLifecycleStatusSchema.optional(),
   categoryId: z.coerce.number().int().positive().optional(),
@@ -198,10 +202,21 @@ const getOneRoute = defineOpenAPIRoute({
       404: { content: jsonContent(ErrorResponse), description: '不存在' },
     },
   }),
-  handler: async (c) => c.json(okBody(await getDashboard(c.req.valid('param').id, {
-    mode: c.req.valid('query').mode ?? 'auto',
-    allowOfflinePublished: true,
-  })), 200),
+  handler: async (c) => {
+    const dashboard = await getDashboard(c.req.valid('param').id, {
+      mode: c.req.valid('query').mode ?? 'auto',
+      allowOfflinePublished: true,
+    });
+    const resource = await resolveReportResource('dashboard', dashboard.id);
+    await recordReportAssetUsage({
+      tenantId: resource.tenantId,
+      resourceType: 'dashboard',
+      resourceId: dashboard.id,
+      action: 'view',
+      scene: 'dashboard_detail',
+    });
+    return c.json(okBody(dashboard), 200);
+  },
 });
 
 const createRoute_ = defineOpenAPIRoute({

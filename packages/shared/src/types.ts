@@ -338,7 +338,8 @@ export interface ManagedFile {
 
 // ─── Export Center ───────────────────────────────────────────────────────
 
-export type ExportJobFormat = 'xlsx' | 'csv' | 'pdf';
+export const EXPORT_JOB_FORMATS = ['xlsx', 'csv', 'pdf', 'docx'] as const;
+export type ExportJobFormat = typeof EXPORT_JOB_FORMATS[number];
 export type ExportJobStatus = 'pending' | 'running' | 'success' | 'failed' | 'cancelled' | 'expired';
 export type ExportJobExecutionMode = 'sync' | 'async';
 export type ExportJobRequestMode = 'sync' | 'async' | 'auto';
@@ -6930,6 +6931,63 @@ export interface MpKfSessionReportItem {
 export const REPORT_DATASOURCE_TYPES = ['api', 'sql', 'mysql', 'postgresql', 'sqlserver', 'static'] as const;
 /** 数据源类型：api=远程 HTTP；sql=内置只读主库；mysql/postgresql/sqlserver=外部数据库；static=静态/文件 */
 export type ReportDatasourceType = typeof REPORT_DATASOURCE_TYPES[number];
+export const REPORT_RESOURCE_TYPES = [
+  'datasource', 'dataset', 'dashboard', 'metric', 'print_template', 'fill_template', 'asset_template',
+] as const;
+export type ReportResourceType = typeof REPORT_RESOURCE_TYPES[number];
+
+export const REPORT_METRIC_TYPES = ['simple', 'ratio', 'composite'] as const;
+export type ReportMetricType = typeof REPORT_METRIC_TYPES[number];
+export const REPORT_METRIC_LIFECYCLE_STATUSES = ['draft', 'published', 'deprecated'] as const;
+export type ReportMetricLifecycleStatus = typeof REPORT_METRIC_LIFECYCLE_STATUSES[number];
+export const REPORT_ACL_SUBJECT_TYPES = ['user', 'role', 'department', 'user_group'] as const;
+export type ReportAclSubjectType = typeof REPORT_ACL_SUBJECT_TYPES[number];
+export const REPORT_ACL_ROLES = ['viewer', 'editor', 'owner'] as const;
+export type ReportAclRole = typeof REPORT_ACL_ROLES[number];
+export const REPORT_APPROVAL_STATUSES = ['pending', 'approved', 'rejected', 'cancelled'] as const;
+export type ReportApprovalStatus = typeof REPORT_APPROVAL_STATUSES[number];
+export const REPORT_TRANSFER_STATUSES = ['pending', 'accepted', 'rejected', 'cancelled'] as const;
+export type ReportTransferStatus = typeof REPORT_TRANSFER_STATUSES[number];
+export const REPORT_ENVIRONMENT_KINDS = ['development', 'testing', 'staging', 'production'] as const;
+export type ReportEnvironmentKind = typeof REPORT_ENVIRONMENT_KINDS[number];
+export const REPORT_PROMOTION_STATUSES = [
+  'pending', 'approved', 'deploying', 'succeeded', 'failed', 'cancelled', 'rolled_back',
+] as const;
+export type ReportPromotionStatus = typeof REPORT_PROMOTION_STATUSES[number];
+export const REPORT_DQ_RULE_TYPES = [
+  'not_null', 'uniqueness', 'range', 'pattern', 'freshness', 'row_count', 'custom_sql',
+] as const;
+export type ReportDqRuleType = typeof REPORT_DQ_RULE_TYPES[number];
+export const REPORT_DQ_SEVERITIES = ['low', 'medium', 'high', 'critical'] as const;
+export type ReportDqSeverity = typeof REPORT_DQ_SEVERITIES[number];
+export const REPORT_DQ_RUN_STATUSES = ['pending', 'running', 'succeeded', 'failed', 'cancelled'] as const;
+export type ReportDqRunStatus = typeof REPORT_DQ_RUN_STATUSES[number];
+export const REPORT_DQ_ANOMALY_STATUSES = ['open', 'acknowledged', 'resolved', 'ignored'] as const;
+export type ReportDqAnomalyStatus = typeof REPORT_DQ_ANOMALY_STATUSES[number];
+export const REPORT_MATERIALIZATION_STRATEGIES = ['full', 'incremental'] as const;
+export type ReportMaterializationStrategy = typeof REPORT_MATERIALIZATION_STRATEGIES[number];
+export const REPORT_SNAPSHOT_STATUSES = ['pending', 'building', 'ready', 'failed', 'expired', 'deleted'] as const;
+export type ReportSnapshotStatus = typeof REPORT_SNAPSHOT_STATUSES[number];
+export const REPORT_QUOTA_SCOPES = ['tenant', 'user'] as const;
+export type ReportQuotaScope = typeof REPORT_QUOTA_SCOPES[number];
+export const REPORT_SLA_TYPES = ['freshness', 'query_latency_p95', 'availability', 'dq_score'] as const;
+export type ReportSlaType = typeof REPORT_SLA_TYPES[number];
+export const REPORT_SLA_VIOLATION_STATUSES = ['open', 'acknowledged', 'resolved'] as const;
+export type ReportSlaViolationStatus = typeof REPORT_SLA_VIOLATION_STATUSES[number];
+export const REPORT_ASSET_TEMPLATE_TYPES = ['dashboard', 'widget', 'print', 'semantic_model'] as const;
+export type ReportAssetTemplateType = typeof REPORT_ASSET_TEMPLATE_TYPES[number];
+export const REPORT_CHATBI_SESSION_STATUSES = ['active', 'archived'] as const;
+export type ReportChatbiSessionStatus = typeof REPORT_CHATBI_SESSION_STATUSES[number];
+export const REPORT_CHATBI_MESSAGE_ROLES = ['user', 'assistant', 'system', 'tool'] as const;
+export type ReportChatbiMessageRole = typeof REPORT_CHATBI_MESSAGE_ROLES[number];
+export const REPORT_FILL_TEMPLATE_STATUSES = ['draft', 'published', 'disabled'] as const;
+export type ReportFillTemplateStatus = typeof REPORT_FILL_TEMPLATE_STATUSES[number];
+export const REPORT_FILL_RECORD_STATUSES = [
+  'draft', 'submitted', 'in_review', 'approved', 'rejected', 'cancelled',
+] as const;
+export type ReportFillRecordStatus = typeof REPORT_FILL_RECORD_STATUSES[number];
+export const REPORT_FILL_SYNC_STATUSES = ['pending', 'running', 'succeeded', 'failed'] as const;
+export type ReportFillSyncStatus = typeof REPORT_FILL_SYNC_STATUSES[number];
 
 /** 外部数据库类型（凭据加密 + 走外部连接池取数） */
 export const EXTERNAL_DB_TYPES = ['mysql', 'postgresql', 'sqlserver'] as const;
@@ -6989,6 +7047,10 @@ export type ReportDatasourceConfig =
 export interface ReportDatasource {
   id: number;
   name: string;
+  ownerId?: number | null;
+  ownerName?: string | null;
+  folderId?: number | null;
+  folderName?: string | null;
   type: ReportDatasourceType;
   config: ReportDatasourceConfig;
   status: 'enabled' | 'disabled';
@@ -7048,6 +7110,11 @@ export interface ReportDatasetQueryOptions {
   pageSize?: number;
   sortField?: string;
   sortOrder?: ReportSortOrder;
+  timeoutMs?: number;
+  maxRows?: number;
+  maxBytes?: number;
+  concurrencyKey?: string;
+  quotaKey?: string;
 }
 
 /** 可视化建模：指标（聚合列） */
@@ -7119,6 +7186,10 @@ export type ReportDatasetContent =
 export interface ReportDataset {
   id: number;
   name: string;
+  ownerId?: number | null;
+  ownerName?: string | null;
+  folderId?: number | null;
+  folderName?: string | null;
   datasourceId: number;
   /** JOIN 冗余：数据源名称 */
   datasourceName?: string | null;
@@ -7164,6 +7235,10 @@ export interface ReportDatasetMaterialize {
   enabled: boolean;
   /** 刷新 Cron（留空=仅手动刷新） */
   cron?: string;
+  /** full=全量替换；incremental=按 keyField 与增量窗口合并 */
+  strategy?: ReportMaterializationStrategy;
+  keyField?: string | null;
+  deltaWindowMinutes?: number | null;
   /** 最近刷新时间（展示用，只读，服务端注入） */
   refreshedAt?: string | null;
   /** 最近刷新时间戳（epoch 毫秒，调度比较用，避免展示串再解析的时区歧义） */
@@ -7183,6 +7258,9 @@ export interface ReportDataResult {
   bytes?: number | null;
   truncated?: boolean;
   truncatedReason?: string | null;
+  quotaRemaining?: number | null;
+  costUnits?: number | null;
+  queueDurationMs?: number | null;
 }
 
 export interface ReportWidgetDataError {
@@ -7253,6 +7331,12 @@ export interface ReportRuntimeGovernance {
   dashboardMaxConcurrent: number;
   datasetMaxRows: number;
   datasetMaxBytes: number;
+  tenantMaxConcurrent?: number;
+  userMaxConcurrent?: number;
+  tenantDailyQueryLimit?: number;
+  userDailyQueryLimit?: number;
+  tenantDailyCostLimit?: number;
+  userDailyCostLimit?: number;
 }
 
 export interface ReportExecutionStatsSlowItem {
@@ -7277,6 +7361,21 @@ export interface ReportExecutionStats {
   slowCount: number;
   truncatedCount: number;
   governance: ReportRuntimeGovernance;
+  capacity: {
+    globalLimit: number;
+    running: number;
+    queueDepth: number;
+    datasourceQueues: number;
+  };
+  series: Array<{
+    bucket: string;
+    queries: number;
+    rows: number;
+    bytes: number;
+    costUnits: number;
+    avgDurationMs: number;
+    queueMs: number;
+  }>;
   topSlowQueries: ReportExecutionStatsSlowItem[];
 }
 
@@ -7407,6 +7506,8 @@ export interface ReportWidget {
   type: ReportWidgetType;
   title: string;
   datasetId?: number | null;
+  /** 语义指标来源；仅 KPI/gauge/flipper/liquid 组件使用，优先于 datasetId。 */
+  metricId?: number | null;
   options: ReportWidgetOptions;
   /** 全局筛选器 → 数据集参数 绑定 */
   paramBindings?: ReportWidgetParamBinding[];
@@ -7423,6 +7524,10 @@ export interface ReportWidget {
 export interface ReportDashboard {
   id: number;
   name: string;
+  ownerId?: number | null;
+  ownerName?: string | null;
+  folderId?: number | null;
+  folderName?: string | null;
   layout: ReportGridItem[];
   /** 自由画布定位（canvas 模式） */
   canvasLayout: ReportCanvasItem[];
@@ -7554,6 +7659,11 @@ export interface ReportDashboardConfig {
   refreshInterval?: number;
   /** 多屏轮播（大屏分页 + 自动切换） */
   carousel?: ReportCarouselConfig;
+  /** 嵌入宿主安全策略；未配置来源时 SDK 仅接受同源宿主消息 */
+  embed?: {
+    allowedOrigins?: string[];
+    readOnly?: boolean;
+  };
 }
 
 /** 多屏轮播配置 */
@@ -7669,7 +7779,7 @@ export interface ReportDashboardEmbedToken {
 export type ReportNotifyChannel = 'email' | 'inApp' | 'webhook';
 
 export type ReportScheduleMisfirePolicy = 'skip' | 'fire_once';
-export type ReportDeliveryTargetType = 'subscription' | 'alert';
+export type ReportDeliveryTargetType = 'subscription' | 'alert' | 'sla';
 export type ReportDeliveryTriggerType = 'manual' | 'scheduled' | 'trigger' | 'recover';
 export type ReportDeliveryStatus = 'pending' | 'running' | 'success' | 'partial' | 'failed' | 'cancelled';
 
@@ -7693,6 +7803,7 @@ export interface ReportDeliveryRun {
   targetType: ReportDeliveryTargetType;
   subscriptionId?: number | null;
   alertRuleId?: number | null;
+  slaRuleId?: number | null;
   dashboardId?: number | null;
   datasetId?: number | null;
   targetName?: string | null;
@@ -7798,6 +7909,59 @@ export interface ReportPrintCellImage {
   alt?: string;
 }
 
+export interface ReportPrintSubreportCell {
+  templateId: number;
+  datasetKey?: string;
+  paramBindings?: Record<string, string>;
+}
+
+export interface ReportPrintDatasetBinding {
+  key: string;
+  datasetId: number;
+  /** 静态参数（兼容既有模板）；参数名仍须在目标数据集中声明 */
+  params?: Record<string, unknown>;
+  /** 目标数据集参数名 -> 打印模板参数名 */
+  paramBindings?: Record<string, string>;
+  /** 单绑定行数上限，不能超过渲染请求的总上限 */
+  rowLimit?: number;
+  parentKey?: string | null;
+  parentField?: string | null;
+  childField?: string | null;
+}
+
+export interface ReportPrintCrosstabValueField {
+  field: string;
+  aggregate: 'sum' | 'avg' | 'max' | 'min' | 'count';
+  label?: string;
+}
+
+export interface ReportPrintCrosstabConfig {
+  rowFields: string[];
+  columnFields: string[];
+  /** 多指标配置；新模板应使用此字段 */
+  valueFields?: ReportPrintCrosstabValueField[];
+  /** 旧模板单指标配置 */
+  valueField?: string;
+  /** 旧模板单指标聚合方式 */
+  aggregate?: 'sum' | 'avg' | 'max' | 'min' | 'count';
+  showRowTotals?: boolean;
+  showColumnTotals?: boolean;
+  emptyValue?: string | number | null;
+  nullLabel?: string;
+  /** 模板中用于继承样式/行高的表头、数据、总计行（0-based） */
+  headerRow?: number;
+  dataRow?: number;
+  totalRow?: number;
+  /** 交叉表起始列（0-based） */
+  startColumn?: number;
+}
+
+export interface ReportPrintRepeatBlock {
+  id: string;
+  datasetKey: string;
+  range: ReportPrintRowRange;
+}
+
 /** 打印报表单元格（归一化网格项） */
 export interface ReportPrintCell {
   row: number;
@@ -7805,12 +7969,16 @@ export interface ReportPrintCell {
   /** 原始值/表达式文本：${field}=纵向扩展明细，#{field}=标量，${SUM(field)}=聚合，其余=字面量 */
   v?: string | number | boolean | null;
   s?: ReportPrintCellStyle;
-  kind?: 'text' | 'formula' | 'image' | 'qrcode' | 'barcode';
+  kind?: 'text' | 'formula' | 'image' | 'qrcode' | 'barcode' | 'subreport';
   /** Excel/Univer 公式串（尽量保留，不在服务端求值） */
   formula?: string;
   /** 数字/日期格式（如 #,##0.00） */
   numFmt?: string;
   image?: ReportPrintCellImage;
+  /** 多数据集模板中此单元格使用的数据集绑定 key */
+  datasetKey?: string;
+  /** 子报表单元格配置 */
+  subreport?: ReportPrintSubreportCell;
 }
 
 /** 合并单元格区域 */
@@ -7841,8 +8009,12 @@ export interface ReportPrintRowRange {
 export interface ReportPrintSheet {
   id: string;
   name: string;
+  /** Sheet 级默认数据集绑定 key */
+  datasetKey?: string;
   grid: ReportPrintGrid;
   pageConfig?: ReportPrintPageConfig;
+  /** 同一 Sheet 内可按不同数据集重复指定模板带；重复带不可相互重叠 */
+  repeatBlocks?: ReportPrintRepeatBlock[];
 }
 
 /** 页面/打印配置 */
@@ -7865,8 +8037,9 @@ export interface ReportPrintPageConfig {
   rowsPerPage?: number;
   /** 按纸张可用高度自动计算分页 */
   calculateRowsPerPage?: boolean;
-  /** 明细扩展方向：vertical=纵向明细带；horizontal=横向扩展列 */
-  detailDirection?: 'vertical' | 'horizontal';
+  /** 明细扩展方向：vertical=纵向明细带；horizontal=横向扩展列；crosstab=交叉表 */
+  detailDirection?: 'vertical' | 'horizontal' | 'crosstab';
+  crosstab?: ReportPrintCrosstabConfig;
   /** 分组字段 */
   groupByFields?: string[];
   /** 组头模板行范围 */
@@ -7887,12 +8060,18 @@ export interface ReportPrintContent {
   grid?: ReportPrintGrid;
   /** 归一化多 sheet（新版） */
   sheets?: ReportPrintSheet[];
+  /** 模板可绑定多个数据集；旧版 datasetId 仍作为主数据集 */
+  datasetBindings?: ReportPrintDatasetBinding[];
 }
 
 /** 打印报表模板 */
 export interface ReportPrintTemplate {
   id: number;
   name: string;
+  ownerId?: number | null;
+  ownerName?: string | null;
+  folderId?: number | null;
+  folderName?: string | null;
   datasetId?: number | null;
   datasetName?: string | null;
   content: ReportPrintContent;
@@ -7938,6 +8117,29 @@ export interface ReportPrintRenderResult {
   sheets: ReportPrintSheetRenderResult[];
 }
 
+export type ReportPrintDatasetRows = Record<string, Array<Record<string, unknown>>>;
+
+export interface ReportPrintResolvedSubreport {
+  sheetId: string;
+  row: number;
+  col: number;
+  templateId: number;
+  result: ReportPrintRenderResult;
+}
+
+export interface ReportPrintRenderOptions {
+  datasets?: ReportPrintDatasetRows;
+  bindings?: ReportPrintDatasetBinding[];
+  subreports?: ReportPrintResolvedSubreport[];
+  /** 已由调用方按系统时间规范格式化的渲染时间 */
+  renderedAt?: string;
+  crosstabBudget?: {
+    maxDynamicColumns?: number;
+    maxCells?: number;
+    maxBytes?: number;
+  };
+}
+
 // ─── 报表中心 · 第八期：数据预警 + 协作 ────────────────────────────────────────
 
 /** 预警比较运算符 */
@@ -7950,8 +8152,11 @@ export interface ReportAlertRule {
   id: number;
   name: string;
   /** 监控的数据集 */
-  datasetId: number;
+  datasetId: number | null;
   datasetName?: string | null;
+  /** 指标预警来源；设置后 datasetId 必须为空。 */
+  metricId?: number | null;
+  metricName?: string | null;
   /** 监控字段（count 可空） */
   field?: string | null;
   /** 分组维度（可空=全局聚合；有值=按组聚合，任一组命中即触发） */
@@ -8015,13 +8220,14 @@ export interface ReportDatasetRefs {
   /** 引用该数据集的仪表盘（组件绑定或筛选器动态选项） */
   dashboards: Array<{ id: number; name: string; widgets: string[]; filterIds: string[] }>;
   printTemplates: Array<{ id: number; name: string }>;
+  metrics: Array<{ id: number; code: string; name: string }>;
   alerts: Array<{ id: number; name: string }>;
   subscriptions?: Array<{ id: number; dashboardId: number; name: string }>;
   shares?: Array<{ id: number; dashboardId: number; name: string }>;
   embedTokens?: Array<{ id: number; dashboardId: number; name: string }>;
   nodes?: Array<{
     id: string;
-    type: 'datasource' | 'dataset' | 'dashboard' | 'widget' | 'filter' | 'print' | 'alert' | 'subscription' | 'share' | 'embed';
+    type: 'datasource' | 'dataset' | 'metric' | 'dashboard' | 'widget' | 'filter' | 'print' | 'alert' | 'subscription' | 'share' | 'embed';
     refId?: number | null;
     parentId?: string | null;
     label: string;
@@ -8056,6 +8262,769 @@ export interface ReportDashboardComment {
   canEdit?: boolean;
   canDelete?: boolean;
   canResolve?: boolean;
+}
+
+// ─── 报表平台化 P2：治理、质量、ChatBI 与填报 ────────────────────────────────────
+
+export interface ReportFolder {
+  id: number;
+  tenantId: number | null;
+  parentId: number | null;
+  name: string;
+  resourceType: ReportResourceType;
+  ownerId: number | null;
+  ownerName?: string | null;
+  sort: number;
+  status: 'enabled' | 'disabled';
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportFolderTreeNode extends ReportFolder {
+  children?: ReportFolderTreeNode[];
+  resourceCount?: number;
+}
+
+export interface ReportResourceSummary {
+  resourceType: ReportResourceType;
+  resourceId: number;
+  name: string;
+  ownerId: number | null;
+  ownerName?: string | null;
+  folderId: number | null;
+  folderName?: string | null;
+  status?: string | null;
+  updatedAt: string;
+}
+
+export interface ReportPlatformListQuery {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+  resourceType?: ReportResourceType;
+  folderId?: number | null;
+  ownerId?: number | null;
+  status?: string;
+  startAt?: string;
+  endAt?: string;
+}
+
+export interface ReportMetric {
+  id: number;
+  tenantId: number | null;
+  folderId: number | null;
+  folderName?: string | null;
+  ownerId: number | null;
+  ownerName?: string | null;
+  code: string;
+  name: string;
+  description?: string | null;
+  type: ReportMetricType;
+  datasetId: number;
+  datasetName?: string | null;
+  sourceField?: string | null;
+  formula?: string | null;
+  aggregate?: 'sum' | 'avg' | 'max' | 'min' | 'count' | 'distinct_count' | null;
+  dimensions: string[];
+  timeField?: string | null;
+  unit?: string | null;
+  format?: string | null;
+  caliber?: string | null;
+  lifecycleStatus: ReportMetricLifecycleStatus;
+  revision: number;
+  publishedSnapshot?: Record<string, unknown> | null;
+  publishedAt?: string | null;
+  publishedBy?: number | null;
+  deprecatedAt?: string | null;
+  deprecatedBy?: number | null;
+  deprecationReason?: string | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportMetricEvaluation {
+  metricId: number;
+  code: string;
+  value: number;
+  formattedValue: string;
+  unit?: string | null;
+  durationMs: number;
+  cacheHit: boolean;
+}
+
+export interface ReportMetricRefs {
+  dashboards: Array<{ id: number; name: string; widgets: string[] }>;
+  alerts: Array<{ id: number; name: string }>;
+  metrics: Array<{ id: number; code: string; name: string }>;
+}
+
+export interface ReportMetricLookupOption {
+  id: number;
+  name: string;
+  code: string;
+  status: ReportMetricLifecycleStatus;
+  datasetId: number;
+  type: 'metric';
+}
+
+export interface ReportResourceAcl {
+  id: number;
+  tenantId: number | null;
+  resourceType: ReportResourceType;
+  resourceId: number;
+  subjectType: ReportAclSubjectType;
+  subjectId: number;
+  role: ReportAclRole;
+  inheritFromFolder: boolean;
+  expiresAt?: string | null;
+  grantedBy: number | null;
+  grantedByName?: string | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ReportApprovalAction = 'publish' | 'promote' | 'deprecate';
+
+export interface ReportPublishApproval {
+  id: number;
+  tenantId: number | null;
+  resourceType: ReportResourceType;
+  resourceId: number;
+  resourceName?: string | null;
+  action: ReportApprovalAction;
+  requestedRevision: number;
+  snapshot: Record<string, unknown>;
+  status: ReportApprovalStatus;
+  requestedBy: number | null;
+  requestedByName?: string | null;
+  requestedAt: string;
+  decidedBy?: number | null;
+  decidedByName?: string | null;
+  decidedAt?: string | null;
+  decisionNote?: string | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportResourceTransfer {
+  id: number;
+  tenantId: number | null;
+  resourceType: ReportResourceType;
+  resourceId: number;
+  resourceName?: string | null;
+  fromOwnerId: number | null;
+  fromOwnerName?: string | null;
+  toOwnerId: number;
+  toOwnerName?: string | null;
+  status: ReportTransferStatus;
+  reason?: string | null;
+  requestedBy: number | null;
+  decidedBy?: number | null;
+  decidedAt?: string | null;
+  decisionNote?: string | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportEnvironment {
+  id: number;
+  tenantId: number | null;
+  code: string;
+  name: string;
+  kind: ReportEnvironmentKind;
+  description?: string | null;
+  baseUrl?: string | null;
+  config: Record<string, unknown>;
+  isDefault: boolean;
+  status: 'enabled' | 'disabled';
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportEnvironmentPromotion {
+  id: number;
+  tenantId: number | null;
+  resourceType: ReportResourceType;
+  resourceId: number;
+  resourceName?: string | null;
+  sourceEnvironmentId: number;
+  sourceEnvironmentName?: string | null;
+  targetEnvironmentId: number;
+  targetEnvironmentName?: string | null;
+  sourceRevision: number;
+  sourceSnapshot: Record<string, unknown>;
+  targetSnapshot?: Record<string, unknown> | null;
+  status: ReportPromotionStatus;
+  requestedBy: number | null;
+  approvedBy?: number | null;
+  deployedBy?: number | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  errorMessage?: string | null;
+  rollbackSnapshot?: Record<string, unknown> | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportDqRuleConfig {
+  min?: number | null;
+  max?: number | null;
+  pattern?: string | null;
+  maxAgeMinutes?: number | null;
+  minRows?: number | null;
+  maxRows?: number | null;
+  sql?: string | null;
+}
+
+export interface ReportDqRule {
+  id: number;
+  tenantId: number | null;
+  datasetId: number;
+  datasetName?: string | null;
+  name: string;
+  type: ReportDqRuleType;
+  field?: string | null;
+  severity: ReportDqSeverity;
+  config: ReportDqRuleConfig;
+  cron?: string | null;
+  timezone: string;
+  enabled: boolean;
+  lastRunAt?: string | null;
+  lastStatus?: ReportDqRunStatus | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportDqRun {
+  id: number;
+  tenantId: number | null;
+  ruleId: number;
+  datasetId: number;
+  status: ReportDqRunStatus;
+  triggerType: 'manual' | 'scheduled' | 'dataset_refresh';
+  checkedRows: number;
+  failedRows: number;
+  passRate?: number | null;
+  sampleRows: Record<string, unknown>[];
+  sampleRowCount: number;
+  sampleBytes: number;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  durationMs?: number | null;
+  errorMessage?: string | null;
+  schemaSignature?: string | null;
+  requestedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportDqScore {
+  id: number;
+  tenantId: number | null;
+  datasetId: number;
+  score: number;
+  passedRules: number;
+  failedRules: number;
+  totalRules: number;
+  measuredAt: string;
+  dimensions: Record<string, number>;
+  createdAt: string;
+}
+
+export interface ReportDqAnomaly {
+  id: number;
+  tenantId: number | null;
+  datasetId: number;
+  ruleId?: number | null;
+  runId?: number | null;
+  severity: ReportDqSeverity;
+  title: string;
+  detail?: string | null;
+  sample: Record<string, unknown>;
+  sampleRowCount?: number;
+  sampleBytes?: number;
+  status: ReportDqAnomalyStatus;
+  acknowledgedAt?: string | null;
+  acknowledgedBy?: number | null;
+  acknowledgementNote?: string | null;
+  resolvedAt?: string | null;
+  resolvedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportMaterializationSnapshot {
+  id: number;
+  tenantId: number | null;
+  datasetId: number;
+  strategy: ReportMaterializationStrategy;
+  status: ReportSnapshotStatus;
+  revision: number;
+  keyField?: string | null;
+  watermark?: string | null;
+  deltaWindowMinutes?: number | null;
+  fileId?: string | null;
+  rowCount: number;
+  byteSize: number;
+  checksum?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  expiresAt?: string | null;
+  errorMessage?: string | null;
+  createdBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportQueryQuota {
+  id: number;
+  tenantId: number | null;
+  scope: ReportQuotaScope;
+  userId?: number | null;
+  maxConcurrent: number;
+  dailyQueryLimit: number;
+  dailyRowLimit: number;
+  dailyByteLimit: number;
+  dailyCostLimit: number;
+  resetTimezone: string;
+  enabled: boolean;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportQueryCostLog {
+  id: number;
+  tenantId: number | null;
+  userId?: number | null;
+  datasetId?: number | null;
+  datasourceId?: number | null;
+  scene: string;
+  requestId: string;
+  queuedMs: number;
+  durationMs: number;
+  rowCount: number;
+  byteSize: number;
+  costUnits: number;
+  cacheHit: boolean;
+  success: boolean;
+  errorCode?: string | null;
+  occurredAt: string;
+}
+
+export interface ReportQueryCapacity {
+  globalLimit: number;
+  running: number;
+  queueDepth: number;
+  datasourceQueues: number;
+}
+
+export interface ReportQueryCostStats {
+  queries: number;
+  rows: number;
+  bytes: number;
+  costUnits: number;
+  avgDurationMs: number;
+  failures: number;
+  capacity: ReportQueryCapacity;
+}
+
+export interface ReportQueryCostTrendPoint {
+  bucket: string;
+  queries: number;
+  rows: number;
+  bytes: number;
+  costUnits: number;
+  avgDurationMs: number;
+  queueMs: number;
+}
+
+export interface ReportSlaRule {
+  id: number;
+  tenantId: number | null;
+  datasetId: number;
+  name: string;
+  type: ReportSlaType;
+  targetValue: number;
+  warningValue?: number | null;
+  windowMinutes: number;
+  cron?: string | null;
+  timezone: string;
+  severity: ReportDqSeverity;
+  channels: ReportNotifyChannel[];
+  recipients?: string | null;
+  webhookUrl?: string | null;
+  silenceMins: number;
+  enabled: boolean;
+  lastEvaluatedAt?: string | null;
+  lastNotifiedAt?: string | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportSlaViolation {
+  id: number;
+  tenantId: number | null;
+  ruleId: number;
+  datasetId: number;
+  status: ReportSlaViolationStatus;
+  observedValue: number;
+  targetValue: number;
+  windowStartedAt: string;
+  windowEndedAt: string;
+  detail?: string | null;
+  acknowledgedAt?: string | null;
+  acknowledgedBy?: number | null;
+  resolvedAt?: string | null;
+  resolvedBy?: number | null;
+  resolutionNote?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportAssetUsageLog {
+  id: number;
+  tenantId: number | null;
+  resourceType: ReportResourceType;
+  resourceId: number;
+  userId?: number | null;
+  action: 'view' | 'query' | 'export' | 'embed' | 'share';
+  scene?: string | null;
+  durationMs?: number | null;
+  rowCount: number;
+  byteSize: number;
+  success: boolean;
+  occurredAt: string;
+}
+
+export interface ReportDeprecationNotice {
+  id: number;
+  tenantId: number | null;
+  resourceType: ReportResourceType;
+  resourceId: number;
+  title: string;
+  message: string;
+  replacementResourceType?: ReportResourceType | null;
+  replacementResourceId?: number | null;
+  effectiveAt: string;
+  expiresAt?: string | null;
+  publishedAt?: string | null;
+  publishedBy?: number | null;
+  processedAt?: string | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportAssetTemplate {
+  id: number;
+  tenantId: number | null;
+  folderId: number | null;
+  folderName?: string | null;
+  ownerId: number | null;
+  ownerName?: string | null;
+  code: string;
+  name: string;
+  type: ReportAssetTemplateType;
+  description?: string | null;
+  content: Record<string, unknown>;
+  previewFileId?: string | null;
+  version: number;
+  usageCount: number;
+  status: 'enabled' | 'disabled';
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportAssetUsageTrendPoint {
+  bucket: string;
+  views: number;
+  queries: number;
+  exports: number;
+  embeds: number;
+  shares: number;
+  uniqueUsers: number;
+}
+
+export interface ReportAssetTemplateApplyResult {
+  resourceType: ReportResourceType;
+  resourceId: number;
+  name: string;
+}
+
+export interface ReportChatbiChartSuggestion {
+  type: ReportWidgetType;
+  title: string;
+  categoryField?: string;
+  valueFields?: string[];
+  options?: Record<string, unknown>;
+}
+
+export interface ReportChatbiContextSnapshot {
+  datasourceId: number;
+  datasourceName: string;
+  datasourceType: ReportDatasourceType;
+  datasetId?: number | null;
+  tables: Array<{
+    name: string;
+    columns: Array<{ name: string; type: string }>;
+  }>;
+  frozenAt: string;
+}
+
+export interface ReportChatbiSession {
+  id: number;
+  tenantId: number | null;
+  userId: number;
+  title: string;
+  datasourceId?: number | null;
+  datasetId?: number | null;
+  allowedTables: string[];
+  contextSnapshot: ReportChatbiContextSnapshot;
+  status: ReportChatbiSessionStatus;
+  totalTokens: number;
+  totalCostUnits: number;
+  lastMessageAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportChatbiMessage {
+  id: number;
+  tenantId: number | null;
+  sessionId: number;
+  userId?: number | null;
+  role: ReportChatbiMessageRole;
+  content: string;
+  generatedSql?: string | null;
+  chartSuggestion?: ReportChatbiChartSuggestion | null;
+  resultSample: Record<string, unknown>[];
+  resultRowCount: number;
+  resultByteSize: number;
+  savedResourceType?: ReportResourceType | null;
+  savedResourceId?: number | null;
+  savedDatasetId?: number | null;
+  savedDashboardId?: number | null;
+  promptTokens: number;
+  completionTokens: number;
+  costUnits: number;
+  latencyMs?: number | null;
+  modelId?: string | null;
+  errorMessage?: string | null;
+  createdAt: string;
+}
+
+export interface ReportChatbiSessionDetail {
+  session: ReportChatbiSession;
+  messages: ReportChatbiMessage[];
+}
+
+export interface ReportChatbiQuota {
+  aiPromptTokensToday: number;
+  aiCompletionTokensToday: number;
+  aiRequestsToday: number;
+  queryCountToday: number;
+  queryRowsToday: number;
+  queryBytesToday: number;
+  queryCostUnitsToday: number;
+}
+
+export interface ReportChatbiSavedResource {
+  resourceType: 'dataset' | 'dashboard';
+  resourceId: number;
+  name: string;
+  datasetId?: number | null;
+}
+
+export interface ReportFillTemplate {
+  id: number;
+  tenantId: number | null;
+  folderId: number | null;
+  folderName?: string | null;
+  ownerId: number | null;
+  ownerName?: string | null;
+  code: string;
+  name: string;
+  description?: string | null;
+  formSchema: WorkflowFormSchema;
+  publishedSchema?: WorkflowFormSchema | null;
+  publishedRevision?: number | null;
+  workflowDefinitionId?: number | null;
+  workflowDefinitionName?: string | null;
+  needReview: boolean;
+  generatedDatasetId?: number | null;
+  status: ReportFillTemplateStatus;
+  revision: number;
+  publishedAt?: string | null;
+  publishedBy?: number | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportFillRecord {
+  id: number;
+  tenantId: number | null;
+  templateId: number;
+  templateName?: string | null;
+  submitterId: number;
+  submitterName?: string | null;
+  status: ReportFillRecordStatus;
+  data: Record<string, unknown>;
+  templateRevision: number;
+  templateSchemaSnapshot: WorkflowFormSchema;
+  templateNeedReview: boolean;
+  workflowDefinitionIdSnapshot?: number | null;
+  submitComment?: string | null;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
+  reviewedBy?: number | null;
+  reviewComment?: string | null;
+  workflowInstanceId?: number | null;
+  generatedDatasetId?: number | null;
+  syncStatus: ReportFillSyncStatus;
+  syncTaskId?: number | null;
+  syncError?: string | null;
+  syncedAt?: string | null;
+  revision: number;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportMobileDashboardPreference {
+  dashboardId: number;
+  compactMode?: boolean;
+  hiddenWidgetIds?: string[];
+  widgetOrder?: string[];
+  defaultFilterValues?: Record<string, unknown>;
+  refreshInterval?: number;
+}
+
+export interface ReportCapacityTrendPoint {
+  time: string;
+  queries: number;
+  concurrentPeak: number;
+  rows: number;
+  bytes: number;
+  costUnits: number;
+  p95DurationMs: number;
+}
+
+export interface ReportQueryGovernanceSummary {
+  concurrentRunning: number;
+  concurrentLimit: number;
+  dailyQueries: number;
+  dailyQueryLimit: number;
+  dailyRows: number;
+  dailyRowLimit: number;
+  dailyBytes: number;
+  dailyByteLimit: number;
+  dailyCostUnits: number;
+  dailyCostLimit: number;
+  trends: ReportCapacityTrendPoint[];
+}
+
+export interface ReportQualitySummary {
+  datasetId: number;
+  score: number | null;
+  totalRules: number;
+  passedRules: number;
+  failedRules: number;
+  openAnomalies: number;
+  criticalAnomalies: number;
+  lastMeasuredAt?: string | null;
+}
+
+export interface ReportAssetUsageSummary {
+  resourceType: ReportResourceType;
+  resourceId: number;
+  views: number;
+  queries: number;
+  exports: number;
+  uniqueUsers: number;
+  lastUsedAt?: string | null;
+  deprecated: boolean;
+  deprecationNotice?: ReportDeprecationNotice | null;
+}
+
+export interface ReportAssetCatalogItem {
+  resourceType: ReportResourceType;
+  resourceId: number;
+  tenantId: number | null;
+  name: string;
+  ownerId: number | null;
+  ownerName?: string | null;
+  folderId: number | null;
+  folderName?: string | null;
+  lifecycleStatus?: string | null;
+  status?: string | null;
+  deprecationEffectiveAt?: string | null;
+  updatedAt: string;
+}
+
+export interface ReportQueryQuotaUsage {
+  tenantId: number | null;
+  userId: number | null;
+  timezone: string;
+  day: string;
+  concurrent: number;
+  queries: number;
+  rows: number;
+  bytes: number;
+  costUnits: number;
+  maxConcurrent: number;
+  dailyQueryLimit: number;
+  dailyRowLimit: number;
+  dailyByteLimit: number;
+  dailyCostLimit: number;
+}
+
+export interface ReportResourceDetail {
+  resource: ReportResourceSummary;
+  acls: ReportResourceAcl[];
+  pendingApprovals: ReportPublishApproval[];
+  usage: ReportAssetUsageSummary;
+  deprecationNotices: ReportDeprecationNotice[];
+}
+
+export interface ReportDatasetPlatformDetail {
+  dataset: ReportDataset;
+  metrics: ReportMetric[];
+  quality: ReportQualitySummary;
+  materializationSnapshots: ReportMaterializationSnapshot[];
+  slaRules: ReportSlaRule[];
+  usage: ReportAssetUsageSummary;
+}
+
+export interface ReportFillRecordDetail extends ReportFillRecord {
+  template: ReportFillTemplate;
+  workflowStatus?: string | null;
+  generatedDataset?: ReportDataset | null;
 }
 
 // ─── 规则中心：决策表 ────────────────────────────────────────────────────────────

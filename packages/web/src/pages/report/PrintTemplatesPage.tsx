@@ -35,9 +35,11 @@ import type {
   UpdateReportPrintTemplateInput,
 } from '@zenith/shared';
 import { useDictItems } from '@/hooks/useDictItems';
+import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';
+import { useAllUsers } from '@/hooks/queries/users';
 
-interface SearchParams { keyword: string; status: string }
-const defaultSearchParams: SearchParams = { keyword: '', status: '' };
+interface SearchParams { keyword: string; status: string; ownerId?: number; folderId?: number }
+const defaultSearchParams: SearchParams = { keyword: '', status: '', ownerId: undefined, folderId: undefined };
 
 export default function PrintTemplatesPage() {
   const { items: statusItems } = useDictItems('common_status');
@@ -65,8 +67,12 @@ export default function PrintTemplatesPage() {
     pageSize,
     keyword: submittedParams.keyword || undefined,
     status: submittedParams.status || undefined,
+    ownerId: submittedParams.ownerId,
+    folderId: submittedParams.folderId,
   });
   const data = listQuery.data ?? null;
+  const users = useAllUsers().data ?? [];
+  const folders = flattenReportFolders(useReportFolderTree({ resourceType: 'print_template' }).data ?? []);
   const datasetsQuery = useReportDesignerDatasets();
   const datasets = datasetsQuery.data ?? [];
   const saveMutation = useSaveReportPrintTemplate();
@@ -97,6 +103,8 @@ export default function PrintTemplatesPage() {
   const formInitValues = editing
     ? {
         name: editing.name,
+        ownerId: editing.ownerId ?? undefined,
+        folderId: editing.folderId ?? undefined,
         datasetId: editing.datasetId ?? undefined,
         status: editing.status,
         remark: editing.remark ?? '',
@@ -110,6 +118,8 @@ export default function PrintTemplatesPage() {
 
     const basePayload = {
       name: String(values.name ?? '').trim(),
+      ownerId: values.ownerId ? Number(values.ownerId) : null,
+      folderId: values.folderId ? Number(values.folderId) : null,
       datasetId: values.datasetId ? Number(values.datasetId) : null,
       status: values.status as ReportPrintTemplate['status'],
       remark: values.remark ? String(values.remark) : undefined,
@@ -209,6 +219,8 @@ export default function PrintTemplatesPage() {
   const columns: ColumnProps<ReportPrintTemplate>[] = [
     { title: '名称', dataIndex: 'name', width: 200 },
     { title: '数据集', dataIndex: 'datasetName', width: 160, render: (v: string | null) => v || '-' },
+    { title: '负责人', dataIndex: 'ownerName', width: 120, render: (v: string | null) => v || '—' },
+    { title: '目录', dataIndex: 'folderName', width: 140, render: (v: string | null) => v || '—' },
     { title: '备注', dataIndex: 'remark', width: 200, render: renderEllipsis },
     { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
     {
@@ -230,10 +242,12 @@ export default function PrintTemplatesPage() {
         ...(hasPermission('report:print:update') ? [{ key: 'design', label: '设计', onClick: () => navigate(`/report/print/${record.id}/design`) }] : []),
         ...(hasPermission('report:print:list') ? [{ key: 'preview', label: '预览', onClick: () => void openPreview(record) }] : []),
         ...(hasPermission('report:print:update') ? [{ key: 'edit', label: '编辑', onClick: () => openEdit(record) }] : []),
+        { key: 'governance', label: '权限与转移', onClick: () => navigate(`/report/governance?resourceType=print_template&resourceId=${record.id}`) },
         ...(hasPermission('report:print:create') ? [{ key: 'clone', label: '复制', onClick: () => void handleClone(record) }] : []),
         ...(hasPermission('report:print:list') ? [
           { key: 'exportXlsx', label: '导出 XLSX', dividerBefore: true, loading: exportRunner.isPending, onClick: () => handleExport(record, 'xlsx') },
           { key: 'exportPdf', label: '导出 PDF', loading: exportRunner.isPending, onClick: () => handleExport(record, 'pdf') },
+          { key: 'exportDocx', label: '导出 Word', loading: exportRunner.isPending, onClick: () => handleExport(record, 'docx') },
         ] : []),
         ...(hasPermission('report:print:delete') ? [{
           key: 'delete', label: '删除', danger: true,
@@ -251,6 +265,16 @@ export default function PrintTemplatesPage() {
     <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
       showClear style={{ width: 120 }} optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))} />
   );
+  const renderOwnerFilter = () => (
+    <Select placeholder="全部负责人" value={draftParams.ownerId} showClear filter style={{ width: 140 }}
+      optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))}
+      onChange={(v) => setDraftParams((p) => ({ ...p, ownerId: v as number | undefined }))} />
+  );
+  const renderFolderFilter = () => (
+    <Select placeholder="全部目录" value={draftParams.folderId} showClear filter style={{ width: 140 }}
+      optionList={folders.map((f) => ({ value: f.id, label: f.name }))}
+      onChange={(v) => setDraftParams((p) => ({ ...p, folderId: v as number | undefined }))} />
+  );
   const renderSearchBtn = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
   const renderResetBtn = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
   const renderCreateBtn = () => hasPermission('report:print:create')
@@ -263,10 +287,10 @@ export default function PrintTemplatesPage() {
   return (
     <div className="page-container">
       <SearchToolbar
-        primary={<>{renderKeyword()}{renderStatusFilter()}{renderSearchBtn()}{renderResetBtn()}</>}
+        primary={<>{renderKeyword()}{renderOwnerFilter()}{renderFolderFilter()}{renderStatusFilter()}{renderSearchBtn()}{renderResetBtn()}</>}
         actions={<>{renderBatchEnableBtn()}{renderBatchDisableBtn()}{renderCreateBtn()}</>}
         mobilePrimary={<>{renderKeyword()}{renderSearchBtn()}{renderCreateBtn()}</>}
-        mobileFilters={renderStatusFilter()}
+        mobileFilters={<>{renderOwnerFilter()}{renderFolderFilter()}{renderStatusFilter()}</>}
         mobileActions={<>{renderBatchEnableBtn()}{renderBatchDisableBtn()}</>}
         filterTitle="打印模板筛选"
         onFilterApply={handleSearch}
@@ -289,9 +313,14 @@ export default function PrintTemplatesPage() {
         onCancel={closeModal}
         okButtonProps={{ loading: saveMutation.isPending }}
         width={560}
+        closeOnEsc
       >
         <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={formInitValues} labelPosition="left" labelWidth={72}>
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear placeholder="如：销售出库单" />
+          <Form.Select field="ownerId" label="负责人" filter showClear style={{ width: '100%' }}
+            optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))} />
+          <Form.Select field="folderId" label="资源目录" filter showClear style={{ width: '100%' }}
+            optionList={folders.map((f) => ({ value: f.id, label: f.name }))} />
           <Form.Select
             field="datasetId"
             label="数据集"

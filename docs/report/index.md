@@ -14,6 +14,7 @@
 | [AI 问数与数据预警](./ai-and-alerts) | 自然语言生成 SQL（NL2SQL）、阈值预警规则、邮件/站内信通知 |
 | [分享 / 订阅 / 嵌入 / 协作](./sharing) | 公开分享链接、定时订阅推送、`<ReportEmbed>` 跨模块嵌入、评论批注 |
 | [运行治理与可观测性](./runtime-governance) | 批量取数、查询预算、执行日志、慢查询、缓存、任务与投递治理 |
+| [报表平台 P2](./platform-p2) | 语义指标、资源治理、数据质量、容量/SLA/资产、ChatBI、填报与 Workflow、移动/嵌入协议 |
 
 ## 能力全景
 
@@ -50,6 +51,12 @@
 | 打印报表 | `/report/print` | `report:print:list` / `:create` / `:update` / `:delete` |
 | 数据预警 | `/report/alerts` | `report:alert:list` / `:create` / `:update` / `:delete` |
 | 订阅推送 | `/report/subscriptions` | `report:subscription:list` / `:create` / `:update` / `:delete` |
+| 指标中心 | `/report/metrics` | `report:metric:list` / `:create` / `:update` / `:delete` / `:evaluate` / `:publish` |
+| 数据质量 | `/report/quality` | `report:dq:list` / `:create` / `:update` / `:delete` / `:run` |
+| 资源治理 | `/report/governance` | `report:folder:list` 及资源、环境、容量、SLA 权限（见 P2 文档） |
+| 资产目录 | `/report/assets` | `report:asset:list` 及用量、弃用、资产模板权限 |
+| 智能问数 | `/report/chatbi` | `report:chatbi:list` / `:create` / `:update` / `:delete` / `:ask` / `:save` |
+| 填报模板 / 记录 | `/report/fill-templates`、`/report/fill-records` | `report:fill:template:*` / `report:fill:record:*` |
 
 > 超级管理员默认拥有全部权限；其他角色需在「角色管理」中分配对应权限码。
 

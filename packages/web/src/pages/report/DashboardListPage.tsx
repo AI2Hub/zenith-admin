@@ -30,9 +30,12 @@ import {
   useToggleReportDashboardFavorite,
 } from '@/hooks/queries/report-dashboards';
 import { useDictItems } from '@/hooks/useDictItems';
+import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';
+import { useAllUsers } from '@/hooks/queries/users';
+import { useReportDeprecationList } from '@/hooks/queries/report-assets';
 
-interface SearchParams { keyword: string; status: string; lifecycleStatus: '' | ReportDashboard['lifecycleStatus']; categoryId?: number; favorited: boolean }
-const defaultSearchParams: SearchParams = { keyword: '', status: '', lifecycleStatus: '', favorited: false };
+interface SearchParams { keyword: string; status: string; lifecycleStatus: '' | ReportDashboard['lifecycleStatus']; categoryId?: number; favorited: boolean; ownerId?: number; folderId?: number }
+const defaultSearchParams: SearchParams = { keyword: '', status: '', lifecycleStatus: '', favorited: false, ownerId: undefined, folderId: undefined };
 
 export default function DashboardListPage() {
   const { items: statusItems } = useDictItems('common_status');
@@ -63,8 +66,17 @@ export default function DashboardListPage() {
     lifecycleStatus: submittedParams.lifecycleStatus || undefined,
     categoryId: submittedParams.categoryId,
     favorited: submittedParams.favorited || undefined,
+    ownerId: submittedParams.ownerId,
+    folderId: submittedParams.folderId,
   });
   const data = listQuery.data ?? null;
+  const users = useAllUsers().data ?? [];
+  const folders = flattenReportFolders(useReportFolderTree({ resourceType: 'dashboard' }).data ?? []);
+  const deprecationQuery = useReportDeprecationList(
+    { page: 1, pageSize: 200, resourceType: 'dashboard', published: true },
+    hasPermission('report:deprecation:list'),
+  );
+  const deprecatedIds = new Set((deprecationQuery.data?.list ?? []).map((notice) => notice.resourceId));
   const categoriesQuery = useReportDashboardCategories();
   const categories = categoriesQuery.data ?? [];
   const saveMutation = useSaveReportDashboard();
@@ -89,7 +101,14 @@ export default function DashboardListPage() {
   function closeCategoryModal() { setCategoryModalVisible(false); setEditingCategory(null); }
 
   const formInitValues = editing
-    ? { name: editing.name, status: editing.status, remark: editing.remark ?? '', categoryId: editing.categoryId ?? undefined }
+    ? {
+        name: editing.name,
+        ownerId: editing.ownerId ?? undefined,
+        folderId: editing.folderId ?? undefined,
+        status: editing.status,
+        remark: editing.remark ?? '',
+        categoryId: editing.categoryId ?? undefined,
+      }
     : { status: 'enabled' };
 
   async function handleModalOk() {
@@ -98,6 +117,8 @@ export default function DashboardListPage() {
     catch { throw new Error('validation'); }
     const payload: Record<string, unknown> = {
       name: String(values.name ?? ''),
+      ownerId: values.ownerId ? Number(values.ownerId) : null,
+      folderId: values.folderId ? Number(values.folderId) : null,
       status: values.status as ReportDashboard['status'],
       remark: values.remark ? String(values.remark) : undefined,
       categoryId: values.categoryId == null ? null : Number(values.categoryId),
@@ -187,9 +208,12 @@ export default function DashboardListPage() {
     },
     { title: '名称', dataIndex: 'name', width: 200 },
     { title: '分类', dataIndex: 'categoryName', width: 120, render: (v: string) => v ? <Tag size="small" color="light-blue">{v}</Tag> : '-' },
+    { title: '负责人', dataIndex: 'ownerName', width: 120, render: (v: string | null) => v || '—' },
+    { title: '目录', dataIndex: 'folderName', width: 140, render: (v: string | null) => v || '—' },
     { title: '组件数', dataIndex: 'widgets', width: 80, render: (w: ReportWidget[]) => (w?.length ?? 0) },
     { title: '备注', dataIndex: 'remark', width: 180, render: renderEllipsis },
     { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
+    { title: '治理提示', dataIndex: '__warnings', width: 90, render: (_: unknown, record) => deprecatedIds.has(record.id) ? <Tag color="red" size="small">已弃用</Tag> : '—' },
     { title: '生命周期', dataIndex: 'lifecycleStatus', width: 90, fixed: 'right', render: (value: ReportDashboard['lifecycleStatus']) => lifecycleTag(value) },
     { title: '状态', dataIndex: 'status', width: 70, fixed: 'right', render: (s: string) => s === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag> },
     createOperationColumn<ReportDashboard>({
@@ -203,6 +227,7 @@ export default function DashboardListPage() {
         ...(hasPermission('report:dashboard:update') ? [{ key: 'share', label: '分享', onClick: () => setShareTarget(record.id) }] : []),
         ...(hasPermission('report:dashboard:update') ? [{ key: 'version', label: '版本', onClick: () => setVersionTarget(record.id) }] : []),
         ...(hasPermission('report:dashboard:update') ? [{ key: 'edit', label: '编辑', onClick: () => openEdit(record) }] : []),
+        { key: 'governance', label: '权限与转移', onClick: () => navigate(`/report/governance?resourceType=dashboard&resourceId=${record.id}`) },
         ...(hasPermission('report:dashboard:create') ? [{ key: 'clone', label: '复制', onClick: () => void handleClone(record) }] : []),
         ...(hasPermission('report:dashboard:delete') ? [{ key: 'delete', label: '删除', danger: true, onClick: () => { Modal.confirm({ title: '确定要删除吗？', content: '删除后不可恢复', onOk: () => handleDelete(record.id) }); } }] : []),
       ],
@@ -230,6 +255,16 @@ export default function DashboardListPage() {
        { value: 'offline', label: '已下线' },
      ]}
     />
+  );
+  const renderOwnerFilter = () => (
+    <Select placeholder="全部负责人" value={draftParams.ownerId} showClear filter style={{ width: 140 }}
+      optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))}
+      onChange={(v) => setDraftParams((p) => ({ ...p, ownerId: v as number | undefined }))} />
+  );
+  const renderFolderFilter = () => (
+    <Select placeholder="全部目录" value={draftParams.folderId} showClear filter style={{ width: 140 }}
+      optionList={folders.map((f) => ({ value: f.id, label: f.name }))}
+      onChange={(v) => setDraftParams((p) => ({ ...p, folderId: v as number | undefined }))} />
   );
   const renderSearchBtn = () => <Button type="primary" icon={<Search size={14} />} onClick={handleSearch}>查询</Button>;
   const renderResetBtn = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleReset}>重置</Button>;
@@ -259,10 +294,10 @@ export default function DashboardListPage() {
   return (
     <div className="page-container">
       <SearchToolbar
-        primary={<>{renderKeyword()}{renderCategoryFilter()}{renderStatusFilter()}{renderLifecycleFilter()}{renderFavToggle()}{renderSearchBtn()}{renderResetBtn()}</>}
+        primary={<>{renderKeyword()}{renderCategoryFilter()}{renderOwnerFilter()}{renderFolderFilter()}{renderStatusFilter()}{renderLifecycleFilter()}{renderFavToggle()}{renderSearchBtn()}{renderResetBtn()}</>}
         actions={<>{renderBatchEnableBtn()}{renderBatchDisableBtn()}{renderCategoryManageBtn()}{renderCreateBtn()}</>}
         mobilePrimary={<>{renderKeyword()}{renderSearchBtn()}{renderCreateBtn()}</>}
-        mobileFilters={<>{renderCategoryFilter()}{renderStatusFilter()}{renderLifecycleFilter()}{renderFavToggle()}</>}
+        mobileFilters={<>{renderCategoryFilter()}{renderOwnerFilter()}{renderFolderFilter()}{renderStatusFilter()}{renderLifecycleFilter()}{renderFavToggle()}</>}
         mobileActions={<>{renderBatchEnableBtn()}{renderBatchDisableBtn()}{renderCategoryManageBtn()}</>}
         filterTitle="仪表盘筛选"
         onFilterApply={handleSearch}
@@ -285,9 +320,14 @@ export default function DashboardListPage() {
         onCancel={closeModal}
         okButtonProps={{ loading: saveMutation.isPending }}
         width={520}
+        closeOnEsc
       >
         <Form key={editing?.id ?? 'new'} getFormApi={(api) => { formApi.current = api; }} initValues={formInitValues} labelPosition="left" labelWidth={72}>
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear />
+          <Form.Select field="ownerId" label="负责人" filter showClear style={{ width: '100%' }}
+            optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))} />
+          <Form.Select field="folderId" label="资源目录" filter showClear style={{ width: '100%' }}
+            optionList={folders.map((f) => ({ value: f.id, label: f.name }))} />
           <Form.Select field="status" label="状态" style={{ width: '100%' }}
             optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))} />
           <Form.Select field="categoryId" label="分类" style={{ width: '100%' }} showClear placeholder="未分类"
