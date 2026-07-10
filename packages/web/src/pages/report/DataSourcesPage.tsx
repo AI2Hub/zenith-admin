@@ -218,7 +218,7 @@ export default function DataSourcesPage() {
       render: (value: ReportDatasource['lastTestStatus']) => healthTag(value),
     },
     {
-      title: '最近测试', dataIndex: 'lastTestAt', width: 170,
+      title: '最近测试', dataIndex: 'lastTestAt', width: 240,
       render: (value: string | null, record) => value ? `${formatDateTime(value)}${record.lastTestLatencyMs != null ? ` · ${record.lastTestLatencyMs}ms` : ''}` : '—',
     },
     {
@@ -230,7 +230,7 @@ export default function DataSourcesPage() {
       render: renderEllipsis,
     },
     { title: '备注', dataIndex: 'remark', width: 180, render: renderEllipsis },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (t: string) => formatDateTime(t) },
+    { title: '创建时间', dataIndex: 'createdAt', width: 190, render: (t: string) => formatDateTime(t) },
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
       render: (_: unknown, record: ReportDatasource) => (
