@@ -15,12 +15,16 @@
 
 ## Step 2：更新 package.json 版本号
 
-同步更新以下 **4 个文件**的 `"version"` 字段：
+同步更新**根 `package.json` 及 `packages/` 下所有包**的 `"version"` 字段：
 
 - 根 `package.json`
 - `packages/server/package.json`
 - `packages/web/package.json`
 - `packages/shared/package.json`
+- `packages/analytics-sdk/package.json`
+- `packages/electron/package.json`
+
+> 若 `packages/` 下新增了包，一并同步，并将其补充到上述列表中。
 
 ---
 
