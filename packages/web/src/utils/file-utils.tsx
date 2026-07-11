@@ -178,14 +178,44 @@ export function isZipFile(mimeType?: string | null): boolean {
     mime === 'application/x-zip'
   );
 }
-/** 使用当前登录 token 获取受保护的文件内容，返回 Blob */
+/** 使用当前登录 token 获取受保护的文件内容，返回 Blob；绝对 URL（云存储直链）直接裸 fetch，不携带 token */
 export async function fetchProtectedFile(url: string): Promise<Blob> {
-  const token = localStorage.getItem(TOKEN_KEY);
-  const response = await fetch(`${config.apiBaseUrl}${url}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
+  const isAbsolute = /^https?:\/\//.test(url);
+  let response: Response;
+  if (isAbsolute) {
+    response = await fetch(url);
+  } else {
+    const token = localStorage.getItem(TOKEN_KEY);
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    response = await fetch(`${config.apiBaseUrl}${url}`, { headers });
+  }
   if (!response.ok) {
     throw new Error('文件读取失败');
   }
   return response.blob();
+}
+
+/** 从 `/api/files/{id}/content` 形态的 URL 中解析文件 ID；非该形态返回 null */
+export function extractManagedFileId(url: string): string | null {
+  const matched = /\/api\/files\/([0-9a-f-]{36})\/content/i.exec(url);
+  return matched?.[1] ?? null;
+}
+
+/**
+ * 获取托管文件内容 Blob（直链优先）：
+ * 1. 能解析出文件 ID 时先调 access-url 换取直链（public/presigned 直连对象存储，卸载代理流量）
+ * 2. 直链请求失败（CORS/过期等）或无法解析 ID 时，降级回原 URL 的代理读取
+ */
+export async function fetchManagedFileBlob(url: string): Promise<Blob> {
+  const fileId = extractManagedFileId(url);
+  if (fileId) {
+    try {
+      const { getFileAccessUrl } = await import('@/hooks/queries/files');
+      const access = await getFileAccessUrl(fileId);
+      if (access.url !== url) return await fetchProtectedFile(access.url);
+    } catch {
+      // 解析直链失败，降级走代理
+    }
+  }
+  return fetchProtectedFile(url);
 }

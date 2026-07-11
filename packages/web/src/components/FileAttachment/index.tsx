@@ -17,7 +17,7 @@ import { formatDateTime } from '@/utils/date';
 import {
   getFileTypeIcon,
   canPreviewFile,
-  fetchProtectedFile,
+  fetchManagedFileBlob,
   formatFileSize,
 } from '@/utils/file-utils';
 import FilePreviewModal from '@/components/FilePreviewModal';
@@ -215,7 +215,7 @@ export default function FileAttachment({
   /** 下载文件 */
   const downloadFile = useCallback(async (item: AttachmentItem) => {
     try {
-      const blob = await fetchProtectedFile(item.file.url);
+      const blob = await fetchManagedFileBlob(item.file.url);
       const objectUrl = globalThis.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = objectUrl;
@@ -241,7 +241,7 @@ export default function FileAttachment({
       if (mimeType.startsWith('image/')) {
         // 图片：fetch blob → object URL → ImagePreview
         try {
-          const blob = await fetchProtectedFile(item.file.url);
+          const blob = await fetchManagedFileBlob(item.file.url);
           const objectUrl = globalThis.URL.createObjectURL(blob);
           setImagePreviewUrl(objectUrl);
         } catch {

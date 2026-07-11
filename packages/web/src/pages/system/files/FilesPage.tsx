@@ -25,7 +25,7 @@ import type { ManagedFile } from '@zenith/shared';
 import { TOKEN_KEY, FILE_STORAGE_PROVIDER_OPTIONS } from '@zenith/shared';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
-import { formatFileSize, getFileTypeIcon, fetchProtectedFile, getFileFullUrl } from '@/utils/file-utils';
+import { formatFileSize, getFileTypeIcon, fetchManagedFileBlob, getFileFullUrl } from '@/utils/file-utils';
 import { buildManagedFileActions } from '@/utils/managed-file-actions';
 import { chunkedUpload, CHUNK_SIZE } from '@/utils/chunked-upload';
 import { FilePreviewLayer } from '@/components/FilePreviewLayer';
@@ -96,7 +96,7 @@ async function loadImageResolution(file: { url: string }): Promise<{ width: numb
     if (isExternal) {
       src = getFileFullUrl(file.url);
     } else {
-      const blob = await fetchProtectedFile(file.url);
+      const blob = await fetchManagedFileBlob(file.url);
       src = URL.createObjectURL(blob);
     }
     return await new Promise((resolve) => {

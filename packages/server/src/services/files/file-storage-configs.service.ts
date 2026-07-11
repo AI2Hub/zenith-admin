@@ -64,6 +64,9 @@ export function toStoragePayload(input: StorageInput) {
   // 对象 ACL 仅在 provider 支持时保留（更新接口为 partial schema，此处按支持矩阵兜底回落 default）
   const supportedAcls = FILE_OBJECT_ACL_SUPPORT[input.provider];
   const objectAcl = supportedAcls?.includes(input.objectAcl ?? 'default') ? (input.objectAcl ?? 'default') : 'default' as const;
+  // local/sftp 不支持临时签名，兜底回落 proxy
+  const rawStrategy = input.urlStrategy ?? 'proxy';
+  const urlStrategy = rawStrategy === 'presigned' && (input.provider === 'local' || input.provider === 'sftp') ? 'proxy' : rawStrategy;
   const base = {
     name: input.name,
     provider: input.provider,
@@ -71,6 +74,9 @@ export function toStoragePayload(input: StorageInput) {
     isDefault: input.isDefault,
     basePath: input.basePath ?? null,
     objectAcl,
+    urlStrategy,
+    publicBaseUrl: input.publicBaseUrl?.trim() || null,
+    presignedExpirySeconds: input.presignedExpirySeconds ?? 1800,
     remark: input.remark ?? null,
     ...EMPTY_PROVIDER_FIELDS,
   };

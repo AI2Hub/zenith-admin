@@ -22,9 +22,10 @@ import type {
   FileObjectAcl,
   FileStorageConfig,
   FileStorageProvider,
+  FileUrlStrategy,
   UpdateFileStorageConfigInput,
 } from '@zenith/shared';
-import { FILE_OBJECT_ACL_SUPPORT, FILE_STORAGE_PROVIDER_LABELS } from '@zenith/shared';
+import { FILE_OBJECT_ACL_SUPPORT, FILE_STORAGE_PROVIDER_LABELS, FILE_URL_STRATEGY_LABELS, FILE_URL_STRATEGY_OPTIONS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from '@zenith/shared';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
@@ -73,6 +74,9 @@ function buildPayload(provider: FileStorageProvider, isDefault: boolean, values:
       status: values.status ?? 'enabled',
       isDefault,
       basePath: normalizeOptional(values.basePath),
+      urlStrategy: values.urlStrategy ?? 'proxy',
+      publicBaseUrl: normalizeOptional(values.publicBaseUrl),
+      presignedExpirySeconds: values.presignedExpirySeconds ?? PRESIGNED_EXPIRY_DEFAULT_SECONDS,
       objectAcl: 'default',
       localRootPath: normalizeOptional(values.localRootPath),
       remark: normalizeOptional(values.remark),
@@ -86,6 +90,9 @@ function buildPayload(provider: FileStorageProvider, isDefault: boolean, values:
       status: values.status ?? 'enabled',
       isDefault,
       basePath: normalizeOptional(values.basePath),
+      urlStrategy: values.urlStrategy ?? 'proxy',
+      publicBaseUrl: normalizeOptional(values.publicBaseUrl),
+      presignedExpirySeconds: values.presignedExpirySeconds ?? PRESIGNED_EXPIRY_DEFAULT_SECONDS,
       objectAcl: values.objectAcl ?? 'default',
       ossRegion: normalizeOptional(values.ossRegion),
       ossEndpoint: normalizeOptional(values.ossEndpoint),
@@ -103,6 +110,9 @@ function buildPayload(provider: FileStorageProvider, isDefault: boolean, values:
       status: values.status ?? 'enabled',
       isDefault,
       basePath: normalizeOptional(values.basePath),
+      urlStrategy: values.urlStrategy ?? 'proxy',
+      publicBaseUrl: normalizeOptional(values.publicBaseUrl),
+      presignedExpirySeconds: values.presignedExpirySeconds ?? PRESIGNED_EXPIRY_DEFAULT_SECONDS,
       objectAcl: values.objectAcl ?? 'default',
       s3Region: normalizeOptional(values.s3Region),
       s3Endpoint: normalizeOptional(values.s3Endpoint),
@@ -122,6 +132,9 @@ function buildPayload(provider: FileStorageProvider, isDefault: boolean, values:
       status: values.status ?? 'enabled',
       isDefault,
       basePath: normalizeOptional(values.basePath),
+      urlStrategy: values.urlStrategy ?? 'proxy',
+      publicBaseUrl: normalizeOptional(values.publicBaseUrl),
+      presignedExpirySeconds: values.presignedExpirySeconds ?? PRESIGNED_EXPIRY_DEFAULT_SECONDS,
       objectAcl: values.objectAcl ?? 'default',
       cosRegion: normalizeOptional(values.cosRegion),
       cosBucket: normalizeOptional(values.cosBucket),
@@ -138,6 +151,9 @@ function buildPayload(provider: FileStorageProvider, isDefault: boolean, values:
       status: values.status ?? 'enabled',
       isDefault,
       basePath: normalizeOptional(values.basePath),
+      urlStrategy: values.urlStrategy ?? 'proxy',
+      publicBaseUrl: normalizeOptional(values.publicBaseUrl),
+      presignedExpirySeconds: values.presignedExpirySeconds ?? PRESIGNED_EXPIRY_DEFAULT_SECONDS,
       objectAcl: values.objectAcl ?? 'default',
       obsEndpoint: normalizeOptional(values.obsEndpoint),
       obsBucket: normalizeOptional(values.obsBucket),
@@ -154,6 +170,9 @@ function buildPayload(provider: FileStorageProvider, isDefault: boolean, values:
       status: values.status ?? 'enabled',
       isDefault,
       basePath: normalizeOptional(values.basePath),
+      urlStrategy: values.urlStrategy ?? 'proxy',
+      publicBaseUrl: normalizeOptional(values.publicBaseUrl),
+      presignedExpirySeconds: values.presignedExpirySeconds ?? PRESIGNED_EXPIRY_DEFAULT_SECONDS,
       objectAcl: 'default',
       kodoAccessKey: normalizeOptional(values.kodoAccessKey),
       kodoSecretKey: normalizeOptional(values.kodoSecretKey),
@@ -171,6 +190,9 @@ function buildPayload(provider: FileStorageProvider, isDefault: boolean, values:
       status: values.status ?? 'enabled',
       isDefault,
       basePath: normalizeOptional(values.basePath),
+      urlStrategy: values.urlStrategy ?? 'proxy',
+      publicBaseUrl: normalizeOptional(values.publicBaseUrl),
+      presignedExpirySeconds: values.presignedExpirySeconds ?? PRESIGNED_EXPIRY_DEFAULT_SECONDS,
       objectAcl: values.objectAcl ?? 'default',
       bosEndpoint: normalizeOptional(values.bosEndpoint),
       bosBucket: normalizeOptional(values.bosBucket),
@@ -187,6 +209,9 @@ function buildPayload(provider: FileStorageProvider, isDefault: boolean, values:
       status: values.status ?? 'enabled',
       isDefault,
       basePath: normalizeOptional(values.basePath),
+      urlStrategy: values.urlStrategy ?? 'proxy',
+      publicBaseUrl: normalizeOptional(values.publicBaseUrl),
+      presignedExpirySeconds: values.presignedExpirySeconds ?? PRESIGNED_EXPIRY_DEFAULT_SECONDS,
       objectAcl: 'default',
       azureAccountName: normalizeOptional(values.azureAccountName),
       azureAccountKey: normalizeOptional(values.azureAccountKey),
@@ -203,6 +228,9 @@ function buildPayload(provider: FileStorageProvider, isDefault: boolean, values:
     status: values.status ?? 'enabled',
     isDefault,
     basePath: normalizeOptional(values.basePath),
+    urlStrategy: values.urlStrategy ?? 'proxy',
+    publicBaseUrl: normalizeOptional(values.publicBaseUrl),
+    presignedExpirySeconds: values.presignedExpirySeconds ?? PRESIGNED_EXPIRY_DEFAULT_SECONDS,
     objectAcl: 'default',
     sftpHost: normalizeOptional(values.sftpHost),
     sftpPort: values.sftpPort,
@@ -438,6 +466,21 @@ export default function FileStorageConfigsPage() {
       },
     },
     {
+      title: '访问策略',
+      dataIndex: 'urlStrategy',
+      width: 120,
+      align: 'center',
+      render: (value: FileUrlStrategy | undefined) => {
+        const strategy = value ?? 'proxy';
+        const colorMap: Record<FileUrlStrategy, 'grey' | 'green' | 'purple'> = {
+          proxy: 'grey',
+          public: 'green',
+          presigned: 'purple',
+        };
+        return <Tag color={colorMap[strategy]} size="small">{FILE_URL_STRATEGY_LABELS[strategy]}</Tag>;
+      },
+    },
+    {
       title: '更新时间',
       dataIndex: 'updatedAt',
       width: 180,
@@ -513,6 +556,9 @@ export default function FileStorageConfigsPage() {
       ...editingConfig,
       basePath: editingConfig.basePath ?? '',
       objectAcl: editingConfig.objectAcl ?? 'default',
+      urlStrategy: editingConfig.urlStrategy ?? 'proxy',
+      publicBaseUrl: editingConfig.publicBaseUrl ?? '',
+      presignedExpirySeconds: editingConfig.presignedExpirySeconds ?? PRESIGNED_EXPIRY_DEFAULT_SECONDS,
       localRootPath: editingConfig.localRootPath ?? '',
       ossRegion: editingConfig.ossRegion ?? '',
       ossEndpoint: editingConfig.ossEndpoint ?? '',
@@ -562,6 +608,9 @@ export default function FileStorageConfigsPage() {
       isDefault: false,
       basePath: 'uploads',
       objectAcl: 'default',
+      urlStrategy: 'proxy',
+      publicBaseUrl: '',
+      presignedExpirySeconds: PRESIGNED_EXPIRY_DEFAULT_SECONDS,
       localRootPath: 'storage/local',
       remark: '',
     };
@@ -675,7 +724,7 @@ export default function FileStorageConfigsPage() {
           allowEmpty
           initValues={initValues}
           labelPosition="left"
-          labelWidth={120}
+          labelWidth={140}
         >
           <div className="storage-config-form-header">
             <Text strong>配置选项</Text>
@@ -744,6 +793,42 @@ export default function FileStorageConfigsPage() {
               ))}
             </Form.RadioGroup>
           )}
+
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Select
+                field="urlStrategy"
+                label="访问策略"
+                style={{ width: '100%' }}
+                extraText="代理：文件流量经过服务端（兜底）；公开直链：返回永久直连地址，要求对象可公开读；临时签名：按需签发限时直连地址，适合私有文件（本地磁盘 / SFTP 不支持）"
+              >
+                {FILE_URL_STRATEGY_OPTIONS.map((opt) => (
+                  <Select.Option key={opt.value} value={opt.value}>{opt.label}</Select.Option>
+                ))}
+              </Form.Select>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.InputNumber
+                field="presignedExpirySeconds"
+                label="签名有效期（秒）"
+                style={{ width: '100%' }}
+                min={PRESIGNED_EXPIRY_MIN_SECONDS}
+                max={PRESIGNED_EXPIRY_MAX_SECONDS}
+                extraText="仅临时签名策略生效；修改只影响新签发的链接"
+              />
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Input
+                field="publicBaseUrl"
+                label="访问域名（CDN）"
+                placeholder="可选，例如 https://cdn.example.com，公开直链优先使用该域名"
+              />
+            </Col>
+          </Row>
 
           {formProvider === 'local' && (
             <Row gutter={16}>

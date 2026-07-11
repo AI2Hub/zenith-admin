@@ -2,10 +2,10 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, okBody, errBody } from '../../lib/openapi-schemas';
-import { ManagedFileDTO, StorageBrowseResultDTO, FileStatsDTO, SheetPreviewDTO, UploadSessionInitDTO, UploadChunkResultDTO, UploadSessionStatusDTO } from '../../lib/openapi-dtos';
+import { ManagedFileDTO, StorageBrowseResultDTO, FileStatsDTO, SheetPreviewDTO, UploadSessionInitDTO, UploadChunkResultDTO, UploadSessionStatusDTO, FileAccessUrlDTO } from '../../lib/openapi-dtos';
 import { initChunkUploadSchema, completeChunkUploadSchema } from '@zenith/shared';
 import {
-  getStoredFileForRead, listManagedFiles, getManagedFile, uploadManagedFileFromBody, deleteManagedFile, batchDeleteFiles, getManagedFileBeforeAudit, getManagedFilesBeforeAudit, batchDownloadFilesAsZip, browseStorageFiles, getFileStats, getSheetPreview,
+  getStoredFileForRead, listManagedFiles, getManagedFile, uploadManagedFileFromBody, deleteManagedFile, batchDeleteFiles, getManagedFileBeforeAudit, getManagedFilesBeforeAudit, batchDownloadFilesAsZip, browseStorageFiles, getFileStats, getSheetPreview, getFileAccessUrl,
 } from '../../services/files/files.service';
 import { initChunkUpload, uploadChunk, completeChunkUpload, getUploadStatus, abortChunkUpload } from '../../services/files/upload-sessions.service';
 import { readStoredFile } from '../../lib/file-storage';
@@ -120,6 +120,30 @@ const contentRoute = defineOpenAPIRoute({
         ...cacheHeaders,
       },
     });
+  },
+});
+
+const accessUrlRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/access-url', tags: ['Files'], summary: '解析文件访问直链（按存储配置策略，presigned 每次签发新鲜 URL）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: {
+      params: FileIdParam,
+      query: z.object({ purpose: z.enum(['preview', 'download']).optional() }),
+    },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(FileAccessUrlDTO, '文件访问地址'),
+      404: { content: jsonContent(ErrorResponse), description: '文件不存在' },
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const { purpose } = c.req.valid('query');
+    const access = await getFileAccessUrl(id, purpose);
+    // 签名 URL 属敏感短时凭证，禁止任何中间层缓存
+    return c.json(okBody(access), 200, { 'Cache-Control': 'private, no-store' });
   },
 });
 
@@ -402,7 +426,7 @@ const uploadAbortRoute = defineOpenAPIRoute({
   },
 });
 
-filesRouter.openapiRoutes([contentRoute, sheetPreviewRoute, statsRoute, listRoute, browseRoute, uploadInitRoute, uploadChunkRoute, uploadCompleteRoute, uploadStatusRoute, uploadAbortRoute, getOneRoute, uploadRoute, uploadOneRoute, batchDeleteRoute, deleteRoute] as const);
+filesRouter.openapiRoutes([contentRoute, accessUrlRoute, sheetPreviewRoute, statsRoute, listRoute, browseRoute, uploadInitRoute, uploadChunkRoute, uploadCompleteRoute, uploadStatusRoute, uploadAbortRoute, getOneRoute, uploadRoute, uploadOneRoute, batchDeleteRoute, deleteRoute] as const);
 
 // 非 OpenAPI 路由：批量下载打包为 zip 流式响应
 filesRouter.post('/batch-download', authMiddleware, guard({ permission: 'system:file:list' }), async (c) => {

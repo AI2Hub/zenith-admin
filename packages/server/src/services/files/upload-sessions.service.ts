@@ -8,7 +8,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { InitChunkUploadInput } from '@zenith/shared';
 import { db } from '../../db';
 import { uploadSessions, uploadChunks, managedFiles, fileStorageConfigs } from '../../db/schema';
-import { buildUploadObjectKey, uploadObjectByConfig, extractBucketName, getMultipartDriver, mapObjectAclError } from '../../lib/file-storage';
+import { buildUploadObjectKey, uploadObjectByConfig, extractBucketName, getMultipartDriver, mapObjectAclError, resolveObjectAcl } from '../../lib/file-storage';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
 import { getConfigNumber } from '../../lib/system-config';
@@ -99,6 +99,7 @@ export async function initChunkUpload(input: InitChunkUploadInput) {
     objectKey,
     bucketName: extractBucketName(defaultConfig),
     multipartUploadId,
+    objectAcl: resolveObjectAcl(defaultConfig),
     tenantId: getCreateTenantId(user),
   });
   if (!driver) await fs.mkdir(sessionTempDir(uploadId), { recursive: true });
@@ -204,6 +205,7 @@ export async function completeChunkUpload(uploadId: string) {
       size: session.fileSize,
       mimeType: session.mimeType,
       extension,
+      objectAcl: session.objectAcl,
       tenantId: getCreateTenantId(user),
     })
     .returning();
@@ -211,7 +213,7 @@ export async function completeChunkUpload(uploadId: string) {
   await db.update(uploadSessions).set({ status: 'completed' }).where(eq(uploadSessions.id, session.id));
   await cleanupSession(uploadId);
 
-  return mapManagedFile(created);
+  return mapManagedFile(created, config);
 }
 
 export async function abortChunkUpload(uploadId: string) {

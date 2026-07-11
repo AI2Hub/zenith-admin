@@ -258,6 +258,17 @@ export type FileStorageProvider = 'local' | 'oss' | 's3' | 'cos' | 'obs' | 'kodo
 /** 对象读写权限（canned ACL）；default = 继承 Bucket */
 export type FileObjectAcl = 'default' | 'private' | 'public-read' | 'public-read-write';
 
+/** 文件访问 URL 策略；proxy=服务端代理，public=永久公开直链，presigned=临时签名直链 */
+export type FileUrlStrategy = 'proxy' | 'public' | 'presigned';
+
+/** access-url 接口返回的文件访问地址（presigned 每次返回新鲜签名，禁止长期缓存） */
+export interface FileAccessUrl {
+  url: string;
+  strategy: FileUrlStrategy;
+  /** 签名过期时间（YYYY-MM-DD HH:mm:ss）；public/proxy 为 null */
+  expiresAt: string | null;
+}
+
 export interface FileStorageConfig {
   id: number;
   name: string;
@@ -267,6 +278,12 @@ export interface FileStorageConfig {
   basePath?: string;
   /** 对象读写权限（仅 oss/s3/cos/obs/bos 生效）；default = 继承 Bucket */
   objectAcl?: FileObjectAcl;
+  /** 文件访问 URL 策略 */
+  urlStrategy: FileUrlStrategy;
+  /** 自定义访问域名（CDN/加速域名），public 策略优先使用 */
+  publicBaseUrl?: string;
+  /** 临时签名有效期（秒） */
+  presignedExpirySeconds: number;
   localRootPath?: string;
   // 阿里云 OSS
   ossRegion?: string;

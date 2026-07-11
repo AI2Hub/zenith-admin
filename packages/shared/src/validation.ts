@@ -30,6 +30,9 @@ import {
 import type { WorkflowFormField, MpMenuButton, MpArticle } from './types';
 import {
   FILE_OBJECT_ACL_SUPPORT,
+  PRESIGNED_EXPIRY_DEFAULT_SECONDS,
+  PRESIGNED_EXPIRY_MAX_SECONDS,
+  PRESIGNED_EXPIRY_MIN_SECONDS,
   REPORT_DASHBOARD_LIFECYCLE_STATUSES,
   REPORT_DASHBOARD_VERSION_SOURCES,
 } from './constants';
@@ -224,6 +227,15 @@ const baseFileStorageConfigSchema = z.object({
   basePath: z.string().max(256).optional(),
   // 对象读写权限（仅 oss/s3/cos/obs/bos 生效）；default = 继承 Bucket
   objectAcl: z.enum(['default', 'private', 'public-read', 'public-read-write']).default('default'),
+  // 文件访问 URL 策略
+  urlStrategy: z.enum(['proxy', 'public', 'presigned']).default('proxy'),
+  // 自定义访问域名（CDN/加速域名），public 策略优先使用
+  publicBaseUrl: z.string().max(512).regex(/^https?:\/\/.+/, '访问域名必须以 http:// 或 https:// 开头').optional().or(z.literal('')),
+  // 临时签名有效期（秒）
+  presignedExpirySeconds: z.number().int()
+    .min(PRESIGNED_EXPIRY_MIN_SECONDS, `签名有效期不能小于 ${PRESIGNED_EXPIRY_MIN_SECONDS} 秒`)
+    .max(PRESIGNED_EXPIRY_MAX_SECONDS, `签名有效期不能大于 ${PRESIGNED_EXPIRY_MAX_SECONDS} 秒（7 天）`)
+    .default(PRESIGNED_EXPIRY_DEFAULT_SECONDS),
   // 本地存储
   localRootPath: z.string().max(512).optional(),
   // 阿里云 OSS
@@ -283,6 +295,24 @@ export const createFileStorageConfigSchema = baseFileStorageConfigSchema.superRe
       ? `该存储类型的对象读写权限仅支持：${supportedAcls.join(' / ')}`
       : '该存储类型不支持设置对象读写权限';
     ctx.addIssue({ code: 'custom', message, path: ['objectAcl'] });
+  }
+  // URL 策略与 provider/ACL 的矛盾校验
+  if (data.urlStrategy === 'presigned' && (data.provider === 'local' || data.provider === 'sftp')) {
+    ctx.addIssue({ code: 'custom', message: '本地磁盘 / SFTP 不支持临时签名直链，请选择服务端代理或公开直链', path: ['urlStrategy'] });
+  }
+  if (data.urlStrategy === 'public') {
+    if (supportedAcls && !['public-read', 'public-read-write'].includes(data.objectAcl)) {
+      ctx.addIssue({ code: 'custom', message: '公开直链要求对象读写权限为 public-read 或 public-read-write', path: ['objectAcl'] });
+    }
+    if (data.provider === 'local' && !data.publicBaseUrl) {
+      ctx.addIssue({ code: 'custom', message: '本地磁盘使用公开直链需要配置访问域名', path: ['publicBaseUrl'] });
+    }
+    if (data.provider === 'sftp' && !data.publicBaseUrl && !data.sftpBaseUrl) {
+      ctx.addIssue({ code: 'custom', message: 'SFTP 使用公开直链需要配置访问域名或 SFTP 访问地址', path: ['publicBaseUrl'] });
+    }
+    if (data.provider === 'kodo' && !data.publicBaseUrl && !data.kodoEndpoint) {
+      ctx.addIssue({ code: 'custom', message: '七牛云 Kodo 使用公开直链需要配置访问域名或下载域名', path: ['publicBaseUrl'] });
+    }
   }
   if (data.provider === 'local' && !data.localRootPath) {
     ctx.addIssue({ code: 'custom', message: '本地磁盘配置需要填写存储目录', path: ['localRootPath'] });

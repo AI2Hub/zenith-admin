@@ -22,7 +22,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { request } from '@/utils/request';
 import { formatDateTime, formatConvTime, formatDateTimeForApi } from '@/utils/date';
-import { formatFileSize, getFileTypeIcon, fetchProtectedFile, canPreviewFile, isSpreadsheetFile } from '@/utils/file-utils';
+import { formatFileSize, getFileTypeIcon, fetchManagedFileBlob, canPreviewFile, isSpreadsheetFile } from '@/utils/file-utils';
 import FilePreviewModal from '@/components/FilePreviewModal';
 import type {
   ChatConversation, ChatMessage, WsMessage, ChatLinkPreview, ChatAssetMeta, ChatMessageExtra,
@@ -271,7 +271,7 @@ export default function ChatPage({
     const asset = item.extra?.asset;
     if (!asset || !canPreviewFile(asset.mimeType)) return;
     if (isSpreadsheetFile(asset.mimeType) && !asset.fileId) {
-      void fetchProtectedFile(item.content).then((blob) => {
+      void fetchManagedFileBlob(item.content).then((blob) => {
         const objectUrl = globalThis.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = objectUrl;
@@ -559,7 +559,7 @@ export default function ChatPage({
     if (clickedIndex < 0) return;
     cleanupPreviewBlobs();
     try {
-      const clickedBlob = await fetchProtectedFile(clickedMsg.content);
+      const clickedBlob = await fetchManagedFileBlob(clickedMsg.content);
       if (previewSessionRef.current !== session) return;
       const clickedUrl = URL.createObjectURL(clickedBlob);
       previewBlobUrlsRef.current[clickedIndex] = clickedUrl;
@@ -571,7 +571,7 @@ export default function ChatPage({
       for (const [i, imgMsg] of allImgs.entries()) {
         if (i === clickedIndex) continue;
         try {
-          const blob = await fetchProtectedFile(imgMsg.content);
+          const blob = await fetchManagedFileBlob(imgMsg.content);
           if (previewSessionRef.current !== session) break;
           const url = URL.createObjectURL(blob);
           previewBlobUrlsRef.current[i] = url;
@@ -3064,7 +3064,7 @@ export default function ChatPage({
                             if (!asset || !canPreviewFile(asset.mimeType)) return;
                             // xlsx 历史消息无 fileId，退化为下载避免报错
                             if (isSpreadsheetFile(asset.mimeType) && !asset.fileId) {
-                              void fetchProtectedFile(fileMsg.content).then((blob) => {
+                              void fetchManagedFileBlob(fileMsg.content).then((blob) => {
                                 const objectUrl = globalThis.URL.createObjectURL(blob);
                                 const link = document.createElement('a');
                                 link.href = objectUrl;

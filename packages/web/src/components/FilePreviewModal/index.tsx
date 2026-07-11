@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Modal, Spin, Toast, AudioPlayer, VideoPlayer, Typography } from '@douyinfe/semi-ui';
 import { X } from 'lucide-react';
 import { useThemeController } from '@/providers/theme-controller';
-import { fetchProtectedFile, isSpreadsheetFile, isWordFile, isMarkdownFile, isPlainTextFile, isZipFile, isJsonFile, isSvgFile, isCodeFile, getFileTypeIcon } from '@/utils/file-utils';
+import { fetchManagedFileBlob, isSpreadsheetFile, isWordFile, isMarkdownFile, isPlainTextFile, isZipFile, isJsonFile, isSvgFile, isCodeFile, getFileTypeIcon } from '@/utils/file-utils';
 import { request } from '@/utils/request';
 import AppModal from '@/components/AppModal';
 import { unwrap } from '@/lib/query';
@@ -114,7 +114,7 @@ export default function FilePreviewModal({
         const data = await request.get<IWorkbookData>(`/api/files/${fileId}/sheet-preview`, { silent: true }).then(unwrap);
         return { kind: 'spreadsheet', data };
       }
-      const blob = await fetchProtectedFile(fileUrl);
+      const blob = await fetchManagedFileBlob(fileUrl);
       if (previewKind === 'word') return { kind: 'word', blob };
       if (previewKind === 'markdown') return { kind: 'markdown', text: await blob.text() };
       if (previewKind === 'plainText') return { kind: 'plainText', text: await blob.text() };

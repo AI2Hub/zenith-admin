@@ -371,6 +371,18 @@ export const filesHandlers = [
     return HttpResponse.json({ code: 0, message: 'ok', data });
   }),
 
+  // 解析文件访问直链（必须放在 /api/files/:id 之前）
+  http.get('/api/files/:id/access-url', ({ params }) => {
+    const file = mockManagedFiles.find((f) => f.id === String(params.id));
+    if (!file) return HttpResponse.json({ code: 404, message: '文件不存在', data: null });
+    const isExternal = /^https?:\/\//.test(file.url);
+    return HttpResponse.json({
+      code: 0,
+      message: 'ok',
+      data: { url: file.url, strategy: isExternal ? 'public' : 'proxy', expiresAt: null },
+    });
+  }),
+
   // 获取单个文件详情
   http.get('/api/files/:id', ({ params }) => {
     const file = mockManagedFiles.find((f) => f.id === String(params.id));
@@ -453,6 +465,8 @@ export const filesHandlers = [
       status: body.status ?? 'enabled',
       isDefault: body.isDefault ?? false,
       ...body,
+      urlStrategy: body.urlStrategy ?? 'proxy',
+      presignedExpirySeconds: body.presignedExpirySeconds ?? 1800,
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
     };

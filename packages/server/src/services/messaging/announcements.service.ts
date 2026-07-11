@@ -7,7 +7,8 @@ import { broadcast, sendToUser } from '../../lib/ws-manager';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
-import { buildManagedFileUrl } from '../../lib/file-storage';
+import { buildStableFileUrl } from '../../lib/file-storage';
+import { getStorageConfigMap } from '../files/files.service';
 import { saveBusinessFiles } from '../files/business-files.service';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 
@@ -101,6 +102,7 @@ export async function getAnnouncementAttachments(announcementId: number): Promis
     .orderBy(asc(businessFiles.sortOrder));
 
   const validRows = rows.filter((r): r is typeof r & { managed_files: NonNullable<typeof r.managed_files> } => r.managed_files !== null);
+  const configMap = validRows.length > 0 ? await getStorageConfigMap() : new Map();
   return validRows.map((r) => {
       const file = r.managed_files;
       return {
@@ -112,7 +114,7 @@ export async function getAnnouncementAttachments(announcementId: number): Promis
           size: file.size,
           mimeType: file.mimeType ?? null,
           extension: file.extension ?? null,
-          url: buildManagedFileUrl(file.id),
+          url: buildStableFileUrl(file, configMap.get(file.storageConfigId)),
         },
         sortOrder: r.business_files.sortOrder ?? 0,
         createdAt: formatDateTime(r.business_files.createdAt),
@@ -381,6 +383,7 @@ export async function getAnnouncementDetail(id: number) {
 
   // 处理附件
   const validRows = attachmentRows.filter((r): r is typeof r & { managed_files: NonNullable<typeof r.managed_files> } => r.managed_files !== null);
+  const attachmentConfigMap = validRows.length > 0 ? await getStorageConfigMap() : new Map();
   const attachments = validRows.map((r) => {
     const file = r.managed_files;
     return {
@@ -392,7 +395,7 @@ export async function getAnnouncementDetail(id: number) {
         size: file.size,
         mimeType: file.mimeType ?? null,
         extension: file.extension ?? null,
-        url: buildManagedFileUrl(file.id),
+        url: buildStableFileUrl(file, attachmentConfigMap.get(file.storageConfigId)),
       },
       sortOrder: r.business_files.sortOrder ?? 0,
       createdAt: formatDateTime(r.business_files.createdAt),

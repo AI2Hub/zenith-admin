@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { FileStats, ManagedFile, PaginatedResponse } from '@zenith/shared';
+import type { FileAccessUrl, FileStats, ManagedFile, PaginatedResponse } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 
@@ -42,6 +42,14 @@ export function useFileStats() {
     queryKey: fileKeys.stats,
     queryFn: () => request.get<FileStats>('/api/files/stats').then(unwrap),
   });
+}
+
+/**
+ * 解析文件访问直链（presigned 每次签发新鲜 URL，故为普通函数而非 useQuery，禁止进缓存）。
+ * purpose=download 时云直链会附带 attachment disposition。
+ */
+export function getFileAccessUrl(id: string, purpose?: 'preview' | 'download'): Promise<FileAccessUrl> {
+  return request.get<FileAccessUrl>(`/api/files/${id}/access-url${purpose ? `?purpose=${purpose}` : ''}`).then(unwrap);
 }
 
 export function useUploadFile() {

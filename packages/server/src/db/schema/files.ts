@@ -8,6 +8,9 @@ export const fileStorageProviderEnum = pgEnum('file_storage_provider', ['local',
 /** 对象读写权限（canned ACL）；default = 继承 Bucket（上传时不发送 ACL 参数） */
 export const fileObjectAclEnum = pgEnum('file_object_acl', ['default', 'private', 'public-read', 'public-read-write']);
 
+/** 文件访问 URL 策略：proxy=服务端代理（兜底）；public=永久公开直链；presigned=临时签名直链 */
+export const fileUrlStrategyEnum = pgEnum('file_url_strategy', ['proxy', 'public', 'presigned']);
+
 // ─── 文件存储配置表 ──────────────────────────────────────────────────────────
 export const fileStorageConfigs = pgTable('file_storage_configs', {
   id: serial('id').primaryKey(),
@@ -18,6 +21,12 @@ export const fileStorageConfigs = pgTable('file_storage_configs', {
   basePath: varchar('base_path', { length: 256 }),
   // 上传对象的读写权限，仅 oss/s3/cos/obs/bos 生效
   objectAcl: fileObjectAclEnum('object_acl').notNull().default('default'),
+  // 文件访问 URL 策略
+  urlStrategy: fileUrlStrategyEnum('url_strategy').notNull().default('proxy'),
+  // 自定义访问域名（CDN/加速域名），public 策略优先使用
+  publicBaseUrl: varchar('public_base_url', { length: 512 }),
+  // 临时签名有效期（秒）
+  presignedExpirySeconds: integer('presigned_expiry_seconds').notNull().default(1800),
   localRootPath: varchar('local_root_path', { length: 512 }),
   ossRegion: varchar('oss_region', { length: 64 }),
   ossEndpoint: varchar('oss_endpoint', { length: 128 }),
@@ -87,6 +96,8 @@ export const managedFiles = pgTable('managed_files', {
   size: integer('size').notNull().default(0),
   mimeType: varchar('mime_type', { length: 128 }),
   extension: varchar('extension', { length: 32 }),
+  // 上传时实际发送的对象 ACL 快照；null = 继承 Bucket（公开性未知）
+  objectAcl: fileObjectAclEnum('object_acl'),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -114,6 +125,8 @@ export const uploadSessions = pgTable('upload_sessions', {
   bucketName: varchar('bucket_name', { length: 256 }),
   // 云原生 multipart 的 uploadId；local/sftp 及回退暂存为 null
   multipartUploadId: varchar('multipart_upload_id', { length: 512 }),
+  // 初始化时实际发送的对象 ACL 快照，完成上传时拷贝到 managed_files
+  objectAcl: fileObjectAclEnum('object_acl'),
   status: uploadSessionStatusEnum('status').notNull().default('uploading'),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),

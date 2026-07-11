@@ -4,9 +4,10 @@ import { db } from '../../db';
 import { businessFiles, managedFiles } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
-import { buildManagedFileUrl } from '../../lib/file-storage';
+import { buildStableFileUrl } from '../../lib/file-storage';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
+import { getStorageConfigMap } from './files.service';
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ export async function listBusinessFiles(businessType: BusinessFileType, business
     .orderBy(asc(businessFiles.sortOrder), asc(businessFiles.id));
 
   const validRows = rows.filter((r): r is typeof r & { managed_files: NonNullable<typeof r.managed_files> } => r.managed_files !== null);
+  const configMap = validRows.length > 0 ? await getStorageConfigMap() : new Map();
   return validRows.map((r) => {
       const file = r.managed_files;
       return {
@@ -49,7 +51,7 @@ export async function listBusinessFiles(businessType: BusinessFileType, business
           size: file.size,
           mimeType: file.mimeType ?? null,
           extension: file.extension ?? null,
-          url: buildManagedFileUrl(file.id),
+          url: buildStableFileUrl(file, configMap.get(file.storageConfigId)),
         },
         createdAt: formatDateTime(r.business_files.createdAt),
       };

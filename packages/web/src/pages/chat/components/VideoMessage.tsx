@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Play } from 'lucide-react';
 import { Spin, Typography } from '@douyinfe/semi-ui';
-import { fetchProtectedFile, formatFileSize } from '@/utils/file-utils';
+import { fetchManagedFileBlob, formatFileSize } from '@/utils/file-utils';
 import type { ChatMessage } from '@zenith/shared';
 import { getMessageExtra } from '../utils';
 
@@ -22,7 +22,7 @@ export function VideoMessage({ msg, isSelf: _isSelf }: Readonly<{ msg: ChatMessa
     if (videoUrl || loading) return;
     setLoading(true);
     try {
-      const blob = await fetchProtectedFile(msg.content);
+      const blob = await fetchManagedFileBlob(msg.content);
       const url = URL.createObjectURL(blob);
       objectUrlRef.current = url;
       setVideoUrl(url);

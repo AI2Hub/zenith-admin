@@ -13,6 +13,9 @@ export const FileStorageConfigDTO = z
     isDefault: z.boolean(),
     basePath: z.string().nullable().optional(),
     objectAcl: z.enum(['default', 'private', 'public-read', 'public-read-write']),
+    urlStrategy: z.enum(['proxy', 'public', 'presigned']),
+    publicBaseUrl: z.string().nullable().optional(),
+    presignedExpirySeconds: z.number().int(),
     localRootPath: z.string().nullable().optional(),
     // 阿里云 OSS（不含 AccessKeySecret）
     ossRegion: z.string().nullable().optional(),
@@ -97,6 +100,14 @@ export const ManagedFileDTO = z
     updatedAt: z.string(),
   })
   .openapi('ManagedFile');
+
+export const FileAccessUrlDTO = z
+  .object({
+    url: z.string().openapi({ example: 'https://bucket.oss-cn-hangzhou.aliyuncs.com/2026/07/11/a.png?Expires=...' }),
+    strategy: z.enum(['proxy', 'public', 'presigned']),
+    expiresAt: z.string().nullable().openapi({ description: '签名过期时间（YYYY-MM-DD HH:mm:ss）；public/proxy 为 null' }),
+  })
+  .openapi('FileAccessUrl');
 
 export const FolderEntryDTO = z
   .object({

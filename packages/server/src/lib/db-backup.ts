@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db';
 import { dbBackups, managedFiles, fileStorageConfigs } from '../db/schema';
 import { config } from '../config';
-import { uploadFileByConfig } from './file-storage';
+import { uploadFileByConfig, extractBucketName, resolveObjectAcl } from './file-storage';
 import logger from './logger';
 import { formatFileTimestamp } from './datetime';
 
@@ -42,9 +42,11 @@ async function uploadBackupToStorage(filePath: string, filename: string, mimeTyp
       provider: storageCfg.provider,
       originalName: filename,
       objectKey: uploaded.objectKey,
+      bucketName: extractBucketName(storageCfg),
       size: uploaded.size,
       mimeType: uploaded.mimeType,
       extension: uploaded.extension,
+      objectAcl: resolveObjectAcl(storageCfg),
     })
     .returning();
   return managedFile.id;

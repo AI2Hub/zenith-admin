@@ -1,9 +1,10 @@
 import { managedFiles, fileStorageConfigs, users } from '../../db/schema';
-import { buildManagedFileUrl, deleteStoredFile, readStoredFile, uploadFileByConfig } from '../../lib/file-storage';
+import type { FileStorageConfigRow } from '../../db/schema';
+import { buildStableFileUrl, deleteStoredFile, readStoredFile, resolveFileAccessUrl, resolveObjectAcl, uploadFileByConfig } from '../../lib/file-storage';
 import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { getConfigBoolean, getConfigValue, getConfigNumber } from '../../lib/system-config';
 
-export function mapManagedFile(row: typeof managedFiles.$inferSelect) {
+export function mapManagedFile(row: typeof managedFiles.$inferSelect, config?: FileStorageConfigRow) {
   return {
     id: row.id,
     storageConfigId: row.storageConfigId,
@@ -14,7 +15,7 @@ export function mapManagedFile(row: typeof managedFiles.$inferSelect) {
     size: row.size,
     mimeType: row.mimeType ?? null,
     extension: row.extension ?? null,
-    url: buildManagedFileUrl(row.id),
+    url: buildStableFileUrl(row, config),
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
@@ -33,6 +34,12 @@ import { csvTextToWorkbookData } from '../../lib/csv-to-univer';
 import { runAsUser } from '../../lib/audit-context';
 
 const SPREADSHEET_PREVIEW_MAX_BYTES = 10 * 1024 * 1024;
+
+/** 全量存储配置 id→row 映射（配置表行数极少），供列表映射直链使用 */
+export async function getStorageConfigMap(): Promise<Map<number, FileStorageConfigRow>> {
+  const rows = await db.select().from(fileStorageConfigs);
+  return new Map(rows.map((r) => [r.id, r]));
+}
 
 /** 校验文件为可预览的表格（.xlsx 或 .csv） */
 function ensureSpreadsheetPreviewable(mimeType: string | null, extension: string | null) {
@@ -55,6 +62,20 @@ export async function getStoredFileForRead(id: string) {
     .limit(1);
   if (!storageConfig) throw new HTTPException(404, { message: '文件存储配置不存在' });
   return { file, storageConfig };
+}
+
+/** 按存储配置策略解析文件访问直链（presigned 每次签发新鲜 URL，调用方不得长期缓存） */
+export async function getFileAccessUrl(id: string, purpose?: 'preview' | 'download') {
+  const { file, storageConfig } = await getStoredFileForRead(id);
+  const contentDisposition = purpose === 'download'
+    ? `attachment; filename*=UTF-8''${encodeURIComponent(file.originalName)}`
+    : undefined;
+  const result = await resolveFileAccessUrl(file, storageConfig, { contentDisposition });
+  return {
+    url: result.url,
+    strategy: result.strategy,
+    expiresAt: result.expiresAt ? formatDateTime(result.expiresAt) : null,
+  };
 }
 
 export async function readFileContent(id: string) {
@@ -158,9 +179,10 @@ export async function listManagedFiles(query: {
   const where = and(...conditions);
   const tc = tenantCondition(managedFiles, user);
   const finalWhere = mergeWhere(where, tc);
-  const [count, paginated] = await Promise.all([
+  const [count, paginated, configMap] = await Promise.all([
     db.$count(managedFiles, finalWhere),
     withPagination(db.select().from(managedFiles).where(finalWhere).orderBy(desc(managedFiles.createdAt)).$dynamic(), page, pageSize),
+    getStorageConfigMap(),
   ]);
   const uploaderIds = [...new Set(paginated.map((f) => f.createdBy).filter((id): id is number => id != null))];
   const uploaderMap = new Map<number, string>();
@@ -172,7 +194,7 @@ export async function listManagedFiles(query: {
     for (const u of uploaders) uploaderMap.set(u.id, u.nickname || u.username);
   }
   return {
-    list: paginated.map((f) => ({ ...mapManagedFile(f), uploaderName: f.createdBy ? (uploaderMap.get(f.createdBy) ?? null) : null })),
+    list: paginated.map((f) => ({ ...mapManagedFile(f, configMap.get(f.storageConfigId)), uploaderName: f.createdBy ? (uploaderMap.get(f.createdBy) ?? null) : null })),
     total: count,
     page,
     pageSize,
@@ -249,10 +271,11 @@ export async function uploadManagedFile(file: File) {
       size: uploaded.size,
       mimeType: uploaded.mimeType,
       extension: uploaded.extension,
+      objectAcl: resolveObjectAcl(defaultConfig),
       tenantId: getCreateTenantId(user),
     })
     .returning();
-  return mapManagedFile(created);
+  return mapManagedFile(created, defaultConfig);
 }
 
 export async function saveGeneratedManagedFile(input: {
@@ -285,6 +308,7 @@ export async function saveGeneratedManagedFile(input: {
         size: uploaded.size,
         mimeType: uploaded.mimeType,
         extension: uploaded.extension,
+        objectAcl: resolveObjectAcl(defaultConfig),
         tenantId: input.tenantId,
       })
       .returning(),
@@ -350,8 +374,9 @@ export async function getManagedFile(id: string) {
     with: { createdByUser: { columns: { nickname: true, username: true } } },
   });
   if (!file) throw new HTTPException(404, { message: '文件不存在' });
+  const [config] = await db.select().from(fileStorageConfigs).where(eq(fileStorageConfigs.id, file.storageConfigId)).limit(1);
   return {
-    ...mapManagedFile(file),
+    ...mapManagedFile(file, config),
     uploaderName: file.createdByUser?.nickname || file.createdByUser?.username || null,
   };
 }
@@ -371,7 +396,7 @@ export async function getManagedFilesBeforeAudit(ids: string[]) {
   const idCondition = inArray(managedFiles.id, ids);
   const where = tc ? and(idCondition, tc) : idCondition;
   const rows = await db.select().from(managedFiles).where(where);
-  return rows.map(mapManagedFile);
+  return rows.map((row) => mapManagedFile(row));
 }
 
 function deduplicateEntryName(name: string, count: number): string {
@@ -438,9 +463,8 @@ function normalizePath(value?: string | null): string {
 
 export async function browseStorageFiles(query: { storageConfigId: number; path?: string }) {
   const user = currentUser();
-  const basePath = normalizePath(
-    (await db.select({ basePath: fileStorageConfigs.basePath }).from(fileStorageConfigs).where(eq(fileStorageConfigs.id, query.storageConfigId)).limit(1))[0]?.basePath,
-  );
+  const [storageConfig] = await db.select().from(fileStorageConfigs).where(eq(fileStorageConfigs.id, query.storageConfigId)).limit(1);
+  const basePath = normalizePath(storageConfig?.basePath);
 
   // Sanitize browsing path — reject traversal attempts
   const rawPath = normalizePath(query.path);
@@ -495,7 +519,7 @@ export async function browseStorageFiles(query: { storageConfigId: number; path?
   return {
     folders,
     files: levelFileRows.map((f) => ({
-      ...mapManagedFile(f),
+      ...mapManagedFile(f, storageConfig),
       uploaderName: f.createdBy ? (uploaderMap.get(f.createdBy) ?? null) : null,
     })),
     currentPath: rawPath,

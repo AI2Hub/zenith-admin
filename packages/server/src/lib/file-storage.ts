@@ -1,9 +1,10 @@
 import OSS from 'ali-oss';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import COS from 'cos-nodejs-sdk-v5';
 import * as qiniu from 'qiniu';
 import BosClient from '@baiducloud/sdk';
-import { BlobServiceClient, StorageSharedKeyCredential } from '@azure/storage-blob';
+import { BlobServiceClient, BlobSASPermissions, StorageSharedKeyCredential } from '@azure/storage-blob';
 import SftpClient from 'ssh2-sftp-client';
 import { randomUUID } from 'node:crypto';
 import { promises as fs, createWriteStream, createReadStream } from 'node:fs';
@@ -78,7 +79,7 @@ function resolveLocalRoot(config: FileStorageConfigRow) {
 }
 
 /** 解析上传对象 ACL；default（继承 Bucket）或该 provider 不支持的取值返回 null，表示不发送 ACL 参数 */
-function resolveObjectAcl(config: FileStorageConfigRow): 'private' | 'public-read' | 'public-read-write' | null {
+export function resolveObjectAcl(config: FileStorageConfigRow): 'private' | 'public-read' | 'public-read-write' | null {
   const acl = config.objectAcl;
   if (!acl || acl === 'default') return null;
   const supported = FILE_OBJECT_ACL_SUPPORT[config.provider];
@@ -193,8 +194,204 @@ async function sftpOperation<T>(config: FileStorageConfigRow, fn: (client: SftpC
   }
 }
 
-export function buildManagedFileUrl(fileId: string) {
+export function buildManagedFileProxyUrl(fileId: string) {
   return `/api/files/${fileId}/content`;
+}
+
+// ─── 直链解析（public / presigned / proxy 三级策略）──────────────────────────
+
+export interface FileAccessUrlResult {
+  url: string;
+  strategy: 'proxy' | 'public' | 'presigned';
+  expiresAt: Date | null;
+}
+
+/** 文件记录中直链解析所需的最小字段集 */
+interface FileUrlSource {
+  id: string;
+  provider: FileStorageConfigRow['provider'];
+  objectKey: string;
+  bucketName?: string | null;
+  objectAcl?: 'default' | 'private' | 'public-read' | 'public-read-write' | null;
+}
+
+function encodeObjectKey(objectKey: string) {
+  return objectKey.split('/').map(encodeURIComponent).join('/');
+}
+
+function trimTrailingSlash(value: string) {
+  return value.replace(/\/+$/, '');
+}
+
+/** 拆出 endpoint 的协议与主机；无协议时默认 https */
+function splitEndpoint(endpoint: string): { scheme: string; host: string } {
+  const matched = /^(https?):\/\//.exec(endpoint);
+  if (matched) return { scheme: matched[1], host: trimTrailingSlash(endpoint.slice(matched[0].length)) };
+  return { scheme: 'https', host: trimTrailingSlash(endpoint) };
+}
+
+/**
+ * 公开性判定：有对象级 ACL 的云要求上传时快照为 public-read*；
+ * 快照为 null（继承 Bucket / 旧数据）保守视为未知，不走公开直链。
+ * 无对象级 ACL 概念的 provider（local/sftp/kodo/azure）信任管理员的策略配置。
+ */
+function publicAclAllowed(file: FileUrlSource): boolean {
+  if (!FILE_OBJECT_ACL_SUPPORT[file.provider]) return true;
+  return file.objectAcl === 'public-read' || file.objectAcl === 'public-read-write';
+}
+
+/** 按 provider 拼接永久公开直链；无法构造时返回 null。config 需已被 withFileBucket 处理。 */
+function buildPublicObjectUrl(config: FileStorageConfigRow, objectKey: string): string | null {
+  const key = encodeObjectKey(objectKey);
+  if (config.publicBaseUrl) return `${trimTrailingSlash(config.publicBaseUrl)}/${key}`;
+  switch (config.provider) {
+    case 'oss': {
+      if (!config.ossBucket || !config.ossEndpoint) return null;
+      const { scheme, host } = splitEndpoint(config.ossEndpoint);
+      return `${scheme}://${config.ossBucket}.${host}/${key}`;
+    }
+    case 's3': {
+      if (!config.s3Bucket) return null;
+      if (config.s3Endpoint) {
+        const { scheme, host } = splitEndpoint(config.s3Endpoint);
+        return config.s3ForcePathStyle
+          ? `${scheme}://${host}/${config.s3Bucket}/${key}`
+          : `${scheme}://${config.s3Bucket}.${host}/${key}`;
+      }
+      return config.s3Region ? `https://${config.s3Bucket}.s3.${config.s3Region}.amazonaws.com/${key}` : null;
+    }
+    case 'cos':
+      return config.cosBucket && config.cosRegion
+        ? `https://${config.cosBucket}.cos.${config.cosRegion}.myqcloud.com/${key}`
+        : null;
+    case 'obs': {
+      if (!config.obsBucket || !config.obsEndpoint) return null;
+      const { scheme, host } = splitEndpoint(config.obsEndpoint);
+      return `${scheme}://${config.obsBucket}.${host}/${key}`;
+    }
+    case 'kodo': {
+      // kodoEndpoint 即下载域名（与 readStoredFile 的私有下载一致）
+      if (!config.kodoEndpoint) return null;
+      const { scheme, host } = splitEndpoint(config.kodoEndpoint);
+      return `${scheme}://${host}/${key}`;
+    }
+    case 'bos': {
+      if (!config.bosBucket || !config.bosEndpoint) return null;
+      const { scheme, host } = splitEndpoint(config.bosEndpoint);
+      return `${scheme}://${config.bosBucket}.${host}/${key}`;
+    }
+    case 'azure': {
+      if (!config.azureAccountName || !config.azureContainerName) return null;
+      const base = config.azureEndpoint || `https://${config.azureAccountName}.blob.core.windows.net`;
+      return `${trimTrailingSlash(base)}/${config.azureContainerName}/${key}`;
+    }
+    case 'sftp':
+      return config.sftpBaseUrl ? `${trimTrailingSlash(config.sftpBaseUrl)}/${key}` : null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * 用官方 SDK 本地签发临时下载直链（不发网络请求）；local/sftp 等不支持的返回 null。
+ * config 需已被 withFileBucket 处理。
+ */
+async function presignObjectUrl(
+  config: FileStorageConfigRow,
+  objectKey: string,
+  expirySeconds: number,
+  contentDisposition?: string,
+): Promise<string | null> {
+  switch (config.provider) {
+    case 'oss': {
+      const client = createOssClient(config);
+      return client.signatureUrl(objectKey, {
+        expires: expirySeconds,
+        ...(contentDisposition ? { response: { 'content-disposition': contentDisposition } } : {}),
+      });
+    }
+    case 's3': {
+      const client = createS3Client(config);
+      return getSignedUrl(client, new GetObjectCommand({
+        Bucket: config.s3Bucket!,
+        Key: objectKey,
+        ...(contentDisposition ? { ResponseContentDisposition: contentDisposition } : {}),
+      }), { expiresIn: expirySeconds });
+    }
+    case 'cos': {
+      const cos = createCosClient(config);
+      return new Promise<string>((resolve, reject) => {
+        cos.getObjectUrl(
+          { Bucket: config.cosBucket!, Region: config.cosRegion!, Key: objectKey, Sign: true, Expires: expirySeconds },
+          (err, data) => (err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(data.Url)),
+        );
+      });
+    }
+    case 'obs': {
+      const obs = createObsClient(config) as ObsClientType & {
+        createSignedUrlSync(params: Record<string, unknown>): { SignedUrl: string };
+      };
+      return obs.createSignedUrlSync({ Method: 'GET', Bucket: config.obsBucket!, Key: objectKey, Expires: expirySeconds }).SignedUrl;
+    }
+    case 'kodo': {
+      const domain = config.publicBaseUrl || config.kodoEndpoint;
+      if (!domain) return null;
+      const { mac, conf } = createKodoUploader(config);
+      const bucketManager = new qiniu.rs.BucketManager(mac, conf);
+      const { scheme, host } = splitEndpoint(domain);
+      return bucketManager.privateDownloadUrl(`${scheme}://${host}`, objectKey, Math.floor(Date.now() / 1000) + expirySeconds);
+    }
+    case 'bos': {
+      const bosClient = createBosClient(config) as unknown as BosStreamClient;
+      return bosClient.generatePresignedUrl(config.bosBucket!, objectKey, Math.floor(Date.now() / 1000), expirySeconds);
+    }
+    case 'azure': {
+      const containerClient = createAzureBlobClient(config);
+      const blockBlobClient = containerClient.getBlockBlobClient(objectKey);
+      return blockBlobClient.generateSasUrl({
+        permissions: BlobSASPermissions.parse('r'),
+        expiresOn: new Date(Date.now() + expirySeconds * 1000),
+        ...(contentDisposition ? { contentDisposition } : {}),
+      });
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * 稳定 URL（永不过期，可安全进入列表缓存）：
+ * public 策略且文件公开性满足时返回永久直链，其余一律返回服务端代理路径。
+ */
+export function buildStableFileUrl(file: FileUrlSource, config?: FileStorageConfigRow): string {
+  if (config?.urlStrategy === 'public' && publicAclAllowed(file)) {
+    const url = buildPublicObjectUrl(withFileBucket(file, config), file.objectKey);
+    if (url) return url;
+  }
+  return buildManagedFileProxyUrl(file.id);
+}
+
+/**
+ * 按存储配置的 urlStrategy 解析文件访问地址，降级链：public → presigned → proxy。
+ * presigned 结果含过期时间，禁止长期缓存。
+ */
+export async function resolveFileAccessUrl(
+  file: FileUrlSource,
+  config: FileStorageConfigRow,
+  options?: { contentDisposition?: string },
+): Promise<FileAccessUrlResult> {
+  const effective = withFileBucket(file, config);
+  const strategy = config.urlStrategy;
+  if (strategy === 'public' && publicAclAllowed(file)) {
+    const url = buildPublicObjectUrl(effective, file.objectKey);
+    if (url) return { url, strategy: 'public', expiresAt: null };
+  }
+  if (strategy === 'public' || strategy === 'presigned') {
+    const expirySeconds = config.presignedExpirySeconds || 1800;
+    const url = await presignObjectUrl(effective, file.objectKey, expirySeconds, options?.contentDisposition);
+    if (url) return { url, strategy: 'presigned', expiresAt: new Date(Date.now() + expirySeconds * 1000) };
+  }
+  return { url: buildManagedFileProxyUrl(file.id), strategy: 'proxy', expiresAt: null };
 }
 
 /**

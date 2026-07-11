@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import type { ManagedFile } from '@zenith/shared';
-import { canPreviewFile, fetchProtectedFile } from '@/utils/file-utils';
+import { canPreviewFile, fetchManagedFileBlob } from '@/utils/file-utils';
 
 interface FilePreviewTarget {
   id: string;
@@ -44,7 +44,7 @@ export function useFilePreview(getImageFiles: () => ManagedFile[]) {
 
     if (!isPreviewable && !isImage) {
       try {
-        const blob = await fetchProtectedFile(file.url);
+        const blob = await fetchManagedFileBlob(file.url);
         const objectUrl = globalThis.URL.createObjectURL(blob);
         globalThis.open(objectUrl, '_blank', 'noopener,noreferrer');
         globalThis.setTimeout(() => globalThis.URL.revokeObjectURL(objectUrl), 60_000);
@@ -85,7 +85,7 @@ export function useFilePreview(getImageFiles: () => ManagedFile[]) {
       previewBlobUrlsRef.current = [...initialUrls];
 
       // 优先加载被点击的图片 → 立即展示预览
-      const clickedBlob = await fetchProtectedFile(imageFiles[clickedIndex].url);
+      const clickedBlob = await fetchManagedFileBlob(imageFiles[clickedIndex].url);
       if (previewSessionRef.current !== mySession) return; // 用户在加载完成前已关闭预览
       const clickedUrl = globalThis.URL.createObjectURL(clickedBlob);
       initialUrls[clickedIndex] = clickedUrl;
@@ -99,7 +99,7 @@ export function useFilePreview(getImageFiles: () => ManagedFile[]) {
       imageFiles.forEach(async (imgFile, i) => {
         if (i === clickedIndex) return;
         try {
-          const blob = await fetchProtectedFile(imgFile.url);
+          const blob = await fetchManagedFileBlob(imgFile.url);
           if (previewSessionRef.current !== mySession) return;
           const url = globalThis.URL.createObjectURL(blob);
           previewBlobUrlsRef.current[i] = url;
@@ -120,7 +120,7 @@ export function useFilePreview(getImageFiles: () => ManagedFile[]) {
   const handleDownload = async (file: ManagedFile) => {
     setDownloadLoadingId(file.id);
     try {
-      const blob = await fetchProtectedFile(file.url);
+      const blob = await fetchManagedFileBlob(file.url);
       const objectUrl = globalThis.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = objectUrl;

@@ -50,6 +50,23 @@ export const FILE_OBJECT_ACL_SUPPORT: Partial<Record<(typeof FILE_STORAGE_PROVID
   bos: ['default', 'private', 'public-read'],
 };
 
+/** 文件访问 URL 策略：proxy=服务端代理（兜底）；public=永久公开直链；presigned=临时签名直链 */
+export const FILE_URL_STRATEGIES = ['proxy', 'public', 'presigned'] as const;
+
+export const FILE_URL_STRATEGY_LABELS: Record<(typeof FILE_URL_STRATEGIES)[number], string> = {
+  proxy: '服务端代理',
+  public: '公开直链',
+  presigned: '临时签名直链',
+};
+
+export const FILE_URL_STRATEGY_OPTIONS: Array<{ value: (typeof FILE_URL_STRATEGIES)[number]; label: string }> =
+  FILE_URL_STRATEGIES.map((value) => ({ value, label: FILE_URL_STRATEGY_LABELS[value] }));
+
+/** 临时签名有效期（秒）：默认 30 分钟，限制在 1 分钟 ~ 7 天（S3 SigV4 上限） */
+export const PRESIGNED_EXPIRY_DEFAULT_SECONDS = 1800;
+export const PRESIGNED_EXPIRY_MIN_SECONDS = 60;
+export const PRESIGNED_EXPIRY_MAX_SECONDS = 604_800;
+
 /** 存储提供方展示名（配置页/文件管理/统计面板统一复用） */
 export const FILE_STORAGE_PROVIDER_LABELS: Record<(typeof FILE_STORAGE_PROVIDERS)[number], string> = {
   local: '本地磁盘',

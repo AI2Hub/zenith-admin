@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { Play, Pause } from 'lucide-react';
-import { fetchProtectedFile } from '@/utils/file-utils';
+import { fetchManagedFileBlob } from '@/utils/file-utils';
 import type { ChatMessage } from '@zenith/shared';
 import { getMessageExtra } from '../utils';
 
@@ -35,7 +35,7 @@ export function VoiceMessage({ msg, isSelf }: Readonly<{ msg: ChatMessage; isSel
     setLoading(true);
     try {
       // 走受保护文件接口取 blob，兼容鉴权后的音频流
-      const blob = await fetchProtectedFile(msg.content);
+      const blob = await fetchManagedFileBlob(msg.content);
       const url = URL.createObjectURL(blob);
       objectUrlRef.current = url;
       const audio = new Audio(url);
