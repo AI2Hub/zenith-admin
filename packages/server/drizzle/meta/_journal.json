@@ -337,6 +337,13 @@
       "when": 1783772956643,
       "tag": "0047_zippy_exiles",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1783778599731,
+      "tag": "0048_groovy_patriot",
+      "breakpoints": true
     }
   ]
 }

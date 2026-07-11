@@ -24,6 +24,8 @@ import { formatDateTime } from '../../lib/datetime';
 import { workflowEventBus } from '../../lib/workflow-event-bus';
 import { createInstance } from './workflow-instances.service';
 import { httpRequest } from '../../lib/http-client';
+import redis from '../../lib/redis';
+import { config } from '../../config';
 import logger from '../../lib/logger';
 import type { WorkflowAutomationTrigger, WorkflowInstance } from '@zenith/shared';
 
@@ -357,6 +359,8 @@ async function loadAutomationContext(instance: WorkflowInstance): Promise<Automa
 export async function executeAutomationsForInstance(
   instance: WorkflowInstance,
   trigger: WorkflowAutomationTrigger,
+  /** 触发事件 ID；提供时按 (事件, 规则, 动作) 幂等去重，防止事件重试/重放导致动作重复执行 */
+  eventId?: string,
 ) {
   const rules = await db
     .select()
@@ -373,7 +377,14 @@ export async function executeAutomationsForInstance(
   const ctx = await loadAutomationContext(instance);
   for (const rule of rules) {
     const actions = rule.actions ?? [];
-    for (const action of actions) {
+    for (const [actionIndex, action] of actions.entries()) {
+      const dedupKey = eventId ? buildAutomationDedupKey(eventId, rule.id, actionIndex) : null;
+      if (dedupKey && !(await acquireAutomationDedup(dedupKey))) {
+        logger.info('[workflow-automation] action skipped (already executed)', {
+          ruleId: rule.id, instanceId: instance.id, actionType: action.type, eventId,
+        });
+        continue;
+      }
       try {
         if (action.type === 'startWorkflow') {
           await runStartWorkflowAction(action, ctx);
@@ -385,6 +396,8 @@ export async function executeAutomationsForInstance(
           await runUpdateFieldAction(action, ctx);
         }
       } catch (err) {
+        // 执行失败释放幂等占位，允许事件作业层重试时再次执行该动作
+        if (dedupKey) await releaseAutomationDedup(dedupKey);
         logger.error('[workflow-automation] action failed', {
           ruleId: rule.id,
           instanceId: instance.id,
@@ -396,11 +409,38 @@ export async function executeAutomationsForInstance(
   }
 }
 
+const AUTOMATION_DEDUP_PREFIX = `${config.redis.keyPrefix}wf:automation:`;
+/** 幂等键 TTL：覆盖 event_dispatch 作业重试窗口与人工重放（replay-outbox）的常见时间范围 */
+const AUTOMATION_DEDUP_TTL_SECONDS = 3 * 24 * 60 * 60;
+
+function buildAutomationDedupKey(eventId: string, ruleId: number, actionIndex: number): string {
+  return `${AUTOMATION_DEDUP_PREFIX}${eventId}:${ruleId}:${actionIndex}`;
+}
+
+/** SET NX 抢占动作执行权；Redis 异常时放行（fail-open）并记警告，避免自动化被基础设施故障阻断 */
+async function acquireAutomationDedup(key: string): Promise<boolean> {
+  try {
+    const result = await redis.set(key, '1', 'EX', AUTOMATION_DEDUP_TTL_SECONDS, 'NX');
+    return result === 'OK';
+  } catch (err) {
+    logger.warn('[workflow-automation] dedup acquire failed, executing anyway', { key, err });
+    return true;
+  }
+}
+
+async function releaseAutomationDedup(key: string): Promise<void> {
+  try {
+    await redis.del(key);
+  } catch (err) {
+    logger.warn('[workflow-automation] dedup release failed', { key, err });
+  }
+}
+
 /** 在应用启动时调用，订阅工作流终结事件 */
 export function registerWorkflowAutomationSubscribers() {
-  const handleTriggerEvent = (trigger: WorkflowAutomationTrigger) => async (e: { instance: WorkflowInstance }) => {
+  const handleTriggerEvent = (trigger: WorkflowAutomationTrigger) => async (e: { eventId: string; instance: WorkflowInstance }) => {
     try {
-      await executeAutomationsForInstance(e.instance, trigger);
+      await executeAutomationsForInstance(e.instance, trigger, e.eventId);
     } catch (err) {
       logger.error('[workflow-automation] subscriber error', { trigger, instanceId: e.instance?.id, err });
     }

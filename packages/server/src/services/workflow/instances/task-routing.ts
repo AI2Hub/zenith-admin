@@ -34,22 +34,31 @@ export async function transferTask(taskId: number, targetUserId: number, comment
   if (!target) throw new HTTPException(400, { message: '转办人不存在' });
   const transferSuffix = comment ? `：${comment}` : '';
   const transferComment = `[转办] 由 ${actor.name ?? '系统'} 转办${transferSuffix}`;
-  const [updated] = await db.update(workflowTasks)
-    .set({
-      assigneeId: targetUserId,
-      comment: transferComment,
-      attachments: attachments ?? null,
-      originalAssigneeId: task.originalAssigneeId ?? task.assigneeId ?? null,
-    })
-    .where(and(eq(workflowTasks.id, task.id), eq(workflowTasks.status, 'pending')))
-    .returning();
-  if (!updated) throw new HTTPException(409, { message: '任务状态已变化，无法转办' });
-  await recordTaskTransfer(db, {
-    taskId: task.id, instanceId: inst.id, fromUserId: task.assigneeId, toUserId: targetUserId,
-    action: 'transfer', reason: comment ?? null, operatorId: actor.userId, tenantId: inst.tenantId,
+  // 事务 + 实例行级锁：任务改派、转办留痕与事件 outbox 原子提交，并与同实例的审批/加减签等并发操作串行化
+  const updated = await db.transaction(async (tx) => {
+    const [lockedInst] = await tx.select({ status: workflowInstances.status })
+      .from(workflowInstances).where(eq(workflowInstances.id, inst.id)).for('update').limit(1);
+    if (!lockedInst || lockedInst.status !== 'running') {
+      throw new HTTPException(409, { message: '流程实例状态已变化，无法转办' });
+    }
+    const [row] = await tx.update(workflowTasks)
+      .set({
+        assigneeId: targetUserId,
+        comment: transferComment,
+        attachments: attachments ?? null,
+        originalAssigneeId: task.originalAssigneeId ?? task.assigneeId ?? null,
+      })
+      .where(and(eq(workflowTasks.id, task.id), eq(workflowTasks.status, 'pending')))
+      .returning();
+    if (!row) throw new HTTPException(409, { message: '任务状态已变化，无法转办' });
+    await recordTaskTransfer(tx, {
+      taskId: task.id, instanceId: inst.id, fromUserId: task.assigneeId, toUserId: targetUserId,
+      action: 'transfer', reason: comment ?? null, operatorId: actor.userId, tenantId: inst.tenantId,
+    });
+    await emitTaskEvent('task.transferred', mapTask(row, target.nickname),
+      { definitionId: inst.definitionId, tenantId: inst.tenantId, actor, comment: transferComment }, tx);
+    return row;
   });
-  emitTaskEvent('task.transferred', mapTask(updated, target.nickname),
-    { definitionId: inst.definitionId, tenantId: inst.tenantId, actor, comment: transferComment });
   return mapTask(updated, target.nickname);
 }
 
@@ -66,25 +75,30 @@ export async function systemTransferTaskToManager(
 ): Promise<void> {
   const [target] = await db.select({ nickname: users.nickname })
     .from(users).where(eq(users.id, managerId)).limit(1);
-  const [updated] = await db.update(workflowTasks)
-    .set({
-      assigneeId: managerId,
+  // 事务：改派、留痕与事件 outbox 原子提交（超时升级由系统触发，实例状态由调用方保证）
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx.update(workflowTasks)
+      .set({
+        assigneeId: managerId,
+        comment,
+        originalAssigneeId: task.originalAssigneeId ?? task.assigneeId ?? null,
+      })
+      .where(and(eq(workflowTasks.id, task.id), eq(workflowTasks.status, 'pending')))
+      .returning();
+    if (!row) return null;
+    await recordTaskTransfer(tx, {
+      taskId: task.id, instanceId: inst.id, fromUserId: task.assigneeId, toUserId: managerId,
+      action: 'timeout', reason: comment, operatorId: null, tenantId: inst.tenantId,
+    });
+    await emitTaskEvent('task.transferred', mapTask(row, target?.nickname ?? null), {
+      definitionId: inst.definitionId,
+      tenantId: inst.tenantId,
+      actor: { userId: 0, name: 'system:timeout' },
       comment,
-      originalAssigneeId: task.originalAssigneeId ?? task.assigneeId ?? null,
-    })
-    .where(and(eq(workflowTasks.id, task.id), eq(workflowTasks.status, 'pending')))
-    .returning();
+    }, tx);
+    return row;
+  });
   if (!updated) return;
-  await recordTaskTransfer(db, {
-    taskId: task.id, instanceId: inst.id, fromUserId: task.assigneeId, toUserId: managerId,
-    action: 'timeout', reason: comment, operatorId: null, tenantId: inst.tenantId,
-  });
-  emitTaskEvent('task.transferred', mapTask(updated, target?.nickname ?? null), {
-    definitionId: inst.definitionId,
-    tenantId: inst.tenantId,
-    actor: { userId: 0, name: 'system:timeout' },
-    comment,
-  });
 }
 
 /** 委派：与转办类似，但语义为"临时代办"，反馈后原 assignee 会接到回执确认任务 */
@@ -106,23 +120,32 @@ export async function delegateTask(taskId: number, targetUserId: number, comment
   const delegateComment = `[委派] 由 ${actor.name ?? '系统'} 委派${delegateSuffix}`;
   // delegatedFromId 仅在首次委派时设置（保留最原始的委派人，以便回执时返还）
   const delegatedFromId = task.delegatedFromId ?? task.assigneeId ?? null;
-  const [updated] = await db.update(workflowTasks)
-    .set({
-      assigneeId: targetUserId,
-      comment: delegateComment,
-      attachments: attachments ?? null,
-      originalAssigneeId: task.originalAssigneeId ?? task.assigneeId ?? null,
-      delegatedFromId,
-    })
-    .where(and(eq(workflowTasks.id, task.id), eq(workflowTasks.status, 'pending')))
-    .returning();
-  if (!updated) throw new HTTPException(409, { message: '任务状态已变化，无法委派' });
-  await recordTaskTransfer(db, {
-    taskId: task.id, instanceId: inst.id, fromUserId: task.assigneeId, toUserId: targetUserId,
-    action: 'delegate', reason: comment ?? null, operatorId: actor.userId, tenantId: inst.tenantId,
+  // 事务 + 实例行级锁：与转办一致，保证改派、留痕与事件 outbox 原子提交
+  const updated = await db.transaction(async (tx) => {
+    const [lockedInst] = await tx.select({ status: workflowInstances.status })
+      .from(workflowInstances).where(eq(workflowInstances.id, inst.id)).for('update').limit(1);
+    if (!lockedInst || lockedInst.status !== 'running') {
+      throw new HTTPException(409, { message: '流程实例状态已变化，无法委派' });
+    }
+    const [row] = await tx.update(workflowTasks)
+      .set({
+        assigneeId: targetUserId,
+        comment: delegateComment,
+        attachments: attachments ?? null,
+        originalAssigneeId: task.originalAssigneeId ?? task.assigneeId ?? null,
+        delegatedFromId,
+      })
+      .where(and(eq(workflowTasks.id, task.id), eq(workflowTasks.status, 'pending')))
+      .returning();
+    if (!row) throw new HTTPException(409, { message: '任务状态已变化，无法委派' });
+    await recordTaskTransfer(tx, {
+      taskId: task.id, instanceId: inst.id, fromUserId: task.assigneeId, toUserId: targetUserId,
+      action: 'delegate', reason: comment ?? null, operatorId: actor.userId, tenantId: inst.tenantId,
+    });
+    await emitTaskEvent('task.transferred', mapTask(row, target.nickname),
+      { definitionId: inst.definitionId, tenantId: inst.tenantId, actor, comment: delegateComment }, tx);
+    return row;
   });
-  emitTaskEvent('task.transferred', mapTask(updated, target.nickname),
-    { definitionId: inst.definitionId, tenantId: inst.tenantId, actor, comment: delegateComment });
   return mapTask(updated, target.nickname);
 }
 

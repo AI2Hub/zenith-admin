@@ -384,7 +384,7 @@ export type NewWorkflowInstanceMigration = typeof workflowInstanceMigrations.$in
 // 工作流补偿/人工修复工单（catch 节点异常生成，运维手动恢复/终止）
 export const workflowCompensations = pgTable('workflow_compensations', {
   id: serial('id').primaryKey(),
-  instanceId: integer('instance_id').notNull(),
+  instanceId: integer('instance_id').notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),
   nodeKey: varchar('node_key', { length: 64 }).notNull(),
   nodeName: varchar('node_name', { length: 64 }),
   errorMessage: varchar('error_message', { length: 1024 }),
