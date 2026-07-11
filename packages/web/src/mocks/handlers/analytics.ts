@@ -102,6 +102,7 @@ let mockSettings: AnalyticsSettings = {
 const PUBLIC_CONFIG: AnalyticsPublicConfig = {
   enabled: true, sampleRate: 1, trackPageviews: true, trackClicks: true, trackPerformance: true,
   trackErrors: true, trackApi: true, maskInputs: true, respectDnt: false, blacklistPaths: ['/login'],
+  sessionTimeoutMinutes: 30,
 };
 
 function buildEvents(count: number): EventListItem[] {

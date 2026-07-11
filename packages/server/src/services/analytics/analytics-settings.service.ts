@@ -3,8 +3,9 @@ import { db } from '../../db';
 import { analyticsSettings } from '../../db/schema';
 import type { AnalyticsSettingsRow } from '../../db/schema';
 import type { UpdateAnalyticsSettingsInput, AnalyticsPublicConfig } from '@zenith/shared';
-import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
+import { currentCreateTenantId, getCreateTenantId } from '../../lib/tenant';
 import { formatDateTime } from '../../lib/datetime';
+import { currentUserOrNull } from '../../lib/context';
 
 export function mapSettings(row: AnalyticsSettingsRow) {
   return {
@@ -30,10 +31,13 @@ export function mapSettings(row: AnalyticsSettingsRow) {
 
 /** 获取（不存在则创建）当前租户的采集设置。 */
 export async function getSettings() {
-  const [row] = await db.select().from(analyticsSettings).where(tenantScope(analyticsSettings)).orderBy(analyticsSettings.id).limit(1);
+  const tenantId = currentCreateTenantId();
+  const [row] = await db.select().from(analyticsSettings).where(settingsTenantWhere(tenantId)).limit(1);
   if (row) return mapSettings(row);
-  const [created] = await db.insert(analyticsSettings).values({ tenantId: currentCreateTenantId() }).returning();
-  return mapSettings(created);
+  const [created] = await db.insert(analyticsSettings).values({ tenantId }).onConflictDoNothing().returning();
+  if (created) return mapSettings(created);
+  const [concurrent] = await db.select().from(analyticsSettings).where(settingsTenantWhere(tenantId)).limit(1);
+  return mapSettings(concurrent);
 }
 
 export async function updateSettings(input: UpdateAnalyticsSettingsInput) {
@@ -72,20 +76,31 @@ const DEFAULT_PUBLIC_CONFIG: AnalyticsPublicConfig = {
   maskInputs: true,
   respectDnt: false,
   blacklistPaths: [],
+  sessionTimeoutMinutes: 30,
 };
 
+function settingsTenantWhere(tenantId: number | null) {
+  return tenantId === null ? isNull(analyticsSettings.tenantId) : eq(analyticsSettings.tenantId, tenantId);
+}
+
+async function findSettingsWithGlobalFallback(tenantId: number | null): Promise<AnalyticsSettingsRow | undefined> {
+  const [tenantRow] = await db.select().from(analyticsSettings).where(settingsTenantWhere(tenantId)).limit(1);
+  if (tenantRow || tenantId === null) return tenantRow;
+  const [globalRow] = await db.select().from(analyticsSettings).where(isNull(analyticsSettings.tenantId)).limit(1);
+  return globalRow;
+}
+
 /** 服务端采集行为配置（匿名化等，不下发 SDK）。 */
-export async function getIngestPolicy(): Promise<{ anonymizeIp: boolean }> {
-  const [row] = await db.select({ anonymizeIp: analyticsSettings.anonymizeIp }).from(analyticsSettings).orderBy(analyticsSettings.id).limit(1);
+export async function getIngestPolicy(tenantId: number | null): Promise<{ anonymizeIp: boolean }> {
+  const row = await findSettingsWithGlobalFallback(tenantId);
   return { anonymizeIp: row?.anonymizeIp ?? false };
 }
 
 /** SDK 公开配置（无需鉴权，匿名亦可获取）。 */
 export async function getPublicConfig(): Promise<AnalyticsPublicConfig> {
-  const [row] =
-    (await db.select().from(analyticsSettings).where(isNull(analyticsSettings.tenantId)).limit(1)) ||
-    [];
-  const r = row ?? (await db.select().from(analyticsSettings).orderBy(analyticsSettings.id).limit(1))[0];
+  const user = currentUserOrNull();
+  const tenantId = user ? getCreateTenantId(user) : null;
+  const r = await findSettingsWithGlobalFallback(tenantId);
   if (!r) return DEFAULT_PUBLIC_CONFIG;
   return {
     enabled: r.enabled,
@@ -98,5 +113,6 @@ export async function getPublicConfig(): Promise<AnalyticsPublicConfig> {
     maskInputs: r.maskInputs,
     respectDnt: r.respectDnt,
     blacklistPaths: r.blacklistPaths ?? [],
+    sessionTimeoutMinutes: r.sessionTimeoutMinutes,
   };
 }

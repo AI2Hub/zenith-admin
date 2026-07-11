@@ -66,7 +66,7 @@ import type {
   FrontendErrorType,
   SourceMapItem,
 } from '@zenith/shared';
-import { NOTIFY_CHANNEL_OPTIONS } from '@zenith/shared';
+import { NOTIFY_CHANNEL_OPTIONS, SOURCE_MAP_MAX_BYTES } from '@zenith/shared';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -183,7 +183,11 @@ const defaultAlertForm: AlertFormState = {
   enabled: true,
 };
 
-const defaultSourceMapUpload: SourceMapUploadForm = { release: '', fileName: '', content: '' };
+const defaultSourceMapUpload: SourceMapUploadForm = {
+  release: (import.meta.env.VITE_APP_VERSION as string) || '',
+  fileName: '',
+  content: '',
+};
 
 function labelOptions(config: Record<string, { label: string }>) {
   return Object.entries(config).map(([value, item]) => ({ label: item.label, value }));
@@ -1409,6 +1413,10 @@ export default function FrontendErrorsPage() {
               beforeUpload={({ file }: { file: { name?: string; fileInstance?: File } }) => {
                 const rawFile = file.fileInstance;
                 if (!rawFile) return false;
+                if (rawFile.size > SOURCE_MAP_MAX_BYTES) {
+                  Toast.error('Source Map 不能超过 20MB');
+                  return false;
+                }
                 const inferredName = rawFile.name.replace(/\.map$/i, '');
                 setUploadForm((prev) => ({ ...prev, fileName: prev.fileName || inferredName }));
                 void rawFile.text().then((content) => {

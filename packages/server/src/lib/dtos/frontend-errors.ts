@@ -2,6 +2,11 @@
  * 前端错误监控 DTO（Issue 模型）
  */
 import { z } from '@hono/zod-openapi';
+import {
+  ANALYTICS_BREADCRUMB_DATA_MAX_BYTES,
+  ANALYTICS_CONTEXT_MAX_BYTES,
+  SOURCE_MAP_MAX_BYTES,
+} from '@zenith/shared';
 
 const errorTypeEnum = z.enum([
   'js_error', 'promise_rejection', 'resource_error', 'console_error', 'http_error', 'white_screen', 'crash',
@@ -10,6 +15,38 @@ const levelEnum = z.enum(['fatal', 'error', 'warning', 'info']);
 const statusEnum = z.enum(['unresolved', 'resolved', 'ignored', 'muted']);
 const conditionEnum = z.enum(['new_error', 'threshold', 'spike']);
 const deviceTypeEnum = z.enum(['desktop', 'mobile', 'tablet', 'bot', 'unknown']);
+const webhookUrlDTO = z.url().max(512).refine(
+  (value) => ['http:', 'https:'].includes(new URL(value).protocol),
+  'Webhook URL 仅支持 HTTP/HTTPS',
+);
+
+function jsonDepth(value: unknown): number {
+  if (value === null || typeof value !== 'object') return 0;
+  const stack: Array<{ value: object; depth: number }> = [{ value, depth: 1 }];
+  const seen = new WeakSet<object>();
+  let maxDepth = 0;
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (seen.has(current.value)) continue;
+    seen.add(current.value);
+    maxDepth = Math.max(maxDepth, current.depth);
+    const children = Array.isArray(current.value) ? current.value : Object.values(current.value);
+    for (const child of children) {
+      if (child !== null && typeof child === 'object') stack.push({ value: child, depth: current.depth + 1 });
+    }
+  }
+  return maxDepth;
+}
+
+function boundedRecord(label: string, maxKeys: number, maxBytes: number, maxDepth: number) {
+  return z.record(z.string(), z.unknown()).superRefine((value, ctx) => {
+    if (Object.keys(value).length > maxKeys) ctx.addIssue({ code: 'custom', message: `${label}最多允许 ${maxKeys} 个字段` });
+    if (jsonDepth(value) > maxDepth) ctx.addIssue({ code: 'custom', message: `${label}嵌套层级不能超过 ${maxDepth} 层` });
+    if (new TextEncoder().encode(JSON.stringify(value)).byteLength > maxBytes) {
+      ctx.addIssue({ code: 'custom', message: `${label}序列化后不能超过 ${maxBytes} 字节` });
+    }
+  });
+}
 
 // ─── 上报 ─────────────────────────────────────────────────────────────────────
 export const ErrorBreadcrumbDTO = z
@@ -17,7 +54,7 @@ export const ErrorBreadcrumbDTO = z
     type: z.enum(['navigation', 'click', 'http', 'console', 'custom']),
     message: z.string().max(512),
     level: levelEnum.optional(),
-    data: z.record(z.string(), z.unknown()).optional(),
+    data: boundedRecord('面包屑数据', 20, ANALYTICS_BREADCRUMB_DATA_MAX_BYTES, 4).optional(),
     timestamp: z.string().max(32),
   })
   .openapi('ErrorBreadcrumb');
@@ -33,9 +70,9 @@ export const ErrorReportInputDTO = z
     colNo: z.number().int().optional(),
     pageUrl: z.string().max(512).optional(),
     release: z.string().max(64).optional(),
-    sessionId: z.string().max(36).optional(),
+    sessionId: z.string().min(1).max(36).optional(),
     breadcrumbs: z.array(ErrorBreadcrumbDTO).max(50).optional(),
-    context: z.record(z.string(), z.unknown()).optional(),
+    context: boundedRecord('错误上下文', 50, ANALYTICS_CONTEXT_MAX_BYTES, 6).optional(),
     httpStatus: z.number().int().optional(),
     httpMethod: z.string().max(16).optional(),
     httpUrl: z.string().max(512).optional(),
@@ -152,8 +189,7 @@ export const ErrorAlertRuleDTO = z
   })
   .openapi('ErrorAlertRule');
 
-export const CreateErrorAlertRuleDTO = z
-  .object({
+const errorAlertRuleInputDTO = z.object({
     name: z.string().min(1).max(128),
     errorType: errorTypeEnum.nullable().optional(),
     level: levelEnum.nullable().optional(),
@@ -161,12 +197,28 @@ export const CreateErrorAlertRuleDTO = z
     thresholdCount: z.number().int().min(1).max(100_000).default(10),
     windowMinutes: z.number().int().min(1).max(10_080).default(60),
     channels: z.array(z.enum(['email', 'webhook', 'inapp'])).default([]),
-    webhookUrl: z.string().max(512).nullable().optional(),
+    webhookUrl: webhookUrlDTO.nullable().optional(),
     recipients: z.array(z.string().max(128)).default([]),
     enabled: z.boolean().default(true),
-  })
+  });
+
+function validateAlertDelivery(
+  value: { enabled?: boolean; channels?: string[]; webhookUrl?: string | null; recipients?: string[] },
+  ctx: { addIssue: (issue: { code: 'custom'; path?: PropertyKey[]; message: string }) => void },
+) {
+  if (value.enabled === false) return;
+  const channels = value.channels ?? [];
+  if (channels.length === 0) ctx.addIssue({ code: 'custom', path: ['channels'], message: '启用告警时至少选择一个通知渠道' });
+  if (channels.includes('webhook') && !value.webhookUrl) ctx.addIssue({ code: 'custom', path: ['webhookUrl'], message: 'Webhook 渠道必须配置有效 URL' });
+  if ((channels.includes('email') || channels.includes('inapp')) && !(value.recipients?.length)) {
+    ctx.addIssue({ code: 'custom', path: ['recipients'], message: '邮件或站内通知渠道必须配置接收人' });
+  }
+}
+
+export const CreateErrorAlertRuleDTO = errorAlertRuleInputDTO
+  .superRefine(validateAlertDelivery)
   .openapi('CreateErrorAlertRule');
-export const UpdateErrorAlertRuleDTO = CreateErrorAlertRuleDTO.partial().openapi('UpdateErrorAlertRule');
+export const UpdateErrorAlertRuleDTO = errorAlertRuleInputDTO.partial().openapi('UpdateErrorAlertRule');
 
 export const ErrorAlertLogDTO = z
   .object({
@@ -197,6 +249,7 @@ export const SourceMapUploadDTO = z
   .object({
     release: z.string().min(1).max(64),
     fileName: z.string().min(1).max(256),
-    content: z.string().min(1).max(20_000_000, 'Source Map 超出 20MB 大小限制'),
+    content: z.string().min(1).max(SOURCE_MAP_MAX_BYTES)
+      .refine((value) => new TextEncoder().encode(value).byteLength <= SOURCE_MAP_MAX_BYTES, 'Source Map 超出 20MB 大小限制'),
   })
   .openapi('SourceMapUpload');

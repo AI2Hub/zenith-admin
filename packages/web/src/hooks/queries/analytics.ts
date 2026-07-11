@@ -326,7 +326,7 @@ export function useCleanAnalyticsEvents() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (days: number) => request.delete<null>(`/api/analytics/clean?days=${days}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: analyticsKeys.data.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: analyticsKeys.all }),
   });
 }
 
@@ -362,7 +362,7 @@ export function useSaveAnalyticsSettings() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (values: Record<string, unknown>) => request.put<AnalyticsSettings>('/api/analytics/settings', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: analyticsKeys.data.settings }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: analyticsKeys.all }),
   });
 }
 

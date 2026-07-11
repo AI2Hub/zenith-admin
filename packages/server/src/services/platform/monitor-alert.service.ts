@@ -141,7 +141,27 @@ export async function getMonitorAlertRuleBeforeAudit(id: number) {
   return mapRule(await ensureRuleExists(id));
 }
 
+function ensureAlertDelivery(input: {
+  enabled: boolean;
+  channels: string[];
+  webhookUrl: string | null;
+  recipients: string[];
+}): void {
+  if (!input.enabled) return;
+  if (input.channels.length === 0) throw new HTTPException(400, { message: '启用告警时至少选择一个通知渠道' });
+  if (input.channels.includes('webhook') && !input.webhookUrl) throw new HTTPException(400, { message: 'Webhook 渠道必须配置有效 URL' });
+  if ((input.channels.includes('email') || input.channels.includes('inapp')) && input.recipients.length === 0) {
+    throw new HTTPException(400, { message: '邮件或站内通知渠道必须配置接收人' });
+  }
+}
+
 export async function createRule(input: CreateMonitorAlertRuleInput) {
+  ensureAlertDelivery({
+    enabled: input.enabled ?? true,
+    channels: input.channels ?? [],
+    webhookUrl: input.webhookUrl ?? null,
+    recipients: input.recipients ?? [],
+  });
   const [row] = await db
     .insert(monitorAlertRules)
     .values({
@@ -163,7 +183,13 @@ export async function createRule(input: CreateMonitorAlertRuleInput) {
 }
 
 export async function updateRule(id: number, input: UpdateMonitorAlertRuleInput) {
-  await ensureRuleExists(id);
+  const current = await ensureRuleExists(id);
+  ensureAlertDelivery({
+    enabled: input.enabled ?? current.enabled,
+    channels: input.channels ?? current.channels ?? [],
+    webhookUrl: input.webhookUrl === undefined ? current.webhookUrl : input.webhookUrl,
+    recipients: input.recipients ?? current.recipients ?? [],
+  });
   const [row] = await db
     .update(monitorAlertRules)
     .set({
@@ -190,7 +216,13 @@ export async function deleteRule(id: number) {
 }
 
 export async function setRuleEnabled(id: number, enabled: boolean) {
-  await ensureRuleExists(id);
+  const current = await ensureRuleExists(id);
+  ensureAlertDelivery({
+    enabled,
+    channels: current.channels ?? [],
+    webhookUrl: current.webhookUrl,
+    recipients: current.recipients ?? [],
+  });
   const [row] = await db.update(monitorAlertRules).set({ enabled }).where(eq(monitorAlertRules.id, id)).returning();
   return mapRule(row);
 }
@@ -227,7 +259,7 @@ async function dispatchAlert(rule: MonitorAlertRuleRow, message: string, recover
           level: rule.level,
           message,
           timestamp: formatDateTime(new Date()),
-        }, { timeout: 8000 })]
+        }, { timeout: 8000, ssrfProtection: true })]
       : []),
     ...(channels.includes('email')
       ? (rule.recipients ?? []).filter((r) => r.includes('@')).map((to) => sendMail(to, subject, html))

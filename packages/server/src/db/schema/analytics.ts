@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, bigint, boolean, text, uniqueIndex, index, jsonb, smallint, real, date, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, bigint, boolean, text, uniqueIndex, index, jsonb, smallint, real, date, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { auditColumns, tenants, users } from './core';
 
@@ -12,6 +12,7 @@ export const analyticsDeviceTypeEnum = pgEnum('analytics_device_type', ['desktop
 // ─── 用户行为事件表（原始事件流）──────────────────────────────────────────────
 export const userEvents = pgTable('user_events', {
   id: serial('id').primaryKey(),
+  eventId: uuid('event_id'),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   // 身份
   distinctId: varchar('distinct_id', { length: 64 }),
@@ -59,6 +60,7 @@ export const userEvents = pgTable('user_events', {
   metricValue: real('metric_value'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
+  uniqueIndex('user_events_event_id_uq').on(t.eventId),
   index('user_events_created_idx').on(t.createdAt),
   index('user_events_type_idx').on(t.eventType),
   index('user_events_name_idx').on(t.eventName),
@@ -184,7 +186,7 @@ export const analyticsSettings = pgTable('analytics_settings', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => [
-  index('analytics_settings_tenant_idx').on(t.tenantId),
+  uniqueIndex('analytics_settings_tenant_uq').on(sql`coalesce(${t.tenantId}, 0)`),
 ]);
 
 export type AnalyticsSettingsRow = typeof analyticsSettings.$inferSelect;

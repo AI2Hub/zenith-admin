@@ -3,7 +3,7 @@ import { BrowserRouter, HashRouter, Routes, Route, Navigate, useLocation } from 
 import { useAuth } from '@/hooks/useAuth';
 import { PageErrorBoundary } from '@/components/PageErrorBoundary';
 import { useGlobalErrorHandler } from '@/hooks/useGlobalErrorHandler';
-import { initTracker, identify, resetIdentity } from '@/utils/tracker';
+import { initTracker, identify, prepareTrackerLogout, resetIdentity } from '@/utils/tracker';
 import ElectronTitleBar from '@/components/ElectronTitleBar';
 import { PermissionContext } from '@/hooks/usePermission';
 import { PreferencesProvider } from '@/hooks/PreferencesProvider';
@@ -298,6 +298,10 @@ function AdminRouteLoader({ user, permissions, logout, updateUser }: Readonly<Ad
 export default function App() {
   useGlobalErrorHandler();
   const { user, permissions, loading, login, verifyMfaLogin, register, logout, updateUser } = useAuth();
+  const handleLogout = useCallback(() => {
+    prepareTrackerLogout();
+    logout();
+  }, [logout]);
 
   const isSuperAdmin = user?.roles?.some((r) => r.code === 'super_admin') ?? false;
 
@@ -371,7 +375,7 @@ export default function App() {
       {user ? (
         <PreferencesProvider>
           <ThemeProvider>
-            <AdminRouteLoader user={user} permissions={permissions} logout={logout} updateUser={updateUser} />
+            <AdminRouteLoader user={user} permissions={permissions} logout={handleLogout} updateUser={updateUser} />
           </ThemeProvider>
         </PreferencesProvider>
       ) : (

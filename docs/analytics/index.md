@@ -40,7 +40,7 @@ analyticsRollupDaily / analyticsRetention / evaluateErrorAlerts
 | 页面 | 路径 | 权限码 |
 |------|------|--------|
 | 行为分析 | `/analytics/behavior` | `analytics:view` |
-| 数据管理 | `/analytics/data` | `analytics:manage` / `analytics:export` |
+| 数据管理 | `/analytics/data` | `analytics:manage` / `analytics:export` / `analytics:clean` |
 | 错误监控 | `/analytics/errors` | `monitor:error:list` / `monitor:error:manage` / `monitor:alert:list` / `monitor:alert:manage` |
 
 > 超级管理员默认拥有全部权限；其他角色需在「角色管理」中分配对应权限码。

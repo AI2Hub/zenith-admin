@@ -1,4 +1,4 @@
-import { and, gte, lt, sql, eq } from 'drizzle-orm';
+import { and, gte, lt, sql, eq, isNull } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import { userEvents, analyticsSessions, analyticsDailyRollup, analyticsSettings, errorEvents, errorGroups } from '../../db/schema';
@@ -156,20 +156,53 @@ export async function getRollupSummary(daysRaw: unknown): Promise<RollupSummaryI
   return [...byDate.values()].sort((a, b) => b.statDate.localeCompare(a.statDate));
 }
 
-/** 读取全局保留策略（取 null 租户或首行，回退默认值）。 */
-async function getRetentionPolicy(): Promise<{ eventDays: number; errorDays: number }> {
-  const [row] = await db.select({ retentionDays: analyticsSettings.retentionDays, errorRetentionDays: analyticsSettings.errorRetentionDays }).from(analyticsSettings).orderBy(analyticsSettings.id).limit(1);
-  return { eventDays: row?.retentionDays ?? 180, errorDays: row?.errorRetentionDays ?? 90 };
-}
-
 /** 按保留策略清理过期埋点/会话/错误数据（cron）。 */
 export async function runAnalyticsRetention(): Promise<{ events: number; sessions: number; errors: number }> {
-  const { eventDays, errorDays } = await getRetentionPolicy();
-  const evRes = await db.delete(userEvents).where(sql`${userEvents.createdAt} < NOW() - (${eventDays} * INTERVAL '1 day')`);
-  const sessRes = await db.delete(analyticsSessions).where(sql`${analyticsSessions.startedAt} < NOW() - (${eventDays} * INTERVAL '1 day')`);
-  const errEvRes = await db.delete(errorEvents).where(sql`${errorEvents.createdAt} < NOW() - (${errorDays} * INTERVAL '1 day')`);
-  // 删除已无任何事件的空分组
-  await db.delete(errorGroups).where(sql`${errorGroups.lastSeenAt} < NOW() - (${errorDays} * INTERVAL '1 day') AND NOT EXISTS (SELECT 1 FROM error_events ee WHERE ee.group_id = ${errorGroups.id})`);
   const rc = (r: unknown) => (r as { rowCount?: number }).rowCount ?? 0;
-  return { events: rc(evRes), sessions: rc(sessRes), errors: rc(errEvRes) };
+  const [policies, eventTenants, sessionTenants, errorEventTenants, errorGroupTenants] = await Promise.all([
+    db.select({
+      tenantId: analyticsSettings.tenantId,
+      eventDays: analyticsSettings.retentionDays,
+      errorDays: analyticsSettings.errorRetentionDays,
+    }).from(analyticsSettings),
+    db.selectDistinct({ tenantId: userEvents.tenantId }).from(userEvents),
+    db.selectDistinct({ tenantId: analyticsSessions.tenantId }).from(analyticsSessions),
+    db.selectDistinct({ tenantId: errorEvents.tenantId }).from(errorEvents),
+    db.selectDistinct({ tenantId: errorGroups.tenantId }).from(errorGroups),
+  ]);
+  const policyByTenant = new Map(policies.map((policy) => [policy.tenantId, policy]));
+  const tenantIds = new Set<number | null>([
+    ...policies.map((row) => row.tenantId),
+    ...eventTenants.map((row) => row.tenantId),
+    ...sessionTenants.map((row) => row.tenantId),
+    ...errorEventTenants.map((row) => row.tenantId),
+    ...errorGroupTenants.map((row) => row.tenantId),
+  ]);
+
+  let deletedEvents = 0;
+  let deletedSessions = 0;
+  let deletedErrors = 0;
+  for (const tenantId of tenantIds) {
+    const policy = policyByTenant.get(tenantId);
+    const eventDays = policy?.eventDays ?? 180;
+    const errorDays = policy?.errorDays ?? 90;
+    const eventTenant = tenantId === null ? isNull(userEvents.tenantId) : eq(userEvents.tenantId, tenantId);
+    const sessionTenant = tenantId === null ? isNull(analyticsSessions.tenantId) : eq(analyticsSessions.tenantId, tenantId);
+    const errorEventTenant = tenantId === null ? isNull(errorEvents.tenantId) : eq(errorEvents.tenantId, tenantId);
+    const errorGroupTenant = tenantId === null ? isNull(errorGroups.tenantId) : eq(errorGroups.tenantId, tenantId);
+    const [evRes, sessRes, errEvRes] = await Promise.all([
+      db.delete(userEvents).where(and(eventTenant, sql`${userEvents.createdAt} < NOW() - (${eventDays} * INTERVAL '1 day')`)),
+      db.delete(analyticsSessions).where(and(sessionTenant, sql`${analyticsSessions.startedAt} < NOW() - (${eventDays} * INTERVAL '1 day')`)),
+      db.delete(errorEvents).where(and(errorEventTenant, sql`${errorEvents.createdAt} < NOW() - (${errorDays} * INTERVAL '1 day')`)),
+    ]);
+    await db.delete(errorGroups).where(and(
+      errorGroupTenant,
+      sql`${errorGroups.lastSeenAt} < NOW() - (${errorDays} * INTERVAL '1 day')`,
+      sql`NOT EXISTS (SELECT 1 FROM error_events ee WHERE ee.group_id = ${errorGroups.id})`,
+    ));
+    deletedEvents += rc(evRes);
+    deletedSessions += rc(sessRes);
+    deletedErrors += rc(errEvRes);
+  }
+  return { events: deletedEvents, sessions: deletedSessions, errors: deletedErrors };
 }

@@ -47,6 +47,8 @@
 在「Source Map」Tab 上传打包产物的 `.map` 文件（按 `release` + 文件名，文件名需与压缩堆栈中的 bundle 名一致，如 `index-abc.js`）：
 
 - `POST /api/frontend-errors/source-maps`（replace 语义，重复上传覆盖）。
+- 单个 Source Map 最大 20MB，前后端均会拒绝超限内容。
+- 构建过程自动注入应用版本（可用 `VITE_APP_VERSION` 覆盖），错误上报的 `release` 必须与上传时填写的 Release 一致。
 - 详情页自动将压缩堆栈逐帧映射回源码位置（基于 `source-map` 库）。
 
 ## 告警规则
@@ -55,5 +57,6 @@
 
 - **条件**：新错误（`new_error`）/ 阈值（`threshold`）/ 激增（`spike`）。
 - 可按错误类型、级别过滤；设置阈值次数与时间窗口。
-- **通知渠道**：邮件 / Webhook / 站内（记录 in-app 通知日志）。
+- **通知渠道**：邮件 / Webhook / 站内（记录 in-app 通知日志）；启用规则必须至少选择一个可投递渠道并配置对应地址/接收人。
+- Webhook 外呼启用 SSRF 防护，拒绝本机、私网及云元数据地址。
 - 定时任务 `evaluateErrorAlerts`（每 5 分钟）评估规则，命中后去抖并通知，记录 `lastTriggeredAt`。

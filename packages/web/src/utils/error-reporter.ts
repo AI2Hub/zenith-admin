@@ -7,6 +7,7 @@ import type { FrontendErrorType, ErrorLevel } from '@zenith/shared';
 import { getBreadcrumbs } from './breadcrumbs';
 
 const SESSION_KEY = 'zenith_tracker_sid';
+let reportingPolicy = { ready: false, enabled: true, trackErrors: true, respectDnt: false };
 
 export interface ReportErrorOptions {
   level?: ErrorLevel;
@@ -29,8 +30,19 @@ export function getRelease(): string | undefined {
 const recent = new Map<string, number>();
 const DEDUP_TTL = 10_000;
 
+export function configureErrorReporting(policy: Readonly<Omit<typeof reportingPolicy, 'ready'>>): void {
+  reportingPolicy = { ready: true, ...policy };
+}
+
+function isReportingEnabled(): boolean {
+  if (!reportingPolicy.ready || !reportingPolicy.enabled || !reportingPolicy.trackErrors) return false;
+  if (reportingPolicy.respectDnt && (navigator.doNotTrack === '1' || (globalThis as { doNotTrack?: string }).doNotTrack === '1')) return false;
+  return true;
+}
+
 export function reportError(errorType: FrontendErrorType, message: string, options?: ReportErrorOptions): void {
   try {
+    if (!isReportingEnabled()) return;
     const token = localStorage.getItem(TOKEN_KEY);
     const key = `${errorType}:${message}`.slice(0, 200);
     const now = Date.now();

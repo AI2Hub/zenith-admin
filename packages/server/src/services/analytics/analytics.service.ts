@@ -1,7 +1,9 @@
 import { and, eq, gte, lt, lte, isNotNull, sql, countDistinct, desc, like, notExists, inArray, type SQL } from 'drizzle-orm';
 import { alias, type PgColumn } from 'drizzle-orm/pg-core';
+import { randomUUID } from 'node:crypto';
 import { db } from '../../db';
 import { userEvents, analyticsSessions, analyticsDailyRollup } from '../../db/schema';
+import type { DbExecutor } from '../../db/types';
 import type { TrackEventInput, UserBehaviorEventType } from '@zenith/shared';
 import { currentUserOrNull } from '../../lib/context';
 import { tenantScope, getCreateTenantId } from '../../lib/tenant';
@@ -13,12 +15,19 @@ import { touchEventMeta, getBlockedEventNames } from './analytics-event-meta.ser
 import { getIngestPolicy } from './analytics-settings.service';
 import { rollupTenantScope, ROLLUP_DIM_TYPES } from './analytics-rollup.service';
 import { broadcast } from '../../lib/ws-manager';
+import logger from '../../lib/logger';
 
 // ════════════════════════════════════════════════════════════════════════════
 // 采集（ingest）
 // ════════════════════════════════════════════════════════════════════════════
 
 export interface IngestReqCtx { ip: string; ua: string }
+type NormalizedTrackEvent = TrackEventInput & { eventId: string };
+let legacyEventsWithoutId = 0;
+
+export function getLegacyEventsWithoutIdCount(): number {
+  return legacyEventsWithoutId;
+}
 
 const CLIENT_TS_MAX_SKEW_MS = 24 * 3600_000;
 
@@ -29,28 +38,39 @@ function resolveEventTime(ts: number | undefined): Date | undefined {
   return new Date(ts);
 }
 
-function resolveDistinctId(e: TrackEventInput, userId: number | null): string {
-  if (e.distinctId) return e.distinctId.slice(0, 64);
+export function resolveDistinctId(e: TrackEventInput, userId: number | null): string {
   if (userId != null) return `u:${userId}`;
+  if (e.distinctId && !e.distinctId.startsWith('u:')) return e.distinctId.slice(0, 64);
   if (e.anonymousId) return e.anonymousId.slice(0, 64);
   return e.sessionId;
 }
 
 export async function batchInsertEvents(rawEvents: TrackEventInput[], reqCtx: IngestReqCtx): Promise<void> {
   if (rawEvents.length === 0) return;
+  const user = currentUserOrNull();
   // 字典封禁：status='blocked' 的事件名在入口拒收（60s 缓存，best-effort）
   const blocked = await getBlockedEventNames().catch(() => new Set<string>());
-  const events = blocked.size > 0 ? rawEvents.filter((e) => !e.eventName || !blocked.has(e.eventName)) : rawEvents;
+  const acceptedEvents = blocked.size > 0 ? rawEvents.filter((e) => !e.eventName || !blocked.has(e.eventName)) : rawEvents;
+  const trustedEvents = user ? acceptedEvents : acceptedEvents.filter((event) => event.eventType !== 'identify');
+  const legacyCount = trustedEvents.filter((event) => !event.eventId).length;
+  if (legacyCount > 0) {
+    legacyEventsWithoutId += legacyCount;
+    logger.warn('[analytics] accepted legacy events without eventId', { batchCount: legacyCount, totalCount: legacyEventsWithoutId });
+  }
+  const events: NormalizedTrackEvent[] = trustedEvents.map((event) => ({
+    ...event,
+    eventId: event.eventId ?? randomUUID(),
+  }));
   if (events.length === 0) return;
 
-  const user = currentUserOrNull();
   const tenantId = user ? getCreateTenantId(user) : null;
   const env = parseClientEnv(reqCtx.ua);
   const geo = lookupIpGeo(reqCtx.ip); // 先地理解析，再按策略匿名化存储
-  const { anonymizeIp } = await getIngestPolicy().catch(() => ({ anonymizeIp: false }));
+  const { anonymizeIp } = await getIngestPolicy(tenantId).catch(() => ({ anonymizeIp: false }));
   const storedIp = (anonymizeIp ? anonymizeIpAddr(reqCtx.ip) : reqCtx.ip).slice(0, 64);
 
   const rows = events.map((e) => ({
+    eventId: e.eventId,
     tenantId,
     distinctId: resolveDistinctId(e, user?.userId ?? null),
     anonymousId: e.anonymousId ?? null,
@@ -93,11 +113,21 @@ export async function batchInsertEvents(rawEvents: TrackEventInput[], reqCtx: In
     ...(resolveEventTime(e.ts) ? { createdAt: resolveEventTime(e.ts) } : {}),
   }));
 
-  await db.insert(userEvents).values(rows);
-  await upsertSessions(events, { tenantId, userId: user?.userId ?? null, username: user?.username ?? null, env, geo });
+  const insertedEvents = await db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(userEvents)
+      .values(rows)
+      .onConflictDoNothing({ target: userEvents.eventId })
+      .returning({ eventId: userEvents.eventId });
+    const insertedIds = new Set(inserted.flatMap((row) => row.eventId ? [row.eventId] : []));
+    const freshEvents = events.filter((event) => insertedIds.has(event.eventId));
+    await upsertSessions(tx, freshEvents, { tenantId, userId: user?.userId ?? null, username: user?.username ?? null, env, geo });
+    return freshEvents;
+  });
+  if (insertedEvents.length === 0) return;
   // 事件字典登记（best-effort，不阻塞）
-  void touchEventMeta(events, tenantId).catch(() => { /* ignore */ });
-  notifyIngest(events.length);
+  void touchEventMeta(insertedEvents, tenantId).catch(() => { /* ignore */ });
+  notifyIngest(insertedEvents.length);
 }
 
 // 实时看板推送：节流广播「有新事件」信号，前端收到后即时刷新（轮询兜底仍在）
@@ -112,6 +142,7 @@ function notifyIngest(count: number): void {
 }
 
 async function upsertSessions(
+  executor: DbExecutor,
   events: TrackEventInput[],
   ctx: {
     tenantId: number | null;
@@ -159,7 +190,7 @@ async function upsertSessions(
   if (values.length === 0) return;
 
   // 单条多值 UPSERT：LEAST/GREATEST 防批次乱序导致起止时间倒挂
-  await db
+  await executor
     .insert(analyticsSessions)
     .values(values)
     .onConflictDoUpdate({

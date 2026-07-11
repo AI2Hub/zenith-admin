@@ -29,6 +29,10 @@ export const TOKEN_KEY = 'zenith_token';
 export const REFRESH_TOKEN_KEY = 'zenith_refresh_token';
 export const PREFERENCES_KEY = 'zenith_preferences';
 export const TABS_STORAGE_KEY = 'zenith_tabs';
+export const SOURCE_MAP_MAX_BYTES = 20 * 1024 * 1024;
+export const ANALYTICS_PROPERTIES_MAX_BYTES = 16 * 1024;
+export const ANALYTICS_CONTEXT_MAX_BYTES = 32 * 1024;
+export const ANALYTICS_BREADCRUMB_DATA_MAX_BYTES = 4 * 1024;
 export const USER_ROLES = ['admin', 'user'] as const;
 export const USER_STATUSES = ['enabled', 'disabled'] as const;
 /** 通用启用/禁用状态标签（与 common_status 字典种子文案一致；server 导出等无法走字典的场景使用） */

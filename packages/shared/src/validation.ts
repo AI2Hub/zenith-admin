@@ -33,8 +33,12 @@ import {
   PRESIGNED_EXPIRY_DEFAULT_SECONDS,
   PRESIGNED_EXPIRY_MAX_SECONDS,
   PRESIGNED_EXPIRY_MIN_SECONDS,
+  ANALYTICS_BREADCRUMB_DATA_MAX_BYTES,
+  ANALYTICS_CONTEXT_MAX_BYTES,
+  ANALYTICS_PROPERTIES_MAX_BYTES,
   REPORT_DASHBOARD_LIFECYCLE_STATUSES,
   REPORT_DASHBOARD_VERSION_SOURCES,
+  SOURCE_MAP_MAX_BYTES,
 } from './constants';
 
 const DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
@@ -2358,13 +2362,53 @@ export const userBehaviorEventTypeEnum = z.enum([
 ]);
 
 // ─── 埋点事件上报 ─────────────────────────────────────────────────────────────
-export const trackEventInputSchema = z.object({
-  sessionId: z.string().max(36),
-  anonymousId: z.string().max(64).optional(),
-  distinctId: z.string().max(64).optional(),
-  eventType: userBehaviorEventTypeEnum,
+function jsonDepth(value: unknown): number {
+  if (value === null || typeof value !== 'object') return 0;
+  const stack: Array<{ value: object; depth: number }> = [{ value, depth: 1 }];
+  const seen = new WeakSet<object>();
+  let maxDepth = 0;
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (seen.has(current.value)) continue;
+    seen.add(current.value);
+    maxDepth = Math.max(maxDepth, current.depth);
+    const children = Array.isArray(current.value) ? current.value : Object.values(current.value);
+    for (const child of children) {
+      if (child !== null && typeof child === 'object') stack.push({ value: child, depth: current.depth + 1 });
+    }
+  }
+  return maxDepth;
+}
+
+function jsonByteLength(value: unknown): number {
+  try {
+    return new TextEncoder().encode(JSON.stringify(value)).byteLength;
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+}
+
+function boundedJsonRecord(label: string, maxKeys: number, maxBytes: number, maxDepth = 6) {
+  return z.record(z.string(), z.unknown()).superRefine((value, ctx) => {
+    if (Object.keys(value).length > maxKeys) {
+      ctx.addIssue({ code: 'custom', message: `${label}最多允许 ${maxKeys} 个字段` });
+    }
+    if (jsonDepth(value) > maxDepth) {
+      ctx.addIssue({ code: 'custom', message: `${label}嵌套层级不能超过 ${maxDepth} 层` });
+    }
+    if (jsonByteLength(value) > maxBytes) {
+      ctx.addIssue({ code: 'custom', message: `${label}序列化后不能超过 ${maxBytes} 字节` });
+    }
+  });
+}
+
+const trackEventBaseSchema = z.object({
+  eventId: z.uuid().optional(),
+  sessionId: z.string().min(1).max(36),
+  anonymousId: z.string().min(1).max(64).optional(),
+  distinctId: z.string().min(1).max(64).optional(),
   eventName: z.string().max(128).optional(),
-  pagePath: z.string().max(256),
+  pagePath: z.string().min(1).max(256),
   pageTitle: z.string().max(128).optional(),
   elementKey: z.string().max(128).optional(),
   elementLabel: z.string().max(128).optional(),
@@ -2373,7 +2417,7 @@ export const trackEventInputSchema = z.object({
   clickY: z.number().min(0).max(100).optional(),
   scrollDepth: z.number().int().min(0).max(100).optional(),
   durationMs: z.number().int().min(0).max(86_400_000).optional(),
-  properties: z.record(z.string(), z.unknown()).optional(),
+  properties: boundedJsonRecord('事件属性', 50, ANALYTICS_PROPERTIES_MAX_BYTES).optional(),
   referrer: z.string().max(512).optional(),
   utmSource: z.string().max(128).optional(),
   utmMedium: z.string().max(128).optional(),
@@ -2388,6 +2432,27 @@ export const trackEventInputSchema = z.object({
   ts: z.number().int().positive().optional(),
 });
 
+export const trackEventInputSchema = z.discriminatedUnion('eventType', [
+  trackEventBaseSchema.extend({ eventType: z.literal('page_view') }),
+  trackEventBaseSchema.extend({ eventType: z.literal('page_leave') }),
+  trackEventBaseSchema.extend({ eventType: z.literal('feature_use') }),
+  trackEventBaseSchema.extend({ eventType: z.literal('area_click') }),
+  trackEventBaseSchema.extend({ eventType: z.literal('api_request') }),
+  trackEventBaseSchema.extend({
+    eventType: z.literal('custom'),
+    eventName: z.string().min(1).max(128),
+  }),
+  trackEventBaseSchema.extend({
+    eventType: z.literal('perf'),
+    metricName: z.string().min(1).max(32),
+    metricValue: z.number(),
+  }),
+  trackEventBaseSchema.extend({
+    eventType: z.literal('identify'),
+    distinctId: z.string().min(1).max(64),
+  }),
+]);
+
 export const batchTrackEventsSchema = z.object({
   events: z.array(trackEventInputSchema).min(1).max(100),
 });
@@ -2397,7 +2462,7 @@ export const errorBreadcrumbSchema = z.object({
   type: z.enum(['navigation', 'click', 'http', 'console', 'custom']),
   message: z.string().max(512),
   level: z.enum(['fatal', 'error', 'warning', 'info']).optional(),
-  data: z.record(z.string(), z.unknown()).optional(),
+  data: boundedJsonRecord('面包屑数据', 20, ANALYTICS_BREADCRUMB_DATA_MAX_BYTES, 4).optional(),
   timestamp: z.string().max(32),
 });
 
@@ -2411,9 +2476,9 @@ export const errorReportSchema = z.object({
   colNo: z.number().int().optional(),
   pageUrl: z.string().max(512).optional(),
   release: z.string().max(64).optional(),
-  sessionId: z.string().max(36).optional(),
+  sessionId: z.string().min(1).max(36).optional(),
   breadcrumbs: z.array(errorBreadcrumbSchema).max(50).optional(),
-  context: z.record(z.string(), z.unknown()).optional(),
+  context: boundedJsonRecord('错误上下文', 50, ANALYTICS_CONTEXT_MAX_BYTES).optional(),
   httpStatus: z.number().int().optional(),
   httpMethod: z.string().max(16).optional(),
   httpUrl: z.string().max(512).optional(),
@@ -2428,7 +2493,12 @@ export const updateErrorGroupSchema = z.object({
 });
 
 // ─── 告警规则 ─────────────────────────────────────────────────────────────────
-export const createErrorAlertRuleSchema = z.object({
+const webhookUrlSchema = z.url().max(512).refine(
+  (value) => ['http:', 'https:'].includes(new URL(value).protocol),
+  'Webhook URL 仅支持 HTTP/HTTPS',
+);
+
+const errorAlertRuleBaseSchema = z.object({
   name: z.string().min(1).max(128),
   errorType: z.enum(['js_error', 'promise_rejection', 'resource_error', 'console_error', 'http_error', 'white_screen', 'crash']).nullable().optional(),
   level: z.enum(['fatal', 'error', 'warning', 'info']).nullable().optional(),
@@ -2436,11 +2506,32 @@ export const createErrorAlertRuleSchema = z.object({
   thresholdCount: z.number().int().min(1).max(100_000).default(10),
   windowMinutes: z.number().int().min(1).max(10_080).default(60),
   channels: z.array(z.enum(['email', 'webhook', 'inapp'])).default([]),
-  webhookUrl: z.string().max(512).nullable().optional(),
+  webhookUrl: webhookUrlSchema.nullable().optional(),
   recipients: z.array(z.string().max(128)).default([]),
   enabled: z.boolean().default(true),
 });
-export const updateErrorAlertRuleSchema = createErrorAlertRuleSchema.partial();
+
+function validateAlertDelivery(
+  value: { enabled?: boolean; channels?: string[]; webhookUrl?: string | null; recipients?: string[] },
+  ctx: z.RefinementCtx,
+) {
+  if (value.enabled === false) return;
+  const channels = value.channels ?? [];
+  if (channels.length === 0) {
+    ctx.addIssue({ code: 'custom', path: ['channels'], message: '启用告警时至少选择一个通知渠道' });
+  }
+  if (channels.includes('webhook') && !value.webhookUrl) {
+    ctx.addIssue({ code: 'custom', path: ['webhookUrl'], message: 'Webhook 渠道必须配置有效 URL' });
+  }
+  if ((channels.includes('email') || channels.includes('inapp')) && !(value.recipients?.length)) {
+    ctx.addIssue({ code: 'custom', path: ['recipients'], message: '邮件或站内通知渠道必须配置接收人' });
+  }
+}
+
+export const createErrorAlertRuleSchema = errorAlertRuleBaseSchema.superRefine(validateAlertDelivery);
+export const updateErrorAlertRuleSchema = errorAlertRuleBaseSchema.partial().superRefine((value, ctx) => {
+  if (value.enabled === true && value.channels !== undefined) validateAlertDelivery(value, ctx);
+});
 
 // ─── 系统监控告警规则 ─────────────────────────────────────────────────────────
 export const monitorMetricValues = [
@@ -2448,7 +2539,7 @@ export const monitorMetricValues = [
   'workflowHealth', 'workflowBacklog', 'workflowDeadLetter', 'workflowFailureRate', 'workflowStuckRunning',
 ] as const;
 
-export const createMonitorAlertRuleSchema = z.object({
+const monitorAlertRuleBaseSchema = z.object({
   name: z.string().min(1, '名称不能为空').max(128),
   metric: z.enum(monitorMetricValues),
   operator: z.enum(['gt', 'gte', 'lt', 'lte']).default('gt'),
@@ -2456,12 +2547,15 @@ export const createMonitorAlertRuleSchema = z.object({
   durationMinutes: z.number().int().min(0).max(1440).default(0),
   level: z.enum(['info', 'warning', 'critical']).default('warning'),
   channels: z.array(z.enum(['email', 'webhook', 'inapp'])).default([]),
-  webhookUrl: z.string().max(512).nullable().optional(),
+  webhookUrl: webhookUrlSchema.nullable().optional(),
   recipients: z.array(z.string().max(128)).default([]),
   silenceMinutes: z.number().int().min(0).max(10_080).default(30),
   enabled: z.boolean().default(true),
 });
-export const updateMonitorAlertRuleSchema = createMonitorAlertRuleSchema.partial();
+export const createMonitorAlertRuleSchema = monitorAlertRuleBaseSchema.superRefine(validateAlertDelivery);
+export const updateMonitorAlertRuleSchema = monitorAlertRuleBaseSchema.partial().superRefine((value, ctx) => {
+  if (value.enabled === true && value.channels !== undefined) validateAlertDelivery(value, ctx);
+});
 
 export const monitorAlertEventQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -2518,11 +2612,14 @@ export const updateAnalyticsSettingsSchema = z.object({
 // ─── 漏斗 / 路径分析查询 ──────────────────────────────────────────────────────
 export const funnelStepSchema = z.object({
   eventType: userBehaviorEventTypeEnum.optional(),
-  eventName: z.string().max(128).optional(),
-  pagePath: z.string().max(256).optional(),
-  elementKey: z.string().max(128).optional(),
-  label: z.string().max(64),
-});
+  eventName: z.string().min(1).max(128).optional(),
+  pagePath: z.string().min(1).max(256).optional(),
+  elementKey: z.string().min(1).max(128).optional(),
+  label: z.string().min(1).max(64),
+}).refine(
+  (step) => step.eventType !== undefined || step.eventName !== undefined || step.pagePath !== undefined || step.elementKey !== undefined,
+  { message: '漏斗步骤至少需要一个事件或页面条件' },
+);
 export const funnelQuerySchema = z.object({
   days: z.number().int().min(1).max(365).default(30),
   steps: z.array(funnelStepSchema).min(2).max(10),
@@ -2531,7 +2628,8 @@ export const funnelQuerySchema = z.object({
 export const sourceMapUploadSchema = z.object({
   release: z.string().min(1).max(64),
   fileName: z.string().min(1).max(256),
-  content: z.string().min(1),
+  content: z.string().min(1).max(SOURCE_MAP_MAX_BYTES)
+    .refine((value) => new TextEncoder().encode(value).byteLength <= SOURCE_MAP_MAX_BYTES, 'Source Map 超出 20MB 大小限制'),
 });
 
 export type TrackEventInputZod = z.infer<typeof trackEventInputSchema>;

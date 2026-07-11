@@ -51,6 +51,7 @@ import type {
   EventListItem,
 } from '@zenith/shared';
 import { ANALYTICS_DEVICE_TYPE_OPTIONS } from '@zenith/shared';
+import { usePermission } from '@/hooks/usePermission';
 
 const PAGE_SIZE = 20;
 
@@ -206,6 +207,8 @@ function MetaStatusTag({ value }: Readonly<{ value: AnalyticsEventMeta['status']
 
 export default function AnalyticsDataPage() {
   const queryClient = useQueryClient();
+  const { hasPermission } = usePermission();
+  const canClean = hasPermission('analytics:clean');
   const [activeTab, setActiveTab] = useState<'events' | 'meta' | 'rollup' | 'settings'>('events');
 
   const [eventsPage, setEventsPage] = useState(1);
@@ -782,7 +785,7 @@ export default function AnalyticsDataPage() {
   const renderEventSearchButton = () => <Button type="primary" icon={<Search size={14} />} onClick={handleEventSearch}>查询</Button>;
   const renderEventResetButton = () => <Button type="tertiary" icon={<RotateCcw size={14} />} onClick={handleEventReset}>重置</Button>;
   const renderEventExportButtons = () => <ExportButton entity="analytics.events" query={buildExportQuery()} />;
-  const renderEventCleanButtons = () => (
+  const renderEventCleanButtons = () => canClean ? (
     <SplitButtonGroup>
       <Button type="danger" theme="light" icon={<Trash2 size={14} />} loading={cleanMutation.isPending} onClick={() => handleClean(90)}>清除数据</Button>
       <Dropdown trigger="click" position="bottomRight" clickToHide render={(
@@ -801,11 +804,11 @@ export default function AnalyticsDataPage() {
         <Button type="danger" theme="light" icon={<ChevronDown size={14} />} />
       </Dropdown>
     </SplitButtonGroup>
-  );
+  ) : null;
   const renderMobileEventActions = () => (
     <>
       <ExportButton entity="analytics.events" query={buildExportQuery()} variant="flat" />
-      {CLEAN_DAY_OPTIONS.map((item) => (
+      {canClean && CLEAN_DAY_OPTIONS.map((item) => (
         <Button
           key={item.value}
           type={item.value === 0 ? 'danger' : 'tertiary'}

@@ -289,9 +289,12 @@ export const MonitorAlertEventDTO = z
 
 // ─── 请求体 DTO（与 shared validation 保持一致）─────────────────────────
 const monitorMetricEnumDTO = z.enum(monitorMetricValues);
+const monitorWebhookUrlDTO = z.url().max(512).refine(
+  (value) => ['http:', 'https:'].includes(new URL(value).protocol),
+  'Webhook URL 仅支持 HTTP/HTTPS',
+);
 
-export const CreateMonitorAlertRuleDTO = z
-  .object({
+const monitorAlertRuleInputDTO = z.object({
     name: z.string().min(1).max(128),
     metric: monitorMetricEnumDTO,
     operator: z.enum(['gt', 'gte', 'lt', 'lte']).default('gt'),
@@ -299,10 +302,26 @@ export const CreateMonitorAlertRuleDTO = z
     durationMinutes: z.number().int().min(0).max(1440).default(0),
     level: z.enum(['info', 'warning', 'critical']).default('warning'),
     channels: z.array(z.enum(['email', 'webhook', 'inapp'])).default([]),
-    webhookUrl: z.string().max(512).nullable().optional(),
+    webhookUrl: monitorWebhookUrlDTO.nullable().optional(),
     recipients: z.array(z.string().max(128)).default([]),
     silenceMinutes: z.number().int().min(0).max(10_080).default(30),
     enabled: z.boolean().default(true),
-  })
+  });
+
+function validateMonitorAlertDelivery(
+  value: { enabled?: boolean; channels?: string[]; webhookUrl?: string | null; recipients?: string[] },
+  ctx: { addIssue: (issue: { code: 'custom'; path?: PropertyKey[]; message: string }) => void },
+) {
+  if (value.enabled === false) return;
+  const channels = value.channels ?? [];
+  if (channels.length === 0) ctx.addIssue({ code: 'custom', path: ['channels'], message: '启用告警时至少选择一个通知渠道' });
+  if (channels.includes('webhook') && !value.webhookUrl) ctx.addIssue({ code: 'custom', path: ['webhookUrl'], message: 'Webhook 渠道必须配置有效 URL' });
+  if ((channels.includes('email') || channels.includes('inapp')) && !(value.recipients?.length)) {
+    ctx.addIssue({ code: 'custom', path: ['recipients'], message: '邮件或站内通知渠道必须配置接收人' });
+  }
+}
+
+export const CreateMonitorAlertRuleDTO = monitorAlertRuleInputDTO
+  .superRefine(validateMonitorAlertDelivery)
   .openapi('CreateMonitorAlertRule');
-export const UpdateMonitorAlertRuleDTO = CreateMonitorAlertRuleDTO.partial().openapi('UpdateMonitorAlertRule');
+export const UpdateMonitorAlertRuleDTO = monitorAlertRuleInputDTO.partial().openapi('UpdateMonitorAlertRule');

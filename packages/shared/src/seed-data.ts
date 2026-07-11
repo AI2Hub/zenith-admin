@@ -331,7 +331,7 @@ export const SEED_MENUS: Menu[] = [
   { id: 600, parentId: 0, title: '数据分析',   name: 'Analytics',               path: undefined,                    component: undefined,                                        icon: 'BarChart2',         type: 'directory', sort: 8,  status: 'enabled', visible: true,  createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 601, parentId: 600, title: '行为分析', name: 'AnalyticsBehavior',        path: '/analytics/behavior',        component: 'analytics/AnalyticsPage',                        icon: 'Activity',          type: 'menu',      sort: 1,  status: 'enabled', visible: true,  permission: 'analytics:view',    createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 602, parentId: 600, title: '数据管理', name: 'AnalyticsData',            path: '/analytics/data',            component: 'analytics/AnalyticsDataPage',                    icon: 'Database',          type: 'menu',      sort: 2,  status: 'enabled', visible: true,  permission: 'analytics:manage',  createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 603, parentId: 602, title: '清除数据', name: undefined,                  path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'analytics:manage',  createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 603, parentId: 602, title: '清除数据', name: undefined,                  path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'analytics:clean',   createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 604, parentId: 600, title: '错误监控', name: 'FrontendErrors',           path: '/analytics/errors',          component: 'analytics/FrontendErrorsPage',                   icon: 'AlertCircle',       type: 'menu',      sort: 3,  status: 'enabled', visible: true,  permission: 'monitor:error:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 605, parentId: 604, title: '清除错误', name: undefined,                  path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 1,  status: 'enabled', visible: true,  permission: 'monitor:error:manage', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 606, parentId: 602, title: '导出数据', name: undefined,                  path: undefined,                    component: undefined,                                        icon: undefined,           type: 'button',    sort: 2,  status: 'enabled', visible: true,  permission: 'analytics:export',    createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -776,6 +776,30 @@ export const SEED_SYSTEM_CONFIGS: SystemConfig[] = [
 // ─── 限流规则 ─────────────────────────────────────────────────────────────────
 
 export const SEED_RATE_LIMIT_RULES = [
+  {
+    name: 'analytics-ingest',
+    description: '匿名埋点事件上报限流',
+    windowMs: 60 * 1000,
+    limit: 120,
+    keyType: 'ip' as const,
+    enabled: true,
+    blockedMessage: '埋点上报过于频繁，请稍后再试',
+    pathPatterns: [],
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+  {
+    name: 'error-report',
+    description: '匿名前端错误上报限流',
+    windowMs: 60 * 1000,
+    limit: 60,
+    keyType: 'ip' as const,
+    enabled: true,
+    blockedMessage: '错误上报过于频繁，请稍后再试',
+    pathPatterns: [],
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
   {
     name: 'workflow_public_callback',
     description: '工作流公开回调接口限流',

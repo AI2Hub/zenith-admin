@@ -898,6 +898,8 @@ export type AnalyticsDeviceType = 'desktop' | 'mobile' | 'tablet' | 'bot' | 'unk
 
 /** 单条上报事件（客户端 → 服务端） */
 export interface TrackEventInput {
+  /** 客户端生成的稳定事件 ID；旧离线队列可暂不携带。 */
+  eventId?: string;
   sessionId: string;
   anonymousId?: string;
   distinctId?: string;
@@ -961,6 +963,7 @@ export interface AnalyticsPublicConfig {
   maskInputs: boolean;
   respectDnt: boolean;
   blacklistPaths: string[];
+  sessionTimeoutMinutes: number;
 }
 
 export type AnalyticsEventMetaStatus = 'active' | 'deprecated' | 'blocked';

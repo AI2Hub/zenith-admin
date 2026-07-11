@@ -312,7 +312,7 @@ const eventDetailRoute = defineOpenAPIRoute({
 const cleanRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'delete', path: '/clean', tags: ['Analytics'], summary: '清除埋点数据', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const, request: { query: z.object({ days: z.coerce.number().int().min(0).default(0) }) },
+    middleware: [authMiddleware, guard({ permission: 'analytics:clean', audit: { module: '行为分析', description: '清除埋点数据' } })] as const, request: { query: z.object({ days: z.coerce.number().int().min(0).default(0) }) },
     responses: { ...okMsg('清除成功'), ...commonErrorResponses },
   }),
   handler: async (c) => {
@@ -326,7 +326,7 @@ const metaListRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/event-meta', tags: ['Analytics'], summary: '事件字典列表', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
-    request: { query: PaginationQuery.extend({ keyword: z.string().optional(), status: z.string().optional(), category: z.string().optional() }) },
+    request: { query: PaginationQuery.extend({ keyword: z.string().optional(), status: z.enum(['active', 'deprecated', 'blocked']).optional(), category: z.string().optional() }) },
     responses: { ...okPaginated(AnalyticsEventMetaDTO, '事件字典'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await listEventMeta(c.req.valid('query'))), 200),

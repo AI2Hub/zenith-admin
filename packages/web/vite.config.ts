@@ -34,9 +34,13 @@ export default defineConfig(({ mode }) => {
   const buildTarget = 'esnext';
 
   const pwaEnabled = env.VITE_PWA_ENABLED === 'true';
+  const appVersion = env.VITE_APP_VERSION || process.env.npm_package_version || 'dev';
 
   return {
     base,
+    define: {
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+    },
     plugins: [
       react(),
       ...(pwaEnabled ? [VitePWA({

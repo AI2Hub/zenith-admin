@@ -13,7 +13,7 @@
 
 ### 数据清理
 
-- 清除数据：`DELETE /api/analytics/clean?days=N`（删除 N 天前数据，`days=0` 清空），同步清理会话。
+- 清除数据（权限 `analytics:clean`）：`DELETE /api/analytics/clean?days=N`（删除 N 天前数据，`days=0` 清空），同步清理会话。
 
 ## 事件字典（埋点治理）
 
@@ -21,7 +21,7 @@
 
 - 采集时自动登记带显式 `eventName` 的事件（`touchEventMeta`）。
 - 支持手动 CRUD：`POST` / `PUT /{id}` / `DELETE /{id}`。
-- 事件字典为**平台级全局分类**（事件名全局唯一，跨租户共享）。
+- 事件字典为**平台级全局分类**（事件名全局唯一，跨租户共享）；将事件置为/移出 `blocked`，以及删除已屏蔽事件，仅允许平台超级管理员。
 
 ## 数据聚合
 
@@ -46,6 +46,8 @@
 | `retentionDays` / `errorRetentionDays` | 埋点 / 错误数据保留天数 |
 | `sessionTimeoutMinutes` | 会话超时分钟配置 |
 
+登录用户读取当前租户配置；匿名 SDK 使用平台级默认配置。设置保存后，已打开页面需刷新后重新拉取（运行时热更新在后续阶段实现）。
+
 ## 数据保留策略
 
-定时任务 `analyticsRetention`（每日 02:00）按 `retentionDays` / `errorRetentionDays` 自动清理过期埋点、会话与错误数据，并删除已无事件的空错误分组。
+定时任务 `analyticsRetention`（每日 02:00）逐租户读取 `retentionDays` / `errorRetentionDays`，分别清理各租户过期埋点、会话与错误数据，并删除已无事件的空错误分组。没有配置记录的租户使用 180 / 90 天默认值。

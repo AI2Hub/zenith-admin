@@ -49,7 +49,27 @@ export async function ensureRuleExists(id: number) {
   return row;
 }
 
+function ensureAlertDelivery(input: {
+  enabled: boolean;
+  channels: string[];
+  webhookUrl: string | null;
+  recipients: string[];
+}): void {
+  if (!input.enabled) return;
+  if (input.channels.length === 0) throw new HTTPException(400, { message: '启用告警时至少选择一个通知渠道' });
+  if (input.channels.includes('webhook') && !input.webhookUrl) throw new HTTPException(400, { message: 'Webhook 渠道必须配置有效 URL' });
+  if ((input.channels.includes('email') || input.channels.includes('inapp')) && input.recipients.length === 0) {
+    throw new HTTPException(400, { message: '邮件或站内通知渠道必须配置接收人' });
+  }
+}
+
 export async function createAlertRule(input: CreateErrorAlertRuleInput) {
+  ensureAlertDelivery({
+    enabled: input.enabled ?? true,
+    channels: input.channels ?? [],
+    webhookUrl: input.webhookUrl ?? null,
+    recipients: input.recipients ?? [],
+  });
   const [row] = await db
     .insert(errorAlertRules)
     .values({
@@ -70,7 +90,13 @@ export async function createAlertRule(input: CreateErrorAlertRuleInput) {
 }
 
 export async function updateAlertRule(id: number, input: UpdateErrorAlertRuleInput) {
-  await ensureRuleExists(id);
+  const current = await ensureRuleExists(id);
+  ensureAlertDelivery({
+    enabled: input.enabled ?? current.enabled,
+    channels: input.channels ?? current.channels ?? [],
+    webhookUrl: input.webhookUrl === undefined ? current.webhookUrl : input.webhookUrl,
+    recipients: input.recipients ?? current.recipients ?? [],
+  });
   const [row] = await db
     .update(errorAlertRules)
     .set({
@@ -106,7 +132,7 @@ async function dispatchAlert(rule: ErrorAlertRuleRow, detail: string): Promise<v
   const channels = rule.channels ?? [];
   await Promise.allSettled([
     ...(channels.includes('webhook') && rule.webhookUrl
-      ? [httpPost(rule.webhookUrl, { type: 'error_alert', rule: rule.name, detail, condition: rule.condition, timestamp: formatDateTime(new Date()) }, { timeout: 8000 })]
+      ? [httpPost(rule.webhookUrl, { type: 'error_alert', rule: rule.name, detail, condition: rule.condition, timestamp: formatDateTime(new Date()) }, { timeout: 8000, ssrfProtection: true })]
       : []),
     ...(channels.includes('email')
       ? (rule.recipients ?? []).filter((r) => r.includes('@')).map((to) => sendMail(to, subject, html))

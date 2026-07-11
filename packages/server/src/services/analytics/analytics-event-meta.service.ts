@@ -8,6 +8,8 @@ import { mergeWhere, escapeLike } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+import { currentUser } from '../../lib/context';
+import { isPlatformAdmin } from '../../lib/tenant';
 
 export function mapEventMeta(row: AnalyticsEventMetaRow) {
   return {
@@ -90,7 +92,15 @@ export async function ensureEventMetaExists(id: number) {
   return row;
 }
 
+function ensureBlockedStatusPermission(currentStatus: AnalyticsEventMetaRow['status'] | null, nextStatus: AnalyticsEventMetaRow['status'] | null): void {
+  if (currentStatus !== 'blocked' && nextStatus !== 'blocked') return;
+  if (!isPlatformAdmin(currentUser())) {
+    throw new HTTPException(403, { message: '仅平台超级管理员可以屏蔽或修改已屏蔽事件' });
+  }
+}
+
 export async function createEventMeta(input: CreateAnalyticsEventMetaInput) {
+  ensureBlockedStatusPermission(null, input.status ?? 'active');
   try {
     const [row] = await db
       .insert(analyticsEventMeta)
@@ -112,7 +122,8 @@ export async function createEventMeta(input: CreateAnalyticsEventMetaInput) {
 }
 
 export async function updateEventMeta(id: number, input: UpdateAnalyticsEventMetaInput) {
-  await ensureEventMetaExists(id);
+  const current = await ensureEventMetaExists(id);
+  ensureBlockedStatusPermission(current.status, input.status ?? current.status);
   const [row] = await db
     .update(analyticsEventMeta)
     .set({
@@ -130,7 +141,8 @@ export async function updateEventMeta(id: number, input: UpdateAnalyticsEventMet
 }
 
 export async function deleteEventMeta(id: number) {
-  await ensureEventMetaExists(id);
+  const current = await ensureEventMetaExists(id);
+  ensureBlockedStatusPermission(current.status, null);
   await db.delete(analyticsEventMeta).where(eq(analyticsEventMeta.id, id));
   invalidateBlockedEventCache();
 }

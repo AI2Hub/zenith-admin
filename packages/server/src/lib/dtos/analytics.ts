@@ -2,6 +2,7 @@
  * 数据分析 / 埋点 DTO
  */
 import { z } from '@hono/zod-openapi';
+import { ANALYTICS_PROPERTIES_MAX_BYTES } from '@zenith/shared';
 
 const eventTypeEnum = z.enum([
   'page_view', 'page_leave', 'feature_use', 'area_click', 'custom', 'perf', 'api_request', 'identify',
@@ -10,14 +11,39 @@ const deviceTypeEnum = z.enum(['desktop', 'mobile', 'tablet', 'bot', 'unknown'])
 const metaStatusEnum = z.enum(['active', 'deprecated', 'blocked']);
 
 // ─── 埋点上报 ─────────────────────────────────────────────────────────────────
-export const UserEventInputDTO = z
-  .object({
-    sessionId: z.string().max(36),
-    anonymousId: z.string().max(64).optional(),
-    distinctId: z.string().max(64).optional(),
-    eventType: eventTypeEnum,
+function jsonDepth(value: unknown): number {
+  if (value === null || typeof value !== 'object') return 0;
+  const stack: Array<{ value: object; depth: number }> = [{ value, depth: 1 }];
+  const seen = new WeakSet<object>();
+  let maxDepth = 0;
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (seen.has(current.value)) continue;
+    seen.add(current.value);
+    maxDepth = Math.max(maxDepth, current.depth);
+    const children = Array.isArray(current.value) ? current.value : Object.values(current.value);
+    for (const child of children) {
+      if (child !== null && typeof child === 'object') stack.push({ value: child, depth: current.depth + 1 });
+    }
+  }
+  return maxDepth;
+}
+
+const eventPropertiesDTO = z.record(z.string(), z.unknown()).superRefine((value, ctx) => {
+  if (Object.keys(value).length > 50) ctx.addIssue({ code: 'custom', message: '事件属性最多允许 50 个字段' });
+  if (jsonDepth(value) > 6) ctx.addIssue({ code: 'custom', message: '事件属性嵌套层级不能超过 6 层' });
+  if (new TextEncoder().encode(JSON.stringify(value)).byteLength > ANALYTICS_PROPERTIES_MAX_BYTES) {
+    ctx.addIssue({ code: 'custom', message: `事件属性序列化后不能超过 ${ANALYTICS_PROPERTIES_MAX_BYTES} 字节` });
+  }
+});
+
+const userEventBaseDTO = z.object({
+    eventId: z.uuid().optional(),
+    sessionId: z.string().min(1).max(36),
+    anonymousId: z.string().min(1).max(64).optional(),
+    distinctId: z.string().min(1).max(64).optional(),
     eventName: z.string().max(128).optional(),
-    pagePath: z.string().max(256),
+    pagePath: z.string().min(1).max(256),
     pageTitle: z.string().max(128).optional(),
     elementKey: z.string().max(128).optional(),
     elementLabel: z.string().max(128).optional(),
@@ -26,7 +52,7 @@ export const UserEventInputDTO = z
     clickY: z.number().min(0).max(100).optional(),
     scrollDepth: z.number().int().min(0).max(100).optional(),
     durationMs: z.number().int().min(0).optional(),
-    properties: z.record(z.string(), z.unknown()).optional(),
+    properties: eventPropertiesDTO.optional(),
     referrer: z.string().max(512).optional(),
     utmSource: z.string().max(128).optional(),
     utmMedium: z.string().max(128).optional(),
@@ -39,7 +65,19 @@ export const UserEventInputDTO = z
     metricName: z.string().max(32).optional(),
     metricValue: z.number().optional(),
     ts: z.number().int().positive().optional(),
-  })
+  });
+
+export const UserEventInputDTO = z
+  .discriminatedUnion('eventType', [
+    userEventBaseDTO.extend({ eventType: z.literal('page_view') }),
+    userEventBaseDTO.extend({ eventType: z.literal('page_leave') }),
+    userEventBaseDTO.extend({ eventType: z.literal('feature_use') }),
+    userEventBaseDTO.extend({ eventType: z.literal('area_click') }),
+    userEventBaseDTO.extend({ eventType: z.literal('api_request') }),
+    userEventBaseDTO.extend({ eventType: z.literal('custom'), eventName: z.string().min(1).max(128) }),
+    userEventBaseDTO.extend({ eventType: z.literal('perf'), metricName: z.string().min(1).max(32), metricValue: z.number() }),
+    userEventBaseDTO.extend({ eventType: z.literal('identify'), distinctId: z.string().min(1).max(64) }),
+  ])
   .openapi('UserEventInput');
 
 export const BatchUserEventsBodyDTO = z
@@ -58,6 +96,7 @@ export const AnalyticsPublicConfigDTO = z
     maskInputs: z.boolean(),
     respectDnt: z.boolean(),
     blacklistPaths: z.array(z.string()),
+    sessionTimeoutMinutes: z.number().int(),
   })
   .openapi('AnalyticsPublicConfig');
 

@@ -9,7 +9,7 @@ import { onCLS, onINP, onLCP, onFCP, onTTFB, type Metric } from 'web-vitals';
 import { TOKEN_KEY } from '@zenith/shared';
 import type { TrackEventInput, AnalyticsPublicConfig, UserBehaviorEventType } from '@zenith/shared';
 import { addBreadcrumb } from './breadcrumbs';
-import { reportError } from './error-reporter';
+import { configureErrorReporting, reportError } from './error-reporter';
 
 const FLUSH_INTERVAL_MS = 15_000;
 const MAX_BUFFER_SIZE = 50;
@@ -21,7 +21,7 @@ const SESSION_TS_KEY = 'zenith_tracker_sid_ts';
 const SAMPLED_KEY = 'zenith_tracker_sampled';
 const ANON_KEY = 'zenith_anon_id';
 const QUEUE_KEY = 'zenith_tracker_queue';
-const SESSION_IDLE_MS = 30 * 60_000;
+const DEFAULT_SESSION_IDLE_MINUTES = 30;
 const WHITE_SCREEN_CHECK_DELAY_MS = 6000;
 const RAGE_CLICK_WINDOW_MS = 2000;
 const RAGE_CLICK_THRESHOLD = 3;
@@ -56,12 +56,22 @@ const DEFAULT_CONFIG: AnalyticsPublicConfig = {
   maskInputs: true,
   respectDnt: false,
   blacklistPaths: [],
+  sessionTimeoutMinutes: DEFAULT_SESSION_IDLE_MINUTES,
 };
 
 type PendingEvent = Omit<TrackEventInput, 'sessionId' | 'anonymousId' | 'distinctId'>;
 
 function uuid(): string {
-  try { return crypto.randomUUID(); } catch { return `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+  try { return crypto.randomUUID(); } catch {
+    const bytes = new Uint8Array(16);
+    try { crypto.getRandomValues(bytes); } catch {
+      for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    }
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
 }
 
 // maskInputs=true 时对采集文本脱敏：手机号 / 邮箱 / 身份证号
@@ -108,6 +118,9 @@ class Tracker {
   private distinctId: string | null = null;
   private username: string | null = null;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
+  private queueFlushInFlight = false;
+  private identityGeneration = 0;
+  private configRequestId = 0;
   private initialized = false;
   private readonly utm = parseUtm();
   private readonly referrer = (() => { try { return document.referrer || undefined; } catch { return undefined; } })();
@@ -126,7 +139,7 @@ class Tracker {
       const now = Date.now();
       const ts = Number(sessionStorage.getItem(SESSION_TS_KEY) || 0);
       let id = sessionStorage.getItem(SESSION_KEY);
-      if (!id || now - ts > SESSION_IDLE_MS) {
+      if (!id || now - ts > this.config.sessionTimeoutMinutes * 60_000) {
         id = uuid();
         sessionStorage.setItem(SESSION_KEY, id);
         sessionStorage.removeItem(SAMPLED_KEY);
@@ -149,14 +162,38 @@ class Tracker {
   identify(userId: number | string, username?: string): void {
     const next = `u:${userId}`;
     if (this.distinctId === next) { if (username) this.username = username; return; }
+    if (this.distinctId !== null) this.discardPendingIdentityData();
     this.distinctId = next;
     if (username) this.username = username;
     this.track({ eventType: 'identify', eventName: '$identify', pagePath: globalThis.location.pathname });
+    if (this.initialized) void this.loadConfig();
   }
 
   reset(): void {
+    if (this.distinctId === null) return;
+    this.discardPendingIdentityData();
     this.distinctId = null;
     this.username = null;
+    if (this.initialized) void this.loadConfig();
+  }
+
+  prepareLogout(): void {
+    const token = localStorage.getItem(TOKEN_KEY);
+    this.flush(token, false);
+    this.flushQueueSnapshot(token);
+    this.discardPendingIdentityData();
+  }
+
+  private discardPendingIdentityData(): void {
+    this.identityGeneration += 1;
+    this.buffer = [];
+    this.preBuffer = [];
+    try {
+      localStorage.removeItem(QUEUE_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(SESSION_TS_KEY);
+      sessionStorage.removeItem(SAMPLED_KEY);
+    } catch { /* storage unavailable */ }
   }
 
   // ─── 初始化 ───────────────────────────────────────────────────────────────
@@ -164,8 +201,14 @@ class Tracker {
     if (this.initialized) return;
     this.initialized = true;
     this.getSessionId();
+    this.setupAutocapture();
+    this.setupWebVitals();
+    this.setupApiMonitor();
     void this.loadConfig();
-    this.flushTimer = setInterval(() => this.flush(), FLUSH_INTERVAL_MS);
+    this.flushTimer = setInterval(() => {
+      this.flush();
+      this.flushQueue();
+    }, FLUSH_INTERVAL_MS);
     this.setupUnloadFlush();
     this.setupScrollDepth();
     this.setupWhiteScreenCheck();
@@ -198,20 +241,24 @@ class Tracker {
   }
 
   private async loadConfig(): Promise<void> {
+    const requestId = ++this.configRequestId;
     try {
       const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || '/api';
-      const res = await fetch(`${apiBase}/analytics/config`);
+      const token = localStorage.getItem(TOKEN_KEY);
+      const res = await fetch(`${apiBase}/analytics/config`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       const json = await res.json() as { code: number; data: AnalyticsPublicConfig };
-      if (json.code === 0 && json.data) this.config = json.data;
-    } catch { /* keep defaults */ } finally {
-      this.configLoaded = true;
-      this.drainPreBuffer();
-      if (this.isEnabled()) {
-        if (this.config.trackClicks) this.setupAutocapture();
-        if (this.config.trackPerformance) this.setupWebVitals();
-        if (this.config.trackApi) this.setupApiMonitor();
-      }
-    }
+      if (requestId === this.configRequestId && json.code === 0 && json.data) this.config = json.data;
+    } catch { /* keep defaults */ }
+    if (requestId !== this.configRequestId) return;
+    configureErrorReporting({
+      enabled: this.config.enabled,
+      trackErrors: this.config.trackErrors,
+      respectDnt: this.config.respectDnt,
+    });
+    this.configLoaded = true;
+    this.drainPreBuffer();
   }
 
   /** 配置就绪后按最终配置重放 pre-buffer 事件（disabled/未采样则丢弃）。 */
@@ -249,10 +296,11 @@ class Tracker {
     if (!this.isEnabled()) return;
     if (!this.isTypeEnabled(event.eventType)) return;
     if (this.isBlacklisted(event.pagePath)) return;
-    if (!this.isSampled()) return;
+    if (event.eventType !== 'identify' && !this.isSampled()) return;
 
     const enriched: TrackEventInput = {
       ...event,
+      eventId: event.eventId ?? uuid(),
       sessionId: this.getSessionId(),
       anonymousId: this.getAnonymousId(),
       distinctId: this.distinctId ?? undefined,
@@ -268,18 +316,23 @@ class Tracker {
   }
 
   // ─── 上报 / 重试 ──────────────────────────────────────────────────────────
-  private flush(): void {
+  private flush(tokenOverride?: string | null, requeueOnFailure = true): void {
     if (this.buffer.length === 0) return;
     const events = this.buffer.splice(0);
+    const generation = this.identityGeneration;
     const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || '/api';
-    const token = localStorage.getItem(TOKEN_KEY);
+    const token = tokenOverride === undefined ? localStorage.getItem(TOKEN_KEY) : tokenOverride;
     fetch(`${apiBase}/analytics/events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({ events }),
     })
-      .then((res) => { if (!res.ok) this.enqueue(events); })
-      .catch(() => this.enqueue(events));
+      .then((res) => {
+        if (!res.ok && requeueOnFailure && generation === this.identityGeneration) this.enqueue(events);
+      })
+      .catch(() => {
+        if (requeueOnFailure && generation === this.identityGeneration) this.enqueue(events);
+      });
   }
 
   private flushSync(): void {
@@ -287,29 +340,34 @@ class Tracker {
     if (!this.configLoaded) this.drainPreBuffer();
     if (this.buffer.length === 0) return;
     const events = this.buffer.splice(0);
+    const generation = this.identityGeneration;
     const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || '/api';
     const url = `${apiBase}/analytics/events`;
     // 分片规避 sendBeacon / keepalive 的 64KB body 上限
     for (let i = 0; i < events.length; i += UNLOAD_CHUNK_SIZE) {
       const chunk = events.slice(i, i + UNLOAD_CHUNK_SIZE);
       const body = JSON.stringify({ events: chunk });
+      const token = localStorage.getItem(TOKEN_KEY);
       let sent = false;
       try {
         // sendBeacon 专为卸载上报设计：浏览器保证页面关闭后继续发送
-        if (typeof navigator.sendBeacon === 'function') {
+        if (!token && typeof navigator.sendBeacon === 'function') {
           sent = navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
         }
       } catch { sent = false; }
       if (sent) continue;
       try {
-        const token = localStorage.getItem(TOKEN_KEY);
         fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           body,
           keepalive: true,
-        }).catch(() => this.enqueue(chunk));
-      } catch { this.enqueue(chunk); }
+        }).catch(() => {
+          if (generation === this.identityGeneration) this.enqueue(chunk);
+        });
+      } catch {
+        if (generation === this.identityGeneration) this.enqueue(chunk);
+      }
     }
   }
 
@@ -321,20 +379,59 @@ class Tracker {
     } catch { /* storage full / unavailable */ }
   }
 
-  private flushQueue(): void {
+  private flushQueueSnapshot(token: string | null): void {
     try {
       const queued = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]') as TrackEventInput[];
+      localStorage.removeItem(QUEUE_KEY);
       if (queued.length === 0) return;
-      const events = queued.slice(0, MAX_BUFFER_SIZE);     // 单批 ≤ 后端上限，避免 100+ 触发 400
-      const rest = queued.slice(MAX_BUFFER_SIZE);
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(rest)); // 先留下剩余，成功不动、失败回灌
       const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || '/api';
-      const token = localStorage.getItem(TOKEN_KEY);
-      fetch(`${apiBase}/analytics/events`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ events }),
-      }).then((res) => { if (!res.ok) this.enqueue(events); else if (rest.length) this.flushQueue(); }).catch(() => this.enqueue(events));
+      for (let i = 0; i < queued.length; i += MAX_BUFFER_SIZE) {
+        const events = queued.slice(i, i + MAX_BUFFER_SIZE);
+        fetch(`${apiBase}/analytics/events`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ events }),
+          keepalive: true,
+        }).catch(() => { /* identity is leaving; never leak this batch into the next account */ });
+      }
+    } catch { /* ignore */ }
+  }
+
+  private flushQueue(tokenOverride?: string | null, requeueOnFailure = true): void {
+    if (this.queueFlushInFlight) return;
+    this.queueFlushInFlight = true;
+    const token = tokenOverride === undefined ? localStorage.getItem(TOKEN_KEY) : tokenOverride;
+    const generation = this.identityGeneration;
+    void this.drainQueue(token, requeueOnFailure, generation).finally(() => {
+      this.queueFlushInFlight = false;
+    });
+  }
+
+  private async drainQueue(token: string | null, requeueOnFailure: boolean, generation: number): Promise<void> {
+    try {
+      while (true) {
+        if (generation !== this.identityGeneration) return;
+        const queued = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]') as TrackEventInput[];
+        if (queued.length === 0) return;
+        const events = queued.slice(0, MAX_BUFFER_SIZE);
+        const rest = queued.slice(MAX_BUFFER_SIZE);
+        localStorage.setItem(QUEUE_KEY, JSON.stringify(rest));
+        const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || '/api';
+        try {
+          const res = await fetch(`${apiBase}/analytics/events`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            body: JSON.stringify({ events }),
+          });
+          if (!res.ok) {
+            if (requeueOnFailure && generation === this.identityGeneration) this.enqueue(events);
+            return;
+          }
+        } catch {
+          if (requeueOnFailure && generation === this.identityGeneration) this.enqueue(events);
+          return;
+        }
+      }
     } catch { /* ignore */ }
   }
 
@@ -400,10 +497,18 @@ class Tracker {
 
   // ─── 自动采集：API 监控 ───────────────────────────────────────────────────
   private setupApiMonitor(): void {
-    const isInternal = (url: string) => url.includes('/api/analytics') || url.includes('/api/frontend-errors');
+    const isInternal = (url: string, method: string) => {
+      if (method !== 'POST') return false;
+      try {
+        const path = new URL(url, globalThis.location.origin).pathname;
+        return path.endsWith('/api/analytics/events') || path.endsWith('/api/frontend-errors');
+      } catch {
+        return false;
+      }
+    };
 
     const record = (url: string, method: string, status: number, durationMs: number, failed: boolean) => {
-      if (isInternal(url)) return;
+      if (isInternal(url, method)) return;
       addBreadcrumb({ type: 'http', message: `${method} ${url} → ${failed ? 'ERR' : status}`, level: status >= 400 || failed ? 'warning' : 'info', data: { status, durationMs } });
       if (status >= 400 || failed || durationMs > SLOW_API_MS) {
         this.track({ eventType: 'api_request', eventName: '$api', pagePath: globalThis.location.pathname, durationMs: Math.round(durationMs), properties: { url, method, status, failed } });
@@ -465,6 +570,9 @@ export function identify(userId: number | string, username?: string): void { tra
 
 /** 退出登录时重置身份。 */
 export function resetIdentity(): void { tracker.reset(); }
+
+/** 退出登录前用当前 token 尽力发送旧身份事件，避免后续账号接管队列。 */
+export function prepareTrackerLogout(): void { tracker.prepareLogout(); }
 
 /** 页面进入。 */
 export function trackPageView(pagePath: string, pageTitle?: string): void {

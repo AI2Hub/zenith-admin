@@ -106,48 +106,51 @@ export async function reportError(input: {
   const fingerprint = computeErrorFingerprint({ tenantId, errorType: input.errorType, message: input.message, sourceUrl: input.sourceUrl, stack: input.stack });
   const now = new Date();
 
-  const [group] = await db
-    .insert(errorGroups)
-    .values({ tenantId, fingerprint, errorType: input.errorType, level, message, release: input.release ?? null, count: 1, firstSeenAt: now, lastSeenAt: now })
-    .onConflictDoUpdate({
-      target: errorGroups.fingerprint,
-      set: {
-        count: sql`${errorGroups.count} + 1`,
-        lastSeenAt: now,
-        message,
-        release: input.release ?? sql`${errorGroups.release}`,
-        status: sql`CASE WHEN ${errorGroups.status} = 'resolved' THEN 'unresolved'::error_status ELSE ${errorGroups.status} END`,
-        resolvedAt: sql`CASE WHEN ${errorGroups.status} = 'resolved' THEN NULL ELSE ${errorGroups.resolvedAt} END`,
-      },
-    })
-    .returning();
+  const group = await db.transaction(async (tx) => {
+    const [upserted] = await tx
+      .insert(errorGroups)
+      .values({ tenantId, fingerprint, errorType: input.errorType, level, message, release: input.release ?? null, count: 1, firstSeenAt: now, lastSeenAt: now })
+      .onConflictDoUpdate({
+        target: errorGroups.fingerprint,
+        set: {
+          count: sql`${errorGroups.count} + 1`,
+          lastSeenAt: now,
+          message,
+          release: input.release ?? sql`${errorGroups.release}`,
+          status: sql`CASE WHEN ${errorGroups.status} = 'resolved' THEN 'unresolved'::error_status ELSE ${errorGroups.status} END`,
+          resolvedAt: sql`CASE WHEN ${errorGroups.status} = 'resolved' THEN NULL ELSE ${errorGroups.resolvedAt} END`,
+        },
+      })
+      .returning();
 
-  await db.insert(errorEvents).values({
-    tenantId,
-    groupId: group.id,
-    fingerprint,
-    errorType: input.errorType,
-    level,
-    message,
-    stack: input.stack ?? null,
-    sourceUrl: input.sourceUrl ?? null,
-    lineNo: input.lineNo ?? null,
-    colNo: input.colNo ?? null,
-    pageUrl: input.pageUrl ?? null,
-    release: input.release ?? null,
-    userAgent: reqCtx.ua.slice(0, 512),
-    browser: env.browser,
-    browserVersion: env.browserVersion,
-    os: env.os,
-    deviceType: env.deviceType,
-    userId: user?.userId ?? null,
-    username: user?.username ?? null,
-    sessionId: input.sessionId ?? null,
-    breadcrumbs: input.breadcrumbs ?? null,
-    context: input.context ?? null,
-    httpStatus: input.httpStatus ?? null,
-    httpMethod: input.httpMethod ?? null,
-    httpUrl: input.httpUrl ?? null,
+    await tx.insert(errorEvents).values({
+      tenantId,
+      groupId: upserted.id,
+      fingerprint,
+      errorType: input.errorType,
+      level,
+      message,
+      stack: input.stack ?? null,
+      sourceUrl: input.sourceUrl ?? null,
+      lineNo: input.lineNo ?? null,
+      colNo: input.colNo ?? null,
+      pageUrl: input.pageUrl ?? null,
+      release: input.release ?? null,
+      userAgent: reqCtx.ua.slice(0, 512),
+      browser: env.browser,
+      browserVersion: env.browserVersion,
+      os: env.os,
+      deviceType: env.deviceType,
+      userId: user?.userId ?? null,
+      username: user?.username ?? null,
+      sessionId: input.sessionId ?? null,
+      breadcrumbs: input.breadcrumbs ?? null,
+      context: input.context ?? null,
+      httpStatus: input.httpStatus ?? null,
+      httpMethod: input.httpMethod ?? null,
+      httpUrl: input.httpUrl ?? null,
+    });
+    return upserted;
   });
 
   // 实时告警联动（best-effort，不阻塞上报响应）；count===1 表示本次新建分组
@@ -276,8 +279,13 @@ export async function updateGroup(id: number, input: UpdateErrorGroupInput) {
   if (input.assigneeId !== undefined) {
     if (input.assigneeId === null) assigneeName = null;
     else {
-      const [u] = await db.select({ nickname: users.nickname, username: users.username }).from(users).where(eq(users.id, input.assigneeId)).limit(1);
-      assigneeName = u ? (u.nickname || u.username) : null;
+      const [u] = await db
+        .select({ nickname: users.nickname, username: users.username })
+        .from(users)
+        .where(mergeWhere(eq(users.id, input.assigneeId), tenantScope(users)))
+        .limit(1);
+      if (!u) throw new HTTPException(400, { message: '指派用户不存在或不属于当前租户' });
+      assigneeName = u.nickname || u.username;
     }
   }
   const setResolved = input.status === 'resolved';

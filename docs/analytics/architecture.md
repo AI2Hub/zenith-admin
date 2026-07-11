@@ -4,11 +4,11 @@
 
 | 表 | 说明 |
 |----|------|
-| `user_events` | 原始事件流（含 `properties` JSONB、UTM、`distinctId`/`anonymousId`、设备、地域、性能指标、8 个索引） |
+| `user_events` | 原始事件流（含幂等 `eventId`、`properties` JSONB、UTM、身份、设备、地域、性能指标及 11 个索引） |
 | `analytics_sessions` | 会话聚合（时长 / 页数 / 入口出口页 / 是否跳出） |
 | `analytics_daily_rollup` | 每日预聚合指标（`tenantId` 非空默认 0，保证 upsert 唯一约束生效） |
 | `analytics_event_meta` | 事件字典 / 埋点元数据治理（事件名全局唯一） |
-| `analytics_settings` | 采集、远程配置与保留策略 |
+| `analytics_settings` | 按租户唯一的采集、远程配置与保留策略 |
 | `error_groups` | 错误分组（Issue，`fingerprint` 全局唯一索引） |
 | `error_events` | 单次错误事件（堆栈 / 面包屑 / 上下文 / 解析后 UA / HTTP 详情） |
 | `error_alert_rules` | 错误告警规则（条件、阈值、时间窗口、渠道、收件人、去抖时间） |
@@ -25,8 +25,10 @@
 | 公共库 | `lib/analytics-helpers.ts`（UA / 地域 / 指纹 / 性能评级）、`lib/source-map-symbolicate.ts`（堆栈还原） |
 | DTO | `lib/dtos/analytics.ts`、`lib/dtos/frontend-errors.ts` |
 
-- 采集 / 错误上报端点使用 `optionalAuthMiddleware`，支持匿名上报；其余分析端点均在 `authMiddleware` + `guard()` 之后。
+- 采集 / 错误上报端点使用 `optionalAuthMiddleware`，支持匿名上报，并分别受 `analytics-ingest` / `error-report` IP 限流保护；其余分析端点均在 `authMiddleware` + `guard()` 之后。
 - UA 解析复用 `ua-parser-js`，IP → 地域复用离线库 `node-ip2region`，无需外部服务。
+- 行为事件与会话更新、错误 Issue 与错误事件写入均在事务中完成；SDK 事件通过 `eventId` 唯一索引实现重试幂等。
+- 生产环境建议配置 `REQUEST_BODY_LIMIT=23068672`（22MiB）：可容纳 20MB Source Map 与 JSON 包装开销，同时给匿名采集入口设置全局请求体上限。
 
 ## 数据链路
 
@@ -45,7 +47,7 @@ packages/web/src/pages/analytics/*
 | Handler | 频率 | 作用 |
 |---------|------|------|
 | `analyticsRollupDaily` | 每日 01:00 | 重建最近 2 个完整自然日的每日聚合 |
-| `analyticsRetention` | 每日 02:00 | 按保留策略清理过期埋点 / 会话 / 错误 |
+| `analyticsRetention` | 每日 02:00 | 按每个租户各自的保留策略清理过期埋点 / 会话 / 错误 |
 | `evaluateErrorAlerts` | 每 5 分钟 | 评估错误告警规则并通知 |
 
 注册于 `lib/pg-boss-scheduler.ts`，种子数据见 `shared/seed-data.ts` 的 `SEED_CRON_JOBS`。
@@ -55,7 +57,8 @@ packages/web/src/pages/analytics/*
 | 权限码 | 含义 |
 |--------|------|
 | `analytics:view` | 查看行为分析 |
-| `analytics:manage` | 数据管理 / 事件字典 / 设置 / 聚合 / 清理 |
+| `analytics:manage` | 数据管理 / 事件字典 / 设置 / 聚合 |
+| `analytics:clean` | 清理埋点数据 |
 | `analytics:export` | 导出埋点事件 |
 | `monitor:error:list` | 查看错误监控 |
 | `monitor:error:manage` | 处理 / 删除错误、上传 Source Map |
@@ -64,5 +67,7 @@ packages/web/src/pages/analytics/*
 ## 多租户隔离
 
 - 行为事件、会话、错误分组、错误事件、Source Map 与告警规则按 `tenantId` 隔离；分析查询和存在性校验使用 `tenantScope()`。
+- 登录态 SDK 配置与 IP 匿名化策略按当前租户读取；匿名请求使用平台级（`tenantId=null`）默认配置。
+- 数据保留任务逐租户执行，未配置的租户使用埋点 180 天、错误 90 天默认值。
 - 错误指纹含 `tenantId` 因子，不同租户的相同错误分属不同 Issue。
-- 事件字典为平台级全局分类（事件名跨租户共享）。
+- 事件字典为平台级全局分类（事件名跨租户共享）；屏蔽、解除屏蔽或删除已屏蔽事件仅允许平台超级管理员。

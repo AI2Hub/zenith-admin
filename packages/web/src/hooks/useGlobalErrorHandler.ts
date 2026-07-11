@@ -11,7 +11,6 @@ import { ApiError } from '@/lib/query';
  * - `error`（捕获阶段）：JS 运行时错误 + 资源加载失败
  * - `unhandledrejection`：未处理的 Promise 拒绝
  * - `console.error`：控制台错误（记录面包屑 + 上报）
- * - 白屏检测：加载后根节点长时间无内容
  *
  * 同时向用户弹出 Toast（去重 + 限流），并记录行为面包屑用于错误现场还原。
  *
@@ -98,23 +97,11 @@ export function useGlobalErrorHandler() {
     globalThis.addEventListener('unhandledrejection', handleUnhandledRejection);
     globalThis.addEventListener('error', handleWindowError, true);
 
-    // 白屏检测：加载完成 8s 后根节点仍无内容则上报一次
-    const whiteScreenTimer = globalThis.setTimeout(() => {
-      try {
-        const root = document.getElementById('root');
-        const text = (root?.innerText ?? '').trim();
-        if (root && root.childElementCount === 0 && text.length === 0) {
-          reportError('white_screen', '检测到疑似白屏：根节点无渲染内容', { level: 'fatal' });
-        }
-      } catch { /* ignore */ }
-    }, 8000);
-
     const recentMap = recentRef.current;
     return () => {
       globalThis.removeEventListener('unhandledrejection', handleUnhandledRejection);
       globalThis.removeEventListener('error', handleWindowError, true);
       console.error = origConsoleError;
-      globalThis.clearTimeout(whiteScreenTimer);
       recentMap.forEach((t) => globalThis.clearTimeout(t));
       recentMap.clear();
       if (countResetTimerRef.current !== null) globalThis.clearTimeout(countResetTimerRef.current);
