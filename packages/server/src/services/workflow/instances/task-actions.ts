@@ -13,7 +13,7 @@ import logger from '../../../lib/logger';
 import { enqueueSubprocessJoin } from './async-jobs';
 import { assertSelectedNextApprovers } from './initiator-select';
 import { mapInstance, mapTask } from './mapping';
-import { advanceAndMaterialize, checkNodeCompletion, killInstanceTokens } from './materialize';
+import { advanceAndMaterialize, checkNodeCompletion, filterCurrentActivation, killInstanceTokens } from './materialize';
 import type { MaterializeTrigger } from './materialize';
 import { emitInstanceEvent, emitNodeEvent, emitTaskEvent } from './shared';
 import { hasUserHandledTask } from './transfers';
@@ -33,6 +33,32 @@ function resolveNodeActionButton(
   const nodeCfg = flowData?.nodes.find((n) => n.data.key === nodeKey)?.data;
   const buttons = nodeCfg?.actionButtons as Partial<Record<WorkflowActionButtonKey, WorkflowActionButtonConfig>> | undefined;
   return buttons?.[key];
+}
+
+/** 各动作按钮的默认启用态（与前端 WorkflowApprovalDetailSheet 的 DEFAULT_BUTTONS 保持一致） */
+const DEFAULT_BUTTON_ENABLED: Record<WorkflowActionButtonKey, boolean> = {
+  approve: true,
+  reject: true,
+  transfer: false,
+  delegate: false,
+  addSign: false,
+  reduceSign: false,
+  return: false,
+};
+
+/**
+ * 服务端强制「操作按钮设置」的启用态：未启用的动作即使绕过前端直接调 API 也一律拒绝。
+ * 仅约束用户入口（approveTask/rejectTask/transferTask 等）；系统路径（超时自动通过、
+ * 外部回调、管理员改派）走 Core/admin 函数不受限。
+ */
+export function assertActionButtonEnabled(
+  inst: typeof workflowInstances.$inferSelect,
+  nodeKey: string,
+  key: WorkflowActionButtonKey,
+): void {
+  const btn = resolveNodeActionButton(inst, nodeKey, key);
+  const enabled = btn?.enabled ?? DEFAULT_BUTTON_ENABLED[key];
+  if (!enabled) throw new HTTPException(403, { message: '当前节点未启用该操作' });
 }
 
 /** 校验「操作按钮设置」中某动作的附件必填要求（uploadMode === 'required'） */
@@ -94,9 +120,10 @@ export async function approveTask(taskId: number, comment?: string, attachments?
   const [inst] = await db.select().from(workflowInstances).where(eq(workflowInstances.id, task.instanceId)).limit(1);
   if (!inst) throw new HTTPException(500, { message: '流程数据异常' });
   if (inst.status !== 'running') throw new HTTPException(400, { message: inst.status === 'suspended' ? '流程已挂起，暂不可处理' : '流程实例不在进行中' });
-  // 校验"操作按钮设置"中通过按钮的附件必填（uploadMode === 'required'）
+  // 校验"操作按钮设置"：通过按钮须启用 + 附件必填（uploadMode === 'required'）
   const flowData = inst.definitionSnapshot?.flowData;
   const nodeCfg = flowData?.nodes.find((n) => n.data.key === task.nodeKey)?.data;
+  assertActionButtonEnabled(inst, task.nodeKey, 'approve');
   assertActionUploadRequirement(inst, task.nodeKey, 'approve', attachments);
   if (flowData) {
     await assertSelectedNextApprovers(flowData, task.nodeKey, selectedNextApprovers, db);
@@ -177,18 +204,19 @@ async function settleInstanceInTx(
   return { row, fillBridge };
 }
 
-/** 推进产生的新任务统一补发 node.entered / task.created / assigned / approved / rejected 事件 */
-function emitTasksMaterializedEvents(
+/** 推进产生的新任务统一补发 node.entered / task.created / assigned / approved / rejected 事件（传 executor 在事务内入队 outbox） */
+async function emitTasksMaterializedEvents(
   instanceId: number,
   newTasks: TaskRow[],
   meta: { definitionId: number; tenantId: number | null; actor?: WorkflowEventActor },
-): void {
+  executor?: DbExecutor,
+): Promise<void> {
   for (const t of newTasks) {
-    emitNodeEvent('node.entered', { instanceId, ...meta, nodeKey: t.nodeKey, nodeName: t.nodeName, nodeType: t.nodeType });
-    emitTaskEvent('task.created', mapTask(t), meta);
-    if (t.assigneeId && t.status === 'pending') emitTaskEvent('task.assigned', mapTask(t), meta);
-    if (t.status === 'approved') emitTaskEvent('task.approved', mapTask(t), meta);
-    if (t.status === 'rejected') emitTaskEvent('task.rejected', mapTask(t), meta);
+    await emitNodeEvent('node.entered', { instanceId, ...meta, nodeKey: t.nodeKey, nodeName: t.nodeName, nodeType: t.nodeType }, executor);
+    await emitTaskEvent('task.created', mapTask(t), meta, executor);
+    if (t.assigneeId && t.status === 'pending') await emitTaskEvent('task.assigned', mapTask(t), meta, executor);
+    if (t.status === 'approved') await emitTaskEvent('task.approved', mapTask(t), meta, executor);
+    if (t.status === 'rejected') await emitTaskEvent('task.rejected', mapTask(t), meta, executor);
   }
 }
 
@@ -224,6 +252,7 @@ export async function approveTaskCore(
   if (!flowData) throw new HTTPException(500, { message: '流程快照数据异常' });
 
   const updated = await db.transaction(async (tx) => {
+    const res = await (async () => {
     // 实例行级锁：序列化同一实例上的并发审批，避免会签末位并发各自读不到对方已审批而都不推进（节点卡死）
     const [lockedInst] = await tx.select({ status: workflowInstances.status, formData: workflowInstances.formData })
       .from(workflowInstances).where(eq(workflowInstances.id, inst.id)).for('update').limit(1);
@@ -304,24 +333,22 @@ export async function approveTaskCore(
       .where(eq(workflowInstances.id, inst.id))
       .returning();
     return { row, finished: false, rejected: false, advanced: true, approvedTask, newTasks: materialized.createdTasks, fillBridge: null };
+    })();
+
+    // 事务性 outbox：审批事件与状态变更在同一事务内入队原子提交（提交后崩溃不丢事件）
+    const meta = { definitionId: res.row.definitionId, tenantId: res.row.tenantId, actor };
+    await emitTaskEvent('task.approved', mapTask(res.approvedTask), { ...meta, comment }, tx);
+    if (res.advanced) {
+      await emitNodeEvent('node.left', { instanceId: res.row.id, ...meta, nodeKey: task.nodeKey, nodeName: task.nodeName, nodeType: task.nodeType }, tx);
+    }
+    await emitTasksMaterializedEvents(res.row.id, res.newTasks, meta, tx);
+    if (res.finished) await emitInstanceEvent('instance.approved', mapInstance(res.row), actor, tx);
+    if (res.rejected) await emitInstanceEvent('instance.rejected', mapInstance(res.row), actor, tx);
+    return res;
   });
 
   scheduleReportFillSync(updated.fillBridge, updated.row.id);
-
-  const meta = { definitionId: updated.row.definitionId, tenantId: updated.row.tenantId, actor };
-  emitTaskEvent('task.approved', mapTask(updated.approvedTask), { ...meta, comment });
-  if (updated.advanced) {
-    emitNodeEvent('node.left', { instanceId: updated.row.id, ...meta, nodeKey: task.nodeKey, nodeName: task.nodeName, nodeType: task.nodeType });
-  }
-  emitTasksMaterializedEvents(updated.row.id, updated.newTasks, meta);
-  if (updated.finished) {
-    emitInstanceEvent('instance.approved', mapInstance(updated.row), actor);
-    notifySubprocessParent(updated.row);
-  }
-  if (updated.rejected) {
-    emitInstanceEvent('instance.rejected', mapInstance(updated.row), actor);
-    notifySubprocessParent(updated.row);
-  }
+  if (updated.finished || updated.rejected) notifySubprocessParent(updated.row);
 
   let message: string;
   if (updated.rejected) {
@@ -348,6 +375,7 @@ export async function rejectTask(taskId: number, comment: string, attachments?: 
   if (!inst) throw new HTTPException(500, { message: '流程数据异常' });
   if (inst.status !== 'running') throw new HTTPException(400, { message: inst.status === 'suspended' ? '流程已挂起，暂不可处理' : '流程实例不在进行中' });
   if (!comment.trim()) throw new HTTPException(400, { message: '请填写拒绝原因' });
+  assertActionButtonEnabled(inst, task.nodeKey, 'reject');
   assertActionUploadRequirement(inst, task.nodeKey, 'reject', attachments);
   if (task.delegatedFromId && task.delegatedFromId !== user.userId) {
     return processDelegatedReceipt(task, inst, 'rejected', comment, { userId: user.userId, name: user.username }, attachments);
@@ -439,8 +467,10 @@ async function keepRatioNodeAliveAfterReject(
   instanceId: number,
   nodeKey: string,
 ): Promise<boolean> {
-  const ratioSiblings = await tx.select().from(workflowTasks)
+  const allRows = await tx.select().from(workflowTasks)
     .where(and(eq(workflowTasks.instanceId, instanceId), eq(workflowTasks.nodeKey, nodeKey)));
+  // 只统计当前激活轮，历史轮任务不参与阈值分母
+  const ratioSiblings = filterCurrentActivation(allRows);
   const ratioPct = ratioSiblings.find((t) => t.approveRatio)?.approveRatio ?? 51;
   const required = Math.ceil(ratioSiblings.length * ratioPct / 100);
   const maxPossibleApproved = ratioSiblings
@@ -461,6 +491,7 @@ export async function rejectTaskCore(
   const { strategy, targetNodeKey, currentNodeCfg } = await resolveRejectRoute(task, inst);
 
   const updated = await db.transaction(async (tx) => {
+    const res = await (async () => {
     // 实例行级锁：序列化同一实例上的并发审批/驳回，避免与并发审批互相覆盖推进
     const [lockedInst] = await tx.select({ status: workflowInstances.status })
       .from(workflowInstances).where(eq(workflowInstances.id, inst.id)).for('update').limit(1);
@@ -569,29 +600,33 @@ export async function rejectTaskCore(
       .where(eq(workflowInstances.id, inst.id))
       .returning();
     return { row, terminated: false, finished: false, rejectedTask, skippedTasks: skipped, newTasks: materialized.createdTasks, fillBridge: null };
+    })();
+
+    // 事务性 outbox：驳回事件与状态变更在同一事务内入队原子提交（提交后崩溃不丢事件）
+    const meta = { definitionId: res.row.definitionId, tenantId: res.row.tenantId, actor };
+    await emitTaskEvent('task.rejected', mapTask(res.rejectedTask), { ...meta, comment }, tx);
+    // 比例会签部分驳回：节点仍活动，仅记录该任务驳回，不发节点离开 / 实例状态事件
+    if (!(res as { partial?: boolean }).partial) {
+      for (const t of res.skippedTasks) {
+        await emitTaskEvent('task.skipped', mapTask(t), meta, tx);
+      }
+      await emitNodeEvent('node.left', { instanceId: res.row.id, ...meta, nodeKey: task.nodeKey, nodeName: task.nodeName, nodeType: task.nodeType }, tx);
+      if (res.terminated) {
+        await emitInstanceEvent('instance.rejected', mapInstance(res.row), actor, tx);
+      } else {
+        await emitTasksMaterializedEvents(res.row.id, res.newTasks, meta, tx);
+        if (res.finished) await emitInstanceEvent('instance.approved', mapInstance(res.row), actor, tx);
+      }
+    }
+    return res;
   });
 
   scheduleReportFillSync(updated.fillBridge, updated.row.id);
-
-  const meta = { definitionId: updated.row.definitionId, tenantId: updated.row.tenantId, actor };
-  emitTaskEvent('task.rejected', mapTask(updated.rejectedTask), { ...meta, comment });
-  // 比例会签部分驳回：节点仍活动，仅记录该任务驳回，不发节点离开 / 实例状态事件
   if ((updated as { partial?: boolean }).partial) {
     return { instance: mapInstance(updated.row), message: '已驳回' };
   }
-  for (const t of updated.skippedTasks) {
-    emitTaskEvent('task.skipped', mapTask(t), meta);
-  }
-  emitNodeEvent('node.left', { instanceId: updated.row.id, ...meta, nodeKey: task.nodeKey, nodeName: task.nodeName, nodeType: task.nodeType });
-  if (updated.terminated) {
-    emitInstanceEvent('instance.rejected', mapInstance(updated.row), actor);
+  if (updated.terminated || updated.finished) {
     notifySubprocessParent(updated.row);
-  } else {
-    emitTasksMaterializedEvents(updated.row.id, updated.newTasks, meta);
-    if (updated.finished) {
-      emitInstanceEvent('instance.approved', mapInstance(updated.row), actor);
-      notifySubprocessParent(updated.row);
-    }
   }
 
   return { instance: mapInstance(updated.row), message: '已驳回' };
@@ -658,6 +693,7 @@ async function processDelegatedReceipt(
       taskOrder: task.taskOrder,
       approveMethod: task.approveMethod,
       approveRatio: task.approveRatio,
+      activationId: task.activationId,
       originalAssigneeId: delegatorId,
       delegatedFromId: null,
       comment: receiptComment,

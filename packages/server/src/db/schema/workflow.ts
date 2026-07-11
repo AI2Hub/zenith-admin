@@ -145,6 +145,8 @@ export const workflowDefinitionVersions = pgTable('workflow_definition_versions'
   formId: integer('form_id'), // 发布时绑定的表单 ID 快照
   formType: workflowFormTypeEnum('form_type').default('designer').notNull(), // 发布时的表单类型快照
   customForm: jsonb('custom_form'), // 发布时的自定义业务表单配置快照
+  /** 发布时冻结的表单 schema 快照（{ name, schema }）；表单库后续编辑不影响已发布版本的历史查看 */
+  formSchema: jsonb('form_schema').$type<{ name: string | null; schema: unknown } | null>(),
   publishedAt: timestamp('published_at', { withTimezone: true }).defaultNow().notNull(),
   publishedBy: integer('published_by').references(() => users.id, { onDelete: 'set null' }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
@@ -463,6 +465,10 @@ export const workflowInstances = pgTable('workflow_instances', {
   // 业务键租户内唯一：tenant_id 可空（平台级/单租户数据），用 coalesce 归一为 0 保证空租户下依旧防重
   uniqueIndex('workflow_instances_biz_key_uniq').on(sql`coalesce(${t.tenantId}, 0)`, t.bizType, t.bizId),
   uniqueIndex('workflow_instances_parent_task_item_key_idx').on(t.parentTaskId, t.parentTaskItemKey),
+  // 全局监控 / 租户视角列表的高频组合条件
+  index('workflow_instances_tenant_status_idx').on(t.tenantId, t.status),
+  // 我的申请 / 交接扫描按发起人过滤的高频组合条件
+  index('workflow_instances_initiator_status_idx').on(t.initiatorId, t.status),
 ]);
 
 export type WorkflowInstanceRow = typeof workflowInstances.$inferSelect;
@@ -502,12 +508,16 @@ export const workflowTasks = pgTable('workflow_tasks', {
   delegatedFromId: integer('delegated_from_id').references(() => users.id, { onDelete: 'set null' }),
   /** 退回模式 backToOrigin：被退回任务记录发起退回的来源节点 key，通过后直接跳回该节点 */
   returnOriginNodeKey: varchar('return_origin_node_key', { length: 64 }),
+  /** 节点激活轮次 ID（同一次进入节点创建的一批任务共享；重入节点生成新值，完成判定只统计当前轮） */
+  activationId: varchar('activation_id', { length: 36 }),
   /** 抄送已读时间（仅 ccNode 任务有意义；null 表示未读） */
   ccReadAt: timestamp('cc_read_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   // 会签完成检查 / 详情任务加载 / 待办扫描的高频组合条件
   index('workflow_tasks_instance_status_idx').on(t.instanceId, t.status),
+  // 待我审批 / 我已办按处理人过滤的高频组合条件
+  index('workflow_tasks_assignee_status_idx').on(t.assigneeId, t.status),
 ]);
 
 export type WorkflowTaskRow = typeof workflowTasks.$inferSelect;

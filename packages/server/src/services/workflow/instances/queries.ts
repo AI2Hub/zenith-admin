@@ -11,6 +11,7 @@ import type { WorkflowFlowData, WorkflowFormField } from '@zenith/shared';
 import { buildWorkflowSummaryItems, findNextApproverSelectNodes } from '@zenith/shared';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../../lib/context';
+import { isSuperAdmin, getUserPermissions } from '../../../lib/permissions';
 import { loadInstanceCommentsForDetail } from '../workflow-comments.service';
 import { loadInstanceConsultsForDetail } from '../workflow-consults.service';
 import { loadInstanceTransfersByTask } from './transfers';
@@ -401,6 +402,12 @@ export async function getInstanceDetail(id: number) {
   const isInitiator = row.initiatorId === user.userId;
   const isAssignee = row.tasks.some((t) => t.assigneeId === user.userId);
   let allowed = isInitiator || isAssignee;
+  if (!allowed) {
+    // 流程监控管理员（workflow:instance:monitor）可查看租户可见范围内的任意实例详情，
+    // 与「全局流程实例列表」权限口径一致（列表能看到却打不开详情属契约断裂）
+    allowed = isSuperAdmin(user.roles)
+      || (await getUserPermissions(user.userId)).includes('workflow:instance:monitor');
+  }
   if (!allowed && row.parentInstanceId) {
     // 子流程实例：若用户是任一祖先实例的发起人，允许查看（支持嵌套子流程）
     let pid: number | null = row.parentInstanceId;

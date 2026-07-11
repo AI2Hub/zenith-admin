@@ -8,7 +8,7 @@ import { HTTPException } from 'hono/http-exception';
 import { resolveAssigneeIds } from '../workflow-assignee-resolver.service';
 import { getDecisionOutputs } from '../../platform/rules.service';
 import type { DbExecutor } from '../../../db/types';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { enqueueJob } from '../../../lib/workflow-jobs/engine';
 import { computeTimeoutAt } from '../../../lib/workflow-timeout';
 import { resolveActiveDelegate } from '../workflow-delegations.service';
@@ -450,7 +450,19 @@ export async function advanceAndMaterialize(
     if (res.tasksToCreate.length > 0) {
       const expanded = await expandTasksToRows(res.tasksToCreate, ctx);
       if (expanded.rows.length > 0) {
-        const inserted = await exec.insert(workflowTasks).values(expanded.rows).returning();
+        // 节点激活轮次：同一次进入节点创建的一批任务共享一个 activationId；
+        // 重入（驳回回退/退回重审后再次到达）生成新值，完成判定只统计当前轮，
+        // 避免历史 rejected 任务卡死 and 判定 / 污染 ratio 分母
+        const activationByNode = new Map<string, string>();
+        const rowsWithActivation = expanded.rows.map((row) => {
+          let activation = activationByNode.get(row.nodeKey);
+          if (!activation) {
+            activation = randomUUID();
+            activationByNode.set(row.nodeKey, activation);
+          }
+          return { ...row, activationId: activation };
+        });
+        const inserted = await exec.insert(workflowTasks).values(rowsWithActivation).returning();
         createdTasks.push(...inserted);
         // 事务内装配异步作业（延时/超时/触发器/外部派发/子流程发起），与任务行同生共死，避免提交后进程崩溃丢作业
         for (const t of inserted) {
@@ -502,6 +514,19 @@ export async function advanceAndMaterialize(
 }
 
 /**
+ * 过滤出节点"当前激活轮"的任务：以最新任务行的 activationId 为当前轮标识。
+ * 重入节点（驳回回退/退回重审后再次到达）会生成新 activationId，历史轮的
+ * rejected/skipped 任务不再参与完成判定与 ratio 分母。
+ * 兼容历史数据：最新行无 activationId 时回退全量（保持旧行为）。
+ */
+export function filterCurrentActivation<T extends { id: number; activationId: string | null }>(rows: T[]): T[] {
+  if (rows.length === 0) return rows;
+  const latest = rows.reduce((a, b) => (b.id > a.id ? b : a));
+  if (!latest.activationId) return rows;
+  return rows.filter((t) => t.activationId === latest.activationId);
+}
+
+/**
  * 检查同一 (instanceId, nodeKey) 下的全部任务是否已达成完成条件。
  * - and （会签）：所有人 approved 才完成
  * - or  （或签）：任一人 approved 即完成，其余 pending 任务自动 skipped
@@ -513,9 +538,10 @@ export async function checkNodeCompletion(
   nodeKey: string,
   flowData?: WorkflowFlowData,
 ): Promise<{ completed: boolean; method: WorkflowResolvedApproveMethod | null }> {
-  const siblings = await tx.select().from(workflowTasks)
+  const allRows = await tx.select().from(workflowTasks)
     .where(and(eq(workflowTasks.instanceId, instanceId), eq(workflowTasks.nodeKey, nodeKey)));
-  if (siblings.length === 0) return { completed: true, method: null };
+  if (allRows.length === 0) return { completed: true, method: null };
+  const siblings = filterCurrentActivation(allRows);
   const method = siblings.find((t) => t.approveMethod)?.approveMethod ?? null;
 
   // before-加签恢复：如果同节点存在挂起原任务（status=waiting且非顺序会签）且所有 [加签-前] 任务都已处理，则将原任务升回 pending，让节点能够继续流转。

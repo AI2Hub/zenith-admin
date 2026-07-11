@@ -81,6 +81,7 @@ import type { WorkflowFlowData } from '@zenith/shared';
 import { WORKFLOW_SCHEMA_VERSION } from '@zenith/shared';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
+import type { DbExecutor } from '../../db/types';
 import { ensureFormExists, resolveFormSnapshot } from './workflow-forms.service';
 
 export type WorkflowDefinitionStatus = 'draft' | 'published' | 'disabled';
@@ -256,8 +257,8 @@ export async function updateDefinition(id: number, data: Partial<{
     const currentType = (existing.initiatorScopeType ?? 'all') as WorkflowInitiatorScopeType;
     updateData.initiatorScopeIds = currentType === 'all' ? null : normalizeScopeIds(data.initiatorScopeIds);
   }
-  // 已发布的流程被修改后自动回到草稿，需重新发布
-  if (existing.status === 'published' && data.status === undefined) {
+  // 已发布/已禁用的流程被修改后自动回到草稿，需重新发布（禁用态直接改内容再启用会绕过发布门禁）
+  if ((existing.status === 'published' || existing.status === 'disabled') && data.status === undefined) {
     updateData.status = 'draft';
   }
   const [updated] = await db
@@ -269,14 +270,12 @@ export async function updateDefinition(id: number, data: Partial<{
   return getDefinition(updated.id);
 }
 
-export async function publishDefinition(id: number) {
-  const where = findDefinition(id);
-  const [existing] = await db.select().from(workflowDefinitions).where(where).limit(1);
-  if (!existing) throw new HTTPException(404, { message: '流程定义不存在' });
-  const flowData = existing.flowData as WorkflowFlowData | null;
+/** 发布前校验：结构体检硬门禁 + 业务表单配置完整性（publish / enable 共用） */
+async function assertPublishable(def: typeof workflowDefinitions.$inferSelect): Promise<void> {
+  const flowData = def.flowData as WorkflowFlowData | null;
   if (!flowData?.nodes) throw new HTTPException(400, { message: '请先在设计器中设计流程' });
   // 发布前健康硬门禁：结构非法或存在 critical 体检问题（审批人无法解析 / 表达式非法 / 网关无出口等）一律拦截
-  const knownFields = existing.formId ? new Set((await resolveFormSnapshot(existing.formId))?.fields.map((f) => f.key).filter((k): k is string => !!k) ?? []) : null;
+  const knownFields = def.formId ? new Set((await resolveFormSnapshot(def.formId))?.fields.map((f) => f.key).filter((k): k is string => !!k) ?? []) : null;
   const report = analyzeWorkflowHealth(flowData, knownFields && knownFields.size > 0 ? knownFields : null);
   const criticals = report.checks.flatMap((c) => c.issues).filter((i) => i.severity === 'critical');
   if (criticals.length > 0) {
@@ -284,12 +283,29 @@ export async function publishDefinition(id: number) {
     const suffix = criticals.length > 3 ? ` 等 ${criticals.length} 项问题` : '';
     throw new HTTPException(400, { message: `发布前体检未通过：${head}${suffix}` });
   }
-  validateBusinessFormConfigForPublish((existing.formType ?? 'designer') as WorkflowFormType, existing.customForm);
+  validateBusinessFormConfigForPublish((def.formType ?? 'designer') as WorkflowFormType, def.customForm);
+}
+
+/** 读取表单库行，构造发布版本的表单 schema 冻结快照（无绑定表单返回 null） */
+async function loadFormSchemaSnapshot(
+  tx: DbExecutor,
+  formId: number | null,
+): Promise<{ name: string | null; schema: unknown } | null> {
+  if (formId == null) return null;
+  const [form] = await tx.select({ name: workflowForms.name, schema: workflowForms.schema })
+    .from(workflowForms).where(eq(workflowForms.id, formId)).limit(1);
+  return form ? { name: form.name, schema: form.schema } : null;
+}
+
+export async function publishDefinition(id: number) {
+  const where = findDefinition(id);
   const user = currentUser();
   const updated = await db.transaction(async (tx) => {
-    // 行级锁 + 锁内重算版本号：避免并发发布同一定义争用 (definitionId, version) 唯一约束
+    // 行级锁内校验 + 重算版本号：消除锁外校验与锁内快照间的竞争窗口（并发修改导致
+    // 校验对象与实际发布内容不一致），同时避免并发发布争用 (definitionId, version) 唯一约束
     const [locked] = await tx.select().from(workflowDefinitions).where(where).for('update').limit(1);
     if (!locked) throw new HTTPException(404, { message: '流程定义不存在' });
+    await assertPublishable(locked);
     const newVersion = locked.version + 1;
     await tx.insert(workflowDefinitionVersions).values({
       definitionId: locked.id,
@@ -301,6 +317,8 @@ export async function publishDefinition(id: number) {
       formId: locked.formId,
       formType: locked.formType,
       customForm: locked.customForm,
+      // 冻结表单 schema：表单库后续编辑不影响该版本的历史查看/对比
+      formSchema: await loadFormSchemaSnapshot(tx, locked.formId),
       publishedBy: user?.userId ?? null,
       tenantId: locked.tenantId,
     });
@@ -332,7 +350,12 @@ export async function listVersions(definitionId: number) {
       .where(inArray(workflowForms.id, formIds));
     for (const f of forms) formMap.set(f.id, { name: f.name, schema: f.schema });
   }
-  return rows.map(r => mapDefinitionVersion(r, r.publishedByUser?.nickname ?? null, r.formId != null ? formMap.get(r.formId) ?? null : null));
+  return rows.map(r => mapDefinitionVersion(
+    r,
+    r.publishedByUser?.nickname ?? null,
+    // 优先读发布时冻结的表单快照；历史版本（无快照）回退实时表单库行
+    r.formSchema ?? (r.formId != null ? formMap.get(r.formId) ?? null : null),
+  ));
 }
 
 export async function restoreVersion(definitionId: number, versionId: number) {
@@ -524,6 +547,10 @@ export async function disableDefinition(id: number) {
 
 export async function enableDefinition(id: number) {
   const where = and(findDefinition(id), eq(workflowDefinitions.status, 'disabled'));
+  const [existing] = await db.select().from(workflowDefinitions).where(where).limit(1);
+  if (!existing) throw new HTTPException(400, { message: '流程定义不存在或不处于禁用状态' });
+  // 启用同样过发布门禁：防御表单库后续编辑等外部变化导致带病上线（禁用态改内容已在 update 中强制回 draft）
+  await assertPublishable(existing);
   const [updated] = await db.update(workflowDefinitions).set({ status: 'published' }).where(where).returning();
   if (!updated) throw new HTTPException(400, { message: '流程定义不存在或不处于禁用状态' });
   return mapDefinition(updated);
@@ -555,7 +582,19 @@ export async function batchEnableDefinitions(ids: number[]) {
   const tc = tenantCondition(workflowDefinitions, currentUser());
   const conds = [inArray(workflowDefinitions.id, ids), eq(workflowDefinitions.status, 'disabled')];
   if (tc) conds.push(tc);
-  const rows = await db.update(workflowDefinitions).set({ status: 'published' }).where(and(...conds)).returning({ id: workflowDefinitions.id });
+  // 与单个启用同口径：逐个过发布门禁，体检不过的跳过而非带病上线
+  const candidates = await db.select().from(workflowDefinitions).where(and(...conds));
+  const passedIds: number[] = [];
+  for (const def of candidates) {
+    try {
+      await assertPublishable(def);
+      passedIds.push(def.id);
+    } catch { /* 体检未通过 → 跳过 */ }
+  }
+  if (passedIds.length === 0) return { updated: 0, skipped: ids.length };
+  const rows = await db.update(workflowDefinitions).set({ status: 'published' })
+    .where(and(inArray(workflowDefinitions.id, passedIds), eq(workflowDefinitions.status, 'disabled')))
+    .returning({ id: workflowDefinitions.id });
   return { updated: rows.length, skipped: ids.length - rows.length };
 }
 

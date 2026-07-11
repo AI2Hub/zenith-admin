@@ -235,7 +235,7 @@ export async function withdrawInstance(id: number) {
   if (snapshot?.flowData?.settings?.allowWithdraw === false) {
     throw new HTTPException(400, { message: '该流程不允许发起人撤回' });
   }
-  const { row: updated, cancelledTasks } = await db.transaction(async (tx) => {
+  const { row: updated } = await db.transaction(async (tx) => {
     // 实例行级锁 + 锁内重校验：避免与并发审批推进竞态（撤回时流程正被推进，导致状态互相覆盖或残留任务）
     const [locked] = await tx.select({ status: workflowInstances.status })
       .from(workflowInstances).where(eq(workflowInstances.id, id)).for('update').limit(1);
@@ -252,15 +252,15 @@ export async function withdrawInstance(id: number) {
       outcome: 'withdrawn',
       actorId: user.userId,
     });
+    // 事务性 outbox：撤回事件与状态变更原子提交（提交后崩溃不丢事件）
+    const actor = { userId: user.userId, name: user.username };
+    for (const t of cancelled) {
+      await emitTaskEvent('task.skipped', mapTask(t), { definitionId: row.definitionId, tenantId: row.tenantId, actor }, tx);
+    }
+    await emitInstanceEvent('instance.withdrawn', mapInstance(row), actor, tx);
     return { row, cancelledTasks: cancelled };
   });
-  const instanceDto = mapInstance(updated);
-  const actor = { userId: user.userId, name: user.username };
-  for (const t of cancelledTasks) {
-    emitTaskEvent('task.skipped', mapTask(t), { definitionId: updated.definitionId, tenantId: updated.tenantId, actor });
-  }
-  emitInstanceEvent('instance.withdrawn', instanceDto, actor);
-  return instanceDto;
+  return mapInstance(updated);
 }
 
 export async function cancelInstance(id: number) {
@@ -271,7 +271,7 @@ export async function cancelInstance(id: number) {
   const [inst] = await db.select().from(workflowInstances).where(and(...conditions)).limit(1);
   if (!inst) throw new HTTPException(404, { message: '流程实例不存在' });
   if (inst.status !== 'running' && inst.status !== 'suspended') throw new HTTPException(400, { message: '只能取消进行中或已挂起的流程' });
-  const { row: updated, cancelledTasks } = await db.transaction(async (tx) => {
+  const { row: updated } = await db.transaction(async (tx) => {
     const [locked] = await tx.select({ status: workflowInstances.status })
       .from(workflowInstances).where(and(...conditions)).for('update').limit(1);
     if (!locked || (locked.status !== 'running' && locked.status !== 'suspended')) {
@@ -287,14 +287,14 @@ export async function cancelInstance(id: number) {
       outcome: 'cancelled',
       actorId: user.userId,
     });
+    // 事务性 outbox：取消事件与状态变更原子提交
+    const actor = { userId: user.userId, name: user.username };
+    for (const t of cancelled) {
+      await emitTaskEvent('task.skipped', mapTask(t), { definitionId: row.definitionId, tenantId: row.tenantId, actor }, tx);
+    }
     return { row, cancelledTasks: cancelled };
   });
-  const instanceDto = mapInstance(updated);
-  const actor = { userId: user.userId, name: user.username };
-  for (const t of cancelledTasks) {
-    emitTaskEvent('task.skipped', mapTask(t), { definitionId: updated.definitionId, tenantId: updated.tenantId, actor });
-  }
-  return instanceDto;
+  return mapInstance(updated);
 }
 
 export async function deleteInstance(id: number) {

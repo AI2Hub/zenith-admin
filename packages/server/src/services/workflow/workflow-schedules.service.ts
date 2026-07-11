@@ -218,14 +218,22 @@ async function fireSchedule(s: Row): Promise<void> {
 /** 调度器每分钟调用：扫描到期的启用规则并发起，随后推进 nextRunAt */
 export async function runDueWorkflowSchedules(): Promise<void> {
   const now = new Date();
-  const due = await db.select().from(workflowSchedules).where(and(
-    eq(workflowSchedules.status, 'enabled'),
-    sql`${workflowSchedules.nextRunAt} is not null`,
-    lte(workflowSchedules.nextRunAt, now),
-  ));
-  for (const s of due) {
+  // 分布式 claim：SKIP LOCKED 锁定到期行并在锁内先推进 nextRunAt 占位，
+  // 多副本部署 / 单副本 tick 重叠（执行慢于 1 分钟）时同一规则不会被重复发起
+  const claimed = await db.transaction(async (tx) => {
+    const due = await tx.select().from(workflowSchedules).where(and(
+      eq(workflowSchedules.status, 'enabled'),
+      sql`${workflowSchedules.nextRunAt} is not null`,
+      lte(workflowSchedules.nextRunAt, now),
+    )).for('update', { skipLocked: true });
+    for (const s of due) {
+      await tx.update(workflowSchedules)
+        .set({ nextRunAt: computeNextRun(s.cronExpression, s.timezone, new Date()) })
+        .where(eq(workflowSchedules.id, s.id));
+    }
+    return due;
+  });
+  for (const s of claimed) {
     await fireSchedule(s);
-    const next = computeNextRun(s.cronExpression, s.timezone, new Date());
-    await db.update(workflowSchedules).set({ nextRunAt: next }).where(eq(workflowSchedules.id, s.id));
   }
 }

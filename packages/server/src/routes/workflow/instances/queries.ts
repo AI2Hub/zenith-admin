@@ -97,7 +97,9 @@ export const detailRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/instances/{id}', tags: ['WorkflowInstances'], summary: '实例详情',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'workflow:instance:list' })] as const,
+    // 发起人（instance:list）/ 审批人（task:handle）/ 监控管理员（instance:monitor）均可进入，
+    // service 层再按发起人/参与人/monitor 权限细粒度判定
+    middleware: [authMiddleware, guard({ permission: ['workflow:instance:list', 'workflow:task:handle', 'workflow:instance:monitor'] })] as const,
     request: { params: IdParam },
     responses: {
       ...commonErrorResponses,

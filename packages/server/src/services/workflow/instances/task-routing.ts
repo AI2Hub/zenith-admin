@@ -8,7 +8,7 @@ import { buildStarterContext } from '../workflow-assignee-resolver.service';
 import { mapInstance, mapTask } from './mapping';
 import { advanceAndMaterialize, checkNodeCompletion } from './materialize';
 import { emitInstanceEvent, emitNodeEvent, emitTaskEvent } from './shared';
-import { assertActionUploadRequirement, getOwnPendingTask, rejectTaskCore } from './task-actions';
+import { assertActionButtonEnabled, assertActionUploadRequirement, getOwnPendingTask, rejectTaskCore } from './task-actions';
 import type { WorkflowTaskAttachment } from './task-actions';
 import { loadTaskHandledUserIds, recordTaskTransfer } from './transfers';
 import logger from '../../../lib/logger';
@@ -18,6 +18,7 @@ import { submitReportFillSyncForWorkflowInstance } from '../../report/report-fil
 /** 转办：将当前任务的处理人改为目标用户 */
 export async function transferTask(taskId: number, targetUserId: number, comment?: string, attachments?: WorkflowTaskAttachment[]) {
   const { task, inst, actor } = await getOwnPendingTask(taskId);
+  assertActionButtonEnabled(inst, task.nodeKey, 'transfer');
   assertActionUploadRequirement(inst, task.nodeKey, 'transfer', attachments);
   if (targetUserId === task.assigneeId) {
     throw new HTTPException(400, { message: '转办人不能是当前处理人' });
@@ -103,6 +104,7 @@ export async function systemTransferTaskToManager(
 /** 委派：与转办类似，但语义为"临时代办"，反馈后原 assignee 会接到回执确认任务 */
 export async function delegateTask(taskId: number, targetUserId: number, comment?: string, attachments?: WorkflowTaskAttachment[]) {
   const { task, inst, actor } = await getOwnPendingTask(taskId);
+  assertActionButtonEnabled(inst, task.nodeKey, 'delegate');
   assertActionUploadRequirement(inst, task.nodeKey, 'delegate', attachments);
   if (targetUserId === task.assigneeId) {
     throw new HTTPException(400, { message: '委派人不能是当前处理人' });
@@ -158,6 +160,7 @@ export async function addSignTask(
   attachments?: WorkflowTaskAttachment[],
 ) {
   const { task, inst, actor } = await getOwnPendingTask(taskId);
+  assertActionButtonEnabled(inst, task.nodeKey, 'addSign');
   assertActionUploadRequirement(inst, task.nodeKey, 'addSign', attachments);
   if (targetUserIds.length === 0) throw new HTTPException(400, { message: '请选择加签人' });
   // 与现有同节点任务共用 approveMethod（保证完成判定一致）
@@ -210,6 +213,8 @@ export async function addSignTask(
         comment: addSignComment,
         attachments: attachments ?? null,
         approveMethod,
+        // 加签任务加入目标任务所在激活轮，参与同轮完成判定
+        activationId: task.activationId,
       })),
     ).returning();
     return newRows;
@@ -227,6 +232,7 @@ export async function addSignTask(
 /** 减签：取消同节点上以加签方式创建的其他 pending 任务（仅限加签产生的任务，不能减去原始审批人） */
 export async function reduceSignTask(taskId: number, targetTaskIds: number[], comment?: string) {
   const { task, inst, actor } = await getOwnPendingTask(taskId);
+  assertActionButtonEnabled(inst, task.nodeKey, 'reduceSign');
   if (targetTaskIds.length === 0) throw new HTTPException(400, { message: '请选择要减签的任务' });
   if (targetTaskIds.includes(task.id)) throw new HTTPException(400, { message: '不能减去自己' });
 
@@ -350,6 +356,7 @@ export async function reduceSignTask(taskId: number, targetTaskIds: number[], co
 /** 退回：将当前任务驳回到一个或多个前序节点（多节点取流程定义中最早出现的节点作为执行目标） */
 export async function returnTask(taskId: number, targetNodeKeys: string[], comment: string, attachments?: WorkflowTaskAttachment[]) {
   const { task, inst, actor } = await getOwnPendingTask(taskId);
+  assertActionButtonEnabled(inst, task.nodeKey, 'return');
   assertActionUploadRequirement(inst, task.nodeKey, 'return', attachments);
   const flowData = inst.definitionSnapshot?.flowData;
   if (!flowData) throw new HTTPException(500, { message: '流程快照数据异常' });
