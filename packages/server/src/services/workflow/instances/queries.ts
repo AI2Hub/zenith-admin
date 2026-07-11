@@ -7,8 +7,8 @@ import { pageOffset } from '../../../lib/pagination';
 import { workflowInstances, workflowTasks, workflowDefinitions, workflowCategories, users } from '../../../db/schema';
 import { tenantCondition } from '../../../lib/tenant';
 import { getDataScopeCondition } from '../../../lib/data-scope';
-import type { WorkflowFlowData, WorkflowFormField } from '@zenith/shared';
-import { buildWorkflowSummaryItems, findNextApproverSelectNodes } from '@zenith/shared';
+import type { WorkflowFieldPermission, WorkflowFlowData, WorkflowFormField } from '@zenith/shared';
+import { buildWorkflowSummaryItems, findNextApproverSelectNodes, resolveNodeFieldPermissions } from '@zenith/shared';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../../lib/context';
 import { isSuperAdmin, getUserPermissions } from '../../../lib/permissions';
@@ -382,6 +382,52 @@ export async function listAllInstances(query: { page?: number; pageSize?: number
   };
 }
 
+/**
+ * 读侧 formData 字段脱敏：按查看者相对本实例的身份收集其可依据的字段权限映射
+ * （发起人 → start 节点 fieldPermissions；参与人 → 其任务节点 fieldPermissions 并集），
+ * 仅当字段在**所有**相关映射中均为 hidden 时才剔除。
+ *
+ * 兼容边界（保守语义，不破坏既有流程）：
+ * - 任一相关节点未配置 fieldPermissions → 返回全量（未启用字段权限的流程完全不受影响）；
+ * - 查看者与任何节点无关（如子流程祖先发起人）→ 返回全量；
+ * - 监控管理员/超管在调用方短路，不进入本函数。
+ */
+export function sanitizeDetailFormDataForViewer(
+  row: {
+    formData: unknown;
+    initiatorId: number;
+    definitionSnapshot: { flowData?: WorkflowFlowData | null } | null;
+    tasks: Array<{ assigneeId: number | null; nodeKey: string }>;
+  },
+  userId: number,
+): typeof row.formData {
+  const formData = row.formData;
+  if (!formData || typeof formData !== 'object' || Array.isArray(formData)) return formData;
+  const flowData = row.definitionSnapshot?.flowData;
+  if (!flowData?.nodes?.length) return formData;
+
+  const permMaps: Array<Record<string, WorkflowFieldPermission>> = [];
+  if (row.initiatorId === userId) {
+    const startPerms = flowData.nodes.find((n) => n.data.type === 'start')?.data.fieldPermissions;
+    if (!startPerms) return formData;
+    permMaps.push(startPerms);
+  }
+  const myNodeKeys = new Set(row.tasks.filter((t) => t.assigneeId === userId).map((t) => t.nodeKey));
+  for (const nodeKey of myNodeKeys) {
+    const perms = resolveNodeFieldPermissions(flowData, nodeKey);
+    if (!perms) return formData;
+    permMaps.push(perms);
+  }
+  if (permMaps.length === 0) return formData;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(formData as Record<string, unknown>)) {
+    const hiddenEverywhere = permMaps.every((m) => m[key] === 'hidden');
+    if (!hiddenEverywhere) out[key] = value;
+  }
+  return out;
+}
+
 export async function getInstanceDetail(id: number) {
   const user = currentUser();
   const tc = tenantCondition(workflowInstances, user);
@@ -401,13 +447,11 @@ export async function getInstanceDetail(id: number) {
   if (!row) throw new HTTPException(404, { message: '流程实例不存在' });
   const isInitiator = row.initiatorId === user.userId;
   const isAssignee = row.tasks.some((t) => t.assigneeId === user.userId);
-  let allowed = isInitiator || isAssignee;
-  if (!allowed) {
-    // 流程监控管理员（workflow:instance:monitor）可查看租户可见范围内的任意实例详情，
-    // 与「全局流程实例列表」权限口径一致（列表能看到却打不开详情属契约断裂）
-    allowed = isSuperAdmin(user.roles)
-      || (await getUserPermissions(user.userId)).includes('workflow:instance:monitor');
-  }
+  // 流程监控管理员（workflow:instance:monitor）可查看租户可见范围内的任意实例详情，
+  // 与「全局流程实例列表」权限口径一致（列表能看到却打不开详情属契约断裂）
+  const isMonitor = isSuperAdmin(user.roles)
+    || (await getUserPermissions(user.userId)).includes('workflow:instance:monitor');
+  let allowed = isInitiator || isAssignee || isMonitor;
   if (!allowed && row.parentInstanceId) {
     // 子流程实例：若用户是任一祖先实例的发起人，允许查看（支持嵌套子流程）
     let pid: number | null = row.parentInstanceId;
@@ -451,7 +495,9 @@ export async function getInstanceDetail(id: number) {
     parentTaskNodeKey: c.parentTaskId != null ? (taskNodeKeyById.get(c.parentTaskId) ?? null) : null,
     createdAt: formatDateTime(c.createdAt),
   }));
-  return mapInstance(row, {
+  // 读侧字段脱敏：非监控身份按查看者的节点字段权限剔除 hidden 字段（配置缺失时全量，兼容旧流程）
+  const sanitizedRow = isMonitor ? row : { ...row, formData: sanitizeDetailFormDataForViewer(row, user.userId) };
+  return mapInstance(sanitizedRow, {
     definitionName: row.definition?.name ?? null,
     initiatorName: row.initiator?.nickname ?? null,
     initiatorAvatar: row.initiator?.avatar ?? null,

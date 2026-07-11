@@ -4,7 +4,8 @@ import { db } from '../../../db';
 import { workflowInstances, workflowTasks, workflowDefinitions, users, userRoles } from '../../../db/schema';
 import { tenantCondition, getCreateTenantId } from '../../../lib/tenant';
 import { validateFlowData } from '../../../lib/workflow-engine';
-import type { WorkflowFlowData } from '@zenith/shared';
+import type { WorkflowFlowData, WorkflowInstanceFormSnapshot } from '@zenith/shared';
+import { collectMissingRequiredFields } from '@zenith/shared';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../../lib/context';
 import { buildStarterContext } from '../workflow-assignee-resolver.service';
@@ -19,6 +20,26 @@ import { assertLaunchMatchesFormType, buildInstanceFormSnapshot, mapInstance, ma
 import { advanceAndMaterialize, killInstanceTokens } from './materialize';
 import { buildSerialNoContext, emitInstanceEvent, emitNodeEvent, emitTaskEvent, toDefinitionSnapshot } from './shared';
 import { bridgeReportFillWorkflowOutcome } from '../../report/report-fill-workflow-bridge.service';
+
+/**
+ * 发起必填校验（服务端强制）：设计器表单按快照 schema 检查「可见且必填」字段，
+ * 绕过前端直接调 API 无法以空必填字段发起。显隐联动/条件必填与前端渲染同源求值
+ * （shared workflow-form-runtime），start 节点 hidden/read 字段不参与。
+ */
+function assertRequiredFormFields(
+  formSnapshot: WorkflowInstanceFormSnapshot | null,
+  formData: Record<string, unknown>,
+  flowData: WorkflowFlowData,
+): void {
+  if (formSnapshot?.formType !== 'designer' || !formSnapshot.fields?.length) return;
+  const startPerms = flowData.nodes?.find((n) => n.data.type === 'start')?.data.fieldPermissions;
+  const missing = collectMissingRequiredFields(formSnapshot.fields, formData, startPerms);
+  if (missing.length > 0) {
+    const head = missing.slice(0, 5).join('、');
+    const suffix = missing.length > 5 ? ` 等 ${missing.length} 项` : '';
+    throw new HTTPException(400, { message: `请填写必填字段：${head}${suffix}` });
+  }
+}
 
 export async function createInstance(data: { definitionId: number; title: string; formData?: Record<string, unknown> | null; asDraft?: boolean; priority?: import('@zenith/shared').WorkflowInstancePriority; ccUserIds?: number[]; selectedInitiatorApprovers?: SelectedApproverMap; bizType?: string | null; bizId?: string | null }, callerOverride?: { userId: number; username: string; tenantId: number | null; roles?: string[] }) {
   const user = callerOverride
@@ -93,6 +114,8 @@ export async function createInstance(data: { definitionId: number; title: string
   if (!hasExecutableEntry(flowData, formData, starter)) {
     throw new HTTPException(400, { message: '流程定义中无可执行节点' });
   }
+  // 定时发起/自动化（callerOverride）沿用既有宽松语义：预置 formData 可能刻意留空
+  if (!skipScopeCheck) assertRequiredFormFields(formSnapshot, formData, flowData);
   const serialConfig = flowData.settings?.serialNo;
   const serialCtx = await buildSerialNoContext(serialConfig, formData);
   let txResult: { instance: typeof workflowInstances.$inferSelect; createdTasks: typeof workflowTasks.$inferSelect[] };
@@ -353,6 +376,7 @@ export async function submitDraftInstance(id: number, input: { selectedInitiator
   if (!hasExecutableEntry(flowData, formData, starter)) {
     throw new HTTPException(400, { message: '流程定义中无可执行节点' });
   }
+  assertRequiredFormFields(formSnapshot, formData, flowData);
   const serialConfig = flowData.settings?.serialNo;
   const serialCtx = await buildSerialNoContext(serialConfig, formData);
   const instance = await db.transaction(async (tx) => {

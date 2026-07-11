@@ -8,4 +8,5 @@ export * from './report-aggregation';
 export * from './report-visual-sql';
 export * from './report-embed';
 export * from './workflow-helpers';
+export * from './workflow-form-runtime';
 export * from './workflow-serial';

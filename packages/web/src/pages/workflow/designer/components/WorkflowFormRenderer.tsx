@@ -9,7 +9,8 @@ import { Form, Select, Button, Typography, Row, Col, Divider, Rating, Toast, wit
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, Eraser, Trash2 } from 'lucide-react';
 import dayjs from 'dayjs';
-import type { WorkflowFormField, WorkflowFormFieldColumn, WorkflowFormFieldOptionItem, WorkflowFormFieldCompareRule, WorkflowFieldVisibilityCondition, WorkflowFieldVisibilityRuleGroup, WorkflowRelationOption } from '@zenith/shared';
+import type { WorkflowFormField, WorkflowFormFieldColumn, WorkflowFormFieldOptionItem, WorkflowFormFieldCompareRule, WorkflowRelationOption } from '@zenith/shared';
+import { evalWorkflowFieldRuleGroup as evalRuleGroup, isWorkflowFieldVisible as isFieldVisible } from '@zenith/shared';
 import { CURRENCY_OPTIONS, toDateFnsToken } from '../form-types';
 import { evalFormula } from '../form-formula';
 import { rmbUpper } from '@/utils/rmb';
@@ -438,62 +439,7 @@ function getCascadeAllowedOptions(field: WorkflowFormField, values: Record<strin
   return parentValue === undefined || parentValue === null ? [] : (field.optionsFrom.mapping[String(parentValue)] ?? []);
 }
 
-const toComparableStr = (v: unknown): string => {
-  if (v === null || v === undefined) return '';
-  if (typeof v === 'object') return JSON.stringify(v);
-  if (typeof v === 'string') return v;
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-  return '';
-};
-
-const isEmptyValue = (v: unknown): boolean =>
-  v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
-
-function evalCondition(cond: WorkflowFieldVisibilityCondition, values: Record<string, unknown>): boolean {
-  if (!cond?.field) return true;
-  const left = values[cond.field];
-  const right = cond.value;
-  switch (cond.operator) {
-    case 'eq': return left === right || toComparableStr(left) === toComparableStr(right);
-    case 'neq': return left !== right && toComparableStr(left) !== toComparableStr(right);
-    case 'in': {
-      const arr = Array.isArray(right)
-        ? right
-        : (typeof right === 'string' ? right.split(',').map(s => s.trim()).filter(Boolean) : []);
-      return arr.map(toComparableStr).includes(toComparableStr(left));
-    }
-    case 'contains': return Array.isArray(left) && left.map(toComparableStr).includes(toComparableStr(right));
-    case 'gt': return Number(left) > Number(right);
-    case 'lt': return Number(left) < Number(right);
-    case 'gte': return Number(left) >= Number(right);
-    case 'lte': return Number(left) <= Number(right);
-    case 'isEmpty': return isEmptyValue(left);
-    case 'notEmpty': return !isEmptyValue(left);
-    default: return true;
-  }
-}
-
-function evalRuleGroup(group: WorkflowFieldVisibilityRuleGroup, values: Record<string, unknown>): boolean {
-  const rules = group.rules?.filter(r => r?.field) ?? [];
-  if (rules.length === 0) return true;
-  return group.logic === 'or'
-    ? rules.some(r => evalCondition(r, values))
-    : rules.every(r => evalCondition(r, values));
-}
-
-function isFieldVisible(field: WorkflowFormField, values: Record<string, unknown>): boolean {
-  // 高级联动（多条件 and/or）优先，完全决定显隐
-  if (field.visibilityRules && (field.visibilityRules.rules?.length ?? 0) > 0) {
-    return evalRuleGroup(field.visibilityRules, values);
-  }
-  // 默认隐藏（无联动规则时始终隐藏）
-  if (field.hidden) return false;
-  // 兼容旧版单条件
-  if (field.visibilityCondition?.field) {
-    return evalCondition(field.visibilityCondition, values);
-  }
-  return true;
-}
+// 显隐/条件求值统一走 shared workflow-form-runtime（与服务端发起校验同源），本文件不再本地实现
 
 // ─── 日期可选范围 → disabledDate ─────────────────────────────────────
 function buildDisabledDate(field: WorkflowFormField): ((date?: Date) => boolean) | undefined {
