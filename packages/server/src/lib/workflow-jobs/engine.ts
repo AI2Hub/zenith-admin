@@ -121,7 +121,7 @@ export async function skipJob(id: number): Promise<WorkflowJobRow | null> {
 }
 
 /** 通过 pg-boss 在 runAt 时唤醒统一 Worker 处理该作业（fire-and-forget，drain 为兜底） */
-function scheduleJobPickup(jobId: number, runAt: Date): void {
+export function scheduleJobPickup(jobId: number, runAt: Date): void {
   void sendSystemJobAfter<{ jobId: number }>(WORKFLOW_JOB_QUEUE, { jobId }, runAt, {
     retryLimit: 0, // 重试由作业自身的 attempts/退避控制，pg-boss 不再重复重试
     expireInSeconds: 600,
@@ -129,7 +129,11 @@ function scheduleJobPickup(jobId: number, runAt: Date): void {
   }).catch((err) => logger.error('[workflow-jobs] schedule pickup failed', { jobId, err }));
 }
 
-/** 乐观领取单个作业：pending → running（attempts 自增）。非 pending 返回 null。 */
+/**
+ * 乐观领取单个作业：pending → running（attempts 自增）。非 pending 或未到期返回 null。
+ * runAt 守卫：实例挂起会把计时作业 runAt 推至远期冻结，此前入队的 pg-boss 消息到点
+ * 触发时不得领取（否则 handler 以 Skip 收尾把作业标记 succeeded，冻结的 SLA/延时计时器被永久吞掉）。
+ */
 async function claimJob(jobId: number): Promise<WorkflowJobRow | null> {
   const [claimed] = await db.update(workflowJobs).set({
     status: 'running',
@@ -137,7 +141,11 @@ async function claimJob(jobId: number): Promise<WorkflowJobRow | null> {
     lockedBy: WORKER_ID,
     attempts: sql`${workflowJobs.attempts} + 1`,
     updatedAt: new Date(),
-  }).where(and(eq(workflowJobs.id, jobId), eq(workflowJobs.status, 'pending'))).returning();
+  }).where(and(
+    eq(workflowJobs.id, jobId),
+    eq(workflowJobs.status, 'pending'),
+    lte(workflowJobs.runAt, new Date()),
+  )).returning();
   return claimed ?? null;
 }
 

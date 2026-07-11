@@ -8,7 +8,8 @@ import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../../lib/context';
 import { buildStarterContext } from '../workflow-assignee-resolver.service';
 import logger from '../../../lib/logger';
-import { emitInstanceStartEvents } from './lifecycle';
+import { scheduleJobPickup } from '../../../lib/workflow-jobs';
+import { emitMaterializedAdvanceEvents } from './lifecycle';
 import { mapInstance, mapTask } from './mapping';
 import { recordTaskTransfer } from './transfers';
 import { advanceAndMaterialize, killInstanceTokens } from './materialize';
@@ -58,7 +59,8 @@ export async function jumpInstance(id: number, targetNodeKey: string, comment?: 
       status: materialized.rejected ? 'rejected' : (materialized.finished ? 'approved' : 'running'),
       currentNodeKey: materialized.rejected || materialized.finished ? null : (materialized.currentNodeKeys[0] ?? targetNode.data.key),
     }).where(eq(workflowInstances.id, id)).returning();
-    await emitInstanceStartEvents(mapInstance(updatedInstance), updatedInstance, materialized.createdTasks, { userId: user.userId, name: user.username }, tx);
+    // 强跳不是新实例：仅发新任务/节点/终态事件，不再重复 instance.created（避免误触发 created 自动化）
+    await emitMaterializedAdvanceEvents(mapInstance(updatedInstance), updatedInstance, materialized.createdTasks, { userId: user.userId, name: user.username }, tx);
     return updatedInstance;
   });
   return mapInstance(instance);
@@ -120,7 +122,7 @@ export async function resumeInstance(id: number) {
   if (!inst) throw new HTTPException(404, { message: '流程实例不存在' });
   if (inst.status !== 'suspended') throw new HTTPException(400, { message: '仅已挂起的流程可恢复' });
 
-  const instance = await db.transaction(async (tx) => {
+  const { instance, restoredJobs } = await db.transaction(async (tx) => {
     const [locked] = await tx.select({ status: workflowInstances.status })
       .from(workflowInstances).where(eq(workflowInstances.id, id)).for('update').limit(1);
     if (!locked || locked.status !== 'suspended') {
@@ -134,21 +136,28 @@ export async function resumeInstance(id: number) {
         eq(workflowJobs.status, 'pending'),
         inArray(workflowJobs.jobType, [...SUSPEND_FREEZE_JOB_TYPES]),
       ));
+    const restored: Array<{ id: number; runAt: Date }> = [];
     for (const job of jobs) {
       const payload = (job.payload ?? {}) as Record<string, unknown>;
       const remaining = Number(payload[SUSPEND_REMAINING_KEY]);
       if (!Number.isFinite(remaining)) continue; // 非挂起冻结的作业不动
       const rest = { ...payload };
       delete rest[SUSPEND_REMAINING_KEY];
+      const runAt = new Date(now.getTime() + Math.max(0, remaining));
       await tx.update(workflowJobs)
-        .set({ runAt: new Date(now.getTime() + Math.max(0, remaining)), payload: rest })
+        .set({ runAt, payload: rest })
         .where(and(eq(workflowJobs.id, job.id), eq(workflowJobs.status, 'pending')));
+      restored.push({ id: job.id, runAt });
     }
     const [updated] = await tx.update(workflowInstances)
       .set({ status: 'running', suspendedAt: null, suspendReason: null })
       .where(eq(workflowInstances.id, id)).returning();
-    return updated;
+    return { instance: updated, restoredJobs: restored };
   });
+  // 挂起期间原 pg-boss 唤醒消息已被消费（claim 因 runAt 守卫拒领），恢复后按新 runAt 重排 pickup（drain 兜底）
+  for (const job of restoredJobs) {
+    scheduleJobPickup(job.id, job.runAt);
+  }
   logger.info('workflow instance resumed', { instanceId: id, operator: user.userId });
   return mapInstance(instance);
 }

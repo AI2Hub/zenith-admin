@@ -25,7 +25,12 @@ export async function createInstance(data: { definitionId: number; title: string
     ? { userId: callerOverride.userId, username: callerOverride.username, roles: callerOverride.roles ?? [], tenantId: callerOverride.tenantId }
     : currentUser();
   const skipScopeCheck = !!callerOverride;
-  const [def] = await db.select().from(workflowDefinitions).where(and(eq(workflowDefinitions.id, data.definitionId), eq(workflowDefinitions.status, 'published'))).limit(1);
+  // 租户隔离：定义查询强制限定当前身份可见租户（多租户关闭时无过滤，行为不变）。
+  // callerOverride（定时发起/自动化/子流程）同样生效——其 tenantId 来自所属租户配置行。
+  const defConds = [eq(workflowDefinitions.id, data.definitionId), eq(workflowDefinitions.status, 'published')];
+  const defTenantCond = tenantCondition(workflowDefinitions, user);
+  if (defTenantCond) defConds.push(defTenantCond);
+  const [def] = await db.select().from(workflowDefinitions).where(and(...defConds)).limit(1);
   if (!def) throw new HTTPException(404, { message: '流程定义不存在或未发布' });
   const normalizedBizType = data.bizType?.trim() || null;
   const normalizedBizId = data.bizId?.trim() || null;
@@ -178,6 +183,21 @@ export async function emitInstanceStartEvents(
   executor?: DbExecutor,
 ): Promise<void> {
   await emitInstanceEvent('instance.created', instanceDto, actor, executor);
+  await emitMaterializedAdvanceEvents(instanceDto, instance, createdTasks, actor, executor);
+}
+
+/**
+ * 入队"推进产生的新任务 + 可能的终态"事件（不含 instance.created）。
+ * 供强制跳转等非发起类推进复用：跳转不是新实例，重复发 instance.created
+ * 会误触发订阅 created 的流程自动化与业务桥接。
+ */
+export async function emitMaterializedAdvanceEvents(
+  instanceDto: ReturnType<typeof mapInstance>,
+  instance: typeof workflowInstances.$inferSelect,
+  createdTasks: typeof workflowTasks.$inferSelect[],
+  actor: { userId: number; name: string },
+  executor?: DbExecutor,
+): Promise<void> {
   for (const t of createdTasks) {
     const meta = { definitionId: instance.definitionId, tenantId: instance.tenantId, actor };
     await emitNodeEvent('node.entered', { instanceId: instance.id, ...meta, nodeKey: t.nodeKey, nodeName: t.nodeName, nodeType: t.nodeType }, executor);

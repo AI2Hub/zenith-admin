@@ -181,6 +181,34 @@ export function buildInstanceFormSnapshot(
   };
 }
 
+/**
+ * 面向实例参与人的定义快照脱敏：剥离外部审批/触发器回调密钥与出站凭证请求头。
+ * 公开回调路由以这些 secret 做 HMAC 验签，若随详情 DTO 下发，任一参与人即可伪造回调
+ * 批准/拒绝/恢复流程。仅作用于 DTO 输出，DB 中的快照原文不受影响（作业/回调验签仍可用）。
+ */
+function sanitizeSnapshotFlowData(flowData: WorkflowFlowData | null): WorkflowFlowData | null {
+  if (!flowData?.nodes?.length) return flowData;
+  return {
+    ...flowData,
+    nodes: flowData.nodes.map((node) => {
+      const data = node.data;
+      if (!data?.externalApproval && !data?.triggerConfig && !data?.nodeListeners?.length) return node;
+      const sanitized = { ...data };
+      if (sanitized.externalApproval) {
+        sanitized.externalApproval = { ...sanitized.externalApproval, secret: '' };
+      }
+      if (sanitized.triggerConfig) {
+        const { callbackSecret: _secret, headers: _headers, ...trigger } = sanitized.triggerConfig;
+        sanitized.triggerConfig = trigger;
+      }
+      if (sanitized.nodeListeners?.length) {
+        sanitized.nodeListeners = sanitized.nodeListeners.map(({ headers: _headers, ...listener }) => listener);
+      }
+      return { ...node, data: sanitized };
+    }),
+  };
+}
+
 function mapDefinitionSnapshot(snapshot: unknown, formSnapshot: unknown) {
   if (!snapshot || typeof snapshot !== 'object') return null;
   const row = snapshot as Partial<typeof workflowDefinitions.$inferSelect>;
@@ -191,7 +219,7 @@ function mapDefinitionSnapshot(snapshot: unknown, formSnapshot: unknown) {
     name: typeof row.name === 'string' ? row.name : '',
     description: typeof row.description === 'string' ? row.description : null,
     categoryId: typeof row.categoryId === 'number' ? row.categoryId : null,
-    flowData: (row.flowData ?? null) as WorkflowFlowData | null,
+    flowData: sanitizeSnapshotFlowData((row.flowData ?? null) as WorkflowFlowData | null),
     formId: typeof row.formId === 'number' ? row.formId : null,
     formName: normalizedForm?.formName ?? null,
     formFields: normalizedForm?.fields ?? null,
