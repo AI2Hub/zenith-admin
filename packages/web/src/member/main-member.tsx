@@ -4,17 +4,30 @@ import '@douyinfe/semi-ui/react19-adapter';
 // 其内联的 base.css 会被摇树裁剪，故在入口显式引入
 import '@douyinfe/semi-ui/lib/es/_base/base.css';
 import { createRoot } from 'react-dom/client';
+import { MEMBER_TOKEN_KEY } from '@zenith/shared';
+import { configureTracker, initTracker } from '@/utils/tracker';
 import MemberApp from './App-member';
 import '../styles/global.css';
 import './styles/member.css';
 import { enableMocking } from '../mocks';
 import { initMemberTheme } from './hooks/useMemberTheme';
+import { hasMemberAnalyticsConsent } from './hooks/useAnalyticsConsent';
 
 // 提前应用主题色，避免页面闪烁
 initMemberTheme();
 
 async function bootstrap() {
   await enableMocking();
+
+  // 埋点 SDK 运行时参数必须在 initTracker() 之前配置完毕
+  configureTracker({
+    tokenKey: MEMBER_TOKEN_KEY,
+    source: 'web_member',
+    appId: 'member',
+    rootSelector: '#member-root',
+    consentProvider: hasMemberAnalyticsConsent,
+  });
+  initTracker();
 
   createRoot(document.getElementById('member-root')!).render(<MemberApp />);
 }

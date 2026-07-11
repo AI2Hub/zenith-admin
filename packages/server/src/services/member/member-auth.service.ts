@@ -25,6 +25,7 @@ import { parseUserAgent } from '../../lib/request-helpers';
 import { lookupIpLocation } from '../../lib/ip-location';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { verifyMemberSmsCode } from './member-sms.service';
+import { trackServerEvent } from '../analytics/analytics-server-events.service';
 import type {
   MemberRegisterInput,
   MemberLoginInput,
@@ -33,6 +34,7 @@ import type {
   MemberResetPasswordInput,
   MemberLoginResult,
 } from '@zenith/shared';
+import { ANALYTICS_EVENT_NAMES } from '@zenith/shared';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapMember(
@@ -216,6 +218,19 @@ export async function registerMember(input: MemberRegisterServiceInput): Promise
     return created;
   });
 
+  // 服务端权威事件（best-effort，事务已提交后触发；不传 phone/email 原值/密码，仅传布尔标志）
+  trackServerEvent({
+    eventName: ANALYTICS_EVENT_NAMES.memberRegistered,
+    memberId: member.id,
+    tenantId: member.tenantId ?? null,
+    properties: {
+      memberId: member.id,
+      source: input.source ?? 'web',
+      hasPhone: !!member.phone,
+      hasEmail: !!member.email,
+    },
+  });
+
   // 邀请关系绑定 + 邀请人奖励（best-effort，不阻断注册；动态导入避免模块环）
   if (input.inviteCode) {
     const { applyInviteOnRegister } = await import('./member-invite.service');
@@ -373,7 +388,7 @@ export async function getMyMemberProfile() {
 }
 
 export async function updateMyMemberProfile(input: MemberUpdateProfileInput) {
-  const { memberId } = currentMember();
+  const { memberId, tenantId } = currentMember();
   const patch: Record<string, unknown> = {};
   if (input.nickname !== undefined) patch.nickname = input.nickname;
   if (input.avatar !== undefined) patch.avatar = input.avatar;
@@ -387,6 +402,13 @@ export async function updateMyMemberProfile(input: MemberUpdateProfileInput) {
       rethrowPgUniqueViolation(err, '邮箱已被占用');
       throw err;
     }
+    // 服务端权威事件（best-effort；只传变更字段名，不传具体值，避免落 PII）
+    trackServerEvent({
+      eventName: ANALYTICS_EVENT_NAMES.memberProfileUpdated,
+      memberId,
+      tenantId: tenantId ?? null,
+      properties: { memberId, changedFields: Object.keys(patch) },
+    });
   }
   return getMyMemberProfile();
 }

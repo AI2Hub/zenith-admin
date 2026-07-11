@@ -74,6 +74,18 @@ describe('analytics P0 contracts', () => {
     expect(resolveDistinctId(event, null)).toBe(baseEvent.sessionId);
   });
 
+  it('forces authenticated member distinct IDs to the verified member identity (admin/member 互斥)', () => {
+    const forgedAdminPrefix: TrackEventInput = { ...baseEvent, eventType: 'page_view', distinctId: 'u:forged' };
+    const forgedMemberPrefix: TrackEventInput = { ...baseEvent, eventType: 'page_view', distinctId: 'm:forged' };
+    // 已登录会员：强制 m:{memberId}，忽略客户端伪造的 distinctId
+    expect(resolveDistinctId(forgedAdminPrefix, null, 7)).toBe('m:7');
+    // 匿名：拒绝 u:/m: 伪造前缀，回退到 sessionId
+    expect(resolveDistinctId(forgedAdminPrefix, null, null)).toBe(baseEvent.sessionId);
+    expect(resolveDistinctId(forgedMemberPrefix, null, null)).toBe(baseEvent.sessionId);
+    // 管理员优先于会员参数（理论上二者不会同时非空，但显式约定管理员优先）
+    expect(resolveDistinctId(forgedAdminPrefix, 42, 7)).toBe('u:42');
+  });
+
   it('declares the P0 persistence and seed controls', () => {
     expect(userEvents.eventId).toBeDefined();
     expect(analyticsSettings.tenantId).toBeDefined();

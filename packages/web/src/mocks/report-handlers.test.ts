@@ -37,7 +37,7 @@ describe('report handlers smoke', () => {
 
   it('数据集列表 + 取数', async () => {
     const list = await call('GET', '/api/report/datasets?page=1&pageSize=10');
-    expect(list.data.list.length).toBe(2);
+    expect(list.data.list.length).toBe(5);
     const data = await call('POST', '/api/report/datasets/1/data', { params: {}, limit: 100 });
     expect(data.code).toBe(0);
     expect(data.data.columns).toEqual(['name', 'value']);

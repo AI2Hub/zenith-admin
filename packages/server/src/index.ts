@@ -197,6 +197,7 @@ import { registerReportDeliveryTaskHandlers } from './services/report/report-del
 import { registerReportDqTaskHandlers } from './services/report/report-dq-tasks';
 import { registerReportSlaTaskHandlers } from './services/report/report-sla-tasks';
 import { registerReportFillTasks } from './services/report/report-fill-task.service';
+import { registerAnalyticsTaskHandlers } from './services/analytics/analytics-tasks';
 import {
   backfillLegacyDashboardLifecycle,
   backfillLegacyReportTenants,
@@ -231,6 +232,7 @@ import { registerBizPayDemoSubscribers } from './services/payment/biz-pay-demo-s
 import { registerLedgerSubscribers } from './services/payment/payment-ledger.service';
 import { registerFeeSubscribers } from './services/payment/payment-fee.service';
 import { registerSharingSubscribers } from './services/payment/payment-sharing.service';
+import { registerAnalyticsServerEventSubscribers } from './services/analytics/analytics-server-event-subscribers';
 import workflowEventSubscriptionsRoutes from './routes/workflow/workflow-event-subscriptions';
 import workflowTriggerExecutionsRoutes from './routes/workflow/workflow-trigger-executions';
 import workflowExternalCallbackRoutes from './routes/workflow/workflow-external-callback';
@@ -627,6 +629,7 @@ try {
   registerReportDqTaskHandlers();
   registerReportSlaTaskHandlers();
   registerReportFillTasks();
+  registerAnalyticsTaskHandlers();
   await registerExportJobWorker();
   await registerSystemTasks();
 } catch (err) {
@@ -648,4 +651,5 @@ registerBizPayDemoSubscribers();
 registerLedgerSubscribers();
 registerFeeSubscribers();
 registerSharingSubscribers();
+registerAnalyticsServerEventSubscribers();
 logger.info('Workflow event subscribers registered');

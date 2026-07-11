@@ -5,8 +5,13 @@ import type {
   UserTimeline, DimensionBreakdown, DimensionCross, PerfStats, EventListItem, EventDetail, AnalyticsEventMeta,
   AnalyticsSettings, AnalyticsPublicConfig, PaginatedResponse, AnalyticsRollupItem, UserBehaviorEventType,
   SessionTimeline, AnalyticsSavedReport,
+  AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsDebugEvent,
+  AnalyticsUserSegment, AnalyticsSegmentMember, AsyncTask,
+  AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryRow, AnalyticsEventQueryGroupByField, AnalyticsEventQueryMetric,
 } from '@zenith/shared';
+import { SEED_ANALYTICS_EVENT_META } from '@zenith/shared';
 import { mockDateTime, mockDateTimeOffset, mockDateOffset } from '../utils/date';
+import { createProgressingMockTask } from './async-tasks';
 
 const ok = <T>(data: T, message = 'ok') => HttpResponse.json({ code: 0, message, data });
 
@@ -85,11 +90,31 @@ const OSES = ['Windows', 'macOS', 'iOS', 'Android'];
 const USERNAMES = ['admin', 'zhangsan', 'lisi', 'wangwu', 'zhaoliu'];
 
 // ─── 事件字典（内存）──────────────────────────────────────────────────────────
+// 前 4 条为前端 SDK 内置自动采集事件；其余派生自 @zenith/shared SEED_ANALYTICS_EVENT_META
+// （行为中心阶段 1 服务端权威事件：支付 / 工作流 / 会员），与 DB 种子/服务端订阅产出的 eventName 保持一致。
 let mockEventMeta: AnalyticsEventMeta[] = [
-  { id: 1, eventName: '$pageview', displayName: '页面浏览', category: 'page_view', description: '页面进入自动采集', propertySchema: null, status: 'active', eventCount: 18420, firstSeenAt: mockDateTimeOffset(-30 * 86400000), lastSeenAt: mockDateTime(), createdAt: mockDateTimeOffset(-30 * 86400000), updatedAt: mockDateTime() },
-  { id: 2, eventName: '$autocapture', displayName: '自动点击', category: 'feature_use', description: '元素点击自动采集', propertySchema: null, status: 'active', eventCount: 9234, firstSeenAt: mockDateTimeOffset(-30 * 86400000), lastSeenAt: mockDateTime(), createdAt: mockDateTimeOffset(-30 * 86400000), updatedAt: mockDateTime() },
-  { id: 3, eventName: '$web_vitals', displayName: 'Web Vitals', category: 'perf', description: '性能指标', propertySchema: null, status: 'active', eventCount: 5120, firstSeenAt: mockDateTimeOffset(-30 * 86400000), lastSeenAt: mockDateTime(), createdAt: mockDateTimeOffset(-30 * 86400000), updatedAt: mockDateTime() },
-  { id: 4, eventName: 'order_submit', displayName: '提交订单', category: 'custom', description: '业务自定义事件', propertySchema: [{ key: 'amount', type: 'number', description: '金额' }], status: 'active', eventCount: 842, firstSeenAt: mockDateTimeOffset(-20 * 86400000), lastSeenAt: mockDateTime(), createdAt: mockDateTimeOffset(-20 * 86400000), updatedAt: mockDateTime() },
+  { id: 1, eventName: '$pageview', displayName: '页面浏览', category: 'page_view', description: '页面进入自动采集', propertySchema: null, status: 'active', version: 1, ownerId: null, ownerName: null, strictMode: false, eventCount: 18420, firstSeenAt: mockDateTimeOffset(-30 * 86400000), lastSeenAt: mockDateTime(), createdAt: mockDateTimeOffset(-30 * 86400000), updatedAt: mockDateTime() },
+  { id: 2, eventName: '$autocapture', displayName: '自动点击', category: 'feature_use', description: '元素点击自动采集', propertySchema: null, status: 'active', version: 1, ownerId: null, ownerName: null, strictMode: false, eventCount: 9234, firstSeenAt: mockDateTimeOffset(-30 * 86400000), lastSeenAt: mockDateTime(), createdAt: mockDateTimeOffset(-30 * 86400000), updatedAt: mockDateTime() },
+  { id: 3, eventName: '$web_vitals', displayName: 'Web Vitals', category: 'perf', description: '性能指标', propertySchema: null, status: 'active', version: 1, ownerId: null, ownerName: null, strictMode: false, eventCount: 5120, firstSeenAt: mockDateTimeOffset(-30 * 86400000), lastSeenAt: mockDateTime(), createdAt: mockDateTimeOffset(-30 * 86400000), updatedAt: mockDateTime() },
+  { id: 4, eventName: 'order_submit', displayName: '提交订单', category: 'custom', description: '业务自定义事件', propertySchema: [{ key: 'amount', type: 'number', description: '金额' }], status: 'active', version: 1, ownerId: null, ownerName: null, strictMode: false, eventCount: 842, firstSeenAt: mockDateTimeOffset(-20 * 86400000), lastSeenAt: mockDateTime(), createdAt: mockDateTimeOffset(-20 * 86400000), updatedAt: mockDateTime() },
+  ...SEED_ANALYTICS_EVENT_META.map((meta): AnalyticsEventMeta => ({
+    id: meta.id,
+    eventName: meta.eventName,
+    displayName: meta.displayName,
+    category: meta.category,
+    description: meta.description,
+    propertySchema: meta.propertySchema,
+    status: 'active',
+    version: 1,
+    ownerId: null,
+    ownerName: null,
+    strictMode: meta.strictMode,
+    eventCount: rand(50, 3000),
+    firstSeenAt: mockDateTimeOffset(-20 * 86400000),
+    lastSeenAt: mockDateTime(),
+    createdAt: mockDateTimeOffset(-20 * 86400000),
+    updatedAt: mockDateTime(),
+  })),
 ];
 let nextMetaId = 5;
 
@@ -124,10 +149,110 @@ function buildEvents(count: number): EventListItem[] {
     deviceType: DEVICES[i % DEVICES.length],
     region: ['广东 深圳', '北京', '上海', '浙江 杭州'][i % 4],
     sessionId: `sess-${1000 + (i % 50)}`,
+    memberId: null,
+    source: 'web_admin',
+    appId: 'admin',
+    environment: 'production',
     createdAt: mockDateTime(),
   }));
 }
 const MOCK_EVENTS = buildEvents(120);
+
+// ─── 行为中心阶段1：用户分群（内存）────────────────────────────────────────────
+let mockSegments: AnalyticsUserSegment[] = [
+  {
+    id: 1,
+    tenantId: null,
+    name: '活跃下单用户',
+    description: '最近 7 天内提交过订单事件的用户',
+    rules: { operator: 'AND', conditions: [{ type: 'event', eventName: 'order_submit', days: 7, minCount: 1 }] },
+    status: 'enabled',
+    estimatedSize: 128,
+    snapshotAt: mockDateTimeOffset(-2 * 86400000),
+    createdAt: mockDateTimeOffset(-10 * 86400000),
+    updatedAt: mockDateTimeOffset(-2 * 86400000),
+  },
+  {
+    id: 2,
+    tenantId: null,
+    name: '桌面端会员用户',
+    description: '身份类型为会员，且最近使用桌面端访问',
+    rules: {
+      operator: 'AND',
+      conditions: [
+        { type: 'attribute', field: 'identityType', op: 'eq', value: 'member' },
+        { type: 'event', eventName: '$pageview', days: 30, minCount: 3 },
+      ],
+    },
+    status: 'enabled',
+    estimatedSize: 56,
+    snapshotAt: mockDateTimeOffset(-1 * 86400000),
+    createdAt: mockDateTimeOffset(-20 * 86400000),
+    updatedAt: mockDateTimeOffset(-1 * 86400000),
+  },
+];
+let nextSegmentId = 3;
+
+function buildSegmentMembers(segmentId: number, count: number): AnalyticsSegmentMember[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: segmentId * 1000 + i + 1,
+    segmentId,
+    tenantId: null,
+    distinctId: `u:${i + 1}`,
+    identityType: i % 3 === 0 ? 'member' : i % 3 === 1 ? 'admin' : 'anonymous',
+    userId: i % 3 === 1 ? i + 1 : null,
+    memberId: i % 3 === 0 ? i + 1 : null,
+    snapshotAt: mockDateTime(),
+  }));
+}
+const mockSegmentMembers: Record<number, AnalyticsSegmentMember[]> = {
+  1: buildSegmentMembers(1, 24),
+  2: buildSegmentMembers(2, 12),
+};
+
+// ─── 阶段1治理闭环：租户覆盖 / 质量看板 / 事件调试（内存）──────────────────────
+const MOCK_OVERRIDE_TENANT_ID = 1;
+
+let mockEventOverrides: AnalyticsEventOverride[] = [
+  { id: 1, tenantId: MOCK_OVERRIDE_TENANT_ID, eventName: 'order_submit', status: 'disabled', reason: '联调期间临时下线', createdAt: mockDateTimeOffset(-2 * 86400000), updatedAt: mockDateTime() },
+];
+let nextOverrideId = 2;
+
+const QUALITY_EVENT_NAMES = ['order_submit', '$autocapture', '$pageview'];
+const QUALITY_ISSUE_TYPES: AnalyticsQualityIssueType[] = ['missing_required', 'type_mismatch', 'invalid_enum', 'event_disabled'];
+
+function buildQualitySample(issueType: AnalyticsQualityIssueType): Record<string, unknown> | null {
+  if (issueType === 'event_disabled') return null;
+  if (issueType === 'missing_required') return { issues: [{ key: 'amount', expected: 'required' }] };
+  if (issueType === 'type_mismatch') return { issues: [{ key: 'amount', expected: 'number', actualType: 'string' }] };
+  return { issues: [{ key: 'channel', expected: 'wechat|alipay|cash', actualType: 'string' }] };
+}
+
+let nextQualityId = 1;
+const mockQualityDaily: AnalyticsQualityDaily[] = (() => {
+  const rows: AnalyticsQualityDaily[] = [];
+  for (let dayOffset = 6; dayOffset >= 0; dayOffset--) {
+    const statDate = mockDateOffset(-dayOffset);
+    QUALITY_EVENT_NAMES.forEach((eventName, ei) => {
+      QUALITY_ISSUE_TYPES.forEach((issueType, ii) => {
+        if ((dayOffset + ei + ii) % 3 !== 0) return; // 稀疏采样，非每天每种组合都有数据
+        rows.push({
+          id: nextQualityId++,
+          tenantId: MOCK_OVERRIDE_TENANT_ID,
+          statDate,
+          eventName,
+          issueType,
+          count: rand(1, 40),
+          sample: buildQualitySample(issueType),
+          lastSeenAt: mockDateTime(),
+          createdAt: mockDateTime(),
+          updatedAt: mockDateTime(),
+        });
+      });
+    });
+  }
+  return rows;
+})();
 
 export const analyticsHandlers = [
   http.get('/api/analytics/config', () => ok<AnalyticsPublicConfig>(PUBLIC_CONFIG)),
@@ -198,6 +323,7 @@ export const analyticsHandlers = [
       entryPage: MOCK_PAGES.items[i % MOCK_PAGES.items.length].pagePath, exitPage: MOCK_PAGES.items[(i + 2) % MOCK_PAGES.items.length].pagePath,
       referrer: i % 3 === 0 ? 'https://www.google.com' : null, browser: BROWSERS[i % BROWSERS.length], os: OSES[i % OSES.length],
       deviceType: DEVICES[i % DEVICES.length], region: ['广东 深圳', '北京', '上海'][i % 3], isBounce: i % 4 === 0,
+      memberId: null, source: 'web_admin', appId: 'admin', environment: 'production',
     }));
     return ok<PaginatedResponse<SessionListItem>>({ list: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize });
   }),
@@ -209,7 +335,14 @@ export const analyticsHandlers = [
     let prev = total;
     const out = steps.map((s, i) => {
       const users = i === 0 ? total : Math.floor(prev * (0.55 + Math.random() * 0.3));
-      const r = { label: s.label, users, conversionRate: Math.round((users / total) * 1000) / 10, stepConversionRate: Math.round((users / prev) * 1000) / 10, dropoff: prev - users };
+      const r = {
+        label: s.label,
+        users,
+        conversionRate: Math.round((users / total) * 1000) / 10,
+        stepConversionRate: Math.round((users / prev) * 1000) / 10,
+        dropoff: prev - users,
+        averageConversionMs: i === 0 ? null : rand(30_000, 3_600_000),
+      };
       prev = users;
       return r;
     });
@@ -217,14 +350,16 @@ export const analyticsHandlers = [
   }),
 
   http.get('/api/analytics/retention', ({ request }) => {
-    const days = Number(new URL(request.url).searchParams.get('days')) || 14;
+    const url = new URL(request.url);
+    const days = Number(url.searchParams.get('days')) || 14;
+    const mode = (url.searchParams.get('mode') as 'first_seen' | 'window_first') || 'first_seen';
     const axis = daysAxis(days);
     const periods = Array.from({ length: Math.min(days, 8) }, (_, i) => i);
     const cohorts = axis.map((cohortDate, ci) => ({
       cohortDate, cohortSize: rand(20, 120),
       values: periods.map((p) => (ci + p >= axis.length ? null : Math.round((100 * Math.exp(-p / 4)) * 10) / 10)),
     }));
-    return ok<RetentionResult>({ cohorts, periods });
+    return ok<RetentionResult>({ cohorts, periods, mode });
   }),
 
   http.get('/api/analytics/path', () => {
@@ -315,7 +450,7 @@ export const analyticsHandlers = [
       ...base, distinctId: `u:${base.userId}`, anonymousId: 'anon-abc123', scrollDepth: rand(0, 100),
       properties: { foo: 'bar', amount: 42 }, referrer: 'https://www.google.com', utmSource: 'google', utmMedium: 'cpc', utmCampaign: 'spring',
       browserVersion: '120', osVersion: '11', screenW: 1920, screenH: 1080, language: 'zh-CN', userAgent: 'Mozilla/5.0 ...',
-      ip: '113.88.x.x', country: '中国', city: '深圳', metricName: null, metricValue: null,
+      ip: '113.88.x.x', country: '中国', city: '深圳', metricName: null, metricValue: null, sdkVersion: '1.0.0',
     };
     return ok<EventDetail>(detail);
   }),
@@ -338,7 +473,7 @@ export const analyticsHandlers = [
   }),
   http.post('/api/analytics/event-meta', async ({ request }) => {
     const body = (await request.json()) as Partial<AnalyticsEventMeta>;
-    const item: AnalyticsEventMeta = { id: nextMetaId++, eventName: body.eventName ?? 'event', displayName: body.displayName ?? null, category: body.category ?? null, description: body.description ?? null, propertySchema: body.propertySchema ?? null, status: body.status ?? 'active', eventCount: 0, firstSeenAt: null, lastSeenAt: null, createdAt: mockDateTime(), updatedAt: mockDateTime() };
+    const item: AnalyticsEventMeta = { id: nextMetaId++, eventName: body.eventName ?? 'event', displayName: body.displayName ?? null, category: body.category ?? null, description: body.description ?? null, propertySchema: body.propertySchema ?? null, status: body.status ?? 'active', version: body.version ?? 1, ownerId: body.ownerId ?? null, ownerName: body.ownerName ?? null, strictMode: body.strictMode ?? false, eventCount: 0, firstSeenAt: null, lastSeenAt: null, createdAt: mockDateTime(), updatedAt: mockDateTime() };
     mockEventMeta.unshift(item);
     return ok(item, '创建成功');
   }),
@@ -355,6 +490,87 @@ export const analyticsHandlers = [
     return ok(null, '删除成功');
   }),
 
+  // 租户覆盖（Tracking Plan 租户级启停）
+  http.get('/api/analytics/event-overrides', ({ request }) => {
+    const u = new URL(request.url);
+    const page = Number(u.searchParams.get('page')) || 1;
+    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
+    const eventName = u.searchParams.get('eventName') ?? '';
+    const status = u.searchParams.get('status') ?? '';
+    const list = mockEventOverrides.filter((o) =>
+      (!eventName || o.eventName.includes(eventName)) && (!status || o.status === status));
+    return ok<PaginatedResponse<AnalyticsEventOverride>>({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
+  }),
+  http.post('/api/analytics/event-overrides', async ({ request }) => {
+    const body = (await request.json()) as { eventName: string; status: AnalyticsEventOverride['status']; reason?: string | null };
+    if (mockEventOverrides.some((o) => o.eventName === body.eventName)) {
+      return HttpResponse.json({ code: 400, message: '该事件已存在租户覆盖配置', data: null }, { status: 400 });
+    }
+    const item: AnalyticsEventOverride = {
+      id: nextOverrideId++, tenantId: MOCK_OVERRIDE_TENANT_ID, eventName: body.eventName,
+      status: body.status, reason: body.reason ?? null, createdAt: mockDateTime(), updatedAt: mockDateTime(),
+    };
+    mockEventOverrides.unshift(item);
+    return ok(item, '创建成功');
+  }),
+  http.put('/api/analytics/event-overrides/:id', async ({ params, request }) => {
+    const id = Number(params.id);
+    const body = (await request.json()) as Partial<AnalyticsEventOverride>;
+    const idx = mockEventOverrides.findIndex((o) => o.id === id);
+    if (idx === -1) return HttpResponse.json({ code: 404, message: '不存在', data: null }, { status: 404 });
+    mockEventOverrides[idx] = { ...mockEventOverrides[idx], ...body, updatedAt: mockDateTime() };
+    return ok(mockEventOverrides[idx], '更新成功');
+  }),
+  http.delete('/api/analytics/event-overrides/:id', ({ params }) => {
+    mockEventOverrides = mockEventOverrides.filter((o) => o.id !== Number(params.id));
+    return ok(null, '删除成功');
+  }),
+
+  // 质量看板
+  http.get('/api/analytics/quality', ({ request }) => {
+    const u = new URL(request.url);
+    const days = Number(u.searchParams.get('days')) || 7;
+    const eventName = u.searchParams.get('eventName') ?? '';
+    const issueType = u.searchParams.get('issueType') ?? '';
+    const page = Number(u.searchParams.get('page')) || 1;
+    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
+    const since = mockDateOffset(-(Math.max(1, days) - 1));
+    const filtered = mockQualityDaily.filter((row) =>
+      row.statDate >= since
+      && (!eventName || row.eventName.includes(eventName))
+      && (!issueType || row.issueType === issueType));
+    const totalsMap = new Map<AnalyticsQualityIssueType, number>();
+    filtered.forEach((row) => totalsMap.set(row.issueType, (totalsMap.get(row.issueType) ?? 0) + row.count));
+    const totals = Array.from(totalsMap.entries()).map(([type, count]) => ({ issueType: type, count }));
+    const items = filtered.slice((page - 1) * pageSize, page * pageSize);
+    return ok<AnalyticsQualityQueryResult>({ items, totals, totalCount: filtered.length });
+  }),
+
+  // 事件调试流
+  http.get('/api/analytics/debug/events', ({ request }) => {
+    const u = new URL(request.url);
+    const limit = Math.min(50, Math.max(1, Number(u.searchParams.get('limit')) || 50));
+    const eventName = u.searchParams.get('eventName') ?? '';
+    const source = MOCK_EVENTS.filter((e) => !eventName || (e.eventName ?? '').includes(eventName)).slice(0, limit);
+    const list: AnalyticsDebugEvent[] = source.map((e) => ({
+      id: e.id,
+      eventId: `evt-${e.id}`,
+      eventType: e.eventType,
+      eventName: e.eventName,
+      source: e.source,
+      appId: e.appId,
+      environment: e.environment,
+      distinctId: `anon-${e.userId ?? 0}`,
+      memberId: e.memberId,
+      userId: e.userId,
+      pagePath: e.pagePath,
+      properties: e.elementKey ? { elementKey: e.elementKey, elementLabel: e.elementLabel, componentArea: e.componentArea } : null,
+      createdAt: e.createdAt,
+      issueTypes: Array.from(new Set(mockQualityDaily.filter((q) => q.eventName === e.eventName).map((q) => q.issueType))),
+    }));
+    return ok<AnalyticsDebugEvent[]>(list);
+  }),
+
   // 设置
   http.get('/api/analytics/settings', () => ok<AnalyticsSettings>(mockSettings)),
   http.put('/api/analytics/settings', async ({ request }) => {
@@ -369,5 +585,155 @@ export const analyticsHandlers = [
     const items: AnalyticsRollupItem[] = daysAxis(days).reverse().map((statDate) => ({ statDate, pv: rand(400, 900), uv: rand(80, 200), sessions: rand(150, 300), events: rand(1000, 2000), bounceSessions: rand(30, 90), totalDwellMs: rand(20_000_000, 80_000_000) }));
     return ok({ items });
   }),
-  http.post('/api/analytics/rollup/rebuild', () => ok(null, '已重建聚合记录')),
+  http.post('/api/analytics/rollup/rebuild', ({ request }) => {
+    const days = Number(new URL(request.url).searchParams.get('days')) || 30;
+    return ok(createProgressingMockTask({
+      taskType: 'analytics-rollup-rebuild',
+      title: `重建近 ${days} 天聚合`,
+      payload: { days },
+      totalItems: Math.min(30, Math.max(1, days)),
+    }), '任务已提交，可在任务中心查看进度');
+  }),
+
+  // ─── 通用事件分析工作台（行为中心阶段1）──────────────────────────────────────
+  http.post('/api/analytics/events/query', async ({ request }) => {
+    const body = (await request.json()) as AnalyticsEventQueryInput;
+    const days = body.days ?? 30;
+    const endDate = body.endDate ?? mockDateOffset(0);
+    const startDate = body.startDate ?? shiftDate(endDate, -(days - 1));
+    const groupBy: AnalyticsEventQueryGroupByField[] = body.groupBy && body.groupBy.length ? body.groupBy.slice(0, 2) : ['date'];
+    const metric: AnalyticsEventQueryMetric = body.metric ?? 'events';
+    const limit = Math.min(200, Math.max(1, body.limit ?? 100));
+
+    let filtered = MOCK_EVENTS.filter((e) => {
+      if (body.eventNames && body.eventNames.length && !body.eventNames.includes(e.eventName ?? '')) return false;
+      if (body.source && e.source !== body.source) return false;
+      if (body.appId && e.appId !== body.appId) return false;
+      if (body.environment && e.environment !== body.environment) return false;
+      if (body.deviceType && e.deviceType !== body.deviceType) return false;
+      return true;
+    });
+    if (!filtered.length) filtered = MOCK_EVENTS.slice(0, 40);
+
+    function dimValue(e: EventListItem, dim: AnalyticsEventQueryGroupByField, idx: number): string {
+      switch (dim) {
+        case 'date': return shiftDate(endDate, -(idx % days));
+        case 'eventName': return e.eventName ?? '未知事件';
+        case 'pagePath': return e.pagePath ?? '未知页面';
+        case 'source': return e.source;
+        case 'appId': return e.appId;
+        case 'environment': return e.environment;
+        case 'browser': return e.browser ?? '未知';
+        case 'os': return e.os ?? '未知';
+        case 'deviceType': return e.deviceType ?? '未知';
+        case 'region': return e.region ?? '未知';
+        default: return '未知';
+      }
+    }
+
+    const bucket = new Map<string, { dimensions: Record<string, string>; count: number; users: Set<number> }>();
+    filtered.forEach((e, idx) => {
+      const dims: Record<string, string> = {};
+      groupBy.forEach((dim) => { dims[dim] = dimValue(e, dim, idx); });
+      const key = groupBy.map((dim) => dims[dim]).join('|');
+      const entry = bucket.get(key) ?? { dimensions: dims, count: 0, users: new Set<number>() };
+      entry.count += 1;
+      if (e.userId != null) entry.users.add(e.userId);
+      bucket.set(key, entry);
+    });
+
+    const rows: AnalyticsEventQueryRow[] = Array.from(bucket.values())
+      .map((entry) => ({ dimensions: entry.dimensions, value: metric === 'uv' ? entry.users.size : entry.count }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, limit);
+
+    return ok<AnalyticsEventQueryResult>({
+      rows,
+      total: rows.length,
+      queryMeta: { metric, groupBy, startDate, endDate },
+    });
+  }),
+
+  // ─── 用户分群 CRUD + 成员物化（行为中心阶段1）────────────────────────────────
+  http.get('/api/analytics/segments', ({ request }) => {
+    const u = new URL(request.url);
+    const page = Number(u.searchParams.get('page')) || 1;
+    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
+    const keyword = u.searchParams.get('keyword') ?? '';
+    const status = u.searchParams.get('status') ?? '';
+    const list = mockSegments.filter((s) =>
+      (!keyword || s.name.includes(keyword) || (s.description ?? '').includes(keyword))
+      && (!status || s.status === status));
+    return ok<PaginatedResponse<AnalyticsUserSegment>>({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
+  }),
+  http.post('/api/analytics/segments', async ({ request }) => {
+    const body = (await request.json()) as Partial<AnalyticsUserSegment>;
+    if (!body.name || !body.rules || !body.rules.conditions?.length) {
+      return HttpResponse.json({ code: 400, message: '分群名称与规则不能为空', data: null }, { status: 400 });
+    }
+    if (mockSegments.some((s) => s.name === body.name)) {
+      return HttpResponse.json({ code: 400, message: '分群名称已存在', data: null }, { status: 400 });
+    }
+    const item: AnalyticsUserSegment = {
+      id: nextSegmentId++,
+      tenantId: null,
+      name: body.name,
+      description: body.description ?? null,
+      rules: body.rules,
+      status: body.status ?? 'enabled',
+      estimatedSize: 0,
+      snapshotAt: null,
+      createdAt: mockDateTime(),
+      updatedAt: mockDateTime(),
+    };
+    mockSegments.unshift(item);
+    mockSegmentMembers[item.id] = [];
+    return ok(item, '创建成功');
+  }),
+  http.get('/api/analytics/segments/:id', ({ params }) => {
+    const item = mockSegments.find((s) => s.id === Number(params.id));
+    if (!item) return HttpResponse.json({ code: 404, message: '分群不存在', data: null }, { status: 404 });
+    return ok(item);
+  }),
+  http.put('/api/analytics/segments/:id', async ({ params, request }) => {
+    const id = Number(params.id);
+    const body = (await request.json()) as Partial<AnalyticsUserSegment>;
+    const idx = mockSegments.findIndex((s) => s.id === id);
+    if (idx === -1) return HttpResponse.json({ code: 404, message: '分群不存在', data: null }, { status: 404 });
+    if (body.name && mockSegments.some((s) => s.id !== id && s.name === body.name)) {
+      return HttpResponse.json({ code: 400, message: '分群名称已存在', data: null }, { status: 400 });
+    }
+    mockSegments[idx] = { ...mockSegments[idx], ...body, updatedAt: mockDateTime() };
+    return ok(mockSegments[idx], '更新成功');
+  }),
+  http.delete('/api/analytics/segments/:id', ({ params }) => {
+    const id = Number(params.id);
+    mockSegments = mockSegments.filter((s) => s.id !== id);
+    delete mockSegmentMembers[id];
+    return ok(null, '删除成功');
+  }),
+  http.get('/api/analytics/segments/:id/members', ({ params, request }) => {
+    const id = Number(params.id);
+    const u = new URL(request.url);
+    const page = Number(u.searchParams.get('page')) || 1;
+    const pageSize = Number(u.searchParams.get('pageSize')) || 20;
+    const list = mockSegmentMembers[id] ?? [];
+    return ok<PaginatedResponse<AnalyticsSegmentMember>>({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
+  }),
+  http.post('/api/analytics/segments/:id/materialize', ({ params }) => {
+    const id = Number(params.id);
+    const idx = mockSegments.findIndex((s) => s.id === id);
+    if (idx === -1) return HttpResponse.json({ code: 404, message: '分群不存在', data: null }, { status: 404 });
+    // Demo 模式简化：提交任务的同时即时刷新一次快照，近似真实的异步物化效果
+    const size = rand(20, 200);
+    mockSegments[idx] = { ...mockSegments[idx], estimatedSize: size, snapshotAt: mockDateTime(), updatedAt: mockDateTime() };
+    mockSegmentMembers[id] = buildSegmentMembers(id, size);
+    const task = createProgressingMockTask({
+      taskType: 'analytics-segment-materialize',
+      title: `重算分群 #${id} 成员`,
+      payload: { segmentId: id },
+      totalItems: Math.max(1, Math.ceil(size / 10)),
+    });
+    return ok<AsyncTask>(task, '任务已提交，可在任务中心查看进度');
+  }),
 ];

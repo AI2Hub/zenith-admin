@@ -34,6 +34,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { httpRequest } from '../../lib/http-client';
 import { currentUserOrNull, runWithCurrentUser } from '../../lib/context';
+import { getEffectiveTenantId } from '../../lib/tenant';
 import { submitAsyncTask } from '../../lib/task-center';
 import { applyComputedFields } from '../../lib/report-formula';
 import { runExternalQuery } from '../../lib/report-external-db';
@@ -415,7 +416,7 @@ function validateDatasetDefinitions(
  * - 未引用任何系统变量的公共数据集，其结果与用户无关 —— 不注入可让结果缓存跨用户复用（大屏降压）；
  * - API / 静态数据集（sqlText 为空）不注入 —— 防止内部用户 ID/用户名/租户 ID 混入外发的第三方 HTTP 请求参数。
  */
-async function buildSystemParams(sqlText: string): Promise<Record<string, unknown>> {
+export async function buildSystemParams(sqlText: string): Promise<Record<string, unknown>> {
   const referenced = new Set<string>();
   for (const m of sqlText.matchAll(/\$\{\s*(__\w+)\s*\}/g)) referenced.add(m[1]);
   if (referenced.size === 0) return {};
@@ -423,7 +424,7 @@ async function buildSystemParams(sqlText: string): Promise<Record<string, unknow
   const out: Record<string, unknown> = {};
   if (referenced.has('__userId')) out.__userId = user?.userId ?? null;
   if (referenced.has('__username')) out.__username = user?.username ?? null;
-  if (referenced.has('__tenantId')) out.__tenantId = user?.tenantId ?? null;
+  if (referenced.has('__tenantId')) out.__tenantId = user ? getEffectiveTenantId(user) : null;
   if (referenced.has('__deptId')) {
     if (user) {
       const [row] = await db.select({ deptId: users.departmentId }).from(users).where(eq(users.id, user.userId)).limit(1);

@@ -15,7 +15,9 @@ import { withOptimisticRetry, OptimisticLockError } from '../../lib/optimistic';
 import { pageOffset } from '../../lib/pagination';
 import { escapeLike } from '../../lib/where-helpers';
 import { ensureMemberExists } from './member-auth.service';
+import { trackServerEvent } from '../analytics/analytics-server-events.service';
 import type { PointTxType } from '@zenith/shared';
+import { ANALYTICS_MEMBER_POINTS_EVENT_BY_TX_TYPE } from '@zenith/shared';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapPointAccount(row: MemberPointAccountRow) {
@@ -108,7 +110,7 @@ export function computePointChange(
 export async function changePoints(input: ChangePointsInput): Promise<MemberPointAccountRow> {
   if (input.amount === 0) throw new HTTPException(400, { message: '积分变动量不能为 0' });
 
-  return withOptimisticRetry(() =>
+  const updated = await withOptimisticRetry(() =>
     db.transaction(async (tx) => {
       const [acc] = await tx
         .select()
@@ -144,6 +146,22 @@ export async function changePoints(input: ChangePointsInput): Promise<MemberPoin
       return updated[0];
     }),
   );
+
+  // 服务端权威事件（best-effort，事务已提交后触发；会员体系第一期不分租户，tenantId 传 null）
+  trackServerEvent({
+    eventName: ANALYTICS_MEMBER_POINTS_EVENT_BY_TX_TYPE[input.type],
+    memberId: input.memberId,
+    tenantId: null,
+    properties: {
+      memberId: input.memberId,
+      amount: input.amount,
+      balanceAfter: updated.balance,
+      bizType: input.bizType ?? null,
+      bizId: input.bizId ?? null,
+    },
+  });
+
+  return updated;
 }
 
 /** 增加积分（amount 取绝对值，正向）*/

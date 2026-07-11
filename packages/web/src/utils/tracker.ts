@@ -6,10 +6,10 @@
  * - 远程配置（开关/采样/黑名单/DNT）
  */
 import { onCLS, onINP, onLCP, onFCP, onTTFB, type Metric } from 'web-vitals';
-import { TOKEN_KEY } from '@zenith/shared';
-import type { TrackEventInput, AnalyticsPublicConfig, UserBehaviorEventType } from '@zenith/shared';
+import { TOKEN_KEY, ANALYTICS_CONFIG_VERSION_KEY } from '@zenith/shared';
+import type { TrackEventInput, AnalyticsPublicConfig, UserBehaviorEventType, AnalyticsEventSource, AnalyticsEnvironment } from '@zenith/shared';
 import { addBreadcrumb } from './breadcrumbs';
-import { configureErrorReporting, reportError } from './error-reporter';
+import { configureErrorReporting, configureErrorReporterRuntime, reportError } from './error-reporter';
 
 const FLUSH_INTERVAL_MS = 15_000;
 const MAX_BUFFER_SIZE = 50;
@@ -25,6 +25,8 @@ const DEFAULT_SESSION_IDLE_MINUTES = 30;
 const WHITE_SCREEN_CHECK_DELAY_MS = 6000;
 const RAGE_CLICK_WINDOW_MS = 2000;
 const RAGE_CLICK_THRESHOLD = 3;
+// 设置热更新：60s 兜底轮询 + 同浏览器其它标签的 storage 事件即时触发（key 见 shared constants）
+const CONFIG_RELOAD_INTERVAL_MS = 60_000;
 
 // ─── 滚动深度（页面级最大滚动百分比，usePageTracker 在 page_leave 时读取）─────
 let maxScrollDepth = 0;
@@ -60,6 +62,62 @@ const DEFAULT_CONFIG: AnalyticsPublicConfig = {
 };
 
 type PendingEvent = Omit<TrackEventInput, 'sessionId' | 'anonymousId' | 'distinctId'>;
+
+// ─── 运行时参数化（多端 SDK 接入：后台 admin / 会员 member 共用同一份 tracker）───
+export interface TrackerRuntimeConfig {
+  /** localStorage 中存放访问令牌的 key（admin/member 各自独立） */
+  tokenKey: string;
+  /** 事件来源平台，不允许业务方伪造为 'server' */
+  source: AnalyticsEventSource;
+  /** 应用标识 */
+  appId: string;
+  /** 采集环境 */
+  environment: AnalyticsEnvironment;
+  /** 采集 SDK 版本 */
+  sdkVersion: string;
+  /** 白屏检测根节点选择器 */
+  rootSelector: string;
+  /** 是否已获得采集同意；admin 端恒为 true，member 端由用户隐私同意状态驱动 */
+  consentProvider: () => boolean;
+}
+
+/** 采集环境默认推断：显式声明优先，否则按 Vite build mode 归一为 production/development。 */
+function resolveDefaultEnvironment(): AnalyticsEnvironment {
+  const declared = (import.meta.env.VITE_ANALYTICS_ENVIRONMENT as string | undefined)?.trim();
+  if (declared === 'production' || declared === 'staging' || declared === 'development') return declared;
+  return import.meta.env.MODE === 'production' ? 'production' : 'development';
+}
+
+let runtime: TrackerRuntimeConfig = {
+  tokenKey: TOKEN_KEY,
+  source: 'web_admin',
+  appId: 'admin',
+  environment: resolveDefaultEnvironment(),
+  sdkVersion: (import.meta.env.VITE_APP_VERSION as string) || '0.0.0',
+  rootSelector: '#root',
+  consentProvider: () => true,
+};
+
+function runtimeStorageKey(baseKey: string): string {
+  return runtime.appId === 'admin' ? baseKey : `${baseKey}:${runtime.appId}`;
+}
+
+/**
+ * 配置 tracker 运行时参数，需在 initTracker() 之前调用。
+ * 未显式传入的字段沿用默认值（保持后台现状不变）。
+ * 同时把 tokenKey/source/appId/environment/consentProvider 同步给 error-reporter，
+ * 避免两个 SDK 的身份/平台字段配置漂移（单向同步：tracker → error-reporter，不产生循环依赖）。
+ */
+export function configureTracker(next: Partial<TrackerRuntimeConfig>): void {
+  runtime = { ...runtime, ...next };
+  configureErrorReporterRuntime({
+    tokenKey: runtime.tokenKey,
+    source: runtime.source,
+    appId: runtime.appId,
+    environment: runtime.environment,
+    consentProvider: runtime.consentProvider,
+  });
+}
 
 function uuid(): string {
   try { return crypto.randomUUID(); } catch {
@@ -122,14 +180,16 @@ class Tracker {
   private identityGeneration = 0;
   private configRequestId = 0;
   private initialized = false;
+  private configReloadTimer: ReturnType<typeof setInterval> | null = null;
   private readonly utm = parseUtm();
   private readonly referrer = (() => { try { return document.referrer || undefined; } catch { return undefined; } })();
 
   // ─── 身份 / 会话 ──────────────────────────────────────────────────────────
   private getAnonymousId(): string {
     try {
-      let id = localStorage.getItem(ANON_KEY);
-      if (!id) { id = uuid(); localStorage.setItem(ANON_KEY, id); }
+      const anonymousKey = runtimeStorageKey(ANON_KEY);
+      let id = localStorage.getItem(anonymousKey);
+      if (!id) { id = uuid(); localStorage.setItem(anonymousKey, id); }
       return id;
     } catch { return uuid(); }
   }
@@ -137,37 +197,45 @@ class Tracker {
   private getSessionId(): string {
     try {
       const now = Date.now();
-      const ts = Number(sessionStorage.getItem(SESSION_TS_KEY) || 0);
-      let id = sessionStorage.getItem(SESSION_KEY);
+      const sessionKey = runtimeStorageKey(SESSION_KEY);
+      const sessionTsKey = runtimeStorageKey(SESSION_TS_KEY);
+      const sampledKey = runtimeStorageKey(SAMPLED_KEY);
+      const ts = Number(sessionStorage.getItem(sessionTsKey) || 0);
+      let id = sessionStorage.getItem(sessionKey);
       if (!id || now - ts > this.config.sessionTimeoutMinutes * 60_000) {
         id = uuid();
-        sessionStorage.setItem(SESSION_KEY, id);
-        sessionStorage.removeItem(SAMPLED_KEY);
+        sessionStorage.setItem(sessionKey, id);
+        sessionStorage.removeItem(sampledKey);
       }
-      sessionStorage.setItem(SESSION_TS_KEY, String(now));
+      sessionStorage.setItem(sessionTsKey, String(now));
       return id;
     } catch { return uuid(); }
   }
 
   private isSampled(): boolean {
     try {
-      const cached = sessionStorage.getItem(SAMPLED_KEY);
+      const sampledKey = runtimeStorageKey(SAMPLED_KEY);
+      const cached = sessionStorage.getItem(sampledKey);
       if (cached != null) return cached === '1';
       const sampled = Math.random() < this.config.sampleRate;
-      sessionStorage.setItem(SAMPLED_KEY, sampled ? '1' : '0');
+      sessionStorage.setItem(sampledKey, sampled ? '1' : '0');
       return sampled;
     } catch { return true; }
   }
 
-  identify(userId: number | string, username?: string): void {
-    const next = `u:${userId}`;
-    if (this.distinctId === next) { if (username) this.username = username; return; }
+  private identifyWithPrefix(prefix: 'u' | 'm', id: number | string, displayName?: string): void {
+    const next = `${prefix}:${id}`;
+    if (this.distinctId === next) { if (displayName) this.username = displayName; return; }
     if (this.distinctId !== null) this.discardPendingIdentityData();
     this.distinctId = next;
-    if (username) this.username = username;
+    if (displayName) this.username = displayName;
     this.track({ eventType: 'identify', eventName: '$identify', pagePath: globalThis.location.pathname });
     if (this.initialized) void this.loadConfig();
   }
+
+  identify(userId: number | string, username?: string): void { this.identifyWithPrefix('u', userId, username); }
+
+  identifyMember(memberId: number | string, displayName?: string): void { this.identifyWithPrefix('m', memberId, displayName); }
 
   reset(): void {
     if (this.distinctId === null) return;
@@ -178,7 +246,7 @@ class Tracker {
   }
 
   prepareLogout(): void {
-    const token = localStorage.getItem(TOKEN_KEY);
+    const token = localStorage.getItem(runtime.tokenKey);
     this.flush(token, false);
     this.flushQueueSnapshot(token);
     this.discardPendingIdentityData();
@@ -189,10 +257,10 @@ class Tracker {
     this.buffer = [];
     this.preBuffer = [];
     try {
-      localStorage.removeItem(QUEUE_KEY);
-      sessionStorage.removeItem(SESSION_KEY);
-      sessionStorage.removeItem(SESSION_TS_KEY);
-      sessionStorage.removeItem(SAMPLED_KEY);
+      localStorage.removeItem(runtimeStorageKey(QUEUE_KEY));
+      sessionStorage.removeItem(runtimeStorageKey(SESSION_KEY));
+      sessionStorage.removeItem(runtimeStorageKey(SESSION_TS_KEY));
+      sessionStorage.removeItem(runtimeStorageKey(SAMPLED_KEY));
     } catch { /* storage unavailable */ }
   }
 
@@ -212,8 +280,23 @@ class Tracker {
     this.setupUnloadFlush();
     this.setupScrollDepth();
     this.setupWhiteScreenCheck();
+    this.setupConfigHotReload();
     this.flushQueue();
   }
+
+  /** 采集设置热更新：60s 兜底轮询 + 同浏览器其它标签写入版本号后 storage 事件即时重拉。 */
+  private setupConfigHotReload(): void {
+    if (this.configReloadTimer) return; // 已注册（init 已由 initialized 保护，双重防御避免重复计时器/监听）
+    this.configReloadTimer = setInterval(() => { void this.loadConfig(); }, CONFIG_RELOAD_INTERVAL_MS);
+    try {
+      globalThis.addEventListener?.('storage', (e: StorageEvent) => {
+        if (e.key === ANALYTICS_CONFIG_VERSION_KEY) void this.loadConfig();
+      });
+    } catch { /* 非浏览器环境（SSR/测试）忽略 */ }
+  }
+
+  /** 供设置页保存成功后手动触发当前标签页立即重拉配置（不下发配置内容，仅重新拉取）。 */
+  reloadConfig(): void { void this.loadConfig(); }
 
   private setupScrollDepth(): void {
     document.addEventListener('scroll', () => {
@@ -228,7 +311,7 @@ class Tracker {
     setTimeout(() => {
       try {
         if (!this.config.trackErrors) return;
-        const root = document.querySelector('#root');
+        const root = document.querySelector(runtime.rootSelector);
         const hasContent = !!root && (root.children.length > 0 || (root.textContent ?? '').trim().length > 0);
         if (!hasContent) {
           reportError('white_screen', '检测到疑似白屏：根节点无渲染内容', {
@@ -244,7 +327,7 @@ class Tracker {
     const requestId = ++this.configRequestId;
     try {
       const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || '/api';
-      const token = localStorage.getItem(TOKEN_KEY);
+      const token = localStorage.getItem(runtime.tokenKey);
       const res = await fetch(`${apiBase}/analytics/config`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
@@ -293,6 +376,7 @@ class Tracker {
   }
 
   private doTrack(event: PendingEvent): void {
+    if (!runtime.consentProvider()) return;
     if (!this.isEnabled()) return;
     if (!this.isTypeEnabled(event.eventType)) return;
     if (this.isBlacklisted(event.pagePath)) return;
@@ -310,6 +394,11 @@ class Tracker {
       language: event.language ?? navigator.language,
       ts: event.ts ?? Date.now(),
       ...(event.eventType === 'page_view' ? this.utm : {}),
+      // 强制覆盖平台字段：调用方（业务代码/离线队列）不可伪造 source/appId/environment/sdkVersion
+      source: runtime.source,
+      appId: runtime.appId,
+      environment: runtime.environment,
+      sdkVersion: runtime.sdkVersion,
     };
     this.buffer.push(enriched);
     if (this.buffer.length >= MAX_BUFFER_SIZE) this.flush();
@@ -321,7 +410,7 @@ class Tracker {
     const events = this.buffer.splice(0);
     const generation = this.identityGeneration;
     const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || '/api';
-    const token = tokenOverride === undefined ? localStorage.getItem(TOKEN_KEY) : tokenOverride;
+    const token = tokenOverride === undefined ? localStorage.getItem(runtime.tokenKey) : tokenOverride;
     fetch(`${apiBase}/analytics/events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -347,7 +436,7 @@ class Tracker {
     for (let i = 0; i < events.length; i += UNLOAD_CHUNK_SIZE) {
       const chunk = events.slice(i, i + UNLOAD_CHUNK_SIZE);
       const body = JSON.stringify({ events: chunk });
-      const token = localStorage.getItem(TOKEN_KEY);
+      const token = localStorage.getItem(runtime.tokenKey);
       let sent = false;
       try {
         // sendBeacon 专为卸载上报设计：浏览器保证页面关闭后继续发送
@@ -373,16 +462,18 @@ class Tracker {
 
   private enqueue(events: TrackEventInput[]): void {
     try {
-      const existing = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]') as TrackEventInput[];
+      const queueKey = runtimeStorageKey(QUEUE_KEY);
+      const existing = JSON.parse(localStorage.getItem(queueKey) || '[]') as TrackEventInput[];
       const merged = [...existing, ...events].slice(-500);
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(merged));
+      localStorage.setItem(queueKey, JSON.stringify(merged));
     } catch { /* storage full / unavailable */ }
   }
 
   private flushQueueSnapshot(token: string | null): void {
     try {
-      const queued = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]') as TrackEventInput[];
-      localStorage.removeItem(QUEUE_KEY);
+      const queueKey = runtimeStorageKey(QUEUE_KEY);
+      const queued = JSON.parse(localStorage.getItem(queueKey) || '[]') as TrackEventInput[];
+      localStorage.removeItem(queueKey);
       if (queued.length === 0) return;
       const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || '/api';
       for (let i = 0; i < queued.length; i += MAX_BUFFER_SIZE) {
@@ -400,7 +491,7 @@ class Tracker {
   private flushQueue(tokenOverride?: string | null, requeueOnFailure = true): void {
     if (this.queueFlushInFlight) return;
     this.queueFlushInFlight = true;
-    const token = tokenOverride === undefined ? localStorage.getItem(TOKEN_KEY) : tokenOverride;
+    const token = tokenOverride === undefined ? localStorage.getItem(runtime.tokenKey) : tokenOverride;
     const generation = this.identityGeneration;
     void this.drainQueue(token, requeueOnFailure, generation).finally(() => {
       this.queueFlushInFlight = false;
@@ -411,11 +502,12 @@ class Tracker {
     try {
       while (true) {
         if (generation !== this.identityGeneration) return;
-        const queued = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]') as TrackEventInput[];
+        const queueKey = runtimeStorageKey(QUEUE_KEY);
+        const queued = JSON.parse(localStorage.getItem(queueKey) || '[]') as TrackEventInput[];
         if (queued.length === 0) return;
         const events = queued.slice(0, MAX_BUFFER_SIZE);
         const rest = queued.slice(MAX_BUFFER_SIZE);
-        localStorage.setItem(QUEUE_KEY, JSON.stringify(rest));
+        localStorage.setItem(queueKey, JSON.stringify(rest));
         const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || '/api';
         try {
           const res = await fetch(`${apiBase}/analytics/events`, {
@@ -565,8 +657,18 @@ const tracker = new Tracker();
 /** 在 App 启动时调用一次，开启自动采集。 */
 export function initTracker(): void { tracker.init(); }
 
+/**
+ * 设置热更新：立即重拉采集配置（远程 /analytics/config），不下发配置内容本身。
+ * 供采集设置页保存成功后调用，使当前标签页无需刷新即可生效；跨标签页请配合
+ * `localStorage.setItem(ANALYTICS_CONFIG_VERSION_KEY, ...)` 触发 storage 事件。
+ */
+export function reloadTrackerConfig(): void { tracker.reloadConfig(); }
+
 /** 关联登录用户身份（匿名 → 登录合并）。 */
 export function identify(userId: number | string, username?: string): void { tracker.identify(userId, username); }
+
+/** 关联登录会员身份（会员 SPA 专用，distinctId 前缀为 `m:`，与 admin 的 `u:` 互不相同）。 */
+export function identifyMember(memberId: number | string, displayName?: string): void { tracker.identifyMember(memberId, displayName); }
 
 /** 退出登录时重置身份。 */
 export function resetIdentity(): void { tracker.reset(); }

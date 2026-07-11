@@ -6,6 +6,8 @@ import type { UpdateAnalyticsSettingsInput, AnalyticsPublicConfig } from '@zenit
 import { currentCreateTenantId, getCreateTenantId } from '../../lib/tenant';
 import { formatDateTime } from '../../lib/datetime';
 import { currentUserOrNull } from '../../lib/context';
+import { currentMemberOrNull } from '../../lib/member-context';
+import { broadcast } from '../../lib/ws-manager';
 
 export function mapSettings(row: AnalyticsSettingsRow) {
   return {
@@ -62,6 +64,8 @@ export async function updateSettings(input: UpdateAnalyticsSettingsInput) {
     })
     .where(eq(analyticsSettings.id, current.id))
     .returning();
+  // 设置热更新：通知已连接的后台管理端（tracker.ts）立即重拉配置。不下发配置内容，仅广播 tenantId。
+  try { broadcast({ type: 'analytics:config-updated', payload: { tenantId: row.tenantId } }); } catch { /* ignore */ }
   return mapSettings(row);
 }
 
@@ -99,7 +103,8 @@ export async function getIngestPolicy(tenantId: number | null): Promise<{ anonym
 /** SDK 公开配置（无需鉴权，匿名亦可获取）。 */
 export async function getPublicConfig(): Promise<AnalyticsPublicConfig> {
   const user = currentUserOrNull();
-  const tenantId = user ? getCreateTenantId(user) : null;
+  const member = user ? undefined : currentMemberOrNull();
+  const tenantId = user ? getCreateTenantId(user) : member?.tenantId ?? null;
   const r = await findSettingsWithGlobalFallback(tenantId);
   if (!r) return DEFAULT_PUBLIC_CONFIG;
   return {

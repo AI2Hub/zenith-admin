@@ -5,6 +5,8 @@ import { z } from '@hono/zod-openapi';
 import {
   ANALYTICS_BREADCRUMB_DATA_MAX_BYTES,
   ANALYTICS_CONTEXT_MAX_BYTES,
+  ANALYTICS_ENVIRONMENTS,
+  ANALYTICS_EVENT_SOURCES,
   SOURCE_MAP_MAX_BYTES,
 } from '@zenith/shared';
 
@@ -15,6 +17,8 @@ const levelEnum = z.enum(['fatal', 'error', 'warning', 'info']);
 const statusEnum = z.enum(['unresolved', 'resolved', 'ignored', 'muted']);
 const conditionEnum = z.enum(['new_error', 'threshold', 'spike']);
 const deviceTypeEnum = z.enum(['desktop', 'mobile', 'tablet', 'bot', 'unknown']);
+const sourceEnum = z.enum(ANALYTICS_EVENT_SOURCES);
+const environmentEnum = z.enum(ANALYTICS_ENVIRONMENTS);
 const webhookUrlDTO = z.url().max(512).refine(
   (value) => ['http:', 'https:'].includes(new URL(value).protocol),
   'Webhook URL 仅支持 HTTP/HTTPS',
@@ -76,6 +80,10 @@ export const ErrorReportInputDTO = z
     httpStatus: z.number().int().optional(),
     httpMethod: z.string().max(16).optional(),
     httpUrl: z.string().max(512).optional(),
+    // 行为中心阶段 1：多端平台字段（均可选，未携带时由服务端按接入方式默认推断）
+    source: sourceEnum.optional(),
+    appId: z.string().min(1).max(64).optional(),
+    environment: environmentEnum.optional(),
   })
   .openapi('ErrorReportInput');
 
@@ -129,6 +137,11 @@ export const ErrorEventDTO = z
     httpStatus: z.number().int().nullable(),
     httpMethod: z.string().nullable(),
     httpUrl: z.string().nullable(),
+    // 行为中心阶段 1：多端来源归因
+    source: sourceEnum,
+    appId: z.string(),
+    environment: environmentEnum,
+    memberId: z.number().int().nullable(),
     createdAt: z.string(),
   })
   .openapi('ErrorEvent');

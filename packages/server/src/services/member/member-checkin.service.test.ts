@@ -38,11 +38,18 @@ vi.mock('./coupons.service', () => ({
   grantCouponInTx: vi.fn(),
 }));
 
+// 服务端权威事件为 best-effort 异步旁路，unit test 中整体 mock 掉。
+vi.mock('../analytics/analytics-server-events.service', () => ({
+  trackServerEvent: vi.fn(),
+}));
+
 import { db } from '../../db';
 import { currentMemberId } from '../../lib/member-context';
+import { trackServerEvent } from '../analytics/analytics-server-events.service';
 import { doCheckin } from './member-checkin.service';
 
 const dbMock = vi.mocked(db);
+const trackServerEventMock = vi.mocked(trackServerEvent);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createChain(result: unknown[] | (() => Promise<unknown[]>)): any {
@@ -116,12 +123,21 @@ describe('doCheckin - 防重复与连续计数', () => {
     mockCheckinFlow({ today: [{ id: 1, checkinDate: '2026-07-05' }] });
     await expect(doCheckin()).rejects.toMatchObject({ status: 400, message: '今天已经签到过了' });
     expect(dbMock.transaction).not.toHaveBeenCalled();
+    expect(trackServerEventMock).not.toHaveBeenCalled();
   });
 
   it('首次签到：consecutiveDays=1，命中第 1 天规则', async () => {
     mockCheckinFlow({ yesterday: [] });
     const result = await doCheckin();
     expect(result).toEqual({ consecutiveDays: 1, points: 5, experience: 2, checkinDate: '2026-07-05' });
+    // 服务端权威事件：签到成功后触发，仅含标量字段
+    expect(trackServerEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: 'member.checkin.completed',
+        memberId: 7,
+        properties: expect.objectContaining({ memberId: 7, consecutiveDays: 1, pointsAwarded: 5, experienceAwarded: 2 }),
+      }),
+    );
   });
 
   it('昨日已签：连续天数 +1（6 → 7），精确命中第 7 天档', async () => {
@@ -142,6 +158,7 @@ describe('doCheckin - 防重复与连续计数', () => {
     mockCheckinFlow({ yesterday: [] });
     dbMock.insert.mockReturnValueOnce(createChain(() => Promise.reject({ cause: { code: '23505' } })));
     await expect(doCheckin()).rejects.toMatchObject({ status: 400, message: '今天已经签到过了' });
+    expect(trackServerEventMock).not.toHaveBeenCalled();
   });
 });
 

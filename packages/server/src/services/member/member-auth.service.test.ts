@@ -8,11 +8,14 @@
  *  3. refreshMemberToken：非法/类型不符（access 当 refresh 用）401、会员不存在 401、
  *     非 active 403、成功签发新 access token（type='member'）
  *  4. registerMember：无密码且无验证码 400、验证码错误 400、标识占用 400、
- *     成功注册（密码 bcrypt 落库 + 事务内初始化积分/钱包账户）、唯一约束冲突映射 400
+ *     成功注册（密码 bcrypt 落库 + 事务内初始化积分/钱包账户）、唯一约束冲突映射 400、
+ *     服务端权威事件 member.registered（仅成功后触发，属性脱敏）
  *  5. changeMyMemberPassword / resetMemberPassword / logoutMember 关键分支
+ *  6. updateMyMemberProfile：服务端权威事件 member.profile.updated（仅传变更字段名，
+ *     无变更/失败时不触发）
  *
  * Mock 策略：db / config / member-session-manager / member-sms / ip-location /
- * member-context mock；bcrypt 与 lib/jwt 用真实实现（验证密码哈希与 token payload）。
+ * member-context / analytics-server-events.service mock；bcrypt 与 lib/jwt 用真实实现（验证密码哈希与 token payload）。
  */
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import bcrypt from 'bcryptjs';
@@ -59,6 +62,12 @@ vi.mock('../../lib/member-context', () => ({
   currentMemberId: vi.fn().mockReturnValue(1),
 }));
 
+// 服务端权威事件为 best-effort 异步旁路，unit test 中整体 mock 掉，
+// 避免真实 logger/db 依赖被间接加载，同时便于断言触发时机与字段脱敏。
+vi.mock('../analytics/analytics-server-events.service', () => ({
+  trackServerEvent: vi.fn(),
+}));
+
 import { db } from '../../db';
 import {
   generateMemberTokenId,
@@ -69,6 +78,7 @@ import {
 import { verifyMemberSmsCode } from './member-sms.service';
 import { currentMember } from '../../lib/member-context';
 import { verifyToken } from '../../lib/jwt';
+import { trackServerEvent } from '../analytics/analytics-server-events.service';
 import {
   loginMember,
   registerMember,
@@ -77,12 +87,14 @@ import {
   changeMyMemberPassword,
   resetMemberPassword,
   logoutMember,
+  updateMyMemberProfile,
 } from './member-auth.service';
 import type { MemberRow } from '../../db/schema';
 
 const dbMock = vi.mocked(db);
 const smsMock = vi.mocked(verifyMemberSmsCode);
 const currentMemberMock = vi.mocked(currentMember);
+const trackServerEventMock = vi.mocked(trackServerEvent);
 
 // ─── 工具：可 await 的链式 query builder mock ─────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -331,6 +343,16 @@ describe('registerMember', () => {
     expect(pointsInsert.values).toHaveBeenCalledWith({ memberId: 20 });
     expect(walletInsert.values).toHaveBeenCalledWith({ memberId: 20 });
     expect(result.token.accessToken).toBeTruthy();
+    // 服务端权威事件：仅在事务成功后触发，且不落 phone/email 原值
+    expect(trackServerEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: 'member.registered',
+        memberId: 20,
+        properties: expect.objectContaining({ memberId: 20, hasPhone: false, hasEmail: false }),
+      }),
+    );
+    const props = trackServerEventMock.mock.calls[0][0].properties as Record<string, unknown>;
+    expect(JSON.stringify(props)).not.toMatch(/13900139000|@example\.com/);
   });
 
   it('并发注册撞唯一约束 → 400 统一提示', async () => {
@@ -343,6 +365,7 @@ describe('registerMember', () => {
       status: 400,
       message: '用户名、手机号或邮箱已被注册',
     });
+    expect(trackServerEventMock).not.toHaveBeenCalled();
   });
 
   it('昵称缺省时按 手机号 > 用户名 > 邮箱前缀 兜底', async () => {
@@ -438,5 +461,48 @@ describe('logoutMember', () => {
     currentMemberMock.mockReturnValue({ memberId: 1, identifier: 'alice', type: 'member', tenantId: null });
     await logoutMember();
     expect(removeMemberSession).not.toHaveBeenCalled();
+  });
+});
+
+// ─── updateMyMemberProfile：服务端权威事件（仅传变更字段名，不落 PII）──────────
+describe('updateMyMemberProfile', () => {
+  beforeEach(() => {
+    currentMemberMock.mockReturnValue({ memberId: 1, identifier: 'alice', type: 'member', tenantId: 2, jti: 'j1' });
+    dbMock.query.members.findFirst.mockResolvedValue({
+      ...makeMember(),
+      level: { name: '普通会员' },
+      pointAccount: { balance: 10 },
+      wallet: { balance: 0 },
+    });
+  });
+
+  it('有变更字段 → 更新成功后触发 member.profile.updated，仅含字段名不含值', async () => {
+    const updateChain = createChain([]);
+    dbMock.update.mockReturnValueOnce(updateChain);
+
+    await updateMyMemberProfile({ nickname: '新昵称', email: 'new@example.com' });
+
+    expect(trackServerEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: 'member.profile.updated',
+        memberId: 1,
+        tenantId: 2,
+        properties: { memberId: 1, changedFields: ['nickname', 'email'] },
+      }),
+    );
+    const props = trackServerEventMock.mock.calls[0][0].properties as Record<string, unknown>;
+    expect(JSON.stringify(props)).not.toMatch(/新昵称|new@example\.com/);
+  });
+
+  it('无任何变更字段 → 不触发事件（无实际更新）', async () => {
+    await updateMyMemberProfile({});
+    expect(dbMock.update).not.toHaveBeenCalled();
+    expect(trackServerEventMock).not.toHaveBeenCalled();
+  });
+
+  it('更新失败（唯一约束冲突）→ 不触发事件', async () => {
+    dbMock.update.mockReturnValueOnce(createChain(() => Promise.reject({ cause: { code: '23505' } })));
+    await expect(updateMyMemberProfile({ email: 'dup@example.com' })).rejects.toMatchObject({ status: 400 });
+    expect(trackServerEventMock).not.toHaveBeenCalled();
   });
 });

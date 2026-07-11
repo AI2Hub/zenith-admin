@@ -3,13 +3,14 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { errorGroups, errorEvents, sourceMaps, users } from '../../db/schema';
 import type { ErrorGroupRow, ErrorEventRow } from '../../db/schema';
-import type { FrontendErrorType, ErrorLevel, UpdateErrorGroupInput, SourceMapUploadInput } from '@zenith/shared';
+import type { FrontendErrorType, ErrorLevel, UpdateErrorGroupInput, SourceMapUploadInput, AnalyticsEventSource, AnalyticsEnvironment } from '@zenith/shared';
 import { currentUserOrNull } from '../../lib/context';
+import { currentMemberOrNull } from '../../lib/member-context';
 import { tenantScope, getCreateTenantId } from '../../lib/tenant';
 import { mergeWhere, escapeLike } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, formatDate, APP_TIME_ZONE, parseDateRangeStart } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { parseClientEnv, computeErrorFingerprint, startOfDaysAgo, clampDays, clampLimit } from '../../lib/analytics-helpers';
+import { parseClientEnv, computeErrorFingerprint, startOfDaysAgo, clampDays, clampLimit, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
 import { symbolicateStack } from '../../lib/source-map-symbolicate';
 import { evaluateAlertsForError } from './error-alert.service';
 
@@ -68,11 +69,23 @@ export function mapEvent(row: ErrorEventRow) {
     httpStatus: row.httpStatus,
     httpMethod: row.httpMethod,
     httpUrl: row.httpUrl,
+    source: row.source,
+    appId: row.appId,
+    environment: row.environment,
+    memberId: row.memberId,
     createdAt: formatDateTime(row.createdAt),
   };
 }
 
 const DAY_MS = 86_400_000;
+const affectedIdentity = sql<string>`
+  CASE
+    WHEN ${errorEvents.userId} IS NOT NULL THEN 'u:' || ${errorEvents.userId}::text
+    WHEN ${errorEvents.memberId} IS NOT NULL THEN 'm:' || ${errorEvents.memberId}::text
+    WHEN ${errorEvents.sessionId} IS NOT NULL THEN 'a:' || ${errorEvents.sessionId}
+    ELSE NULL
+  END
+`;
 
 function dateAxis(days: number): string[] {
   const todayStart = parseDateRangeStart(formatDate(new Date())) ?? new Date();
@@ -97,14 +110,21 @@ export async function reportError(input: {
   httpStatus?: number;
   httpMethod?: string;
   httpUrl?: string;
+  source?: AnalyticsEventSource;
+  appId?: string;
+  environment?: AnalyticsEnvironment;
 }, reqCtx: ErrorReqCtx): Promise<void> {
   const user = currentUserOrNull();
-  const tenantId = user ? getCreateTenantId(user) : null;
+  // 管理员 / 会员身份互斥：单次请求只会经过其中一种认证中间件
+  const member = user ? undefined : currentMemberOrNull();
+  const tenantId = user ? getCreateTenantId(user) : member ? (member.tenantId ?? null) : null;
   const env = parseClientEnv(reqCtx.ua);
   const level = input.level ?? defaultLevel(input.errorType);
   const message = input.message.slice(0, 2000);
   const fingerprint = computeErrorFingerprint({ tenantId, errorType: input.errorType, message: input.message, sourceUrl: input.sourceUrl, stack: input.stack });
   const now = new Date();
+  const platform = resolveIngestPlatformFields(input, { hasAdmin: !!user, hasMember: !!member });
+  const displayName = user?.username ?? member?.identifier ?? null;
 
   const group = await db.transaction(async (tx) => {
     const [upserted] = await tx
@@ -142,13 +162,17 @@ export async function reportError(input: {
       os: env.os,
       deviceType: env.deviceType,
       userId: user?.userId ?? null,
-      username: user?.username ?? null,
+      username: displayName,
       sessionId: input.sessionId ?? null,
       breadcrumbs: input.breadcrumbs ?? null,
       context: input.context ?? null,
       httpStatus: input.httpStatus ?? null,
       httpMethod: input.httpMethod ?? null,
       httpUrl: input.httpUrl ?? null,
+      source: platform.source,
+      appId: platform.appId,
+      environment: platform.environment,
+      memberId: member?.memberId ?? null,
     });
     return upserted;
   });
@@ -235,7 +259,7 @@ export async function getGroupDetail(id: number) {
     db.select({ name: errorEvents.browser, value: sql<number>`COUNT(*)::int` }).from(errorEvents).where(eq(errorEvents.groupId, id)).groupBy(errorEvents.browser).orderBy(sql`COUNT(*) DESC`).limit(6),
     db.select({ name: errorEvents.os, value: sql<number>`COUNT(*)::int` }).from(errorEvents).where(eq(errorEvents.groupId, id)).groupBy(errorEvents.os).orderBy(sql`COUNT(*) DESC`).limit(6),
     db.select().from(errorEvents).where(eq(errorEvents.groupId, id)).orderBy(desc(errorEvents.createdAt)).limit(20),
-    db.select({ n: countDistinct(errorEvents.userId) }).from(errorEvents).where(eq(errorEvents.groupId, id)),
+    db.select({ n: sql<number>`COUNT(DISTINCT ${affectedIdentity})::int` }).from(errorEvents).where(eq(errorEvents.groupId, id)),
   ]);
 
   // 原子回写影响用户数（避免读-改-写竞态）
@@ -243,7 +267,7 @@ export async function getGroupDetail(id: number) {
   if (affectedUsers !== group.affectedUsers) {
     await db
       .update(errorGroups)
-      .set({ affectedUsers: sql`(SELECT COUNT(DISTINCT ${errorEvents.userId}) FROM ${errorEvents} WHERE ${errorEvents.groupId} = ${id})::int` })
+      .set({ affectedUsers: sql`(SELECT COUNT(DISTINCT ${affectedIdentity}) FROM ${errorEvents} WHERE ${errorEvents.groupId} = ${id})::int` })
       .where(eq(errorGroups.id, id));
   }
 
@@ -342,7 +366,7 @@ export async function getErrorOverview(daysRaw: unknown) {
       .from(errorEvents)
       .where(mergeWhere(gte(errorEvents.createdAt, start), eScope))
       .groupBy(sql`1`),
-    db.select({ n: countDistinct(errorEvents.userId) }).from(errorEvents).where(mergeWhere(gte(errorEvents.createdAt, start), eScope)),
+    db.select({ n: sql<number>`COUNT(DISTINCT ${affectedIdentity})::int` }).from(errorEvents).where(mergeWhere(gte(errorEvents.createdAt, start), eScope)),
     db.select().from(errorGroups).where(mergeWhere(and(eq(errorGroups.status, 'unresolved'), gte(errorGroups.lastSeenAt, start)), gScope)).orderBy(desc(errorGroups.count)).limit(10),
     db.select({ n: sql<number>`COUNT(*)::int` }).from(errorGroups).where(mergeWhere(gte(errorGroups.firstSeenAt, todayStart), gScope)),
   ]);

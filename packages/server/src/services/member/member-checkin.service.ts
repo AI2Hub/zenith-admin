@@ -23,6 +23,8 @@ import { grantCouponInTx } from './coupons.service';
 import { applyGrowthDeltaInTx } from './member-levels.service';
 import { getMemberDetail } from './admin-members.service';
 import { getPointAccountBeforeAudit } from './member-points.service';
+import { trackServerEvent } from '../analytics/analytics-server-events.service';
+import { ANALYTICS_EVENT_NAMES } from '@zenith/shared';
 
 function mapMemberCheckin(row: MemberCheckinRow, memberNickname?: string | null) {
   return {
@@ -338,6 +340,20 @@ export async function doCheckin() {
     rethrowPgUniqueViolation(err, '今天已经签到过了');
     throw err;
   }
+
+  // 服务端权威事件（best-effort，事务已提交后触发）
+  trackServerEvent({
+    eventName: ANALYTICS_EVENT_NAMES.memberCheckinCompleted,
+    memberId,
+    tenantId: null,
+    properties: {
+      memberId,
+      consecutiveDays,
+      pointsAwarded: points,
+      experienceAwarded: experience,
+      checkinDate: todayStr,
+    },
+  });
 
   return { consecutiveDays, points, experience, checkinDate: todayStr };
 }

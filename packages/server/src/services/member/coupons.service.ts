@@ -17,7 +17,9 @@ import { getDecisionOutputs } from '../platform/rules.service';
 import { escapeLike, withPagination } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+import { trackServerEvent } from '../analytics/analytics-server-events.service';
 import type { CouponType, CouponValidType, CouponTemplateStatus } from '@zenith/shared';
+import { ANALYTICS_EVENT_NAMES } from '@zenith/shared';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCoupon(row: CouponRow) {
@@ -256,7 +258,7 @@ export async function grantCouponInTx(
 /** 前台：会员自助领券 */
 export async function receiveCoupon(couponId: number) {
   const memberId = currentMemberId();
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [coupon] = await tx.select().from(coupons).where(eq(coupons.id, couponId)).limit(1);
     if (!coupon) throw new HTTPException(404, { message: '优惠券不存在' });
     if (coupon.status !== 'active') throw new HTTPException(400, { message: '优惠券不可领取' });
@@ -266,6 +268,14 @@ export async function receiveCoupon(couponId: number) {
     }
     return mapMemberCoupon(await grantCoupon(tx, coupon, memberId), coupon);
   });
+  // 服务端权威事件（best-effort，事务已提交后触发）
+  trackServerEvent({
+    eventName: ANALYTICS_EVENT_NAMES.memberCouponReceived,
+    memberId,
+    tenantId: null,
+    properties: { memberId, couponId, memberCouponId: result.id },
+  });
+  return result;
 }
 
 /** 前台：积分兑换优惠券（事务内条件扣积分 + 发券，防超扣防超发）*/
@@ -327,7 +337,22 @@ export async function redeemCoupon(code: string, opts?: { bizType?: string; bizI
       or(isNull(memberCoupons.expireAt), gt(memberCoupons.expireAt, now)),
     ))
     .returning();
-  if (updated) return mapMemberCoupon(updated);
+  if (updated) {
+    // 服务端权威事件（best-effort，核销原子 UPDATE 已提交后触发）
+    trackServerEvent({
+      eventName: ANALYTICS_EVENT_NAMES.memberCouponRedeemed,
+      memberId: updated.memberId,
+      tenantId: null,
+      properties: {
+        memberId: updated.memberId,
+        couponId: updated.couponId,
+        memberCouponId: updated.id,
+        bizType: opts?.bizType ?? null,
+        bizId: opts?.bizId ?? null,
+      },
+    });
+    return mapMemberCoupon(updated);
+  }
 
   // 未命中：区分券码不存在 / 已过期 / 其它不可用
   const [mc] = await db.select().from(memberCoupons).where(eq(memberCoupons.code, code)).limit(1);

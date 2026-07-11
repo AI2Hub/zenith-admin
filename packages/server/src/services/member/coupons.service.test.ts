@@ -38,9 +38,16 @@ vi.mock('../platform/rules.service', () => ({
   getDecisionOutputs: vi.fn().mockResolvedValue({}),
 }));
 
+// 服务端权威事件为 best-effort 异步旁路，unit test 中整体 mock 掉，
+// 避免真实 logger/db 依赖被间接加载，同时便于断言触发时机。
+vi.mock('../analytics/analytics-server-events.service', () => ({
+  trackServerEvent: vi.fn(),
+}));
+
 import { db } from '../../db';
 import { currentMemberId } from '../../lib/member-context';
 import { getDecisionOutputs } from '../platform/rules.service';
+import { trackServerEvent } from '../analytics/analytics-server-events.service';
 import {
   issueCoupon,
   receiveCoupon,
@@ -52,6 +59,7 @@ import type { CouponRow, MemberCouponRow } from '../../db/schema';
 
 const dbMock = vi.mocked(db);
 const decisionMock = vi.mocked(getDecisionOutputs);
+const trackServerEventMock = vi.mocked(trackServerEvent);
 
 // ─── 工具：可 await 的链式 query builder mock ─────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -238,6 +246,20 @@ describe('receiveCoupon', () => {
 
     expect(insertChain.values.mock.calls[0][0].memberId).toBe(7);
     expect(result.memberId).toBe(7);
+    // 服务端权威事件：领取成功后触发，仅含标量业务字段
+    expect(trackServerEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: 'member.coupon.received',
+        memberId: 7,
+        properties: expect.objectContaining({ memberId: 7, couponId: 1 }),
+      }),
+    );
+  });
+
+  it('领取失败（模板不可领）→ 不触发事件', async () => {
+    dbMock.select.mockReturnValueOnce(createChain([makeCoupon({ status: 'draft' })]));
+    await expect(receiveCoupon(1)).rejects.toMatchObject({ status: 400 });
+    expect(trackServerEventMock).not.toHaveBeenCalled();
   });
 });
 
@@ -254,12 +276,19 @@ describe('redeemCoupon', () => {
     expect(updateChain.set).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'used', bizType: 'order', bizId: 'SO-1001' }),
     );
+    expect(trackServerEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: 'member.coupon.redeemed',
+        properties: expect.objectContaining({ bizType: 'order', bizId: 'SO-1001' }),
+      }),
+    );
   });
 
   it('券码不存在 → 404', async () => {
     dbMock.update.mockReturnValueOnce(createChain([]));
     dbMock.select.mockReturnValueOnce(createChain([]));
     await expect(redeemCoupon('CPNOTEXIST')).rejects.toMatchObject({ status: 404, message: '券码不存在' });
+    expect(trackServerEventMock).not.toHaveBeenCalled();
   });
 
   it('未使用但已过期 → 落库 expired 标记并抛 400', async () => {

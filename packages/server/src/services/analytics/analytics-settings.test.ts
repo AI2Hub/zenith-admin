@@ -1,14 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { select, insert, onConflictDoNothing, returning } = vi.hoisted(() => ({
+const { select, insert, update, onConflictDoNothing, returning, broadcast, currentMemberOrNull } = vi.hoisted(() => ({
   select: vi.fn(),
   insert: vi.fn(),
+  update: vi.fn(),
   onConflictDoNothing: vi.fn(),
   returning: vi.fn(),
+  broadcast: vi.fn(),
+  currentMemberOrNull: vi.fn(),
 }));
 
 vi.mock('../../db', () => ({
-  db: { select, insert },
+  db: { select, insert, update },
 }));
 
 vi.mock('../../lib/tenant', () => ({
@@ -20,7 +23,15 @@ vi.mock('../../lib/context', () => ({
   currentUserOrNull: () => null,
 }));
 
-import { getSettings } from './analytics-settings.service';
+vi.mock('../../lib/member-context', () => ({
+  currentMemberOrNull,
+}));
+
+vi.mock('../../lib/ws-manager', () => ({
+  broadcast,
+}));
+
+import { getPublicConfig, getSettings, updateSettings } from './analytics-settings.service';
 
 const row = {
   id: 9,
@@ -48,6 +59,7 @@ const row = {
 describe('analytics settings creation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    currentMemberOrNull.mockReturnValue(undefined);
     const results = [[], [row]];
     select.mockImplementation(() => ({
       from: () => ({
@@ -67,5 +79,56 @@ describe('analytics settings creation', () => {
     await expect(getSettings()).resolves.toMatchObject({ id: 9, sessionTimeoutMinutes: 30 });
     expect(onConflictDoNothing).toHaveBeenCalledTimes(1);
     expect(select).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('analytics member public config', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('resolves settings using the authenticated member tenant', async () => {
+    currentMemberOrNull.mockReturnValue({ memberId: 8, identifier: 'member', type: 'member', tenantId: 11 });
+    select.mockImplementation(() => ({
+      from: () => ({
+        where: () => ({
+          limit: async () => [{ ...row, sampleRate: 0.25 }],
+        }),
+      }),
+    }));
+
+    await expect(getPublicConfig()).resolves.toMatchObject({ sampleRate: 0.25 });
+    expect(currentMemberOrNull).toHaveBeenCalled();
+  });
+});
+
+describe('analytics settings update — hot reload broadcast', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    select.mockImplementation(() => ({
+      from: () => ({
+        where: () => ({
+          limit: async () => [row],
+        }),
+      }),
+    }));
+    update.mockReturnValue({
+      set: () => ({
+        where: () => ({
+          returning: async () => [{ ...row, enabled: false }],
+        }),
+      }),
+    });
+  });
+
+  it('broadcasts analytics:config-updated with only the tenantId after a successful update, never the config content', async () => {
+    await updateSettings({ enabled: false });
+    expect(broadcast).toHaveBeenCalledTimes(1);
+    expect(broadcast).toHaveBeenCalledWith({ type: 'analytics:config-updated', payload: { tenantId: 11 } });
+  });
+
+  it('does not let a broadcast failure block the response', async () => {
+    broadcast.mockImplementation(() => { throw new Error('ws down'); });
+    await expect(updateSettings({ enabled: false })).resolves.toMatchObject({ enabled: false });
   });
 });

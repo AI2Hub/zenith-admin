@@ -34,6 +34,10 @@ const columns: ExportColumn[] = [
   { key: 'deviceType', header: '设备', width: 10 },
   { key: 'region', header: '地域', width: 14 },
   { key: 'createdAt', header: '时间', width: 20 },
+  { key: 'memberId', header: '会员ID', width: 10 },
+  { key: 'source', header: '来源', width: 12 },
+  { key: 'appId', header: '应用', width: 12 },
+  { key: 'environment', header: '环境', width: 12 },
 ];
 
 export const analyticsEventsExportDefinition = defineExport({

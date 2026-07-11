@@ -3,10 +3,13 @@
  * resolveDatasetParams（默认值 + 类型强转 + 必填校验）；
  * buildExternalParamSql（${name} → 占位符 + values，参数化防注入，多方言）。
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
-import { resolveDatasetParams, buildExternalParamSql, applyRowRulesToSql } from './report-dataset.service';
+import { resolveDatasetParams, buildExternalParamSql, applyRowRulesToSql, buildSystemParams } from './report-dataset.service';
+import { runWithCurrentUser } from '../../lib/context';
+import { config } from '../../config';
 import type { ReportDatasetParam } from '@zenith/shared';
+import type { JwtPayload } from '../../middleware/auth';
 
 describe('resolveDatasetParams', () => {
   it('未提供时套用默认值（默认值不强转）', () => {
@@ -90,5 +93,55 @@ describe('buildExternalParamSql - 参数化防注入', () => {
     const r = buildExternalParamSql('SELECT 1', {}, 'postgresql');
     expect(r.text).toBe('SELECT 1');
     expect(r.values).toEqual([]);
+  });
+});
+
+describe('buildSystemParams - __tenantId 系统变量安全（行为中心阶段1 报表接入）', () => {
+  const superAdmin: JwtPayload = { userId: 1, username: 'admin', roles: ['super_admin'], tenantId: null };
+
+  beforeEach(() => {
+    config.multiTenantMode = true;
+  });
+
+  it('SQL 未引用任何系统变量时不注入任何值（公共数据集结果可跨用户复用）', async () => {
+    await runWithCurrentUser(superAdmin, async () => {
+      expect(await buildSystemParams('SELECT 1')).toEqual({});
+    });
+  });
+
+  it('普通租户用户：__tenantId 取自身 tenantId', async () => {
+    const user: JwtPayload = { userId: 2, username: 'u', roles: ['user'], tenantId: 5 };
+    await runWithCurrentUser(user, async () => {
+      const params = await buildSystemParams('SELECT * FROM t WHERE (${__tenantId}::int IS NULL OR tenant_id=${__tenantId})');
+      expect(params.__tenantId).toBe(5);
+    });
+  });
+
+  it('平台超管未切换租户视角：__tenantId 为 null（平台视角，可见全部租户，不泄露/不误限定单一租户）', async () => {
+    await runWithCurrentUser(superAdmin, async () => {
+      const params = await buildSystemParams('SELECT ${__tenantId}');
+      expect(params.__tenantId).toBeNull();
+    });
+  });
+
+  it('平台超管切换到指定租户视角：__tenantId 使用 viewingTenantId，而非 null 或超管自身 tenantId', async () => {
+    const viewing: JwtPayload = { ...superAdmin, viewingTenantId: 7 };
+    await runWithCurrentUser(viewing, async () => {
+      const params = await buildSystemParams('SELECT ${__tenantId}');
+      expect(params.__tenantId).toBe(7);
+    });
+  });
+
+  it('multiTenantMode 关闭时 __tenantId 恒为 null，即使用户带 tenantId', async () => {
+    config.multiTenantMode = false;
+    const user: JwtPayload = { userId: 3, username: 'u2', roles: ['user'], tenantId: 9 };
+    await runWithCurrentUser(user, async () => {
+      const params = await buildSystemParams('SELECT ${__tenantId}');
+      expect(params.__tenantId).toBeNull();
+    });
+  });
+
+  it('未登录（无上下文用户）时 __tenantId 为 null，而非抛错', async () => {
+    expect(await buildSystemParams('SELECT ${__tenantId}')).toEqual({ __tenantId: null });
   });
 });

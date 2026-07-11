@@ -51,3 +51,24 @@
 ## 数据保留策略
 
 定时任务 `analyticsRetention`（每日 02:00）逐租户读取 `retentionDays` / `errorRetentionDays`，分别清理各租户过期埋点、会话与错误数据，并删除已无事件的空错误分组。没有配置记录的租户使用 180 / 90 天默认值。
+
+## 用户分群
+
+权限 `analytics:manage`。用户分群用于圈定满足特定事件 / 属性条件的 `distinctId` 集合，供漏斗分析（`segmentId`）与事件分析工作台（`segmentId`）复用。
+
+- `GET` / `POST /api/analytics/segments`：分群列表 / 创建；`GET` / `PUT` / `DELETE /api/analytics/segments/{id}`：详情 / 更新 / 删除。
+- 规则 `rules: { operator: 'AND'|'OR', conditions: [...] }`，最多 10 条条件，仅支持两类条件：
+  - **事件条件**（`type: 'event'`）：`eventName` + 观察窗口天数 + 最少发生次数 `minCount` + 属性过滤（同事件分析工作台的 `propertyFilters`）。
+  - **属性条件**（`type: 'attribute'`）：针对 `analytics_user_profiles` 的 `identityType` / `userId` / `memberId` 或任意 `property.<key>`（`key` 经严格正则校验，禁止拼接任意列名）。
+  - 不支持分群嵌套分群（规则条件中不能引用其他 `segmentId`），避免循环依赖与未受控的联表爆炸。
+  - AND 语义使用 SQL `INTERSECT`、OR 语义使用 SQL `UNION` 合并各条件命中的 `distinctId` 集合，全程不在 Node 侧加载全量 ID 到内存后再比对。
+- **物化**：`POST /api/analytics/segments/{id}/materialize` 通过任务中心异步执行（任务类型 `analytics-segment-materialize`，`allowConcurrent: false`，`maxAttempts: 2`），事务内先清空旧快照再 `INSERT ... SELECT` 写入新成员（含 `tenantId` / `identityType` / `userId` / `memberId`），完成后更新 `estimatedSize` 与 `snapshotAt`；同日重复提交由幂等键（`任务类型:分群ID:日期`）拦截，避免重复重算。任务执行时会重新校验分群仍属于创建者租户。
+- `GET /api/analytics/segments/{id}/members`：分页查看物化后的成员快照。
+- 前端「数据管理」页「用户分群」Tab：列表 + 状态/关键词搜索、创建/编辑弹窗（可视化规则编辑器，支持 AND/OR 与事件/属性两类条件的可视化拼装）、「重算成员」按钮（提交后跳转任务中心跟踪进度）、成员侧边栏。
+
+## 报表中心复用
+
+行为分析数据无需新建报表数据源或执行器：直接复用内置主库数据源（`datasourceId=1`），在种子数据 `SEED_REPORT_DATASETS` 中新增 3 个只读参数化 SQL 数据集（行为事件趋势 / 来源分布 / 埋点质量趋势），并提供配套「行为分析概览」看板（`SEED_REPORT_DASHBOARDS`），从而直接获得报表中心已有的分享、订阅、导出能力，无需为行为数据重复实现。
+
+- 数据集 SQL 均通过系统参数 `${__tenantId}` 与 `(${__tenantId}::int IS NULL OR tenant_id = ${__tenantId})` 模式支持「平台超管全局视角（`__tenantId` 为 `NULL`）」与「租户视角（`__tenantId` 为具体租户 ID）」双重语义，与报表中心其余数据集写法保持一致。
+- `report-dataset.service.ts` 的 `buildSystemParams` 通过 `getEffectiveTenantId(user)` 计算 `__tenantId`：平台超级管理员在切换租户视角浏览时，注入的是「当前选中的租户视角」而非管理员自身租户，避免视角切换时误泄露/误过滤其他租户数据。

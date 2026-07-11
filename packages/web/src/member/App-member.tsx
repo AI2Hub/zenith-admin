@@ -6,6 +6,8 @@ import { MemberAuthProvider, useMemberAuth } from './hooks/useMemberAuth';
 import { memberQueryClient } from './lib/member-query';
 import PublicLayout from './layouts/PublicLayout';
 import MemberLayout from './layouts/MemberLayout';
+import { MemberAnalyticsBridge } from './components/MemberAnalyticsBridge';
+import { AnalyticsConsentBanner } from './components/AnalyticsConsentBanner';
 
 // 路由级代码分割：各页面按需加载，避免落地页访客下载全部会员中心页面
 const LandingPage = React.lazy(() => import('./pages/landing/LandingPage'));
@@ -104,7 +106,10 @@ export default function MemberApp() {
     <QueryClientProvider client={memberQueryClient}>
       <MemberAuthProvider>
         <HashRouter>
+          {/* 埋点桥接：路由级 PV/PL 采集 + 登录身份关联，覆盖公开与受保护路由，全局挂载一次 */}
+          <MemberAnalyticsBridge />
           <AppRoutes />
+          <AnalyticsConsentBanner />
         </HashRouter>
       </MemberAuthProvider>
     </QueryClientProvider>

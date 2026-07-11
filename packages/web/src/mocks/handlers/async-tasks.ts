@@ -75,6 +75,28 @@ const taskTypes: AsyncTaskTypeMeta[] = [
     retryDelayMs: 5000,
     retentionDays: null,
   },
+  {
+    taskType: 'analytics-rollup-rebuild',
+    title: '埋点每日聚合重建',
+    module: '行为分析',
+    description: '按指定天数重新计算 PV/UV/会话等每日聚合数据。',
+    allowConcurrent: false,
+    enabled: true,
+    maxAttempts: 2,
+    retryDelayMs: 30000,
+    retentionDays: 30,
+  },
+  {
+    taskType: 'analytics-segment-materialize',
+    title: '用户分群重算',
+    module: '行为分析',
+    description: '根据分群规则重新计算成员快照（distinctId 集合）。',
+    allowConcurrent: false,
+    enabled: true,
+    maxAttempts: 2,
+    retryDelayMs: 15000,
+    retentionDays: 30,
+  },
 ];
 
 const SERIAL_STAGES = ['准备数据', '汇总统计', '生成报告', '归档结果'];
@@ -203,7 +225,7 @@ export function createImmediateMockTask(input: {
 }
 
 export function createProgressingMockTask(input: {
-  taskType: 'report-dq-rule-run' | 'report-dataset-materialize' | 'report-sla-rule-evaluate' | 'report-fill-sync';
+  taskType: 'report-dq-rule-run' | 'report-dataset-materialize' | 'report-sla-rule-evaluate' | 'report-fill-sync' | 'analytics-rollup-rebuild' | 'analytics-segment-materialize';
   title: string;
   payload?: Record<string, unknown>;
   totalItems?: number;

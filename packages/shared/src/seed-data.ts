@@ -17,8 +17,9 @@ import type {
   MpKfSessionEventType, MpKfRoutingStrategy, MpMenuButton, MpMenuMatchRule, MpMenuStatus,
   ReportDatasource, ReportDataset, ReportDashboard, ApiScope, RatePlan, ReportPrintTemplate,
   UserFeedback, ReportFolder, ReportMetric, ReportEnvironment, ReportDqRule, ReportQueryQuota,
-  ReportSlaRule, ReportAssetTemplate, ReportFillTemplate,
+  ReportSlaRule, ReportAssetTemplate, ReportFillTemplate, AnalyticsEventPropertyDef,
 } from './types';
+import { ANALYTICS_SEMANTIC_EVENT_LABELS, type AnalyticsSemanticEventName } from './constants';
 
 const SEED_DATE = '2024-01-01 00:00:00';
 
@@ -2055,6 +2056,73 @@ export const SEED_REPORT_DATASETS: ReportDataset[] = [
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
   },
+  // ─── 行为中心阶段 1：报表中心接入（复用内置主库，租户视角安全）────────────────
+  {
+    id: 3,
+    name: '行为事件趋势',
+    datasourceId: 1,
+    type: 'sql',
+    content: {
+      sql: "SELECT to_char(timezone('Asia/Shanghai', created_at), 'YYYY-MM-DD') AS name, count(*)::int AS value FROM user_events WHERE created_at >= now() - (${days}::int * INTERVAL '1 day') AND (${__tenantId}::int IS NULL OR tenant_id = ${__tenantId}) GROUP BY 1 ORDER BY 1",
+    },
+    fields: [
+      { name: 'name', label: '日期', type: 'string' },
+      { name: 'value', label: '事件数', type: 'number' },
+    ],
+    params: [
+      { name: 'days', label: '统计天数', type: 'number', defaultValue: 30 },
+    ],
+    computedFields: [],
+    cacheTtl: 60,
+    status: 'enabled',
+    remark: '行为中心：按天统计埋点事件量趋势（平台超管不选租户时看全平台，选定租户/普通租户用户仅看本租户）',
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+  {
+    id: 4,
+    name: '行为事件来源分布',
+    datasourceId: 1,
+    type: 'sql',
+    content: {
+      sql: "SELECT source AS name, count(*)::int AS value FROM user_events WHERE created_at >= now() - (${days}::int * INTERVAL '1 day') AND (${__tenantId}::int IS NULL OR tenant_id = ${__tenantId}) GROUP BY source ORDER BY value DESC",
+    },
+    fields: [
+      { name: 'name', label: '来源', type: 'string' },
+      { name: 'value', label: '事件数', type: 'number' },
+    ],
+    params: [
+      { name: 'days', label: '统计天数', type: 'number', defaultValue: 30 },
+    ],
+    computedFields: [],
+    cacheTtl: 60,
+    status: 'enabled',
+    remark: '行为中心：按来源（web_admin/web_member/server）统计埋点事件占比',
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+  {
+    id: 5,
+    name: '埋点质量趋势',
+    datasourceId: 1,
+    type: 'sql',
+    content: {
+      sql: "SELECT to_char(stat_date, 'YYYY-MM-DD') AS name, sum(count)::int AS value FROM analytics_event_quality_daily WHERE stat_date >= (now() - (${days}::int * INTERVAL '1 day'))::date AND (${__tenantId}::int IS NULL OR tenant_id = ${__tenantId}) GROUP BY 1 ORDER BY 1",
+    },
+    fields: [
+      { name: 'name', label: '日期', type: 'string' },
+      { name: 'value', label: '问题事件数', type: 'number' },
+    ],
+    params: [
+      { name: 'days', label: '统计天数', type: 'number', defaultValue: 30 },
+    ],
+    computedFields: [],
+    cacheTtl: 60,
+    status: 'enabled',
+    remark: '行为中心：埋点质量日聚合问题事件量趋势（缺失必填/类型不符/非法枚举/事件已停用）',
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
 ];
 
 export const SEED_REPORT_DASHBOARDS: ReportDashboard[] = [
@@ -2161,6 +2229,50 @@ export const SEED_REPORT_DASHBOARDS: ReportDashboard[] = [
     publishedBy: 1,
     publishedByName: '系统',
     remark: '内置大屏示例：自由画布 + 深色科技皮肤 + 翻牌器/滚动榜单',
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+  {
+    id: 3,
+    name: '行为分析概览',
+    layout: [
+      { i: 'a1', x: 0, y: 0, w: 12, h: 6, minW: 4, minH: 3 },
+      { i: 'a2', x: 0, y: 6, w: 6, h: 6, minW: 3, minH: 3 },
+      { i: 'a3', x: 6, y: 6, w: 6, h: 6, minW: 3, minH: 3 },
+    ],
+    canvasLayout: [],
+    widgets: [
+      { i: 'a1', type: 'line', title: '行为事件趋势', datasetId: 3, options: { categoryField: 'name', valueFields: ['value'] } },
+      { i: 'a2', type: 'bar', title: '事件来源分布', datasetId: 4, options: { categoryField: 'name', valueFields: ['value'] } },
+      { i: 'a3', type: 'line', title: '埋点质量趋势', datasetId: 5, options: { categoryField: 'name', valueFields: ['value'] } },
+    ],
+    filters: [],
+    config: { theme: 'light' },
+    status: 'enabled',
+    lifecycleStatus: 'published',
+    revision: 1,
+    publishedSnapshot: {
+      name: '行为分析概览',
+      layout: [
+        { i: 'a1', x: 0, y: 0, w: 12, h: 6, minW: 4, minH: 3 },
+        { i: 'a2', x: 0, y: 6, w: 6, h: 6, minW: 3, minH: 3 },
+        { i: 'a3', x: 6, y: 6, w: 6, h: 6, minW: 3, minH: 3 },
+      ],
+      canvasLayout: [],
+      widgets: [
+        { i: 'a1', type: 'line', title: '行为事件趋势', datasetId: 3, options: { categoryField: 'name', valueFields: ['value'] } },
+        { i: 'a2', type: 'bar', title: '事件来源分布', datasetId: 4, options: { categoryField: 'name', valueFields: ['value'] } },
+        { i: 'a3', type: 'line', title: '埋点质量趋势', datasetId: 5, options: { categoryField: 'name', valueFields: ['value'] } },
+      ],
+      filters: [],
+      config: { theme: 'light' },
+      categoryId: null,
+      remark: '行为中心阶段 1：内置看板，绑定事件趋势/来源分布/质量趋势 3 个数据集，直接获得分享/订阅能力',
+    },
+    publishedAt: SEED_DATE,
+    publishedBy: 1,
+    publishedByName: '系统',
+    remark: '行为中心阶段 1：内置看板，绑定事件趋势/来源分布/质量趋势 3 个数据集，直接获得分享/订阅能力',
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
   },
@@ -2401,4 +2513,121 @@ export const SEED_USER_FEEDBACKS: UserFeedback[] = [
   { id: 2, userId: 1, userNickname: '管理员', score: 3, category: 'bug', content: '导出中心偶尔出现任务状态不刷新的情况，需要手动点刷新', pagePath: '/system/export-jobs', status: 'processing', handleRemark: '排查中，疑似 WS 断线重连问题', handledBy: 1, handlerNickname: '管理员', handledAt: '2024-01-03 15:30:00', createdAt: '2024-01-03 09:00:00', updatedAt: '2024-01-03 15:30:00' },
   { id: 3, userId: 1, userNickname: '管理员', score: 4, category: 'ux', content: '暗色模式下部分图表文字对比度偏低', pagePath: '/', status: 'pending', handleRemark: null, handledBy: null, handlerNickname: null, handledAt: null, createdAt: '2024-01-05 14:20:00', updatedAt: '2024-01-05 14:20:00' },
   { id: 4, userId: 1, userNickname: '管理员', score: null, category: 'other', content: '建议文档站增加全文搜索', pagePath: '/system/configs', status: 'ignored', handleRemark: '文档站已有搜索入口', handledBy: 1, handlerNickname: '管理员', handledAt: '2024-01-06 11:00:00', createdAt: '2024-01-06 08:45:00', updatedAt: '2024-01-06 11:00:00' },
+];
+
+// ─── 行为中心阶段 1：服务端权威语义事件 Tracking Plan 初始种子 ─────────────────
+// 首批服务端事件（支付 / 工作流 / 会员关键操作）的事件字典契约，供 DB 种子与 MSW mock 共同派生，
+// eventName 必须与 ANALYTICS_SEMANTIC_EVENT_NAMES（constants.ts）以及各来源事件总线订阅者产出的
+// eventName 完全一致，否则 Tracking Plan 治理（propertySchema 校验）与事件字典展示会失配。
+export interface SeedAnalyticsEventMeta {
+  /** 仅供 MSW mock 内存列表展示排序使用，不写入 DB（DB 侧以 eventName 唯一索引 upsert，id 由数据库自增）*/
+  id: number;
+  eventName: AnalyticsSemanticEventName;
+  displayName: string;
+  category: 'payment' | 'workflow' | 'member';
+  description: string;
+  propertySchema: AnalyticsEventPropertyDef[];
+  strictMode: boolean;
+}
+
+const PAYMENT_BASE_SCHEMA: AnalyticsEventPropertyDef[] = [
+  { key: 'orderNo', type: 'string', required: true, description: '支付订单号' },
+  { key: 'bizType', type: 'string', required: true, description: '业务类型（如 member_recharge）' },
+  { key: 'bizId', type: 'string', required: true, description: '业务记录主键' },
+  { key: 'channel', type: 'string', description: '支付渠道' },
+  { key: 'amount', type: 'number', required: true, description: '金额（分）' },
+];
+
+const REFUND_SCHEMA: AnalyticsEventPropertyDef[] = [
+  { key: 'orderNo', type: 'string', required: true, description: '原支付订单号' },
+  { key: 'bizType', type: 'string', description: '业务类型' },
+  { key: 'bizId', type: 'string', description: '业务记录主键' },
+  { key: 'refundNo', type: 'string', required: true, description: '退款单号' },
+  { key: 'refundAmount', type: 'number', required: true, description: '退款金额（分）' },
+];
+
+const WORKFLOW_INSTANCE_SCHEMA: AnalyticsEventPropertyDef[] = [
+  { key: 'instanceId', type: 'number', required: true, description: '流程实例 ID' },
+  { key: 'definitionId', type: 'number', description: '流程定义 ID' },
+  { key: 'status', type: 'string', description: '实例状态' },
+];
+
+const WORKFLOW_NODE_SCHEMA: AnalyticsEventPropertyDef[] = [
+  { key: 'instanceId', type: 'number', required: true, description: '流程实例 ID' },
+  { key: 'nodeKey', type: 'string', required: true, description: '节点 key' },
+  { key: 'nodeName', type: 'string', description: '节点名称' },
+  { key: 'nodeType', type: 'string', description: '节点类型' },
+];
+
+const WORKFLOW_TASK_SCHEMA: AnalyticsEventPropertyDef[] = [
+  { key: 'instanceId', type: 'number', required: true, description: '流程实例 ID' },
+  { key: 'taskId', type: 'number', required: true, description: '审批任务 ID' },
+  { key: 'nodeKey', type: 'string', description: '所在节点 key' },
+  { key: 'status', type: 'string', description: '任务状态' },
+];
+
+const MEMBER_POINTS_SCHEMA: AnalyticsEventPropertyDef[] = [
+  { key: 'memberId', type: 'number', required: true, description: '会员 ID' },
+  { key: 'amount', type: 'number', required: true, description: '带符号变动量' },
+  { key: 'balanceAfter', type: 'number', required: true, description: '变动后余额' },
+  { key: 'bizType', type: 'string', description: '业务类型' },
+  { key: 'bizId', type: 'string', description: '业务记录主键' },
+];
+
+const MEMBER_COUPON_SCHEMA: AnalyticsEventPropertyDef[] = [
+  { key: 'memberId', type: 'number', required: true, description: '会员 ID' },
+  { key: 'couponId', type: 'number', required: true, description: '优惠券模板 ID' },
+  { key: 'memberCouponId', type: 'number', description: '会员领券记录 ID' },
+  { key: 'bizType', type: 'string', description: '核销业务类型' },
+  { key: 'bizId', type: 'string', description: '核销业务记录主键' },
+];
+
+export const SEED_ANALYTICS_EVENT_META: SeedAnalyticsEventMeta[] = [
+  // ── 支付中心（source=server，来自 paymentEventBus）──
+  { id: 1001, eventName: 'payment.succeeded', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['payment.succeeded'], category: 'payment', description: '支付订单支付成功（服务端权威事件，来自 paymentEventBus）', propertySchema: PAYMENT_BASE_SCHEMA, strictMode: false },
+  { id: 1002, eventName: 'payment.closed', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['payment.closed'], category: 'payment', description: '支付订单超时关闭（服务端权威事件，来自 paymentEventBus）', propertySchema: PAYMENT_BASE_SCHEMA, strictMode: false },
+  { id: 1003, eventName: 'payment.failed', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['payment.failed'], category: 'payment', description: '支付订单支付失败（服务端权威事件，来自 paymentEventBus）', propertySchema: PAYMENT_BASE_SCHEMA, strictMode: false },
+  { id: 1004, eventName: 'refund.succeeded', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['refund.succeeded'], category: 'payment', description: '退款成功（服务端权威事件，来自 paymentEventBus）', propertySchema: REFUND_SCHEMA, strictMode: false },
+  { id: 1005, eventName: 'refund.failed', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['refund.failed'], category: 'payment', description: '退款失败（服务端权威事件，来自 paymentEventBus）', propertySchema: REFUND_SCHEMA, strictMode: false },
+  // ── 工作流（source=server，来自 workflowEventBus，经 event_dispatch 作业投递）──
+  { id: 1010, eventName: 'workflow.instance.created', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['workflow.instance.created'], category: 'workflow', description: '流程实例发起（服务端权威事件，来自 workflowEventBus）', propertySchema: WORKFLOW_INSTANCE_SCHEMA, strictMode: false },
+  { id: 1011, eventName: 'workflow.instance.approved', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['workflow.instance.approved'], category: 'workflow', description: '流程实例审批通过（服务端权威事件，来自 workflowEventBus）', propertySchema: WORKFLOW_INSTANCE_SCHEMA, strictMode: false },
+  { id: 1012, eventName: 'workflow.instance.rejected', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['workflow.instance.rejected'], category: 'workflow', description: '流程实例被驳回（服务端权威事件，来自 workflowEventBus）', propertySchema: WORKFLOW_INSTANCE_SCHEMA, strictMode: false },
+  { id: 1013, eventName: 'workflow.instance.withdrawn', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['workflow.instance.withdrawn'], category: 'workflow', description: '流程实例被撤回（服务端权威事件，来自 workflowEventBus）', propertySchema: WORKFLOW_INSTANCE_SCHEMA, strictMode: false },
+  { id: 1014, eventName: 'workflow.node.entered', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['workflow.node.entered'], category: 'workflow', description: '流程节点进入（服务端权威事件，来自 workflowEventBus）', propertySchema: WORKFLOW_NODE_SCHEMA, strictMode: false },
+  { id: 1015, eventName: 'workflow.node.left', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['workflow.node.left'], category: 'workflow', description: '流程节点离开（服务端权威事件，来自 workflowEventBus）', propertySchema: WORKFLOW_NODE_SCHEMA, strictMode: false },
+  { id: 1016, eventName: 'workflow.task.created', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['workflow.task.created'], category: 'workflow', description: '审批任务创建（服务端权威事件，来自 workflowEventBus）', propertySchema: WORKFLOW_TASK_SCHEMA, strictMode: false },
+  { id: 1017, eventName: 'workflow.task.assigned', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['workflow.task.assigned'], category: 'workflow', description: '审批任务分配（服务端权威事件，来自 workflowEventBus）', propertySchema: WORKFLOW_TASK_SCHEMA, strictMode: false },
+  { id: 1018, eventName: 'workflow.task.approved', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['workflow.task.approved'], category: 'workflow', description: '审批任务通过（服务端权威事件，来自 workflowEventBus）', propertySchema: WORKFLOW_TASK_SCHEMA, strictMode: false },
+  { id: 1019, eventName: 'workflow.task.rejected', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['workflow.task.rejected'], category: 'workflow', description: '审批任务驳回（服务端权威事件，来自 workflowEventBus）', propertySchema: WORKFLOW_TASK_SCHEMA, strictMode: false },
+  { id: 1020, eventName: 'workflow.task.skipped', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['workflow.task.skipped'], category: 'workflow', description: '审批任务自动跳过（服务端权威事件，来自 workflowEventBus）', propertySchema: WORKFLOW_TASK_SCHEMA, strictMode: false },
+  { id: 1021, eventName: 'workflow.task.transferred', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['workflow.task.transferred'], category: 'workflow', description: '审批任务转办/改派（服务端权威事件，来自 workflowEventBus）', propertySchema: WORKFLOW_TASK_SCHEMA, strictMode: false },
+  { id: 1022, eventName: 'workflow.task.addSigned', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['workflow.task.addSigned'], category: 'workflow', description: '审批任务加签（服务端权威事件，来自 workflowEventBus）', propertySchema: WORKFLOW_TASK_SCHEMA, strictMode: false },
+  { id: 1023, eventName: 'workflow.task.reduceSigned', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['workflow.task.reduceSigned'], category: 'workflow', description: '审批任务减签（服务端权威事件，来自 workflowEventBus）', propertySchema: WORKFLOW_TASK_SCHEMA, strictMode: false },
+  { id: 1024, eventName: 'workflow.task.urged', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['workflow.task.urged'], category: 'workflow', description: '审批任务催办（服务端权威事件，来自 workflowEventBus）', propertySchema: WORKFLOW_TASK_SCHEMA, strictMode: false },
+  // ── 会员关键操作（source=server，业务 service 成功后直接调用）──
+  { id: 1030, eventName: 'member.registered', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['member.registered'], category: 'member', description: '会员注册成功（服务端权威事件）', propertySchema: [
+    { key: 'memberId', type: 'number', required: true, description: '会员 ID' },
+    { key: 'source', type: 'string', description: '注册来源' },
+    { key: 'hasPhone', type: 'boolean', description: '是否绑定手机号' },
+    { key: 'hasEmail', type: 'boolean', description: '是否绑定邮箱' },
+  ], strictMode: false },
+  { id: 1031, eventName: 'member.profile.updated', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['member.profile.updated'], category: 'member', description: '会员资料更新（服务端权威事件，不含具体字段值）', propertySchema: [
+    { key: 'memberId', type: 'number', required: true, description: '会员 ID' },
+    { key: 'changedFields', type: 'array', description: '本次变更的字段名列表（不含值）' },
+  ], strictMode: false },
+  { id: 1032, eventName: 'member.points.earned', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['member.points.earned'], category: 'member', description: '会员积分获得（服务端权威事件，来自 changePoints）', propertySchema: MEMBER_POINTS_SCHEMA, strictMode: false },
+  { id: 1033, eventName: 'member.points.redeemed', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['member.points.redeemed'], category: 'member', description: '会员积分消费（服务端权威事件，来自 changePoints）', propertySchema: MEMBER_POINTS_SCHEMA, strictMode: false },
+  { id: 1034, eventName: 'member.points.adjusted', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['member.points.adjusted'], category: 'member', description: '会员积分人工调整（服务端权威事件，来自 changePoints）', propertySchema: MEMBER_POINTS_SCHEMA, strictMode: false },
+  { id: 1035, eventName: 'member.points.expired', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['member.points.expired'], category: 'member', description: '会员积分过期清零（服务端权威事件，来自 changePoints）', propertySchema: MEMBER_POINTS_SCHEMA, strictMode: false },
+  { id: 1036, eventName: 'member.points.refunded', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['member.points.refunded'], category: 'member', description: '会员积分退回（服务端权威事件，来自 changePoints）', propertySchema: MEMBER_POINTS_SCHEMA, strictMode: false },
+  { id: 1037, eventName: 'member.coupon.received', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['member.coupon.received'], category: 'member', description: '会员领取优惠券（服务端权威事件）', propertySchema: MEMBER_COUPON_SCHEMA, strictMode: false },
+  { id: 1038, eventName: 'member.coupon.redeemed', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['member.coupon.redeemed'], category: 'member', description: '会员核销优惠券（服务端权威事件）', propertySchema: MEMBER_COUPON_SCHEMA, strictMode: false },
+  { id: 1039, eventName: 'member.checkin.completed', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['member.checkin.completed'], category: 'member', description: '会员签到完成（服务端权威事件）', propertySchema: [
+    { key: 'memberId', type: 'number', required: true, description: '会员 ID' },
+    { key: 'consecutiveDays', type: 'number', description: '连续签到天数' },
+    { key: 'pointsAwarded', type: 'number', description: '本次奖励积分' },
+    { key: 'experienceAwarded', type: 'number', description: '本次奖励经验值' },
+    { key: 'checkinDate', type: 'string', description: '签到日期（YYYY-MM-DD）' },
+  ], strictMode: false },
 ];

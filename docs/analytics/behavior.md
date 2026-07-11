@@ -35,20 +35,58 @@
 
 ## 漏斗分析
 
-`POST /api/analytics/funnel` —— 自定义多步转化漏斗。每步可按 `eventType` / `eventName` / `pagePath` / `elementKey` 定义，返回各步用户数、整体转化率、步间转化率与流失数。
+`POST /api/analytics/funnel` —— 自定义多步**有序**转化漏斗。每步可按 `eventType` / `eventName` / `pagePath` / `elementKey` 定义，并可附加最多 5 条属性过滤（`properties: [{ key, op, value }]`，`op` 支持 `eq|neq|gt|gte|lt|lte|in`）。返回各步用户数、整体转化率、步间转化率、流失数与每步平均转化耗时（`averageConversionMs`，首步为 `null`）。
+
+**转化窗口与顺序语义**：漏斗按用户单调时间线严格计算——第 1 步取每用户最早触发时间作为起点；第 N 步只统计「发生时间 ≥ 上一步命中时间，且 ≤ 首步时间 + `conversionWindowHours`」范围内该用户下一次命中（同一时刻允许）。不再是“时间窗口内命中事件集合的交集”这类无序判定，避免把后续步骤早于前置步骤的行为误计为转化。
+
+- `conversionWindowHours`：转化窗口小时数，1–720，默认 72。
+- `segmentId`：可选，限定分群成员参与统计（仅作用于漏斗起点，即第 1 步的候选用户集合）。
 
 ```jsonc
 // 请求体示例
-{ "days": 30, "steps": [
+{ "days": 30, "conversionWindowHours": 72, "segmentId": null, "steps": [
   { "label": "进入首页", "pagePath": "/" },
   { "label": "浏览列表", "eventName": "$pageview" },
-  { "label": "提交订单", "eventName": "order_submit" }
+  { "label": "提交订单", "eventName": "order_submit",
+    "properties": [{ "key": "amount", "op": "gte", "value": 100 }] }
 ] }
 ```
 
 ## 留存分析
 
-`GET /api/analytics/retention?days=N` —— 按首次访问日期分群的 cohort 留存矩阵（Day0…最多 Day7），前端以热力矩阵呈现，行=同期群、列=第 N 日，单元格颜色深浅表示留存率。
+`GET /api/analytics/retention?days=N&mode=first_seen|window_first` —— cohort 留存矩阵（Day0…最多 Day7），前端以热力矩阵呈现，行=同期群、列=第 N 日，单元格颜色深浅表示留存率。
+
+支持两种同期群口径（`mode`，默认 `first_seen`）：
+
+| 口径 | 说明 |
+|------|------|
+| `first_seen`（默认，真实首访） | 在**租户全部历史数据**中计算每个 `distinctId` 的真正首次出现日期，仅保留首次出现日落在当前分析窗口（`days`）内的用户作为同期群；日期过滤不会提前作用于「首次出现」这一判定本身，避免把老用户误判为新用户 |
+| `window_first` | 沿用当前查询窗口内的“窗口内首现日”作为同期群锚点（旧版口径，计算量更小，但可能把窗口起始前已存在的老用户计入某个 cohort） |
+
+响应体包含实际生效的 `mode` 字段，便于前端展示口径说明。
+
+## 事件分析工作台
+
+`POST /api/analytics/events/query` —— 通用事件分析查询，支持按 1–2 个维度分组、多事件名/属性过滤组合筛选，用于替代“为每个新问题写一次专用统计接口”的临时查询场景。
+
+> 服务端权威事件（`source='server'`，如支付、工作流流转、会员注册/积分/优惠券/签到，详见 [埋点采集 SDK · 服务端权威事件](./tracking#服务端权威事件sourceserver)）与前端 SDK 事件写入同一张 `user_events` 表，**无需新增 API**：事件分析工作台的 `eventNames` 下拉、`source` 筛选，以及漏斗分析的每一步定义，均可直接选用/填写这些事件名参与统计。
+
+请求参数：
+
+| 参数 | 说明 |
+|------|------|
+| `startDate` / `endDate` 或 `days` | 日期范围（`YYYY-MM-DD`），或最近 N 天，默认 30 |
+| `eventNames` | 事件名筛选，最多 20 个 |
+| `source` / `appId` / `environment` / `device` | 来源 / 应用 / 环境 / 设备筛选 |
+| `propertyFilters` | 属性过滤，最多 10 条，`{ key, op, value }` |
+| `segmentId` | 可选，仅统计分群成员 |
+| `groupBy` | 分组维度白名单，1–2 维：`date` / `eventName` / `pagePath` / `source` / `appId` / `environment` / `browser` / `os` / `deviceType` / `region` |
+| `metric` | `events`（事件数，默认）或 `uv`（去重访客数） |
+| `limit` | 结果行数上限，最多 200 |
+
+分组维度与属性 key 均通过白名单 / 参数化绑定，禁止任意列名或原始 SQL 片段，防止注入。响应结构：`{ rows: [{ dimensions, value }], total, queryMeta }`。
+
+前端「行为分析」页「事件分析」Tab 提供事件多选（可联动事件字典）、指标与维度选择、来源/环境/日期筛选，并以图表 + 表格双视图展示结果。
 
 ## 路径分析
 

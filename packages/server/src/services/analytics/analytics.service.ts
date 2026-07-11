@@ -1,17 +1,20 @@
-import { and, eq, gte, lt, lte, isNotNull, sql, countDistinct, desc, like, notExists, inArray, type SQL } from 'drizzle-orm';
+import { and, eq, gte, lt, lte, isNotNull, sql, countDistinct, desc, like, notExists, inArray } from 'drizzle-orm';
 import { alias, type PgColumn } from 'drizzle-orm/pg-core';
 import { randomUUID } from 'node:crypto';
 import { db } from '../../db';
 import { userEvents, analyticsSessions, analyticsDailyRollup } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
-import type { TrackEventInput, UserBehaviorEventType } from '@zenith/shared';
+import type { TrackEventInput, UserBehaviorEventType, AnalyticsEventSource, AnalyticsEnvironment, AnalyticsIdentityType } from '@zenith/shared';
 import { currentUserOrNull } from '../../lib/context';
+import { currentMemberOrNull } from '../../lib/member-context';
 import { tenantScope, getCreateTenantId } from '../../lib/tenant';
 import { mergeWhere, escapeLike } from '../../lib/where-helpers';
 import { formatNullableDateTime, formatDateTime, formatDate, APP_TIME_ZONE, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { parseClientEnv, lookupIpGeo, clampDays, clampLimit, startOfDaysAgo, anonymizeIpAddr } from '../../lib/analytics-helpers';
-import { touchEventMeta, getBlockedEventNames } from './analytics-event-meta.service';
+import { parseClientEnv, lookupIpGeo, clampDays, clampLimit, startOfDaysAgo, anonymizeIpAddr, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
+import { touchEventMeta } from './analytics-event-meta.service';
+import { upsertUserProfilesBatch, type ProfileUpsertInput } from './analytics-profile.service';
+import { evaluateEvents, recordSchemaIssues, type PendingSchemaIssue } from './analytics-governance.service';
 import { getIngestPolicy } from './analytics-settings.service';
 import { rollupTenantScope, ROLLUP_DIM_TYPES } from './analytics-rollup.service';
 import { broadcast } from '../../lib/ws-manager';
@@ -38,44 +41,38 @@ function resolveEventTime(ts: number | undefined): Date | undefined {
   return new Date(ts);
 }
 
-export function resolveDistinctId(e: TrackEventInput, userId: number | null): string {
+export function resolveDistinctId(e: TrackEventInput, userId: number | null, memberId?: number | null): string {
   if (userId != null) return `u:${userId}`;
-  if (e.distinctId && !e.distinctId.startsWith('u:')) return e.distinctId.slice(0, 64);
+  if (memberId != null) return `m:${memberId}`;
+  if (e.distinctId && !e.distinctId.startsWith('u:') && !e.distinctId.startsWith('m:')) return e.distinctId.slice(0, 64);
   if (e.anonymousId) return e.anonymousId.slice(0, 64);
   return e.sessionId;
 }
 
-export async function batchInsertEvents(rawEvents: TrackEventInput[], reqCtx: IngestReqCtx): Promise<void> {
-  if (rawEvents.length === 0) return;
-  const user = currentUserOrNull();
-  // 字典封禁：status='blocked' 的事件名在入口拒收（60s 缓存，best-effort）
-  const blocked = await getBlockedEventNames().catch(() => new Set<string>());
-  const acceptedEvents = blocked.size > 0 ? rawEvents.filter((e) => !e.eventName || !blocked.has(e.eventName)) : rawEvents;
-  const trustedEvents = user ? acceptedEvents : acceptedEvents.filter((event) => event.eventType !== 'identify');
-  const legacyCount = trustedEvents.filter((event) => !event.eventId).length;
-  if (legacyCount > 0) {
-    legacyEventsWithoutId += legacyCount;
-    logger.warn('[analytics] accepted legacy events without eventId', { batchCount: legacyCount, totalCount: legacyEventsWithoutId });
-  }
-  const events: NormalizedTrackEvent[] = trustedEvents.map((event) => ({
-    ...event,
-    eventId: event.eventId ?? randomUUID(),
-  }));
-  if (events.length === 0) return;
+interface IngestIdentityCtx {
+  tenantId: number | null;
+  userId: number | null;
+  memberId: number | null;
+  displayName: string | null;
+  hasAdmin: boolean;
+  hasMember: boolean;
+  env: ReturnType<typeof parseClientEnv>;
+  geo: ReturnType<typeof lookupIpGeo>;
+  storedIp: string;
+  ua: string;
+}
 
-  const tenantId = user ? getCreateTenantId(user) : null;
-  const env = parseClientEnv(reqCtx.ua);
-  const geo = lookupIpGeo(reqCtx.ip); // 先地理解析，再按策略匿名化存储
-  const { anonymizeIp } = await getIngestPolicy(tenantId).catch(() => ({ anonymizeIp: false }));
-  const storedIp = (anonymizeIp ? anonymizeIpAddr(reqCtx.ip) : reqCtx.ip).slice(0, 64);
-
-  const rows = events.map((e) => ({
+/** 组装单条事件的入库行：身份 / 平台字段解析在此统一收口，供 session/画像聚合复用同一份解析结果。 */
+function buildIngestRow(e: NormalizedTrackEvent, ctx: IngestIdentityCtx) {
+  const platform = resolveIngestPlatformFields(e, { hasAdmin: ctx.hasAdmin, hasMember: ctx.hasMember });
+  const eventTime = resolveEventTime(e.ts);
+  return {
     eventId: e.eventId,
-    tenantId,
-    distinctId: resolveDistinctId(e, user?.userId ?? null),
+    tenantId: ctx.tenantId,
+    distinctId: resolveDistinctId(e, ctx.userId, ctx.memberId),
     anonymousId: e.anonymousId ?? null,
-    userId: user?.userId ?? null,
-    username: user?.username ?? null,
+    userId: ctx.userId,
+    username: ctx.displayName,
     sessionId: e.sessionId,
     eventType: e.eventType,
     eventName: e.eventName ?? null,
@@ -95,23 +92,80 @@ export async function batchInsertEvents(rawEvents: TrackEventInput[], reqCtx: In
     utmCampaign: e.utmCampaign ?? null,
     utmTerm: e.utmTerm ?? null,
     utmContent: e.utmContent ?? null,
-    browser: env.browser,
-    browserVersion: env.browserVersion,
-    os: env.os,
-    osVersion: env.osVersion,
-    deviceType: env.deviceType,
+    browser: ctx.env.browser,
+    browserVersion: ctx.env.browserVersion,
+    os: ctx.env.os,
+    osVersion: ctx.env.osVersion,
+    deviceType: ctx.env.deviceType,
     screenW: e.screenW ?? null,
     screenH: e.screenH ?? null,
     language: e.language ?? null,
-    userAgent: reqCtx.ua.slice(0, 512),
-    ip: storedIp,
-    country: geo.country,
-    region: geo.region,
-    city: geo.city,
+    userAgent: ctx.ua.slice(0, 512),
+    ip: ctx.storedIp,
+    country: ctx.geo.country,
+    region: ctx.geo.region,
+    city: ctx.geo.city,
     metricName: e.metricName ?? null,
     metricValue: e.metricValue ?? null,
-    ...(resolveEventTime(e.ts) ? { createdAt: resolveEventTime(e.ts) } : {}),
-  }));
+    source: platform.source,
+    appId: platform.appId,
+    environment: platform.environment,
+    sdkVersion: e.sdkVersion ?? null,
+    memberId: ctx.memberId,
+    ...(eventTime ? { createdAt: eventTime } : {}),
+  };
+}
+
+type IngestEventRow = ReturnType<typeof buildIngestRow>;
+
+export async function batchInsertEvents(rawEvents: TrackEventInput[], reqCtx: IngestReqCtx): Promise<void> {
+  if (rawEvents.length === 0) return;
+  const user = currentUserOrNull();
+  // 管理员 / 会员身份互斥：单次请求只会经过其中一种认证中间件
+  const member = user ? undefined : currentMemberOrNull();
+  const tenantId = user ? getCreateTenantId(user) : member ? (member.tenantId ?? null) : null;
+  const trustedEvents = user || member ? rawEvents : rawEvents.filter((event) => event.eventType !== 'identify');
+
+  // Tracking Plan 治理：全局屏蔽 / 租户禁用 / propertySchema 校验。必须在生成兜底 eventId、
+  // 开启采集事务之前完成，否则拒收事件也会被落库或参与去重。治理故障 best-effort 降级为全部放行。
+  const { accepted: governedEvents, pendingSchemaIssues } = await evaluateEvents(trustedEvents, tenantId).catch(
+    () => ({ accepted: trustedEvents, pendingSchemaIssues: [] as PendingSchemaIssue[] }),
+  );
+  const legacyCount = governedEvents.filter((event) => !event.eventId).length;
+  if (legacyCount > 0) {
+    legacyEventsWithoutId += legacyCount;
+    logger.warn('[analytics] accepted legacy events without eventId', { batchCount: legacyCount, totalCount: legacyEventsWithoutId });
+  }
+  // 记录治理判定时引用的原始事件对象 -> 最终落库 eventId 的映射，供落库后按 fresh 行门控质量计数，
+  // 避免客户端重放/重试重复计数（onConflictDoNothing 去重的行不应重复计数 schema 问题）。
+  const finalEventIdByRef = new Map<TrackEventInput, string>();
+  const events: NormalizedTrackEvent[] = governedEvents.map((event) => {
+    const eventId = event.eventId ?? randomUUID();
+    finalEventIdByRef.set(event, eventId);
+    return { ...event, eventId };
+  });
+  if (events.length === 0) return;
+
+  const env = parseClientEnv(reqCtx.ua);
+  const geo = lookupIpGeo(reqCtx.ip); // 先地理解析，再按策略匿名化存储
+  const { anonymizeIp } = await getIngestPolicy(tenantId).catch(() => ({ anonymizeIp: false }));
+  const storedIp = (anonymizeIp ? anonymizeIpAddr(reqCtx.ip) : reqCtx.ip).slice(0, 64);
+  const identityType: AnalyticsIdentityType = user ? 'admin' : member ? 'member' : 'anonymous';
+  const displayName = user?.username ?? member?.identifier ?? null;
+
+  const identityCtx: IngestIdentityCtx = {
+    tenantId,
+    userId: user?.userId ?? null,
+    memberId: member?.memberId ?? null,
+    displayName,
+    hasAdmin: !!user,
+    hasMember: !!member,
+    env,
+    geo,
+    storedIp,
+    ua: reqCtx.ua,
+  };
+  const rows: IngestEventRow[] = events.map((e) => buildIngestRow(e, identityCtx));
 
   const insertedEvents = await db.transaction(async (tx) => {
     const inserted = await tx
@@ -121,9 +175,22 @@ export async function batchInsertEvents(rawEvents: TrackEventInput[], reqCtx: In
       .returning({ eventId: userEvents.eventId });
     const insertedIds = new Set(inserted.flatMap((row) => row.eventId ? [row.eventId] : []));
     const freshEvents = events.filter((event) => insertedIds.has(event.eventId));
-    await upsertSessions(tx, freshEvents, { tenantId, userId: user?.userId ?? null, username: user?.username ?? null, env, geo });
+    const freshRows = rows.filter((row) => insertedIds.has(row.eventId));
+    await upsertSessions(tx, freshRows, { tenantId, userId: identityCtx.userId, memberId: identityCtx.memberId, username: displayName, env, geo });
+    await upsertUserProfiles(tx, freshRows, { identityType, userId: identityCtx.userId, memberId: identityCtx.memberId, displayName });
     return freshEvents;
   });
+  if (pendingSchemaIssues.length > 0) {
+    // 只对真正新鲜落库（未被 onConflictDoNothing 去重）的事件计入质量问题，避免重放批次重复计数
+    const freshEventIds = new Set(insertedEvents.map((e) => e.eventId));
+    const freshPending = pendingSchemaIssues.filter((p) => {
+      const finalId = finalEventIdByRef.get(p.event);
+      return finalId !== undefined && freshEventIds.has(finalId);
+    });
+    await Promise.allSettled(
+      freshPending.map((p) => recordSchemaIssues(p.tenantId, p.event.eventName as string, p.issues)),
+    );
+  }
   if (insertedEvents.length === 0) return;
   // 事件字典登记（best-effort，不阻塞）
   void touchEventMeta(insertedEvents, tenantId).catch(() => { /* ignore */ });
@@ -143,34 +210,52 @@ function notifyIngest(count: number): void {
 
 async function upsertSessions(
   executor: DbExecutor,
-  events: TrackEventInput[],
+  rows: IngestEventRow[],
   ctx: {
     tenantId: number | null;
     userId: number | null;
+    memberId: number | null;
     username: string | null;
     env: ReturnType<typeof parseClientEnv>;
     geo: ReturnType<typeof lookupIpGeo>;
   },
 ): Promise<void> {
-  interface Agg { events: number; pageviews: number; firstPage: string; lastPage: string; referrer: string | null; utmSource: string | null }
+  interface Agg {
+    events: number;
+    pageviews: number;
+    firstPage: string;
+    lastPage: string;
+    referrer: string | null;
+    utmSource: string | null;
+    source: AnalyticsEventSource;
+    appId: string;
+    environment: AnalyticsEnvironment;
+  }
   const bySession = new Map<string, Agg>();
-  for (const e of events) {
-    const cur = bySession.get(e.sessionId) ?? {
-      events: 0, pageviews: 0, firstPage: e.pagePath, lastPage: e.pagePath, referrer: e.referrer ?? null, utmSource: e.utmSource ?? null,
+  for (const r of rows) {
+    // 首事件优先：会话的平台字段取该会话在本批次中的第一条事件，不被后续事件覆盖
+    const cur = bySession.get(r.sessionId) ?? {
+      events: 0, pageviews: 0, firstPage: r.pagePath, lastPage: r.pagePath, referrer: r.referrer, utmSource: r.utmSource,
+      source: r.source, appId: r.appId, environment: r.environment,
     };
     cur.events += 1;
-    if (e.eventType === 'page_view') cur.pageviews += 1;
-    cur.lastPage = e.pagePath;
-    bySession.set(e.sessionId, cur);
+    if (r.eventType === 'page_view') cur.pageviews += 1;
+    cur.lastPage = r.pagePath;
+    bySession.set(r.sessionId, cur);
   }
 
   const now = new Date();
+  const identityDistinctId = ctx.memberId != null ? `m:${ctx.memberId}` : ctx.userId != null ? `u:${ctx.userId}` : null;
   const values = [...bySession].map(([sessionId, s]) => ({
     tenantId: ctx.tenantId,
     sessionId,
-    distinctId: ctx.userId != null ? `u:${ctx.userId}` : sessionId,
+    distinctId: identityDistinctId ?? sessionId,
     userId: ctx.userId,
     username: ctx.username,
+    memberId: ctx.memberId,
+    source: s.source,
+    appId: s.appId,
+    environment: s.environment,
     startedAt: now,
     endedAt: now,
     durationMs: 0,
@@ -190,6 +275,8 @@ async function upsertSessions(
   if (values.length === 0) return;
 
   // 单条多值 UPSERT：LEAST/GREATEST 防批次乱序导致起止时间倒挂
+  // 注意：source/appId/environment 只在会话首次创建时写入，冲突更新时不覆盖，
+  // 与「会话平台字段 = 会话生命周期内首个事件」的口径保持一致
   await executor
     .insert(analyticsSessions)
     .values(values)
@@ -205,8 +292,42 @@ async function upsertSessions(
         isBounce: sql`(${analyticsSessions.pageCount} + excluded.page_count) <= 1`,
         userId: sql`COALESCE(${analyticsSessions.userId}, excluded.user_id)`,
         username: sql`COALESCE(${analyticsSessions.username}, excluded.username)`,
+        memberId: sql`COALESCE(${analyticsSessions.memberId}, excluded.member_id)`,
       },
     });
+}
+
+/**
+ * 行为中心阶段 1：统一用户画像 upsert（tenant + distinctId 唯一）。
+ *
+ * 唯一索引为表达式索引（coalesce(tenant_id, 0), distinct_id），Drizzle 的
+ * onConflictDoUpdate 难以直接指定该 target；改用「插入忽略冲突 + 逐条更新」，
+ * 竞态安全：并发请求即使同时插入也不会因唯一键冲突而报错，更新语句在插入是否
+ * 命中冲突的两种情形下都会执行，保证画像最终一致。
+ */
+async function upsertUserProfiles(
+  executor: DbExecutor,
+  rows: IngestEventRow[],
+  identity: { identityType: AnalyticsIdentityType; userId: number | null; memberId: number | null; displayName: string | null },
+): Promise<void> {
+  // 首事件优先：同一批次同一 distinctId 只取第一条事件的平台字段写入画像属性
+  const byDistinct = new Map<string, IngestEventRow>();
+  for (const row of rows) {
+    if (!byDistinct.has(row.distinctId)) byDistinct.set(row.distinctId, row);
+  }
+  if (byDistinct.size === 0) return;
+
+  const values: ProfileUpsertInput[] = [...byDistinct.values()].map((row) => ({
+    tenantId: row.tenantId,
+    distinctId: row.distinctId,
+    identityType: identity.identityType,
+    userId: identity.userId,
+    memberId: identity.memberId,
+    displayName: identity.displayName,
+    properties: { source: row.source, appId: row.appId, environment: row.environment } as Record<string, unknown>,
+  }));
+
+  await upsertUserProfilesBatch(executor, values);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -328,7 +449,7 @@ export async function getOverview(input: OverviewRangeInput) {
 
 const DAY_MS = 86_400_000;
 
-function dateAxis(days: number): string[] {
+export function dateAxis(days: number): string[] {
   const arr: string[] = [];
   const todayStart = parseDateRangeStart(formatDate(new Date())) ?? new Date();
   const firstDay = todayStart.getTime() - (days - 1) * DAY_MS;
@@ -680,6 +801,10 @@ export async function listSessions(q: SessionListQuery) {
       deviceType: r.deviceType,
       region: r.region,
       isBounce: r.isBounce,
+      memberId: r.memberId,
+      source: r.source,
+      appId: r.appId,
+      environment: r.environment,
     })),
     total,
     page,
@@ -688,100 +813,7 @@ export async function listSessions(q: SessionListQuery) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// 漏斗分析
-// ════════════════════════════════════════════════════════════════════════════
-
-export interface FunnelStep { eventType?: UserBehaviorEventType; eventName?: string; pagePath?: string; elementKey?: string; label: string }
-export async function getFunnel(input: { days: number; steps: FunnelStep[] }) {
-  const days = clampDays(input.days, 30);
-  const start = startOfDaysAgo(days);
-  if (input.steps.length === 0) return { steps: [], totalUsers: 0, overallConversionRate: 0 };
-
-  // 递进 CTE 全库内求交（集合语义，与原实现一致）：s0 = 完成第 1 步的用户集，
-  // sN = sN-1 ∩ 完成第 N+1 步；不再受 10 万行内存截断限制
-  const ctes: SQL[] = input.steps.map((step, i) => {
-    const conditions = [gte(userEvents.createdAt, start), isNotNull(userEvents.distinctId)];
-    if (step.eventType) conditions.push(eq(userEvents.eventType, step.eventType));
-    if (step.eventName) conditions.push(eq(userEvents.eventName, step.eventName));
-    if (step.pagePath) conditions.push(eq(userEvents.pagePath, step.pagePath));
-    if (step.elementKey) conditions.push(eq(userEvents.elementKey, step.elementKey));
-    const where = mergeWhere(and(...conditions), tenantScope(userEvents))!;
-    return i === 0
-      ? sql`${sql.raw(`s${i}`)} AS (SELECT DISTINCT ${userEvents.distinctId} AS distinct_id FROM ${userEvents} WHERE ${where})`
-      : sql`${sql.raw(`s${i}`)} AS (SELECT DISTINCT ${userEvents.distinctId} AS distinct_id FROM ${userEvents} JOIN ${sql.raw(`s${i - 1}`)} prev ON prev.distinct_id = ${userEvents.distinctId} WHERE ${where})`;
-  });
-  const countSelects = input.steps.map((_, i) => sql`(SELECT COUNT(*) FROM ${sql.raw(`s${i}`)})::int AS ${sql.raw(`c${i}`)}`);
-  const rows = (await db.execute(sql`WITH ${sql.join(ctes, sql`, `)} SELECT ${sql.join(countSelects, sql`, `)}`)) as unknown as Array<Record<string, number>>;
-  const countRow = rows[0] ?? {};
-
-  const totalUsers = Number(countRow.c0 ?? 0);
-  let prevUsers = totalUsers;
-  const steps = input.steps.map((step, i) => {
-    const users = Number(countRow[`c${i}`] ?? 0);
-    const result = {
-      label: step.label,
-      users,
-      conversionRate: totalUsers > 0 ? Math.round((users / totalUsers) * 1000) / 10 : 0,
-      stepConversionRate: prevUsers > 0 ? Math.round((users / prevUsers) * 1000) / 10 : 0,
-      dropoff: Math.max(0, prevUsers - users),
-    };
-    prevUsers = users;
-    return result;
-  });
-
-  const finalUsers = steps.at(-1)?.users ?? 0;
-  return { steps, totalUsers, overallConversionRate: totalUsers > 0 ? Math.round((finalUsers / totalUsers) * 1000) / 10 : 0 };
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// 留存分析
-// ════════════════════════════════════════════════════════════════════════════
-
-export async function getRetention(daysRaw: unknown) {
-  const days = clampDays(daysRaw, 14, 60);
-  const start = startOfDaysAgo(days);
-  const where = mergeWhere(and(gte(userEvents.createdAt, start), isNotNull(userEvents.distinctId)), tenantScope(userEvents))!;
-
-  // 单条 SQL 产出（首访日 × 活跃日）去重用户矩阵，避免全量用户-日期对进内存
-  const rows = (await db.execute(sql`
-    WITH user_days AS (
-      SELECT DISTINCT ${userEvents.distinctId} AS distinct_id,
-             to_char(timezone(${APP_TIME_ZONE}, ${userEvents.createdAt}), 'YYYY-MM-DD') AS day
-      FROM ${userEvents}
-      WHERE ${where}
-    ),
-    first_day AS (
-      SELECT distinct_id, MIN(day) AS cohort_date FROM user_days GROUP BY 1
-    )
-    SELECT f.cohort_date AS cohort_date, ud.day AS day, COUNT(*)::int AS active
-    FROM user_days ud
-    JOIN first_day f ON f.distinct_id = ud.distinct_id
-    GROUP BY 1, 2
-  `)) as unknown as Array<{ cohort_date: string; day: string; active: number }>;
-
-  const matrix = new Map<string, number>();
-  for (const r of rows) matrix.set(`${r.cohort_date}\u0001${r.day}`, Number(r.active));
-
-  const axis = dateAxis(days);
-  const maxPeriods = Math.min(days, 8);
-  const periods = Array.from({ length: maxPeriods }, (_, i) => i);
-
-  const cohorts = axis.map((cohortDate, ci) => {
-    // 队列用户首日必然活跃：矩阵对角线即队列规模
-    const size = matrix.get(`${cohortDate}\u0001${cohortDate}`) ?? 0;
-    const values = periods.map((p) => {
-      const targetStr = axis[ci + p];
-      if (targetStr === undefined) return null;
-      if (size === 0) return 0;
-      const active = matrix.get(`${cohortDate}\u0001${targetStr}`) ?? 0;
-      return Math.round((active / size) * 1000) / 10;
-    });
-    return { cohortDate, cohortSize: size, values };
-  });
-
-  return { cohorts, periods };
-}
-
+// 漏斗 / 留存分析已迁移至 analytics-conversion.service.ts（有序转化漏斗 + 双口径留存）
 // ════════════════════════════════════════════════════════════════════════════
 // 路径分析（页面跳转 Sankey）
 // ════════════════════════════════════════════════════════════════════════════
@@ -1224,6 +1256,10 @@ export async function listAnalyticsEvents(q: EventListQuery) {
         region: userEvents.region,
         sessionId: userEvents.sessionId,
         createdAt: userEvents.createdAt,
+        memberId: userEvents.memberId,
+        source: userEvents.source,
+        appId: userEvents.appId,
+        environment: userEvents.environment,
       })
       .from(userEvents)
       .where(where)
@@ -1277,6 +1313,11 @@ export async function getEventDetail(id: number) {
     city: r.city,
     metricName: r.metricName,
     metricValue: r.metricValue,
+    memberId: r.memberId,
+    source: r.source,
+    appId: r.appId,
+    environment: r.environment,
+    sdkVersion: r.sdkVersion,
   };
 }
 
@@ -1298,6 +1339,10 @@ export async function listEventsForExport(q: EventListQuery, max = 50_000) {
       deviceType: userEvents.deviceType,
       region: userEvents.region,
       createdAt: userEvents.createdAt,
+      memberId: userEvents.memberId,
+      source: userEvents.source,
+      appId: userEvents.appId,
+      environment: userEvents.environment,
     })
     .from(userEvents)
     .where(where)

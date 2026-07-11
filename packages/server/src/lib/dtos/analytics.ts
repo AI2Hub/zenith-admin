@@ -2,13 +2,40 @@
  * 数据分析 / 埋点 DTO
  */
 import { z } from '@hono/zod-openapi';
-import { ANALYTICS_PROPERTIES_MAX_BYTES } from '@zenith/shared';
+import {
+  ANALYTICS_PROPERTIES_MAX_BYTES,
+  ANALYTICS_ENVIRONMENTS,
+  ANALYTICS_EVENT_PROPERTY_TYPES,
+  ANALYTICS_EVENT_SOURCES,
+  ANALYTICS_IDENTITY_TYPES,
+  ANALYTICS_QUALITY_ISSUE_TYPES,
+  ANALYTICS_SEGMENT_COMPARE_OPS,
+  ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS,
+  ANALYTICS_EVENT_QUERY_METRICS,
+  ANALYTICS_RETENTION_MODES,
+} from '@zenith/shared';
 
 const eventTypeEnum = z.enum([
   'page_view', 'page_leave', 'feature_use', 'area_click', 'custom', 'perf', 'api_request', 'identify',
 ]);
 const deviceTypeEnum = z.enum(['desktop', 'mobile', 'tablet', 'bot', 'unknown']);
 const metaStatusEnum = z.enum(['active', 'deprecated', 'blocked']);
+const sourceEnum = z.enum(ANALYTICS_EVENT_SOURCES);
+const environmentEnum = z.enum(ANALYTICS_ENVIRONMENTS);
+const identityTypeEnum = z.enum(ANALYTICS_IDENTITY_TYPES);
+const overrideStatusEnum = z.enum(['enabled', 'disabled']);
+const qualityIssueTypeEnum = z.enum(ANALYTICS_QUALITY_ISSUE_TYPES);
+const segmentCompareOpEnum = z.enum(ANALYTICS_SEGMENT_COMPARE_OPS);
+const eventQueryGroupByEnum = z.enum(ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS);
+const eventQueryMetricEnum = z.enum(ANALYTICS_EVENT_QUERY_METRICS);
+const retentionModeEnum = z.enum(ANALYTICS_RETENTION_MODES);
+
+// 分群 / 漏斗 / 事件查询共用的属性过滤条件（key + 比较运算符 + 值）
+const analyticsSegmentPropertyFilterDTO = z.object({
+  key: z.string().min(1).max(64),
+  op: segmentCompareOpEnum,
+  value: z.unknown(),
+});
 
 // ─── 埋点上报 ─────────────────────────────────────────────────────────────────
 function jsonDepth(value: unknown): number {
@@ -65,6 +92,11 @@ const userEventBaseDTO = z.object({
     metricName: z.string().max(32).optional(),
     metricValue: z.number().optional(),
     ts: z.number().int().positive().optional(),
+    // 行为中心阶段 1：多端平台字段（均可选，未携带时由服务端按接入方式默认推断）
+    source: sourceEnum.optional(),
+    appId: z.string().min(1).max(64).optional(),
+    environment: environmentEnum.optional(),
+    sdkVersion: z.string().max(32).optional(),
   });
 
 export const UserEventInputDTO = z
@@ -208,6 +240,10 @@ export const SessionListItemDTO = z
     deviceType: deviceTypeEnum.nullable(),
     region: z.string().nullable(),
     isBounce: z.boolean(),
+    memberId: z.number().int().nullable(),
+    source: sourceEnum,
+    appId: z.string(),
+    environment: environmentEnum,
   })
   .openapi('SessionListItem');
 
@@ -221,6 +257,7 @@ export const FunnelResultDTO = z
         conversionRate: z.number(),
         stepConversionRate: z.number(),
         dropoff: z.number().int(),
+        averageConversionMs: z.number().nullable(),
       }),
     ),
     totalUsers: z.number().int(),
@@ -239,6 +276,7 @@ export const RetentionResultDTO = z
       }),
     ),
     periods: z.array(z.number().int()),
+    mode: retentionModeEnum,
   })
   .openapi('RetentionResult');
 
@@ -402,6 +440,10 @@ export const EventListItemDTO = z
     region: z.string().nullable(),
     sessionId: z.string().nullable(),
     createdAt: z.string(),
+    memberId: z.number().int().nullable(),
+    source: sourceEnum,
+    appId: z.string(),
+    environment: environmentEnum,
   })
   .openapi('EventListItem');
 
@@ -443,10 +485,33 @@ export const EventDetailDTO = z
     city: z.string().nullable(),
     metricName: z.string().nullable(),
     metricValue: z.number().nullable(),
+    memberId: z.number().int().nullable(),
+    source: sourceEnum,
+    appId: z.string(),
+    environment: environmentEnum,
+    sdkVersion: z.string().nullable(),
   })
   .openapi('EventDetail');
 
-// ─── 事件元数据 ───────────────────────────────────────────────────────────────
+// ─── 事件元数据（Tracking Plan）────────────────────────────────────────────────
+const analyticsEventPropertyDefDTO = z.object({
+  key: z.string().min(1).max(64),
+  type: z.enum(ANALYTICS_EVENT_PROPERTY_TYPES),
+  description: z.string().max(256).optional(),
+  required: z.boolean().optional(),
+  enumValues: z.array(z.string().max(128)).max(50).optional(),
+  pii: z.boolean().optional(),
+});
+const analyticsEventPropertySchemaDTO = z.array(analyticsEventPropertyDefDTO).max(100).superRefine((defs, ctx) => {
+  const seen = new Set<string>();
+  defs.forEach((def, index) => {
+    if (seen.has(def.key)) {
+      ctx.addIssue({ code: 'custom', path: [index, 'key'], message: `属性 key「${def.key}」重复，同一事件的属性 schema 中 key 必须唯一` });
+    }
+    seen.add(def.key);
+  });
+});
+
 export const AnalyticsEventMetaDTO = z
   .object({
     id: z.number().int(),
@@ -454,10 +519,12 @@ export const AnalyticsEventMetaDTO = z
     displayName: z.string().nullable(),
     category: z.string().nullable(),
     description: z.string().nullable(),
-    propertySchema: z
-      .array(z.object({ key: z.string(), type: z.string(), description: z.string().optional() }))
-      .nullable(),
+    propertySchema: analyticsEventPropertySchemaDTO.nullable(),
     status: metaStatusEnum,
+    version: z.number().int(),
+    ownerId: z.number().int().nullable(),
+    ownerName: z.string().nullable(),
+    strictMode: z.boolean(),
     eventCount: z.number().int(),
     firstSeenAt: z.string().nullable(),
     lastSeenAt: z.string().nullable(),
@@ -466,20 +533,22 @@ export const AnalyticsEventMetaDTO = z
   })
   .openapi('AnalyticsEventMeta');
 
-export const CreateAnalyticsEventMetaDTO = z
-  .object({
+const analyticsEventMetaInputDTO = z.object({
     eventName: z.string().min(1).max(128),
     displayName: z.string().max(128).nullable().optional(),
     category: z.string().max(64).nullable().optional(),
     description: z.string().max(1000).nullable().optional(),
-    propertySchema: z
-      .array(z.object({ key: z.string().max(64), type: z.string().max(32), description: z.string().max(256).optional() }))
-      .nullable()
-      .optional(),
+    propertySchema: analyticsEventPropertySchemaDTO.nullable().optional(),
     status: metaStatusEnum.default('active'),
-  })
+    ownerId: z.number().int().nullable().optional(),
+    ownerName: z.string().max(64).nullable().optional(),
+    strictMode: z.boolean().default(false),
+  });
+
+export const CreateAnalyticsEventMetaDTO = analyticsEventMetaInputDTO
   .openapi('CreateAnalyticsEventMeta');
-export const UpdateAnalyticsEventMetaDTO = CreateAnalyticsEventMetaDTO.partial().openapi('UpdateAnalyticsEventMeta');
+export const UpdateAnalyticsEventMetaDTO = analyticsEventMetaInputDTO.partial().openapi('UpdateAnalyticsEventMeta');
+
 
 // ─── 采集设置 ─────────────────────────────────────────────────────────────────
 export const AnalyticsSettingsDTO = z
@@ -549,9 +618,207 @@ export const FunnelQueryBodyDTO = z
           pagePath: z.string().max(256).optional(),
           elementKey: z.string().max(128).optional(),
           label: z.string().max(64),
+          properties: z.array(analyticsSegmentPropertyFilterDTO).max(5).optional(),
         }),
       )
       .min(2)
       .max(10),
+    conversionWindowHours: z.number().int().min(1).max(720).default(72),
+    segmentId: z.number().int().positive().optional(),
   })
   .openapi('FunnelQueryBody');
+
+// ─── 通用事件分析工作台查询体 ─────────────────────────────────────────────────
+export const AnalyticsEventQueryBodyDTO = z
+  .object({
+    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    days: z.number().int().min(1).max(365).default(30),
+    eventNames: z.array(z.string().min(1).max(128)).max(20).optional(),
+    source: sourceEnum.optional(),
+    appId: z.string().max(64).optional(),
+    environment: environmentEnum.optional(),
+    deviceType: deviceTypeEnum.optional(),
+    propertyFilters: z.array(analyticsSegmentPropertyFilterDTO).max(10).optional(),
+    segmentId: z.number().int().positive().optional(),
+    groupBy: z.array(eventQueryGroupByEnum).min(1).max(2).default(['date']),
+    metric: eventQueryMetricEnum.default('events'),
+    limit: z.number().int().min(1).max(200).default(100),
+  })
+  .openapi('AnalyticsEventQueryBody');
+
+export const AnalyticsEventQueryResultDTO = z
+  .object({
+    rows: z.array(z.object({ dimensions: z.record(z.string(), z.string()), value: z.number() })),
+    total: z.number().int(),
+    queryMeta: z.object({
+      metric: eventQueryMetricEnum,
+      groupBy: z.array(eventQueryGroupByEnum),
+      startDate: z.string(),
+      endDate: z.string(),
+    }),
+  })
+  .openapi('AnalyticsEventQueryResult');
+
+// ─── 事件覆盖（租户级启停）────────────────────────────────────────────────────
+export const AnalyticsEventOverrideDTO = z
+  .object({
+    id: z.number().int(),
+    tenantId: z.number().int(),
+    eventName: z.string(),
+    status: overrideStatusEnum,
+    reason: z.string().nullable(),
+    createdBy: z.number().int().nullable(),
+    updatedBy: z.number().int().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('AnalyticsEventOverride');
+
+export const CreateAnalyticsEventOverrideDTO = z
+  .object({
+    eventName: z.string().min(1).max(128),
+    status: overrideStatusEnum,
+    reason: z.string().max(256).nullable().optional(),
+  })
+  .openapi('CreateAnalyticsEventOverride');
+export const UpdateAnalyticsEventOverrideDTO = z
+  .object({
+    status: overrideStatusEnum.optional(),
+    reason: z.string().max(256).nullable().optional(),
+  })
+  .openapi('UpdateAnalyticsEventOverride');
+
+// ─── 质量日聚合 ───────────────────────────────────────────────────────────────
+export const AnalyticsQualityDailyDTO = z
+  .object({
+    id: z.number().int(),
+    tenantId: z.number().int(),
+    statDate: z.string(),
+    eventName: z.string(),
+    issueType: qualityIssueTypeEnum,
+    count: z.number().int(),
+    sample: z.record(z.string(), z.unknown()).nullable(),
+    lastSeenAt: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('AnalyticsQualityDaily');
+
+// ─── 用户画像（系统派生）──────────────────────────────────────────────────────
+export const AnalyticsUserProfileDTO = z
+  .object({
+    id: z.number().int(),
+    tenantId: z.number().int().nullable(),
+    distinctId: z.string(),
+    identityType: identityTypeEnum,
+    userId: z.number().int().nullable(),
+    memberId: z.number().int().nullable(),
+    displayName: z.string().nullable(),
+    properties: z.record(z.string(), z.unknown()).nullable(),
+    firstSeenAt: z.string().nullable(),
+    lastSeenAt: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('AnalyticsUserProfile');
+
+// ─── 分群规则 ─────────────────────────────────────────────────────────────────
+const analyticsSegmentEventConditionDTO = z.object({
+  type: z.literal('event'),
+  eventName: z.string().min(1).max(128),
+  days: z.number().int().min(1).max(365),
+  minCount: z.number().int().min(1).max(100_000).optional(),
+  properties: z.array(analyticsSegmentPropertyFilterDTO).max(10).optional(),
+});
+
+const analyticsSegmentAttributeConditionDTO = z.object({
+  type: z.literal('attribute'),
+  field: z.string().min(1).max(64),
+  op: segmentCompareOpEnum,
+  value: z.unknown(),
+});
+
+export const AnalyticsSegmentConditionDTO = z.discriminatedUnion('type', [
+  analyticsSegmentEventConditionDTO,
+  analyticsSegmentAttributeConditionDTO,
+]);
+
+export const AnalyticsSegmentRuleDTO = z
+  .object({
+    operator: z.enum(['AND', 'OR']),
+    conditions: z.array(AnalyticsSegmentConditionDTO).min(1).max(10),
+  })
+  .openapi('AnalyticsSegmentRule');
+
+export const AnalyticsUserSegmentDTO = z
+  .object({
+    id: z.number().int(),
+    tenantId: z.number().int().nullable(),
+    name: z.string(),
+    description: z.string().nullable(),
+    rules: AnalyticsSegmentRuleDTO,
+    status: overrideStatusEnum,
+    estimatedSize: z.number().int(),
+    snapshotAt: z.string().nullable(),
+    createdBy: z.number().int().nullable(),
+    updatedBy: z.number().int().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('AnalyticsUserSegment');
+
+export const CreateAnalyticsUserSegmentDTO = z
+  .object({
+    name: z.string().min(1).max(128),
+    description: z.string().max(500).nullable().optional(),
+    rules: AnalyticsSegmentRuleDTO,
+    status: overrideStatusEnum.default('enabled'),
+  })
+  .openapi('CreateAnalyticsUserSegment');
+export const UpdateAnalyticsUserSegmentDTO = CreateAnalyticsUserSegmentDTO.partial().openapi('UpdateAnalyticsUserSegment');
+
+export const AnalyticsSegmentMemberDTO = z
+  .object({
+    id: z.number().int(),
+    segmentId: z.number().int(),
+    tenantId: z.number().int().nullable(),
+    distinctId: z.string(),
+    identityType: identityTypeEnum,
+    userId: z.number().int().nullable(),
+    memberId: z.number().int().nullable(),
+    snapshotAt: z.string(),
+  })
+  .openapi('AnalyticsSegmentMember');
+
+// ─── 埋点质量看板查询 ─────────────────────────────────────────────────────────
+export const AnalyticsQualityQueryResultDTO = z
+  .object({
+    items: z.array(AnalyticsQualityDailyDTO),
+    totals: z.array(z.object({ issueType: qualityIssueTypeEnum, count: z.number().int() })),
+    totalCount: z.number().int(),
+    page: z.number().int(),
+    pageSize: z.number().int(),
+  })
+  .openapi('AnalyticsQualityQueryResult');
+
+// ─── 事件调试流 ───────────────────────────────────────────────────────────────
+export const AnalyticsDebugEventDTO = z
+  .object({
+    id: z.number().int(),
+    eventId: z.string().nullable(),
+    eventType: eventTypeEnum,
+    eventName: z.string().nullable(),
+    source: sourceEnum,
+    appId: z.string(),
+    environment: environmentEnum,
+    distinctId: z.string().nullable(),
+    memberId: z.number().int().nullable(),
+    userId: z.number().int().nullable(),
+    pagePath: z.string(),
+    properties: z.record(z.string(), z.unknown()).nullable(),
+    createdAt: z.string(),
+    issueTypes: z.array(qualityIssueTypeEnum),
+  })
+  .openapi('AnalyticsDebugEvent');
+

@@ -764,6 +764,14 @@ export interface ErrorEvent {
   httpStatus: number | null;
   httpMethod: string | null;
   httpUrl: string | null;
+  /** 事件来源平台 */
+  source: AnalyticsEventSource;
+  /** 应用标识 */
+  appId: string;
+  /** 采集环境 */
+  environment: AnalyticsEnvironment;
+  /** 会员身份（前台错误上报），与 userId（后台管理员）互斥 */
+  memberId: number | null;
   createdAt: string;
 }
 
@@ -896,6 +904,15 @@ export interface MonitorHistory {
 // ─── 用户行为采集（埋点）──────────────────────────────────────────────────────
 export type AnalyticsDeviceType = 'desktop' | 'mobile' | 'tablet' | 'bot' | 'unknown';
 
+/** 事件来源平台：后台管理端 SPA / 会员前台 SPA / 服务端埋点 */
+export type AnalyticsEventSource = 'web_admin' | 'web_member' | 'server';
+
+/** 采集环境（与 DB varchar 列对应，取值受校验层约束，允许后续扩展） */
+export type AnalyticsEnvironment = 'production' | 'staging' | 'development';
+
+/** 身份归属类型：后台管理员 / 前台会员 / 匿名访客 */
+export type AnalyticsIdentityType = 'admin' | 'member' | 'anonymous';
+
 /** 单条上报事件（客户端 → 服务端） */
 export interface TrackEventInput {
   /** 客户端生成的稳定事件 ID；旧离线队列可暂不携带。 */
@@ -928,6 +945,14 @@ export interface TrackEventInput {
   metricValue?: number;
   /** 客户端事件时间戳（epoch ms），离线重放时保留真实时间 */
   ts?: number;
+  /** 事件来源平台；未携带时由服务端按接入方式默认推断（历史行为兼容 web_admin） */
+  source?: AnalyticsEventSource;
+  /** 应用标识（多 App 场景预留） */
+  appId?: string;
+  /** 采集环境 */
+  environment?: AnalyticsEnvironment;
+  /** 采集 SDK 版本 */
+  sdkVersion?: string;
 }
 
 /** SDK 远程配置 */
@@ -967,10 +992,18 @@ export interface AnalyticsPublicConfig {
 }
 
 export type AnalyticsEventMetaStatus = 'active' | 'deprecated' | 'blocked';
+/** Tracking Plan 属性类型（阶段 1 支持的最小类型集） */
+export type AnalyticsEventPropertyType = 'string' | 'number' | 'boolean' | 'datetime' | 'object' | 'array';
 export interface AnalyticsEventPropertyDef {
   key: string;
-  type: string;
+  type: AnalyticsEventPropertyType;
   description?: string;
+  /** 是否为必填属性（严格模式下用于质量校验） */
+  required?: boolean;
+  /** 枚举取值范围（仅对 string 类型有效） */
+  enumValues?: string[];
+  /** 是否含个人敏感信息，供采集/导出侧脱敏参考 */
+  pii?: boolean;
 }
 export interface AnalyticsEventMeta {
   id: number;
@@ -983,6 +1016,13 @@ export interface AnalyticsEventMeta {
   eventCount: number;
   firstSeenAt: string | null;
   lastSeenAt: string | null;
+  /** Tracking Plan 契约版本号，结构性变更时递增 */
+  version: number;
+  /** 契约负责人（平台侧用户） */
+  ownerId: number | null;
+  ownerName: string | null;
+  /** 严格模式：开启后对不符合 propertySchema 的属性做质量记录 */
+  strictMode: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -1028,6 +1068,10 @@ export interface SessionListItem {
   deviceType: AnalyticsDeviceType | null;
   region: string | null;
   isBounce: boolean;
+  memberId: number | null;
+  source: AnalyticsEventSource;
+  appId: string;
+  environment: AnalyticsEnvironment;
 }
 
 export interface FunnelStepInput {
@@ -1036,6 +1080,8 @@ export interface FunnelStepInput {
   pagePath?: string;
   elementKey?: string;
   label: string;
+  /** 该步骤的属性过滤（最多 5 条，AND 语义） */
+  properties?: AnalyticsSegmentPropertyFilter[];
 }
 export interface FunnelStepResult {
   label: string;
@@ -1043,12 +1089,27 @@ export interface FunnelStepResult {
   conversionRate: number;
   stepConversionRate: number;
   dropoff: number;
+  /** 相对上一步的平均转化耗时（毫秒），首步为 null */
+  averageConversionMs: number | null;
 }
 export interface FunnelResult {
   steps: FunnelStepResult[];
   totalUsers: number;
   overallConversionRate: number;
 }
+
+/** 漏斗查询：有序转化（严格步骤先后顺序 + 转化窗口） */
+export interface FunnelQuery {
+  days: number;
+  steps: FunnelStepInput[];
+  /** 转化窗口（小时），首步到末步必须在该窗口内完成，默认 72，范围 1~720 */
+  conversionWindowHours?: number;
+  /** 仅统计指定分群内成员（先按分群成员过滤 distinctId 再计算漏斗） */
+  segmentId?: number;
+}
+
+/** 留存计算口径：first_seen = 全历史真实首访；window_first = 当前统计窗口内首次出现 */
+export type AnalyticsRetentionMode = 'first_seen' | 'window_first';
 
 export interface RetentionResult {
   cohorts: {
@@ -1057,6 +1118,7 @@ export interface RetentionResult {
     values: (number | null)[];
   }[];
   periods: number[];
+  mode: AnalyticsRetentionMode;
 }
 
 export interface PathNode { id: string; label: string; value: number }
@@ -1180,6 +1242,10 @@ export interface EventListItem {
   region: string | null;
   sessionId: string | null;
   createdAt: string;
+  memberId: number | null;
+  source: AnalyticsEventSource;
+  appId: string;
+  environment: AnalyticsEnvironment;
 }
 export interface EventDetail extends EventListItem {
   distinctId: string | null;
@@ -1201,6 +1267,7 @@ export interface EventDetail extends EventListItem {
   city: string | null;
   metricName: string | null;
   metricValue: number | null;
+  sdkVersion: string | null;
 }
 
 export interface AnalyticsRollupItem {
@@ -1211,6 +1278,189 @@ export interface AnalyticsRollupItem {
   events: number;
   bounceSessions: number;
   totalDwellMs: number;
+}
+
+// ─── 行为中心阶段 1：租户级事件启停覆盖 ───────────────────────────────────────
+export type AnalyticsEventOverrideStatus = 'enabled' | 'disabled';
+
+export interface AnalyticsEventOverride {
+  id: number;
+  tenantId: number;
+  eventName: string;
+  status: AnalyticsEventOverrideStatus;
+  reason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── 行为中心阶段 1：埋点质量日聚合 ────────────────────────────────────────────
+export type AnalyticsQualityIssueType = 'missing_required' | 'type_mismatch' | 'invalid_enum' | 'event_disabled';
+
+export interface AnalyticsQualityDaily {
+  id: number;
+  tenantId: number;
+  statDate: string;
+  eventName: string;
+  issueType: AnalyticsQualityIssueType;
+  count: number;
+  sample: Record<string, unknown> | null;
+  lastSeenAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 埋点质量看板查询结果：按日/事件/问题类型明细 + 汇总 */
+export interface AnalyticsQualityQueryResult {
+  items: AnalyticsQualityDaily[];
+  totals: Array<{ issueType: AnalyticsQualityIssueType; count: number }>;
+  totalCount: number;
+}
+
+// ─── 行为中心阶段 1：事件调试流 ────────────────────────────────────────────────
+export interface AnalyticsDebugEvent {
+  id: number;
+  eventId: string | null;
+  eventType: UserBehaviorEventType;
+  eventName: string | null;
+  source: AnalyticsEventSource;
+  appId: string;
+  environment: AnalyticsEnvironment;
+  distinctId: string | null;
+  memberId: number | null;
+  userId: number | null;
+  pagePath: string;
+  properties: Record<string, unknown> | null;
+  createdAt: string;
+  /** 当日该事件命中的质量问题类型（去重） */
+  issueTypes: AnalyticsQualityIssueType[];
+}
+
+// ─── 行为中心阶段 1：统一用户画像 ──────────────────────────────────────────────
+export interface AnalyticsUserProfile {
+  id: number;
+  tenantId: number | null;
+  distinctId: string;
+  identityType: AnalyticsIdentityType;
+  userId: number | null;
+  memberId: number | null;
+  displayName: string | null;
+  properties: Record<string, unknown> | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── 行为中心阶段 1：用户分群 ──────────────────────────────────────────────────
+/** 分群条件比较运算符 */
+export type AnalyticsSegmentCompareOp = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in';
+
+export interface AnalyticsSegmentPropertyFilter {
+  key: string;
+  op: AnalyticsSegmentCompareOp;
+  value: unknown;
+}
+
+/** 事件型条件：过滤最近 N 天内触发过指定事件（可选属性过滤 / 最小次数）的用户 */
+export interface AnalyticsSegmentEventCondition {
+  type: 'event';
+  eventName: string;
+  /** 统计窗口（天） */
+  days: number;
+  /** 最小触发次数，默认 1 */
+  minCount?: number;
+  properties?: AnalyticsSegmentPropertyFilter[];
+}
+
+/** 属性型条件：过滤画像属性（identityType / userId / memberId / properties.xxx） */
+export interface AnalyticsSegmentAttributeCondition {
+  type: 'attribute';
+  /** 'identityType' | 'userId' | 'memberId' | `property.<key>` */
+  field: string;
+  op: AnalyticsSegmentCompareOp;
+  value: unknown;
+}
+
+/** 分群条件：本阶段仅支持 event / attribute 两种原子条件，不支持 cohort 嵌套 */
+export type AnalyticsSegmentCondition = AnalyticsSegmentEventCondition | AnalyticsSegmentAttributeCondition;
+
+export interface AnalyticsSegmentRule {
+  operator: 'AND' | 'OR';
+  /** 条件数组，长度限制 1~10 */
+  conditions: AnalyticsSegmentCondition[];
+}
+
+export interface AnalyticsUserSegment {
+  id: number;
+  tenantId: number | null;
+  name: string;
+  description: string | null;
+  rules: AnalyticsSegmentRule;
+  status: AnalyticsEventOverrideStatus;
+  estimatedSize: number;
+  snapshotAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 分群成员物化快照（定时任务重算） */
+export interface AnalyticsSegmentMember {
+  id: number;
+  segmentId: number;
+  tenantId: number | null;
+  distinctId: string;
+  identityType: AnalyticsIdentityType;
+  userId: number | null;
+  memberId: number | null;
+  snapshotAt: string;
+}
+
+// ─── 行为中心阶段 1：通用事件分析工作台 ────────────────────────────────────────
+/** 事件分析可分组维度白名单：禁止任意列/原始 SQL，仅允许以下预置维度 */
+export type AnalyticsEventQueryGroupByField =
+  | 'date' | 'eventName' | 'pagePath' | 'source' | 'appId' | 'environment'
+  | 'browser' | 'os' | 'deviceType' | 'region';
+
+/** 统计指标：事件次数 / 去重用户数（distinctId） */
+export type AnalyticsEventQueryMetric = 'events' | 'uv';
+
+export interface AnalyticsEventQueryInput {
+  /** 自定义区间起止日（YYYY-MM-DD），优先于 days */
+  startDate?: string;
+  endDate?: string;
+  /** 未提供 startDate/endDate 时，最近 N 天，默认 30 */
+  days?: number;
+  /** 事件名过滤（最多 20 个，OR 语义） */
+  eventNames?: string[];
+  source?: AnalyticsEventSource;
+  appId?: string;
+  environment?: AnalyticsEnvironment;
+  deviceType?: AnalyticsDeviceType;
+  /** 事件属性过滤（最多 10 条，AND 语义） */
+  propertyFilters?: AnalyticsSegmentPropertyFilter[];
+  /** 仅统计指定分群内成员 */
+  segmentId?: number;
+  /** 分组维度（1~2 维，来自白名单） */
+  groupBy?: AnalyticsEventQueryGroupByField[];
+  metric?: AnalyticsEventQueryMetric;
+  /** 结果行数上限，默认 100，最大 200 */
+  limit?: number;
+}
+
+export interface AnalyticsEventQueryRow {
+  dimensions: Record<string, string>;
+  value: number;
+}
+
+export interface AnalyticsEventQueryResult {
+  rows: AnalyticsEventQueryRow[];
+  total: number;
+  queryMeta: {
+    metric: AnalyticsEventQueryMetric;
+    groupBy: AnalyticsEventQueryGroupByField[];
+    startDate: string;
+    endDate: string;
+  };
 }
 
 // ─── 公告 ──────────────────────────────────────────────────
@@ -1728,7 +1978,8 @@ export type WsMessage =
   | { type: 'mp-kf:session-new'; payload: MpKfSession }
   | { type: 'mp-kf:session-update'; payload: MpKfSession }
   | { type: 'mp-kf:session-message'; payload: { sessionId: number; accountId: number; openid: string; direction: MpMessageDirection; msgType: MpMessageType; content: string | null; createdAt: string } }
-  | { type: 'analytics:ingest'; payload: { count: number } };
+  | { type: 'analytics:ingest'; payload: { count: number } }
+  | { type: 'analytics:config-updated'; payload: { tenantId: number | null } };
 
 /** Terminal WebSocket 消息（独立端点 /api/ws/terminal） */
 export type TerminalMessage =

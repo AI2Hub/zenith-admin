@@ -11,11 +11,14 @@ import { trackPageView, trackPageLeave, getMaxScrollDepth, resetScrollDepth } fr
  * depth reached on the page.
  *
  * @param pageTitle  Human-readable page title, e.g. '用户管理'
+ * @param enabled    是否启用采集（默认 true，保持后台现状）；由 false→true 时为当前页补发 page_view，
+ *                   由 true→false（或组件卸载）时产生匹配的 page_leave，不会重复监听 visibilitychange。
  */
-export function usePageTracker(pageTitle?: string) {
+export function usePageTracker(pageTitle?: string, enabled = true) {
   const location = useLocation();
 
   useEffect(() => {
+    if (!enabled) return;
     let visibleMs = 0;
     let visibleSince: number | null = document.visibilityState === 'visible' ? Date.now() : null;
 
@@ -37,5 +40,5 @@ export function usePageTracker(pageTitle?: string) {
       trackPageLeave(location.pathname, visibleMs, pageTitle, getMaxScrollDepth());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
+  }, [location.pathname, enabled]);
 }

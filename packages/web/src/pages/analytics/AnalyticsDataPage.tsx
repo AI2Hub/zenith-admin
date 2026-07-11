@@ -41,6 +41,7 @@ import {
   useAnalyticsSettings,
   useCleanAnalyticsEvents,
   useDeleteAnalyticsEventMeta,
+  useFrontendAdminUsers,
   useRebuildAnalyticsRollup,
   useSaveAnalyticsEventMeta,
   useSaveAnalyticsSettings,
@@ -50,8 +51,11 @@ import type {
   AnalyticsSettings,
   EventListItem,
 } from '@zenith/shared';
-import { ANALYTICS_DEVICE_TYPE_OPTIONS } from '@zenith/shared';
+import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_PROPERTY_TYPES } from '@zenith/shared';
 import { usePermission } from '@/hooks/usePermission';
+import AnalyticsQualityTab from './AnalyticsQualityTab';
+import AnalyticsDebugTab from './AnalyticsDebugTab';
+import AnalyticsSegmentsTab from './AnalyticsSegmentsTab';
 
 const PAGE_SIZE = 20;
 
@@ -125,6 +129,10 @@ type EventMetaPayload = {
   description: string | null;
   status: AnalyticsEventMeta['status'];
   propertySchema: AnalyticsEventMeta['propertySchema'];
+  /** Tracking Plan 契约负责人（平台用户 id）；ownerName 由服务端解析，不接受客户端传值 */
+  ownerId: number | null;
+  /** 严格模式：开启后不符合 propertySchema 的事件将被拒收 */
+  strictMode: boolean;
 };
 type EventMetaFormValues = Omit<EventMetaPayload, 'propertySchema'> & { propertySchemaText?: string };
 type SettingsPayload = Omit<AnalyticsSettings, 'id' | 'createdAt' | 'updatedAt'>;
@@ -172,16 +180,28 @@ function parsePropertySchema(text: string | undefined): AnalyticsEventMeta['prop
   if (!text?.trim()) return null;
   const parsed: unknown = JSON.parse(text);
   if (!Array.isArray(parsed)) throw new Error('属性 Schema 必须是数组');
+  const seenKeys = new Set<string>();
   return parsed.map((item): EventMetaProperty => {
     if (!item || typeof item !== 'object') throw new Error('属性 Schema 每项必须是对象');
     const record = item as Record<string, unknown>;
     if (typeof record.key !== 'string' || typeof record.type !== 'string') {
       throw new Error('属性 Schema 每项必须包含 key 和 type');
     }
+    if (seenKeys.has(record.key)) throw new Error(`属性 key「${record.key}」重复，同一事件的属性 schema 中 key 必须唯一`);
+    seenKeys.add(record.key);
+    if (!ANALYTICS_EVENT_PROPERTY_TYPES.includes(record.type as (typeof ANALYTICS_EVENT_PROPERTY_TYPES)[number])) {
+      throw new Error(`属性类型必须是以下之一：${ANALYTICS_EVENT_PROPERTY_TYPES.join(' / ')}`);
+    }
+    if (record.enumValues !== undefined && !Array.isArray(record.enumValues)) {
+      throw new Error(`属性「${record.key}」的 enumValues 必须是字符串数组`);
+    }
     return {
       key: record.key,
-      type: record.type,
+      type: record.type as (typeof ANALYTICS_EVENT_PROPERTY_TYPES)[number],
       ...(typeof record.description === 'string' ? { description: record.description } : {}),
+      ...(typeof record.required === 'boolean' ? { required: record.required } : {}),
+      ...(Array.isArray(record.enumValues) ? { enumValues: record.enumValues.map(String) } : {}),
+      ...(typeof record.pii === 'boolean' ? { pii: record.pii } : {}),
     };
   });
 }
@@ -209,7 +229,7 @@ export default function AnalyticsDataPage() {
   const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
   const canClean = hasPermission('analytics:clean');
-  const [activeTab, setActiveTab] = useState<'events' | 'meta' | 'rollup' | 'settings'>('events');
+  const [activeTab, setActiveTab] = useState<'events' | 'meta' | 'quality' | 'debug' | 'segments' | 'rollup' | 'settings'>('events');
 
   const [eventsPage, setEventsPage] = useState(1);
   const [eventsPageSize, setEventsPageSize] = useState(PAGE_SIZE);
@@ -267,6 +287,9 @@ export default function AnalyticsDataPage() {
   });
   const metaList = metaQuery.data?.list ?? [];
   const metaTotal = metaQuery.data?.total ?? 0;
+
+  const ownerUsersQuery = useFrontendAdminUsers(activeTab === 'meta' && metaModalVisible);
+  const ownerOptions = (ownerUsersQuery.data?.list ?? []).map((u) => ({ value: u.id, label: u.nickname || u.username }));
 
   const rollupQuery = useAnalyticsRollup(rollupDays, activeTab === 'rollup');
   const rollupItems = rollupQuery.data?.items ?? [];
@@ -380,6 +403,8 @@ export default function AnalyticsDataPage() {
       description: trimToNull(values.description),
       status: values.status,
       propertySchema,
+      ownerId: values.ownerId ?? null,
+      strictMode: !!values.strictMode,
     };
 
     await saveMetaMutation.mutateAsync({ id: editingMeta?.id, values: payload });
@@ -401,7 +426,7 @@ export default function AnalyticsDataPage() {
 
   const handleRebuildRollup = async () => {
     await rebuildRollupMutation.mutateAsync(rollupDays);
-    Toast.success('重建完成');
+    Toast.success('任务已提交，可在顶部任务中心查看进度');
   };
 
   const updateSettings = <K extends keyof SettingsPayload>(key: K, value: SettingsPayload[K]) => {
@@ -424,6 +449,8 @@ export default function AnalyticsDataPage() {
         description: editingMeta.description,
         status: editingMeta.status,
         propertySchemaText: JSON.stringify(editingMeta.propertySchema ?? [], null, 2),
+        ownerId: editingMeta.ownerId,
+        strictMode: editingMeta.strictMode,
       }
     : {
         eventName: '',
@@ -432,6 +459,8 @@ export default function AnalyticsDataPage() {
         description: null,
         status: 'active',
         propertySchemaText: '[]',
+        ownerId: null,
+        strictMode: false,
       };
 
   const eventColumns: ColumnProps<EventListItem>[] = [
@@ -1014,15 +1043,39 @@ export default function AnalyticsDataPage() {
               <Form.Input field="displayName" label="显示名" placeholder="可选，如 页面进入" />
               <Form.Input field="category" label="分类" placeholder="可选，如 页面行为" />
               <Form.Select field="status" label="状态" optionList={META_STATUS_OPTIONS} style={{ width: '100%' }} />
+              <Form.Select
+                field="ownerId"
+                label="负责人"
+                placeholder="可选，契约负责人"
+                optionList={ownerOptions}
+                loading={ownerUsersQuery.isFetching}
+                showClear
+                filter
+                style={{ width: '100%' }}
+              />
+              <Form.Switch field="strictMode" label="严格模式" extraText="开启后，不符合属性 Schema 的事件将被拒收（而非仅记录质量问题）" />
               <Form.TextArea field="description" label="描述" placeholder="请输入描述" maxCount={256} />
               <Form.TextArea
                 field="propertySchemaText"
                 label="属性 Schema"
-                placeholder='JSON 数组，如 [{"key":"path","type":"string","description":"页面路径"}]'
-                autosize={{ minRows: 3, maxRows: 8 }}
+                placeholder='JSON 数组，每项支持 key/type/description/required/enumValues/pii，如 [{"key":"amount","type":"number","required":true}]'
+                autosize={{ minRows: 4, maxRows: 10 }}
               />
+              <Typography.Text type="tertiary" size="small">
+                type 支持 string / number / boolean / datetime / object / array；required 标记必填（严格模式下缺失将拒收）；
+                enumValues 仅对 string 生效；pii 标记敏感信息仅供采集/导出侧参考。严格模式开启后，不符合 Schema 的事件将被拒收并记入质量看板。
+              </Typography.Text>
             </Form>
           </AppModal>
+        </TabPane>
+        <TabPane tab="数据质量" itemKey="quality">
+          <AnalyticsQualityTab />
+        </TabPane>
+        <TabPane tab="事件调试" itemKey="debug">
+          <AnalyticsDebugTab active={activeTab === 'debug'} />
+        </TabPane>
+        <TabPane tab="用户分群" itemKey="segments">
+          <AnalyticsSegmentsTab />
         </TabPane>
         <TabPane tab="数据聚合" itemKey="rollup">
           <SearchToolbar

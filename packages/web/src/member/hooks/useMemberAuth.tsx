@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import { MEMBER_TOKEN_KEY, MEMBER_REFRESH_TOKEN_KEY } from '@zenith/shared';
 import type { ApiResponse, Member, MemberLoginResult } from '@zenith/shared';
+import { prepareTrackerLogout } from '@/utils/tracker';
 import { memberRequest } from '../utils/member-request';
 import { memberQueryClient } from '../lib/member-query';
 
@@ -88,12 +89,14 @@ export function MemberAuthProvider({ children }: Readonly<{ children: ReactNode 
   }, []);
 
   const logout = useCallback(() => {
+    // 请求构造会在本行同步读取当前 token，随后再清理本地身份。
+    memberRequest.post('/api/member/auth/logout', {}, { silent: true }).catch(() => {});
+    // 退出前用当前会员 token 尽力发送旧身份事件，避免残留队列被下一个账号接管
+    prepareTrackerLogout();
     localStorage.removeItem(MEMBER_TOKEN_KEY);
     localStorage.removeItem(MEMBER_REFRESH_TOKEN_KEY);
     memberQueryClient.clear();
     setState({ member: null, loading: false });
-    // best-effort 通知服务端删除会话
-    memberRequest.post('/api/member/auth/logout', {}, { silent: true }).catch(() => {});
   }, []);
 
   const updateMember = useCallback((member: Member) => {

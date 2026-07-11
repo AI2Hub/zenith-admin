@@ -6,7 +6,7 @@ import { cronJobLogs, cronJobs, systemConfigs, userFeedbacks } from './system';
 import { loginRiskEvents, passwordResetTokens, userApiTokens, userMfaFactors, userOauthAccounts, userTrustedDevices } from './auth';
 import { identityProviderSyncLogs, tenantIdentityProviders, userIdentityAccounts } from './identity-providers';
 import { dictItems, dicts } from './dicts';
-import { errorEvents, errorGroups } from './analytics';
+import { analyticsEventMeta, analyticsEventOverrides, analyticsSegmentMembers, analyticsUserProfiles, analyticsUserSegments, errorEvents, errorGroups } from './analytics';
 import { announcementReads, announcementRecipients, announcements } from './announcements';
 import { workflowAutomations, workflowCategories, workflowComments, workflowDefinitions, workflowDefinitionVersions, workflowDelegations, workflowForms, workflowInstances, workflowJobExecutions, workflowJobs, workflowQuickPhrases, workflowTaskConsults, workflowTasks, workflowTaskUrges, workflowTokens } from './workflow';
 import { emailSendLogs, emailTemplates, inAppMessages, inAppTemplates, smsConfigs, smsSendLogs, smsTemplates } from './messaging';
@@ -54,6 +54,35 @@ export const errorGroupsRelations = relations(errorGroups, ({ many, one }) => ({
 
 export const errorEventsRelations = relations(errorEvents, ({ one }) => ({
   group: one(errorGroups, { fields: [errorEvents.groupId], references: [errorGroups.id] }),
+}));
+
+// 行为中心阶段 1：Tracking Plan 负责人
+export const analyticsEventMetaRelations = relations(analyticsEventMeta, ({ one }) => ({
+  owner: one(users, { fields: [analyticsEventMeta.ownerId], references: [users.id] }),
+}));
+
+// 行为中心阶段 1：租户级事件启停覆盖
+export const analyticsEventOverridesRelations = relations(analyticsEventOverrides, ({ one }) => ({
+  tenant: one(tenants, { fields: [analyticsEventOverrides.tenantId], references: [tenants.id] }),
+}));
+
+// 行为中心阶段 1：用户画像（userId / memberId 无物理外键，此处仅提供逻辑关联，供 RQB with 查询使用）
+export const analyticsUserProfilesRelations = relations(analyticsUserProfiles, ({ one }) => ({
+  tenant: one(tenants, { fields: [analyticsUserProfiles.tenantId], references: [tenants.id] }),
+  user: one(users, { fields: [analyticsUserProfiles.userId], references: [users.id] }),
+  member: one(members, { fields: [analyticsUserProfiles.memberId], references: [members.id] }),
+}));
+
+// 行为中心阶段 1：分群定义 ↔ 分群成员物化快照
+export const analyticsUserSegmentsRelations = relations(analyticsUserSegments, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [analyticsUserSegments.tenantId], references: [tenants.id] }),
+  members: many(analyticsSegmentMembers),
+}));
+
+export const analyticsSegmentMembersRelations = relations(analyticsSegmentMembers, ({ one }) => ({
+  segment: one(analyticsUserSegments, { fields: [analyticsSegmentMembers.segmentId], references: [analyticsUserSegments.id] }),
+  tenant: one(tenants, { fields: [analyticsSegmentMembers.tenantId], references: [tenants.id] }),
+  member: one(members, { fields: [analyticsSegmentMembers.memberId], references: [members.id] }),
 }));
 
 export const channelsRelations = relations(channels, ({ many }) => ({

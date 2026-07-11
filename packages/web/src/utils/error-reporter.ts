@@ -3,11 +3,52 @@
  * 携带行为面包屑、会话 ID、发布版本，附带去重与限流保护。
  */
 import { TOKEN_KEY } from '@zenith/shared';
-import type { FrontendErrorType, ErrorLevel } from '@zenith/shared';
+import type { FrontendErrorType, ErrorLevel, AnalyticsEventSource, AnalyticsEnvironment } from '@zenith/shared';
 import { getBreadcrumbs } from './breadcrumbs';
 
 const SESSION_KEY = 'zenith_tracker_sid';
 let reportingPolicy = { ready: false, enabled: true, trackErrors: true, respectDnt: false };
+
+// ─── 运行时参数化（与 tracker.ts 的 configureTracker 单向同步，避免循环依赖）───
+export interface ErrorReporterRuntimeConfig {
+  /** localStorage 中存放访问令牌的 key（admin/member 各自独立） */
+  tokenKey: string;
+  /** 事件来源平台，不允许业务方伪造为 'server' */
+  source: AnalyticsEventSource;
+  /** 应用标识 */
+  appId: string;
+  /** 采集环境 */
+  environment: AnalyticsEnvironment;
+  /** 是否已获得采集同意；admin 端恒为 true，member 端由用户隐私同意状态驱动 */
+  consentProvider: () => boolean;
+}
+
+/** 采集环境默认推断：显式声明优先，否则按 Vite build mode 归一为 production/development。 */
+function resolveDefaultEnvironment(): AnalyticsEnvironment {
+  const declared = (import.meta.env.VITE_ANALYTICS_ENVIRONMENT as string | undefined)?.trim();
+  if (declared === 'production' || declared === 'staging' || declared === 'development') return declared;
+  return import.meta.env.MODE === 'production' ? 'production' : 'development';
+}
+
+let runtime: ErrorReporterRuntimeConfig = {
+  tokenKey: TOKEN_KEY,
+  source: 'web_admin',
+  appId: 'admin',
+  environment: resolveDefaultEnvironment(),
+  consentProvider: () => true,
+};
+
+function runtimeSessionKey(): string {
+  return runtime.appId === 'admin' ? SESSION_KEY : `${SESSION_KEY}:${runtime.appId}`;
+}
+
+/**
+ * 配置 error-reporter 运行时参数。一般不需要业务方直接调用——tracker.ts 的
+ * configureTracker() 会自动转发同步，仅当独立使用 error-reporter（不初始化 tracker）时才需手动调用。
+ */
+export function configureErrorReporterRuntime(next: Partial<ErrorReporterRuntimeConfig>): void {
+  runtime = { ...runtime, ...next };
+}
 
 export interface ReportErrorOptions {
   level?: ErrorLevel;
@@ -37,13 +78,14 @@ export function configureErrorReporting(policy: Readonly<Omit<typeof reportingPo
 function isReportingEnabled(): boolean {
   if (!reportingPolicy.ready || !reportingPolicy.enabled || !reportingPolicy.trackErrors) return false;
   if (reportingPolicy.respectDnt && (navigator.doNotTrack === '1' || (globalThis as { doNotTrack?: string }).doNotTrack === '1')) return false;
+  if (!runtime.consentProvider()) return false;
   return true;
 }
 
 export function reportError(errorType: FrontendErrorType, message: string, options?: ReportErrorOptions): void {
   try {
     if (!isReportingEnabled()) return;
-    const token = localStorage.getItem(TOKEN_KEY);
+    const token = localStorage.getItem(runtime.tokenKey);
     const key = `${errorType}:${message}`.slice(0, 200);
     const now = Date.now();
     const last = recent.get(key);
@@ -52,7 +94,7 @@ export function reportError(errorType: FrontendErrorType, message: string, optio
     if (recent.size > 200) recent.clear();
 
     const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || '/api';
-    const sessionId = sessionStorage.getItem(SESSION_KEY) ?? undefined;
+    const sessionId = sessionStorage.getItem(runtimeSessionKey()) ?? undefined;
 
     const payload = {
       errorType,
@@ -70,6 +112,10 @@ export function reportError(errorType: FrontendErrorType, message: string, optio
       httpStatus: options?.httpStatus,
       httpMethod: options?.httpMethod,
       httpUrl: options?.httpUrl,
+      // 强制覆盖平台字段：调用方不可伪造 source/appId/environment
+      source: runtime.source,
+      appId: runtime.appId,
+      environment: runtime.environment,
     };
 
     fetch(`${apiBase}/frontend-errors`, {

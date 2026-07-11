@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { CSSProperties, ReactNode } from 'react';
-import { Avatar, Button, Card, DatePicker, Dropdown, Empty, Input, Modal, Progress, Select, SideSheet, Skeleton, Spin, Switch, TabPane, Tabs, Tag, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
+import { Avatar, Button, Card, DatePicker, Dropdown, Empty, Input, InputNumber, Modal, Progress, Select, SideSheet, Skeleton, Spin, Switch, TabPane, Tabs, Tag, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import {
   Activity,
@@ -56,6 +56,7 @@ import {
   useAnalyticsPath,
   useAnalyticsRealtime,
   useAnalyticsRetention,
+  useAnalyticsSegments,
   useAnalyticsSessions,
   useAnalyticsTrends,
   useAnalyticsUserStats,
@@ -66,7 +67,9 @@ import {
   useDeleteFunnelReport,
 } from '@/hooks/queries/analytics';
 import type {
+  AnalyticsRetentionMode,
   AnalyticsSavedReport,
+  AnalyticsSegmentPropertyFilter,
   DimensionBreakdown,
   FeatureStats,
   HeatmapData,
@@ -75,7 +78,8 @@ import type {
   SessionListItem,
   UserStats,
 } from '@zenith/shared';
-import { ANALYTICS_DEVICE_TYPE_OPTIONS } from '@zenith/shared';
+import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_RETENTION_MODE_OPTIONS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared';
+import AnalyticsEventQueryTab from './AnalyticsEventQueryTab';
 
 function msToReadable(ms: number | null): string {
   if (ms == null) return '–';
@@ -834,11 +838,25 @@ interface FunnelStepDraft {
   label: string;
   pagePath?: string;
   eventName?: string;
+  propKey?: string;
+  propOp?: AnalyticsSegmentPropertyFilter['op'];
+  propValue?: string;
+}
+
+function buildStepProperties(step: FunnelStepDraft): AnalyticsSegmentPropertyFilter[] | undefined {
+  const key = step.propKey?.trim();
+  if (!key) return undefined;
+  const op = step.propOp ?? 'eq';
+  const raw = step.propValue?.trim() ?? '';
+  const value = op === 'in' ? raw.split(',').map((v) => v.trim()).filter(Boolean) : raw;
+  return [{ key, op, value }];
 }
 
 function FunnelTab() {
   const palette = useChartPalette();
   const [days, setDays] = useState(7);
+  const [conversionWindowHours, setConversionWindowHours] = useState(72);
+  const [segmentId, setSegmentId] = useState<number | undefined>(undefined);
   const [steps, setSteps] = useState<FunnelStepDraft[]>([
     { id: 'step-1', label: '进入首页', pagePath: '/' },
     { id: 'step-2', label: '进入仪表盘', pagePath: '/dashboard' },
@@ -852,13 +870,23 @@ function FunnelTab() {
   const deleteReportMutation = useDeleteFunnelReport();
   const [saveName, setSaveName] = useState('');
   const [saveVisible, setSaveVisible] = useState(false);
+  const segmentsQuery = useAnalyticsSegments({ page: 1, pageSize: 100, status: 'enabled' });
+  const segmentOptions = useMemo(
+    () => (segmentsQuery.data?.list ?? []).map((s) => ({ label: s.name, value: s.id })),
+    [segmentsQuery.data?.list],
+  );
 
   const saveReport = async () => {
     const name = saveName.trim();
     if (!name) { Toast.warning('请输入报表名称'); return; }
     await saveReportMutation.mutateAsync({
       name,
-      config: { days, steps: steps.map(({ label, pagePath, eventName }) => ({ label, pagePath, eventName })) },
+      config: {
+        days,
+        conversionWindowHours,
+        segmentId,
+        steps: steps.map(({ label, pagePath, eventName, propKey, propOp, propValue }) => ({ label, pagePath, eventName, propKey, propOp, propValue })),
+      },
     });
     Toast.success('已保存');
     setSaveVisible(false);
@@ -866,10 +894,25 @@ function FunnelTab() {
   };
 
   const loadReport = (report: AnalyticsSavedReport) => {
-    const config = report.config as { days?: number; steps?: Array<{ label?: string; pagePath?: string; eventName?: string }> };
+    const config = report.config as {
+      days?: number;
+      conversionWindowHours?: number;
+      segmentId?: number;
+      steps?: Array<{ label?: string; pagePath?: string; eventName?: string; propKey?: string; propOp?: AnalyticsSegmentPropertyFilter['op']; propValue?: string }>;
+    };
     if (config.days) setDays(config.days);
+    setConversionWindowHours(config.conversionWindowHours ?? 72);
+    setSegmentId(config.segmentId);
     if (Array.isArray(config.steps) && config.steps.length >= 2) {
-      setSteps(config.steps.map((s, i) => ({ id: `step-${Date.now()}-${i}`, label: s.label ?? `步骤 ${i + 1}`, pagePath: s.pagePath, eventName: s.eventName })));
+      setSteps(config.steps.map((s, i) => ({
+        id: `step-${Date.now()}-${i}`,
+        label: s.label ?? `步骤 ${i + 1}`,
+        pagePath: s.pagePath,
+        eventName: s.eventName,
+        propKey: s.propKey,
+        propOp: s.propOp,
+        propValue: s.propValue,
+      })));
     }
     Toast.info(`已加载「${report.name}」`);
   };
@@ -906,10 +949,13 @@ function FunnelTab() {
   const analyze = async () => {
     await analyzeMutation.mutateAsync({
       days,
-      steps: steps.map(({ label, pagePath, eventName }) => ({
-        label: label.trim(),
-        pagePath: pagePath?.trim() || undefined,
-        eventName: eventName?.trim() || undefined,
+      conversionWindowHours,
+      segmentId,
+      steps: steps.map((step) => ({
+        label: step.label.trim(),
+        pagePath: step.pagePath?.trim() || undefined,
+        eventName: step.eventName?.trim() || undefined,
+        properties: buildStepProperties(step),
       })),
     });
   };
@@ -918,17 +964,43 @@ function FunnelTab() {
     <div style={sectionStyle}>
       <SectionHeader
         title="转化漏斗"
-        description="组合页面与事件步骤，分析用户转化"
+        description="组合页面与事件步骤，按时间先后顺序分析用户转化（支持转化窗口与分群过滤）"
         extra={<Select value={days} optionList={DAYS_OPTIONS} onChange={(v) => setDays(Number(v))} style={{ width: 120 }} />}
       />
       <Card bodyStyle={{ padding: 16 }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Typography.Text type="tertiary" size="small">转化窗口（小时）</Typography.Text>
+            <InputNumber value={conversionWindowHours} min={1} max={720} onChange={(v) => setConversionWindowHours(Number(v) || 72)} style={{ width: 120 }} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Typography.Text type="tertiary" size="small">仅统计分群</Typography.Text>
+            <Select
+              placeholder="全部用户"
+              value={segmentId}
+              optionList={segmentOptions}
+              onChange={(v) => setSegmentId(v == null ? undefined : Number(v))}
+              showClear
+              style={{ width: 180 }}
+              loading={segmentsQuery.isFetching}
+            />
+          </div>
+        </div>
         <div style={{ display: 'grid', gap: 10 }}>
           {steps.map((step, index) => (
-            <div key={step.id} style={{ display: 'grid', gridTemplateColumns: '48px minmax(140px, 1fr) minmax(160px, 1fr) minmax(160px, 1fr) 36px', gap: 10, alignItems: 'center' }}>
+            <div key={step.id} style={{ display: 'grid', gridTemplateColumns: '40px minmax(110px, 0.9fr) minmax(120px, 0.9fr) minmax(120px, 0.9fr) minmax(100px, 0.7fr) 84px minmax(100px, 0.7fr) 36px', gap: 8, alignItems: 'center' }}>
               <Tag color="blue">#{index + 1}</Tag>
               <Input placeholder="步骤名称" value={step.label} onChange={(value) => updateStep(step.id, { label: value })} />
               <Input placeholder="页面路径（可选）" value={step.pagePath ?? ''} onChange={(value) => updateStep(step.id, { pagePath: value })} />
               <Input placeholder="事件名（可选）" value={step.eventName ?? ''} onChange={(value) => updateStep(step.id, { eventName: value })} />
+              <Input placeholder="属性key（可选）" value={step.propKey ?? ''} onChange={(value) => updateStep(step.id, { propKey: value })} />
+              <Select
+                value={step.propOp ?? 'eq'}
+                optionList={ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS}
+                onChange={(v) => updateStep(step.id, { propOp: v as AnalyticsSegmentPropertyFilter['op'] })}
+                disabled={!step.propKey}
+              />
+              <Input placeholder="属性值" value={step.propValue ?? ''} onChange={(value) => updateStep(step.id, { propValue: value })} disabled={!step.propKey} />
               <Button icon={<Trash2 size={14} />} type="danger" theme="borderless" disabled={steps.length <= 2} onClick={() => removeStep(step.id)} />
             </div>
           ))}
@@ -992,7 +1064,10 @@ function FunnelTab() {
               <div key={`${step.label}-${index}`}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
                   <Typography.Text strong>{step.label}</Typography.Text>
-                  <Typography.Text>{numberText(step.users)} 人 · 总转化 {percentText(step.conversionRate)} · 上步转化 {percentText(step.stepConversionRate)} · 流失 {numberText(step.dropoff)}</Typography.Text>
+                  <Typography.Text>
+                    {numberText(step.users)} 人 · 总转化 {percentText(step.conversionRate)} · 上步转化 {percentText(step.stepConversionRate)} · 流失 {numberText(step.dropoff)}
+                    {step.averageConversionMs != null ? ` · 平均耗时 ${msToReadable(step.averageConversionMs)}` : ''}
+                  </Typography.Text>
                 </div>
                 <div style={{ height: 20, borderRadius: 999, background: 'var(--semi-color-fill-0)', overflow: 'hidden' }}>
                   <div style={{ width: `${Math.max(2, Math.min(100, step.conversionRate))}%`, height: '100%', borderRadius: 999, background: chartColor(index, palette.primary) }} />
@@ -1008,7 +1083,8 @@ function FunnelTab() {
 
 function RetentionTab() {
   const [days, setDays] = useState(14);
-  const retentionQuery = useAnalyticsRetention(days);
+  const [mode, setMode] = useState<AnalyticsRetentionMode>('first_seen');
+  const retentionQuery = useAnalyticsRetention(days, mode);
   const data = retentionQuery.data ?? null;
   const loading = retentionQuery.isFetching;
 
@@ -1019,8 +1095,23 @@ function RetentionTab() {
       <SectionHeader
         title="用户留存"
         description="按首访日期形成 cohort，单元格颜色越深表示留存率越高"
-        extra={<Select value={days} optionList={RETENTION_DAYS_OPTIONS} onChange={(v) => setDays(Number(v))} style={{ width: 120 }} />}
+        extra={(
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Select
+              value={mode}
+              optionList={ANALYTICS_RETENTION_MODE_OPTIONS}
+              onChange={(v) => setMode(v as AnalyticsRetentionMode)}
+              style={{ width: 160 }}
+            />
+            <Select value={days} optionList={RETENTION_DAYS_OPTIONS} onChange={(v) => setDays(Number(v))} style={{ width: 120 }} />
+          </div>
+        )}
       />
+      <Typography.Text type="tertiary" size="small">
+        {mode === 'first_seen'
+          ? '真实首访口径：按用户全历史首次出现日期分组，仅展示首访日落在统计区间内的 cohort'
+          : '窗口首现口径：按当前统计窗口内首次出现日期分组（与旧版行为一致）'}
+      </Typography.Text>
       <Card bodyStyle={{ padding: 16, overflowX: 'auto' }}>
         {loading && !data ? emptyOrSpin(true) : !data?.cohorts.length ? <Empty description="暂无留存数据" /> : (
           <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 4, minWidth: 720 }}>
@@ -1427,6 +1518,7 @@ export default function AnalyticsPage() {
       <Tabs type="line" lazyRender>
         <TabPane tab="概览" itemKey="overview"><OverviewTab /></TabPane>
         <TabPane tab="实时" itemKey="realtime"><RealtimeTab /></TabPane>
+        <TabPane tab="事件分析" itemKey="event-query"><AnalyticsEventQueryTab /></TabPane>
         <TabPane tab="页面停留" itemKey="dwell"><DwellTab /></TabPane>
         <TabPane tab="功能使用" itemKey="feature"><FeatureTab /></TabPane>
         <TabPane tab="会话" itemKey="sessions"><SessionsTab /></TabPane>

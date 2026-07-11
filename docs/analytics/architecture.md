@@ -21,7 +21,7 @@
 | 层 | 文件 |
 |----|------|
 | 路由 | `routes/analytics/analytics.ts`、`routes/analytics/frontend-errors.ts` |
-| Service | `services/analytics/analytics.service.ts`、`analytics-event-meta.service.ts`、`analytics-settings.service.ts`、`analytics-rollup.service.ts`、`frontend-errors.service.ts`、`error-alert.service.ts` |
+| Service | `services/analytics/analytics.service.ts`、`analytics-event-meta.service.ts`、`analytics-settings.service.ts`、`analytics-rollup.service.ts`、`frontend-errors.service.ts`、`error-alert.service.ts`、`analytics-profile.service.ts`（身份画像 upsert 公共 helper）、`analytics-server-events.service.ts`（服务端权威事件写入）、`analytics-server-event-subscribers.ts`（业务总线 → 权威事件桥接） |
 | 公共库 | `lib/analytics-helpers.ts`（UA / 地域 / 指纹 / 性能评级）、`lib/source-map-symbolicate.ts`（堆栈还原） |
 | DTO | `lib/dtos/analytics.ts`、`lib/dtos/frontend-errors.ts` |
 
@@ -29,6 +29,7 @@
 - UA 解析复用 `ua-parser-js`，IP → 地域复用离线库 `node-ip2region`，无需外部服务。
 - 行为事件与会话更新、错误 Issue 与错误事件写入均在事务中完成；SDK 事件通过 `eventId` 唯一索引实现重试幂等。
 - 生产环境建议配置 `REQUEST_BODY_LIMIT=23068672`（22MiB）：可容纳 20MB Source Map 与 JSON 包装开销，同时给匿名采集入口设置全局请求体上限。
+- **服务端权威事件**（`source='server'`）不经 HTTP，由 `paymentEventBus` / `workflowEventBus` 订阅与会员业务 Service 调用点直接写入 `user_events`，与 SDK 采集（`source='web'`）共用同一张表、同一套治理（`analytics-ingest-governance`）与查询/漏斗/事件分析能力。详见 [埋点采集 SDK · 服务端权威事件](./tracking#服务端权威事件sourceserver)。
 
 ## 数据链路
 
@@ -40,6 +41,13 @@ routes/analytics/analytics.ts / routes/analytics/frontend-errors.ts
 user_events / analytics_sessions / error_groups / error_events
   ↓ 查询接口实时聚合，定时任务维护 analytics_daily_rollup 与保留清理
 packages/web/src/pages/analytics/*
+
+paymentEventBus / workflowEventBus / 会员 Service 调用点（成功后 best-effort）
+  ↓ analytics-server-event-subscribers.ts（总线 onAny 映射）或直接调用
+services/analytics/analytics-server-events.service.ts::trackServerEvent()
+  ↓ queueMicrotask 异步、治理复用（evaluateEvents）、eventId 幂等（ON CONFLICT DO NOTHING）
+user_events（source='server'，不创建 analytics_sessions）
+  ↓ 与 SDK 事件混合参与既有查询 / 漏斗 / 事件分析接口，无需新增 API
 ```
 
 ## 定时任务
@@ -71,3 +79,4 @@ packages/web/src/pages/analytics/*
 - 数据保留任务逐租户执行，未配置的租户使用埋点 180 天、错误 90 天默认值。
 - 错误指纹含 `tenantId` 因子，不同租户的相同错误分属不同 Issue。
 - 事件字典为平台级全局分类（事件名跨租户共享）；屏蔽、解除屏蔽或删除已屏蔽事件仅允许平台超级管理员。
+- 服务端权威事件（`source='server'`）同样携带来源业务的 `tenantId`（支付/工作流事件复用总线事件自带的 `tenantId`；会员事件取会员/操作上下文的 `tenantId`，当前会员体系未启用多租户时为 `null`），与 SDK 事件遵循相同的 `tenantScope()` 过滤规则，不单独绕过隔离。

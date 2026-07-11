@@ -936,3 +936,84 @@ body {
     font-size: 20px;
   }
 }
+
+/* ============================================================
+   体验分析同意提示条（AnalyticsConsentBanner）
+   移动优先：默认纵向堆叠，桌面宽屏下操作按钮转为一行右对齐
+   ============================================================ */
+.mc-consent-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 200;
+  background: var(--m-card-bg);
+  border-top: 1px solid var(--m-border);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mc-consent-banner-text {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--m-text-secondary);
+}
+
+.mc-consent-banner-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--m-primary);
+}
+
+.mc-consent-banner-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.mc-consent-banner-actions button {
+  flex: 1;
+}
+
+.mc-consent-settings-button {
+  position: fixed;
+  right: 12px;
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  z-index: 120;
+  color: var(--m-text-secondary);
+  background: color-mix(in srgb, var(--m-card-bg) 92%, transparent);
+  box-shadow: var(--m-shadow-sm);
+}
+
+@media (--md-up) {
+  .mc-consent-banner {
+    left: 24px;
+    right: 24px;
+    bottom: 24px;
+    border-radius: var(--m-radius-lg);
+    border: 1px solid var(--m-border);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    flex-direction: row;
+    align-items: center;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  .mc-consent-banner-actions {
+    flex-shrink: 0;
+  }
+
+  .mc-consent-banner-actions button {
+    flex: none;
+  }
+
+  .mc-consent-settings-button {
+    right: 20px;
+    bottom: 20px;
+  }
+}

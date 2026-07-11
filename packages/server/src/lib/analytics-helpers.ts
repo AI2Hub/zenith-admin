@@ -9,7 +9,7 @@
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { UAParser } from 'ua-parser-js';
-import type { AnalyticsDeviceType } from '@zenith/shared';
+import type { AnalyticsDeviceType, AnalyticsEventSource, AnalyticsEnvironment } from '@zenith/shared';
 
 const require = createRequire(import.meta.url);
 const Ip2Region = require('node-ip2region') as {
@@ -153,6 +153,32 @@ export function clampDays(days: unknown, fallback = 30, max = 365): number {
 /** 限定 limit 在 [1, max] 区间 */
 export function clampLimit(limit: unknown, fallback = 20, max = 100): number {
   return Math.min(Math.max(Number(limit) || fallback, 1), max);
+}
+
+// ─── 行为中心阶段 1：多端平台字段推断（采集入口统一收口）───────────────────────
+/**
+ * 统一推断埋点/错误上报的多端平台字段（source/appId/environment）。
+ *
+ * 安全关键：HTTP 采集入口（埋点上报 / 错误上报）绝不产出 source='server'——
+ * - 已登录管理员：强制 web_admin（忽略客户端声明，杜绝伪造）
+ * - 已登录会员：强制 web_member（忽略客户端声明，杜绝伪造）
+ * - 匿名：仅信任客户端显式声明的 web_admin / web_member，其余（含试图伪造 'server'）一律回退 web_admin
+ *   （兼容历史仅有后台 SPA 上报、未携带 source 字段的存量客户端）
+ */
+export function resolveIngestPlatformFields(
+  input: { source?: AnalyticsEventSource; appId?: string; environment?: AnalyticsEnvironment },
+  identity: { hasAdmin: boolean; hasMember: boolean },
+): { source: AnalyticsEventSource; appId: string; environment: AnalyticsEnvironment } {
+  const source: AnalyticsEventSource = identity.hasMember
+    ? 'web_member'
+    : identity.hasAdmin
+      ? 'web_admin'
+      : input.source === 'web_member'
+        ? 'web_member'
+        : 'web_admin';
+  const appId = input.appId?.trim() || (source === 'web_member' ? 'member' : 'admin');
+  const environment: AnalyticsEnvironment = input.environment ?? 'production';
+  return { source, appId, environment };
 }
 
 // ─── IP 匿名化 ────────────────────────────────────────────────────────────────

@@ -1,13 +1,25 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  AnalyticsDebugEvent,
   AnalyticsEventMeta,
+  AnalyticsEventOverride,
+  AnalyticsEventOverrideStatus,
+  AnalyticsEventQueryInput,
+  AnalyticsEventQueryResult,
   AnalyticsOverview,
+  AnalyticsQualityIssueType,
+  AnalyticsQualityQueryResult,
+  AnalyticsRetentionMode,
+  AnalyticsSegmentMember,
   AnalyticsSettings,
+  AnalyticsUserSegment,
+  AsyncTask,
   ErrorAlertRule,
   ErrorAlertLog,
   ErrorEvent,
   ErrorGroup,
   ErrorOverview,
+  FunnelQuery,
   FunnelResult,
   HeatmapData,
   HeatmapPageListItem,
@@ -25,8 +37,10 @@ import type {
   UserTimeline,
   FeatureStats,
 } from '@zenith/shared';
+import { ANALYTICS_CONFIG_VERSION_KEY } from '@zenith/shared';
 import { toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
+import { reloadTrackerConfig } from '@/utils/tracker';
 
 interface ErrorGroupDetail {
   group: ErrorGroup;
@@ -90,6 +104,38 @@ export interface AnalyticsRangeParams {
   endDate?: string;
 }
 
+export interface AnalyticsOverrideParams {
+  page: number;
+  pageSize: number;
+  eventName?: string;
+  status?: AnalyticsEventOverrideStatus;
+}
+
+export interface AnalyticsQualityParams {
+  days: number;
+  eventName?: string;
+  issueType?: AnalyticsQualityIssueType;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface AnalyticsDebugEventsParams {
+  limit?: number;
+  eventName?: string;
+}
+
+export interface AnalyticsSegmentListParams {
+  page: number;
+  pageSize: number;
+  keyword?: string;
+  status?: 'enabled' | 'disabled';
+}
+
+export interface AnalyticsSegmentMembersParams {
+  page: number;
+  pageSize: number;
+}
+
 export const analyticsKeys = {
   all: ['analytics'] as const,
   overview: (range: AnalyticsRangeParams) => ['analytics', 'overview', range] as const,
@@ -100,7 +146,8 @@ export const analyticsKeys = {
   sessionsLists: ['analytics', 'sessions', 'list'] as const,
   sessions: (params: AnalyticsSessionsParams) => ['analytics', 'sessions', 'list', params] as const,
   funnel: ['analytics', 'funnel'] as const,
-  retention: (days: number) => ['analytics', 'retention', days] as const,
+  retention: (days: number, mode: AnalyticsRetentionMode) => ['analytics', 'retention', days, mode] as const,
+  eventQuery: ['analytics', 'event-query'] as const,
   path: (days: number) => ['analytics', 'path', days] as const,
   userStats: (days: number) => ['analytics', 'user-stats', days] as const,
   userTimeline: (userId: number | null) => ['analytics', 'user-timeline', userId] as const,
@@ -116,6 +163,14 @@ export const analyticsKeys = {
     meta: (params: AnalyticsMetaParams) => ['analytics', 'data', 'meta', params] as const,
     rollup: (days: number) => ['analytics', 'data', 'rollup', days] as const,
     settings: ['analytics', 'data', 'settings'] as const,
+    overridesLists: ['analytics', 'data', 'overrides'] as const,
+    overrides: (params: AnalyticsOverrideParams) => ['analytics', 'data', 'overrides', params] as const,
+    quality: (params: AnalyticsQualityParams) => ['analytics', 'data', 'quality', params] as const,
+    debugEvents: (params: AnalyticsDebugEventsParams) => ['analytics', 'data', 'debug-events', params] as const,
+    segmentsLists: ['analytics', 'data', 'segments'] as const,
+    segments: (params: AnalyticsSegmentListParams) => ['analytics', 'data', 'segments', params] as const,
+    segmentDetail: (id: number | undefined) => ['analytics', 'data', 'segment-detail', id] as const,
+    segmentMembers: (id: number | undefined, params: AnalyticsSegmentMembersParams) => ['analytics', 'data', 'segment-members', id, params] as const,
   },
   frontendErrors: {
     all: ['analytics', 'frontend-errors'] as const,
@@ -185,15 +240,22 @@ export function useAnalyticsSessions(params: AnalyticsSessionsParams) {
 
 export function useAnalyzeFunnel() {
   return useMutation({
-    mutationFn: (values: { days: number; steps: Array<{ label: string; pagePath?: string; eventName?: string }> }) =>
+    mutationFn: (values: FunnelQuery) =>
       request.post<FunnelResult>('/api/analytics/funnel', values).then(unwrap),
   });
 }
 
-export function useAnalyticsRetention(days: number) {
+export function useAnalyticsRetention(days: number, mode: AnalyticsRetentionMode = 'first_seen') {
   return useQuery({
-    queryKey: analyticsKeys.retention(days),
-    queryFn: () => request.get<RetentionResult>(`/api/analytics/retention?days=${days}`).then(unwrap),
+    queryKey: analyticsKeys.retention(days, mode),
+    queryFn: () => request.get<RetentionResult>(`/api/analytics/retention${toQueryString({ days, mode })}`).then(unwrap),
+  });
+}
+
+export function useAnalyticsEventQuery() {
+  return useMutation({
+    mutationFn: (values: AnalyticsEventQueryInput) =>
+      request.post<AnalyticsEventQueryResult>('/api/analytics/events/query', values).then(unwrap),
   });
 }
 
@@ -353,7 +415,7 @@ export function useDeleteAnalyticsEventMeta() {
 export function useRebuildAnalyticsRollup() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (days: number) => request.post<null>(`/api/analytics/rollup/rebuild?days=${days}`).then(unwrap),
+    mutationFn: (days: number) => request.post<AsyncTask>(`/api/analytics/rollup/rebuild?days=${days}`).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: analyticsKeys.data.all }),
   });
 }
@@ -362,7 +424,116 @@ export function useSaveAnalyticsSettings() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (values: Record<string, unknown>) => request.put<AnalyticsSettings>('/api/analytics/settings', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: analyticsKeys.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: analyticsKeys.all });
+      // 设置热更新：当前标签页立即重拉配置；写入版本号触发同浏览器其它标签页的 storage 事件重拉
+      reloadTrackerConfig();
+      try { localStorage.setItem(ANALYTICS_CONFIG_VERSION_KEY, String(Date.now())); } catch { /* storage unavailable */ }
+    },
+  });
+}
+
+// ─── 租户级事件启停覆盖 ───────────────────────────────────────────────────────
+export function useAnalyticsEventOverrides(params: AnalyticsOverrideParams, enabled = true) {
+  return useQuery({
+    queryKey: analyticsKeys.data.overrides(params),
+    queryFn: () => request.get<PaginatedResponse<AnalyticsEventOverride>>(`/api/analytics/event-overrides${toQueryString(params)}`).then(unwrap),
+    placeholderData: keepPreviousData,
+    enabled,
+  });
+}
+
+export function useSaveAnalyticsEventOverride() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
+      (id === undefined
+        ? request.post<AnalyticsEventOverride>('/api/analytics/event-overrides', values)
+        : request.put<AnalyticsEventOverride>(`/api/analytics/event-overrides/${id}`, values)
+      ).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: analyticsKeys.data.all }),
+  });
+}
+
+export function useDeleteAnalyticsEventOverride() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => request.delete<null>(`/api/analytics/event-overrides/${id}`).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: analyticsKeys.data.all }),
+  });
+}
+
+// ─── 埋点质量看板 ─────────────────────────────────────────────────────────────
+export function useAnalyticsQuality(params: AnalyticsQualityParams, enabled = true) {
+  return useQuery({
+    queryKey: analyticsKeys.data.quality(params),
+    queryFn: () => request.get<AnalyticsQualityQueryResult>(`/api/analytics/quality${toQueryString(params)}`).then(unwrap),
+    placeholderData: keepPreviousData,
+    enabled,
+  });
+}
+
+// ─── 事件调试流 ───────────────────────────────────────────────────────────────
+export function useAnalyticsDebugEvents(params: AnalyticsDebugEventsParams, enabled = true) {
+  return useQuery({
+    queryKey: analyticsKeys.data.debugEvents(params),
+    queryFn: () => request.get<AnalyticsDebugEvent[]>(`/api/analytics/debug/events${toQueryString(params)}`, { silent: true }).then(unwrap),
+    enabled,
+    refetchInterval: enabled ? 3000 : false,
+  });
+}
+
+// ─── 用户分群 ─────────────────────────────────────────────────────────────────
+export function useAnalyticsSegments(params: AnalyticsSegmentListParams) {
+  return useQuery({
+    queryKey: analyticsKeys.data.segments(params),
+    queryFn: () => request.get<PaginatedResponse<AnalyticsUserSegment>>(`/api/analytics/segments${toQueryString(params)}`).then(unwrap),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useAnalyticsSegmentDetail(id: number | undefined, enabled = true) {
+  return useQuery({
+    queryKey: analyticsKeys.data.segmentDetail(id),
+    queryFn: () => request.get<AnalyticsUserSegment>(`/api/analytics/segments/${id}`).then(unwrap),
+    enabled: enabled && id !== undefined,
+  });
+}
+
+export function useAnalyticsSegmentMembers(id: number | undefined, params: AnalyticsSegmentMembersParams, enabled = true) {
+  return useQuery({
+    queryKey: analyticsKeys.data.segmentMembers(id, params),
+    queryFn: () => request.get<PaginatedResponse<AnalyticsSegmentMember>>(`/api/analytics/segments/${id}/members${toQueryString(params)}`).then(unwrap),
+    placeholderData: keepPreviousData,
+    enabled: enabled && id !== undefined,
+  });
+}
+
+export function useSaveAnalyticsSegment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
+      (id === undefined
+        ? request.post<AnalyticsUserSegment>('/api/analytics/segments', values)
+        : request.put<AnalyticsUserSegment>(`/api/analytics/segments/${id}`, values)
+      ).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: analyticsKeys.data.segmentsLists }),
+  });
+}
+
+export function useDeleteAnalyticsSegment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => request.delete<null>(`/api/analytics/segments/${id}`).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: analyticsKeys.data.segmentsLists }),
+  });
+}
+
+export function useMaterializeAnalyticsSegment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => request.post<AsyncTask>(`/api/analytics/segments/${id}/materialize`).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: analyticsKeys.data.segmentsLists }),
   });
 }
 

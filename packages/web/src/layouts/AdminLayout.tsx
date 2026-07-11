@@ -42,6 +42,7 @@ import { useLockScreen } from '@/hooks/useLockScreen';
 import { useFavoriteMenus } from '@/hooks/useFavoriteMenus';
 import { useRecentMenus } from '@/hooks/useRecentMenus';
 import { usePageTracker } from '@/hooks/usePageTracker';
+import { reloadTrackerConfig } from '@/utils/tracker';
 import { useMediaQuery, useIsMobile } from '@/hooks/useMediaQuery';
 import { mediaDown } from '@/lib/breakpoints';
 import './AdminLayout.css';
@@ -740,8 +741,12 @@ export default function AdminLayout({ user: userProp, onLogout, presetMenus }: A
       });
       // Auto-logout after a brief delay so the user can see the notification
       setTimeout(() => { clearLockPassword(); onLogout(); }, 2000);
+    } else if (msg.type === 'analytics:config-updated') {
+      // 仅当前租户（或当前平台视角）重拉，避免其它租户保存设置引发全平台无效请求。
+      const effectiveTenantId = viewingTenantId !== null ? viewingTenantId : user.tenantId;
+      if (msg.payload.tenantId === effectiveTenantId) reloadTrackerConfig();
     }
-  }, [onLogout, fetchInAppMessages, clearLockPassword]);
+  }, [onLogout, fetchInAppMessages, clearLockPassword, user.tenantId, viewingTenantId]);
 
   const { disconnect: disconnectWs } = useWebSocket(handleWsMessage);
 

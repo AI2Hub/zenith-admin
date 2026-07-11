@@ -16,19 +16,38 @@ import {
   EventListItemDTO, EventDetailDTO, AnalyticsEventMetaDTO, CreateAnalyticsEventMetaDTO,
   UpdateAnalyticsEventMetaDTO, AnalyticsSettingsDTO, UpdateAnalyticsSettingsDTO, AnalyticsRollupSummaryDTO,
   SessionTimelineDTO, AnalyticsSavedReportDTO, CreateAnalyticsSavedReportDTO,
+  AnalyticsEventOverrideDTO, CreateAnalyticsEventOverrideDTO, UpdateAnalyticsEventOverrideDTO,
+  AnalyticsQualityQueryResultDTO, AnalyticsDebugEventDTO,
+  AnalyticsEventQueryBodyDTO, AnalyticsEventQueryResultDTO,
+  AnalyticsUserSegmentDTO, CreateAnalyticsUserSegmentDTO, UpdateAnalyticsUserSegmentDTO, AnalyticsSegmentMemberDTO,
 } from '../../lib/openapi-dtos';
 import { getClientIp } from '../../lib/request-helpers';
 import { parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import {
   batchInsertEvents, getOverview, getTrends, getPageStats, getFeatureStats, getHeatmapData,
-  getHeatmapPageList, getUserStats, listSessions, getFunnel, getRetention, getPathAnalysis,
+  getHeatmapPageList, getUserStats, listSessions, getPathAnalysis,
   getUserTimeline, getDimensionBreakdown, getDimensionCross, getPerfStats, getRealtime, listAnalyticsEvents,
   getEventDetail, cleanAnalyticsEvents, getSessionTimeline,
 } from '../../services/analytics/analytics.service';
+import { getFunnel, getRetention } from '../../services/analytics/analytics-conversion.service';
+import { queryEvents } from '../../services/analytics/analytics-event-query.service';
+import {
+  listSegments, getSegmentDetail, ensureSegmentExists, createSegment, updateSegment, deleteSegment, listSegmentMembers,
+} from '../../services/analytics/analytics-segments.service';
 import { getPublicConfig, getSettings, updateSettings } from '../../services/analytics/analytics-settings.service';
 import { listEventMeta, createEventMeta, updateEventMeta, deleteEventMeta } from '../../services/analytics/analytics-event-meta.service';
-import { rebuildRollup, getRollupSummary } from '../../services/analytics/analytics-rollup.service';
+import { getRollupSummary } from '../../services/analytics/analytics-rollup.service';
 import { listSavedReports, createSavedReport, deleteSavedReport } from '../../services/analytics/analytics-reports.service';
+import {
+  listEventOverrides, createEventOverride, updateEventOverride, deleteEventOverride,
+} from '../../services/analytics/analytics-event-overrides.service';
+import { queryQuality, listDebugEvents } from '../../services/analytics/analytics-quality.service';
+import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
+import { AsyncTaskDTO } from '../../lib/openapi-dtos';
+import { getCreateTenantId } from '../../lib/tenant';
+import { currentUser } from '../../lib/context';
+import { formatDate } from '../../lib/datetime';
+import { ANALYTICS_ROLLUP_REBUILD_TASK_TYPE, ANALYTICS_SEGMENT_MATERIALIZE_TASK_TYPE } from '../../services/analytics/analytics-tasks';
 
 const r = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -165,10 +184,27 @@ const funnelRoute = defineOpenAPIRoute({
 const retentionRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/retention', tags: ['Analytics'], summary: '留存分析', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const, request: { query: z.object({ days: z.coerce.number().int().min(1).max(60).optional().default(14) }) },
+    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
+    request: {
+      query: z.object({
+        days: z.coerce.number().int().min(1).max(60).optional().default(14),
+        mode: z.enum(['first_seen', 'window_first']).optional().default('first_seen'),
+      }),
+    },
     responses: { ...ok(RetentionResultDTO, '留存'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await getRetention(c.req.valid('query').days)), 200),
+  handler: async (c) => c.json(okBody(await getRetention(c.req.valid('query'))), 200),
+});
+
+// ─── 通用事件分析工作台（行为中心阶段 1）──────────────────────────────────────
+const eventQueryRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/events/query', tags: ['Analytics'], summary: '通用事件分析查询', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
+    request: { body: { content: { 'application/json': { schema: AnalyticsEventQueryBodyDTO } }, required: true } },
+    responses: { ...ok(AnalyticsEventQueryResultDTO, '事件分析结果'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await queryEvents(c.req.valid('json'))), 200),
 });
 
 const pathRoute = defineOpenAPIRoute({
@@ -364,6 +400,78 @@ const metaDeleteRoute = defineOpenAPIRoute({
   },
 });
 
+// ─── 租户级事件启停覆盖 ───────────────────────────────────────────────────────
+const overrideListRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/event-overrides', tags: ['Analytics'], summary: '事件覆盖列表', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
+    request: { query: PaginationQuery.extend({ eventName: z.string().optional(), status: z.enum(['enabled', 'disabled']).optional() }) },
+    responses: { ...okPaginated(AnalyticsEventOverrideDTO, '事件覆盖列表'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await listEventOverrides(c.req.valid('query'))), 200),
+});
+
+const overrideCreateRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/event-overrides', tags: ['Analytics'], summary: '新增事件覆盖', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '新增事件覆盖' } })] as const,
+    request: { body: { content: { 'application/json': { schema: CreateAnalyticsEventOverrideDTO } }, required: true } },
+    responses: { ...ok(AnalyticsEventOverrideDTO, '创建成功'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await createEventOverride(c.req.valid('json')), '创建成功'), 200),
+});
+
+const overrideUpdateRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/event-overrides/{id}', tags: ['Analytics'], summary: '更新事件覆盖', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '更新事件覆盖' } })] as const,
+    request: { params: IdParam, body: { content: { 'application/json': { schema: UpdateAnalyticsEventOverrideDTO } }, required: true } },
+    responses: { ...ok(AnalyticsEventOverrideDTO, '更新成功'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await updateEventOverride(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
+});
+
+const overrideDeleteRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/event-overrides/{id}', tags: ['Analytics'], summary: '删除事件覆盖', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '删除事件覆盖' } })] as const,
+    request: { params: IdParam },
+    responses: { ...okMsg('删除成功'), ...commonErrorResponses },
+  }),
+  handler: async (c) => {
+    await deleteEventOverride(c.req.valid('param').id);
+    return c.json(okBody(null, '删除成功'), 200);
+  },
+});
+
+// ─── 埋点质量看板 ─────────────────────────────────────────────────────────────
+const qualityRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/quality', tags: ['Analytics'], summary: '埋点质量看板', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
+    request: {
+      query: PaginationQuery.extend({
+        days: z.coerce.number().int().min(1).max(90).optional(),
+        eventName: z.string().optional(),
+        issueType: z.enum(['missing_required', 'type_mismatch', 'invalid_enum', 'event_disabled']).optional(),
+      }),
+    },
+    responses: { ...ok(AnalyticsQualityQueryResultDTO, '质量看板数据'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await queryQuality(c.req.valid('query'))), 200),
+});
+
+// ─── 事件调试流 ───────────────────────────────────────────────────────────────
+const debugEventsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/debug/events', tags: ['Analytics'], summary: '实时事件调试流', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
+    request: { query: z.object({ limit: z.coerce.number().int().min(1).max(50).optional().default(50), eventName: z.string().optional() }) },
+    responses: { ...ok(z.array(AnalyticsDebugEventDTO), '最近事件摘要'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await listDebugEvents(c.req.valid('query'))), 200),
+});
+
 // ─── 采集设置 ─────────────────────────────────────────────────────────────────
 const settingsGetRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -396,12 +504,108 @@ const rollupGetRoute = defineOpenAPIRoute({
 const rollupRebuildRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/rollup/rebuild', tags: ['Analytics'], summary: '重建每日聚合', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const, request: { query: z.object({ days: z.coerce.number().int().min(1).max(730).optional().default(30) }) },
-    responses: { ...okMsg('聚合完成'), ...commonErrorResponses },
+    middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '提交重建每日聚合任务' } })] as const,
+    request: { query: z.object({ days: z.coerce.number().int().min(1).max(730).optional().default(30) }) },
+    responses: { ...ok(AsyncTaskDTO, '任务已提交'), ...commonErrorResponses },
   }),
   handler: async (c) => {
-    const n = await rebuildRollup(c.req.valid('query').days);
-    return c.json(okBody(null, `已重建 ${n} 条聚合记录`), 200);
+    const { days } = c.req.valid('query');
+    const user = currentUser();
+    const tenantId = getCreateTenantId(user);
+    const idempotencyKey = `${ANALYTICS_ROLLUP_REBUILD_TASK_TYPE}:${tenantId ?? 0}:${user.userId}:${days}:${formatDate(new Date())}`;
+    const row = await submitAsyncTask({
+      taskType: ANALYTICS_ROLLUP_REBUILD_TASK_TYPE,
+      title: `重建近 ${days} 天聚合`,
+      payload: { days },
+      idempotencyKey,
+    });
+    return c.json(okBody(mapAsyncTask(row), '任务已提交，可在任务中心查看进度'), 200);
+  },
+});
+
+// ─── 用户分群 CRUD + 成员物化（行为中心阶段 1）────────────────────────────────
+const segmentListRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/segments', tags: ['Analytics'], summary: '用户分群列表', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
+    request: { query: PaginationQuery.extend({ keyword: z.string().optional(), status: z.enum(['enabled', 'disabled']).optional() }) },
+    responses: { ...okPaginated(AnalyticsUserSegmentDTO, '分群列表'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await listSegments(c.req.valid('query'))), 200),
+});
+
+const segmentCreateRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/segments', tags: ['Analytics'], summary: '创建用户分群', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '创建用户分群' } })] as const,
+    request: { body: { content: { 'application/json': { schema: CreateAnalyticsUserSegmentDTO } }, required: true } },
+    responses: { ...ok(AnalyticsUserSegmentDTO, '创建成功'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await createSegment(c.req.valid('json')), '创建成功'), 200),
+});
+
+const segmentDetailRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/segments/{id}', tags: ['Analytics'], summary: '分群详情', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
+    request: { params: IdParam },
+    responses: { ...ok(AnalyticsUserSegmentDTO, '分群详情'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await getSegmentDetail(c.req.valid('param').id)), 200),
+});
+
+const segmentUpdateRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/segments/{id}', tags: ['Analytics'], summary: '更新分群', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '更新用户分群' } })] as const,
+    request: { params: IdParam, body: { content: { 'application/json': { schema: UpdateAnalyticsUserSegmentDTO } }, required: true } },
+    responses: { ...ok(AnalyticsUserSegmentDTO, '更新成功'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await updateSegment(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
+});
+
+const segmentDeleteRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/segments/{id}', tags: ['Analytics'], summary: '删除分群', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '删除用户分群' } })] as const,
+    request: { params: IdParam },
+    responses: { ...okMsg('删除成功'), ...commonErrorResponses },
+  }),
+  handler: async (c) => {
+    await deleteSegment(c.req.valid('param').id);
+    return c.json(okBody(null, '删除成功'), 200);
+  },
+});
+
+const segmentMembersRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/segments/{id}/members', tags: ['Analytics'], summary: '分群成员分页', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
+    request: { params: IdParam, query: PaginationQuery },
+    responses: { ...okPaginated(AnalyticsSegmentMemberDTO, '分群成员'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await listSegmentMembers(c.req.valid('param').id, c.req.valid('query'))), 200),
+});
+
+const segmentMaterializeRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/segments/{id}/materialize', tags: ['Analytics'], summary: '重算分群成员（异步任务）', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '提交分群重算任务' } })] as const,
+    request: { params: IdParam },
+    responses: { ...ok(AsyncTaskDTO, '任务已提交'), ...commonErrorResponses },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const segment = await ensureSegmentExists(id); // 校验 tenant，并用规则版本打破旧任务幂等键
+    const minuteBucket = Math.floor(Date.now() / 60_000);
+    const idempotencyKey = `${ANALYTICS_SEGMENT_MATERIALIZE_TASK_TYPE}:${id}:${segment.updatedAt.getTime()}:${minuteBucket}`;
+    const row = await submitAsyncTask({
+      taskType: ANALYTICS_SEGMENT_MATERIALIZE_TASK_TYPE,
+      title: `重算分群 #${id} 成员`,
+      payload: { segmentId: id },
+      idempotencyKey,
+    });
+    return c.json(okBody(mapAsyncTask(row), '任务已提交，可在任务中心查看进度'), 200);
   },
 });
 
@@ -409,12 +613,19 @@ r.openapiRoutes([
   ingestRoute, configRoute,
   overviewRoute, trendsRoute, realtimeRoute,
   pageStatsRoute, featureStatsRoute, heatmapRoute, heatmapPagesRoute, userStatsRoute,
-  sessionsRoute, funnelRoute, retentionRoute, pathRoute, userTimelineRoute, sessionTimelineRoute, dimensionRoute, dimensionCrossRoute, perfRoute,
+  sessionsRoute, funnelRoute, retentionRoute, eventQueryRoute, pathRoute, userTimelineRoute, sessionTimelineRoute, dimensionRoute, dimensionCrossRoute, perfRoute,
   reportListRoute, reportCreateRoute, reportDeleteRoute,
   eventListRoute, eventDetailRoute, cleanRoute,
   metaListRoute, metaCreateRoute, metaUpdateRoute, metaDeleteRoute,
+  overrideListRoute, overrideCreateRoute, overrideUpdateRoute, overrideDeleteRoute,
+  qualityRoute, debugEventsRoute,
   settingsGetRoute, settingsUpdateRoute,
   rollupGetRoute, rollupRebuildRoute,
+] as const);
+
+r.openapiRoutes([
+  segmentListRoute, segmentCreateRoute, segmentDetailRoute, segmentUpdateRoute, segmentDeleteRoute,
+  segmentMembersRoute, segmentMaterializeRoute,
 ] as const);
 
 export default r;

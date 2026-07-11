@@ -72,6 +72,10 @@ function buildEvents(groupId: number, n: number): ErrorEvent[] {
     httpStatus: g.errorType === 'http_error' ? 500 : null,
     httpMethod: g.errorType === 'http_error' ? 'GET' : null,
     httpUrl: g.errorType === 'http_error' ? '/api/orders' : null,
+    source: 'web_admin' as const,
+    appId: 'admin',
+    environment: 'production' as const,
+    memberId: null,
     createdAt: mockDateTimeOffset(-i * 3600000),
   }));
 }

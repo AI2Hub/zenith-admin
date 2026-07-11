@@ -1,7 +1,7 @@
 import { and, eq, like, desc, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { analyticsEventMeta } from '../../db/schema';
+import { analyticsEventMeta, users } from '../../db/schema';
 import type { AnalyticsEventMetaRow } from '../../db/schema';
 import type { TrackEventInput, CreateAnalyticsEventMetaInput, UpdateAnalyticsEventMetaInput } from '@zenith/shared';
 import { mergeWhere, escapeLike } from '../../lib/where-helpers';
@@ -10,6 +10,7 @@ import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUser } from '../../lib/context';
 import { isPlatformAdmin } from '../../lib/tenant';
+import { invalidateGovernanceCache } from './analytics-governance.service';
 
 export function mapEventMeta(row: AnalyticsEventMetaRow) {
   return {
@@ -20,6 +21,10 @@ export function mapEventMeta(row: AnalyticsEventMetaRow) {
     description: row.description,
     propertySchema: row.propertySchema ?? null,
     status: row.status,
+    version: row.version,
+    ownerId: row.ownerId,
+    ownerName: row.ownerName,
+    strictMode: row.strictMode,
     eventCount: Number(row.eventCount),
     firstSeenAt: formatNullableDateTime(row.firstSeenAt),
     lastSeenAt: formatNullableDateTime(row.lastSeenAt),
@@ -50,23 +55,13 @@ export async function touchEventMeta(events: TrackEventInput[], tenantId: number
   }
 }
 
-// ─── 字典封禁名单（采集入口拒收 status='blocked' 的事件）──────────────────────
-const BLOCKED_CACHE_TTL_MS = 60_000;
-let blockedCache: { names: Set<string>; fetchedAt: number } | null = null;
-
-export async function getBlockedEventNames(): Promise<Set<string>> {
-  const now = Date.now();
-  if (blockedCache && now - blockedCache.fetchedAt < BLOCKED_CACHE_TTL_MS) return blockedCache.names;
-  const rows = await db
-    .select({ eventName: analyticsEventMeta.eventName })
-    .from(analyticsEventMeta)
-    .where(eq(analyticsEventMeta.status, 'blocked'));
-  blockedCache = { names: new Set(rows.map((r) => r.eventName)), fetchedAt: now };
-  return blockedCache.names;
+// ─── 责任人存在性校验（不信任客户端 ownerName，服务端解析）──────────────────────
+/** 校验 ownerId 对应用户存在且启用，返回服务端解析的展示名，杜绝客户端伪造 ownerName。 */
+async function resolveOwnerName(ownerId: number): Promise<string> {
+  const [owner] = await db.select({ nickname: users.nickname, status: users.status }).from(users).where(eq(users.id, ownerId)).limit(1);
+  if (!owner || owner.status !== 'enabled') throw new HTTPException(400, { message: '负责人不存在或已停用' });
+  return owner.nickname;
 }
-
-/** 字典状态变更后立即失效缓存。 */
-export function invalidateBlockedEventCache(): void { blockedCache = null; }
 
 export interface EventMetaListQuery { page?: number; pageSize?: number; keyword?: string; status?: string; category?: string }
 export async function listEventMeta(q: EventMetaListQuery) {
@@ -101,6 +96,7 @@ function ensureBlockedStatusPermission(currentStatus: AnalyticsEventMetaRow['sta
 
 export async function createEventMeta(input: CreateAnalyticsEventMetaInput) {
   ensureBlockedStatusPermission(null, input.status ?? 'active');
+  const ownerName = input.ownerId != null ? await resolveOwnerName(input.ownerId) : null;
   try {
     const [row] = await db
       .insert(analyticsEventMeta)
@@ -111,9 +107,12 @@ export async function createEventMeta(input: CreateAnalyticsEventMetaInput) {
         description: input.description ?? null,
         propertySchema: input.propertySchema ?? null,
         status: input.status ?? 'active',
+        ownerId: input.ownerId ?? null,
+        ownerName,
+        strictMode: input.strictMode ?? false,
       })
       .returning();
-    invalidateBlockedEventCache();
+    invalidateGovernanceCache();
     return mapEventMeta(row);
   } catch (err) {
     rethrowPgUniqueViolation(err, '事件名称已存在');
@@ -124,6 +123,7 @@ export async function createEventMeta(input: CreateAnalyticsEventMetaInput) {
 export async function updateEventMeta(id: number, input: UpdateAnalyticsEventMetaInput) {
   const current = await ensureEventMetaExists(id);
   ensureBlockedStatusPermission(current.status, input.status ?? current.status);
+  const ownerName = input.ownerId !== undefined && input.ownerId !== null ? await resolveOwnerName(input.ownerId) : undefined;
   const [row] = await db
     .update(analyticsEventMeta)
     .set({
@@ -133,10 +133,17 @@ export async function updateEventMeta(id: number, input: UpdateAnalyticsEventMet
       ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.propertySchema !== undefined ? { propertySchema: input.propertySchema } : {}),
       ...(input.status !== undefined ? { status: input.status } : {}),
+      ...(input.ownerId !== undefined ? { ownerId: input.ownerId, ownerName: input.ownerId === null ? null : ownerName } : {}),
+      ...(input.strictMode !== undefined ? { strictMode: input.strictMode } : {}),
+      ...(
+        input.eventName !== undefined || input.propertySchema !== undefined || input.strictMode !== undefined
+          ? { version: sql`${analyticsEventMeta.version} + 1` }
+          : {}
+      ),
     })
     .where(eq(analyticsEventMeta.id, id))
     .returning();
-  invalidateBlockedEventCache();
+  invalidateGovernanceCache();
   return mapEventMeta(row);
 }
 
@@ -144,5 +151,5 @@ export async function deleteEventMeta(id: number) {
   const current = await ensureEventMetaExists(id);
   ensureBlockedStatusPermission(current.status, null);
   await db.delete(analyticsEventMeta).where(eq(analyticsEventMeta.id, id));
-  invalidateBlockedEventCache();
+  invalidateGovernanceCache();
 }
