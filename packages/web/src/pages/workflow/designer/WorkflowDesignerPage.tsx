@@ -8,7 +8,7 @@ import { ArrowLeft, Download, Eye, History, Minus, Play, Plus, Redo2, RotateCcw,
 import type { WorkflowDefinition, WorkflowDefinitionSnapshot, WorkflowFlowData, WorkflowFormField, WorkflowFormType, WorkflowCustomFormConfig, WorkflowDefinitionHealthIssue } from '@zenith/shared';
 import { WORKFLOW_FORM_TYPES, WORKFLOW_FORM_TYPE_LABELS, resolveApproverDedupMode } from '@zenith/shared';
 
-import WorkflowVersionsModal from '../components/WorkflowVersionsModal';
+import WorkflowVersionsSheet from '../components/WorkflowVersionsSheet';
 
 import type { FlowNode, FlowBranch, FlowNodeType, FlowProcess, BranchNodeType, ConditionGroup } from './types';
 import {
@@ -957,7 +957,7 @@ export default function WorkflowDesignerPage({
 
       {/* 历史版本 */}
       {id && !isNew && (
-        <WorkflowVersionsModal
+        <WorkflowVersionsSheet
           visible={historyModalVisible}
           definitionId={Number(id)}
           currentVersion={definition?.version}

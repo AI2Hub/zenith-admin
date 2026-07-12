@@ -31,7 +31,8 @@ export const workflowDefinitionKeys = {
   list: (params: WorkflowDefinitionListParams) => ['workflow', 'definitions', 'list', params] as const,
   published: ['workflow', 'definitions', 'published'] as const,
   detail: (id: number | null | undefined) => ['workflow', 'definitions', 'detail', id ?? null] as const,
-  versions: (definitionId: number | null | undefined) => ['workflow', 'definitions', 'versions', definitionId ?? null] as const,
+  versions: (definitionId: number | null | undefined, params?: { page: number; pageSize: number }) =>
+    ['workflow', 'definitions', 'versions', definitionId ?? null, params ?? null] as const,
   diff: (params: WorkflowVersionDiffParams) => ['workflow', 'definitions', 'diff', params] as const,
 };
 
@@ -60,12 +61,17 @@ export function useWorkflowDefinitionDetail(id: number | null | undefined, enabl
   });
 }
 
-export function useWorkflowDefinitionVersions(definitionId: number | null | undefined, enabled = true) {
+export function useWorkflowDefinitionVersions(
+  definitionId: number | null | undefined,
+  params: { page: number; pageSize: number },
+  enabled = true,
+) {
   return useQuery({
-    queryKey: workflowDefinitionKeys.versions(definitionId),
+    queryKey: workflowDefinitionKeys.versions(definitionId, params),
     queryFn: () =>
-      request.get<WorkflowDefinitionVersion[]>(`/api/workflows/definitions/${definitionId}/versions`).then(unwrap),
+      request.get<PaginatedResponse<WorkflowDefinitionVersion>>(`/api/workflows/definitions/${definitionId}/versions${toQueryString(params)}`).then(unwrap),
     enabled: enabled && !!definitionId,
+    placeholderData: keepPreviousData,
   });
 }
 

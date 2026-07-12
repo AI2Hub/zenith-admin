@@ -1390,14 +1390,18 @@ export const workflowHandlers = [
   }),
 
   // 流程定义历史版本列表
-  http.get('/api/workflows/definitions/:id/versions', ({ params }) => {
+  http.get('/api/workflows/definitions/:id/versions', ({ params, request }) => {
     const definitionId = Number(params.id);
     if (!mockWorkflowDefinitions.some(d => d.id === definitionId)) return err('流程定义不存在', 404);
-    const list = mockWorkflowDefinitionVersions
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get('page') ?? 1);
+    const pageSize = Number(url.searchParams.get('pageSize') ?? 10);
+    const all = mockWorkflowDefinitionVersions
       .filter(v => v.definitionId === definitionId)
-      .sort((a, b) => b.version - a.version)
-      .map(resolveWorkflowDefinitionVersion);
-    return ok(list);
+      .sort((a, b) => b.version - a.version);
+    const total = all.length;
+    const paged = all.slice((page - 1) * pageSize, page * pageSize).map(resolveWorkflowDefinitionVersion);
+    return ok({ list: paged, total, page, pageSize });
   }),
 
   // 版本对比（left/right 为版本行 id，0 表示当前草稿）

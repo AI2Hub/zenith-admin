@@ -256,14 +256,14 @@ const listVersionsRoute = defineOpenAPIRoute({
     method: 'get', path: '/{id}/versions', tags: ['WorkflowDefinitions'], summary: '历史版本列表',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'workflow:definition:list' })] as const,
-    request: { params: IdParam },
+    request: { params: IdParam, query: PaginationQuery },
     responses: {
       ...commonErrorResponses,
-      ...ok(z.array(WorkflowDefinitionVersionDTO), 'ok'),
+      ...okPaginated(WorkflowDefinitionVersionDTO, 'ok'),
       404: { content: jsonContent(ErrorResponse), description: '不存在' },
     },
   }),
-  handler: async (c) => c.json(okBody(await listVersions(c.req.valid('param').id)), 200),
+  handler: async (c) => c.json(okBody(await listVersions(c.req.valid('param').id, c.req.valid('query'))), 200),
 });
 
 const restoreVersionRoute = defineOpenAPIRoute({

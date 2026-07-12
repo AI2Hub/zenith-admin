@@ -332,15 +332,23 @@ export async function publishDefinition(id: number) {
   return getDefinition(updated.id);
 }
 
-export async function listVersions(definitionId: number) {
+export async function listVersions(definitionId: number, query: { page?: number; pageSize?: number } = {}) {
+  const page = Number(query.page ?? 1);
+  const pageSize = Number(query.pageSize ?? 10);
   // 校验定义存在 + 租户可见
   const [def] = await db.select().from(workflowDefinitions).where(findDefinition(definitionId)).limit(1);
   if (!def) throw new HTTPException(404, { message: '流程定义不存在' });
-  const rows = await db.query.workflowDefinitionVersions.findMany({
-    where: eq(workflowDefinitionVersions.definitionId, definitionId),
-    with: { publishedByUser: { columns: { nickname: true } } },
-    orderBy: desc(workflowDefinitionVersions.version),
-  });
+  const where = eq(workflowDefinitionVersions.definitionId, definitionId);
+  const [total, rows] = await Promise.all([
+    db.$count(workflowDefinitionVersions, where),
+    db.query.workflowDefinitionVersions.findMany({
+      where,
+      with: { publishedByUser: { columns: { nickname: true } } },
+      orderBy: desc(workflowDefinitionVersions.version),
+      limit: pageSize,
+      offset: pageOffset(page, pageSize),
+    }),
+  ]);
   const formIds = [...new Set(rows.map((r) => r.formId).filter((v): v is number => v != null))];
   const formMap = new Map<number, { name: string | null; schema: unknown }>();
   if (formIds.length > 0) {
@@ -350,12 +358,13 @@ export async function listVersions(definitionId: number) {
       .where(inArray(workflowForms.id, formIds));
     for (const f of forms) formMap.set(f.id, { name: f.name, schema: f.schema });
   }
-  return rows.map(r => mapDefinitionVersion(
+  const list = rows.map(r => mapDefinitionVersion(
     r,
     r.publishedByUser?.nickname ?? null,
     // 优先读发布时冻结的表单快照；历史版本（无快照）回退实时表单库行
     r.formSchema ?? (r.formId != null ? formMap.get(r.formId) ?? null : null),
   ));
+  return { list, total, page, pageSize };
 }
 
 export async function restoreVersion(definitionId: number, versionId: number) {

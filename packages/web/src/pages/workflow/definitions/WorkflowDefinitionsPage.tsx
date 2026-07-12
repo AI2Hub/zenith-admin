@@ -14,7 +14,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import WorkflowVersionsModal from '../components/WorkflowVersionsModal';
+import WorkflowVersionsSheet from '../components/WorkflowVersionsSheet';
 import WorkflowTemplateFormModal, { type WorkflowTemplateFormValues } from '../components/WorkflowTemplateFormModal';
 import CategorySidebar from './components/CategorySidebar';
 import { TemplateGalleryModal } from './components/TemplateGalleryModal';
@@ -117,8 +117,9 @@ export default function WorkflowDefinitionsPage() {
   const duplicateMutation = useDuplicateWorkflowDefinition();
   const importMutation = useImportWorkflowDefinition();
   const saveAsMutation = useSaveWorkflowDefinitionAsTemplate();
-  const versionsQuery = useWorkflowDefinitionVersions(diffTarget?.id, !!diffTarget);
-  const versions = useMemo(() => versionsQuery.data ?? [], [versionsQuery.data]);
+  // 版本对比下拉：取最近 100 个版本（对比场景聚焦近期版本，避免全量拉取）
+  const versionsQuery = useWorkflowDefinitionVersions(diffTarget?.id, { page: 1, pageSize: 100 }, !!diffTarget);
+  const versions = useMemo(() => versionsQuery.data?.list ?? [], [versionsQuery.data]);
   const diffQuery = useWorkflowDefinitionDiff({ definitionId: diffTarget?.id, left: leftVersionId, right: rightVersionId }, false);
 
   useEffect(() => {
@@ -610,7 +611,7 @@ export default function WorkflowDefinitionsPage() {
             } : undefined}
           />
           {historyTarget && (
-            <WorkflowVersionsModal
+            <WorkflowVersionsSheet
               visible={!!historyTarget}
               definitionId={historyTarget.id}
               currentVersion={historyTarget.version}

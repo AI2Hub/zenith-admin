@@ -1,12 +1,17 @@
+/**
+ * 历史版本抽屉：分页版本列表 + 两版本对比 / 对比草稿 + 恢复为草稿。
+ * 版本列表走后端分页（版本数随发布次数线性增长，不再全量拉取）。
+ */
 import { useEffect, useState } from 'react';
 import { Modal, Table, Tag, Toast, Button, Spin } from '@douyinfe/semi-ui';
 import { GitCompare, ArrowLeft } from 'lucide-react';
-import AppModal from '@/components/AppModal';
+import WorkflowSideSheet from '@/components/workflow/WorkflowSideSheet';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WorkflowDefinition, WorkflowDefinitionVersion, WorkflowVersionDiff } from '@zenith/shared';
 import WorkflowVersionDiffView from './WorkflowVersionDiffView';
 import { useRestoreWorkflowDefinitionVersion, useWorkflowDefinitionDiff, useWorkflowDefinitionVersions } from '@/hooks/queries/workflow-definitions';
+import { usePagination } from '@/hooks/usePagination';
 
 interface Props {
   visible: boolean;
@@ -17,7 +22,7 @@ interface Props {
   onRestored?: (def: WorkflowDefinition) => void;
 }
 
-export default function WorkflowVersionsModal({
+export default function WorkflowVersionsSheet({
   visible,
   definitionId,
   currentVersion,
@@ -28,8 +33,9 @@ export default function WorkflowVersionsModal({
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [diff, setDiff] = useState<WorkflowVersionDiff | null>(null);
   const [diffParams, setDiffParams] = useState<{ left: number; right: number } | null>(null);
-  const versionsQuery = useWorkflowDefinitionVersions(definitionId, visible);
-  const versions = versionsQuery.data ?? [];
+  const { page, pageSize, resetPage, buildPagination } = usePagination();
+  const versionsQuery = useWorkflowDefinitionVersions(definitionId, { page, pageSize }, visible);
+  const versions = versionsQuery.data?.list ?? [];
   const diffQuery = useWorkflowDefinitionDiff(
     { definitionId, left: diffParams?.left ?? 0, right: diffParams?.right ?? 0 },
     visible && !!diffParams,
@@ -42,7 +48,8 @@ export default function WorkflowVersionsModal({
     setDiff(null);
     setDiffParams(null);
     setSelectedIds([]);
-  }, [visible, definitionId]);
+    resetPage();
+  }, [visible, definitionId, resetPage]);
 
   useEffect(() => {
     if (diffQuery.data) setDiff(diffQuery.data);
@@ -99,7 +106,7 @@ export default function WorkflowVersionsModal({
   ];
 
   return (
-    <AppModal title="历史版本" visible={visible} onCancel={onCancel} footer={null} width={diff ? 860 : 760}>
+    <WorkflowSideSheet title="历史版本" visible={visible} onCancel={onCancel} width={860}>
       {diff ? (
         <div>
           <Button size="small" theme="borderless" icon={<ArrowLeft size={14} />} onClick={() => setDiff(null)} style={{ marginBottom: 8 }}>返回版本列表</Button>
@@ -119,7 +126,7 @@ export default function WorkflowVersionsModal({
             dataSource={versions}
             loading={versionsQuery.isFetching}
             rowKey="id"
-            pagination={false}
+            pagination={buildPagination(versionsQuery.data?.total ?? 0)}
             columns={columns}
             rowSelection={{
               selectedRowKeys: selectedIds,
@@ -136,6 +143,6 @@ export default function WorkflowVersionsModal({
           />
         </Spin>
       )}
-    </AppModal>
+    </WorkflowSideSheet>
   );
 }
