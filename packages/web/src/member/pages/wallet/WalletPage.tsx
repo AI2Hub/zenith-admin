@@ -1,18 +1,29 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Modal, Button, Toast, RadioGroup, Radio, InputNumber } from '@douyinfe/semi-ui';
-import { Plus, RefreshCw, Wallet } from 'lucide-react';
+import { Modal, Button, Select, Toast, RadioGroup, Radio, InputNumber } from '@douyinfe/semi-ui';
+import { Plus, RefreshCw, Ticket, Wallet } from 'lucide-react';
 import { WALLET_TX_TYPE_LABELS } from '@zenith/shared';
+import type { MemberCoupon } from '@zenith/shared';
 import { MemberPage } from '../../components/MemberPage';
 import { TransactionList } from '../../components/TransactionList';
 import { formatYuan } from '../../utils/format';
-import { memberKeys, useCreateRechargeOrder, useMemberWallet } from '../../hooks/queries';
+import { memberKeys, useCreateRechargeOrder, useMemberCouponList, useMemberWallet } from '../../hooks/queries';
 
 const QUICK_AMOUNTS = [10, 50, 100, 200, 500];
 const PAY_METHODS = [
   { value: 'wechat_h5', label: '微信支付' },
   { value: 'alipay_wap', label: '支付宝' },
 ];
+
+/** 计算券对当前金额的立减（与后端 payment-coupon.service 口径一致） */
+function couponDiscount(mc: MemberCoupon, amountCents: number): number {
+  const c = mc.coupon;
+  if (!c) return 0;
+  if (amountCents < c.threshold) return 0;
+  let discount = c.type === 'amount' ? c.faceValue : Math.floor((amountCents * (100 - c.faceValue)) / 100);
+  if (c.type === 'percent' && c.maxDiscount != null) discount = Math.min(discount, c.maxDiscount);
+  return Math.max(0, Math.min(discount, amountCents - 1));
+}
 
 function StatCard({ label, value }: Readonly<{ label: React.ReactNode; value: React.ReactNode }>) {
   return (
@@ -38,7 +49,19 @@ export default function WalletPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [amount, setAmount] = useState<number>(100);
   const [payMethod, setPayMethod] = useState('wechat_h5');
+  const [couponId, setCouponId] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const couponQuery = useMemberCouponList({ status: 'unused', page: 1, pageSize: 50 });
+  const amountCents = Math.round((amount || 0) * 100);
+  // 满足门槛且有立减效果的可用券
+  const usableCoupons = useMemo(
+    () => (couponQuery.data?.list ?? []).filter((mc) => couponDiscount(mc, amountCents) > 0),
+    [couponQuery.data, amountCents],
+  );
+  const selectedCoupon = usableCoupons.find((mc) => mc.id === couponId) ?? null;
+  const discount = selectedCoupon ? couponDiscount(selectedCoupon, amountCents) : 0;
+  const payableCents = Math.max(1, amountCents - discount);
 
   const handleRecharge = async () => {
     if (!amount || amount <= 0) {
@@ -46,10 +69,12 @@ export default function WalletPage() {
       return;
     }
     const r = await rechargeMutation.mutateAsync({
-      amount: Math.round(amount * 100),
+      amount: amountCents,
       payMethod,
+      memberCouponId: selectedCoupon?.id,
     });
     setModalOpen(false);
+    setCouponId(null);
     if (r.payUrl) {
       globalThis.location.href = r.payUrl;
       return;
@@ -62,7 +87,7 @@ export default function WalletPage() {
     }
     Modal.info({
       title: '充值订单已创建',
-      content: `订单号：${r.orderNo}，支付完成后余额将自动到账。`,
+      content: `订单号：${r.orderNo}，支付完成后余额将自动到账${discount > 0 ? `（充值满减已抵扣 ${formatYuan(discount)}）` : ''}。`,
     });
   };
 
@@ -126,7 +151,7 @@ export default function WalletPage() {
         onCancel={() => setModalOpen(false)}
         footer={
           <Button theme="solid" loading={rechargeMutation.isPending} onClick={handleRecharge} style={{ background: 'var(--m-primary)' }}>
-            确认充值 ¥{amount || 0}
+            确认充值 · 实付 {formatYuan(discount > 0 ? payableCents : amountCents)}
           </Button>
         }
         closeOnEsc
@@ -148,9 +173,30 @@ export default function WalletPage() {
           min={1}
           max={50000}
           value={amount}
-          onChange={(v) => setAmount(Number(v) || 0)}
+          onChange={(v) => { setAmount(Number(v) || 0); setCouponId(null); }}
           style={{ width: '100%', marginBottom: 16 }}
         />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <Ticket size={15} color="var(--m-primary)" style={{ flexShrink: 0 }} />
+          <Select
+            placeholder={usableCoupons.length > 0 ? `${usableCoupons.length} 张券可用` : '暂无可用券'}
+            value={couponId ?? undefined}
+            onChange={(v) => setCouponId((v as number) ?? null)}
+            showClear
+            disabled={usableCoupons.length === 0}
+            style={{ flex: 1 }}
+            optionList={usableCoupons.map((mc) => ({
+              value: mc.id,
+              label: `${mc.coupon?.name ?? '优惠券'} · 立减 ${formatYuan(couponDiscount(mc, amountCents))}`,
+            }))}
+          />
+        </div>
+        {discount > 0 && (
+          <div style={{ fontSize: 13, color: 'var(--m-text-secondary)', marginBottom: 16 }}>
+            充值 {formatYuan(amountCents)}，立减 <span style={{ color: 'var(--m-primary)', fontWeight: 600 }}>{formatYuan(discount)}</span>，
+            实付 <span style={{ color: 'var(--m-primary)', fontWeight: 600 }}>{formatYuan(payableCents)}</span>（到账按充值金额）
+          </div>
+        )}
         <RadioGroup value={payMethod} onChange={(e) => setPayMethod(e.target.value)} type="button">
           {PAY_METHODS.map((p) => (
             <Radio key={p.value} value={p.value}>

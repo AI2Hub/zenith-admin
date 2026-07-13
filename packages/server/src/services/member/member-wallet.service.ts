@@ -186,7 +186,7 @@ export async function adjustWallet(memberId: number, delta: number, operatorId: 
 }
 
 // ─── 充值（接入支付中心）──────────────────────────────────────────────────────
-export async function rechargeWallet(memberId: number, amount: number, payMethod: PaymentCashierMethod, clientIp?: string) {
+export async function rechargeWallet(memberId: number, amount: number, payMethod: PaymentCashierMethod, clientIp?: string, memberCouponId?: number) {
   if (amount <= 0) throw new HTTPException(400, { message: '充值金额必须大于 0' });
   await ensureWallet(memberId);
   const { payParams } = await createPayment({
@@ -197,6 +197,9 @@ export async function rechargeWallet(memberId: number, amount: number, payMethod
     payMethod,
     expireMinutes: 30,
     clientIp,
+    // 充值满减：实付=充值额-立减，到账按原充值额（平台补贴），券由支付事件核销/释放
+    memberCouponId,
+    couponMemberId: memberCouponId != null ? memberId : undefined,
   });
   return payParams;
 }
@@ -222,15 +225,21 @@ export async function creditWalletOnRecharge(event: { bizId: string; orderNo: st
         .limit(1);
       if (exist) return false;
 
-      const [order] = await tx.select({ id: paymentOrders.id }).from(paymentOrders).where(eq(paymentOrders.orderNo, event.orderNo)).limit(1);
+      const [order] = await tx
+        .select({ id: paymentOrders.id, originalAmount: paymentOrders.originalAmount })
+        .from(paymentOrders)
+        .where(eq(paymentOrders.orderNo, event.orderNo))
+        .limit(1);
+      // 充值满减用券时实付为立减后金额，到账按优惠前原充值额（平台补贴优惠差额）
+      const creditAmount = order?.originalAmount ?? event.amount;
       await applyWalletChange(tx, {
         memberId,
         type: 'recharge',
-        amount: event.amount,
+        amount: creditAmount,
         bizType: WALLET_RECHARGE_BIZ_TYPE,
         bizId: event.orderNo,
         paymentOrderId: order?.id,
-        remark: '钱包充值到账',
+        remark: order?.originalAmount != null ? '钱包充值到账（含充值满减补贴）' : '钱包充值到账',
       });
       return true;
     }),

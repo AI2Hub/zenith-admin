@@ -87,3 +87,20 @@ export function usePayPublicPaymentLink() {
       ).then(unwrap),
   });
 }
+
+/** 收银台订单状态轮询（下单后每 3s 查询，终态自动停止） */
+export function usePublicLinkOrderStatus(token: string, orderNo: string | undefined) {
+  return useQuery({
+    queryKey: ['payment-links', 'public-order-status', token, orderNo] as const,
+    queryFn: () =>
+      request.get<{ status: string; paidAt: string | null }>(
+        `/api/public/payment/link/${encodeURIComponent(token)}/orders/${encodeURIComponent(orderNo ?? '')}/status`,
+        { skipAuth: true, silent: true },
+      ).then(unwrap),
+    enabled: !!orderNo,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === 'success' || status === 'closed' || status === 'failed' || status === 'refunded' ? false : 3000;
+    },
+  });
+}

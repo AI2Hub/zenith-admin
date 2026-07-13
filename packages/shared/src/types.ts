@@ -6144,6 +6144,12 @@ export interface PaymentOrder {
   paidAmount?: number | null;
   feeAmount?: number | null;
   netAmount?: number | null;
+  /** 优惠前原价（分），null=无优惠 */
+  originalAmount?: number | null;
+  /** 优惠立减金额（分） */
+  discountAmount?: number | null;
+  /** 支付使用的会员券 id */
+  memberCouponId?: number | null;
   paidAt?: string | null;
   expiredAt?: string | null;
   errorMessage?: string | null;

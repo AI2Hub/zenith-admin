@@ -7,7 +7,7 @@ import { and, desc, eq, gt, isNull, like, lt, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomBytes, randomInt } from 'node:crypto';
 import { db } from '../../db';
-import { paymentLinks, type PaymentLinkRow } from '../../db/schema';
+import { paymentLinks, paymentOrders, type PaymentLinkRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
@@ -166,6 +166,20 @@ async function getLinkRowByToken(token: string): Promise<PaymentLinkRow> {
 
 export async function getPublicLink(token: string): Promise<PaymentLinkPublic> {
   return mapLinkPublic(await getLinkRowByToken(token));
+}
+
+/** 公开查询收银台订单状态（轮询用；校验订单归属该链接，防止探测他人订单） */
+export async function getPublicLinkOrderStatus(token: string, orderNo: string): Promise<{ status: string; paidAt: string | null }> {
+  const link = await getLinkRowByToken(token);
+  const [order] = await db
+    .select({ status: paymentOrders.status, paidAt: paymentOrders.paidAt, bizType: paymentOrders.bizType, bizId: paymentOrders.bizId })
+    .from(paymentOrders)
+    .where(eq(paymentOrders.orderNo, orderNo))
+    .limit(1);
+  if (!order || order.bizType !== link.bizType || !order.bizId.startsWith(`${link.linkNo}:`)) {
+    throw new HTTPException(404, { message: '订单不存在' });
+  }
+  return { status: order.status, paidAt: formatNullableDateTime(order.paidAt) };
 }
 
 export interface PayByLinkInput {

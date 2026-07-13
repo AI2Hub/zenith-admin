@@ -3,7 +3,7 @@ import { PAYMENT_MOCK_SEED_TIME, getNextPaymentOrderId, mockPaymentChannels, moc
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 import { ok, notFound, badRequest, paginate } from '@/mocks/utils/handlers';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_CHANNEL, SEED_PAYMENT_METHOD_CONFIGS } from '@zenith/shared';
-import { recordMockLedgerEntry } from './payment-ext';
+import { recordMockLedgerEntry, recordMockPaymentSucceeded } from './payment-ext';
 import type {
   CreatePaymentResult,
   PaymentChannel,
@@ -315,10 +315,29 @@ const linkHandlers = [
       payMethod,
       codeUrl: channel === 'wechat' ? `weixin://wxpay/bizpayurl?pr=${orderNo}` : undefined,
       payUrl: channel === 'alipay' ? `https://openapi.alipaydev.com/gateway.do?out_trade_no=${orderNo}` : undefined,
+      expiredAt: mockDateTimeOffset(30 * 60 * 1000),
     };
     return ok({ orderNo, payParams }, '下单成功');
   }),
+  // 收银台订单状态轮询（演示：下单 ~15 秒后自动变为支付成功）
+  http.get('/api/public/payment/link/:token/orders/:orderNo/status', ({ params }) => {
+    const order = mockPaymentOrders.find((o) => o.orderNo === String(params.orderNo));
+    if (!order) return notFound('订单不存在');
+    if (order.status === 'paying' && Date.now() - new Date(order.createdAt).getTime() > 15000) {
+      order.status = 'success';
+      order.paidAmount = order.amount;
+      order.paidAt = mockDateTime();
+      order.updatedAt = mockDateTime();
+      recordMockPaymentSucceededFromLink(order);
+    }
+    return ok({ status: order.status, paidAt: order.paidAt });
+  }),
 ];
+
+/** 收银台演示支付成功：走统一 mock 履约（台账/事件/Webhook） */
+function recordMockPaymentSucceededFromLink(order: (typeof mockPaymentOrders)[number]) {
+  recordMockPaymentSucceeded(order);
+}
 
 // ─── 支付应用（App 维度）───────────────────────────────────────────────────────
 const apps: PaymentApp[] = [

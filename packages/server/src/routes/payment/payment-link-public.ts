@@ -7,7 +7,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { jsonContent, validationHook, commonErrorResponses, ok, okBody } from '../../lib/openapi-schemas';
 import { PaymentLinkPublicDTO, CreatePaymentResponseDTO } from '../../lib/openapi-dtos';
-import { getPublicLink, payByLink } from '../../services/payment/payment-link.service';
+import { getPublicLink, getPublicLinkOrderStatus, payByLink } from '../../services/payment/payment-link.service';
 import { getClientIp } from '../../lib/request-helpers';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -44,6 +44,23 @@ const payRoute = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([getRoute, payRoute] as const);
+const statusRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{token}/orders/{orderNo}/status', tags: ['支付链接（公开）'], summary: '查询收银台订单支付状态（公开，供轮询）',
+    security: [],
+    request: {
+      params: TokenParam.extend({
+        orderNo: z.string().min(8).max(64).openapi({ param: { name: 'orderNo', in: 'path' } }),
+      }),
+    },
+    responses: { ...ok(z.object({ status: z.string(), paidAt: z.string().nullable() }), '订单状态'), ...commonErrorResponses },
+  }),
+  handler: async (c) => {
+    const { token, orderNo } = c.req.valid('param');
+    return c.json(okBody(await getPublicLinkOrderStatus(token, orderNo)), 200);
+  },
+});
+
+router.openapiRoutes([getRoute, payRoute, statusRoute] as const);
 
 export default router;

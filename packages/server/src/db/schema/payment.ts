@@ -92,6 +92,12 @@ export const paymentOrders = pgTable('payment_orders', {
   paidAmount: integer('paid_amount'),
   feeAmount: integer('fee_amount'),
   netAmount: integer('net_amount'),
+  /** 优惠前原价（分）；null = 无优惠（等于 amount） */
+  originalAmount: integer('original_amount'),
+  /** 优惠立减金额（分） */
+  discountAmount: integer('discount_amount'),
+  /** 支付使用的会员券（member_coupons.id；跨域松耦合不建 FK，核销/释放由事件订阅者按状态原子流转） */
+  memberCouponId: integer('member_coupon_id'),
   paidAt: timestamp('paid_at', { withTimezone: true }),
   expiredAt: timestamp('expired_at', { withTimezone: true }),
   notifyData: text('notify_data'),

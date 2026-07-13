@@ -232,9 +232,12 @@ export function useCheckinCalendar(monthKey: string, dateStart: string, dateEnd:
 export function useCreateRechargeOrder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (values: { amount: number; payMethod: string }) =>
+    mutationFn: (values: { amount: number; payMethod: string; memberCouponId?: number }) =>
       memberRequest.post<RechargeResult>('/api/member/wallet/recharge', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: memberKeys.wallet.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: memberKeys.wallet.all });
+      void qc.invalidateQueries({ queryKey: memberKeys.coupons.all });
+    },
   });
 }
 

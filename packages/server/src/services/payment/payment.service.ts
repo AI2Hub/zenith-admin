@@ -46,6 +46,7 @@ import type { PaymentEvent, PaymentEventType } from '../../lib/payment-event-bus
 import { recordEvent, processEvent } from './payment-outbox.service';
 import { assertMethodEnabled } from './payment-method.service';
 import { assertNoPendingRiskReview, evaluateRisk, recordRiskHit, suspendOrderForReview, type RiskCheckInput } from './payment-risk.service';
+import { lockCouponForPayment, releaseCouponForPayment, type CouponLockResult } from './payment-coupon.service';
 import { resolveAppChannelConfig } from './payment-apps.service';
 
 // ─── 工具 ─────────────────────────────────────────────────────────────────────
@@ -215,6 +216,9 @@ export function mapOrder(row: PaymentOrderRow): PaymentOrder {
     clientIp: row.clientIp ?? null,
     departmentId: row.departmentId ?? null,
     paidAmount: row.paidAmount ?? null,
+    originalAmount: row.originalAmount ?? null,
+    discountAmount: row.discountAmount ?? null,
+    memberCouponId: row.memberCouponId ?? null,
     paidAt: formatNullableDateTime(row.paidAt),
     expiredAt: formatNullableDateTime(row.expiredAt),
     errorMessage: row.errorMessage ?? null,
@@ -270,6 +274,10 @@ export function mapNotifyLog(row: PaymentNotifyLogRow): PaymentNotifyLog {
 interface InternalCreatePaymentInput extends CreatePaymentInput {
   clientIp?: string;
   tenantId?: number | null;
+  /** 支付立减：使用的会员券 id（须与 couponMemberId 成对传入，由会员侧业务入口组装） */
+  memberCouponId?: number;
+  /** 券归属会员 id（锁券校验归属，防串用他人券） */
+  couponMemberId?: number;
 }
 
 /** 查找同业务单（bizType+bizId）的活跃订单（pending/paying），与部分唯一索引 payment_orders_active_biz_uq 对应 */
@@ -388,6 +396,14 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
   const expireMinutes = input.expireMinutes ?? 30;
   const expiredAt = new Date(Date.now() + expireMinutes * 60_000);
 
+  // ── 支付立减：锁券（unused→frozen）并计算实付金额；后续失败路径释放/由事件订阅者释放 ──
+  let coupon: CouponLockResult | null = null;
+  if (input.memberCouponId != null) {
+    if (input.couponMemberId == null) throw new HTTPException(400, { message: '用券支付缺少会员上下文' });
+    coupon = await lockCouponForPayment(input.memberCouponId, input.couponMemberId, input.amount);
+  }
+  const payAmount = coupon ? input.amount - coupon.discount : input.amount;
+
   let orderRow: PaymentOrderRow;
   try {
     [orderRow] = await db
@@ -399,7 +415,10 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
         bizId: input.bizId,
         subject: input.subject,
         body: input.body ?? null,
-        amount: input.amount,
+        amount: payAmount,
+        originalAmount: coupon ? input.amount : null,
+        discountAmount: coupon ? coupon.discount : null,
+        memberCouponId: coupon ? coupon.memberCouponId : null,
         currency: 'CNY',
         channel,
         channelConfigId: config.id,
@@ -415,6 +434,8 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
       })
       .returning();
   } catch (err) {
+    // 落库失败：立即释放刚锁定的券（订单不存在，事件订阅者不会兜底）
+    if (coupon) await releaseCouponForPayment(coupon.memberCouponId);
     // 并发下单撞 payment_orders_active_biz_uq：复用对方刚创建的活跃单
     if (isPgUniqueViolation(err)) {
       const raced = await reuseActiveBizOrder(input);

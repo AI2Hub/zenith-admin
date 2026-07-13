@@ -235,6 +235,7 @@ import { registerWorkflowAutomationSubscribers } from './services/workflow/workf
 import { initPaymentAdapters } from './lib/payment';
 import { registerPaymentSubscribers } from './services/payment/payment-subscribers';
 import { registerContractSubscribers } from './services/payment/payment-contract.service';
+import { registerCouponPaymentSubscribers } from './services/payment/payment-coupon.service';
 import { registerWebhookSubscribers } from './services/payment/payment-webhook.service';
 import { registerBizLeaveSubscribers } from './services/biz-demo/biz-leave-subscribers';
 import { registerBizPayDemoSubscribers } from './services/payment/biz-pay-demo-subscribers';
@@ -663,6 +664,7 @@ registerWorkflowAutomationSubscribers();
 initPaymentAdapters();
 registerPaymentSubscribers();
 registerContractSubscribers();
+registerCouponPaymentSubscribers();
 registerWebhookSubscribers();
 registerBizLeaveSubscribers();
 registerBizPayDemoSubscribers();

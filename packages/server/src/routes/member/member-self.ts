@@ -48,6 +48,8 @@ const payMethodEnum = z.enum(['wechat_native', 'wechat_jsapi', 'wechat_h5', 'ali
 const rechargeSchema = z.object({
   amount: z.number().int().positive('充值金额必须大于 0'),
   payMethod: payMethodEnum,
+  /** 充值满减：使用的会员券 id（可选） */
+  memberCouponId: z.number().int().positive().optional(),
 });
 const receiveCouponSchema = z.object({ couponId: z.number().int().positive() });
 const checkinResultSchema = z.object({
@@ -113,9 +115,9 @@ const rechargeRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(MemberWalletRechargeResultDTO, '已创建充值订单') },
   }),
   handler: async (c) => {
-    const { amount, payMethod } = c.req.valid('json');
+    const { amount, payMethod, memberCouponId } = c.req.valid('json');
     const { ip } = getClientInfo(c.req.raw.headers);
-    const result = await rechargeWallet(currentMemberId(), amount, payMethod, ip);
+    const result = await rechargeWallet(currentMemberId(), amount, payMethod, ip, memberCouponId);
     return c.json(okBody(result, '已创建充值订单'), 200);
   },
 });

@@ -4,13 +4,31 @@ import { useParams } from 'react-router-dom';
 import { Banner, Button, Card, Form, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { QRCodeSVG } from 'qrcode.react';
+import { CheckCircle2, XCircle } from 'lucide-react';
+import dayjs from 'dayjs';
 import { PAYMENT_LINK_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@zenith/shared';
 import type { CreatePaymentResult, PaymentLinkPublic, PaymentLinkStatus, PaymentMethod } from '@zenith/shared';
-import { usePayPublicPaymentLink, usePublicPaymentLink } from '@/hooks/queries/payment-links';
+import { usePayPublicPaymentLink, usePublicLinkOrderStatus, usePublicPaymentLink } from '@/hooks/queries/payment-links';
 
 const yuan = (cents: number | null | undefined) => formatYuan(cents, '自定义金额');
 const publicPayMethods: PaymentMethod[] = ['wechat_native', 'wechat_h5', 'alipay_page', 'alipay_wap', 'unionpay_qr'];
 const LINK_STATUS_COLOR = { active: 'green', disabled: 'grey', expired: 'red' } as const satisfies Record<PaymentLinkStatus, string>;
+
+/** 待支付倒计时（按订单 expiredAt，每秒刷新，到期返回 null） */
+function useCountdown(expiredAt: string | undefined): string | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!expiredAt) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [expiredAt]);
+  if (!expiredAt) return null;
+  const remain = Math.floor((dayjs(expiredAt).valueOf() - now) / 1000);
+  if (remain <= 0) return null;
+  const mm = String(Math.floor(remain / 60)).padStart(2, '0');
+  const ss = String(remain % 60).padStart(2, '0');
+  return `${mm}:${ss}`;
+}
 
 /** 聚合收银台环境识别：根据 UA 判断运行环境，推荐/过滤合适的支付方式（一码多付核心）。 */
 type CashierEnv = 'wechat' | 'alipay' | 'mobile' | 'desktop';
@@ -43,9 +61,13 @@ export default function PaymentLinkPublicPage() {
   const { token = '' } = useParams();
   const formApi = useRef<FormApi | null>(null);
   const [payResult, setPayResult] = useState<CreatePaymentResult | null>(null);
+  const [orderNo, setOrderNo] = useState<string | null>(null);
   const linkQuery = usePublicPaymentLink(token);
   const payMutation = usePayPublicPaymentLink();
   const link: PaymentLinkPublic | null = linkQuery.data ?? null;
+  const statusQuery = usePublicLinkOrderStatus(token, orderNo ?? undefined);
+  const orderStatus = statusQuery.data?.status ?? null;
+  const countdown = useCountdown(payResult?.expiredAt);
 
   const env = useMemo(detectCashierEnv, []);
   // 环境可用方式 ∩ 公开页支持方式；链接固定方式时不做环境过滤（保持商户设定）
@@ -101,6 +123,7 @@ export default function PaymentLinkPublicPage() {
       if (res.payParams.payUrl && (env === 'alipay' || env === 'mobile')) {
         window.location.href = res.payParams.payUrl;
       }
+      setOrderNo(res.orderNo);
       setPayResult(res.payParams);
     } catch (err) {
       Toast.error(err instanceof Error ? err.message : '下单失败');
@@ -173,9 +196,30 @@ export default function PaymentLinkPublicPage() {
                     <Button type="primary" block loading={payMutation.isPending} disabled={disabled} onClick={submitPay}>立即支付</Button>
                   )}
                 </Form>
+              ) : orderStatus === 'success' ? (
+                <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                  <CheckCircle2 size={56} color="#10b981" style={{ marginBottom: 12 }} />
+                  <Typography.Title heading={5} style={{ marginBottom: 6 }}>支付成功</Typography.Title>
+                  <Typography.Text type="tertiary">
+                    {statusQuery.data?.paidAt ? `支付时间 ${statusQuery.data.paidAt}` : '款项已到账'}
+                  </Typography.Text>
+                </div>
+              ) : orderStatus === 'closed' || orderStatus === 'failed' || (payResult?.expiredAt != null && countdown === null) ? (
+                <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                  <XCircle size={56} color="#ef4444" style={{ marginBottom: 12 }} />
+                  <Typography.Title heading={5} style={{ marginBottom: 6 }}>
+                    {orderStatus === 'failed' ? '支付失败' : '订单已关闭'}
+                  </Typography.Title>
+                  <Button type="primary" style={{ marginTop: 8 }} onClick={() => { setPayResult(null); setOrderNo(null); }}>重新发起支付</Button>
+                </div>
               ) : (
                 <div style={{ textAlign: 'center' }}>
                   <Typography.Title heading={6}>请完成支付</Typography.Title>
+                  {countdown && (
+                    <Typography.Text type="warning" style={{ display: 'block', marginTop: 4 }}>
+                      支付剩余时间 {countdown}
+                    </Typography.Text>
+                  )}
                   {payResult.codeUrl && (
                     <>
                       <QRCodeSVG value={payResult.codeUrl} size={220} style={{ margin: '12px auto', display: 'block' }} />
@@ -192,6 +236,10 @@ export default function PaymentLinkPublicPage() {
                       {payResult.appOrderStr}
                     </Typography.Paragraph>
                   )}
+                  <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <Spin size="small" spinning />
+                    <Typography.Text type="tertiary">支付完成后本页自动更新</Typography.Text>
+                  </div>
                 </div>
               )}
             </div>
