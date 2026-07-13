@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitepress';
+import { withMermaid } from 'vitepress-plugin-mermaid';
 
 const repositoryName = process.env.GITHUB_REPOSITORY?.split('/')[1] ?? '';
 const isUserOrOrgPagesRepo = repositoryName.endsWith('.github.io');
@@ -10,7 +11,7 @@ if (isGitHubPagesBuild) {
   base = isUserOrOrgPagesRepo ? '/' : `/${repositoryName}/`;
 }
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   lang: 'zh-CN',
   title: 'Zenith Admin',
   description: 'Zenith Admin 文档站：项目介绍、快速开始、开发说明与更新记录。',
@@ -297,4 +298,4 @@ export default defineConfig({
     ['link', { rel: 'icon', href: '/favicon.svg' }],
     ['meta', { name: 'theme-color', content: '#3b82f6' }],
   ],
-});
+}));
