@@ -536,17 +536,14 @@ export default function WorkflowMonitorPage() {
   /** 导出实例诊断包（诊断 + 轨迹 + 执行 Token）为 JSON 文件 */
   const exportDiagnosticBundle = async (instanceId: number) => {
     const res = await request.get<unknown>(`/api/workflows/instances/${instanceId}/diagnostic-bundle`);
-    if (res.code === 0) {
-      const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `workflow-diagnostic-${instanceId}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } else {
-      Toast.error(res.message || '导出失败');
-    }
+    if (res.code !== 0) return;
+    const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `workflow-diagnostic-${instanceId}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleCancel = (record: WorkflowInstance) => {

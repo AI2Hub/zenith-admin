@@ -24,10 +24,10 @@ export function UserAvatarModal({ visible, user, onClose, onUpdated }: UserAvata
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [presetVisible, setPresetVisible] = useState(false);
   const uploadAvatarMutation = useMutation({
-    mutationFn: (formData: FormData) => request.post<{ url: string }>('/api/files/upload-one', formData),
+    mutationFn: (formData: FormData) => request.post<{ url: string }>('/api/files/upload-one', formData, { silent: true }),
   });
   const updateAvatarMutation = useMutation({
-    mutationFn: (avatar: string | null) => request.put<User>(`/api/users/${user.id}`, { avatar }),
+    mutationFn: (avatar: string | null) => request.put<User>(`/api/users/${user.id}`, { avatar }, { silent: true }),
   });
   const avatarLoading = uploadAvatarMutation.isPending || updateAvatarMutation.isPending;
 

@@ -24,7 +24,11 @@ export function StickerPanel({
     if (file.size > 5 * 1024 * 1024) { Toast.warning('表情图片不能超过 5MB'); return; }
     const fd = new FormData();
     fd.append('file', file);
-    const uploadRes = await request.postForm<{ id: string; url: string; originalName: string; size: number }>('/api/files/upload-one', fd);
+    const uploadRes = await request.postForm<{ id: string; url: string; originalName: string; size: number }>(
+      '/api/files/upload-one',
+      fd,
+      { silent: true },
+    );
     if (uploadRes.code !== 0 || !uploadRes.data) { Toast.error('上传失败'); return; }
     try {
       await addMutation.mutateAsync({

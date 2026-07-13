@@ -315,7 +315,10 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
   const downloadTraceBundle = useCallback(async (traceId: string) => {
     setBundleLoading(true);
     try {
-      const res = await request.get<unknown>(`/api/workflows/engine/jobs/chain/${encodeURIComponent(traceId)}/diagnostic-bundle`);
+      const res = await request.get<unknown>(
+        `/api/workflows/engine/jobs/chain/${encodeURIComponent(traceId)}/diagnostic-bundle`,
+        { silent: true },
+      );
       if (res.code !== 0) { Toast.warning(res.message || '导出失败'); return; }
       const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);

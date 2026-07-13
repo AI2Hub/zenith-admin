@@ -38,7 +38,7 @@ export function useGlobalErrorHandler() {
       if (recentRef.current.has(message)) return;
       const timer = globalThis.setTimeout(() => recentRef.current.delete(message), DEDUP_TTL);
       recentRef.current.set(message, timer);
-      Toast.error({ content: message, duration: 5 });
+      Toast.error({ content: message, duration: 5, stack: true });
     }
 
     function handleUnhandledRejection(event: PromiseRejectionEvent) {

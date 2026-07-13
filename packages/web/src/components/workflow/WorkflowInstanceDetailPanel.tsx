@@ -88,15 +88,16 @@ function InstanceComments({ instance }: Readonly<{ instance: WorkflowInstance }>
         files: attachments,
         parentId: replyTo?.id ?? null,
       });
-      if (res.code === 0 && res.data) {
-        setComments((prev) => [...prev, res.data as WorkflowComment]);
-        setContent('');
-        setMentions([]);
-        setAttachments([]);
-        setReplyTo(null);
-      } else {
-        Toast.error(res.message || '评论失败');
+      if (res.code !== 0) return;
+      if (!res.data) {
+        Toast.error('评论失败');
+        return;
       }
+      setComments((prev) => [...prev, res.data]);
+      setContent('');
+      setMentions([]);
+      setAttachments([]);
+      setReplyTo(null);
     } catch {
       Toast.error('评论失败');
     }
@@ -235,8 +236,9 @@ export default function WorkflowInstanceDetailPanel({
     if (!myRecallableTask) return;
     try {
       const res = await recallMutation.mutateAsync(myRecallableTask.id);
-      if (res.code === 0) { Toast.success('已撤回'); onRecalled?.(); }
-      else Toast.error(res.message || '撤回失败');
+      if (res.code !== 0) return;
+      Toast.success('已撤回');
+      onRecalled?.();
     } catch { Toast.error('撤回失败'); }
   };
   const consults = instance.consults ?? [];

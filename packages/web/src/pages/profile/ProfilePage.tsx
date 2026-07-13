@@ -173,7 +173,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
   const updateProfileMutation = useUpdateProfile();
   const updateAvatarMutation = useUpdateProfile();
   const uploadAvatarMutation = useMutation({
-    mutationFn: (formData: FormData) => request.post<{ url: string }>('/api/files/upload-one', formData),
+    mutationFn: (formData: FormData) => request.post<{ url: string }>('/api/files/upload-one', formData, { silent: true }),
   });
   const changePasswordMutation = useChangeProfilePassword();
   const oauthBindUrlMutation = useProfileOAuthBindUrl();

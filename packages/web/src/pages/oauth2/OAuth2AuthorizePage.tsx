@@ -76,7 +76,7 @@ export default function OAuth2AuthorizePage() {
         state: state || undefined,
         code_challenge: codeChallenge || undefined,
         code_challenge_method: codeChallengeMethod || undefined,
-      });
+      }, { silent: true });
       if (res.code === 0 && res.data?.redirectUrl) {
         globalThis.location.href = res.data.redirectUrl;
       } else {

@@ -351,7 +351,8 @@ export default function ChatPage({
       const res = await request.post<{ job: { id: number; status: string; fileId: string | null; filename: string | null }; mode: string }>('/api/export-jobs', {
         entity: 'chat.messages', format: 'xlsx', query: { conversationId: convId }, raw: false, watermark: true, executionMode: 'sync',
       });
-      if (res.code !== 0 || !res.data) { Toast.error(res.message ?? '导出失败'); return; }
+      if (res.code !== 0) return;
+      if (!res.data) { Toast.error('导出失败'); return; }
       const { job, mode } = res.data;
       if (job.status === 'success' && job.fileId) {
         await request.download(`/api/export-jobs/${job.id}/download`, job.filename ?? '聊天记录.xlsx');
@@ -609,12 +610,9 @@ export default function ChatPage({
       okType: 'danger',
       onOk: async () => {
         const res = await request.delete(`/api/chat/conversations/${activeConvId}/announcement-history/${messageId}`);
-        if ((res as { code: number }).code === 0) {
-          Toast.success('已删除');
-          setAnnouncementHistory(removeAnnouncementById(messageId));
-        } else {
-          Toast.error((res as { message?: string }).message ?? '删除失败');
-        }
+        if (res.code !== 0) return;
+        Toast.success('已删除');
+        setAnnouncementHistory(removeAnnouncementById(messageId));
       },
     });
   }, [activeConvId]);
@@ -920,7 +918,11 @@ export default function ChatPage({
     if (!activeConvId) return false;
     const fd = new FormData();
     fd.append('file', file);
-    const uploadRes = await request.postForm<{ id: string; url: string; originalName: string; size: number }>('/api/files/upload-one', fd, { onProgress });
+    const uploadRes = await request.postForm<{ id: string; url: string; originalName: string; size: number }>(
+      '/api/files/upload-one',
+      fd,
+      { onProgress, silent: true },
+    );
     if (uploadRes.code !== 0 || !uploadRes.data) return false;
     const { id: fileId, url, originalName, size } = uploadRes.data;
     // 视频文件走 video 消息类型（内联播放），其余为普通文件
@@ -937,9 +939,9 @@ export default function ChatPage({
       content: url,
       type: isVideo ? 'video' : 'file',
       extra: { asset },
-    });
+    }, { silent: true });
     if (msgRes.code === 0 && msgRes.data) appendMessageOnce(msgRes.data);
-    return msgRes.code === 0;
+    return msgRes.code === 0 && Boolean(msgRes.data);
   }, [activeConvId, appendMessageOnce]);
 
   // 发送收藏表情（作为图片消息）
@@ -989,7 +991,11 @@ export default function ChatPage({
     const dimensions = await getImageDimensions(file);
     const fd = new FormData();
     fd.append('file', file);
-    const uploadRes = await request.postForm<{ url: string; originalName: string; size: number }>('/api/files/upload-one', fd, { onProgress });
+    const uploadRes = await request.postForm<{ url: string; originalName: string; size: number }>(
+      '/api/files/upload-one',
+      fd,
+      { onProgress, silent: true },
+    );
     if (uploadRes.code !== 0 || !uploadRes.data) {
       return false;
     }
@@ -1008,9 +1014,9 @@ export default function ChatPage({
       content: url,
       type: 'image',
       extra: { asset },
-    });
+    }, { silent: true });
     if (msgRes.code === 0 && msgRes.data) appendMessageOnce(msgRes.data);
-    return msgRes.code === 0;
+    return msgRes.code === 0 && Boolean(msgRes.data);
   }, [activeConvId, appendMessageOnce]);
 
   const sendVoiceMessage = useCallback(async (blob: Blob, durationSec: number, mimeType: string) => {
@@ -1019,7 +1025,11 @@ export default function ChatPage({
     const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: mimeType });
     const fd = new FormData();
     fd.append('file', file);
-    const uploadRes = await request.postForm<{ id: string; url: string; originalName: string; size: number }>('/api/files/upload-one', fd);
+    const uploadRes = await request.postForm<{ id: string; url: string; originalName: string; size: number }>(
+      '/api/files/upload-one',
+      fd,
+      { silent: true },
+    );
     if (uploadRes.code !== 0 || !uploadRes.data) { Toast.error('语音上传失败'); return; }
     const { id: fileId, url, size } = uploadRes.data;
     const asset: ChatAssetMeta = {
@@ -1035,9 +1045,9 @@ export default function ChatPage({
       content: url,
       type: 'voice',
       extra: { asset },
-    });
+    }, { silent: true });
     if (msgRes.code === 0 && msgRes.data) appendMessageOnce(msgRes.data);
-    else Toast.error(msgRes.message ?? '语音发送失败');
+    else Toast.error(msgRes.code === 0 ? '语音发送失败' : (msgRes.message || '语音发送失败'));
   }, [activeConvId, appendMessageOnce]);
 
   const voiceRecorder = useVoiceRecorder({
@@ -1134,8 +1144,10 @@ export default function ChatPage({
       ]).then((results) => {
         const failedImageCount = results.filter((r) => r === 'image').length;
         const failedFileCount = results.filter((r) => r === 'file').length;
-        if (failedImageCount > 0) Toast.error(`有 ${failedImageCount} 张图片发送失败`);
-        if (failedFileCount > 0) Toast.error(`有 ${failedFileCount} 个文件发送失败`);
+        const failedItems: string[] = [];
+        if (failedImageCount > 0) failedItems.push(`${failedImageCount} 张图片`);
+        if (failedFileCount > 0) failedItems.push(`${failedFileCount} 个文件`);
+        if (failedItems.length > 0) Toast.error(`有 ${failedItems.join('、')}发送失败`);
       });
     }
   }, [activeConvId, appendMessageOnce, fetchLinkPreview, input, pendingFiles, pendingImages, replyTo, saveDraft, selectedMentions, sendFileMessage, sendImageFile, sending, setUploadingItems]);
@@ -1282,22 +1294,18 @@ export default function ChatPage({
 
   const handleToggleFavorite = useCallback(async (msg: ChatMessage) => {
     const res = await request.patch<ChatMessage>(`/api/chat/messages/${msg.id}/favorite`, { favorite: !msg.extra?.isFavorited });
-    if (res.code === 0 && res.data) {
-      applyMessageUpdate(res.data);
-      Toast.success(res.data.extra?.isFavorited ? '已收藏' : '已取消收藏');
-      return;
-    }
-    Toast.error(res.message ?? '操作失败');
+    if (res.code !== 0) return;
+    if (!res.data) { Toast.error('操作失败'); return; }
+    applyMessageUpdate(res.data);
+    Toast.success(res.data.extra?.isFavorited ? '已收藏' : '已取消收藏');
   }, [applyMessageUpdate]);
 
   const handleTogglePinMessage = useCallback(async (msg: ChatMessage) => {
     const res = await request.patch<ChatMessage>(`/api/chat/messages/${msg.id}/pin`, { pin: !msg.extra?.isPinned });
-    if (res.code === 0 && res.data) {
-      applyMessageUpdate(res.data);
-      Toast.success(res.data.extra?.isPinned ? '已置顶消息' : '已取消置顶');
-      return;
-    }
-    Toast.error(res.message ?? '操作失败');
+    if (res.code !== 0) return;
+    if (!res.data) { Toast.error('操作失败'); return; }
+    applyMessageUpdate(res.data);
+    Toast.success(res.data.extra?.isPinned ? '已置顶消息' : '已取消置顶');
   }, [applyMessageUpdate]);
 
   const handleEditRecalled = useCallback((messageId: number) => {
@@ -1341,11 +1349,9 @@ export default function ChatPage({
       targetConversationIds: targetIds,
       mode: forwardingMode,
     });
-    if ((res as { code: number }).code === 0) {
+    if (res.code === 0) {
       Toast.success('转发成功');
       handleExitMultiSelect();
-    } else {
-      Toast.error((res as { message?: string }).message ?? '转发失败');
     }
     setForwardingMessageIds([]);
   }, [forwardingMessageIds, forwardingMode, handleExitMultiSelect]);
@@ -1374,13 +1380,10 @@ export default function ChatPage({
 
   const handleDeleteSingle = useCallback(async (msg: ChatMessage) => {
     const res = await request.post('/api/chat/messages/batch-delete', { messageIds: [msg.id] });
-    if ((res as { code: number }).code === 0) {
-      setMessages(removeMessageById(msg.id));
-      setMediaItems(removeMessageById(msg.id));
-      Toast.success('已删除');
-    } else {
-      Toast.error((res as { message?: string }).message ?? '删除失败');
-    }
+    if (res.code !== 0) return;
+    setMessages(removeMessageById(msg.id));
+    setMediaItems(removeMessageById(msg.id));
+    Toast.success('已删除');
   }, []);
 
   const handleDeleteSelected = useCallback(async () => {
@@ -1392,15 +1395,12 @@ export default function ChatPage({
       okText: '删除',
       onOk: async () => {
         const res = await request.post('/api/chat/messages/batch-delete', { messageIds: selectedMessageIds });
-        if ((res as { code: number }).code === 0) {
-          const deletedIds = new Set(selectedMessageIds);
-          setMessages(removeMessagesByIds(deletedIds));
-          setMediaItems(removeMessagesByIds(deletedIds));
-          Toast.success('已删除');
-          handleExitMultiSelect();
-        } else {
-          Toast.error((res as { message?: string }).message ?? '删除失败');
-        }
+        if (res.code !== 0) return;
+        const deletedIds = new Set(selectedMessageIds);
+        setMessages(removeMessagesByIds(deletedIds));
+        setMediaItems(removeMessagesByIds(deletedIds));
+        Toast.success('已删除');
+        handleExitMultiSelect();
       },
     });
   }, [selectedMessageIds, handleExitMultiSelect]);
@@ -1430,21 +1430,17 @@ export default function ChatPage({
       type: 'vote',
       extra: { voteData },
     });
-    if (res.code === 0 && res.data) {
-      appendMessageOnce(res.data);
-      setShowVoteModal(false);
-      return;
-    }
-    Toast.error(res.message ?? '发起投票失败');
+    if (res.code !== 0) return;
+    if (!res.data) { Toast.error('发起投票失败'); return; }
+    appendMessageOnce(res.data);
+    setShowVoteModal(false);
   }, [activeConvId, appendMessageOnce]);
 
   const handleVoteMessage = useCallback(async (msg: ChatMessage, optionIds: string[]) => {
     const res = await request.post<ChatMessage>(`/api/chat/messages/${msg.id}/vote`, { optionIds });
-    if (res.code === 0 && res.data) {
-      applyMessageUpdate(res.data);
-      return;
-    }
-    Toast.error(res.message ?? '投票失败');
+    if (res.code !== 0) return;
+    if (!res.data) { Toast.error('投票失败'); return; }
+    applyMessageUpdate(res.data);
   }, [applyMessageUpdate]);
 
   // 编辑消息（由 MessageBubble 内联编辑回调）
@@ -1456,12 +1452,10 @@ export default function ChatPage({
       body: JSON.stringify({ content: updatedMsg.content }),
       headers: { 'Content-Type': 'application/json' },
     });
-    if (res.code === 0 && res.data) {
-      applyMessageUpdate(res.data);
-      Toast.success('已修改');
-    } else {
-      Toast.error(res.message ?? '编辑失败');
-    }
+    if (res.code !== 0) return;
+    if (!res.data) { Toast.error('编辑失败'); return; }
+    applyMessageUpdate(res.data);
+    Toast.success('已修改');
   }, [applyMessageUpdate]);
 
   const handleRecall = useCallback(async (msg: ChatMessage) => {
@@ -1474,8 +1468,7 @@ export default function ChatPage({
       setSelectedMentions(msg.extra?.mentions ?? []);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
-    const res = await request.request<null>(`/api/chat/messages/${msg.id}/recall`, { method: 'PATCH' });
-    if (res.code !== 0) Toast.error(res.message ?? '撤回失败');
+    await request.request<null>(`/api/chat/messages/${msg.id}/recall`, { method: 'PATCH' });
   }, []);
 
   const resetSearchFilters = useCallback(() => {
@@ -2551,16 +2544,13 @@ export default function ChatPage({
                           okButtonProps: { type: 'danger', theme: 'solid' },
                           onOk: () => {
                             void request.delete(`/api/chat/conversations/${conv.id}`).then((r) => {
-                              if ((r as { code: number; message?: string }).code === 0) {
-                                Toast.success('会话已删除');
-                                setConversations(removeConversationById(conv.id));
-                                if (activeConvId === conv.id) {
-                                  setActiveConvId(null);
-                                  setMessages([]);
-                                  setPendingNewMsgCount(0);
-                                }
-                              } else {
-                                Toast.error((r as { message?: string }).message ?? '删除失败');
+                              if (r.code !== 0) return;
+                              Toast.success('会话已删除');
+                              setConversations(removeConversationById(conv.id));
+                              if (activeConvId === conv.id) {
+                                setActiveConvId(null);
+                                setMessages([]);
+                                setPendingNewMsgCount(0);
                               }
                             });
                           },

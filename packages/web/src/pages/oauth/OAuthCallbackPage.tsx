@@ -24,7 +24,7 @@ export default function OAuthCallbackPage() {
         token?: { accessToken: string; refreshToken: string };
         needBind?: boolean;
         oauthInfo?: { provider: string; openId: string; nickname: string; avatar?: string };
-      }>(`/api/auth/oauth/${provider}/callback`, { code })
+      }>(`/api/auth/oauth/${provider}/callback`, { code }, { silent: true })
       .then((res) => {
         if (res.code === 0 && res.data?.token) {
           localStorage.setItem(TOKEN_KEY, res.data.token.accessToken);

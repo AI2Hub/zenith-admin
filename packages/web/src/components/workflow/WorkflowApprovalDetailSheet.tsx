@@ -568,12 +568,9 @@ export default function WorkflowApprovalDetailSheet({
     try {
       const formUpdates = await collectFormUpdates();
       const res = await approveMutation.mutateAsync({ id: taskId, body: { comment: '', formUpdates } });
-      if (res.code === 0) {
-        Toast.success('审批通过');
-        closeAfterAction();
-      } else {
-        Toast.error(res.message || '处理失败');
-      }
+      if (res.code !== 0) return;
+      Toast.success('审批通过');
+      closeAfterAction();
     } catch { /* request failed */ }
   };
 
