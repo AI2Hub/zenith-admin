@@ -6566,6 +6566,28 @@ export interface PaymentRiskReview {
   updatedAt: string;
 }
 
+/** 商户资金账户（渠道维度余额快照） */
+export interface PaymentAccount {
+  id: number;
+  channel: PaymentChannel;
+  pendingSettle: number; // 分，待结算
+  available: number; // 分，可用
+  frozen: number; // 分，冻结
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 余额核对结果（快照 vs 流水聚合） */
+export interface PaymentAccountCheckRow {
+  channel: PaymentChannel;
+  pendingSettleSnapshot: number;
+  pendingSettleComputed: number;
+  availableSnapshot: number;
+  availableComputed: number;
+  match: boolean;
+}
+
 export interface PaymentMethodConfig {
   id: number;
   method: PaymentMethod;

@@ -12,6 +12,7 @@ import { tenantCondition } from '../../lib/tenant';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { paymentEventBus } from '../../lib/payment-event-bus';
+import { applyLedgerToAccount } from './payment-account.service';
 import logger from '../../lib/logger';
 import type { PaymentChannel, PaymentLedgerDirection, PaymentLedgerEntry, PaymentLedgerType } from '@zenith/shared';
 
@@ -48,7 +49,8 @@ export interface RecordLedgerInput {
 }
 
 /** 记一条资金流水（幂等：退款按 refundNo 去重，收款/手续费按 orderNo+type 去重；
- * 先查后插为快路径，并发窗口由部分唯一索引 + ON CONFLICT DO NOTHING 兜底）。 */
+ * 先查后插为快路径，并发窗口由部分唯一索引 + ON CONFLICT DO NOTHING 兜底）。
+ * 流水真实落库后原子联动商户资金账户快照（payment_accounts）。 */
 export async function recordLedgerEntry(input: RecordLedgerInput): Promise<void> {
   if (input.amount <= 0) return;
   if (input.type === 'refund' && input.refundNo) {
@@ -58,7 +60,7 @@ export async function recordLedgerEntry(input: RecordLedgerInput): Promise<void>
     const exists = await db.$count(paymentLedgerEntries, and(eq(paymentLedgerEntries.orderNo, input.orderNo), eq(paymentLedgerEntries.type, input.type)));
     if (exists > 0) return;
   }
-  await db
+  const inserted = await db
     .insert(paymentLedgerEntries)
     .values({
       entryNo: genNo(),
@@ -72,7 +74,12 @@ export async function recordLedgerEntry(input: RecordLedgerInput): Promise<void>
       remark: input.remark ?? null,
       tenantId: input.tenantId ?? null,
     })
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ id: paymentLedgerEntries.id });
+  // 并发冲突未插入（幂等兜底命中）时不联动，避免账户重复累计
+  if (inserted.length > 0) {
+    await applyLedgerToAccount({ type: input.type, direction: input.direction, amount: input.amount, channel: input.channel, tenantId: input.tenantId });
+  }
 }
 
 export interface ListLedgerQuery {

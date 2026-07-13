@@ -1,22 +1,28 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import type { CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Button, DatePicker, Input, Row, Col, Select, Skeleton, Tag, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, DatePicker, Form, Input, Row, Col, Select, Skeleton, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Search, RotateCcw } from 'lucide-react';
+import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
+import { Search, RotateCcw, ShieldCheck, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import { AppModal } from '@/components/AppModal';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import {
   paymentLedgerKeys,
+  useAdjustPaymentAccount,
+  useCheckPaymentAccounts,
+  usePaymentAccounts,
   usePaymentLedgerList,
   usePaymentLedgerSummary,
+  useRebuildPaymentAccounts,
 } from '@/hooks/queries/payment-ledger';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_LEDGER_DIRECTION_LABELS, PAYMENT_LEDGER_TYPE_LABELS } from '@zenith/shared';
-import type { PaymentChannel, PaymentLedgerDirection, PaymentLedgerEntry, PaymentLedgerType } from '@zenith/shared';
+import type { PaymentAccountCheckRow, PaymentChannel, PaymentLedgerDirection, PaymentLedgerEntry, PaymentLedgerType } from '@zenith/shared';
 
 const yuan = formatYuan;
 const sectionStyle: CSSProperties = {
@@ -75,10 +81,47 @@ export default function PaymentLedgerPage() {
   const filters = buildQuery(submittedParams);
   const listQuery = usePaymentLedgerList({ page, pageSize, ...filters }, canView);
   const summaryQuery = usePaymentLedgerSummary(filters, canView);
+  const accountsQuery = usePaymentAccounts(canView);
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
   const summary = summaryQuery.data ?? null;
+  const accounts = accountsQuery.data ?? [];
   const loading = listQuery.isFetching || summaryQuery.isFetching;
+
+  const canAdjust = hasPermission('payment:account:adjust');
+  const adjustFormApi = useRef<FormApi | null>(null);
+  const [adjustVisible, setAdjustVisible] = useState(false);
+  const [checkResult, setCheckResult] = useState<PaymentAccountCheckRow[] | null>(null);
+  const checkMutation = useCheckPaymentAccounts();
+  const rebuildMutation = useRebuildPaymentAccounts();
+  const adjustMutation = useAdjustPaymentAccount();
+
+  async function handleCheck() {
+    const rows = await checkMutation.mutateAsync();
+    setCheckResult(rows);
+    const mismatch = rows.filter((r) => !r.match);
+    if (mismatch.length === 0) Toast.success('余额核对一致');
+    else Toast.warning(`发现 ${mismatch.length} 个账户余额与流水不一致`);
+  }
+
+  async function handleRebuild() {
+    const res = await rebuildMutation.mutateAsync();
+    setCheckResult(null);
+    Toast.success(`已从流水重建 ${res.accounts} 个账户快照`);
+  }
+
+  async function handleAdjustOk() {
+    let values: { channel: PaymentChannel; direction: 'in' | 'out'; amountYuan: number; remark?: string };
+    try { values = (await adjustFormApi.current?.validate()) as typeof values; } catch { throw new Error('validation'); }
+    await adjustMutation.mutateAsync({
+      channel: values.channel,
+      direction: values.direction,
+      amount: Math.round(values.amountYuan * 100),
+      remark: values.remark || undefined,
+    });
+    Toast.success('调账成功');
+    setAdjustVisible(false);
+  }
 
   function handleSearch() { setPage(1); setSubmittedParams(draftParams); void queryClient.invalidateQueries({ queryKey: paymentLedgerKeys.all }); }
   function handleReset() { setDraftParams(defaultSearch); setPage(1); setSubmittedParams(defaultSearch); void queryClient.invalidateQueries({ queryKey: paymentLedgerKeys.all }); }
@@ -191,6 +234,51 @@ export default function PaymentLedgerPage() {
         )}
       </div>
 
+      {/* 渠道资金账户（待结算/可用/冻结快照，随台账流水联动） */}
+      <div style={{ ...sectionStyle, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: accounts.length > 0 ? 12 : 0 }}>
+          <Typography.Title heading={6} style={{ margin: 0 }}>渠道资金账户</Typography.Title>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button icon={<ShieldCheck size={14} />} loading={checkMutation.isPending} onClick={() => void handleCheck()}>余额核对</Button>
+            {canAdjust && (
+              <>
+                <Button icon={<RefreshCw size={14} />} loading={rebuildMutation.isPending} onClick={() => void handleRebuild()}>重建快照</Button>
+                <Button type="primary" icon={<SlidersHorizontal size={14} />} onClick={() => setAdjustVisible(true)}>人工调账</Button>
+              </>
+            )}
+          </div>
+        </div>
+        {accounts.length === 0 ? (
+          <Typography.Text type="tertiary">暂无账户（发生首笔资金流水后自动建账，或点击「重建快照」从存量流水初始化）</Typography.Text>
+        ) : (
+          <Row gutter={[16, 16]} type="flex">
+            {accounts.map((a) => {
+              const check = checkResult?.find((c) => c.channel === a.channel);
+              return (
+                <Col key={a.id} xs={24} sm={12} xl={8}>
+                  <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <Tag color={PAYMENT_CHANNEL_TAG_COLOR[a.channel]}>{PAYMENT_CHANNEL_LABELS[a.channel]}</Tag>
+                      {check && (check.match ? <Tag color="green">核对一致</Tag> : <Tag color="red">快照不符</Tag>)}
+                    </div>
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13 }}>
+                      <div>待结算 <strong>{yuan(a.pendingSettle)}</strong></div>
+                      <div>可用 <strong style={{ color: '#10b981' }}>{yuan(a.available)}</strong></div>
+                      <div>冻结 <strong>{yuan(a.frozen)}</strong></div>
+                    </div>
+                    {check && !check.match && (
+                      <Typography.Text type="danger" size="small" style={{ display: 'block', marginTop: 6 }}>
+                        流水口径：待结算 {yuan(check.pendingSettleComputed)} / 可用 {yuan(check.availableComputed)}
+                      </Typography.Text>
+                    )}
+                  </div>
+                </Col>
+              );
+            })}
+          </Row>
+        )}
+      </div>
+
       <SearchToolbar
         primary={(
           <>
@@ -234,8 +322,20 @@ export default function PaymentLedgerPage() {
 
       <ConfigurableTable
         bordered columns={columns} dataSource={data} loading={listQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
-        onRefresh={() => { void listQuery.refetch(); void summaryQuery.refetch(); }} refreshLoading={loading} pagination={buildPagination(total)}
+        onRefresh={() => { void listQuery.refetch(); void summaryQuery.refetch(); void accountsQuery.refetch(); }} refreshLoading={loading} pagination={buildPagination(total)}
       />
+
+      <AppModal title="人工调账" visible={adjustVisible} onOk={handleAdjustOk} onCancel={() => setAdjustVisible(false)} okButtonProps={{ loading: adjustMutation.isPending }} width={480} closeOnEsc>
+        <Banner type="warning" closeIcon={null} style={{ marginBottom: 16 }}
+          description="调账将记入 adjust 资金流水并同步变更该渠道账户的可用余额，操作可审计。" />
+        <Form key={adjustVisible ? 'adjust' : 'closed'} getFormApi={(api) => { adjustFormApi.current = api; }} initValues={{ direction: 'in' }} labelPosition="left" labelWidth={100}>
+          <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={PAYMENT_CHANNEL_OPTIONS} rules={[{ required: true, message: '请选择渠道' }]} />
+          <Form.Select field="direction" label="方向" style={{ width: '100%' }}
+            optionList={[{ value: 'in', label: '调增（入账）' }, { value: 'out', label: '调减（出账）' }]} rules={[{ required: true, message: '请选择方向' }]} />
+          <Form.InputNumber field="amountYuan" label="金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入调账金额' }]} />
+          <Form.TextArea field="remark" label="调账原因" autosize rows={2} placeholder="建议填写，便于审计追溯" />
+        </Form>
+      </AppModal>
     </div>
   );
 }

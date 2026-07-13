@@ -495,6 +495,30 @@ export const PaymentRiskReviewDTO = z
   })
   .openapi('PaymentRiskReview');
 
+export const PaymentAccountDTO = z
+  .object({
+    id: z.number().int(),
+    channel: channelEnum,
+    pendingSettle: z.number().int(),
+    available: z.number().int(),
+    frozen: z.number().int(),
+    version: z.number().int(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('PaymentAccount');
+
+export const PaymentAccountCheckDTO = z
+  .object({
+    channel: channelEnum,
+    pendingSettleSnapshot: z.number().int(),
+    pendingSettleComputed: z.number().int(),
+    availableSnapshot: z.number().int(),
+    availableComputed: z.number().int(),
+    match: z.boolean(),
+  })
+  .openapi('PaymentAccountCheck');
+
 export const PaymentMethodConfigDTO = z
   .object({
     id: z.number().int(),

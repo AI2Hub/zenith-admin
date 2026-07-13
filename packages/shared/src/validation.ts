@@ -2300,6 +2300,15 @@ export const handlePaymentRiskReviewSchema = z.object({
 });
 export type HandlePaymentRiskReviewInput = z.infer<typeof handlePaymentRiskReviewSchema>;
 
+/** 资金账户人工调账（走台账 adjust 流水联动可用余额） */
+export const adjustPaymentAccountSchema = z.object({
+  channel: paymentChannelZ,
+  direction: z.enum(['in', 'out']),
+  amount: z.number().int().positive('调账金额必须大于 0'), // 分
+  remark: z.string().max(200).optional(),
+});
+export type AdjustPaymentAccountInput = z.infer<typeof adjustPaymentAccountSchema>;
+
 /** 支付方式配置（仅更新展示/启停/排序） */
 export const updatePaymentMethodConfigSchema = z.object({
   label: z.string().min(1).max(64).optional(),

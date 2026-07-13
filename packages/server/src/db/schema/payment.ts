@@ -544,6 +544,31 @@ export type PaymentRiskReviewRow = typeof paymentRiskReviews.$inferSelect;
 
 export type NewPaymentRiskReview = typeof paymentRiskReviews.$inferInsert;
 
+// ─── 商户资金账户（渠道×租户快照：待结算/可用/冻结，随台账流水原子联动）────────
+export const paymentAccounts = pgTable('payment_accounts', {
+  id: serial('id').primaryKey(),
+  channel: paymentChannelEnum('channel').notNull(),
+  /** 待结算余额（分，支付净额入账，结算划转后转可用；退款可能使其为负） */
+  pendingSettle: integer('pending_settle').notNull().default(0),
+  /** 可用余额（分，结算到账后可用于转账/代付） */
+  available: integer('available').notNull().default(0),
+  /** 冻结余额（分，预留给预授权/风险冻结场景） */
+  frozen: integer('frozen').notNull().default(0),
+  /** 变更版本号（每次联动 +1，审计用；余额更新为原子自增，天然并发安全） */
+  version: integer('version').notNull().default(0),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  // channel×tenant 唯一（tenant 为 null 的全局账户单独约束，PG unique 对 null 不生效）
+  uniqueIndex('payment_accounts_channel_tenant_uq').on(t.channel, t.tenantId).where(sql`${t.tenantId} is not null`),
+  uniqueIndex('payment_accounts_channel_global_uq').on(t.channel).where(sql`${t.tenantId} is null`),
+]);
+
+export type PaymentAccountRow = typeof paymentAccounts.$inferSelect;
+
+export type NewPaymentAccount = typeof paymentAccounts.$inferInsert;
+
 // ─── 转账/代付单 ─────────────────────────────────────────────────────────────
 export const paymentTransferStatusEnum = pgEnum('payment_transfer_status', ['pending', 'processing', 'success', 'failed']);
 

@@ -1,5 +1,5 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import type { PaginatedResponse, PaymentLedgerEntry, PaymentLedgerSummary } from '@zenith/shared';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { PaginatedResponse, PaymentAccount, PaymentAccountCheckRow, PaymentLedgerEntry, PaymentLedgerSummary } from '@zenith/shared';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 
@@ -23,6 +23,8 @@ export const paymentLedgerKeys = {
   list: (params: PaymentLedgerListParams) => ['payment-ledger', 'list', params] as const,
   summary: (params: PaymentLedgerFilterParams) => ['payment-ledger', 'summary', params] as const,
   detail: (id: number | undefined) => ['payment-ledger', 'detail', id] as const,
+  accounts: ['payment-ledger', 'accounts'] as const,
+  accountCheck: ['payment-ledger', 'accounts', 'check'] as const,
 };
 
 export function usePaymentLedgerList(params: PaymentLedgerListParams, enabled = true) {
@@ -40,5 +42,36 @@ export function usePaymentLedgerSummary(params: PaymentLedgerFilterParams, enabl
     queryFn: () => request.get<PaymentLedgerSummary>(`/api/payment/ledger/summary${toQueryString(params)}`).then(unwrap),
     placeholderData: keepPreviousData,
     enabled,
+  });
+}
+
+export function usePaymentAccounts(enabled = true) {
+  return useQuery({
+    queryKey: paymentLedgerKeys.accounts,
+    queryFn: () => request.get<PaymentAccount[]>('/api/payment/accounts').then(unwrap),
+    enabled,
+  });
+}
+
+export function useCheckPaymentAccounts() {
+  return useMutation({
+    mutationFn: () => request.get<PaymentAccountCheckRow[]>('/api/payment/accounts/check').then(unwrap),
+  });
+}
+
+export function useRebuildPaymentAccounts() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request.post<{ accounts: number }>('/api/payment/accounts/rebuild').then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: paymentLedgerKeys.all }),
+  });
+}
+
+export function useAdjustPaymentAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (values: { channel: string; direction: 'in' | 'out'; amount: number; remark?: string }) =>
+      request.post<PaymentAccount>('/api/payment/accounts/adjust', values).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: paymentLedgerKeys.all }),
   });
 }

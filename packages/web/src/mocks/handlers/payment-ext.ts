@@ -231,6 +231,42 @@ const ledgerHandlers = [
   }),
 ];
 
+// ─── 商户资金账户（快照 = 流水聚合，演示恒一致）──────────────────────────────
+function computeAccountFromLedger(channel: string) {
+  const list = ledgerEntries.filter((e) => e.channel === channel);
+  const sum = (type: string, direction?: string) =>
+    list.filter((e) => e.type === type && (!direction || e.direction === direction)).reduce((s, e) => s + e.amount, 0);
+  return {
+    pendingSettle: sum('payment') - sum('fee') - sum('refund') - sum('settlement'),
+    available: sum('settlement') - sum('transfer') + sum('adjust', 'in') - sum('adjust', 'out'),
+  };
+}
+
+function mockAccounts() {
+  const channels = [...new Set(ledgerEntries.map((e) => e.channel).filter((c): c is PaymentChannel => !!c))];
+  return channels.map((channel, i) => {
+    const computed = computeAccountFromLedger(channel);
+    return { id: i + 1, channel, pendingSettle: computed.pendingSettle, available: computed.available, frozen: 0, version: ledgerEntries.length, createdAt: SEED, updatedAt: mockDateTime() };
+  });
+}
+
+const accountHandlers = [
+  http.get('/api/payment/accounts', () => ok(mockAccounts())),
+  http.get('/api/payment/accounts/check', () =>
+    ok(mockAccounts().map((a) => {
+      const computed = computeAccountFromLedger(a.channel);
+      return { channel: a.channel, pendingSettleSnapshot: a.pendingSettle, pendingSettleComputed: computed.pendingSettle, availableSnapshot: a.available, availableComputed: computed.available, match: true };
+    })),
+  ),
+  http.post('/api/payment/accounts/rebuild', () => ok({ accounts: mockAccounts().length }, '重建完成')),
+  http.post('/api/payment/accounts/adjust', async ({ request }) => {
+    const b = (await request.json()) as { channel: PaymentChannel; direction: 'in' | 'out'; amount: number; remark?: string };
+    recordMockLedgerEntry({ direction: b.direction, type: 'adjust', amount: b.amount, orderNo: null, refundNo: null, channel: b.channel, bizType: null, remark: `人工调账${b.remark ? `：${b.remark}` : ''}` });
+    const account = mockAccounts().find((a) => a.channel === b.channel);
+    return ok(account ?? mockAccounts()[0], '调账成功');
+  }),
+];
+
 // ─── 支付事件（Outbox / 运营排障）────────────────────────────────────────────
 const outboxEvents: PaymentOutboxEvent[] = [
   { id: 1, type: 'payment.succeeded', orderNo: 'PAY1700000000001', status: 'done', attempts: 1, lastError: null, createdAt: SEED, processedAt: SEED },
@@ -380,6 +416,7 @@ export const paymentExtHandlers = [
   ...reconHandlers,
   ...webhookHandlers,
   ...ledgerHandlers,
+  ...accountHandlers,
   ...opsHandlers,
   ...refundApprovalHandlers,
 ];
