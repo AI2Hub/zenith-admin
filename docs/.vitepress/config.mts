@@ -166,8 +166,7 @@ export default withMermaid(defineConfig({
             items: [
               { text: '流程定义与设计器', link: '/workflow/designer' },
               { text: '节点配置', link: '/workflow/node-config' },
-              { text: '节点类型速查', link: '/workflow/node-types' },
-              { text: '表单、数据源与连接器', link: '/workflow/form-design' },
+              { text: '表单与远程数据源', link: '/workflow/form-design' },
               { text: '流程模板', link: '/workflow/templates' },
             ],
           },
@@ -184,6 +183,7 @@ export default withMermaid(defineConfig({
             items: [
               { text: '触发器与外部审批', link: '/workflow/trigger-nodes' },
               { text: '事件总线与事件订阅', link: '/workflow/event-bus' },
+              { text: '连接器', link: '/workflow/connectors' },
               { text: '流程自动化与定时发起', link: '/workflow/automations' },
               { text: '业务模块接入', link: '/workflow/business-integration' },
             ],

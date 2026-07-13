@@ -1,0 +1,44 @@
+# 连接器
+
+连接器集中管理对外部系统的 HTTP 外呼配置：基础地址、鉴权凭据、超时、重试、限流、熔断和调用审计。触发器、外部审批、事件订阅和补偿动作都可以引用连接器，把「调哪里、怎么鉴权、失败怎么办」从节点配置中抽离出来统一治理。
+
+页面入口为 `工作流引擎 → 连接器`。
+
+## 能力
+
+| 能力 | 说明 |
+| --- | --- |
+| 类型 | 可新建 `http`、`webhook`、`email`、`sms`、`wecom`、`dingtalk`、`feishu`；`mq`、`database` 暂无运行时实现，已关闭新建入口（存量数据保留兼容） |
+| 凭据 | Token、用户名密码、API Key 等凭据加密落库，列表不回传明文 |
+| 超时 / 重试 | `timeoutMs` 和 `retryMax` 控制单次调用与重试 |
+| 熔断 | 连续失败达到阈值后进入冷却期 |
+| 限流 | 按窗口秒数和最大次数控制调用频率 |
+| 测试调用 | 页面可发起一次探测请求并查看响应 |
+| 调用监控 | 查看近 N 天统计和最近调用记录 |
+
+## 引用方
+| 引用方 | 说明 |
+| --- | --- |
+| 触发器节点 | HTTP 外呼与回调派发经连接器执行（见[触发器与外部审批](./trigger-nodes.md)） |
+| 外部审批 | 审批任务派发到第三方系统 |
+| 事件订阅 | Webhook 投递目标（见[事件总线与事件订阅](./event-bus.md)） |
+| 补偿动作 | `connector` 类型的反向 / 兜底动作（见[补偿 / Saga](./compensation.md)） |
+
+节点或订阅选择连接器后，配置中的 URL 可退化为相对路径，由连接器提供基础地址和鉴权。
+
+## 调用记录
+
+每次经连接器的调用都会落审计记录，标记调用来源：`test`（测试调用）、`trigger`（触发器）、`external`（外部审批）、`webhook`（事件订阅投递）、`manual`（手工）。调用统计与明细在连接器列表的监控入口查看。
+
+## API 摘要
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/workflows/connectors` | 连接器列表 |
+| `GET` | `/api/workflows/connectors/{id}` | 连接器详情 |
+| `POST` | `/api/workflows/connectors` | 创建连接器 |
+| `PUT` | `/api/workflows/connectors/{id}` | 更新连接器 |
+| `DELETE` | `/api/workflows/connectors/{id}` | 删除连接器 |
+| `POST` | `/api/workflows/connectors/{id}/test` | 测试调用 |
+| `GET` | `/api/workflows/connectors/{id}/stats` | 调用统计 |
+| `GET` | `/api/workflows/connectors/{id}/invocations` | 最近调用记录 |

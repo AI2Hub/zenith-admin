@@ -23,7 +23,7 @@
 | --- | --- |
 | `workflow:definition:list` | 流程定义、分类、模板、自动化读取 |
 | `workflow:definition:create` | 新建定义、复制定义、从模板创建 |
-| `workflow:definition:edit` | 编辑定义、分类、模板、自动化 |
+| `workflow:definition:edit` | 编辑定义、分类、模板、自动化、仿真用例 |
 | `workflow:definition:delete` | 删除定义 |
 | `workflow:definition:publish` | 发布、禁用、启用定义 |
 | `workflow:form:list` | 表单库列表 |
