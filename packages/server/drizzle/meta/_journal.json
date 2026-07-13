@@ -379,6 +379,13 @@
       "when": 1783914702467,
       "tag": "0053_slim_sway",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1783917156849,
+      "tag": "0054_high_silhouette",
+      "breakpoints": true
     }
   ]
 }

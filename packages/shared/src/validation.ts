@@ -2280,10 +2280,25 @@ export const createPaymentRiskRuleSchema = z.object({
   dailyLimit: z.number().int().min(0).optional(), // 分
   dailyCountLimit: z.number().int().min(0).optional(),
   blocklist: z.array(z.string().max(128)).default([]),
+  allowlist: z.array(z.string().max(128)).default([]),
+  action: z.enum(['block', 'review']).default('block'),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(256).optional(),
 });
-export const updatePaymentRiskRuleSchema = createPaymentRiskRuleSchema.partial();
+// partial() 不剥离 default，显式覆盖带默认值字段为纯 optional（防部分更新静默重置）
+export const updatePaymentRiskRuleSchema = createPaymentRiskRuleSchema.partial().extend({
+  scope: z.enum(['global', 'channel', 'bizType']).optional(),
+  blocklist: z.array(z.string().max(128)).optional(),
+  allowlist: z.array(z.string().max(128)).optional(),
+  action: z.enum(['block', 'review']).optional(),
+  status: z.enum(['enabled', 'disabled']).optional(),
+});
+
+/** 人工审核处理 */
+export const handlePaymentRiskReviewSchema = z.object({
+  remark: z.string().max(256).optional(),
+});
+export type HandlePaymentRiskReviewInput = z.infer<typeof handlePaymentRiskReviewSchema>;
 
 /** 支付方式配置（仅更新展示/启停/排序） */
 export const updatePaymentMethodConfigSchema = z.object({

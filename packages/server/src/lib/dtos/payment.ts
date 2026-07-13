@@ -443,12 +443,57 @@ export const PaymentRiskRuleDTO = z
     dailyLimit: z.number().int().nullable().optional(),
     dailyCountLimit: z.number().int().nullable().optional(),
     blocklist: z.array(z.string()),
+    allowlist: z.array(z.string()),
+    action: z.enum(['block', 'review']),
     status: z.enum(['enabled', 'disabled']),
     remark: z.string().nullable().optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
   .openapi('PaymentRiskRule');
+
+const riskActionEnum = z.enum(['block', 'review']);
+const riskDimensionEnum = z.enum(['blocklist', 'single_limit', 'daily_limit', 'daily_count']);
+
+export const PaymentRiskHitDTO = z
+  .object({
+    id: z.number().int(),
+    ruleId: z.number().int().nullable().optional(),
+    ruleName: z.string(),
+    action: riskActionEnum,
+    dimension: riskDimensionEnum,
+    dimensionValue: z.string().nullable().optional(),
+    channel: channelEnum,
+    bizType: z.string(),
+    bizId: z.string(),
+    orderNo: z.string().nullable().optional(),
+    amount: z.number().int(),
+    openId: z.string().nullable().optional(),
+    userId: z.number().int().nullable().optional(),
+    clientIp: z.string().nullable().optional(),
+    createdAt: z.string(),
+  })
+  .openapi('PaymentRiskHit');
+
+export const PaymentRiskReviewDTO = z
+  .object({
+    id: z.number().int(),
+    reviewNo: z.string(),
+    hitId: z.number().int().nullable().optional(),
+    orderNo: z.string(),
+    channel: channelEnum,
+    bizType: z.string(),
+    bizId: z.string(),
+    amount: z.number().int(),
+    reason: z.string(),
+    status: z.enum(['pending', 'approved', 'rejected']),
+    reviewerName: z.string().nullable().optional(),
+    reviewedAt: z.string().nullable().optional(),
+    reviewRemark: z.string().nullable().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('PaymentRiskReview');
 
 export const PaymentMethodConfigDTO = z
   .object({

@@ -14,7 +14,7 @@ import { dbBackups } from './db-admin';
 import { ruleDecisionTables, ruleDecisionTableVersions, ruleTestCases } from './rules';
 import { chatConversationMembers, chatConversations, chatMessageReactions, chatMessages, chatWebhooks, chatQuickReplies, chatScheduledMessages, chatCustomEmojis, chatGroupInvites, chatGroupJoinRequests } from './chat';
 import { channelAutoReplies, channelConversations, channelMenus, channelMessages, channelMessageTargets, channelQuickReplies, channels, channelSubscriptions } from './channels';
-import { paymentApps, paymentChannelConfigs, paymentContracts, paymentDeductPlans, paymentDisputeReplies, paymentDisputes, paymentOrders, paymentReconBatches, paymentReconItems, paymentRefunds, paymentSharingOrders, paymentSharingReceivers, paymentTransfers, paymentWebhookDeliveries, paymentWebhookEndpoints } from './payment';
+import { paymentApps, paymentChannelConfigs, paymentContracts, paymentDeductPlans, paymentDisputeReplies, paymentDisputes, paymentOrders, paymentReconBatches, paymentReconItems, paymentRefunds, paymentRiskHits, paymentRiskReviews, paymentRiskRules, paymentSharingOrders, paymentSharingReceivers, paymentTransfers, paymentWebhookDeliveries, paymentWebhookEndpoints } from './payment';
 import { aiConversations, aiMessages, aiPromptTemplates, aiProviderConfigs, userAiConfigs } from './ai';
 import { appWebhookDeliveries, appWebhookSubscriptions, oauth2AuthorizationCodes, oauth2Clients, oauth2Tokens, oauth2UserGrants, ratePlans } from './open-platform';
 import { checkinMilestones, coupons, memberCheckinMilestoneAwards, memberCheckins, memberCoupons, memberLevels, memberNotifications, memberPointAccounts, memberPointTransactions, members, memberTagBindings, memberTags, memberVipRenewals, memberWallets, memberWalletTransactions } from './member';
@@ -218,6 +218,16 @@ export const paymentDisputesRelations = relations(paymentDisputes, ({ many }) =>
 export const paymentDisputeRepliesRelations = relations(paymentDisputeReplies, ({ one }) => ({
   dispute: one(paymentDisputes, { fields: [paymentDisputeReplies.disputeId], references: [paymentDisputes.id] }),
   operator: one(users, { fields: [paymentDisputeReplies.operatorId], references: [users.id] }),
+}));
+
+export const paymentRiskHitsRelations = relations(paymentRiskHits, ({ one }) => ({
+  rule: one(paymentRiskRules, { fields: [paymentRiskHits.ruleId], references: [paymentRiskRules.id] }),
+  user: one(users, { fields: [paymentRiskHits.userId], references: [users.id] }),
+}));
+
+export const paymentRiskReviewsRelations = relations(paymentRiskReviews, ({ one }) => ({
+  hit: one(paymentRiskHits, { fields: [paymentRiskReviews.hitId], references: [paymentRiskHits.id] }),
+  reviewer: one(users, { fields: [paymentRiskReviews.reviewerId], references: [users.id] }),
 }));
 
 export const tenantsRelations = relations(tenants, ({ one, many }) => ({

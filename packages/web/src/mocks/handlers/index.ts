@@ -98,6 +98,7 @@ import { paymentExtHandlers } from './payment-ext';
 import { paymentBExtHandlers } from './payment-bext';
 import { paymentContractHandlers } from './payment-contracts';
 import { paymentDisputeHandlers } from './payment-disputes';
+import { paymentRiskOpsHandlers } from './payment-risk-ops';
 import { memberFrontHandlers } from './member-front';
 import { memberAdminHandlers } from './member-admin';
 import { checkinHandlers } from './checkin';
@@ -212,6 +213,7 @@ export const handlers = [
   ...paymentBExtHandlers,
   ...paymentContractHandlers,
   ...paymentDisputeHandlers,
+  ...paymentRiskOpsHandlers,
   ...memberFrontHandlers,
   ...memberAdminHandlers,
   ...checkinHandlers,

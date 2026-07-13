@@ -45,7 +45,7 @@ import type { AdapterContext, DecryptedSecrets, NotifyResult } from '../../lib/p
 import type { PaymentEvent, PaymentEventType } from '../../lib/payment-event-bus';
 import { recordEvent, processEvent } from './payment-outbox.service';
 import { assertMethodEnabled } from './payment-method.service';
-import { assertWithinRiskLimits } from './payment-risk.service';
+import { assertNoPendingRiskReview, evaluateRisk, recordRiskHit, suspendOrderForReview, type RiskCheckInput } from './payment-risk.service';
 import { resolveAppChannelConfig } from './payment-apps.service';
 
 // ─── 工具 ─────────────────────────────────────────────────────────────────────
@@ -360,12 +360,29 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
   // ── B 档：支付方式启停校验 ────────────────────────────────────────────────────
   await assertMethodEnabled(input.payMethod);
 
+  // ── 风控人工审核前置：同业务单存在待审核记录时禁止重复下单 ─────────────────────
+  await assertNoPendingRiskReview(input.bizType, input.bizId);
+
   // ── 业务幂等：同业务单存在活跃订单时直接复用（不重复风控/落单）──────────────────
   const reused = await reuseActiveBizOrder(input);
   if (reused) return reused;
 
-  // ── B 档：风控限额校验（仅对真正新建的订单，命中即拦截下单）───────────────────
-  await assertWithinRiskLimits({ channel, bizType: input.bizType, amount: input.amount, openId: input.openId ?? null, userId, tenantId });
+  // ── B 档：风控评估（仅对真正新建的订单）：block=拦截留痕，review=落单挂起人工审核 ──
+  const riskInput: RiskCheckInput = {
+    channel,
+    bizType: input.bizType,
+    bizId: input.bizId,
+    amount: input.amount,
+    openId: input.openId ?? null,
+    userId,
+    clientIp: input.clientIp ?? null,
+    tenantId,
+  };
+  const riskDecision = await evaluateRisk(riskInput);
+  if (riskDecision.action === 'block') {
+    await recordRiskHit(riskDecision, riskInput);
+    throw new HTTPException(400, { message: riskDecision.message });
+  }
 
   const orderNo = genNo('PAY');
   const expireMinutes = input.expireMinutes ?? 30;
@@ -405,6 +422,12 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
       throw new HTTPException(400, { message: '该业务单存在处理中的支付订单，请稍后重试' });
     }
     throw err;
+  }
+
+  // ── review 动作：订单落库后挂起（不调渠道），生成人工审核单等待处理 ─────────────
+  if (riskDecision.action === 'review') {
+    const review = await suspendOrderForReview(orderRow, riskDecision, riskInput);
+    throw new HTTPException(400, { message: `交易已触发风控人工审核（审核单 ${review.reviewNo}），审核通过后请重新发起支付` });
   }
 
   try {

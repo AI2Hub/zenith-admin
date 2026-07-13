@@ -1,4 +1,4 @@
-import type { AiProvider, OAuthProviderType, PaymentChannel, PaymentMethod, PaymentOrderStatus, PaymentRefundStatus, PaymentRefundApprovalStatus, PaymentReconStatus, PaymentReconResult, PaymentReconHandleStatus, PaymentWebhookDeliveryStatus, PaymentLedgerDirection, PaymentLedgerType, PaymentSettlementStatus, PaymentSharingReceiverType, PaymentSharingOrderStatus, PaymentLinkStatus, PaymentRiskScope, PaymentTransferStatus, PaymentDeductPeriod, PaymentContractStatus, PaymentDisputeType, PaymentDisputeStatus, MemberStatus, PointTxType, WalletTxType, CouponType, CouponValidType, CouponTemplateStatus, MemberCouponStatus, WorkflowFormType } from './constants';
+import type { AiProvider, OAuthProviderType, PaymentChannel, PaymentMethod, PaymentOrderStatus, PaymentRefundStatus, PaymentRefundApprovalStatus, PaymentReconStatus, PaymentReconResult, PaymentReconHandleStatus, PaymentWebhookDeliveryStatus, PaymentLedgerDirection, PaymentLedgerType, PaymentSettlementStatus, PaymentSharingReceiverType, PaymentSharingOrderStatus, PaymentLinkStatus, PaymentRiskScope, PaymentRiskAction, PaymentRiskDimension, PaymentRiskReviewStatus, PaymentTransferStatus, PaymentDeductPeriod, PaymentContractStatus, PaymentDisputeType, PaymentDisputeStatus, MemberStatus, PointTxType, WalletTxType, CouponType, CouponValidType, CouponTemplateStatus, MemberCouponStatus, WorkflowFormType } from './constants';
 import { REPORT_DASHBOARD_LIFECYCLE_STATUSES, REPORT_DASHBOARD_VERSION_SOURCES } from './constants';
 
 export type EntityStatus = 'enabled' | 'disabled';
@@ -6518,8 +6518,50 @@ export interface PaymentRiskRule {
   dailyLimit?: number | null; // 分
   dailyCountLimit?: number | null;
   blocklist: string[];
+  /** 白名单（openid / 用户ID / IP），命中则跳过本规则 */
+  allowlist: string[];
+  /** 命中动作：block=直接拦截，review=挂起人工审核 */
+  action: PaymentRiskAction;
   status: 'enabled' | 'disabled';
   remark?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 风控命中留痕 */
+export interface PaymentRiskHit {
+  id: number;
+  ruleId?: number | null;
+  ruleName: string;
+  action: PaymentRiskAction;
+  dimension: PaymentRiskDimension;
+  dimensionValue?: string | null;
+  channel: PaymentChannel;
+  bizType: string;
+  bizId: string;
+  orderNo?: string | null;
+  amount: number; // 分
+  openId?: string | null;
+  userId?: number | null;
+  clientIp?: string | null;
+  createdAt: string;
+}
+
+/** 人工审核单（review 动作挂起的可疑交易） */
+export interface PaymentRiskReview {
+  id: number;
+  reviewNo: string;
+  hitId?: number | null;
+  orderNo: string;
+  channel: PaymentChannel;
+  bizType: string;
+  bizId: string;
+  amount: number; // 分
+  reason: string;
+  status: PaymentRiskReviewStatus;
+  reviewerName?: string | null;
+  reviewedAt?: string | null;
+  reviewRemark?: string | null;
   createdAt: string;
   updatedAt: string;
 }

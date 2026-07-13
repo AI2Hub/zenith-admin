@@ -170,6 +170,22 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
   channel: 'wechat',
 
   async createPayment(ctx, order): Promise<CreatePaymentResult> {
+    const expiredAtSandbox = order.expiredAt ? formatDateTime(order.expiredAt) : undefined;
+    if (ctx.config.sandbox) {
+      logger.info('[wechat-pay] simulate createPayment (sandbox)', { orderNo: order.orderNo, payMethod: order.payMethod });
+      await Promise.resolve();
+      const mockNo = `SBX${order.orderNo}`;
+      switch (order.payMethod) {
+        case 'wechat_native':
+          return { orderNo: order.orderNo, channel: 'wechat', payMethod: order.payMethod, codeUrl: `weixin://wxpay/bizpayurl?pr=${mockNo}`, expiredAt: expiredAtSandbox };
+        case 'wechat_h5':
+          return { orderNo: order.orderNo, channel: 'wechat', payMethod: order.payMethod, payUrl: `https://sandbox.wechatpay.example/h5/${mockNo}`, expiredAt: expiredAtSandbox };
+        case 'wechat_jsapi':
+          return { orderNo: order.orderNo, channel: 'wechat', payMethod: order.payMethod, jsapiParams: { appId: 'sandbox', timeStamp: String(Math.floor(Date.now() / 1000)), nonceStr: mockNo, package: `prepay_id=${mockNo}`, signType: 'RSA', paySign: 'sandbox' }, expiredAt: expiredAtSandbox };
+        default:
+          throw new HTTPException(400, { message: `微信支付不支持的支付方式：${order.payMethod}` });
+      }
+    }
     const appId = requireField(ctx.config.wechatAppId, 'AppId');
     const mchid = requireField(ctx.config.wechatMchId, '商户号');
     const base: Record<string, unknown> = {
@@ -209,6 +225,11 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
   },
 
   async queryPayment(ctx, order): Promise<PaymentQueryResult> {
+    if (ctx.config.sandbox) {
+      // 沙箱无渠道侧订单：维持本地状态（pending），由运营「模拟支付成功」推进
+      await Promise.resolve();
+      return { status: order.status === 'success' ? 'success' : 'pending' };
+    }
     const mchid = requireField(ctx.config.wechatMchId, '商户号');
     const res = await wechatRequest<WechatTransaction>(
       ctx,
@@ -225,6 +246,10 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
   },
 
   async closePayment(ctx, order): Promise<void> {
+    if (ctx.config.sandbox) {
+      await Promise.resolve();
+      return;
+    }
     const mchid = requireField(ctx.config.wechatMchId, '商户号');
     await wechatRequest(ctx, 'POST', `/v3/pay/transactions/out-trade-no/${order.outTradeNo}/close`, { mchid });
   },

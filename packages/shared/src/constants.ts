@@ -406,6 +406,24 @@ export const PAYMENT_RISK_SCOPE_LABELS: Record<PaymentRiskScope, string> = {
   global: '全局', channel: '按渠道', bizType: '按业务类型',
 };
 
+export const PAYMENT_RISK_ACTIONS = ['block', 'review'] as const;
+export type PaymentRiskAction = typeof PAYMENT_RISK_ACTIONS[number];
+export const PAYMENT_RISK_ACTION_LABELS: Record<PaymentRiskAction, string> = {
+  block: '直接拦截', review: '人工审核',
+};
+
+export const PAYMENT_RISK_DIMENSIONS = ['blocklist', 'single_limit', 'daily_limit', 'daily_count'] as const;
+export type PaymentRiskDimension = typeof PAYMENT_RISK_DIMENSIONS[number];
+export const PAYMENT_RISK_DIMENSION_LABELS: Record<PaymentRiskDimension, string> = {
+  blocklist: '黑名单', single_limit: '单笔限额', daily_limit: '当日累计金额', daily_count: '当日交易笔数',
+};
+
+export const PAYMENT_RISK_REVIEW_STATUSES = ['pending', 'approved', 'rejected'] as const;
+export type PaymentRiskReviewStatus = typeof PAYMENT_RISK_REVIEW_STATUSES[number];
+export const PAYMENT_RISK_REVIEW_STATUS_LABELS: Record<PaymentRiskReviewStatus, string> = {
+  pending: '待审核', approved: '已放行', rejected: '已拒绝',
+};
+
 export const PAYMENT_TRANSFER_STATUSES = ['pending', 'processing', 'success', 'failed'] as const;
 export type PaymentTransferStatus = typeof PAYMENT_TRANSFER_STATUSES[number];
 export const PAYMENT_TRANSFER_STATUS_LABELS: Record<PaymentTransferStatus, string> = {

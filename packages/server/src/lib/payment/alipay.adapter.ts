@@ -183,6 +183,21 @@ export const alipayAdapter: PaymentChannelAdapter = {
   channel: 'alipay',
 
   async createPayment(ctx, order): Promise<CreatePaymentResult> {
+    const expiredAt = order.expiredAt ? formatDateTime(order.expiredAt) : undefined;
+    if (ctx.config.sandbox) {
+      logger.info('[alipay] simulate createPayment (sandbox)', { orderNo: order.orderNo, payMethod: order.payMethod });
+      await Promise.resolve();
+      const mockNo = `SBX${order.orderNo}`;
+      switch (order.payMethod) {
+        case 'alipay_page':
+        case 'alipay_wap':
+          return { orderNo: order.orderNo, channel: 'alipay', payMethod: order.payMethod, payUrl: `https://sandbox.alipay.example/pay/${mockNo}`, expiredAt };
+        case 'alipay_app':
+          return { orderNo: order.orderNo, channel: 'alipay', payMethod: order.payMethod, appOrderStr: `sandbox_order_str_${mockNo}`, expiredAt };
+        default:
+          throw new HTTPException(400, { message: `支付宝不支持的支付方式：${order.payMethod}` });
+      }
+    }
     const bizBase: Record<string, unknown> = {
       out_trade_no: order.outTradeNo,
       total_amount: yuan(order.amount),
@@ -190,7 +205,6 @@ export const alipayAdapter: PaymentChannelAdapter = {
       body: order.body || undefined,
       time_expire: order.expiredAt ? formatDateTime(order.expiredAt) : undefined,
     };
-    const expiredAt = order.expiredAt ? formatDateTime(order.expiredAt) : undefined;
     const gateway = resolveGateway(ctx);
     switch (order.payMethod) {
       case 'alipay_page': {
@@ -211,6 +225,11 @@ export const alipayAdapter: PaymentChannelAdapter = {
   },
 
   async queryPayment(ctx, order): Promise<PaymentQueryResult> {
+    if (ctx.config.sandbox) {
+      // 沙箱无渠道侧订单：维持本地状态，由运营「模拟支付成功」推进
+      await Promise.resolve();
+      return { status: order.status === 'success' ? 'success' : 'pending' };
+    }
     const res = await alipayApiCall(ctx, 'alipay.trade.query', { out_trade_no: order.outTradeNo }, 'alipay_trade_query_response');
     if (res.code !== '10000') return { status: 'pending', raw: res };
     return {
@@ -223,6 +242,10 @@ export const alipayAdapter: PaymentChannelAdapter = {
   },
 
   async closePayment(ctx, order): Promise<void> {
+    if (ctx.config.sandbox) {
+      await Promise.resolve();
+      return;
+    }
     await alipayApiCall(ctx, 'alipay.trade.close', { out_trade_no: order.outTradeNo }, 'alipay_trade_close_response');
   },
 

@@ -448,6 +448,9 @@ export type NewPaymentLink = typeof paymentLinks.$inferInsert;
 // ─── 风控限额规则 ─────────────────────────────────────────────────────────────
 export const paymentRiskScopeEnum = pgEnum('payment_risk_scope', ['global', 'channel', 'bizType']);
 
+/** 命中动作：block=直接拦截下单；review=落单挂起进入人工审核队列 */
+export const paymentRiskActionEnum = pgEnum('payment_risk_action', ['block', 'review']);
+
 export const paymentRiskRules = pgTable('payment_risk_rules', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 64 }).notNull(),
@@ -458,6 +461,10 @@ export const paymentRiskRules = pgTable('payment_risk_rules', {
   dailyLimit: integer('daily_limit'),
   dailyCountLimit: integer('daily_count_limit'),
   blocklist: jsonb('blocklist').$type<string[]>().default([]).notNull(),
+  /** 白名单（openid / 用户ID / IP），任一命中则跳过本规则全部检查 */
+  allowlist: jsonb('allowlist').$type<string[]>().default([]).notNull(),
+  /** 命中动作（block=拦截，review=挂起人工审核） */
+  action: paymentRiskActionEnum('action').notNull().default('block'),
   status: statusEnum('status').notNull().default('enabled'),
   remark: varchar('remark', { length: 256 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
@@ -469,6 +476,73 @@ export const paymentRiskRules = pgTable('payment_risk_rules', {
 export type PaymentRiskRuleRow = typeof paymentRiskRules.$inferSelect;
 
 export type NewPaymentRiskRule = typeof paymentRiskRules.$inferInsert;
+
+// ─── 风控命中留痕（追加型日志：每次拦截/送审都落一条）─────────────────────────
+export const paymentRiskDimensionEnum = pgEnum('payment_risk_dimension', ['blocklist', 'single_limit', 'daily_limit', 'daily_count']);
+
+export const paymentRiskHits = pgTable('payment_risk_hits', {
+  id: serial('id').primaryKey(),
+  ruleId: integer('rule_id').references(() => paymentRiskRules.id, { onDelete: 'set null' }),
+  /** 规则名冗余存储（规则删除后留痕仍可读） */
+  ruleName: varchar('rule_name', { length: 64 }).notNull(),
+  action: paymentRiskActionEnum('action').notNull(),
+  /** 命中维度 */
+  dimension: paymentRiskDimensionEnum('dimension').notNull(),
+  /** 命中值描述（名单值 / 金额与限额） */
+  dimensionValue: varchar('dimension_value', { length: 256 }),
+  channel: paymentChannelEnum('channel').notNull(),
+  bizType: varchar('biz_type', { length: 64 }).notNull(),
+  bizId: varchar('biz_id', { length: 128 }).notNull(),
+  /** review 挂起时关联的订单号（block 在落单前拦截，无订单） */
+  orderNo: varchar('order_no', { length: 64 }),
+  amount: integer('amount').notNull(),
+  openId: varchar('open_id', { length: 128 }),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  clientIp: varchar('client_ip', { length: 64 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('payment_risk_hits_created_idx').on(t.createdAt),
+  index('payment_risk_hits_rule_idx').on(t.ruleId),
+]);
+
+export type PaymentRiskHitRow = typeof paymentRiskHits.$inferSelect;
+
+export type NewPaymentRiskHit = typeof paymentRiskHits.$inferInsert;
+
+// ─── 人工审核队列（review 动作挂起的可疑交易）─────────────────────────────────
+export const paymentRiskReviewStatusEnum = pgEnum('payment_risk_review_status', ['pending', 'approved', 'rejected']);
+
+export const paymentRiskReviews = pgTable('payment_risk_reviews', {
+  id: serial('id').primaryKey(),
+  reviewNo: varchar('review_no', { length: 64 }).notNull().unique(),
+  hitId: integer('hit_id').references(() => paymentRiskHits.id, { onDelete: 'set null' }),
+  /** 被挂起的支付订单号 */
+  orderNo: varchar('order_no', { length: 64 }).notNull(),
+  channel: paymentChannelEnum('channel').notNull(),
+  bizType: varchar('biz_type', { length: 64 }).notNull(),
+  bizId: varchar('biz_id', { length: 128 }).notNull(),
+  amount: integer('amount').notNull(),
+  /** 触发原因（命中规则与维度描述） */
+  reason: varchar('reason', { length: 256 }).notNull(),
+  status: paymentRiskReviewStatusEnum('status').notNull().default('pending'),
+  reviewerId: integer('reviewer_id').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  reviewRemark: varchar('review_remark', { length: 256 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  // 同一订单最多一条待审核记录
+  uniqueIndex('payment_risk_reviews_pending_order_uq').on(t.orderNo).where(sql`${t.status} = 'pending'`),
+  index('payment_risk_reviews_status_idx').on(t.status),
+  index('payment_risk_reviews_biz_idx').on(t.bizType, t.bizId),
+]);
+
+export type PaymentRiskReviewRow = typeof paymentRiskReviews.$inferSelect;
+
+export type NewPaymentRiskReview = typeof paymentRiskReviews.$inferInsert;
 
 // ─── 转账/代付单 ─────────────────────────────────────────────────────────────
 export const paymentTransferStatusEnum = pgEnum('payment_transfer_status', ['pending', 'processing', 'success', 'failed']);
