@@ -100,8 +100,8 @@ export const usersExportDefinition = defineExport<Record<string, unknown>, UserE
     {
       header: '联系方式',
       children: [
-        { key: 'email', header: '邮箱', width: 28, sensitive: true, maskEntity: 'user', maskField: 'email' },
-        { key: 'phone', header: '手机号', width: 18, sensitive: true, maskEntity: 'user', maskField: 'phone' },
+        { key: 'email', header: '邮箱', width: 28 },
+        { key: 'phone', header: '手机号', width: 18 },
       ],
     },
     {
