@@ -3,7 +3,7 @@
  * 用非 Form 版 Semi 组件按字段配置渲染真实控件外观（禁用态、pointer-events 由外层关闭），
  * 让画布布局与最终填写页一致；交互（选中/拖拽/右键）由外层卡片壳负责。
  */
-import { Input, TextArea, InputNumber, DatePicker, TimePicker, Select, Cascader, RadioGroup, Radio, CheckboxGroup, Switch, Slider, TagInput, Rating, Typography } from '@douyinfe/semi-ui';
+import { Input, TextArea, InputNumber, DatePicker, TimePicker, Select, Cascader, RadioGroup, Radio, CheckboxGroup, Switch, Slider, TagInput, Rating, Typography, Button } from '@douyinfe/semi-ui';
 import type { CascaderData } from '@douyinfe/semi-ui/lib/es/cascader';
 import { Paperclip, ImageIcon, PenTool } from 'lucide-react';
 import type { WorkflowFormField } from '@zenith/shared';
@@ -89,6 +89,31 @@ export default function CanvasFieldPreview({ field }: Readonly<{ field: Workflow
       return (
         <div className="fd-canvas-preview__nps">
           {Array.from({ length: 11 }, (_, i) => <span key={`nps-${i}`}>{i}</span>)}
+        </div>
+      );
+    case 'matrix': {
+      const rows = (field.matrixRows ?? []).slice(0, 3);
+      const cols = (field.matrixColumns ?? []).slice(0, 4);
+      return (
+        <div className="fd-canvas-preview__matrix">
+          <div className="fd-canvas-preview__matrix-row fd-canvas-preview__matrix-head">
+            <span />
+            {cols.map((c) => <span key={c}>{c}</span>)}
+          </div>
+          {rows.map((r) => (
+            <div key={r} className="fd-canvas-preview__matrix-row">
+              <span>{r}</span>
+              {cols.map((c) => <span key={c}>○</span>)}
+            </div>
+          ))}
+        </div>
+      );
+    }
+    case 'location':
+      return (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Input disabled placeholder={field.placeholder ?? '详细地址'} />
+          <Button disabled>获取定位</Button>
         </div>
       );
     case 'tags':

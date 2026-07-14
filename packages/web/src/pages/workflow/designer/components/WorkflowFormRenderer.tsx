@@ -7,7 +7,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import DOMPurify from 'dompurify';
-import { Form, Select, Button, Typography, Row, Col, Divider, Rating, Toast, withField, Input, InputNumber, DatePicker, Collapse, Tabs, Steps, RadioGroup } from '@douyinfe/semi-ui';
+import { Form, Select, Button, Typography, Row, Col, Divider, Rating, Toast, withField, Input, InputNumber, DatePicker, Collapse, Tabs, Steps, RadioGroup, Radio } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Plus, Eraser, Trash2, Copy, ClipboardPaste } from 'lucide-react';
 import dayjs from 'dayjs';
@@ -498,6 +498,111 @@ function DetailTableInput({ value, onChange, columns, disabled }: Readonly<Detai
 
 const FormDetailTable = withField(DetailTableInput);
 
+// ─── 矩阵量表（多行共用一组选项，值为 { 行: 选中列 }） ─────────────────
+interface MatrixInputProps {
+  value?: Record<string, string>;
+  onChange?: (value: Record<string, string>) => void;
+  rows: string[];
+  cols: string[];
+  disabled?: boolean;
+}
+
+function MatrixInput({ value, onChange, rows, cols, disabled }: Readonly<MatrixInputProps>) {
+  const val = value ?? {};
+  if (rows.length === 0 || cols.length === 0) {
+    return <Typography.Text type="tertiary">请在设计器中配置矩阵的行与列</Typography.Text>;
+  }
+  return (
+    <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', overflow: 'hidden' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ background: 'var(--semi-color-fill-0)' }}>
+            <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 12, color: 'var(--semi-color-text-1)' }} />
+            {cols.map((c) => (
+              <th key={c} style={{ padding: '8px 6px', fontSize: 12, color: 'var(--semi-color-text-1)', fontWeight: 600, textAlign: 'center' }}>{c}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r} style={{ borderTop: '1px solid var(--semi-color-border)' }}>
+              <td style={{ padding: '8px 10px', fontSize: 13 }}>{r}</td>
+              {cols.map((c) => (
+                <td key={c} style={{ padding: '8px 6px', textAlign: 'center' }}>
+                  <Radio
+                    checked={val[r] === c}
+                    disabled={disabled}
+                    onChange={() => onChange?.({ ...val, [r]: c })}
+                    aria-label={`${r}-${c}`}
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const FormMatrix = withField(MatrixInput);
+
+// ─── 定位（浏览器 geolocation 取经纬度 + 地址文本） ───────────────────
+interface LocationValue { lng?: number; lat?: number; address?: string }
+
+function LocationInput({ value, onChange, disabled, placeholder }: Readonly<{
+  value?: LocationValue; onChange?: (v: LocationValue | undefined) => void; disabled?: boolean; placeholder?: string;
+}>) {
+  const val = value ?? {};
+  const [locating, setLocating] = useState(false);
+
+  const locate = () => {
+    if (!navigator.geolocation) {
+      Toast.error('当前浏览器不支持定位');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        onChange?.({ ...val, lng, lat });
+        Toast.success('已获取当前坐标');
+      },
+      () => {
+        setLocating(false);
+        Toast.error('定位失败，请检查浏览器定位权限');
+      },
+      { timeout: 8000 },
+    );
+  };
+
+  const setAddress = (address: string) => {
+    const next = { ...val, address: address || undefined };
+    onChange?.(next.address || next.lng != null ? next : undefined);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Input
+          value={val.address ?? ''}
+          onChange={setAddress}
+          placeholder={placeholder ?? '详细地址'}
+          disabled={disabled}
+        />
+        <Button loading={locating} disabled={disabled} onClick={locate}>获取定位</Button>
+      </div>
+      {val.lng != null && val.lat != null && (
+        <Typography.Text type="tertiary" size="small">经度 {val.lng} · 纬度 {val.lat}</Typography.Text>
+      )}
+    </div>
+  );
+}
+
+const FormLocation = withField(LocationInput);
+
 // 必填字段标签（带红色星号），用于 withField 自定义控件
 function fieldLabelNode(field: WorkflowFormField, required: boolean | undefined = field.required): ReactNode {
   if (!required) return field.label;
@@ -559,17 +664,30 @@ function buildDisabledDate(field: WorkflowFormField): ((date?: Date) => boolean)
 }
 
 // ─── 增强选项：合并 optionItems 元信息，按级联允许值过滤排序 ──────────
-export interface DisplayOption { value: string; label: string; color?: string; disabled?: boolean }
+export interface DisplayOption { value: string; label: string; color?: string; disabled?: boolean; imageUrl?: string }
 function getDisplayOptions(field: WorkflowFormField, values: Record<string, unknown>): DisplayOption[] {
   const allowed = getCascadeAllowedOptions(field, values);
   const itemMap = new Map<string, WorkflowFormFieldOptionItem>((field.optionItems ?? []).map((it) => [it.value, it]));
   return allowed.map((v) => {
     const it = itemMap.get(v);
-    return { value: v, label: it?.label || v, color: it?.color, disabled: it?.disabled };
+    return { value: v, label: it?.label || v, color: it?.color, disabled: it?.disabled, imageUrl: it?.imageUrl };
   });
 }
 
 function optionLabelNode(opt: DisplayOption): ReactNode {
+  // 图片选项：图 + 文的卡片式标签（radio 单选配图）
+  if (opt.imageUrl) {
+    return (
+      <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+        <img
+          src={opt.imageUrl}
+          alt={opt.label}
+          style={{ width: 72, height: 54, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-small)', border: '1px solid var(--semi-color-border)' }}
+        />
+        {opt.label}
+      </span>
+    );
+  }
   if (!opt.color) return opt.label;
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -1324,6 +1442,49 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
           marks={field.sliderMarks ? { [sMin]: String(sMin), [sMax]: String(sMax) } : undefined}
           initValue={field.defaultValue}
           disabled={disabled}
+          {...extraProps}
+        />
+      );
+    }
+
+    case 'matrix': {
+      const mRows = field.matrixRows ?? [];
+      const mCols = field.matrixColumns ?? [];
+      const matrixRules = dynamicRequired
+        ? [{
+          validator: (_r: unknown, v: unknown) => {
+            const val = (v ?? {}) as Record<string, string>;
+            return mRows.every((r) => !!val[r]);
+          },
+          message: `请完成${field.label}的全部行选择`,
+        }]
+        : undefined;
+      return (
+        <FormMatrix
+          field={field.key} label={fieldLabelNode(field, dynamicRequired)}
+          rows={mRows} cols={mCols}
+          initValue={field.defaultValue as Record<string, string> | undefined}
+          rules={matrixRules} disabled={disabled}
+          {...extraProps}
+        />
+      );
+    }
+
+    case 'location': {
+      const locationRules = dynamicRequired
+        ? [{
+          validator: (_r: unknown, v: unknown) => {
+            const val = (v ?? {}) as { lng?: number; address?: string };
+            return !!val.address || val.lng != null;
+          },
+          message: `请填写${field.label}`,
+        }]
+        : undefined;
+      return (
+        <FormLocation
+          field={field.key} label={fieldLabelNode(field, dynamicRequired)}
+          placeholder={field.placeholder}
+          rules={locationRules} disabled={disabled}
           {...extraProps}
         />
       );

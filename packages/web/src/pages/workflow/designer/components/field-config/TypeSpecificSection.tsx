@@ -1,5 +1,5 @@
 // ─── 字段类型专属设置（选项来源/数字/公式/日期/文件等，拆分自 FieldConfigPanel.tsx）───
-import { Input, InputNumber, Select, Switch, Typography, TextArea } from '@douyinfe/semi-ui';
+import { Input, InputNumber, Select, Switch, Typography, TextArea, TagInput } from '@douyinfe/semi-ui';
 import type { WorkflowFormField } from '@zenith/shared';
 import { CURRENCY_OPTIONS, DATE_FORMAT_OPTIONS, TIME_FORMAT_OPTIONS, REGION_LEVEL_OPTIONS, DATE_LIMIT_OPTIONS, toDateFnsToken } from '../../form-types';
 import type { FieldTypeFlags } from './field-type-flags';
@@ -24,7 +24,7 @@ export function TypeSpecificSection({ field, allFields, flatFields, flags, isRem
   const {
     hasOptions, supportsCascade, hasChildren, isDescription, isSerialNumber, isAmountOrNumber, isAmount,
     isDate, isFileType, isRate, isFormula, isTime, isRegion, isSwitch, isSlider, isTags, isColorPicker,
-    isPinCode, isAutoComplete, isDictSelect, isRelationSelect, isSystemSelect, isCascader, isNps, allowOtherTypes,
+    isPinCode, isAutoComplete, isDictSelect, isRelationSelect, isSystemSelect, isCascader, isNps, isMatrix, allowOtherTypes,
   } = flags;
 
   return (
@@ -51,6 +51,28 @@ export function TypeSpecificSection({ field, allFields, flatFields, flags, isRem
                   value={field.npsMaxLabel ?? ''}
                   onChange={(v) => onChange({ npsMaxLabel: v || undefined })}
                   placeholder="如：强烈推荐"
+                />
+              </div>
+            </>
+          )}
+
+          {/* 矩阵量表：行（题目）与列（选项） */}
+          {isMatrix && (
+            <>
+              <div className="fd-form-config__field">
+                <Typography.Text strong size="small">行（题目）</Typography.Text>
+                <TagInput
+                  value={field.matrixRows ?? []}
+                  onChange={(v) => onChange({ matrixRows: v })}
+                  placeholder="输入后回车添加"
+                />
+              </div>
+              <div className="fd-form-config__field">
+                <Typography.Text strong size="small">列（选项）</Typography.Text>
+                <TagInput
+                  value={field.matrixColumns ?? []}
+                  onChange={(v) => onChange({ matrixColumns: v })}
+                  placeholder="各行共用，如 不满意/一般/满意"
                 />
               </div>
             </>

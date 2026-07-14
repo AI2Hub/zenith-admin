@@ -45,6 +45,8 @@ import {
   Footprints,
   ListTree,
   Gauge,
+  Grid3x3,
+  LocateFixed,
   type LucideIcon,
 } from 'lucide-react';
 import { BASIC_COMPARISON_OPERATOR_LABELS } from '@zenith/shared';
@@ -91,6 +93,7 @@ export const FORM_FIELD_TYPES: FormFieldTypeInfo[] = [
   { type: 'pinCode',      label: '验证码',   icon: SquareAsterisk, group: '格式化控件', description: '定长验证码 / PIN 码' },
   { type: 'rate',         label: '评分',     icon: Star,          group: '格式化控件', description: '星级评分' },
   { type: 'nps',          label: 'NPS 量表', icon: Gauge,         group: '格式化控件', description: '0-10 净推荐值打分' },
+  { type: 'matrix',       label: '矩阵量表', icon: Grid3x3,       group: '格式化控件', description: '多行共用一组选项逐行选择' },
   { type: 'formula',      label: '公式',     icon: Sigma,         group: '格式化控件', description: '从其他字段自动计算' },
 
   // 系统组件（与当前系统集成）
@@ -103,6 +106,7 @@ export const FORM_FIELD_TYPES: FormFieldTypeInfo[] = [
   { type: 'attachment',   label: '附件',     icon: Paperclip,     group: '高级控件', description: '上传附件' },
   { type: 'image',        label: '图片',     icon: ImageIcon,     group: '高级控件', description: '上传图片' },
   { type: 'region',       label: '省市区',   icon: MapPin,        group: '高级控件', description: '省市区联动选择' },
+  { type: 'location',     label: '定位',     icon: LocateFixed,   group: '高级控件', description: '获取经纬度并填写地址' },
   { type: 'signature',    label: '手写签名', icon: PenTool,       group: '高级控件', description: '手写签名板' },
   { type: 'richtext',     label: '富文本',   icon: TextQuote,     group: '高级控件', description: '富文本编辑器' },
   { type: 'detail',       label: '明细',     icon: Table,         group: '高级控件', description: '明细/表格，含子字段' },

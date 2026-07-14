@@ -2959,6 +2959,8 @@ export type WorkflowFormFieldType =
   | 'dictSelect'    // 数据字典选择器（系统集成）
   | 'cascader'      // 级联选择（树形选项，自定义层级）
   | 'nps'           // NPS 净推荐值量表（0-10 打分）
+  | 'matrix'        // 矩阵量表（多行同一组选项打分/选择）
+  | 'location'      // 定位（经纬度 + 地址文本）
   | 'detail'        // 明细/表格
   | 'description'   // 说明文字
   | 'serialNumber'  // 流水号
@@ -2996,6 +2998,7 @@ export interface WorkflowFormFieldOptionItem {
   label?: string;        // 显示文案，缺省取 value
   color?: string;        // 选项标签颜色（十六进制，如 #1677ff）
   disabled?: boolean;    // 是否禁用该选项
+  imageUrl?: string;     // 选项配图 URL（radio 渲染为图片卡片单选）
 }
 
 /** 跨字段比较校验规则：当前字段值与目标字段值比较，不满足时报错 */
@@ -3105,6 +3108,9 @@ export interface WorkflowFormField {
   // nps 量表
   npsMinLabel?: string;                 // 左端说明（如「完全不推荐」）
   npsMaxLabel?: string;                 // 右端说明（如「强烈推荐」）
+  // matrix 矩阵量表
+  matrixRows?: string[];                // 行（题目）列表
+  matrixColumns?: string[];             // 列（选项）列表，各行共用
   // colorPicker 颜色选择器
   alpha?: boolean;                      // 是否支持透明度（rgba）
   // 字段级标签设置（覆盖表单级 settings）

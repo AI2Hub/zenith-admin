@@ -214,6 +214,13 @@ function createField(type: WorkflowFormFieldType): WorkflowFormField {
       field.npsMinLabel = '完全不推荐';
       field.npsMaxLabel = '强烈推荐';
       break;
+    case 'matrix':
+      field.matrixRows = ['题目1', '题目2'];
+      field.matrixColumns = ['不满意', '一般', '满意'];
+      break;
+    case 'location':
+      field.placeholder = '点击右侧按钮获取定位或手动填写地址';
+      break;
     case 'formula':
       field.formula = '';
       field.precision = 2;

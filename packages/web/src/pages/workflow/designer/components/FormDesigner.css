@@ -255,6 +255,44 @@
   border-radius: var(--semi-border-radius-small);
 }
 
+/* 矩阵量表画布预览 */
+.fd-canvas-preview__matrix {
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-small);
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.fd-canvas-preview__matrix-row {
+  display: flex;
+  border-top: 1px solid var(--semi-color-border);
+}
+
+.fd-canvas-preview__matrix-row:first-child {
+  border-top: none;
+}
+
+.fd-canvas-preview__matrix-head {
+  background: var(--semi-color-fill-0);
+  font-weight: 600;
+}
+
+.fd-canvas-preview__matrix-row span {
+  flex: 1;
+  padding: 5px 8px;
+  color: var(--semi-color-text-2);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fd-canvas-preview__matrix-row span:first-child {
+  flex: 1.4;
+  text-align: left;
+  color: var(--semi-color-text-1);
+}
+
 /* 明细列头预览 */
 .fd-form-canvas__detail-preview {
   width: 100%;
@@ -420,7 +458,6 @@
   margin: 8px 0;
   padding: 8px;
   border: 1px dashed var(--semi-color-border);
-  border-left: 3px solid var(--semi-color-primary-light-active);
   border-radius: var(--semi-border-radius-small);
   background: var(--semi-color-fill-0);
 }

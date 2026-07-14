@@ -192,6 +192,7 @@ export const WORKFLOW_SUMMARY_MAX_FIELDS = 3;
 const SUMMARY_EXCLUDED_FIELD_TYPES = new Set([
   'row', 'tabs', 'steps', 'group', 'divider', 'description', 'detail',
   'attachment', 'image', 'signature', 'richtext', 'userSelect', 'deptSelect', 'relation', 'password',
+  'matrix', 'location',
 ]);
 
 /** 字段类型是否可作为列表摘要字段（设计器选择器与运行时格式化共用同一判定） */

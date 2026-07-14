@@ -57,6 +57,11 @@ export function validateFormSchema(fields: WorkflowFormField[]): FormIssue[] {
       issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: '级联选项为空' });
     }
 
+    // 矩阵量表：行与列均不能为空
+    if (f.type === 'matrix' && ((f.matrixRows?.length ?? 0) === 0 || (f.matrixColumns?.length ?? 0) === 0)) {
+      issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: '矩阵的行/列不能为空' });
+    }
+
     if (f.min !== undefined && f.max !== undefined && f.min > f.max) {
       issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: '最小值大于最大值' });
     }

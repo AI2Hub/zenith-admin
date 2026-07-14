@@ -32,6 +32,8 @@ export function getFieldTypeFlags(field: WorkflowFormField) {
   const isRelationSelect = field.type === 'relation';
   const isCascader = field.type === 'cascader';
   const isNps = field.type === 'nps';
+  const isMatrix = field.type === 'matrix';
+  const isLocation = field.type === 'location';
   const isSystemSelect = isUserSelect || isDeptSelect || isDictSelect || isRelationSelect;
   // 支持响应式列宽 / 只读 / 隐藏的普通输入字段（排除布局类与纯展示类）
   const supportsLayoutState = !isLayout && !isDescription && !isSerialNumber;
@@ -48,7 +50,7 @@ export function getFieldTypeFlags(field: WorkflowFormField) {
     hasOptions, supportsCascade, hasChildren, isDescription, isSerialNumber, isAmountOrNumber, isAmount,
     isDate, isFileType, isLayout, isPanesContainer, isText, isFormatted, isRate, isFormula, isTime,
     isRegion, isSwitch, isSlider, isTags, isColorPicker, isPinCode, isAutoComplete, isUserSelect,
-    isDeptSelect, isDictSelect, isRelationSelect, isCascader, isNps, isSystemSelect, supportsLayoutState,
+    isDeptSelect, isDictSelect, isRelationSelect, isCascader, isNps, isMatrix, isLocation, isSystemSelect, supportsLayoutState,
     supportsLabelOverride, supportsKeyEdit, showValidationTab, supportsUnique, supportsCompare, allowOtherTypes,
   };
 }

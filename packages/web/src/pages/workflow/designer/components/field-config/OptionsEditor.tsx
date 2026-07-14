@@ -1,7 +1,7 @@
 // ─── 静态选项列表编辑器（拆分自 FieldConfigPanel.tsx）───
 import { useState } from 'react';
 import { Button, Input, Switch, Typography, Dropdown, TextArea } from '@douyinfe/semi-ui';
-import { Plus, Trash2, Ban, List } from 'lucide-react';
+import { Plus, Trash2, Ban, List, Image as ImageIcon } from 'lucide-react';
 import type { WorkflowFormField, WorkflowFormFieldOptionItem } from '@zenith/shared';
 import { OPTION_COLOR_PRESETS } from '../../form-types';
 import { deriveOptionItems } from './helpers';
@@ -24,6 +24,7 @@ export function OptionsEditor({
       ...(it.label && it.label !== it.value ? { label: it.label } : {}),
       ...(it.color ? { color: it.color } : {}),
       ...(it.disabled ? { disabled: true } : {}),
+      ...(it.imageUrl ? { imageUrl: it.imageUrl } : {}),
     }));
     onChange({ optionItems: cleaned, options: cleaned.map((it) => it.value) });
   };
@@ -143,6 +144,31 @@ export function OptionsEditor({
             onChange={(v) => (separate ? update(i, { label: v }) : update(i, { value: v }))}
             placeholder={separate ? '显示名' : `选项 ${i + 1}`}
           />
+          <Dropdown
+            trigger="click"
+            position="bottomLeft"
+            render={(
+              <div style={{ padding: 8, width: 240 }}>
+                <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>
+                  选项配图 URL（radio 渲染为图片卡片）
+                </Typography.Text>
+                <Input
+                  size="small"
+                  value={it.imageUrl ?? ''}
+                  onChange={(v) => update(i, { imageUrl: v || undefined })}
+                  placeholder="https://…/image.png"
+                />
+              </div>
+            )}
+          >
+            <button
+              type="button"
+              className={`fd-options-editor__flag ${it.imageUrl ? 'fd-options-editor__flag--active' : ''}`}
+              title="选项配图"
+            >
+              <ImageIcon size={12} />
+            </button>
+          </Dropdown>
           <button
             type="button"
             className={`fd-options-editor__flag ${it.disabled ? 'fd-options-editor__flag--active' : ''}`}
