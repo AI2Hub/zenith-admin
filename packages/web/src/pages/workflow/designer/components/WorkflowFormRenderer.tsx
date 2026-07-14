@@ -289,6 +289,16 @@ interface DetailTableInputProps {
 function DetailCell({ col, cellValue, disabled, onCellChange }: Readonly<{
   col: WorkflowFormField; cellValue: unknown; disabled?: boolean; onCellChange: (v: unknown) => void;
 }>) {
+  // 行内公式列：只读展示自动计算结果
+  if (col.formula?.trim()) {
+    return (
+      <Input
+        value={cellValue === undefined || cellValue === null ? '' : String(cellValue)}
+        placeholder="自动计算"
+        disabled
+      />
+    );
+  }
   switch (col.type) {
     case 'number':
     case 'amount':
@@ -337,7 +347,17 @@ function DetailTableInput({ value, onChange, columns, disabled }: Readonly<Detai
   const summaryCols = columns.filter((c) => (c.type === 'number' || c.type === 'amount') && c.detailSummary);
 
   const setRows = (next: DetailRow[]) => onChange?.(next);
-  const addRow = () => setRows([...rows, {}]);
+  // 行内公式列重算（引用同行其它列 {列key}）
+  const applyRowFormulas = (row: DetailRow): DetailRow => {
+    let nr = row;
+    for (const col of columns) {
+      if (!col.formula?.trim()) continue;
+      const res = evalFormula(col.formula, nr, col.precision ?? 2);
+      nr = { ...nr, [col.key]: res ?? undefined };
+    }
+    return nr;
+  };
+  const addRow = () => setRows([...rows, applyRowFormulas({})]);
   const removeRow = (idx: number) => setRows(rows.filter((_, i) => i !== idx));
   const copyRow = (idx: number) => {
     const next = [...rows];
@@ -345,7 +365,7 @@ function DetailTableInput({ value, onChange, columns, disabled }: Readonly<Detai
     setRows(next);
   };
   const setCell = (idx: number, key: string, cellVal: unknown) =>
-    setRows(rows.map((r, i) => (i === idx ? { ...r, [key]: cellVal } : r)));
+    setRows(rows.map((r, i) => (i === idx ? applyRowFormulas({ ...r, [key]: cellVal }) : r)));
 
   // 剪贴板单元格 → 按列类型强转（数字/金额转 Number；select 按显示名或值匹配选项）
   const coerceCell = (col: WorkflowFormField, raw: string): unknown => {
@@ -389,7 +409,7 @@ function DetailTableInput({ value, onChange, columns, disabled }: Readonly<Detai
       Toast.info('未解析到有效数据（按列顺序、制表符分隔）');
       return;
     }
-    setRows([...rows, ...parsed]);
+    setRows([...rows, ...parsed.map(applyRowFormulas)]);
     Toast.success(`已粘贴 ${parsed.length} 行明细`);
   };
 
@@ -433,7 +453,11 @@ function DetailTableInput({ value, onChange, columns, disabled }: Readonly<Detai
                 <td style={{ padding: '6px 10px', color: 'var(--semi-color-text-2)', fontSize: 12 }}>{idx + 1}</td>
                 {columns.map((col) => (
                   <td key={col.key} style={{ padding: '6px 8px' }}>
-                    <DetailCell col={col} cellValue={row[col.key]} disabled={disabled} onCellChange={(v) => setCell(idx, col.key, v)} />
+                    {isFieldVisible(col, row) ? (
+                      <DetailCell col={col} cellValue={row[col.key]} disabled={disabled} onCellChange={(v) => setCell(idx, col.key, v)} />
+                    ) : (
+                      <span style={{ color: 'var(--semi-color-text-3)' }}>—</span>
+                    )}
                   </td>
                 ))}
                 {!disabled && (
@@ -1428,10 +1452,28 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
         detailRules.push({
           validator: (_r: unknown, v: unknown) =>
             Array.isArray(v) && v.every((row) => requiredChildren.every((c) => {
+              // 行内被显隐规则隐藏的列不参与必填
+              if (!isFieldVisible(c, row as Record<string, unknown>)) return true;
               const cell = (row as Record<string, unknown>)[c.key];
               return cell !== undefined && cell !== null && cell !== '';
             })),
           message: `${field.label}存在必填子项未填写`,
+        });
+      }
+      // 行内校验公式（引用同行列，结果为真通过）
+      const formulaChildren = children.filter((c) => c.validationFormula?.trim());
+      for (const vc of formulaChildren) {
+        const vf = vc.validationFormula ?? '';
+        detailRules.push({
+          validator: (_r: unknown, v: unknown) =>
+            !Array.isArray(v) || v.every((row) => {
+              const ctx = row as Record<string, unknown>;
+              if (!isFieldVisible(vc, ctx)) return true;
+              const res = evalFormula(vf, ctx, 6);
+              if (res === null) return true;
+              return typeof res === 'number' ? res !== 0 : Boolean(res);
+            }),
+          message: vc.validationMessage || `${field.label}「${vc.label}」列存在不满足校验条件的行`,
         });
       }
       const uniqueChildren = children.filter(c => c.unique);

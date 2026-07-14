@@ -3,6 +3,7 @@
  * 区间非法、无效正则、孤儿依赖、公式错误等问题。供保存阻断与体检面板复用。
  */
 import type { WorkflowFormField, WorkflowFormFieldType } from '@zenith/shared';
+import { collectWorkflowRuleConditions } from '@zenith/shared';
 import { flattenAllFields, formulaReferencesKey } from './form-tree';
 import { evalFormula } from './form-formula';
 import { findValueDependencyCycles } from './form-graph';
@@ -69,9 +70,9 @@ export function validateFormSchema(fields: WorkflowFormField[]): FormIssue[] {
 
     const refKeys: string[] = [];
     if (f.visibilityCondition?.field) refKeys.push(f.visibilityCondition.field);
-    if (f.visibilityRules?.rules) for (const r of f.visibilityRules.rules) if (r.field) refKeys.push(r.field);
-    if (f.requiredRules?.rules) for (const r of f.requiredRules.rules) if (r.field) refKeys.push(r.field);
-    if (f.readOnlyRules?.rules) for (const r of f.readOnlyRules.rules) if (r.field) refKeys.push(r.field);
+    for (const r of collectWorkflowRuleConditions(f.visibilityRules)) if (r.field) refKeys.push(r.field);
+    for (const r of collectWorkflowRuleConditions(f.requiredRules)) if (r.field) refKeys.push(r.field);
+    for (const r of collectWorkflowRuleConditions(f.readOnlyRules)) if (r.field) refKeys.push(r.field);
     for (const rk of refKeys) {
       if (!keys.has(rk)) issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: `联动条件引用了不存在的字段：${rk}` });
     }

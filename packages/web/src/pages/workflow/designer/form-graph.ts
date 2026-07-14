@@ -8,6 +8,7 @@
  * - 联动赋值 autoFill.targets：源字段 赋值给 目标字段
  */
 import type { WorkflowFormField } from '@zenith/shared';
+import { collectWorkflowRuleConditions } from '@zenith/shared';
 import { flattenAllFields } from './form-tree';
 
 export type DepKind = '公式' | '显隐' | '必填' | '只读' | '级联' | '天数' | '赋值';
@@ -63,9 +64,9 @@ export function buildFieldDependencyGraph(fields: WorkflowFormField[]): { nodes:
       }
     }
     if (f.visibilityCondition?.field) addEdge(f.visibilityCondition.field, f.key, '显隐');
-    f.visibilityRules?.rules?.forEach((r) => { if (r.field) addEdge(r.field, f.key, '显隐'); });
-    f.requiredRules?.rules?.forEach((r) => { if (r.field) addEdge(r.field, f.key, '必填'); });
-    f.readOnlyRules?.rules?.forEach((r) => { if (r.field) addEdge(r.field, f.key, '只读'); });
+    collectWorkflowRuleConditions(f.visibilityRules).forEach((r) => { if (r.field) addEdge(r.field, f.key, '显隐'); });
+    collectWorkflowRuleConditions(f.requiredRules).forEach((r) => { if (r.field) addEdge(r.field, f.key, '必填'); });
+    collectWorkflowRuleConditions(f.readOnlyRules).forEach((r) => { if (r.field) addEdge(r.field, f.key, '只读'); });
     if (f.optionsFrom?.sourceKey) addEdge(f.optionsFrom.sourceKey, f.key, '级联');
     if (f.daysFromKey) addEdge(f.daysFromKey, f.key, '天数');
     f.autoFill?.targets?.forEach((t) => addEdge(f.key, t, '赋值'));

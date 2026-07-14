@@ -27,7 +27,7 @@ import {
   REPORT_TRANSFER_STATUSES,
   REPORT_WIDGET_TYPES,
 } from './types';
-import type { WorkflowFormField, MpMenuButton, MpArticle, WorkflowFormCascaderNode } from './types';
+import type { WorkflowFormField, MpMenuButton, MpArticle, WorkflowFormCascaderNode, WorkflowFieldVisibilityRuleGroup } from './types';
 import {
   FILE_OBJECT_ACL_SUPPORT,
   PRESIGNED_EXPIRY_DEFAULT_SECONDS,
@@ -959,6 +959,14 @@ export const workflowFieldVisibilityConditionSchema = z.object({
   value: z.unknown(),
 });
 
+/** 规则组（支持嵌套子组）：rules 项为「单条条件」或「子组」 */
+export const workflowFieldVisibilityRuleGroupSchema: z.ZodType<WorkflowFieldVisibilityRuleGroup> = z.lazy(() =>
+  z.object({
+    logic: z.enum(['and', 'or']),
+    rules: z.array(z.union([workflowFieldVisibilityRuleGroupSchema, workflowFieldVisibilityConditionSchema])),
+  })
+);
+
 export const workflowFormCascaderNodeSchema: z.ZodType<WorkflowFormCascaderNode> = z.lazy(() =>
   z.object({
     value: z.string().min(1),
@@ -996,18 +1004,9 @@ export const workflowFormFieldSchema: z.ZodType<WorkflowFormField> = z.lazy(() =
     allowOther: z.boolean().optional(),
     defaultValue: z.unknown().optional(),
     visibilityCondition: workflowFieldVisibilityConditionSchema.optional(),
-    visibilityRules: z.object({
-      logic: z.enum(['and', 'or']),
-      rules: z.array(workflowFieldVisibilityConditionSchema),
-    }).optional(),
-    requiredRules: z.object({
-      logic: z.enum(['and', 'or']),
-      rules: z.array(workflowFieldVisibilityConditionSchema),
-    }).optional(),
-    readOnlyRules: z.object({
-      logic: z.enum(['and', 'or']),
-      rules: z.array(workflowFieldVisibilityConditionSchema),
-    }).optional(),
+    visibilityRules: workflowFieldVisibilityRuleGroupSchema.optional(),
+    requiredRules: workflowFieldVisibilityRuleGroupSchema.optional(),
+    readOnlyRules: workflowFieldVisibilityRuleGroupSchema.optional(),
     children: z.array(workflowFormFieldSchema).optional(),
     precision: z.number().int().min(0).max(6).optional(),
     step: z.number().optional(),

@@ -2976,10 +2976,13 @@ export interface WorkflowFieldVisibilityCondition {
   value: unknown;
 }
 
-/** 字段级高级联动：多条件 and/or 组合显隐 */
+/** 规则组条目：单条条件，或嵌套子组（支持「A 且 (B 或 C)」结构） */
+export type WorkflowFieldVisibilityRule = WorkflowFieldVisibilityCondition | WorkflowFieldVisibilityRuleGroup;
+
+/** 字段级高级联动：多条件 and/or 组合显隐（rules 可含嵌套子组） */
 export interface WorkflowFieldVisibilityRuleGroup {
   logic: 'and' | 'or';
-  rules: WorkflowFieldVisibilityCondition[];
+  rules: WorkflowFieldVisibilityRule[];
 }
 
 export interface WorkflowFormFieldColumn {

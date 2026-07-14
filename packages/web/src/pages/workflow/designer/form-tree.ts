@@ -3,7 +3,8 @@
  * 统一处理顶层字段、分栏（row.columns[].fields）、分组/明细（children）的
  * 查找 / 更新 / 删除 / 插入，供设计器画布的嵌套拖拽与字段配置复用。
  */
-import type { WorkflowFormField, WorkflowFormFieldType } from '@zenith/shared';
+import type { WorkflowFormField, WorkflowFormFieldType, WorkflowFieldVisibilityRuleGroup } from '@zenith/shared';
+import { isWorkflowRuleGroup, collectWorkflowRuleConditions } from '@zenith/shared';
 
 /** 容器类型：内部可容纳子字段 */
 export const CONTAINER_TYPES: WorkflowFormFieldType[] = ['row', 'group', 'detail', 'tabs', 'steps'];
@@ -331,8 +332,16 @@ const replaceFormulaKey = (formula: string, oldKey: string, newKey: string): str
     (_m, suffix) => `{${newKey}${suffix ?? ''}}`,
   );
 
-const renameRuleGroupField = (group: WorkflowFormField['visibilityRules'], oldKey: string, newKey: string) =>
-  group ? { ...group, rules: group.rules.map((r) => (r.field === oldKey ? { ...r, field: newKey } : r)) } : group;
+const renameRuleGroupField = (group: WorkflowFormField['visibilityRules'], oldKey: string, newKey: string): WorkflowFormField['visibilityRules'] =>
+  group
+    ? {
+      ...group,
+      rules: group.rules.map((r) =>
+        isWorkflowRuleGroup(r)
+          ? renameRuleGroupField(r, oldKey, newKey) as WorkflowFieldVisibilityRuleGroup
+          : (r.field === oldKey ? { ...r, field: newKey } : r)),
+    }
+    : group;
 
 /** 重命名字段 key，并级联更新所有引用（显隐/必填/只读规则、级联父字段、天数联动、公式） */
 export function renameFieldKey(fields: WorkflowFormField[], oldKey: string, newKey: string): WorkflowFormField[] {
@@ -389,9 +398,9 @@ export function findFieldDependents(fields: WorkflowFormField[], key: string): F
     if (f.key === key) continue;
     const reasons: string[] = [];
     if (f.visibilityCondition?.field === key) reasons.push('显隐条件');
-    if (f.visibilityRules?.rules?.some((r) => r.field === key)) reasons.push('联动规则');
-    if (f.requiredRules?.rules?.some((r) => r.field === key)) reasons.push('条件必填');
-    if (f.readOnlyRules?.rules?.some((r) => r.field === key)) reasons.push('条件只读');
+    if (collectWorkflowRuleConditions(f.visibilityRules).some((r) => r.field === key)) reasons.push('联动规则');
+    if (collectWorkflowRuleConditions(f.requiredRules).some((r) => r.field === key)) reasons.push('条件必填');
+    if (collectWorkflowRuleConditions(f.readOnlyRules).some((r) => r.field === key)) reasons.push('条件只读');
     if (f.optionsFrom?.sourceKey === key) reasons.push('级联父字段');
     if (f.autoFill?.targets?.includes(key)) reasons.push('联动赋值目标');
     if (f.daysFromKey === key) reasons.push('日期天数联动');
@@ -404,9 +413,11 @@ export function findFieldDependents(fields: WorkflowFormField[], key: string): F
   return out;
 }
 
-const pruneRuleGroup = (group: WorkflowFormField['visibilityRules'], key: string) => {
+const pruneRuleGroup = (group: WorkflowFormField['visibilityRules'], key: string): WorkflowFormField['visibilityRules'] => {
   if (!group) return undefined;
-  const rules = group.rules.filter((r) => r.field !== key);
+  const rules = group.rules
+    .map((r) => (isWorkflowRuleGroup(r) ? pruneRuleGroup(r, key) : (r.field === key ? undefined : r)))
+    .filter((r): r is NonNullable<typeof r> => r != null);
   return rules.length > 0 ? { ...group, rules } : undefined;
 };
 

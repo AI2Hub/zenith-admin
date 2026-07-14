@@ -415,6 +415,32 @@
   color: var(--semi-color-primary);
 }
 
+/* 嵌套条件子组（F07） */
+.fd-rule-subgroup {
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px dashed var(--semi-color-border);
+  border-left: 3px solid var(--semi-color-primary-light-active);
+  border-radius: var(--semi-border-radius-small);
+  background: var(--semi-color-fill-0);
+}
+
+.fd-rule-subgroup__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+/* 明细列行内公式编辑区（F10） */
+.fd-detail-children__fx {
+  margin: 4px 0 8px;
+  padding: 8px;
+  border: 1px dashed var(--semi-color-border);
+  border-radius: var(--semi-border-radius-small);
+  background: var(--semi-color-fill-0);
+}
+
 /* 控件面板「我的模板」行（模板按钮 + 删除角标） */
 .fd-form-palette__tpl {
   position: relative;

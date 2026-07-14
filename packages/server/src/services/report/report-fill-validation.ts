@@ -6,7 +6,7 @@ import type {
   WorkflowFormField,
   WorkflowFormSchema,
 } from '@zenith/shared';
-import { workflowFormSchemaSchema } from '@zenith/shared';
+import { workflowFormSchemaSchema, isWorkflowRuleGroup, collectWorkflowRuleConditions } from '@zenith/shared';
 
 const RESERVED_KEYS = new Set([
   'id', 'tenantId', 'templateId', 'templateRevision', 'submitterId', 'status',
@@ -55,7 +55,7 @@ function validateRuleGroup(
   keys: Set<string>,
   label: string,
 ) {
-  for (const condition of group?.rules ?? []) validateConditionReference(condition, keys, label);
+  for (const condition of collectWorkflowRuleConditions(group)) validateConditionReference(condition, keys, label);
 }
 
 function assertSafePattern(pattern: string, label: string) {
@@ -129,7 +129,10 @@ function compare(left: unknown, operator: WorkflowFieldVisibilityCondition['oper
 
 function matchesGroup(group: WorkflowFieldVisibilityRuleGroup | undefined, values: Record<string, unknown>): boolean {
   if (!group?.rules.length) return false;
-  const matches = group.rules.map((rule) => compare(values[rule.field], rule.operator, rule.value));
+  const matches = group.rules.map((rule) =>
+    isWorkflowRuleGroup(rule)
+      ? matchesGroup(rule, values)
+      : compare(values[rule.field], rule.operator, rule.value));
   return group.logic === 'and' ? matches.every(Boolean) : matches.some(Boolean);
 }
 

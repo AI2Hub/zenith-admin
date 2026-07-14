@@ -1,5 +1,6 @@
 // ─── 明细子字段编辑器（拆分自 FieldConfigPanel.tsx）───
-import { Button, Input, InputNumber, Select, TagInput, Tooltip } from '@douyinfe/semi-ui';
+import { useState } from 'react';
+import { Button, Input, InputNumber, Select, TagInput, TextArea, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
 import type { WorkflowFormField, WorkflowFormFieldType } from '@zenith/shared';
 import { createLocalFieldKey } from './helpers';
@@ -18,6 +19,9 @@ export function DetailChildrenEditor({
   items,
   onChange,
 }: Readonly<{ items: WorkflowFormField[]; onChange: (fields: WorkflowFormField[]) => void }>) {
+  // 展开行内公式/校验编辑的列下标
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+
   const addChild = () => {
     const key = createLocalFieldKey('text');
     onChange([
@@ -39,7 +43,8 @@ export function DetailChildrenEditor({
   return (
     <div className="fd-detail-children">
       {items.map((child, i) => (
-        <div key={child.key} className="fd-detail-children__row">
+        <div key={child.key}>
+          <div className="fd-detail-children__row">
           <Input
             size="small"
             value={child.label}
@@ -96,11 +101,47 @@ export function DetailChildrenEditor({
           </button>
           <button
             type="button"
+            className={`fd-detail-children__sum ${(child.formula || child.validationFormula || expandedIndex === i) ? 'fd-detail-children__sum--active' : ''}`}
+            title="行内公式 / 校验公式"
+            onClick={() => setExpandedIndex(expandedIndex === i ? null : i)}
+          >
+            fx
+          </button>
+          <button
+            type="button"
             className="fd-detail-children__delete"
             onClick={() => removeChild(i)}
           >
             <Trash2 size={12} />
           </button>
+          </div>
+          {expandedIndex === i && (
+            <div className="fd-detail-children__fx">
+              <Typography.Text strong size="small">行内公式</Typography.Text>
+              <TextArea
+                value={child.formula ?? ''}
+                onChange={(v) => updateChild(i, { formula: v || undefined })}
+                placeholder={'引用同行其它列，如 {qty}*{price}；设置后该列只读自动计算'}
+                rows={2}
+              />
+              <Typography.Text strong size="small" style={{ marginTop: 6, display: 'block' }}>行内校验公式</Typography.Text>
+              <TextArea
+                value={child.validationFormula ?? ''}
+                onChange={(v) => updateChild(i, { validationFormula: v || undefined })}
+                placeholder={'结果为真通过，如 {qty} > 0'}
+                rows={2}
+              />
+              {child.validationFormula && (
+                <Input
+                  size="small"
+                  style={{ marginTop: 6 }}
+                  value={child.validationMessage ?? ''}
+                  onChange={(v) => updateChild(i, { validationMessage: v || undefined })}
+                  placeholder="校验失败提示（可选）"
+                />
+              )}
+            </div>
+          )}
         </div>
       ))}
       <Button

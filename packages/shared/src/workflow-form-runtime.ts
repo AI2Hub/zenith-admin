@@ -8,6 +8,7 @@
 import type {
   WorkflowFieldPermission,
   WorkflowFieldVisibilityCondition,
+  WorkflowFieldVisibilityRule,
   WorkflowFieldVisibilityRuleGroup,
   WorkflowFormField,
 } from './types';
@@ -23,6 +24,21 @@ const toComparableStr = (v: unknown): string => {
 /** 表单值是否为空（undefined / null / 空串 / 空数组） */
 export const isWorkflowFormValueEmpty = (v: unknown): boolean =>
   v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
+
+/** 规则条目是否为嵌套子组 */
+export const isWorkflowRuleGroup = (rule: WorkflowFieldVisibilityRule | null | undefined): rule is WorkflowFieldVisibilityRuleGroup =>
+  !!rule && typeof rule === 'object' && 'logic' in rule && Array.isArray((rule as WorkflowFieldVisibilityRuleGroup).rules);
+
+/** 展平规则组内的全部叶子条件（含嵌套子组），供依赖分析/校验/重命名复用 */
+export function collectWorkflowRuleConditions(group: WorkflowFieldVisibilityRuleGroup | null | undefined): WorkflowFieldVisibilityCondition[] {
+  if (!group?.rules) return [];
+  const out: WorkflowFieldVisibilityCondition[] = [];
+  for (const rule of group.rules) {
+    if (isWorkflowRuleGroup(rule)) out.push(...collectWorkflowRuleConditions(rule));
+    else if (rule) out.push(rule);
+  }
+  return out;
+}
 
 /** 单条显隐/必填条件求值 */
 export function evalWorkflowFieldCondition(cond: WorkflowFieldVisibilityCondition, values: Record<string, unknown>): boolean {
@@ -49,13 +65,17 @@ export function evalWorkflowFieldCondition(cond: WorkflowFieldVisibilityConditio
   }
 }
 
-/** 条件组求值（and/or；空组恒真） */
+/** 条件组求值（and/or；空组恒真；子组递归求值，空子组视为真） */
 export function evalWorkflowFieldRuleGroup(group: WorkflowFieldVisibilityRuleGroup, values: Record<string, unknown>): boolean {
-  const rules = group.rules?.filter(r => r?.field) ?? [];
+  const rules = group.rules?.filter((r) => (isWorkflowRuleGroup(r) ? true : r?.field)) ?? [];
   if (rules.length === 0) return true;
+  const evalOne = (rule: WorkflowFieldVisibilityRule): boolean =>
+    isWorkflowRuleGroup(rule)
+      ? evalWorkflowFieldRuleGroup(rule, values)
+      : evalWorkflowFieldCondition(rule, values);
   return group.logic === 'or'
-    ? rules.some(r => evalWorkflowFieldCondition(r, values))
-    : rules.every(r => evalWorkflowFieldCondition(r, values));
+    ? rules.some(evalOne)
+    : rules.every(evalOne);
 }
 
 /** 字段在当前表单值下是否可见（高级联动 > 默认隐藏 > 旧版单条件） */

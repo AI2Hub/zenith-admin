@@ -114,7 +114,8 @@ describe('form-tree 引用维护', () => {
     expect(findField(next, 'a')).toBeNull();
     expect(findField(next, 'a2')).not.toBeNull();
     expect(findField(next, 'total')?.formula).toBe('{a2} * 2');
-    expect(findField(next, 'b')?.visibilityRules?.rules[0].field).toBe('a2');
+    const bRule = findField(next, 'b')?.visibilityRules?.rules[0];
+    expect(bRule && 'field' in bRule ? bRule.field : null).toBe('a2');
   });
 
   it('findFieldDependents 汇总依赖原因', () => {
