@@ -787,12 +787,12 @@ export default function UsersPage() {
   );
 
   const renderExportButtons = () => hasPermission('system:user:export')
-    ? <ExportButton entity="system.users" query={buildExportQuery()} />
+    ? <ExportButton entity="system.users" query={buildExportQuery()} watermark={false} />
     : null;
 
   const renderMobileExportActions = () => (
     hasPermission('system:user:export')
-      ? <ExportButton entity="system.users" query={buildExportQuery()} label="导出" variant="flat" />
+      ? <ExportButton entity="system.users" query={buildExportQuery()} watermark={false} label="导出" variant="flat" />
       : null
   );
 

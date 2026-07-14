@@ -246,7 +246,8 @@ export default function ExportJobsPage() {
       width: 150,
       render: (_: unknown, record: ExportJob) => (
         <Space spacing={4}>
-          {record.raw ? <Tag color="red">明文</Tag> : <Tag color="green">脱敏</Tag>}
+          {/* 脱敏/明文仅对含敏感列的导出有实际意义，无敏感数据的任务不展示 */}
+          {record.sensitive && (record.raw ? <Tag color="red">明文</Tag> : <Tag color="green">脱敏</Tag>)}
           {record.watermark && <Tag color="blue">水印</Tag>}
           {record.sensitive && <Tag color="orange">敏感</Tag>}
         </Space>
