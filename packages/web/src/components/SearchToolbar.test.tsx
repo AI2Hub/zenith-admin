@@ -2,9 +2,11 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { SearchToolbar } from './SearchToolbar';
+import { ListSearchToolbar } from './list-page/ListSearchToolbar';
 import ExportButton from './ExportButton';
 import { ClearLogsButtons } from './logs/ClearLogsControl';
 import { ToolbarSlotContext } from './toolbar-slot-context';
+import { PermissionContext } from '@/hooks/usePermission';
 
 vi.mock('@/hooks/useExportJobRunner', () => ({
   useExportJobRunner: () => ({ runExport: vi.fn(), isPending: false, pendingFormat: null }),
@@ -61,6 +63,26 @@ describe('SearchToolbar', () => {
     expect(menu.querySelector('.export-button--flat')).not.toBeNull();
     expect(menu.textContent).toContain('导出 XLSX');
     expect(menu.textContent).toContain('导出 CSV');
+  });
+
+  it('hides the mobile menu trigger when actions render nothing at runtime (permission-gated buttons)', () => {
+    const gated = <ExportButton entity="demo" permission="demo:export" />;
+    const denied = render(
+      <PermissionContext.Provider value={[]}>
+        <SearchToolbar primary={<span>P</span>} actions={gated} />
+        <ListSearchToolbar keyword={<input placeholder="搜索" />} actions={gated} onSearch={() => {}} onReset={() => {}} />
+      </PermissionContext.Provider>,
+    );
+    expect(denied.queryAllByRole('button', { name: '更多操作' })).toHaveLength(0);
+    denied.unmount();
+
+    const granted = render(
+      <PermissionContext.Provider value={['demo:export']}>
+        <SearchToolbar primary={<span>P</span>} actions={gated} />
+        <ListSearchToolbar keyword={<input placeholder="搜索" />} actions={gated} onSearch={() => {}} onReset={() => {}} />
+      </PermissionContext.Provider>,
+    );
+    expect(granted.getAllByRole('button', { name: '更多操作' })).toHaveLength(2);
   });
 });
 

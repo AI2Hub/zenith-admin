@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { SlotProbe, useRenderedSlot } from '@/components/rendered-slot';
 
 export interface ListSearchToolbarProps {
   /** 关键词输入（`KeywordInput`），桌面与移动端主区都展示 */
@@ -40,7 +41,11 @@ export function ListSearchToolbar({
   actionTitle,
   className,
 }: ListSearchToolbarProps) {
-  const desktopActions = present(create) || present(actions) ? <>{create}{actions}</> : undefined;
+  // 低频操作可能整体渲染为空（带 permission 的导出 / 按选中数出现的批量按钮）：按实际渲染结果决定移动端是否出现更多菜单
+  const actionsSlot = useRenderedSlot();
+  const desktopActions = present(create) || present(actions)
+    ? <>{create}<SlotProbe ref={actionsSlot.probeRef}>{actions}</SlotProbe></>
+    : undefined;
   return (
     <SearchToolbar
       className={className}
@@ -61,8 +66,9 @@ export function ListSearchToolbar({
         </>
       )}
       mobileFilters={present(filters) ? filters : undefined}
-      // SearchToolbar 对 mobileActions 缺省回落到 actions；新增按钮已在移动主区，这里用 false 明确「没有更多操作」
-      mobileActions={mobileActions ?? (present(actions) ? actions : false)}
+      // SearchToolbar 对 mobileActions 缺省回落到 actions（含新增按钮，而新增已在移动主区），这里显式给出：
+      // 页面覆盖优先；否则只有低频操作真的渲染出了元素才复用，用 false 明确「没有更多操作」
+      mobileActions={mobileActions ?? (actionsSlot.rendered ? actions : false)}
       filterTitle={filterTitle}
       actionTitle={actionTitle}
       onFilterApply={onSearch}

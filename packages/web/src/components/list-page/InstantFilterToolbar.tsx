@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { RefreshButton, ResetButton } from '@/components/toolbar-controls';
+import { SlotProbe, useRenderedSlot } from '@/components/rendered-slot';
 
 export interface InstantFilterToolbarProps {
   /** 主区控件（关键字输入 / 主机或站点等作用域切换），桌面与移动端主区都展示 */
@@ -45,7 +46,10 @@ export function InstantFilterToolbar({
   className,
 }: InstantFilterToolbarProps) {
   const refresh = onRefresh ? <RefreshButton onClick={onRefresh} loading={refreshing} /> : null;
-  const desktopActions = present(actions) || present(extra) ? <>{actions}{extra}</> : undefined;
+  const actionsSlot = useRenderedSlot();
+  const desktopActions = present(actions) || present(extra)
+    ? <><SlotProbe ref={actionsSlot.probeRef}>{actions}</SlotProbe>{extra}</>
+    : undefined;
   return (
     <SearchToolbar
       className={className}
@@ -65,8 +69,8 @@ export function InstantFilterToolbar({
         </>
       )}
       mobileFilters={present(filters) ? filters : undefined}
-      // SearchToolbar 对 mobileActions 缺省回落到 actions；说明文字不进更多菜单，这里显式给出
-      mobileActions={mobileActions ?? (present(actions) ? actions : false)}
+      // SearchToolbar 对 mobileActions 缺省回落到 actions；说明文字不进更多菜单，且只有操作真的渲染出元素才复用
+      mobileActions={mobileActions ?? (actionsSlot.rendered ? actions : false)}
       filterTitle={filterTitle}
       actionTitle={actionTitle}
       onFilterReset={onReset}

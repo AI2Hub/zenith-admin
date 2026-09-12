@@ -3,6 +3,7 @@ import { Button, Dropdown, SideSheet, Space } from '@douyinfe/semi-ui';
 import { Filter, MoreHorizontal } from 'lucide-react';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { ToolbarSlotContext } from '@/components/toolbar-slot-context';
+import { SlotProbe, useRenderedSlot } from '@/components/rendered-slot';
 
 interface SearchToolbarProps {
   /** 工具栏内容（搜索输入框、下拉筛选、按钮等），自动用 `<Space wrap>` 包裹 */
@@ -42,6 +43,7 @@ export function SearchToolbar({
   onFilterReset,
 }: SearchToolbarProps) {
   const [filterVisible, setFilterVisible] = useState(false);
+  const actionsSlot = useRenderedSlot();
   const isStructured = Boolean(primary || filters || actions);
   const toolbarClassName = [
     'responsive-toolbar',
@@ -63,7 +65,9 @@ export function SearchToolbar({
   const mobileFiltersContent = mobileFilters ?? filters;
   const mobileActionsContent = mobileActions ?? actions;
   const hasFilters = Boolean(mobileFiltersContent);
-  const hasActions = Boolean(mobileActionsContent);
+  // 未覆盖 mobileActions 时更多菜单复用 actions：按桌面区实际渲染出的元素判断，
+  // 带 permission 的按钮返回 null 时不会留下一个空菜单；显式覆盖则以调用方意图为准
+  const hasActions = mobileActions === undefined ? actionsSlot.rendered : Boolean(mobileActionsContent);
   const hasFilterFooter = Boolean(onFilterApply || onFilterReset);
 
   return (
@@ -73,7 +77,7 @@ export function SearchToolbar({
           <Space wrap style={{ width: '100%' }}>
             {primary}
             {filters}
-            {actions}
+            <SlotProbe ref={actionsSlot.probeRef}>{actions}</SlotProbe>
           </Space>
         </div>
 
