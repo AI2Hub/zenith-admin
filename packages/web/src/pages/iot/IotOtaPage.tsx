@@ -171,11 +171,7 @@ function FirmwaresTab({ onCreateTask }: Readonly<{ onCreateTask: (firmware: IotF
         </>}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('iot:ota:firmware:manage')
-            ? <CreateButton onClick={() => { setUploadVisible(true); uploadFileRef.current = null; }}>上传固件</CreateButton>
-            : null
-        )}
+        create={<CreateButton permission="iot:ota:firmware:manage" onClick={() => { setUploadVisible(true); uploadFileRef.current = null; }}>上传固件</CreateButton>}
         filterTitle="筛选条件"
       />
       <ConfigurableTable<IotFirmware>

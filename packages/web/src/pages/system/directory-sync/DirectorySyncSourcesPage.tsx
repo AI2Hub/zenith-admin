@@ -268,10 +268,7 @@ export default function DirectorySyncSourcesPage() {
         /></>}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('system:dirsync-source:create')
-            ? <CreateButton onClick={modal.openCreate} /> : null
-        )}
+        create={<CreateButton permission="system:dirsync-source:create" onClick={modal.openCreate} />}
         filterTitle="筛选条件"
       />
 

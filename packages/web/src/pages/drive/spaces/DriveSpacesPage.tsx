@@ -211,7 +211,7 @@ export default function DriveSpacesPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('drive:space:create') ? <CreateButton onClick={() => setSpaceEditor('create')}>新建协作空间</CreateButton> : null}
+        create={<CreateButton permission="drive:space:create" onClick={() => setSpaceEditor('create')}>新建协作空间</CreateButton>}
         filterTitle="空间筛选"
       />
       <ConfigurableTable<DriveSpace> columns={columns}

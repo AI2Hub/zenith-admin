@@ -200,7 +200,7 @@ function AppsManageModal({ visible, onClose }: { visible: boolean; onClose: () =
         width={760}
       >
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-          {hasPermission('system:app-release:create') && <CreateButton onClick={modal.openCreate}>新增应用</CreateButton>}
+          <CreateButton permission="system:app-release:create" onClick={modal.openCreate}>新增应用</CreateButton>
         </div>
         <ConfigurableTable
           columnSettingsKey="client-apps"
@@ -634,10 +634,7 @@ function ReleaseManageTab({ active }: { active: boolean }) {
         actions={(
           <Button icon={<Settings2 size={14} />} theme="light" onClick={() => setAppsModalVisible(true)}>应用管理</Button>
         )}
-        create={(
-          hasPermission('system:app-release:create')
-            ? <CreateButton onClick={modal.openCreate}>新增版本</CreateButton> : null
-        )}
+        create={<CreateButton permission="system:app-release:create" onClick={modal.openCreate}>新增版本</CreateButton>}
         filterTitle="筛选条件"
       />
 

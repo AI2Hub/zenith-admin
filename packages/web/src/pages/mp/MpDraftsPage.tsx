@@ -115,11 +115,7 @@ export default function MpDraftsPage() {
         filters={<MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          can('mp:draft:create') ? (
-            <CreateButton onClick={openCreate} disabled={!currentId}>新增图文</CreateButton>
-          ) : null
-        )}
+        create={<CreateButton permission="mp:draft:create" onClick={openCreate} disabled={!currentId}>新增图文</CreateButton>}
         filterTitle="图文草稿筛选"
       />
 

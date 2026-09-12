@@ -256,10 +256,7 @@ export default function PrintTemplatesPage() {
         /></>}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('report:print:create')
-            ? <CreateButton onClick={() => { setDialogSourceType('dataset'); printModal.openCreate(); }} /> : null
-        )}
+        create={<CreateButton permission="report:print:create" onClick={() => { setDialogSourceType('dataset'); printModal.openCreate(); }} />}
         actions={batchStatusButtons}
         filterTitle="打印模板筛选"
       />

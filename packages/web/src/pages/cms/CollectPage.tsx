@@ -155,7 +155,7 @@ export default function CollectPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('cms:collect:create') ? <CreateButton onClick={modal.openCreate} /> : null}
+        create={<CreateButton permission="cms:collect:create" onClick={modal.openCreate} />}
       />
 
       {runningTasks.length > 0 ? (

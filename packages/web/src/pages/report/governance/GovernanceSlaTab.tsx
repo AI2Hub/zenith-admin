@@ -159,7 +159,7 @@ export default function GovernanceSlaTab() {
           onChange={(v) => { setPage(1); setType(v as ReportSlaType | undefined); }}
           width={160}
         />
-        {hasPermission('report:sla:create') ? <CreateButton onClick={() => openRule()}>新增规则</CreateButton> : null}
+        <CreateButton permission="report:sla:create" onClick={() => openRule()}>新增规则</CreateButton>
       </SearchToolbar>
       {rulesQuery.isError && <Banner type="danger" description="SLA 规则加载失败" />}
       <ConfigurableTable columns={ruleColumns} {...listTableProps(rulesQuery, { pagination: buildPagination, empty: <Empty title="暂无 SLA 规则" /> })} />

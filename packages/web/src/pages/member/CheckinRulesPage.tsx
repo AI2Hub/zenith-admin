@@ -94,9 +94,7 @@ export default function CheckinRulesPage() {
     </Button>
   ) : null;
 
-  const renderCreateButton = () => hasPermission('member:checkin:rule:create') ? (
-    <CreateButton onClick={ruleModal.openCreate} />
-  ) : null;
+  const createButton = <CreateButton permission="member:checkin:rule:create" onClick={ruleModal.openCreate} />;
 
   return (
     <div className="page-container">
@@ -105,13 +103,13 @@ export default function CheckinRulesPage() {
           <>
             {renderRefreshButton()}
             {renderSettingsButton()}
-            {renderCreateButton()}
+            {createButton}
           </>
         )}
         mobilePrimary={(
           <>
             {renderRefreshButton()}
-            {renderCreateButton()}
+            {createButton}
           </>
         )}
         mobileActions={renderSettingsButton()}

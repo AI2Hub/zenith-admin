@@ -453,10 +453,7 @@ function AlarmRulesTab() {
         </>}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('iot:alarm:rule:create')
-            ? <CreateButton onClick={modal.openCreate}>新增规则</CreateButton> : null
-        )}
+        create={<CreateButton permission="iot:alarm:rule:create" onClick={modal.openCreate}>新增规则</CreateButton>}
         filterTitle="筛选条件"
       />
       <ConfigurableTable<IotAlarmRule>
@@ -633,8 +630,7 @@ function MaintenanceWindowsTab() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('iot:alarm:rule:create')
-          ? <CreateButton onClick={modal.openCreate}>新增窗口</CreateButton> : null}
+        create={<CreateButton permission="iot:alarm:rule:create" onClick={modal.openCreate}>新增窗口</CreateButton>}
       />
       <ConfigurableTable<IotMaintenanceWindow>
         columns={columns}

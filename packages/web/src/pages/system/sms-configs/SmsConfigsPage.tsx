@@ -146,9 +146,7 @@ export default function SmsConfigsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={can('system:sms-config:create') && (
-          <CreateButton onClick={configModal.openCreate} />
-        )}
+        create={<CreateButton permission="system:sms-config:create" onClick={configModal.openCreate} />}
         filterTitle="短信配置筛选"
       />
 

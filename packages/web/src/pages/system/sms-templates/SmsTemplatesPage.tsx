@@ -125,9 +125,7 @@ export default function SmsTemplatesPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={can('system:sms-template:create') && (
-          <CreateButton onClick={templateModal.openCreate} />
-        )}
+        create={<CreateButton permission="system:sms-template:create" onClick={templateModal.openCreate} />}
         filterTitle="短信模板筛选"
       />
 

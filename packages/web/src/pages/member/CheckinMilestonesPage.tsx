@@ -103,9 +103,7 @@ export default function CheckinMilestonesPage() {
         primary={(
           <>
             <RefreshButton onClick={() => void queryClient.invalidateQueries({ queryKey: memberAdminKeys.checkinMilestones })} />
-            {hasPermission('member:checkin:milestone:create') ? (
-              <CreateButton onClick={() => openModal(null)} />
-            ) : null}
+            <CreateButton permission="member:checkin:milestone:create" onClick={() => openModal(null)} />
           </>
         )}
       />

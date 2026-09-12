@@ -267,10 +267,7 @@ export default function DashboardListPage() {
           })}>收藏</Button></>}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('report:dashboard:create')
-            ? <CreateButton onClick={dashboardModal.openCreate} /> : null
-        )}
+        create={<CreateButton permission="report:dashboard:create" onClick={dashboardModal.openCreate} />}
         actions={toolbarActions}
         filterTitle="仪表盘筛选"
       />
@@ -312,7 +309,7 @@ export default function DashboardListPage() {
       >
         <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 12 }}>
           <Typography.Text type="tertiary">删除已引用分类时，相关仪表盘分类会自动置空。</Typography.Text>
-          {hasPermission('report:dashboard:update') ? <CreateButton onClick={categoryModal.openCreate}>新增分类</CreateButton> : null}
+          <CreateButton permission="report:dashboard:update" onClick={categoryModal.openCreate}>新增分类</CreateButton>
         </Space>
         <ConfigurableTable
           bordered

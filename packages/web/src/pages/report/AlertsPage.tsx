@@ -343,10 +343,7 @@ export default function AlertsPage() {
         /></>}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('report:alert:create')
-            ? <CreateButton onClick={openCreate} /> : null
-        )}
+        create={<CreateButton permission="report:alert:create" onClick={openCreate} />}
         actions={<>{renderBatchEnableBtn()}{renderBatchDisableBtn()}</>}
         filterTitle="预警筛选"
       />

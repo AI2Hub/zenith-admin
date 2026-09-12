@@ -135,11 +135,7 @@ export default function MpMaterialsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          can('mp:material:create') ? (
-            <CreateButton onClick={modal.openCreate} disabled={!currentId} />
-          ) : null
-        )}
+        create={<CreateButton permission="mp:material:create" onClick={modal.openCreate} disabled={!currentId} />}
         actions={materialActions}
         filterTitle="素材筛选"
         actionTitle="素材操作"

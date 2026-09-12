@@ -196,10 +196,7 @@ export default function PushConfigsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('system:push:create')
-            ? <CreateButton onClick={modal.openCreate}>新增配置</CreateButton> : null
-        )}
+        create={<CreateButton permission="system:push:create" onClick={modal.openCreate}>新增配置</CreateButton>}
         filterTitle="筛选条件"
       />
 

@@ -108,7 +108,7 @@ const operationColumn = createOperationColumn<User>({
 | `SearchButton` | `type="primary"` + `Search` 图标 | 查询 |
 | `ResetButton` | `type="tertiary"` + `RotateCcw` 图标 | 重置 |
 | `RefreshButton` | `type="tertiary"` + `RotateCcw` 图标 | 刷新 |
-| `CreateButton` | `type="primary"` + `Plus` 图标 | 新增 |
+| `CreateButton` | `type="primary"` + `Plus` 图标；`permission` 传权限码时无权限不渲染 | 新增 |
 | `BatchDeleteButton` | `type="danger"` + `theme="light"` + `Trash2` 图标，文案带选中数 | 批量删除 (N) |
 | `BatchEnableButton` / `BatchDisableButton` | `theme="light"` + `CircleCheck` / `Ban` 图标，文案带选中数；停用侧 `warning`，传 `danger` 变红 | 批量启用 (N) / 批量停用 (N) |
 | `BatchStatusButtons` | 上面两个按钮的成对形态，`onChange(status)` 通常接 `components/list-page` 的 `batchStatusHandler(...)` | — |

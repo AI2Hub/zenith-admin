@@ -54,6 +54,11 @@ const listSearchRestrictions = [
 //    页面内再手写一遍只会在文案、颜色、清选中等细节上慢慢漂移。──
 const listPageBoilerplateRestrictions = [
   {
+    // hasPermission('x') ? <CreateButton /> : null 与 can('x') && <CreateButton /> 两种写法
+    selector: ':matches(ConditionalExpression[test.type="CallExpression"][test.callee.name=/^(hasPermission|can)$/][test.arguments.0.type="Literal"][alternate.type="Literal"][alternate.raw="null"] > JSXElement[openingElement.name.name="CreateButton"].consequent, LogicalExpression[operator="&&"][left.type="CallExpression"][left.callee.name=/^(hasPermission|can)$/][left.arguments.0.type="Literal"] > JSXElement[openingElement.name.name="CreateButton"].right)',
+    message: '新增按钮的权限门交给 CreateButton 自身：<CreateButton permission="x:create" onClick={…} />（同 ExportButton permission），不要在外面包 hasPermission(…) ? … : null。',
+  },
+  {
     selector: 'CallExpression[callee.name="confirmDelete"] CallExpression[callee.object.name="Toast"][callee.property.name="success"]',
     message: '删除确认后再手写 Toast.success 的组合请用 @/components/list-page 的 deleteAction（操作列）/ confirmAndDelete（批量、面板内）；confirmDelete 只留给不提示成功的场景。',
   },

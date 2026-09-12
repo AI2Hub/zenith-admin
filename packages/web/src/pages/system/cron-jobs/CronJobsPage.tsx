@@ -387,7 +387,7 @@ export default function CronJobsPage() {
             )}
             onSearch={handleSearch}
             onReset={handleReset}
-            create={hasPermission('system:cronjob:create') && <CreateButton onClick={openCreate} />}
+            create={<CreateButton permission="system:cronjob:create" onClick={openCreate} />}
             actions={(
               <>
                 <Button icon={<ScrollText size={14} />} onClick={() => { setAllLogsPage(1); setAllLogsJobFilter(null); setAllLogsDrawerVisible(true); }}>全部执行日志</Button>

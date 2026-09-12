@@ -7,6 +7,8 @@ import { InstantFilterToolbar } from './InstantFilterToolbar';
 import { batchStatusHandler } from './batchStatus';
 import { confirmAndDelete, deleteAction } from './deleteAction';
 import { listTableProps } from './listTableProps';
+import { CreateButton } from '@/components/toolbar-controls';
+import { PermissionContext } from '@/hooks/usePermission';
 
 // Modal.confirm 依赖 createRoot 命令式渲染，jsdom 下改为记录配置、由测试手动触发 onOk
 const confirmCalls = vi.hoisted(() => [] as ModalReactProps[]);
@@ -56,6 +58,21 @@ describe('ListSearchToolbar', () => {
     expect(container.querySelector('.responsive-toolbar__mobile-extra')).toBeNull();
     expect(screen.queryByRole('button', { name: '筛选' })).toBeNull();
     expect(screen.queryByRole('button', { name: '更多操作' })).toBeNull();
+  });
+
+  it('CreateButton 的 permission 门控：无权限不渲染，也不会让移动端出现空的更多菜单', () => {
+    const renderWith = (permissions: string[]) => render(
+      <PermissionContext.Provider value={permissions}>
+        <ListSearchToolbar keyword={<input placeholder="搜索" />} create={<CreateButton permission="demo:create" />} onSearch={() => {}} onReset={() => {}} />
+      </PermissionContext.Provider>,
+    );
+    const denied = renderWith([]);
+    expect(denied.queryByRole('button', { name: '新增' })).toBeNull();
+    expect(denied.queryByRole('button', { name: '更多操作' })).toBeNull();
+    denied.unmount();
+
+    const granted = renderWith(['demo:create']);
+    expect([...granted.container.querySelector('.responsive-toolbar__desktop')!.querySelectorAll('button')].map(controlLabel)).toEqual(['查询', '重置', '新增']);
   });
 });
 

@@ -151,7 +151,7 @@ export default function GovernanceEnvironmentTab() {
   return (
     <>
       <SearchToolbar>
-        {hasPermission('report:environment:create') ? <CreateButton onClick={() => openEnvironment()}>新增环境</CreateButton> : null}
+        <CreateButton permission="report:environment:create" onClick={() => openEnvironment()}>新增环境</CreateButton>
         {hasPermission('report:environment:promote') ? <Button icon={<Rocket size={14} />} onClick={openPromotion}>创建发布</Button> : null}
       </SearchToolbar>
       {environmentsQuery.isError && <Banner type="danger" description="环境列表加载失败" />}

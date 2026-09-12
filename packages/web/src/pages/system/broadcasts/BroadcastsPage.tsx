@@ -236,10 +236,7 @@ export default function BroadcastsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('system:broadcast:create')
-            ? <CreateButton onClick={modal.openCreate}>新建活动</CreateButton> : null
-        )}
+        create={<CreateButton permission="system:broadcast:create" onClick={modal.openCreate}>新建活动</CreateButton>}
         filterTitle="筛选条件"
       />
 

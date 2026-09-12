@@ -157,11 +157,7 @@ export default function PromptTemplatesPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('ai:prompt:create') ? (
-            <CreateButton onClick={promptModal.openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="ai:prompt:create" onClick={promptModal.openCreate} />}
         filterTitle="提示词筛选"
       />
 

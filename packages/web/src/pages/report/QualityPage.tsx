@@ -303,7 +303,7 @@ export default function QualityPage() {
               />
             </>,
             undefined,
-            hasPermission('report:dq:create') ? <CreateButton onClick={openCreate} /> : null,
+            <CreateButton permission="report:dq:create" onClick={openCreate} />,
           )}
           {rulesQuery.isError && <Banner type="danger" description={rulesQuery.error instanceof Error ? rulesQuery.error.message : '质量规则加载失败'} />}
           <ConfigurableTable<ReportDqRule> columns={ruleColumns} {...listTableProps(rulesQuery, { pagination: buildPagination, empty: <Empty title="暂无质量规则" /> })} />

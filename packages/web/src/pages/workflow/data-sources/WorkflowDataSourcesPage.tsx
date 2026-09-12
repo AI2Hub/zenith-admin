@@ -158,11 +158,7 @@ export default function WorkflowDataSourcesPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('workflow:datasource:create') ? (
-            <CreateButton onClick={openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="workflow:datasource:create" onClick={openCreate} />}
         filterTitle="数据源筛选"
       />
 

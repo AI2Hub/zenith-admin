@@ -178,11 +178,7 @@ export default function PositionsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('system:position:create') ? (
-            <CreateButton onClick={positionModal.openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="system:position:create" onClick={positionModal.openCreate} />}
         actions={(
           <>
             <ExportButton entity="system.positions" query={filterQuery} />

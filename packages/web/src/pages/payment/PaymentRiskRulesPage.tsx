@@ -290,11 +290,7 @@ export default function PaymentRiskRulesPage() {
             filters={<StatusSelect items={statusItems} {...bind('status')} />}
             onSearch={handleSearch}
             onReset={handleReset}
-            create={(
-              hasPermission('payment:risk:create') ? (
-                <CreateButton onClick={openCreate} />
-              ) : null
-            )}
+            create={<CreateButton permission="payment:risk:create" onClick={openCreate} />}
             filterTitle="风控规则筛选"
           />
           <ConfigurableTable

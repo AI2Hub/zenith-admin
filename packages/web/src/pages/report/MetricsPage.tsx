@@ -237,7 +237,7 @@ export default function MetricsPage() {
         filters={filters}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('report:metric:create') ? <CreateButton onClick={openCreate} /> : null}
+        create={<CreateButton permission="report:metric:create" onClick={openCreate} />}
       />
       {listQuery.isError && <Banner type="danger" description={listQuery.error instanceof Error ? listQuery.error.message : '指标加载失败'} />}
       <ConfigurableTable<ReportMetric>

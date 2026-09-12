@@ -167,7 +167,7 @@ export default function SubscriptionsPage() {
         keyword={<KeywordInput placeholder="搜索 Cron/备注" {...bindKeyword('keyword')} width={200} />}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('report:subscription:create') ? <CreateButton onClick={openCreate} /> : null}
+        create={<CreateButton permission="report:subscription:create" onClick={openCreate} />}
         actions={<>{renderBatchEnable()}{renderBatchDisable()}</>}
       />
       <ConfigurableTable<ReportDashboardSubscription>

@@ -146,11 +146,7 @@ export default function PaymentFeeRulesPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('payment:fee:create') ? (
-            <CreateButton onClick={modal.openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="payment:fee:create" onClick={modal.openCreate} />}
         filterTitle="费率规则筛选"
       />
 

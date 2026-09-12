@@ -237,10 +237,7 @@ export default function ShortLinksPage() {
         </>}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('shortlink:link:create')
-            ? <CreateButton onClick={modal.openCreate} /> : null
-        )}
+        create={<CreateButton permission="shortlink:link:create" onClick={modal.openCreate} />}
         actions={<>
           {renderBatchButtons()}
           <ExportButton entity="shortlink.links" query={filterQuery} permission="shortlink:link:export" />

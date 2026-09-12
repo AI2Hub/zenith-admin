@@ -183,9 +183,9 @@ export default function MpConditionalMenusPage() {
   const refreshButton = (
     <RefreshButton onClick={() => void listQuery.refetch()} />
   );
-  const createButton = can('mp:condmenu:create') ? (
-    <CreateButton onClick={openCreate} disabled={!currentId}>新增个性化菜单</CreateButton>
-  ) : null;
+  const createButton = (
+    <CreateButton permission="mp:condmenu:create" onClick={openCreate} disabled={!currentId}>新增个性化菜单</CreateButton>
+  );
   const matchButton = (
     <Button icon={<FlaskConical size={14} />} disabled={!currentId} onClick={() => { setMatchResult(null); setMatchUserId(''); setMatchVisible(true); }}>匹配测试</Button>
   );

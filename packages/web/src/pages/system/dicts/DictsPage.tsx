@@ -488,11 +488,7 @@ export default function DictsPage() {
           )}
           onSearch={itemSearch.handleSearch}
           onReset={itemSearch.handleReset}
-          create={(
-            hasPermission('system:dict:item') ? (
-              <CreateButton onClick={() => openCreateItem()} disabled={!selectedDict} />
-            ) : null
-          )}
+          create={<CreateButton permission="system:dict:item" onClick={() => openCreateItem()} disabled={!selectedDict} />}
           actions={renderItemExpandButton()}
           filterTitle="字典项筛选"
           actionTitle="字典项操作"

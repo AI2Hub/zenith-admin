@@ -246,11 +246,7 @@ export default function PaymentLinksPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('payment:link:create') ? (
-            <CreateButton onClick={openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="payment:link:create" onClick={openCreate} />}
         filterTitle="支付链接筛选"
       />
 

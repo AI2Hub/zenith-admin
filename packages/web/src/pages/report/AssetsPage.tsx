@@ -329,7 +329,7 @@ export default function AssetsPage() {
             filters={<FilterSelect placeholder="全部模板类型" items={templateTypeOptions} {...templates.bind('type')} width={150} />}
             onSearch={templates.handleSearch}
             onReset={templates.handleReset}
-            create={hasPermission('report:asset-template:create') ? <CreateButton onClick={() => openTemplate()} /> : null}
+            create={<CreateButton permission="report:asset-template:create" onClick={() => openTemplate()} />}
           />
           {templatesQuery.isError && <Banner type="danger" description="资产模板加载失败" />}
           <ConfigurableTable<ReportAssetTemplate> columns={templateColumns} {...listTableProps(templatesQuery, { pagination: templates.buildPagination, empty: <Empty title="暂无资产模板" /> })} />
@@ -338,7 +338,7 @@ export default function AssetsPage() {
         <TabPane tab="使用与弃用" itemKey="usage">
           <SearchToolbar>
             <Select value={usageDays} optionList={[{ value: 7, label: '近 7 天' }, { value: 30, label: '近 30 天' }, { value: 90, label: '近 90 天' }]} style={{ width: 130 }} onChange={(v) => setUsageDays(Number(v))} />
-            {hasPermission('report:deprecation:create') ? <CreateButton onClick={() => openNotice()}>新增弃用公告</CreateButton> : null}
+            <CreateButton permission="report:deprecation:create" onClick={() => openNotice()}>新增弃用公告</CreateButton>
           </SearchToolbar>
           {(topQuery.isError || trendQuery.isError || inactiveQuery.isError || noticesQuery.isError) && <Banner type="danger" description="部分资产使用数据加载失败，可点击对应表格刷新重试。" />}
           <Typography.Title heading={5}>高频资产</Typography.Title>

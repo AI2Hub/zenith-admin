@@ -257,7 +257,7 @@ export default function TagsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={can('system:tag:create') && <CreateButton onClick={openCreate} />}
+        create={<CreateButton permission="system:tag:create" onClick={openCreate} />}
         actions={can('system:tag:delete') && selectedRowKeys.length > 0 && <BatchDeleteButton count={selectedRowKeys.length} onClick={handleBatchDelete} />}
         filterTitle="标签筛选"
         actionTitle="标签操作"

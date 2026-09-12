@@ -296,9 +296,7 @@ export default function PaymentReconPage() {
             {hasPermission('payment:recon:create') ? (
               <Button type="primary" icon={<CloudDownload size={14} />} onClick={autoModal.openCreate}>自动拉取</Button>
             ) : null}
-            {hasPermission('payment:recon:create') ? (
-              <CreateButton onClick={openCreate}>新建对账</CreateButton>
-            ) : null}
+            <CreateButton permission="payment:recon:create" onClick={openCreate}>新建对账</CreateButton>
           </>
         )}
         filterTitle="对账批次筛选"

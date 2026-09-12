@@ -127,7 +127,7 @@ export default function FriendLinksPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('cms:link:create') ? <CreateButton onClick={linkModal.openCreate} /> : null}
+        create={<CreateButton permission="cms:link:create" onClick={linkModal.openCreate} />}
         actions={<Button icon={<FolderTree size={14} />} disabled={!siteId} onClick={() => setGroupSheetVisible(true)}>分组管理</Button>}
       />
 
@@ -199,9 +199,7 @@ function FriendLinkGroupSheet({ siteId, visible, onClose }: Readonly<{
   return (
     <SideSheet title="友链分组管理" visible={visible} onCancel={onClose} width={620}>
       <div style={{ marginBottom: 12 }}>
-        {hasPermission('cms:link:create') ? (
-          <CreateButton onClick={groupModal.openCreate}>新增分组</CreateButton>
-        ) : null}
+        <CreateButton permission="cms:link:create" onClick={groupModal.openCreate}>新增分组</CreateButton>
       </div>
       <ConfigurableTable<CmsFriendLinkGroup>
         columns={columns}

@@ -181,11 +181,7 @@ export default function MpBroadcastsPage() {
         }
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          can('mp:broadcast:create') ? (
-            <CreateButton onClick={openCreate} disabled={!currentId}>新增群发</CreateButton>
-          ) : null
-        )}
+        create={<CreateButton permission="mp:broadcast:create" onClick={openCreate} disabled={!currentId}>新增群发</CreateButton>}
         filterTitle="群发筛选"
       />
 

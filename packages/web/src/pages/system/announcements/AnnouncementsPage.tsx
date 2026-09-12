@@ -585,7 +585,7 @@ export default function AnnouncementsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('system:announcement:create') && <CreateButton onClick={openCreateModal} />}
+        create={<CreateButton permission="system:announcement:create" onClick={openCreateModal} />}
         actions={(
           <>
             <ExportButton entity="system.announcements" query={filterQuery} />

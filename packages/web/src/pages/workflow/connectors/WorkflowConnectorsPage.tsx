@@ -235,7 +235,7 @@ export default function WorkflowConnectorsPage() {
         /><StatusSelect items={statusOptions} {...bind('status')} /></>)}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('workflow:connector:create') ? <CreateButton onClick={openCreate} /> : null}
+        create={<CreateButton permission="workflow:connector:create" onClick={openCreate} />}
         filterTitle="连接器筛选"
       />
 

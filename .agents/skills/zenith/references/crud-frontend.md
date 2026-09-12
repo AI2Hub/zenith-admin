@@ -235,7 +235,7 @@ export default function XxxPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('system:xxx:create') ? <CreateButton onClick={modal.openCreate} /> : null}
+        create={<CreateButton permission="system:xxx:create" onClick={modal.openCreate} />
         {/* 导出：query 直接给 filterQuery（与列表同源）；权限门交给组件的 permission，不再手写 hasPermission ? : null */}
         {/* 移动端更多菜单缺省复用 actions，菜单内按钮自动平铺；内容不同时才传 mobileActions */}
         actions={<ExportButton entity="system.xxxs" query={filterQuery} permission="system:xxx:export" />}
@@ -381,7 +381,12 @@ if (!(await confirmDangerAsync({ title: `确认停用「${name}」？`, okText: 
 ```tsx
 const { hasPermission } = usePermission();
 
-{hasPermission('system:xxx:create') && <CreateButton onClick={modal.openCreate} />}
+// 工具栏新增 / 导出：权限门交给组件自身的 permission，无权限时不渲染
+<CreateButton permission="system:xxx:create" onClick={modal.openCreate} />
+<ExportButton entity="system.xxxs" query={filterQuery} permission="system:xxx:export" />
+
+// 其它按钮 / 操作列条目：仍用 hasPermission 判断（或 createOperationColumn 条目的 hidden）
+{hasPermission('system:xxx:update') && <Button onClick={...}>同步</Button>}
 ```
 
 ## 批量操作（Step 0 确认需要时）

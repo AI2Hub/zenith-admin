@@ -195,7 +195,7 @@ export default function ModelsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('cms:model:create') ? <CreateButton onClick={modal.openCreate} disabled={!siteId} /> : null}
+        create={<CreateButton permission="cms:model:create" onClick={modal.openCreate} disabled={!siteId} />}
       />
 
       <ConfigurableTable<CmsModel>

@@ -270,11 +270,7 @@ export default function SitesPage() {
         filters={<StatusSelect items={statusItems} {...bind('status')} />}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('cms:site:create') ? (
-            <CreateButton onClick={openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="cms:site:create" onClick={openCreate} />}
         actions={(
           <>
             <Button

@@ -194,9 +194,7 @@ export default function AiKnowledgePage() {
             <ResetButton onClick={() => setSearch('')} />
           </>
         )}
-        actions={hasPermission('ai:kb:create') ? (
-          <CreateButton onClick={kbModal.openCreate} />
-        ) : null}
+        actions={<CreateButton permission="ai:kb:create" onClick={kbModal.openCreate} />}
       />
       <ConfigurableTable
         bordered

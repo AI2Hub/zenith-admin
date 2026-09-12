@@ -177,11 +177,7 @@ export default function WorkflowFormsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('workflow:form:create') ? (
-            <CreateButton onClick={() => navigate('/workflow/forms/designer')}>新建表单</CreateButton>
-          ) : null
-        )}
+        create={<CreateButton permission="workflow:form:create" onClick={() => navigate('/workflow/forms/designer')}>新建表单</CreateButton>}
         filterTitle="表单筛选"
       />
 

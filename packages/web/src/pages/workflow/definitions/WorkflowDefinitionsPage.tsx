@@ -452,14 +452,10 @@ export default function WorkflowDefinitionsPage() {
             )}
             onSearch={handleSearch}
             onReset={handleReset}
-            create={(
-              hasPermission('workflow:definition:create') ? (
-                <CreateButton onClick={() => {
+            create={<CreateButton permission="workflow:definition:create" onClick={() => {
                   const qs = draftParams.selectedCategoryId === null ? '' : `?categoryId=${draftParams.selectedCategoryId}`;
                   navigate(`/workflow/designer/new${qs}`);
-                }}>新建流程</CreateButton>
-              ) : null
-            )}
+                }}>新建流程</CreateButton>}
             actions={(
               <>
                 {importButton}

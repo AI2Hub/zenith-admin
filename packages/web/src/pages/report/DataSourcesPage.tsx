@@ -295,10 +295,7 @@ export default function DataSourcesPage() {
         /></>}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('report:datasource:create')
-            ? <CreateButton onClick={datasourceModal.openCreate} /> : null
-        )}
+        create={<CreateButton permission="report:datasource:create" onClick={datasourceModal.openCreate} />}
         actions={toolbarActions}
         filterTitle="数据源筛选"
       />

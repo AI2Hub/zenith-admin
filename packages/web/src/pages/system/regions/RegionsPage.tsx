@@ -213,11 +213,7 @@ export default function RegionsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('system:region:create') ? (
-            <CreateButton onClick={openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="system:region:create" onClick={openCreate} />}
         actions={(
           <>
             {renderExpandButton()}

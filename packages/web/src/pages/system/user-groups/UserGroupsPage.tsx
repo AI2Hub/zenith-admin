@@ -262,11 +262,7 @@ export default function UserGroupsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('system:user-groups:create') ? (
-            <CreateButton onClick={groupModal.openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="system:user-groups:create" onClick={groupModal.openCreate} />}
         actions={selectedRowKeys.length > 0 && hasPermission('system:user-groups:delete') && <BatchDeleteButton count={selectedRowKeys.length} onClick={handleBatchDelete} />}
         filterTitle="用户组筛选"
         actionTitle="用户组操作"

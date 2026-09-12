@@ -305,7 +305,7 @@ export default function PagesPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('cms:page:create') ? <CreateButton onClick={() => openBuilder(null)} /> : null}
+        create={<CreateButton permission="cms:page:create" onClick={() => openBuilder(null)} />}
       />
 
       <ConfigurableTable<CmsPage>

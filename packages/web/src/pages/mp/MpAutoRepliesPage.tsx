@@ -207,11 +207,7 @@ export default function MpAutoRepliesPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          can('mp:reply:create') ? (
-            <CreateButton onClick={openCreate} disabled={!currentId} />
-          ) : null
-        )}
+        create={<CreateButton permission="mp:reply:create" onClick={openCreate} disabled={!currentId} />}
         actions={hotwordsButton}
         filterTitle="自动回复筛选"
         actionTitle="自动回复操作"

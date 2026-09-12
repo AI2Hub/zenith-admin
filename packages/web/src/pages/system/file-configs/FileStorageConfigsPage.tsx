@@ -501,7 +501,7 @@ export default function FileStorageConfigsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('system:file:config:create') && <CreateButton onClick={openCreate} />}
+        create={<CreateButton permission="system:file:config:create" onClick={openCreate} />}
         actions={(
           <ExportButton entity="system.file-storage-configs" query={filterQuery} />
         )}

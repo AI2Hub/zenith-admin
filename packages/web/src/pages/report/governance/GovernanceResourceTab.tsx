@@ -155,7 +155,7 @@ export default function GovernanceResourceTab() {
           onChange={(v) => setResourceId(v as number | undefined)}
         />
         {hasPermission('report:resource:acl') ? <Button icon={<Shield size={14} />} onClick={openAcl}>权限管理</Button> : null}
-        {hasPermission('report:folder:create') ? <CreateButton onClick={() => openFolder()}>新增目录</CreateButton> : null}
+        <CreateButton permission="report:folder:create" onClick={() => openFolder()}>新增目录</CreateButton>
       </SearchToolbar>
       {foldersQuery.isError && <Banner type="danger" description="资源目录加载失败" />}
       <ConfigurableTable

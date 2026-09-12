@@ -8,12 +8,13 @@
  * @example
  * <SearchToolbar
  *   primary={<>{renderKeyword()}<SearchButton onClick={handleSearch} /><ResetButton onClick={handleReset} /></>}
- *   actions={hasPermission('system:role:create') ? <CreateButton onClick={openCreate} /> : null}
+ *   actions={<CreateButton permission="system:role:create" onClick={openCreate} />}
  * />
  */
 import type { ReactNode } from 'react';
 import { Button } from '@douyinfe/semi-ui';
 import { Ban, CircleCheck, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { usePermission } from '@/hooks/usePermission';
 
 interface ToolbarButtonProps {
   readonly onClick?: () => void;
@@ -53,8 +54,18 @@ export function RefreshButton({ onClick, disabled, loading, children = '刷新' 
   );
 }
 
-/** 新增按钮（primary + 加号图标）；是否渲染由调用方按权限判断 */
-export function CreateButton({ onClick, disabled, loading, children = '新增' }: ToolbarButtonProps) {
+interface CreateButtonProps extends ToolbarButtonProps {
+  /** 权限码：传入后无权限时不渲染，替代页面里的 `hasPermission('x:create') ? <CreateButton /> : null` */
+  readonly permission?: string;
+}
+
+/**
+ * 新增按钮（primary + 加号图标）。权限门优先交给 `permission`；
+ * 由派生条件（如「有站点且可编辑」）决定是否渲染时，仍由调用方判断。
+ */
+export function CreateButton({ permission, onClick, disabled, loading, children = '新增' }: CreateButtonProps) {
+  const { hasPermission } = usePermission();
+  if (permission && !hasPermission(permission)) return null;
   return (
     <Button type="primary" icon={<Plus size={14} />} onClick={onClick} disabled={disabled} loading={loading}>
       {children}

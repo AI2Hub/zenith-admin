@@ -165,7 +165,7 @@ export default function ChannelsPage() {
         keyword={<KeywordInput placeholder="搜索频道名称/编码" {...bindKeyword('keyword')} />}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('channel:channel:create') && <CreateButton onClick={openCreate} />}
+        create={<CreateButton permission="channel:channel:create" onClick={openCreate} />}
         actionTitle="频道操作"
       />
 

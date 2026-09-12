@@ -329,10 +329,7 @@ export default function IotDevicesPage() {
         </>}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('iot:device:create')
-            ? <CreateButton onClick={modal.openCreate}>注册设备</CreateButton> : null
-        )}
+        create={<CreateButton permission="iot:device:create" onClick={modal.openCreate}>注册设备</CreateButton>}
         actions={<>
           {canBatch && selectedRowKeys.length > 0 && (
             <>

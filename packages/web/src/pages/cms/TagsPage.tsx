@@ -101,7 +101,7 @@ export default function TagsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('cms:tag:create') ? <CreateButton onClick={modal.openCreate} /> : null}
+        create={<CreateButton permission="cms:tag:create" onClick={modal.openCreate} />}
       />
 
       <ConfigurableTable<CmsTag>

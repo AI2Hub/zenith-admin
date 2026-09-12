@@ -182,10 +182,7 @@ function SchedulesTab({ onShowRuns }: Readonly<{ onShowRuns: (schedule: IotSched
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('iot:schedule:create')
-            ? <CreateButton onClick={modal.openCreate}>新增计划</CreateButton> : null
-        )}
+        create={<CreateButton permission="iot:schedule:create" onClick={modal.openCreate}>新增计划</CreateButton>}
         filterTitle="筛选条件"
       />
       <ConfigurableTable<IotSchedule>

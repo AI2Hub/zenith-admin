@@ -110,10 +110,7 @@ export default function WikiTemplatesPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('wiki:template:create')
-            ? <CreateButton onClick={modal.openCreate} /> : null
-        )}
+        create={<CreateButton permission="wiki:template:create" onClick={modal.openCreate} />}
         filterTitle="筛选条件"
       />
 

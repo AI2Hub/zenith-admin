@@ -85,10 +85,7 @@ export default function WikiTagsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('wiki:tag:create')
-            ? <CreateButton onClick={modal.openCreate} /> : null
-        )}
+        create={<CreateButton permission="wiki:tag:create" onClick={modal.openCreate} />}
       />
 
       <ConfigurableTable<WikiTag>

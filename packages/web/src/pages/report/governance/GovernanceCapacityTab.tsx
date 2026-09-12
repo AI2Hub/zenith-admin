@@ -152,7 +152,7 @@ export default function GovernanceCapacityTab() {
   return (
     <>
       <SearchToolbar>
-        {hasPermission('report:query-quota:create') ? <CreateButton onClick={() => openQuota()}>新增配额</CreateButton> : null}
+        <CreateButton permission="report:query-quota:create" onClick={() => openQuota()}>新增配额</CreateButton>
       </SearchToolbar>
       {quotasQuery.isError && <Banner type="danger" description="查询配额加载失败" />}
       <ConfigurableTable columns={quotaColumns} {...listTableProps(quotasQuery, { pagination: buildPagination, empty: <Empty title="暂无查询配额" /> })} />

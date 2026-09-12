@@ -294,11 +294,7 @@ export default function MenusPage() {
         filters={<StatusSelect items={statusItems} {...bind('status')} />}
         onSearch={handleSearch}
         onReset={handleResetAndCollapse}
-        create={(
-          hasPermission('system:menu:create') ? (
-            <CreateButton onClick={() => openCreate()} />
-          ) : null
-        )}
+        create={<CreateButton permission="system:menu:create" onClick={() => openCreate()} />}
         actions={renderExpandButton()}
         filterTitle="菜单筛选"
         actionTitle="菜单操作"

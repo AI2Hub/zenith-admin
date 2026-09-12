@@ -182,10 +182,7 @@ export default function WikiSpacesPage() {
         </>}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('wiki:space:create')
-            ? <CreateButton onClick={modal.openCreate} /> : null
-        )}
+        create={<CreateButton permission="wiki:space:create" onClick={modal.openCreate} />}
         filterTitle="筛选条件"
       />
 

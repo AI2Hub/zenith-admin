@@ -172,11 +172,7 @@ export default function AIProvidersPage() {
         keyword={<KeywordInput placeholder="搜索名称/模型" {...bindKeyword('keyword')} />}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('ai:provider:create') ? (
-            <CreateButton onClick={openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="ai:provider:create" onClick={openCreate} />}
         actions={(
           <Button
             type="primary"

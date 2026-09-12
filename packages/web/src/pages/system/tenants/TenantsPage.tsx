@@ -212,11 +212,7 @@ export default function TenantsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('system:tenant:create') ? (
-            <CreateButton onClick={tenantModal.openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="system:tenant:create" onClick={tenantModal.openCreate} />}
         actions={<ExportButton entity="system.tenants" query={filterQuery} />}
         filterTitle="租户筛选"
         actionTitle="租户操作"

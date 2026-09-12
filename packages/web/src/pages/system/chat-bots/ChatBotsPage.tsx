@@ -213,9 +213,7 @@ export default function ChatBotsPage() {
         keyword={<KeywordInput placeholder="搜索机器人名称" {...bindKeyword('keyword')} width={260} />}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('chat:bot:create') && (
-          <CreateButton onClick={botModal.openCreate} />
-        )}
+        create={<CreateButton permission="chat:bot:create" onClick={botModal.openCreate} />}
         actionTitle="机器人操作"
       />
 

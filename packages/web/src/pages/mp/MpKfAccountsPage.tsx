@@ -119,11 +119,7 @@ export default function MpKfAccountsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          can('mp:kf:create') ? (
-            <CreateButton onClick={modal.openCreate} disabled={!currentId}>添加客服</CreateButton>
-          ) : null
-        )}
+        create={<CreateButton permission="mp:kf:create" onClick={modal.openCreate} disabled={!currentId}>添加客服</CreateButton>}
         actions={syncButton}
         filterTitle="多客服筛选"
         actionTitle="多客服操作"

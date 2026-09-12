@@ -183,10 +183,7 @@ function ForwardRulesTab({ onShowLogs }: Readonly<{ onShowLogs: (rule: IotForwar
         </>}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('iot:forward:create')
-            ? <CreateButton onClick={modal.openCreate}>新增规则</CreateButton> : null
-        )}
+        create={<CreateButton permission="iot:forward:create" onClick={modal.openCreate}>新增规则</CreateButton>}
         filterTitle="筛选条件"
       />
       <ConfigurableTable<IotForwardRule>

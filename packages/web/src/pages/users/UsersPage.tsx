@@ -584,11 +584,7 @@ export default function UsersPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('system:user:create') ? (
-            <CreateButton onClick={openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="system:user:create" onClick={openCreate} />}
         actions={(
           <>
             {renderDepartmentButton()}

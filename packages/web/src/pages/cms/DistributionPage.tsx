@@ -384,7 +384,7 @@ export default function DistributionPage() {
             )}
             onSearch={ruleSearch.handleSearch}
             onReset={ruleSearch.handleReset}
-            create={hasPermission('cms:distribution:create') ? <CreateButton onClick={openCreate} /> : null}
+            create={<CreateButton permission="cms:distribution:create" onClick={openCreate} />}
           />
           <ConfigurableTable<CmsDistributionRule>
             columns={ruleColumns}

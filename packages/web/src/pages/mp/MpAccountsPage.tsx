@@ -194,11 +194,7 @@ export default function MpAccountsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          can('mp:account:create') ? (
-            <CreateButton onClick={modal.openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="mp:account:create" onClick={modal.openCreate} />}
         filterTitle="公众号账号筛选"
       />
 

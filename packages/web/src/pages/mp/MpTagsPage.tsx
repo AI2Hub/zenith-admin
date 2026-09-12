@@ -99,11 +99,7 @@ export default function MpTagsPage() {
         onSearch={handleSearch}
         onReset={handleReset}
         actions={syncButton}
-        create={(
-          can('mp:tag:create') ? (
-            <CreateButton onClick={modal.openCreate} disabled={!currentId} />
-          ) : null
-        )}
+        create={<CreateButton permission="mp:tag:create" onClick={modal.openCreate} disabled={!currentId} />}
         filterTitle="标签筛选"
         actionTitle="标签操作"
       />

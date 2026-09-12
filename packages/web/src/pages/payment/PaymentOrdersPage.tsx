@@ -363,7 +363,7 @@ export default function PaymentOrdersPage() {
             )}
             onSearch={handleSearch}
             onReset={handleReset}
-            create={hasPermission('payment:order:create') ? <CreateButton onClick={openCreateOrder}>手动下单</CreateButton> : null}
+            create={<CreateButton permission="payment:order:create" onClick={openCreateOrder}>手动下单</CreateButton>}
             actions={<ExportButton entity="payment.orders" query={filterQuery} />}
             filterTitle="支付订单筛选"
           />

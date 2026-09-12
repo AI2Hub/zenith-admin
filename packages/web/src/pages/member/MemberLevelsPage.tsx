@@ -65,9 +65,7 @@ export default function MemberLevelsPage() {
         primary={(
           <>
             <RefreshButton onClick={() => void queryClient.invalidateQueries({ queryKey: memberAdminKeys.levels })} />
-            {hasPermission('member:level:create') ? (
-              <CreateButton onClick={levelModal.openCreate}>新增等级</CreateButton>
-            ) : null}
+            <CreateButton permission="member:level:create" onClick={levelModal.openCreate}>新增等级</CreateButton>
           </>
         )}
       />

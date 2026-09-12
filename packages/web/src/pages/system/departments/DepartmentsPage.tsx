@@ -199,11 +199,7 @@ export default function DepartmentsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('system:department:create') ? (
-            <CreateButton onClick={openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="system:department:create" onClick={openCreate} />}
         actions={(
           <>
             {expandButton}

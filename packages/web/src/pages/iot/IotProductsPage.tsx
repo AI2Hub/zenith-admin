@@ -146,10 +146,7 @@ export default function IotProductsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('iot:product:create')
-            ? <CreateButton onClick={modal.openCreate} /> : null
-        )}
+        create={<CreateButton permission="iot:product:create" onClick={modal.openCreate} />}
         filterTitle="筛选条件"
       />
 

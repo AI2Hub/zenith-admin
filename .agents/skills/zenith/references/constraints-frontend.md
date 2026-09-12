@@ -165,6 +165,8 @@
   宽度用默认 120，只在占位或选项文案放不下时传 `width`。多选筛选与没有「全部」语义的必选下拉（视图切换、所属应用）用原生 `Select`
 - **公共按钮**：查询 / 重置 / 新增 / 刷新统一用 `components/toolbar-controls.tsx` 的
   `SearchButton` / `ResetButton` / `CreateButton` / `RefreshButton`，文案不同时用 children 覆盖；
+  新增按钮的权限门交给 `CreateButton permission="x:create"`（同 `ExportButton permission`），
+  **禁止**再写 `hasPermission('x:create') ? <CreateButton /> : null`；只有派生条件（如「已选站点且可编辑」）才由调用方判断。
   批量删除用 `BatchDeleteButton`（`count` 拼进文案，是否渲染仍由调用方按「有选中 && 有权限」判断）。
   **例外**：仅复用同一图标的独立操作（「测试发送」「生成链接」）及视觉本就不同的写法保持原生 `Button`
 - **移动端更多菜单**：`actions` 缺省即进更多菜单，**不要**为了换视觉再传一份 `mobileActions`——菜单容器样式已把按钮

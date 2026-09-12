@@ -250,11 +250,7 @@ export default function RolesPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('system:role:create') ? (
-            <CreateButton onClick={roleModal.openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="system:role:create" onClick={roleModal.openCreate} />}
         actions={<ExportButton entity="system.roles" query={filterQuery} />}
         filterTitle="角色筛选"
         actionTitle="角色操作"

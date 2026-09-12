@@ -168,11 +168,7 @@ export default function TenantPackagesPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('system:tenant-package:create') ? (
-            <CreateButton onClick={modal.openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="system:tenant-package:create" onClick={modal.openCreate} />}
         actions={hasSelection && hasPermission('system:tenant-package:delete') && <BatchDeleteButton count={selectedRowKeys.length} onClick={handleBatchDelete} />}
         filterTitle="套餐筛选"
         actionTitle="套餐操作"

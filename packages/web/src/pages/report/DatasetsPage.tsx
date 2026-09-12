@@ -584,10 +584,7 @@ export default function DatasetsPage() {
         /></>}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('report:dataset:create')
-            ? <CreateButton onClick={openCreate} /> : null
-        )}
+        create={<CreateButton permission="report:dataset:create" onClick={openCreate} />}
         actions={batchStatusButtons}
         filterTitle="数据集筛选"
       />

@@ -203,10 +203,7 @@ export default function MarketingCampaignsPage() {
         </>}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('marketing:campaign:create')
-            ? <CreateButton onClick={modal.openCreate} /> : null
-        )}
+        create={<CreateButton permission="marketing:campaign:create" onClick={modal.openCreate} />}
         filterTitle="筛选条件"
       />
 

@@ -336,7 +336,7 @@ export default function FillTemplatesPage() {
         filters={filters}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('report:fill:template:create') ? <CreateButton onClick={() => openEditor()} /> : null}
+        create={<CreateButton permission="report:fill:template:create" onClick={() => openEditor()} />}
       />
       <ConfigurableTable<ReportFillTemplate>
         columns={columns}

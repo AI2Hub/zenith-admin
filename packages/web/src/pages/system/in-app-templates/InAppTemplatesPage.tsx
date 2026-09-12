@@ -122,9 +122,7 @@ export default function InAppTemplatesPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={can('system:in-app-template:create') && (
-          <CreateButton onClick={modal.openCreate} />
-        )}
+        create={<CreateButton permission="system:in-app-template:create" onClick={modal.openCreate} />}
         filterTitle="站内信模板筛选"
       />
 

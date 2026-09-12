@@ -108,9 +108,7 @@ export default function EmailTemplatesPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={can('system:email-template:create') && (
-          <CreateButton onClick={modal.openCreate} />
-        )}
+        create={<CreateButton permission="system:email-template:create" onClick={modal.openCreate} />}
         filterTitle="邮件模板筛选"
       />
 

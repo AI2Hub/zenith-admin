@@ -189,11 +189,7 @@ export default function PaymentChannelsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('payment:channel:create') ? (
-            <CreateButton onClick={openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="payment:channel:create" onClick={openCreate} />}
         filterTitle="支付渠道筛选"
       />
 

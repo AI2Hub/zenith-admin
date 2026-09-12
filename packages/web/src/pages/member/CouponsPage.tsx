@@ -206,11 +206,7 @@ export default function CouponsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('member:coupon:create') ? (
-            <CreateButton onClick={openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="member:coupon:create" onClick={openCreate} />}
         filterTitle="优惠券筛选"
       />
 

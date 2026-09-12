@@ -256,7 +256,7 @@ export default function WidgetsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={hasPermission('cms:widget:create') ? <CreateButton onClick={() => navigate(`/cms/widgets/edit?siteId=${siteId}`)} disabled={!siteId} /> : null}
+        create={<CreateButton permission="cms:widget:create" onClick={() => navigate(`/cms/widgets/edit?siteId=${siteId}`)} disabled={!siteId} />}
         actions={batchActions}
         filterTitle="页面部件筛选"
       />

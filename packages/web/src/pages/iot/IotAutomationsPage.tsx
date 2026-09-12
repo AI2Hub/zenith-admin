@@ -279,10 +279,7 @@ function AutomationRulesTab({ onShowRuns }: Readonly<{ onShowRuns: (automation: 
         </>}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('iot:automation:create')
-            ? <CreateButton onClick={modal.openCreate}>新增联动</CreateButton> : null
-        )}
+        create={<CreateButton permission="iot:automation:create" onClick={modal.openCreate}>新增联动</CreateButton>}
         filterTitle="筛选条件"
       />
       <ConfigurableTable<IotAutomation>

@@ -283,11 +283,7 @@ export default function MembersPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={(
-          hasPermission('member:member:create') ? (
-            <CreateButton onClick={memberModal.openCreate} />
-          ) : null
-        )}
+        create={<CreateButton permission="member:member:create" onClick={memberModal.openCreate} />}
         actions={<><ExportButton entity="member.members" query={filterQuery} permission="member:member:list" />{hasPermission('member:member:create') ? (
           <ImportButton
             entity="member.members"
