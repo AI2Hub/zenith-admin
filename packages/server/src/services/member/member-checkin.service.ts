@@ -23,7 +23,9 @@ import { trackServerEvent } from '../analytics/analytics-server-events.service';
 import { ANALYTICS_EVENT_NAMES } from '@zenith/shared/analytics';
 import { memberReferenceCondition } from './member-query-helpers';
 
-function mapMemberCheckin(row: MemberCheckinRow, memberNickname?: string | null) {
+type MemberCheckinFields = Pick<MemberCheckinRow, 'id' | 'memberId' | 'checkinDate' | 'consecutiveDays' | 'pointsAwarded' | 'experienceAwarded' | 'isMakeup' | 'remark' | 'createdAt'>;
+
+function mapMemberCheckin(row: MemberCheckinFields, memberNickname?: string | null) {
   return {
     id: row.id,
     memberId: row.memberId,
@@ -46,9 +48,9 @@ export function buildCheckinWhere(params: { memberId?: number; memberKeyword?: s
   );
 }
 
-export async function listMemberCheckins(params: QueryOutputOf<typeof memberCheckinContract.list> & { memberId?: number }) {
-  const where = buildCheckinWhere(params);
-  const baseQuery = db
+/** 签到明细的统一列集（含会员昵称）与排序：管理端列表与导出中心共用，两边字段不再各写一份 */
+export function selectCheckinRows(where: SQL | undefined) {
+  return db
     .select({
       id: memberCheckins.id,
       memberId: memberCheckins.memberId,
@@ -64,25 +66,18 @@ export async function listMemberCheckins(params: QueryOutputOf<typeof memberChec
     .from(memberCheckins)
     .leftJoin(members, eq(memberCheckins.memberId, members.id))
     .where(where)
-    .orderBy(desc(memberCheckins.createdAt));
+    .orderBy(desc(memberCheckins.createdAt))
+    .$dynamic();
+}
 
+export async function listMemberCheckins(params: QueryOutputOf<typeof memberCheckinContract.list> & { memberId?: number }) {
+  const where = buildCheckinWhere(params);
   return buildListResult({
     page: params.page,
     pageSize: params.pageSize,
     count: () => db.$count(memberCheckins, where),
-    rows: () => withPagination(baseQuery.$dynamic(), params.page, params.pageSize),
-    map: (row) => ({
-      id: row.id,
-      memberId: row.memberId,
-      memberNickname: row.memberNickname ?? null,
-      checkinDate: row.checkinDate,
-      consecutiveDays: row.consecutiveDays,
-      pointsAwarded: row.pointsAwarded,
-      experienceAwarded: row.experienceAwarded,
-      isMakeup: row.isMakeup,
-      remark: row.remark ?? null,
-      createdAt: formatDateTime(row.createdAt),
-    }),
+    rows: () => withPagination(selectCheckinRows(where), params.page, params.pageSize),
+    map: (row) => mapMemberCheckin(row, row.memberNickname),
   });
 }
 

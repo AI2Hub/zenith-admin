@@ -1,7 +1,6 @@
-import { desc, eq } from 'drizzle-orm';
 import { db } from '../../../db';
-import { memberCheckins, members } from '../../../db/schema';
-import { buildCheckinWhere } from '../../../services/member/member-checkin.service';
+import { memberCheckins } from '../../../db/schema';
+import { buildCheckinWhere, selectCheckinRows } from '../../../services/member/member-checkin.service';
 import { batchIterable } from '../../excel-export';
 import { defineExport } from '../registry';
 import { RETENTION_7_DAYS } from '../presets';
@@ -12,7 +11,7 @@ type Query = { memberKeyword?: string; dateStart?: string; dateEnd?: string };
 const columns: ExportColumn[] = [
   { key: 'id', header: 'ID', width: 10, type: 'number' },
   { key: 'memberId', header: '会员ID', width: 10, type: 'number' },
-  { key: 'memberName', header: '会员昵称', width: 16 },
+  { key: 'memberNickname', header: '会员昵称', width: 16 },
   { key: 'checkinDate', header: '签到日期', width: 14 },
   { key: 'consecutiveDays', header: '连续天数', width: 10, type: 'number' },
   { key: 'pointsAwarded', header: '积分奖励', width: 10, type: 'number' },
@@ -34,27 +33,8 @@ export const memberCheckinsExportDefinition = defineExport<Query & Record<string
   columns,
   countRows: async (query) => db.$count(memberCheckins, buildCheckinWhere(query)),
   streamRows: async (query) => {
+    // 列集、关联与排序与管理端列表同源（selectCheckinRows），导出与页面看到的是同一份数据
     const where = buildCheckinWhere(query);
-    return batchIterable(async (limit, offset) => {
-      const rows = await db.select({
-        id: memberCheckins.id,
-        memberId: memberCheckins.memberId,
-        memberName: members.nickname,
-        checkinDate: memberCheckins.checkinDate,
-        consecutiveDays: memberCheckins.consecutiveDays,
-        pointsAwarded: memberCheckins.pointsAwarded,
-        experienceAwarded: memberCheckins.experienceAwarded,
-        isMakeup: memberCheckins.isMakeup,
-        remark: memberCheckins.remark,
-        createdAt: memberCheckins.createdAt,
-      })
-        .from(memberCheckins)
-        .leftJoin(members, eq(members.id, memberCheckins.memberId))
-        .where(where)
-        .orderBy(desc(memberCheckins.createdAt))
-        .limit(limit)
-        .offset(offset);
-      return rows;
-    });
+    return batchIterable((limit, offset) => selectCheckinRows(where).limit(limit).offset(offset));
   },
 });
