@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { and, eq, desc } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { requireFirstRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
@@ -76,7 +76,7 @@ export async function listSmsSendLogs(q: QueryOutputOf<typeof smsSendLogContract
 
 export async function getSmsSendLog(id: number) {
   return requireFirstRow(
-    db.select().from(smsSendLogs).where(eq(smsSendLogs.id, id)).limit(1),
+    db.select().from(smsSendLogs).where(and(eq(smsSendLogs.id, id), tenantScope(smsSendLogs))).limit(1),
     '发送记录不存在',
   );
 }
