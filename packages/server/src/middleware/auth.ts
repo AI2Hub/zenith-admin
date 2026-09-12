@@ -11,6 +11,7 @@ import { errBody } from '../lib/openapi-schemas';
 import logger from '../lib/logger';
 import { isSuperAdmin } from '../lib/permissions';
 import { isTenantActive } from '../lib/tenant';
+import { checkSubjectLiveness, loadSubjectRow, type SubjectRow } from '../lib/subject-liveness';
 import { TtlCache } from '../lib/ttl-cache';
 import { onInvalidate, onInvalidationReset } from '../lib/invalidation-bus';
 
@@ -61,38 +62,15 @@ type AdminJwtCheck =
  */
 const SUBJECT_CACHE_TTL_MS = 5_000;
 
-interface AdminSubjectRow {
-  username: string;
-  status: string;
-  tenantId: number | null;
-  tenantStatus: string | null;
-  tenantExpireAt: Date | null;
-}
-
 interface TenantLivenessRow {
   status: string;
   expireAt: Date | null;
 }
 
 /** userId → 用户行（含所属租户状态）；不存在的用户缓存为 null，避免伪造 / 已删除主体反复回源 */
-const subjectRows = new TtlCache<number, AdminSubjectRow | null>(SUBJECT_CACHE_TTL_MS, { staleWhileRevalidate: false });
+const subjectRows = new TtlCache<number, SubjectRow | null>(SUBJECT_CACHE_TTL_MS, { staleWhileRevalidate: false });
 /** tenantId → 租户行；仅供平台管理员「切换租户视角」声明的活性校验 */
 const tenantRows = new TtlCache<number, TenantLivenessRow | null>(SUBJECT_CACHE_TTL_MS, { staleWhileRevalidate: false });
-
-async function loadSubjectRow(userId: number): Promise<AdminSubjectRow | null> {
-  const [row] = await db.select({
-    username: users.username,
-    status: users.status,
-    tenantId: users.tenantId,
-    tenantStatus: tenants.status,
-    tenantExpireAt: tenants.expireAt,
-  })
-    .from(users)
-    .leftJoin(tenants, eq(users.tenantId, tenants.id))
-    .where(eq(users.id, userId))
-    .limit(1);
-  return row ?? null;
-}
 
 async function loadTenantRow(tenantId: number): Promise<TenantLivenessRow | null> {
   const [row] = await db.select({ status: tenants.status, expireAt: tenants.expireAt })
@@ -129,16 +107,9 @@ export async function checkAdminJwtSubject(payload: JwtPayload): Promise<AdminJw
     return { ok: false, status: 401, message: '无效的访问令牌' };
   }
   const row = await subjectRows.get(payload.userId, () => loadSubjectRow(payload.userId));
-  if (!row) return { ok: false, status: 401, message: '用户不存在' };
-  if (row.status !== 'enabled') return { ok: false, status: 403, message: '账号已被禁用' };
-
-  const dbTenantId = row.tenantId ?? null;
-  if ((payload.tenantId ?? null) !== dbTenantId) {
-    return { ok: false, status: 401, message: '登录状态已失效，请重新登录' };
-  }
-  if (dbTenantId !== null && !isTenantActive({ status: row.tenantStatus, expireAt: row.tenantExpireAt })) {
-    return { ok: false, status: 403, message: '租户已被禁用或过期' };
-  }
+  const verdict = checkSubjectLiveness(row, { claimedTenantId: payload.tenantId ?? null });
+  if (!verdict.ok) return verdict;
+  const dbTenantId = verdict.tenantId;
 
   // A platform administrator may carry a temporary viewing tenant claim.  It
   // must be live as well; otherwise an old switched-tenant token survives a
@@ -159,7 +130,7 @@ export async function checkAdminJwtSubject(payload: JwtPayload): Promise<AdminJw
     ok: true,
     payload: {
       ...payload,
-      username: row.username,
+      username: verdict.row.username,
       tenantId: dbTenantId,
     },
   };

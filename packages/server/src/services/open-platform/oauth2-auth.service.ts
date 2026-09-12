@@ -13,8 +13,6 @@ import {
   oauth2TokenFamilies,
   oauth2Tokens,
   oauth2UserGrants,
-  tenants,
-  users,
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { HTTPException } from 'hono/http-exception';
@@ -24,7 +22,7 @@ import { OAUTH2_TOKEN_EXPIRY } from '@zenith/shared/open-platform';
 import type { DbExecutor, DbTransaction } from '../../db/types';
 import { config } from '../../config';
 import { OAuth2Error } from '../../lib/oauth2-error';
-import { isTenantActive } from '../../lib/tenant';
+import { checkSubjectLiveness, loadSubjectRow } from '../../lib/subject-liveness';
 
 // ─── 内部工具 ─────────────────────────────────────────────────────────────────
 
@@ -133,24 +131,10 @@ function isClientUsable(client: typeof oauth2Clients.$inferSelect): boolean {
   return true;
 }
 
+/** OAuth 主体是否仍可用：与 JWT 鉴权 / 续签同口径（lib/subject-liveness），无令牌租户声明可比对 */
 async function getUsableOAuthUser(userId: number, executor: DbExecutor = db) {
-  const [row] = await executor.select({
-    id: users.id,
-    username: users.username,
-    nickname: users.nickname,
-    email: users.email,
-    avatar: users.avatar,
-    status: users.status,
-    tenantId: users.tenantId,
-    tenantStatus: tenants.status,
-    tenantExpireAt: tenants.expireAt,
-  }).from(users)
-    .leftJoin(tenants, eq(users.tenantId, tenants.id))
-    .where(eq(users.id, userId))
-    .limit(1);
-  if (!row || row.status !== 'enabled') return null;
-  if (row.tenantId !== null && !isTenantActive({ status: row.tenantStatus, expireAt: row.tenantExpireAt })) return null;
-  return row;
+  const verdict = checkSubjectLiveness(await loadSubjectRow(userId, executor));
+  return verdict.ok ? verdict.row : null;
 }
 
 async function revokeTokenFamily(

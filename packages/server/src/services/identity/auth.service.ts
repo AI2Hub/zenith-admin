@@ -132,6 +132,7 @@ import { sendMail } from '../../lib/email';
 import { isSuperAdmin, getUserPermissions } from '../../lib/permissions';
 import { verifyCaptcha } from '../../lib/captcha';
 import { isPlatformAdmin, isTenantActive, isTenantExpired } from '../../lib/tenant';
+import { checkSubjectLiveness, loadSubjectRow } from '../../lib/subject-liveness';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 
@@ -412,30 +413,14 @@ export async function refreshAccessToken(token: string, clientInfo?: { ip: strin
   }
   // 授权已被消费：后续任何校验失败都必须让该会话彻底作废，避免半开状态
   const revokePrevious = async () => { try { await removeSession(previousTokenId); } catch { /* best-effort */ } };
-  const [u] = await db.select({
-    status: users.status,
-    nickname: users.nickname,
-    username: users.username,
-    tenantId: users.tenantId,
-    tenantStatus: tenants.status,
-    tenantExpireAt: tenants.expireAt,
-  })
-    .from(users)
-    .leftJoin(tenants, eq(users.tenantId, tenants.id))
-    .where(eq(users.id, payload.userId))
-    .limit(1);
-  if (!u) { await revokePrevious(); throw new HTTPException(401, { message: '用户不存在' }); }
-  if (u.status !== 'enabled') { await revokePrevious(); throw new HTTPException(403, { message: '账号已被禁用' }); }
-  const dbTenantId = u.tenantId ?? null;
-  if ((payload.tenantId ?? null) !== dbTenantId) {
+  // 主体活性与 JWT 鉴权同口径（lib/subject-liveness）；租户被禁用/过期后 refresh 同步失效，不受 multiTenantMode 开关影响
+  const verdict = checkSubjectLiveness(await loadSubjectRow(payload.userId), { claimedTenantId: payload.tenantId ?? null });
+  if (!verdict.ok) {
     await revokePrevious();
-    throw new HTTPException(401, { message: '登录状态已失效，请重新登录' });
+    throw new HTTPException(verdict.status, { message: verdict.message });
   }
-  // 租户被禁用/过期后，refresh 必须同步失效（不受 multiTenantMode 开关影响）。
-  if (dbTenantId !== null && !isTenantActive({ status: u.tenantStatus, expireAt: u.tenantExpireAt })) {
-    await revokePrevious();
-    throw new HTTPException(403, { message: '租户已被禁用或过期' });
-  }
+  const u = verdict.row;
+  const dbTenantId = verdict.tenantId;
   const userRoleList = await getUserRoles(payload.userId);
   if (payload.viewingTenantId != null) {
     if (!isSuperAdmin({
