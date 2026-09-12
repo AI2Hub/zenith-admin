@@ -7,7 +7,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import AppModal from '@/components/AppModal';
 import { ShareModal, VersionModal } from './components/DashboardOpsModals';
-import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, EMPTY_PLACEHOLDER, enabledStatusColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
@@ -203,7 +203,7 @@ export default function DashboardListPage() {
     createdAtColumn,
     { title: '治理提示', dataIndex: '__warnings', width: 90, render: (_: unknown, record) => deprecatedIds.has(record.id) ? <Tag color="red" size="small">已弃用</Tag> : EMPTY_PLACEHOLDER },
     { title: '生命周期', dataIndex: 'lifecycleStatus', width: 90, fixed: 'right', render: (value: ReportDashboard['lifecycleStatus']) => lifecycleTag(value) },
-    { title: '状态', dataIndex: 'status', width: 80, fixed: 'right', render: (s: string) => s === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag> },
+    enabledStatusColumn(),
     createOperationColumn<ReportDashboard>({
       width: 180,
       desktopInlineKeys: ['design', 'view'],

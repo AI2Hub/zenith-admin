@@ -25,7 +25,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
-import { dateTimeColumn, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { dateTimeColumn, EMPTY_PLACEHOLDER, enabledStatusColumn } from '@/utils/table-columns';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 import { FilterSelect, StatusSelect } from '@/components/search-filters';
 
@@ -59,10 +59,6 @@ const toFiveField = (expr: string) => {
   const parts = e.split(/\s+/);
   return parts.length === 6 ? parts.slice(1).join(' ') : e;
 };
-
-function renderStatus(status: ScheduleStatus) {
-  return status === 'enabled' ? <Tag color="green">启用</Tag> : <Tag color="grey">禁用</Tag>;
-}
 
 function renderLastRunStatus(status: string | null, message: string | null) {
   if (!status) return null;
@@ -210,13 +206,7 @@ export default function WorkflowSchedulesPage() {
         </Space>
       ),
     },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 90,
-      fixed: 'right',
-      render: (value: ScheduleStatus) => renderStatus(value),
-    },
+    enabledStatusColumn({ width: 90 }),
     createOperationColumn<WorkflowSchedule>({
       width: 240,
       desktopInlineKeys: ['edit', 'run-once', 'delete'],

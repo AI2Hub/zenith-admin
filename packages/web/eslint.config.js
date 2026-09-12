@@ -70,6 +70,11 @@ const listPageBoilerplateRestrictions = [
     selector: 'JSXOpeningElement[name.name="Tag"] > JSXAttribute[name.name="color"] > JSXExpressionContainer > ConditionalExpression > BinaryExpression[right.value="enabled"]',
     message: 'enabled / disabled 两态状态标签请用 @/utils/table-columns 的 renderEnabledStatusTag（文案与颜色跟随 COMMON_STATUS_LABELS）；三态或语义不同的标签请加 eslint-disable 注释并注明理由。',
   },
+  {
+    // 另一形态：x === 'enabled' ? <Tag …>启用</Tag> : <Tag …>停用</Tag>（整段 Tag 三元）
+    selector: 'ConditionalExpression[test.type="BinaryExpression"][test.operator="==="][test.right.value="enabled"][consequent.type="JSXElement"][consequent.openingElement.name.name="Tag"][alternate.type="JSXElement"][alternate.openingElement.name.name="Tag"]',
+    message: 'enabled / disabled 两态状态标签请用 @/utils/table-columns 的 renderEnabledStatusTag / enabledStatusColumn()（文案与颜色跟随 COMMON_STATUS_LABELS）；三态标签只把两态分支换成 renderEnabledStatusTag(v)。',
+  },
 ];
 
 // ── Mock 纪律（crud-mock.md）：可选等值筛选统一 matchesFilter(actual, expected)，

@@ -20,7 +20,7 @@ import type { CmsCollectRule, CmsCollectItem } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, dateTimeColumn, enabledStatusColumn, renderEllipsis } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 import { channelsToSelectTree } from './channel-tree';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
@@ -95,13 +95,7 @@ export default function CollectPage() {
       ),
     },
     dateTimeColumn('最近执行', 'lastRunAt'),
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 80,
-      fixed: 'right' as const,
-      render: (v: string) => (v === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag size="small">停用</Tag>),
-    },
+    enabledStatusColumn(),
     createOperationColumn<CmsCollectRule>({
       width: 210,
       desktopInlineKeys: ['run', 'items'],

@@ -22,7 +22,7 @@ import {
   useSpaceQuotaRequests, useTransferDriveSpace, useUnarchiveDriveSpace,
 } from '@/hooks/queries/drive';
 import { confirmDanger } from '@/utils/confirm';
-import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, renderEnabledStatusTag } from '@/utils/table-columns';
 import { DriveSpaceFormSheet, type DriveSpaceFormTarget } from '../components/DriveSpaceFormSheet';
 import { DriveSubjectPicker, type SubjectGrant } from '../components/DriveSubjectPicker';
 import { roleAtLeast } from '../drive-utils';
@@ -174,7 +174,7 @@ export default function DriveSpacesPage() {
     { title: '成员', dataIndex: 'memberCount', width: 70, render: (v?: number) => v ?? EMPTY_PLACEHOLDER },
     driveSpaceUsageColumn({ width: 170 }),
     { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v: string, s: DriveSpace) => (
-      s.archivedAt ? <Tag size="small" color="grey">已归档 · 只读</Tag> : v === 'enabled' ? <Tag size="small" color="green">启用</Tag> : <Tag size="small" color="grey">停用</Tag>
+      s.archivedAt ? <Tag size="small" color="grey">已归档 · 只读</Tag> : renderEnabledStatusTag(v)
     ) },
     createOperationColumn<DriveSpace>({ width: 150, desktopInlineKeys: ['members'], actions: (s) => {
       const isManager = roleAtLeast(s.myRole, 'manager');

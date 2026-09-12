@@ -550,14 +550,14 @@ export default function TaskCenterPage() {
             mobileActions={(
               <>
                 {canCleanup && (
-                  <Button theme="borderless" icon={<Eraser size={14} />} loading={cleanupMutation.isPending} onClick={handleCleanup}>清理过期记录</Button>
+                  <Button icon={<Eraser size={14} />} loading={cleanupMutation.isPending} onClick={handleCleanup}>清理过期记录</Button>
                 )}
                 {canManage && selectedRowKeys.length > 0 && (
                   <>
-                    <Button theme="borderless" icon={<XCircle size={14} />} loading={batchLoading} onClick={handleBatchCancel}>
+                    <Button icon={<XCircle size={14} />} loading={batchLoading} onClick={handleBatchCancel}>
                       批量取消 ({selectedRowKeys.length})
                     </Button>
-                    <Button type="danger" theme="borderless" icon={<Trash2 size={14} />} loading={batchLoading} onClick={handleBatchDelete}>
+                    <Button type="danger" icon={<Trash2 size={14} />} loading={batchLoading} onClick={handleBatchDelete}>
                       批量删除 ({selectedRowKeys.length})
                     </Button>
                   </>

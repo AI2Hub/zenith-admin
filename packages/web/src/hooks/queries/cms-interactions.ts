@@ -17,6 +17,8 @@ export const cmsInteractionKeys = {
   stats: (id: number | undefined) => contractKey(cmsInteractionContract.stats, { params: { id: id ?? 0 } }),
   texts: (id: number | undefined, questionId: number | undefined, page: number, pageSize: number, keyword: string) =>
     contractKey(cmsInteractionContract.texts, { params: { id: id ?? 0 }, query: { questionId: questionId ?? 0, page, pageSize, keyword: keyword || undefined } }),
+  /** 全部文本答案分页查询的前缀键（搜索 / 重置后整体失效） */
+  textsAll: contractKey(cmsInteractionContract.texts),
   cross: (id: number | undefined, x: number | undefined, y: number | undefined) =>
     contractKey(cmsInteractionContract.crossStats, { params: { id: id ?? 0 }, query: { xQuestionId: x ?? 0, yQuestionId: y ?? 0 } }),
   trend: (id: number | undefined, days: number) => contractKey(cmsInteractionContract.trend, { params: { id: id ?? 0 }, query: { days } }),

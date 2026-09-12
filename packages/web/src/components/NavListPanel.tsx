@@ -1,4 +1,4 @@
-import { Children } from 'react';
+import { Children, Fragment } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Button, Dropdown, Input, List, Spin } from '@douyinfe/semi-ui';
 import { MoreHorizontal, Search } from 'lucide-react';
@@ -220,6 +220,8 @@ export interface NavListItemAction {
   icon?: ReactNode;
   /** 危险动作（删除等）用红色文字 */
   danger?: boolean;
+  /** 在该项前插入分隔线（通常用于把删除与其它动作分开） */
+  dividerBefore?: boolean;
   /** 无权限时不渲染该项 */
   hidden?: boolean;
   disabled?: boolean;
@@ -228,12 +230,12 @@ export interface NavListItemAction {
 
 /**
  * 列表条目右侧的「更多」菜单（`NavListItem` 的 `extra` 槽）：借用 `Dropdown` 承载编辑 / 删除等低频动作，
- * 触发按钮阻止冒泡以免顺带选中条目。全部动作都隐藏时不渲染。
+ * 触发按钮与菜单项都阻止冒泡（菜单经 portal 渲染，React 事件仍会冒泡到条目）以免顺带选中条目。全部动作都隐藏时不渲染。
  *
  * @example
  * extra={<NavListItemActions items={[
  *   { key: 'edit', label: '编辑', icon: <Pencil size={14} />, hidden: !canManage, onClick: () => openEdit(item) },
- *   { key: 'delete', label: '删除', icon: <Trash2 size={14} />, danger: true, hidden: !canManage, onClick: () => remove(item) },
+ *   { key: 'delete', label: '删除', icon: <Trash2 size={14} />, danger: true, dividerBefore: true, hidden: !canManage, onClick: () => remove(item) },
  * ]} />}
  */
 export function NavListItemActions({ items }: Readonly<{ items: readonly NavListItemAction[] }>) {
@@ -246,12 +248,19 @@ export function NavListItemActions({ items }: Readonly<{ items: readonly NavList
       clickToHide
       render={(
         <Dropdown.Menu>
-          {visible.map((item) => (
-            <Dropdown.Item key={item.key} type={item.danger ? 'danger' : undefined} disabled={item.disabled} onClick={item.onClick}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {item.icon}{item.label}
-              </span>
-            </Dropdown.Item>
+          {visible.map((item, index) => (
+            <Fragment key={item.key}>
+              {item.dividerBefore && index > 0 ? <Dropdown.Divider /> : null}
+              <Dropdown.Item
+                type={item.danger ? 'danger' : undefined}
+                disabled={item.disabled}
+                onClick={(e) => { e.stopPropagation(); item.onClick(); }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {item.icon}{item.label}
+                </span>
+              </Dropdown.Item>
+            </Fragment>
           ))}
         </Dropdown.Menu>
       )}

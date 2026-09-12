@@ -24,7 +24,7 @@ import { formatDateTimeForApi } from '@/utils/date';
 import { useCmsWidgetRenderers, usePublishedCmsWidgets } from '@/hooks/queries/cms-widgets';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { dateTimeColumn, enabledStatusColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 import { mapTree } from '@zenith/shared/core';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
@@ -258,13 +258,7 @@ export default function PagesPage() {
       ),
     },
     dateTimeColumn('更新时间', 'updatedAt'),
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 80,
-      fixed: 'right' as const,
-      render: (v: string) => (v === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag size="small">停用</Tag>),
-    },
+    enabledStatusColumn(),
     createOperationColumn<CmsPage>({
       width: 180,
       desktopInlineKeys: ['builder', 'preview'],

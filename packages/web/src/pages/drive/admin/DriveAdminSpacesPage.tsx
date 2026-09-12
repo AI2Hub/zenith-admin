@@ -27,7 +27,7 @@ import {
 import { confirmDanger, confirmDangerAsync } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useHandoffDriveSpace } from '@/hooks/queries/drive-collaboration';
-import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, renderEnabledStatusTag } from '@/utils/table-columns';
 import { driveSpaceDefaultRoleColumn, driveSpaceNameColumn, driveSpaceOwnerColumn, driveSpaceTypeColumn, driveSpaceUsageColumn } from '../drive-space-columns';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import '../drive.css';
@@ -171,7 +171,7 @@ export default function DriveAdminSpacesPage() {
     } },
     { title: '状态', dataIndex: 'status', width: 130, fixed: 'right', render: (v: string, s: DriveSpace) => (
       <Space spacing={4} className="drive-nowrap">
-        {s.archivedAt ? <Tag size="small" color="grey">已归档</Tag> : v === 'enabled' ? <Tag size="small" color="green">启用</Tag> : <Tag size="small" color="grey">停用</Tag>}
+        {s.archivedAt ? <Tag size="small" color="grey">已归档</Tag> : renderEnabledStatusTag(v)}
         {!s.allowExternalShare && <Tag size="small" color="orange">禁外链</Tag>}
       </Space>
     ) },

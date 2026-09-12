@@ -32,7 +32,7 @@ import {
 import { CreateButton } from '@/components/toolbar-controls';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
-import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, dateTimeColumn, enabledStatusColumn, renderEllipsis } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 import { FilterSelect, StatusSelect } from '@/components/search-filters';
 import ModalFooter from '@/components/ModalFooter';
@@ -420,10 +420,7 @@ export default function WorkflowAutomationsPage() {
     { title: '排序', dataIndex: 'sort', width: 70 },
     dateTimeColumn('更新时间', 'updatedAt'),
     // 固定列必须连续贴在两端：状态若夹在中间，会被抽到右侧固定层，原位留下空洞，表头表体错位
-    {
-      title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
-      render: (v: string) => v === 'enabled' ? <Tag color="green">启用</Tag> : <Tag color="grey">禁用</Tag>,
-    },
+    enabledStatusColumn({ width: 90 }),
     createOperationColumn<WorkflowAutomation>({
       width: 240,
       desktopInlineKeys: ['runs', 'edit', 'delete'],

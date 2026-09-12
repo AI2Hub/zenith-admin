@@ -466,7 +466,7 @@ export default function WorkflowDefinitionsPage() {
             mobileActions={(
               <>
                 <Button
-                  theme="borderless"
+
                   icon={<Layers size={14} />}
                   onClick={() => setShowCategorySidebar(true)}
                   style={{ display: isLayoutNarrow ? undefined : 'none' }}

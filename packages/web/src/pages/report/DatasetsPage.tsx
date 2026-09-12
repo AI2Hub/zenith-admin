@@ -7,7 +7,7 @@ import { Play, Upload as UploadIcon, Sparkles, Blocks } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useExportJobRunner } from '@/hooks/useExportJobRunner';
-import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, EMPTY_PLACEHOLDER, enabledStatusColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -518,10 +518,7 @@ export default function DatasetsPage() {
         return <Space spacing={4}>{warning.anomalies > 0 ? <Tag color="orange" size="small">质量异常 {warning.anomalies}</Tag> : null}{warning.deprecated ? <Tag color="red" size="small">已弃用</Tag> : null}</Space>;
       },
     },
-    {
-      title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
-      render: (s: string) => s === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag>,
-    },
+    enabledStatusColumn(),
     createOperationColumn<ReportDataset>({
       width: 120,
       desktopInlineKeys: ['edit'],

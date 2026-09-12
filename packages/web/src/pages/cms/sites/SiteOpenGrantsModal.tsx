@@ -8,7 +8,7 @@ import AppModal from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { confirmAndDelete } from '@/components/list-page';
-import { renderEllipsis } from '@/utils/table-columns';
+import { enabledStatusColumn, renderEllipsis } from '@/utils/table-columns';
 import { useCmsChannelTree, useCmsOpenGrants, useDeleteCmsOpenGrant, useSaveCmsOpenGrant } from '@/hooks/queries/cms';
 import type { CmsChannel, CmsOpenAppGrant, CmsSite } from '@zenith/shared/cms';
 
@@ -103,10 +103,7 @@ export default function SiteOpenGrantsModal({ site, onClose }: Readonly<SiteOpen
             title: '直接发布', dataIndex: 'canPublish', width: 100,
             render: (v: boolean) => (v ? <Tag size="small" color="orange">允许</Tag> : <Tag size="small" color="grey">禁止</Tag>),
           },
-          {
-            title: '状态', dataIndex: 'status', width: 90,
-            render: (v: string) => (v === 'enabled' ? <Tag size="small" color="green">启用</Tag> : <Tag size="small" color="grey">停用</Tag>),
-          },
+          enabledStatusColumn({ width: 90, fixed: undefined }),
           createOperationColumn<CmsOpenAppGrant>({
             width: 100,
             desktopInlineKeys: ['delete'],

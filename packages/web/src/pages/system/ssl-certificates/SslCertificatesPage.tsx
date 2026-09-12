@@ -197,8 +197,8 @@ export default function SslCertificatesPage() {
         ) : null}
         mobileActions={canCreate ? (
           <>
-            <Button theme="borderless" icon={<Lock size={14} />} onClick={generateModal.openCreate}>生成</Button>
-            <Button theme="borderless" icon={<Upload size={14} />} onClick={uploadModal.openCreate}>上传</Button>
+            <Button icon={<Lock size={14} />} onClick={generateModal.openCreate}>生成</Button>
+            <Button icon={<Upload size={14} />} onClick={uploadModal.openCreate}>上传</Button>
           </>
         ) : null}
         filterTitle="证书筛选"

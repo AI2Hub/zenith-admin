@@ -1,8 +1,7 @@
-import type { MouseEvent, ReactNode } from 'react';
-import { Button, Dropdown, Tooltip } from '@douyinfe/semi-ui';
-import { Archive, ArchiveRestore, Download, Inbox, MessageSquarePlus, MoreHorizontal, Pencil, Pin, PinOff, Share2, Tags, Trash2 } from 'lucide-react';
+import { Button, Tooltip } from '@douyinfe/semi-ui';
+import { Archive, ArchiveRestore, Download, Inbox, MessageSquarePlus, Pencil, Pin, PinOff, Share2, Tags, Trash2 } from 'lucide-react';
 import type { AiConversation } from '@zenith/shared/ai';
-import { NavListItem, NavListPanel } from '@/components/NavListPanel';
+import { NavListItem, NavListItemActions, NavListPanel } from '@/components/NavListPanel';
 import { confirmDelete } from '@/utils/confirm';
 import type { ConvRow } from '../chat-utils';
 
@@ -16,59 +15,22 @@ export interface ConversationActionHandlers {
   onDelete: (id: number) => Promise<void>;
 }
 
-function MenuLabel({ icon, children }: Readonly<{ icon: ReactNode; children: ReactNode }>) {
-  return <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{icon}{children}</span>;
-}
-
 /** 会话条目的「更多」菜单：重命名 / 置顶 / 归档 / 标签 / 分享 / 导出 / 删除 */
 function ConversationActionsMenu({ conv, actions }: Readonly<{ conv: AiConversation; actions: ConversationActionHandlers }>) {
-  const stop = (e: unknown) => (e as MouseEvent).stopPropagation();
   return (
-    <Dropdown
-      trigger="click"
-      position="bottomRight"
-      clickToHide
-      render={
-        <Dropdown.Menu>
-          <Dropdown.Item onClick={(e) => { stop(e); actions.onRename(conv); }}>
-            <MenuLabel icon={<Pencil size={13} />}>重命名</MenuLabel>
-          </Dropdown.Item>
-          <Dropdown.Item onClick={(e) => { stop(e); void actions.onTogglePin(conv.id); }}>
-            <MenuLabel icon={conv.isPinned ? <PinOff size={13} /> : <Pin size={13} />}>
-              {conv.isPinned ? '取消置顶' : '置顶'}
-            </MenuLabel>
-          </Dropdown.Item>
-          <Dropdown.Item onClick={(e) => { stop(e); void actions.onToggleArchive(conv.id); }}>
-            <MenuLabel icon={conv.isArchived ? <ArchiveRestore size={13} /> : <Archive size={13} />}>
-              {conv.isArchived ? '取消归档' : '归档'}
-            </MenuLabel>
-          </Dropdown.Item>
-          <Dropdown.Item onClick={(e) => { stop(e); actions.onEditTags(conv); }}>
-            <MenuLabel icon={<Tags size={13} />}>标签</MenuLabel>
-          </Dropdown.Item>
-          <Dropdown.Item onClick={(e) => { stop(e); actions.onShare(conv.id); }}>
-            <MenuLabel icon={<Share2 size={13} />}>分享</MenuLabel>
-          </Dropdown.Item>
-          <Dropdown.Item onClick={(e) => { stop(e); actions.onExport(conv.id, conv.title, 'md'); }}>
-            <MenuLabel icon={<Download size={13} />}>导出 Markdown</MenuLabel>
-          </Dropdown.Item>
-          <Dropdown.Item onClick={(e) => { stop(e); actions.onExport(conv.id, conv.title, 'json'); }}>
-            <MenuLabel icon={<Download size={13} />}>导出 JSON</MenuLabel>
-          </Dropdown.Item>
-          <Dropdown.Divider />
-          <Dropdown.Item type="danger" onClick={(e) => { stop(e); confirmDelete({ title: '确定要删除这个会话吗？', onOk: () => actions.onDelete(conv.id) }); }}>
-            <MenuLabel icon={<Trash2 size={13} />}>删除</MenuLabel>
-          </Dropdown.Item>
-        </Dropdown.Menu>
-      }
-    >
-      <Button
-        theme="borderless"
-        size="small"
-        icon={<MoreHorizontal size={13} />}
-        onClick={(e) => e.stopPropagation()}
-      />
-    </Dropdown>
+    <NavListItemActions items={[
+      { key: 'rename', label: '重命名', icon: <Pencil size={14} />, onClick: () => actions.onRename(conv) },
+      { key: 'pin', label: conv.isPinned ? '取消置顶' : '置顶', icon: conv.isPinned ? <PinOff size={14} /> : <Pin size={14} />, onClick: () => void actions.onTogglePin(conv.id) },
+      { key: 'archive', label: conv.isArchived ? '取消归档' : '归档', icon: conv.isArchived ? <ArchiveRestore size={14} /> : <Archive size={14} />, onClick: () => void actions.onToggleArchive(conv.id) },
+      { key: 'tags', label: '标签', icon: <Tags size={14} />, onClick: () => actions.onEditTags(conv) },
+      { key: 'share', label: '分享', icon: <Share2 size={14} />, onClick: () => actions.onShare(conv.id) },
+      { key: 'export-md', label: '导出 Markdown', icon: <Download size={14} />, onClick: () => actions.onExport(conv.id, conv.title, 'md') },
+      { key: 'export-json', label: '导出 JSON', icon: <Download size={14} />, onClick: () => actions.onExport(conv.id, conv.title, 'json') },
+      {
+        key: 'delete', label: '删除', icon: <Trash2 size={14} />, danger: true, dividerBefore: true,
+        onClick: () => confirmDelete({ title: '确定要删除这个会话吗？', onOk: () => actions.onDelete(conv.id) }),
+      },
+    ]} />
   );
 }
 

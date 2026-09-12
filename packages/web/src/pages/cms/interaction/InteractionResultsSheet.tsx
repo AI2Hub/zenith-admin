@@ -16,11 +16,13 @@ import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { CMS_INTERACTION_QUESTION_TYPE_LABELS } from '@zenith/shared/cms';
 import type { CmsInteraction, CmsInteractionQuestionStats } from '@zenith/shared/cms';
 import {
+  cmsInteractionKeys,
   useCmsInteractionCrossStats,
   useCmsInteractionStats,
   useCmsInteractionTexts,
   useCmsInteractionTrend,
 } from '@/hooks/queries/cms';
+import { useListSearch } from '@/hooks/useListSearch';
 import './interaction-editor.css';
 import { DataBar } from '@/components/data-viz/DataBar';
 import { emptyIllustration } from '@/components/EmptyIllustration';
@@ -80,11 +82,14 @@ function TextAnswers({ interactionId, question }: Readonly<{
   interactionId: number;
   question: CmsInteractionQuestionStats;
 }>) {
-  const [page, setPage] = useState(1);
-  const [draft, setDraft] = useState('');
-  const [keyword, setKeyword] = useState('');
+  // 面板内的紧凑搜索框：状态仍走 useListSearch（草稿 / 已提交 / 回第 1 页），控件保留 size="small" 形态
+  const { page, setPage, bind, submittedParams, handleSearch } = useListSearch<{ keyword: string }>({
+    defaults: { keyword: '' },
+    listKey: cmsInteractionKeys.textsAll,
+    pageSize: TEXT_PAGE_SIZE,
+  });
+  const keyword = submittedParams.keyword.trim();
   const query = useCmsInteractionTexts(interactionId, question.id, page, TEXT_PAGE_SIZE, keyword);
-  const submit = () => { setPage(1); setKeyword(draft.trim()); };
   return (
     <div className="interaction-stats__texts">
       <div className="interaction-stats__text-search">
@@ -93,11 +98,10 @@ function TextAnswers({ interactionId, question }: Readonly<{
           placeholder="搜索答案内容"
           showClear
           size="small"
-          value={draft}
-          onChange={setDraft}
-          onEnterPress={submit}
+          {...bind('keyword')}
+          onEnterPress={handleSearch}
         />
-        <Button size="small" onClick={submit}>搜索</Button>
+        <Button size="small" onClick={handleSearch}>搜索</Button>
       </div>
       <Spin spinning={query.isFetching}>
         {(query.data?.list.length ?? 0) === 0 ? (
@@ -112,11 +116,11 @@ function TextAnswers({ interactionId, question }: Readonly<{
             ))}
             <div className="interaction-stats__text-foot">
               <Typography.Text type="tertiary" size="small">共 {query.data?.total ?? 0} 条</Typography.Text>
-              <Button size="small" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>上一页</Button>
+              <Button size="small" disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</Button>
               <Button
                 size="small"
                 disabled={page * TEXT_PAGE_SIZE >= (query.data?.total ?? 0)}
-                onClick={() => setPage((value) => value + 1)}
+                onClick={() => setPage(page + 1)}
               >
                 下一页
               </Button>
