@@ -320,6 +320,29 @@ import { StatCard, StatGrid } from '@/components/charts/StatCard';
 `StatCard` 视觉上**不是卡片**：无底色、无边框、无圆角，分隔交给 StatGrid 的竖向细线，
 与首页 `.dashboard-stat-item` 同一套语言。
 
+### ChartCard（看板图表卡片）
+
+图表面板统一用 `@/components/charts` 的 `ChartCard`：Card 标题栏（加粗 14px + 右侧 `extra`）、
+紧凑正文内边距、`loading` 骨架与 `empty` 空态占位都在组件里，页面只写图表本身；
+**禁止**再逐个手写 `<Card title={<Text strong style={{ fontSize: 14 }}>…</Text>} bodyStyle={{ padding: '12px 16px 8px' }}>` +
+`loading ? 骨架 : 空 ? <Empty /> : 图表` 三元。
+
+```tsx
+<div className="chart-grid chart-grid--3">
+  <ChartCard title="消息趋势（近 7 天）" loading={loading}>
+    <LineChart {...trendSpec} options={chartOptions} height={220} />
+  </ChartCard>
+  <ChartCard title="会话状态分布" loading={loading} empty={statusTotal === 0 ? '暂无会话数据' : null}>
+    <PieChart {...statusSpec} options={chartOptions} height={220} />
+  </ChartCard>
+  <ChartCard title="会话评分分布" extra={<Text type="tertiary" size="small">平均 {avg} 分</Text>} loading={loading}>…</ChartCard>
+</div>
+```
+
+- `height` 决定骨架 / 空态占位高度（默认 220），与图表 `height` 一致，切换时卡片不跳动
+- `empty` 传字符串即居中 `Empty`；需要自定义空态或骨架形态时传元素给 `empty` / `placeholder`
+- 标题写在正文内而非标题栏的旧式面板（如会员看板）属于不同视觉，不套用本组件
+
 ### 无卡片面板（`.zx-flat-panels`）
 
 统计 / 仪表盘页的图表、榜单、明细区不用「带边框的卡片盒」，而是与首页 `.dashboard-section`

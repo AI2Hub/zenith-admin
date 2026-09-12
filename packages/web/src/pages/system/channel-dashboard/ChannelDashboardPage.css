@@ -18,14 +18,6 @@
   gap: 8px;
 }
 
-/* 卡片标题行：左标题 + 右侧平均分等元信息 */
-.channel-dashboard-card-title {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-
 /* 图表行：三栏且主图更宽。分隔交给公共 .chart-grid 语言，这里只覆盖列比例。
    必须限定在 lg 以上：本规则与 .chart-grid 同权重（0,1,0）且顺序在后，
    不限定的话窄屏会把它的单列覆盖回三栏。
@@ -35,13 +27,6 @@
   .channel-dashboard-charts-row {
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
   }
-}
-
-.channel-dashboard-chart-placeholder {
-  height: 220px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .channel-dashboard-readrate {

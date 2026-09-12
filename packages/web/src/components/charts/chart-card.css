@@ -1,0 +1,13 @@
+/* 看板图表卡片：标题栏左右分布 + 加载 / 空态占位区（与图表同高，切换时卡片不跳动） */
+.zx-chart-card__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.zx-chart-card__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

@@ -11,6 +11,7 @@ import {
   makeLineSpec,
   makePieSpec,
   useChartPalette,
+  ChartCard,
   StatCard,
   StatGrid,
 } from '@/components/charts';
@@ -216,16 +217,6 @@ export default function ChannelDashboardPage() {
     },
   ];
 
-  const chartSkeleton = (
-    <div className="channel-dashboard-chart-placeholder">
-      <Skeleton active loading placeholder={
-        <div style={{ width: '100%', height: 200, padding: '12px 0' }}>
-          <Skeleton.Paragraph rows={6} style={{ width: '100%' }} />
-        </div>
-      } />
-    </div>
-  );
-
   return (
     <div className="page-container channel-dashboard-page zx-flat-panels">
       {/* ===== 顶部标题 + 刷新 ===== */}
@@ -270,115 +261,57 @@ export default function ChannelDashboardPage() {
 
       {/* ===== 图表区 ===== */}
       <div className="chart-grid chart-grid--3 channel-dashboard-charts-row">
-        {/* 消息趋势 */}
-        <Card
-          title={<Text strong style={{ fontSize: 14 }}>消息趋势（近 7 天）</Text>}
-          bodyStyle={{ padding: '12px 16px 8px' }}
-        >
-          {loading ? chartSkeleton : (
-            <LineChart {...trendSpec} options={chartOptions} height={220} />
-          )}
-        </Card>
+        <ChartCard title="消息趋势（近 7 天）" loading={loading}>
+          <LineChart {...trendSpec} options={chartOptions} height={220} />
+        </ChartCard>
 
-        {/* 会话状态分布 */}
-        <Card
-          title={<Text strong style={{ fontSize: 14 }}>会话状态分布</Text>}
-          bodyStyle={{ padding: '12px 16px 8px' }}
-        >
-          {loading ? chartSkeleton : statusTotal === 0 ? (
-            <div className="channel-dashboard-chart-placeholder"><Empty description="暂无会话数据" /></div>
-          ) : (
-            <PieChart {...statusPieSpec} options={chartOptions} height={220} />
-          )}
-        </Card>
+        <ChartCard title="会话状态分布" loading={loading} empty={statusTotal === 0 ? '暂无会话数据' : null}>
+          <PieChart {...statusPieSpec} options={chartOptions} height={220} />
+        </ChartCard>
 
-        {/* 群发已读率 */}
-        <Card
-          title={<Text strong style={{ fontSize: 14 }}>群发已读率</Text>}
-          bodyStyle={{ padding: '12px 16px 8px' }}
-        >
-          {loading ? chartSkeleton : (
-            <div className="channel-dashboard-readrate">
-              <Progress
-                type="circle"
-                percent={Math.round(data?.readRate ?? 0)}
-                width={140}
-                strokeWidth={8}
-                format={(p) => <span style={{ fontSize: 24, fontWeight: 600 }}>{p}%</span>}
-              />
-              <span className="channel-dashboard-readrate__hint">定向消息已读率</span>
-            </div>
-          )}
-        </Card>
+        <ChartCard title="群发已读率" loading={loading}>
+          <div className="channel-dashboard-readrate">
+            <Progress
+              type="circle"
+              percent={Math.round(data?.readRate ?? 0)}
+              width={140}
+              strokeWidth={8}
+              format={(p) => <span style={{ fontSize: 24, fontWeight: 600 }}>{p}%</span>}
+            />
+            <span className="channel-dashboard-readrate__hint">定向消息已读率</span>
+          </div>
+        </ChartCard>
       </div>
 
       {/* ===== 增长与活跃 ===== */}
       <div className="chart-grid chart-grid--3">
-        {/* 订阅增长趋势 */}
-        <Card
-          title={<Text strong style={{ fontSize: 14 }}>订阅增长趋势（近 30 天）</Text>}
-          bodyStyle={{ padding: '12px 16px 8px' }}
-        >
-          {loading ? chartSkeleton : (
-            <AreaChart {...subscriptionTrendSpec} options={chartOptions} height={220} />
-          )}
-        </Card>
+        <ChartCard title="订阅增长趋势（近 30 天）" loading={loading}>
+          <AreaChart {...subscriptionTrendSpec} options={chartOptions} height={220} />
+        </ChartCard>
 
-        {/* 按小时消息分布 */}
-        <Card
-          title={<Text strong style={{ fontSize: 14 }}>按小时消息分布（近 7 天）</Text>}
-          bodyStyle={{ padding: '12px 16px 8px' }}
-        >
-          {loading ? chartSkeleton : (
-            <BarChart {...hourlySpec} options={chartOptions} height={220} />
-          )}
-        </Card>
+        <ChartCard title="按小时消息分布（近 7 天）" loading={loading}>
+          <BarChart {...hourlySpec} options={chartOptions} height={220} />
+        </ChartCard>
 
-        {/* 消息类型分布 */}
-        <Card
-          title={<Text strong style={{ fontSize: 14 }}>消息类型分布</Text>}
-          bodyStyle={{ padding: '12px 16px 8px' }}
-        >
-          {loading ? chartSkeleton : messageTypeData.length === 0 ? (
-            <div className="channel-dashboard-chart-placeholder"><Empty description="暂无已发送消息" /></div>
-          ) : (
-            <PieChart {...messageTypeSpec} options={chartOptions} height={220} />
-          )}
-        </Card>
+        <ChartCard title="消息类型分布" loading={loading} empty={messageTypeData.length === 0 ? '暂无已发送消息' : null}>
+          <PieChart {...messageTypeSpec} options={chartOptions} height={220} />
+        </ChartCard>
       </div>
 
       {/* ===== 服务质量 ===== */}
       <div className="chart-grid">
-        {/* 会话评分分布 */}
-        <Card
-          title={
-            <div className="channel-dashboard-card-title">
-              <Text strong style={{ fontSize: 14 }}>会话评分分布</Text>
-              {!loading && ratingDist?.avgRating != null && (
-                <Text type="tertiary" size="small">平均 {ratingDist.avgRating} 分</Text>
-              )}
-            </div>
-          }
-          bodyStyle={{ padding: '12px 16px 8px' }}
+        <ChartCard
+          title="会话评分分布"
+          extra={!loading && ratingDist?.avgRating != null ? <Text type="tertiary" size="small">平均 {ratingDist.avgRating} 分</Text> : null}
+          loading={loading}
+          empty={ratingTotal === 0 ? '暂无评分数据' : null}
         >
-          {loading ? chartSkeleton : ratingTotal === 0 ? (
-            <div className="channel-dashboard-chart-placeholder"><Empty description="暂无评分数据" /></div>
-          ) : (
-            <BarChart {...ratingSpec} options={chartOptions} height={220} />
-          )}
-        </Card>
+          <BarChart {...ratingSpec} options={chartOptions} height={220} />
+        </ChartCard>
 
-        {/* 自动回复命中类型占比 */}
-        <Card
-          title={<Text strong style={{ fontSize: 14 }}>自动回复命中类型占比</Text>}
-          bodyStyle={{ padding: '12px 16px 8px' }}
-        >
-          {loading ? chartSkeleton : matchDistData.length === 0 ? (
-            <div className="channel-dashboard-chart-placeholder"><Empty description="暂无命中记录" /></div>
-          ) : (
-            <PieChart {...matchDistSpec} options={chartOptions} height={220} />
-          )}
-        </Card>
+        <ChartCard title="自动回复命中类型占比" loading={loading} empty={matchDistData.length === 0 ? '暂无命中记录' : null}>
+          <PieChart {...matchDistSpec} options={chartOptions} height={220} />
+        </ChartCard>
       </div>
 
       {/* ===== 列表区 ===== */}

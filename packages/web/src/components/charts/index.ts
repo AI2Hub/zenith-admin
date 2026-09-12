@@ -106,3 +106,6 @@ export { EmptyChart } from './EmptyChart';
 
 // 统计卡片与响应式栅格
 export { StatCard, StatGrid } from './StatCard';
+
+// 看板图表卡片（标题栏 + 加载 / 空态占位）
+export { ChartCard } from './ChartCard';

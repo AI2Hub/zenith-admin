@@ -196,6 +196,7 @@ const operationColumn = createOperationColumn<User>({
 | --- | --- |
 | `charts/StatCard` | 指标卡，展示标题、数值、趋势、图标等 |
 | `charts/StatGrid` | 指标卡响应式网格 |
+| `charts/ChartCard` | 看板图表卡片：标题栏 + `extra`、`loading` 骨架、`empty` 空态占位，页面只写图表 |
 | `charts/EmptyChart` | 图表空态 |
 | `charts/builders.ts` | VChart spec 构建工具 |
 | `charts/palette.ts` | 图表统一色板 |

@@ -82,6 +82,7 @@ import {
   makeLineSpec,
   makePieSpec,
   useChartPalette,
+  ChartCard,
   StatCard,
   StatGrid,
 } from '@/components/charts';
@@ -790,28 +791,28 @@ function ReleaseStatsTab({ active }: { active: boolean }) {
           </StatGrid>
 
           <div className="chart-grid" style={{ marginTop: 12 }}>
-            <Card title={<Text strong style={{ fontSize: 14 }}>升级事件趋势</Text>} bodyStyle={{ padding: '12px 16px 8px' }}>
-              {loading ? chartSkeleton : (
-                <LineChart {...trendSpec} options={chartOptions} height={240} />
-              )}
-            </Card>
-            <Card title={<Text strong style={{ fontSize: 14 }}>平台分布（按检查请求）</Text>} bodyStyle={{ padding: '12px 16px 8px' }}>
-              {loading ? chartSkeleton : platformData.length === 0 ? (
-                <Empty description="暂无检查数据" style={{ padding: '48px 0' }} />
-              ) : (
-                <PieChart {...platformSpec} options={chartOptions} height={240} />
-              )}
-            </Card>
+            <ChartCard title="升级事件趋势" loading={loading} placeholder={chartSkeleton}>
+              <LineChart {...trendSpec} options={chartOptions} height={240} />
+            </ChartCard>
+            <ChartCard
+              title="平台分布（按检查请求）"
+              loading={loading}
+              placeholder={chartSkeleton}
+              empty={platformData.length === 0 ? <Empty description="暂无检查数据" style={{ padding: '48px 0' }} /> : null}
+            >
+              <PieChart {...platformSpec} options={chartOptions} height={240} />
+            </ChartCard>
           </div>
 
           <div className="chart-grid" style={{ marginTop: 12 }}>
-            <Card title={<Text strong style={{ fontSize: 14 }}>在网版本分布（按活跃设备）</Text>} bodyStyle={{ padding: '12px 16px 8px' }}>
-              {loading ? chartSkeleton : (stats?.versions.length ?? 0) === 0 ? (
-                <Empty description="暂无设备版本数据" style={{ padding: '48px 0' }} />
-              ) : (
-                <BarChart {...versionSpec} options={chartOptions} height={240} />
-              )}
-            </Card>
+            <ChartCard
+              title="在网版本分布（按活跃设备）"
+              loading={loading}
+              placeholder={chartSkeleton}
+              empty={(stats?.versions.length ?? 0) === 0 ? <Empty description="暂无设备版本数据" style={{ padding: '48px 0' }} /> : null}
+            >
+              <BarChart {...versionSpec} options={chartOptions} height={240} />
+            </ChartCard>
           </div>
         </>
       )}
