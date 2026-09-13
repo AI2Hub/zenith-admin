@@ -15,6 +15,7 @@ import {
 } from '../validation';
 import { positionSchema } from './positions';
 import { roleSchema } from './roles';
+import { impersonationStateSchema } from './impersonation';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,7 @@ export const userSchema = z.object({
   tenantId: z.int().nullable().optional(),
   tenantName: z.string().nullable().optional(),
   viewingTenantId: z.int().nullable().optional().meta({ description: '平台超管当前查看的租户；null / 缺省表示平台视角' }),
+  impersonation: impersonationStateSchema.nullable().optional().meta({ description: '当前会话为模拟登录时的模拟状态（仅 /auth/me 返回）；null / 缺省表示本人登录' }),
   positionIds: z.array(z.int()).optional(),
   positions: z.array(positionSchema).optional(),
   roles: z.array(roleSchema),

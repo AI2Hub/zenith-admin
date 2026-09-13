@@ -134,6 +134,12 @@ export default function IdentitySecurityPage() {
                   { value: 'challenge', label: '要求 MFA' },
                 ]}
               />
+
+              <div className="section-title" style={{ marginTop: 24 }}>模拟登录</div>
+              <Form.Switch field="impersonation.enabled" label="允许模拟登录" extraText="关闭后持有权限的管理员也无法以用户身份登录" />
+              <Form.InputNumber field="impersonation.maxMinutes" label="单次时长上限（分钟）" min={1} max={120} extraText="模拟会话到期自动失效，不可续期；上限 120 分钟" />
+              <Form.Switch field="impersonation.allowWrite" label="允许可操作模式" extraText="关闭时模拟会话只能只读；开启后发起时可选择可操作（仍禁止改密 / MFA / API Token 等账号安全操作）" />
+              <Form.Switch field="impersonation.notifyTarget" label="通知被模拟用户" extraText="开始模拟时向目标用户发送站内通知" />
             </Form>
           </div>
         </TabPane>}

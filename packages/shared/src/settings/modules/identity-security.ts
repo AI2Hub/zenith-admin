@@ -24,6 +24,12 @@ export const identitySecuritySettingsSchema = z.object({
     enabled: z.boolean().default(false).meta({ title: '启用登录风险策略' }),
     newDeviceAction: z.enum(LOGIN_RISK_NEW_DEVICE_ACTIONS).default('allow').meta({ title: '新设备登录动作', description: 'allow 放行 / challenge 要求 MFA' }),
   }).prefault({}).meta({ title: '登录风险' }),
+  impersonation: z.object({
+    enabled: z.boolean().default(true).meta({ title: '允许模拟登录', description: '关闭后持有权限的管理员也无法以用户身份登录' }),
+    maxMinutes: z.int().min(1).max(120).default(30).meta({ title: '单次模拟时长上限（分钟）', description: '模拟会话到期自动失效，不可续期；上限 120 分钟' }),
+    allowWrite: z.boolean().default(false).meta({ title: '允许可操作模式', description: '关闭时模拟会话只能只读；开启后发起时可选择可操作' }),
+    notifyTarget: z.boolean().default(true).meta({ title: '通知被模拟用户', description: '开始模拟时向目标用户发送站内通知' }),
+  }).prefault({}).meta({ title: '模拟登录' }),
 }).meta({ id: 'Settings.IdentitySecurity' });
 
 export type IdentitySecuritySettings = z.output<typeof identitySecuritySettingsSchema>;
@@ -38,8 +44,8 @@ export const identitySecuritySettingsModule = defineSettingsModule({
   scope: 'tenant',
   readPermission: 'system:identity-security:manage',
   writePermission: 'system:identity-security:manage',
-  // 密码规则在注册 / 找回密码页匿名可见
-  visibility: { password: 'public' },
+  // 密码规则在注册 / 找回密码页匿名可见；模拟登录参数供发起弹窗（登录用户）读取上限与模式开关
+  visibility: { password: 'public', impersonation: 'authenticated' },
   page: '/system/identity-security',
   sort: 20,
 });

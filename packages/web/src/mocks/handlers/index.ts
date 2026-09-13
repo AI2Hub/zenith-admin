@@ -9,6 +9,7 @@ import { scopeMembersHandlers } from './scope-members';
 import { dictsHandlers } from './dicts';
 import { settingsHandlers } from './settings';
 import { identitySecurityHandlers } from './identity-security';
+import { impersonationHandlers } from './impersonation';
 import { identityProvidersHandlers } from './identity-providers';
 import { directorySyncHandlers } from './directory-sync';
 import { announcementsHandlers } from './announcements';
@@ -155,6 +156,7 @@ export const handlers = [
   ...dictsHandlers,
   ...settingsHandlers,
   ...identitySecurityHandlers,
+  ...impersonationHandlers,
   ...identityProvidersHandlers,
   ...directorySyncHandlers,
   ...announcementsHandlers,

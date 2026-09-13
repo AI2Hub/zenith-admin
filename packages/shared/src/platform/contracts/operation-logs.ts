@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, paginated, paginationQuery, queryEnum, keywordQuery } from '../../core/api-schemas';
+import { dateRangeQuery, paginated, paginationQuery, queryBool, queryEnum, keywordQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { OPERATION_LOG_RESULTS } from '../constants';
 
@@ -10,6 +10,8 @@ export const operationLogSchema = z.object({
   userId: z.int().nullable(),
   username: z.string().nullable(),
   nickname: z.string().nullable().optional().meta({ description: '用户当前昵称（按 username 关联补充；用户已删除时为 null）' }),
+  impersonatorId: z.int().nullable().optional().meta({ description: '模拟登录时的实际操作人 ID；本人操作为 null' }),
+  impersonatorName: z.string().nullable().optional().meta({ description: '模拟登录时的实际操作人用户名；本人操作为 null' }),
   module: z.string().nullable(),
   description: z.string(),
   method: z.string(),
@@ -79,6 +81,7 @@ export const operationLogListQuery = paginationQuery.extend({
   ip: keywordQuery('IP'),
   status: queryEnum(OPERATION_LOG_RESULTS),
   content: keywordQuery('内容', { description: '内容关键字（匹配请求体与操作前后快照）' }),
+  impersonated: queryBool('仅模拟登录期间的操作', { labels: ['仅模拟操作', '仅本人操作'] }),
   ...dateRangeQuery('操作时间'),
   minDurationMs: z.coerce.number().int().nonnegative().optional(),
   maxDurationMs: z.coerce.number().int().nonnegative().optional(),

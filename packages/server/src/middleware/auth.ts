@@ -4,7 +4,7 @@ import { jwt, type JwtVariables } from 'hono/jwt';
 import { isTokenBlacklisted, touchSession, registerSession } from '../lib/session-manager';
 import { checkSessionLiveness, clientFingerprint } from '../lib/session-liveness';
 import { db } from '../db';
-import { tenants, userApiTokens, users } from '../db/schema';
+import { impersonationSessions, tenants, userApiTokens, users } from '../db/schema';
 import { and, eq, gt, isNull, lt, or } from 'drizzle-orm';
 import { config } from '../config';
 import { errBody } from '../lib/openapi-schemas';
@@ -14,6 +14,7 @@ import { isTenantActive } from '../lib/tenant';
 import { checkSubjectLiveness, loadSubjectRow, type SubjectRow } from '../lib/subject-liveness';
 import { TtlCache } from '../lib/ttl-cache';
 import { onInvalidate, onInvalidationReset } from '../lib/invalidation-bus';
+import { impersonationWriteDenial } from '../lib/impersonation-guard';
 
 export interface JwtPayload {
   userId: number;
@@ -22,9 +23,23 @@ export interface JwtPayload {
   tenantId: number | null;
   /** 超管切换租户视角时，存放目标租户 ID */
   viewingTenantId?: number | null;
+  /**
+   * 模拟登录：本令牌的 userId / roles / tenantId 都是被模拟用户的，这里记录实际操作人。
+   * 只在 `impersonation.service` 签发的短时 access token 上出现；不签发 refresh token，也不可被续签。
+   */
+  impersonation?: ImpersonationClaim;
   jti?: string;
   authType?: 'jwt' | 'apiToken';
   apiTokenId?: number;
+}
+
+export interface ImpersonationClaim {
+  /** impersonation_sessions.id */
+  id: number;
+  byUserId: number;
+  byUsername: string;
+  /** true = 只读模拟：除结束模拟与退出外拒绝全部写请求 */
+  readOnly: boolean;
 }
 
 /** Hono Env 类型——声明 Variables 中的 user 字段类型，供中间件消费方推断 */
@@ -72,6 +87,28 @@ const subjectRows = new TtlCache<number, SubjectRow | null>(SUBJECT_CACHE_TTL_MS
 /** tenantId → 租户行；仅供平台管理员「切换租户视角」声明的活性校验 */
 const tenantRows = new TtlCache<number, TenantLivenessRow | null>(SUBJECT_CACHE_TTL_MS, { staleWhileRevalidate: false });
 
+interface ImpersonationLivenessRow {
+  tokenId: string;
+  expiresAt: Date;
+  endedAt: Date | null;
+}
+
+/** impersonation_sessions.id → 记录行；结束 / 强制结束时由 service 主动删除副本 */
+const impersonationRows = new TtlCache<number, ImpersonationLivenessRow | null>(SUBJECT_CACHE_TTL_MS, { staleWhileRevalidate: false });
+
+async function loadImpersonationRow(id: number): Promise<ImpersonationLivenessRow | null> {
+  const [row] = await db.select({ tokenId: impersonationSessions.tokenId, expiresAt: impersonationSessions.expiresAt, endedAt: impersonationSessions.endedAt })
+    .from(impersonationSessions)
+    .where(eq(impersonationSessions.id, id))
+    .limit(1);
+  return row ?? null;
+}
+
+/** 模拟会话记录变更（结束 / 强制结束）后清掉进程内副本，让本实例立即拒绝该令牌 */
+export function invalidateImpersonationSubject(id: number): void {
+  impersonationRows.delete(id);
+}
+
 async function loadTenantRow(tenantId: number): Promise<TenantLivenessRow | null> {
   const [row] = await db.select({ status: tenants.status, expireAt: tenants.expireAt })
     .from(tenants)
@@ -84,6 +121,7 @@ async function loadTenantRow(tenantId: number): Promise<TenantLivenessRow | null
 export function resetAdminSubjectCache(): void {
   subjectRows.clear();
   tenantRows.clear();
+  impersonationRows.clear();
 }
 
 onInvalidate('users', (message) => {
@@ -123,6 +161,23 @@ export async function checkAdminJwtSubject(payload: JwtPayload): Promise<AdminJw
     if (!viewingTenant) return { ok: false, status: 403, message: '租户不存在' };
     if (!isTenantActive(viewingTenant)) {
       return { ok: false, status: 403, message: '租户已被禁用或过期' };
+    }
+  }
+
+  // 模拟会话：实际操作人（管理员）自身被禁用 / 删除时派生会话同步失效，不能比本人登录活得更久；
+  // 记录行（已结束 / 已到期 / jti 不匹配）是 Redis 黑名单之外的权威兜底（Redis 重启后黑名单丢失也不会复活）
+  if (payload.impersonation) {
+    const { id, byUserId } = payload.impersonation;
+    if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(byUserId) || byUserId <= 0 || byUserId === payload.userId) {
+      return { ok: false, status: 401, message: '无效的访问令牌' };
+    }
+    const [operatorRow, record] = await Promise.all([
+      subjectRows.get(byUserId, () => loadSubjectRow(byUserId)),
+      impersonationRows.get(id, () => loadImpersonationRow(id)),
+    ]);
+    if (!checkSubjectLiveness(operatorRow).ok) return { ok: false, status: 401, message: '模拟会话已失效：操作者账号不可用' };
+    if (!record || record.tokenId !== payload.jti || record.endedAt !== null || record.expiresAt <= new Date()) {
+      return { ok: false, status: 401, message: '模拟会话已结束' };
     }
   }
 
@@ -235,6 +290,12 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
     const subject = await checkAdminJwtSubject(payload);
     if (!subject.ok) return c.json(errBody(subject.message, subject.status), subject.status);
 
+    // 模拟会话的写门禁：只读模式拒绝全部写请求，可操作模式仍禁止账号安全类操作
+    if (subject.payload.impersonation) {
+      const denial = impersonationWriteDenial(c.req.method, c.req.path, subject.payload.impersonation);
+      if (denial) return c.json(errBody(denial, 403), 403);
+    }
+
     // Blacklist check + session touch are independent Redis ops — run in parallel
     // (each best-effort: Redis errors log a warning and never block the request)
     if (payload.jti) {
@@ -258,6 +319,8 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
               ...clientFingerprint(c),
               location: null,
               loginAt: new Date(),
+              impersonatorId: subject.payload.impersonation?.byUserId ?? null,
+              impersonatorName: subject.payload.impersonation?.byUsername ?? null,
             }).catch(() => { /* best-effort, ignore errors */ });
           }
         } catch (err) {

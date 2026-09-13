@@ -9,10 +9,6 @@ import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 import { currentMockSession, isMockPlatformAdmin, mockAccessToken, mockRefreshToken, mockUserPermissions, resolveMockSession, MOCK_REFRESH_TOKEN_PREFIX } from '@/mocks/utils/auth';
 import { matchesFilter } from '@/mocks/utils/filter';
 
-function currentMockUser(request: Request) {
-  return currentMockSession(request)?.user ?? mockUsers[0];
-}
-
 // 偏好设置 & 收藏菜单 mock 状态（模块级可变，模拟服务端持久化）
 let mockPreferencesStore: Record<string, unknown> | null = null;
 let mockFavoriteMenusStore: number[] = [];
@@ -88,19 +84,24 @@ export const authHandlers = [
 
   // 当前用户信息（含权限）
   mock(authContract.me, ({ request, ok }) => {
-    const current = currentMockUser(request);
+    const session = currentMockSession(request);
+    const current = session?.user ?? mockUsers[0];
     const { password: _, ...userWithoutPassword } = current;
     const granted = mockUserPermissions(current);
     const permissions = granted.includes('*') ? getAllPermissions() : granted;
     // 取最近第 2 条成功登录记录模拟上次登录
     const myLogs = mockLoginLogs.filter((l) => l.userId === current.id && (l.eventType ?? 'login') === 'login' && l.status === 'success');
     const prevLogin = myLogs[1] ?? null;
+    const imp = session?.impersonation;
     return ok({
       ...userWithoutPassword,
       permissions,
       lastLoginAt: prevLogin?.createdAt ?? null,
       lastLoginIp: prevLogin?.ip ?? null,
       lastLoginLocation: prevLogin ? '广东省 深圳市 电信（Mock）' : null,
+      impersonation: imp
+        ? { id: imp.id, impersonatorId: imp.byUserId, impersonatorName: imp.byUsername, readOnly: imp.readOnly, reason: imp.reason, startedAt: imp.startedAt, expiresAt: imp.expiresAt }
+        : null,
     });
   }),
 

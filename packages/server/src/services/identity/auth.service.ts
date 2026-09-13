@@ -20,7 +20,7 @@ import logger from '../../lib/logger';
 import { getSettings } from '../../lib/settings';
 import { validatePassword, type IdentitySecuritySettings } from '@zenith/shared/settings';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import type { authContract } from '@zenith/shared/identity';
+import type { authContract, LoginEventType as SharedLoginEventType } from '@zenith/shared/identity';
 import {
   clearMfaChallenge,
   createMfaChallenge,
@@ -80,7 +80,7 @@ export interface DeviceInfo {
   memoryGb?: string;
 }
 
-export type LoginEventType = 'login' | 'logout';
+export type LoginEventType = SharedLoginEventType;
 
 export interface LoginLogParams {
   username: string;
@@ -135,6 +135,7 @@ import { isPlatformAdmin, isTenantActive, isTenantExpired } from '../../lib/tena
 import { checkSubjectLiveness, loadSubjectRow } from '../../lib/subject-liveness';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
+import { getImpersonationState, endImpersonation } from './impersonation.service';
 
 /** 密码过期检查：策略按用户所属租户解析（未传入时自行读取） */
 async function checkPasswordExpiry(
@@ -398,13 +399,15 @@ export async function refreshAccessToken(token: string, clientInfo?: { ip: strin
     jti?: string;
     tenantId?: number | null;
     viewingTenantId?: number | null;
+    impersonation?: unknown;
   };
   try {
     payload = await verifyToken<typeof payload>(token);
   } catch {
     throw new HTTPException(401, { message: 'refresh token 已过期' });
   }
-  if (payload.type !== 'refresh' || !Number.isInteger(payload.userId) || payload.userId <= 0 || !payload.jti) {
+  // 模拟会话从不签发 refresh token；带模拟声明的令牌一律拒绝续签
+  if (payload.type !== 'refresh' || !Number.isInteger(payload.userId) || payload.userId <= 0 || !payload.jti || payload.impersonation !== undefined) {
     throw new HTTPException(401, { message: '无效的 refresh token' });
   }
   const previousTokenId = payload.jti;
@@ -476,6 +479,11 @@ export async function refreshAccessToken(token: string, clientInfo?: { ip: strin
 
 export async function logoutSession(clientInfo?: { ip: string; ua: string }) {
   const user = currentUser();
+  // 模拟会话走「退出」也按结束模拟处理：关闭记录并留痕
+  if (user.impersonation) {
+    await endImpersonation(clientInfo ?? { ip: '', ua: '' });
+    return;
+  }
   const tokenId = user.jti;
   await Promise.all([
     tokenId ? removeSession(tokenId) : Promise.resolve(),
@@ -563,11 +571,12 @@ export async function getMyProfile() {
     id: r.id, name: r.name, code: r.code, description: r.description, status: r.status,
     ...formatTimestamps(r),
   }));
-  const [requirePasswordChange, tenantRows] = await Promise.all([
+  const [requirePasswordChange, tenantRows, impersonation] = await Promise.all([
     checkPasswordExpiry(user),
     user.tenantId
       ? db.select({ name: tenants.name }).from(tenants).where(eq(tenants.id, user.tenantId)).limit(1)
       : Promise.resolve([] as { name: string }[]),
+    authUser.impersonation ? getImpersonationState(authUser.impersonation.id) : Promise.resolve(null),
   ]);
   const permissions = isSuperAdmin({ roles: userRoleList.map((r) => r.code), tenantId: user.tenantId }) ? ['*'] : await getUserPermissions(user.id);
   const tenantName = tenantRows[0]?.name ?? null;
@@ -596,6 +605,7 @@ export async function getMyProfile() {
     })),
     tenantName,
     viewingTenantId: authUser.viewingTenantId ?? null,
+    impersonation,
     roles: userRoleList,
     permissions,
     requirePasswordChange,

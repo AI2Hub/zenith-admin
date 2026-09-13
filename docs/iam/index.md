@@ -112,6 +112,15 @@
 - 切换账号时通过 `/api/auth/refresh` 换发 access token 与新的 refresh token（旧 refresh token 随即失效），随后清理账号级本地状态并整页重载；跨标签页通过 `ACCOUNT_SWITCH_BROADCAST_KEY` 广播刷新。
 - 退出当前账号会优先切到最近使用的停靠账号；注销停靠账号或退出全部账号会调用免登录接口 `POST /api/auth/logout-by-refresh` 注销对应 refresh token 会话。
 
+### 模拟登录
+
+持有 `system:user:impersonate` 的管理员可从用户管理行操作以目标用户身份进入系统排障（实现：`services/identity/impersonation.service.ts`、`lib/impersonation-guard.ts`、前端 `lib/impersonation-store.ts` 与 `AuthProvider.tsx`）。它不是第二个账号切换器，而是服务端签发的派生会话：
+
+- `POST /api/impersonation/start`：校验策略开关、操作者本人密码（返回 400 而非 401，避免前端误判登录态失效）、目标在操作者租户可见范围内且非自己 / 非平台超管 / 可登录；写入 `impersonation_sessions` 后以**目标用户**的 `userId / roles / tenantId` 签发短时 access token（时长 ≤ `impersonation.maxMinutes`，上限 120 分钟），令牌带 `impersonation = { id, byUserId, byUsername, readOnly }` 声明，**不签发 refresh token、不可续签**；同时注册在线会话（带 `impersonatorId`）、写 `impersonate` 登录日志、按策略向目标用户 `notify('identity.impersonation.started')`。
+- 鉴权中间件对带模拟声明的令牌额外校验：操作者账号仍可用、记录未结束且 `tokenId` 匹配（Redis 黑名单丢失也不会复活）；`impersonationWriteDenial` 在 `authMiddleware` 层拒绝写请求——只读模式拒绝全部写（结束模拟与退出除外），可操作模式仍禁止改密 / 资料 / MFA / 可信设备 / API Token / 租户视角 / 嵌套模拟，并拒绝覆盖被模拟用户的偏好与收藏菜单。
+- 审计：`guard` 写操作日志时记录 `impersonatorId / impersonatorName`，操作日志列表可按 `impersonated` 筛选；`POST /api/impersonation/end`（模拟会话自身）、`POST /api/impersonation/records/{id}/end`（`system:impersonation:forceEnd`，吊销 jti 并推送 `session:force-logout`）分别写 `manual` / `forced` 结束原因，到期记录在列表读取时补写 `expired`；`GET /api/impersonation/records`（`system:impersonation:list`）按租户可见范围列出。
+- 前端：进入模拟时把操作者快照停靠到账号切换器（复用其 refresh token），本地只保留目标 access token 与 `IMPERSONATION_STORE_KEY` 标记，因此模拟身份不会被停靠、也无法再切换 / 添加账号；顶部常驻横幅显示目标 / 模式 / 倒计时 / 操作人并提供「结束模拟」，水印强制为「模拟登录 操作者 → 目标」。结束、倒计时归零、令牌 401、被强制结束（WS 踢出）四条路径都收口到「用停靠的操作者 refresh token 换发会话并整页重载」，操作者凭证失效时才回登录页。
+
 ### 安全策略
 
 身份安全策略是运行时设置模块 `identitySecurity`（**租户作用域**：租户可覆盖平台值，未覆盖时继承；读写 `GET/PUT /api/settings/identity-security`，权限 `system:identity-security:manage`，管理页 `/system/identity-security`；机制见[运行时设置](../backend/settings.md)）：
@@ -126,8 +135,12 @@
 | `mfa.enabled` / `mfa.mode` | MFA 总开关与模式：`off`、`optional`、`required` |
 | `mfa.rememberDeviceDays` | 可信设备免 MFA 天数 |
 | `risk.enabled` / `risk.newDeviceAction` | 新设备风险策略；动作支持 `allow`、`challenge` |
+| `impersonation.enabled` | 是否允许模拟登录（关闭后持有权限的管理员也无法发起） |
+| `impersonation.maxMinutes` | 单次模拟时长上限（分钟，≤ 120），到期自动失效不可续期 |
+| `impersonation.allowWrite` | 是否允许可操作模式；关闭时只能只读模拟 |
+| `impersonation.notifyTarget` | 开始模拟时是否通知被模拟用户 |
 
-密码规则（`password`）是匿名可见字段：登录 / 注册 / 改密页通过 `GET /api/settings/public` 与 `/api/settings/me` 读取并做前端提示。
+密码规则（`password`）是匿名可见字段：登录 / 注册 / 改密页通过 `GET /api/settings/public` 与 `/api/settings/me` 读取并做前端提示。模拟登录参数（`impersonation`）对登录用户可见（`/api/settings/me`），供发起弹窗读取时长上限与模式开关。
 
 MFA 当前落库类型包括 `totp`、`passkey`、`recovery_code`，接口实现覆盖 TOTP 绑定、确认、停用与登录验证。新设备触发挑战时写入 `login_risk_events`，风险等级为 `low`、`medium`、`high`，动作是 `allow`、`challenge`、`block`。
 

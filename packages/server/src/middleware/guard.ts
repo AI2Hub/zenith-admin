@@ -67,6 +67,9 @@ async function writeOperationLog(
     await db.insert(operationLogs).values({
       userId: user?.userId ?? null,
       username: truncateVarchar(user?.username, 32),
+      // 模拟登录：userId / username 是被模拟用户，这里记下实际操作人
+      impersonatorId: user?.impersonation?.byUserId ?? null,
+      impersonatorName: truncateVarchar(user?.impersonation?.byUsername, 32),
       module: options.module ?? null,
       description: options.description,
       method: c.req.method,

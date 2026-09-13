@@ -20,6 +20,14 @@ export const MAX_STORED_ACCOUNTS = 5;
 /** 账号切换跨标签页广播 key：写入时间戳通知其他标签页整页重载为新账号 */
 export const ACCOUNT_SWITCH_BROADCAST_KEY = 'zenith_account_switch';
 
+// ─── 模拟登录（Impersonation）───────────────────────────────────────
+/**
+ * 当前浏览器处于模拟登录态的本地标记（操作者身份 + 目标 + 到期时间）。
+ * 模拟态只持有目标身份的 access token（REFRESH_TOKEN_KEY 为空），操作者凭证停靠在 ACCOUNTS_STORE_KEY 里，
+ * 结束 / 到期 / 被强制结束时据此标记回切操作者账号而不是回登录页。
+ */
+export const IMPERSONATION_STORE_KEY = 'zenith_impersonation';
+
 export const USER_STATUSES = ['enabled', 'disabled'] as const;
 
 /** 通用启用/禁用状态标签（与 common_status 字典种子文案一致；server 导出等无法走字典的场景使用） */

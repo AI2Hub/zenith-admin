@@ -15,6 +15,9 @@ export interface SessionInfo {
   os: string;
   loginAt: Date;
   lastActiveAt: Date;
+  /** 模拟会话的实际操作人；本人登录为空 */
+  impersonatorId?: number | null;
+  impersonatorName?: string | null;
 }
 
 const { keyPrefix } = config.redis;

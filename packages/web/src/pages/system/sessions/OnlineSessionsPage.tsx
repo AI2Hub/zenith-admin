@@ -73,6 +73,9 @@ export default function OnlineSessionsPage() {
           {record.tokenId === currentTokenId && (
             <Tag color="blue" size="small">当前会话</Tag>
           )}
+          {record.impersonatorName && (
+            <Tag color="orange" size="small">由 {record.impersonatorName} 模拟</Tag>
+          )}
         </Space>
       ),
     },

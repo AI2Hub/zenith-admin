@@ -1,7 +1,8 @@
 import { createContext, useContext } from 'react';
 import type { ApiResponse } from '@zenith/shared/core';
-import type { User, LoginResponse, LoginResult } from '@zenith/shared/identity';
+import type { ImpersonationStartResult, User, LoginResponse, LoginResult } from '@zenith/shared/identity';
 import type { StoredAccount } from '@/lib/account-store';
+import type { ImpersonationMarker } from '@/lib/impersonation-store';
 
 export type AuthStatus = 'checking' | 'authenticated' | 'anonymous' | 'unavailable';
 export type AuthResponse<T> = ApiResponse<T> & { retryAfterSeconds?: number };
@@ -60,6 +61,12 @@ export interface AuthContextValue {
   removeAccount: (userId: number) => Promise<void>;
   /** 退出全部账号（当前 + 全部停靠）并回到登录页 */
   logoutAllAccounts: () => Promise<void>;
+  /** 当前浏览器处于模拟登录态时的标记（操作者 / 目标 / 模式 / 到期）；本人登录为 null */
+  impersonation: ImpersonationMarker | null;
+  /** 以目标用户身份进入系统：停靠当前（操作者）账号 → 写入目标 access token → 整页重载 */
+  startImpersonation: (result: ImpersonationStartResult) => void;
+  /** 结束模拟：通知服务端关闭会话（可跳过，如令牌已失效）→ 用停靠的操作者凭证换发会话 → 整页重载 */
+  endImpersonation: (options?: { skipServer?: boolean }) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

@@ -16,6 +16,7 @@ export const onlineSessionSchema = z.object({
   browser: z.string(),
   os: z.string(),
   loginAt: z.string(),
+  impersonatorName: z.string().nullable().optional().meta({ description: '模拟会话的实际操作人；本人登录为 null' }),
 }).meta({ id: 'OnlineSession' });
 
 export type OnlineSession = z.infer<typeof onlineSessionSchema>;

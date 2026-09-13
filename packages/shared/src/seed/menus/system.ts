@@ -13,6 +13,7 @@ export const SEED_MENUS_SYSTEM: Menu[] = [
   { id: 1016, parentId: 1010, title: '导出用户', type: 'button', permission: 'system:user:export', sort: 5, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1017, parentId: 1010, title: '明文导出', type: 'button', permission: 'system:user:export-raw', sort: 6, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1018, parentId: 1010, title: '用户授权', type: 'button', permission: 'system:user:assign', sort: 7, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1019, parentId: 1010, title: '模拟登录', type: 'button', permission: 'system:user:impersonate', sort: 8, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1020, parentId: 1000, title: '部门管理', name: 'SystemDepartments', path: '/system/departments', component: 'system/departments/DepartmentsPage', icon: 'Building2', type: 'menu', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1021, parentId: 1020, title: '查询', type: 'button', permission: 'system:department:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1022, parentId: 1020, title: '新增部门', type: 'button', permission: 'system:department:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },

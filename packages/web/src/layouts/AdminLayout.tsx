@@ -66,6 +66,8 @@ import { AnnouncementPopover, MessagePopover } from './admin/NotificationPopover
 import { ThemeModeDropdown, PagesDropdown, MoreDropdown } from './admin/HeaderDropdowns';
 import { UserDropdown } from './admin/UserDropdown';
 import { MaintenanceBanner } from './admin/MaintenanceBanner';
+import { ImpersonationBanner } from './admin/ImpersonationBanner';
+import { useAuth } from '@/hooks/useAuth';
 import { MobileHeader, MobileNavSheet } from './admin/MobileNav';
 import { TopBar } from './admin/TopBar';
 import { DoubleSidebar } from './admin/DoubleSidebar';
@@ -159,7 +161,16 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
   // ─── 布局开关：水印 / 快捷聊天 / 意见反馈入口，来自运行时设置的登录用户投影（一次请求）──────
   const mySettings = useMySettings().data;
   const watermark = mySettings?.ui.watermark;
-  const watermarkConfig = { enabled: watermark?.enabled ?? false, content: watermark?.content ?? '', fontSize: watermark?.fontSize ?? 14, opacity: (watermark?.opacity ?? 15) / 100 };
+  // 模拟登录态强制开启水印并固定内容为「操作人 → 目标」，不受用户水印偏好影响
+  const { impersonation, endImpersonation } = useAuth();
+  const [endingImpersonation, setEndingImpersonation] = useState(false);
+  const handleEndImpersonation = useCallback(() => {
+    setEndingImpersonation(true);
+    void endImpersonation().finally(() => setEndingImpersonation(false));
+  }, [endImpersonation]);
+  const watermarkConfig = impersonation
+    ? { enabled: true, content: `模拟登录 ${impersonation.operatorUsername} → ${impersonation.targetUsername}`, fontSize: 14, opacity: 0.18 }
+    : { enabled: watermark?.enabled ?? false, content: watermark?.content ?? '', fontSize: watermark?.fontSize ?? 14, opacity: (watermark?.opacity ?? 15) / 100 };
   const quickChatEnabled = mySettings?.ui.quickChatEnabled ?? false;
   const feedbackEntryEnabled = mySettings?.ui.feedbackEntryEnabled ?? false;
   const [feedbackVisible, setFeedbackVisible] = useState(false);
@@ -787,6 +798,14 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
           : {}),
       }}
     >
+      {/* 模拟登录横幅（模拟态常驻、不可关闭） */}
+      {impersonation && (
+        <ImpersonationBanner
+          impersonation={impersonation}
+          onEnd={handleEndImpersonation}
+          ending={endingImpersonation}
+        />
+      )}
       {/* 维护模式横幅（仅超级管理员可见） */}
       {isSuperAdmin && maintenanceBannerEnabled && (
         <MaintenanceBanner

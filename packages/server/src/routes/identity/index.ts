@@ -7,6 +7,7 @@ import {
   enterpriseAuthContract,
   identityProviderContract,
   identitySecurityContract,
+  impersonationContract,
   loginLogContract,
   menuContract,
   oauthConfigContract,
@@ -29,6 +30,7 @@ import directorySyncSourcesRoutes from './directory-sync-sources';
 import enterpriseAuthRoutes from './enterprise-auth';
 import identityProvidersRoutes from './identity-providers';
 import identitySecurityRoutes from './identity-security';
+import impersonationRoutes from './impersonation';
 import loginLogsRoutes from './login-logs';
 import menusRoutes from './menus';
 import oauthConfigRoutes from './oauth-config';
@@ -53,6 +55,7 @@ export default defineRouteDomain({
     [roleContract.basePath, rolesRoutes],
     [loginLogContract.basePath, loginLogsRoutes],
     [identitySecurityContract.basePath, identitySecurityRoutes],
+    [impersonationContract.basePath, impersonationRoutes],
     [identityProviderContract.basePath, identityProvidersRoutes],
     [directorySyncSourceContract.basePath, directorySyncSourcesRoutes],
     [directorySyncContract.basePath, directorySyncRoutes],

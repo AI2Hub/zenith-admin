@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Button, Descriptions, Tag } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
 import type { ColumnProps, TableProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { LoginLog } from '@zenith/shared/identity';
+import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
+import { LOGIN_EVENT_TYPE_LABELS, type LoginEventType, type LoginLog } from '@zenith/shared/identity';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime } from '@/utils/date';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
@@ -25,11 +26,18 @@ function LoginStatusTag({ status, size }: Readonly<{ status: LoginLog['status'];
   );
 }
 
+const LOGIN_EVENT_TYPE_COLORS: Record<LoginEventType, TagColor> = {
+  login: 'cyan',
+  logout: 'blue',
+  impersonate: 'orange',
+  impersonate_end: 'grey',
+};
+
 function LoginEventTypeTag({ eventType, size }: Readonly<{ eventType?: LoginLog['eventType']; size?: 'small' | 'default' | 'large' }>) {
-  const normalized = eventType ?? 'login';
+  const normalized: LoginEventType = eventType ?? 'login';
   return (
-    <Tag color={normalized === 'logout' ? 'blue' : 'cyan'} size={size}>
-      {normalized === 'logout' ? '退出登录' : '登录'}
+    <Tag color={LOGIN_EVENT_TYPE_COLORS[normalized]} size={size}>
+      {LOGIN_EVENT_TYPE_LABELS[normalized]}
     </Tag>
   );
 }

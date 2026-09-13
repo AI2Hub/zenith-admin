@@ -3,13 +3,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ACCOUNT_SWITCH_BROADCAST_KEY,
   ACCOUNTS_STORE_KEY,
+  IMPERSONATION_STORE_KEY,
   MAX_STORED_ACCOUNTS,
   PREFERENCES_KEY,
   REFRESH_TOKEN_KEY,
   TABS_STORAGE_KEY,
   TOKEN_KEY,
 } from '@zenith/shared/core';
-import { authContract, type LoginResponse, type LoginResult } from '@zenith/shared/identity';
+import { authContract, impersonationContract, type LoginResponse, type LoginResult } from '@zenith/shared/identity';
 import { apiRaw } from '@/lib/contract-query';
 import { AuthContext, type AuthContextValue, type AuthStatus } from '@/hooks/useAuth';
 import { PermissionContext } from '@/hooks/usePermission';
@@ -31,7 +32,14 @@ import {
   takeParkedAccount,
   type StoredAccount,
 } from '@/lib/account-store';
+import {
+  clearImpersonationMarker,
+  readImpersonationMarker,
+  writeImpersonationMarker,
+  type ImpersonationMarker,
+} from '@/lib/impersonation-store';
 import { ADMIN_AUTH_INVALIDATED_EVENT } from '@/utils/request';
+import { AUTH_INVALIDATED_REASON_KEY } from '@/utils/http-client';
 import { LOCK_SCREEN_STORAGE_KEYS } from '@/hooks/useLockScreen';
 
 const DEVICE_ID_KEY = 'zenith_device_id';
@@ -59,6 +67,7 @@ function clearAccountScopedData(): void {
 function clearStoredUserData(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
+  clearImpersonationMarker();
   clearAccountScopedData();
 }
 
@@ -133,6 +142,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   const activateSession = useCallback(async (token: LoginResponse['token']) => {
     hasCredentialsRef.current = true;
     await clearIdentityCache();
+    clearImpersonationMarker();
     localStorage.setItem(TOKEN_KEY, token.accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, token.refreshToken);
     setHasCredentials(true);
@@ -166,11 +176,77 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     const current = snapshotCurrentAccount();
     if (current && current.userId !== data.user.id) parkAccount(current);
     removeParkedAccount(data.user.id);
+    clearImpersonationMarker();
     localStorage.setItem(TOKEN_KEY, data.token.accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, data.token.refreshToken);
     clearAccountScopedData();
     broadcastSwitchAndReload();
   }, [snapshotCurrentAccount]);
+
+  // ─── 模拟登录 ──────────────────────────────────────────────────────
+  const [impersonationMarker, setImpersonationMarker] = useState<ImpersonationMarker | null>(() => readImpersonationMarker());
+
+  /**
+   * 回到操作者身份：用停靠的操作者 refreshToken 换发会话并整页重载；
+   * 凭证已失效则回登录页（登录页保留操作者快捷入口）。目标身份的 access token 一并丢弃。
+   */
+  const restoreOperator = useCallback(async (marker: ImpersonationMarker) => {
+    clearImpersonationMarker();
+    const operator = getParkedAccount(marker.operatorUserId);
+    if (!operator) {
+      transitionToAnonymous();
+      return;
+    }
+    // 不提前清 TOKEN_KEY：其他标签页会把「token 被移除」当成退出登录而闪回登录页；成功后直接覆盖并广播重载
+    const res = await apiRaw(authContract.refresh, { body: { refreshToken: operator.refreshToken } }, { silent: true, skipAuth: true });
+    if (res.code === 0 && res.data?.accessToken) {
+      takeParkedAccount(operator.userId);
+      localStorage.setItem(TOKEN_KEY, res.data.accessToken);
+      localStorage.setItem(REFRESH_TOKEN_KEY, res.data.refreshToken ?? operator.refreshToken);
+      clearAccountScopedData();
+      // 模拟令牌失效触发的 401 已写入「登录状态已失效」提示；成功回切后不该在下次登录页出现
+      try { sessionStorage.removeItem(AUTH_INVALIDATED_REASON_KEY); } catch { /* ignore */ }
+      broadcastSwitchAndReload();
+      return;
+    }
+    // 网络异常：不误删可能仍有效的操作者会话
+    if (res.code !== -1) removeParkedAccount(operator.userId);
+    transitionToAnonymous();
+  }, [transitionToAnonymous]);
+
+  const startImpersonation = useCallback<AuthContextValue['startImpersonation']>((result) => {
+    const operator = snapshotCurrentAccount();
+    if (!operator) {
+      // 没有可回切的操作者凭证（理论上不会发生）：拒绝进入模拟态，避免结束后无处可去
+      throw new Error('当前登录态缺少可回切的凭证，请重新登录后再试');
+    }
+    parkAccount(operator);
+    clearAccountScopedData();
+    writeImpersonationMarker({
+      impersonationId: result.impersonation.id,
+      operatorUserId: operator.userId,
+      operatorUsername: operator.username,
+      targetUserId: result.target.id,
+      targetUsername: result.target.username,
+      targetNickname: result.target.nickname,
+      readOnly: result.impersonation.readOnly,
+      expiresAt: result.impersonation.expiresAt,
+    });
+    // 模拟态只持有目标身份的 access token：无 refresh token → 不可续签、不会被停靠
+    localStorage.setItem(TOKEN_KEY, result.accessToken);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    broadcastSwitchAndReload();
+  }, [snapshotCurrentAccount]);
+
+  const endImpersonation = useCallback<AuthContextValue['endImpersonation']>(async (options) => {
+    const marker = readImpersonationMarker();
+    if (!marker) return;
+    // skipAuth：模拟令牌已过期 / 被吊销时服务端返回 401，不能再触发刷新与跳登录页
+    if (!options?.skipServer) {
+      await apiRaw(impersonationContract.end, { silent: true, skipAuth: true }).catch(() => {});
+    }
+    await restoreOperator(marker);
+  }, [restoreOperator]);
 
   const switchAccount = useCallback<AuthContextValue['switchAccount']>(async (userId) => {
     const target = getParkedAccount(userId);
@@ -240,15 +316,26 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     transitionToAnonymous();
   }, [syncParkedAccounts, transitionToAnonymous]);
 
-  // 任何路径（含 OAuth / SSO 回调）登录后，若当前用户仍留在停靠区则去重
+  // 任何路径（含 OAuth / SSO 回调）登录后，若当前用户仍留在停靠区则去重；
+  // 模拟态下当前会话是目标用户，不能把碰巧停靠着的同名真实账号误删
   useEffect(() => {
     const uid = sessionQuery.data?.user?.id;
-    if (uid == null) return;
+    if (uid == null || impersonationMarker) return;
     if (getParkedAccount(uid)) {
       removeParkedAccount(uid);
       syncParkedAccounts();
     }
-  }, [sessionQuery.data, syncParkedAccounts]);
+  }, [impersonationMarker, sessionQuery.data, syncParkedAccounts]);
+
+  // 服务端说当前不是模拟会话（令牌已被替换等）而本地仍有标记：以服务端为准清掉标记
+  useEffect(() => {
+    const user = sessionQuery.data?.user;
+    if (!user || !impersonationMarker) return;
+    if (!user.impersonation || user.id !== impersonationMarker.targetUserId) {
+      clearImpersonationMarker();
+      setImpersonationMarker(null);
+    }
+  }, [impersonationMarker, sessionQuery.data]);
 
   useEffect(() => {
     const wasAuthenticated = previousCredentialsRef.current;
@@ -269,10 +356,18 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   }, [sessionQuery.error, transitionToAnonymous]);
 
   useEffect(() => {
-    const handleInvalidated = () => transitionToAnonymous();
+    // 模拟令牌到期 / 被吊销：回到操作者身份而不是登录页
+    const handleInvalidated = () => {
+      const marker = readImpersonationMarker();
+      if (marker) {
+        void restoreOperator(marker);
+        return;
+      }
+      transitionToAnonymous();
+    };
     globalThis.addEventListener(ADMIN_AUTH_INVALIDATED_EVENT, handleInvalidated);
     return () => globalThis.removeEventListener(ADMIN_AUTH_INVALIDATED_EVENT, handleInvalidated);
-  }, [transitionToAnonymous]);
+  }, [restoreOperator, transitionToAnonymous]);
 
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
@@ -283,6 +378,10 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       }
       if (event.key === ACCOUNTS_STORE_KEY) {
         syncParkedAccounts();
+        return;
+      }
+      if (event.key === IMPERSONATION_STORE_KEY) {
+        setImpersonationMarker(readImpersonationMarker());
         return;
       }
       if (event.key !== TOKEN_KEY) return;
@@ -358,6 +457,11 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   }, [activateAddedAccount, activateSession]);
 
   const logout = useCallback(() => {
+    // 模拟态下「退出」= 结束模拟并回到操作者身份
+    if (readImpersonationMarker()) {
+      void endImpersonation();
+      return;
+    }
     apiRaw(authContract.logout, { silent: true, skipAuth: true }).catch(() => {});
     // 还有停靠账号时对齐 GitHub：退出当前账号后自动回落到最近使用的账号
     if (listParkedAccounts().length > 0) {
@@ -365,7 +469,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       return;
     }
     transitionToAnonymous();
-  }, [switchToNextParked, transitionToAnonymous]);
+  }, [endImpersonation, switchToNextParked, transitionToAnonymous]);
 
   const refresh = useCallback(async () => {
     await fetchCurrentSession();
@@ -376,6 +480,24 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   }, [queryClient]);
 
   const session = hasCredentials ? sessionQuery.data : undefined;
+
+  // 展示以本地标记为准（含操作者凭证归属）；标记丢失但服务端仍判定为模拟会话时按 /me 补一份只读视图
+  const impersonation = useMemo<ImpersonationMarker | null>(() => {
+    if (impersonationMarker) return impersonationMarker;
+    const user = session?.user;
+    const state = user?.impersonation;
+    if (!user || !state) return null;
+    return {
+      impersonationId: state.id,
+      operatorUserId: state.impersonatorId,
+      operatorUsername: state.impersonatorName,
+      targetUserId: user.id,
+      targetUsername: user.username,
+      targetNickname: user.nickname,
+      readOnly: state.readOnly,
+      expiresAt: state.expiresAt,
+    };
+  }, [impersonationMarker, session]);
   let status: AuthStatus;
   if (!hasCredentials) status = 'anonymous';
   else if (session) status = 'authenticated';
@@ -406,7 +528,12 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     switchAccount,
     removeAccount,
     logoutAllAccounts,
+    impersonation,
+    startImpersonation,
+    endImpersonation,
   }), [
+    endImpersonation,
+    impersonation,
     login,
     logout,
     logoutAllAccounts,
@@ -417,6 +544,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     session,
     sessionQuery.error,
     sessionQuery.isFetching,
+    startImpersonation,
     status,
     switchAccount,
     updateUser,

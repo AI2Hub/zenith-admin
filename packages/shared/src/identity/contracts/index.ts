@@ -5,6 +5,7 @@ export * from './directory-sync';
 export * from './enterprise-auth';
 export * from './identity-providers';
 export * from './identity-security';
+export * from './impersonation';
 export * from './login-logs';
 export * from './menus';
 export * from './oauth';

@@ -4,11 +4,22 @@ import { mockMenus } from '@/mocks/data/menus';
 export const MOCK_TOKEN_PREFIX = 'mock-access-token';
 export const MOCK_REFRESH_TOKEN_PREFIX = 'mock-refresh-token';
 
-interface MockTokenClaims { username: string; viewingTenantId?: number | null; }
-export interface MockSession { user: MockUser; viewingTenantId?: number | null; }
+/** 模拟登录声明（Demo 模式）：与服务端 JwtPayload.impersonation 同形，另带展示所需的到期 / 原因 */
+export interface MockImpersonationClaim {
+  id: number;
+  byUserId: number;
+  byUsername: string;
+  readOnly: boolean;
+  reason: string;
+  startedAt: string;
+  expiresAt: string;
+}
 
-export const mockAccessToken = (username: string, viewingTenantId?: number | null) =>
-  `${MOCK_TOKEN_PREFIX}:${JSON.stringify({ username, viewingTenantId })}`;
+interface MockTokenClaims { username: string; viewingTenantId?: number | null; impersonation?: MockImpersonationClaim }
+export interface MockSession { user: MockUser; viewingTenantId?: number | null; impersonation?: MockImpersonationClaim }
+
+export const mockAccessToken = (username: string, viewingTenantId?: number | null, impersonation?: MockImpersonationClaim) =>
+  `${MOCK_TOKEN_PREFIX}:${JSON.stringify({ username, viewingTenantId, ...(impersonation ? { impersonation } : {}) })}`;
 export const mockRefreshToken = (username: string, viewingTenantId?: number | null) =>
   `${MOCK_REFRESH_TOKEN_PREFIX}:${JSON.stringify({ username, viewingTenantId })}`;
 
@@ -26,7 +37,9 @@ export function resolveMockSession(token: string | null | undefined, prefix = MO
   if (!user) return null;
   if (claims.viewingTenantId != null && (!Number.isInteger(claims.viewingTenantId) || claims.viewingTenantId <= 0)) return null;
   if (claims.viewingTenantId != null && !isMockPlatformAdmin(user)) return null;
-  return { user, viewingTenantId: claims.viewingTenantId };
+  // 模拟令牌只在 access token 上出现；refresh token 携带该声明一律无效（与服务端一致：模拟会话不可续签）
+  if (claims.impersonation && prefix === MOCK_REFRESH_TOKEN_PREFIX) return null;
+  return { user, viewingTenantId: claims.viewingTenantId, impersonation: claims.impersonation };
 }
 
 export function currentMockSession(request: Request): MockSession | null {

@@ -99,6 +99,13 @@
       "when": 1789154983266,
       "tag": "0013_tenant_package_cache_invalidate",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789304845445,
+      "tag": "0014_jazzy_christian_walker",
+      "breakpoints": true
     }
   ]
 }

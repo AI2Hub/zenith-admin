@@ -555,6 +555,17 @@ export const verifyPasswordSchema = z.object({
   password: z.string().min(1),
 });
 
+/** 开始模拟登录：目标用户 + 原因 + 模式 + 时长，并以操作者本人密码做二次验证 */
+export const startImpersonationSchema = z.object({
+  userId: z.number().int().positive(),
+  reason: z.string().trim().min(5, '原因至少 5 个字').max(200, '原因不能超过 200 个字'),
+  readOnly: z.boolean().default(true),
+  durationMinutes: z.number().int().min(1).max(120).optional(),
+  password: z.string().min(1, '请输入当前账号密码'),
+});
+
+export type StartImpersonationInput = z.infer<typeof startImpersonationSchema>;
+
 export const saveFavoriteMenusSchema = z.object({
   menuIds: z.array(z.number().int()),
 });

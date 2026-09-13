@@ -13,6 +13,11 @@ import { enumValueOf } from '@zenith/shared/core';
 import { OPERATION_LOG_RESULT_OPTIONS, OPERATION_LOG_RESULTS } from '@zenith/shared/platform';
 
 const METHOD_OPTIONS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((value) => ({ value, label: value }));
+/** 模拟登录筛选：与契约 `impersonated` 的 queryBool 文案一致（该页为映射模式，控件手写） */
+const IMPERSONATED_OPTIONS = [
+  { value: 'true', label: '仅模拟操作' },
+  { value: 'false', label: '仅本人操作' },
+];
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
 interface SearchParams {
@@ -24,13 +29,15 @@ interface SearchParams {
   ip: string;
   status?: string;
   content: string;
+  /** 'true' 仅模拟登录期间的操作 / 'false' 仅本人操作；未选为 undefined */
+  impersonated?: string;
   timeRange: [Date, Date] | null;
   /** 耗时区间（ms）：未填为 undefined，与其它可选筛选字段一致 */
   minDurationMs?: number;
   maxDurationMs?: number;
 }
 
-const defaultParams: SearchParams = { username: '', module: '', description: '', method: undefined, path: '', ip: '', status: undefined, content: '', timeRange: null, minDurationMs: undefined, maxDurationMs: undefined };
+const defaultParams: SearchParams = { username: '', module: '', description: '', method: undefined, path: '', ip: '', status: undefined, content: '', impersonated: undefined, timeRange: null, minDurationMs: undefined, maxDurationMs: undefined };
 
 export default function OperationLogsPage() {
   const [activeTab, setActiveTab] = useUrlTabState(['list', 'stats'] as const, 'list');
@@ -49,6 +56,7 @@ export default function OperationLogsPage() {
     path: submittedParams.path,
     status: enumValueOf(OPERATION_LOG_RESULTS, submittedParams.status),
     content: submittedParams.content,
+    impersonated: submittedParams.impersonated === 'true' ? true : submittedParams.impersonated === 'false' ? false : undefined,
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
     minDurationMs: submittedParams.minDurationMs,
     maxDurationMs: submittedParams.maxDurationMs,
@@ -92,6 +100,12 @@ export default function OperationLogsPage() {
                 <StatusSelect
                   items={OPERATION_LOG_RESULT_OPTIONS}
                   {...bind('status')}
+                />
+                <FilterSelect
+                  placeholder="全部操作来源"
+                  items={IMPERSONATED_OPTIONS}
+                  {...bind('impersonated')}
+                  width={140}
                 />
                 <DateRangeFilter {...bind('timeRange')} />
                 <NumberFilter placeholder="耗时 ≥ (ms)" min={0} {...bind('minDurationMs')} />

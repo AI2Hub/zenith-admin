@@ -1,11 +1,12 @@
 import { pgTable, varchar, timestamp, pgEnum, integer, text, smallint, index } from 'drizzle-orm/pg-core';
+import { LOGIN_EVENT_TYPES } from '@zenith/shared/identity';
 import { tenantIdColumn } from './core';
 import { idColumn } from './common';
 
 // ─── 登录日志表 ─────────────────────────────────────────────────────────────────
 export const loginStatusEnum = pgEnum('login_status', ['success', 'fail']);
 
-export const loginEventTypeEnum = pgEnum('login_event_type', ['login', 'logout']);
+export const loginEventTypeEnum = pgEnum('login_event_type', LOGIN_EVENT_TYPES);
 
 export const loginLogs = pgTable('login_logs', {
   id: idColumn(),
@@ -42,6 +43,9 @@ export const operationLogs = pgTable('operation_logs', {
   id: idColumn(),
   userId: integer(),
   username: varchar({ length: 32 }),
+  // 模拟登录期间的实际操作人（管理员）；本人操作为 null
+  impersonatorId: integer(),
+  impersonatorName: varchar({ length: 32 }),
   module: varchar({ length: 64 }),
   description: varchar({ length: 256 }).notNull(),
   method: varchar({ length: 16 }).notNull(),
@@ -65,6 +69,7 @@ export const operationLogs = pgTable('operation_logs', {
   index('operation_logs_tenant_created_idx').on(t.tenantId, t.createdAt),
   index('operation_logs_created_at_idx').on(t.createdAt),
   index('operation_logs_user_idx').on(t.userId),
+  index('operation_logs_impersonator_idx').on(t.impersonatorId),
   index('operation_logs_module_idx').on(t.module),
   // 链路追踪查看器按 request_id（= traceId）定位请求锚点
   index('operation_logs_request_idx').on(t.requestId),

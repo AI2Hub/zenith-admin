@@ -1,6 +1,6 @@
 import { timestampColumns, idColumn } from './common';
 import { pgTable, varchar, timestamp, pgEnum, integer, boolean, unique, text, uniqueIndex, index, jsonb } from 'drizzle-orm/pg-core';
-import { OAUTH_PROVIDERS } from '@zenith/shared/identity';
+import { OAUTH_PROVIDERS, IMPERSONATION_END_REASONS } from '@zenith/shared/identity';
 import { auditColumns, users, tenantIdColumn } from './core';
 
 export const mfaFactorTypeEnum = pgEnum('mfa_factor_type', ['totp', 'passkey', 'recovery_code']);
@@ -152,6 +152,44 @@ export const loginRiskEvents = pgTable('login_risk_events', {
 export type LoginRiskEventRow = typeof loginRiskEvents.$inferSelect;
 
 export type NewLoginRiskEvent = typeof loginRiskEvents.$inferInsert;
+
+// ─── 模拟登录会话 ─────────────────────────────────────────────────────────────
+export const impersonationEndReasonEnum = pgEnum('impersonation_end_reason', IMPERSONATION_END_REASONS);
+
+/**
+ * 管理员以用户身份操作的派生会话记录：谁、模拟了谁、为什么、多久、怎么结束。
+ * 会话本体仍是 Redis 里的 jti 会话（token_id），本表是审计与强制结束的依据。
+ */
+export const impersonationSessions = pgTable('impersonation_sessions', {
+  id: idColumn(),
+  impersonatorId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
+  impersonatorName: varchar({ length: 64 }).notNull(),
+  targetUserId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
+  targetUsername: varchar({ length: 64 }).notNull(),
+  tenantId: tenantIdColumn(),
+  tokenId: varchar({ length: 64 }).notNull(),
+  readOnly: boolean().notNull().default(true),
+  reason: varchar({ length: 256 }).notNull(),
+  ip: varchar({ length: 64 }),
+  location: varchar({ length: 128 }),
+  browser: varchar({ length: 64 }),
+  os: varchar({ length: 64 }),
+  startedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp({ withTimezone: true }).notNull(),
+  endedAt: timestamp({ withTimezone: true }),
+  endReason: impersonationEndReasonEnum(),
+  endedBy: integer().references(() => users.id, { onDelete: 'set null' }),
+}, (t) => [
+  uniqueIndex('impersonation_sessions_token_uq').on(t.tokenId),
+  index('impersonation_sessions_impersonator_idx').on(t.impersonatorId),
+  index('impersonation_sessions_target_idx').on(t.targetUserId),
+  index('impersonation_sessions_tenant_started_idx').on(t.tenantId, t.startedAt.desc()),
+  index('impersonation_sessions_started_idx').on(t.startedAt.desc()),
+]);
+
+export type ImpersonationSessionRow = typeof impersonationSessions.$inferSelect;
+
+export type NewImpersonationSession = typeof impersonationSessions.$inferInsert;
 
 // ─── 限流规则 ─────────────────────────────────────────────────────────────────
 export const rateLimitKeyTypeEnum = pgEnum('rate_limit_key_type', ['ip', 'user', 'ip_path']);

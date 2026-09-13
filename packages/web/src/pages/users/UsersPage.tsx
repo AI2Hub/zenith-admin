@@ -55,6 +55,9 @@ import { SensitiveFormInput, SensitiveText } from '@/components/sensitive';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
 import { EditFormModal } from '@/components/EditFormModal';
+import { useStartImpersonation } from '@/hooks/queries/impersonation';
+import { ImpersonateModal } from './ImpersonateModal';
+import { DEFAULT_IMPERSONATE_VALUES, type ImpersonateFormValues } from './impersonate-form';
 
 interface SearchParams {
   keyword: string;
@@ -89,9 +92,14 @@ function isAdminUser(user: Pick<User, 'username'>) {
   return user.username.trim().toLowerCase() === 'admin';
 }
 
+/** 平台超管：角色含 super_admin 且归属平台（与服务端 isSuperAdmin 同口径），永不可被模拟 */
+function isPlatformSuperUser(user: Pick<User, 'roles' | 'tenantId'>) {
+  return (user.tenantId ?? null) === null && user.roles.some((r) => r.code === 'super_admin');
+}
+
 export default function UsersPage() {
   const { hasPermission } = usePermission();
-  const { updateUser } = useAuth();
+  const { updateUser, user: currentUser, impersonation, startImpersonation } = useAuth();
   const {
     page, pageSize, buildPagination,
     draftParams, bind, bindKeyword, submittedParams,
@@ -214,6 +222,38 @@ export default function UsersPage() {
     successMessage: () => '密码修改成功',
     onSaved: () => setEditPwdVal(''),
   });
+
+  // useEditModal 复用为动作弹窗：以目标用户为 editing，提交即发起模拟并整页切换身份（无成功提示）
+  const startImpersonationMutation = useStartImpersonation();
+  const impersonateModal = useEditModal<User, ImpersonateFormValues>({
+    save: {
+      mutateAsync: async ({ id, values }) => {
+        if (id == null) abortSubmit('missing_user');
+        const result = await startImpersonationMutation.mutateAsync({
+          body: {
+            userId: id,
+            reason: values.reason.trim(),
+            readOnly: values.mode !== 'write',
+            durationMinutes: values.durationMinutes,
+            password: values.password,
+          },
+        });
+        startImpersonation(result);
+        return {} as User;
+      },
+      isPending: startImpersonationMutation.isPending,
+    },
+    toValues: () => DEFAULT_IMPERSONATE_VALUES,
+    successMessage: () => null,
+  });
+  const openImpersonate = impersonateModal.openEdit;
+  const canImpersonate = useCallback((record: User) => (
+    hasPermission('system:user:impersonate')
+    && !impersonation
+    && record.id !== currentUser?.id
+    && record.status === 'enabled'
+    && !isPlatformSuperUser(record)
+  ), [currentUser?.id, hasPermission, impersonation]);
 
   const selectedDeletableCount = useMemo(() => {
     if (!userList.length) return 0;
@@ -465,10 +505,17 @@ export default function UsersPage() {
             },
           },
           {
+            key: 'impersonate',
+            label: '模拟登录',
+            dividerBefore: true,
+            hidden: !canImpersonate(record),
+            onClick: () => openImpersonate(record),
+          },
+          {
             key: 'force-logout',
             label: '强制下线',
             danger: true,
-            dividerBefore: true,
+            dividerBefore: !canImpersonate(record),
             hidden: !record.isOnline || !hasPermission('system:session:forceLogout'),
             onClick: () => {
               confirmDanger({
@@ -485,7 +532,7 @@ export default function UsersPage() {
         ];
       },
     }),
-  ], [hasPermission, status, deleteMutation, handleUnlock, kickUserSessions, refetchUserList, openEdit, openPassword]);
+  ], [hasPermission, status, deleteMutation, handleUnlock, kickUserSessions, refetchUserList, openEdit, openPassword, canImpersonate, openImpersonate]);
 
   const [showDeptTree, setShowDeptTree] = useState(false);
   const [isLayoutNarrow, setIsLayoutNarrow] = useState(false);
@@ -785,6 +832,8 @@ export default function UsersPage() {
           rules={[{ required: true, message: '请确认新密码' }]}
         />
       </EditFormModal>
+
+      <ImpersonateModal modal={impersonateModal} />
 
       {/* 批量修改密码 */}
       <AppModal

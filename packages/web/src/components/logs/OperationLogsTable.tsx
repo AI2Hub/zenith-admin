@@ -1,6 +1,6 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Descriptions, JsonViewer, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
+import { Button, Descriptions, JsonViewer, TabPane, Tabs, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
 import type { ColumnProps, TableProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { OperationLog } from '@zenith/shared/platform';
@@ -110,7 +110,21 @@ export function OperationLogsTable({
 
   const columns = useMemo<ColumnProps<OperationLog>[]>(() => [
     { title: 'ID', dataIndex: 'id', width: 70 },
-    { title: '操作人', dataIndex: 'username', width: 160, render: (v: string | null, r: OperationLog) => <UserDisplayCell username={v} nickname={r.nickname} /> },
+    {
+      title: '操作人',
+      dataIndex: 'username',
+      width: 200,
+      render: (v: string | null, r: OperationLog) => (
+        <span className="operation-log-actor">
+          <UserDisplayCell username={v} nickname={r.nickname} />
+          {r.impersonatorName && (
+            <Tooltip content={`模拟登录：实际由 ${r.impersonatorName} 操作`}>
+              <Tag size="small" color="orange" style={{ marginLeft: 6 }}>由 {r.impersonatorName} 模拟</Tag>
+            </Tooltip>
+          )}
+        </span>
+      ),
+    },
     { title: '功能模块', dataIndex: 'module', width: 180, ellipsis: { showTitle: false }, render: (v: string | null) => v ? <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v}</Typography.Text> : '-' },
     { title: '操作描述', dataIndex: 'description', width: 220, ellipsis: true },
     { title: '请求方法', dataIndex: 'method', width: 90, render: (v: string) => <Tag color="blue">{v}</Tag> },
@@ -178,6 +192,9 @@ export function OperationLogsTable({
                   data={[
                     { key: 'ID', value: detailLog.id },
                     { key: '操作人', value: formatUserLabel(detailLog.username, detailLog.nickname) },
+                    ...(detailLog.impersonatorName
+                      ? [{ key: '实际操作人', value: <Tag color="orange" size="small">{detailLog.impersonatorName}（模拟登录）</Tag> }]
+                      : []),
                     { key: '功能模块', value: detailLog.module ?? '-' },
                     { key: '操作描述', value: detailLog.description },
                     {

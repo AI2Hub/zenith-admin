@@ -1,4 +1,4 @@
-import { count, desc, and, or, gte, lt, lte, sql, eq, inArray } from 'drizzle-orm';
+import { count, desc, and, or, gte, lt, lte, sql, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { operationLogContract } from '@zenith/shared/platform';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
@@ -33,6 +33,8 @@ export async function buildOperationLogsWhere(q: OperationLogsListFilter) {
     keywordCondition(q.content, [operationLogs.beforeData, operationLogs.afterData, operationLogs.requestBody], 'ilike'),
     q.status === 'success' ? and(gte(operationLogs.responseCode, 200), lte(operationLogs.responseCode, 399)) : undefined,
     q.status === 'fail' ? gte(operationLogs.responseCode, 400) : undefined,
+    q.impersonated === true ? isNotNull(operationLogs.impersonatorId) : undefined,
+    q.impersonated === false ? isNull(operationLogs.impersonatorId) : undefined,
     ...dateRangeConditions(operationLogs.createdAt, q.startTime, q.endTime),
     q.minDurationMs != null ? gte(operationLogs.durationMs, q.minDurationMs) : undefined,
     q.maxDurationMs != null ? lte(operationLogs.durationMs, q.maxDurationMs) : undefined,

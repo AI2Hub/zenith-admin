@@ -35,14 +35,44 @@ export const USER_GROUP_MEMBER_MODES = ['static', 'dynamic'] as const;
 
 export type UserGroupMemberMode = (typeof USER_GROUP_MEMBER_MODES)[number];
 
-export const LOGIN_EVENT_TYPES = ['login', 'logout'] as const;
+export const LOGIN_EVENT_TYPES = ['login', 'logout', 'impersonate', 'impersonate_end'] as const;
 
 export type LoginEventType = (typeof LOGIN_EVENT_TYPES)[number];
 
 export const LOGIN_EVENT_TYPE_LABELS: Record<LoginEventType, string> = {
   login: '登录',
   logout: '退出登录',
+  impersonate: '模拟登录',
+  impersonate_end: '结束模拟',
 };
+
+// ─── 模拟登录（管理员以用户身份操作）────────────────────────────────────────
+/** 模拟会话结束原因：manual 操作者主动结束 / expired 到期 / forced 被管理员强制结束 */
+export const IMPERSONATION_END_REASONS = ['manual', 'expired', 'forced'] as const;
+
+export type ImpersonationEndReason = (typeof IMPERSONATION_END_REASONS)[number];
+
+export const IMPERSONATION_END_REASON_LABELS: Record<ImpersonationEndReason, string> = {
+  manual: '主动结束',
+  expired: '到期结束',
+  forced: '强制结束',
+};
+
+/** 模拟会话状态（列表筛选）：active 进行中 / ended 已结束 */
+export const IMPERSONATION_STATUSES = ['active', 'ended'] as const;
+
+export type ImpersonationStatus = (typeof IMPERSONATION_STATUSES)[number];
+
+export const IMPERSONATION_STATUS_LABELS: Record<ImpersonationStatus, string> = {
+  active: '进行中',
+  ended: '已结束',
+};
+
+export const IMPERSONATION_STATUS_OPTIONS: Array<{ value: ImpersonationStatus; label: string }> =
+  createLabelOptions(IMPERSONATION_STATUSES, IMPERSONATION_STATUS_LABELS);
+
+/** 模拟会话时长选项（分钟），实际上限由身份安全设置 `impersonation.maxMinutes` 决定 */
+export const IMPERSONATION_DURATION_OPTIONS = [5, 15, 30, 60] as const;
 
 export const LOGIN_EVENT_TYPE_OPTIONS: Array<{ value: LoginEventType; label: string }> =
   createLabelOptions(LOGIN_EVENT_TYPES, LOGIN_EVENT_TYPE_LABELS);

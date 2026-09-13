@@ -1,6 +1,6 @@
 import { useState, type Dispatch, type SetStateAction } from 'react';
 import { Badge, Button, Dropdown, Tooltip } from '@douyinfe/semi-ui';
-import { ArrowLeftRight, Bell, ChevronDown, Keyboard, Lock, LogOut, Megaphone, MessageSquareHeart, Settings, Smartphone, User as UserIcon } from 'lucide-react';
+import { ArrowLeftRight, Bell, ChevronDown, Keyboard, Lock, LogOut, Megaphone, MessageSquareHeart, Settings, Smartphone, User as UserIcon, VenetianMask } from 'lucide-react';
 import type { NavigateFunction } from 'react-router-dom';
 import type { User } from '@zenith/shared/identity';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -43,9 +43,10 @@ export function UserDropdown({
   clearLockPassword: () => void;
   onLogout: () => void;
 }>) {
-  const { parkedAccounts } = useAuth();
+  const { parkedAccounts, impersonation, endImpersonation } = useAuth();
   const [switcherVisible, setSwitcherVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const impersonating = impersonation !== null;
   return (
     <>
     <AccountSwitcherModal
@@ -64,18 +65,21 @@ export function UserDropdown({
             <UserAvatar name={user.nickname || '用户'} avatar={user.avatar} semiSize="default" size={36} />
             <div className="user-dropdown-account-meta">
               <span className="user-dropdown-account-name">{user.nickname}</span>
-              <span className="user-dropdown-account-sub">{user.username}</span>
+              <span className="user-dropdown-account-sub">{impersonating ? `模拟登录 · 操作人 ${impersonation.operatorUsername}` : user.username}</span>
             </div>
-            <Tooltip content="账号切换">
-              <Button
-                icon={<ArrowLeftRight size={14} />}
-                theme="borderless"
-                type="tertiary"
-                size="small"
-                aria-label="账号切换"
-                onClick={() => setSwitcherVisible(true)}
-              />
-            </Tooltip>
+            {/* 模拟态下不能切换 / 添加账号：模拟身份没有 refresh token，切走即无法回切 */}
+            {!impersonating && (
+              <Tooltip content="账号切换">
+                <Button
+                  icon={<ArrowLeftRight size={14} />}
+                  theme="borderless"
+                  type="tertiary"
+                  size="small"
+                  aria-label="账号切换"
+                  onClick={() => setSwitcherVisible(true)}
+                />
+              </Tooltip>
+            )}
           </div>
           <Dropdown.Divider />
           <Dropdown.Item icon={<UserIcon size={14} strokeWidth={1.5} />} onClick={() => navigate('/profile')}>个人中心</Dropdown.Item>
@@ -96,6 +100,14 @@ export function UserDropdown({
             <Dropdown.Item icon={<Lock size={14} strokeWidth={1.5} />} onClick={() => lock()}>锁屏</Dropdown.Item>
           )}
           <Dropdown.Divider />
+          {impersonating ? (
+            <Dropdown.Item
+              icon={<VenetianMask size={14} strokeWidth={1.5} />}
+              onClick={() => { disconnectWs(); clearLockPassword(); void endImpersonation(); }}
+            >
+              结束模拟并返回 {impersonation.operatorUsername}
+            </Dropdown.Item>
+          ) : (
           <Dropdown.Item
             icon={<LogOut size={14} strokeWidth={1.5} />}
             onClick={() => {
@@ -118,6 +130,7 @@ export function UserDropdown({
           >
             退出登录
           </Dropdown.Item>
+          )}
         </Dropdown.Menu>
       }
     >

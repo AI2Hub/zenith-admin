@@ -298,6 +298,19 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     title: '租户「{{tenantName}}」已到期停用',
     content: '租户「{{tenantName}}」已于 {{expireAt}} 到期，系统已自动停用，该租户用户将无法登录。如需继续使用请联系平台管理员续期。',
   },
+  'identity.impersonation.started': {
+    group: 'identity',
+    label: '账号被管理员模拟登录',
+    severity: 'important',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    // 账号安全透明度：被模拟的人必须知道有人以自己的身份在操作，不允许关闭
+    mandatory: true,
+    bypassQuietHours: true,
+    vars: eventVars<{ impersonatorName: string; reason: string; mode: string; expiresAt: string }>(),
+    title: '管理员 {{impersonatorName}} 正以你的身份登录系统',
+    content: '管理员 {{impersonatorName}} 已开始以你的账号身份进入系统（{{mode}}），原因：{{reason}}。该会话将于 {{expiresAt}} 自动结束，全部操作均记录为该管理员所为。',
+  },
 
   // ─── 运维与告警 ─────────────────────────────────────────────────────────────
   // 告警类事件由管理员在规则上显式指定渠道与接收人，收件人不得自行关闭：
