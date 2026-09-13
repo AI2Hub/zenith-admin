@@ -136,15 +136,15 @@ export const mpKfSessionReportQuery = mpAccountIdQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const mpKfSessionContract = defineContract('/api/mp/kf-sessions', {
-  list: op.get('/', { query: mpKfSessionListQuery, response: paginated(mpKfSessionSchema), summary: '会话列表（工作台）' }),
-  stats: op.get('/stats', { query: mpAccountIdQuery, response: mpKfSessionStatsSchema, summary: '会话概览统计' }),
-  report: op.get('/report', { query: mpKfSessionReportQuery, response: z.array(mpKfSessionReportItemSchema), summary: '会话数据报表（近 N 天）' }),
-  config: op.get('/config', { query: mpAccountIdQuery, response: mpKfRoutingConfigSchema, summary: '获取路由治理配置' }),
-  updateConfig: op.put('/config', { query: mpAccountIdQuery, body: updateMpKfRoutingConfigSchema, response: mpKfRoutingConfigSchema, summary: '保存路由治理配置' }),
-  detail: op.get('/{id}', { params: idParam, response: mpKfSessionDetailSchema, summary: '会话详情（含消息与事件时间线）' }),
-  accept: op.post('/{id}/accept', { params: idParam, body: acceptMpKfSessionSchema, response: mpKfSessionSchema, summary: '接入会话' }),
-  transfer: op.post('/{id}/transfer', { params: idParam, body: transferMpKfSessionSchema, response: mpKfSessionSchema, summary: '转接会话' }),
-  close: op.post('/{id}/close', { params: idParam, body: closeMpKfSessionSchema, response: mpKfSessionSchema, summary: '结束会话' }),
-  reply: op.post('/{id}/reply', { params: idParam, body: replyMpKfSessionSchema, response: mpKfSessionSchema, summary: '会话内回复粉丝' }),
-  rate: op.post('/{id}/rate', { params: idParam, body: rateMpKfSessionSchema, response: mpKfSessionSchema, summary: '记录会话满意度' }),
-}, { tags: ['公众号多客服会话'] });
+  list: op.get('/', { access: { permission: 'mp:kf:session:list' }, query: mpKfSessionListQuery, response: paginated(mpKfSessionSchema), summary: '会话列表（工作台）' }),
+  stats: op.get('/stats', { access: { permission: 'mp:kf:session:list' }, query: mpAccountIdQuery, response: mpKfSessionStatsSchema, summary: '会话概览统计' }),
+  report: op.get('/report', { access: { permission: 'mp:kf:session:list' }, query: mpKfSessionReportQuery, response: z.array(mpKfSessionReportItemSchema), summary: '会话数据报表（近 N 天）' }),
+  config: op.get('/config', { access: { permission: 'mp:kf:session:list' }, query: mpAccountIdQuery, response: mpKfRoutingConfigSchema, summary: '获取路由治理配置' }),
+  updateConfig: op.put('/config', { access: { permission: 'mp:kf:session:config' }, audit: '保存多客服路由配置', query: mpAccountIdQuery, body: updateMpKfRoutingConfigSchema, response: mpKfRoutingConfigSchema, summary: '保存路由治理配置' }),
+  detail: op.get('/{id}', { access: { permission: 'mp:kf:session:list' }, params: idParam, response: mpKfSessionDetailSchema, summary: '会话详情（含消息与事件时间线）' }),
+  accept: op.post('/{id}/accept', { access: { permission: 'mp:kf:session:accept' }, audit: '接入会话', params: idParam, body: acceptMpKfSessionSchema, response: mpKfSessionSchema, summary: '接入会话' }),
+  transfer: op.post('/{id}/transfer', { access: { permission: 'mp:kf:session:transfer' }, audit: '转接会话', params: idParam, body: transferMpKfSessionSchema, response: mpKfSessionSchema, summary: '转接会话' }),
+  close: op.post('/{id}/close', { access: { permission: 'mp:kf:session:close' }, audit: '结束会话', params: idParam, body: closeMpKfSessionSchema, response: mpKfSessionSchema, summary: '结束会话' }),
+  reply: op.post('/{id}/reply', { access: { permission: 'mp:kf:session:reply' }, audit: '会话回复', params: idParam, body: replyMpKfSessionSchema, response: mpKfSessionSchema, summary: '会话内回复粉丝' }),
+  rate: op.post('/{id}/rate', { access: { permission: 'mp:kf:session:close' }, audit: '会话满意度评分', params: idParam, body: rateMpKfSessionSchema, response: mpKfSessionSchema, summary: '记录会话满意度' }),
+}, { auditModule: '公众号多客服会话', tags: ['公众号多客服会话'] });

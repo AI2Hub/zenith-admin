@@ -4,8 +4,6 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { importJobContract } from '@zenith/shared/tasks';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import { mapAsyncTask } from '../../lib/task-center/map';
@@ -18,12 +16,10 @@ registerImportDefinitions();
 const importJobsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
 const entitiesRoute = defineContractRoute(importJobContract.entities, {
-  middleware: [authMiddleware],
   handler: async (c) => c.json(okBody(await listImportEntities()), 200),
 });
 
 const templateRoute = defineContractRoute(importJobContract.template, {
-  middleware: [authMiddleware],
   handler: async (c) => {
     const { entity } = c.req.valid('param');
     const { buffer, filename } = await getImportTemplate(entity);
@@ -38,7 +34,6 @@ const templateRoute = defineContractRoute(importJobContract.template, {
 });
 
 const submitRoute = defineContractRoute(importJobContract.submit, {
-  middleware: [authMiddleware, guard({ audit: { description: '提交数据导入任务', module: '导入中心' } })],
   handler: async (c) => {
     const { entity, fileId, dryRun, context } = c.req.valid('json');
     const row = await submitImportJob(entity, fileId, { dryRun, context });

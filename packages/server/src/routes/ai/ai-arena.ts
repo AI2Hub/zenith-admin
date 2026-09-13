@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
 import { aiArenaContract } from '@zenith/shared/ai';
-import { authMiddleware } from '../../middleware/auth';
 import { namedRateLimit } from '../../middleware/rate-limit';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, errBody, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
@@ -15,15 +14,13 @@ import { currentUser } from '../../lib/context';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const authed = [authMiddleware] as const;
-
 const rateLimitedResponse = {
   429: { content: jsonContent(ErrorResponse), description: '今日 AI 用量已达上限' },
 } as const;
 
 /** 多模型对比单栏流式（不落库、不带历史；前端并行调用两次） */
 const chat = defineContractRoute(aiArenaContract.chat, {
-  middleware: [authMiddleware, namedRateLimit('ai_chat_send')],
+  middleware: [namedRateLimit('ai_chat_send')],
   responses: rateLimitedResponse,
   handler: async (c) => {
     const { message, configId, model } = c.req.valid('json');
@@ -76,7 +73,6 @@ const chat = defineContractRoute(aiArenaContract.chat, {
 });
 
 const vote = defineContractRoute(aiArenaContract.vote, {
-  middleware: authed,
   handler: async (c) => {
     await recordArenaVote(c.req.valid('json'));
     return c.json(okBody(null, '感谢投票'), 200);

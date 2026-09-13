@@ -22,9 +22,9 @@ export type MpMenu = z.infer<typeof mpMenuSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const mpMenuContract = defineContract('/api/mp/menu', {
-  get: op.get('/', { query: mpAccountIdQuery, response: mpMenuSchema, summary: '获取自定义菜单' }),
-  save: op.post('/save', { body: saveMpMenuSchema, response: mpMenuSchema, summary: '保存菜单草稿' }),
-  publish: op.post('/publish', { body: mpAccountIdBody, response: mpMenuSchema, summary: '发布菜单到微信' }),
-  pull: op.post('/pull', { body: mpAccountIdBody, response: mpMenuSchema, summary: '从微信拉取菜单' }),
-  remove: op.post('/delete', { body: mpAccountIdBody, response: mpMenuSchema, summary: '删除微信菜单' }),
-}, { tags: ['公众号菜单'] });
+  get: op.get('/', { access: { permission: 'mp:menu:list' }, query: mpAccountIdQuery, response: mpMenuSchema, summary: '获取自定义菜单' }),
+  save: op.post('/save', { access: { permission: 'mp:menu:save' }, audit: '保存公众号菜单', body: saveMpMenuSchema, response: mpMenuSchema, summary: '保存菜单草稿' }),
+  publish: op.post('/publish', { access: { permission: 'mp:menu:publish' }, audit: '发布公众号菜单', body: mpAccountIdBody, response: mpMenuSchema, summary: '发布菜单到微信' }),
+  pull: op.post('/pull', { access: { permission: 'mp:menu:pull' }, audit: '拉取公众号菜单', body: mpAccountIdBody, response: mpMenuSchema, summary: '从微信拉取菜单' }),
+  remove: op.post('/delete', { access: { permission: 'mp:menu:delete' }, audit: '删除公众号菜单', body: mpAccountIdBody, response: mpMenuSchema, summary: '删除微信菜单' }),
+}, { auditModule: '公众号菜单', tags: ['公众号菜单'] });

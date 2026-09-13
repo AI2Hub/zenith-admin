@@ -38,10 +38,10 @@ export const reportSubscriptionListQuery = paginationQuery.extend({
 });
 
 export const reportSubscriptionContract = defineContract('/api/report/subscriptions', {
-  list: op.get('/', { query: reportSubscriptionListQuery, response: paginated(reportDashboardSubscriptionSchema), summary: '订阅列表' }),
-  batchStatus: op.put('/batch-status', { body: reportBatchEnabledSchema, summary: '批量启停订阅' }),
-  create: op.post('/', { body: createReportSubscriptionSchema, response: reportDashboardSubscriptionSchema, summary: '创建订阅' }),
-  update: op.put('/{id}', { params: idParam, body: updateReportSubscriptionSchema, response: reportDashboardSubscriptionSchema, summary: '更新订阅' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除订阅' }),
-  run: op.post('/{id}/run', { params: idParam, response: asyncTaskSchema, summary: '立即推送' }),
-}, { tags: ['报表订阅'] });
+  list: op.get('/', { access: { permission: 'report:subscription:list' }, query: reportSubscriptionListQuery, response: paginated(reportDashboardSubscriptionSchema), summary: '订阅列表' }),
+  batchStatus: op.put('/batch-status', { access: { permission: 'report:subscription:update' }, audit: '批量更新报表订阅状态', body: reportBatchEnabledSchema, summary: '批量启停订阅' }),
+  create: op.post('/', { access: { permission: 'report:subscription:create' }, audit: '创建报表订阅', body: createReportSubscriptionSchema, response: reportDashboardSubscriptionSchema, summary: '创建订阅' }),
+  update: op.put('/{id}', { access: { permission: 'report:subscription:update' }, audit: '更新报表订阅', params: idParam, body: updateReportSubscriptionSchema, response: reportDashboardSubscriptionSchema, summary: '更新订阅' }),
+  remove: op.delete('/{id}', { access: { permission: 'report:subscription:delete' }, audit: '删除报表订阅', params: idParam, summary: '删除订阅' }),
+  run: op.post('/{id}/run', { access: { permission: 'report:subscription:update' }, audit: '手动推送报表订阅', params: idParam, response: asyncTaskSchema, summary: '立即推送' }),
+}, { auditModule: '报表订阅', tags: ['报表订阅'] });

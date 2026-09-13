@@ -18,6 +18,8 @@ vi.mock('../../lib/logger', () => ({ default: { info: vi.fn(), warn: vi.fn(), er
 type HealthApp = typeof import('./health').default;
 
 const stubConfigBase = {
+  // 契约路由适配层静态引入 authMiddleware（模块加载期即构造 JWT 中间件），健康检查本身不鉴权
+  jwtSecret: 'test-secret',
   redis: { keyPrefix: 'test:' },
   log: { level: 'info', dir: 'logs', maxFiles: 1, pretty: false, viewerRoots: [] },
   otel: { enabled: false, serviceName: 'test', serviceVersion: 'test' },

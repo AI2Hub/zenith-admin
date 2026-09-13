@@ -12,12 +12,6 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(router, paymentAppContract,
   { list: listApps, get: getApp, create: createApp, update: updateApp, remove: deleteApp },
-  {
-    permission: { read: 'payment:app:list', write: 'payment:app:manage' },
-    label: '支付应用',
-    module: '支付中心',
-    audit: { create: '新增支付应用', update: '编辑支付应用' },
-  },
 );
 
 export default router;

@@ -8,7 +8,6 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(router, workflowTriggerExecutionContract,
   { list: listTriggerExecutions, get: getTriggerExecution },
-  { permission: { read: 'workflow:trigger-execution:view' } },
 );
 
 export default router;

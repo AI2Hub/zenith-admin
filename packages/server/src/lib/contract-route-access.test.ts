@@ -19,7 +19,6 @@ const custom = Object.assign(async () => {}, { __name: 'custom' }) as unknown as
 const rate = Object.assign(async () => {}, { __name: 'rate' }) as unknown as MiddlewareHandler;
 
 const contract = defineContract('/api/demo', {
-  legacy: op.get('/legacy', { summary: '未迁移' }),
   me: op.get('/me', { access: 'authenticated', summary: '登录即可' }),
   list: op.get('/', { access: { permission: 'system:user:list' }, summary: '权限码' }),
   create: op.post('/', { access: { permission: ['system:user:create', 'system:user:update'] }, audit: '创建', summary: '任一即可 + 审计' }),
@@ -27,12 +26,23 @@ const contract = defineContract('/api/demo', {
   menus: op.put('/menus', { access: { platformOnly: 'multi-tenant' }, audit: { description: '改菜单', recordBody: false }, summary: '仅多租户下限定平台' }),
   gated: op.get('/gated', { access: 'authenticated', feature: 'drive', summary: '功能门控' }),
   pub: op.get('/pub', { public: true, summary: '公开' }),
+  device: op.post('/telemetry', { security: 'device-signature', summary: '设备签名' }),
 }, { auditModule: '演示' });
 
+const memberContract = defineContract('/api/member/demo', {
+  me: op.get('/me', { summary: '会员自视图' }),
+}, { security: 'member-bearer' });
+
 describe('resolveRouteMiddleware（契约 access → 门禁链装配）', () => {
-  it('契约未声明 access：原样使用路由提供的中间件，不注入任何门禁；preAuth 无意义即报错', () => {
-    expect(resolveRouteMiddleware(contract.legacy, { middleware: [custom] }).map(named)).toEqual(['custom']);
-    expect(() => resolveRouteMiddleware(contract.legacy, { preAuth: [rate] })).toThrow(/preAuth/);
+  it('非后台令牌操作（会员令牌 / 设备签名）：原样使用路由提供的中间件，不注入任何门禁；preAuth 无意义即报错', () => {
+    expect(resolveRouteMiddleware(memberContract.me, { middleware: [custom] }).map(named)).toEqual(['custom']);
+    expect(resolveRouteMiddleware(contract.device, { middleware: [custom] }).map(named)).toEqual(['custom']);
+    expect(() => resolveRouteMiddleware(memberContract.me, { preAuth: [rate] })).toThrow(/preAuth/);
+  });
+
+  it('绕过 defineContract 的裸 bearer 操作缺少 access：装配期报错', () => {
+    const bare = { ...op.get('/bare', { summary: 'x' }), name: 'bare', basePath: '/api/demo', fullPath: '/api/demo/bare', tags: [] };
+    expect(() => resolveRouteMiddleware(bare as never, {})).toThrow(/缺少 access/);
   });
 
   it('公开操作不注入认证', () => {
@@ -57,12 +67,6 @@ describe('resolveRouteMiddleware（契约 access → 门禁链装配）', () => 
     expect(seen.guardCalls).toEqual([{ permission: ['system:user:create', 'system:user:update'], audit: { description: '创建', module: '演示' } }]);
   });
 
-  it('路由级 audit 覆盖契约审计', () => {
-    seen.guardCalls.length = 0;
-    resolveRouteMiddleware(contract.create, { audit: { description: '动态文案', module: 'X' } });
-    expect(seen.guardCalls).toEqual([{ permission: ['system:user:create', 'system:user:update'], audit: { description: '动态文案', module: 'X' } }]);
-  });
-
   it('platformOnly：auth → platformAdminOnly → guard；multi-tenant 形态透传 onlyInMultiTenant', () => {
     seen.guardCalls.length = 0;
     seen.platformCalls.length = 0;
@@ -82,7 +86,8 @@ describe('resolveRouteMiddleware（契约 access → 门禁链装配）', () => 
     expect(() => resolveRouteMiddleware(bad.x, {})).toThrow(/License 功能/);
   });
 
-  it('非 bearer 操作声明 access 在契约构造期即被拒绝', () => {
+  it('非 bearer 操作声明 access、bearer 操作缺 access 都在契约构造期即被拒绝', () => {
     expect(() => defineContract('/api/bad2', { x: op.get('/', { public: true, access: 'authenticated', summary: 'x' }) })).toThrow(/access 只能声明/);
+    expect(() => defineContract('/api/bad3', { x: op.get('/', { summary: 'x' }) })).toThrow(/必须声明 access/);
   });
 });

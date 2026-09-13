@@ -1,24 +1,28 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import * as z from 'zod';
 import { defineContract, fileField, idParam, multipart, op, paginated, paginationQuery } from '@zenith/shared/core';
+
+// 本测试只验证契约 → 路由的校验 / 包络 / 文档映射；登录令牌门禁由 contract-route-access.test 覆盖，这里放行
+vi.mock('../middleware/auth', () => ({ authMiddleware: async (_c: unknown, next: () => Promise<void>) => next() }));
+
 import { CONTRACT_SECURITY_SCHEMES, defineContractRoute, toRoute } from './contract-route';
 import { conflictResponse, okBody, validationHook } from './openapi-schemas';
 
 const itemSchema = z.object({ id: z.int(), name: z.string() }).meta({ id: 'ContractProbeItem' });
 
 const probe = defineContract('/api/contract-probe', {
-  list: op.get('/', {
+  list: op.get('/', { access: 'authenticated',
     query: paginationQuery.extend({ keyword: z.string().optional().meta({ description: '关键字' }) }),
     response: paginated(itemSchema),
     summary: '列表',
   }),
   detail: op.get('/{id}', { params: idParam, response: itemSchema, summary: '详情', public: true }),
-  create: op.post('/', { body: z.object({ name: z.string().min(1) }), response: itemSchema, summary: '创建' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除', description: '不可恢复' }),
-  exportFile: op.get('/export', { kind: 'excel', summary: '导出' }),
-  upload: op.post('/upload', { body: multipart(z.object({ file: fileField() })), response: itemSchema, summary: '上传' }),
-  refund: op.post('/{id}/refund', {
+  create: op.post('/', { access: 'authenticated', body: z.object({ name: z.string().min(1) }), response: itemSchema, summary: '创建' }),
+  remove: op.delete('/{id}', { access: 'authenticated', params: idParam, summary: '删除', description: '不可恢复' }),
+  exportFile: op.get('/export', { access: 'authenticated', kind: 'excel', summary: '导出' }),
+  upload: op.post('/upload', { access: 'authenticated', body: multipart(z.object({ file: fileField() })), response: itemSchema, summary: '上传' }),
+  refund: op.post('/{id}/refund', { access: 'authenticated',
     params: idParam,
     headers: z.object({ 'x-idempotency-key': z.string().min(8).max(128) }),
     response: itemSchema,

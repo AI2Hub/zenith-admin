@@ -57,14 +57,15 @@ export const iotWhitelistListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const iotWhitelistContract = defineContract('/api/iot/whitelist', {
-  stats: op.get('/stats', { query: iotWhitelistStatsQuery, response: iotWhitelistStatsSchema, summary: '白名单统计（总数/已核销）' }),
-  list: op.get('/', { query: iotWhitelistListQuery, response: paginated(iotWhitelistEntrySchema), summary: '注册白名单列表' }),
-  import: op.post('/', { body: createIotWhitelistSchema, response: iotWhitelistImportResultSchema, summary: '批量导入白名单 SN（重复跳过）' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除白名单条目（已核销的不可删除）' }),
+  stats: op.get('/stats', { access: { permission: 'iot:register:manage' }, query: iotWhitelistStatsQuery, response: iotWhitelistStatsSchema, summary: '白名单统计（总数/已核销）' }),
+  list: op.get('/', { access: { permission: 'iot:register:manage' }, query: iotWhitelistListQuery, response: paginated(iotWhitelistEntrySchema), summary: '注册白名单列表' }),
+  import: op.post('/', { access: { permission: 'iot:register:manage' }, audit: '导入 IoT 注册白名单', body: createIotWhitelistSchema, response: iotWhitelistImportResultSchema, summary: '批量导入白名单 SN（重复跳过）' }),
+  remove: op.delete('/{id}', { access: { permission: 'iot:register:manage' }, audit: '删除 IoT 注册白名单', params: idParam, summary: '删除白名单条目（已核销的不可删除）' }),
   resetRegistrationSecret: op.post('/products/{id}/registration-secret', {
+    access: { permission: 'iot:register:manage' }, audit: '重置 IoT 产品注册密钥',
     params: idParam,
     response: iotRegistrationSecretSchema,
     summary: '开启/重置产品注册密钥（明文仅本次返回）',
   }),
-  disableRegistration: op.delete('/products/{id}/registration-secret', { params: idParam, summary: '关闭产品动态注册（已注册设备不受影响）' }),
-}, { tags: ['IoT 动态注册'] });
+  disableRegistration: op.delete('/products/{id}/registration-secret', { access: { permission: 'iot:register:manage' }, audit: '关闭 IoT 产品动态注册', params: idParam, summary: '关闭产品动态注册（已注册设备不受影响）' }),
+}, { auditModule: 'IoT 动态注册', tags: ['IoT 动态注册'] });

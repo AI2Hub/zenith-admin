@@ -112,23 +112,23 @@ const firmwareUploadIdParam = z.object({
 const TAGS = ['IoT 固件'] as const;
 
 export const iotFirmwareContract = defineContract('/api/iot/firmwares', {
-  list: op.get('/', { query: iotFirmwareListQuery, response: paginated(iotFirmwareSchema), summary: '固件包列表' }),
-  upload: op.post('/', { body: uploadIotFirmwareBody, response: iotFirmwareSchema, summary: '上传固件包（单请求 multipart，服务端计算 SHA256；超过分片阈值用分片接口）' }),
-  uploadInit: op.post('/upload/init', { body: initIotFirmwareUploadSchema, response: uploadSessionInitSchema, summary: '初始化固件分片上传' }),
-  uploadChunk: op.post('/upload/chunk', { body: uploadChunkBody, response: uploadChunkResultSchema, summary: '上传固件分片' }),
-  uploadComplete: op.post('/upload/complete', { body: completeChunkUploadSchema, response: iotFirmwareSchema, summary: '完成固件分片上传并登记（服务端计算 SHA256）' }),
-  uploadStatus: op.get('/upload/{uploadId}/status', { params: firmwareUploadIdParam, response: uploadSessionStatusSchema, summary: '固件分片上传进度' }),
-  uploadAbort: op.delete('/upload/{uploadId}', { params: firmwareUploadIdParam, summary: '中止固件分片上传' }),
-  update: op.put('/{id}', { params: idParam, body: updateIotFirmwareSchema, response: iotFirmwareSchema, summary: '更新固件（仅发布说明与状态；版本与文件不可变更）' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除固件（存在升级任务时拒绝，托管文件一并回收）' }),
-}, { tags: TAGS });
+  list: op.get('/', { access: { permission: 'iot:ota:list' }, query: iotFirmwareListQuery, response: paginated(iotFirmwareSchema), summary: '固件包列表' }),
+  upload: op.post('/', { access: { permission: 'iot:ota:firmware:manage' }, audit: { description: '上传 IoT 固件', recordBody: false }, body: uploadIotFirmwareBody, response: iotFirmwareSchema, summary: '上传固件包（单请求 multipart，服务端计算 SHA256；超过分片阈值用分片接口）' }),
+  uploadInit: op.post('/upload/init', { access: { permission: 'iot:ota:firmware:manage' }, audit: '初始化 IoT 固件分片上传', body: initIotFirmwareUploadSchema, response: uploadSessionInitSchema, summary: '初始化固件分片上传' }),
+  uploadChunk: op.post('/upload/chunk', { access: { permission: 'iot:ota:firmware:manage' }, body: uploadChunkBody, response: uploadChunkResultSchema, summary: '上传固件分片' }),
+  uploadComplete: op.post('/upload/complete', { access: { permission: 'iot:ota:firmware:manage' }, audit: '完成 IoT 固件分片上传', body: completeChunkUploadSchema, response: iotFirmwareSchema, summary: '完成固件分片上传并登记（服务端计算 SHA256）' }),
+  uploadStatus: op.get('/upload/{uploadId}/status', { access: 'authenticated', params: firmwareUploadIdParam, response: uploadSessionStatusSchema, summary: '固件分片上传进度' }),
+  uploadAbort: op.delete('/upload/{uploadId}', { access: { permission: 'iot:ota:firmware:manage' }, audit: '中止 IoT 固件分片上传', params: firmwareUploadIdParam, summary: '中止固件分片上传' }),
+  update: op.put('/{id}', { access: { permission: 'iot:ota:firmware:manage' }, audit: '更新 IoT 固件', params: idParam, body: updateIotFirmwareSchema, response: iotFirmwareSchema, summary: '更新固件（仅发布说明与状态；版本与文件不可变更）' }),
+  remove: op.delete('/{id}', { access: { permission: 'iot:ota:firmware:manage' }, audit: '删除 IoT 固件', params: idParam, summary: '删除固件（存在升级任务时拒绝，托管文件一并回收）' }),
+}, { auditModule: 'IoT 固件', tags: TAGS });
 
 export const iotOtaTaskContract = defineContract('/api/iot/ota-tasks', {
-  list: op.get('/', { query: iotOtaTaskListQuery, response: paginated(iotOtaTaskSchema), summary: '升级任务列表' }),
-  create: op.post('/', { body: createIotOtaTaskSchema, response: iotOtaTaskSchema, summary: '创建升级任务（WS 在线即推，离线心跳捎带；版本上报一致即成功）' }),
-  detail: op.get('/{id}', { params: idParam, response: iotOtaTaskSchema, summary: '升级任务详情' }),
-  devices: op.get('/{id}/devices', { params: idParam, query: iotOtaTaskDeviceListQuery, response: paginated(iotOtaTaskDeviceSchema), summary: '升级任务设备明细' }),
-  cancel: op.post('/{id}/cancel', { params: idParam, response: iotOtaTaskSchema, summary: '取消升级任务（未终态设备一并取消）' }),
-  releaseNextBatch: op.post('/{id}/release-next-batch', { params: idParam, response: iotOtaTaskSchema, summary: '放量下一批（灰度任务；暂停中的任务放量即恢复）' }),
-  resume: op.post('/{id}/resume', { params: idParam, response: iotOtaTaskSchema, summary: '恢复被熔断暂停的任务（继续当前批，不放量）' }),
-}, { tags: TAGS });
+  list: op.get('/', { access: { permission: 'iot:ota:list' }, query: iotOtaTaskListQuery, response: paginated(iotOtaTaskSchema), summary: '升级任务列表' }),
+  create: op.post('/', { access: { permission: 'iot:ota:task:create' }, audit: '创建 IoT 升级任务', body: createIotOtaTaskSchema, response: iotOtaTaskSchema, summary: '创建升级任务（WS 在线即推，离线心跳捎带；版本上报一致即成功）' }),
+  detail: op.get('/{id}', { access: { permission: 'iot:ota:list' }, params: idParam, response: iotOtaTaskSchema, summary: '升级任务详情' }),
+  devices: op.get('/{id}/devices', { access: { permission: 'iot:ota:list' }, params: idParam, query: iotOtaTaskDeviceListQuery, response: paginated(iotOtaTaskDeviceSchema), summary: '升级任务设备明细' }),
+  cancel: op.post('/{id}/cancel', { access: { permission: 'iot:ota:task:create' }, audit: '取消 IoT 升级任务', params: idParam, response: iotOtaTaskSchema, summary: '取消升级任务（未终态设备一并取消）' }),
+  releaseNextBatch: op.post('/{id}/release-next-batch', { access: { permission: 'iot:ota:task:create' }, audit: '放量 IoT 升级批次', params: idParam, response: iotOtaTaskSchema, summary: '放量下一批（灰度任务；暂停中的任务放量即恢复）' }),
+  resume: op.post('/{id}/resume', { access: { permission: 'iot:ota:task:create' }, audit: '恢复 IoT 升级任务', params: idParam, response: iotOtaTaskSchema, summary: '恢复被熔断暂停的任务（继续当前批，不放量）' }),
+}, { auditModule: 'IoT 固件', tags: TAGS });

@@ -52,10 +52,10 @@ export const driveAccessRequestListQuery = paginationQuery.extend({
 });
 
 export const driveAccessRequestContract = defineContract('/api/drive/access-requests', {
-  list: op.get('/', { query: driveAccessRequestListQuery, response: paginated(driveAccessRequestSchema), summary: '访问申请列表（待我审批 / 我提交的）' }),
-  pendingCount: op.get('/pending-count', { response: z.int(), summary: '待我审批的申请数' }),
-  target: op.get('/targets/{id}', { params: idParam, response: driveAccessTargetSchema, summary: '无权访问节点的最小信息（用于发起申请）' }),
-  create: op.post('/', { body: createDriveAccessRequestSchema, response: driveAccessRequestSchema, summary: '申请访问文件或文件夹' }),
-  decide: op.post('/{id}/decide', { params: idParam, body: decideDriveAccessRequestSchema, response: driveAccessRequestSchema, summary: '审批通过 / 拒绝（节点 manager）' }),
-  cancel: op.post('/{id}/cancel', { params: idParam, response: driveAccessRequestSchema, summary: '撤回我的申请' }),
-}, { tags: ['企业网盘-访问申请'] });
+  list: op.get('/', { access: { permission: 'drive:node:list' }, query: driveAccessRequestListQuery, response: paginated(driveAccessRequestSchema), summary: '访问申请列表（待我审批 / 我提交的）' }),
+  pendingCount: op.get('/pending-count', { access: { permission: 'drive:node:list' }, response: z.int(), summary: '待我审批的申请数' }),
+  target: op.get('/targets/{id}', { access: { permission: 'drive:node:list' }, params: idParam, response: driveAccessTargetSchema, summary: '无权访问节点的最小信息（用于发起申请）' }),
+  create: op.post('/', { access: { permission: 'drive:node:list' }, audit: '申请访问网盘文件', body: createDriveAccessRequestSchema, response: driveAccessRequestSchema, summary: '申请访问文件或文件夹' }),
+  decide: op.post('/{id}/decide', { access: { permission: 'drive:node:grant' }, audit: '审批网盘访问申请', params: idParam, body: decideDriveAccessRequestSchema, response: driveAccessRequestSchema, summary: '审批通过 / 拒绝（节点 manager）' }),
+  cancel: op.post('/{id}/cancel', { access: { permission: 'drive:node:list' }, params: idParam, response: driveAccessRequestSchema, summary: '撤回我的申请' }),
+}, { auditModule: '企业网盘', tags: ['企业网盘-访问申请'] });

@@ -125,30 +125,33 @@ export const oauth2TokenListQuery = paginationQuery.extend({
 });
 
 export const oauth2ClientContract = defineContract('/api/oauth2/clients', {
-  list: op.get('/', { query: oauth2ClientListQuery, response: paginated(oauth2ClientSchema), summary: '获取 OAuth2 应用列表' }),
-  options: op.get('/options', { response: z.array(oauth2AppOptionSchema), summary: '获取启用应用的选项列表（供 Webhook/SDK 下拉）' }),
-  tokens: op.get('/tokens', { query: oauth2TokenListQuery, response: paginated(oauth2TokenSchema), summary: '获取应用令牌列表' }),
-  revokeToken: op.delete('/tokens/{id}', { params: idParam, summary: '撤销令牌' }),
-  myGrants: op.get('/my-grants', { query: paginationQuery, response: paginated(oauth2MyGrantSchema), summary: '获取我已授权的第三方应用' }),
-  revokeMyGrant: op.delete('/my-grants/{id}', { params: idParam, summary: '撤销我对某个应用的授权' }),
+  list: op.get('/', { access: { permission: 'system:oauth2-apps:view' }, query: oauth2ClientListQuery, response: paginated(oauth2ClientSchema), summary: '获取 OAuth2 应用列表' }),
+  options: op.get('/options', { access: 'authenticated', response: z.array(oauth2AppOptionSchema), summary: '获取启用应用的选项列表（供 Webhook/SDK 下拉）' }),
+  tokens: op.get('/tokens', { access: { permission: 'system:oauth2-apps:view' }, query: oauth2TokenListQuery, response: paginated(oauth2TokenSchema), summary: '获取应用令牌列表' }),
+  revokeToken: op.delete('/tokens/{id}', { access: { permission: 'system:oauth2-apps:manage' }, audit: '撤销 OAuth2 令牌', params: idParam, summary: '撤销令牌' }),
+  myGrants: op.get('/my-grants', { access: 'authenticated', query: paginationQuery, response: paginated(oauth2MyGrantSchema), summary: '获取我已授权的第三方应用' }),
+  revokeMyGrant: op.delete('/my-grants/{id}', { access: 'authenticated', audit: '撤销第三方应用授权', params: idParam, summary: '撤销我对某个应用的授权' }),
   create: op.post('/', {
+    access: { permission: 'system:oauth2-apps:manage' }, audit: { description: '创建 OAuth2 应用', recordResponseBody: false },
     body: createOAuth2ClientSchema,
     response: oauth2ClientCreatedSchema,
     summary: '创建 OAuth2 应用（clientSecret 仅在此返回一次）',
   }),
   grants: op.get('/{id}/grants', {
+    access: { permission: 'system:oauth2-apps:view' },
     params: idParam,
     query: paginationQuery,
     response: paginated(oauth2UserGrantSchema),
     summary: '获取应用的用户授权记录',
   }),
-  review: op.post('/{id}/review', { params: idParam, body: reviewOAuth2ClientSchema, response: oauth2ClientSchema, summary: '审核开发者应用' }),
-  detail: op.get('/{id}', { params: idParam, response: oauth2ClientSchema, summary: '获取 OAuth2 应用详情' }),
-  update: op.put('/{id}', { params: idParam, body: updateOAuth2ClientSchema, response: oauth2ClientSchema, summary: '更新 OAuth2 应用' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除 OAuth2 应用' }),
+  review: op.post('/{id}/review', { access: { permission: 'system:oauth2-apps:manage' }, audit: '审核 OAuth2 应用', params: idParam, body: reviewOAuth2ClientSchema, response: oauth2ClientSchema, summary: '审核开发者应用' }),
+  detail: op.get('/{id}', { access: { permission: 'system:oauth2-apps:view' }, params: idParam, response: oauth2ClientSchema, summary: '获取 OAuth2 应用详情' }),
+  update: op.put('/{id}', { access: { permission: 'system:oauth2-apps:manage' }, audit: '更新 OAuth2 应用', params: idParam, body: updateOAuth2ClientSchema, response: oauth2ClientSchema, summary: '更新 OAuth2 应用' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:oauth2-apps:manage' }, audit: '删除 OAuth2 应用', params: idParam, summary: '删除 OAuth2 应用' }),
   regenerateSecret: op.post('/{id}/regenerate-secret', {
+    access: { permission: 'system:oauth2-apps:manage' }, audit: { description: '重置 OAuth2 应用密钥', recordResponseBody: false },
     params: idParam,
     response: oauth2ClientSecretSchema,
     summary: '重置 OAuth2 应用的 client_secret（仅返回一次）',
   }),
-}, { tags: ['OAuth2Apps'] });
+}, { auditModule: 'OAuth2 应用', tags: ['OAuth2Apps'] });

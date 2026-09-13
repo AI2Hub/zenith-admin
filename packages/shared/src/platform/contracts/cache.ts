@@ -84,13 +84,13 @@ export const cacheValueBody = z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cacheContract = defineContract('/api/cache', {
-  list: op.get('/', { query: cacheListQuery, response: cacheListSchema, summary: '列出所有缓存 key（可按关键词过滤）' }),
-  overview: op.get('/overview', { response: cacheOverviewSchema, summary: 'Redis 概览统计' }),
-  value: op.get('/value', { query: cacheKeyQuery, response: z.string().nullable(), summary: '获取指定 key 的完整值' }),
-  updateTtl: op.put('/ttl', { body: cacheTtlBody, summary: '修改指定 key 的过期时间' }),
-  updateValue: op.put('/value', { body: cacheValueBody, summary: '修改指定 key 的值（仅字符串）' }),
-  removeKey: op.delete('/', { body: cacheKeyBody, summary: '删除指定 key' }),
-  removeKeys: op.delete('/batch', { body: cacheKeysBody, response: cacheCountResultSchema, summary: '批量删除指定 key' }),
-  removeByCategory: op.delete('/by-category', { body: cacheSegmentBody, response: cacheCountResultSchema, summary: '按分类批量删除' }),
-  removeAll: op.delete('/all', { response: cacheCountResultSchema, summary: '清空当前命名空间所有缓存' }),
-}, { tags: ['Cache'] });
+  list: op.get('/', { access: { permission: 'system:cache:list' }, query: cacheListQuery, response: cacheListSchema, summary: '列出所有缓存 key（可按关键词过滤）' }),
+  overview: op.get('/overview', { access: { permission: 'system:cache:list' }, response: cacheOverviewSchema, summary: 'Redis 概览统计' }),
+  value: op.get('/value', { access: { permission: 'system:cache:list' }, query: cacheKeyQuery, response: z.string().nullable(), summary: '获取指定 key 的完整值' }),
+  updateTtl: op.put('/ttl', { access: { permission: 'system:cache:update' }, audit: '修改缓存 TTL', body: cacheTtlBody, summary: '修改指定 key 的过期时间' }),
+  updateValue: op.put('/value', { access: { permission: 'system:cache:update' }, audit: '修改缓存值', body: cacheValueBody, summary: '修改指定 key 的值（仅字符串）' }),
+  removeKey: op.delete('/', { access: { permission: 'system:cache:delete' }, audit: '删除缓存', body: cacheKeyBody, summary: '删除指定 key' }),
+  removeKeys: op.delete('/batch', { access: { permission: 'system:cache:delete' }, audit: '批量删除缓存', body: cacheKeysBody, response: cacheCountResultSchema, summary: '批量删除指定 key' }),
+  removeByCategory: op.delete('/by-category', { access: { permission: 'system:cache:delete' }, audit: '删除分类缓存', body: cacheSegmentBody, response: cacheCountResultSchema, summary: '按分类批量删除' }),
+  removeAll: op.delete('/all', { access: { permission: 'system:cache:delete' }, audit: '清空所有缓存', response: cacheCountResultSchema, summary: '清空当前命名空间所有缓存' }),
+}, { auditModule: '缓存管理', tags: ['Cache'] });

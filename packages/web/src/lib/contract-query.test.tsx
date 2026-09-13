@@ -19,17 +19,17 @@ import { api, apiQueryOptions, apiRaw, contractKey, createResourceQueries, urlOf
 
 const itemSchema = z.object({ id: z.int(), name: z.string() });
 const itemContract = defineContract('/api/items', {
-  list: op.get('/', { query: paginationQuery.extend({ keyword: z.string().optional() }), response: paginated(itemSchema), summary: '列表' }),
-  all: op.get('/all', { response: z.array(itemSchema.pick({ id: true, name: true })), summary: '全部' }),
-  detail: op.get('/{id}', { params: idParam, response: itemSchema, summary: '详情' }),
-  create: op.post('/', { body: z.object({ name: z.string() }), response: itemSchema, summary: '创建' }),
-  update: op.put('/{id}', { params: idParam, body: z.object({ name: z.string().optional() }), response: itemSchema, summary: '更新' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除' }),
-  removeBatch: op.delete('/batch', { body: batchIdsBody, summary: '批量删除' }),
-  archive: op.post('/{id}/archive', { params: idParam, body: z.object({ reason: z.string() }), summary: '归档' }),
-  exportFile: op.get('/export', { kind: 'excel', summary: '导出' }),
-  upload: op.post('/upload', { body: multipart(z.object({ file: fileField() })), response: itemSchema, summary: '上传' }),
-  refund: op.post('/{id}/refund', {
+  list: op.get('/', { access: 'authenticated', query: paginationQuery.extend({ keyword: z.string().optional() }), response: paginated(itemSchema), summary: '列表' }),
+  all: op.get('/all', { access: 'authenticated', response: z.array(itemSchema.pick({ id: true, name: true })), summary: '全部' }),
+  detail: op.get('/{id}', { access: 'authenticated', params: idParam, response: itemSchema, summary: '详情' }),
+  create: op.post('/', { access: 'authenticated', body: z.object({ name: z.string() }), response: itemSchema, summary: '创建' }),
+  update: op.put('/{id}', { access: 'authenticated', params: idParam, body: z.object({ name: z.string().optional() }), response: itemSchema, summary: '更新' }),
+  remove: op.delete('/{id}', { access: 'authenticated', params: idParam, summary: '删除' }),
+  removeBatch: op.delete('/batch', { access: 'authenticated', body: batchIdsBody, summary: '批量删除' }),
+  archive: op.post('/{id}/archive', { access: 'authenticated', params: idParam, body: z.object({ reason: z.string() }), summary: '归档' }),
+  exportFile: op.get('/export', { access: 'authenticated', kind: 'excel', summary: '导出' }),
+  upload: op.post('/upload', { access: 'authenticated', body: multipart(z.object({ file: fileField() })), response: itemSchema, summary: '上传' }),
+  refund: op.post('/{id}/refund', { access: 'authenticated',
     params: idParam,
     headers: z.object({ 'x-idempotency-key': z.string().min(8) }),
     body: z.object({ amount: z.number().int() }),
@@ -41,11 +41,11 @@ const itemContract = defineContract('/api/items', {
 /** UUID 主键资源：id 类型由契约 detail 的路径参数推导 */
 const docSchema = z.object({ id: z.string(), title: z.string() });
 const docContract = defineContract('/api/docs', {
-  list: op.get('/', { query: paginationQuery, response: paginated(docSchema), summary: '列表' }),
-  detail: op.get('/{id}', { params: z.object({ id: z.string() }), response: docSchema, summary: '详情' }),
-  create: op.post('/', { body: z.object({ title: z.string() }), response: docSchema, summary: '创建' }),
-  update: op.put('/{id}', { params: z.object({ id: z.string() }), body: z.object({ title: z.string().optional() }), response: docSchema, summary: '更新' }),
-  remove: op.delete('/{id}', { params: z.object({ id: z.string() }), summary: '删除' }),
+  list: op.get('/', { access: 'authenticated', query: paginationQuery, response: paginated(docSchema), summary: '列表' }),
+  detail: op.get('/{id}', { access: 'authenticated', params: z.object({ id: z.string() }), response: docSchema, summary: '详情' }),
+  create: op.post('/', { access: 'authenticated', body: z.object({ title: z.string() }), response: docSchema, summary: '创建' }),
+  update: op.put('/{id}', { access: 'authenticated', params: z.object({ id: z.string() }), body: z.object({ title: z.string().optional() }), response: docSchema, summary: '更新' }),
+  remove: op.delete('/{id}', { access: 'authenticated', params: z.object({ id: z.string() }), summary: '删除' }),
 });
 
 beforeEach(() => {
@@ -229,11 +229,11 @@ describe('createResourceQueries · 字符串主键', () => {
 describe('createResourceQueries · 无 detail 端点', () => {
   const tagSchema = z.object({ id: z.int(), name: z.string() });
   const tagContract = defineContract('/api/tags', {
-    list: op.get('/', { query: paginationQuery, response: paginated(tagSchema), summary: '列表' }),
-    all: op.get('/all', { response: z.array(tagSchema), summary: '全部' }),
-    create: op.post('/', { body: z.object({ name: z.string() }), response: tagSchema, summary: '创建' }),
-    update: op.put('/{id}', { params: idParam, body: z.object({ name: z.string().optional() }), response: tagSchema, summary: '更新' }),
-    remove: op.delete('/{id}', { params: idParam, summary: '删除' }),
+    list: op.get('/', { access: 'authenticated', query: paginationQuery, response: paginated(tagSchema), summary: '列表' }),
+    all: op.get('/all', { access: 'authenticated', response: z.array(tagSchema), summary: '全部' }),
+    create: op.post('/', { access: 'authenticated', body: z.object({ name: z.string() }), response: tagSchema, summary: '创建' }),
+    update: op.put('/{id}', { access: 'authenticated', params: idParam, body: z.object({ name: z.string().optional() }), response: tagSchema, summary: '更新' }),
+    remove: op.delete('/{id}', { access: 'authenticated', params: idParam, summary: '删除' }),
   });
   const tags = createResourceQueries(tagContract);
 

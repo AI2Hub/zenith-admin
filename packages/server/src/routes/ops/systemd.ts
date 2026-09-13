@@ -1,8 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { systemdContract } from '@zenith/shared/ops';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -12,10 +11,6 @@ import { assertRemoteHostAccess } from '../../lib/host-access';
 import { streamProcessOutput } from '../../lib/http-stream';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
-const VIEW_PERM = 'system:service:view';
-const MANAGE_PERM = 'system:service:manage';
-
-const view = [authMiddleware, guard({ permission: VIEW_PERM })] as const;
 
 /** 验证服务名：只允许合法字符，防止命令注入 */
 function validateServiceName(name: string): void {
@@ -24,7 +19,6 @@ function validateServiceName(name: string): void {
 
 // 实时日志：journalctl -f 逐行流式输出
 const logsStreamRoute = defineContractRoute(systemdContract.logsStream, {
-  middleware: view,
   handler: async (c) => {
     const { name } = c.req.valid('param');
     validateServiceName(name);
@@ -35,7 +29,6 @@ const logsStreamRoute = defineContractRoute(systemdContract.logsStream, {
 });
 
 const checkRoute = defineContractRoute(systemdContract.check, {
-  middleware: view,
   handler: async (c) => {
     const { hostId } = c.req.valid('query');
     await assertRemoteHostAccess(c, hostId);
@@ -45,7 +38,6 @@ const checkRoute = defineContractRoute(systemdContract.check, {
 });
 
 const listRoute = defineContractRoute(systemdContract.list, {
-  middleware: view,
   handler: async (c) => {
     const { hostId } = c.req.valid('query');
     await assertRemoteHostAccess(c, hostId);
@@ -55,10 +47,6 @@ const listRoute = defineContractRoute(systemdContract.list, {
 });
 
 const controlRoute = defineContractRoute(systemdContract.control, {
-  middleware: [authMiddleware, guard({
-    permission: MANAGE_PERM,
-    audit: { description: '控制 systemd 服务', module: '服务管理' },
-  })],
   handler: async (c) => {
     const { name, action } = c.req.valid('param');
     const { hostId } = c.req.valid('query');
@@ -71,7 +59,6 @@ const controlRoute = defineContractRoute(systemdContract.control, {
 });
 
 const detailRoute = defineContractRoute(systemdContract.detail, {
-  middleware: view,
   handler: async (c) => {
     const { name } = c.req.valid('param');
     const { hostId } = c.req.valid('query');
@@ -83,7 +70,6 @@ const detailRoute = defineContractRoute(systemdContract.detail, {
 });
 
 const logsRoute = defineContractRoute(systemdContract.logs, {
-  middleware: view,
   handler: async (c) => {
     const { name } = c.req.valid('param');
     const { hostId } = c.req.valid('query');

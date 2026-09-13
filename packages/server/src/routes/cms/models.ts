@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cmsModelContract } from '@zenith/shared/cms';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
@@ -17,15 +16,12 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'cms:model:list' })] as const;
 // 下拉源服务于栏目绑定，按栏目权限放行；普通请求必须提供 siteId，由 service 校验
 const allRoute = defineContractRoute(cmsModelContract.all, {
-  middleware: [authMiddleware, guard({ permission: 'cms:channel:list' })],
   handler: async (c) => c.json(okBody(await listAllCmsModels(c.req.valid('query').siteId)), 200),
 });
 
 const refsRoute = defineContractRoute(cmsModelContract.refs, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await getCmsModelRefs(
     c.req.valid('param').id,
     c.req.valid('query').siteId,
@@ -33,14 +29,12 @@ const refsRoute = defineContractRoute(cmsModelContract.refs, {
 });
 
 const getOneRoute = defineContractRoute(cmsModelContract.detail, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await getCmsModel(
     c.req.valid('param').id,
     c.req.valid('query').siteId,
   )), 200),
 });
 const updateRouteDef = defineContractRoute(cmsModelContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'cms:model:update', audit: { description: '更新 CMS 内容模型', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { siteId } = c.req.valid('query');
@@ -50,7 +44,6 @@ const updateRouteDef = defineContractRoute(cmsModelContract.update, {
 });
 
 const deleteRouteDef = defineContractRoute(cmsModelContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'cms:model:delete', audit: { description: '删除 CMS 内容模型', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { siteId } = c.req.valid('query');
@@ -62,7 +55,7 @@ const deleteRouteDef = defineContractRoute(cmsModelContract.remove, {
 
 mountCrud(router, cmsModelContract,
   { list: listCmsModels, create: createCmsModel },
-  { permission: 'cms:model', label: ' CMS 内容模型', module: 'CMS内容管理', exclude: ['detail', 'update', 'remove'] },
+  { exclude: ['detail', 'update', 'remove'] },
   [allRoute, getOneRoute, refsRoute, updateRouteDef, deleteRouteDef],
 );
 

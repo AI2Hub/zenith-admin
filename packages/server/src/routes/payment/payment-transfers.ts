@@ -4,8 +4,6 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { paymentTransferContract } from '@zenith/shared/payment';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
@@ -22,15 +20,10 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const summaryRoute = defineContractRoute(paymentTransferContract.summary, {
-  middleware: [authMiddleware, guard({ permission: 'payment:transfer:list' })],
   handler: async (c) => c.json(okBody(await getTransferSummary(c.req.valid('query'))), 200),
 });
 const createTransferRoute = defineContractRoute(paymentTransferContract.create, {
-  middleware: [
-    authMiddleware,
-    guard({ permission: 'payment:transfer:create', audit: { description: '发起转账', module: '支付中心' } }),
-    idempotencyGuard({ ttlSeconds: 15 }),
-  ],
+  middleware: [idempotencyGuard({ ttlSeconds: 15 })],
   handler: async (c) => c.json(okBody(await createTransfer({
     ...c.req.valid('json'),
     idempotencyKey: c.req.valid('header')['x-idempotency-key'],
@@ -38,10 +31,6 @@ const createTransferRoute = defineContractRoute(paymentTransferContract.create, 
 });
 
 const approveRoute = defineContractRoute(paymentTransferContract.approve, {
-  middleware: [
-    authMiddleware,
-    guard({ permission: 'payment:transfer:approve', audit: { description: '审批通过转账', module: '支付中心' } }),
-  ],
   handler: async (c) => c.json(okBody(await approveTransfer(
     c.req.valid('param').id,
     c.req.valid('json'),
@@ -49,10 +38,6 @@ const approveRoute = defineContractRoute(paymentTransferContract.approve, {
 });
 
 const rejectRoute = defineContractRoute(paymentTransferContract.reject, {
-  middleware: [
-    authMiddleware,
-    guard({ permission: 'payment:transfer:approve', audit: { description: '驳回转账', module: '支付中心' } }),
-  ],
   handler: async (c) => c.json(okBody(await rejectTransfer(
     c.req.valid('param').id,
     c.req.valid('json'),
@@ -60,13 +45,12 @@ const rejectRoute = defineContractRoute(paymentTransferContract.reject, {
 });
 
 const queryRoute = defineContractRoute(paymentTransferContract.query, {
-  middleware: [authMiddleware, guard({ permission: 'payment:transfer:list' })],
   handler: async (c) => c.json(okBody(await syncTransferStatus(c.req.valid('param').id), '查单完成'), 200),
 });
 
 mountCrud(router, paymentTransferContract,
   { list: listTransfers, get: getTransfer },
-  { permission: 'payment:transfer', exclude: ['create'] },
+  { exclude: ['create'] },
   [summaryRoute, createTransferRoute, approveRoute, rejectRoute, queryRoute],
 );
 

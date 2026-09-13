@@ -95,17 +95,17 @@ export const workflowEventDeliveryListQuery = paginationQuery.extend({
 });
 
 export const workflowEventSubscriptionContract = defineContract('/api/workflows/event-subscriptions', {
-  list: op.get('/', { query: workflowEventSubscriptionListQuery, response: paginated(workflowEventSubscriptionSchema), summary: '获取事件订阅列表' }),
-  detail: op.get('/{id}', { params: idParam, response: workflowEventSubscriptionSchema, summary: '获取订阅详情' }),
-  secret: op.get('/{id}/secret', { params: idParam, response: workflowEventSubscriptionSecretSchema, summary: '查看订阅 secret 明文（敏感操作）' }),
-  create: op.post('/', { body: createWorkflowEventSubscriptionSchema, response: workflowEventSubscriptionSchema, summary: '创建事件订阅' }),
-  update: op.put('/{id}', { params: idParam, body: updateWorkflowEventSubscriptionSchema, response: workflowEventSubscriptionSchema, summary: '更新事件订阅' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除事件订阅' }),
-  toggle: op.patch('/{id}/toggle', { params: idParam, body: toggleWorkflowEventSubscriptionSchema, response: workflowEventSubscriptionSchema, summary: '启用/禁用订阅' }),
-  test: op.post('/{id}/test', { params: idParam, response: workflowEventSubscriptionTestResultSchema, summary: '测试投递：同步发送一条带 test 标记的样例事件并返回 HTTP 结果' }),
-  deliveries: op.get('/deliveries/list', { query: workflowEventDeliveryListQuery, response: paginated(workflowEventDeliverySchema), summary: '事件投递记录列表' }),
-  deliveryDetail: op.get('/deliveries/{id}', { params: idParam, response: workflowEventDeliverySchema, summary: '投递记录详情' }),
-  retryDelivery: op.post('/deliveries/{id}/retry', { params: idParam, response: workflowEventDeliverySchema, summary: '重试投递' }),
-  batchRetryDeliveries: op.post('/deliveries/batch-retry', { body: batchIdsBody, response: workflowEventDeliveryCountSchema, summary: '批量重试投递' }),
-  replayDeliveries: op.post('/deliveries/replay', { body: replayWorkflowEventDeliveriesSchema, response: workflowEventDeliveryCountSchema, summary: '按筛选批量重放投递（含补发已成功，支持订阅/事件类型/时间范围）' }),
-}, { tags: ['WorkflowEventSubscriptions'] });
+  list: op.get('/', { access: { permission: 'workflow:event-subscription:view' }, query: workflowEventSubscriptionListQuery, response: paginated(workflowEventSubscriptionSchema), summary: '获取事件订阅列表' }),
+  detail: op.get('/{id}', { access: { permission: 'workflow:event-subscription:view' }, params: idParam, response: workflowEventSubscriptionSchema, summary: '获取订阅详情' }),
+  secret: op.get('/{id}/secret', { access: { permission: 'workflow:event-subscription:view' }, audit: { description: '查看事件订阅 secret', recordResponseBody: false }, params: idParam, response: workflowEventSubscriptionSecretSchema, summary: '查看订阅 secret 明文（敏感操作）' }),
+  create: op.post('/', { access: { permission: 'workflow:event-subscription:create' }, audit: '创建事件订阅', body: createWorkflowEventSubscriptionSchema, response: workflowEventSubscriptionSchema, summary: '创建事件订阅' }),
+  update: op.put('/{id}', { access: { permission: 'workflow:event-subscription:edit' }, audit: '更新事件订阅', params: idParam, body: updateWorkflowEventSubscriptionSchema, response: workflowEventSubscriptionSchema, summary: '更新事件订阅' }),
+  remove: op.delete('/{id}', { access: { permission: 'workflow:event-subscription:delete' }, audit: '删除事件订阅', params: idParam, summary: '删除事件订阅' }),
+  toggle: op.patch('/{id}/toggle', { access: { permission: 'workflow:event-subscription:edit' }, audit: '切换事件订阅启用状态', params: idParam, body: toggleWorkflowEventSubscriptionSchema, response: workflowEventSubscriptionSchema, summary: '启用/禁用订阅' }),
+  test: op.post('/{id}/test', { access: { permission: 'workflow:event-subscription:edit' }, audit: '测试事件订阅投递', params: idParam, response: workflowEventSubscriptionTestResultSchema, summary: '测试投递：同步发送一条带 test 标记的样例事件并返回 HTTP 结果' }),
+  deliveries: op.get('/deliveries/list', { access: { permission: 'workflow:event-delivery:view' }, query: workflowEventDeliveryListQuery, response: paginated(workflowEventDeliverySchema), summary: '事件投递记录列表' }),
+  deliveryDetail: op.get('/deliveries/{id}', { access: { permission: 'workflow:event-delivery:view' }, params: idParam, response: workflowEventDeliverySchema, summary: '投递记录详情' }),
+  retryDelivery: op.post('/deliveries/{id}/retry', { access: { permission: 'workflow:event-delivery:retry' }, audit: '重试事件投递', params: idParam, response: workflowEventDeliverySchema, summary: '重试投递' }),
+  batchRetryDeliveries: op.post('/deliveries/batch-retry', { access: { permission: 'workflow:event-delivery:retry' }, audit: '批量重试事件投递', body: batchIdsBody, response: workflowEventDeliveryCountSchema, summary: '批量重试投递' }),
+  replayDeliveries: op.post('/deliveries/replay', { access: { permission: 'workflow:event-delivery:retry' }, audit: '按筛选批量重放事件投递', body: replayWorkflowEventDeliveriesSchema, response: workflowEventDeliveryCountSchema, summary: '按筛选批量重放投递（含补发已成功，支持订阅/事件类型/时间范围）' }),
+}, { auditModule: '工作流管理', tags: ['WorkflowEventSubscriptions'] });

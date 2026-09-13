@@ -33,6 +33,11 @@ import { apiResponse, commonErrorResponses, jsonContent, okCsv, okExcel, okFile 
  * 契约路由引用到的方案都在这里声明，app.ts 装配时整体注册。
  */
 export const CONTRACT_SECURITY_SCHEMES = {
+  MemberBearerAuth: {
+    type: 'http',
+    scheme: 'bearer',
+    description: '会员登录令牌（会员前台）',
+  },
   IotDeviceSignature: {
     type: 'apiKey',
     in: 'header',
@@ -56,6 +61,7 @@ export const CONTRACT_SECURITY_SCHEMES = {
 const SECURITY_REQUIREMENTS: Record<SecurityScheme, Array<Record<string, string[]>>> = {
   none: [],
   bearer: [{ BearerAuth: [] }],
+  'member-bearer': [{ MemberBearerAuth: [] }],
   'device-signature': [{ IotDeviceSignature: [] }],
   'open-gateway': [{ OpenGatewayToken: [] }, { OpenGatewaySignature: [] }],
 };
@@ -95,14 +101,12 @@ type ExtraResponses = Record<number, { description: string; content?: Record<str
 
 export type RouteOptions<M extends readonly MiddlewareHandler[], Extra extends ExtraResponses> = {
   /**
-   * 路由级中间件。契约声明了 `access` 的操作：自动门禁（认证 → 功能门控 → 平台超管 → 权限 / 审计）之后追加的中间件；
-   * 未声明 `access`（尚未迁移）或非 bearer 凭证的操作：完整链（认证 / 权限 / 审计 / 验签），顺序即执行顺序
+   * 路由级中间件。登录令牌（bearer）操作：自动门禁（认证 → 平台超管 → 功能门控 / 权限 / 审计）之后追加的中间件；
+   * 公开 / 会员令牌 / 设备签名 / 开放网关等非 bearer 操作：完整链（认证 / 验签 / 限流），顺序即执行顺序
    */
   readonly middleware?: M;
-  /** 认证之前执行的中间件（限流 / IP 白名单等）；仅对自动门禁生效 */
+  /** 认证之前执行的中间件（限流 / IP 白名单等）；仅对 bearer 操作的自动门禁生效 */
   readonly preAuth?: readonly MiddlewareHandler[];
-  /** 覆盖契约上的审计声明（动态 module / 关闭响应体记录等） */
-  readonly audit?: AuditLogOptions;
   /** 契约之外的额外响应（如 `conflictResponse`） */
   readonly responses?: Extra;
   /** 不进入 OpenAPI 文档 */
@@ -171,13 +175,17 @@ function toAuditLogOptions(audit: OperationAudit): AuditLogOptions {
 
 /**
  * 按契约 `access` 装配门禁链：preAuth → authMiddleware → [平台超管] → guard(权限 / 审计 / 功能门控) → 路由追加中间件。
- * 契约未声明 `access`（尚未迁移）或凭证不是登录令牌时，原样使用路由提供的 `middleware`。
+ * 凭证不是后台登录令牌（公开 / 会员令牌 / 设备签名 / 开放网关）时，原样使用路由提供的 `middleware`。
  */
-export function resolveRouteMiddleware(op: AnyOperation, options: Pick<RouteOptions<readonly MiddlewareHandler[], ExtraResponses>, 'middleware' | 'preAuth' | 'audit'>): MiddlewareHandler[] {
+export function resolveRouteMiddleware(op: AnyOperation, options: Pick<RouteOptions<readonly MiddlewareHandler[], ExtraResponses>, 'middleware' | 'preAuth'>): MiddlewareHandler[] {
   const explicit = [...(options.middleware ?? [])];
-  if (op.access === undefined || op.security !== 'bearer') {
-    if (options.preAuth?.length) throw new Error(`preAuth 只对声明了 access 的登录令牌操作生效：${op.method.toUpperCase()} ${op.fullPath}`);
+  if (op.security !== 'bearer') {
+    if (options.preAuth?.length) throw new Error(`preAuth 只对登录令牌（bearer）操作生效：${op.method.toUpperCase()} ${op.fullPath}`);
     return explicit;
+  }
+  if (op.access === undefined) {
+    // defineContract 已在构造期拒绝；这里兜底防止绕过契约组直接使用 op.xxx() 产物
+    throw new Error(`登录令牌操作缺少 access 声明：${op.method.toUpperCase()} ${op.fullPath}`);
   }
   if (op.feature !== undefined && !isLicenseFeatureKey(op.feature)) {
     throw new Error(`契约 feature 不是已登记的 License 功能：${op.feature}（${op.method.toUpperCase()} ${op.fullPath}）`);
@@ -186,7 +194,7 @@ export function resolveRouteMiddleware(op: AnyOperation, options: Pick<RouteOpti
   const platformOnly = accessPlatformOnly(op.access);
   if (platformOnly) chain.push(platformAdminOnly(platformOnly === 'multi-tenant' ? { onlyInMultiTenant: true } : undefined));
   const permission = accessPermissions(op.access);
-  const audit = options.audit ?? (op.audit ? toAuditLogOptions(op.audit) : undefined);
+  const audit = op.audit ? toAuditLogOptions(op.audit) : undefined;
   const guardOptions = {
     ...(permission.length > 0 ? { permission } : {}),
     ...(audit ? { audit } : {}),
@@ -242,8 +250,8 @@ export function defineContractRoute<
   const M extends readonly MiddlewareHandler[] = readonly [],
   const Extra extends ExtraResponses = Record<never, never>,
 >(op: Op, def: ContractRouteDefinition<Op, M, Extra>): Registered<RouteOf<Op, M, Extra>> {
-  const { middleware, preAuth, audit, responses, hide, handler, hook } = def;
-  const route = toRoute(op, { middleware, preAuth, audit, responses, hide });
+  const { middleware, preAuth, responses, hide, handler, hook } = def;
+  const route = toRoute(op, { middleware, preAuth, responses, hide });
   const masked = withDataMasking(op, handler as unknown as (c: Context) => Response | Promise<Response>);
   // 同 toRoute：泛型 Op 下 RouteOf 无法静态满足 RouteConfig 约束，具体实例的类型由返回类型给出
   return defineOpenAPIRoute({ route: route as RouteConfig, handler: masked as never, hook: hook as never }) as unknown as Registered<RouteOf<Op, M, Extra>>;

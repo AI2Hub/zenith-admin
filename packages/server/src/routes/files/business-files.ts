@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { businessFileContract } from '@zenith/shared/platform';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import { listBusinessFiles, removeBusinessFile, type BusinessFileType } from '../../services/files/business-files.service';
@@ -13,7 +12,6 @@ function assertBusinessType(value: string): BusinessFileType {
 }
 
 const listRoute = defineContractRoute(businessFileContract.list, {
-  middleware: [authMiddleware],
   handler: async (c) => {
     const { businessType, businessId } = c.req.valid('param');
     return c.json(okBody(await listBusinessFiles(assertBusinessType(businessType), businessId)), 200);
@@ -21,10 +19,6 @@ const listRoute = defineContractRoute(businessFileContract.list, {
 });
 
 const removeRoute = defineContractRoute(businessFileContract.remove, {
-  middleware: [authMiddleware, guard({
-    permission: 'system:file:delete',
-    audit: { description: '移除业务附件', module: '文件管理' },
-  })],
   handler: async (c) => {
     const { businessType, businessId, fileId } = c.req.valid('param');
     const type = assertBusinessType(businessType);

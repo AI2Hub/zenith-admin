@@ -32,6 +32,6 @@ export type OpenSignatureAlgorithm = z.infer<typeof openSignatureAlgorithmSchema
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const openSignatureContract = defineContract('/api/open-signature', {
-  algorithm: op.get('/algorithm', { response: openSignatureAlgorithmSchema, summary: '获取签名算法说明' }),
-  verify: op.post('/verify', { body: openSignatureVerifySchema, response: openSignatureResultSchema, summary: '在线计算 / 校验请求签名' }),
+  algorithm: op.get('/algorithm', { access: { permission: 'open:signature:use' }, response: openSignatureAlgorithmSchema, summary: '获取签名算法说明' }),
+  verify: op.post('/verify', { access: { permission: 'open:signature:use' }, body: openSignatureVerifySchema, response: openSignatureResultSchema, summary: '在线计算 / 校验请求签名' }),
 }, { tags: ['OpenSignature'] });

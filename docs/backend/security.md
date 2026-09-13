@@ -49,14 +49,17 @@ JWT 签名有效不等于主体仍然有效：认证中间件（`middleware/auth
 
 ## 授权与审计
 
-业务权限由 `guard()` 统一处理：
+后台登录令牌操作的访问要求声明在契约操作的 `access` 上（`packages/shared/src/{域}/contracts/`）：权限码
+（数组 = 任一即可）、`platformOnly`（仅平台超管）或 `'authenticated'`（登录即可）；写操作的审计声明在 `audit`，
+License 门控在 `feature`。`defineContractRoute` 据此装配 `authMiddleware → platformAdminOnly → guard()`，路由文件不再手写门禁，
+`app.contract.test.ts` 逐端点对账契约与运行时。`guard()` 负责：
 
 - 校验权限码；
 - 可选校验 License feature；
 - 可选记录操作日志；
 - 支持 `setAuditBeforeData()`、`setAuditAfterData()` 写入变更快照。
 
-平台管理员判定使用 `platformAdminOnly()` 或 `isPlatformAdmin(user)`。在多租户模式下，平台超管必须同时满足 `roles` 包含 `super_admin` 且 `tenantId === null`。
+平台管理员判定使用 `platformAdminOnly()`（由契约 `access.platformOnly` 装配）或 `isPlatformAdmin(user)`。在多租户模式下，平台超管必须同时满足 `roles` 包含 `super_admin` 且 `tenantId === null`。
 
 ## 多因素、可信设备与登录风险
 

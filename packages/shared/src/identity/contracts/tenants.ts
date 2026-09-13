@@ -70,11 +70,11 @@ export const tenantListQuery = paginationQuery.extend({
 });
 
 export const tenantContract = defineContract('/api/tenants', {
-  list: op.get('/', { query: tenantListQuery, response: paginated(tenantSchema), summary: '租户列表' }),
-  all: op.get('/all', { response: z.array(tenantOptionSchema), summary: '全部租户' }),
-  stats: op.get('/{id}/stats', { params: idParam, response: tenantStatsSchema, summary: '租户用量概览' }),
-  detail: op.get('/{id}', { params: idParam, response: tenantSchema, summary: '租户详情' }),
-  create: op.post('/', { body: createTenantSchema, response: tenantSchema, summary: '创建租户' }),
-  update: op.put('/{id}', { params: idParam, body: updateTenantSchema, response: tenantSchema, summary: '更新租户' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除租户' }),
-}, { tags: ['Tenants'] });
+  list: op.get('/', { access: { platformOnly: true }, query: tenantListQuery, response: paginated(tenantSchema), summary: '租户列表' }),
+  all: op.get('/all', { access: { platformOnly: true }, response: z.array(tenantOptionSchema), summary: '全部租户' }),
+  stats: op.get('/{id}/stats', { access: { platformOnly: true }, params: idParam, response: tenantStatsSchema, summary: '租户用量概览' }),
+  detail: op.get('/{id}', { access: { platformOnly: true }, params: idParam, response: tenantSchema, summary: '租户详情' }),
+  create: op.post('/', { access: { platformOnly: true }, audit: { description: '创建租户', recordResponseBody: false }, body: createTenantSchema, response: tenantSchema, summary: '创建租户' }),
+  update: op.put('/{id}', { access: { platformOnly: true }, audit: '更新租户', params: idParam, body: updateTenantSchema, response: tenantSchema, summary: '更新租户' }),
+  remove: op.delete('/{id}', { access: { platformOnly: true }, audit: '删除租户', params: idParam, summary: '删除租户' }),
+}, { auditModule: '租户管理', tags: ['Tenants'] });

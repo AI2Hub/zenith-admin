@@ -2,12 +2,14 @@
  * 权限码注册表的类型基座。
  *
  * 每个业务域在 `shared/src/{域}/permissions.ts` 用 `definePermissions()` 声明自己的权限码，
- * 并通过 `declare module` 把键合并进 `PermissionRegistry`，于是 `Permission` 在 core 里就是全部域权限码的字面量联合，
- * 而 core 不需要 import 任何业务域（无环）。运行时聚合见 `@zenith/shared/permissions`。
+ * `@zenith/shared/permissions` 把各域注册表聚合成 `PERMISSION_REGISTRY_BY_DOMAIN`；这里只以 **type-only** 方式引用该聚合，
+ * 从中推导 `Permission` 字面量联合——运行时没有 core → 业务域的依赖，而任何引用了 `Permission` 的编译单元
+ * 都必然带上全部域的注册表（不依赖调用方是否恰好 import 了某个域）。
  *
- * 权限码是唯一真相：种子 button 节点由注册表生成，服务端 `guard({ permission })`、`mountCrud({ permission })`、
+ * 权限码是唯一真相：种子 button 节点由注册表生成，契约操作的 `access`、服务端 `hasPermission()`、
  * 前端 `hasPermission()` / `permission=` 属性都以 `Permission` 类型约束——拼错的码在编译期报错，而不是在生产静默放行 / 拒绝。
  */
+import type { PERMISSION_REGISTRY_BY_DOMAIN } from '../permissions';
 
 export interface PermissionMeta {
   /** 按钮标题（角色管理菜单树 / 权限矩阵展示） */
@@ -25,15 +27,11 @@ export interface PermissionMeta {
   readonly uiOnly?: boolean;
 }
 
-/** 由各域 `declare module` 合并键；键即权限码 */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并的锚点
-export interface PermissionRegistry {}
+type DomainRegistry = (typeof PERMISSION_REGISTRY_BY_DOMAIN)[keyof typeof PERMISSION_REGISTRY_BY_DOMAIN];
+type KeysOfUnion<T> = T extends unknown ? keyof T & string : never;
 
-/** 全部已注册权限码的字面量联合 */
-export type Permission = keyof PermissionRegistry;
-
-/** `definePermissions()` 结果 → 供 `interface PermissionRegistry extends` 合并的键集合 */
-export type PermissionCodes<T> = { readonly [K in keyof T]: true };
+/** 全部已注册权限码的字面量联合（各域注册表键的并集） */
+export type Permission = KeysOfUnion<DomainRegistry>;
 
 type PrefixOfSuffix<T, S extends string> = T extends `${infer P}:${S}` ? P : never;
 

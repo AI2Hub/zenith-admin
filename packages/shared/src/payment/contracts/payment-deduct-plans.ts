@@ -31,9 +31,9 @@ export const paymentDeductPlanListQuery = paginationQuery.extend({
 
 /** 扣款计划：与签约协议同挂支付资源根，操作名在根内唯一 */
 export const paymentDeductPlanContract = defineContract('/api/payment', {
-  deductPlans: op.get('/deduct-plans', { query: paymentDeductPlanListQuery, response: paginated(paymentDeductPlanSchema), summary: '扣款计划列表' }),
-  deductPlansAll: op.get('/deduct-plans/all', { response: z.array(paymentDeductPlanSchema), summary: '全量启用扣款计划（下拉）' }),
-  createDeductPlan: op.post('/deduct-plans', { body: createPaymentDeductPlanSchema, response: paymentDeductPlanSchema, summary: '创建扣款计划' }),
-  updateDeductPlan: op.put('/deduct-plans/{id}', { params: idParam, body: updatePaymentDeductPlanSchema, response: paymentDeductPlanSchema, summary: '更新扣款计划' }),
-  removeDeductPlan: op.delete('/deduct-plans/{id}', { params: idParam, summary: '删除扣款计划（无协议引用时）' }),
-}, { tags: ['支付中心-签约代扣'] });
+  deductPlans: op.get('/deduct-plans', { access: { permission: 'payment:contract:list' }, query: paymentDeductPlanListQuery, response: paginated(paymentDeductPlanSchema), summary: '扣款计划列表' }),
+  deductPlansAll: op.get('/deduct-plans/all', { access: { permission: 'payment:contract:list' }, response: z.array(paymentDeductPlanSchema), summary: '全量启用扣款计划（下拉）' }),
+  createDeductPlan: op.post('/deduct-plans', { access: { permission: 'payment:contract:plan' }, audit: '创建扣款计划', body: createPaymentDeductPlanSchema, response: paymentDeductPlanSchema, summary: '创建扣款计划' }),
+  updateDeductPlan: op.put('/deduct-plans/{id}', { access: { permission: 'payment:contract:plan' }, audit: '更新扣款计划', params: idParam, body: updatePaymentDeductPlanSchema, response: paymentDeductPlanSchema, summary: '更新扣款计划' }),
+  removeDeductPlan: op.delete('/deduct-plans/{id}', { access: { permission: 'payment:contract:plan' }, audit: '删除扣款计划', params: idParam, summary: '删除扣款计划（无协议引用时）' }),
+}, { auditModule: '支付中心', tags: ['支付中心-签约代扣'] });

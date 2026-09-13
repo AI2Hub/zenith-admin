@@ -8,10 +8,17 @@ describe('CMS admin/member route authentication boundary', () => {
     expect(source).not.toMatch(/\bauthMiddleware\b/);
   });
 
-  it('keeps admin CMS content routes on authMiddleware and guards', async () => {
+  it('keeps admin CMS content routes on the admin bearer contract with publish permission declared', async () => {
+    const { cmsContentContract } = await import('@zenith/shared/cms');
+    const { accessPermissions } = await import('@zenith/shared/core');
+    // 后台 CMS 内容契约整组为后台登录令牌（bearer），门禁由契约 access 装配；发布操作要求发布权限
+    for (const op of Object.values(cmsContentContract)) {
+      if (typeof op !== 'object') continue;
+      expect(op.security).toBe('bearer');
+      expect(op.access).toBeDefined();
+    }
+    expect(accessPermissions(cmsContentContract.publish.access)).toContain('cms:content:publish');
     const source = await readFile(new URL('../../routes/cms/contents.ts', import.meta.url), 'utf8');
-    expect(source).toContain('authMiddleware');
-    expect(source).toContain("cms:content:publish");
     expect(source).not.toContain('memberAuthMiddleware');
   });
 

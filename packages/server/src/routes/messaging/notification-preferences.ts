@@ -4,7 +4,6 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { notificationPreferenceContract } from '@zenith/shared/messaging';
-import { authMiddleware } from '../../middleware/auth';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -17,12 +16,10 @@ import {
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const matrixRoute = defineContractRoute(notificationPreferenceContract.matrix, {
-  middleware: [authMiddleware],
   handler: async (c) => c.json(okBody(await getMyNotificationMatrix()), 200),
 });
 
 const saveMatrixRoute = defineContractRoute(notificationPreferenceContract.saveMatrix, {
-  middleware: [authMiddleware],
   handler: async (c) => {
     await saveMyNotificationPreferences(c.req.valid('json'));
     return c.json(okBody(null, '保存成功'), 200);
@@ -30,12 +27,10 @@ const saveMatrixRoute = defineContractRoute(notificationPreferenceContract.saveM
 });
 
 const settingsRoute = defineContractRoute(notificationPreferenceContract.settings, {
-  middleware: [authMiddleware],
   handler: async (c) => c.json(okBody(await getMyNotificationSettings()), 200),
 });
 
 const saveSettingsRoute = defineContractRoute(notificationPreferenceContract.saveSettings, {
-  middleware: [authMiddleware],
   handler: async (c) => c.json(okBody(await saveMyNotificationSettings(c.req.valid('json')), '保存成功'), 200),
 });
 

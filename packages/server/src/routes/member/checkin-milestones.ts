@@ -20,7 +20,6 @@ mountCrud(checkinMilestonesRouter, checkinMilestoneContract,
     update: updateCheckinMilestone,
     remove: deleteCheckinMilestone,
   },
-  { permission: 'member:checkin:milestone', label: '签到里程碑', module: '会员签到' },
 );
 
 export default checkinMilestonesRouter;

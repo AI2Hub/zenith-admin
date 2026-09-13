@@ -36,6 +36,6 @@ export type MemberStatsCharts = z.infer<typeof memberStatsChartsSchema>;
 // ─── 契约（后台） ────────────────────────────────────────────────────────────
 
 export const memberStatsContract = defineContract('/api/member-stats', {
-  overview: op.get('/overview', { response: memberStatsOverviewSchema, summary: '会员统计概览' }),
-  charts: op.get('/charts', { response: memberStatsChartsSchema, summary: '会员统计图表' }),
+  overview: op.get('/overview', { access: { permission: 'member:dashboard:view' }, response: memberStatsOverviewSchema, summary: '会员统计概览' }),
+  charts: op.get('/charts', { access: { permission: 'member:dashboard:view' }, response: memberStatsChartsSchema, summary: '会员统计图表' }),
 }, { tags: ['会员看板'] });

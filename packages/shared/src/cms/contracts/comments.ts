@@ -47,10 +47,10 @@ export const cmsCommentListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsCommentContract = defineContract('/api/cms/comments', {
-  list: op.get('/', { query: cmsCommentListQuery, response: paginated(cmsCommentSchema), summary: '评论分页列表' }),
-  pendingCount: op.get('/pending-count', { query: cmsSiteScopeQuery, response: cmsPendingCommentCountSchema, summary: '待审核评论数' }),
-  approve: op.post('/approve', { body: batchIdsBody, summary: '批量审核通过（同步刷新详情页静态文件）' }),
-  reject: op.post('/reject', { body: batchIdsBody, summary: '批量拒绝' }),
-  batchDelete: op.post('/delete', { body: batchIdsBody, summary: '批量删除' }),
-}, { tags: ['CMS-评论管理'] });
+  list: op.get('/', { access: { permission: 'cms:comment:list' }, query: cmsCommentListQuery, response: paginated(cmsCommentSchema), summary: '评论分页列表' }),
+  pendingCount: op.get('/pending-count', { access: { permission: 'cms:comment:list' }, query: cmsSiteScopeQuery, response: cmsPendingCommentCountSchema, summary: '待审核评论数' }),
+  approve: op.post('/approve', { access: { permission: 'cms:comment:audit' }, audit: 'CMS 评论审核通过', body: batchIdsBody, summary: '批量审核通过（同步刷新详情页静态文件）' }),
+  reject: op.post('/reject', { access: { permission: 'cms:comment:audit' }, audit: 'CMS 评论拒绝', body: batchIdsBody, summary: '批量拒绝' }),
+  batchDelete: op.post('/delete', { access: { permission: 'cms:comment:delete' }, audit: 'CMS 评论删除', body: batchIdsBody, summary: '批量删除' }),
+}, { auditModule: 'CMS内容管理', tags: ['CMS-评论管理'] });
 

@@ -11,5 +11,5 @@ export const workflowAttachmentUploadBody = multipart(z.object({
 }));
 
 export const workflowAttachmentContract = defineContract('/api/workflows/attachments', {
-  upload: op.post('/', { body: workflowAttachmentUploadBody, response: managedFileSchema, summary: '上传审批表单附件' }),
-}, { tags: ['Workflows'] });
+  upload: op.post('/', { access: { permission: ['workflow:instance:create', 'workflow:task:handle'] }, audit: { description: '上传审批表单附件', recordBody: false }, body: workflowAttachmentUploadBody, response: managedFileSchema, summary: '上传审批表单附件' }),
+}, { auditModule: '工作流管理', tags: ['Workflows'] });

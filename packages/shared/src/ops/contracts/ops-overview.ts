@@ -76,5 +76,5 @@ export type OpsOverviewSection<T> = { available: boolean; reason: string | null;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const opsOverviewContract = defineContract('/api/ops-overview', {
-  get: op.get('/', { response: opsOverviewSchema, summary: '运维概览聚合快照' }),
+  get: op.get('/', { access: { permission: 'system:ops:overview' }, response: opsOverviewSchema, summary: '运维概览聚合快照' }),
 }, { tags: ['OpsOverview'] });

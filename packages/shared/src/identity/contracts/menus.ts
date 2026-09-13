@@ -46,11 +46,11 @@ export const menuSchema: z.ZodType<Menu> = menuFieldsSchema
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const menuContract = defineContract('/api/menus', {
-  userTree: op.get('/user', { response: z.array(menuSchema), summary: '当前用户可见菜单树' }),
-  tree: op.get('/', { response: z.array(menuSchema), summary: '菜单树（管理用）' }),
-  flat: op.get('/flat', { response: z.array(menuSchema), summary: '平铺菜单列表' }),
-  detail: op.get('/{id}', { params: idParam, response: menuSchema, summary: '获取菜单详情' }),
-  create: op.post('/', { body: createMenuSchema, response: menuSchema, summary: '新增菜单' }),
-  update: op.put('/{id}', { params: idParam, body: updateMenuSchema, response: menuSchema, summary: '更新菜单' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除菜单及子菜单' }),
-}, { tags: ['Menus'] });
+  userTree: op.get('/user', { access: 'authenticated', response: z.array(menuSchema), summary: '当前用户可见菜单树' }),
+  tree: op.get('/', { access: { permission: 'system:menu:list' }, response: z.array(menuSchema), summary: '菜单树（管理用）' }),
+  flat: op.get('/flat', { access: { permission: 'system:menu:list' }, response: z.array(menuSchema), summary: '平铺菜单列表' }),
+  detail: op.get('/{id}', { access: { permission: 'system:menu:list' }, params: idParam, response: menuSchema, summary: '获取菜单详情' }),
+  create: op.post('/', { access: { permission: 'system:menu:create', platformOnly: 'multi-tenant' }, audit: '创建菜单', body: createMenuSchema, response: menuSchema, summary: '新增菜单' }),
+  update: op.put('/{id}', { access: { permission: 'system:menu:update', platformOnly: 'multi-tenant' }, audit: '更新菜单', params: idParam, body: updateMenuSchema, response: menuSchema, summary: '更新菜单' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:menu:delete', platformOnly: 'multi-tenant' }, audit: '删除菜单', params: idParam, summary: '删除菜单及子菜单' }),
+}, { auditModule: '菜单管理', tags: ['Menus'] });

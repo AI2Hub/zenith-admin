@@ -8,7 +8,6 @@ const memberRechargesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(memberRechargesRouter, memberRechargeContract,
   { list: listMemberRecharges },
-  { permission: 'member:recharge' },
 );
 
 export default memberRechargesRouter;

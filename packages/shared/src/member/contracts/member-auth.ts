@@ -55,4 +55,4 @@ export const memberAuthContract = defineContract('/api/member/auth', {
   updateProfile: op.put('/profile', { body: memberUpdateProfileSchema, response: memberSchema, summary: '修改会员资料', unmasked: true }),
   changePassword: op.put('/password', { body: memberChangePasswordSchema, summary: '修改会员密码' }),
   deactivate: op.post('/deactivate', { body: memberDeactivateSchema, summary: '自助注销账户（软删除）' }),
-}, { tags: ['MemberAuth'] });
+}, { tags: ['MemberAuth'], security: 'member-bearer' });

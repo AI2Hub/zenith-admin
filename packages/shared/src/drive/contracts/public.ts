@@ -95,5 +95,5 @@ export const drivePublicShareContract = defineContract('/api/drive/public', {
   children: op.get('/shares/{token}/nodes', { params: driveShareTokenParam, query: drivePublicChildrenQuery, response: z.array(drivePublicNodeSchema), public: true, summary: '浏览外链子目录（需会话）' }),
   content: op.get('/shares/{token}/nodes/{nodeId}/content', { params: driveShareTokenNodeParams, query: drivePublicContentQuery, kind: 'file', public: true, summary: '外链文件内容（需会话；?download=true 需 download 能力）' }),
   upload: op.post('/shares/{token}/upload', { params: driveShareTokenParam, body: drivePublicUploadBody, response: drivePublicUploadResultSchema, public: true, summary: '文件收集：向目标文件夹提交文件（需会话与 upload 能力）' }),
-  save: op.post('/shares/{token}/save', { params: driveShareTokenParam, body: saveFromDriveShareSchema, summary: '转存到我的网盘（登录用户，需 download 能力）' }),
-}, { tags: ['企业网盘-公开外链'] });
+  save: op.post('/shares/{token}/save', { access: { permission: 'drive:node:upload' }, audit: '外链转存到网盘', params: driveShareTokenParam, body: saveFromDriveShareSchema, summary: '转存到我的网盘（登录用户，需 download 能力）' }),
+}, { auditModule: '企业网盘', tags: ['企业网盘-公开外链'] });

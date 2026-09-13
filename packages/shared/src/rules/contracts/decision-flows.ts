@@ -67,16 +67,16 @@ export const decisionFlowListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const decisionFlowContract = defineContract('/api/rules/decision-flows', {
-  list: op.get('/', { query: decisionFlowListQuery, response: paginated(ruleDecisionFlowSchema), summary: '决策流分页列表' }),
-  detail: op.get('/{id}', { params: idParam, response: ruleDecisionFlowSchema, summary: '决策流详情' }),
-  versions: op.get('/{id}/versions', { params: idParam, response: z.array(ruleAssetVersionSchema), summary: '决策流版本历史' }),
-  rollback: op.post('/{id}/rollback/{version}', { params: ruleVersionParam, response: ruleDecisionFlowSchema, summary: '回滚到历史版本（覆盖编辑态，置为草稿）' }),
-  create: op.post('/', { body: createDecisionFlowSchema, response: ruleDecisionFlowSchema, summary: '创建决策流' }),
-  update: op.put('/{id}', { params: idParam, body: updateDecisionFlowSchema, response: ruleDecisionFlowSchema, summary: '更新决策流' }),
-  publish: op.post('/{id}/publish', { params: idParam, response: ruleDecisionFlowSchema, summary: '发布决策流（步骤固化为运行时快照）' }),
-  toggle: op.post('/{id}/toggle', { params: idParam, body: toggleDecisionTableSchema, response: ruleDecisionFlowSchema, summary: '启用/停用决策流' }),
-  test: op.post('/{id}/test', { params: idParam, body: evaluateDecisionTableSchema, response: ruleFlowEvaluateResultSchema, summary: '测试求值（编辑态步骤，逐步 trace）' }),
-  evaluate: op.post('/evaluate', { body: evaluateRuleByKeySchema, response: ruleFlowEvaluateResultSchema, summary: '按 key 求值（对外通用，支持 zat_ API Token 调用）' }),
-  removeBatch: op.delete('/batch', { body: batchIdsBody, summary: '批量删除决策流' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除决策流' }),
-}, { tags: ['DecisionFlows'] });
+  list: op.get('/', { access: { permission: 'rule:flow:list' }, query: decisionFlowListQuery, response: paginated(ruleDecisionFlowSchema), summary: '决策流分页列表' }),
+  detail: op.get('/{id}', { access: { permission: 'rule:flow:list' }, params: idParam, response: ruleDecisionFlowSchema, summary: '决策流详情' }),
+  versions: op.get('/{id}/versions', { access: { permission: 'rule:flow:list' }, params: idParam, response: z.array(ruleAssetVersionSchema), summary: '决策流版本历史' }),
+  rollback: op.post('/{id}/rollback/{version}', { access: { permission: 'rule:flow:update' }, audit: '回滚决策流版本', params: ruleVersionParam, response: ruleDecisionFlowSchema, summary: '回滚到历史版本（覆盖编辑态，置为草稿）' }),
+  create: op.post('/', { access: { permission: 'rule:flow:create' }, audit: '创建决策流', body: createDecisionFlowSchema, response: ruleDecisionFlowSchema, summary: '创建决策流' }),
+  update: op.put('/{id}', { access: { permission: 'rule:flow:update' }, audit: '更新决策流', params: idParam, body: updateDecisionFlowSchema, response: ruleDecisionFlowSchema, summary: '更新决策流' }),
+  publish: op.post('/{id}/publish', { access: { permission: 'rule:flow:publish' }, audit: '发布决策流', params: idParam, response: ruleDecisionFlowSchema, summary: '发布决策流（步骤固化为运行时快照）' }),
+  toggle: op.post('/{id}/toggle', { access: { permission: 'rule:flow:publish' }, audit: '启用/停用决策流', params: idParam, body: toggleDecisionTableSchema, response: ruleDecisionFlowSchema, summary: '启用/停用决策流' }),
+  test: op.post('/{id}/test', { access: { permission: 'rule:flow:evaluate' }, params: idParam, body: evaluateDecisionTableSchema, response: ruleFlowEvaluateResultSchema, summary: '测试求值（编辑态步骤，逐步 trace）' }),
+  evaluate: op.post('/evaluate', { access: { permission: 'rule:flow:evaluate' }, body: evaluateRuleByKeySchema, response: ruleFlowEvaluateResultSchema, summary: '按 key 求值（对外通用，支持 zat_ API Token 调用）' }),
+  removeBatch: op.delete('/batch', { access: { permission: 'rule:flow:delete' }, audit: '批量删除决策流', body: batchIdsBody, summary: '批量删除决策流' }),
+  remove: op.delete('/{id}', { access: { permission: 'rule:flow:delete' }, audit: '删除决策流', params: idParam, summary: '删除决策流' }),
+}, { auditModule: '规则中心', tags: ['DecisionFlows'] });

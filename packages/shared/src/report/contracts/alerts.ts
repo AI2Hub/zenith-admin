@@ -77,11 +77,11 @@ export const reportAlertListQuery = paginationQuery.extend({
 });
 
 export const reportAlertContract = defineContract('/api/report/alerts', {
-  list: op.get('/', { query: reportAlertListQuery, response: paginated(reportAlertRuleSchema), summary: '预警规则列表' }),
-  batchStatus: op.put('/batch-status', { body: reportBatchEnabledSchema, summary: '批量启停预警' }),
-  detail: op.get('/{id}', { params: idParam, response: reportAlertRuleSchema, summary: '预警规则详情' }),
-  create: op.post('/', { body: createReportAlertSchema, response: reportAlertRuleSchema, summary: '创建预警规则' }),
-  update: op.put('/{id}', { params: idParam, body: updateReportAlertSchema, response: reportAlertRuleSchema, summary: '更新预警规则' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除预警规则' }),
-  evaluate: op.post('/{id}/evaluate', { params: idParam, response: asyncTaskSchema, summary: '手动评估预警' }),
-}, { tags: ['报表预警'] });
+  list: op.get('/', { access: { permission: 'report:alert:list' }, query: reportAlertListQuery, response: paginated(reportAlertRuleSchema), summary: '预警规则列表' }),
+  batchStatus: op.put('/batch-status', { access: { permission: 'report:alert:update' }, audit: '批量更新报表预警状态', body: reportBatchEnabledSchema, summary: '批量启停预警' }),
+  detail: op.get('/{id}', { access: { permission: 'report:alert:list' }, params: idParam, response: reportAlertRuleSchema, summary: '预警规则详情' }),
+  create: op.post('/', { access: { permission: 'report:alert:create' }, audit: '创建报表预警', body: createReportAlertSchema, response: reportAlertRuleSchema, summary: '创建预警规则' }),
+  update: op.put('/{id}', { access: { permission: 'report:alert:update' }, audit: '更新报表预警', params: idParam, body: updateReportAlertSchema, response: reportAlertRuleSchema, summary: '更新预警规则' }),
+  remove: op.delete('/{id}', { access: { permission: 'report:alert:delete' }, audit: '删除报表预警', params: idParam, summary: '删除预警规则' }),
+  evaluate: op.post('/{id}/evaluate', { access: { permission: 'report:alert:list' }, params: idParam, response: asyncTaskSchema, summary: '手动评估预警' }),
+}, { auditModule: '报表预警', tags: ['报表预警'] });

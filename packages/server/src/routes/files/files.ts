@@ -1,7 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi';
 import { fileContract } from '@zenith/shared/platform';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, errBody, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -19,13 +18,11 @@ import {
 } from '../../services/files/files.service';
 import { initChunkUpload, uploadChunk, completeChunkUpload, getUploadStatus, abortChunkUpload } from '../../services/files/upload-sessions.service';
 import { readStoredFile } from '../../lib/file-storage';
-import { parseRangeHeader, rangeContentHeaders, rangeNotSatisfiable, supportsRange } from '../../lib/http-range';
+import { parseRangeHeader, rangeNotSatisfiable, supportsRange, rangeContentHeaders } from '../../lib/http-range';
 import { attachmentDisposition, inlineOrAttachmentDisposition } from '../../lib/content-disposition';
 import { mountCrud } from '../_crud';
 
 const filesRouter = new OpenAPIHono({ defaultHook: validationHook });
-
-const read = [authMiddleware, guard({ permission: 'system:file:list' })] as const;
 
 const contentRoute = defineContractRoute(fileContract.content, {
   middleware: [],
@@ -71,7 +68,6 @@ const contentRoute = defineContractRoute(fileContract.content, {
 });
 
 const accessUrlRoute = defineContractRoute(fileContract.accessUrl, {
-  middleware: [authMiddleware],
   responses: { 404: { content: jsonContent(ErrorResponse), description: '文件不存在' } },
   handler: async (c) => {
     const { id } = c.req.valid('param');
@@ -83,15 +79,12 @@ const accessUrlRoute = defineContractRoute(fileContract.accessUrl, {
 });
 
 const browseRoute = defineContractRoute(fileContract.browse, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await browseStorageFiles(c.req.valid('query'))), 200),
 });
 const statsRoute = defineContractRoute(fileContract.stats, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await getFileStats()), 200),
 });
 const uploadRoute = defineContractRoute(fileContract.upload, {
-  middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '上传文件', module: '文件管理', recordBody: false } })],
   responses: { 400: { content: jsonContent(ErrorResponse), description: '未选择文件或无可用存储' } },
   handler: async (c) => {
     const body = await c.req.parseBody({ all: true });
@@ -101,7 +94,6 @@ const uploadRoute = defineContractRoute(fileContract.upload, {
   },
 });
 const batchDeleteRoute = defineContractRoute(fileContract.removeBatch, {
-  middleware: [authMiddleware, guard({ permission: 'system:file:delete', audit: { description: '批量删除文件', module: '文件管理', recordBody: false } })],
   handler: async (c) => {
     const { ids } = c.req.valid('json');
     const before = await getManagedFilesBeforeAudit(ids);
@@ -112,7 +104,6 @@ const batchDeleteRoute = defineContractRoute(fileContract.removeBatch, {
 });
 
 const uploadOneRoute = defineContractRoute(fileContract.uploadOne, {
-  middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '上传单个文件', module: '文件管理', recordBody: false } })],
   responses: { 400: { content: jsonContent(ErrorResponse), description: '未选择文件或无可用存储' } },
   handler: async (c) => {
     const body = await c.req.parseBody();
@@ -122,13 +113,11 @@ const uploadOneRoute = defineContractRoute(fileContract.uploadOne, {
 });
 
 const uploadInitRoute = defineContractRoute(fileContract.uploadInit, {
-  middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '初始化分片上传', module: '文件管理' } })],
   responses: { 400: { content: jsonContent(ErrorResponse), description: '无可用存储或超过大小上限' } },
   handler: async (c) => c.json(okBody(await initChunkUpload(c.req.valid('json'))), 200),
 });
 
 const uploadChunkRoute = defineContractRoute(fileContract.uploadChunk, {
-  middleware: [authMiddleware, guard({ permission: 'system:file:upload' })],
   handler: async (c) => {
     const body = await c.req.parseBody();
     const uploadId = String(body.uploadId ?? '');
@@ -142,19 +131,16 @@ const uploadChunkRoute = defineContractRoute(fileContract.uploadChunk, {
 });
 
 const uploadCompleteRoute = defineContractRoute(fileContract.uploadComplete, {
-  middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '完成分片上传', module: '文件管理' } })],
   responses: { 400: { content: jsonContent(ErrorResponse), description: '分片不完整或类型不允许' } },
   handler: async (c) => c.json(okBody(await completeChunkUpload(c.req.valid('json').uploadId), '上传成功'), 200),
 });
 
 const uploadStatusRoute = defineContractRoute(fileContract.uploadStatus, {
-  middleware: [authMiddleware],
   responses: { 404: { content: jsonContent(ErrorResponse), description: '会话不存在' } },
   handler: async (c) => c.json(okBody(await getUploadStatus(c.req.valid('param').uploadId)), 200),
 });
 
 const uploadAbortRoute = defineContractRoute(fileContract.uploadAbort, {
-  middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '中止分片上传', module: '文件管理' } })],
   handler: async (c) => {
     const { uploadId } = c.req.valid('param');
     const before = await getUploadStatus(uploadId);
@@ -167,7 +153,6 @@ const uploadAbortRoute = defineContractRoute(fileContract.uploadAbort, {
 
 // 批量下载打包为 zip 流式响应
 const batchDownloadRoute = defineContractRoute(fileContract.batchDownload, {
-  middleware: read,
   handler: async (c) => {
     const { ids } = c.req.valid('json');
     const { stream, filename } = await batchDownloadFilesAsZip(ids);
@@ -183,9 +168,6 @@ const batchDownloadRoute = defineContractRoute(fileContract.batchDownload, {
 mountCrud(filesRouter, fileContract,
   { list: listManagedFiles, get: getManagedFile, remove: deleteManagedFile },
   {
-    permission: 'system:file',
-    label: '文件',
-    audit: { remove: { recordBody: false } },
     exclude: ['removeBatch'],
     responses: { detail: { 404: { content: jsonContent(ErrorResponse), description: '文件不存在' } }, remove: { 404: { content: jsonContent(ErrorResponse), description: '文件不存在' } } },
   },

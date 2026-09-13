@@ -3,8 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { firewallContract } from '@zenith/shared/ops';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import {
   addFirewallRule,
   deleteFirewallRule,
@@ -22,10 +21,7 @@ function assertLocalFirewallWrite(hostId?: number): void {
   }
 }
 
-const view = [authMiddleware, guard({ permission: 'system:firewall:view' })] as const;
-
 const statusRoute = defineContractRoute(firewallContract.status, {
-  middleware: view,
   handler: async (c) => {
     const { hostId } = c.req.valid('query');
     await assertRemoteHostAccess(c, hostId);
@@ -34,7 +30,6 @@ const statusRoute = defineContractRoute(firewallContract.status, {
 });
 
 const listRulesRoute = defineContractRoute(firewallContract.rules, {
-  middleware: view,
   handler: async (c) => {
     const { hostId } = c.req.valid('query');
     await assertRemoteHostAccess(c, hostId);
@@ -43,7 +38,6 @@ const listRulesRoute = defineContractRoute(firewallContract.rules, {
 });
 
 const addRuleRoute = defineContractRoute(firewallContract.addRule, {
-  middleware: [authMiddleware, guard({ permission: 'system:firewall:manage', audit: { module: '系统运维', description: '添加防火墙规则' } })],
   handler: async (c) => {
     assertLocalFirewallWrite(c.req.valid('query').hostId);
     setAuditBeforeData(c, await listFirewallRules());
@@ -54,7 +48,6 @@ const addRuleRoute = defineContractRoute(firewallContract.addRule, {
 });
 
 const deleteRuleRoute = defineContractRoute(firewallContract.removeRule, {
-  middleware: [authMiddleware, guard({ permission: 'system:firewall:manage', audit: { module: '系统运维', description: '删除防火墙规则' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     assertLocalFirewallWrite(c.req.valid('query').hostId);
@@ -66,7 +59,6 @@ const deleteRuleRoute = defineContractRoute(firewallContract.removeRule, {
 });
 
 const enableRoute = defineContractRoute(firewallContract.enable, {
-  middleware: [authMiddleware, guard({ permission: 'system:firewall:manage', audit: { module: '系统运维', description: '启用防火墙' } })],
   handler: async (c) => {
     assertLocalFirewallWrite(c.req.valid('query').hostId);
     setAuditBeforeData(c, await getFirewallStatus());
@@ -77,7 +69,6 @@ const enableRoute = defineContractRoute(firewallContract.enable, {
 });
 
 const disableRoute = defineContractRoute(firewallContract.disable, {
-  middleware: [authMiddleware, guard({ permission: 'system:firewall:manage', audit: { module: '系统运维', description: '禁用防火墙' } })],
   handler: async (c) => {
     assertLocalFirewallWrite(c.req.valid('query').hostId);
     setAuditBeforeData(c, await getFirewallStatus());

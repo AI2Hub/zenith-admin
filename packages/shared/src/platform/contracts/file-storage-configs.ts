@@ -76,13 +76,13 @@ export const fileStorageConfigListQuery = paginationQuery.extend({
 });
 
 export const fileStorageConfigContract = defineContract('/api/file-storage-configs', {
-  list: op.get('/', { query: fileStorageConfigListQuery, response: paginated(fileStorageConfigSchema), summary: '存储配置列表' }),
-  defaultConfig: op.get('/default', { response: fileStorageConfigSchema.nullable(), summary: '默认配置' }),
-  test: op.post('/test', { body: createFileStorageConfigSchema, summary: '测试存储配置连接' }),
-  testExisting: op.post('/{id}/test', { params: idParam, body: updateFileStorageConfigSchema, summary: '测试已保存存储配置连接' }),
-  detail: op.get('/{id}', { params: idParam, response: fileStorageConfigSchema, summary: '存储配置详情' }),
-  create: op.post('/', { body: createFileStorageConfigSchema, response: fileStorageConfigSchema, summary: '创建配置' }),
-  update: op.put('/{id}', { params: idParam, body: updateFileStorageConfigSchema, response: fileStorageConfigSchema, summary: '更新配置' }),
-  setDefault: op.put('/{id}/default', { params: idParam, response: fileStorageConfigSchema, summary: '设为默认' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除配置' }),
-}, { tags: ['FileStorageConfigs'] });
+  list: op.get('/', { access: { permission: 'system:file:config' }, query: fileStorageConfigListQuery, response: paginated(fileStorageConfigSchema), summary: '存储配置列表' }),
+  defaultConfig: op.get('/default', { access: { permission: 'system:file:config' }, response: fileStorageConfigSchema.nullable(), summary: '默认配置' }),
+  test: op.post('/test', { access: { permission: 'system:file:config' }, audit: { description: '测试文件存储连接', recordBody: false }, body: createFileStorageConfigSchema, summary: '测试存储配置连接' }),
+  testExisting: op.post('/{id}/test', { access: { permission: 'system:file:config' }, audit: { description: '测试文件存储连接', recordBody: false }, params: idParam, body: updateFileStorageConfigSchema, summary: '测试已保存存储配置连接' }),
+  detail: op.get('/{id}', { access: { permission: 'system:file:config' }, params: idParam, response: fileStorageConfigSchema, summary: '存储配置详情' }),
+  create: op.post('/', { access: { permission: 'system:file:config:create' }, audit: '创建文件存储配置', body: createFileStorageConfigSchema, response: fileStorageConfigSchema, summary: '创建配置' }),
+  update: op.put('/{id}', { access: { permission: 'system:file:config:update' }, audit: '更新文件存储配置', params: idParam, body: updateFileStorageConfigSchema, response: fileStorageConfigSchema, summary: '更新配置' }),
+  setDefault: op.put('/{id}/default', { access: { permission: 'system:file:config:default' }, audit: { description: '设置默认文件存储', recordBody: false }, params: idParam, response: fileStorageConfigSchema, summary: '设为默认' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:file:config:delete' }, audit: '删除文件存储配置', params: idParam, summary: '删除配置' }),
+}, { auditModule: '文件存储配置', tags: ['FileStorageConfigs'] });

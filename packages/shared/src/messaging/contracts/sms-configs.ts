@@ -33,10 +33,10 @@ export const smsConfigListQuery = paginationQuery.extend({
 });
 
 export const smsConfigContract = defineContract('/api/sms-configs', {
-  list: op.get('/', { query: smsConfigListQuery, response: paginated(smsConfigSchema), summary: '短信配置列表' }),
-  detail: op.get('/{id}', { params: idParam, response: smsConfigSchema, summary: '获取短信配置详情' }),
-  create: op.post('/', { body: createSmsConfigSchema, response: smsConfigSchema, summary: '创建短信配置' }),
-  update: op.put('/{id}', { params: idParam, body: updateSmsConfigSchema, response: smsConfigSchema, summary: '更新短信配置' }),
-  setDefault: op.post('/{id}/default', { params: idParam, response: smsConfigSchema, summary: '设为默认短信配置' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除短信配置' }),
-}, { tags: ['SmsConfigs'] });
+  list: op.get('/', { access: { permission: 'system:sms-config:list' }, query: smsConfigListQuery, response: paginated(smsConfigSchema), summary: '短信配置列表' }),
+  detail: op.get('/{id}', { access: { permission: 'system:sms-config:list' }, params: idParam, response: smsConfigSchema, summary: '获取短信配置详情' }),
+  create: op.post('/', { access: { permission: 'system:sms-config:create' }, audit: '创建短信配置', body: createSmsConfigSchema, response: smsConfigSchema, summary: '创建短信配置' }),
+  update: op.put('/{id}', { access: { permission: 'system:sms-config:update' }, audit: '更新短信配置', params: idParam, body: updateSmsConfigSchema, response: smsConfigSchema, summary: '更新短信配置' }),
+  setDefault: op.post('/{id}/default', { access: { permission: 'system:sms-config:default' }, audit: '设为默认短信配置', params: idParam, response: smsConfigSchema, summary: '设为默认短信配置' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:sms-config:delete' }, audit: '删除短信配置', params: idParam, summary: '删除短信配置' }),
+}, { auditModule: '短信配置', tags: ['SmsConfigs'] });

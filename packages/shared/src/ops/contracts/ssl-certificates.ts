@@ -45,10 +45,10 @@ export const sslCertificateDownloadQuery = z.object({
 });
 
 export const sslCertificateContract = defineContract('/api/ssl-certificates', {
-  list: op.get('/', { query: sslCertificateListQuery, response: paginated(sslCertificateSchema), summary: 'SSL 证书列表' }),
-  generate: op.post('/generate', { body: generateSelfSignedCertSchema, response: sslCertificateCreatedSchema, summary: '生成自签名证书' }),
-  upload: op.post('/upload', { body: uploadCertSchema, response: sslCertificateCreatedSchema, summary: '上传自定义证书' }),
-  detail: op.get('/{id}', { params: idParam, response: sslCertificateSchema, summary: 'SSL 证书详情' }),
-  download: op.get('/{id}/download', { params: idParam, query: sslCertificateDownloadQuery, kind: 'file', summary: '下载 SSL 证书文件' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除 SSL 证书' }),
-}, { tags: ['SslCertificates'] });
+  list: op.get('/', { access: { permission: 'system:ssl:view' }, query: sslCertificateListQuery, response: paginated(sslCertificateSchema), summary: 'SSL 证书列表' }),
+  generate: op.post('/generate', { access: { permission: 'system:ssl:create' }, audit: { description: '生成 SSL 证书', recordBody: false }, body: generateSelfSignedCertSchema, response: sslCertificateCreatedSchema, summary: '生成自签名证书' }),
+  upload: op.post('/upload', { access: { permission: 'system:ssl:create' }, audit: { description: '上传 SSL 证书', recordBody: false }, body: uploadCertSchema, response: sslCertificateCreatedSchema, summary: '上传自定义证书' }),
+  detail: op.get('/{id}', { access: { permission: 'system:ssl:view' }, params: idParam, response: sslCertificateSchema, summary: 'SSL 证书详情' }),
+  download: op.get('/{id}/download', { access: { permission: 'system:ssl:view' }, params: idParam, query: sslCertificateDownloadQuery, kind: 'file', summary: '下载 SSL 证书文件' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:ssl:delete' }, audit: '删除 SSL 证书', params: idParam, summary: '删除 SSL 证书' }),
+}, { auditModule: 'SSL 证书', tags: ['SslCertificates'] });

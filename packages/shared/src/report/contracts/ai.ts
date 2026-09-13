@@ -9,5 +9,5 @@ export const reportNl2SqlResultSchema = z.object({ sql: z.string() }).meta({ id:
 export type ReportNl2SqlResult = z.infer<typeof reportNl2SqlResultSchema>;
 
 export const reportAiContract = defineContract('/api/report/ai', {
-  nl2sql: op.post('/nl2sql', { body: reportNl2SqlSchema, response: reportNl2SqlResultSchema, summary: 'AI 自然语言取数（生成只读 SQL）' }),
+  nl2sql: op.post('/nl2sql', { access: { permission: 'report:dataset:create' }, body: reportNl2SqlSchema, response: reportNl2SqlResultSchema, summary: 'AI 自然语言取数（生成只读 SQL）' }),
 }, { tags: ['报表 AI'] });

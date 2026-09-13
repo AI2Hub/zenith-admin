@@ -4,8 +4,7 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { paymentRiskOpsContract } from '@zenith/shared/payment';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -19,17 +18,14 @@ import {
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const hitsRoute = defineContractRoute(paymentRiskOpsContract.hits, {
-  middleware: [authMiddleware, guard({ permission: 'payment:risk:list' })],
   handler: async (c) => c.json(okBody(await listRiskHits(c.req.valid('query'))), 200),
 });
 
 const reviewsRoute = defineContractRoute(paymentRiskOpsContract.reviews, {
-  middleware: [authMiddleware, guard({ permission: 'payment:risk:list' })],
   handler: async (c) => c.json(okBody(await listRiskReviews(c.req.valid('query'))), 200),
 });
 
 const approveRoute = defineContractRoute(paymentRiskOpsContract.approveReview, {
-  middleware: [authMiddleware, guard({ permission: 'payment:risk:review', audit: { description: '风控审核放行', module: '支付中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await findRiskReviewById(id));
@@ -38,7 +34,6 @@ const approveRoute = defineContractRoute(paymentRiskOpsContract.approveReview, {
 });
 
 const rejectRoute = defineContractRoute(paymentRiskOpsContract.rejectReview, {
-  middleware: [authMiddleware, guard({ permission: 'payment:risk:review', audit: { description: '风控审核拒绝', module: '支付中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await findRiskReviewById(id));

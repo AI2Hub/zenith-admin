@@ -1,7 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { driveTagContract } from '@zenith/shared/drive';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import { createDriveTag, deleteDriveTag, listDriveTags, mergeDriveTags, updateDriveTag } from '../../services/drive/drive-extras.service';
@@ -9,14 +7,10 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const edit = [authMiddleware, guard({ permission: 'drive:node:edit' })] as const;
-
 const listRoute = defineContractRoute(driveTagContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'drive:node:list' })],
   handler: async (c) => c.json(okBody(await listDriveTags(c.req.valid('query').spaceId)), 200),
 });
 const updateRoute = defineContractRoute(driveTagContract.update, {
-  middleware: edit,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await updateDriveTag(id, c.req.valid('json')), '更新成功'), 200);
@@ -24,7 +18,6 @@ const updateRoute = defineContractRoute(driveTagContract.update, {
 });
 
 const deleteRoute = defineContractRoute(driveTagContract.remove, {
-  middleware: edit,
   handler: async (c) => {
     await deleteDriveTag(c.req.valid('param').id);
     return c.json(okBody(null, '删除成功'), 200);
@@ -32,7 +25,6 @@ const deleteRoute = defineContractRoute(driveTagContract.remove, {
 });
 
 const mergeRoute = defineContractRoute(driveTagContract.merge, {
-  middleware: edit,
   handler: async (c) => {
     await mergeDriveTags(c.req.valid('param').id, c.req.valid('json').targetId);
     return c.json(okBody(null, '标签已合并'), 200);
@@ -41,7 +33,7 @@ const mergeRoute = defineContractRoute(driveTagContract.merge, {
 
 mountCrud(router, driveTagContract,
   { create: createDriveTag },
-  { permission: { write: 'drive:node:edit' }, audit: null, exclude: ['list', 'update', 'remove'] },
+  { exclude: ['list', 'update', 'remove'] },
   [listRoute, updateRoute, deleteRoute, mergeRoute],
 );
 

@@ -38,6 +38,6 @@ export const terminalSessionIdParam = z.object({
 });
 
 export const terminalSessionContract = defineContract('/api/terminal-sessions', {
-  list: op.get('/', { query: terminalSessionListQuery, response: paginated(terminalSessionSchema), summary: '活动终端会话列表' }),
-  terminate: op.post('/{sessionId}/terminate', { params: terminalSessionIdParam, summary: '强制终止终端会话' }),
-}, { tags: ['TerminalSessions'] });
+  list: op.get('/', { access: { permission: 'system:terminal:monitor' }, query: terminalSessionListQuery, response: paginated(terminalSessionSchema), summary: '活动终端会话列表' }),
+  terminate: op.post('/{sessionId}/terminate', { access: { permission: 'system:terminal:monitor' }, audit: '强制终止终端会话', params: terminalSessionIdParam, summary: '强制终止终端会话' }),
+}, { auditModule: 'Web 终端', tags: ['TerminalSessions'] });

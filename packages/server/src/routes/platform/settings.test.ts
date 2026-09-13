@@ -5,9 +5,9 @@
  *  1. 13 个模块各注册 GET + PUT 字面量路径，与契约 fullPath 一致
  *  2. /public 匿名可达；/me、模块端点无凭证 → 401
  *  3. PUT 请求体：缺字段 → 400；完整文档 → 交给 saveSettings 并返回信封
- *  4. guard 按注册表拿到模块的 feature / 权限 / 审计元数据
+ *  4. 契约 access / audit / feature 直接取模块定义（readPermission / writePermission / feature），guard 拿到的即注册表元数据
  *
- * Mock 策略：lib/settings 全部 mock（不测数据行为）；authMiddleware 真实实现 + 测试 JWT；guard 记录入参后直通。
+ * Mock 策略：lib/settings 全部 mock（不测数据行为）；authMiddleware 真实实现 + 测试 JWT；guard 记录入参后直通（契约装配的门禁链仍经过它）。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Hono } from 'hono';
@@ -127,10 +127,14 @@ describe('settings routes', () => {
     expect(unknownKey.status).toBe(400);
   });
 
-  it('guard 从注册表取 feature / 权限 / 审计元数据', () => {
+  it('契约装配的 guard 拿到模块定义的 feature / 权限 / 审计元数据', () => {
     const driveWrite = guardCalls.find((g) => (g as { audit?: { description?: string } }).audit?.description === '更新「企业网盘」设置');
-    expect(driveWrite).toMatchObject({ feature: 'drive', permission: 'drive:setting:edit', audit: { module: '系统设置' } });
-    const ipRead = guardCalls.find((g) => (g as { permission?: string; audit?: unknown }).permission === 'system:ip-access:view' && !(g as { audit?: unknown }).audit);
-    expect(ipRead).toMatchObject({ feature: undefined, permission: 'system:ip-access:view' });
+    expect(driveWrite).toMatchObject({ feature: 'drive', permission: ['drive:setting:edit'], audit: { module: '系统设置' } });
+    const ipRead = guardCalls.find((g) => JSON.stringify((g as { permission?: string[] }).permission) === JSON.stringify(['system:ip-access:view']) && !(g as { audit?: unknown }).audit);
+    expect(ipRead).toMatchObject({ permission: ['system:ip-access:view'] });
+    expect(ipRead).not.toHaveProperty('feature');
+    // 契约本身即为唯一来源
+    expect(settingsGetOp('drive').access).toEqual({ permission: 'drive:setting:view' });
+    expect(settingsUpdateOp('drive')).toMatchObject({ access: { permission: 'drive:setting:edit' }, feature: 'drive', audit: { description: '更新「企业网盘」设置', module: '系统设置' } });
   });
 });

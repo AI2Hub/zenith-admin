@@ -39,7 +39,7 @@ export const memberPointTransactionListQuery = paginationQuery.extend({
 });
 
 export const memberPointContract = defineContract('/api/member-points', {
-  transactions: op.get('/transactions', { query: memberPointTransactionListQuery, response: paginated(memberPointTransactionSchema), summary: '积分流水' }),
-  account: op.get('/account/{id}', { params: idParam, response: memberPointAccountSchema, summary: '会员积分账户' }),
-  adjust: op.post('/adjust', { body: adjustMemberPointsSchema, response: memberPointAccountSchema, summary: '手动调整积分' }),
-}, { tags: ['会员积分'] });
+  transactions: op.get('/transactions', { access: { permission: 'member:point:list' }, query: memberPointTransactionListQuery, response: paginated(memberPointTransactionSchema), summary: '积分流水' }),
+  account: op.get('/account/{id}', { access: { permission: 'member:point:list' }, params: idParam, response: memberPointAccountSchema, summary: '会员积分账户' }),
+  adjust: op.post('/adjust', { access: { permission: 'member:point:adjust' }, audit: '调整会员积分', body: adjustMemberPointsSchema, response: memberPointAccountSchema, summary: '手动调整积分' }),
+}, { auditModule: '会员积分', tags: ['会员积分'] });

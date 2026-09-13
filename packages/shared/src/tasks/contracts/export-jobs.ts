@@ -120,13 +120,13 @@ export const exportJobListQuery = paginationQuery.extend({
 });
 
 export const exportJobContract = defineContract('/api/export-jobs', {
-  entities: op.get('/entities', { response: z.array(exportEntityMetaSchema), summary: '可导出实体列表' }),
-  create: op.post('/', { body: createExportJobSchema, response: exportJobCreateResultSchema, summary: '创建导出任务' }),
-  list: op.get('/', { query: exportJobListQuery, response: paginated(exportJobSchema), summary: '导出任务列表' }),
-  detail: op.get('/{id}', { params: idParam, response: exportJobSchema, summary: '导出任务详情' }),
-  download: op.get('/{id}/download', { params: idParam, kind: 'file', summary: '下载导出文件' }),
-  downloads: op.get('/{id}/downloads', { params: idParam, response: z.array(exportJobDownloadSchema), summary: '导出任务下载日志' }),
-  cancel: op.post('/{id}/cancel', { params: idParam, response: exportJobSchema, summary: '取消导出任务' }),
-  retry: op.post('/{id}/retry', { params: idParam, response: exportJobSchema, summary: '重试导出任务' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除导出任务' }),
-}, { tags: ['ExportJobs'] });
+  entities: op.get('/entities', { access: 'authenticated', response: z.array(exportEntityMetaSchema), summary: '可导出实体列表' }),
+  create: op.post('/', { access: 'authenticated', audit: { description: '创建导出任务', recordResponseBody: false }, body: createExportJobSchema, response: exportJobCreateResultSchema, summary: '创建导出任务' }),
+  list: op.get('/', { access: 'authenticated', query: exportJobListQuery, response: paginated(exportJobSchema), summary: '导出任务列表' }),
+  detail: op.get('/{id}', { access: 'authenticated', params: idParam, response: exportJobSchema, summary: '导出任务详情' }),
+  download: op.get('/{id}/download', { access: 'authenticated', audit: { description: '下载导出文件', recordResponseBody: false }, params: idParam, kind: 'file', summary: '下载导出文件' }),
+  downloads: op.get('/{id}/downloads', { access: 'authenticated', params: idParam, response: z.array(exportJobDownloadSchema), summary: '导出任务下载日志' }),
+  cancel: op.post('/{id}/cancel', { access: 'authenticated', audit: '取消导出任务', params: idParam, response: exportJobSchema, summary: '取消导出任务' }),
+  retry: op.post('/{id}/retry', { access: 'authenticated', audit: '重试导出任务', params: idParam, response: exportJobSchema, summary: '重试导出任务' }),
+  remove: op.delete('/{id}', { access: 'authenticated', audit: '删除导出任务', params: idParam, summary: '删除导出任务' }),
+}, { auditModule: '导出中心', tags: ['ExportJobs'] });

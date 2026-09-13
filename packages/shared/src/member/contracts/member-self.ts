@@ -133,4 +133,4 @@ export const memberSelfContract = defineContract('/api/member', {
   markAllRead: op.put('/notifications/read-all', { summary: '全部标记已读' }),
   markRead: op.put('/notifications/{id}/read', { params: idParam, summary: '标记通知已读' }),
   inviteSummary: op.get('/invite/summary', { response: memberInviteSummarySchema, summary: '我的邀请汇总' }),
-}, { tags: ['MemberSelf'] });
+}, { tags: ['MemberSelf'], security: 'member-bearer' });

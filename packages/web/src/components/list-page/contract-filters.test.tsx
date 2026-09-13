@@ -33,7 +33,7 @@ vi.mock('@/hooks/useDictItems', () => ({
 
 const rowSchema = z.object({ id: z.int(), name: z.string() });
 const rowContract = defineContract('/api/test-filter-rows', {
-  list: op.get('/', {
+  list: op.get('/', { access: 'authenticated',
     query: paginationQuery.extend({
       keyword: keywordQuery('名称 / 编码'),
       status: entityStatusQuery,
@@ -48,7 +48,7 @@ const rowContract = defineContract('/api/test-filter-rows', {
     response: paginated(rowSchema),
     summary: 'list',
   }),
-  detail: op.get('/{id}', { params: idParam, response: rowSchema, summary: 'detail' }),
+  detail: op.get('/{id}', { access: 'authenticated', params: idParam, response: rowSchema, summary: 'detail' }),
 });
 
 const useListMock = vi.fn(() => ({ data: { list: [] as Array<{ id: number; name: string }>, total: 0 }, isFetching: false, refetch: vi.fn() }));

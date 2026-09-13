@@ -21,7 +21,6 @@ mountCrud(memberTagsRouter, memberTagContract,
     remove: deleteMemberTag,
     list: listMemberTags,
   },
-  { permission: { read: 'member:member:list', write: 'member:member:update' }, label: '会员标签', module: '会员标签' },
 );
 
 export default memberTagsRouter;

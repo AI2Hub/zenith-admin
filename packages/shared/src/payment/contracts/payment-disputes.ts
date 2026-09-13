@@ -96,17 +96,18 @@ export const paymentDisputeListQuery = paginationQuery.extend({
 });
 
 export const paymentDisputeContract = defineContract('/api/payment/disputes', {
-  list: op.get('/', { query: paymentDisputeListQuery, response: paginated(paymentDisputeSchema), summary: '投诉工单列表' }),
-  stats: op.get('/stats', { response: paymentDisputeStatsSchema, summary: '投诉统计（待处理/超时/30天投诉率/平均时长）' }),
-  detail: op.get('/{id}', { params: idParam, response: paymentDisputeDetailSchema, summary: '投诉工单详情（含时间线与订单摘要）' }),
-  reply: op.post('/{id}/reply', { params: idParam, body: replyPaymentDisputeSchema, response: paymentDisputeDetailSchema, summary: '商户回复投诉' }),
-  resolve: op.post('/{id}/resolve', { params: idParam, body: resolvePaymentDisputeSchema, response: paymentDisputeDetailSchema, summary: '完结投诉（协商解决）' }),
+  list: op.get('/', { access: { permission: 'payment:dispute:list' }, query: paymentDisputeListQuery, response: paginated(paymentDisputeSchema), summary: '投诉工单列表' }),
+  stats: op.get('/stats', { access: { permission: 'payment:dispute:list' }, response: paymentDisputeStatsSchema, summary: '投诉统计（待处理/超时/30天投诉率/平均时长）' }),
+  detail: op.get('/{id}', { access: { permission: 'payment:dispute:list' }, params: idParam, response: paymentDisputeDetailSchema, summary: '投诉工单详情（含时间线与订单摘要）' }),
+  reply: op.post('/{id}/reply', { access: { permission: 'payment:dispute:handle' }, audit: '回复投诉', params: idParam, body: replyPaymentDisputeSchema, response: paymentDisputeDetailSchema, summary: '商户回复投诉' }),
+  resolve: op.post('/{id}/resolve', { access: { permission: 'payment:dispute:handle' }, audit: '完结投诉', params: idParam, body: resolvePaymentDisputeSchema, response: paymentDisputeDetailSchema, summary: '完结投诉（协商解决）' }),
   refund: op.post('/{id}/refund', {
+    access: { permission: 'payment:dispute:handle' }, audit: '投诉退款',
     params: idParam,
     body: refundPaymentDisputeSchema,
     response: paymentDisputeDetailSchema,
     summary: '投诉退款（复用退款审批链路）',
     description: '资金流出接口，挂幂等防重复提交；大额退款自动进入退款审批。',
   }),
-  simulate: op.post('/simulate', { body: simulatePaymentDisputeSchema, response: paymentDisputeSchema, summary: '模拟一条投诉（演示/联调）' }),
-}, { tags: ['支付中心-交易投诉'] });
+  simulate: op.post('/simulate', { access: { permission: 'payment:dispute:handle' }, audit: '模拟投诉', body: simulatePaymentDisputeSchema, response: paymentDisputeSchema, summary: '模拟一条投诉（演示/联调）' }),
+}, { auditModule: '支付中心', tags: ['支付中心-交易投诉'] });

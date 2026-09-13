@@ -1,8 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi';
 import { ANALYTICS_SITE_KEY_HEADER, frontendErrorContract } from '@zenith/shared/analytics';
-import { authMiddleware } from '../../middleware/auth';
 import { optionalAuthMiddleware } from '../../middleware/optional-auth';
-import { guard } from '../../middleware/guard';
 import { namedRateLimit } from '../../middleware/rate-limit';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
@@ -14,11 +12,6 @@ import {
 import { listAlertRules, createAlertRule, updateAlertRule, deleteAlertRule, listAlertLogs, testAlertRule } from '../../services/analytics/error-alert.service';
 
 const r = new OpenAPIHono({ defaultHook: validationHook });
-
-const errorList = [authMiddleware, guard({ permission: 'monitor:error:list' })] as const;
-const errorManage = [authMiddleware, guard({ permission: 'monitor:error:manage' })] as const;
-const alertList = [authMiddleware, guard({ permission: 'monitor:alert:list' })] as const;
-const alertManage = [authMiddleware, guard({ permission: 'monitor:alert:manage' })] as const;
 
 // ─── 上报 ─────────────────────────────────────────────────────────────────────
 // 浏览器错误风暴时该入口会被突发打满：在 server 使用点对契约请求体做 AOT 预编译换事件循环余量
@@ -40,18 +33,15 @@ const reportRoute = defineContractRoute(reportOp, {
 
 // ─── 概览 ─────────────────────────────────────────────────────────────────────
 const overviewRoute = defineContractRoute(frontendErrorContract.overview, {
-  middleware: errorList,
   handler: async (c) => c.json(okBody(await getErrorOverview(c.req.valid('query').days)), 200),
 });
 
 // ─── 分组（Issue）列表 / 详情 / 处理 ──────────────────────────────────────────
 const groupListRoute = defineContractRoute(frontendErrorContract.groups, {
-  middleware: errorList,
   handler: async (c) => c.json(okBody(await listGroups(c.req.valid('query'))), 200),
 });
 
 const batchStatusRoute = defineContractRoute(frontendErrorContract.batchUpdateGroupStatus, {
-  middleware: errorManage,
   handler: async (c) => {
     const n = await batchUpdateGroupStatus(c.req.valid('json').ids, c.req.valid('query').status);
     return c.json(okBody(null, `已更新 ${n} 条`), 200);
@@ -59,7 +49,6 @@ const batchStatusRoute = defineContractRoute(frontendErrorContract.batchUpdateGr
 });
 
 const batchDeleteRoute = defineContractRoute(frontendErrorContract.batchDeleteGroups, {
-  middleware: errorManage,
   handler: async (c) => {
     const n = await deleteGroups(c.req.valid('json').ids);
     return c.json(okBody(null, `已删除 ${n} 条`), 200);
@@ -67,23 +56,19 @@ const batchDeleteRoute = defineContractRoute(frontendErrorContract.batchDeleteGr
 });
 
 const groupDetailRoute = defineContractRoute(frontendErrorContract.groupDetail, {
-  middleware: errorList,
   handler: async (c) => c.json(okBody(await getGroupDetail(c.req.valid('param').id)), 200),
 });
 
 const groupUpdateRoute = defineContractRoute(frontendErrorContract.updateGroup, {
-  middleware: errorManage,
   handler: async (c) => c.json(okBody(await updateGroup(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
 });
 
 // ─── 错误事件 ─────────────────────────────────────────────────────────────────
 const eventListRoute = defineContractRoute(frontendErrorContract.events, {
-  middleware: errorList,
   handler: async (c) => c.json(okBody(await listErrorEvents(c.req.valid('query'))), 200),
 });
 
 const cleanRoute = defineContractRoute(frontendErrorContract.clean, {
-  middleware: errorManage,
   handler: async (c) => {
     const n = await cleanErrors(c.req.valid('query').days);
     return c.json(okBody(null, `共清除 ${n} 条记录`), 200);
@@ -92,17 +77,14 @@ const cleanRoute = defineContractRoute(frontendErrorContract.clean, {
 
 // ─── Source Map ──────────────────────────────────────────────────────────────
 const sourceMapListRoute = defineContractRoute(frontendErrorContract.sourceMaps, {
-  middleware: errorManage,
   handler: async (c) => c.json(okBody(await listSourceMaps(c.req.valid('query'))), 200),
 });
 
 const sourceMapUploadRoute = defineContractRoute(frontendErrorContract.uploadSourceMap, {
-  middleware: errorManage,
   handler: async (c) => c.json(okBody(await uploadSourceMap(c.req.valid('json')), '上传成功'), 200),
 });
 
 const sourceMapDeleteRoute = defineContractRoute(frontendErrorContract.removeSourceMap, {
-  middleware: errorManage,
   handler: async (c) => {
     await deleteSourceMap(c.req.valid('param').id);
     return c.json(okBody(null, '删除成功'), 200);
@@ -111,22 +93,18 @@ const sourceMapDeleteRoute = defineContractRoute(frontendErrorContract.removeSou
 
 // ─── 告警规则 ─────────────────────────────────────────────────────────────────
 const alertListRoute = defineContractRoute(frontendErrorContract.alerts, {
-  middleware: alertList,
   handler: async (c) => c.json(okBody(await listAlertRules(c.req.valid('query'))), 200),
 });
 
 const alertCreateRoute = defineContractRoute(frontendErrorContract.createAlert, {
-  middleware: alertManage,
   handler: async (c) => c.json(okBody(await createAlertRule(c.req.valid('json')), '创建成功'), 200),
 });
 
 const alertUpdateRoute = defineContractRoute(frontendErrorContract.updateAlert, {
-  middleware: alertManage,
   handler: async (c) => c.json(okBody(await updateAlertRule(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
 });
 
 const alertDeleteRoute = defineContractRoute(frontendErrorContract.removeAlert, {
-  middleware: alertManage,
   handler: async (c) => {
     await deleteAlertRule(c.req.valid('param').id);
     return c.json(okBody(null, '删除成功'), 200);
@@ -134,12 +112,10 @@ const alertDeleteRoute = defineContractRoute(frontendErrorContract.removeAlert, 
 });
 
 const alertLogListRoute = defineContractRoute(frontendErrorContract.alertLogs, {
-  middleware: alertList,
   handler: async (c) => c.json(okBody(await listAlertLogs(c.req.valid('query'))), 200),
 });
 
 const alertTestRoute = defineContractRoute(frontendErrorContract.testAlert, {
-  middleware: alertManage,
   handler: async (c) => {
     await testAlertRule(c.req.valid('param').id);
     return c.json(okBody(null, '测试消息已发送，请检查各通知渠道'), 200);

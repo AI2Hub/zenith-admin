@@ -28,10 +28,10 @@ export const systemdControlParam = systemdServiceNameParam.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const systemdContract = defineContract('/api/systemd', {
-  logsStream: op.get('/{name}/logs/stream', { params: systemdServiceNameParam, query: hostQuery, kind: 'file', summary: '服务日志实时跟踪（journalctl -f 逐行流式输出）' }),
-  check: op.get('/check', { query: hostQuery, response: z.object({ available: z.boolean() }), summary: '检查 systemd 可用性' }),
-  list: op.get('/', { query: hostQuery, response: z.array(systemdServiceSchema), summary: '列出 systemd 服务' }),
-  control: op.post('/{name}/{action}', { params: systemdControlParam, query: hostQuery, summary: '控制服务（启停 / 重启 / 开机自启 / 屏蔽）' }),
-  detail: op.get('/{name}/detail', { params: systemdServiceNameParam, query: hostQuery, response: z.record(z.string(), z.string()).meta({ description: 'systemctl show 的键值对' }), summary: '获取服务详情' }),
-  logs: op.get('/{name}/logs', { params: systemdServiceNameParam, query: hostQuery, response: z.object({ logs: z.string() }), summary: '获取服务近期日志' }),
-}, { tags: ['Systemd'] });
+  logsStream: op.get('/{name}/logs/stream', { access: { permission: 'system:service:view' }, params: systemdServiceNameParam, query: hostQuery, kind: 'file', summary: '服务日志实时跟踪（journalctl -f 逐行流式输出）' }),
+  check: op.get('/check', { access: { permission: 'system:service:view' }, query: hostQuery, response: z.object({ available: z.boolean() }), summary: '检查 systemd 可用性' }),
+  list: op.get('/', { access: { permission: 'system:service:view' }, query: hostQuery, response: z.array(systemdServiceSchema), summary: '列出 systemd 服务' }),
+  control: op.post('/{name}/{action}', { access: { permission: 'system:service:manage' }, audit: '控制 systemd 服务', params: systemdControlParam, query: hostQuery, summary: '控制服务（启停 / 重启 / 开机自启 / 屏蔽）' }),
+  detail: op.get('/{name}/detail', { access: { permission: 'system:service:view' }, params: systemdServiceNameParam, query: hostQuery, response: z.record(z.string(), z.string()).meta({ description: 'systemctl show 的键值对' }), summary: '获取服务详情' }),
+  logs: op.get('/{name}/logs', { access: { permission: 'system:service:view' }, params: systemdServiceNameParam, query: hostQuery, response: z.object({ logs: z.string() }), summary: '获取服务近期日志' }),
+}, { auditModule: '服务管理', tags: ['Systemd'] });

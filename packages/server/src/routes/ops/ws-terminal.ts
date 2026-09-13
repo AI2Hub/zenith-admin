@@ -307,7 +307,6 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
       const ownedSession: { current: TerminalSession | null } = { current: null };
       let ownWs: ClientConn | null = null;
 
-
       return {
         async onOpen(_evt, ws) {
           if (!payload) {
@@ -617,7 +616,6 @@ export function createWsTerminalMonitorRoute(upgradeWebSocket: UpgradeWebSocket)
       const sessionId = c.req.query('sessionId') ?? '';
       const allowTakeover = c.req.query('takeover') === '1';
       const payload: JwtPayload | null = (await authenticateAdminWs(c))?.payload ?? null;
-
 
       let observer: { send: (data: string) => void } | null = null;
       // 通过租户与权限校验后取得的会话句柄；接管写入以此为准，

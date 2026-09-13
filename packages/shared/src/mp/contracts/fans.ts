@@ -60,13 +60,13 @@ export const mpFanListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const mpFanContract = defineContract('/api/mp/fans', {
-  list: op.get('/', { query: mpFanListQuery, response: paginated(mpFanSchema), summary: '粉丝列表' }),
-  sync: op.post('/sync', { body: mpAccountIdBody, response: mpFanSyncResultSchema, summary: '从微信同步粉丝' }),
-  blacklist: op.post('/blacklist', { body: blacklistMpFansSchema, response: mpFanBlacklistResultSchema, summary: '批量拉黑粉丝' }),
-  unblacklist: op.post('/unblacklist', { body: blacklistMpFansSchema, response: mpFanBlacklistResultSchema, summary: '批量移出黑名单' }),
-  syncBlacklist: op.post('/sync-blacklist', { body: mpAccountIdBody, response: mpFanSyncResultSchema, summary: '从微信同步黑名单' }),
-  update: op.put('/{id}', { params: idParam, body: updateMpFanSchema, response: mpFanSchema, summary: '更新粉丝备注/标签' }),
-  createMember: op.post('/{id}/create-member', { params: idParam, response: mpFanSchema, summary: '为粉丝创建并绑定会员' }),
-  bindMember: op.post('/{id}/bind-member', { params: idParam, body: bindMpFanMemberSchema, response: mpFanSchema, summary: '绑定粉丝到已有会员' }),
-  unbindMember: op.post('/{id}/unbind-member', { params: idParam, response: mpFanSchema, summary: '解绑粉丝会员' }),
-}, { tags: ['公众号粉丝'] });
+  list: op.get('/', { access: { permission: 'mp:fan:list' }, query: mpFanListQuery, response: paginated(mpFanSchema), summary: '粉丝列表' }),
+  sync: op.post('/sync', { access: { permission: 'mp:fan:sync' }, audit: '同步公众号粉丝', body: mpAccountIdBody, response: mpFanSyncResultSchema, summary: '从微信同步粉丝' }),
+  blacklist: op.post('/blacklist', { access: { permission: 'mp:fan:blacklist' }, audit: '拉黑粉丝', body: blacklistMpFansSchema, response: mpFanBlacklistResultSchema, summary: '批量拉黑粉丝' }),
+  unblacklist: op.post('/unblacklist', { access: { permission: 'mp:fan:blacklist' }, audit: '移出黑名单', body: blacklistMpFansSchema, response: mpFanBlacklistResultSchema, summary: '批量移出黑名单' }),
+  syncBlacklist: op.post('/sync-blacklist', { access: { permission: 'mp:fan:blacklist' }, audit: '同步黑名单', body: mpAccountIdBody, response: mpFanSyncResultSchema, summary: '从微信同步黑名单' }),
+  update: op.put('/{id}', { access: { permission: 'mp:fan:update' }, audit: '更新公众号粉丝', params: idParam, body: updateMpFanSchema, response: mpFanSchema, summary: '更新粉丝备注/标签' }),
+  createMember: op.post('/{id}/create-member', { access: { permission: 'mp:fan:bind' }, audit: '粉丝创建会员', params: idParam, response: mpFanSchema, summary: '为粉丝创建并绑定会员' }),
+  bindMember: op.post('/{id}/bind-member', { access: { permission: 'mp:fan:bind' }, audit: '粉丝绑定会员', params: idParam, body: bindMpFanMemberSchema, response: mpFanSchema, summary: '绑定粉丝到已有会员' }),
+  unbindMember: op.post('/{id}/unbind-member', { access: { permission: 'mp:fan:bind' }, audit: '粉丝解绑会员', params: idParam, response: mpFanSchema, summary: '解绑粉丝会员' }),
+}, { auditModule: '公众号粉丝', tags: ['公众号粉丝'] });

@@ -2,8 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { nginxSiteContract } from '@zenith/shared/ops';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import {
   getNginxInfo,
   listNginxSites,
@@ -20,21 +19,15 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const view = [authMiddleware, guard({ permission: 'system:nginx:view' })] as const;
-const manage = (description: string) => [authMiddleware, guard({ permission: 'system:nginx:manage', audit: { description, module: 'Nginx 站点' } })] as const;
-
 const infoRoute = defineContractRoute(nginxSiteContract.info, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getNginxInfo()), 200),
 });
 
 const testRoute = defineContractRoute(nginxSiteContract.test, {
-  middleware: manage('测试 Nginx 配置'),
   handler: async (c) => c.json(okBody(await testNginxConfig()), 200),
 });
 
 const reloadRoute = defineContractRoute(nginxSiteContract.reload, {
-  middleware: [authMiddleware, guard({ permission: 'system:nginx:reload', audit: { description: '重载 Nginx', module: 'Nginx 站点' } })],
   handler: async (c) => {
     await reloadNginx();
     return c.json(okBody(null, 'Nginx 已重载'), 200);
@@ -42,12 +35,10 @@ const reloadRoute = defineContractRoute(nginxSiteContract.reload, {
 });
 
 const detailRoute = defineContractRoute(nginxSiteContract.detail, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getNginxSiteDetail(c.req.valid('param').name)), 200),
 });
 
 const createRouteDef = defineContractRoute(nginxSiteContract.create, {
-  middleware: manage('创建 Nginx 站点'),
   handler: async (c) => {
     const input = c.req.valid('json');
     await createNginxSite(input);
@@ -57,7 +48,6 @@ const createRouteDef = defineContractRoute(nginxSiteContract.create, {
 });
 
 const updateRoute = defineContractRoute(nginxSiteContract.update, {
-  middleware: manage('更新 Nginx 站点配置'),
   handler: async (c) => {
     const { name } = c.req.valid('param');
     const { content } = c.req.valid('json');
@@ -69,7 +59,6 @@ const updateRoute = defineContractRoute(nginxSiteContract.update, {
 });
 
 const deleteRoute = defineContractRoute(nginxSiteContract.remove, {
-  middleware: manage('删除 Nginx 站点'),
   handler: async (c) => {
     const { name } = c.req.valid('param');
     setAuditBeforeData(c, await getNginxSiteDetail(name));
@@ -80,7 +69,6 @@ const deleteRoute = defineContractRoute(nginxSiteContract.remove, {
 });
 
 const enableRoute = defineContractRoute(nginxSiteContract.enable, {
-  middleware: manage('启用 Nginx 站点'),
   handler: async (c) => {
     const { name } = c.req.valid('param');
     setAuditBeforeData(c, await getNginxSiteDetail(name));
@@ -91,7 +79,6 @@ const enableRoute = defineContractRoute(nginxSiteContract.enable, {
 });
 
 const disableRoute = defineContractRoute(nginxSiteContract.disable, {
-  middleware: manage('禁用 Nginx 站点'),
   handler: async (c) => {
     const { name } = c.req.valid('param');
     setAuditBeforeData(c, await getNginxSiteDetail(name));
@@ -104,7 +91,7 @@ const disableRoute = defineContractRoute(nginxSiteContract.disable, {
 // 静态 /info /test /reload 先于动态 /{name} 注册
 mountCrud(router, nginxSiteContract,
   { list: listNginxSites },
-  { permission: { read: 'system:nginx:view' }, exclude: ['detail', 'create', 'update', 'remove'] },
+  { exclude: ['detail', 'create', 'update', 'remove'] },
   [
     infoRoute,
     testRoute,

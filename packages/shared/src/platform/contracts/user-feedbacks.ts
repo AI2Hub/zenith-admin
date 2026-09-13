@@ -38,9 +38,9 @@ export const userFeedbackListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const userFeedbackContract = defineContract('/api/feedbacks', {
-  submit: op.post('/', { body: createUserFeedbackSchema, response: userFeedbackSchema, summary: '提交意见反馈' }),
-  list: op.get('/', { query: userFeedbackListQuery, response: paginated(userFeedbackSchema), summary: '反馈列表' }),
-  handle: op.put('/{id}/handle', { params: idParam, body: handleUserFeedbackSchema, response: userFeedbackSchema, summary: '处理反馈' }),
-  removeBatch: op.delete('/batch', { body: batchIdsBody, summary: '批量删除反馈' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除反馈' }),
-}, { tags: ['意见反馈'] });
+  submit: op.post('/', { access: 'authenticated', body: createUserFeedbackSchema, response: userFeedbackSchema, summary: '提交意见反馈' }),
+  list: op.get('/', { access: { permission: 'system:feedback:list' }, query: userFeedbackListQuery, response: paginated(userFeedbackSchema), summary: '反馈列表' }),
+  handle: op.put('/{id}/handle', { access: { permission: 'system:feedback:handle' }, audit: '处理意见反馈', params: idParam, body: handleUserFeedbackSchema, response: userFeedbackSchema, summary: '处理反馈' }),
+  removeBatch: op.delete('/batch', { access: { permission: 'system:feedback:delete' }, audit: '批量删除意见反馈', body: batchIdsBody, summary: '批量删除反馈' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:feedback:delete' }, audit: '删除意见反馈', params: idParam, summary: '删除反馈' }),
+}, { auditModule: '意见反馈', tags: ['意见反馈'] });

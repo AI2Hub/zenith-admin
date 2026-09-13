@@ -12,7 +12,6 @@ import {
 import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
-const PERM = 'system:terminal:execute';
 
 // SSH 配置按用户归属，服务函数显式接收 userId（主机服务也会以指定用户调用）；此处绑定当前用户
 mountCrud(router, sshProfileContract,
@@ -24,9 +23,6 @@ mountCrud(router, sshProfileContract,
     remove: (id) => deleteSshProfile(id, currentUser().userId),
   },
   {
-    permission: { read: PERM, write: PERM },
-    label: 'SSH 配置',
-    module: 'Web 终端',
     messages: { create: null, update: null },
   },
 );

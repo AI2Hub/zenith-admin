@@ -32,9 +32,9 @@ export const smsTemplateListQuery = paginationQuery.extend({
 });
 
 export const smsTemplateContract = defineContract('/api/sms-templates', {
-  list: op.get('/', { query: smsTemplateListQuery, response: paginated(smsTemplateSchema), summary: '短信模板列表' }),
-  detail: op.get('/{id}', { params: idParam, response: smsTemplateSchema, summary: '获取短信模板详情' }),
-  create: op.post('/', { body: createSmsTemplateSchema, response: smsTemplateSchema, summary: '创建短信模板' }),
-  update: op.put('/{id}', { params: idParam, body: updateSmsTemplateSchema, response: smsTemplateSchema, summary: '更新短信模板' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除短信模板' }),
-}, { tags: ['SmsTemplates'] });
+  list: op.get('/', { access: { permission: 'system:sms-template:list' }, query: smsTemplateListQuery, response: paginated(smsTemplateSchema), summary: '短信模板列表' }),
+  detail: op.get('/{id}', { access: { permission: 'system:sms-template:list' }, params: idParam, response: smsTemplateSchema, summary: '获取短信模板详情' }),
+  create: op.post('/', { access: { permission: 'system:sms-template:create' }, audit: '创建短信模板', body: createSmsTemplateSchema, response: smsTemplateSchema, summary: '创建短信模板' }),
+  update: op.put('/{id}', { access: { permission: 'system:sms-template:update' }, audit: '更新短信模板', params: idParam, body: updateSmsTemplateSchema, response: smsTemplateSchema, summary: '更新短信模板' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:sms-template:delete' }, audit: '删除短信模板', params: idParam, summary: '删除短信模板' }),
+}, { auditModule: '短信模板', tags: ['SmsTemplates'] });

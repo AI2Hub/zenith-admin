@@ -1,6 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { authContract } from '@zenith/shared/identity';
-import { authMiddleware } from '../../middleware/auth';
 import { authRateLimit, captchaRateLimit, sensitiveRateLimit } from '../../middleware/rate-limit';
 import { generateCaptcha, resolveCaptchaComplexity } from '../../lib/captcha';
 import { getSettings } from '../../lib/settings';
@@ -26,8 +25,6 @@ import {
 } from '../../services/identity/identity-security.service';
 
 const auth = new OpenAPIHono({ defaultHook: validationHook });
-
-const authed = [authMiddleware] as const;
 
 const captchaRoute = defineContractRoute(authContract.captcha, {
   middleware: [captchaRateLimit] as const,
@@ -76,7 +73,6 @@ const mfaVerifyRoute = defineContractRoute(authContract.mfaVerify, {
 });
 
 const logoutRoute = defineContractRoute(authContract.logout, {
-  middleware: authed,
   handler: async (c) => {
     const { ip, ua } = getClientInfo(c);
     await logoutSession({ ip, ua });
@@ -94,17 +90,14 @@ const logoutByRefreshRoute = defineContractRoute(authContract.logoutByRefresh, {
 });
 
 const meRoute = defineContractRoute(authContract.me, {
-  middleware: authed,
   handler: async (c) => c.json(okBody(await getMyProfile()), 200),
 });
 
 const profileRoute = defineContractRoute(authContract.updateProfile, {
-  middleware: authed,
   handler: async (c) => c.json(okBody(await updateMyProfile(c.req.valid('json')), '资料已更新'), 200),
 });
 
 const passwordRoute = defineContractRoute(authContract.changePassword, {
-  middleware: authed,
   handler: async (c) => {
     const { oldPassword, newPassword } = c.req.valid('json');
     await changeMyPassword(oldPassword, newPassword);
@@ -113,22 +106,18 @@ const passwordRoute = defineContractRoute(authContract.changePassword, {
 });
 
 const myLoginLogsRoute = defineContractRoute(authContract.myLoginLogs, {
-  middleware: authed,
   handler: async (c) => c.json(okBody(await listMyLoginLogs(c.req.valid('query'))), 200),
 });
 
 const myOperationLogsRoute = defineContractRoute(authContract.myOperationLogs, {
-  middleware: authed,
   handler: async (c) => c.json(okBody(await listMyOperationLogs(c.req.valid('query'))), 200),
 });
 
 const mySessionsRoute = defineContractRoute(authContract.mySessions, {
-  middleware: authed,
   handler: async (c) => c.json(okBody(await listMySessions()), 200),
 });
 
 const deleteOtherSessionsRoute = defineContractRoute(authContract.deleteOtherSessions, {
-  middleware: authed,
   handler: async (c) => {
     const count = await deleteMyOtherSessions();
     return c.json(okBody({ count }, `已退出 ${count} 个其他设备`), 200);
@@ -136,7 +125,6 @@ const deleteOtherSessionsRoute = defineContractRoute(authContract.deleteOtherSes
 });
 
 const deleteSessionRoute = defineContractRoute(authContract.deleteSession, {
-  middleware: authed,
   handler: async (c) => {
     await deleteMySession(c.req.valid('param').tokenId);
     return c.json(okBody(null, '已退出该设备'), 200);
@@ -144,7 +132,6 @@ const deleteSessionRoute = defineContractRoute(authContract.deleteSession, {
 });
 
 const switchTenantRoute = defineContractRoute(authContract.switchTenant, {
-  middleware: authed,
   handler: async (c) => {
     const { tenantId } = c.req.valid('json');
     const { ip, ua } = getClientInfo(c);
@@ -154,7 +141,6 @@ const switchTenantRoute = defineContractRoute(authContract.switchTenant, {
 });
 
 const authTenantsRoute = defineContractRoute(authContract.tenants, {
-  middleware: authed,
   handler: async (c) => c.json(okBody(await listSwitchableTenants()), 200),
 });
 
@@ -176,27 +162,22 @@ const resetPasswordRoute = defineContractRoute(authContract.resetPassword, {
 });
 
 const getPreferencesRoute = defineContractRoute(authContract.preferences, {
-  middleware: authed,
   handler: async (c) => c.json(okBody(await getMyPreferences()), 200),
 });
 
 const savePreferencesRoute = defineContractRoute(authContract.savePreferences, {
-  middleware: authed,
   handler: async (c) => c.json(okBody(await saveMyPreferences(c.req.valid('json'))), 200),
 });
 
 const getFavoriteMenusRoute = defineContractRoute(authContract.favoriteMenus, {
-  middleware: authed,
   handler: async (c) => c.json(okBody(await getMyFavoriteMenus()), 200),
 });
 
 const saveFavoriteMenusRoute = defineContractRoute(authContract.saveFavoriteMenus, {
-  middleware: authed,
   handler: async (c) => c.json(okBody(await saveMyFavoriteMenus(c.req.valid('json').menuIds)), 200),
 });
 
 const verifyPasswordRoute = defineContractRoute(authContract.verifyPassword, {
-  middleware: authed,
   handler: async (c) => {
     await verifyMyPassword(c.req.valid('json').password);
     return c.json(okBody(null, '验证通过'), 200);
@@ -204,17 +185,14 @@ const verifyPasswordRoute = defineContractRoute(authContract.verifyPassword, {
 });
 
 const myMfaFactorsRoute = defineContractRoute(authContract.mfaFactors, {
-  middleware: authed,
   handler: async (c) => c.json(okBody(await listMyMfaFactors()), 200),
 });
 
 const beginTotpSetupRoute = defineContractRoute(authContract.beginTotpSetup, {
-  middleware: authed,
   handler: async (c) => c.json(okBody(await beginTotpSetup()), 200),
 });
 
 const verifyTotpSetupRoute = defineContractRoute(authContract.verifyTotpSetup, {
-  middleware: authed,
   handler: async (c) => {
     const { factorId, code } = c.req.valid('json');
     await verifyTotpSetup(factorId, code);
@@ -223,7 +201,6 @@ const verifyTotpSetupRoute = defineContractRoute(authContract.verifyTotpSetup, {
 });
 
 const disableMfaFactorRoute = defineContractRoute(authContract.disableMfaFactor, {
-  middleware: authed,
   handler: async (c) => {
     await disableMyMfaFactor(c.req.valid('param').id);
     return c.json(okBody(null, '已停用'), 200);
@@ -231,7 +208,6 @@ const disableMfaFactorRoute = defineContractRoute(authContract.disableMfaFactor,
 });
 
 const deleteMfaFactorRoute = defineContractRoute(authContract.deleteMfaFactor, {
-  middleware: authed,
   handler: async (c) => {
     await deleteMyMfaFactor(c.req.valid('param').id);
     return c.json(okBody(null, '已删除'), 200);
@@ -239,12 +215,10 @@ const deleteMfaFactorRoute = defineContractRoute(authContract.deleteMfaFactor, {
 });
 
 const myTrustedDevicesRoute = defineContractRoute(authContract.trustedDevices, {
-  middleware: authed,
   handler: async (c) => c.json(okBody(await listMyTrustedDevices()), 200),
 });
 
 const deleteTrustedDeviceRoute = defineContractRoute(authContract.removeTrustedDevice, {
-  middleware: authed,
   handler: async (c) => {
     await removeMyTrustedDevice(c.req.valid('param').id);
     return c.json(okBody(null, '已移除'), 200);

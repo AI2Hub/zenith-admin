@@ -41,7 +41,7 @@ export const importEntityParam = z.object({
  * 文件先经文件中心 `fileContract.upload` 上传拿到 fileId，再提交导入任务。
  */
 export const importJobContract = defineContract('/api/import-jobs', {
-  entities: op.get('/entities', { response: z.array(importEntityMetaSchema), summary: '可导入实体列表（按权限过滤）' }),
-  template: op.get('/{entity}/template', { params: importEntityParam, kind: 'file', summary: '下载导入模板' }),
-  submit: op.post('/', { body: submitImportJobSchema, response: asyncTaskSchema, summary: '提交导入任务（文件先经 /api/files/upload 上传）' }),
-}, { tags: ['ImportJobs'] });
+  entities: op.get('/entities', { access: 'authenticated', response: z.array(importEntityMetaSchema), summary: '可导入实体列表（按权限过滤）' }),
+  template: op.get('/{entity}/template', { access: 'authenticated', params: importEntityParam, kind: 'file', summary: '下载导入模板' }),
+  submit: op.post('/', { access: 'authenticated', audit: '提交数据导入任务', body: submitImportJobSchema, response: asyncTaskSchema, summary: '提交导入任务（文件先经 /api/files/upload 上传）' }),
+}, { auditModule: '导入中心', tags: ['ImportJobs'] });

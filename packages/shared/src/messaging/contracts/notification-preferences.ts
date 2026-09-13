@@ -60,8 +60,8 @@ export type NotificationRecipientSettings = z.infer<typeof notificationRecipient
 // ─── 契约（登录用户自助，不挂权限码） ─────────────────────────────────────────
 
 export const notificationPreferenceContract = defineContract('/api/notification-preferences', {
-  matrix: op.get('/matrix', { response: z.array(notificationMatrixGroupSchema), summary: '我的通知偏好矩阵' }),
-  saveMatrix: op.put('/matrix', { body: saveNotificationPreferencesSchema, summary: '保存我的通知偏好' }),
-  settings: op.get('/settings', { response: notificationRecipientSettingsSchema, summary: '我的通知全局设置' }),
-  saveSettings: op.put('/settings', { body: saveNotificationSettingsSchema, response: notificationRecipientSettingsSchema, summary: '保存我的通知全局设置' }),
+  matrix: op.get('/matrix', { access: 'authenticated', response: z.array(notificationMatrixGroupSchema), summary: '我的通知偏好矩阵' }),
+  saveMatrix: op.put('/matrix', { access: 'authenticated', body: saveNotificationPreferencesSchema, summary: '保存我的通知偏好' }),
+  settings: op.get('/settings', { access: 'authenticated', response: notificationRecipientSettingsSchema, summary: '我的通知全局设置' }),
+  saveSettings: op.put('/settings', { access: 'authenticated', body: saveNotificationSettingsSchema, response: notificationRecipientSettingsSchema, summary: '保存我的通知全局设置' }),
 }, { tags: ['NotificationPreferences'] });

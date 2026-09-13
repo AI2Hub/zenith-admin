@@ -1,8 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { tenantPackageContract } from '@zenith/shared/identity';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
-import { platformAdminOnly } from '../../middleware/platform-admin';
+import { setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
@@ -21,15 +19,11 @@ import { mountCrud } from '../_crud';
 
 const tenantPackagesRoute = new OpenAPIHono({ defaultHook: validationHook });
 
-const admin = [authMiddleware, platformAdminOnly({ message: '仅平台管理员可管理租户套餐' })] as const;
-
 const allRoute = defineContractRoute(tenantPackageContract.all, {
-  middleware: admin,
   handler: async (c) => c.json(okBody(await listAllTenantPackages()), 200),
 });
 
 const assignFeaturesRouteDef = defineContractRoute(tenantPackageContract.assignFeatures, {
-  middleware: [...admin, guard({ audit: { module: '租户套餐', description: '分配套餐功能' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { features } = c.req.valid('json');
@@ -43,7 +37,6 @@ const assignFeaturesRouteDef = defineContractRoute(tenantPackageContract.assignF
 });
 
 const batchDeleteRouteDef = defineContractRoute(tenantPackageContract.removeBatch, {
-  middleware: [...admin, guard({ audit: { module: '租户套餐', description: '批量删除套餐' } })],
   handler: async (c) => {
     const { ids } = c.req.valid('json');
     const before = await getTenantPackagesBeforeAudit(ids);
@@ -63,10 +56,6 @@ mountCrud(tenantPackagesRoute, tenantPackageContract,
     remove: deleteTenantPackage,
   },
   {
-    permission: null,
-    label: '套餐',
-    module: '租户套餐',
-    middleware: [platformAdminOnly({ message: '仅平台管理员可管理租户套餐' })],
     exclude: ['removeBatch'],
   },
   [allRoute, assignFeaturesRouteDef, batchDeleteRouteDef],

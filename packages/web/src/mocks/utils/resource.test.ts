@@ -18,16 +18,16 @@ const itemSchema = z.object({
 type Item = z.infer<typeof itemSchema>;
 const createSchema = z.object({ name: z.string().min(1), code: z.string(), status: entityStatusSchema.default('enabled'), pinned: z.boolean().default(false), groupId: z.int().nullable().optional() });
 const itemContract = defineContract('/api/res-items', {
-  list: op.get('/', {
+  list: op.get('/', { access: 'authenticated',
     query: paginationQuery.extend({ keyword: keywordQuery('名称 / 编码'), status: entityStatusQuery, pinned: queryBool(), groupId: idQuery(), ...dateRangeQuery('创建时间') }),
     response: paginated(itemSchema), summary: '列表',
   }),
-  detail: op.get('/{id}', { params: idParam, response: itemSchema, summary: '详情' }),
-  create: op.post('/', { body: createSchema, response: itemSchema, summary: '创建' }),
-  update: op.put('/{id}', { params: idParam, body: createSchema.partial(), response: itemSchema, summary: '更新' }),
-  removeBatch: op.delete('/batch', { body: batchIdsBody, summary: '批量删除' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除' }),
-  toggle: op.post('/{id}/toggle', { params: idParam, response: itemSchema, summary: '切换' }),
+  detail: op.get('/{id}', { access: 'authenticated', params: idParam, response: itemSchema, summary: '详情' }),
+  create: op.post('/', { access: 'authenticated', body: createSchema, response: itemSchema, summary: '创建' }),
+  update: op.put('/{id}', { access: 'authenticated', params: idParam, body: createSchema.partial(), response: itemSchema, summary: '更新' }),
+  removeBatch: op.delete('/batch', { access: 'authenticated', body: batchIdsBody, summary: '批量删除' }),
+  remove: op.delete('/{id}', { access: 'authenticated', params: idParam, summary: '删除' }),
+  toggle: op.post('/{id}/toggle', { access: 'authenticated', params: idParam, response: itemSchema, summary: '切换' }),
 });
 
 const ORIGIN = window.location.origin;

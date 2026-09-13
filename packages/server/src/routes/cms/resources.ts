@@ -1,8 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { cmsResourceContract } from '@zenith/shared/cms';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -26,9 +24,7 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'cms:resource:list' })] as const;
 const uploadRoute = defineContractRoute(cmsResourceContract.upload, {
-  middleware: [authMiddleware, guard({ permission: 'cms:resource:upload', audit: { description: 'CMS 上传素材', module: 'CMS内容管理', recordBody: false } })],
   responses: { 400: { content: jsonContent(ErrorResponse), description: '未选择文件或无可用存储' } },
   handler: async (c) => {
     const { siteId, folderId } = c.req.valid('query');
@@ -42,22 +38,18 @@ const uploadRoute = defineContractRoute(cmsResourceContract.upload, {
 });
 
 const updateRoute = defineContractRoute(cmsResourceContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'cms:resource:update', audit: { description: 'CMS 编辑素材', module: 'CMS内容管理' } })],
   handler: async (c) => c.json(okBody(await updateCmsResource(c.req.valid('param').id, c.req.valid('json')), '已保存'), 200),
 });
 
 const referencesRoute = defineContractRoute(cmsResourceContract.references, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listCmsResourceReferences(c.req.valid('param').id)), 200),
 });
 
 const cropRoute = defineContractRoute(cmsResourceContract.crop, {
-  middleware: [authMiddleware, guard({ permission: 'cms:resource:update', audit: { description: 'CMS 裁剪素材', module: 'CMS内容管理' } })],
   handler: async (c) => c.json(okBody(await cropCmsResource(c.req.valid('param').id, c.req.valid('json')), '裁剪成功，已另存为新素材'), 200),
 });
 
 const deleteRoute = defineContractRoute(cmsResourceContract.batchDelete, {
-  middleware: [authMiddleware, guard({ permission: 'cms:resource:delete', audit: { description: 'CMS 删除素材', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { ids } = c.req.valid('json');
     const count = await deleteCmsResources(ids);
@@ -66,22 +58,18 @@ const deleteRoute = defineContractRoute(cmsResourceContract.batchDelete, {
 });
 
 const folderTreeRoute = defineContractRoute(cmsResourceContract.folders, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listCmsResourceFolderTree(c.req.valid('query').siteId)), 200),
 });
 
 const createFolderRoute = defineContractRoute(cmsResourceContract.folderCreate, {
-  middleware: [authMiddleware, guard({ permission: 'cms:resource:update', audit: { description: '创建 CMS 素材文件夹', module: 'CMS内容管理' } })],
   handler: async (c) => c.json(okBody(await createCmsResourceFolder(c.req.valid('json')), '创建成功'), 200),
 });
 
 const updateFolderRoute = defineContractRoute(cmsResourceContract.folderUpdate, {
-  middleware: [authMiddleware, guard({ permission: 'cms:resource:update', audit: { description: '更新 CMS 素材文件夹', module: 'CMS内容管理' } })],
   handler: async (c) => c.json(okBody(await updateCmsResourceFolder(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
 });
 
 const deleteFolderRoute = defineContractRoute(cmsResourceContract.folderRemove, {
-  middleware: [authMiddleware, guard({ permission: 'cms:resource:delete', audit: { description: '删除 CMS 素材文件夹', module: 'CMS内容管理' } })],
   handler: async (c) => {
     await deleteCmsResourceFolder(c.req.valid('param').id);
     return c.json(okBody(null, '删除成功'), 200);
@@ -89,7 +77,6 @@ const deleteFolderRoute = defineContractRoute(cmsResourceContract.folderRemove, 
 });
 
 const governanceRoute = defineContractRoute(cmsResourceContract.governance, {
-  middleware: [authMiddleware, guard({ permission: 'cms:resource:delete', audit: { description: '提交 CMS 素材治理任务', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const payload = c.req.valid('json');
     const row = await submitCmsResourceTask(
@@ -101,7 +88,6 @@ const governanceRoute = defineContractRoute(cmsResourceContract.governance, {
 });
 
 const moveResourcesRoute = defineContractRoute(cmsResourceContract.move, {
-  middleware: [authMiddleware, guard({ permission: 'cms:resource:update', audit: { description: '批量移动 CMS 素材', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const body = c.req.valid('json');
     const row = await submitCmsResourceTask({
@@ -115,7 +101,6 @@ const moveResourcesRoute = defineContractRoute(cmsResourceContract.move, {
 });
 
 const replaceRoute = defineContractRoute(cmsResourceContract.replace, {
-  middleware: [authMiddleware, guard({ permission: 'cms:resource:update', audit: { description: 'CMS 替换素材', module: 'CMS内容管理', recordBody: false } })],
   responses: { 400: { content: jsonContent(ErrorResponse), description: '未选择文件或类型不匹配' } },
   handler: async (c) => {
     const body = await c.req.parseBody();
@@ -129,7 +114,6 @@ const replaceRoute = defineContractRoute(cmsResourceContract.replace, {
 });
 
 const rebuildRefsRoute = defineContractRoute(cmsResourceContract.rebuildRefs, {
-  middleware: [authMiddleware, guard({ permission: 'cms:resource:update', audit: { description: '重建 CMS 素材引用索引', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const row = await submitCmsResourceRefRebuildTask(c.req.valid('json').siteId);
     return c.json(okBody(mapAsyncTask(row), '任务已提交'), 200);
@@ -139,10 +123,6 @@ const rebuildRefsRoute = defineContractRoute(cmsResourceContract.rebuildRefs, {
 mountCrud(router, cmsResourceContract,
   { list: listCmsResources },
   {
-    permission: 'cms:resource',
-    label: 'CMS 编辑素材',
-    module: 'CMS内容管理',
-    audit: { update: 'CMS 编辑素材' },
     messages: { update: '已保存' },
     exclude: ['update'],
   },

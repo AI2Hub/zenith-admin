@@ -22,9 +22,9 @@ export const logFileNameParam = z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const logFileContract = defineContract('/api/log-files', {
-  list: op.get('/', { response: z.array(logFileSchema), summary: '日志文件列表' }),
-  content: op.get('/{filename}/content', { params: logFileNameParam, query: logTailQuery, response: logLinesSchema, summary: '读取日志文件内容（最后 N 行）' }),
-  remove: op.delete('/{filename}', { params: logFileNameParam, summary: '删除日志文件' }),
-  download: op.get('/{filename}/download', { params: logFileNameParam, kind: 'file', summary: '下载日志文件' }),
-  tail: op.get('/{filename}/tail', { params: logFileNameParam, kind: 'sse', response: z.string(), summary: '日志实时跟踪（SSE，event: log）' }),
-}, { tags: ['LogFiles'] });
+  list: op.get('/', { access: { permission: 'system:log:files' }, response: z.array(logFileSchema), summary: '日志文件列表' }),
+  content: op.get('/{filename}/content', { access: { permission: 'system:log:files' }, params: logFileNameParam, query: logTailQuery, response: logLinesSchema, summary: '读取日志文件内容（最后 N 行）' }),
+  remove: op.delete('/{filename}', { access: { permission: 'system:log:files:delete' }, audit: '删除日志文件', params: logFileNameParam, summary: '删除日志文件' }),
+  download: op.get('/{filename}/download', { access: { permission: 'system:log:files:download' }, params: logFileNameParam, kind: 'file', summary: '下载日志文件' }),
+  tail: op.get('/{filename}/tail', { access: { permission: 'system:log:files' }, params: logFileNameParam, kind: 'sse', response: z.string(), summary: '日志实时跟踪（SSE，event: log）' }),
+}, { auditModule: '日志文件', tags: ['LogFiles'] });

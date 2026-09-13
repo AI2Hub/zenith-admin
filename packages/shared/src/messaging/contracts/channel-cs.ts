@@ -91,17 +91,17 @@ export const channelQuickReplyListQuery = z.object({
 // ─── 契约：客服工作台 ────────────────────────────────────────────────────────
 
 export const channelCsContract = defineContract('/api/channels', {
-  csChannels: op.get('/cs/channels', { response: z.array(channelCsChannelSchema), summary: '客服可服务的运营号列表' }),
-  csAgents: op.get('/cs/agents', { response: z.array(channelCsAgentSchema), summary: '可指派的客服列表' }),
-  csPerformance: op.get('/cs/performance', { response: z.array(channelCsPerformanceSchema), summary: '客服绩效统计' }),
-  conversations: op.get('/cs/{id}/conversations', { params: idParam, query: channelConversationListQuery, response: z.array(channelConversationSchema), summary: '客服会话列表（按用户聚合）' }),
-  conversationMessages: op.get('/cs/{id}/conversations/{userId}/messages', { params: channelUserParams, query: paginationQuery, response: paginated(channelMessageSchema), summary: '会话双向消息流（分页）' }),
-  reply: op.post('/cs/{id}/conversations/{userId}/reply', { params: channelUserParams, body: channelReplySchema, response: channelMessageSchema, summary: '客服回复用户' }),
-  assign: op.post('/cs/{id}/conversations/{userId}/assign', { params: channelUserParams, body: assignConversationSchema, summary: '指派 / 转接会话' }),
-  resolve: op.post('/cs/{id}/conversations/{userId}/resolve', { params: channelUserParams, summary: '标记会话已解决' }),
-  setTags: op.put('/cs/{id}/conversations/{userId}/tags', { params: channelUserParams, body: setConversationTagsSchema, summary: '设置会话标签' }),
-  quickReplies: op.get('/cs/quick-replies', { query: channelQuickReplyListQuery, response: z.array(channelQuickReplySchema), summary: '客服快捷回复列表' }),
-  createQuickReply: op.post('/cs/quick-replies', { body: createChannelQuickReplySchema, response: channelQuickReplySchema, summary: '新建快捷回复' }),
-  updateQuickReply: op.put('/cs/quick-replies/{id}', { params: idParam, body: updateChannelQuickReplySchema, response: channelQuickReplySchema, summary: '编辑快捷回复' }),
-  removeQuickReply: op.delete('/cs/quick-replies/{id}', { params: idParam, summary: '删除快捷回复' }),
-}, { tags: ['Channels'] });
+  csChannels: op.get('/cs/channels', { access: { permission: 'channel:cs' }, response: z.array(channelCsChannelSchema), summary: '客服可服务的运营号列表' }),
+  csAgents: op.get('/cs/agents', { access: { permission: 'channel:cs' }, response: z.array(channelCsAgentSchema), summary: '可指派的客服列表' }),
+  csPerformance: op.get('/cs/performance', { access: { permission: 'channel:cs' }, response: z.array(channelCsPerformanceSchema), summary: '客服绩效统计' }),
+  conversations: op.get('/cs/{id}/conversations', { access: { permission: 'channel:cs' }, params: idParam, query: channelConversationListQuery, response: z.array(channelConversationSchema), summary: '客服会话列表（按用户聚合）' }),
+  conversationMessages: op.get('/cs/{id}/conversations/{userId}/messages', { access: { permission: 'channel:cs' }, params: channelUserParams, query: paginationQuery, response: paginated(channelMessageSchema), summary: '会话双向消息流（分页）' }),
+  reply: op.post('/cs/{id}/conversations/{userId}/reply', { access: { permission: 'channel:cs' }, audit: '客服回复', params: channelUserParams, body: channelReplySchema, response: channelMessageSchema, summary: '客服回复用户' }),
+  assign: op.post('/cs/{id}/conversations/{userId}/assign', { access: { permission: 'channel:cs' }, audit: '指派会话', params: channelUserParams, body: assignConversationSchema, summary: '指派 / 转接会话' }),
+  resolve: op.post('/cs/{id}/conversations/{userId}/resolve', { access: { permission: 'channel:cs' }, audit: '解决会话', params: channelUserParams, summary: '标记会话已解决' }),
+  setTags: op.put('/cs/{id}/conversations/{userId}/tags', { access: { permission: 'channel:cs' }, audit: '设置会话标签', params: channelUserParams, body: setConversationTagsSchema, summary: '设置会话标签' }),
+  quickReplies: op.get('/cs/quick-replies', { access: { permission: 'channel:cs' }, query: channelQuickReplyListQuery, response: z.array(channelQuickReplySchema), summary: '客服快捷回复列表' }),
+  createQuickReply: op.post('/cs/quick-replies', { access: { permission: 'channel:cs' }, audit: '新建快捷回复', body: createChannelQuickReplySchema, response: channelQuickReplySchema, summary: '新建快捷回复' }),
+  updateQuickReply: op.put('/cs/quick-replies/{id}', { access: { permission: 'channel:cs' }, audit: '编辑快捷回复', params: idParam, body: updateChannelQuickReplySchema, response: channelQuickReplySchema, summary: '编辑快捷回复' }),
+  removeQuickReply: op.delete('/cs/quick-replies/{id}', { access: { permission: 'channel:cs' }, audit: '删除快捷回复', params: idParam, summary: '删除快捷回复' }),
+}, { auditModule: '消息中心', tags: ['Channels'] });

@@ -3,8 +3,6 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { iotAlarmContract, iotAlarmRuleContract, iotMaintenanceWindowContract } from '@zenith/shared/iot';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -34,10 +32,6 @@ const notFound = { 404: { content: jsonContent(ErrorResponse), description: '不
 export const iotAlarmsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 const acknowledgeAlarmRoute = defineContractRoute(iotAlarmContract.acknowledge, {
-  middleware: [authMiddleware, guard({
-    permission: 'iot:alarm:resolve',
-    audit: { description: '认领 IoT 告警', module: 'IoT 告警' },
-  })],
   responses: { 404: { content: jsonContent(ErrorResponse), description: '不存在或已被认领/恢复' } },
   handler: async (c) => {
     const { id } = c.req.valid('param');
@@ -46,10 +40,6 @@ const acknowledgeAlarmRoute = defineContractRoute(iotAlarmContract.acknowledge, 
 });
 
 const resolveAlarmRoute = defineContractRoute(iotAlarmContract.resolve, {
-  middleware: [authMiddleware, guard({
-    permission: 'iot:alarm:resolve',
-    audit: { description: '处理 IoT 告警', module: 'IoT 告警' },
-  })],
   responses: { 404: { content: jsonContent(ErrorResponse), description: '不存在或已恢复' } },
   handler: async (c) => {
     const { id } = c.req.valid('param');
@@ -60,7 +50,7 @@ const resolveAlarmRoute = defineContractRoute(iotAlarmContract.resolve, {
 
 mountCrud(iotAlarmsRouter, iotAlarmContract,
   { list: listIotAlarms },
-  { permission: 'iot:alarm' },
+  {},
   [acknowledgeAlarmRoute, resolveAlarmRoute],
 );
 
@@ -76,10 +66,6 @@ mountCrud(iotAlarmRulesRouter, iotAlarmRuleContract,
     remove: deleteIotAlarmRule,
   },
   {
-    permission: { read: 'iot:alarm:list', create: 'iot:alarm:rule:create', update: 'iot:alarm:rule:update', remove: 'iot:alarm:rule:delete' },
-    label: 'IoT 告警规则',
-    module: 'IoT 告警',
-    audit: { create: '创建 IoT 告警规则', update: '更新 IoT 告警规则', remove: '删除 IoT 告警规则' },
     responses: { update: notFound, remove: notFound },
   },
 );
@@ -96,10 +82,6 @@ mountCrud(iotMaintenanceWindowsRouter, iotMaintenanceWindowContract,
     remove: deleteIotMaintenanceWindow,
   },
   {
-    permission: { read: 'iot:alarm:list', create: 'iot:alarm:rule:create', update: 'iot:alarm:rule:update', remove: 'iot:alarm:rule:delete' },
-    label: 'IoT 维护窗口',
-    module: 'IoT 告警',
-    audit: { create: '创建 IoT 维护窗口', update: '更新 IoT 维护窗口', remove: '删除 IoT 维护窗口' },
     responses: { update: notFound, remove: notFound },
   },
 );

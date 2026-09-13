@@ -54,9 +54,9 @@ export const pidParam = z.object({
 });
 
 export const processContract = defineContract('/api/processes', {
-  list: op.get('/', { query: hostQuery, response: processListResponseSchema, summary: '获取进程列表' }),
-  stream: op.get('/stream', { query: hostQuery, kind: 'sse', response: z.string(), summary: '进程列表 SSE 实时推送（每 3 秒一帧）' }),
-  detail: op.get('/{pid}', { params: pidParam, query: hostQuery, response: processInfoSchema, summary: '获取进程详情' }),
-  kill: op.delete('/{pid}', { params: pidParam, query: hostQuery, body: killProcessSchema, summary: '结束进程' }),
-  setPriority: op.put('/{pid}/priority', { params: pidParam, query: hostQuery, body: setProcessPrioritySchema, summary: '调整进程优先级' }),
-}, { tags: ['进程管理'] });
+  list: op.get('/', { access: { permission: 'system:process:view' }, query: hostQuery, response: processListResponseSchema, summary: '获取进程列表' }),
+  stream: op.get('/stream', { access: { permission: 'system:process:view' }, query: hostQuery, kind: 'sse', response: z.string(), summary: '进程列表 SSE 实时推送（每 3 秒一帧）' }),
+  detail: op.get('/{pid}', { access: { permission: 'system:process:view' }, params: pidParam, query: hostQuery, response: processInfoSchema, summary: '获取进程详情' }),
+  kill: op.delete('/{pid}', { access: { permission: 'system:process:kill' }, audit: '结束进程', params: pidParam, query: hostQuery, body: killProcessSchema, summary: '结束进程' }),
+  setPriority: op.put('/{pid}/priority', { access: { permission: 'system:process:priority' }, audit: '调整进程优先级', params: pidParam, query: hostQuery, body: setProcessPrioritySchema, summary: '调整进程优先级' }),
+}, { auditModule: '进程管理', tags: ['进程管理'] });

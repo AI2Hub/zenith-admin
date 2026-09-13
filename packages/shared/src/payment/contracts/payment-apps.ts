@@ -36,9 +36,9 @@ export const paymentAppListQuery = paginationQuery.extend({
 });
 
 export const paymentAppContract = defineContract('/api/payment/apps', {
-  list: op.get('/', { query: paymentAppListQuery, response: paginated(paymentAppSchema), summary: '支付应用列表' }),
-  detail: op.get('/{id}', { params: idParam, response: paymentAppSchema, summary: '支付应用详情' }),
-  create: op.post('/', { body: createPaymentAppSchema, response: paymentAppSchema, summary: '新增支付应用' }),
-  update: op.put('/{id}', { params: idParam, body: updatePaymentAppSchema, response: paymentAppSchema, summary: '编辑支付应用' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除支付应用' }),
-}, { tags: ['支付中心-应用'] });
+  list: op.get('/', { access: { permission: 'payment:app:list' }, query: paymentAppListQuery, response: paginated(paymentAppSchema), summary: '支付应用列表' }),
+  detail: op.get('/{id}', { access: { permission: 'payment:app:list' }, params: idParam, response: paymentAppSchema, summary: '支付应用详情' }),
+  create: op.post('/', { access: { permission: 'payment:app:manage' }, audit: '新增支付应用', body: createPaymentAppSchema, response: paymentAppSchema, summary: '新增支付应用' }),
+  update: op.put('/{id}', { access: { permission: 'payment:app:manage' }, audit: '编辑支付应用', params: idParam, body: updatePaymentAppSchema, response: paymentAppSchema, summary: '编辑支付应用' }),
+  remove: op.delete('/{id}', { access: { permission: 'payment:app:manage' }, audit: '删除支付应用', params: idParam, summary: '删除支付应用' }),
+}, { auditModule: '支付中心', tags: ['支付中心-应用'] });

@@ -87,22 +87,24 @@ export const shortLinkStatsQuery = z.object({
 });
 
 export const shortLinkContract = defineContract('/api/short-links', {
-  list: op.get('/', { query: shortLinkListQuery, response: paginated(shortLinkSchema), summary: '短链列表' }),
-  removeBatch: op.delete('/batch', { body: batchIdsBody, summary: '批量删除短链' }),
-  batchUpdateStatus: op.put('/batch/status', { body: batchUpdateShortLinkStatusSchema, summary: '批量启用/禁用短链' }),
+  list: op.get('/', { access: { permission: 'shortlink:link:list' }, query: shortLinkListQuery, response: paginated(shortLinkSchema), summary: '短链列表' }),
+  removeBatch: op.delete('/batch', { access: { permission: 'shortlink:link:delete' }, audit: '批量删除短链', body: batchIdsBody, summary: '批量删除短链' }),
+  batchUpdateStatus: op.put('/batch/status', { access: { permission: 'shortlink:link:update' }, audit: '批量更新短链状态', body: batchUpdateShortLinkStatusSchema, summary: '批量启用/禁用短链' }),
   ensure: op.post('/ensure', {
+    access: { permission: 'shortlink:link:create' }, audit: '业务对象生成短链',
     body: ensureShortLinkSchema,
     response: shortLinkSchema,
     summary: '为业务对象幂等获取短链（同 bizType+bizRef 复用）',
   }),
-  detail: op.get('/{id}', { params: idParam, response: shortLinkSchema, summary: '获取短链详情' }),
+  detail: op.get('/{id}', { access: { permission: 'shortlink:link:list' }, params: idParam, response: shortLinkSchema, summary: '获取短链详情' }),
   stats: op.get('/{id}/stats', {
+    access: { permission: 'shortlink:stats:view' },
     params: idParam,
     query: shortLinkStatsQuery,
     response: shortLinkStatsSchema,
     summary: '短链访问统计（趋势/设备/地域/来源）',
   }),
-  create: op.post('/', { body: createShortLinkSchema, response: shortLinkSchema, summary: '创建短链' }),
-  update: op.put('/{id}', { params: idParam, body: updateShortLinkSchema, response: shortLinkSchema, summary: '更新短链' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除短链' }),
-}, { tags: ['短链管理'] });
+  create: op.post('/', { access: { permission: 'shortlink:link:create' }, audit: '创建短链', body: createShortLinkSchema, response: shortLinkSchema, summary: '创建短链' }),
+  update: op.put('/{id}', { access: { permission: 'shortlink:link:update' }, audit: '更新短链', params: idParam, body: updateShortLinkSchema, response: shortLinkSchema, summary: '更新短链' }),
+  remove: op.delete('/{id}', { access: { permission: 'shortlink:link:delete' }, audit: '删除短链', params: idParam, summary: '删除短链' }),
+}, { auditModule: '短链管理', tags: ['短链管理'] });

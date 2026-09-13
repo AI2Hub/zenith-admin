@@ -33,9 +33,9 @@ export const mpKfAccountListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const mpKfAccountContract = defineContract('/api/mp/kf-accounts', {
-  list: op.get('/', { query: mpKfAccountListQuery, response: paginated(mpKfAccountSchema), summary: '客服账号列表' }),
-  sync: op.post('/sync', { body: mpAccountIdBody, response: mpSyncResultSchema, summary: '从微信同步客服账号' }),
-  create: op.post('/', { body: createMpKfAccountSchema, response: mpKfAccountSchema, summary: '添加客服账号' }),
-  update: op.put('/{id}', { params: idParam, body: updateMpKfAccountSchema, response: mpKfAccountSchema, summary: '修改客服昵称' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除客服账号' }),
-}, { tags: ['公众号多客服'] });
+  list: op.get('/', { access: { permission: 'mp:kf:list' }, query: mpKfAccountListQuery, response: paginated(mpKfAccountSchema), summary: '客服账号列表' }),
+  sync: op.post('/sync', { access: { permission: 'mp:kf:sync' }, audit: '同步客服账号', body: mpAccountIdBody, response: mpSyncResultSchema, summary: '从微信同步客服账号' }),
+  create: op.post('/', { access: { permission: 'mp:kf:create' }, audit: '添加客服账号', body: createMpKfAccountSchema, response: mpKfAccountSchema, summary: '添加客服账号' }),
+  update: op.put('/{id}', { access: { permission: 'mp:kf:update' }, audit: '修改客服账号', params: idParam, body: updateMpKfAccountSchema, response: mpKfAccountSchema, summary: '修改客服昵称' }),
+  remove: op.delete('/{id}', { access: { permission: 'mp:kf:delete' }, audit: '删除客服账号', params: idParam, summary: '删除客服账号' }),
+}, { auditModule: '公众号多客服', tags: ['公众号多客服'] });

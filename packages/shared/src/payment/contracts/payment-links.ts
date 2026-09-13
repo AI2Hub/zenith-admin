@@ -87,13 +87,13 @@ export const paymentLinkListQuery = paginationQuery.extend({
 });
 
 export const paymentLinkContract = defineContract('/api/payment/links', {
-  list: op.get('/', { query: paymentLinkListQuery, response: paginated(paymentLinkSchema), summary: '支付链接列表' }),
-  detail: op.get('/{id}', { params: idParam, response: paymentLinkSchema, summary: '支付链接详情' }),
-  create: op.post('/', { body: createPaymentLinkSchema, response: paymentLinkSchema, summary: '新增支付链接' }),
-  update: op.put('/{id}', { params: idParam, body: updatePaymentLinkSchema, response: paymentLinkSchema, summary: '编辑支付链接' }),
-  rotateToken: op.post('/{id}/rotate-token', { params: idParam, response: paymentLinkSchema, summary: '重置链接 token（安全轮换，旧链接立即失效）' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除支付链接' }),
-}, { tags: ['支付中心-支付链接'] });
+  list: op.get('/', { access: { permission: 'payment:link:list' }, query: paymentLinkListQuery, response: paginated(paymentLinkSchema), summary: '支付链接列表' }),
+  detail: op.get('/{id}', { access: { permission: 'payment:link:list' }, params: idParam, response: paymentLinkSchema, summary: '支付链接详情' }),
+  create: op.post('/', { access: { permission: 'payment:link:create' }, audit: { description: '新增支付链接', recordResponseBody: false }, body: createPaymentLinkSchema, response: paymentLinkSchema, summary: '新增支付链接' }),
+  update: op.put('/{id}', { access: { permission: 'payment:link:update' }, audit: { description: '编辑支付链接', recordResponseBody: false }, params: idParam, body: updatePaymentLinkSchema, response: paymentLinkSchema, summary: '编辑支付链接' }),
+  rotateToken: op.post('/{id}/rotate-token', { access: { permission: 'payment:link:update' }, audit: { description: '重置支付链接 token', recordResponseBody: false }, params: idParam, response: paymentLinkSchema, summary: '重置链接 token（安全轮换，旧链接立即失效）' }),
+  remove: op.delete('/{id}', { access: { permission: 'payment:link:delete' }, audit: '删除支付链接', params: idParam, summary: '删除支付链接' }),
+}, { auditModule: '支付中心', tags: ['支付中心-支付链接'] });
 
 export const paymentLinkTokenParam = z.object({
   token: z.string().min(8).max(64).meta({ description: '支付链接 token', example: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6' }),

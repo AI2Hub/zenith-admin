@@ -1,4 +1,4 @@
-import { definePermissions, type PermissionCodes } from '../core/permissions';
+import { definePermissions } from '../core/permissions';
 
 /**
  * tasks 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
@@ -27,8 +27,3 @@ export const TASKS_PERMISSIONS = definePermissions({
   'system:async-task:cleanup': { label: '清理任务', menu: 'SystemTaskCenter' },
   'system:async-task:config': { label: '调整策略', menu: 'SystemTaskCenter' },
 });
-
-declare module '../core/permissions' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
-  interface PermissionRegistry extends PermissionCodes<typeof TASKS_PERMISSIONS> {}
-}

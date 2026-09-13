@@ -33,9 +33,9 @@ export const reportMaterializationSnapshotSchema = z.object({
 export type ReportMaterializationSnapshot = z.infer<typeof reportMaterializationSnapshotSchema>;
 
 export const reportMaterializationContract = defineContract('/api/report/materializations', {
-  snapshots: op.get('/datasets/{id}/snapshots', { params: idParam, query: paginationQuery, response: paginated(reportMaterializationSnapshotSchema), summary: '物化快照历史' }),
-  current: op.get('/datasets/{id}/current', { params: idParam, response: reportMaterializationSnapshotSchema.nullable(), summary: '当前物化快照' }),
-  refresh: op.post('/datasets/{id}/refresh', { params: idParam, body: requestReportMaterializationSchema, response: asyncTaskSchema, summary: '异步刷新物化快照' }),
-  purge: op.delete('/snapshots/{id}', { params: idParam, summary: '清除物化快照' }),
-  purgeDataset: op.delete('/datasets/{id}/snapshots', { params: idParam, summary: '清除数据集历史快照' }),
-}, { tags: ['报表物化'] });
+  snapshots: op.get('/datasets/{id}/snapshots', { access: { permission: 'report:materialization:list' }, params: idParam, query: paginationQuery, response: paginated(reportMaterializationSnapshotSchema), summary: '物化快照历史' }),
+  current: op.get('/datasets/{id}/current', { access: { permission: 'report:materialization:list' }, params: idParam, response: reportMaterializationSnapshotSchema.nullable(), summary: '当前物化快照' }),
+  refresh: op.post('/datasets/{id}/refresh', { access: { permission: 'report:materialization:refresh' }, audit: '刷新物化快照', params: idParam, body: requestReportMaterializationSchema, response: asyncTaskSchema, summary: '异步刷新物化快照' }),
+  purge: op.delete('/snapshots/{id}', { access: { permission: 'report:materialization:purge' }, audit: '清除物化快照', params: idParam, summary: '清除物化快照' }),
+  purgeDataset: op.delete('/datasets/{id}/snapshots', { access: { permission: 'report:materialization:purge' }, audit: '清除数据集历史快照', params: idParam, summary: '清除数据集历史快照' }),
+}, { auditModule: '报表物化', tags: ['报表物化'] });

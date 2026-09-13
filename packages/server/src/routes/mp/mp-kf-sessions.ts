@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { mpKfSessionContract } from '@zenith/shared/mp';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -23,20 +22,15 @@ import { mountCrud } from '../_crud';
 
 const mpKfSessionRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'mp:kf:session:list' })] as const;
-
 const statsRoute = defineContractRoute(mpKfSessionContract.stats, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await getMpKfSessionStats(c.req.valid('query').accountId)), 200),
 });
 
 const getConfigRoute = defineContractRoute(mpKfSessionContract.config, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await getMpKfRoutingConfig(c.req.valid('query').accountId)), 200),
 });
 
 const updateConfigRoute = defineContractRoute(mpKfSessionContract.updateConfig, {
-  middleware: [authMiddleware, guard({ permission: 'mp:kf:session:config', audit: { description: '保存多客服路由配置', module: '公众号多客服会话' } })],
   handler: async (c) => {
     const { accountId } = c.req.valid('query');
     setAuditBeforeData(c, await getMpKfRoutingConfigBeforeAudit(accountId));
@@ -45,7 +39,6 @@ const updateConfigRoute = defineContractRoute(mpKfSessionContract.updateConfig, 
 });
 
 const acceptRoute = defineContractRoute(mpKfSessionContract.accept, {
-  middleware: [authMiddleware, guard({ permission: 'mp:kf:session:accept', audit: { description: '接入会话', module: '公众号多客服会话' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getMpKfSessionBeforeAudit(id);
@@ -55,7 +48,6 @@ const acceptRoute = defineContractRoute(mpKfSessionContract.accept, {
 });
 
 const transferRoute = defineContractRoute(mpKfSessionContract.transfer, {
-  middleware: [authMiddleware, guard({ permission: 'mp:kf:session:transfer', audit: { description: '转接会话', module: '公众号多客服会话' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getMpKfSessionBeforeAudit(id);
@@ -65,7 +57,6 @@ const transferRoute = defineContractRoute(mpKfSessionContract.transfer, {
 });
 
 const closeRoute = defineContractRoute(mpKfSessionContract.close, {
-  middleware: [authMiddleware, guard({ permission: 'mp:kf:session:close', audit: { description: '结束会话', module: '公众号多客服会话' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getMpKfSessionBeforeAudit(id);
@@ -75,7 +66,6 @@ const closeRoute = defineContractRoute(mpKfSessionContract.close, {
 });
 
 const replyRoute = defineContractRoute(mpKfSessionContract.reply, {
-  middleware: [authMiddleware, guard({ permission: 'mp:kf:session:reply', audit: { description: '会话回复', module: '公众号多客服会话' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getMpKfSessionBeforeAudit(id);
@@ -85,7 +75,6 @@ const replyRoute = defineContractRoute(mpKfSessionContract.reply, {
 });
 
 const reportRoute = defineContractRoute(mpKfSessionContract.report, {
-  middleware: read,
   handler: async (c) => {
     const q = c.req.valid('query');
     return c.json(okBody(await getMpKfSessionReport(q.accountId, q.days)), 200);
@@ -93,7 +82,6 @@ const reportRoute = defineContractRoute(mpKfSessionContract.report, {
 });
 
 const rateRoute = defineContractRoute(mpKfSessionContract.rate, {
-  middleware: [authMiddleware, guard({ permission: 'mp:kf:session:close', audit: { description: '会话满意度评分', module: '公众号多客服会话' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const b = c.req.valid('json');
@@ -105,7 +93,7 @@ const rateRoute = defineContractRoute(mpKfSessionContract.rate, {
 
 mountCrud(mpKfSessionRouter, mpKfSessionContract,
   { list: listMpKfSessions, get: getMpKfSessionDetail },
-  { permission: 'mp:kf:session' },
+  {},
   [
     statsRoute,
     reportRoute,

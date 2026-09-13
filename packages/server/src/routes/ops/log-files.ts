@@ -2,8 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import { logFileContract } from '@zenith/shared/ops';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, errBody, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import { streamLogTail } from '../../lib/http-stream';
@@ -15,20 +14,16 @@ import { attachmentDisposition } from '../../lib/content-disposition';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const view = [authMiddleware, guard({ permission: 'system:log:files' })] as const;
-
 const fileErrorResponses = {
   400: { content: jsonContent(ErrorResponse), description: '无效的文件名' },
   404: { content: jsonContent(ErrorResponse), description: '文件不存在' },
 } as const;
 
 const listRoute = defineContractRoute(logFileContract.list, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await listLogFiles(), 'success'), 200),
 });
 
 const contentRoute = defineContractRoute(logFileContract.content, {
-  middleware: view,
   responses: fileErrorResponses,
   handler: async (c) => {
     const { lines, keyword, context } = c.req.valid('query');
@@ -38,10 +33,6 @@ const contentRoute = defineContractRoute(logFileContract.content, {
 });
 
 const deleteApiRoute = defineContractRoute(logFileContract.remove, {
-  middleware: [authMiddleware, guard({
-    permission: 'system:log:files:delete',
-    audit: { description: '删除日志文件', module: '日志文件' },
-  })],
   responses: fileErrorResponses,
   handler: async (c) => {
     const { filename } = c.req.valid('param');
@@ -52,7 +43,6 @@ const deleteApiRoute = defineContractRoute(logFileContract.remove, {
 });
 
 const downloadRoute = defineContractRoute(logFileContract.download, {
-  middleware: [authMiddleware, guard({ permission: 'system:log:files:download' })],
   handler: async (c) => {
     const { name, filepath } = await resolveLogFile(c.req.valid('param').filename);
     const stat = await fsp.stat(filepath);
@@ -71,7 +61,6 @@ const downloadRoute = defineContractRoute(logFileContract.download, {
 
 // SSE 实时跟踪：先回放末尾 100 行，再按文件增长推送新增行
 const tailRoute = defineContractRoute(logFileContract.tail, {
-  middleware: view,
   handler: async (c) => {
     const rawName = c.req.valid('param').filename;
     if (rawName.endsWith('.gz')) return c.json(errBody('压缩文件不支持实时追踪'), 400);

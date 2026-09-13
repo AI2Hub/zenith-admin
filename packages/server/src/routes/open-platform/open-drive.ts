@@ -15,7 +15,7 @@ import { requireOpenScope } from '../../middleware/open-gateway';
 import {
   getOpenDriveNode, listOpenDriveNodes, listOpenDriveSpaces, openOpenDriveContent, prepareOpenDriveContent, uploadOpenDriveFile,
 } from '../../services/drive/drive-open.service';
-import { binaryResponses, streamStoredContent } from '../drive/drive-nodes';
+import { streamStoredContent, binaryResponses } from '../drive/drive-nodes';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 

@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute } from '@hono/zod-openapi';
 import { enterpriseAuthContract } from '@zenith/shared/identity';
 import { defineContractRoute } from '../../lib/contract-route';
-import { commonErrorResponses, okBody, validationHook } from '../../lib/openapi-schemas';
+import { okBody, validationHook, commonErrorResponses } from '../../lib/openapi-schemas';
 import {
   discoverEnterpriseIdentityProviders,
   exchangeEnterpriseSamlTicket,

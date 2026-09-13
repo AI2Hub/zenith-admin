@@ -23,15 +23,16 @@ const itemSchema = z.object({ id: z.int(), name: z.string() }).meta({ id: 'Item'
 
 const contract = defineContract('/api/items', {
   list: op.get('/', {
+    access: 'authenticated',
     query: paginationQuery.extend({ keyword: z.string().optional() }),
     response: paginated(itemSchema),
     summary: '列表',
   }),
-  detail: op.get('/{id}', { params: idParam, response: itemSchema, summary: '详情' }),
-  create: op.post('/', { body: z.object({ name: z.string(), status: z.enum(['a', 'b']).default('a') }), response: itemSchema, summary: '创建' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除' }),
+  detail: op.get('/{id}', { access: 'authenticated', params: idParam, response: itemSchema, summary: '详情' }),
+  create: op.post('/', { access: 'authenticated', body: z.object({ name: z.string(), status: z.enum(['a', 'b']).default('a') }), response: itemSchema, summary: '创建' }),
+  remove: op.delete('/{id}', { access: 'authenticated', params: idParam, summary: '删除' }),
   exportFile: op.get('/export', { kind: 'excel', summary: '导出', public: true, tags: ['Export'] }),
-  upload: op.post('/upload', { body: multipart(z.object({ file: fileField('文件') })), response: itemSchema, summary: '上传' }),
+  upload: op.post('/upload', { access: 'authenticated', body: multipart(z.object({ file: fileField('文件') })), response: itemSchema, summary: '上传' }),
 });
 
 describe('defineContract', () => {
@@ -62,7 +63,7 @@ describe('defineContract', () => {
   });
 
   it('derives PaymentSharing-style tags from nested base paths', () => {
-    const nested = defineContract('/api/payment/sharing-orders', { list: op.get('/', { summary: 'x' }) });
+    const nested = defineContract('/api/payment/sharing-orders', { list: op.get('/', { access: 'authenticated', summary: 'x' }) });
     expect(nested.list.tags).toEqual(['PaymentSharingOrders']);
   });
 
@@ -70,6 +71,29 @@ describe('defineContract', () => {
     expect(() => defineContract('api/items', {})).toThrow();
     expect(() => defineContract('/api/items/', {})).toThrow();
     expect(() => op.get('no-slash', { summary: 'x' })).toThrow();
+  });
+
+  it('requires access on bearer operations and forbids it elsewhere', () => {
+    expect(() => defineContract('/api/x', { list: op.get('/', { summary: 'x' }) })).toThrow(/必须声明 access/);
+    expect(() => op.get('/x', { summary: 'x', public: true, access: 'authenticated' })).toThrow(/只能声明在登录令牌/);
+    expect(() => op.get('/x', { summary: 'x', security: 'device-signature', access: { platformOnly: true } })).toThrow(/只能声明在登录令牌/);
+    const ok = defineContract('/api/x', {
+      mine: op.get('/mine', { access: 'authenticated', summary: 'x' }),
+      admin: op.get('/admin', { access: { permission: 'system:user:list', platformOnly: 'multi-tenant' }, summary: 'x' }),
+      platform: op.get('/platform', { access: { platformOnly: true }, summary: 'x' }),
+    });
+    expect(ok.mine.access).toBe('authenticated');
+    expect(ok.admin.access).toEqual({ permission: 'system:user:list', platformOnly: 'multi-tenant' });
+  });
+
+  it('applies contract-level security to the whole group and rejects access there', () => {
+    const member = defineContract('/api/member/x', {
+      me: op.get('/me', { summary: 'x' }),
+      login: op.post('/login', { summary: 'x', public: true }),
+    }, { security: 'member-bearer' });
+    expect(member.me.security).toBe('member-bearer');
+    expect(member.login.security).toBe('none');
+    expect(() => defineContract('/api/member/y', { me: op.get('/me', { summary: 'x', access: 'authenticated' }) }, { security: 'member-bearer' })).toThrow(/只能声明在登录令牌/);
   });
 
   it('lists operations without the basePath field', () => {
@@ -119,6 +143,7 @@ describe('type inference', () => {
   it('exposes declared business headers as an input segment', () => {
     const secured = defineContract('/api/refunds', {
       create: op.post('/', {
+        access: 'authenticated',
         headers: z.object({ 'x-idempotency-key': z.string().min(8) }),
         body: z.object({ orderNo: z.string() }),
         response: itemSchema,

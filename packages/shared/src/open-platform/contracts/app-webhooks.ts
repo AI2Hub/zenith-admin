@@ -1,6 +1,7 @@
 import * as z from 'zod';
 import { auditFieldsSchema, batchIdsBody, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum, idQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
+import type { Permission } from '../../core/permissions';
 import { OPEN_WEBHOOK_DELIVERY_STATUSES, OPEN_WEBHOOK_SIGN_MODES } from '../constants';
 import { createAppWebhookSchema, updateAppWebhookSchema } from '../validation';
 
@@ -102,31 +103,39 @@ export const appWebhookDeliveryListQuery = paginationQuery.extend({
   eventType: z.string().optional(),
 });
 
+/** Webhook 契约组的访问要求：`view` 为只读权限码，`manage` 为管理权限码（读操作二者任一即可） */
+export interface AppWebhookAccess {
+  readonly view: Permission;
+  readonly manage: Permission;
+}
+
 /**
  * Webhook 订阅管理契约组。同一订阅模型在开放平台（全部事件）与支付中心（仅支付 / 退款事件）
- * 各挂一份，路径根与文档标签不同、操作完全一致，由此函数生成。
+ * 各挂一份，路径根、文档标签、权限码与审计 module 不同、操作完全一致，由此函数生成。
  */
-export function defineAppWebhookContract(basePath: string, tags: readonly string[]) {
+export function defineAppWebhookContract(basePath: string, tags: readonly string[], access: AppWebhookAccess, auditModule: string) {
+  const read = { permission: [access.view, access.manage] } as const;
+  const manage = { permission: access.manage } as const;
   return defineContract(basePath, {
-    list: op.get('/', { query: appWebhookListQuery, response: paginated(appWebhookSubscriptionSchema), summary: '获取 Webhook 订阅列表' }),
-    events: op.get('/events', { response: z.array(openWebhookEventMetaSchema), summary: '获取可订阅的事件类型' }),
-    deliveries: op.get('/deliveries', { query: appWebhookDeliveryListQuery, response: paginated(appWebhookDeliverySchema), summary: '获取投递日志列表' }),
-    batchRetryDeliveries: op.post('/deliveries/batch-retry', { body: batchIdsBody, response: appWebhookBatchRetryResultSchema, summary: '批量重试失败投递' }),
-    deliveryDetail: op.get('/deliveries/{id}', { params: idParam, response: appWebhookDeliverySchema, summary: '获取投递详情' }),
-    retryDelivery: op.post('/deliveries/{id}/retry', { params: idParam, response: appWebhookDeliveryActionSchema, summary: '重试投递' }),
-    create: op.post('/', { body: createAppWebhookSchema, response: appWebhookSubscriptionCreatedSchema, summary: '创建 Webhook 订阅（secret 仅返回一次）' }),
-    detail: op.get('/{id}', { params: idParam, response: appWebhookSubscriptionSchema, summary: '获取 Webhook 订阅详情' }),
-    update: op.put('/{id}', { params: idParam, body: updateAppWebhookSchema, response: appWebhookSubscriptionSchema, summary: '更新 Webhook 订阅' }),
-    regenerateSecret: op.post('/{id}/regenerate-secret', { params: idParam, response: appWebhookSecretResultSchema, summary: '重置签名密钥（仅返回一次）' }),
-    test: op.post('/{id}/test', { params: idParam, response: appWebhookDeliveryActionSchema, summary: '发送测试投递' }),
-    remove: op.delete('/{id}', { params: idParam, summary: '删除 Webhook 订阅' }),
-  }, { tags });
+    list: op.get('/', { access: read, query: appWebhookListQuery, response: paginated(appWebhookSubscriptionSchema), summary: '获取 Webhook 订阅列表' }),
+    events: op.get('/events', { access: read, response: z.array(openWebhookEventMetaSchema), summary: '获取可订阅的事件类型' }),
+    deliveries: op.get('/deliveries', { access: read, query: appWebhookDeliveryListQuery, response: paginated(appWebhookDeliverySchema), summary: '获取投递日志列表' }),
+    batchRetryDeliveries: op.post('/deliveries/batch-retry', { access: manage, audit: '批量重试 Webhook 投递', body: batchIdsBody, response: appWebhookBatchRetryResultSchema, summary: '批量重试失败投递' }),
+    deliveryDetail: op.get('/deliveries/{id}', { access: read, params: idParam, response: appWebhookDeliverySchema, summary: '获取投递详情' }),
+    retryDelivery: op.post('/deliveries/{id}/retry', { access: manage, audit: '重试 Webhook 投递', params: idParam, response: appWebhookDeliveryActionSchema, summary: '重试投递' }),
+    create: op.post('/', { access: manage, audit: { description: '创建 Webhook 订阅', recordResponseBody: false }, body: createAppWebhookSchema, response: appWebhookSubscriptionCreatedSchema, summary: '创建 Webhook 订阅（secret 仅返回一次）' }),
+    detail: op.get('/{id}', { access: read, params: idParam, response: appWebhookSubscriptionSchema, summary: '获取 Webhook 订阅详情' }),
+    update: op.put('/{id}', { access: manage, audit: '更新Webhook 订阅', params: idParam, body: updateAppWebhookSchema, response: appWebhookSubscriptionSchema, summary: '更新 Webhook 订阅' }),
+    regenerateSecret: op.post('/{id}/regenerate-secret', { access: manage, audit: { description: '重置 Webhook 密钥', recordResponseBody: false }, params: idParam, response: appWebhookSecretResultSchema, summary: '重置签名密钥（仅返回一次）' }),
+    test: op.post('/{id}/test', { access: manage, audit: '发送 Webhook 测试', params: idParam, response: appWebhookDeliveryActionSchema, summary: '发送测试投递' }),
+    remove: op.delete('/{id}', { access: manage, audit: '删除Webhook 订阅', params: idParam, summary: '删除 Webhook 订阅' }),
+  }, { tags, auditModule });
 }
 
 export type AppWebhookContract = ReturnType<typeof defineAppWebhookContract>;
 
 /** 开放平台 Webhook：全部可订阅事件 */
-export const appWebhookContract = defineAppWebhookContract('/api/app-webhooks', ['AppWebhooks']);
+export const appWebhookContract = defineAppWebhookContract('/api/app-webhooks', ['AppWebhooks'], { view: 'open:webhook:view', manage: 'open:webhook:manage' }, '开放平台-Webhook');
 
 /** 支付中心 Webhook：同一订阅模型限定在支付 / 退款事件域 */
-export const paymentWebhookContract = defineAppWebhookContract('/api/payment/webhooks', ['支付中心-Webhook']);
+export const paymentWebhookContract = defineAppWebhookContract('/api/payment/webhooks', ['支付中心-Webhook'], { view: 'payment:webhook:list', manage: 'payment:webhook:manage' }, '支付中心-Webhook');

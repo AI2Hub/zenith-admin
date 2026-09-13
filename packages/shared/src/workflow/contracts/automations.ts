@@ -58,11 +58,11 @@ export const workflowAutomationRunListQuery = paginationQuery.extend({
 });
 
 export const workflowAutomationContract = defineContract('/api/workflows/automations', {
-  list: op.get('/', { query: workflowAutomationListQuery, response: paginated(workflowAutomationSchema), summary: '流程自动化规则分页列表' }),
-  runs: op.get('/runs', { query: workflowAutomationRunListQuery, response: paginated(workflowAutomationRunSchema), summary: '自动化动作执行记录' }),
-  detail: op.get('/{id}', { params: idParam, response: workflowAutomationSchema, summary: '获取自动化规则' }),
-  create: op.post('/', { body: createWorkflowAutomationSchema, response: workflowAutomationSchema, summary: '创建自动化规则' }),
-  update: op.put('/{id}', { params: idParam, body: updateWorkflowAutomationSchema, response: workflowAutomationSchema, summary: '更新自动化规则' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除自动化规则' }),
-  batchDelete: op.post('/batch-delete', { body: batchIdsBody, summary: '批量删除自动化规则' }),
-}, { tags: ['WorkflowAutomations'] });
+  list: op.get('/', { access: { permission: 'workflow:definition:list' }, query: workflowAutomationListQuery, response: paginated(workflowAutomationSchema), summary: '流程自动化规则分页列表' }),
+  runs: op.get('/runs', { access: { permission: 'workflow:definition:list' }, query: workflowAutomationRunListQuery, response: paginated(workflowAutomationRunSchema), summary: '自动化动作执行记录' }),
+  detail: op.get('/{id}', { access: { permission: 'workflow:definition:list' }, params: idParam, response: workflowAutomationSchema, summary: '获取自动化规则' }),
+  create: op.post('/', { access: { permission: 'workflow:definition:edit' }, audit: '创建流程自动化规则', body: createWorkflowAutomationSchema, response: workflowAutomationSchema, summary: '创建自动化规则' }),
+  update: op.put('/{id}', { access: { permission: 'workflow:definition:edit' }, audit: '更新流程自动化规则', params: idParam, body: updateWorkflowAutomationSchema, response: workflowAutomationSchema, summary: '更新自动化规则' }),
+  remove: op.delete('/{id}', { access: { permission: 'workflow:definition:edit' }, audit: '删除流程自动化规则', params: idParam, summary: '删除自动化规则' }),
+  batchDelete: op.post('/batch-delete', { access: { permission: 'workflow:definition:edit' }, audit: '批量删除流程自动化规则', body: batchIdsBody, summary: '批量删除自动化规则' }),
+}, { auditModule: '工作流管理', tags: ['WorkflowAutomations'] });

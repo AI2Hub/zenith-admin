@@ -68,12 +68,12 @@ const tags = pgTable('tags', {
 const tagSchema = z.object({ id: z.int(), name: z.string(), remark: z.string().nullable() });
 const createTagSchema = z.object({ name: z.string(), remark: z.string().nullable().optional() });
 const tagContract = defineContract('/api/test-tags', {
-  list: op.get('/', { query: paginationQuery.extend({ keyword: keywordQuery('名称') }), response: paginated(tagSchema), summary: 'list' }),
-  detail: op.get('/{id}', { params: idParam, response: tagSchema, summary: 'detail' }),
-  create: op.post('/', { body: createTagSchema, response: tagSchema, summary: 'create' }),
-  update: op.put('/{id}', { params: idParam, body: partialForUpdate(createTagSchema), response: tagSchema, summary: 'update' }),
-  removeBatch: op.delete('/batch', { body: batchIdsBody, summary: 'removeBatch' }),
-  remove: op.delete('/{id}', { params: idParam, summary: 'remove' }),
+  list: op.get('/', { access: 'authenticated', query: paginationQuery.extend({ keyword: keywordQuery('名称') }), response: paginated(tagSchema), summary: 'list' }),
+  detail: op.get('/{id}', { access: 'authenticated', params: idParam, response: tagSchema, summary: 'detail' }),
+  create: op.post('/', { access: 'authenticated', body: createTagSchema, response: tagSchema, summary: 'create' }),
+  update: op.put('/{id}', { access: 'authenticated', params: idParam, body: partialForUpdate(createTagSchema), response: tagSchema, summary: 'update' }),
+  removeBatch: op.delete('/batch', { access: 'authenticated', body: batchIdsBody, summary: 'removeBatch' }),
+  remove: op.delete('/{id}', { access: 'authenticated', params: idParam, summary: 'remove' }),
 });
 
 const mapTag = (row: typeof tags.$inferSelect) => ({ id: row.id, name: row.name, remark: row.remark ?? null });

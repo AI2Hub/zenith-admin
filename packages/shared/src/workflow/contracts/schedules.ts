@@ -37,9 +37,9 @@ export const workflowScheduleListQuery = paginationQuery.extend({
 });
 
 export const workflowScheduleContract = defineContract('/api/workflows/schedules', {
-  list: op.get('/', { query: workflowScheduleListQuery, response: paginated(workflowScheduleSchema), summary: '定时发起规则列表' }),
-  create: op.post('/', { body: createWorkflowScheduleSchema, response: workflowScheduleSchema, summary: '新建定时发起' }),
-  update: op.put('/{id}', { params: idParam, body: updateWorkflowScheduleSchema, response: workflowScheduleSchema, summary: '更新定时发起' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除定时发起' }),
-  run: op.post('/{id}/run', { params: idParam, response: workflowScheduleSchema, summary: '立即执行一次' }),
-}, { tags: ['WorkflowSchedules'] });
+  list: op.get('/', { access: { permission: 'workflow:schedule:list' }, query: workflowScheduleListQuery, response: paginated(workflowScheduleSchema), summary: '定时发起规则列表' }),
+  create: op.post('/', { access: { permission: 'workflow:schedule:create' }, audit: '新建定时发起', body: createWorkflowScheduleSchema, response: workflowScheduleSchema, summary: '新建定时发起' }),
+  update: op.put('/{id}', { access: { permission: 'workflow:schedule:edit' }, audit: '更新定时发起', params: idParam, body: updateWorkflowScheduleSchema, response: workflowScheduleSchema, summary: '更新定时发起' }),
+  remove: op.delete('/{id}', { access: { permission: 'workflow:schedule:delete' }, audit: '删除定时发起', params: idParam, summary: '删除定时发起' }),
+  run: op.post('/{id}/run', { access: { permission: 'workflow:schedule:edit' }, audit: '手动触发定时发起', params: idParam, response: workflowScheduleSchema, summary: '立即执行一次' }),
+}, { auditModule: '工作流管理', tags: ['WorkflowSchedules'] });

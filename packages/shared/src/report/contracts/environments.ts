@@ -67,11 +67,11 @@ export const reportPromotionListQuery = paginationQuery.extend({
 });
 
 export const reportEnvironmentContract = defineContract('/api/report/environments', {
-  promotions: op.get('/promotions', { query: reportPromotionListQuery, response: paginated(reportEnvironmentPromotionSchema), summary: '资源发布历史' }),
-  createPromotion: op.post('/promotions', { body: createReportEnvironmentPromotionSchema, response: reportEnvironmentPromotionSchema, summary: '创建资源发布' }),
-  transitionPromotion: op.post('/promotions/{id}/transition', { params: idParam, body: reportEnvironmentPromotionActionSchema, response: reportEnvironmentPromotionSchema, summary: '审批、部署、取消或回滚资源发布' }),
-  list: op.get('/', { response: z.array(reportEnvironmentSchema), summary: '环境列表' }),
-  create: op.post('/', { body: createReportEnvironmentSchema, response: reportEnvironmentSchema, summary: '创建环境' }),
-  update: op.put('/{id}', { params: idParam, body: updateReportEnvironmentSchema, response: reportEnvironmentSchema, summary: '更新环境' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除环境' }),
-}, { tags: ['报表环境治理'] });
+  promotions: op.get('/promotions', { access: { permission: 'report:environment:promote' }, query: reportPromotionListQuery, response: paginated(reportEnvironmentPromotionSchema), summary: '资源发布历史' }),
+  createPromotion: op.post('/promotions', { access: { permission: 'report:environment:promote' }, audit: '创建资源发布', body: createReportEnvironmentPromotionSchema, response: reportEnvironmentPromotionSchema, summary: '创建资源发布' }),
+  transitionPromotion: op.post('/promotions/{id}/transition', { access: { permission: 'report:environment:promote' }, audit: '变更资源发布状态', params: idParam, body: reportEnvironmentPromotionActionSchema, response: reportEnvironmentPromotionSchema, summary: '审批、部署、取消或回滚资源发布' }),
+  list: op.get('/', { access: { permission: 'report:environment:list' }, response: z.array(reportEnvironmentSchema), summary: '环境列表' }),
+  create: op.post('/', { access: { permission: 'report:environment:create' }, audit: '创建报表环境', body: createReportEnvironmentSchema, response: reportEnvironmentSchema, summary: '创建环境' }),
+  update: op.put('/{id}', { access: { permission: 'report:environment:update' }, audit: '更新报表环境', params: idParam, body: updateReportEnvironmentSchema, response: reportEnvironmentSchema, summary: '更新环境' }),
+  remove: op.delete('/{id}', { access: { permission: 'report:environment:delete' }, audit: '删除报表环境', params: idParam, summary: '删除环境' }),
+}, { auditModule: '报表环境治理', tags: ['报表环境治理'] });

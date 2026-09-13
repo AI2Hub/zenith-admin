@@ -88,12 +88,12 @@ export const workflowConnectorInvocationsQuery = z.object({
 });
 
 export const workflowConnectorContract = defineContract('/api/workflows/connectors', {
-  list: op.get('/', { query: workflowConnectorListQuery, response: paginated(workflowConnectorSchema), summary: '连接器列表' }),
-  detail: op.get('/{id}', { params: idParam, response: workflowConnectorSchema, summary: '连接器详情' }),
-  create: op.post('/', { body: createWorkflowConnectorSchema, response: workflowConnectorSchema, summary: '创建连接器' }),
-  update: op.put('/{id}', { params: idParam, body: updateWorkflowConnectorSchema, response: workflowConnectorSchema, summary: '更新连接器' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除连接器' }),
-  test: op.post('/{id}/test', { params: idParam, body: testWorkflowConnectorSchema, response: workflowConnectorInvokeResultSchema, summary: '测试连接器调用' }),
-  stats: op.get('/{id}/stats', { params: idParam, query: workflowConnectorStatsQuery, response: workflowConnectorStatsSchema, summary: '连接器调用统计' }),
-  invocations: op.get('/{id}/invocations', { params: idParam, query: workflowConnectorInvocationsQuery, response: z.array(workflowConnectorInvocationSchema), summary: '连接器最近调用记录' }),
-}, { tags: ['流程连接器'] });
+  list: op.get('/', { access: { permission: 'workflow:connector:list' }, query: workflowConnectorListQuery, response: paginated(workflowConnectorSchema), summary: '连接器列表' }),
+  detail: op.get('/{id}', { access: { permission: 'workflow:connector:list' }, params: idParam, response: workflowConnectorSchema, summary: '连接器详情' }),
+  create: op.post('/', { access: { permission: 'workflow:connector:create' }, audit: '创建流程连接器', body: createWorkflowConnectorSchema, response: workflowConnectorSchema, summary: '创建连接器' }),
+  update: op.put('/{id}', { access: { permission: 'workflow:connector:update' }, audit: '更新流程连接器', params: idParam, body: updateWorkflowConnectorSchema, response: workflowConnectorSchema, summary: '更新连接器' }),
+  remove: op.delete('/{id}', { access: { permission: 'workflow:connector:delete' }, audit: '删除流程连接器', params: idParam, summary: '删除连接器' }),
+  test: op.post('/{id}/test', { access: { permission: 'workflow:connector:test' }, audit: '测试流程连接器', params: idParam, body: testWorkflowConnectorSchema, response: workflowConnectorInvokeResultSchema, summary: '测试连接器调用' }),
+  stats: op.get('/{id}/stats', { access: { permission: 'workflow:connector:list' }, params: idParam, query: workflowConnectorStatsQuery, response: workflowConnectorStatsSchema, summary: '连接器调用统计' }),
+  invocations: op.get('/{id}/invocations', { access: { permission: 'workflow:connector:list' }, params: idParam, query: workflowConnectorInvocationsQuery, response: z.array(workflowConnectorInvocationSchema), summary: '连接器最近调用记录' }),
+}, { auditModule: '流程连接器', tags: ['流程连接器'] });

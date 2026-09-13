@@ -56,10 +56,10 @@ export type CmsFormSubmission = z.infer<typeof cmsFormSubmissionSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsFormContract = defineContract('/api/cms/forms', {
-  list: op.get('/', { query: cmsSeoListQuery, response: paginated(cmsFormSchema), summary: '表单分页列表' }),
-  create: op.post('/', { body: createCmsFormSchema, response: cmsFormSchema, summary: '创建表单' }),
-  update: op.put('/{id}', { params: idParam, body: updateCmsFormSchema, response: cmsFormSchema, summary: '更新表单' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除表单（含全部提交数据）' }),
-  submissions: op.get('/{id}/submissions', { params: idParam, query: paginationQuery, response: paginated(cmsFormSubmissionSchema), summary: '表单提交数据列表' }),
-  deleteSubmissions: op.post('/{id}/submissions/delete', { params: idParam, body: batchIdsBody, summary: '批量删除提交数据' }),
-}, { tags: ['CMS-表单管理'] });
+  list: op.get('/', { access: { permission: 'cms:form:list' }, query: cmsSeoListQuery, response: paginated(cmsFormSchema), summary: '表单分页列表' }),
+  create: op.post('/', { access: { permission: 'cms:form:manage' }, audit: '创建 CMS 表单', body: createCmsFormSchema, response: cmsFormSchema, summary: '创建表单' }),
+  update: op.put('/{id}', { access: { permission: 'cms:form:manage' }, audit: '更新 CMS 表单', params: idParam, body: updateCmsFormSchema, response: cmsFormSchema, summary: '更新表单' }),
+  remove: op.delete('/{id}', { access: { permission: 'cms:form:manage' }, audit: '删除 CMS 表单', params: idParam, summary: '删除表单（含全部提交数据）' }),
+  submissions: op.get('/{id}/submissions', { access: { permission: 'cms:form:list' }, params: idParam, query: paginationQuery, response: paginated(cmsFormSubmissionSchema), summary: '表单提交数据列表' }),
+  deleteSubmissions: op.post('/{id}/submissions/delete', { access: { permission: 'cms:form:manage' }, audit: '删除 CMS 表单提交数据', params: idParam, body: batchIdsBody, summary: '批量删除提交数据' }),
+}, { auditModule: 'CMS内容管理', tags: ['CMS-表单管理'] });

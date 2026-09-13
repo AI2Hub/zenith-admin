@@ -47,16 +47,17 @@ export const mpAccountListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const mpAccountContract = defineContract('/api/mp/accounts', {
-  list: op.get('/', { query: mpAccountListQuery, response: paginated(mpAccountSchema), summary: '公众号列表' }),
-  detail: op.get('/{id}', { params: idParam, response: mpAccountSchema, summary: '获取公众号详情' }),
-  create: op.post('/', { body: createMpAccountSchema, response: mpAccountSchema, summary: '创建公众号' }),
-  update: op.put('/{id}', { params: idParam, body: updateMpAccountSchema, response: mpAccountSchema, summary: '更新公众号' }),
-  setDefault: op.post('/{id}/default', { params: idParam, response: mpAccountSchema, summary: '设为默认公众号' }),
+  list: op.get('/', { access: { permission: 'mp:account:list' }, query: mpAccountListQuery, response: paginated(mpAccountSchema), summary: '公众号列表' }),
+  detail: op.get('/{id}', { access: { permission: 'mp:account:list' }, params: idParam, response: mpAccountSchema, summary: '获取公众号详情' }),
+  create: op.post('/', { access: { permission: 'mp:account:create' }, audit: '创建公众号', body: createMpAccountSchema, response: mpAccountSchema, summary: '创建公众号' }),
+  update: op.put('/{id}', { access: { permission: 'mp:account:update' }, audit: '更新公众号', params: idParam, body: updateMpAccountSchema, response: mpAccountSchema, summary: '更新公众号' }),
+  setDefault: op.post('/{id}/default', { access: { permission: 'mp:account:default' }, audit: '设为默认公众号', params: idParam, response: mpAccountSchema, summary: '设为默认公众号' }),
   testConnection: op.post('/{id}/test', {
+    access: { permission: 'mp:account:token' }, audit: '测试公众号连接',
     params: idParam,
     response: mpConnectionTestSchema,
     summary: '测试公众号连接',
     description: '使用账号 AppID/AppSecret 向微信换取 access_token，验证配置有效性并缓存 token。',
   }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除公众号' }),
-}, { tags: ['公众号管理'] });
+  remove: op.delete('/{id}', { access: { permission: 'mp:account:delete' }, audit: '删除公众号', params: idParam, summary: '删除公众号' }),
+}, { auditModule: '公众号管理', tags: ['公众号管理'] });

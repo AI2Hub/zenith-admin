@@ -1,7 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { reportExecutionContract } from '@zenith/shared/report';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import { parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
@@ -10,7 +8,6 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const statsRoute = defineContractRoute(reportExecutionContract.stats, {
-  middleware: [authMiddleware, guard({ permission: 'report:dataset:list' })],
   handler: async (c) => {
     const query = c.req.valid('query');
     return c.json(okBody(await getDatasetExecutionStats({
@@ -22,13 +19,12 @@ const statsRoute = defineContractRoute(reportExecutionContract.stats, {
 });
 
 const governanceRoute = defineContractRoute(reportExecutionContract.governance, {
-  middleware: [authMiddleware, guard({ permission: 'report:dataset:list' })],
   handler: async (c) => c.json(okBody(getReportRuntimeGovernance()), 200),
 });
 
 mountCrud(router, reportExecutionContract,
   { list: listDatasetExecutionLogs },
-  { permission: 'report:dataset' },
+  {},
   [statsRoute, governanceRoute],
 );
 

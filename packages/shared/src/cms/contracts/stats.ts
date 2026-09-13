@@ -78,10 +78,10 @@ export const cmsDashboardQuery = z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsStatContract = defineContract('/api/cms/stats', {
-  visits: op.get('/visits', { query: cmsStatsQuery, response: cmsVisitStatsSchema, summary: '访问统计总览（今日/昨日卡片 + PV/UV 趋势 + 内容TOP + 来源/设备/通道分布）' }),
-  search: op.get('/search', { query: cmsStatsQuery, response: cmsSearchAnalyticsSchema, summary: '搜索分析（搜索量趋势 + 热搜词榜 + 无结果词榜）' }),
+  visits: op.get('/visits', { access: { permission: 'cms:stat:view' }, query: cmsStatsQuery, response: cmsVisitStatsSchema, summary: '访问统计总览（今日/昨日卡片 + PV/UV 趋势 + 内容TOP + 来源/设备/通道分布）' }),
+  search: op.get('/search', { access: { permission: 'cms:stat:view' }, query: cmsStatsQuery, response: cmsSearchAnalyticsSchema, summary: '搜索分析（搜索量趋势 + 热搜词榜 + 无结果词榜）' }),
 }, { tags: ['CMS-访问统计'] });
 
 export const cmsDashboardContract = defineContract('/api/cms/dashboard', {
-  stats: op.get('/stats', { query: cmsDashboardQuery, response: cmsDashboardStatsSchema, summary: 'CMS 数据看板统计' }),
+  stats: op.get('/stats', { access: { permission: 'cms:dashboard:view' }, query: cmsDashboardQuery, response: cmsDashboardStatsSchema, summary: 'CMS 数据看板统计' }),
 }, { tags: ['CMS-内容管理'] });

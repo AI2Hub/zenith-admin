@@ -14,7 +14,6 @@ const levelsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(levelsRouter, memberLevelContract,
   { get: getLevel, create: createLevel, update: updateLevel, remove: deleteLevel, list: listLevels },
-  { permission: 'member:level', label: '会员等级', module: '会员等级' },
 );
 
 export default levelsRouter;

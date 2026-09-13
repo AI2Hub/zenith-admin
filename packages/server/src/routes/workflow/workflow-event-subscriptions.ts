@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { workflowEventSubscriptionContract } from '@zenith/shared/workflow';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -26,9 +25,7 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const deliveryView = [authMiddleware, guard({ permission: 'workflow:event-delivery:view' })] as const;
 const getSecret = defineContractRoute(workflowEventSubscriptionContract.secret, {
-  middleware: [authMiddleware, guard({ permission: 'workflow:event-subscription:view', audit: { description: '查看事件订阅 secret', module: '工作流管理', recordResponseBody: false } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditAfterData(c, { id, secretViewed: true });
@@ -36,7 +33,6 @@ const getSecret = defineContractRoute(workflowEventSubscriptionContract.secret, 
   },
 });
 const toggle = defineContractRoute(workflowEventSubscriptionContract.toggle, {
-  middleware: [authMiddleware, guard({ permission: 'workflow:event-subscription:edit', audit: { description: '切换事件订阅启用状态', module: '工作流管理' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getSubscriptionBeforeAudit(id);
@@ -46,7 +42,6 @@ const toggle = defineContractRoute(workflowEventSubscriptionContract.toggle, {
 });
 
 const testDeliveryRoute = defineContractRoute(workflowEventSubscriptionContract.test, {
-  middleware: [authMiddleware, guard({ permission: 'workflow:event-subscription:edit', audit: { description: '测试事件订阅投递', module: '工作流管理' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const result = await testSubscriptionDelivery(id);
@@ -57,17 +52,14 @@ const testDeliveryRoute = defineContractRoute(workflowEventSubscriptionContract.
 // ─── 投递记录 ──────────────────────────────────────────────────────────────
 
 const listDeliveriesRoute = defineContractRoute(workflowEventSubscriptionContract.deliveries, {
-  middleware: deliveryView,
   handler: async (c) => c.json(okBody(await listDeliveries(c.req.valid('query'))), 200),
 });
 
 const getDeliveryRoute = defineContractRoute(workflowEventSubscriptionContract.deliveryDetail, {
-  middleware: deliveryView,
   handler: async (c) => c.json(okBody(await getDelivery(c.req.valid('param').id)), 200),
 });
 
 const retryDeliveryRoute = defineContractRoute(workflowEventSubscriptionContract.retryDelivery, {
-  middleware: [authMiddleware, guard({ permission: 'workflow:event-delivery:retry', audit: { description: '重试事件投递', module: '工作流管理' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getDeliveryBeforeAudit(id);
@@ -77,7 +69,6 @@ const retryDeliveryRoute = defineContractRoute(workflowEventSubscriptionContract
 });
 
 const batchRetryRoute = defineContractRoute(workflowEventSubscriptionContract.batchRetryDeliveries, {
-  middleware: [authMiddleware, guard({ permission: 'workflow:event-delivery:retry', audit: { description: '批量重试事件投递', module: '工作流管理' } })] as const,
   handler: async (c) => {
     const { ids } = c.req.valid('json');
     const before = await getDeliveriesBeforeAudit(ids);
@@ -90,7 +81,6 @@ const batchRetryRoute = defineContractRoute(workflowEventSubscriptionContract.ba
 });
 
 const replayDeliveriesRoute = defineContractRoute(workflowEventSubscriptionContract.replayDeliveries, {
-  middleware: [authMiddleware, guard({ permission: 'workflow:event-delivery:retry', audit: { description: '按筛选批量重放事件投递', module: '工作流管理' } })] as const,
   handler: async (c) => {
     const result = await replayDeliveriesByFilter(c.req.valid('json'));
     return c.json(okBody(result, `已重放 ${result.count} 条投递`), 200);
@@ -106,9 +96,6 @@ mountCrud(router, workflowEventSubscriptionContract,
     remove: deleteSubscription,
   },
   {
-    permission: { read: 'workflow:event-subscription:view', create: 'workflow:event-subscription:create', update: 'workflow:event-subscription:edit', remove: 'workflow:event-subscription:delete' },
-    label: '事件订阅',
-    module: '工作流管理',
     messages: { create: '已创建', update: '已更新', remove: '已删除' },
   },
   [

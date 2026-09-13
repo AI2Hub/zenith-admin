@@ -70,5 +70,5 @@ export const aiUsageStatsQuery = z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const aiUsageContract = defineContract('/api/ai/usage', {
-  stats: op.get('/stats', { query: aiUsageStatsQuery, response: aiUsageStatsSchema, summary: '获取 AI 用量统计' }),
+  stats: op.get('/stats', { access: { permission: 'ai:usage:view' }, query: aiUsageStatsQuery, response: aiUsageStatsSchema, summary: '获取 AI 用量统计' }),
 }, { tags: ['AI'] });

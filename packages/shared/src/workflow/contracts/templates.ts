@@ -29,10 +29,10 @@ export type WorkflowTemplate = z.infer<typeof workflowTemplateSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const workflowTemplateContract = defineContract('/api/workflows/templates', {
-  list: op.get('/', { response: z.array(workflowTemplateSchema), summary: '流程模板列表' }),
-  create: op.post('/', { body: createWorkflowTemplateSchema, response: workflowTemplateSchema, summary: '新增模板' }),
-  saveAs: op.post('/save-as', { body: saveAsTemplateSchema, response: workflowTemplateSchema, summary: '将流程定义另存为模板' }),
-  clone: op.post('/{id}/clone', { params: idParam, body: cloneFromTemplateSchema, response: workflowDefinitionSchema, summary: '从模板创建流程' }),
-  update: op.put('/{id}', { params: idParam, body: updateWorkflowTemplateSchema, response: workflowTemplateSchema, summary: '更新模板' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除模板' }),
-}, { tags: ['WorkflowTemplates'] });
+  list: op.get('/', { access: { permission: 'workflow:definition:list' }, response: z.array(workflowTemplateSchema), summary: '流程模板列表' }),
+  create: op.post('/', { access: { permission: 'workflow:definition:edit' }, audit: '新增流程模板', body: createWorkflowTemplateSchema, response: workflowTemplateSchema, summary: '新增模板' }),
+  saveAs: op.post('/save-as', { access: { permission: 'workflow:definition:edit' }, audit: '流程另存为模板', body: saveAsTemplateSchema, response: workflowTemplateSchema, summary: '将流程定义另存为模板' }),
+  clone: op.post('/{id}/clone', { access: { permission: 'workflow:definition:create' }, audit: '从模板创建流程', params: idParam, body: cloneFromTemplateSchema, response: workflowDefinitionSchema, summary: '从模板创建流程' }),
+  update: op.put('/{id}', { access: { permission: 'workflow:definition:edit' }, audit: '更新流程模板', params: idParam, body: updateWorkflowTemplateSchema, response: workflowTemplateSchema, summary: '更新模板' }),
+  remove: op.delete('/{id}', { access: { permission: 'workflow:definition:edit' }, audit: '删除流程模板', params: idParam, summary: '删除模板' }),
+}, { auditModule: '工作流管理', tags: ['WorkflowTemplates'] });

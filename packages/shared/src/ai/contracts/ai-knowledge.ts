@@ -53,14 +53,14 @@ export const aiKbDocumentParams = idParam.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const aiKnowledgeBaseContract = defineContract('/api/ai/knowledge-bases', {
-  list: op.get('/', { response: z.array(aiKnowledgeBaseSchema), summary: '获取我的知识库列表' }),
-  all: op.get('/available', { response: z.array(aiKnowledgeBaseSchema), summary: '获取我的知识库（聊天挂载选择器用，仅需登录）' }),
-  create: op.post('/', { body: createAiKnowledgeBaseSchema, response: aiKnowledgeBaseSchema, summary: '创建知识库' }),
-  update: op.put('/{id}', { params: idParam, body: updateAiKnowledgeBaseSchema, response: aiKnowledgeBaseSchema, summary: '更新知识库' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除知识库（级联删除文档与分块）' }),
-  documents: op.get('/{id}/documents', { params: idParam, response: z.array(aiKbDocumentSchema), summary: '获取知识库文档列表' }),
-  addDocument: op.post('/{id}/documents', { params: idParam, body: addAiKbDocumentSchema, response: aiKbDocumentSchema, summary: '添加文档（纯文本，自动分块与向量化）' }),
-  importUrl: op.post('/{id}/documents/import-url', { params: idParam, body: importAiKbUrlSchema, response: aiKbDocumentSchema, summary: '从 URL 抓取网页正文入库' }),
-  chunks: op.get('/{id}/documents/{docId}/chunks', { params: aiKbDocumentParams, response: z.array(aiKbChunkSchema), summary: '获取文档分块内容（回看原文）' }),
-  removeDocument: op.delete('/{id}/documents/{docId}', { params: aiKbDocumentParams, summary: '删除知识库文档（级联删除分块）' }),
-}, { tags: ['AI'] });
+  list: op.get('/', { access: { permission: 'ai:kb:list' }, response: z.array(aiKnowledgeBaseSchema), summary: '获取我的知识库列表' }),
+  all: op.get('/available', { access: 'authenticated', response: z.array(aiKnowledgeBaseSchema), summary: '获取我的知识库（聊天挂载选择器用，仅需登录）' }),
+  create: op.post('/', { access: { permission: 'ai:kb:create' }, audit: '创建知识库', body: createAiKnowledgeBaseSchema, response: aiKnowledgeBaseSchema, summary: '创建知识库' }),
+  update: op.put('/{id}', { access: { permission: 'ai:kb:edit' }, params: idParam, body: updateAiKnowledgeBaseSchema, response: aiKnowledgeBaseSchema, summary: '更新知识库' }),
+  remove: op.delete('/{id}', { access: { permission: 'ai:kb:delete' }, audit: '删除知识库', params: idParam, summary: '删除知识库（级联删除文档与分块）' }),
+  documents: op.get('/{id}/documents', { access: { permission: 'ai:kb:list' }, params: idParam, response: z.array(aiKbDocumentSchema), summary: '获取知识库文档列表' }),
+  addDocument: op.post('/{id}/documents', { access: { permission: 'ai:kb:edit' }, params: idParam, body: addAiKbDocumentSchema, response: aiKbDocumentSchema, summary: '添加文档（纯文本，自动分块与向量化）' }),
+  importUrl: op.post('/{id}/documents/import-url', { access: { permission: 'ai:kb:edit' }, params: idParam, body: importAiKbUrlSchema, response: aiKbDocumentSchema, summary: '从 URL 抓取网页正文入库' }),
+  chunks: op.get('/{id}/documents/{docId}/chunks', { access: { permission: 'ai:kb:list' }, params: aiKbDocumentParams, response: z.array(aiKbChunkSchema), summary: '获取文档分块内容（回看原文）' }),
+  removeDocument: op.delete('/{id}/documents/{docId}', { access: { permission: 'ai:kb:edit' }, params: aiKbDocumentParams, summary: '删除知识库文档（级联删除分块）' }),
+}, { auditModule: '智能助手', tags: ['AI'] });

@@ -2,8 +2,6 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { stream } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import { logViewerContract } from '@zenith/shared/ops';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -16,11 +14,8 @@ import { attachmentDisposition } from '../../lib/content-disposition';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const view = [authMiddleware, guard({ permission: 'system:log:view' })] as const;
-
 // SSE 实时跟踪：先回放末尾 100 行，再持续推送新增行（与 /api/log-files/{filename}/tail 同协议）
 const tailRoute = defineContractRoute(logViewerContract.tail, {
-  middleware: view,
   handler: async (c) => {
     const { path: filePath, hostId } = c.req.valid('query');
     await assertRemoteHostAccess(c, hostId);
@@ -34,7 +29,6 @@ const tailRoute = defineContractRoute(logViewerContract.tail, {
 });
 
 const downloadRoute = defineContractRoute(logViewerContract.download, {
-  middleware: view,
   handler: async (c) => {
     const { path: filePath, hostId } = c.req.valid('query');
     await assertRemoteHostAccess(c, hostId);
@@ -62,7 +56,6 @@ const downloadRoute = defineContractRoute(logViewerContract.download, {
 });
 
 const contentRoute = defineContractRoute(logViewerContract.content, {
-  middleware: view,
   handler: async (c) => {
     const { path: filePath, lines, keyword, context, hostId } = c.req.valid('query');
     await assertRemoteHostAccess(c, hostId);
@@ -72,7 +65,6 @@ const contentRoute = defineContractRoute(logViewerContract.content, {
 });
 
 const rootsRoute = defineContractRoute(logViewerContract.roots, {
-  middleware: view,
   handler: async (c) => {
     const { hostId } = c.req.valid('query');
     await assertRemoteHostAccess(c, hostId);

@@ -64,10 +64,11 @@ export const paymentTransferSummaryQuery = z.object({
 });
 
 export const paymentTransferContract = defineContract('/api/payment/transfers', {
-  list: op.get('/', { query: paymentTransferListQuery, response: paginated(paymentTransferSchema), summary: '转账单列表' }),
-  summary: op.get('/summary', { query: paymentTransferSummaryQuery, response: paymentTransferSummarySchema, summary: '转账汇总（成功金额/各状态笔数）' }),
-  detail: op.get('/{id}', { params: idParam, response: paymentTransferSchema, summary: '转账单详情' }),
+  list: op.get('/', { access: { permission: 'payment:transfer:list' }, query: paymentTransferListQuery, response: paginated(paymentTransferSchema), summary: '转账单列表' }),
+  summary: op.get('/summary', { access: { permission: 'payment:transfer:list' }, query: paymentTransferSummaryQuery, response: paymentTransferSummarySchema, summary: '转账汇总（成功金额/各状态笔数）' }),
+  detail: op.get('/{id}', { access: { permission: 'payment:transfer:list' }, params: idParam, response: paymentTransferSchema, summary: '转账单详情' }),
   create: op.post('/', {
+    access: { permission: 'payment:transfer:create' }, audit: '发起转账',
     headers: idempotencyKeyHeaders,
     body: createPaymentTransferSchema,
     response: paymentTransferSchema,
@@ -75,6 +76,7 @@ export const paymentTransferContract = defineContract('/api/payment/transfers', 
     description: '低于审批阈值时落单后同步调渠道执行；达到阈值时仅冻结资金并等待四眼审批，审批前不会调用渠道。资金流出接口，使用业务幂等键防止重复提交。',
   }),
   approve: op.post('/{id}/approve', {
+    access: { permission: 'payment:transfer:approve' }, audit: '审批通过转账',
     params: idParam,
     body: approvePaymentTransferSchema,
     response: paymentTransferSchema,
@@ -82,11 +84,12 @@ export const paymentTransferContract = defineContract('/api/payment/transfers', 
     description: '申请人与审批人必须为不同用户。审批状态通过 CAS 抢占，只有审批成功的一方会触发渠道转账。',
   }),
   reject: op.post('/{id}/reject', {
+    access: { permission: 'payment:transfer:approve' }, audit: '驳回转账',
     params: idParam,
     body: approvePaymentTransferSchema,
     response: paymentTransferSchema,
     summary: '驳回待审批转账',
     description: '驳回转账并在同一事务内释放对应的资金预占。',
   }),
-  query: op.post('/{id}/query', { params: idParam, response: paymentTransferSchema, summary: '主动查询渠道转账结果并同步本地状态' }),
-}, { tags: ['支付中心-转账'] });
+  query: op.post('/{id}/query', { access: { permission: 'payment:transfer:list' }, params: idParam, response: paymentTransferSchema, summary: '主动查询渠道转账结果并同步本地状态' }),
+}, { auditModule: '支付中心', tags: ['支付中心-转账'] });

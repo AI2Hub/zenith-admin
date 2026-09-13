@@ -34,9 +34,9 @@ export type AiToolInfo = z.infer<typeof aiToolInfoSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const aiHttpToolContract = defineContract('/api/ai/http-tools', {
-  list: op.get('/', { response: z.array(aiHttpToolSchema), summary: '获取 HTTP API 工具列表（管理员）' }),
-  all: op.get('/available', { response: z.array(aiToolInfoSchema), summary: '获取可用工具列表（智能体编辑器勾选用，仅需登录）' }),
-  create: op.post('/', { body: createAiHttpToolSchema, response: aiHttpToolSchema, summary: '创建 HTTP API 工具' }),
-  update: op.put('/{id}', { params: idParam, body: updateAiHttpToolSchema, response: aiHttpToolSchema, summary: '更新 HTTP API 工具' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除 HTTP API 工具' }),
-}, { tags: ['AI'] });
+  list: op.get('/', { access: { permission: 'ai:tool:list' }, response: z.array(aiHttpToolSchema), summary: '获取 HTTP API 工具列表（管理员）' }),
+  all: op.get('/available', { access: 'authenticated', response: z.array(aiToolInfoSchema), summary: '获取可用工具列表（智能体编辑器勾选用，仅需登录）' }),
+  create: op.post('/', { access: { permission: 'ai:tool:manage' }, audit: '创建 AI HTTP 工具', body: createAiHttpToolSchema, response: aiHttpToolSchema, summary: '创建 HTTP API 工具' }),
+  update: op.put('/{id}', { access: { permission: 'ai:tool:manage' }, audit: '更新 AI HTTP 工具', params: idParam, body: updateAiHttpToolSchema, response: aiHttpToolSchema, summary: '更新 HTTP API 工具' }),
+  remove: op.delete('/{id}', { access: { permission: 'ai:tool:manage' }, audit: '删除 AI HTTP 工具', params: idParam, summary: '删除 HTTP API 工具' }),
+}, { auditModule: '智能助手', tags: ['AI'] });

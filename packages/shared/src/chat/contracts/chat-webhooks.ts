@@ -30,12 +30,12 @@ export const chatBotListQuery = paginationQuery.extend({
 });
 
 export const chatBotContract = defineContract('/api/chat-bots', {
-  list: op.get('/', { query: chatBotListQuery, response: paginated(chatWebhookSchema), summary: '获取 Webhook 机器人列表' }),
-  create: op.post('/', { body: createChatWebhookSchema, response: chatWebhookSchema, summary: '创建 Webhook 机器人' }),
-  update: op.patch('/{id}', { params: idParam, body: updateChatWebhookSchema, response: chatWebhookSchema, summary: '更新 Webhook 机器人' }),
-  regenerateToken: op.post('/{id}/regenerate-token', { params: idParam, response: chatWebhookSchema, summary: '重置 Webhook 令牌' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除 Webhook 机器人' }),
-}, { tags: ['ChatBots'] });
+  list: op.get('/', { access: { permission: 'chat:bot:list' }, query: chatBotListQuery, response: paginated(chatWebhookSchema), summary: '获取 Webhook 机器人列表' }),
+  create: op.post('/', { access: { permission: 'chat:bot:create' }, audit: { description: '创建聊天 Webhook', recordResponseBody: false }, body: createChatWebhookSchema, response: chatWebhookSchema, summary: '创建 Webhook 机器人' }),
+  update: op.patch('/{id}', { access: { permission: 'chat:bot:update' }, audit: { description: '更新聊天 Webhook', recordResponseBody: false }, params: idParam, body: updateChatWebhookSchema, response: chatWebhookSchema, summary: '更新 Webhook 机器人' }),
+  regenerateToken: op.post('/{id}/regenerate-token', { access: { permission: 'chat:bot:update' }, audit: { description: '重置聊天 Webhook 令牌', recordResponseBody: false }, params: idParam, response: chatWebhookSchema, summary: '重置 Webhook 令牌' }),
+  remove: op.delete('/{id}', { access: { permission: 'chat:bot:delete' }, audit: '删除聊天 Webhook', params: idParam, summary: '删除 Webhook 机器人' }),
+}, { auditModule: '聊天机器人', tags: ['ChatBots'] });
 
 // ─── 契约：入站推送（公开，由外部系统以令牌调用） ─────────────────────────────
 

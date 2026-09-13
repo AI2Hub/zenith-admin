@@ -15,6 +15,7 @@ import { checkSubjectLiveness, loadSubjectRow, type SubjectRow } from '../lib/su
 import { TtlCache } from '../lib/ttl-cache';
 import { onInvalidate, onInvalidationReset } from '../lib/invalidation-bus';
 import { impersonationWriteDenial } from '../lib/impersonation-guard';
+import { tagMiddleware } from '../lib/route-facts';
 
 export interface JwtPayload {
   userId: number;
@@ -336,6 +337,8 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
     return c.json(errBody('登录已过期', 401), 401);
   }
 });
+// 自描述标记：装配好的 app 可沿 app.routes 读出哪些端点挂了认证（契约 access 与运行时一致性测试 / 权限矩阵）
+tagMiddleware(authMiddleware, { kind: 'auth' });
 
 /**
  * 全局 ContextVariableMap 扩展：让 c.get('user') / c.get('auditBeforeData')

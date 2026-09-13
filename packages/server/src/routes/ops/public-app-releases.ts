@@ -15,7 +15,7 @@ import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import { getStoredFileForRead } from '../../services/files/files.service';
 import { readStoredFile } from '../../lib/file-storage';
-import { parseRangeHeader, rangeContentHeaders, rangeNotSatisfiable, supportsRange } from '../../lib/http-range';
+import { parseRangeHeader, rangeNotSatisfiable, supportsRange, rangeContentHeaders } from '../../lib/http-range';
 import {
   checkAppUpdate,
   getLatestPublicRelease,

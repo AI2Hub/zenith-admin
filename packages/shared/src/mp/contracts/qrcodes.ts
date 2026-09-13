@@ -36,7 +36,7 @@ export const mpQrcodeListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const mpQrcodeContract = defineContract('/api/mp/qrcodes', {
-  list: op.get('/', { query: mpQrcodeListQuery, response: paginated(mpQrcodeSchema), summary: '二维码列表' }),
-  create: op.post('/', { body: createMpQrcodeSchema, response: mpQrcodeSchema, summary: '创建带参二维码' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除二维码' }),
-}, { tags: ['公众号二维码'] });
+  list: op.get('/', { access: { permission: 'mp:qrcode:list' }, query: mpQrcodeListQuery, response: paginated(mpQrcodeSchema), summary: '二维码列表' }),
+  create: op.post('/', { access: { permission: 'mp:qrcode:create' }, audit: '创建带参二维码', body: createMpQrcodeSchema, response: mpQrcodeSchema, summary: '创建带参二维码' }),
+  remove: op.delete('/{id}', { access: { permission: 'mp:qrcode:delete' }, audit: '删除带参二维码', params: idParam, summary: '删除二维码' }),
+}, { auditModule: '公众号二维码', tags: ['公众号二维码'] });

@@ -1,6 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { aiConversationContract } from '@zenith/shared/ai';
-import { authMiddleware } from '../../middleware/auth';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import { shareConversation, getConversationShare, revokeConversationShare } from '../../services/ai/ai-share.service';
@@ -11,10 +10,7 @@ import { getActiveGeneration } from '../../lib/ai/generation-buffer';
 /** 会话资源的扩展能力：分享管理 + 知识库挂载 + 标签 / 分支 / 生成续传 */
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const authed = [authMiddleware] as const;
-
 const createShare = defineContractRoute(aiConversationContract.share, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { expiresDays } = c.req.valid('json');
@@ -23,7 +19,6 @@ const createShare = defineContractRoute(aiConversationContract.share, {
 });
 
 const getShare = defineContractRoute(aiConversationContract.shareInfo, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await getConversationShare(id)), 200);
@@ -31,7 +26,6 @@ const getShare = defineContractRoute(aiConversationContract.shareInfo, {
 });
 
 const revokeShare = defineContractRoute(aiConversationContract.revokeShare, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await revokeConversationShare(id);
@@ -40,7 +34,6 @@ const revokeShare = defineContractRoute(aiConversationContract.revokeShare, {
 });
 
 const setKb = defineContractRoute(aiConversationContract.setKnowledgeBase, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { kbId } = c.req.valid('json');
@@ -50,7 +43,6 @@ const setKb = defineContractRoute(aiConversationContract.setKnowledgeBase, {
 });
 
 const setTags = defineContractRoute(aiConversationContract.setTags, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { tags } = c.req.valid('json');
@@ -59,7 +51,6 @@ const setTags = defineContractRoute(aiConversationContract.setTags, {
 });
 
 const switchBranch = defineContractRoute(aiConversationContract.switchBranch, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { leafMsgId } = c.req.valid('json');
@@ -69,7 +60,6 @@ const switchBranch = defineContractRoute(aiConversationContract.switchBranch, {
 });
 
 const activeGeneration = defineContractRoute(aiConversationContract.activeGeneration, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await ensureConversationOwner(id);

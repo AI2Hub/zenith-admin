@@ -27,10 +27,10 @@ export const iotDeviceGroupListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const iotDeviceGroupContract = defineContract('/api/iot/groups', {
-  list: op.get('/', { query: iotDeviceGroupListQuery, response: paginated(iotDeviceGroupSchema), summary: '设备分组列表（含设备数）' }),
-  all: op.get('/all', { response: z.array(iotDeviceGroupSchema), summary: '全部分组（供筛选与批量操作圈选）' }),
-  detail: op.get('/{id}', { params: idParam, response: iotDeviceGroupSchema, summary: '分组详情（含成员设备 id）' }),
-  create: op.post('/', { body: createIotDeviceGroupSchema, response: iotDeviceGroupSchema, summary: '创建分组' }),
-  update: op.put('/{id}', { params: idParam, body: updateIotDeviceGroupSchema, response: iotDeviceGroupSchema, summary: '更新分组（含成员全量替换）' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除分组（设备本身不受影响）' }),
-}, { tags: ['IoT 分组'] });
+  list: op.get('/', { access: { permission: 'iot:device:list' }, query: iotDeviceGroupListQuery, response: paginated(iotDeviceGroupSchema), summary: '设备分组列表（含设备数）' }),
+  all: op.get('/all', { access: { permission: 'iot:device:list' }, response: z.array(iotDeviceGroupSchema), summary: '全部分组（供筛选与批量操作圈选）' }),
+  detail: op.get('/{id}', { access: { permission: 'iot:device:list' }, params: idParam, response: iotDeviceGroupSchema, summary: '分组详情（含成员设备 id）' }),
+  create: op.post('/', { access: { permission: 'iot:group:manage' }, audit: '创建 IoT 设备分组', body: createIotDeviceGroupSchema, response: iotDeviceGroupSchema, summary: '创建分组' }),
+  update: op.put('/{id}', { access: { permission: 'iot:group:manage' }, audit: '更新 IoT 设备分组', params: idParam, body: updateIotDeviceGroupSchema, response: iotDeviceGroupSchema, summary: '更新分组（含成员全量替换）' }),
+  remove: op.delete('/{id}', { access: { permission: 'iot:group:manage' }, audit: '删除 IoT 设备分组', params: idParam, summary: '删除分组（设备本身不受影响）' }),
+}, { auditModule: 'IoT 设备', tags: ['IoT 分组'] });

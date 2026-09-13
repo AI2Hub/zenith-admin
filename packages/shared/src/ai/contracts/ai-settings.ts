@@ -29,9 +29,9 @@ export type AiMemoryProfile = z.infer<typeof aiMemoryProfileSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const aiSettingsContract = defineContract('/api/ai/settings', {
-  me: op.get('/', { response: aiUserSettingsSchema, summary: '获取我的 AI 设置（个人指令 / AI 记忆开关等）' }),
-  save: op.put('/', { body: saveAiUserSettingsSchema, response: aiUserSettingsSchema, summary: '保存我的 AI 设置（域内字段级合并）' }),
-  memoryProfile: op.get('/memory-profile', { response: aiMemoryProfileSchema, summary: '查看我的 AI 记忆画像（working memory）' }),
-  saveMemoryProfile: op.put('/memory-profile', { body: updateAiMemoryProfileSchema, response: aiMemoryProfileSchema, summary: '编辑我的 AI 记忆画像' }),
-  clearMemoryProfile: op.delete('/memory-profile', { summary: '清空我的 AI 记忆画像' }),
+  me: op.get('/', { access: 'authenticated', response: aiUserSettingsSchema, summary: '获取我的 AI 设置（个人指令 / AI 记忆开关等）' }),
+  save: op.put('/', { access: 'authenticated', body: saveAiUserSettingsSchema, response: aiUserSettingsSchema, summary: '保存我的 AI 设置（域内字段级合并）' }),
+  memoryProfile: op.get('/memory-profile', { access: 'authenticated', response: aiMemoryProfileSchema, summary: '查看我的 AI 记忆画像（working memory）' }),
+  saveMemoryProfile: op.put('/memory-profile', { access: 'authenticated', body: updateAiMemoryProfileSchema, response: aiMemoryProfileSchema, summary: '编辑我的 AI 记忆画像' }),
+  clearMemoryProfile: op.delete('/memory-profile', { access: 'authenticated', summary: '清空我的 AI 记忆画像' }),
 }, { tags: ['AI'] });

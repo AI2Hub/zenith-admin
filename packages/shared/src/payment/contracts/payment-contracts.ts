@@ -86,18 +86,20 @@ export const paymentContractListQuery = paginationQuery.extend({
 
 /** 签约协议：与扣款计划同挂支付资源根，操作名在根内唯一 */
 export const paymentSigningContract = defineContract('/api/payment', {
-  contracts: op.get('/contracts', { query: paymentContractListQuery, response: paginated(paymentContractSchema), summary: '签约协议列表' }),
-  contractDetail: op.get('/contracts/{id}', { params: idParam, query: paymentApplicationQuery, response: paymentContractSchema, summary: '签约协议详情' }),
+  contracts: op.get('/contracts', { access: { permission: 'payment:contract:list' }, query: paymentContractListQuery, response: paginated(paymentContractSchema), summary: '签约协议列表' }),
+  contractDetail: op.get('/contracts/{id}', { access: { permission: 'payment:contract:list' }, params: idParam, query: paymentApplicationQuery, response: paymentContractSchema, summary: '签约协议详情' }),
   createContract: op.post('/contracts', {
+    access: { permission: 'payment:contract:manage' }, audit: '创建签约协议',
     body: createPaymentContractSchema,
     response: paymentContractSignResultSchema,
     summary: '创建签约协议（演示/测试，沙箱即时生效）',
     description: '管理端手工签约，可选签约后立即执行首期扣款；真实渠道需商户开通代扣产品权限。',
   }),
-  terminateContract: op.post('/contracts/{id}/terminate', { params: idParam, query: paymentApplicationQuery, response: paymentContractSchema, summary: '解约' }),
-  pauseContract: op.post('/contracts/{id}/pause', { params: idParam, query: paymentApplicationQuery, response: paymentContractSchema, summary: '暂停扣款' }),
-  resumeContract: op.post('/contracts/{id}/resume', { params: idParam, query: paymentApplicationQuery, response: paymentContractSchema, summary: '恢复扣款（重置失败计数并尽快补扣）' }),
+  terminateContract: op.post('/contracts/{id}/terminate', { access: { permission: 'payment:contract:manage' }, audit: '解约签约协议', params: idParam, query: paymentApplicationQuery, response: paymentContractSchema, summary: '解约' }),
+  pauseContract: op.post('/contracts/{id}/pause', { access: { permission: 'payment:contract:manage' }, audit: '暂停签约协议', params: idParam, query: paymentApplicationQuery, response: paymentContractSchema, summary: '暂停扣款' }),
+  resumeContract: op.post('/contracts/{id}/resume', { access: { permission: 'payment:contract:manage' }, audit: '恢复签约协议', params: idParam, query: paymentApplicationQuery, response: paymentContractSchema, summary: '恢复扣款（重置失败计数并尽快补扣）' }),
   deductContract: op.post('/contracts/{id}/deduct', {
+    access: { permission: 'payment:contract:manage' }, audit: '手动补扣',
     params: idParam,
     query: paymentApplicationQuery,
     response: paymentDeductResultSchema,
@@ -105,10 +107,11 @@ export const paymentSigningContract = defineContract('/api/payment', {
     description: '资金扣款接口，挂幂等防重复提交；并发下由活跃业务单唯一索引兜底。',
   }),
   recoverContract: op.post('/contracts/{id}/recover', {
+    access: { permission: 'payment:contract:manage' }, audit: '查询恢复签约协议',
     params: idParam,
     query: paymentApplicationQuery,
     response: paymentContractSchema,
     summary: '查询并恢复未知协议状态',
     description: '仅当渠道适配器明确声明 contract.query 能力时收敛；否则保持原状态并记录原因。',
   }),
-}, { tags: ['支付中心-签约代扣'] });
+}, { auditModule: '支付中心', tags: ['支付中心-签约代扣'] });

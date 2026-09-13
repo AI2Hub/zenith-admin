@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { driveShareLinkContract } from '@zenith/shared/drive';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -17,11 +16,8 @@ import {
 import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
-const AUDIT = { module: '企业网盘' } as const;
 
-const read = [authMiddleware, guard({ permission: 'drive:link:create' })] as const;
 const updateRoute = defineContractRoute(driveShareLinkContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'drive:link:create', audit: { description: '修改网盘外链', recordBody: false, ...AUDIT } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getShareLinkBeforeAudit(id));
@@ -30,7 +26,6 @@ const updateRoute = defineContractRoute(driveShareLinkContract.update, {
 });
 
 const revokeRoute = defineContractRoute(driveShareLinkContract.revoke, {
-  middleware: [authMiddleware, guard({ permission: 'drive:link:create', audit: { description: '撤销网盘外链', ...AUDIT } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getShareLinkBeforeAudit(id));
@@ -41,7 +36,6 @@ const revokeRoute = defineContractRoute(driveShareLinkContract.revoke, {
 });
 
 const deleteRoute = defineContractRoute(driveShareLinkContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'drive:link:create', audit: { description: '删除网盘外链', ...AUDIT } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getShareLinkBeforeAudit(id));
@@ -51,7 +45,6 @@ const deleteRoute = defineContractRoute(driveShareLinkContract.remove, {
 });
 
 const accessLogsRoute = defineContractRoute(driveShareLinkContract.accessLogs, {
-  middleware: read,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await listShareAccessLogs(id, c.req.valid('query'))), 200);
@@ -59,7 +52,6 @@ const accessLogsRoute = defineContractRoute(driveShareLinkContract.accessLogs, {
 });
 
 const submissionsRoute = defineContractRoute(driveShareLinkContract.submissions, {
-  middleware: read,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await listCollectSubmissions(id, c.req.valid('query'))), 200);
@@ -67,13 +59,12 @@ const submissionsRoute = defineContractRoute(driveShareLinkContract.submissions,
 });
 
 const shortLinkRoute = defineContractRoute(driveShareLinkContract.shortLink, {
-  middleware: [authMiddleware, guard({ permission: 'drive:link:create', audit: { description: '生成网盘外链短链', ...AUDIT } })],
   handler: async (c) => c.json(okBody(await ensureDriveShareShortLink(c.req.valid('param').id), '短链已生成'), 200),
 });
 
 mountCrud(router, driveShareLinkContract,
   { list: listMyShareLinks },
-  { permission: { read: 'drive:link:create' }, exclude: ['update', 'remove'] },
+  { exclude: ['update', 'remove'] },
   [updateRoute, revokeRoute, deleteRoute, accessLogsRoute, submissionsRoute, shortLinkRoute],
 );
 

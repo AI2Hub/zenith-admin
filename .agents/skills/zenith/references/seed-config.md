@@ -57,7 +57,7 @@
 
 权限码在整个仓库只声明一次——各域的 `definePermissions()` 注册表；button 节点由 `seed/menus.ts` 的
 `expandPermissionButtons()` 按 `menu`（页面 `name`）生成，`Permission` 联合类型随之更新，
-服务端 `guard` / `mountCrud`、前端 `hasPermission` / `permission=` 的字面量拼错即编译报错：
+契约操作 `access.permission`、服务端 `hasPermission()`、前端 `hasPermission` / `permission=` 的字面量拼错即编译报错：
 
 ```ts
 export const XXX_PERMISSIONS = definePermissions({
@@ -72,7 +72,7 @@ export const XXX_PERMISSIONS = definePermissions({
 ```
 
 新增业务域时：建 `{域}/permissions.ts`，在域 `index.ts` `export * from './permissions'`，
-并把它加进 `shared/src/permissions.ts` 的 `PERMISSION_REGISTRY_BY_DOMAIN`。
+并把它加进 `shared/src/permissions.ts` 的 `PERMISSION_REGISTRY_BY_DOMAIN`（`Permission` 类型即由该聚合推导，不需要任何 `declare module`）。
 
 字段规则：
 

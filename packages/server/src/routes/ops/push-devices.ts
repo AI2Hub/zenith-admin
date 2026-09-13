@@ -7,7 +7,6 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { pushDeviceContract } from '@zenith/shared/ops';
-import { authMiddleware } from '../../middleware/auth';
 import { currentUser } from '../../lib/context';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
@@ -16,7 +15,6 @@ import { bindPushDevice, unbindPushDevice } from '../../services/ops/client-devi
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const bindRoute = defineContractRoute(pushDeviceContract.bind, {
-  middleware: [authMiddleware],
   responses: { 404: { content: jsonContent(ErrorResponse), description: '应用不存在' } },
   handler: async (c) => {
     const device = await bindPushDevice('user', currentUser().userId, c.req.valid('json'));
@@ -25,7 +23,6 @@ const bindRoute = defineContractRoute(pushDeviceContract.bind, {
 });
 
 const unbindRoute = defineContractRoute(pushDeviceContract.unbind, {
-  middleware: [authMiddleware],
   handler: async (c) => {
     const { deviceId } = c.req.valid('param');
     await unbindPushDevice('user', currentUser().userId, deviceId);

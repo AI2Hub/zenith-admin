@@ -65,14 +65,14 @@ export const aiCatalogProviderParam = z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const aiProviderContract = defineContract('/api/ai/providers', {
-  list: op.get('/', { response: z.array(aiProviderConfigSchema), summary: '获取 AI 服务商配置列表' }),
-  catalog: op.get('/catalog', { response: z.array(aiProviderCatalogEntrySchema), summary: '服务商目录（Mastra 模型目录,常用项排前,custom 恒在首位）' }),
-  catalogModels: op.get('/catalog/{providerId}/models', { params: aiCatalogProviderParam, response: z.array(z.string()), summary: '目录内某服务商的模型清单' }),
-  detail: op.get('/{id}', { params: idParam, response: aiProviderConfigSchema, summary: '获取 AI 服务商配置详情' }),
-  create: op.post('/', { body: createAiProviderConfigSchema, response: aiProviderConfigSchema, summary: '创建 AI 服务商配置' }),
-  update: op.put('/{id}', { params: idParam, body: updateAiProviderConfigSchema, response: aiProviderConfigSchema, summary: '更新 AI 服务商配置' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除 AI 服务商配置' }),
-  setDefault: op.post('/{id}/set-default', { params: idParam, response: aiProviderConfigSchema, summary: '设为默认 AI 服务商' }),
-  testConnection: op.post('/test-connection', { body: testAiConnectionSchema, response: testAiConnectionResultSchema, summary: '测试 AI 服务商连接' }),
-  fetchModels: op.post('/fetch-models', { body: fetchAiModelsSchema, response: z.array(z.string()), summary: '从供应商 API 自动发现可用模型列表' }),
+  list: op.get('/', { access: { permission: 'ai:provider:list' }, response: z.array(aiProviderConfigSchema), summary: '获取 AI 服务商配置列表' }),
+  catalog: op.get('/catalog', { access: { permission: 'ai:provider:list' }, response: z.array(aiProviderCatalogEntrySchema), summary: '服务商目录（Mastra 模型目录,常用项排前,custom 恒在首位）' }),
+  catalogModels: op.get('/catalog/{providerId}/models', { access: { permission: 'ai:provider:list' }, params: aiCatalogProviderParam, response: z.array(z.string()), summary: '目录内某服务商的模型清单' }),
+  detail: op.get('/{id}', { access: { permission: 'ai:provider:list' }, params: idParam, response: aiProviderConfigSchema, summary: '获取 AI 服务商配置详情' }),
+  create: op.post('/', { access: { permission: 'ai:provider:create' }, body: createAiProviderConfigSchema, response: aiProviderConfigSchema, summary: '创建 AI 服务商配置' }),
+  update: op.put('/{id}', { access: { permission: 'ai:provider:edit' }, params: idParam, body: updateAiProviderConfigSchema, response: aiProviderConfigSchema, summary: '更新 AI 服务商配置' }),
+  remove: op.delete('/{id}', { access: { permission: 'ai:provider:delete' }, params: idParam, summary: '删除 AI 服务商配置' }),
+  setDefault: op.post('/{id}/set-default', { access: { permission: 'ai:provider:edit' }, params: idParam, response: aiProviderConfigSchema, summary: '设为默认 AI 服务商' }),
+  testConnection: op.post('/test-connection', { access: { permission: 'ai:provider:edit' }, body: testAiConnectionSchema, response: testAiConnectionResultSchema, summary: '测试 AI 服务商连接' }),
+  fetchModels: op.post('/fetch-models', { access: { permission: 'ai:provider:edit' }, body: fetchAiModelsSchema, response: z.array(z.string()), summary: '从供应商 API 自动发现可用模型列表' }),
 }, { tags: ['AI'] });

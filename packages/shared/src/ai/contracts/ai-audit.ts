@@ -16,6 +16,6 @@ export const aiAuditMessageQuery = paginationQuery.extend({
 // ─── 契约：对话内容合规审计（管理员） ─────────────────────────────────────────
 
 export const aiAuditContract = defineContract('/api/ai/audit', {
-  messages: op.get('/messages', { query: aiAuditMessageQuery, response: paginated(aiFeedbackItemSchema), summary: '管理员对话内容合规审计检索' }),
-  messageContext: op.get('/messages/{msgId}/context', { params: aiMessageIdParam, response: aiFeedbackContextSchema, summary: '管理员查看审计消息的会话上下文' }),
-}, { tags: ['AI'] });
+  messages: op.get('/messages', { access: { permission: 'ai:audit:view' }, audit: 'AI 对话审计检索', query: aiAuditMessageQuery, response: paginated(aiFeedbackItemSchema), summary: '管理员对话内容合规审计检索' }),
+  messageContext: op.get('/messages/{msgId}/context', { access: { permission: 'ai:audit:view' }, params: aiMessageIdParam, response: aiFeedbackContextSchema, summary: '管理员查看审计消息的会话上下文' }),
+}, { auditModule: '智能助手', tags: ['AI'] });

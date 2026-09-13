@@ -30,11 +30,11 @@ export const tagListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const tagContract = defineContract('/api/tags', {
-  list: op.get('/', { query: tagListQuery, response: paginated(tagSchema), summary: '标签列表' }),
-  groups: op.get('/groups', { response: z.array(z.string()), summary: '获取标签分组列表' }),
-  detail: op.get('/{id}', { params: idParam, response: tagSchema, summary: '标签详情' }),
-  create: op.post('/', { body: createTagSchema, response: tagSchema, summary: '创建标签' }),
-  update: op.put('/{id}', { params: idParam, body: updateTagSchema, response: tagSchema, summary: '更新标签' }),
-  removeBatch: op.delete('/batch', { body: batchIdsBody, summary: '批量删除标签' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除标签' }),
-}, { tags: ['Tags'] });
+  list: op.get('/', { access: { permission: 'system:tag:list' }, query: tagListQuery, response: paginated(tagSchema), summary: '标签列表' }),
+  groups: op.get('/groups', { access: { permission: 'system:tag:list' }, response: z.array(z.string()), summary: '获取标签分组列表' }),
+  detail: op.get('/{id}', { access: { permission: 'system:tag:list' }, params: idParam, response: tagSchema, summary: '标签详情' }),
+  create: op.post('/', { access: { permission: 'system:tag:create' }, audit: '创建标签', body: createTagSchema, response: tagSchema, summary: '创建标签' }),
+  update: op.put('/{id}', { access: { permission: 'system:tag:update' }, audit: '更新标签', params: idParam, body: updateTagSchema, response: tagSchema, summary: '更新标签' }),
+  removeBatch: op.delete('/batch', { access: { permission: 'system:tag:delete' }, audit: '批量删除标签', body: batchIdsBody, summary: '批量删除标签' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:tag:delete' }, audit: '删除标签', params: idParam, summary: '删除标签' }),
+}, { auditModule: '标签管理', tags: ['Tags'] });

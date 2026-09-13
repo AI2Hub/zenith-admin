@@ -61,11 +61,11 @@ export const cmsCollectItemListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsCollectContract = defineContract('/api/cms/collect', {
-  list: op.get('/rules', { query: cmsCollectRuleListQuery, response: paginated(cmsCollectRuleSchema), summary: '采集规则分页列表' }),
-  create: op.post('/rules', { body: createCmsCollectRuleSchema, response: cmsCollectRuleSchema, summary: '创建采集规则' }),
-  update: op.put('/rules/{id}', { params: idParam, body: updateCmsCollectRuleSchema, response: cmsCollectRuleSchema, summary: '更新采集规则' }),
-  remove: op.delete('/rules/{id}', { params: idParam, summary: '删除采集规则' }),
-  run: op.post('/rules/{id}/run', { params: idParam, response: asyncTaskSchema, summary: '执行采集（任务中心异步）' }),
-  items: op.get('/rules/{id}/items', { params: idParam, query: cmsCollectItemListQuery, response: paginated(cmsCollectItemSchema), summary: '采集明细分页列表' }),
-}, { tags: ['CMS-采集中心'] });
+  list: op.get('/rules', { access: { permission: 'cms:collect:list' }, query: cmsCollectRuleListQuery, response: paginated(cmsCollectRuleSchema), summary: '采集规则分页列表' }),
+  create: op.post('/rules', { access: { permission: 'cms:collect:create' }, audit: '创建 CMS 采集规则', body: createCmsCollectRuleSchema, response: cmsCollectRuleSchema, summary: '创建采集规则' }),
+  update: op.put('/rules/{id}', { access: { permission: 'cms:collect:update' }, audit: '更新 CMS 采集规则', params: idParam, body: updateCmsCollectRuleSchema, response: cmsCollectRuleSchema, summary: '更新采集规则' }),
+  remove: op.delete('/rules/{id}', { access: { permission: 'cms:collect:delete' }, audit: '删除 CMS 采集规则', params: idParam, summary: '删除采集规则' }),
+  run: op.post('/rules/{id}/run', { access: { permission: 'cms:collect:run' }, audit: '执行 CMS 采集', params: idParam, response: asyncTaskSchema, summary: '执行采集（任务中心异步）' }),
+  items: op.get('/rules/{id}/items', { access: { permission: 'cms:collect:list' }, params: idParam, query: cmsCollectItemListQuery, response: paginated(cmsCollectItemSchema), summary: '采集明细分页列表' }),
+}, { auditModule: 'CMS内容管理', tags: ['CMS-采集中心'] });
 

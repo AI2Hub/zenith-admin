@@ -7,7 +7,6 @@
  * 校验逻辑见 lib/wechat。账号查询不做租户过滤（回调无登录上下文）。
  */
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createHash } from 'node:crypto';
 import { validationHook } from '../../lib/openapi-schemas';
 import { getMpAccountForCallback } from '../../services/mp/mp-account.service';
 import { storeInboundMessage, storeOutboundAutoReply } from '../../services/mp/mp-message.service';
@@ -250,3 +249,4 @@ const receiveRoute = defineOpenAPIRoute({
 router.openapiRoutes([verifyRoute, receiveRoute] as const);
 
 export default router;
+import { createHash } from 'node:crypto';

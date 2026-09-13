@@ -87,21 +87,22 @@ export const paymentSharingReversalListQuery = paginationQuery.extend({
 
 /** 分账：接收方 / 分账单 / 分账冲正共用一个路由根 */
 export const paymentSharingContract = defineContract('/api/payment/sharing', {
-  receivers: op.get('/receivers', { query: paymentSharingReceiverListQuery, response: paginated(paymentSharingReceiverSchema), summary: '分账接收方列表' }),
-  receiverDetail: op.get('/receivers/{id}', { params: idParam, response: paymentSharingReceiverSchema, summary: '分账接收方详情' }),
-  createReceiver: op.post('/receivers', { body: createPaymentSharingReceiverSchema, response: paymentSharingReceiverSchema, summary: '新增分账接收方' }),
-  updateReceiver: op.put('/receivers/{id}', { params: idParam, body: updatePaymentSharingReceiverSchema, response: paymentSharingReceiverSchema, summary: '编辑分账接收方' }),
-  removeReceiver: op.delete('/receivers/{id}', { params: idParam, summary: '删除分账接收方' }),
-  orders: op.get('/orders', { query: paymentSharingOrderListQuery, response: paginated(paymentSharingOrderSchema), summary: '分账单列表' }),
-  dispatch: op.post('/orders', { body: dispatchPaymentSharingSchema, response: paymentSharingOrderSchema, summary: '发起分账' }),
-  reversals: op.get('/reversals', { query: paymentSharingReversalListQuery, response: paginated(paymentSharingReversalSchema), summary: '分账冲正列表' }),
+  receivers: op.get('/receivers', { access: { permission: 'payment:sharing:list' }, query: paymentSharingReceiverListQuery, response: paginated(paymentSharingReceiverSchema), summary: '分账接收方列表' }),
+  receiverDetail: op.get('/receivers/{id}', { access: { permission: 'payment:sharing:list' }, params: idParam, response: paymentSharingReceiverSchema, summary: '分账接收方详情' }),
+  createReceiver: op.post('/receivers', { access: { permission: 'payment:sharing:manage' }, audit: '新增分账接收方', body: createPaymentSharingReceiverSchema, response: paymentSharingReceiverSchema, summary: '新增分账接收方' }),
+  updateReceiver: op.put('/receivers/{id}', { access: { permission: 'payment:sharing:manage' }, audit: '编辑分账接收方', params: idParam, body: updatePaymentSharingReceiverSchema, response: paymentSharingReceiverSchema, summary: '编辑分账接收方' }),
+  removeReceiver: op.delete('/receivers/{id}', { access: { permission: 'payment:sharing:manage' }, audit: '删除分账接收方', params: idParam, summary: '删除分账接收方' }),
+  orders: op.get('/orders', { access: { permission: 'payment:sharing:list' }, query: paymentSharingOrderListQuery, response: paginated(paymentSharingOrderSchema), summary: '分账单列表' }),
+  dispatch: op.post('/orders', { access: { permission: 'payment:sharing:dispatch' }, audit: '发起支付分账', body: dispatchPaymentSharingSchema, response: paymentSharingOrderSchema, summary: '发起分账' }),
+  reversals: op.get('/reversals', { access: { permission: 'payment:sharing:list' }, query: paymentSharingReversalListQuery, response: paginated(paymentSharingReversalSchema), summary: '分账冲正列表' }),
   reverse: op.post('/orders/{id}/reverse', {
+    access: { permission: 'payment:sharing:dispatch' }, audit: '发起支付分账冲正',
     params: idParam,
     headers: idempotencyKeyHeaders,
     body: createPaymentSharingReversalSchema,
     response: paymentSharingReversalSchema,
     summary: '发起分账冲正',
   }),
-  queryReversal: op.post('/reversals/{id}/query', { params: idParam, response: paymentSharingReversalSchema, summary: '查询分账冲正结果' }),
-  reversalDetail: op.get('/reversals/{id}', { params: idParam, response: paymentSharingReversalSchema, summary: '分账冲正详情' }),
-}, { tags: ['支付中心-分账'] });
+  queryReversal: op.post('/reversals/{id}/query', { access: { permission: 'payment:sharing:dispatch' }, audit: '查询支付分账冲正', params: idParam, response: paymentSharingReversalSchema, summary: '查询分账冲正结果' }),
+  reversalDetail: op.get('/reversals/{id}', { access: { permission: 'payment:sharing:list' }, params: idParam, response: paymentSharingReversalSchema, summary: '分账冲正详情' }),
+}, { auditModule: '支付中心', tags: ['支付中心-分账'] });

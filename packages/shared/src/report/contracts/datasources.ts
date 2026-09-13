@@ -103,15 +103,15 @@ export const reportDatasourceListQuery = paginationQuery.extend({
 });
 
 export const reportDatasourceContract = defineContract('/api/report/datasources', {
-  list: op.get('/', { query: reportDatasourceListQuery, response: paginated(reportDatasourceSchema), summary: '数据源列表' }),
-  lookup: op.get('/lookup', { query: reportLookupQuerySchema, response: z.array(reportLookupOptionSchema), summary: '数据源轻量下拉' }),
-  batchStatus: op.put('/batch-status', { body: reportBatchStatusSchema, summary: '批量启停数据源' }),
-  detail: op.get('/{id}', { params: idParam, response: reportDatasourceSchema, summary: '数据源详情' }),
-  create: op.post('/', { body: createReportDatasourceSchema, response: reportDatasourceSchema, summary: '创建数据源' }),
-  update: op.put('/{id}', { params: idParam, body: updateReportDatasourceSchema, response: reportDatasourceSchema, summary: '更新数据源' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除数据源' }),
-  test: op.post('/test', { body: reportDatasourceTestSchema, response: reportDatasourceTestResultSchema, summary: '测试数据源连接（外部库）' }),
-  testOne: op.post('/{id}/test', { params: idParam, response: reportDatasourceTestResultSchema, summary: '测试并持久化数据源健康状态' }),
-  clone: op.post('/{id}/clone', { params: idParam, body: reportCloneSchema, response: reportDatasourceSchema, summary: '复制数据源' }),
-  healthCheck: op.post('/health-check', { body: batchIdsBody, response: asyncTaskSchema, summary: '批量健康检查' }),
-}, { tags: ['报表数据源'] });
+  list: op.get('/', { access: { permission: 'report:datasource:list' }, query: reportDatasourceListQuery, response: paginated(reportDatasourceSchema), summary: '数据源列表' }),
+  lookup: op.get('/lookup', { access: { permission: 'report:datasource:list' }, query: reportLookupQuerySchema, response: z.array(reportLookupOptionSchema), summary: '数据源轻量下拉' }),
+  batchStatus: op.put('/batch-status', { access: { permission: 'report:datasource:update' }, audit: '批量更新报表数据源状态', body: reportBatchStatusSchema, summary: '批量启停数据源' }),
+  detail: op.get('/{id}', { access: { permission: 'report:datasource:list' }, params: idParam, response: reportDatasourceSchema, summary: '数据源详情' }),
+  create: op.post('/', { access: { permission: 'report:datasource:create' }, audit: '创建报表数据源', body: createReportDatasourceSchema, response: reportDatasourceSchema, summary: '创建数据源' }),
+  update: op.put('/{id}', { access: { permission: 'report:datasource:update' }, audit: '更新报表数据源', params: idParam, body: updateReportDatasourceSchema, response: reportDatasourceSchema, summary: '更新数据源' }),
+  remove: op.delete('/{id}', { access: { permission: 'report:datasource:delete' }, audit: '删除报表数据源', params: idParam, summary: '删除数据源' }),
+  test: op.post('/test', { access: { permission: 'report:datasource:create' }, body: reportDatasourceTestSchema, response: reportDatasourceTestResultSchema, summary: '测试数据源连接（外部库）' }),
+  testOne: op.post('/{id}/test', { access: { permission: 'report:datasource:update' }, audit: '测试报表数据源连接', params: idParam, response: reportDatasourceTestResultSchema, summary: '测试并持久化数据源健康状态' }),
+  clone: op.post('/{id}/clone', { access: { permission: 'report:datasource:create' }, audit: '复制报表数据源', params: idParam, body: reportCloneSchema, response: reportDatasourceSchema, summary: '复制数据源' }),
+  healthCheck: op.post('/health-check', { access: { permission: 'report:datasource:update' }, audit: '批量检测报表数据源健康状态', body: batchIdsBody, response: asyncTaskSchema, summary: '批量健康检查' }),
+}, { auditModule: '报表数据源', tags: ['报表数据源'] });

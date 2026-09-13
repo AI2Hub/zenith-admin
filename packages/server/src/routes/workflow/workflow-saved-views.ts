@@ -9,10 +9,6 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 mountCrud(router, workflowSavedViewContract,
   { list: listSavedViews, get: getSavedView, create: createSavedView, update: updateSavedView, remove: deleteSavedView },
   {
-    permission: { read: 'workflow:instance:list', write: 'workflow:instance:list' },
-    label: '工作流视图',
-    module: '工作流管理',
-    audit: { create: '保存工作流视图' },
     messages: { create: '已保存', update: '已更新', remove: '已删除' },
   },
 );

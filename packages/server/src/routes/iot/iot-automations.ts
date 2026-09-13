@@ -5,8 +5,6 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { iotAutomationContract } from '@zenith/shared/iot';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -22,10 +20,8 @@ import { mountCrud } from '../_crud';
 
 export const iotAutomationsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'iot:automation:list' })] as const;
 const notFound = { 404: { content: jsonContent(ErrorResponse), description: '不存在' } } as const;
 const listRunsRoute = defineContractRoute(iotAutomationContract.runs, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listIotAutomationRuns(c.req.valid('query'))), 200),
 });
 
@@ -38,9 +34,6 @@ mountCrud(iotAutomationsRouter, iotAutomationContract,
     remove: deleteIotAutomation,
   },
   {
-    permission: 'iot:automation',
-    label: ' IoT 场景联动',
-    module: 'IoT 场景联动',
     responses: { update: notFound, remove: notFound },
   },
   [listRunsRoute],

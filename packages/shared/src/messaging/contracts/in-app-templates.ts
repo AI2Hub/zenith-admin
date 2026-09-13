@@ -31,9 +31,9 @@ export const inAppTemplateListQuery = paginationQuery.extend({
 });
 
 export const inAppTemplateContract = defineContract('/api/in-app-templates', {
-  list: op.get('/', { query: inAppTemplateListQuery, response: paginated(inAppTemplateSchema), summary: '站内信模板列表' }),
-  detail: op.get('/{id}', { params: idParam, response: inAppTemplateSchema, summary: '获取站内信模板详情' }),
-  create: op.post('/', { body: createInAppTemplateSchema, response: inAppTemplateSchema, summary: '创建站内信模板' }),
-  update: op.put('/{id}', { params: idParam, body: updateInAppTemplateSchema, response: inAppTemplateSchema, summary: '更新站内信模板' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除站内信模板' }),
-}, { tags: ['InAppTemplates'] });
+  list: op.get('/', { access: { permission: 'system:in-app-template:list' }, query: inAppTemplateListQuery, response: paginated(inAppTemplateSchema), summary: '站内信模板列表' }),
+  detail: op.get('/{id}', { access: { permission: 'system:in-app-template:list' }, params: idParam, response: inAppTemplateSchema, summary: '获取站内信模板详情' }),
+  create: op.post('/', { access: { permission: 'system:in-app-template:create' }, audit: '创建站内信模板', body: createInAppTemplateSchema, response: inAppTemplateSchema, summary: '创建站内信模板' }),
+  update: op.put('/{id}', { access: { permission: 'system:in-app-template:update' }, audit: '更新站内信模板', params: idParam, body: updateInAppTemplateSchema, response: inAppTemplateSchema, summary: '更新站内信模板' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:in-app-template:delete' }, audit: '删除站内信模板', params: idParam, summary: '删除站内信模板' }),
+}, { auditModule: '站内信模板', tags: ['InAppTemplates'] });

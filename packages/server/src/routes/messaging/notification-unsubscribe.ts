@@ -6,7 +6,6 @@
  */
 import { Hono } from 'hono';
 import { getNotificationEvent, isNotificationEventKey } from '@zenith/shared/messaging';
-import { escapeHtml } from '@zenith/shared/core';
 import { verifyUnsubscribeToken } from '../../lib/notification/unsubscribe';
 import { applyUnsubscribe } from '../../services/messaging/notification-preferences.service';
 
@@ -65,3 +64,4 @@ function isUnsubscribableEvent(eventKey: string | undefined): boolean {
 }
 
 export default router;
+import { escapeHtml } from '@zenith/shared/core';

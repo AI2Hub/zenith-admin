@@ -52,14 +52,14 @@ export const roleListQuery = paginationQuery.extend({
 });
 
 export const roleContract = defineContract('/api/roles', {
-  all: op.get('/all', { response: z.array(roleSchema), summary: '全量角色（供下拉框）' }),
-  list: op.get('/', { query: roleListQuery, response: paginated(roleSchema), summary: '角色列表' }),
-  detail: op.get('/{id}', { params: idParam, response: roleSchema, summary: '获取单个角色（含 menuIds）' }),
-  create: op.post('/', { body: createRoleSchema, response: roleSchema, summary: '新增角色' }),
-  update: op.put('/{id}', { params: idParam, body: updateRoleSchema, response: roleSchema, summary: '更新角色' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除角色' }),
-  assignMenus: op.put('/{id}/menus', { params: idParam, body: assignRoleMenusSchema, summary: '分配角色菜单' }),
-  users: op.get('/{id}/users', { params: idParam, response: z.array(roleUserSchema), summary: '获取角色关联用户' }),
-  assignUsers: op.put('/{id}/users', { params: idParam, body: assignRoleUsersSchema, summary: '分配角色用户' }),
-  memberPreview: memberPreviewOp('角色成员分页预览'),
-}, { tags: ['Roles'] });
+  all: op.get('/all', { access: { permission: 'system:role:list' }, response: z.array(roleSchema), summary: '全量角色（供下拉框）' }),
+  list: op.get('/', { access: { permission: 'system:role:list' }, query: roleListQuery, response: paginated(roleSchema), summary: '角色列表' }),
+  detail: op.get('/{id}', { access: { permission: 'system:role:list' }, params: idParam, response: roleSchema, summary: '获取单个角色（含 menuIds）' }),
+  create: op.post('/', { access: { permission: 'system:role:create' }, audit: '创建角色', body: createRoleSchema, response: roleSchema, summary: '新增角色' }),
+  update: op.put('/{id}', { access: { permission: 'system:role:update' }, audit: '更新角色', params: idParam, body: updateRoleSchema, response: roleSchema, summary: '更新角色' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:role:delete' }, audit: '删除角色', params: idParam, summary: '删除角色' }),
+  assignMenus: op.put('/{id}/menus', { access: { permission: 'system:role:assign' }, audit: '分配角色菜单', params: idParam, body: assignRoleMenusSchema, summary: '分配角色菜单' }),
+  users: op.get('/{id}/users', { access: { permission: 'system:role:list' }, params: idParam, response: z.array(roleUserSchema), summary: '获取角色关联用户' }),
+  assignUsers: op.put('/{id}/users', { access: { permission: 'system:role:assign' }, audit: '分配角色用户', params: idParam, body: assignRoleUsersSchema, summary: '分配角色用户' }),
+  memberPreview: memberPreviewOp('角色成员分页预览', 'system:role:list'),
+}, { auditModule: '角色管理', tags: ['Roles'] });

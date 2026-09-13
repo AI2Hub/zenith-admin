@@ -117,7 +117,7 @@ export const reportExecutionListQuery = paginationQuery.extend({
 export const reportExecutionStatsQuery = z.object(executionFilterFields);
 
 export const reportExecutionContract = defineContract('/api/report/executions', {
-  stats: op.get('/stats', { query: reportExecutionStatsQuery, response: reportExecutionStatsSchema, summary: '数据集执行日志统计' }),
-  governance: op.get('/governance', { response: reportRuntimeGovernanceSchema, summary: '报表运行治理配置' }),
-  list: op.get('/', { query: reportExecutionListQuery, response: paginated(reportDatasetExecutionLogSchema), summary: '数据集执行日志列表' }),
+  stats: op.get('/stats', { access: { permission: 'report:dataset:list' }, query: reportExecutionStatsQuery, response: reportExecutionStatsSchema, summary: '数据集执行日志统计' }),
+  governance: op.get('/governance', { access: { permission: 'report:dataset:list' }, response: reportRuntimeGovernanceSchema, summary: '报表运行治理配置' }),
+  list: op.get('/', { access: { permission: 'report:dataset:list' }, query: reportExecutionListQuery, response: paginated(reportDatasetExecutionLogSchema), summary: '数据集执行日志列表' }),
 }, { tags: ['报表数据集'] });

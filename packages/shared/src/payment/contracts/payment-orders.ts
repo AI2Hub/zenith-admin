@@ -84,10 +84,10 @@ export const paymentOrderNoParam = z.object({
 
 /** 支付订单：与商户配置 / 退款 / 签约代扣共用支付资源根，操作名在根内唯一 */
 export const paymentOrderContract = defineContract('/api/payment', {
-  orders: op.get('/orders', { query: paymentOrderListQuery, response: paginated(paymentOrderSchema), summary: '支付订单列表' }),
-  createOrder: op.post('/orders', { body: createPaymentSchema, response: createPaymentResponseSchema, summary: '发起支付下单' }),
-  orderByNo: op.get('/orders/by-no/{orderNo}', { params: paymentOrderNoParam, response: paymentOrderSchema, summary: '按订单号查询支付订单详情' }),
-  orderDetail: op.get('/orders/{id}', { params: idParam, response: paymentOrderSchema, summary: '支付订单详情' }),
-  queryOrder: op.post('/orders/{id}/query', { params: idParam, response: paymentOrderSchema, summary: '主动查询并同步订单状态' }),
-  closeOrder: op.post('/orders/{id}/close', { params: idParam, summary: '关闭订单' }),
-}, { tags: ['支付中心'] });
+  orders: op.get('/orders', { access: { permission: 'payment:order:list' }, query: paymentOrderListQuery, response: paginated(paymentOrderSchema), summary: '支付订单列表' }),
+  createOrder: op.post('/orders', { access: { permission: 'payment:order:create' }, audit: '发起支付下单', body: createPaymentSchema, response: createPaymentResponseSchema, summary: '发起支付下单' }),
+  orderByNo: op.get('/orders/by-no/{orderNo}', { access: { permission: 'payment:order:list' }, params: paymentOrderNoParam, response: paymentOrderSchema, summary: '按订单号查询支付订单详情' }),
+  orderDetail: op.get('/orders/{id}', { access: { permission: 'payment:order:list' }, params: idParam, response: paymentOrderSchema, summary: '支付订单详情' }),
+  queryOrder: op.post('/orders/{id}/query', { access: { permission: 'payment:order:list' }, audit: '主动同步支付订单状态', params: idParam, response: paymentOrderSchema, summary: '主动查询并同步订单状态' }),
+  closeOrder: op.post('/orders/{id}/close', { access: { permission: 'payment:order:close' }, audit: '关闭支付订单', params: idParam, summary: '关闭订单' }),
+}, { auditModule: '支付中心', tags: ['支付中心'] });

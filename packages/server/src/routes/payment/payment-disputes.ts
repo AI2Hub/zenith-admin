@@ -4,8 +4,7 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { paymentDisputeContract } from '@zenith/shared/payment';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
@@ -24,12 +23,10 @@ import { mountCrud } from '../_crud';
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const statsRoute = defineContractRoute(paymentDisputeContract.stats, {
-  middleware: [authMiddleware, guard({ permission: 'payment:dispute:list' })],
   handler: async (c) => c.json(okBody(await getDisputeStats()), 200),
 });
 
 const replyRoute = defineContractRoute(paymentDisputeContract.reply, {
-  middleware: [authMiddleware, guard({ permission: 'payment:dispute:handle', audit: { description: '回复投诉', module: '支付中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await ensureDispute(id));
@@ -38,7 +35,6 @@ const replyRoute = defineContractRoute(paymentDisputeContract.reply, {
 });
 
 const resolveRoute = defineContractRoute(paymentDisputeContract.resolve, {
-  middleware: [authMiddleware, guard({ permission: 'payment:dispute:handle', audit: { description: '完结投诉', module: '支付中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await ensureDispute(id));
@@ -47,11 +43,7 @@ const resolveRoute = defineContractRoute(paymentDisputeContract.resolve, {
 });
 
 const refundRoute = defineContractRoute(paymentDisputeContract.refund, {
-  middleware: [
-    authMiddleware,
-    guard({ permission: 'payment:dispute:handle', audit: { description: '投诉退款', module: '支付中心' } }),
-    idempotencyGuard({ ttlSeconds: 10 }),
-  ],
+  middleware: [idempotencyGuard({ ttlSeconds: 10 })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await ensureDispute(id));
@@ -60,13 +52,12 @@ const refundRoute = defineContractRoute(paymentDisputeContract.refund, {
 });
 
 const simulateRoute = defineContractRoute(paymentDisputeContract.simulate, {
-  middleware: [authMiddleware, guard({ permission: 'payment:dispute:handle', audit: { description: '模拟投诉', module: '支付中心' } })],
   handler: async (c) => c.json(okBody(await simulateDispute(c.req.valid('json').orderNo), '模拟投诉已生成'), 200),
 });
 
 mountCrud(router, paymentDisputeContract,
   { list: listDisputes, get: getDisputeDetail },
-  { permission: 'payment:dispute' },
+  {},
   [statsRoute, replyRoute, resolveRoute, refundRoute, simulateRoute],
 );
 

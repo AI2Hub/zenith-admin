@@ -35,8 +35,8 @@ export const workflowDelegationListQuery = paginationQuery.extend({
 });
 
 export const workflowDelegationContract = defineContract('/api/workflows/delegations', {
-  list: op.get('/', { query: workflowDelegationListQuery, response: paginated(workflowDelegationSchema), summary: '审批代理列表' }),
-  create: op.post('/', { body: createWorkflowDelegationSchema, response: workflowDelegationSchema, summary: '新增审批代理' }),
-  update: op.put('/{id}', { params: idParam, body: updateWorkflowDelegationSchema, response: workflowDelegationSchema, summary: '更新审批代理' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除审批代理' }),
-}, { tags: ['WorkflowDelegations'] });
+  list: op.get('/', { access: { permission: 'workflow:delegation:view' }, query: workflowDelegationListQuery, response: paginated(workflowDelegationSchema), summary: '审批代理列表' }),
+  create: op.post('/', { access: { permission: 'workflow:delegation:manage' }, audit: '新增审批代理', body: createWorkflowDelegationSchema, response: workflowDelegationSchema, summary: '新增审批代理' }),
+  update: op.put('/{id}', { access: { permission: 'workflow:delegation:manage' }, audit: '更新审批代理', params: idParam, body: updateWorkflowDelegationSchema, response: workflowDelegationSchema, summary: '更新审批代理' }),
+  remove: op.delete('/{id}', { access: { permission: 'workflow:delegation:manage' }, audit: '删除审批代理', params: idParam, summary: '删除审批代理' }),
+}, { auditModule: '工作流管理', tags: ['WorkflowDelegations'] });

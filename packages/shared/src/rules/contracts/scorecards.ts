@@ -74,15 +74,15 @@ export const ruleScorecardListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const ruleScorecardContract = defineContract('/api/rules/scorecards', {
-  list: op.get('/', { query: ruleScorecardListQuery, response: paginated(ruleScorecardSchema), summary: '评分卡分页列表' }),
-  evaluateByKey: op.post('/evaluate-by-key', { body: evaluateRuleScorecardByKeySchema, response: ruleScorecardEvaluateResultSchema, summary: '运行时求值（按 key 取发布快照）' }),
-  create: op.post('/', { body: createRuleScorecardSchema, response: ruleScorecardSchema, summary: '创建评分卡' }),
-  versions: op.get('/{id}/versions', { params: idParam, response: z.array(ruleAssetVersionSchema), summary: '评分卡版本历史' }),
-  rollback: op.post('/{id}/rollback/{version}', { params: ruleVersionParam, response: ruleScorecardSchema, summary: '回滚到历史版本（覆盖编辑态，置为草稿）' }),
-  detail: op.get('/{id}', { params: idParam, response: ruleScorecardSchema, summary: '评分卡详情' }),
-  update: op.put('/{id}', { params: idParam, body: updateRuleScorecardSchema, response: ruleScorecardSchema, summary: '更新评分卡' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除评分卡' }),
-  publish: op.post('/{id}/publish', { params: idParam, response: ruleScorecardSchema, summary: '发布评分卡（固化快照，版本 +1）' }),
-  toggle: op.post('/{id}/toggle', { params: idParam, body: toggleDecisionTableSchema, response: ruleScorecardSchema, summary: '启用/停用评分卡' }),
-  evaluate: op.post('/{id}/evaluate', { params: idParam, body: evaluateRuleScorecardSchema, response: ruleScorecardEvaluateResultSchema, summary: '测试求值（按编辑态草稿）' }),
-}, { tags: ['RuleScorecards'] });
+  list: op.get('/', { access: { permission: 'rule:scorecard:list' }, query: ruleScorecardListQuery, response: paginated(ruleScorecardSchema), summary: '评分卡分页列表' }),
+  evaluateByKey: op.post('/evaluate-by-key', { access: { permission: 'rule:scorecard:evaluate' }, body: evaluateRuleScorecardByKeySchema, response: ruleScorecardEvaluateResultSchema, summary: '运行时求值（按 key 取发布快照）' }),
+  create: op.post('/', { access: { permission: 'rule:scorecard:create' }, audit: '创建评分卡', body: createRuleScorecardSchema, response: ruleScorecardSchema, summary: '创建评分卡' }),
+  versions: op.get('/{id}/versions', { access: { permission: 'rule:scorecard:list' }, params: idParam, response: z.array(ruleAssetVersionSchema), summary: '评分卡版本历史' }),
+  rollback: op.post('/{id}/rollback/{version}', { access: { permission: 'rule:scorecard:update' }, audit: '回滚评分卡版本', params: ruleVersionParam, response: ruleScorecardSchema, summary: '回滚到历史版本（覆盖编辑态，置为草稿）' }),
+  detail: op.get('/{id}', { access: { permission: 'rule:scorecard:list' }, params: idParam, response: ruleScorecardSchema, summary: '评分卡详情' }),
+  update: op.put('/{id}', { access: { permission: 'rule:scorecard:update' }, audit: '更新评分卡', params: idParam, body: updateRuleScorecardSchema, response: ruleScorecardSchema, summary: '更新评分卡' }),
+  remove: op.delete('/{id}', { access: { permission: 'rule:scorecard:delete' }, audit: '删除评分卡', params: idParam, summary: '删除评分卡' }),
+  publish: op.post('/{id}/publish', { access: { permission: 'rule:scorecard:publish' }, audit: '发布评分卡', params: idParam, response: ruleScorecardSchema, summary: '发布评分卡（固化快照，版本 +1）' }),
+  toggle: op.post('/{id}/toggle', { access: { permission: 'rule:scorecard:update' }, audit: '启停评分卡', params: idParam, body: toggleDecisionTableSchema, response: ruleScorecardSchema, summary: '启用/停用评分卡' }),
+  evaluate: op.post('/{id}/evaluate', { access: { permission: 'rule:scorecard:evaluate' }, params: idParam, body: evaluateRuleScorecardSchema, response: ruleScorecardEvaluateResultSchema, summary: '测试求值（按编辑态草稿）' }),
+}, { auditModule: '规则中心', tags: ['RuleScorecards'] });

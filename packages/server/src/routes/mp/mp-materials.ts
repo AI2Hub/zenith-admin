@@ -1,8 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { MP_MATERIAL_TYPES, mpMaterialContract, type MpMaterialType } from '@zenith/shared/mp';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -14,11 +12,9 @@ import { mountCrud } from '../_crud';
 
 const mpMaterialsRouter = new OpenAPIHono({ defaultHook: validationHook });
 const syncRoute = defineContractRoute(mpMaterialContract.sync, {
-  middleware: [authMiddleware, guard({ permission: 'mp:material:sync', audit: { description: '同步公众号素材', module: '公众号素材' } })],
   handler: async (c) => c.json(okBody(await syncMpMaterials(c.req.valid('json').accountId), '同步完成'), 200),
 });
 const uploadRoute = defineContractRoute(mpMaterialContract.upload, {
-  middleware: [authMiddleware, guard({ permission: 'mp:material:create', audit: { description: '上传公众号素材', module: '公众号素材', recordBody: false } })],
   handler: async (c) => {
     const body = await c.req.parseBody();
     const file = body.file;
@@ -38,7 +34,7 @@ const uploadRoute = defineContractRoute(mpMaterialContract.upload, {
 
 mountCrud(mpMaterialsRouter, mpMaterialContract,
   mpMaterialService,
-  { permission: 'mp:material', label: '公众号素材', module: '公众号素材', audit: { create: '新增公众号素材' } },
+  {},
   [syncRoute, uploadRoute],
 );
 

@@ -23,6 +23,6 @@ export type DashboardCharts = z.infer<typeof dashboardChartsSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const dashboardContract = defineContract('/api/dashboard', {
-  stats: op.get('/stats', { response: dashboardStatsSchema, summary: '仪表盘统计' }),
-  charts: op.get('/charts', { response: dashboardChartsSchema, summary: '仪表盘图表数据' }),
+  stats: op.get('/stats', { access: 'authenticated', response: dashboardStatsSchema, summary: '仪表盘统计' }),
+  charts: op.get('/charts', { access: 'authenticated', response: dashboardChartsSchema, summary: '仪表盘图表数据' }),
 }, { tags: ['Dashboard'] });

@@ -48,8 +48,8 @@ export const retentionPolicyKeyParam = z.object({
 });
 
 export const retentionPolicyContract = defineContract('/api/retention-policies', {
-  list: op.get('/', { response: z.array(retentionPolicySchema), summary: '数据保留策略列表' }),
-  update: op.put('/{key}', { params: retentionPolicyKeyParam, body: updateRetentionPolicySchema, response: retentionPolicySchema, summary: '更新保留策略' }),
-  preview: op.get('/{key}/preview', { params: retentionPolicyKeyParam, response: retentionPreviewSchema, summary: '预览待清理行数' }),
-  run: op.post('/{key}/run', { params: retentionPolicyKeyParam, response: retentionRunResultSchema, summary: '立即执行保留策略' }),
-}, { tags: ['Retention'] });
+  list: op.get('/', { access: { permission: 'system:retention:view' }, response: z.array(retentionPolicySchema), summary: '数据保留策略列表' }),
+  update: op.put('/{key}', { access: { permission: 'system:retention:edit' }, audit: '更新数据保留策略', params: retentionPolicyKeyParam, body: updateRetentionPolicySchema, response: retentionPolicySchema, summary: '更新保留策略' }),
+  preview: op.get('/{key}/preview', { access: { permission: 'system:retention:view' }, params: retentionPolicyKeyParam, response: retentionPreviewSchema, summary: '预览待清理行数' }),
+  run: op.post('/{key}/run', { access: { permission: 'system:retention:run' }, audit: '手动执行数据保留策略', params: retentionPolicyKeyParam, response: retentionRunResultSchema, summary: '立即执行保留策略' }),
+}, { auditModule: '数据保留', tags: ['Retention'] });

@@ -92,13 +92,13 @@ export const cmsDistributionRunListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsDistributionContract = defineContract('/api/cms/distributions', {
-  list: op.get('/', { query: cmsDistributionRuleListQuery, response: paginated(cmsDistributionRuleSchema), summary: '受权分发规则分页列表' }),
-  runs: op.get('/runs', { query: cmsDistributionRunListQuery, response: paginated(cmsDistributionRunSchema), summary: '分发同步结果与日志' }),
-  runDetail: op.get('/runs/{id}', { params: idParam, response: cmsDistributionRunDetailSchema, summary: '分发同步行级结果' }),
-  create: op.post('/', { body: createCmsDistributionRuleSchema, response: cmsDistributionRuleSchema, summary: '创建受治理分发规则' }),
-  run: op.post('/{id}/run', { params: idParam, response: asyncTaskSchema, summary: '提交分发同步任务' }),
-  detail: op.get('/{id}', { params: idParam, response: cmsDistributionRuleSchema, summary: '分发规则详情' }),
-  update: op.put('/{id}', { params: idParam, body: updateCmsDistributionRuleSchema, response: cmsDistributionRuleSchema, summary: '编辑或启停分发规则' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除分发规则（保留已物化内容）' }),
-}, { tags: ['CMS-内容分发'] });
+  list: op.get('/', { access: { permission: 'cms:distribution:list' }, query: cmsDistributionRuleListQuery, response: paginated(cmsDistributionRuleSchema), summary: '受权分发规则分页列表' }),
+  runs: op.get('/runs', { access: { permission: 'cms:distribution:list' }, query: cmsDistributionRunListQuery, response: paginated(cmsDistributionRunSchema), summary: '分发同步结果与日志' }),
+  runDetail: op.get('/runs/{id}', { access: { permission: 'cms:distribution:list' }, params: idParam, response: cmsDistributionRunDetailSchema, summary: '分发同步行级结果' }),
+  create: op.post('/', { access: { permission: 'cms:distribution:create' }, audit: '创建 CMS 内容分发规则', body: createCmsDistributionRuleSchema, response: cmsDistributionRuleSchema, summary: '创建受治理分发规则' }),
+  run: op.post('/{id}/run', { access: { permission: 'cms:distribution:run' }, audit: '执行 CMS 内容分发', params: idParam, response: asyncTaskSchema, summary: '提交分发同步任务' }),
+  detail: op.get('/{id}', { access: { permission: 'cms:distribution:list' }, params: idParam, response: cmsDistributionRuleSchema, summary: '分发规则详情' }),
+  update: op.put('/{id}', { access: { permission: 'cms:distribution:update' }, audit: '更新 CMS 内容分发规则', params: idParam, body: updateCmsDistributionRuleSchema, response: cmsDistributionRuleSchema, summary: '编辑或启停分发规则' }),
+  remove: op.delete('/{id}', { access: { permission: 'cms:distribution:delete' }, audit: '删除 CMS 内容分发规则', params: idParam, summary: '删除分发规则（保留已物化内容）' }),
+}, { auditModule: 'CMS内容管理', tags: ['CMS-内容分发'] });
 

@@ -86,8 +86,8 @@ export type LicenseEventItem = z.infer<typeof licenseEventItemSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const licensingContract = defineContract('/api/licensing', {
-  status: op.get('/status', { response: licensingStatusSchema, summary: 'License 状态总览' }),
-  activate: op.post('/activate', { body: activateLicenseSchema, response: licenseInfoSchema, summary: '激活 / 替换 License' }),
-  deactivate: op.post('/deactivate', { summary: '停用当前 License' }),
-  events: op.get('/events', { query: paginationQuery, response: paginated(licenseEventItemSchema), summary: 'License 事件日志' }),
-}, { tags: ['Licensing'] });
+  status: op.get('/status', { access: { permission: 'system:license:view', platformOnly: true }, response: licensingStatusSchema, summary: 'License 状态总览' }),
+  activate: op.post('/activate', { access: { permission: 'system:license:manage', platformOnly: true }, audit: { description: '激活 License', recordBody: false }, body: activateLicenseSchema, response: licenseInfoSchema, summary: '激活 / 替换 License' }),
+  deactivate: op.post('/deactivate', { access: { permission: 'system:license:manage', platformOnly: true }, audit: '停用 License', summary: '停用当前 License' }),
+  events: op.get('/events', { access: { permission: 'system:license:view', platformOnly: true }, query: paginationQuery, response: paginated(licenseEventItemSchema), summary: 'License 事件日志' }),
+}, { auditModule: 'License 授权', tags: ['Licensing'] });

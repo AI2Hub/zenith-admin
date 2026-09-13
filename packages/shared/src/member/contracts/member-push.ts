@@ -19,4 +19,4 @@ export const pushDeviceIdParam = z.object({
 export const memberPushContract = defineContract('/api/member/push/devices', {
   bind: op.post('/', { body: bindPushDeviceSchema, response: memberPushDeviceSchema, summary: '绑定推送设备（登录后上报 RegistrationID）' }),
   unbind: op.delete('/{deviceId}', { params: pushDeviceIdParam, summary: '解绑推送设备（登出时调用）' }),
-}, { tags: ['会员推送'] });
+}, { tags: ['会员推送'], security: 'member-bearer' });

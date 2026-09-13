@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cmsAdContract } from '@zenith/shared/cms';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -24,22 +23,16 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'cms:ad:list' })] as const;
-const eventRead = [authMiddleware, guard({ permission: 'cms:ad-event:list' })] as const;
-
 // ─── 广告位 ───────────────────────────────────────────────────────────────────
 const listSlots = defineContractRoute(cmsAdContract.slots, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listCmsAdSlots(c.req.valid('query').siteId)), 200),
 });
 
 const createSlot = defineContractRoute(cmsAdContract.slotCreate, {
-  middleware: [authMiddleware, guard({ permission: 'cms:ad:manage', audit: { description: '创建 CMS 广告位', module: 'CMS内容管理' } })],
   handler: async (c) => c.json(okBody(await createCmsAdSlot(c.req.valid('json')), '创建成功'), 200),
 });
 
 const updateSlot = defineContractRoute(cmsAdContract.slotUpdate, {
-  middleware: [authMiddleware, guard({ permission: 'cms:ad:manage', audit: { description: '更新 CMS 广告位', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, mapCmsAdSlot(await ensureCmsAdSlotExists(id)));
@@ -48,7 +41,6 @@ const updateSlot = defineContractRoute(cmsAdContract.slotUpdate, {
 });
 
 const deleteSlot = defineContractRoute(cmsAdContract.slotRemove, {
-  middleware: [authMiddleware, guard({ permission: 'cms:ad:manage', audit: { description: '删除 CMS 广告位', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, mapCmsAdSlot(await ensureCmsAdSlotExists(id)));
@@ -57,20 +49,14 @@ const deleteSlot = defineContractRoute(cmsAdContract.slotRemove, {
   },
 });
 const listEvents = defineContractRoute(cmsAdContract.events, {
-  middleware: eventRead,
   handler: async (c) => c.json(okBody(await listCmsAdEvents(c.req.valid('query'))), 200),
 });
 
 const eventStats = defineContractRoute(cmsAdContract.eventStats, {
-  middleware: eventRead,
   handler: async (c) => c.json(okBody(await getCmsAdEventStats(c.req.valid('query'))), 200),
 });
 
 const cleanupEvents = defineContractRoute(cmsAdContract.cleanupEvents, {
-  middleware: [authMiddleware, guard({
-    permission: 'cms:ad-event:cleanup',
-    audit: { description: '清理 CMS 广告事件', module: 'CMS内容管理' },
-  })],
   handler: async (c) => c.json(okBody(
     await submitCmsAdEventCleanupTask(c.req.valid('json')),
     '清理任务已提交',
@@ -85,7 +71,7 @@ mountCrud(router, cmsAdContract,
     update: updateCmsAd,
     remove: deleteCmsAd,
   },
-  { permission: { read: 'cms:ad:list', write: 'cms:ad:manage' }, label: ' CMS 广告', module: 'CMS内容管理' },
+  {},
   [listSlots, createSlot, updateSlot, deleteSlot, listEvents, eventStats, cleanupEvents],
 );
 

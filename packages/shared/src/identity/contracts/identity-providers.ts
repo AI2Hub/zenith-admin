@@ -102,12 +102,12 @@ export const identityProviderListQuery = paginationQuery.extend({
 });
 
 export const identityProviderContract = defineContract('/api/identity-providers', {
-  list: op.get('/', { query: identityProviderListQuery, response: paginated(tenantIdentityProviderSchema), summary: '企业身份源列表' }),
-  detail: op.get('/{id}', { params: idParam, response: tenantIdentityProviderSchema, summary: '企业身份源详情' }),
-  test: op.post('/{id}/test', { params: idParam, response: identityProviderConnectionTestResultSchema, summary: '测试 LDAP/AD 身份源连接' }),
-  ldapUsers: op.get('/{id}/ldap/users', { params: idParam, query: searchIdentityProviderUsersSchema, response: z.array(ldapDirectoryUserSchema), summary: '搜索 LDAP/AD 目录用户' }),
-  sync: op.post('/{id}/sync', { params: idParam, body: syncIdentityProviderUsersSchema, response: identityProviderSyncResultSchema, summary: '同步 LDAP/AD 目录用户' }),
-  create: op.post('/', { body: createTenantIdentityProviderSchema, response: tenantIdentityProviderSchema, summary: '创建企业身份源' }),
-  update: op.put('/{id}', { params: idParam, body: updateTenantIdentityProviderSchema, response: tenantIdentityProviderSchema, summary: '更新企业身份源' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除企业身份源' }),
-}, { tags: ['IdentityProviders'] });
+  list: op.get('/', { access: { permission: 'system:identity-provider:manage' }, query: identityProviderListQuery, response: paginated(tenantIdentityProviderSchema), summary: '企业身份源列表' }),
+  detail: op.get('/{id}', { access: { permission: 'system:identity-provider:manage' }, params: idParam, response: tenantIdentityProviderSchema, summary: '企业身份源详情' }),
+  test: op.post('/{id}/test', { access: { permission: 'system:identity-provider:manage' }, params: idParam, response: identityProviderConnectionTestResultSchema, summary: '测试 LDAP/AD 身份源连接' }),
+  ldapUsers: op.get('/{id}/ldap/users', { access: { permission: 'system:identity-provider:manage' }, params: idParam, query: searchIdentityProviderUsersSchema, response: z.array(ldapDirectoryUserSchema), summary: '搜索 LDAP/AD 目录用户' }),
+  sync: op.post('/{id}/sync', { access: { permission: 'system:identity-provider:manage' }, audit: '同步目录用户', params: idParam, body: syncIdentityProviderUsersSchema, response: identityProviderSyncResultSchema, summary: '同步 LDAP/AD 目录用户' }),
+  create: op.post('/', { access: { permission: 'system:identity-provider:manage' }, audit: '创建企业身份源', body: createTenantIdentityProviderSchema, response: tenantIdentityProviderSchema, summary: '创建企业身份源' }),
+  update: op.put('/{id}', { access: { permission: 'system:identity-provider:manage' }, audit: '更新企业身份源', params: idParam, body: updateTenantIdentityProviderSchema, response: tenantIdentityProviderSchema, summary: '更新企业身份源' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:identity-provider:manage' }, audit: '删除企业身份源', params: idParam, summary: '删除企业身份源' }),
+}, { auditModule: '企业身份源', tags: ['IdentityProviders'] });

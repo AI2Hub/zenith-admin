@@ -56,11 +56,11 @@ export const wikiCommentListQuery = paginationQuery.extend({
 });
 
 export const wikiCommentContract = defineContract('/api/wiki/comments', {
-  docComments: op.get('/doc/{id}', { params: idParam, response: z.array(wikiCommentSchema), summary: '文档评论树' }),
-  deleteMine: op.delete('/mine/{id}', { params: idParam, summary: '删除自己的评论' }),
-  list: op.get('/', { query: wikiCommentListQuery, response: paginated(wikiCommentSchema), summary: '评论管理列表' }),
-  create: op.post('/', { body: createWikiCommentSchema, response: wikiCommentSchema, summary: '发表评论 / 回复（支持 @提及与问题标记）' }),
-  resolve: op.post('/{id}/resolve', { params: idParam, response: wikiCommentSchema, summary: '标记问题评论为已解决' }),
-  updateStatus: op.put('/{id}/status', { params: idParam, body: updateWikiCommentStatusSchema, response: wikiCommentSchema, summary: '隐藏 / 恢复评论' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除评论（管理端）' }),
-}, { tags: ['知识中心-评论'] });
+  docComments: op.get('/doc/{id}', { access: { permission: 'wiki:doc:list' }, params: idParam, response: z.array(wikiCommentSchema), summary: '文档评论树' }),
+  deleteMine: op.delete('/mine/{id}', { access: { permission: 'wiki:doc:list' }, params: idParam, summary: '删除自己的评论' }),
+  list: op.get('/', { access: { permission: 'wiki:comment:list' }, query: wikiCommentListQuery, response: paginated(wikiCommentSchema), summary: '评论管理列表' }),
+  create: op.post('/', { access: { permission: 'wiki:doc:list' }, body: createWikiCommentSchema, response: wikiCommentSchema, summary: '发表评论 / 回复（支持 @提及与问题标记）' }),
+  resolve: op.post('/{id}/resolve', { access: { permission: 'wiki:doc:list' }, params: idParam, response: wikiCommentSchema, summary: '标记问题评论为已解决' }),
+  updateStatus: op.put('/{id}/status', { access: { permission: 'wiki:comment:audit' }, audit: '审核评论', params: idParam, body: updateWikiCommentStatusSchema, response: wikiCommentSchema, summary: '隐藏 / 恢复评论' }),
+  remove: op.delete('/{id}', { access: { permission: 'wiki:comment:delete' }, audit: '删除评论', params: idParam, summary: '删除评论（管理端）' }),
+}, { auditModule: '知识中心', tags: ['知识中心-评论'] });

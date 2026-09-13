@@ -84,26 +84,28 @@ export const marketingPrizeParams = campaignIdParam.extend({
 });
 
 export const marketingCampaignContract = defineContract('/api/marketing/campaigns', {
-  list: op.get('/', { query: marketingCampaignListQuery, response: paginated(marketingCampaignSchema), summary: '营销活动列表（含参与/中奖统计）' }),
-  listPrizes: op.get('/{campaignId}/prizes', { params: campaignIdParam, response: z.array(marketingPrizeSchema), summary: '奖品列表' }),
-  createPrize: op.post('/{campaignId}/prizes', { params: campaignIdParam, body: saveMarketingPrizeSchema, response: marketingPrizeSchema, summary: '新增奖品' }),
+  list: op.get('/', { access: { permission: 'marketing:campaign:list' }, query: marketingCampaignListQuery, response: paginated(marketingCampaignSchema), summary: '营销活动列表（含参与/中奖统计）' }),
+  listPrizes: op.get('/{campaignId}/prizes', { access: { permission: 'marketing:campaign:list' }, params: campaignIdParam, response: z.array(marketingPrizeSchema), summary: '奖品列表' }),
+  createPrize: op.post('/{campaignId}/prizes', { access: { permission: 'marketing:campaign:update' }, audit: '新增活动奖品', params: campaignIdParam, body: saveMarketingPrizeSchema, response: marketingPrizeSchema, summary: '新增奖品' }),
   updatePrize: op.put('/{campaignId}/prizes/{prizeId}', {
+    access: { permission: 'marketing:campaign:update' }, audit: '更新活动奖品',
     params: marketingPrizeParams,
     body: saveMarketingPrizeSchema,
     response: marketingPrizeSchema,
     summary: '更新奖品（库存按增量调整剩余）',
   }),
-  removePrize: op.delete('/{campaignId}/prizes/{prizeId}', { params: marketingPrizeParams, summary: '删除奖品' }),
+  removePrize: op.delete('/{campaignId}/prizes/{prizeId}', { access: { permission: 'marketing:campaign:update' }, audit: '删除活动奖品', params: marketingPrizeParams, summary: '删除奖品' }),
   listParticipations: op.get('/{campaignId}/participations', {
+    access: { permission: 'marketing:record:list' },
     params: campaignIdParam,
     query: marketingParticipationListQuery,
     response: paginated(marketingParticipationSchema),
     summary: '参与/中奖记录',
   }),
-  publish: op.post('/{id}/publish', { params: idParam, response: marketingCampaignSchema, summary: '发布活动（配置了落地页时自动生成分享短链）' }),
-  end: op.post('/{id}/end', { params: idParam, response: marketingCampaignSchema, summary: '结束活动' }),
-  detail: op.get('/{id}', { params: idParam, response: marketingCampaignSchema, summary: '营销活动详情' }),
-  create: op.post('/', { body: createMarketingCampaignSchema, response: marketingCampaignSchema, summary: '创建营销活动' }),
-  update: op.put('/{id}', { params: idParam, body: updateMarketingCampaignSchema, response: marketingCampaignSchema, summary: '更新营销活动' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除营销活动' }),
-}, { tags: ['营销活动'] });
+  publish: op.post('/{id}/publish', { access: { permission: 'marketing:campaign:publish' }, audit: '发布营销活动', params: idParam, response: marketingCampaignSchema, summary: '发布活动（配置了落地页时自动生成分享短链）' }),
+  end: op.post('/{id}/end', { access: { permission: 'marketing:campaign:publish' }, audit: '结束营销活动', params: idParam, response: marketingCampaignSchema, summary: '结束活动' }),
+  detail: op.get('/{id}', { access: { permission: 'marketing:campaign:list' }, params: idParam, response: marketingCampaignSchema, summary: '营销活动详情' }),
+  create: op.post('/', { access: { permission: 'marketing:campaign:create' }, audit: '创建营销活动', body: createMarketingCampaignSchema, response: marketingCampaignSchema, summary: '创建营销活动' }),
+  update: op.put('/{id}', { access: { permission: 'marketing:campaign:update' }, audit: '更新营销活动', params: idParam, body: updateMarketingCampaignSchema, response: marketingCampaignSchema, summary: '更新营销活动' }),
+  remove: op.delete('/{id}', { access: { permission: 'marketing:campaign:delete' }, audit: '删除营销活动', params: idParam, summary: '删除营销活动' }),
+}, { auditModule: '营销活动', tags: ['营销活动'] });

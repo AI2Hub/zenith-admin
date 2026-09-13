@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cmsInteractionContract } from '@zenith/shared/cms';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -23,18 +22,14 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'cms:interaction:list' })] as const;
 const responseListRoute = defineContractRoute(cmsInteractionContract.responses, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listCmsInteractionResponses(c.req.valid('query'))), 200),
 });
 const statsRoute = defineContractRoute(cmsInteractionContract.stats, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await getCmsInteractionStats(c.req.valid('param').id)), 200),
 });
 
 const textsRoute = defineContractRoute(cmsInteractionContract.texts, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listCmsInteractionTexts({
     interactionId: c.req.valid('param').id,
     ...c.req.valid('query'),
@@ -42,7 +37,6 @@ const textsRoute = defineContractRoute(cmsInteractionContract.texts, {
 });
 
 const crossStatsRoute = defineContractRoute(cmsInteractionContract.crossStats, {
-  middleware: read,
   handler: async (c) => {
     const { xQuestionId, yQuestionId } = c.req.valid('query');
     return c.json(okBody(await getCmsInteractionCrossStats(c.req.valid('param').id, xQuestionId, yQuestionId)), 200);
@@ -50,17 +44,12 @@ const crossStatsRoute = defineContractRoute(cmsInteractionContract.crossStats, {
 });
 
 const trendRoute = defineContractRoute(cmsInteractionContract.trend, {
-  middleware: read,
   handler: async (c) => c.json(
     okBody(await getCmsInteractionTrend(c.req.valid('param').id, c.req.valid('query').days)),
     200,
   ),
 });
 const updateRouteDef = defineContractRoute(cmsInteractionContract.update, {
-  middleware: [authMiddleware, guard({
-    permission: 'cms:interaction:manage',
-    audit: { description: '更新 CMS 互动问卷', module: 'CMS内容管理' },
-  })],
   handler: async (c) => {
     const id = c.req.valid('param').id;
     setAuditBeforeData(c, await getCmsInteraction(id));
@@ -69,10 +58,6 @@ const updateRouteDef = defineContractRoute(cmsInteractionContract.update, {
 });
 
 const statusRoute = defineContractRoute(cmsInteractionContract.setStatus, {
-  middleware: [authMiddleware, guard({
-    permission: 'cms:interaction:manage',
-    audit: { description: '流转 CMS 互动问卷状态', module: 'CMS内容管理' },
-  })],
   handler: async (c) => {
     const id = c.req.valid('param').id;
     setAuditBeforeData(c, await getCmsInteraction(id));
@@ -81,10 +66,6 @@ const statusRoute = defineContractRoute(cmsInteractionContract.setStatus, {
 });
 
 const batchStatusRoute = defineContractRoute(cmsInteractionContract.batchStatus, {
-  middleware: [authMiddleware, guard({
-    permission: 'cms:interaction:batch',
-    audit: { description: '批量流转 CMS 互动问卷', module: 'CMS内容管理' },
-  })],
   handler: async (c) => c.json(okBody(
     await submitCmsInteractionBatchStatusTask(c.req.valid('json')),
     '批量任务已提交',
@@ -92,18 +73,10 @@ const batchStatusRoute = defineContractRoute(cmsInteractionContract.batchStatus,
 });
 
 const copyRoute = defineContractRoute(cmsInteractionContract.copy, {
-  middleware: [authMiddleware, guard({
-    permission: 'cms:interaction:manage',
-    audit: { description: '复制 CMS 互动问卷', module: 'CMS内容管理' },
-  })],
   handler: async (c) => c.json(okBody(await copyCmsInteraction(c.req.valid('param').id), '复制成功'), 200),
 });
 
 const deleteRouteDef = defineContractRoute(cmsInteractionContract.remove, {
-  middleware: [authMiddleware, guard({
-    permission: 'cms:interaction:manage',
-    audit: { description: '删除 CMS 互动问卷', module: 'CMS内容管理' },
-  })],
   handler: async (c) => {
     const id = c.req.valid('param').id;
     setAuditBeforeData(c, await getCmsInteraction(id));
@@ -115,9 +88,6 @@ const deleteRouteDef = defineContractRoute(cmsInteractionContract.remove, {
 mountCrud(router, cmsInteractionContract,
   { list: listCmsInteractions, get: getCmsInteraction, create: createCmsInteraction },
   {
-    permission: { read: 'cms:interaction:list', write: 'cms:interaction:manage' },
-    label: ' CMS 互动问卷',
-    module: 'CMS内容管理',
     exclude: ['update', 'remove'],
   },
   [

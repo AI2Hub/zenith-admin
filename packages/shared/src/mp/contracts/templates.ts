@@ -68,12 +68,12 @@ export const mpTemplateSendLogListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const mpTemplateContract = defineContract('/api/mp/templates', {
-  logs: op.get('/logs', { query: mpTemplateSendLogListQuery, response: paginated(mpTemplateSendLogSchema), summary: '发送记录' }),
-  industry: op.get('/industry', { query: mpAccountIdQuery, response: mpTemplateIndustrySchema, summary: '获取所属行业' }),
-  setIndustry: op.put('/industry', { body: setMpTemplateIndustrySchema, summary: '设置所属行业' }),
-  batchSend: op.post('/batch-send', { body: batchSendMpTemplateSchema, response: mpBatchSendResultSchema, summary: '批量发送模板消息' }),
-  list: op.get('/', { query: mpTemplateListQuery, response: paginated(mpMessageTemplateSchema), summary: '模板列表' }),
-  sync: op.post('/sync', { body: mpAccountIdBody, response: mpSyncResultSchema, summary: '从微信同步模板' }),
-  send: op.post('/send', { body: sendMpTemplateSchema, response: mpTemplateSendLogSchema, summary: '发送模板消息' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除模板' }),
-}, { tags: ['公众号模板消息'] });
+  logs: op.get('/logs', { access: { permission: 'mp:template:list' }, query: mpTemplateSendLogListQuery, response: paginated(mpTemplateSendLogSchema), summary: '发送记录' }),
+  industry: op.get('/industry', { access: { permission: 'mp:template:list' }, query: mpAccountIdQuery, response: mpTemplateIndustrySchema, summary: '获取所属行业' }),
+  setIndustry: op.put('/industry', { access: { permission: 'mp:template:sync' }, audit: '设置模板行业', body: setMpTemplateIndustrySchema, summary: '设置所属行业' }),
+  batchSend: op.post('/batch-send', { access: { permission: 'mp:template:send' }, audit: '批量发送模板消息', body: batchSendMpTemplateSchema, response: mpBatchSendResultSchema, summary: '批量发送模板消息' }),
+  list: op.get('/', { access: { permission: 'mp:template:list' }, query: mpTemplateListQuery, response: paginated(mpMessageTemplateSchema), summary: '模板列表' }),
+  sync: op.post('/sync', { access: { permission: 'mp:template:sync' }, audit: '同步模板消息', body: mpAccountIdBody, response: mpSyncResultSchema, summary: '从微信同步模板' }),
+  send: op.post('/send', { access: { permission: 'mp:template:send' }, audit: '发送模板消息', body: sendMpTemplateSchema, response: mpTemplateSendLogSchema, summary: '发送模板消息' }),
+  remove: op.delete('/{id}', { access: { permission: 'mp:template:delete' }, audit: '删除模板', params: idParam, summary: '删除模板' }),
+}, { auditModule: '公众号模板消息', tags: ['公众号模板消息'] });

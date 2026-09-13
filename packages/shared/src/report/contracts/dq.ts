@@ -124,16 +124,16 @@ export const reportDqAnomalyListQuery = paginationQuery.extend({
 });
 
 export const reportDqContract = defineContract('/api/report/dq', {
-  rules: op.get('/rules', { query: reportDqRuleListQuery, response: paginated(reportDqRuleSchema), summary: '质量规则列表' }),
-  ruleDetail: op.get('/rules/{id}', { params: idParam, response: reportDqRuleSchema, summary: '质量规则详情' }),
-  createRule: op.post('/rules', { body: createReportDqRuleSchema, response: reportDqRuleSchema, summary: '创建质量规则' }),
-  updateRule: op.put('/rules/{id}', { params: idParam, body: updateReportDqRuleSchema, response: reportDqRuleSchema, summary: '更新质量规则' }),
-  removeRule: op.delete('/rules/{id}', { params: idParam, summary: '删除质量规则' }),
-  toggleRule: op.post('/rules/{id}/toggle', { params: idParam, response: reportDqRuleSchema, summary: '启停质量规则' }),
-  runRule: op.post('/rules/{id}/run', { params: idParam, body: runReportDqRuleSchema, response: asyncTaskSchema, summary: '异步执行质量规则' }),
-  runs: op.get('/runs', { query: reportDqRunListQuery, response: paginated(reportDqRunSchema), summary: '质量运行历史' }),
-  scores: op.get('/datasets/{id}/scores', { params: idParam, query: paginationQuery, response: paginated(reportDqScoreSchema), summary: '数据集质量评分历史' }),
-  currentScore: op.get('/datasets/{id}/score', { params: idParam, response: reportDqScoreSchema.nullable(), summary: '数据集当前质量评分' }),
-  anomalies: op.get('/anomalies', { query: reportDqAnomalyListQuery, response: paginated(reportDqAnomalySchema), summary: '质量异常列表' }),
-  updateAnomalyStatus: op.post('/anomalies/{id}/status', { params: idParam, body: updateReportDqAnomalyStatusSchema, response: reportDqAnomalySchema, summary: '确认或解决质量异常' }),
-}, { tags: ['报表数据质量'] });
+  rules: op.get('/rules', { access: { permission: 'report:dq:list' }, query: reportDqRuleListQuery, response: paginated(reportDqRuleSchema), summary: '质量规则列表' }),
+  ruleDetail: op.get('/rules/{id}', { access: { permission: 'report:dq:list' }, params: idParam, response: reportDqRuleSchema, summary: '质量规则详情' }),
+  createRule: op.post('/rules', { access: { permission: 'report:dq:create' }, audit: '创建质量规则', body: createReportDqRuleSchema, response: reportDqRuleSchema, summary: '创建质量规则' }),
+  updateRule: op.put('/rules/{id}', { access: { permission: 'report:dq:update' }, audit: '更新质量规则', params: idParam, body: updateReportDqRuleSchema, response: reportDqRuleSchema, summary: '更新质量规则' }),
+  removeRule: op.delete('/rules/{id}', { access: { permission: 'report:dq:delete' }, audit: '删除质量规则', params: idParam, summary: '删除质量规则' }),
+  toggleRule: op.post('/rules/{id}/toggle', { access: { permission: 'report:dq:update' }, audit: '启停质量规则', params: idParam, response: reportDqRuleSchema, summary: '启停质量规则' }),
+  runRule: op.post('/rules/{id}/run', { access: { permission: 'report:dq:run' }, audit: '执行质量规则', params: idParam, body: runReportDqRuleSchema, response: asyncTaskSchema, summary: '异步执行质量规则' }),
+  runs: op.get('/runs', { access: { permission: 'report:dq:list' }, query: reportDqRunListQuery, response: paginated(reportDqRunSchema), summary: '质量运行历史' }),
+  scores: op.get('/datasets/{id}/scores', { access: { permission: 'report:dq:list' }, params: idParam, query: paginationQuery, response: paginated(reportDqScoreSchema), summary: '数据集质量评分历史' }),
+  currentScore: op.get('/datasets/{id}/score', { access: { permission: 'report:dq:list' }, params: idParam, response: reportDqScoreSchema.nullable(), summary: '数据集当前质量评分' }),
+  anomalies: op.get('/anomalies', { access: { permission: 'report:dq:list' }, query: reportDqAnomalyListQuery, response: paginated(reportDqAnomalySchema), summary: '质量异常列表' }),
+  updateAnomalyStatus: op.post('/anomalies/{id}/status', { access: { permission: 'report:dq:update' }, audit: '更新质量异常状态', params: idParam, body: updateReportDqAnomalyStatusSchema, response: reportDqAnomalySchema, summary: '确认或解决质量异常' }),
+}, { auditModule: '报表数据质量', tags: ['报表数据质量'] });

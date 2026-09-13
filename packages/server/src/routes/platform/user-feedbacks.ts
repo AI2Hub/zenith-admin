@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { userFeedbackContract } from '@zenith/shared/platform';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, errBody, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
@@ -22,7 +21,7 @@ const notFoundResponse = { 404: { content: jsonContent(ErrorResponse), descripti
 
 // 提交反馈：所有登录用户可用，无需权限码
 const submitRoute = defineContractRoute(userFeedbackContract.submit, {
-  middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10, message: '反馈提交中，请勿重复提交' })],
+  middleware: [idempotencyGuard({ ttlSeconds: 10, message: '反馈提交中，请勿重复提交' })],
   handler: async (c) => {
     const data = c.req.valid('json');
     const row = await createUserFeedback(data);
@@ -30,7 +29,6 @@ const submitRoute = defineContractRoute(userFeedbackContract.submit, {
   },
 });
 const handleRoute = defineContractRoute(userFeedbackContract.handle, {
-  middleware: [authMiddleware, guard({ permission: 'system:feedback:handle', audit: { description: '处理意见反馈', module: '意见反馈' } })],
   responses: notFoundResponse,
   handler: async (c) => {
     const { id } = c.req.valid('param');
@@ -44,7 +42,6 @@ const handleRoute = defineContractRoute(userFeedbackContract.handle, {
 
 // `DELETE /batch` 必须注册在 `DELETE /{id}` 之前
 const batchDeleteRoute = defineContractRoute(userFeedbackContract.removeBatch, {
-  middleware: [authMiddleware, guard({ permission: 'system:feedback:delete', audit: { description: '批量删除意见反馈', module: '意见反馈' } })],
   handler: async (c) => {
     const { ids } = c.req.valid('json');
     if (!ids || ids.length === 0) {
@@ -56,7 +53,6 @@ const batchDeleteRoute = defineContractRoute(userFeedbackContract.removeBatch, {
 });
 
 const deleteRoute = defineContractRoute(userFeedbackContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'system:feedback:delete', audit: { description: '删除意见反馈', module: '意见反馈' } })],
   responses: notFoundResponse,
   handler: async (c) => {
     const { id } = c.req.valid('param');
@@ -69,7 +65,7 @@ const deleteRoute = defineContractRoute(userFeedbackContract.remove, {
 
 mountCrud(userFeedbacksRouter, userFeedbackContract,
   { list: listUserFeedbacks },
-  { permission: 'system:feedback', exclude: ['remove', 'removeBatch'] },
+  { exclude: ['remove', 'removeBatch'] },
   [submitRoute, handleRoute, batchDeleteRoute, deleteRoute],
 );
 

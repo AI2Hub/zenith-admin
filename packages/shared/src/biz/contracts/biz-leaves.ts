@@ -35,12 +35,12 @@ export const bizLeaveListQuery = paginationQuery.extend({
 });
 
 export const bizLeaveContract = defineContract('/api/biz/leaves', {
-  list: op.get('/', { query: bizLeaveListQuery, response: paginated(bizLeaveSchema), summary: '我的请假列表' }),
-  detail: op.get('/{id}', { params: idParam, response: bizLeaveSchema, summary: '请假详情' }),
-  approvalDetail: op.get('/{id}/detail', { params: idParam, response: bizLeaveSchema, summary: '请假详情（供工作流参与者/审批人查看）' }),
-  create: op.post('/', { body: createBizLeaveSchema, response: bizLeaveSchema, summary: '新建请假单（草稿）' }),
-  update: op.put('/{id}', { params: idParam, body: updateBizLeaveSchema, response: bizLeaveSchema, summary: '编辑请假单（仅草稿）' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除请假单（仅草稿）' }),
-  submit: op.post('/{id}/submit', { params: idParam, response: bizLeaveSchema, summary: '提交审批（发起并关联工作流）' }),
-  reopen: op.post('/{id}/reopen', { params: idParam, response: bizLeaveSchema, summary: '重新编辑（驳回/取消后转回草稿，可修改后再次提交）' }),
+  list: op.get('/', { access: 'authenticated', query: bizLeaveListQuery, response: paginated(bizLeaveSchema), summary: '我的请假列表' }),
+  detail: op.get('/{id}', { access: 'authenticated', params: idParam, response: bizLeaveSchema, summary: '请假详情' }),
+  approvalDetail: op.get('/{id}/detail', { access: 'authenticated', params: idParam, response: bizLeaveSchema, summary: '请假详情（供工作流参与者/审批人查看）' }),
+  create: op.post('/', { access: 'authenticated', body: createBizLeaveSchema, response: bizLeaveSchema, summary: '新建请假单（草稿）' }),
+  update: op.put('/{id}', { access: 'authenticated', params: idParam, body: updateBizLeaveSchema, response: bizLeaveSchema, summary: '编辑请假单（仅草稿）' }),
+  remove: op.delete('/{id}', { access: 'authenticated', params: idParam, summary: '删除请假单（仅草稿）' }),
+  submit: op.post('/{id}/submit', { access: 'authenticated', params: idParam, response: bizLeaveSchema, summary: '提交审批（发起并关联工作流）' }),
+  reopen: op.post('/{id}/reopen', { access: 'authenticated', params: idParam, response: bizLeaveSchema, summary: '重新编辑（驳回/取消后转回草稿，可修改后再次提交）' }),
 }, { tags: ['BizLeave'] });

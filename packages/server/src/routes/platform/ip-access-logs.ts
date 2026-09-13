@@ -8,7 +8,6 @@ const ipAccessLogsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(ipAccessLogsRoute, ipAccessLogContract,
   { list: listIpAccessLogs },
-  { permission: { read: 'system:ip-access:log' } },
 );
 
 export default ipAccessLogsRoute;

@@ -22,7 +22,9 @@
 
 ## 写入方式
 
-路由通过 `guard({ audit: { module, description, ... } })` 开启审计。`guard()` 在响应结束后使用异步任务写入日志，写入失败不影响业务响应。
+写操作在契约操作上声明 `audit`（字符串即 description，或 `{ description, module?, recordBody?, recordResponseBody? }`，
+`module` 缺省取契约组 `auditModule`）；`defineContractRoute` 据此装配 `guard({ audit })`，`guard()` 在响应结束后使用异步任务写入日志，
+写入失败不影响业务响应。路由文件不再手写审计选项。
 
 审计选项：
 

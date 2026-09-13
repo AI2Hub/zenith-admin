@@ -5,8 +5,6 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { iotWhitelistContract } from '@zenith/shared/iot';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -21,27 +19,19 @@ import { mountCrud } from '../_crud';
 
 export const iotWhitelistRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'iot:register:manage' })] as const;
-const manage = (description: string) => [authMiddleware, guard({
-  permission: 'iot:register:manage',
-  audit: { description, module: 'IoT 动态注册' },
-})] as const;
 const productNotFound = { 404: { content: jsonContent(ErrorResponse), description: '产品不存在' } } as const;
 
 const statsRoute = defineContractRoute(iotWhitelistContract.stats, {
-  middleware: read,
   handler: async (c) => {
     const { productId } = c.req.valid('query');
     return c.json(okBody(await getIotWhitelistStats(productId)), 200);
   },
 });
 const importRoute = defineContractRoute(iotWhitelistContract.import, {
-  middleware: manage('导入 IoT 注册白名单'),
   handler: async (c) => c.json(okBody(await createIotWhitelistEntries(c.req.valid('json')), '导入完成'), 200),
 });
 
 const deleteRoute_ = defineContractRoute(iotWhitelistContract.remove, {
-  middleware: manage('删除 IoT 注册白名单'),
   responses: { 404: { content: jsonContent(ErrorResponse), description: '不存在' } },
   handler: async (c) => {
     const { id } = c.req.valid('param');
@@ -51,7 +41,6 @@ const deleteRoute_ = defineContractRoute(iotWhitelistContract.remove, {
 });
 
 const resetSecretRoute = defineContractRoute(iotWhitelistContract.resetRegistrationSecret, {
-  middleware: manage('重置 IoT 产品注册密钥'),
   responses: productNotFound,
   handler: async (c) => {
     const { id } = c.req.valid('param');
@@ -60,7 +49,6 @@ const resetSecretRoute = defineContractRoute(iotWhitelistContract.resetRegistrat
 });
 
 const disableSecretRoute = defineContractRoute(iotWhitelistContract.disableRegistration, {
-  middleware: manage('关闭 IoT 产品动态注册'),
   responses: productNotFound,
   handler: async (c) => {
     const { id } = c.req.valid('param');
@@ -71,6 +59,6 @@ const disableSecretRoute = defineContractRoute(iotWhitelistContract.disableRegis
 
 mountCrud(iotWhitelistRouter, iotWhitelistContract,
   { list: listIotWhitelist },
-  { permission: { read: 'iot:register:manage' }, exclude: ['remove'] },
+  { exclude: ['remove'] },
   [statsRoute, importRoute, deleteRoute_, resetSecretRoute, disableSecretRoute],
 );

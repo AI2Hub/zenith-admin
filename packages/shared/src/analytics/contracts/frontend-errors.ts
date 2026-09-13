@@ -189,25 +189,25 @@ export const errorAlertLogListQuery = paginationQuery.extend({
 
 export const frontendErrorContract = defineContract('/api/frontend-errors', {
   report: op.post('/', { body: reportFrontendErrorSchema, public: true, summary: '上报前端错误（匿名/登录均可）' }),
-  overview: op.get('/overview', { query: errorOverviewQuery, response: errorOverviewSchema, summary: '错误概览' }),
+  overview: op.get('/overview', { access: { permission: 'monitor:error:list' }, query: errorOverviewQuery, response: errorOverviewSchema, summary: '错误概览' }),
 
-  groups: op.get('/groups', { query: errorGroupListQuery, response: paginated(errorGroupSchema), summary: '错误分组列表' }),
-  batchUpdateGroupStatus: op.post('/groups/batch-status', { query: errorGroupBatchStatusQuery, body: batchIdsBody, summary: '批量更新分组状态' }),
-  batchDeleteGroups: op.delete('/groups/batch', { body: batchIdsBody, summary: '批量删除分组' }),
-  groupDetail: op.get('/groups/{id}', { params: idParam, response: errorGroupDetailSchema, summary: '错误分组详情' }),
-  updateGroup: op.put('/groups/{id}', { params: idParam, body: updateErrorGroupSchema, response: errorGroupSchema, summary: '处理错误分组' }),
+  groups: op.get('/groups', { access: { permission: 'monitor:error:list' }, query: errorGroupListQuery, response: paginated(errorGroupSchema), summary: '错误分组列表' }),
+  batchUpdateGroupStatus: op.post('/groups/batch-status', { access: { permission: 'monitor:error:manage' }, query: errorGroupBatchStatusQuery, body: batchIdsBody, summary: '批量更新分组状态' }),
+  batchDeleteGroups: op.delete('/groups/batch', { access: { permission: 'monitor:error:manage' }, body: batchIdsBody, summary: '批量删除分组' }),
+  groupDetail: op.get('/groups/{id}', { access: { permission: 'monitor:error:list' }, params: idParam, response: errorGroupDetailSchema, summary: '错误分组详情' }),
+  updateGroup: op.put('/groups/{id}', { access: { permission: 'monitor:error:manage' }, params: idParam, body: updateErrorGroupSchema, response: errorGroupSchema, summary: '处理错误分组' }),
 
-  events: op.get('/events', { query: errorEventListQuery, response: paginated(errorEventSchema), summary: '错误事件列表' }),
-  clean: op.delete('/clean', { query: errorCleanQuery, summary: '清除错误数据' }),
+  events: op.get('/events', { access: { permission: 'monitor:error:list' }, query: errorEventListQuery, response: paginated(errorEventSchema), summary: '错误事件列表' }),
+  clean: op.delete('/clean', { access: { permission: 'monitor:error:manage' }, query: errorCleanQuery, summary: '清除错误数据' }),
 
-  sourceMaps: op.get('/source-maps', { query: sourceMapListQuery, response: paginated(sourceMapItemSchema), summary: 'Source Map 列表' }),
-  uploadSourceMap: op.post('/source-maps', { body: sourceMapUploadSchema, response: sourceMapItemSchema, summary: '上传 Source Map' }),
-  removeSourceMap: op.delete('/source-maps/{id}', { params: idParam, summary: '删除 Source Map' }),
+  sourceMaps: op.get('/source-maps', { access: { permission: 'monitor:error:manage' }, query: sourceMapListQuery, response: paginated(sourceMapItemSchema), summary: 'Source Map 列表' }),
+  uploadSourceMap: op.post('/source-maps', { access: { permission: 'monitor:error:manage' }, body: sourceMapUploadSchema, response: sourceMapItemSchema, summary: '上传 Source Map' }),
+  removeSourceMap: op.delete('/source-maps/{id}', { access: { permission: 'monitor:error:manage' }, params: idParam, summary: '删除 Source Map' }),
 
-  alerts: op.get('/alerts', { query: paginationQuery, response: paginated(errorAlertRuleSchema), summary: '告警规则列表' }),
-  createAlert: op.post('/alerts', { body: createErrorAlertRuleSchema, response: errorAlertRuleSchema, summary: '新增告警规则' }),
-  updateAlert: op.put('/alerts/{id}', { params: idParam, body: updateErrorAlertRuleSchema, response: errorAlertRuleSchema, summary: '更新告警规则' }),
-  removeAlert: op.delete('/alerts/{id}', { params: idParam, summary: '删除告警规则' }),
-  alertLogs: op.get('/alert-logs', { query: errorAlertLogListQuery, response: paginated(errorAlertLogSchema), summary: '告警触发历史' }),
-  testAlert: op.post('/alerts/{id}/test', { params: idParam, summary: '测试发送告警通知' }),
+  alerts: op.get('/alerts', { access: { permission: 'monitor:alert:list' }, query: paginationQuery, response: paginated(errorAlertRuleSchema), summary: '告警规则列表' }),
+  createAlert: op.post('/alerts', { access: { permission: 'monitor:alert:manage' }, body: createErrorAlertRuleSchema, response: errorAlertRuleSchema, summary: '新增告警规则' }),
+  updateAlert: op.put('/alerts/{id}', { access: { permission: 'monitor:alert:manage' }, params: idParam, body: updateErrorAlertRuleSchema, response: errorAlertRuleSchema, summary: '更新告警规则' }),
+  removeAlert: op.delete('/alerts/{id}', { access: { permission: 'monitor:alert:manage' }, params: idParam, summary: '删除告警规则' }),
+  alertLogs: op.get('/alert-logs', { access: { permission: 'monitor:alert:list' }, query: errorAlertLogListQuery, response: paginated(errorAlertLogSchema), summary: '告警触发历史' }),
+  testAlert: op.post('/alerts/{id}/test', { access: { permission: 'monitor:alert:manage' }, params: idParam, summary: '测试发送告警通知' }),
 }, { tags: ['FrontendErrors'] });

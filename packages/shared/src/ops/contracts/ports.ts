@@ -20,6 +20,6 @@ export type PortEntry = z.infer<typeof portEntrySchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const portContract = defineContract('/api/ports', {
-  list: op.get('/', { query: hostQuery, response: z.array(portEntrySchema), summary: '获取监听端口列表' }),
-  kill: op.delete('/{pid}', { params: pidParam, query: hostQuery, summary: '结束占用端口的进程' }),
-}, { tags: ['Ports'] });
+  list: op.get('/', { access: { permission: 'system:port:view' }, query: hostQuery, response: z.array(portEntrySchema), summary: '获取监听端口列表' }),
+  kill: op.delete('/{pid}', { access: { permission: 'system:process:kill' }, audit: '结束端口占用进程', params: pidParam, query: hostQuery, summary: '结束占用端口的进程' }),
+}, { auditModule: '系统运维', tags: ['Ports'] });

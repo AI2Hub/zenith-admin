@@ -1,8 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
 import { processContract } from '@zenith/shared/ops';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import { assertRemoteHostAccess } from '../../lib/host-access';
@@ -12,10 +11,7 @@ import {
 
 const processesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const view = [authMiddleware, guard({ permission: 'system:process:view' })] as const;
-
 const listRoute = defineContractRoute(processContract.list, {
-  middleware: view,
   handler: async (c) => {
     const { hostId } = c.req.valid('query');
     await assertRemoteHostAccess(c, hostId);
@@ -25,7 +21,6 @@ const listRoute = defineContractRoute(processContract.list, {
 
 // SSE 实时推送：首帧完整列表，之后每 3 秒一帧；心跳保活 30 秒
 const streamRoute = defineContractRoute(processContract.stream, {
-  middleware: view,
   handler: async (c) => {
     const { hostId } = c.req.valid('query');
     await assertRemoteHostAccess(c, hostId);
@@ -71,7 +66,6 @@ const streamRoute = defineContractRoute(processContract.stream, {
 });
 
 const detailRoute = defineContractRoute(processContract.detail, {
-  middleware: view,
   handler: async (c) => {
     const { pid } = c.req.valid('param');
     const { hostId } = c.req.valid('query');
@@ -81,10 +75,6 @@ const detailRoute = defineContractRoute(processContract.detail, {
 });
 
 const killRoute = defineContractRoute(processContract.kill, {
-  middleware: [authMiddleware, guard({
-    permission: 'system:process:kill',
-    audit: { description: '结束进程', module: '进程管理' },
-  })],
   handler: async (c) => {
     const { pid } = c.req.valid('param');
     const { hostId } = c.req.valid('query');
@@ -98,10 +88,6 @@ const killRoute = defineContractRoute(processContract.kill, {
 });
 
 const priorityRoute = defineContractRoute(processContract.setPriority, {
-  middleware: [authMiddleware, guard({
-    permission: 'system:process:priority',
-    audit: { description: '调整进程优先级', module: '进程管理' },
-  })],
   handler: async (c) => {
     const { pid } = c.req.valid('param');
     const { hostId } = c.req.valid('query');

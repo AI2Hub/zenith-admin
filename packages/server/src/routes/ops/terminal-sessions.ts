@@ -1,7 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { terminalSessionContract } from '@zenith/shared/ops';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -17,17 +15,14 @@ import {
  * 实时旁观 / 接管走 WebSocket（ws-terminal 的监控通道）。
  */
 const router = new OpenAPIHono({ defaultHook: validationHook });
-const PERM = 'system:terminal:monitor';
 
 const listRoute = defineContractRoute(terminalSessionContract.list, {
-  middleware: [authMiddleware, guard({ permission: PERM })],
   handler: (c) => {
     return c.json(okBody(listTerminalSessions(c.req.valid('query'))), 200);
   },
 });
 
 const terminateRoute = defineContractRoute(terminalSessionContract.terminate, {
-  middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '强制终止终端会话', module: 'Web 终端' } })],
   handler: (c) => {
     const { sessionId } = c.req.valid('param');
     // 终止前记录会话快照，便于审计日志展示被终止的会话信息

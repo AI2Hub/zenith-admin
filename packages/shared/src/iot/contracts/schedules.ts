@@ -66,9 +66,9 @@ export const iotScheduleRunListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const iotScheduleContract = defineContract('/api/iot/schedules', {
-  list: op.get('/', { query: iotScheduleListQuery, response: paginated(iotScheduleSchema), summary: '计划任务列表（含下次执行时刻与近 24h 执行数）' }),
-  runs: op.get('/runs', { query: iotScheduleRunListQuery, response: paginated(iotScheduleRunSchema), summary: '计划执行记录（按时间倒序）' }),
-  create: op.post('/', { body: createIotScheduleSchema, response: iotScheduleSchema, summary: '创建计划任务（cron 周期 / 定时一次）' }),
-  update: op.put('/{id}', { params: idParam, body: updateIotScheduleSchema, response: iotScheduleSchema, summary: '更新计划任务（类型/产品/动作不可变更）' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除计划任务（执行记录级联删除）' }),
-}, { tags: ['IoT 计划任务'] });
+  list: op.get('/', { access: { permission: 'iot:schedule:list' }, query: iotScheduleListQuery, response: paginated(iotScheduleSchema), summary: '计划任务列表（含下次执行时刻与近 24h 执行数）' }),
+  runs: op.get('/runs', { access: { permission: 'iot:schedule:list' }, query: iotScheduleRunListQuery, response: paginated(iotScheduleRunSchema), summary: '计划执行记录（按时间倒序）' }),
+  create: op.post('/', { access: { permission: 'iot:schedule:create' }, audit: '创建 IoT 计划任务', body: createIotScheduleSchema, response: iotScheduleSchema, summary: '创建计划任务（cron 周期 / 定时一次）' }),
+  update: op.put('/{id}', { access: { permission: 'iot:schedule:update' }, audit: '更新 IoT 计划任务', params: idParam, body: updateIotScheduleSchema, response: iotScheduleSchema, summary: '更新计划任务（类型/产品/动作不可变更）' }),
+  remove: op.delete('/{id}', { access: { permission: 'iot:schedule:delete' }, audit: '删除 IoT 计划任务', params: idParam, summary: '删除计划任务（执行记录级联删除）' }),
+}, { auditModule: 'IoT 计划任务', tags: ['IoT 计划任务'] });

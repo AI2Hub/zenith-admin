@@ -29,9 +29,9 @@ export const wikiTagListQuery = paginationQuery.extend({
 });
 
 export const wikiTagContract = defineContract('/api/wiki/tags', {
-  list: op.get('/', { query: wikiTagListQuery, response: paginated(wikiTagSchema), summary: '标签列表' }),
-  all: op.get('/all', { response: z.array(wikiTagSchema), summary: '全部标签（编辑器打标）' }),
-  create: op.post('/', { body: createWikiTagSchema, response: wikiTagSchema, summary: '创建标签' }),
-  update: op.put('/{id}', { params: idParam, body: updateWikiTagSchema, response: wikiTagSchema, summary: '更新标签' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除标签' }),
-}, { tags: ['知识中心-标签'] });
+  list: op.get('/', { access: { permission: 'wiki:tag:list' }, query: wikiTagListQuery, response: paginated(wikiTagSchema), summary: '标签列表' }),
+  all: op.get('/all', { access: { permission: 'wiki:doc:list' }, response: z.array(wikiTagSchema), summary: '全部标签（编辑器打标）' }),
+  create: op.post('/', { access: { permission: 'wiki:tag:create' }, audit: '创建标签', body: createWikiTagSchema, response: wikiTagSchema, summary: '创建标签' }),
+  update: op.put('/{id}', { access: { permission: 'wiki:tag:edit' }, audit: '更新标签', params: idParam, body: updateWikiTagSchema, response: wikiTagSchema, summary: '更新标签' }),
+  remove: op.delete('/{id}', { access: { permission: 'wiki:tag:delete' }, audit: '删除标签', params: idParam, summary: '删除标签' }),
+}, { auditModule: '知识中心', tags: ['知识中心-标签'] });

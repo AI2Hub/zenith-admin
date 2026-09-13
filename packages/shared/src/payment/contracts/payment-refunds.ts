@@ -53,16 +53,17 @@ export const paymentRefundListQuery = paginationQuery.extend({
 
 /** 退款：与商户配置 / 订单 / 签约代扣共用支付资源根，操作名在根内唯一 */
 export const paymentRefundContract = defineContract('/api/payment', {
-  orderRefunds: op.get('/orders/{id}/refunds', { params: idParam, response: z.array(paymentRefundSchema), summary: '支付订单关联退款' }),
-  createRefund: op.post('/refunds', { headers: idempotencyKeyHeaders, body: createRefundSchema, response: paymentRefundResultSchema, summary: '发起退款' }),
-  refunds: op.get('/refunds', { query: paymentRefundListQuery, response: paginated(paymentRefundSchema), summary: '退款记录列表' }),
-  refundDetail: op.get('/refunds/{id}', { params: idParam, response: paymentRefundSchema, summary: '退款详情' }),
+  orderRefunds: op.get('/orders/{id}/refunds', { access: { permission: ['payment:order:list', 'payment:refund:list', 'payment:order:refund'] }, params: idParam, response: z.array(paymentRefundSchema), summary: '支付订单关联退款' }),
+  createRefund: op.post('/refunds', { access: { permission: 'payment:order:refund' }, audit: '发起退款', headers: idempotencyKeyHeaders, body: createRefundSchema, response: paymentRefundResultSchema, summary: '发起退款' }),
+  refunds: op.get('/refunds', { access: { permission: 'payment:refund:list' }, query: paymentRefundListQuery, response: paginated(paymentRefundSchema), summary: '退款记录列表' }),
+  refundDetail: op.get('/refunds/{id}', { access: { permission: 'payment:refund:list' }, params: idParam, response: paymentRefundSchema, summary: '退款详情' }),
   queryRefund: op.post('/refunds/{id}/query', {
+    access: { permission: 'payment:refund:list' }, audit: '主动同步退款状态',
     params: idParam,
     response: paymentRefundSchema,
     summary: '主动查询并同步退款状态',
     description: '向支付渠道发起退款查单，纠正本地退款单状态（处理中→成功/失败），回调兜底。',
   }),
-  approveRefund: op.post('/refunds/{id}/approve', { params: idParam, body: approveRefundSchema, response: paymentRefundResultSchema, summary: '审批通过退款并执行' }),
-  rejectRefund: op.post('/refunds/{id}/reject', { params: idParam, body: rejectRefundSchema, summary: '驳回退款' }),
-}, { tags: ['支付中心'] });
+  approveRefund: op.post('/refunds/{id}/approve', { access: { permission: 'payment:refund:approve' }, audit: '审批通过退款', params: idParam, body: approveRefundSchema, response: paymentRefundResultSchema, summary: '审批通过退款并执行' }),
+  rejectRefund: op.post('/refunds/{id}/reject', { access: { permission: 'payment:refund:approve' }, audit: '驳回退款', params: idParam, body: rejectRefundSchema, summary: '驳回退款' }),
+}, { auditModule: '支付中心', tags: ['支付中心'] });

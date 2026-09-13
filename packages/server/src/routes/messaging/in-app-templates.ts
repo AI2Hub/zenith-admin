@@ -8,7 +8,6 @@ const inAppTemplatesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(inAppTemplatesRouter, inAppTemplateContract,
   inAppTemplateService,
-  { permission: 'system:in-app-template', label: '站内信模板', module: '站内信模板' },
 );
 
 export default inAppTemplatesRouter;

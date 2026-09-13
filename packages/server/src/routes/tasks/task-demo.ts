@@ -1,7 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { taskDemoContract } from '@zenith/shared/tasks';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -89,7 +87,6 @@ export function registerTaskDemoHandlers(): void {
 const taskDemoRoute = new OpenAPIHono({ defaultHook: validationHook });
 
 const submitRoute = defineContractRoute(taskDemoContract.submit, {
-  middleware: [authMiddleware, guard({ permission: 'biz:task-demo:submit', audit: { description: '提交演示异步任务', module: '业务示例' } })],
   handler: async (c) => {
     const { taskType, idempotencyKey, ...payload } = c.req.valid('json');
     const title = taskType === 'demo-batch'

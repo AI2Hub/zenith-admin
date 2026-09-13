@@ -23,13 +23,14 @@ export type ResponseKind = 'json' | 'excel' | 'csv' | 'file' | 'sse';
 /**
  * 操作要求的凭证类型，进入 OpenAPI `security`：
  * - `none`：公开接口，无需任何凭证（由 `public: true` 声明）
- * - `bearer`：登录令牌（默认；后台 / 会员 / 审批端均为 Bearer）
+ * - `bearer`：后台登录令牌（默认；管理后台 / 移动审批端），唯一带权限码语义的凭证
+ * - `member-bearer`：会员登录令牌（会员前台；由契约组 `defineContract(..., { security: 'member-bearer' })` 整组声明）
  * - `device-signature`：IoT 设备 HMAC 签名头（`X-IoT-Sn` / `X-IoT-Timestamp` / `X-IoT-Sign`）
  * - `open-gateway`：开放平台网关，OAuth2 令牌或 AppKey + HMAC 签名头二选一
  *
- * 凭证的**校验**仍由路由 `middleware` 完成；这里只描述契约，让文档与运行时一致。
+ * 非 `bearer` 凭证的**校验**仍由路由 `middleware` 完成；这里只描述契约，让文档与运行时一致。
  */
-export type SecurityScheme = 'none' | 'bearer' | 'device-signature' | 'open-gateway';
+export type SecurityScheme = 'none' | 'bearer' | 'member-bearer' | 'device-signature' | 'open-gateway';
 
 /**
  * 登录令牌（`bearer`）操作的访问要求——权限声明的唯一位置，服务端路由据此自动挂门禁，
@@ -124,8 +125,9 @@ export interface OperationConfig<
   readonly tags?: readonly string[];
   readonly deprecated?: boolean;
   /**
-   * 访问要求（仅 bearer 操作）。声明后服务端 `defineContractRoute` 自动挂 `authMiddleware` + 权限 / 平台超管门禁，
-   * 路由文件不再手写 `guard({ permission })`；缺省 = 尚未迁移（`contract-access.test` 以基线只准缩小）
+   * 访问要求（登录令牌操作**必填**）。服务端 `defineContractRoute` 据此自动挂 `authMiddleware` + 权限 / 平台超管门禁，
+   * 路由文件不手写 `guard({ permission })`；前端按钮 / Demo Mock / OpenAPI / 权限矩阵都从这里读。
+   * `public: true`、非 bearer 的 `security` 或契约组 `security` 非 bearer 时不得声明
    */
   readonly access?: OperationAccess;
   /** 写操作审计：字符串即 description；服务端据此在门禁里记操作日志，路由无需再传 `audit` */
@@ -311,6 +313,11 @@ export const op = {
 export interface ContractDefaults {
   /** OpenAPI tags，默认由 basePath 派生 */
   readonly tags?: readonly string[];
+  /**
+   * 整组操作的凭证类型（会员前台契约组传 `'member-bearer'`）：替换未声明 `public` / `security` 的操作的缺省 `bearer`。
+   * 声明后组内操作不得再写 `access`（权限码只对后台登录令牌有意义）
+   */
+  readonly security?: Exclude<SecurityScheme, 'none' | 'bearer'>;
   /** 组内写操作审计的缺省 module（如「用户管理」）；op 级 `audit.module` 可覆盖 */
   readonly auditModule?: string;
   /** 组内操作的缺省 License 功能门控；op 级 `feature` 可覆盖 */
@@ -370,11 +377,19 @@ export function defineContract<const TOps extends Record<string, OperationMarker
     const audit = def.audit && def.audit.module === undefined && defaults.auditModule
       ? { ...def.audit, module: defaults.auditModule }
       : def.audit;
+    const security = def.security === 'bearer' && defaults.security ? defaults.security : def.security;
+    if (security !== 'bearer' && def.access !== undefined) {
+      throw new Error(`access 只能声明在登录令牌（bearer）操作上：${fullPath}（契约组 security=${security}）`);
+    }
+    if (security === 'bearer' && def.access === undefined) {
+      throw new Error(`登录令牌操作必须声明 access（权限码 / 'authenticated' / platformOnly）：${def.method.toUpperCase()} ${fullPath}`);
+    }
     bound[name] = {
       ...def,
       name,
       basePath,
       fullPath,
+      security,
       tags: def.tags ?? defaultTags,
       audit,
       feature: def.feature ?? defaults.feature,

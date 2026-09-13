@@ -54,8 +54,9 @@ export const mpDatacubeQuery = mpAccountIdQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const mpStatsContract = defineContract('/api/mp/stats', {
-  overview: op.get('/', { query: mpAccountIdQuery, response: mpStatsSchema, summary: '数据统计' }),
+  overview: op.get('/', { access: { permission: 'mp:statistics:view' }, query: mpAccountIdQuery, response: mpStatsSchema, summary: '数据统计' }),
   datacube: op.get('/datacube', {
+    access: { permission: 'mp:statistics:view' },
     query: mpDatacubeQuery,
     response: mpDatacubeSchema,
     summary: '微信数据立方（真实接口）',

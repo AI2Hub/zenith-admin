@@ -176,20 +176,20 @@ export const cmsWidgetPreviewQuery = z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsWidgetContract = defineContract('/api/cms/widgets', {
-  list: op.get('/', { query: cmsWidgetListQuery, response: paginated(cmsWidgetSchema), summary: '页面部件分页列表' }),
-  options: op.get('/options', { query: cmsSiteScopeQuery, response: z.array(cmsWidgetSchema), summary: '已发布页面部件选项' }),
-  renderers: op.get('/renderers', { query: cmsWidgetRenderersQuery, response: z.array(cmsWidgetRendererOptionSchema), summary: '当前站点主题支持的部件展示模板' }),
-  slots: op.get('/slots', { query: cmsSiteScopeQuery, response: z.array(cmsWidgetSlotSchema), summary: '当前站点主题部件插槽' }),
-  saveSlot: op.put('/slots/{slotKey}', { params: cmsWidgetSlotKeyParam, body: saveCmsWidgetSlotSchema, response: z.array(cmsWidgetSlotSchema), summary: '绑定或清空主题部件插槽' }),
-  batch: op.post('/batch', { body: batchCmsWidgetSchema, response: asyncTaskSchema, summary: '提交页面部件批量发布/下线/删除任务' }),
-  sourceRefs: op.get('/source-refs', { query: cmsWidgetSourceRefsQuery, response: z.array(cmsWidgetSourceReferenceSchema), summary: '查看内容或栏目被哪些已发布页面部件引用' }),
-  refs: op.get('/{id}/refs', { params: idParam, response: z.array(cmsWidgetRefSchema), summary: '查看页面部件引用位置' }),
-  preview: op.get('/{id}/preview', { params: idParam, query: cmsWidgetPreviewQuery, response: cmsWidgetPreviewSchema, summary: '按当前草稿生成页面部件 SSR 预览' }),
-  publish: op.post('/{id}/publish', { params: idParam, response: cmsWidgetSchema, summary: '发布页面部件' }),
-  offline: op.post('/{id}/offline', { params: idParam, response: cmsWidgetSchema, summary: '下线页面部件' }),
-  detail: op.get('/{id}', { params: idParam, response: cmsWidgetSchema, summary: '页面部件详情' }),
-  create: op.post('/', { body: createCmsWidgetSchema, response: cmsWidgetSchema, summary: '创建页面部件草稿' }),
-  update: op.put('/{id}', { params: idParam, body: updateCmsWidgetSchema, response: cmsWidgetSchema, summary: '保存页面部件草稿' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除未被引用的页面部件' }),
-}, { tags: ['CMS-页面部件'] });
+  list: op.get('/', { access: { permission: 'cms:widget:list' }, query: cmsWidgetListQuery, response: paginated(cmsWidgetSchema), summary: '页面部件分页列表' }),
+  options: op.get('/options', { access: { permission: 'cms:widget:list' }, query: cmsSiteScopeQuery, response: z.array(cmsWidgetSchema), summary: '已发布页面部件选项' }),
+  renderers: op.get('/renderers', { access: { permission: 'cms:widget:list' }, query: cmsWidgetRenderersQuery, response: z.array(cmsWidgetRendererOptionSchema), summary: '当前站点主题支持的部件展示模板' }),
+  slots: op.get('/slots', { access: { permission: 'cms:widget:list' }, query: cmsSiteScopeQuery, response: z.array(cmsWidgetSlotSchema), summary: '当前站点主题部件插槽' }),
+  saveSlot: op.put('/slots/{slotKey}', { access: { permission: 'cms:widget:bind' }, audit: '更新 CMS 主题页面部件插槽', params: cmsWidgetSlotKeyParam, body: saveCmsWidgetSlotSchema, response: z.array(cmsWidgetSlotSchema), summary: '绑定或清空主题部件插槽' }),
+  batch: op.post('/batch', { access: { permission: 'cms:widget:list' }, audit: '提交 CMS 页面部件批量操作', body: batchCmsWidgetSchema, response: asyncTaskSchema, summary: '提交页面部件批量发布/下线/删除任务' }),
+  sourceRefs: op.get('/source-refs', { access: { permission: 'cms:widget:list' }, query: cmsWidgetSourceRefsQuery, response: z.array(cmsWidgetSourceReferenceSchema), summary: '查看内容或栏目被哪些已发布页面部件引用' }),
+  refs: op.get('/{id}/refs', { access: { permission: 'cms:widget:list' }, params: idParam, response: z.array(cmsWidgetRefSchema), summary: '查看页面部件引用位置' }),
+  preview: op.get('/{id}/preview', { access: { permission: 'cms:widget:list' }, params: idParam, query: cmsWidgetPreviewQuery, response: cmsWidgetPreviewSchema, summary: '按当前草稿生成页面部件 SSR 预览' }),
+  publish: op.post('/{id}/publish', { access: { permission: 'cms:widget:publish' }, audit: '发布 CMS 页面部件', params: idParam, response: cmsWidgetSchema, summary: '发布页面部件' }),
+  offline: op.post('/{id}/offline', { access: { permission: 'cms:widget:offline' }, audit: '下线 CMS 页面部件', params: idParam, response: cmsWidgetSchema, summary: '下线页面部件' }),
+  detail: op.get('/{id}', { access: { permission: 'cms:widget:list' }, params: idParam, response: cmsWidgetSchema, summary: '页面部件详情' }),
+  create: op.post('/', { access: { permission: 'cms:widget:create' }, audit: '创建 CMS 页面部件', body: createCmsWidgetSchema, response: cmsWidgetSchema, summary: '创建页面部件草稿' }),
+  update: op.put('/{id}', { access: { permission: 'cms:widget:update' }, audit: '更新 CMS 页面部件草稿', params: idParam, body: updateCmsWidgetSchema, response: cmsWidgetSchema, summary: '保存页面部件草稿' }),
+  remove: op.delete('/{id}', { access: { permission: 'cms:widget:delete' }, audit: '删除 CMS 页面部件', params: idParam, summary: '删除未被引用的页面部件' }),
+}, { auditModule: 'CMS内容管理', tags: ['CMS-页面部件'] });
 

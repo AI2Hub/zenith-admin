@@ -96,9 +96,19 @@ function moduleOps<M extends SettingsModuleKey>(module: M) {
   const def = SETTINGS_MODULES[module];
   const path = SETTINGS_MODULE_PATHS[module];
   const envelope = settingsEnvelopeSchema(module);
+  // 访问要求直接取模块定义：readPermission 为 null = 任意登录用户可读；feature 随模块门控
+  const feature = def.feature ? { feature: def.feature } : {};
   return {
-    get: op.get(path, { response: envelope, summary: `读取「${def.title}」设置` }),
+    get: op.get(path, {
+      access: def.readPermission ? { permission: def.readPermission } : 'authenticated',
+      ...feature,
+      response: envelope,
+      summary: `读取「${def.title}」设置`,
+    }),
     update: op.put(path, {
+      access: { permission: def.writePermission },
+      audit: { description: `更新「${def.title}」设置`, module: '系统设置' },
+      ...feature,
       body: settingsWriteSchema(module),
       response: envelope,
       summary: `保存「${def.title}」设置（整体替换，version 乐观锁）`,
@@ -123,9 +133,9 @@ const wiki = moduleOps('wiki');
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const settingsContract = defineContract('/api/settings', {
-  list: op.get('/', { response: z.array(settingsModuleMetaSchema), summary: '当前用户可读的设置模块清单' }),
+  list: op.get('/', { access: 'authenticated', response: z.array(settingsModuleMetaSchema), summary: '当前用户可读的设置模块清单' }),
   public: op.get('/public', { query: publicSettingsQuery, response: publicSettingsSchema, public: true, summary: '匿名可见的设置投影（登录 / 注册页）' }),
-  me: op.get('/me', { response: mySettingsSchema, summary: '登录用户可见的设置投影（布局开关 / 密码规则 / 终端录屏）' }),
+  me: op.get('/me', { access: 'authenticated', response: mySettingsSchema, summary: '登录用户可见的设置投影（布局开关 / 密码规则 / 终端录屏）' }),
 
   getAuth: auth.get, updateAuth: auth.update,
   getIdentitySecurity: identitySecurity.get, updateIdentitySecurity: identitySecurity.update,

@@ -95,9 +95,9 @@ export const openApiCallLogListQuery = paginationQuery.extend({
 });
 
 export const openApiStatsContract = defineContract('/api/open-api-stats', {
-  overview: op.get('/overview', { query: openApiStatsRangeQuery, response: openApiStatsOverviewSchema, summary: '调用统计总览' }),
-  trend: op.get('/trend', { query: openApiStatsTrendQuery, response: z.array(openApiStatsTrendPointSchema), summary: '调用趋势（按小时/天聚合）' }),
-  byApp: op.get('/by-app', { query: openApiStatsGroupQuery, response: z.array(openApiStatsGroupItemSchema), summary: '按应用聚合统计（Top N）' }),
-  byEndpoint: op.get('/by-endpoint', { query: openApiStatsGroupQuery, response: z.array(openApiStatsGroupItemSchema), summary: '按端点聚合统计（Top N）' }),
-  logs: op.get('/logs', { query: openApiCallLogListQuery, response: paginated(openApiCallLogSchema), summary: '调用日志列表' }),
+  overview: op.get('/overview', { access: { permission: 'open:stats:view' }, query: openApiStatsRangeQuery, response: openApiStatsOverviewSchema, summary: '调用统计总览' }),
+  trend: op.get('/trend', { access: { permission: 'open:stats:view' }, query: openApiStatsTrendQuery, response: z.array(openApiStatsTrendPointSchema), summary: '调用趋势（按小时/天聚合）' }),
+  byApp: op.get('/by-app', { access: { permission: 'open:stats:view' }, query: openApiStatsGroupQuery, response: z.array(openApiStatsGroupItemSchema), summary: '按应用聚合统计（Top N）' }),
+  byEndpoint: op.get('/by-endpoint', { access: { permission: 'open:stats:view' }, query: openApiStatsGroupQuery, response: z.array(openApiStatsGroupItemSchema), summary: '按端点聚合统计（Top N）' }),
+  logs: op.get('/logs', { access: { permission: 'open:stats:view' }, query: openApiCallLogListQuery, response: paginated(openApiCallLogSchema), summary: '调用日志列表' }),
 }, { tags: ['OpenApiStats'] });

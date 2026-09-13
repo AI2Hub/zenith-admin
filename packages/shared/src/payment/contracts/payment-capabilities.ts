@@ -73,6 +73,7 @@ export const paymentCapabilityQuery = z.object({
 
 export const paymentCapabilityContract = defineContract('/api/payment/capabilities', {
   list: op.get('/', {
+    access: { permission: 'payment:channel:list' },
     query: paymentCapabilityQuery,
     response: paymentCapabilitiesResponseSchema,
     summary: '查询支付渠道有效能力',

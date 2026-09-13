@@ -2,8 +2,6 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { Readable } from 'node:stream';
 import { HTTPException } from 'hono/http-exception';
 import { hostFileContract } from '@zenith/shared/ops';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { assertRemoteHostAccess } from '../../lib/host-access';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
@@ -23,14 +21,8 @@ import { assertContentLengthWithinLimit } from '../../services/ops/terminal-file
 import { attachmentDisposition } from '../../lib/content-disposition';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
-const FILE_PERM = 'system:file:use';
-
-const read = [authMiddleware, guard({ permission: FILE_PERM })] as const;
-const write = (description: string, recordBody = true) =>
-  [authMiddleware, guard({ permission: FILE_PERM, audit: { description, module: '文件管理器', recordBody } })] as const;
 
 const homeRoute = defineContractRoute(hostFileContract.home, {
-  middleware: read,
   handler: async (c) => {
     const { hostId } = c.req.valid('param');
     await assertRemoteHostAccess(c, hostId);
@@ -39,7 +31,6 @@ const homeRoute = defineContractRoute(hostFileContract.home, {
 });
 
 const listRoute = defineContractRoute(hostFileContract.list, {
-  middleware: read,
   handler: async (c) => {
     const { hostId } = c.req.valid('param');
     await assertRemoteHostAccess(c, hostId);
@@ -48,7 +39,6 @@ const listRoute = defineContractRoute(hostFileContract.list, {
 });
 
 const readRoute = defineContractRoute(hostFileContract.content, {
-  middleware: read,
   handler: async (c) => {
     const { hostId } = c.req.valid('param');
     await assertRemoteHostAccess(c, hostId);
@@ -57,7 +47,6 @@ const readRoute = defineContractRoute(hostFileContract.content, {
 });
 
 const writeRoute = defineContractRoute(hostFileContract.saveContent, {
-  middleware: write('保存远程主机文件', false),
   responses: { 409: { content: jsonContent(ErrorResponse), description: '文件已被修改' } },
   handler: async (c) => {
     const { hostId } = c.req.valid('param');
@@ -68,7 +57,6 @@ const writeRoute = defineContractRoute(hostFileContract.saveContent, {
 });
 
 const createEntryRoute = defineContractRoute(hostFileContract.create, {
-  middleware: write('新建远程主机文件/目录'),
   handler: async (c) => {
     const { hostId } = c.req.valid('param');
     await assertRemoteHostAccess(c, hostId);
@@ -78,7 +66,6 @@ const createEntryRoute = defineContractRoute(hostFileContract.create, {
 });
 
 const renameRoute = defineContractRoute(hostFileContract.rename, {
-  middleware: write('重命名/移动远程主机文件'),
   handler: async (c) => {
     const { hostId } = c.req.valid('param');
     await assertRemoteHostAccess(c, hostId);
@@ -88,7 +75,6 @@ const renameRoute = defineContractRoute(hostFileContract.rename, {
 });
 
 const deleteRoute = defineContractRoute(hostFileContract.remove, {
-  middleware: write('删除远程主机文件/目录'),
   handler: async (c) => {
     const { hostId } = c.req.valid('param');
     await assertRemoteHostAccess(c, hostId);
@@ -98,7 +84,6 @@ const deleteRoute = defineContractRoute(hostFileContract.remove, {
 });
 
 const chmodRoute = defineContractRoute(hostFileContract.chmod, {
-  middleware: write('修改远程主机文件权限'),
   handler: async (c) => {
     const { hostId } = c.req.valid('param');
     await assertRemoteHostAccess(c, hostId);
@@ -109,7 +94,6 @@ const chmodRoute = defineContractRoute(hostFileContract.chmod, {
 });
 
 const downloadRoute = defineContractRoute(hostFileContract.download, {
-  middleware: read,
   handler: async (c) => {
     const { hostId } = c.req.valid('param');
     await assertRemoteHostAccess(c, hostId);
@@ -126,7 +110,6 @@ const downloadRoute = defineContractRoute(hostFileContract.download, {
 });
 
 const uploadRoute = defineContractRoute(hostFileContract.upload, {
-  middleware: write('上传远程主机文件', false),
   handler: async (c) => {
     const { hostId } = c.req.valid('param');
     await assertRemoteHostAccess(c, hostId);

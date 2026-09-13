@@ -42,17 +42,19 @@ export const paymentOutboxEventListQuery = paginationQuery.extend({
 });
 
 export const paymentOpsContract = defineContract('/api/payment/ops', {
-  events: op.get('/events', { query: paymentOutboxEventListQuery, response: paginated(paymentOutboxEventSchema), summary: '支付事件(Outbox)列表' }),
+  events: op.get('/events', { access: { permission: 'payment:ops:manage' }, query: paymentOutboxEventListQuery, response: paginated(paymentOutboxEventSchema), summary: '支付事件(Outbox)列表' }),
   health: op.get('/health', {
+    access: { permission: 'payment:ops:manage' },
     response: paymentOpsHealthSchema,
     summary: '支付链路健康指标',
     description: 'Outbox 积压/死信、Webhook 待投递/24h 失败、处理中分账/转账、待处理对账差异，用于运维监控与告警。',
   }),
-  redispatchEvent: op.post('/events/{id}/redispatch', { params: idParam, response: paymentOutboxEventSchema, summary: '手动重投支付事件' }),
+  redispatchEvent: op.post('/events/{id}/redispatch', { access: { permission: 'payment:ops:manage' }, audit: '手动重投支付事件', params: idParam, response: paymentOutboxEventSchema, summary: '手动重投支付事件' }),
   simulateOrderPaid: op.post('/orders/{id}/simulate-paid', {
+    access: { permission: 'payment:ops:manage' }, audit: '模拟支付成功',
     params: idParam,
     response: paymentOrderSchema,
     summary: '模拟支付成功（演示/联调）',
     description: '构造沙箱回调报文送入 handleNotify，与真实渠道回调完全同径（验签/回调日志/幂等/事件/Webhook）。仅沙箱渠道配置可用。',
   }),
-}, { tags: ['支付中心-运营'] });
+}, { auditModule: '支付中心', tags: ['支付中心-运营'] });

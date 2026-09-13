@@ -2,19 +2,14 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { stream } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import { networkDiagContract } from '@zenith/shared/ops';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { errBody, okBody, validationHook } from '../../lib/openapi-schemas';
 import { spawnNetDiag, runNslookup, checkPort, validateHost, resolveDns, reverseDns, httpProbe, getInterfaces } from '../../services/ops/network-diag.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const diag = [authMiddleware, guard({ permission: 'system:network:diag' })] as const;
-
 // ping / traceroute 逐行流式输出
 const streamRoute = defineContractRoute(networkDiagContract.stream, {
-  middleware: diag,
   handler: async (c) => {
     const { type, host } = c.req.valid('query');
     try {
@@ -39,7 +34,6 @@ const streamRoute = defineContractRoute(networkDiagContract.stream, {
 });
 
 const nslookupRoute = defineContractRoute(networkDiagContract.nslookup, {
-  middleware: diag,
   handler: async (c) => {
     const { host } = c.req.valid('query');
     const output = await runNslookup(host);
@@ -48,7 +42,6 @@ const nslookupRoute = defineContractRoute(networkDiagContract.nslookup, {
 });
 
 const portCheckRoute = defineContractRoute(networkDiagContract.portCheck, {
-  middleware: diag,
   handler: async (c) => {
     const { host, port } = c.req.valid('json');
     try { validateHost(host); } catch { throw new HTTPException(400, { message: '非法主机名或 IP' }); }
@@ -58,7 +51,6 @@ const portCheckRoute = defineContractRoute(networkDiagContract.portCheck, {
 });
 
 const dnsRoute = defineContractRoute(networkDiagContract.dns, {
-  middleware: diag,
   handler: async (c) => {
     const { host, type } = c.req.valid('query');
     try { validateHost(host); } catch { throw new HTTPException(400, { message: '非法主机名' }); }
@@ -68,7 +60,6 @@ const dnsRoute = defineContractRoute(networkDiagContract.dns, {
 });
 
 const reverseRoute = defineContractRoute(networkDiagContract.reverse, {
-  middleware: diag,
   handler: async (c) => {
     const { ip } = c.req.valid('query');
     try { const r = await reverseDns(ip); return c.json(okBody(r), 200); } catch (e) { throw new HTTPException(400, { message: (e as Error).message }); }
@@ -76,7 +67,6 @@ const reverseRoute = defineContractRoute(networkDiagContract.reverse, {
 });
 
 const httpProbeRoute = defineContractRoute(networkDiagContract.httpProbe, {
-  middleware: diag,
   handler: async (c) => {
     const { url } = c.req.valid('json');
     const result = await httpProbe(url);
@@ -85,7 +75,6 @@ const httpProbeRoute = defineContractRoute(networkDiagContract.httpProbe, {
 });
 
 const interfacesRoute = defineContractRoute(networkDiagContract.interfaces, {
-  middleware: diag,
   handler: (c) => c.json(okBody(getInterfaces()), 200),
 });
 

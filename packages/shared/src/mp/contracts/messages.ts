@@ -52,12 +52,13 @@ export const mpMessageListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const mpMessageContract = defineContract('/api/mp/messages', {
-  conversations: op.get('/conversations', { query: mpAccountIdQuery, response: z.array(mpConversationSchema), summary: '会话列表' }),
-  list: op.get('/', { query: mpMessageListQuery, response: paginated(mpMessageSchema), summary: '消息列表' }),
+  conversations: op.get('/conversations', { access: { permission: 'mp:message:list' }, query: mpAccountIdQuery, response: z.array(mpConversationSchema), summary: '会话列表' }),
+  list: op.get('/', { access: { permission: 'mp:message:list' }, query: mpMessageListQuery, response: paginated(mpMessageSchema), summary: '消息列表' }),
   send: op.post('/send', {
+    access: { permission: 'mp:message:send' }, audit: '发送客服消息',
     body: sendMpMessageSchema,
     response: mpMessageSchema,
     summary: '发送客服消息',
     description: '向粉丝下发客服文本消息（需用户最近 48 小时内有交互），成功后落库为出站消息。',
   }),
-}, { tags: ['公众号消息'] });
+}, { auditModule: '公众号消息', tags: ['公众号消息'] });

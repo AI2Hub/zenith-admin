@@ -51,10 +51,10 @@ export const regionTreeQuery = z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const regionContract = defineContract('/api/regions', {
-  tree: op.get('/', { query: regionTreeQuery, response: z.array(regionSchema), summary: '地区树形结构' }),
-  flat: op.get('/flat', { response: z.array(regionSchema), summary: '平铺地区列表' }),
-  detail: op.get('/{id}', { params: idParam, response: regionSchema, summary: '地区详情' }),
-  create: op.post('/', { body: createRegionSchema, response: regionSchema, summary: '新增地区' }),
-  update: op.put('/{id}', { params: idParam, body: updateRegionSchema, response: regionSchema, summary: '更新地区' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除地区' }),
-}, { tags: ['Regions'] });
+  tree: op.get('/', { access: { permission: 'system:region:list' }, query: regionTreeQuery, response: z.array(regionSchema), summary: '地区树形结构' }),
+  flat: op.get('/flat', { access: { permission: 'system:region:list' }, response: z.array(regionSchema), summary: '平铺地区列表' }),
+  detail: op.get('/{id}', { access: { permission: 'system:region:list' }, params: idParam, response: regionSchema, summary: '地区详情' }),
+  create: op.post('/', { access: { permission: 'system:region:create', platformOnly: 'multi-tenant' }, audit: '创建地区', body: createRegionSchema, response: regionSchema, summary: '新增地区' }),
+  update: op.put('/{id}', { access: { permission: 'system:region:update', platformOnly: 'multi-tenant' }, audit: '更新地区', params: idParam, body: updateRegionSchema, response: regionSchema, summary: '更新地区' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:region:delete', platformOnly: 'multi-tenant' }, audit: '删除地区', params: idParam, summary: '删除地区' }),
+}, { auditModule: '地区管理', tags: ['Regions'] });

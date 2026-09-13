@@ -8,7 +8,6 @@ const emailTemplatesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(emailTemplatesRouter, emailTemplateContract,
   emailTemplateService,
-  { permission: 'system:email-template', label: '邮件模板', module: '邮件模板' },
 );
 
 export default emailTemplatesRouter;

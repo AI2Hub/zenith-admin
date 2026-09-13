@@ -47,5 +47,5 @@ export const workflowHealthQuery = z.object({
 });
 
 export const workflowHealthContract = defineContract('/api/workflows/health', {
-  summary: op.get('/', { query: workflowHealthQuery, response: workflowHealthSummarySchema, summary: '工作流健康巡检' }),
+  summary: op.get('/', { access: { permission: 'workflow:health:view' }, query: workflowHealthQuery, response: workflowHealthSummarySchema, summary: '工作流健康巡检' }),
 }, { tags: ['WorkflowHealth'] });

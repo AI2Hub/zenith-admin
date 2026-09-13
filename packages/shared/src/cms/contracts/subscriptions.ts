@@ -70,17 +70,18 @@ export const cmsImageUploadQuery = z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsSubscriptionContract = defineContract('/api/cms/subscriptions', {
-  list: op.get('/', { query: cmsSubscriptionListQuery, response: paginated(cmsMemberSubscriptionSchema), summary: '会员订阅明细（隐私脱敏）' }),
-  aggregates: op.get('/aggregates', { query: cmsSubscriptionAggregateQuery, response: z.array(cmsSubscriptionAggregateSchema), summary: '会员订阅聚合' }),
+  list: op.get('/', { access: { permission: 'cms:subscription:list' }, query: cmsSubscriptionListQuery, response: paginated(cmsMemberSubscriptionSchema), summary: '会员订阅明细（隐私脱敏）' }),
+  aggregates: op.get('/aggregates', { access: { permission: 'cms:subscription:list' }, query: cmsSubscriptionAggregateQuery, response: z.array(cmsSubscriptionAggregateSchema), summary: '会员订阅聚合' }),
 }, { tags: ['CMS-会员订阅'] });
 
 /** 站点级上传入口：按站点配置执行压缩 / 水印 / 缩略图 */
 export const cmsUploadContract = defineContract('/api/cms', {
   uploadImage: op.post('/upload-image', {
+    access: { permission: 'cms:content:create' }, audit: { description: 'CMS 上传图片', recordBody: false },
     query: cmsImageUploadQuery,
     body: multipart(z.object({ file: fileField() })),
     response: cmsImageUploadSchema,
     summary: '上传图片（按站点配置执行压缩/水印/缩略图）',
   }),
-}, { tags: ['CMS-内容管理'] });
+}, { auditModule: 'CMS内容管理', tags: ['CMS-内容管理'] });
 

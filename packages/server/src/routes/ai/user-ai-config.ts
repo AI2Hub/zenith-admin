@@ -1,6 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { userAiConfigContract } from '@zenith/shared/ai';
-import { authMiddleware } from '../../middleware/auth';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -13,9 +12,7 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const authed = [authMiddleware] as const;
 const updateConfig = defineContractRoute(userAiConfigContract.update, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await updateUserAiConfig(id, c.req.valid('json')), '更新成功'), 200);
@@ -23,7 +20,6 @@ const updateConfig = defineContractRoute(userAiConfigContract.update, {
 });
 
 const deleteConfig = defineContractRoute(userAiConfigContract.remove, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await deleteUserAiConfig(id);
@@ -33,7 +29,7 @@ const deleteConfig = defineContractRoute(userAiConfigContract.remove, {
 
 mountCrud(router, userAiConfigContract,
   { create: createUserAiConfig, list: getUserAiConfigs },
-  { permission: null, audit: null, exclude: ['update', 'remove'] },
+  { exclude: ['update', 'remove'] },
   [updateConfig, deleteConfig],
 );
 

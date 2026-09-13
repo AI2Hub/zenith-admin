@@ -89,9 +89,9 @@ describe('useListPage', () => {
 
 const rowSchema = z.object({ id: z.int(), name: z.string() });
 const rowContract = defineContract('/api/test-rows', {
-  list: op.get('/', { query: paginationQuery.extend({ keyword: keywordQuery('名称'), status: entityStatusQuery, ...dateRangeQuery('创建时间') }), response: paginated(rowSchema), summary: 'list' }),
-  detail: op.get('/{id}', { params: idParam, response: rowSchema, summary: 'detail' }),
-  events: op.get('/events', { query: paginationQuery.extend({ level: keywordQuery('级别') }), response: paginated(rowSchema), summary: 'events' }),
+  list: op.get('/', { access: 'authenticated', query: paginationQuery.extend({ keyword: keywordQuery('名称'), status: entityStatusQuery, ...dateRangeQuery('创建时间') }), response: paginated(rowSchema), summary: 'list' }),
+  detail: op.get('/{id}', { access: 'authenticated', params: idParam, response: rowSchema, summary: 'detail' }),
+  events: op.get('/events', { access: 'authenticated', query: paginationQuery.extend({ level: keywordQuery('级别') }), response: paginated(rowSchema), summary: 'events' }),
 });
 
 const useContractListMock = vi.fn((params: { page: number; pageSize: number; keyword?: string; status?: 'enabled' | 'disabled'; startTime?: string; endTime?: string }, enabled?: boolean) => ({

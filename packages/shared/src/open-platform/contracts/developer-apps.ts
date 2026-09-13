@@ -55,14 +55,14 @@ export type OpenApiDebugEndpoint = z.infer<typeof openApiDebugEndpointSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const developerAppContract = defineContract('/api/developer-apps', {
-  list: op.get('/', { query: oauth2ClientListQuery, response: paginated(oauth2ClientSchema), summary: '获取我的开放平台应用' }),
-  create: op.post('/', { body: createDeveloperOAuth2ClientSchema, response: oauth2ClientCreatedSchema, summary: '创建我的开放平台应用' }),
-  submit: op.post('/{id}/submit', { params: idParam, response: oauth2ClientSchema, summary: '提交应用审核' }),
-  regenerateSecret: op.post('/{id}/regenerate-secret', { params: idParam, response: oauth2ClientSecretSchema, summary: '轮换我的应用密钥' }),
-  quotaUsage: op.get('/{id}/quota-usage', { params: idParam, response: openAppQuotaUsageSchema, summary: '获取应用实时配额用量' }),
-  debugEndpoints: op.get('/debug/endpoints', { response: z.array(openApiDebugEndpointSchema), summary: '获取可调试的开放 API 端点目录' }),
-  debug: op.post('/{id}/debug', { params: idParam, body: openApiDebugRequestSchema, response: openApiDebugResultSchema, summary: '在线调试开放 API' }),
-  detail: op.get('/{id}', { params: idParam, response: oauth2ClientSchema, summary: '获取我的应用详情' }),
-  update: op.put('/{id}', { params: idParam, body: updateDeveloperOAuth2ClientSchema, response: oauth2ClientSchema, summary: '更新我的开放平台应用' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除我的开放平台应用' }),
-}, { tags: ['DeveloperApps'] });
+  list: op.get('/', { access: 'authenticated', query: oauth2ClientListQuery, response: paginated(oauth2ClientSchema), summary: '获取我的开放平台应用' }),
+  create: op.post('/', { access: 'authenticated', audit: { description: '创建开发者应用', recordResponseBody: false }, body: createDeveloperOAuth2ClientSchema, response: oauth2ClientCreatedSchema, summary: '创建我的开放平台应用' }),
+  submit: op.post('/{id}/submit', { access: 'authenticated', audit: { description: '提交开发者应用审核', recordResponseBody: false }, params: idParam, response: oauth2ClientSchema, summary: '提交应用审核' }),
+  regenerateSecret: op.post('/{id}/regenerate-secret', { access: 'authenticated', audit: { description: '轮换开发者应用密钥', recordResponseBody: false }, params: idParam, response: oauth2ClientSecretSchema, summary: '轮换我的应用密钥' }),
+  quotaUsage: op.get('/{id}/quota-usage', { access: 'authenticated', params: idParam, response: openAppQuotaUsageSchema, summary: '获取应用实时配额用量' }),
+  debugEndpoints: op.get('/debug/endpoints', { access: 'authenticated', response: z.array(openApiDebugEndpointSchema), summary: '获取可调试的开放 API 端点目录' }),
+  debug: op.post('/{id}/debug', { access: 'authenticated', audit: { description: '在线调试开放 API', recordResponseBody: false }, params: idParam, body: openApiDebugRequestSchema, response: openApiDebugResultSchema, summary: '在线调试开放 API' }),
+  detail: op.get('/{id}', { access: 'authenticated', params: idParam, response: oauth2ClientSchema, summary: '获取我的应用详情' }),
+  update: op.put('/{id}', { access: 'authenticated', audit: { description: '更新开发者应用', recordResponseBody: false }, params: idParam, body: updateDeveloperOAuth2ClientSchema, response: oauth2ClientSchema, summary: '更新我的开放平台应用' }),
+  remove: op.delete('/{id}', { access: 'authenticated', audit: { description: '删除开发者应用', recordResponseBody: false }, params: idParam, summary: '删除我的开放平台应用' }),
+}, { auditModule: '开放平台-开发者中心', tags: ['DeveloperApps'] });

@@ -90,14 +90,14 @@ export const reportMetricLookupQuery = z.object({
 });
 
 export const reportMetricContract = defineContract('/api/report/metrics', {
-  list: op.get('/', { query: reportMetricListQuery, response: paginated(reportMetricSchema), summary: '指标列表' }),
-  lookup: op.get('/lookup', { query: reportMetricLookupQuery, response: z.array(reportMetricLookupOptionSchema), summary: '指标下拉' }),
-  detail: op.get('/{id}', { params: idParam, response: reportMetricSchema, summary: '指标详情' }),
-  create: op.post('/', { body: createReportMetricSchema, response: reportMetricSchema, summary: '创建指标' }),
-  update: op.put('/{id}', { params: idParam, body: updateReportMetricSchema, response: reportMetricSchema, summary: '更新指标' }),
-  evaluate: op.post('/{id}/evaluate', { params: idParam, body: reportMetricEvaluateSchema, response: reportMetricEvaluationSchema, summary: '计算指标' }),
-  publish: op.post('/{id}/publish', { params: idParam, body: reportMetricLifecycleActionSchema, response: reportMetricSchema, summary: '直接发布指标' }),
-  deprecate: op.post('/{id}/deprecate', { params: idParam, body: reportMetricLifecycleActionSchema, response: reportMetricSchema, summary: '废弃指标' }),
-  refs: op.get('/{id}/refs', { params: idParam, response: reportMetricRefsSchema, summary: '指标引用' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除指标' }),
-}, { tags: ['报表指标'] });
+  list: op.get('/', { access: { permission: 'report:metric:list' }, query: reportMetricListQuery, response: paginated(reportMetricSchema), summary: '指标列表' }),
+  lookup: op.get('/lookup', { access: { permission: 'report:metric:list' }, query: reportMetricLookupQuery, response: z.array(reportMetricLookupOptionSchema), summary: '指标下拉' }),
+  detail: op.get('/{id}', { access: { permission: 'report:metric:list' }, params: idParam, response: reportMetricSchema, summary: '指标详情' }),
+  create: op.post('/', { access: { permission: 'report:metric:create' }, audit: '创建指标', body: createReportMetricSchema, response: reportMetricSchema, summary: '创建指标' }),
+  update: op.put('/{id}', { access: { permission: 'report:metric:update' }, audit: '更新指标', params: idParam, body: updateReportMetricSchema, response: reportMetricSchema, summary: '更新指标' }),
+  evaluate: op.post('/{id}/evaluate', { access: { permission: 'report:metric:evaluate' }, params: idParam, body: reportMetricEvaluateSchema, response: reportMetricEvaluationSchema, summary: '计算指标' }),
+  publish: op.post('/{id}/publish', { access: { permission: 'report:metric:publish' }, audit: '发布指标', params: idParam, body: reportMetricLifecycleActionSchema, response: reportMetricSchema, summary: '直接发布指标' }),
+  deprecate: op.post('/{id}/deprecate', { access: { permission: 'report:metric:publish' }, audit: '废弃指标', params: idParam, body: reportMetricLifecycleActionSchema, response: reportMetricSchema, summary: '废弃指标' }),
+  refs: op.get('/{id}/refs', { access: { permission: 'report:metric:list' }, params: idParam, response: reportMetricRefsSchema, summary: '指标引用' }),
+  remove: op.delete('/{id}', { access: { permission: 'report:metric:delete' }, audit: '删除指标', params: idParam, summary: '删除指标' }),
+}, { auditModule: '报表指标', tags: ['报表指标'] });

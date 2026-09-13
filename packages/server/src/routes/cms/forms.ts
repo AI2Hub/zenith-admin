@@ -1,7 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cmsFormContract } from '@zenith/shared/cms';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -18,9 +16,7 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'cms:form:list' })] as const;
 const listSubmissionsRoute = defineContractRoute(cmsFormContract.submissions, {
-  middleware: read,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { page, pageSize } = c.req.valid('query');
@@ -29,7 +25,6 @@ const listSubmissionsRoute = defineContractRoute(cmsFormContract.submissions, {
 });
 
 const deleteSubmissionsRoute = defineContractRoute(cmsFormContract.deleteSubmissions, {
-  middleware: [authMiddleware, guard({ permission: 'cms:form:manage', audit: { description: '删除 CMS 表单提交数据', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { ids } = c.req.valid('json');
@@ -46,7 +41,7 @@ mountCrud(router, cmsFormContract,
     update: updateCmsForm,
     remove: deleteCmsForm,
   },
-  { permission: { read: 'cms:form:list', write: 'cms:form:manage' }, label: ' CMS 表单', module: 'CMS内容管理' },
+  {},
   [listSubmissionsRoute, deleteSubmissionsRoute],
 );
 

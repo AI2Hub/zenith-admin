@@ -84,11 +84,13 @@ export const oauth2AuthorizeInfoQuery = z.object({
 
 export const oauth2AuthContract = defineContract('/api/oauth2', {
   authorizeInfo: op.get('/authorize/info', {
+    access: 'authenticated',
     query: oauth2AuthorizeInfoQuery,
     response: oauth2AuthorizeInfoSchema,
     summary: '获取 OAuth2 应用授权信息（供同意页面展示）',
   }),
   authorize: op.post('/authorize', {
+    access: 'authenticated',
     body: oauth2AuthorizeSchema,
     response: oauth2AuthorizeResponseSchema,
     summary: '用户确认授权（OAuth 2.1 授权码模式）',

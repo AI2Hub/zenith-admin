@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { rateLimitContract } from '@zenith/shared/platform';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -20,18 +19,11 @@ import {
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const view = [authMiddleware, guard({ permission: 'system:rate-limit:view' })] as const;
-
 const listRules = defineContractRoute(rateLimitContract.rules, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await listRateLimitRules()), 200),
 });
 
 const createRule = defineContractRoute(rateLimitContract.createRule, {
-  middleware: [authMiddleware, guard({
-    permission: 'system:rate-limit:manage',
-    audit: { description: '新增限流规则', module: '接口限流' },
-  })],
   handler: async (c) => {
     const body = c.req.valid('json');
     return c.json(okBody(await createRateLimitRule(body), '规则已创建'), 200);
@@ -39,10 +31,6 @@ const createRule = defineContractRoute(rateLimitContract.createRule, {
 });
 
 const patchRule = defineContractRoute(rateLimitContract.updateRule, {
-  middleware: [authMiddleware, guard({
-    permission: 'system:rate-limit:manage',
-    audit: { description: '更新限流规则', module: '接口限流' },
-  })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const patch = c.req.valid('json');
@@ -52,10 +40,6 @@ const patchRule = defineContractRoute(rateLimitContract.updateRule, {
 });
 
 const deleteRule = defineContractRoute(rateLimitContract.removeRule, {
-  middleware: [authMiddleware, guard({
-    permission: 'system:rate-limit:manage',
-    audit: { description: '删除限流规则', module: '接口限流' },
-  })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getRateLimitRuleBeforeAudit(id));
@@ -65,15 +49,10 @@ const deleteRule = defineContractRoute(rateLimitContract.removeRule, {
 });
 
 const getStats = defineContractRoute(rateLimitContract.stats, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getRateLimitStats()), 200),
 });
 
 const unblock = defineContractRoute(rateLimitContract.unblock, {
-  middleware: [authMiddleware, guard({
-    permission: 'system:rate-limit:manage',
-    audit: { description: '解封限流 key', module: '接口限流' },
-  })],
   handler: async (c) => {
     const { name, key } = c.req.valid('json');
     const { unblocked } = await unblockRateLimit(name, key);
@@ -82,10 +61,6 @@ const unblock = defineContractRoute(rateLimitContract.unblock, {
 });
 
 const resetStats = defineContractRoute(rateLimitContract.resetStats, {
-  middleware: [authMiddleware, guard({
-    permission: 'system:rate-limit:manage',
-    audit: { description: '清空限流统计', module: '接口限流' },
-  })],
   handler: async (c) => {
     const { name } = c.req.valid('json');
     await resetRateLimitStats(name);
@@ -94,10 +69,6 @@ const resetStats = defineContractRoute(rateLimitContract.resetStats, {
 });
 
 const banKey = defineContractRoute(rateLimitContract.ban, {
-  middleware: [authMiddleware, guard({
-    permission: 'system:rate-limit:manage',
-    audit: { description: '手动封禁限流 key', module: '接口限流' },
-  })],
   handler: async (c) => {
     const { name, key, durationSeconds } = c.req.valid('json');
     await banRateLimit(name, key, durationSeconds);
@@ -106,10 +77,6 @@ const banKey = defineContractRoute(rateLimitContract.ban, {
 });
 
 const unbanKey = defineContractRoute(rateLimitContract.unban, {
-  middleware: [authMiddleware, guard({
-    permission: 'system:rate-limit:manage',
-    audit: { description: '解除限流封禁', module: '接口限流' },
-  })],
   handler: async (c) => {
     const { name, key } = c.req.valid('json');
     const { unbanned } = await unbanRateLimit(name, key);
@@ -118,7 +85,6 @@ const unbanKey = defineContractRoute(rateLimitContract.unban, {
 });
 
 const listBans = defineContractRoute(rateLimitContract.bans, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await listRateLimitActiveBans()), 200),
 });
 

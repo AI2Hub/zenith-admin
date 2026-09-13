@@ -15,6 +15,6 @@ export const reportMetaTableParam = z.object({
 });
 
 export const reportMetaContract = defineContract('/api/report/meta', {
-  tables: op.get('/tables', { response: z.array(z.string()), summary: '可视化建模可用表清单（内置库）' }),
-  columns: op.get('/tables/{table}/columns', { params: reportMetaTableParam, response: z.array(reportMetaColumnSchema), summary: '某表列清单（内置库）' }),
+  tables: op.get('/tables', { access: { permission: 'report:dataset:create' }, response: z.array(z.string()), summary: '可视化建模可用表清单（内置库）' }),
+  columns: op.get('/tables/{table}/columns', { access: { permission: 'report:dataset:create' }, params: reportMetaTableParam, response: z.array(reportMetaColumnSchema), summary: '某表列清单（内置库）' }),
 }, { tags: ['报表元数据'] });

@@ -1,14 +1,13 @@
 // ─── 任务流转：转办/委派/加签/减签/退回 ───
 import { workflowTaskContract } from '@zenith/shared/workflow';
-import { authMiddleware } from '../../../middleware/auth';
-import { guard, setAuditAfterData, setAuditBeforeData } from '../../../middleware/guard';
+import { setAuditAfterData, setAuditBeforeData } from '../../../middleware/guard';
 import { idempotencyGuard } from '../../../middleware/idempotency';
 import { defineContractRoute } from '../../../lib/contract-route';
 import { okBody } from '../../../lib/openapi-schemas';
 import { getWorkflowTaskBeforeAudit, transferTask, delegateTask, addSignTask, reduceSignTask, returnTask } from '../../../services/workflow/workflow-instances.service';
 
 export const transferRoute = defineContractRoute(workflowTaskContract.transfer, {
-  middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10 }), guard({ permission: 'workflow:task:handle', audit: { description: '转办任务', module: '工作流管理' } })] as const,
+  middleware: [idempotencyGuard({ ttlSeconds: 10 })],
   handler: async (c) => {
     const { taskId } = c.req.valid('param');
     const { targetUserId, comment, attachments } = c.req.valid('json');
@@ -22,7 +21,7 @@ export const transferRoute = defineContractRoute(workflowTaskContract.transfer, 
 });
 
 export const delegateRoute = defineContractRoute(workflowTaskContract.delegate, {
-  middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10 }), guard({ permission: 'workflow:task:handle', audit: { description: '委派任务', module: '工作流管理' } })] as const,
+  middleware: [idempotencyGuard({ ttlSeconds: 10 })],
   handler: async (c) => {
     const { taskId } = c.req.valid('param');
     const { targetUserId, comment, attachments } = c.req.valid('json');
@@ -36,7 +35,7 @@ export const delegateRoute = defineContractRoute(workflowTaskContract.delegate, 
 });
 
 export const addSignRoute = defineContractRoute(workflowTaskContract.addSign, {
-  middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10 }), guard({ permission: 'workflow:task:handle', audit: { description: '加签任务', module: '工作流管理' } })] as const,
+  middleware: [idempotencyGuard({ ttlSeconds: 10 })],
   handler: async (c) => {
     const { taskId } = c.req.valid('param');
     const { targetUserIds, position, comment, signMode, attachments } = c.req.valid('json');
@@ -50,7 +49,7 @@ export const addSignRoute = defineContractRoute(workflowTaskContract.addSign, {
 });
 
 export const reduceSignRoute = defineContractRoute(workflowTaskContract.reduceSign, {
-  middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10 }), guard({ permission: 'workflow:task:handle', audit: { description: '减签任务', module: '工作流管理' } })] as const,
+  middleware: [idempotencyGuard({ ttlSeconds: 10 })],
   handler: async (c) => {
     const { taskId } = c.req.valid('param');
     const { targetTaskIds, comment } = c.req.valid('json');
@@ -64,7 +63,7 @@ export const reduceSignRoute = defineContractRoute(workflowTaskContract.reduceSi
 });
 
 export const returnRoute = defineContractRoute(workflowTaskContract.returnTask, {
-  middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10 }), guard({ permission: 'workflow:task:handle', audit: { description: '退回任务', module: '工作流管理' } })] as const,
+  middleware: [idempotencyGuard({ ttlSeconds: 10 })],
   handler: async (c) => {
     const { taskId } = c.req.valid('param');
     const { targetNodeKeys, comment, attachments } = c.req.valid('json');

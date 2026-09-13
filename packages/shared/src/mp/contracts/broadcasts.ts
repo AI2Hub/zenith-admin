@@ -48,11 +48,11 @@ export const mpBroadcastListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const mpBroadcastContract = defineContract('/api/mp/broadcasts', {
-  list: op.get('/', { query: mpBroadcastListQuery, response: paginated(mpBroadcastSchema), summary: '群发列表' }),
-  create: op.post('/', { body: createMpBroadcastSchema, response: mpBroadcastSchema, summary: '创建群发草稿' }),
-  update: op.put('/{id}', { params: idParam, body: updateMpBroadcastSchema, response: mpBroadcastSchema, summary: '更新群发草稿' }),
-  send: op.post('/{id}/send', { params: idParam, response: mpBroadcastSchema, summary: '发送群发' }),
-  preview: op.post('/{id}/preview', { params: idParam, body: previewMpBroadcastSchema, summary: '群发预览（发给指定 openid）' }),
-  result: op.get('/{id}/result', { params: idParam, response: mpBroadcastResultSchema, summary: '查询群发发送结果' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除群发' }),
-}, { tags: ['公众号群发'] });
+  list: op.get('/', { access: { permission: 'mp:broadcast:list' }, query: mpBroadcastListQuery, response: paginated(mpBroadcastSchema), summary: '群发列表' }),
+  create: op.post('/', { access: { permission: 'mp:broadcast:create' }, audit: '创建公众号群发', body: createMpBroadcastSchema, response: mpBroadcastSchema, summary: '创建群发草稿' }),
+  update: op.put('/{id}', { access: { permission: 'mp:broadcast:update' }, audit: '更新公众号群发', params: idParam, body: updateMpBroadcastSchema, response: mpBroadcastSchema, summary: '更新群发草稿' }),
+  send: op.post('/{id}/send', { access: { permission: 'mp:broadcast:send' }, audit: '发送公众号群发', params: idParam, response: mpBroadcastSchema, summary: '发送群发' }),
+  preview: op.post('/{id}/preview', { access: { permission: 'mp:broadcast:send' }, audit: '群发预览', params: idParam, body: previewMpBroadcastSchema, summary: '群发预览（发给指定 openid）' }),
+  result: op.get('/{id}/result', { access: { permission: 'mp:broadcast:list' }, params: idParam, response: mpBroadcastResultSchema, summary: '查询群发发送结果' }),
+  remove: op.delete('/{id}', { access: { permission: 'mp:broadcast:delete' }, audit: '删除公众号群发', params: idParam, summary: '删除群发' }),
+}, { auditModule: '公众号群发', tags: ['公众号群发'] });

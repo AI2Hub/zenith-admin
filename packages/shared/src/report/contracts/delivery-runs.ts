@@ -74,6 +74,6 @@ export const reportDeliveryRunListQuery = paginationQuery.extend({
 });
 
 export const reportDeliveryRunContract = defineContract('/api/report/delivery-runs', {
-  list: op.get('/', { query: reportDeliveryRunListQuery, response: paginated(reportDeliveryRunSchema), summary: '投递执行历史列表' }),
-  acknowledge: op.post('/{id}/acknowledge', { params: idParam, body: acknowledgeReportDeliveryRunSchema, response: reportDeliveryRunSchema, summary: '确认告警投递记录' }),
+  list: op.get('/', { access: { permission: ['report:alert:list', 'report:subscription:list'] }, query: reportDeliveryRunListQuery, response: paginated(reportDeliveryRunSchema), summary: '投递执行历史列表' }),
+  acknowledge: op.post('/{id}/acknowledge', { access: { permission: 'report:alert:update' }, params: idParam, body: acknowledgeReportDeliveryRunSchema, response: reportDeliveryRunSchema, summary: '确认告警投递记录' }),
 }, { tags: ['报表投递'] });

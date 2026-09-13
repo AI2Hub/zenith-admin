@@ -66,14 +66,14 @@ export const couponCodeParam = z.object({
 });
 
 export const couponContract = defineContract('/api/coupons', {
-  list: op.get('/', { query: couponListQuery, response: paginated(couponSchema), summary: '优惠券模板列表' }),
-  records: op.get('/records', { query: memberCouponRecordListQuery, response: paginated(memberCouponSchema), summary: '领券记录' }),
-  revokeRecord: op.post('/records/{id}/revoke', { params: idParam, summary: '作废券码' }),
-  byCode: op.get('/code/{code}', { params: couponCodeParam, response: memberCouponSchema, summary: '按券码查询券详情' }),
-  redeem: op.post('/redeem', { body: redeemCouponSchema, response: memberCouponSchema, summary: '核销券码' }),
-  detail: op.get('/{id}', { params: idParam, response: couponSchema, summary: '优惠券详情' }),
-  create: op.post('/', { body: createCouponSchema, response: couponSchema, summary: '创建优惠券' }),
-  update: op.put('/{id}', { params: idParam, body: updateCouponSchema, response: couponSchema, summary: '更新优惠券' }),
-  issue: op.post('/{id}/issue', { params: idParam, body: issueCouponSchema, response: memberCouponSchema, summary: '发券给会员' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除优惠券' }),
-}, { tags: ['优惠券'] });
+  list: op.get('/', { access: { permission: 'member:coupon:list' }, query: couponListQuery, response: paginated(couponSchema), summary: '优惠券模板列表' }),
+  records: op.get('/records', { access: { permission: 'member:coupon:list' }, query: memberCouponRecordListQuery, response: paginated(memberCouponSchema), summary: '领券记录' }),
+  revokeRecord: op.post('/records/{id}/revoke', { access: { permission: 'member:coupon:revoke' }, audit: '作废优惠券', params: idParam, summary: '作废券码' }),
+  byCode: op.get('/code/{code}', { access: { permission: 'member:coupon:list' }, params: couponCodeParam, response: memberCouponSchema, summary: '按券码查询券详情' }),
+  redeem: op.post('/redeem', { access: { permission: 'member:coupon:update' }, audit: '核销优惠券', body: redeemCouponSchema, response: memberCouponSchema, summary: '核销券码' }),
+  detail: op.get('/{id}', { access: { permission: 'member:coupon:list' }, params: idParam, response: couponSchema, summary: '优惠券详情' }),
+  create: op.post('/', { access: { permission: 'member:coupon:create' }, audit: '创建优惠券', body: createCouponSchema, response: couponSchema, summary: '创建优惠券' }),
+  update: op.put('/{id}', { access: { permission: 'member:coupon:update' }, audit: '更新优惠券', params: idParam, body: updateCouponSchema, response: couponSchema, summary: '更新优惠券' }),
+  issue: op.post('/{id}/issue', { access: { permission: 'member:coupon:issue' }, audit: '发放优惠券', params: idParam, body: issueCouponSchema, response: memberCouponSchema, summary: '发券给会员' }),
+  remove: op.delete('/{id}', { access: { permission: 'member:coupon:delete' }, audit: '删除优惠券', params: idParam, summary: '删除优惠券' }),
+}, { auditModule: '优惠券', tags: ['优惠券'] });

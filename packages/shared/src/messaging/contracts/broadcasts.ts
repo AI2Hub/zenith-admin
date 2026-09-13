@@ -37,10 +37,10 @@ export const broadcastListQuery = paginationQuery.extend({
 });
 
 export const broadcastContract = defineContract('/api/broadcasts', {
-  list: op.get('/', { query: broadcastListQuery, response: paginated(broadcastCampaignSchema), summary: '群发活动列表' }),
-  detail: op.get('/{id}', { params: idParam, response: broadcastCampaignSchema, summary: '群发活动详情' }),
-  create: op.post('/', { body: createBroadcastSchema, response: broadcastCampaignSchema, summary: '创建群发活动（草稿）' }),
-  update: op.put('/{id}', { params: idParam, body: updateBroadcastSchema, response: broadcastCampaignSchema, summary: '更新群发活动（仅草稿 / 失败 / 已取消）' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除群发活动' }),
-  send: op.post('/{id}/send', { params: idParam, response: asyncTaskSchema, summary: '发送群发活动（提交任务中心分批派发）' }),
-}, { tags: ['运营群发'] });
+  list: op.get('/', { access: { permission: 'system:broadcast:list' }, query: broadcastListQuery, response: paginated(broadcastCampaignSchema), summary: '群发活动列表' }),
+  detail: op.get('/{id}', { access: { permission: 'system:broadcast:list' }, params: idParam, response: broadcastCampaignSchema, summary: '群发活动详情' }),
+  create: op.post('/', { access: { permission: 'system:broadcast:create' }, audit: '创建群发活动', body: createBroadcastSchema, response: broadcastCampaignSchema, summary: '创建群发活动（草稿）' }),
+  update: op.put('/{id}', { access: { permission: 'system:broadcast:update' }, audit: '更新群发活动', params: idParam, body: updateBroadcastSchema, response: broadcastCampaignSchema, summary: '更新群发活动（仅草稿 / 失败 / 已取消）' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:broadcast:delete' }, audit: '删除群发活动', params: idParam, summary: '删除群发活动' }),
+  send: op.post('/{id}/send', { access: { permission: 'system:broadcast:send' }, audit: '发送群发活动', params: idParam, response: asyncTaskSchema, summary: '发送群发活动（提交任务中心分批派发）' }),
+}, { auditModule: '运营群发', tags: ['运营群发'] });

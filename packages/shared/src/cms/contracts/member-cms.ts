@@ -132,5 +132,5 @@ export const memberCmsContract = defineContract('/api/member/cms', {
   comments: op.get('/comments', { query: paginationQuery, response: paginated(cmsMemberCommentSchema), summary: '我的评论列表' }),
   removeComment: op.delete('/comments/{id}', { params: idParam, summary: '删除我的评论' }),
   submitInteraction: op.post('/interactions/{id}/submit', { params: idParam, query: memberCmsInteractionSubmitQuery, body: submitCmsInteractionSchema, response: cmsInteractionSubmitResultSchema, summary: '会员提交互动问卷' }),
-}, { tags: ['MemberCms'] });
+}, { tags: ['MemberCms'], security: 'member-bearer' });
 

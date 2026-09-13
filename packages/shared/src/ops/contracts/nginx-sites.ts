@@ -52,14 +52,14 @@ export const nginxSiteNameParam = z.object({
 });
 
 export const nginxSiteContract = defineContract('/api/nginx-sites', {
-  info: op.get('/info', { response: nginxInfoSchema, summary: '获取 Nginx 信息' }),
-  list: op.get('/', { response: z.array(nginxSiteSchema), summary: '获取 Nginx 站点列表' }),
-  test: op.post('/test', { response: nginxTestResultSchema, summary: '测试 Nginx 配置' }),
-  reload: op.post('/reload', { summary: '重载 Nginx' }),
-  detail: op.get('/{name}', { params: nginxSiteNameParam, response: nginxSiteDetailSchema, summary: '获取 Nginx 站点详情' }),
-  create: op.post('/', { body: createNginxSiteSchema, summary: '创建 Nginx 站点' }),
-  update: op.put('/{name}', { params: nginxSiteNameParam, body: updateNginxSiteContentSchema, summary: '更新 Nginx 站点配置内容' }),
-  remove: op.delete('/{name}', { params: nginxSiteNameParam, summary: '删除 Nginx 站点' }),
-  enable: op.post('/{name}/enable', { params: nginxSiteNameParam, summary: '启用 Nginx 站点' }),
-  disable: op.post('/{name}/disable', { params: nginxSiteNameParam, summary: '禁用 Nginx 站点' }),
-}, { tags: ['Nginx站点'] });
+  info: op.get('/info', { access: { permission: 'system:nginx:view' }, response: nginxInfoSchema, summary: '获取 Nginx 信息' }),
+  list: op.get('/', { access: { permission: 'system:nginx:view' }, response: z.array(nginxSiteSchema), summary: '获取 Nginx 站点列表' }),
+  test: op.post('/test', { access: { permission: 'system:nginx:manage' }, audit: '测试 Nginx 配置', response: nginxTestResultSchema, summary: '测试 Nginx 配置' }),
+  reload: op.post('/reload', { access: { permission: 'system:nginx:reload' }, audit: '重载 Nginx', summary: '重载 Nginx' }),
+  detail: op.get('/{name}', { access: { permission: 'system:nginx:view' }, params: nginxSiteNameParam, response: nginxSiteDetailSchema, summary: '获取 Nginx 站点详情' }),
+  create: op.post('/', { access: { permission: 'system:nginx:manage' }, audit: '创建 Nginx 站点', body: createNginxSiteSchema, summary: '创建 Nginx 站点' }),
+  update: op.put('/{name}', { access: { permission: 'system:nginx:manage' }, audit: '更新 Nginx 站点配置', params: nginxSiteNameParam, body: updateNginxSiteContentSchema, summary: '更新 Nginx 站点配置内容' }),
+  remove: op.delete('/{name}', { access: { permission: 'system:nginx:manage' }, audit: '删除 Nginx 站点', params: nginxSiteNameParam, summary: '删除 Nginx 站点' }),
+  enable: op.post('/{name}/enable', { access: { permission: 'system:nginx:manage' }, audit: '启用 Nginx 站点', params: nginxSiteNameParam, summary: '启用 Nginx 站点' }),
+  disable: op.post('/{name}/disable', { access: { permission: 'system:nginx:manage' }, audit: '禁用 Nginx 站点', params: nginxSiteNameParam, summary: '禁用 Nginx 站点' }),
+}, { auditModule: 'Nginx 站点', tags: ['Nginx站点'] });

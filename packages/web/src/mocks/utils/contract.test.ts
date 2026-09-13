@@ -7,11 +7,11 @@ import { notFound } from './handlers';
 
 const itemSchema = z.object({ id: z.int(), name: z.string() });
 const itemContract = defineContract('/api/items', {
-  list: op.get('/', { query: paginationQuery.extend({ keyword: z.string().optional() }), response: paginated(itemSchema), summary: '列表' }),
-  detail: op.get('/{id}', { params: idParam, response: itemSchema, summary: '详情' }),
-  create: op.post('/', { body: z.object({ name: z.string().min(1, '名称不能为空') }), response: itemSchema, summary: '创建' }),
-  clone: op.post('/{id}/clone', { params: idParam, body: z.object({ name: z.string().optional() }), response: itemSchema, summary: '克隆' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除' }),
+  list: op.get('/', { access: 'authenticated', query: paginationQuery.extend({ keyword: z.string().optional() }), response: paginated(itemSchema), summary: '列表' }),
+  detail: op.get('/{id}', { access: 'authenticated', params: idParam, response: itemSchema, summary: '详情' }),
+  create: op.post('/', { access: 'authenticated', body: z.object({ name: z.string().min(1, '名称不能为空') }), response: itemSchema, summary: '创建' }),
+  clone: op.post('/{id}/clone', { access: 'authenticated', params: idParam, body: z.object({ name: z.string().optional() }), response: itemSchema, summary: '克隆' }),
+  remove: op.delete('/{id}', { access: 'authenticated', params: idParam, summary: '删除' }),
 });
 
 const ORIGIN = window.location.origin;

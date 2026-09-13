@@ -30,8 +30,8 @@ export type UserAiConfig = z.infer<typeof userAiConfigSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const userAiConfigContract = defineContract('/api/ai/user-configs', {
-  list: op.get('/', { response: z.array(userAiConfigSchema), summary: '获取我的 AI 配置列表' }),
-  create: op.post('/', { body: saveUserAiConfigSchema, response: userAiConfigSchema, summary: '新增我的 AI 配置' }),
-  update: op.put('/{id}', { params: idParam, body: saveUserAiConfigSchema, response: userAiConfigSchema, summary: '更新指定 AI 配置' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除指定 AI 配置' }),
+  list: op.get('/', { access: 'authenticated', response: z.array(userAiConfigSchema), summary: '获取我的 AI 配置列表' }),
+  create: op.post('/', { access: 'authenticated', body: saveUserAiConfigSchema, response: userAiConfigSchema, summary: '新增我的 AI 配置' }),
+  update: op.put('/{id}', { access: 'authenticated', params: idParam, body: saveUserAiConfigSchema, response: userAiConfigSchema, summary: '更新指定 AI 配置' }),
+  remove: op.delete('/{id}', { access: 'authenticated', params: idParam, summary: '删除指定 AI 配置' }),
 }, { tags: ['AI'] });

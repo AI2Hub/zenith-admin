@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cmsDistributionContract } from '@zenith/shared/cms';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
@@ -19,22 +18,15 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'cms:distribution:list' })] as const;
 const runsRoute = defineContractRoute(cmsDistributionContract.runs, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listCmsDistributionRuns(c.req.valid('query'))), 200),
 });
 
 const runDetailRoute = defineContractRoute(cmsDistributionContract.runDetail, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await getCmsDistributionRunDetail(c.req.valid('param').id)), 200),
 });
 
 const createRouteDef = defineContractRoute(cmsDistributionContract.create, {
-  middleware: [authMiddleware, guard({
-    permission: 'cms:distribution:create',
-    audit: { description: '创建 CMS 内容分发规则', module: 'CMS内容管理' },
-  })],
   handler: async (c) => {
     const result = await createCmsDistributionRule(c.req.valid('json'));
     setAuditAfterData(c, result);
@@ -42,10 +34,6 @@ const createRouteDef = defineContractRoute(cmsDistributionContract.create, {
   },
 });
 const updateRoute = defineContractRoute(cmsDistributionContract.update, {
-  middleware: [authMiddleware, guard({
-    permission: 'cms:distribution:update',
-    audit: { description: '更新 CMS 内容分发规则', module: 'CMS内容管理' },
-  })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getCmsDistributionRule(id));
@@ -56,14 +44,7 @@ const updateRoute = defineContractRoute(cmsDistributionContract.update, {
 });
 
 const runRoute = defineContractRoute(cmsDistributionContract.run, {
-  middleware: [
-    authMiddleware,
-    guard({
-      permission: 'cms:distribution:run',
-      audit: { description: '执行 CMS 内容分发', module: 'CMS内容管理' },
-    }),
-    idempotencyGuard({ ttlSeconds: 30 }),
-  ],
+  middleware: [idempotencyGuard({ ttlSeconds: 30 })],
   handler: async (c) => c.json(okBody(
     await submitCmsDistributionRun(c.req.valid('param').id),
     '分发任务已提交',
@@ -72,7 +53,7 @@ const runRoute = defineContractRoute(cmsDistributionContract.run, {
 
 mountCrud(router, cmsDistributionContract,
   { list: listCmsDistributionRules, get: getCmsDistributionRule, remove: deleteCmsDistributionRule },
-  { permission: 'cms:distribution', label: ' CMS 内容分发规则', module: 'CMS内容管理', exclude: ['create', 'update'] },
+  { exclude: ['create', 'update'] },
   [runsRoute, runDetailRoute, createRouteDef, runRoute, updateRoute],
 );
 

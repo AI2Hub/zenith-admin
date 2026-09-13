@@ -150,8 +150,9 @@ ESM 值环导致 TDZ：某域 `validation.ts` 引用了另一域 `validation.ts`
 
 1. 当前用户角色是否有对应权限码？权限码全部来自**按钮型菜单节点**，
    仅分配页面菜单不会获得任何权限码（含查询）
-2. `guard({ permission: '...' })` 的权限码是否与按钮节点定义的 `permission` 一致？
-3. 超管角色自动跳过权限检查
+2. 契约操作 `access.permission` 声明的码是否就是期望的那一个（`Permission` 类型保证它在注册表 / 种子按钮里存在，
+   但不保证语义正确）；新码是否已在 `shared/src/{域}/permissions.ts` 注册并重新 `db:seed`
+3. 超管角色自动跳过权限检查；`platformOnly` 操作在多租户模式下还要求平台侧账号
 
 ### 页面可见但列表请求 403
 

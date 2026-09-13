@@ -1,14 +1,12 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi';
 import { ANALYTICS_SITE_KEY_HEADER, analyticsContract } from '@zenith/shared/analytics';
-import { authMiddleware } from '../../middleware/auth';
 import { optionalAuthMiddleware } from '../../middleware/optional-auth';
-import { guard } from '../../middleware/guard';
 import { namedRateLimit } from '../../middleware/rate-limit';
 import { defineContractRoute } from '../../lib/contract-route';
 import { requireRow } from '../../lib/db-assert';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import { getClientIp } from '../../lib/request-helpers';
-import { parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
+import { parseDateRangeStart, parseDateRangeEnd, formatDate } from '../../lib/datetime';
 import {
   batchInsertEvents, getOverview, getTrends, getPageStats, getFeatureStats, getHeatmapData,
   getHeatmapPageList, getUserStats, listSessions, getPathAnalysis,
@@ -33,13 +31,9 @@ import { queryQuality, listDebugEvents } from '../../services/analytics/analytic
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
 import { getCreateTenantId } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
-import { formatDate } from '../../lib/datetime';
 import { ANALYTICS_ROLLUP_REBUILD_TASK_TYPE, ANALYTICS_SEGMENT_MATERIALIZE_TASK_TYPE } from '../../services/analytics/analytics-tasks';
 
 const r = new OpenAPIHono({ defaultHook: validationHook });
-
-const view = [authMiddleware, guard({ permission: 'analytics:view' })] as const;
-const manage = [authMiddleware, guard({ permission: 'analytics:manage' })] as const;
 
 // ─── 采集 ─────────────────────────────────────────────────────────────────────
 // 采集入口是全站最高频公开解析点：在 server 使用点对契约请求体做 AOT 预编译换事件循环余量
@@ -67,89 +61,72 @@ const configRoute = defineContractRoute(analyticsContract.config, {
 
 // ─── 概览 / 趋势 / 实时 ───────────────────────────────────────────────────────
 const overviewRoute = defineContractRoute(analyticsContract.overview, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getOverview(c.req.valid('query'))), 200),
 });
 
 const trendsRoute = defineContractRoute(analyticsContract.trends, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getTrends(c.req.valid('query'))), 200),
 });
 
 const realtimeRoute = defineContractRoute(analyticsContract.realtime, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getRealtime()), 200),
 });
 
 // ─── 页面/功能/热力图/用户 ────────────────────────────────────────────────────
 const pageStatsRoute = defineContractRoute(analyticsContract.pageStats, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getPageStats(c.req.valid('query'))), 200),
 });
 
 const featureStatsRoute = defineContractRoute(analyticsContract.featureStats, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getFeatureStats(c.req.valid('query'))), 200),
 });
 
 const heatmapRoute = defineContractRoute(analyticsContract.heatmap, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getHeatmapData(c.req.valid('query'))), 200),
 });
 
 const heatmapPagesRoute = defineContractRoute(analyticsContract.heatmapPages, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getHeatmapPageList(c.req.valid('query'))), 200),
 });
 
 const userStatsRoute = defineContractRoute(analyticsContract.userStats, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getUserStats(c.req.valid('query'))), 200),
 });
 
 // ─── 会话 / 漏斗 / 留存 / 获客 / 下钻 / 事件分析 / 路径 / 时间线 / 性能 ────────
 const sessionsRoute = defineContractRoute(analyticsContract.sessions, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await listSessions(c.req.valid('query'))), 200),
 });
 
 const funnelRoute = defineContractRoute(analyticsContract.funnel, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getFunnel(c.req.valid('json'))), 200),
 });
 
 const retentionRoute = defineContractRoute(analyticsContract.retention, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getRetention(c.req.valid('json'))), 200),
 });
 
 const acquisitionRoute = defineContractRoute(analyticsContract.acquisition, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getAcquisitionReport(c.req.valid('query'))), 200),
 });
 
 const drillUsersRoute = defineContractRoute(analyticsContract.drillUsers, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await drillUsers(c.req.valid('json'))), 200),
 });
 
 const eventQueryRoute = defineContractRoute(analyticsContract.queryEvents, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await queryEvents(c.req.valid('json'))), 200),
 });
 
 const pathRoute = defineContractRoute(analyticsContract.path, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getPathAnalysis(c.req.valid('query'))), 200),
 });
 
 const userTimelineRoute = defineContractRoute(analyticsContract.userTimeline, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getUserTimeline(c.req.valid('query'))), 200),
 });
 
 const sessionTimelineRoute = defineContractRoute(analyticsContract.sessionTimeline, {
-  middleware: view,
   handler: async (c) => {
     const q = c.req.valid('query');
     return c.json(okBody(await getSessionTimeline(q.sessionId, q.limit)), 200);
@@ -157,23 +134,19 @@ const sessionTimelineRoute = defineContractRoute(analyticsContract.sessionTimeli
 });
 
 const perfRoute = defineContractRoute(analyticsContract.perfStats, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getPerfStats(c.req.valid('query').days)), 200),
 });
 
 // ─── 保存的分析报表 ───────────────────────────────────────────────────────────
 const reportListRoute = defineContractRoute(analyticsContract.reports, {
-  middleware: view,
   handler: async (c) => c.json(okBody({ list: await listSavedReports(c.req.valid('query').type) }), 200),
 });
 
 const reportCreateRoute = defineContractRoute(analyticsContract.createReport, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await createSavedReport(c.req.valid('json')), '保存成功'), 200),
 });
 
 const reportDeleteRoute = defineContractRoute(analyticsContract.removeReport, {
-  middleware: view,
   handler: async (c) => {
     await deleteSavedReport(c.req.valid('param').id);
     return c.json(okBody(null, '删除成功'), 200);
@@ -182,7 +155,6 @@ const reportDeleteRoute = defineContractRoute(analyticsContract.removeReport, {
 
 // ─── 事件数据管理 ─────────────────────────────────────────────────────────────
 const eventListRoute = defineContractRoute(analyticsContract.events, {
-  middleware: manage,
   handler: async (c) => {
     const q = c.req.valid('query');
     return c.json(okBody(await listAnalyticsEvents({
@@ -194,7 +166,6 @@ const eventListRoute = defineContractRoute(analyticsContract.events, {
 });
 
 const eventDetailRoute = defineContractRoute(analyticsContract.eventDetail, {
-  middleware: manage,
   handler: async (c) => {
     const detail = requireRow(await getEventDetail(c.req.valid('param').id), '事件不存在');
     return c.json(okBody(detail), 200);
@@ -202,7 +173,6 @@ const eventDetailRoute = defineContractRoute(analyticsContract.eventDetail, {
 });
 
 const cleanRoute = defineContractRoute(analyticsContract.clean, {
-  middleware: [authMiddleware, guard({ permission: 'analytics:clean', audit: { module: '行为分析', description: '清除埋点数据' } })],
   handler: async (c) => {
     const deleted = await cleanAnalyticsEvents(c.req.valid('query').days);
     return c.json(okBody(null, `共删除 ${deleted} 条事件数据`), 200);
@@ -211,22 +181,18 @@ const cleanRoute = defineContractRoute(analyticsContract.clean, {
 
 // ─── 事件元数据 ───────────────────────────────────────────────────────────────
 const metaListRoute = defineContractRoute(analyticsContract.eventMeta, {
-  middleware: manage,
   handler: async (c) => c.json(okBody(await listEventMeta(c.req.valid('query'))), 200),
 });
 
 const metaCreateRoute = defineContractRoute(analyticsContract.createEventMeta, {
-  middleware: manage,
   handler: async (c) => c.json(okBody(await createEventMeta(c.req.valid('json')), '创建成功'), 200),
 });
 
 const metaUpdateRoute = defineContractRoute(analyticsContract.updateEventMeta, {
-  middleware: manage,
   handler: async (c) => c.json(okBody(await updateEventMeta(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
 });
 
 const metaDeleteRoute = defineContractRoute(analyticsContract.removeEventMeta, {
-  middleware: manage,
   handler: async (c) => {
     await deleteEventMeta(c.req.valid('param').id);
     return c.json(okBody(null, '删除成功'), 200);
@@ -234,28 +200,23 @@ const metaDeleteRoute = defineContractRoute(analyticsContract.removeEventMeta, {
 });
 
 const metaReferencesRoute = defineContractRoute(analyticsContract.eventMetaReferences, {
-  middleware: manage,
   handler: async (c) => c.json(okBody(await getEventMetaReferences(c.req.valid('query').eventName)), 200),
 });
 
 // ─── 租户级事件启停覆盖 ───────────────────────────────────────────────────────
 const overrideListRoute = defineContractRoute(analyticsContract.eventOverrides, {
-  middleware: manage,
   handler: async (c) => c.json(okBody(await listEventOverrides(c.req.valid('query'))), 200),
 });
 
 const overrideCreateRoute = defineContractRoute(analyticsContract.createEventOverride, {
-  middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '新增事件覆盖' } })],
   handler: async (c) => c.json(okBody(await createEventOverride(c.req.valid('json')), '创建成功'), 200),
 });
 
 const overrideUpdateRoute = defineContractRoute(analyticsContract.updateEventOverride, {
-  middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '更新事件覆盖' } })],
   handler: async (c) => c.json(okBody(await updateEventOverride(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
 });
 
 const overrideDeleteRoute = defineContractRoute(analyticsContract.removeEventOverride, {
-  middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '删除事件覆盖' } })],
   handler: async (c) => {
     await deleteEventOverride(c.req.valid('param').id);
     return c.json(okBody(null, '删除成功'), 200);
@@ -264,34 +225,28 @@ const overrideDeleteRoute = defineContractRoute(analyticsContract.removeEventOve
 
 // ─── 埋点质量看板 / 事件调试流 ────────────────────────────────────────────────
 const qualityRoute = defineContractRoute(analyticsContract.quality, {
-  middleware: manage,
   handler: async (c) => c.json(okBody(await queryQuality(c.req.valid('query'))), 200),
 });
 
 const debugEventsRoute = defineContractRoute(analyticsContract.debugEvents, {
-  middleware: manage,
   handler: async (c) => c.json(okBody(await listDebugEvents(c.req.valid('query'))), 200),
 });
 
 // ─── 采集设置 ─────────────────────────────────────────────────────────────────
 const settingsGetRoute = defineContractRoute(analyticsContract.settings, {
-  middleware: manage,
   handler: async (c) => c.json(okBody(await getSettings()), 200),
 });
 
 const settingsUpdateRoute = defineContractRoute(analyticsContract.updateSettings, {
-  middleware: manage,
   handler: async (c) => c.json(okBody(await updateSettings(c.req.valid('json')), '更新成功'), 200),
 });
 
 // ─── 数据聚合 ─────────────────────────────────────────────────────────────────
 const rollupGetRoute = defineContractRoute(analyticsContract.rollup, {
-  middleware: manage,
   handler: async (c) => c.json(okBody({ items: await getRollupSummary(c.req.valid('query').days) }), 200),
 });
 
 const rollupRebuildRoute = defineContractRoute(analyticsContract.rebuildRollup, {
-  middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '提交重建每日聚合任务' } })],
   handler: async (c) => {
     const { days } = c.req.valid('query');
     const user = currentUser();
@@ -309,27 +264,22 @@ const rollupRebuildRoute = defineContractRoute(analyticsContract.rebuildRollup, 
 
 // ─── 用户分群 CRUD + 成员物化 ─────────────────────────────────────────────────
 const segmentListRoute = defineContractRoute(analyticsContract.segments, {
-  middleware: manage,
   handler: async (c) => c.json(okBody(await listSegments(c.req.valid('query'))), 200),
 });
 
 const segmentCreateRoute = defineContractRoute(analyticsContract.createSegment, {
-  middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '创建用户分群' } })],
   handler: async (c) => c.json(okBody(await createSegment(c.req.valid('json')), '创建成功'), 200),
 });
 
 const segmentDetailRoute = defineContractRoute(analyticsContract.segmentDetail, {
-  middleware: manage,
   handler: async (c) => c.json(okBody(await getSegmentDetail(c.req.valid('param').id)), 200),
 });
 
 const segmentUpdateRoute = defineContractRoute(analyticsContract.updateSegment, {
-  middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '更新用户分群' } })],
   handler: async (c) => c.json(okBody(await updateSegment(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
 });
 
 const segmentDeleteRoute = defineContractRoute(analyticsContract.removeSegment, {
-  middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '删除用户分群' } })],
   handler: async (c) => {
     await deleteSegment(c.req.valid('param').id);
     return c.json(okBody(null, '删除成功'), 200);
@@ -337,12 +287,10 @@ const segmentDeleteRoute = defineContractRoute(analyticsContract.removeSegment, 
 });
 
 const segmentMembersRoute = defineContractRoute(analyticsContract.segmentMembers, {
-  middleware: manage,
   handler: async (c) => c.json(okBody(await listSegmentMembers(c.req.valid('param').id, c.req.valid('query'))), 200),
 });
 
 const segmentMaterializeRoute = defineContractRoute(analyticsContract.materializeSegment, {
-  middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '提交分群重算任务' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const segment = await ensureSegmentExists(id); // 校验 tenant，并用规则版本打破旧任务幂等键

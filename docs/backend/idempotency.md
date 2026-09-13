@@ -4,10 +4,13 @@
 
 ## 使用方式
 
-在路由中显式追加 `idempotencyGuard()`：
+在路由中显式追加 `idempotencyGuard()`（认证 / 权限门禁由契约 `access` 自动装配，`middleware` 里的中间件在门禁之后执行）：
 
 ```ts
-middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10 }), guard(...)] as const
+defineContractRoute(xxxContract.submit, {
+  middleware: [idempotencyGuard({ ttlSeconds: 10 })],
+  handler: async (c) => { /* … */ },
+});
 ```
 
 常用参数：

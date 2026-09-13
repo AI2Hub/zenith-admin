@@ -14,8 +14,8 @@ export const logViewerContentQuery = logViewerPathQuery.extend(logTailQuery.shap
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const logViewerContract = defineContract('/api/log-viewer', {
-  tail: op.get('/tail', { query: logViewerPathQuery, kind: 'sse', response: z.string(), summary: '日志实时跟踪（SSE，event: log）' }),
-  download: op.get('/download', { query: logViewerPathQuery, kind: 'file', summary: '下载日志文件' }),
-  content: op.get('/content', { query: logViewerContentQuery, response: logLinesSchema, summary: '读取日志文件末尾内容（最后 N 行）' }),
-  roots: op.get('/roots', { query: hostQuery, response: z.object({ roots: z.array(z.string()) }), summary: '日志查看器允许读取的目录' }),
+  tail: op.get('/tail', { access: { permission: 'system:log:view' }, query: logViewerPathQuery, kind: 'sse', response: z.string(), summary: '日志实时跟踪（SSE，event: log）' }),
+  download: op.get('/download', { access: { permission: 'system:log:view' }, query: logViewerPathQuery, kind: 'file', summary: '下载日志文件' }),
+  content: op.get('/content', { access: { permission: 'system:log:view' }, query: logViewerContentQuery, response: logLinesSchema, summary: '读取日志文件末尾内容（最后 N 行）' }),
+  roots: op.get('/roots', { access: { permission: 'system:log:view' }, query: hostQuery, response: z.object({ roots: z.array(z.string()) }), summary: '日志查看器允许读取的目录' }),
 }, { tags: ['LogViewer'] });

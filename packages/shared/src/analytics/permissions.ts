@@ -1,4 +1,4 @@
-import { definePermissions, type PermissionCodes } from '../core/permissions';
+import { definePermissions } from '../core/permissions';
 
 /**
  * analytics 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
@@ -11,8 +11,3 @@ export const ANALYTICS_PERMISSIONS = definePermissions({
   'analytics:clean': { label: '清除数据', menu: 'AnalyticsData' },
   'analytics:export': { label: '导出数据', menu: 'AnalyticsData' },
 });
-
-declare module '../core/permissions' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
-  interface PermissionRegistry extends PermissionCodes<typeof ANALYTICS_PERMISSIONS> {}
-}

@@ -32,9 +32,9 @@ export const paymentFeeRuleListQuery = paginationQuery.extend({
 });
 
 export const paymentFeeRuleContract = defineContract('/api/payment/fee-rules', {
-  list: op.get('/', { query: paymentFeeRuleListQuery, response: paginated(paymentFeeRuleSchema), summary: '费率规则列表' }),
-  detail: op.get('/{id}', { params: idParam, response: paymentFeeRuleSchema, summary: '费率规则详情' }),
-  create: op.post('/', { body: createPaymentFeeRuleSchema, response: paymentFeeRuleSchema, summary: '新增费率规则' }),
-  update: op.put('/{id}', { params: idParam, body: updatePaymentFeeRuleSchema, response: paymentFeeRuleSchema, summary: '编辑费率规则' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除费率规则' }),
-}, { tags: ['支付中心-费率'] });
+  list: op.get('/', { access: { permission: 'payment:fee:list' }, query: paymentFeeRuleListQuery, response: paginated(paymentFeeRuleSchema), summary: '费率规则列表' }),
+  detail: op.get('/{id}', { access: { permission: 'payment:fee:list' }, params: idParam, response: paymentFeeRuleSchema, summary: '费率规则详情' }),
+  create: op.post('/', { access: { permission: 'payment:fee:create' }, audit: '新增支付费率规则', body: createPaymentFeeRuleSchema, response: paymentFeeRuleSchema, summary: '新增费率规则' }),
+  update: op.put('/{id}', { access: { permission: 'payment:fee:update' }, audit: '编辑支付费率规则', params: idParam, body: updatePaymentFeeRuleSchema, response: paymentFeeRuleSchema, summary: '编辑费率规则' }),
+  remove: op.delete('/{id}', { access: { permission: 'payment:fee:delete' }, audit: '删除支付费率规则', params: idParam, summary: '删除费率规则' }),
+}, { auditModule: '支付中心', tags: ['支付中心-费率'] });

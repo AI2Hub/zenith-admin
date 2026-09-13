@@ -20,7 +20,6 @@ mountCrud(checkinRulesRouter, checkinRuleContract,
     update: updateCheckinRule,
     remove: deleteCheckinRule,
   },
-  { permission: 'member:checkin:rule', label: '签到规则', module: '会员签到' },
 );
 
 export default checkinRulesRouter;

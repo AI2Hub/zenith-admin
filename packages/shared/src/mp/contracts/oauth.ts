@@ -43,6 +43,7 @@ export const mpOAuthCallbackQuery = z.object({
 
 export const mpOAuthContract = defineContract('/api/mp/oauth', {
   buildUrl: op.post('/url', {
+    access: { permission: 'mp:oauth:build' },
     body: buildMpOAuthUrlSchema,
     response: mpOAuthUrlSchema,
     summary: '生成网页授权链接',

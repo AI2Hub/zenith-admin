@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { monitorAlertContract } from '@zenith/shared/platform';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -26,19 +25,16 @@ const monitorAlertsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 // ─── 告警概览 ──────────────────────────────────────────────────────────────
 const overview = defineContractRoute(monitorAlertContract.overview, {
-  middleware: [authMiddleware, guard({ permission: 'alert:overview:list' })],
   handler: async (c) => c.json(okBody(await getAlertOverview(c.req.valid('query').range)), 200),
 });
 
 // ─── 告警事件（先于 /{id} 注册，避免冲突）──────────────────────────────────
 const eventsList = defineContractRoute(monitorAlertContract.events, {
-  middleware: [authMiddleware, guard({ permission: 'alert:event:list' })],
   handler: async (c) => c.json(okBody(await listEvents(c.req.valid('query'))), 200),
 });
 
 // 批量必须先于 `/events/{id}/handle` 注册，否则 `batch` 会被当成事件 id
 const eventBatchHandle = defineContractRoute(monitorAlertContract.handleEventsBatch, {
-  middleware: [authMiddleware, guard({ permission: 'alert:event:handle', audit: { description: '批量处理告警事件', module: '告警中心' } })],
   handler: async (c) => {
     const { ids, ...input } = c.req.valid('json');
     const count = await handleEvents(ids, input);
@@ -47,7 +43,6 @@ const eventBatchHandle = defineContractRoute(monitorAlertContract.handleEventsBa
 });
 
 const eventHandle = defineContractRoute(monitorAlertContract.handleEvent, {
-  middleware: [authMiddleware, guard({ permission: 'alert:event:handle', audit: { description: '处理告警事件', module: '告警中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getMonitorAlertEventBeforeAudit(id));
@@ -55,7 +50,6 @@ const eventHandle = defineContractRoute(monitorAlertContract.handleEvent, {
   },
 });
 const ruleToggle = defineContractRoute(monitorAlertContract.setEnabled, {
-  middleware: [authMiddleware, guard({ permission: 'alert:rule:update', audit: { description: '切换告警规则状态', module: '告警中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getMonitorAlertRuleBeforeAudit(id));
@@ -64,7 +58,6 @@ const ruleToggle = defineContractRoute(monitorAlertContract.setEnabled, {
 });
 
 const ruleBatchToggle = defineContractRoute(monitorAlertContract.setEnabledBatch, {
-  middleware: [authMiddleware, guard({ permission: 'alert:rule:update', audit: { description: '批量切换告警规则状态', module: '告警中心' } })],
   handler: async (c) => {
     const { ids, enabled } = c.req.valid('json');
     const count = await setRulesEnabled(ids, enabled);
@@ -72,7 +65,6 @@ const ruleBatchToggle = defineContractRoute(monitorAlertContract.setEnabledBatch
   },
 });
 const ruleTest = defineContractRoute(monitorAlertContract.test, {
-  middleware: [authMiddleware, guard({ permission: 'alert:rule:test', audit: { description: '试发告警通知', module: '告警中心' } })],
   handler: async (c) => c.json(okBody(await testRule(c.req.valid('param').id), '测试通知已发送'), 200),
 });
 
@@ -85,7 +77,7 @@ mountCrud(monitorAlertsRouter, monitorAlertContract,
     remove: deleteRule,
     removeMany: deleteRules,
   },
-  { permission: 'alert:rule', label: '告警规则', module: '告警中心', messages: { removeBatch: '删除成功' } },
+  { messages: { removeBatch: '删除成功' } },
   [overview, eventsList, eventBatchHandle, eventHandle, ruleBatchToggle, ruleTest, ruleToggle],
 );
 

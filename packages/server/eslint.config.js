@@ -188,6 +188,40 @@ export default tseslint.config(
       ],
     },
   },
+  // 路由门禁收口：后台登录令牌操作的认证 / 权限 / 平台超管限定 / 审计全部由契约 access 驱动，
+  // defineContractRoute 自动装配；路由文件不得再手写这三个中间件（app.contract.test 的「权限契约」在运行时二次对账）。
+  {
+    files: ['src/routes/**/*.ts'],
+    ignores: [
+      // 非契约路由（WebSocket 升级 / 流式传输）仍需显式认证
+      'src/routes/**/ws-*.ts',
+      'src/routes/**/*.test.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/middleware/auth'],
+              importNames: ['authMiddleware'],
+              message: '登录令牌门禁由契约 access 自动装配：在契约操作上声明 access，路由只写 handler。',
+            },
+            {
+              group: ['**/middleware/guard'],
+              importNames: ['guard'],
+              message: '权限 / 审计 / 功能门控由契约 access / audit / feature 自动装配，路由里不再手写 guard()。',
+            },
+            {
+              group: ['**/middleware/platform-admin'],
+              importNames: ['platformAdminOnly'],
+              message: '平台超管限定在契约 access 上写 platformOnly: true | \'multi-tenant\'。',
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Node 启动/构建脚本（纯 JS，需要声明 Node 运行时全局）
   {
     files: ['scripts/**/*.{js,mjs,cjs}'],

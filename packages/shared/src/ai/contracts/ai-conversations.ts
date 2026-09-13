@@ -102,22 +102,23 @@ export const aiFeedbackListQuery = paginationQuery.extend(aiFeedbackFilterQuery.
 
 export const aiConversationContract = defineContract('/api/ai/conversations', {
   // 对话
-  list: op.get('/', { query: aiConversationListQuery, response: z.array(aiConversationSchema), summary: '获取对话列表' }),
-  create: op.post('/', { body: createAiConversationSchema, response: aiConversationSchema, summary: '新建对话' }),
-  detail: op.get('/{id}', { params: idParam, response: aiConversationSchema, summary: '获取对话详情' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除对话' }),
-  messages: op.get('/{id}/messages', { params: idParam, response: z.array(aiMessageSchema), summary: '获取对话消息历史' }),
-  rename: op.put('/{id}/rename', { params: idParam, body: renameAiConversationSchema, summary: '重命名对话' }),
-  pin: op.put('/{id}/pin', { params: idParam, response: aiConversationPinStateSchema, summary: '置顶/取消置顶对话' }),
-  archive: op.put('/{id}/archive', { params: idParam, response: aiConversationArchiveStateSchema, summary: '归档/取消归档对话' }),
-  setSystemPrompt: op.put('/{id}/system-prompt', { params: idParam, body: setConversationSystemPromptSchema, response: aiConversationSystemPromptSchema, summary: '设置对话级提示词（角色模板）' }),
-  exportFile: op.get('/{id}/export', { params: idParam, query: aiConversationExportQuery, kind: 'file', summary: '导出对话（Markdown / JSON）' }),
-  submitFeedback: op.put('/{id}/messages/{msgId}/feedback', { params: aiConversationMessageParams, body: submitAiFeedbackSchema, summary: '提交消息反馈（点赞/点踩）' }),
-  removeMessage: op.delete('/{id}/messages/{msgId}', { params: aiConversationMessageParams, summary: '删除 assistant 消息（用于重新生成）' }),
-  removeMessageCascade: op.delete('/{id}/messages/{msgId}/cascade', { params: aiConversationMessageParams, summary: '删除消息及其之后所有消息' }),
+  list: op.get('/', { access: 'authenticated', query: aiConversationListQuery, response: z.array(aiConversationSchema), summary: '获取对话列表' }),
+  create: op.post('/', { access: 'authenticated', body: createAiConversationSchema, response: aiConversationSchema, summary: '新建对话' }),
+  detail: op.get('/{id}', { access: 'authenticated', params: idParam, response: aiConversationSchema, summary: '获取对话详情' }),
+  remove: op.delete('/{id}', { access: 'authenticated', params: idParam, summary: '删除对话' }),
+  messages: op.get('/{id}/messages', { access: 'authenticated', params: idParam, response: z.array(aiMessageSchema), summary: '获取对话消息历史' }),
+  rename: op.put('/{id}/rename', { access: 'authenticated', params: idParam, body: renameAiConversationSchema, summary: '重命名对话' }),
+  pin: op.put('/{id}/pin', { access: 'authenticated', params: idParam, response: aiConversationPinStateSchema, summary: '置顶/取消置顶对话' }),
+  archive: op.put('/{id}/archive', { access: 'authenticated', params: idParam, response: aiConversationArchiveStateSchema, summary: '归档/取消归档对话' }),
+  setSystemPrompt: op.put('/{id}/system-prompt', { access: 'authenticated', params: idParam, body: setConversationSystemPromptSchema, response: aiConversationSystemPromptSchema, summary: '设置对话级提示词（角色模板）' }),
+  exportFile: op.get('/{id}/export', { access: 'authenticated', params: idParam, query: aiConversationExportQuery, kind: 'file', summary: '导出对话（Markdown / JSON）' }),
+  submitFeedback: op.put('/{id}/messages/{msgId}/feedback', { access: 'authenticated', params: aiConversationMessageParams, body: submitAiFeedbackSchema, summary: '提交消息反馈（点赞/点踩）' }),
+  removeMessage: op.delete('/{id}/messages/{msgId}', { access: 'authenticated', params: aiConversationMessageParams, summary: '删除 assistant 消息（用于重新生成）' }),
+  removeMessageCascade: op.delete('/{id}/messages/{msgId}/cascade', { access: 'authenticated', params: aiConversationMessageParams, summary: '删除消息及其之后所有消息' }),
 
   // 流式对话：生成与连接解耦，断线后经 `aiGenerationContract.stream` 续传
   chat: op.post('/{id}/chat', {
+    access: 'authenticated',
     params: idParam,
     body: sendAiChatMessageSchema,
     kind: 'sse',
@@ -126,17 +127,17 @@ export const aiConversationContract = defineContract('/api/ai/conversations', {
   }),
 
   // 分享 / 知识库挂载 / 标签 / 分支 / 生成续传
-  share: op.post('/{id}/share', { params: idParam, body: shareAiConversationSchema, response: aiConversationShareSchema, summary: '创建（或重建）对话分享链接' }),
-  shareInfo: op.get('/{id}/share', { params: idParam, response: aiConversationShareSchema.nullable(), summary: '查询对话分享状态（未分享为 null）' }),
-  revokeShare: op.delete('/{id}/share', { params: idParam, summary: '取消对话分享' }),
-  setKnowledgeBase: op.put('/{id}/knowledge-base', { params: idParam, body: setAiConversationKnowledgeBaseSchema, summary: '设置 / 清除对话挂载的知识库（kbId 传 null 清除）' }),
-  setTags: op.put('/{id}/tags', { params: idParam, body: updateAiConversationTagsSchema, response: aiConversationTagsSchema, summary: '更新对话标签' }),
-  switchBranch: op.put('/{id}/active-branch', { params: idParam, body: setAiActiveLeafSchema, response: aiConversationActiveBranchSchema, summary: '切换消息分支（以指定消息为起点沿最新子分支下探到叶子并激活）' }),
-  activeGeneration: op.get('/{id}/active-generation', { params: idParam, response: aiActiveGenerationSchema, summary: '查询对话进行中的生成任务（刷新后续传入口）' }),
+  share: op.post('/{id}/share', { access: 'authenticated', params: idParam, body: shareAiConversationSchema, response: aiConversationShareSchema, summary: '创建（或重建）对话分享链接' }),
+  shareInfo: op.get('/{id}/share', { access: 'authenticated', params: idParam, response: aiConversationShareSchema.nullable(), summary: '查询对话分享状态（未分享为 null）' }),
+  revokeShare: op.delete('/{id}/share', { access: 'authenticated', params: idParam, summary: '取消对话分享' }),
+  setKnowledgeBase: op.put('/{id}/knowledge-base', { access: 'authenticated', params: idParam, body: setAiConversationKnowledgeBaseSchema, summary: '设置 / 清除对话挂载的知识库（kbId 传 null 清除）' }),
+  setTags: op.put('/{id}/tags', { access: 'authenticated', params: idParam, body: updateAiConversationTagsSchema, response: aiConversationTagsSchema, summary: '更新对话标签' }),
+  switchBranch: op.put('/{id}/active-branch', { access: 'authenticated', params: idParam, body: setAiActiveLeafSchema, response: aiConversationActiveBranchSchema, summary: '切换消息分支（以指定消息为起点沿最新子分支下探到叶子并激活）' }),
+  activeGeneration: op.get('/{id}/active-generation', { access: 'authenticated', params: idParam, response: aiActiveGenerationSchema, summary: '查询对话进行中的生成任务（刷新后续传入口）' }),
 
   // 管理端：消息反馈处理
-  feedbackList: op.get('/admin/feedback', { query: aiFeedbackListQuery, response: paginated(aiFeedbackItemSchema), summary: '管理员获取消息反馈列表' }),
-  feedbackExport: op.get('/admin/feedback/export', { query: aiFeedbackFilterQuery, kind: 'csv', summary: '管理员导出反馈列表 CSV' }),
-  feedbackContext: op.get('/admin/feedback/{msgId}/context', { params: aiMessageIdParam, response: aiFeedbackContextSchema, summary: '管理员查看反馈消息的会话上下文' }),
-  handleFeedback: op.put('/admin/feedback/{msgId}', { params: aiMessageIdParam, body: updateAiFeedbackStatusSchema, summary: '管理员处理消息反馈（更新状态/备注）' }),
-}, { tags: ['AI'] });
+  feedbackList: op.get('/admin/feedback', { access: { permission: 'ai:feedback:view' }, query: aiFeedbackListQuery, response: paginated(aiFeedbackItemSchema), summary: '管理员获取消息反馈列表' }),
+  feedbackExport: op.get('/admin/feedback/export', { access: { permission: 'ai:feedback:view' }, audit: '导出 AI 反馈列表', query: aiFeedbackFilterQuery, kind: 'csv', summary: '管理员导出反馈列表 CSV' }),
+  feedbackContext: op.get('/admin/feedback/{msgId}/context', { access: { permission: 'ai:feedback:view' }, params: aiMessageIdParam, response: aiFeedbackContextSchema, summary: '管理员查看反馈消息的会话上下文' }),
+  handleFeedback: op.put('/admin/feedback/{msgId}', { access: { permission: 'ai:feedback:handle' }, params: aiMessageIdParam, body: updateAiFeedbackStatusSchema, summary: '管理员处理消息反馈（更新状态/备注）' }),
+}, { auditModule: '智能助手', tags: ['AI'] });

@@ -45,16 +45,16 @@ export const cmsWordListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsSensitiveWordContract = defineContract('/api/cms/sensitive-words', {
-  list: op.get('/', { query: cmsWordListQuery, response: paginated(cmsSensitiveWordSchema), summary: '敏感词分页列表' }),
-  create: op.post('/', { body: createCmsSensitiveWordSchema, response: cmsSensitiveWordSchema, summary: '创建敏感词' }),
-  update: op.put('/{id}', { params: idParam, body: updateCmsSensitiveWordSchema, response: cmsSensitiveWordSchema, summary: '更新敏感词' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除敏感词' }),
-}, { tags: ['CMS-敏感词库'] });
+  list: op.get('/', { access: { permission: 'cms:sensitive:list' }, query: cmsWordListQuery, response: paginated(cmsSensitiveWordSchema), summary: '敏感词分页列表' }),
+  create: op.post('/', { access: { permission: 'cms:sensitive:manage' }, audit: '创建 CMS 敏感词', body: createCmsSensitiveWordSchema, response: cmsSensitiveWordSchema, summary: '创建敏感词' }),
+  update: op.put('/{id}', { access: { permission: 'cms:sensitive:manage' }, audit: '更新 CMS 敏感词', params: idParam, body: updateCmsSensitiveWordSchema, response: cmsSensitiveWordSchema, summary: '更新敏感词' }),
+  remove: op.delete('/{id}', { access: { permission: 'cms:sensitive:manage' }, audit: '删除 CMS 敏感词', params: idParam, summary: '删除敏感词' }),
+}, { auditModule: 'CMS内容管理', tags: ['CMS-敏感词库'] });
 
 export const cmsErrorProneWordContract = defineContract('/api/cms/error-prone-words', {
-  list: op.get('/', { query: cmsWordListQuery, response: paginated(cmsErrorProneWordSchema), summary: '易错词分页列表' }),
-  create: op.post('/', { body: createCmsErrorProneWordSchema, response: cmsErrorProneWordSchema, summary: '新增易错词' }),
-  update: op.put('/{id}', { params: idParam, body: updateCmsErrorProneWordSchema, response: cmsErrorProneWordSchema, summary: '更新易错词' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除易错词' }),
-}, { tags: ['CMS-易错词库'] });
+  list: op.get('/', { access: { permission: 'cms:word:list' }, query: cmsWordListQuery, response: paginated(cmsErrorProneWordSchema), summary: '易错词分页列表' }),
+  create: op.post('/', { access: { permission: 'cms:word:manage' }, audit: '新增 CMS 易错词', body: createCmsErrorProneWordSchema, response: cmsErrorProneWordSchema, summary: '新增易错词' }),
+  update: op.put('/{id}', { access: { permission: 'cms:word:manage' }, audit: '更新 CMS 易错词', params: idParam, body: updateCmsErrorProneWordSchema, response: cmsErrorProneWordSchema, summary: '更新易错词' }),
+  remove: op.delete('/{id}', { access: { permission: 'cms:word:manage' }, audit: '删除 CMS 易错词', params: idParam, summary: '删除易错词' }),
+}, { auditModule: 'CMS内容管理', tags: ['CMS-易错词库'] });
 

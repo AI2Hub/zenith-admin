@@ -69,14 +69,14 @@ const sshProfileIdParam = z.object({
 });
 
 export const opsHostContract = defineContract('/api/ops-hosts', {
-  list: op.get('/', { response: z.array(opsHostSchema), summary: '运维主机列表' }),
-  probeAll: op.post('/probe-all', { response: z.array(opsHostSchema), summary: '探测全部启用主机' }),
-  importSshProfile: op.post('/import-ssh-profile/{profileId}', { params: sshProfileIdParam, response: opsHostSchema, summary: '从当前用户 SSH 配置导入平台主机' }),
-  detail: op.get('/{id}', { params: idParam, response: opsHostSchema, summary: '主机详情' }),
-  create: op.post('/', { body: createOpsHostSchema, response: opsHostSchema, summary: '新增主机' }),
-  update: op.put('/{id}', { params: idParam, body: updateOpsHostSchema, response: opsHostSchema, summary: '更新主机' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除主机' }),
-  test: op.post('/{id}/test', { params: idParam, response: opsHostTestResultSchema, summary: '测试主机连接' }),
-  probe: op.post('/{id}/probe', { params: idParam, response: opsHostSchema, summary: '立即探测主机' }),
-  resetHostKey: op.post('/{id}/reset-host-key', { params: idParam, summary: '重置 host key 指纹（主机重装后）' }),
-}, { tags: ['OpsHosts'] });
+  list: op.get('/', { access: { permission: ['system:host:view', 'system:host:use'] }, response: z.array(opsHostSchema), summary: '运维主机列表' }),
+  probeAll: op.post('/probe-all', { access: { permission: 'system:host:view' }, response: z.array(opsHostSchema), summary: '探测全部启用主机' }),
+  importSshProfile: op.post('/import-ssh-profile/{profileId}', { access: { permission: 'system:host:manage' }, audit: { description: '从 SSH 配置导入运维主机', recordBody: false }, params: sshProfileIdParam, response: opsHostSchema, summary: '从当前用户 SSH 配置导入平台主机' }),
+  detail: op.get('/{id}', { access: { permission: ['system:host:view', 'system:host:use'] }, params: idParam, response: opsHostSchema, summary: '主机详情' }),
+  create: op.post('/', { access: { permission: 'system:host:manage' }, audit: { description: '新增运维主机', recordBody: false }, body: createOpsHostSchema, response: opsHostSchema, summary: '新增主机' }),
+  update: op.put('/{id}', { access: { permission: 'system:host:manage' }, audit: { description: '更新运维主机', recordBody: false }, params: idParam, body: updateOpsHostSchema, response: opsHostSchema, summary: '更新主机' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:host:manage' }, audit: '删除运维主机', params: idParam, summary: '删除主机' }),
+  test: op.post('/{id}/test', { access: { permission: 'system:host:manage' }, params: idParam, response: opsHostTestResultSchema, summary: '测试主机连接' }),
+  probe: op.post('/{id}/probe', { access: { permission: 'system:host:view' }, params: idParam, response: opsHostSchema, summary: '立即探测主机' }),
+  resetHostKey: op.post('/{id}/reset-host-key', { access: { permission: 'system:host:manage' }, audit: '重置主机指纹', params: idParam, summary: '重置 host key 指纹（主机重装后）' }),
+}, { auditModule: '主机管理', tags: ['OpsHosts'] });

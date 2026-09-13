@@ -29,7 +29,7 @@ export type UserApiTokenCreated = z.infer<typeof userApiTokenCreatedSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const apiTokenContract = defineContract('/api/api-tokens', {
-  list: op.get('/', { response: z.array(userApiTokenSchema), summary: '获取我的 API Token 列表' }),
-  create: op.post('/', { body: createApiTokenSchema, response: userApiTokenCreatedSchema, summary: '创建 API Token（完整 token 仅返回一次）' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '撤销 API Token' }),
+  list: op.get('/', { access: 'authenticated', response: z.array(userApiTokenSchema), summary: '获取我的 API Token 列表' }),
+  create: op.post('/', { access: 'authenticated', body: createApiTokenSchema, response: userApiTokenCreatedSchema, summary: '创建 API Token（完整 token 仅返回一次）' }),
+  remove: op.delete('/{id}', { access: 'authenticated', params: idParam, summary: '撤销 API Token' }),
 }, { tags: ['ApiTokens'] });

@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { roleContract } from '@zenith/shared/identity';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, conflictResponse, okBody } from '../../lib/openapi-schemas';
 import { defineScopeMembersRoute } from './_scope-members';
@@ -22,19 +21,14 @@ import { mountCrud } from '../_crud';
 const memberPreviewRoute = defineScopeMembersRoute({
   op: roleContract.memberPreview,
   scopeType: 'role',
-  permission: 'system:role:list',
 });
 
 const rolesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'system:role:list' })] as const;
-
 const allRoute = defineContractRoute(roleContract.all, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listAllRoles()), 200),
 });
 const assignMenusRoute = defineContractRoute(roleContract.assignMenus, {
-  middleware: [authMiddleware, guard({ permission: 'system:role:assign', audit: { description: '分配角色菜单', module: '角色管理' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const data = c.req.valid('json');
@@ -46,12 +40,10 @@ const assignMenusRoute = defineContractRoute(roleContract.assignMenus, {
 });
 
 const getUsersRoute = defineContractRoute(roleContract.users, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await getRoleUsers(c.req.valid('param').id)), 200),
 });
 
 const assignUsersRoute = defineContractRoute(roleContract.assignUsers, {
-  middleware: [authMiddleware, guard({ permission: 'system:role:assign', audit: { description: '分配角色用户', module: '角色管理' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const data = c.req.valid('json');
@@ -64,7 +56,7 @@ const assignUsersRoute = defineContractRoute(roleContract.assignUsers, {
 
 mountCrud(rolesRouter, roleContract,
   { list: listRoles, get: getRole, create: createRole, update: updateRole, remove: deleteRole },
-  { permission: 'system:role', label: '角色', responses: { remove: conflictResponse } },
+  { responses: { remove: conflictResponse } },
   [allRoute, assignMenusRoute, getUsersRoute, assignUsersRoute, memberPreviewRoute],
 );
 

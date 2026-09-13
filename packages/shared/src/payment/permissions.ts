@@ -1,4 +1,4 @@
-import { definePermissions, type PermissionCodes } from '../core/permissions';
+import { definePermissions } from '../core/permissions';
 
 /**
  * payment 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
@@ -64,8 +64,3 @@ export const PAYMENT_PERMISSIONS = definePermissions({
   'payment:preauth:list': { label: '查询', menu: 'PaymentPreauths' },
   'payment:preauth:manage': { label: '预授权操作', menu: 'PaymentPreauths' },
 });
-
-declare module '../core/permissions' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
-  interface PermissionRegistry extends PermissionCodes<typeof PAYMENT_PERMISSIONS> {}
-}

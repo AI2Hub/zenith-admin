@@ -1,9 +1,8 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi';
 import { reportDashboardContract, reportDashboardRevisionConflictSchema, type ReportWidget } from '@zenith/shared/report';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
-import { ErrorResponse, errBody, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
+import { ErrorResponse, jsonContent, okBody, validationHook, errBody } from '../../lib/openapi-schemas';
 import {
   DashboardRevisionConflictError,
   batchSetDashboardStatus,
@@ -39,12 +38,10 @@ export const dashboardConflictResponse = {
 
 const notFound = { 404: { content: jsonContent(ErrorResponse), description: '不存在' } } as const;
 const lookupRoute = defineContractRoute(reportDashboardContract.lookup, {
-  middleware: [authMiddleware, guard({ permission: 'report:dashboard:list' })],
   handler: async (c) => c.json(okBody(await listDashboardLookup(c.req.valid('query'))), 200),
 });
 
 const batchRoute = defineContractRoute(reportDashboardContract.batch, {
-  middleware: [authMiddleware, guard({ permission: 'report:dashboard:list' })],
   handler: async (c) => {
     const body = c.req.valid('json');
     const list = await Promise.all(body.ids.map((id) => getDashboard(id, {
@@ -56,7 +53,6 @@ const batchRoute = defineContractRoute(reportDashboardContract.batch, {
 });
 
 const batchStatusRoute = defineContractRoute(reportDashboardContract.batchStatus, {
-  middleware: [authMiddleware, guard({ permission: 'report:dashboard:update', audit: { description: '批量更新报表仪表盘状态', module: '报表仪表盘' } })],
   handler: async (c) => {
     const { ids, status } = c.req.valid('json');
     const count = await batchSetDashboardStatus(ids, status);
@@ -65,7 +61,6 @@ const batchStatusRoute = defineContractRoute(reportDashboardContract.batchStatus
 });
 
 const dataRoute = defineContractRoute(reportDashboardContract.data, {
-  middleware: [authMiddleware, guard({ permission: 'report:dashboard:list' })],
   responses: notFound,
   handler: async (c) => {
     const { id } = c.req.valid('param');
@@ -85,7 +80,6 @@ const dataRoute = defineContractRoute(reportDashboardContract.data, {
 });
 
 const getOneRoute = defineContractRoute(reportDashboardContract.detail, {
-  middleware: [authMiddleware, guard({ permission: 'report:dashboard:list' })],
   responses: notFound,
   handler: async (c) => {
     const dashboard = await getDashboard(c.req.valid('param').id, {
@@ -109,7 +103,6 @@ function dashboardConflictBody(err: DashboardRevisionConflictError) {
   return { ...errBody(err.message, 409), data: { currentRevision: err.currentRevision, dashboard: err.currentDashboard } };
 }
 const updateRoute_ = defineContractRoute(reportDashboardContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'report:dashboard:update', audit: { description: '保存仪表盘草稿', module: '报表仪表盘' } })],
   responses: { ...notFound, ...dashboardConflictResponse },
   handler: async (c) => {
     const { id } = c.req.valid('param');
@@ -125,7 +118,6 @@ const updateRoute_ = defineContractRoute(reportDashboardContract.update, {
 });
 
 const publishRoute = defineContractRoute(reportDashboardContract.publish, {
-  middleware: [authMiddleware, guard({ permission: 'report:dashboard:update', audit: { description: '发布报表仪表盘', module: '报表仪表盘' } })],
   responses: dashboardConflictResponse,
   handler: async (c) => {
     const { id } = c.req.valid('param');
@@ -141,7 +133,6 @@ const publishRoute = defineContractRoute(reportDashboardContract.publish, {
 });
 
 const offlineRoute = defineContractRoute(reportDashboardContract.offline, {
-  middleware: [authMiddleware, guard({ permission: 'report:dashboard:update', audit: { description: '下线报表仪表盘', module: '报表仪表盘' } })],
   responses: dashboardConflictResponse,
   handler: async (c) => {
     const { id } = c.req.valid('param');
@@ -156,16 +147,12 @@ const offlineRoute = defineContractRoute(reportDashboardContract.offline, {
   },
 });
 const cloneRoute = defineContractRoute(reportDashboardContract.clone, {
-  middleware: [authMiddleware, guard({ permission: 'report:dashboard:create', audit: { description: '复制报表仪表盘', module: '报表仪表盘' } })],
   handler: async (c) => c.json(okBody(await cloneDashboard(c.req.valid('param').id, c.req.valid('json')), '复制成功'), 200),
 });
 
 mountCrud(router, reportDashboardContract,
   { list: listDashboards, get: getDashboard, create: createDashboard, remove: deleteDashboard },
   {
-    permission: 'report:dashboard',
-    label: '报表仪表盘',
-    module: '报表仪表盘',
     exclude: ['detail', 'update'],
     responses: { remove: notFound },
   },

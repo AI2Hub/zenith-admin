@@ -26,9 +26,9 @@ export type MemberLevel = z.infer<typeof memberLevelSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const memberLevelContract = defineContract('/api/member-levels', {
-  list: op.get('/', { response: z.array(memberLevelSchema), summary: '会员等级列表' }),
-  detail: op.get('/{id}', { params: idParam, response: memberLevelSchema, summary: '等级详情' }),
-  create: op.post('/', { body: createMemberLevelSchema, response: memberLevelSchema, summary: '创建等级' }),
-  update: op.put('/{id}', { params: idParam, body: updateMemberLevelSchema, response: memberLevelSchema, summary: '更新等级' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除等级' }),
-}, { tags: ['会员等级'] });
+  list: op.get('/', { access: { permission: 'member:level:list' }, response: z.array(memberLevelSchema), summary: '会员等级列表' }),
+  detail: op.get('/{id}', { access: { permission: 'member:level:list' }, params: idParam, response: memberLevelSchema, summary: '等级详情' }),
+  create: op.post('/', { access: { permission: 'member:level:create' }, audit: '创建会员等级', body: createMemberLevelSchema, response: memberLevelSchema, summary: '创建等级' }),
+  update: op.put('/{id}', { access: { permission: 'member:level:update' }, audit: '更新会员等级', params: idParam, body: updateMemberLevelSchema, response: memberLevelSchema, summary: '更新等级' }),
+  remove: op.delete('/{id}', { access: { permission: 'member:level:delete' }, audit: '删除会员等级', params: idParam, summary: '删除等级' }),
+}, { auditModule: '会员等级', tags: ['会员等级'] });

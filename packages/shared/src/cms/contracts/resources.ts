@@ -97,18 +97,18 @@ const cmsResourceFileBody = multipart(z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsResourceContract = defineContract('/api/cms/resources', {
-  list: op.get('/', { query: cmsResourceListQuery, response: paginated(cmsResourceSchema), summary: '素材分页列表' }),
-  folders: op.get('/folders', { query: cmsSiteScopeQuery, response: z.array(cmsResourceFolderSchema), summary: '素材文件夹树' }),
-  folderCreate: op.post('/folders', { body: createCmsResourceFolderSchema, response: cmsResourceFolderSchema, summary: '创建素材文件夹' }),
-  folderUpdate: op.put('/folders/{id}', { params: idParam, body: updateCmsResourceFolderSchema, response: cmsResourceFolderSchema, summary: '移动或重命名素材文件夹' }),
-  folderRemove: op.delete('/folders/{id}', { params: idParam, summary: '删除空素材文件夹' }),
-  upload: op.post('/upload', { query: cmsResourceUploadQuery, body: cmsResourceFileBody, response: cmsResourceSchema, summary: '上传素材（图片按站点配置压缩/水印/缩略图）' }),
-  update: op.put('/{id}', { params: idParam, body: updateCmsResourceSchema, response: cmsResourceSchema, summary: '编辑素材（重命名/备注）' }),
-  references: op.get('/{id}/references', { params: idParam, response: z.array(cmsResourceReferenceSchema), summary: '素材站内引用（内容/栏目/广告等）' }),
-  crop: op.post('/{id}/crop', { params: idParam, body: cropCmsResourceSchema, response: cmsResourceSchema, summary: '裁剪图片（非破坏，另存为新素材）' }),
-  replace: op.post('/{id}/replace', { params: idParam, body: cmsResourceFileBody, response: cmsResourceSchema, summary: '替换素材文件（保留素材 id，全站引用自动跟随）' }),
-  batchDelete: op.post('/delete', { body: batchIdsBody, summary: '批量删除素材（存在站内引用则拒绝）' }),
-  governance: op.post('/governance', { body: cmsResourceGovernanceSchema, response: asyncTaskSchema, summary: '提交孤立素材扫描/清理任务' }),
-  rebuildRefs: op.post('/rebuild-refs', { body: cmsSiteIdBodySchema, response: asyncTaskSchema, summary: '提交素材引用索引重建任务（存量回填 / 索引修复）' }),
-  move: op.post('/move', { body: submitMoveCmsResourcesSchema, response: asyncTaskSchema, summary: '提交批量移动素材任务' }),
-}, { tags: ['CMS-素材中心'] });
+  list: op.get('/', { access: { permission: 'cms:resource:list' }, query: cmsResourceListQuery, response: paginated(cmsResourceSchema), summary: '素材分页列表' }),
+  folders: op.get('/folders', { access: { permission: 'cms:resource:list' }, query: cmsSiteScopeQuery, response: z.array(cmsResourceFolderSchema), summary: '素材文件夹树' }),
+  folderCreate: op.post('/folders', { access: { permission: 'cms:resource:update' }, audit: '创建 CMS 素材文件夹', body: createCmsResourceFolderSchema, response: cmsResourceFolderSchema, summary: '创建素材文件夹' }),
+  folderUpdate: op.put('/folders/{id}', { access: { permission: 'cms:resource:update' }, audit: '更新 CMS 素材文件夹', params: idParam, body: updateCmsResourceFolderSchema, response: cmsResourceFolderSchema, summary: '移动或重命名素材文件夹' }),
+  folderRemove: op.delete('/folders/{id}', { access: { permission: 'cms:resource:delete' }, audit: '删除 CMS 素材文件夹', params: idParam, summary: '删除空素材文件夹' }),
+  upload: op.post('/upload', { access: { permission: 'cms:resource:upload' }, audit: { description: 'CMS 上传素材', recordBody: false }, query: cmsResourceUploadQuery, body: cmsResourceFileBody, response: cmsResourceSchema, summary: '上传素材（图片按站点配置压缩/水印/缩略图）' }),
+  update: op.put('/{id}', { access: { permission: 'cms:resource:update' }, audit: 'CMS 编辑素材', params: idParam, body: updateCmsResourceSchema, response: cmsResourceSchema, summary: '编辑素材（重命名/备注）' }),
+  references: op.get('/{id}/references', { access: { permission: 'cms:resource:list' }, params: idParam, response: z.array(cmsResourceReferenceSchema), summary: '素材站内引用（内容/栏目/广告等）' }),
+  crop: op.post('/{id}/crop', { access: { permission: 'cms:resource:update' }, audit: 'CMS 裁剪素材', params: idParam, body: cropCmsResourceSchema, response: cmsResourceSchema, summary: '裁剪图片（非破坏，另存为新素材）' }),
+  replace: op.post('/{id}/replace', { access: { permission: 'cms:resource:update' }, audit: { description: 'CMS 替换素材', recordBody: false }, params: idParam, body: cmsResourceFileBody, response: cmsResourceSchema, summary: '替换素材文件（保留素材 id，全站引用自动跟随）' }),
+  batchDelete: op.post('/delete', { access: { permission: 'cms:resource:delete' }, audit: 'CMS 删除素材', body: batchIdsBody, summary: '批量删除素材（存在站内引用则拒绝）' }),
+  governance: op.post('/governance', { access: { permission: 'cms:resource:delete' }, audit: '提交 CMS 素材治理任务', body: cmsResourceGovernanceSchema, response: asyncTaskSchema, summary: '提交孤立素材扫描/清理任务' }),
+  rebuildRefs: op.post('/rebuild-refs', { access: { permission: 'cms:resource:update' }, audit: '重建 CMS 素材引用索引', body: cmsSiteIdBodySchema, response: asyncTaskSchema, summary: '提交素材引用索引重建任务（存量回填 / 索引修复）' }),
+  move: op.post('/move', { access: { permission: 'cms:resource:update' }, audit: '批量移动 CMS 素材', body: submitMoveCmsResourcesSchema, response: asyncTaskSchema, summary: '提交批量移动素材任务' }),
+}, { auditModule: 'CMS内容管理', tags: ['CMS-素材中心'] });

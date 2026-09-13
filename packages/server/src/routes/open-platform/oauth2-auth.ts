@@ -14,12 +14,11 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { HTTPException } from 'hono/http-exception';
 import { oauth2AuthContract, oauth2IntrospectResponseSchema, oauth2TokenResponseSchema, oauth2UserInfoSchema } from '@zenith/shared/open-platform';
 import { OAuth2Error } from '../../lib/oauth2-error';
-import { authMiddleware } from '../../middleware/auth';
 import { defineContractRoute } from '../../lib/contract-route';
 import {
   validationHook,
-  commonErrorResponses,
   okBody,
+  commonErrorResponses,
 } from '../../lib/openapi-schemas';
 import {
   getAuthorizeInfo,
@@ -37,7 +36,6 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 // ─── 查询应用信息（供同意页面展示）────────────────────────────────────────────
 
 const authorizeInfo = defineContractRoute(oauth2AuthContract.authorizeInfo, {
-  middleware: [authMiddleware],
   handler: async (c) => {
     const { client_id, redirect_uri, response_type, scope } = c.req.valid('query');
     return c.json(okBody(await getAuthorizeInfo({ clientId: client_id, redirectUri: redirect_uri, responseType: response_type, scope })), 200);
@@ -47,7 +45,6 @@ const authorizeInfo = defineContractRoute(oauth2AuthContract.authorizeInfo, {
 // ─── 用户确认授权 ────────────────────────────────────────────────────────────
 
 const authorize = defineContractRoute(oauth2AuthContract.authorize, {
-  middleware: [authMiddleware],
   handler: async (c) => {
     const body = c.req.valid('json');
     const result = await createAuthorizationCode({

@@ -121,15 +121,15 @@ export const paymentJournalListQuery = paginationQuery.extend({
 
 /** 双分录资金内核：账本账户 / 资金预占 / 资金凭证 */
 export const paymentJournalContract = defineContract('/api/payment/journals', {
-  accounts: op.get('/accounts', { query: paymentLedgerAccountListQuery, response: paginated(paymentLedgerAccountSchema), summary: '账本账户列表' }),
-  createAccount: op.post('/accounts', { body: createPaymentLedgerAccountSchema, response: paymentLedgerAccountSchema, summary: '创建账本账户' }),
-  activeReservation: op.get('/accounts/{id}/active-reservation', { params: idParam, response: paymentActiveReservationAmountSchema, summary: '查询账户有效预占金额' }),
-  reservations: op.get('/reservations', { query: paymentFundReservationListQuery, response: paginated(paymentFundReservationSchema), summary: '资金预占列表' }),
-  createReservation: op.post('/reservations', { body: createPaymentFundReservationSchema, response: paymentFundReservationSchema, summary: '创建资金预占' }),
-  captureReservation: op.post('/reservations/{id}/capture', { params: idParam, body: transitionPaymentFundReservationSchema, response: paymentFundReservationSchema, summary: '核销资金预占' }),
-  releaseReservation: op.post('/reservations/{id}/release', { params: idParam, body: transitionPaymentFundReservationSchema, response: paymentFundReservationSchema, summary: '释放资金预占' }),
-  list: op.get('/', { query: paymentJournalListQuery, response: paginated(paymentJournalSchema), summary: '资金凭证列表' }),
-  post: op.post('/', { body: postPaymentJournalSchema, response: paymentJournalSchema, summary: '过账资金凭证' }),
-  detail: op.get('/{id}', { params: idParam, response: paymentJournalSchema, summary: '资金凭证详情' }),
-  reverse: op.post('/{id}/reverse', { params: idParam, body: reversePaymentJournalSchema, response: paymentJournalSchema, summary: '冲正资金凭证' }),
-}, { tags: ['支付中心-双分录'] });
+  accounts: op.get('/accounts', { access: { permission: 'payment:ledger:list' }, query: paymentLedgerAccountListQuery, response: paginated(paymentLedgerAccountSchema), summary: '账本账户列表' }),
+  createAccount: op.post('/accounts', { access: { permission: 'payment:ledger:account:create' }, audit: '创建支付账本账户', body: createPaymentLedgerAccountSchema, response: paymentLedgerAccountSchema, summary: '创建账本账户' }),
+  activeReservation: op.get('/accounts/{id}/active-reservation', { access: { permission: 'payment:ledger:list' }, params: idParam, response: paymentActiveReservationAmountSchema, summary: '查询账户有效预占金额' }),
+  reservations: op.get('/reservations', { access: { permission: 'payment:ledger:list' }, query: paymentFundReservationListQuery, response: paginated(paymentFundReservationSchema), summary: '资金预占列表' }),
+  createReservation: op.post('/reservations', { access: { permission: 'payment:ledger:reserve' }, audit: '创建支付资金预占', body: createPaymentFundReservationSchema, response: paymentFundReservationSchema, summary: '创建资金预占' }),
+  captureReservation: op.post('/reservations/{id}/capture', { access: { permission: 'payment:ledger:reserve' }, audit: '核销支付资金预占', params: idParam, body: transitionPaymentFundReservationSchema, response: paymentFundReservationSchema, summary: '核销资金预占' }),
+  releaseReservation: op.post('/reservations/{id}/release', { access: { permission: 'payment:ledger:reserve' }, audit: '释放支付资金预占', params: idParam, body: transitionPaymentFundReservationSchema, response: paymentFundReservationSchema, summary: '释放资金预占' }),
+  list: op.get('/', { access: { permission: 'payment:ledger:list' }, query: paymentJournalListQuery, response: paginated(paymentJournalSchema), summary: '资金凭证列表' }),
+  post: op.post('/', { access: { permission: 'payment:ledger:post' }, audit: '过账支付资金凭证', body: postPaymentJournalSchema, response: paymentJournalSchema, summary: '过账资金凭证' }),
+  detail: op.get('/{id}', { access: { permission: 'payment:ledger:list' }, params: idParam, response: paymentJournalSchema, summary: '资金凭证详情' }),
+  reverse: op.post('/{id}/reverse', { access: { permission: 'payment:ledger:reverse' }, audit: '冲正支付资金凭证', params: idParam, body: reversePaymentJournalSchema, response: paymentJournalSchema, summary: '冲正资金凭证' }),
+}, { auditModule: '支付中心', tags: ['支付中心-双分录'] });

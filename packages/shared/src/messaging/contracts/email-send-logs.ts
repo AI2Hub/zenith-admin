@@ -44,7 +44,7 @@ export const emailSendLogListQuery = paginationQuery.extend({
 });
 
 export const emailSendLogContract = defineContract('/api/email-send-logs', {
-  list: op.get('/', { query: emailSendLogListQuery, response: paginated(emailSendLogSchema), summary: '邮件发送记录列表' }),
-  testSend: op.post('/test-send', { body: sendEmailSchema, response: emailSendResultSchema, summary: '测试发送邮件' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除邮件发送记录' }),
-}, { tags: ['EmailSendLogs'] });
+  list: op.get('/', { access: { permission: 'system:email-send-log:list' }, query: emailSendLogListQuery, response: paginated(emailSendLogSchema), summary: '邮件发送记录列表' }),
+  testSend: op.post('/test-send', { access: { permission: 'system:email-config:update' }, audit: '测试发送邮件', body: sendEmailSchema, response: emailSendResultSchema, summary: '测试发送邮件' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:email-send-log:delete' }, audit: '删除邮件发送记录', params: idParam, summary: '删除邮件发送记录' }),
+}, { auditModule: '邮件发送记录', tags: ['EmailSendLogs'] });

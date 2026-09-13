@@ -68,11 +68,11 @@ export const networkReverseQuery = z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const networkDiagContract = defineContract('/api/network-diag', {
-  stream: op.get('/stream', { query: networkDiagStreamQuery, kind: 'file', summary: 'ping / traceroute 逐行流式输出' }),
-  nslookup: op.get('/nslookup', { query: networkHostQuery, response: z.object({ output: z.string() }), summary: 'DNS 查询' }),
-  portCheck: op.post('/port-check', { body: networkPortCheckSchema, response: networkPortCheckResultSchema, summary: 'TCP 端口检测' }),
-  dns: op.get('/dns', { query: networkDnsQuery, response: networkDnsResultSchema, summary: 'DNS 记录解析（A/AAAA/MX/TXT/NS/CNAME/SOA）' }),
-  reverse: op.get('/reverse', { query: networkReverseQuery, response: z.object({ hostnames: z.array(z.string()) }), summary: '反向 DNS（PTR）' }),
-  httpProbe: op.post('/http-probe', { body: networkHttpProbeSchema, response: networkHttpProbeResultSchema, summary: 'HTTP(S) 探测' }),
-  interfaces: op.get('/interfaces', { response: z.array(networkInterfaceSchema), summary: '本机网卡信息' }),
+  stream: op.get('/stream', { access: { permission: 'system:network:diag' }, query: networkDiagStreamQuery, kind: 'file', summary: 'ping / traceroute 逐行流式输出' }),
+  nslookup: op.get('/nslookup', { access: { permission: 'system:network:diag' }, query: networkHostQuery, response: z.object({ output: z.string() }), summary: 'DNS 查询' }),
+  portCheck: op.post('/port-check', { access: { permission: 'system:network:diag' }, body: networkPortCheckSchema, response: networkPortCheckResultSchema, summary: 'TCP 端口检测' }),
+  dns: op.get('/dns', { access: { permission: 'system:network:diag' }, query: networkDnsQuery, response: networkDnsResultSchema, summary: 'DNS 记录解析（A/AAAA/MX/TXT/NS/CNAME/SOA）' }),
+  reverse: op.get('/reverse', { access: { permission: 'system:network:diag' }, query: networkReverseQuery, response: z.object({ hostnames: z.array(z.string()) }), summary: '反向 DNS（PTR）' }),
+  httpProbe: op.post('/http-probe', { access: { permission: 'system:network:diag' }, body: networkHttpProbeSchema, response: networkHttpProbeResultSchema, summary: 'HTTP(S) 探测' }),
+  interfaces: op.get('/interfaces', { access: { permission: 'system:network:diag' }, response: z.array(networkInterfaceSchema), summary: '本机网卡信息' }),
 }, { tags: ['NetworkDiag'] });

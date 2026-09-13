@@ -225,44 +225,44 @@ export const publicArtifactParam = z.object({
 // ─── 契约：管理侧（五组子资源共享同一资源前缀，各自独立挂载） ──────────────────────
 
 export const clientAppContract = defineContract('/api/app-releases/apps', {
-  list: op.get('/', { query: clientAppListQuery, response: paginated(clientAppSchema), summary: '应用列表' }),
-  all: op.get('/all', { response: z.array(clientAppSchema), summary: '全部启用应用（应用切换器）' }),
-  create: op.post('/', { body: createClientAppSchema, response: clientAppSchema, summary: '创建应用' }),
-  update: op.put('/{id}', { params: idParam, body: updateClientAppSchema, response: clientAppSchema, summary: '更新应用' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除应用' }),
-}, { tags: ['应用版本管理'] });
+  list: op.get('/', { access: { permission: 'system:app-release:list' }, query: clientAppListQuery, response: paginated(clientAppSchema), summary: '应用列表' }),
+  all: op.get('/all', { access: { permission: 'system:app-release:list' }, response: z.array(clientAppSchema), summary: '全部启用应用（应用切换器）' }),
+  create: op.post('/', { access: { permission: 'system:app-release:create' }, audit: '创建应用', body: createClientAppSchema, response: clientAppSchema, summary: '创建应用' }),
+  update: op.put('/{id}', { access: { permission: 'system:app-release:update' }, audit: '更新应用', params: idParam, body: updateClientAppSchema, response: clientAppSchema, summary: '更新应用' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:app-release:delete' }, audit: '删除应用', params: idParam, summary: '删除应用' }),
+}, { auditModule: '应用版本管理', tags: ['应用版本管理'] });
 
 export const appReleaseContract = defineContract('/api/app-releases/releases', {
-  list: op.get('/', { query: appReleaseListQuery, response: paginated(appReleaseSchema), summary: '版本列表' }),
-  detail: op.get('/{id}', { params: idParam, response: appReleaseSchema, summary: '版本详情（含制品）' }),
-  create: op.post('/', { body: createAppReleaseSchema, response: appReleaseSchema, summary: '创建版本（草稿）' }),
-  update: op.put('/{id}', { params: idParam, body: updateAppReleaseSchema, response: appReleaseSchema, summary: '更新版本' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除版本（草稿 / 已撤回）' }),
-  publish: op.post('/{id}/publish', { params: idParam, response: appReleaseSchema, summary: '发布版本' }),
-  revoke: op.post('/{id}/revoke', { params: idParam, response: appReleaseSchema, summary: '撤回版本' }),
-  rollout: op.put('/{id}/rollout', { params: idParam, body: setAppReleaseRolloutSchema, response: appReleaseSchema, summary: '调整灰度比例' }),
-  uploadArtifact: op.post('/{id}/artifacts', { params: idParam, body: uploadAppArtifactBody, response: appArtifactSchema, summary: '上传制品文件（单请求；超过分片阈值用下方分片接口）' }),
-  addExternalArtifact: op.post('/{id}/artifacts/external', { params: idParam, body: createExternalArtifactSchema, response: appArtifactSchema, summary: '添加外链制品（App Store / TestFlight 等）' }),
-  uploadInit: op.post('/{id}/artifacts/upload/init', { params: idParam, body: initAppArtifactUploadSchema, response: uploadSessionInitSchema, summary: '初始化制品分片上传' }),
-  uploadChunk: op.post('/{id}/artifacts/upload/chunk', { params: idParam, body: uploadChunkBody, response: uploadChunkResultSchema, summary: '上传制品分片' }),
-  uploadComplete: op.post('/{id}/artifacts/upload/complete', { params: idParam, body: completeChunkUploadSchema, response: appArtifactSchema, summary: '完成制品分片上传并登记制品（服务端计算 sha256）' }),
-  uploadStatus: op.get('/{id}/artifacts/upload/{uploadId}/status', { params: appArtifactUploadParams, response: uploadSessionStatusSchema, summary: '制品分片上传进度' }),
-  uploadAbort: op.delete('/{id}/artifacts/upload/{uploadId}', { params: appArtifactUploadParams, summary: '中止制品分片上传' }),
-}, { tags: ['应用版本管理'] });
+  list: op.get('/', { access: { permission: 'system:app-release:list' }, query: appReleaseListQuery, response: paginated(appReleaseSchema), summary: '版本列表' }),
+  detail: op.get('/{id}', { access: { permission: 'system:app-release:list' }, params: idParam, response: appReleaseSchema, summary: '版本详情（含制品）' }),
+  create: op.post('/', { access: { permission: 'system:app-release:create' }, audit: '创建版本', body: createAppReleaseSchema, response: appReleaseSchema, summary: '创建版本（草稿）' }),
+  update: op.put('/{id}', { access: { permission: 'system:app-release:update' }, audit: '更新版本', params: idParam, body: updateAppReleaseSchema, response: appReleaseSchema, summary: '更新版本' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:app-release:delete' }, audit: '删除版本', params: idParam, summary: '删除版本（草稿 / 已撤回）' }),
+  publish: op.post('/{id}/publish', { access: { permission: 'system:app-release:publish' }, audit: '发布版本', params: idParam, response: appReleaseSchema, summary: '发布版本' }),
+  revoke: op.post('/{id}/revoke', { access: { permission: 'system:app-release:publish' }, audit: '撤回版本', params: idParam, response: appReleaseSchema, summary: '撤回版本' }),
+  rollout: op.put('/{id}/rollout', { access: { permission: 'system:app-release:update' }, audit: '调整灰度比例', params: idParam, body: setAppReleaseRolloutSchema, response: appReleaseSchema, summary: '调整灰度比例' }),
+  uploadArtifact: op.post('/{id}/artifacts', { access: { permission: 'system:app-release:create' }, audit: { description: '上传制品', recordBody: false }, params: idParam, body: uploadAppArtifactBody, response: appArtifactSchema, summary: '上传制品文件（单请求；超过分片阈值用下方分片接口）' }),
+  addExternalArtifact: op.post('/{id}/artifacts/external', { access: { permission: 'system:app-release:create' }, audit: '添加外链制品', params: idParam, body: createExternalArtifactSchema, response: appArtifactSchema, summary: '添加外链制品（App Store / TestFlight 等）' }),
+  uploadInit: op.post('/{id}/artifacts/upload/init', { access: { permission: 'system:app-release:create' }, audit: '初始化制品分片上传', params: idParam, body: initAppArtifactUploadSchema, response: uploadSessionInitSchema, summary: '初始化制品分片上传' }),
+  uploadChunk: op.post('/{id}/artifacts/upload/chunk', { access: { permission: 'system:app-release:create' }, params: idParam, body: uploadChunkBody, response: uploadChunkResultSchema, summary: '上传制品分片' }),
+  uploadComplete: op.post('/{id}/artifacts/upload/complete', { access: { permission: 'system:app-release:create' }, audit: '完成制品分片上传', params: idParam, body: completeChunkUploadSchema, response: appArtifactSchema, summary: '完成制品分片上传并登记制品（服务端计算 sha256）' }),
+  uploadStatus: op.get('/{id}/artifacts/upload/{uploadId}/status', { access: 'authenticated', params: appArtifactUploadParams, response: uploadSessionStatusSchema, summary: '制品分片上传进度' }),
+  uploadAbort: op.delete('/{id}/artifacts/upload/{uploadId}', { access: { permission: 'system:app-release:create' }, audit: '中止制品分片上传', params: appArtifactUploadParams, summary: '中止制品分片上传' }),
+}, { auditModule: '应用版本管理', tags: ['应用版本管理'] });
 
 export const appArtifactContract = defineContract('/api/app-releases/artifacts', {
-  remove: op.delete('/{id}', { params: idParam, summary: '删除制品' }),
-}, { tags: ['应用版本管理'] });
+  remove: op.delete('/{id}', { access: { permission: 'system:app-release:delete' }, audit: '删除制品', params: idParam, summary: '删除制品' }),
+}, { auditModule: '应用版本管理', tags: ['应用版本管理'] });
 
 export const appReleaseStatsContract = defineContract('/api/app-releases', {
-  stats: op.get('/stats', { query: appReleaseStatsQuery, response: appReleaseStatsSchema, summary: '升级看板统计' }),
+  stats: op.get('/stats', { access: { permission: 'system:app-release:list' }, query: appReleaseStatsQuery, response: appReleaseStatsSchema, summary: '升级看板统计' }),
 }, { tags: ['应用版本管理'] });
 
 export const clientDeviceContract = defineContract('/api/app-releases/devices', {
-  list: op.get('/', { query: clientDeviceListQuery, response: paginated(clientDeviceSchema), summary: '设备列表（统一设备中心）' }),
-  unbind: op.put('/{id}/unbind', { params: idParam, summary: '解绑设备推送（保留设备档案）' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除设备档案' }),
-}, { tags: ['应用版本管理'] });
+  list: op.get('/', { access: { permission: 'system:app-release:list' }, query: clientDeviceListQuery, response: paginated(clientDeviceSchema), summary: '设备列表（统一设备中心）' }),
+  unbind: op.put('/{id}/unbind', { access: { permission: 'system:app-release:update' }, audit: '解绑设备推送', params: idParam, summary: '解绑设备推送（保留设备档案）' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:app-release:delete' }, audit: '删除设备档案', params: idParam, summary: '删除设备档案' }),
+}, { auditModule: '应用版本管理', tags: ['应用版本管理'] });
 
 // ─── 契约：公开侧（客户端检查更新 / 制品分发，免登录） ───────────────────────────
 

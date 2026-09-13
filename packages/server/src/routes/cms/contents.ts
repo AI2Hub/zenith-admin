@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cmsContentContract } from '@zenith/shared/cms';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -39,10 +38,7 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'cms:content:list' })] as const;
-
 const checkTitleRoute = defineContractRoute(cmsContentContract.checkTitle, {
-  middleware: read,
   handler: async (c) => {
     const { siteId, title, excludeId } = c.req.valid('query');
     return c.json(okBody(await checkCmsContentTitle(siteId, title, excludeId)), 200);
@@ -50,7 +46,6 @@ const checkTitleRoute = defineContractRoute(cmsContentContract.checkTitle, {
 });
 
 const describeLinkRoute = defineContractRoute(cmsContentContract.linkTarget, {
-  middleware: read,
   handler: async (c) => {
     const { siteId, link } = c.req.valid('query');
     await ensureCmsSiteExists(siteId);
@@ -60,7 +55,6 @@ const describeLinkRoute = defineContractRoute(cmsContentContract.linkTarget, {
 });
 
 const updateRouteDef = defineContractRoute(cmsContentContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:update', audit: { description: '更新 CMS 内容', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getCmsContent(id);
@@ -72,7 +66,6 @@ const updateRouteDef = defineContractRoute(cmsContentContract.update, {
 
 // ─── 状态流转 ─────────────────────────────────────────────────────────────────
 const submitRoute = defineContractRoute(cmsContentContract.submit, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:update', audit: { description: '提交 CMS 内容审核', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, { ...await getCmsContent(id), body: undefined });
@@ -81,7 +74,6 @@ const submitRoute = defineContractRoute(cmsContentContract.submit, {
 });
 
 const publishRoute = defineContractRoute(cmsContentContract.publish, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:publish', audit: { description: '发布 CMS 内容', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, { ...await getCmsContent(id), body: undefined });
@@ -91,7 +83,6 @@ const publishRoute = defineContractRoute(cmsContentContract.publish, {
 });
 
 const rejectRoute = defineContractRoute(cmsContentContract.reject, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:audit', audit: { description: '驳回 CMS 内容', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { reason } = c.req.valid('json');
@@ -101,7 +92,6 @@ const rejectRoute = defineContractRoute(cmsContentContract.reject, {
 });
 
 const offlineRoute = defineContractRoute(cmsContentContract.offline, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:publish', audit: { description: '下线 CMS 内容', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, { ...await getCmsContent(id), body: undefined });
@@ -112,7 +102,6 @@ const offlineRoute = defineContractRoute(cmsContentContract.offline, {
 
 // ─── 回收站 ───────────────────────────────────────────────────────────────────
 const recycleRoute = defineContractRoute(cmsContentContract.recycle, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:delete', audit: { description: 'CMS 内容移入回收站', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { ids } = c.req.valid('json');
     const count = await recycleCmsContents(ids);
@@ -121,7 +110,6 @@ const recycleRoute = defineContractRoute(cmsContentContract.recycle, {
 });
 
 const restoreRoute = defineContractRoute(cmsContentContract.restore, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:delete', audit: { description: 'CMS 内容从回收站恢复', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { ids } = c.req.valid('json');
     const count = await restoreCmsContents(ids);
@@ -130,7 +118,6 @@ const restoreRoute = defineContractRoute(cmsContentContract.restore, {
 });
 
 const purgeRoute = defineContractRoute(cmsContentContract.purge, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:delete', audit: { description: 'CMS 内容彻底删除', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { ids } = c.req.valid('json');
     const count = await purgeCmsContents(ids);
@@ -140,12 +127,10 @@ const purgeRoute = defineContractRoute(cmsContentContract.purge, {
 
 // ─── 版本历史 ─────────────────────────────────────────────────────────────────
 const versionsRoute = defineContractRoute(cmsContentContract.versions, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listContentVersions(c.req.valid('param').id)), 200),
 });
 
 const restoreVersionRoute = defineContractRoute(cmsContentContract.restoreVersion, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:update', audit: { description: 'CMS 内容版本回滚', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { id, versionId } = c.req.valid('param');
     const before = await getCmsContent(id);
@@ -156,7 +141,6 @@ const restoreVersionRoute = defineContractRoute(cmsContentContract.restoreVersio
 });
 
 const versionDiffRoute = defineContractRoute(cmsContentContract.versionDiff, {
-  middleware: read,
   handler: async (c) => {
     const { id, versionId } = c.req.valid('param');
     return c.json(okBody(await diffContentVersion(id, versionId)), 200);
@@ -165,12 +149,10 @@ const versionDiffRoute = defineContractRoute(cmsContentContract.versionDiff, {
 
 // ─── 编辑锁 / 草稿预览 ─────────────────────────────────────────────────────────
 const editLockAcquireRoute = defineContractRoute(cmsContentContract.acquireEditLock, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:update' })],
   handler: async (c) => c.json(okBody(await acquireContentEditLock(c.req.valid('param').id)), 200),
 });
 
 const editLockReleaseRoute = defineContractRoute(cmsContentContract.releaseEditLock, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:update' })],
   handler: async (c) => {
     await releaseContentEditLock(c.req.valid('param').id);
     return c.json(okBody(null, '已释放'), 200);
@@ -178,13 +160,11 @@ const editLockReleaseRoute = defineContractRoute(cmsContentContract.releaseEditL
 });
 
 const previewLinkRoute = defineContractRoute(cmsContentContract.previewLink, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await createContentPreviewLink(c.req.valid('param').id)), 200),
 });
 
 // ─── 批量操作 / 复制 / 站群分发 ───────────────────────────────────────────────
 const batchMoveRoute = defineContractRoute(cmsContentContract.batchMove, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:update', audit: { description: 'CMS 内容批量移动', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { ids, channelId } = c.req.valid('json');
     const count = await batchMoveCmsContents(ids, channelId);
@@ -193,7 +173,6 @@ const batchMoveRoute = defineContractRoute(cmsContentContract.batchMove, {
 });
 
 const batchFlagsRoute = defineContractRoute(cmsContentContract.batchFlags, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:update', audit: { description: 'CMS 内容批量设置属性', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { ids, ...flags } = c.req.valid('json');
     const count = await batchSetCmsContentFlags(ids, flags);
@@ -202,7 +181,6 @@ const batchFlagsRoute = defineContractRoute(cmsContentContract.batchFlags, {
 });
 
 const batchTagRoute = defineContractRoute(cmsContentContract.batchTag, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:update', audit: { description: 'CMS 内容批量打标', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { ids, tagIds } = c.req.valid('json');
     const count = await batchAddCmsContentTags(ids, tagIds);
@@ -211,11 +189,6 @@ const batchTagRoute = defineContractRoute(cmsContentContract.batchTag, {
 });
 
 const batchStatusRoute = defineContractRoute(cmsContentContract.batchStatus, {
-  middleware: [authMiddleware, guard({
-    // 三种动作权限不同：路由层放行任一权限持有者，动作级权限在 service 内按映射精确校验
-    permission: ['cms:content:update', 'cms:content:publish', 'cms:content:audit'],
-    audit: { description: 'CMS 内容批量状态流转', module: 'CMS内容管理' },
-  })],
   handler: async (c) => {
     const { ids, action, reason } = c.req.valid('json');
     const result = await batchTransitionCmsContents(ids, action, reason);
@@ -227,7 +200,6 @@ const batchStatusRoute = defineContractRoute(cmsContentContract.batchStatus, {
 });
 
 const duplicateRoute = defineContractRoute(cmsContentContract.duplicate, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:create', audit: { description: 'CMS 内容复制', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { targetChannelId } = c.req.valid('json') ?? {};
     return c.json(okBody(await duplicateCmsContent(c.req.valid('param').id, targetChannelId), '复制成功'), 200);
@@ -235,7 +207,6 @@ const duplicateRoute = defineContractRoute(cmsContentContract.duplicate, {
 });
 
 const distributeRoute = defineContractRoute(cmsContentContract.distribute, {
-  middleware: [authMiddleware, guard({ permission: 'cms:distribution:run', audit: { description: 'CMS 内容站群分发', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { ids, targetSiteId, targetChannelId } = c.req.valid('json');
     const count = await distributeCmsContents(ids, targetSiteId, targetChannelId);
@@ -245,7 +216,6 @@ const distributeRoute = defineContractRoute(cmsContentContract.distribute, {
 
 // ─── 归档 ─────────────────────────────────────────────────────────────────────
 const archiveRoute = defineContractRoute(cmsContentContract.archive, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:update', audit: { description: 'CMS 内容归档', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { ids } = c.req.valid('json');
     const count = await archiveCmsContents(ids);
@@ -254,7 +224,6 @@ const archiveRoute = defineContractRoute(cmsContentContract.archive, {
 });
 
 const unarchiveRoute = defineContractRoute(cmsContentContract.unarchive, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:update', audit: { description: 'CMS 内容取消归档', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { ids } = c.req.valid('json');
     const count = await unarchiveCmsContents(ids);
@@ -264,17 +233,14 @@ const unarchiveRoute = defineContractRoute(cmsContentContract.unarchive, {
 
 // ─── 操作日志 / 词库检查 ──────────────────────────────────────────────────────
 const opLogsRoute = defineContractRoute(cmsContentContract.opLogs, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listContentOpLogs(c.req.valid('param').id)), 200),
 });
 
 const checkTextRoute = defineContractRoute(cmsContentContract.checkText, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:update' })],
   handler: async (c) => c.json(okBody(await checkCmsText(c.req.valid('json').text)), 200),
 });
 
 const persistentLockRoute = defineContractRoute(cmsContentContract.lock, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:lock', audit: { description: '持久锁定 CMS 内容', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getCmsContent(id));
@@ -283,7 +249,6 @@ const persistentLockRoute = defineContractRoute(cmsContentContract.lock, {
 });
 
 const persistentUnlockRoute = defineContractRoute(cmsContentContract.unlock, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:lock', audit: { description: '解除 CMS 内容持久锁', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getCmsContent(id));
@@ -296,10 +261,6 @@ const persistentUnlockRoute = defineContractRoute(cmsContentContract.unlock, {
 mountCrud(router, cmsContentContract,
   { list: listCmsContents, get: getCmsContent, create: createCmsContent },
   {
-    permission: 'cms:content',
-    label: 'CMS 内容',
-    module: 'CMS内容管理',
-    audit: { create: '创建 CMS 内容' },
     exclude: ['update'],
   },
   [

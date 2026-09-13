@@ -5,8 +5,6 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { iotForwardRuleContract } from '@zenith/shared/iot';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -22,10 +20,8 @@ import { mountCrud } from '../_crud';
 
 export const iotForwardRulesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'iot:forward:list' })] as const;
 const notFound = { 404: { content: jsonContent(ErrorResponse), description: '不存在' } } as const;
 const listLogsRoute = defineContractRoute(iotForwardRuleContract.logs, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listIotForwardLogs(c.req.valid('query'))), 200),
 });
 
@@ -38,9 +34,6 @@ mountCrud(iotForwardRulesRouter, iotForwardRuleContract,
     remove: deleteIotForwardRule,
   },
   {
-    permission: 'iot:forward',
-    label: ' IoT 流转规则',
-    module: 'IoT 数据流转',
     responses: { update: notFound, remove: notFound },
   },
   [listLogsRoute],

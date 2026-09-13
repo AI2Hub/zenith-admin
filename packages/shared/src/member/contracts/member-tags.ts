@@ -32,8 +32,8 @@ export type MemberTagBrief = z.infer<typeof memberTagBriefSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const memberTagContract = defineContract('/api/member-tags', {
-  list: op.get('/', { response: z.array(memberTagSchema), summary: '会员标签列表' }),
-  create: op.post('/', { body: saveMemberTagSchema, response: memberTagSchema, summary: '创建会员标签' }),
-  update: op.put('/{id}', { params: idParam, body: updateMemberTagSchema, response: memberTagSchema, summary: '更新会员标签' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除会员标签' }),
-}, { tags: ['会员标签'] });
+  list: op.get('/', { access: { permission: 'member:member:list' }, response: z.array(memberTagSchema), summary: '会员标签列表' }),
+  create: op.post('/', { access: { permission: 'member:member:update' }, audit: '创建会员标签', body: saveMemberTagSchema, response: memberTagSchema, summary: '创建会员标签' }),
+  update: op.put('/{id}', { access: { permission: 'member:member:update' }, audit: '更新会员标签', params: idParam, body: updateMemberTagSchema, response: memberTagSchema, summary: '更新会员标签' }),
+  remove: op.delete('/{id}', { access: { permission: 'member:member:update' }, audit: '删除会员标签', params: idParam, summary: '删除会员标签' }),
+}, { auditModule: '会员标签', tags: ['会员标签'] });

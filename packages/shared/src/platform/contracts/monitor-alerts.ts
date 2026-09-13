@@ -155,16 +155,16 @@ export type MonitorAlertOverviewQuery = z.infer<typeof monitorAlertOverviewQuery
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const monitorAlertContract = defineContract('/api/monitor-alerts', {
-  overview: op.get('/overview', { query: monitorAlertOverviewQuery, response: monitorAlertOverviewSchema, summary: '获取告警概览' }),
-  events: op.get('/events', { query: monitorAlertEventListQuery, response: paginated(monitorAlertEventSchema), summary: '获取告警事件列表' }),
-  handleEventsBatch: op.patch('/events/batch/handle', { body: batchHandleMonitorAlertEventsSchema, summary: '批量处理告警事件' }),
-  handleEvent: op.patch('/events/{id}/handle', { params: idParam, body: handleMonitorAlertEventSchema, response: monitorAlertEventSchema, summary: '处理告警事件' }),
-  list: op.get('/', { query: monitorAlertRuleListQuery, response: paginated(monitorAlertRuleSchema), summary: '获取告警规则列表' }),
-  create: op.post('/', { body: createMonitorAlertRuleSchema, response: monitorAlertRuleSchema, summary: '创建告警规则' }),
-  setEnabledBatch: op.patch('/batch/enabled', { body: batchSetMonitorAlertRulesEnabledSchema, summary: '批量启用/禁用告警规则' }),
-  removeBatch: op.delete('/batch', { body: monitorAlertRuleIdsBody, summary: '批量删除告警规则' }),
-  test: op.post('/{id}/test', { params: idParam, response: monitorAlertTestResultSchema, summary: '试发告警通知' }),
-  update: op.put('/{id}', { params: idParam, body: updateMonitorAlertRuleSchema, response: monitorAlertRuleSchema, summary: '更新告警规则' }),
-  setEnabled: op.patch('/{id}/enabled', { params: idParam, body: setMonitorAlertRuleEnabledSchema, response: monitorAlertRuleSchema, summary: '启用/禁用告警规则' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除告警规则' }),
-}, { tags: ['AlertCenter'] });
+  overview: op.get('/overview', { access: { permission: 'alert:overview:list' }, query: monitorAlertOverviewQuery, response: monitorAlertOverviewSchema, summary: '获取告警概览' }),
+  events: op.get('/events', { access: { permission: 'alert:event:list' }, query: monitorAlertEventListQuery, response: paginated(monitorAlertEventSchema), summary: '获取告警事件列表' }),
+  handleEventsBatch: op.patch('/events/batch/handle', { access: { permission: 'alert:event:handle' }, audit: '批量处理告警事件', body: batchHandleMonitorAlertEventsSchema, summary: '批量处理告警事件' }),
+  handleEvent: op.patch('/events/{id}/handle', { access: { permission: 'alert:event:handle' }, audit: '处理告警事件', params: idParam, body: handleMonitorAlertEventSchema, response: monitorAlertEventSchema, summary: '处理告警事件' }),
+  list: op.get('/', { access: { permission: 'alert:rule:list' }, query: monitorAlertRuleListQuery, response: paginated(monitorAlertRuleSchema), summary: '获取告警规则列表' }),
+  create: op.post('/', { access: { permission: 'alert:rule:create' }, audit: '创建告警规则', body: createMonitorAlertRuleSchema, response: monitorAlertRuleSchema, summary: '创建告警规则' }),
+  setEnabledBatch: op.patch('/batch/enabled', { access: { permission: 'alert:rule:update' }, audit: '批量切换告警规则状态', body: batchSetMonitorAlertRulesEnabledSchema, summary: '批量启用/禁用告警规则' }),
+  removeBatch: op.delete('/batch', { access: { permission: 'alert:rule:delete' }, audit: '批量删除告警规则', body: monitorAlertRuleIdsBody, summary: '批量删除告警规则' }),
+  test: op.post('/{id}/test', { access: { permission: 'alert:rule:test' }, audit: '试发告警通知', params: idParam, response: monitorAlertTestResultSchema, summary: '试发告警通知' }),
+  update: op.put('/{id}', { access: { permission: 'alert:rule:update' }, audit: '更新告警规则', params: idParam, body: updateMonitorAlertRuleSchema, response: monitorAlertRuleSchema, summary: '更新告警规则' }),
+  setEnabled: op.patch('/{id}/enabled', { access: { permission: 'alert:rule:update' }, audit: '切换告警规则状态', params: idParam, body: setMonitorAlertRuleEnabledSchema, response: monitorAlertRuleSchema, summary: '启用/禁用告警规则' }),
+  remove: op.delete('/{id}', { access: { permission: 'alert:rule:delete' }, audit: '删除告警规则', params: idParam, summary: '删除告警规则' }),
+}, { auditModule: '告警中心', tags: ['AlertCenter'] });

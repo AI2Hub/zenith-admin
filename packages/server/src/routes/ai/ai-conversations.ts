@@ -1,7 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { aiConversationContract } from '@zenith/shared/ai';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { csvStreamBody, fileBody, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -27,11 +25,7 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const authed = [authMiddleware] as const;
-const feedbackViewer = [authMiddleware, guard({ permission: 'ai:feedback:view' })] as const;
-
 const getMessages = defineContractRoute(aiConversationContract.messages, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await listMessages(id)), 200);
@@ -39,7 +33,6 @@ const getMessages = defineContractRoute(aiConversationContract.messages, {
 });
 
 const submitFeedback = defineContractRoute(aiConversationContract.submitFeedback, {
-  middleware: authed,
   handler: async (c) => {
     const { id, msgId } = c.req.valid('param');
     const { feedback, reason } = c.req.valid('json');
@@ -49,14 +42,12 @@ const submitFeedback = defineContractRoute(aiConversationContract.submitFeedback
 });
 
 const adminFeedbackList = defineContractRoute(aiConversationContract.feedbackList, {
-  middleware: feedbackViewer,
   handler: async (c) => {
     return c.json(okBody(await listFeedbackMessages(c.req.valid('query'))), 200);
   },
 });
 
 const adminFeedbackContext = defineContractRoute(aiConversationContract.feedbackContext, {
-  middleware: feedbackViewer,
   handler: async (c) => {
     const { msgId } = c.req.valid('param');
     return c.json(okBody(await getFeedbackContext(msgId)), 200);
@@ -64,7 +55,6 @@ const adminFeedbackContext = defineContractRoute(aiConversationContract.feedback
 });
 
 const adminFeedbackExport = defineContractRoute(aiConversationContract.feedbackExport, {
-  middleware: [authMiddleware, guard({ permission: 'ai:feedback:view', audit: { description: '导出 AI 反馈列表', module: '智能助手' } })],
   handler: async (c) => {
     const { stream, filename } = await exportFeedbackMessages(c.req.valid('query'));
     return csvStreamBody(c, stream, filename);
@@ -72,7 +62,6 @@ const adminFeedbackExport = defineContractRoute(aiConversationContract.feedbackE
 });
 
 const updateFeedback = defineContractRoute(aiConversationContract.handleFeedback, {
-  middleware: [authMiddleware, guard({ permission: 'ai:feedback:handle' })],
   handler: async (c) => {
     const { msgId } = c.req.valid('param');
     const { status, remark } = c.req.valid('json');
@@ -82,7 +71,6 @@ const updateFeedback = defineContractRoute(aiConversationContract.handleFeedback
 });
 
 const exportConv = defineContractRoute(aiConversationContract.exportFile, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { format } = c.req.valid('query');
@@ -92,7 +80,6 @@ const exportConv = defineContractRoute(aiConversationContract.exportFile, {
 });
 
 const deleteMsg = defineContractRoute(aiConversationContract.removeMessage, {
-  middleware: authed,
   handler: async (c) => {
     const { id, msgId } = c.req.valid('param');
     await deleteMessage(id, msgId);
@@ -101,7 +88,6 @@ const deleteMsg = defineContractRoute(aiConversationContract.removeMessage, {
 });
 
 const deleteMsgCascade = defineContractRoute(aiConversationContract.removeMessageCascade, {
-  middleware: authed,
   handler: async (c) => {
     const { id, msgId } = c.req.valid('param');
     await deleteMessageCascade(id, msgId);
@@ -110,7 +96,6 @@ const deleteMsgCascade = defineContractRoute(aiConversationContract.removeMessag
 });
 
 const rename = defineContractRoute(aiConversationContract.rename, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { title } = c.req.valid('json');
@@ -120,7 +105,6 @@ const rename = defineContractRoute(aiConversationContract.rename, {
 });
 
 const togglePin = defineContractRoute(aiConversationContract.pin, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const isPinned = await togglePinConversation(id);
@@ -129,7 +113,6 @@ const togglePin = defineContractRoute(aiConversationContract.pin, {
 });
 
 const toggleArchive = defineContractRoute(aiConversationContract.archive, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const isArchived = await toggleArchiveConversation(id);
@@ -138,7 +121,6 @@ const toggleArchive = defineContractRoute(aiConversationContract.archive, {
 });
 
 const setSystemPrompt = defineContractRoute(aiConversationContract.setSystemPrompt, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { systemPrompt } = c.req.valid('json');
@@ -149,7 +131,7 @@ const setSystemPrompt = defineContractRoute(aiConversationContract.setSystemProm
 
 mountCrud(router, aiConversationContract,
   { list: listConversations, get: getConversation, create: createConversation, remove: deleteConversation },
-  { permission: null, audit: null, messages: { create: null } },
+  { messages: { create: null } },
   [
     getMessages,
     rename,

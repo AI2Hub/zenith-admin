@@ -155,15 +155,15 @@ export const directorySyncSourceListQuery = paginationQuery.extend({
 });
 
 export const directorySyncSourceContract = defineContract('/api/directory-sync/sources', {
-  list: op.get('/', { query: directorySyncSourceListQuery, response: paginated(directorySyncSourceSchema), summary: '同步源列表' }),
-  create: op.post('/', { body: createDirectorySyncSourceSchema, response: directorySyncSourceSchema, summary: '创建同步源' }),
-  detail: op.get('/{id}', { params: idParam, response: directorySyncSourceSchema, summary: '同步源详情' }),
-  update: op.put('/{id}', { params: idParam, body: updateDirectorySyncSourceSchema, response: directorySyncSourceSchema, summary: '更新同步源' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除同步源' }),
-  test: op.post('/{id}/test', { params: idParam, response: directorySyncConnectionTestSchema, summary: '测试同步源连接' }),
-  preview: op.post('/{id}/preview', { params: idParam, response: asyncTaskSchema, summary: '预览差异（dry-run，任务中心执行）' }),
-  run: op.post('/{id}/run', { params: idParam, response: asyncTaskSchema, summary: '立即同步（任务中心执行）' }),
-}, { tags: ['通讯录同步'] });
+  list: op.get('/', { access: { permission: 'system:dirsync-source:list' }, query: directorySyncSourceListQuery, response: paginated(directorySyncSourceSchema), summary: '同步源列表' }),
+  create: op.post('/', { access: { permission: 'system:dirsync-source:create' }, audit: '创建通讯录同步源', body: createDirectorySyncSourceSchema, response: directorySyncSourceSchema, summary: '创建同步源' }),
+  detail: op.get('/{id}', { access: { permission: 'system:dirsync-source:list' }, params: idParam, response: directorySyncSourceSchema, summary: '同步源详情' }),
+  update: op.put('/{id}', { access: { permission: 'system:dirsync-source:edit' }, audit: '更新通讯录同步源', params: idParam, body: updateDirectorySyncSourceSchema, response: directorySyncSourceSchema, summary: '更新同步源' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:dirsync-source:delete' }, audit: '删除通讯录同步源', params: idParam, summary: '删除同步源' }),
+  test: op.post('/{id}/test', { access: { permission: 'system:dirsync-source:test' }, params: idParam, response: directorySyncConnectionTestSchema, summary: '测试同步源连接' }),
+  preview: op.post('/{id}/preview', { access: { permission: 'system:dirsync-source:preview' }, audit: '预览通讯录同步差异', params: idParam, response: asyncTaskSchema, summary: '预览差异（dry-run，任务中心执行）' }),
+  run: op.post('/{id}/run', { access: { permission: 'system:dirsync-source:run' }, audit: '手动触发通讯录同步', params: idParam, response: asyncTaskSchema, summary: '立即同步（任务中心执行）' }),
+}, { auditModule: '通讯录同步', tags: ['通讯录同步'] });
 
 // ─── 契约：同步记录 / 冲突 ───────────────────────────────────────────────────
 
@@ -185,11 +185,11 @@ export const directorySyncConflictListQuery = paginationQuery.extend({
 });
 
 export const directorySyncContract = defineContract('/api/directory-sync', {
-  listRuns: op.get('/runs', { query: directorySyncRunListQuery, response: paginated(directorySyncRunSchema), summary: '同步记录列表' }),
-  runDetail: op.get('/runs/{id}', { params: idParam, response: directorySyncRunSchema, summary: '同步记录详情' }),
-  listRunItems: op.get('/runs/{id}/items', { params: idParam, query: directorySyncRunItemListQuery, response: paginated(directorySyncRunItemSchema), summary: '同步记录差异明细' }),
-  retryRun: op.post('/runs/{id}/retry', { params: idParam, response: asyncTaskSchema, summary: '失败重试（对所属源重新执行同步）' }),
-  listConflicts: op.get('/conflicts', { query: directorySyncConflictListQuery, response: paginated(directorySyncConflictSchema), summary: '冲突列表' }),
-  ignoreConflicts: op.post('/conflicts/ignore', { body: batchIdsBody, summary: '批量忽略冲突' }),
-  resolveConflict: op.post('/conflicts/{id}/resolve', { params: idParam, body: resolveDirectorySyncConflictSchema, response: directorySyncConflictSchema, summary: '裁决冲突' }),
-}, { tags: ['通讯录同步'] });
+  listRuns: op.get('/runs', { access: { permission: 'system:dirsync-log:list' }, query: directorySyncRunListQuery, response: paginated(directorySyncRunSchema), summary: '同步记录列表' }),
+  runDetail: op.get('/runs/{id}', { access: { permission: 'system:dirsync-log:list' }, params: idParam, response: directorySyncRunSchema, summary: '同步记录详情' }),
+  listRunItems: op.get('/runs/{id}/items', { access: { permission: 'system:dirsync-log:detail' }, params: idParam, query: directorySyncRunItemListQuery, response: paginated(directorySyncRunItemSchema), summary: '同步记录差异明细' }),
+  retryRun: op.post('/runs/{id}/retry', { access: { permission: 'system:dirsync-log:retry' }, audit: '重试通讯录同步', params: idParam, response: asyncTaskSchema, summary: '失败重试（对所属源重新执行同步）' }),
+  listConflicts: op.get('/conflicts', { access: { permission: 'system:dirsync-conflict:list' }, query: directorySyncConflictListQuery, response: paginated(directorySyncConflictSchema), summary: '冲突列表' }),
+  ignoreConflicts: op.post('/conflicts/ignore', { access: { permission: 'system:dirsync-conflict:ignore' }, audit: '批量忽略通讯录同步冲突', body: batchIdsBody, summary: '批量忽略冲突' }),
+  resolveConflict: op.post('/conflicts/{id}/resolve', { access: { permission: 'system:dirsync-conflict:resolve' }, audit: '裁决通讯录同步冲突', params: idParam, body: resolveDirectorySyncConflictSchema, response: directorySyncConflictSchema, summary: '裁决冲突' }),
+}, { auditModule: '通讯录同步', tags: ['通讯录同步'] });

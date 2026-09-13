@@ -39,10 +39,10 @@ export type MpMenuTryMatch = z.infer<typeof mpMenuTryMatchSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const mpConditionalMenuContract = defineContract('/api/mp/conditional-menus', {
-  list: op.get('/', { query: mpAccountIdQuery, response: z.array(mpConditionalMenuSchema), summary: '个性化菜单列表' }),
-  tryMatch: op.post('/trymatch', { body: tryMatchMpMenuSchema, response: mpMenuTryMatchSchema, summary: '菜单匹配测试' }),
-  create: op.post('/', { body: createMpConditionalMenuSchema, response: mpConditionalMenuSchema, summary: '新增个性化菜单' }),
-  update: op.put('/{id}', { params: idParam, body: updateMpConditionalMenuSchema, response: mpConditionalMenuSchema, summary: '编辑个性化菜单' }),
-  publish: op.post('/{id}/publish', { params: idParam, response: mpConditionalMenuSchema, summary: '发布个性化菜单' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除个性化菜单' }),
-}, { tags: ['公众号个性化菜单'] });
+  list: op.get('/', { access: { permission: 'mp:condmenu:list' }, query: mpAccountIdQuery, response: z.array(mpConditionalMenuSchema), summary: '个性化菜单列表' }),
+  tryMatch: op.post('/trymatch', { access: { permission: 'mp:condmenu:list' }, body: tryMatchMpMenuSchema, response: mpMenuTryMatchSchema, summary: '菜单匹配测试' }),
+  create: op.post('/', { access: { permission: 'mp:condmenu:create' }, audit: '新增个性化菜单', body: createMpConditionalMenuSchema, response: mpConditionalMenuSchema, summary: '新增个性化菜单' }),
+  update: op.put('/{id}', { access: { permission: 'mp:condmenu:update' }, audit: '编辑个性化菜单', params: idParam, body: updateMpConditionalMenuSchema, response: mpConditionalMenuSchema, summary: '编辑个性化菜单' }),
+  publish: op.post('/{id}/publish', { access: { permission: 'mp:condmenu:publish' }, audit: '发布个性化菜单', params: idParam, response: mpConditionalMenuSchema, summary: '发布个性化菜单' }),
+  remove: op.delete('/{id}', { access: { permission: 'mp:condmenu:delete' }, audit: '删除个性化菜单', params: idParam, summary: '删除个性化菜单' }),
+}, { auditModule: '公众号个性化菜单', tags: ['公众号个性化菜单'] });

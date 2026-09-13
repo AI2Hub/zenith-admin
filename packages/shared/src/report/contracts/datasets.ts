@@ -183,21 +183,22 @@ export const reportDatasetListQuery = paginationQuery.extend({
 });
 
 export const reportDatasetContract = defineContract('/api/report/datasets', {
-  list: op.get('/', { query: reportDatasetListQuery, response: paginated(reportDatasetSchema), summary: '数据集列表' }),
-  lookup: op.get('/lookup', { query: reportLookupQuerySchema, response: z.array(reportLookupOptionSchema), summary: '数据集轻量下拉' }),
-  preview: op.post('/preview', { body: reportDatasetPreviewSchema, response: reportDataResultSchema, summary: '试跑预览（不落库）' }),
+  list: op.get('/', { access: { permission: 'report:dataset:list' }, query: reportDatasetListQuery, response: paginated(reportDatasetSchema), summary: '数据集列表' }),
+  lookup: op.get('/lookup', { access: { permission: 'report:dataset:list' }, query: reportLookupQuerySchema, response: z.array(reportLookupOptionSchema), summary: '数据集轻量下拉' }),
+  preview: op.post('/preview', { access: { permission: ['report:dataset:create', 'report:dataset:update'] }, body: reportDatasetPreviewSchema, response: reportDataResultSchema, summary: '试跑预览（不落库）' }),
   parseFile: op.post('/parse-file', {
+    access: { permission: 'report:dataset:create' },
     body: multipart(z.object({ file: fileField('Excel（.xlsx）或 CSV 文件，最大 20MB') })),
     response: reportDataResultSchema,
     summary: '解析上传的文件数据集（Excel / CSV → 列与数据行）',
   }),
-  data: op.post('/{id}/data', { params: idParam, body: reportDatasetDataBodySchema, response: reportDataResultSchema, summary: '取数据集数据（带参数）' }),
-  batchStatus: op.put('/batch-status', { body: reportBatchStatusSchema, summary: '批量启停数据集' }),
-  materialize: op.post('/{id}/materialize', { params: idParam, response: asyncTaskSchema, summary: '手动刷新物化快照' }),
-  refs: op.get('/{id}/refs', { params: idParam, response: reportDatasetRefsSchema, summary: '数据集下游引用（血缘）' }),
-  detail: op.get('/{id}', { params: idParam, response: reportDatasetSchema, summary: '数据集详情' }),
-  create: op.post('/', { body: createReportDatasetSchema, response: reportDatasetSchema, summary: '创建数据集' }),
-  update: op.put('/{id}', { params: idParam, body: updateReportDatasetSchema, response: reportDatasetSchema, summary: '更新数据集' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除数据集' }),
-  clone: op.post('/{id}/clone', { params: idParam, body: reportCloneSchema, response: reportDatasetSchema, summary: '复制数据集' }),
-}, { tags: ['报表数据集'] });
+  data: op.post('/{id}/data', { access: { permission: 'report:dataset:list' }, params: idParam, body: reportDatasetDataBodySchema, response: reportDataResultSchema, summary: '取数据集数据（带参数）' }),
+  batchStatus: op.put('/batch-status', { access: { permission: 'report:dataset:update' }, audit: '批量更新报表数据集状态', body: reportBatchStatusSchema, summary: '批量启停数据集' }),
+  materialize: op.post('/{id}/materialize', { access: { permission: 'report:dataset:update' }, params: idParam, response: asyncTaskSchema, summary: '手动刷新物化快照' }),
+  refs: op.get('/{id}/refs', { access: { permission: 'report:dataset:list' }, params: idParam, response: reportDatasetRefsSchema, summary: '数据集下游引用（血缘）' }),
+  detail: op.get('/{id}', { access: { permission: 'report:dataset:list' }, params: idParam, response: reportDatasetSchema, summary: '数据集详情' }),
+  create: op.post('/', { access: { permission: 'report:dataset:create' }, audit: '创建报表数据集', body: createReportDatasetSchema, response: reportDatasetSchema, summary: '创建数据集' }),
+  update: op.put('/{id}', { access: { permission: 'report:dataset:update' }, audit: '更新报表数据集', params: idParam, body: updateReportDatasetSchema, response: reportDatasetSchema, summary: '更新数据集' }),
+  remove: op.delete('/{id}', { access: { permission: 'report:dataset:delete' }, audit: '删除报表数据集', params: idParam, summary: '删除数据集' }),
+  clone: op.post('/{id}/clone', { access: { permission: 'report:dataset:create' }, audit: '复制报表数据集', params: idParam, body: reportCloneSchema, response: reportDatasetSchema, summary: '复制数据集' }),
+}, { auditModule: '报表数据集', tags: ['报表数据集'] });

@@ -63,6 +63,6 @@ export const pushSendLogStatsQuery = z.object({
 });
 
 export const pushSendLogContract = defineContract('/api/push-send-logs', {
-  list: op.get('/', { query: pushSendLogListQuery, response: paginated(pushSendLogSchema), summary: '推送发送记录' }),
-  stats: op.get('/stats', { query: pushSendLogStatsQuery, response: pushSendLogStatsSchema, summary: '推送统计（窗口汇总 + 按日趋势）' }),
+  list: op.get('/', { access: { permission: 'system:push-log:list' }, query: pushSendLogListQuery, response: paginated(pushSendLogSchema), summary: '推送发送记录' }),
+  stats: op.get('/stats', { access: { permission: 'system:push-log:list' }, query: pushSendLogStatsQuery, response: pushSendLogStatsSchema, summary: '推送统计（窗口汇总 + 按日趋势）' }),
 }, { tags: ['推送管理'] });

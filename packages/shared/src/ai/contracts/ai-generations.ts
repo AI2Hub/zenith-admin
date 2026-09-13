@@ -15,11 +15,12 @@ export const aiGenerationStreamQuery = z.object({
 
 export const aiGenerationContract = defineContract('/api/ai/generations', {
   stream: op.get('/{genId}/stream', {
+    access: 'authenticated',
     params: aiGenerationIdParam,
     query: aiGenerationStreamQuery,
     kind: 'sse',
     response: z.string(),
     summary: 'SSE 恢复流：断线 / 刷新后从指定 offset 继续接收生成事件',
   }),
-  cancel: op.post('/{genId}/cancel', { params: aiGenerationIdParam, summary: '停止生成（保存已生成部分）' }),
+  cancel: op.post('/{genId}/cancel', { access: 'authenticated', params: aiGenerationIdParam, summary: '停止生成（保存已生成部分）' }),
 }, { tags: ['AI'] });

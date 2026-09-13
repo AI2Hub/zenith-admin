@@ -17,5 +17,5 @@ export type MpJsConfig = z.infer<typeof mpJsConfigSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const mpJsSdkContract = defineContract('/api/mp/jssdk', {
-  config: op.post('/config', { body: getMpJsConfigSchema, response: mpJsConfigSchema, summary: '生成 JS-SDK wx.config 签名' }),
+  config: op.post('/config', { access: { permission: 'mp:jssdk:config' }, body: getMpJsConfigSchema, response: mpJsConfigSchema, summary: '生成 JS-SDK wx.config 签名' }),
 }, { tags: ['公众号 JS-SDK'] });

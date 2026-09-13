@@ -26,8 +26,8 @@ export type CheckinMilestone = z.infer<typeof checkinMilestoneSchema>;
 // ─── 契约（后台） ────────────────────────────────────────────────────────────
 
 export const checkinMilestoneContract = defineContract('/api/checkin-milestones', {
-  list: op.get('/', { response: z.array(checkinMilestoneSchema), summary: '签到里程碑列表' }),
-  create: op.post('/', { body: createCheckinMilestoneSchema, response: checkinMilestoneSchema, summary: '创建签到里程碑' }),
-  update: op.put('/{id}', { params: idParam, body: updateCheckinMilestoneSchema, response: checkinMilestoneSchema, summary: '更新签到里程碑' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除签到里程碑' }),
-}, { tags: ['会员签到'] });
+  list: op.get('/', { access: { permission: 'member:checkin:milestone:list' }, response: z.array(checkinMilestoneSchema), summary: '签到里程碑列表' }),
+  create: op.post('/', { access: { permission: 'member:checkin:milestone:create' }, audit: '创建签到里程碑', body: createCheckinMilestoneSchema, response: checkinMilestoneSchema, summary: '创建签到里程碑' }),
+  update: op.put('/{id}', { access: { permission: 'member:checkin:milestone:update' }, audit: '更新签到里程碑', params: idParam, body: updateCheckinMilestoneSchema, response: checkinMilestoneSchema, summary: '更新签到里程碑' }),
+  remove: op.delete('/{id}', { access: { permission: 'member:checkin:milestone:delete' }, audit: '删除签到里程碑', params: idParam, summary: '删除签到里程碑' }),
+}, { auditModule: '会员签到', tags: ['会员签到'] });

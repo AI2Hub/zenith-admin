@@ -43,10 +43,10 @@ export const reportFolderTreeQuery = z.object({
 });
 
 export const reportFolderContract = defineContract('/api/report/folders', {
-  tree: op.get('/tree', { query: reportFolderTreeQuery, response: z.array(reportFolderTreeNodeSchema), summary: '资源目录树' }),
-  detail: op.get('/{id}', { params: idParam, response: reportFolderSchema, summary: '资源目录详情' }),
-  create: op.post('/', { body: createReportFolderSchema, response: reportFolderSchema, summary: '创建资源目录' }),
-  update: op.put('/{id}', { params: idParam, body: updateReportFolderSchema, response: reportFolderSchema, summary: '更新资源目录' }),
-  move: op.post('/{id}/move', { params: idParam, body: moveReportFolderSchema, response: reportFolderSchema, summary: '移动资源目录' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除资源目录' }),
-}, { tags: ['报表资源目录'] });
+  tree: op.get('/tree', { access: { permission: 'report:folder:list' }, query: reportFolderTreeQuery, response: z.array(reportFolderTreeNodeSchema), summary: '资源目录树' }),
+  detail: op.get('/{id}', { access: { permission: 'report:folder:list' }, params: idParam, response: reportFolderSchema, summary: '资源目录详情' }),
+  create: op.post('/', { access: { permission: 'report:folder:create' }, audit: '创建报表资源目录', body: createReportFolderSchema, response: reportFolderSchema, summary: '创建资源目录' }),
+  update: op.put('/{id}', { access: { permission: 'report:folder:update' }, audit: '更新报表资源目录', params: idParam, body: updateReportFolderSchema, response: reportFolderSchema, summary: '更新资源目录' }),
+  move: op.post('/{id}/move', { access: { permission: 'report:folder:update' }, audit: '移动报表资源目录', params: idParam, body: moveReportFolderSchema, response: reportFolderSchema, summary: '移动资源目录' }),
+  remove: op.delete('/{id}', { access: { permission: 'report:folder:delete' }, audit: '删除报表资源目录', params: idParam, summary: '删除资源目录' }),
+}, { auditModule: '报表资源治理', tags: ['报表资源目录'] });

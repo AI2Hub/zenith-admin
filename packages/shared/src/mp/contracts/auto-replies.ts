@@ -53,10 +53,10 @@ export const mpUnmatchedKeywordListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const mpAutoReplyContract = defineContract('/api/mp/auto-replies', {
-  unmatched: op.get('/unmatched', { query: mpUnmatchedKeywordListQuery, response: paginated(mpUnmatchedKeywordSchema), summary: '未命中热词列表' }),
-  removeUnmatched: op.delete('/unmatched/{id}', { params: idParam, summary: '删除未命中热词' }),
-  list: op.get('/', { query: mpAutoReplyListQuery, response: paginated(mpAutoReplySchema), summary: '自动回复列表' }),
-  create: op.post('/', { body: createMpAutoReplySchema, response: mpAutoReplySchema, summary: '创建自动回复' }),
-  update: op.put('/{id}', { params: idParam, body: updateMpAutoReplySchema, response: mpAutoReplySchema, summary: '更新自动回复' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除自动回复' }),
-}, { tags: ['公众号自动回复'] });
+  unmatched: op.get('/unmatched', { access: { permission: 'mp:reply:list' }, query: mpUnmatchedKeywordListQuery, response: paginated(mpUnmatchedKeywordSchema), summary: '未命中热词列表' }),
+  removeUnmatched: op.delete('/unmatched/{id}', { access: { permission: 'mp:reply:delete' }, audit: '删除未命中热词', params: idParam, summary: '删除未命中热词' }),
+  list: op.get('/', { access: { permission: 'mp:reply:list' }, query: mpAutoReplyListQuery, response: paginated(mpAutoReplySchema), summary: '自动回复列表' }),
+  create: op.post('/', { access: { permission: 'mp:reply:create' }, audit: '创建自动回复', body: createMpAutoReplySchema, response: mpAutoReplySchema, summary: '创建自动回复' }),
+  update: op.put('/{id}', { access: { permission: 'mp:reply:update' }, audit: '更新自动回复', params: idParam, body: updateMpAutoReplySchema, response: mpAutoReplySchema, summary: '更新自动回复' }),
+  remove: op.delete('/{id}', { access: { permission: 'mp:reply:delete' }, audit: '删除自动回复', params: idParam, summary: '删除自动回复' }),
+}, { auditModule: '公众号自动回复', tags: ['公众号自动回复'] });

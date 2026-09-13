@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { terminalRecordingContract } from '@zenith/shared/ops';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { currentUser } from '../../lib/context';
 import { defineContractRoute } from '../../lib/contract-route';
 import { fileBody, okBody, validationHook } from '../../lib/openapi-schemas';
@@ -18,12 +17,7 @@ import { mountCrud } from '../_crud';
 
 const recordingsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const PERM = 'system:terminal:execute';
-
-const read = [authMiddleware, guard({ permission: PERM })] as const;
-
 const createRoute_ = defineContractRoute(terminalRecordingContract.create, {
-  middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '保存终端录屏', module: 'Web 终端', recordBody: false } })],
   handler: async (c) => {
     const user = currentUser();
     const body = c.req.valid('json');
@@ -41,7 +35,6 @@ const createRoute_ = defineContractRoute(terminalRecordingContract.create, {
 });
 
 const getRoute = defineContractRoute(terminalRecordingContract.detail, {
-  middleware: read,
   handler: async (c) => {
     const id = Number(c.req.valid('param').id);
     return c.json(okBody(await getRecording(id)), 200);
@@ -49,7 +42,6 @@ const getRoute = defineContractRoute(terminalRecordingContract.detail, {
 });
 
 const deleteRoute = defineContractRoute(terminalRecordingContract.remove, {
-  middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '删除终端录屏', module: 'Web 终端' } })],
   handler: async (c) => {
     const id = Number(c.req.valid('param').id);
     setAuditBeforeData(c, await getRecordingBeforeAudit(id));
@@ -59,7 +51,6 @@ const deleteRoute = defineContractRoute(terminalRecordingContract.remove, {
 });
 
 const exportAsciinemaRoute = defineContractRoute(terminalRecordingContract.asciinema, {
-  middleware: read,
   handler: async (c) => {
     const result = await exportRecordingAsciinema(Number(c.req.valid('param').id));
     return fileBody(result.content, result.filename, result.contentType);
@@ -67,7 +58,6 @@ const exportAsciinemaRoute = defineContractRoute(terminalRecordingContract.ascii
 });
 
 const cleanRoute = defineContractRoute(terminalRecordingContract.clean, {
-  middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '清除终端录屏', module: 'Web 终端' } })],
   handler: async (c) => {
     const { days } = c.req.valid('query');
     const deleted = await cleanRecordings(days);
@@ -79,7 +69,7 @@ const cleanRoute = defineContractRoute(terminalRecordingContract.clean, {
 // 静态 DELETE /clean 必须先于 DELETE /{id} 注册
 mountCrud(recordingsRouter, terminalRecordingContract,
   { list: listRecordings },
-  { permission: { read: PERM }, exclude: ['detail', 'create', 'remove'] },
+  { exclude: ['detail', 'create', 'remove'] },
   [createRoute_, cleanRoute, exportAsciinemaRoute, getRoute, deleteRoute],
 );
 

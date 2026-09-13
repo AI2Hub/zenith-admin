@@ -91,17 +91,17 @@ export const driveSpaceListQuery = paginationQuery.extend({
 });
 
 export const driveSpaceContract = defineContract('/api/drive/spaces', {
-  my: op.get('/my', { response: z.array(driveSpaceSchema), summary: '我可访问的空间（个人 / 部门 / 协作）' }),
-  list: op.get('/', { query: driveSpaceListQuery, response: paginated(driveSpaceSchema), summary: '共享空间分页（当前用户可访问的部门 / 协作空间）' }),
-  detail: op.get('/{id}', { params: idParam, response: driveSpaceSchema, summary: '空间详情（含 myRole 与用量）' }),
-  create: op.post('/', { body: createDriveSpaceSchema, response: driveSpaceSchema, summary: '创建协作空间' }),
-  update: op.put('/{id}', { params: idParam, body: updateDriveSpaceSchema, response: driveSpaceSchema, summary: '更新空间（需空间 manager）' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除空空间（需空间 manager）' }),
-  members: op.get('/{id}/members', { params: idParam, response: z.array(driveSpaceMemberSchema), summary: '空间成员' }),
-  saveMembers: op.put('/{id}/members', { params: idParam, body: saveDriveSpaceMembersSchema, summary: '全量保存空间成员（需空间 manager）' }),
-  transfer: op.post('/{id}/transfer', { params: idParam, body: transferDriveSpaceSchema, response: driveSpaceSchema, summary: '转让协作空间' }),
-  archive: op.post('/{id}/archive', { params: idParam, response: driveSpaceSchema, summary: '归档空间：只读，不可上传 / 修改 / 分享（需空间 manager）' }),
-  unarchive: op.post('/{id}/unarchive', { params: idParam, response: driveSpaceSchema, summary: '恢复归档（需空间 manager）' }),
-  requestQuota: op.post('/{id}/quota-requests', { params: idParam, body: createDriveQuotaRequestSchema, response: driveQuotaRequestSchema, summary: '申请扩容（需空间 manager；由网盘管理员审批）' }),
-  quotaRequests: op.get('/{id}/quota-requests', { params: idParam, response: z.array(driveQuotaRequestSchema), summary: '该空间的扩容申请记录' }),
-}, { tags: ['企业网盘-空间'] });
+  my: op.get('/my', { access: { permission: 'drive:node:list' }, response: z.array(driveSpaceSchema), summary: '我可访问的空间（个人 / 部门 / 协作）' }),
+  list: op.get('/', { access: { permission: 'drive:space:list' }, query: driveSpaceListQuery, response: paginated(driveSpaceSchema), summary: '共享空间分页（当前用户可访问的部门 / 协作空间）' }),
+  detail: op.get('/{id}', { access: { permission: 'drive:node:list' }, params: idParam, response: driveSpaceSchema, summary: '空间详情（含 myRole 与用量）' }),
+  create: op.post('/', { access: { permission: 'drive:space:create' }, audit: '创建协作空间', body: createDriveSpaceSchema, response: driveSpaceSchema, summary: '创建协作空间' }),
+  update: op.put('/{id}', { access: { permission: 'drive:space:edit' }, audit: '更新网盘空间', params: idParam, body: updateDriveSpaceSchema, response: driveSpaceSchema, summary: '更新空间（需空间 manager）' }),
+  remove: op.delete('/{id}', { access: { permission: 'drive:space:delete' }, audit: '删除网盘空间', params: idParam, summary: '删除空空间（需空间 manager）' }),
+  members: op.get('/{id}/members', { access: { permission: 'drive:node:list' }, params: idParam, response: z.array(driveSpaceMemberSchema), summary: '空间成员' }),
+  saveMembers: op.put('/{id}/members', { access: { permission: 'drive:space:grant' }, audit: '保存网盘空间成员', params: idParam, body: saveDriveSpaceMembersSchema, summary: '全量保存空间成员（需空间 manager）' }),
+  transfer: op.post('/{id}/transfer', { access: { permission: 'drive:space:edit' }, audit: '转让网盘空间', params: idParam, body: transferDriveSpaceSchema, response: driveSpaceSchema, summary: '转让协作空间' }),
+  archive: op.post('/{id}/archive', { access: { permission: 'drive:space:edit' }, audit: '归档网盘空间', params: idParam, response: driveSpaceSchema, summary: '归档空间：只读，不可上传 / 修改 / 分享（需空间 manager）' }),
+  unarchive: op.post('/{id}/unarchive', { access: { permission: 'drive:space:edit' }, audit: '恢复归档网盘空间', params: idParam, response: driveSpaceSchema, summary: '恢复归档（需空间 manager）' }),
+  requestQuota: op.post('/{id}/quota-requests', { access: { permission: 'drive:space:edit' }, audit: '申请网盘空间扩容', params: idParam, body: createDriveQuotaRequestSchema, response: driveQuotaRequestSchema, summary: '申请扩容（需空间 manager；由网盘管理员审批）' }),
+  quotaRequests: op.get('/{id}/quota-requests', { access: { permission: 'drive:node:list' }, params: idParam, response: z.array(driveQuotaRequestSchema), summary: '该空间的扩容申请记录' }),
+}, { auditModule: '企业网盘', tags: ['企业网盘-空间'] });

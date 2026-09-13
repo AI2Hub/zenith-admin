@@ -82,28 +82,31 @@ export const paymentReconSampleBillQuery = z.object({
 
 /** 对账批次是本组的主资源：list / detail / create / remove 均指批次 */
 export const paymentReconContract = defineContract('/api/payment/recon', {
-  list: op.get('/batches', { query: paymentReconBatchListQuery, response: paginated(paymentReconBatchSchema), summary: '对账批次列表' }),
-  create: op.post('/batches', { body: createPaymentReconBatchSchema, response: paymentReconBatchSchema, summary: '创建对账批次（上传渠道账单逐笔比对）' }),
+  list: op.get('/batches', { access: { permission: 'payment:recon:list' }, query: paymentReconBatchListQuery, response: paginated(paymentReconBatchSchema), summary: '对账批次列表' }),
+  create: op.post('/batches', { access: { permission: 'payment:recon:create' }, audit: { description: '创建支付对账批次', recordBody: false }, body: createPaymentReconBatchSchema, response: paymentReconBatchSchema, summary: '创建对账批次（上传渠道账单逐笔比对）' }),
   sampleBill: op.get('/sample-bill', {
+    access: { permission: 'payment:recon:create' },
     query: paymentReconSampleBillQuery,
     response: paymentReconSampleBillSchema,
     summary: '生成模拟渠道账单（演示/模板）',
     description: '基于本地订单生成一份 CSV 渠道账单，用于演示对账或作为账单格式模板。',
   }),
   auto: op.post('/auto', {
+    access: { permission: 'payment:recon:create' }, audit: '自动拉取渠道账单对账',
     body: autoPaymentReconSchema,
     response: paymentReconBatchSchema,
     summary: '自动拉取渠道账单并对账',
     description: '沙箱渠道用本地订单生成模拟账单（演示闭环）；生产渠道调用渠道账单下载 API（微信交易账单；支付宝暂不支持需手动上传）。',
   }),
-  detail: op.get('/batches/{id}', { params: idParam, response: paymentReconBatchSchema, summary: '对账批次详情' }),
-  items: op.get('/batches/{id}/items', { params: idParam, query: paymentReconItemListQuery, response: paginated(paymentReconItemSchema), summary: '对账明细（可按差异类型筛选）' }),
+  detail: op.get('/batches/{id}', { access: { permission: 'payment:recon:list' }, params: idParam, response: paymentReconBatchSchema, summary: '对账批次详情' }),
+  items: op.get('/batches/{id}/items', { access: { permission: 'payment:recon:list' }, params: idParam, query: paymentReconItemListQuery, response: paginated(paymentReconItemSchema), summary: '对账明细（可按差异类型筛选）' }),
   handleItem: op.patch('/items/{id}/handle', {
+    access: { permission: 'payment:recon:handle' }, audit: '处理支付对账差异',
     params: idParam,
     body: handlePaymentReconItemSchema,
     response: paymentReconItemSchema,
     summary: '处理对账差异（调账/挂账/忽略）',
     description: '将待处理差异流转为已调账/挂账/已忽略；处理原因必填。仅由真实渠道适配器下载的账单允许选择「已调账」并原子写入双分录凭证，人工上传和沙箱模拟账单只能挂账或忽略。',
   }),
-  remove: op.delete('/batches/{id}', { params: idParam, summary: '删除对账批次' }),
-}, { tags: ['支付中心-对账'] });
+  remove: op.delete('/batches/{id}', { access: { permission: 'payment:recon:delete' }, audit: '删除支付对账批次', params: idParam, summary: '删除对账批次' }),
+}, { auditModule: '支付中心', tags: ['支付中心-对账'] });

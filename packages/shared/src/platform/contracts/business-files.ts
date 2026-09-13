@@ -38,6 +38,6 @@ const businessFileItemParams = businessFileParams.extend({
 });
 
 export const businessFileContract = defineContract('/api/business-files', {
-  list: op.get('/{businessType}/{businessId}', { params: businessFileParams, response: z.array(businessFileSchema), summary: '获取业务附件列表' }),
-  remove: op.delete('/{businessType}/{businessId}/{fileId}', { params: businessFileItemParams, summary: '移除业务附件' }),
-}, { tags: ['Business Files'] });
+  list: op.get('/{businessType}/{businessId}', { access: 'authenticated', params: businessFileParams, response: z.array(businessFileSchema), summary: '获取业务附件列表' }),
+  remove: op.delete('/{businessType}/{businessId}/{fileId}', { access: { permission: 'system:file:delete' }, audit: '移除业务附件', params: businessFileItemParams, summary: '移除业务附件' }),
+}, { auditModule: '文件管理', tags: ['Business Files'] });

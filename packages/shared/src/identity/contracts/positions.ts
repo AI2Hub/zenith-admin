@@ -46,14 +46,14 @@ export const positionListQuery = paginationQuery.extend({
 });
 
 export const positionContract = defineContract('/api/positions', {
-  all: op.get('/all', { response: z.array(positionSchema), summary: '全量岗位（供下拉框）' }),
-  list: op.get('/', { query: positionListQuery, response: paginated(positionSchema), summary: '岗位列表' }),
-  detail: op.get('/{id}', { params: idParam, response: positionSchema, summary: '岗位详情' }),
-  create: op.post('/', { body: createPositionSchema, response: positionSchema, summary: '创建岗位' }),
-  update: op.put('/{id}', { params: idParam, body: updatePositionSchema, response: positionSchema, summary: '更新岗位' }),
-  removeBatch: op.delete('/batch', { body: batchIdsBody, summary: '批量删除岗位' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除岗位' }),
-  members: op.get('/{id}/members', { params: idParam, response: z.array(positionMemberSchema), summary: '获取岗位成员' }),
-  memberPreview: memberPreviewOp('岗位成员分页预览'),
-  setMembers: op.put('/{id}/members', { params: idParam, body: scopeUserIdsSchema, summary: '设置岗位成员（全量覆盖）' }),
-}, { tags: ['Positions'] });
+  all: op.get('/all', { access: { permission: 'system:position:list' }, response: z.array(positionSchema), summary: '全量岗位（供下拉框）' }),
+  list: op.get('/', { access: { permission: 'system:position:list' }, query: positionListQuery, response: paginated(positionSchema), summary: '岗位列表' }),
+  detail: op.get('/{id}', { access: { permission: 'system:position:list' }, params: idParam, response: positionSchema, summary: '岗位详情' }),
+  create: op.post('/', { access: { permission: 'system:position:create' }, audit: '创建岗位', body: createPositionSchema, response: positionSchema, summary: '创建岗位' }),
+  update: op.put('/{id}', { access: { permission: 'system:position:update' }, audit: '更新岗位', params: idParam, body: updatePositionSchema, response: positionSchema, summary: '更新岗位' }),
+  removeBatch: op.delete('/batch', { access: { permission: 'system:position:delete' }, audit: '批量删除岗位', body: batchIdsBody, summary: '批量删除岗位' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:position:delete' }, audit: '删除岗位', params: idParam, summary: '删除岗位' }),
+  members: op.get('/{id}/members', { access: { permission: 'system:position:list' }, params: idParam, response: z.array(positionMemberSchema), summary: '获取岗位成员' }),
+  memberPreview: memberPreviewOp('岗位成员分页预览', 'system:position:list'),
+  setMembers: op.put('/{id}/members', { access: { permission: 'system:position:update' }, audit: '设置岗位成员', params: idParam, body: scopeUserIdsSchema, summary: '设置岗位成员（全量覆盖）' }),
+}, { auditModule: '岗位管理', tags: ['Positions'] });

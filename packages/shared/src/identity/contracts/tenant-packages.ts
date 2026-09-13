@@ -37,12 +37,12 @@ export const tenantPackageListQuery = paginationQuery.extend({
 });
 
 export const tenantPackageContract = defineContract('/api/tenant-packages', {
-  list: op.get('/', { query: tenantPackageListQuery, response: paginated(tenantPackageSchema), summary: '租户套餐列表' }),
-  all: op.get('/all', { response: z.array(tenantPackageOptionSchema), summary: '全部租户套餐' }),
-  detail: op.get('/{id}', { params: idParam, response: tenantPackageSchema, summary: '租户套餐详情' }),
-  create: op.post('/', { body: createTenantPackageSchema, response: tenantPackageSchema, summary: '创建租户套餐' }),
-  update: op.put('/{id}', { params: idParam, body: updateTenantPackageSchema, response: tenantPackageSchema, summary: '更新租户套餐' }),
-  assignFeatures: op.put('/{id}/features', { params: idParam, body: assignTenantPackageFeaturesSchema, summary: '分配套餐功能' }),
-  removeBatch: op.delete('/batch', { body: batchIdsBody, summary: '批量删除租户套餐' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除租户套餐' }),
-}, { tags: ['TenantPackages'] });
+  list: op.get('/', { access: { platformOnly: true }, query: tenantPackageListQuery, response: paginated(tenantPackageSchema), summary: '租户套餐列表' }),
+  all: op.get('/all', { access: { platformOnly: true }, response: z.array(tenantPackageOptionSchema), summary: '全部租户套餐' }),
+  detail: op.get('/{id}', { access: { platformOnly: true }, params: idParam, response: tenantPackageSchema, summary: '租户套餐详情' }),
+  create: op.post('/', { access: { platformOnly: true }, audit: '创建套餐', body: createTenantPackageSchema, response: tenantPackageSchema, summary: '创建租户套餐' }),
+  update: op.put('/{id}', { access: { platformOnly: true }, audit: '更新套餐', params: idParam, body: updateTenantPackageSchema, response: tenantPackageSchema, summary: '更新租户套餐' }),
+  assignFeatures: op.put('/{id}/features', { access: { platformOnly: true }, audit: '分配套餐功能', params: idParam, body: assignTenantPackageFeaturesSchema, summary: '分配套餐功能' }),
+  removeBatch: op.delete('/batch', { access: { platformOnly: true }, audit: '批量删除套餐', body: batchIdsBody, summary: '批量删除租户套餐' }),
+  remove: op.delete('/{id}', { access: { platformOnly: true }, audit: '删除套餐', params: idParam, summary: '删除租户套餐' }),
+}, { auditModule: '租户套餐', tags: ['TenantPackages'] });

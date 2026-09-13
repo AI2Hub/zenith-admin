@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { driveSpaceContract } from '@zenith/shared/drive';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import { archiveDriveSpace, createQuotaRequest, listSpaceQuotaRequests, unarchiveDriveSpace } from '../../services/drive/drive-governance.service';
@@ -21,21 +20,15 @@ import {
 import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
-const AUDIT = { module: '企业网盘' } as const;
-
-const read = [authMiddleware, guard({ permission: 'drive:node:list' })] as const;
 
 const mySpacesRoute = defineContractRoute(driveSpaceContract.my, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listMySpaces()), 200),
 });
 const createRoute = defineContractRoute(driveSpaceContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'drive:space:create', audit: { description: '创建协作空间', ...AUDIT } })],
   handler: async (c) => c.json(okBody(await createTeamSpace(c.req.valid('json')), '创建成功'), 200),
 });
 
 const updateRoute = defineContractRoute(driveSpaceContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'drive:space:edit', audit: { description: '更新网盘空间', ...AUDIT } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await ensureDriveSpaceExists(id));
@@ -44,7 +37,6 @@ const updateRoute = defineContractRoute(driveSpaceContract.update, {
 });
 
 const deleteRoute = defineContractRoute(driveSpaceContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'drive:space:delete', audit: { description: '删除网盘空间', ...AUDIT } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await ensureDriveSpaceExists(id));
@@ -54,12 +46,10 @@ const deleteRoute = defineContractRoute(driveSpaceContract.remove, {
 });
 
 const membersRoute = defineContractRoute(driveSpaceContract.members, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listSpaceMembers(c.req.valid('param').id)), 200),
 });
 
 const saveMembersRoute = defineContractRoute(driveSpaceContract.saveMembers, {
-  middleware: [authMiddleware, guard({ permission: 'drive:space:grant', audit: { description: '保存网盘空间成员', ...AUDIT } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getSpaceMembersBeforeAudit(id));
@@ -70,7 +60,6 @@ const saveMembersRoute = defineContractRoute(driveSpaceContract.saveMembers, {
 });
 
 const transferRoute = defineContractRoute(driveSpaceContract.transfer, {
-  middleware: [authMiddleware, guard({ permission: 'drive:space:edit', audit: { description: '转让网盘空间', ...AUDIT } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await ensureDriveSpaceExists(id));
@@ -79,7 +68,6 @@ const transferRoute = defineContractRoute(driveSpaceContract.transfer, {
 });
 
 const archiveRoute = defineContractRoute(driveSpaceContract.archive, {
-  middleware: [authMiddleware, guard({ permission: 'drive:space:edit', audit: { description: '归档网盘空间', ...AUDIT } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await ensureDriveSpaceExists(id));
@@ -88,7 +76,6 @@ const archiveRoute = defineContractRoute(driveSpaceContract.archive, {
 });
 
 const unarchiveRoute = defineContractRoute(driveSpaceContract.unarchive, {
-  middleware: [authMiddleware, guard({ permission: 'drive:space:edit', audit: { description: '恢复归档网盘空间', ...AUDIT } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await ensureDriveSpaceExists(id));
@@ -97,19 +84,16 @@ const unarchiveRoute = defineContractRoute(driveSpaceContract.unarchive, {
 });
 
 const requestQuotaRoute = defineContractRoute(driveSpaceContract.requestQuota, {
-  middleware: [authMiddleware, guard({ permission: 'drive:space:edit', audit: { description: '申请网盘空间扩容', ...AUDIT } })],
   handler: async (c) => c.json(okBody(await createQuotaRequest(c.req.valid('param').id, c.req.valid('json')), '扩容申请已提交，等待网盘管理员审批'), 200),
 });
 
 const quotaRequestsRoute = defineContractRoute(driveSpaceContract.quotaRequests, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listSpaceQuotaRequests(c.req.valid('param').id)), 200),
 });
 
 mountCrud(router, driveSpaceContract,
   { list: listDriveSpaces, get: getDriveSpace },
   {
-    permission: { list: 'drive:space:list', detail: 'drive:node:list' },
     exclude: ['create', 'update', 'remove'],
     responses: { detail: { 404: { content: jsonContent(ErrorResponse), description: '不存在' } } },
   },

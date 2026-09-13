@@ -43,15 +43,16 @@ export const uploadMpMaterialBody = multipart(z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const mpMaterialContract = defineContract('/api/mp/materials', {
-  list: op.get('/', { query: mpMaterialListQuery, response: paginated(mpMaterialSchema), summary: '素材列表' }),
-  sync: op.post('/sync', { body: mpAccountIdBody, response: mpSyncResultSchema, summary: '从微信同步永久素材' }),
+  list: op.get('/', { access: { permission: 'mp:material:list' }, query: mpMaterialListQuery, response: paginated(mpMaterialSchema), summary: '素材列表' }),
+  sync: op.post('/sync', { access: { permission: 'mp:material:sync' }, audit: '同步公众号素材', body: mpAccountIdBody, response: mpSyncResultSchema, summary: '从微信同步永久素材' }),
   upload: op.post('/upload', {
+    access: { permission: 'mp:material:create' }, audit: { description: '上传公众号素材', recordBody: false },
     body: uploadMpMaterialBody,
     response: mpMaterialSchema,
     summary: '上传二进制素材到微信',
     description: '上传图片/语音/视频/缩略图文件到微信永久素材库，成功后登记本地素材。',
   }),
-  create: op.post('/', { body: createMpMaterialSchema, response: mpMaterialSchema, summary: '新增素材' }),
-  update: op.put('/{id}', { params: idParam, body: updateMpMaterialSchema, response: mpMaterialSchema, summary: '重命名素材' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除素材' }),
-}, { tags: ['公众号素材'] });
+  create: op.post('/', { access: { permission: 'mp:material:create' }, audit: '新增公众号素材', body: createMpMaterialSchema, response: mpMaterialSchema, summary: '新增素材' }),
+  update: op.put('/{id}', { access: { permission: 'mp:material:update' }, audit: '更新公众号素材', params: idParam, body: updateMpMaterialSchema, response: mpMaterialSchema, summary: '重命名素材' }),
+  remove: op.delete('/{id}', { access: { permission: 'mp:material:delete' }, audit: '删除公众号素材', params: idParam, summary: '删除素材' }),
+}, { auditModule: '公众号素材', tags: ['公众号素材'] });

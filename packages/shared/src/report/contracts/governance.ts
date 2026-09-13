@@ -110,17 +110,17 @@ export const reportTransferListQuery = paginationQuery.extend({
 });
 
 export const reportGovernanceContract = defineContract('/api/report/governance', {
-  acls: op.get('/acls', { query: reportResourceRefQuery, response: z.array(reportResourceAclSchema), summary: '资源权限列表' }),
-  grantAcl: op.post('/acls', { body: grantReportResourceAclSchema, response: reportResourceAclSchema, summary: '授予资源权限' }),
-  updateAcl: op.put('/acls/{id}', { params: idParam, body: updateReportResourceAclSchema, response: reportResourceAclSchema, summary: '更新资源权限' }),
-  revokeAcl: op.delete('/acls/{id}', { params: idParam, summary: '撤销资源权限' }),
-  checkAccess: op.post('/access/check', { body: checkReportResourceAccessSchema, response: reportResourceAccessResultSchema, summary: '检查资源权限' }),
-  transfers: op.get('/transfers', { query: reportTransferListQuery, response: paginated(reportResourceTransferSchema), summary: '资源转移列表' }),
-  createTransfer: op.post('/transfers', { body: createReportResourceTransferSchema, response: reportResourceTransferSchema, summary: '申请资源转移' }),
-  decideTransfer: op.post('/transfers/{id}/decision', { params: idParam, body: decideReportResourceTransferSchema, response: reportResourceTransferSchema, summary: '接受或拒绝资源转移' }),
-  cancelTransfer: op.post('/transfers/{id}/cancel', { params: idParam, body: cancelReportResourceTransferSchema, response: reportResourceTransferSchema, summary: '取消资源转移' }),
-  approvals: op.get('/approvals', { query: reportApprovalListQuery, response: paginated(reportPublishApprovalSchema), summary: '发布审批列表' }),
-  createApproval: op.post('/approvals', { body: createReportPublishApprovalSchema, response: reportPublishApprovalSchema, summary: '申请发布审批' }),
-  decideApproval: op.post('/approvals/{id}/decision', { params: idParam, body: decideReportPublishApprovalSchema, response: reportPublishApprovalSchema, summary: '通过或拒绝发布审批' }),
-  cancelApproval: op.post('/approvals/{id}/cancel', { params: idParam, body: cancelReportPublishApprovalSchema, response: reportPublishApprovalSchema, summary: '取消发布审批' }),
-}, { tags: ['报表资源治理'] });
+  acls: op.get('/acls', { access: { permission: 'report:resource:acl' }, query: reportResourceRefQuery, response: z.array(reportResourceAclSchema), summary: '资源权限列表' }),
+  grantAcl: op.post('/acls', { access: { permission: 'report:resource:acl' }, audit: '授予资源权限', body: grantReportResourceAclSchema, response: reportResourceAclSchema, summary: '授予资源权限' }),
+  updateAcl: op.put('/acls/{id}', { access: { permission: 'report:resource:acl' }, audit: '更新资源权限', params: idParam, body: updateReportResourceAclSchema, response: reportResourceAclSchema, summary: '更新资源权限' }),
+  revokeAcl: op.delete('/acls/{id}', { access: { permission: 'report:resource:acl' }, audit: '撤销资源权限', params: idParam, summary: '撤销资源权限' }),
+  checkAccess: op.post('/access/check', { access: { permission: 'report:resource:access' }, body: checkReportResourceAccessSchema, response: reportResourceAccessResultSchema, summary: '检查资源权限' }),
+  transfers: op.get('/transfers', { access: { permission: 'report:resource:transfer' }, query: reportTransferListQuery, response: paginated(reportResourceTransferSchema), summary: '资源转移列表' }),
+  createTransfer: op.post('/transfers', { access: { permission: 'report:resource:transfer' }, audit: '申请资源转移', body: createReportResourceTransferSchema, response: reportResourceTransferSchema, summary: '申请资源转移' }),
+  decideTransfer: op.post('/transfers/{id}/decision', { access: { permission: 'report:resource:transfer' }, audit: '处理资源转移', params: idParam, body: decideReportResourceTransferSchema, response: reportResourceTransferSchema, summary: '接受或拒绝资源转移' }),
+  cancelTransfer: op.post('/transfers/{id}/cancel', { access: { permission: 'report:resource:transfer' }, audit: '取消资源转移', params: idParam, body: cancelReportResourceTransferSchema, response: reportResourceTransferSchema, summary: '取消资源转移' }),
+  approvals: op.get('/approvals', { access: { permission: 'report:approval:list' }, query: reportApprovalListQuery, response: paginated(reportPublishApprovalSchema), summary: '发布审批列表' }),
+  createApproval: op.post('/approvals', { access: { permission: 'report:approval:request' }, audit: '申请发布审批', body: createReportPublishApprovalSchema, response: reportPublishApprovalSchema, summary: '申请发布审批' }),
+  decideApproval: op.post('/approvals/{id}/decision', { access: { permission: 'report:approval:approve' }, audit: '处理发布审批', params: idParam, body: decideReportPublishApprovalSchema, response: reportPublishApprovalSchema, summary: '通过或拒绝发布审批' }),
+  cancelApproval: op.post('/approvals/{id}/cancel', { access: { permission: 'report:approval:request' }, audit: '取消发布审批', params: idParam, body: cancelReportPublishApprovalSchema, response: reportPublishApprovalSchema, summary: '取消发布审批' }),
+}, { auditModule: '报表资源治理', tags: ['报表资源治理'] });

@@ -8,7 +8,6 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(router, aiChatModelContract,
   { list: listChatModels },
-  { permission: null },
 );
 
 export default router;

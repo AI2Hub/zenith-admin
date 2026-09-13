@@ -1,4 +1,4 @@
-import { definePermissions, type PermissionCodes } from '../core/permissions';
+import { definePermissions } from '../core/permissions';
 
 /**
  * report 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
@@ -106,8 +106,3 @@ export const REPORT_PERMISSIONS = definePermissions({
   'report:fill:record:review': { label: '审核填报记录', menu: 'ReportFillRecords' },
   'report:fill:record:export': { label: '导出填报记录', menu: 'ReportFillRecords' },
 });
-
-declare module '../core/permissions' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
-  interface PermissionRegistry extends PermissionCodes<typeof REPORT_PERMISSIONS> {}
-}

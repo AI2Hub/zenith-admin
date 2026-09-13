@@ -12,7 +12,6 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(router, ruleExecutionContract,
   { list: listRuleExecutions },
-  { permission: 'rule:table' },
 );
 
 export default router;

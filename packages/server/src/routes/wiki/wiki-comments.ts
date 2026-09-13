@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { wikiCommentContract } from '@zenith/shared/wiki';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
@@ -19,19 +18,15 @@ import { mountCrud } from '../_crud';
 
 const commentsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const reader = [authMiddleware, guard({ permission: 'wiki:doc:list' })] as const;
-
 // ─── 用户端 ───────────────────────────────────────────────────────────────────
 
 const docCommentsRoute = defineContractRoute(wikiCommentContract.docComments, {
-  middleware: reader,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await listWikiDocComments(id)), 200);
   },
 });
 const resolveRoute = defineContractRoute(wikiCommentContract.resolve, {
-  middleware: reader,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await resolveWikiComment(id), '已标记解决'), 200);
@@ -39,7 +34,6 @@ const resolveRoute = defineContractRoute(wikiCommentContract.resolve, {
 });
 
 const deleteMineRoute = defineContractRoute(wikiCommentContract.deleteMine, {
-  middleware: reader,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await deleteMyWikiComment(id);
@@ -47,10 +41,6 @@ const deleteMineRoute = defineContractRoute(wikiCommentContract.deleteMine, {
   },
 });
 const statusRoute = defineContractRoute(wikiCommentContract.updateStatus, {
-  middleware: [authMiddleware, guard({
-    permission: 'wiki:comment:audit',
-    audit: { description: '审核评论', module: '知识中心' },
-  })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { status } = c.req.valid('json');
@@ -67,10 +57,6 @@ mountCrud(commentsRouter, wikiCommentContract,
     remove: removeWikiComment,
   },
   {
-    permission: { read: 'wiki:comment:list', create: 'wiki:doc:list', remove: 'wiki:comment:delete' },
-    label: '评论',
-    module: '知识中心',
-    audit: { create: null },
     messages: { create: '评论成功' },
   },
   [docCommentsRoute, deleteMineRoute, resolveRoute, statusRoute],

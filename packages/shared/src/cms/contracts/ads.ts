@@ -110,16 +110,16 @@ export const cmsAdEventStatsQuery = z.object(cmsAdEventFilters);
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsAdContract = defineContract('/api/cms/ads', {
-  slots: op.get('/slots', { query: cmsSiteScopeQuery, response: z.array(cmsAdSlotSchema), summary: '广告位列表' }),
-  slotCreate: op.post('/slots', { body: createCmsAdSlotSchema, response: cmsAdSlotSchema, summary: '创建广告位' }),
-  slotUpdate: op.put('/slots/{id}', { params: idParam, body: updateCmsAdSlotSchema, response: cmsAdSlotSchema, summary: '更新广告位' }),
-  slotRemove: op.delete('/slots/{id}', { params: idParam, summary: '删除广告位' }),
-  list: op.get('/', { query: cmsAdListQuery, response: paginated(cmsAdSchema), summary: '广告分页列表' }),
-  events: op.get('/events', { query: cmsAdEventListQuery, response: paginated(cmsAdEventSchema), summary: '广告事件明细' }),
-  eventStats: op.get('/events/stats', { query: cmsAdEventStatsQuery, response: cmsAdEventStatsSchema, summary: '广告事件统计' }),
-  cleanupEvents: op.post('/events/cleanup', { body: cleanupCmsAdEventsSchema, response: asyncTaskSchema, summary: '按保留策略清理广告事件（任务中心）' }),
-  create: op.post('/', { body: createCmsAdSchema, response: cmsAdSchema, summary: '创建广告' }),
-  update: op.put('/{id}', { params: idParam, body: updateCmsAdSchema, response: cmsAdSchema, summary: '更新广告' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除广告' }),
-}, { tags: ['CMS-广告管理'] });
+  slots: op.get('/slots', { access: { permission: 'cms:ad:list' }, query: cmsSiteScopeQuery, response: z.array(cmsAdSlotSchema), summary: '广告位列表' }),
+  slotCreate: op.post('/slots', { access: { permission: 'cms:ad:manage' }, audit: '创建 CMS 广告位', body: createCmsAdSlotSchema, response: cmsAdSlotSchema, summary: '创建广告位' }),
+  slotUpdate: op.put('/slots/{id}', { access: { permission: 'cms:ad:manage' }, audit: '更新 CMS 广告位', params: idParam, body: updateCmsAdSlotSchema, response: cmsAdSlotSchema, summary: '更新广告位' }),
+  slotRemove: op.delete('/slots/{id}', { access: { permission: 'cms:ad:manage' }, audit: '删除 CMS 广告位', params: idParam, summary: '删除广告位' }),
+  list: op.get('/', { access: { permission: 'cms:ad:list' }, query: cmsAdListQuery, response: paginated(cmsAdSchema), summary: '广告分页列表' }),
+  events: op.get('/events', { access: { permission: 'cms:ad-event:list' }, query: cmsAdEventListQuery, response: paginated(cmsAdEventSchema), summary: '广告事件明细' }),
+  eventStats: op.get('/events/stats', { access: { permission: 'cms:ad-event:list' }, query: cmsAdEventStatsQuery, response: cmsAdEventStatsSchema, summary: '广告事件统计' }),
+  cleanupEvents: op.post('/events/cleanup', { access: { permission: 'cms:ad-event:cleanup' }, audit: '清理 CMS 广告事件', body: cleanupCmsAdEventsSchema, response: asyncTaskSchema, summary: '按保留策略清理广告事件（任务中心）' }),
+  create: op.post('/', { access: { permission: 'cms:ad:manage' }, audit: '创建 CMS 广告', body: createCmsAdSchema, response: cmsAdSchema, summary: '创建广告' }),
+  update: op.put('/{id}', { access: { permission: 'cms:ad:manage' }, audit: '更新 CMS 广告', params: idParam, body: updateCmsAdSchema, response: cmsAdSchema, summary: '更新广告' }),
+  remove: op.delete('/{id}', { access: { permission: 'cms:ad:manage' }, audit: '删除 CMS 广告', params: idParam, summary: '删除广告' }),
+}, { auditModule: 'CMS内容管理', tags: ['CMS-广告管理'] });
 

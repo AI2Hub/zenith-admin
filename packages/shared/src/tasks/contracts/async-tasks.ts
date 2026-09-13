@@ -164,28 +164,30 @@ export const asyncTaskTypeParam = z.object({
 });
 
 export const asyncTaskContract = defineContract('/api/async-tasks', {
-  types: op.get('/types', { response: z.array(asyncTaskTypeMetaSchema), summary: '已注册的任务类型（含生效策略）' }),
+  types: op.get('/types', { access: 'authenticated', response: z.array(asyncTaskTypeMetaSchema), summary: '已注册的任务类型（含生效策略）' }),
   updateTypePolicy: op.put('/types/{taskType}/config', {
+    access: { permission: 'system:async-task:config' }, audit: '更新任务类型策略',
     params: asyncTaskTypeParam,
     body: updateAsyncTaskTypePolicySchema,
     response: asyncTaskTypeMetaSchema,
     summary: '更新任务类型运行时策略',
   }),
-  stats: op.get('/stats', { response: asyncTaskStatsSchema, summary: '任务中心统计概览' }),
-  mine: op.get('/mine', { query: asyncTaskListQuery, response: paginated(asyncTaskSchema), summary: '我的任务列表（业务页面进度展示）' }),
-  list: op.get('/', { query: asyncTaskListQuery, response: paginated(asyncTaskSchema), summary: '全局任务列表（任务中心）' }),
-  cleanup: op.post('/cleanup', { response: asyncTaskCleanupResultSchema, summary: '立即清理超过保留期的已结束任务' }),
-  batchCancel: op.post('/batch-cancel', { body: batchIdsBody, response: asyncTaskBatchResultSchema, summary: '批量取消任务' }),
-  batchDelete: op.post('/batch-delete', { body: batchIdsBody, response: asyncTaskBatchResultSchema, summary: '批量删除任务记录（仅已结束）' }),
-  detail: op.get('/{id}', { params: idParam, response: asyncTaskSchema, summary: '任务详情（创建者本人或管理员）' }),
+  stats: op.get('/stats', { access: { permission: 'system:async-task:list' }, response: asyncTaskStatsSchema, summary: '任务中心统计概览' }),
+  mine: op.get('/mine', { access: 'authenticated', query: asyncTaskListQuery, response: paginated(asyncTaskSchema), summary: '我的任务列表（业务页面进度展示）' }),
+  list: op.get('/', { access: { permission: 'system:async-task:list' }, query: asyncTaskListQuery, response: paginated(asyncTaskSchema), summary: '全局任务列表（任务中心）' }),
+  cleanup: op.post('/cleanup', { access: { permission: 'system:async-task:cleanup' }, audit: '清理异步任务记录', response: asyncTaskCleanupResultSchema, summary: '立即清理超过保留期的已结束任务' }),
+  batchCancel: op.post('/batch-cancel', { access: { permission: 'system:async-task:manage' }, audit: '批量取消异步任务', body: batchIdsBody, response: asyncTaskBatchResultSchema, summary: '批量取消任务' }),
+  batchDelete: op.post('/batch-delete', { access: { permission: 'system:async-task:manage' }, audit: '批量删除异步任务', body: batchIdsBody, response: asyncTaskBatchResultSchema, summary: '批量删除任务记录（仅已结束）' }),
+  detail: op.get('/{id}', { access: 'authenticated', params: idParam, response: asyncTaskSchema, summary: '任务详情（创建者本人或管理员）' }),
   items: op.get('/{id}/items', {
+    access: 'authenticated',
     params: idParam,
     query: asyncTaskItemListQuery,
     response: paginated(asyncTaskItemSchema),
     summary: '任务项明细（行级状态，创建者本人或管理员）',
   }),
-  cancel: op.post('/{id}/cancel', { params: idParam, response: asyncTaskSchema, summary: '取消任务（执行中为协作式取消）' }),
-  resume: op.post('/{id}/resume', { params: idParam, response: asyncTaskSchema, summary: '断点恢复（保留进度从中断处继续）' }),
-  restart: op.post('/{id}/restart', { params: idParam, response: asyncTaskSchema, summary: '重新开始（清空进度从头执行）' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除任务记录' }),
-}, { tags: ['AsyncTasks'] });
+  cancel: op.post('/{id}/cancel', { access: 'authenticated', audit: '取消异步任务', params: idParam, response: asyncTaskSchema, summary: '取消任务（执行中为协作式取消）' }),
+  resume: op.post('/{id}/resume', { access: 'authenticated', audit: '断点恢复异步任务', params: idParam, response: asyncTaskSchema, summary: '断点恢复（保留进度从中断处继续）' }),
+  restart: op.post('/{id}/restart', { access: 'authenticated', audit: '重新开始异步任务', params: idParam, response: asyncTaskSchema, summary: '重新开始（清空进度从头执行）' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:async-task:manage' }, audit: '删除异步任务', params: idParam, summary: '删除任务记录' }),
+}, { auditModule: '任务中心', tags: ['AsyncTasks'] });

@@ -156,8 +156,8 @@ export const xxxContract = defineContract('/api/xxxs', {
 - `audit`：字符串即 description；请求体含密码 / 密钥或响应含一次性凭证时用对象 `{ description, recordBody: false, recordResponseBody: false }`
 - License 门控：契约组 `defaults.feature` 或 op 级 `feature`（`LicenseFeatureKey`）
 - 非 JSON 响应：`kind: 'excel' | 'csv' | 'file' | 'sse'`（此时 `response` 忽略）；上传：`body: multipart(z.object({ file: fileField() }))`
-- 公开接口：`public: true`；设备签名 / 开放网关鉴权的接口：`security: 'device-signature' | 'open-gateway'`
-  （默认 Bearer 登录令牌；凭证校验仍由 `middleware` 完成）；额外文档说明：`description`
+- 公开接口：`public: true`；设备签名 / 开放网关鉴权的接口：`security: 'device-signature' | 'open-gateway'`；
+  会员前台整组：`defineContract(..., { security: 'member-bearer' })`（这些操作不写 `access`，鉴权 / 验签由路由 `middleware` 完成）；额外文档说明：`description`
 - 自定义路径参数：`params: z.object({ code: z.string().meta({ description: '编码', example: 'demo' }) })`
 - 查询串积木：布尔 `queryBool(desc?, { labels? })`、枚举筛选 `queryEnum(XXX_VALUES, { dict | options })`、字典开放枚举 `dictQuery('字典编码')`、
   启用 / 禁用状态 `entityStatusQuery`（都把空串视为未传，handler 无需再 `|| undefined`）、关键字 `keywordQuery(fields?, { max? })`、
@@ -331,24 +331,22 @@ mountCrud(xxxRouter, xxxContract, xxxService, {
   defineContractRoute(xxxContract.all, {
     handler: async (c) => c.json(okBody(await listAllXxxs()), 200),
   }),
-  // 认证前的限流 / IP 校验放 preAuth；认证后追加的中间件放 middleware；动态审计文案用 audit 覆盖
+  // 认证前的限流 / IP 校验放 preAuth；认证后追加的幂等 / 限流放 middleware；路由文件里不出现 authMiddleware / guard
   // defineContractRoute(xxxContract.export, { preAuth: [sensitiveRateLimit], handler: … }),
 ]);
 
 export default xxxRouter;
 ```
 
-- 尚未迁移到契约 `access` 的域仍可传 `permission: 'system:xxx'`（前缀派生）/ `{ read, write }` 与 `label`；迁移后删除
 - 服务侧既可传 `defineCrudService` 的产物，也可传显式函数包 `{ list, get, create, update, remove, removeMany, snapshot }`
   （显式 Service 的资源）；返回类型**逐操作**对照契约响应检查——列表行可以是精简 schema、`detail` 返回扩展实体
   （`paginated(xxxSchema)` + `xxxDetailSchema`）、`create` 返回专用结果都能直接派生；缺函数在模块加载期报错而不是运行时 500。
 - 服务函数需要请求上下文（当前用户 / 闭包参数）时在 bag 里绑定：`{ list: () => listMine(currentUser().userId), remove: (id) => removeOne(id, domain) }`；
   无 query 的「我的 xxx」列表同样可派生。整组路由需要额外中间件（平台侧限定等）用 `middleware: [platformHostOnly]`。
 - 写操作不需要成功提示（对话式创建等）传 `messages: { create: null }`。
-- 写操作的中间件写法（显式路由用）：`writeGuard('system:xxx:xxx', { description, module })`；读操作 `readGuard(permission)`。
 - 契约上有标准操作却仍显式书写的，须在 `exclude` 里给出，并在 `routes/_crud-explicit.ts` 登记「文件 → 契约 → 操作 → 理由」；
   `crud-coverage.test.ts` 守住两条：未登记的显式块直接失败，已派生的块必须从登记表删除（表只准缩小）。
-- 权限码必须先在 `packages/shared/src/seed/menus/{段}.ts` 的菜单按钮里声明（`permission-audit` 测试对账，含 mountCrud 派生的权限码）。
+- 权限码必须先在 `packages/shared/src/{业务域}/permissions.ts` 注册（种子按钮由此生成；`permission-audit` / `contract-access` 测试对账契约 `access` ↔ 注册表 ↔ 种子）。
 
 ## Step 7：注册路由（`routes/{业务域}/index.ts`）
 

@@ -8,12 +8,6 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(router, cmsErrorProneWordContract,
   cmsErrorProneWordService,
-  {
-    permission: { read: 'cms:word:list', write: 'cms:word:manage' },
-    label: ' CMS 易错词',
-    module: 'CMS内容管理',
-    audit: { create: '新增 CMS 易错词' },
-  },
 );
 
 export default router;

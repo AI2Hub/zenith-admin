@@ -8,7 +8,6 @@ const smsTemplatesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(smsTemplatesRouter, smsTemplateContract,
   smsTemplateService,
-  { permission: 'system:sms-template', label: '短信模板', module: '短信模板' },
 );
 
 export default smsTemplatesRouter;

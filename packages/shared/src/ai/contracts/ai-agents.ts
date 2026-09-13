@@ -44,10 +44,10 @@ export type AiBuiltinAgent = z.infer<typeof aiBuiltinAgentSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const aiAgentContract = defineContract('/api/ai/agents', {
-  list: op.get('/', { response: z.array(aiAgentSchema), summary: '获取我的智能体列表' }),
-  builtin: op.get('/builtin', { response: z.array(aiBuiltinAgentSchema), summary: '内置智能体列表(编程式定义,只读)' }),
-  detail: op.get('/{id}', { params: idParam, response: aiAgentSchema, summary: '获取智能体详情（仅创建者）' }),
-  create: op.post('/', { body: createAiAgentSchema, response: aiAgentSchema, summary: '创建智能体（创建即用）' }),
-  update: op.put('/{id}', { params: idParam, body: updateAiAgentSchema, response: aiAgentSchema, summary: '更新智能体（仅创建者）' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除智能体（仅创建者）' }),
+  list: op.get('/', { access: 'authenticated', response: z.array(aiAgentSchema), summary: '获取我的智能体列表' }),
+  builtin: op.get('/builtin', { access: 'authenticated', response: z.array(aiBuiltinAgentSchema), summary: '内置智能体列表(编程式定义,只读)' }),
+  detail: op.get('/{id}', { access: 'authenticated', params: idParam, response: aiAgentSchema, summary: '获取智能体详情（仅创建者）' }),
+  create: op.post('/', { access: 'authenticated', body: createAiAgentSchema, response: aiAgentSchema, summary: '创建智能体（创建即用）' }),
+  update: op.put('/{id}', { access: 'authenticated', params: idParam, body: updateAiAgentSchema, response: aiAgentSchema, summary: '更新智能体（仅创建者）' }),
+  remove: op.delete('/{id}', { access: 'authenticated', params: idParam, summary: '删除智能体（仅创建者）' }),
 }, { tags: ['AI'] });

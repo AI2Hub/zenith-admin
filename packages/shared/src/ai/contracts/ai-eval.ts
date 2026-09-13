@@ -87,14 +87,14 @@ export const aiEvalExperimentParams = aiEvalDatasetIdParam.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const aiEvalContract = defineContract('/api/ai/eval', {
-  list: op.get('/', { response: z.array(aiEvalDatasetSchema), summary: '评测数据集列表(Mastra Datasets)' }),
-  create: op.post('/', { body: createAiEvalDatasetSchema, response: aiEvalDatasetSchema, summary: '创建评测数据集' }),
-  update: op.put('/{id}', { params: aiEvalDatasetIdParam, body: updateAiEvalDatasetSchema, response: aiEvalDatasetSchema, summary: '更新评测数据集' }),
-  remove: op.delete('/{id}', { params: aiEvalDatasetIdParam, summary: '删除评测数据集' }),
-  items: op.get('/{id}/items', { params: aiEvalDatasetIdParam, response: z.array(aiEvalDatasetItemSchema), summary: '数据集条目列表' }),
-  addItems: op.post('/{id}/items', { params: aiEvalDatasetIdParam, body: addAiEvalItemsSchema, response: z.array(aiEvalDatasetItemSchema), summary: '批量添加数据集条目' }),
-  removeItem: op.delete('/{id}/items/{itemId}', { params: aiEvalItemParams, summary: '删除数据集条目' }),
-  runExperiment: op.post('/{id}/experiments', { params: aiEvalDatasetIdParam, body: runAiExperimentSchema, response: aiEvalExperimentStartedSchema, summary: '发起实验(异步执行,经实验列表轮询状态)' }),
-  experiments: op.get('/{id}/experiments', { params: aiEvalDatasetIdParam, response: z.array(aiEvalExperimentSchema), summary: '实验列表(含各打分器平均分,可横向对比)' }),
-  experimentDetail: op.get('/{id}/experiments/{experimentId}', { params: aiEvalExperimentParams, response: aiEvalExperimentDetailSchema, summary: '实验详情与逐条结果' }),
-}, { tags: ['AI'] });
+  list: op.get('/', { access: { permission: 'ai:eval:list' }, response: z.array(aiEvalDatasetSchema), summary: '评测数据集列表(Mastra Datasets)' }),
+  create: op.post('/', { access: { permission: 'ai:eval:manage' }, body: createAiEvalDatasetSchema, response: aiEvalDatasetSchema, summary: '创建评测数据集' }),
+  update: op.put('/{id}', { access: { permission: 'ai:eval:manage' }, params: aiEvalDatasetIdParam, body: updateAiEvalDatasetSchema, response: aiEvalDatasetSchema, summary: '更新评测数据集' }),
+  remove: op.delete('/{id}', { access: { permission: 'ai:eval:manage' }, params: aiEvalDatasetIdParam, summary: '删除评测数据集' }),
+  items: op.get('/{id}/items', { access: { permission: 'ai:eval:list' }, params: aiEvalDatasetIdParam, response: z.array(aiEvalDatasetItemSchema), summary: '数据集条目列表' }),
+  addItems: op.post('/{id}/items', { access: { permission: 'ai:eval:manage' }, params: aiEvalDatasetIdParam, body: addAiEvalItemsSchema, response: z.array(aiEvalDatasetItemSchema), summary: '批量添加数据集条目' }),
+  removeItem: op.delete('/{id}/items/{itemId}', { access: { permission: 'ai:eval:manage' }, params: aiEvalItemParams, summary: '删除数据集条目' }),
+  runExperiment: op.post('/{id}/experiments', { access: { permission: 'ai:eval:manage' }, audit: '发起评测实验', params: aiEvalDatasetIdParam, body: runAiExperimentSchema, response: aiEvalExperimentStartedSchema, summary: '发起实验(异步执行,经实验列表轮询状态)' }),
+  experiments: op.get('/{id}/experiments', { access: { permission: 'ai:eval:list' }, params: aiEvalDatasetIdParam, response: z.array(aiEvalExperimentSchema), summary: '实验列表(含各打分器平均分,可横向对比)' }),
+  experimentDetail: op.get('/{id}/experiments/{experimentId}', { access: { permission: 'ai:eval:list' }, params: aiEvalExperimentParams, response: aiEvalExperimentDetailSchema, summary: '实验详情与逐条结果' }),
+}, { auditModule: '智能助手', tags: ['AI'] });

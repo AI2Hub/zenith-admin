@@ -1,8 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { dbAdminContract } from '@zenith/shared/ops';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { isSuperAdmin, getUserPermissions } from '../../lib/permissions';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
@@ -57,13 +56,8 @@ import {
   listDbBackups,
 } from '../../services/ops/db-admin-backups.service';
 import { attachmentDisposition } from '../../lib/content-disposition';
-import type { Permission } from '@zenith/shared/core';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
-
-const view = [authMiddleware, guard({ permission: 'system:db-admin:view' })] as const;
-const audited = (permission: Permission, description: string, recordBody = true) =>
-  [authMiddleware, guard({ permission, audit: { description, module: '数据库管理', recordBody } })] as const;
 
 /** 流式导出的公共响应头：禁止缓存、禁止嗅探 */
 function downloadHeaders(contentType: string, filename: string): Record<string, string> {
@@ -78,17 +72,14 @@ function downloadHeaders(contentType: string, filename: string): Record<string, 
 // ─── 表 / 总览 / 结构 / 数据 ───────────────────────────────────────────────────
 
 const listTablesRoute = defineContractRoute(dbAdminContract.tables, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await listTables()), 200),
 });
 
 const overviewRoute = defineContractRoute(dbAdminContract.overview, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getOverview()), 200),
 });
 
 const tableStructureRoute = defineContractRoute(dbAdminContract.tableStructure, {
-  middleware: view,
   handler: async (c) => {
     const { schema, name } = c.req.valid('param');
     return c.json(okBody(await getTableStructure(schema, name)), 200);
@@ -96,7 +87,6 @@ const tableStructureRoute = defineContractRoute(dbAdminContract.tableStructure, 
 });
 
 const tableRowsRoute = defineContractRoute(dbAdminContract.tableRows, {
-  middleware: view,
   handler: async (c) => {
     const { schema, name } = c.req.valid('param');
     const query = c.req.valid('query');
@@ -115,7 +105,6 @@ const tableRowsRoute = defineContractRoute(dbAdminContract.tableRows, {
 });
 
 const insertRowRoute = defineContractRoute(dbAdminContract.insertRow, {
-  middleware: audited('system:db-admin:write', '插入表数据行'),
   handler: async (c) => {
     const { schema, name } = c.req.valid('param');
     const { values } = c.req.valid('json');
@@ -124,7 +113,6 @@ const insertRowRoute = defineContractRoute(dbAdminContract.insertRow, {
 });
 
 const updateRowRoute = defineContractRoute(dbAdminContract.updateRow, {
-  middleware: audited('system:db-admin:write', '更新表数据行'),
   handler: async (c) => {
     const { schema, name } = c.req.valid('param');
     const { pk, changes } = c.req.valid('json');
@@ -135,7 +123,6 @@ const updateRowRoute = defineContractRoute(dbAdminContract.updateRow, {
 });
 
 const deleteRowRoute = defineContractRoute(dbAdminContract.deleteRow, {
-  middleware: audited('system:db-admin:write', '删除表数据行'),
   handler: async (c) => {
     const { schema, name } = c.req.valid('param');
     const { pk } = c.req.valid('json');
@@ -148,7 +135,6 @@ const deleteRowRoute = defineContractRoute(dbAdminContract.deleteRow, {
 });
 
 const batchMutateRoute = defineContractRoute(dbAdminContract.batchMutate, {
-  middleware: audited('system:db-admin:write', '批量变更表数据行'),
   handler: async (c) => {
     const { schema, name } = c.req.valid('param');
     const { inserts, updates, deletes } = c.req.valid('json');
@@ -159,7 +145,6 @@ const batchMutateRoute = defineContractRoute(dbAdminContract.batchMutate, {
 });
 
 const importRowsRoute = defineContractRoute(dbAdminContract.importRows, {
-  middleware: audited('system:db-admin:write', '批量导入表数据', false),
   handler: async (c) => {
     const { schema, name } = c.req.valid('param');
     const { rows } = c.req.valid('json');
@@ -168,7 +153,6 @@ const importRowsRoute = defineContractRoute(dbAdminContract.importRows, {
 });
 
 const truncateTableRoute = defineContractRoute(dbAdminContract.truncateTable, {
-  middleware: audited('system:db-admin:write', '截断表 TRUNCATE'),
   handler: async (c) => {
     const { schema, name } = c.req.valid('param');
     await truncateTable(schema, name);
@@ -179,7 +163,6 @@ const truncateTableRoute = defineContractRoute(dbAdminContract.truncateTable, {
 
 // 表 SQL 导出（DDL / INSERT / 完整）：流式响应
 const exportTableSqlRoute = defineContractRoute(dbAdminContract.exportTableSql, {
-  middleware: audited('system:db-admin:export', '导出表 SQL'),
   handler: async (c) => {
     const { schema, name } = c.req.valid('param');
     const { mode } = c.req.valid('query');
@@ -191,7 +174,6 @@ const exportTableSqlRoute = defineContractRoute(dbAdminContract.exportTableSql, 
 
 // 表数据 CSV 导出：流式响应
 const exportTableCsvRoute = defineContractRoute(dbAdminContract.exportTableCsv, {
-  middleware: audited('system:db-admin:export', '导出表数据 CSV'),
   handler: async (c) => {
     const { schema, name } = c.req.valid('param');
     const stream = await exportTableDataCsv(schema, name);
@@ -203,7 +185,6 @@ const exportTableCsvRoute = defineContractRoute(dbAdminContract.exportTableCsv, 
 // ─── SQL 控制台 ──────────────────────────────────────────────────────────────
 
 const executeQueryRoute = defineContractRoute(dbAdminContract.query, {
-  middleware: audited('system:db-admin:query', '执行 SQL 查询'),
   handler: async (c) => {
     const { sql, queryId, page, pageSize } = c.req.valid('json');
     return c.json(okBody(await executeReadonlyQuery(sql, { queryId, page, pageSize })), 200);
@@ -211,7 +192,6 @@ const executeQueryRoute = defineContractRoute(dbAdminContract.query, {
 });
 
 const cancelQueryRoute = defineContractRoute(dbAdminContract.cancelQuery, {
-  middleware: audited('system:db-admin:query', '取消正在执行的 SQL 查询'),
   handler: async (c) => {
     const { queryId } = c.req.valid('json');
     return c.json(okBody({ ok: await cancelQuery(queryId) }), 200);
@@ -220,7 +200,6 @@ const cancelQueryRoute = defineContractRoute(dbAdminContract.cancelQuery, {
 
 // SQL 查询结果 CSV 导出：流式响应
 const exportQueryCsvRoute = defineContractRoute(dbAdminContract.exportQueryCsv, {
-  middleware: audited('system:db-admin:export', '导出 SQL 结果 CSV'),
   handler: async (c) => {
     const { sql } = c.req.valid('json');
     const stream = await exportQueryCsv(sql);
@@ -230,7 +209,6 @@ const exportQueryCsvRoute = defineContractRoute(dbAdminContract.exportQueryCsv, 
 
 // SQL 查询结果 JSON 导出：流式响应
 const exportQueryJsonRoute = defineContractRoute(dbAdminContract.exportQueryJson, {
-  middleware: audited('system:db-admin:export', '导出 SQL 结果 JSON'),
   handler: async (c) => {
     const { sql } = c.req.valid('json');
     const stream = await exportQueryJson(sql);
@@ -239,7 +217,6 @@ const exportQueryJsonRoute = defineContractRoute(dbAdminContract.exportQueryJson
 });
 
 const explainRoute = defineContractRoute(dbAdminContract.explain, {
-  middleware: audited('system:db-admin:query', 'EXPLAIN SQL'),
   handler: async (c) => {
     const { sql, analyze } = c.req.valid('json');
     return c.json(okBody(await explainQuery(sql, analyze ?? false)), 200);
@@ -247,7 +224,6 @@ const explainRoute = defineContractRoute(dbAdminContract.explain, {
 });
 
 const historyRoute = defineContractRoute(dbAdminContract.history, {
-  middleware: view,
   handler: async (c) => {
     const { page, pageSize } = c.req.valid('query');
     return c.json(okBody(await listQueryHistory(page, pageSize)), 200);
@@ -255,7 +231,6 @@ const historyRoute = defineContractRoute(dbAdminContract.history, {
 });
 
 const deleteHistoryRoute = defineContractRoute(dbAdminContract.removeHistory, {
-  middleware: audited('system:db-admin:view', '删除查询历史'),
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getQueryHistoryBeforeAudit(id);
@@ -267,7 +242,6 @@ const deleteHistoryRoute = defineContractRoute(dbAdminContract.removeHistory, {
 });
 
 const clearHistoryRoute = defineContractRoute(dbAdminContract.clearHistory, {
-  middleware: audited('system:db-admin:view', '清空查询历史'),
   handler: async (c) => {
     const before = await getQueryHistoryClearBeforeAudit();
     if (before.total > 0) setAuditBeforeData(c, before);
@@ -278,29 +252,24 @@ const clearHistoryRoute = defineContractRoute(dbAdminContract.clearHistory, {
 });
 
 const erDiagramRoute = defineContractRoute(dbAdminContract.erDiagram, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await listAllForeignKeys()), 200),
 });
 
 const erSchemaRoute = defineContractRoute(dbAdminContract.erSchema, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getErSchema()), 200),
 });
 
 // ─── SQL 收藏夹 ──────────────────────────────────────────────────────────────
 
 const listFavoritesRoute = defineContractRoute(dbAdminContract.favorites, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await listQueryFavorites()), 200),
 });
 
 const createFavoriteRoute = defineContractRoute(dbAdminContract.createFavorite, {
-  middleware: audited('system:db-admin:view', '新增 SQL 收藏'),
   handler: async (c) => c.json(okBody(await createQueryFavorite(c.req.valid('json'))), 200),
 });
 
 const updateFavoriteRoute = defineContractRoute(dbAdminContract.updateFavorite, {
-  middleware: audited('system:db-admin:view', '更新 SQL 收藏'),
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
@@ -310,7 +279,6 @@ const updateFavoriteRoute = defineContractRoute(dbAdminContract.updateFavorite, 
 });
 
 const deleteFavoriteRoute = defineContractRoute(dbAdminContract.removeFavorite, {
-  middleware: audited('system:db-admin:view', '删除 SQL 收藏'),
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getQueryFavoriteBeforeAudit(id));
@@ -322,12 +290,10 @@ const deleteFavoriteRoute = defineContractRoute(dbAdminContract.removeFavorite, 
 // ─── 运维监控 / 对象浏览 / Schema 漂移 ───────────────────────────────────────────
 
 const activityRoute = defineContractRoute(dbAdminContract.activity, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getActiveConnections()), 200),
 });
 
 const cancelBackendRoute = defineContractRoute(dbAdminContract.cancelBackend, {
-  middleware: audited('system:db-admin:maintain', '取消数据库查询'),
   handler: async (c) => {
     const { pid } = c.req.valid('param');
     return c.json(okBody({ ok: await cancelBackend(pid) }), 200);
@@ -335,7 +301,6 @@ const cancelBackendRoute = defineContractRoute(dbAdminContract.cancelBackend, {
 });
 
 const terminateBackendRoute = defineContractRoute(dbAdminContract.terminateBackend, {
-  middleware: audited('system:db-admin:maintain', '终止数据库连接'),
   handler: async (c) => {
     const { pid } = c.req.valid('param');
     return c.json(okBody({ ok: await terminateBackend(pid) }), 200);
@@ -343,12 +308,10 @@ const terminateBackendRoute = defineContractRoute(dbAdminContract.terminateBacke
 });
 
 const maintenanceRoute = defineContractRoute(dbAdminContract.maintenanceTables, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getTableMaintenance()), 200),
 });
 
 const runMaintenanceRoute = defineContractRoute(dbAdminContract.runMaintenance, {
-  middleware: audited('system:db-admin:maintain', '执行表维护'),
   handler: async (c) => {
     const { schema, name } = c.req.valid('param');
     const { action } = c.req.valid('json');
@@ -358,7 +321,6 @@ const runMaintenanceRoute = defineContractRoute(dbAdminContract.runMaintenance, 
 });
 
 const refreshMatviewRoute = defineContractRoute(dbAdminContract.refreshMatview, {
-  middleware: audited('system:db-admin:maintain', '刷新物化视图'),
   handler: async (c) => {
     const { schema, name } = c.req.valid('param');
     await refreshMatview(schema, name);
@@ -367,39 +329,32 @@ const refreshMatviewRoute = defineContractRoute(dbAdminContract.refreshMatview, 
 });
 
 const indexHealthRoute = defineContractRoute(dbAdminContract.indexHealth, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getIndexHealth()), 200),
 });
 
 const objectsRoute = defineContractRoute(dbAdminContract.objects, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await listDbObjects()), 200),
 });
 
 const schemaDriftRoute = defineContractRoute(dbAdminContract.schemaDrift, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getSchemaDrift()), 200),
 });
 
 const terminalAvailabilityRoute = defineContractRoute(dbAdminContract.terminalAvailability, {
-  middleware: [authMiddleware, guard({ permission: 'system:db-admin:terminal' })],
   handler: async (c) => c.json(okBody(await getDbTerminalAvailability()), 200),
 });
 
 // ─── 数据库备份 ───────────────────────────────────────────────────────────────
 
 const listBackupsRoute = defineContractRoute(dbAdminContract.backups, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await listDbBackups(c.req.valid('query'))), 200),
 });
 
 const createBackupRoute = defineContractRoute(dbAdminContract.createBackup, {
-  middleware: audited('system:db-admin:maintain', '创建数据库备份'),
   handler: async (c) => c.json(okBody(await createDbBackup(c.req.valid('json')), '备份任务已创建'), 200),
 });
 
 const deleteBackupRoute = defineContractRoute(dbAdminContract.removeBackup, {
-  middleware: audited('system:db-admin:maintain', '删除数据库备份'),
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getDbBackupBeforeAudit(id);

@@ -44,10 +44,10 @@ export const firewallRuleIdParam = z.object({
 });
 
 export const firewallContract = defineContract('/api/firewall', {
-  status: op.get('/', { query: hostQuery, response: firewallStatusSchema, summary: '获取防火墙状态' }),
-  rules: op.get('/rules', { query: hostQuery, response: firewallRuleListSchema, summary: '获取防火墙规则列表' }),
-  addRule: op.post('/rules', { query: hostQuery, body: addFirewallRuleSchema, summary: '添加防火墙规则' }),
-  removeRule: op.delete('/rules/{id}', { params: firewallRuleIdParam, query: hostQuery, summary: '删除防火墙规则' }),
-  enable: op.post('/enable', { query: hostQuery, summary: '启用防火墙' }),
-  disable: op.post('/disable', { query: hostQuery, summary: '禁用防火墙' }),
-}, { tags: ['Firewall'] });
+  status: op.get('/', { access: { permission: 'system:firewall:view' }, query: hostQuery, response: firewallStatusSchema, summary: '获取防火墙状态' }),
+  rules: op.get('/rules', { access: { permission: 'system:firewall:view' }, query: hostQuery, response: firewallRuleListSchema, summary: '获取防火墙规则列表' }),
+  addRule: op.post('/rules', { access: { permission: 'system:firewall:manage' }, audit: '添加防火墙规则', query: hostQuery, body: addFirewallRuleSchema, summary: '添加防火墙规则' }),
+  removeRule: op.delete('/rules/{id}', { access: { permission: 'system:firewall:manage' }, audit: '删除防火墙规则', params: firewallRuleIdParam, query: hostQuery, summary: '删除防火墙规则' }),
+  enable: op.post('/enable', { access: { permission: 'system:firewall:manage' }, audit: '启用防火墙', query: hostQuery, summary: '启用防火墙' }),
+  disable: op.post('/disable', { access: { permission: 'system:firewall:manage' }, audit: '禁用防火墙', query: hostQuery, summary: '禁用防火墙' }),
+}, { auditModule: '系统运维', tags: ['Firewall'] });

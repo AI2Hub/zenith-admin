@@ -41,5 +41,5 @@ export const memberRechargeListQuery = paginationQuery.extend({
 });
 
 export const memberRechargeContract = defineContract('/api/member-recharges', {
-  list: op.get('/', { query: memberRechargeListQuery, response: paginated(memberRechargeSchema), summary: '会员充值记录' }),
+  list: op.get('/', { access: { permission: 'member:recharge:list' }, query: memberRechargeListQuery, response: paginated(memberRechargeSchema), summary: '会员充值记录' }),
 }, { tags: ['会员充值'] });

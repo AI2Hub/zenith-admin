@@ -23,9 +23,9 @@ export const driveTagListQuery = z.object({
 });
 
 export const driveTagContract = defineContract('/api/drive/tags', {
-  list: op.get('/', { query: driveTagListQuery, response: z.array(driveTagSchema), summary: '空间标签' }),
-  create: op.post('/', { body: createDriveTagSchema, response: driveTagSchema, summary: '新建标签' }),
-  update: op.put('/{id}', { params: idParam, body: updateDriveTagSchema, response: driveTagSchema, summary: '更新标签' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除标签' }),
-  merge: op.post('/{id}/merge', { params: idParam, body: mergeDriveTagsSchema, summary: '合并标签及其文件关联' }),
+  list: op.get('/', { access: { permission: 'drive:node:list' }, query: driveTagListQuery, response: z.array(driveTagSchema), summary: '空间标签' }),
+  create: op.post('/', { access: { permission: 'drive:node:edit' }, body: createDriveTagSchema, response: driveTagSchema, summary: '新建标签' }),
+  update: op.put('/{id}', { access: { permission: 'drive:node:edit' }, params: idParam, body: updateDriveTagSchema, response: driveTagSchema, summary: '更新标签' }),
+  remove: op.delete('/{id}', { access: { permission: 'drive:node:edit' }, params: idParam, summary: '删除标签' }),
+  merge: op.post('/{id}/merge', { access: { permission: 'drive:node:edit' }, params: idParam, body: mergeDriveTagsSchema, summary: '合并标签及其文件关联' }),
 }, { tags: ['企业网盘-标签'] });

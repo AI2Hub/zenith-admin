@@ -36,9 +36,9 @@ export const analyticsSiteListQuery = paginationQuery.extend({
 });
 
 export const analyticsSiteContract = defineContract('/api/analytics', {
-  sites: op.get('/sites', { query: analyticsSiteListQuery, response: paginated(analyticsSiteSchema), summary: '站点列表' }),
-  createSite: op.post('/sites', { body: createAnalyticsSiteSchema, response: analyticsSiteSchema, summary: '创建站点' }),
-  updateSite: op.put('/sites/{id}', { params: idParam, body: updateAnalyticsSiteSchema, response: analyticsSiteSchema, summary: '更新站点' }),
-  removeSite: op.delete('/sites/{id}', { params: idParam, summary: '删除站点' }),
-  regenerateSiteKey: op.post('/sites/{id}/regenerate-key', { params: idParam, response: analyticsSiteSchema, summary: '重新生成站点 Key' }),
-}, { tags: ['Analytics'] });
+  sites: op.get('/sites', { access: { permission: 'analytics:manage' }, query: analyticsSiteListQuery, response: paginated(analyticsSiteSchema), summary: '站点列表' }),
+  createSite: op.post('/sites', { access: { permission: 'analytics:manage' }, audit: '创建站点', body: createAnalyticsSiteSchema, response: analyticsSiteSchema, summary: '创建站点' }),
+  updateSite: op.put('/sites/{id}', { access: { permission: 'analytics:manage' }, audit: '更新站点', params: idParam, body: updateAnalyticsSiteSchema, response: analyticsSiteSchema, summary: '更新站点' }),
+  removeSite: op.delete('/sites/{id}', { access: { permission: 'analytics:manage' }, audit: '删除站点', params: idParam, summary: '删除站点' }),
+  regenerateSiteKey: op.post('/sites/{id}/regenerate-key', { access: { permission: 'analytics:manage' }, audit: '重新生成站点 Key', params: idParam, response: analyticsSiteSchema, summary: '重新生成站点 Key' }),
+}, { auditModule: '行为分析', tags: ['Analytics'] });

@@ -229,22 +229,23 @@ export const reportDashboardViewQuery = z.object({
 const TAGS = ['报表仪表盘'] as const;
 
 export const reportDashboardContract = defineContract('/api/report/dashboards', {
-  list: op.get('/', { query: reportDashboardListQuery, response: paginated(reportDashboardSchema), summary: '仪表盘列表' }),
-  lookup: op.get('/lookup', { query: reportDashboardLookupQuery, response: z.array(reportLookupOptionSchema), summary: '仪表盘轻量下拉' }),
-  batch: op.post('/batch', { body: reportDashboardBatchSchema, response: z.array(reportDashboardSchema), summary: '批量获取仪表盘详情' }),
-  batchStatus: op.put('/batch-status', { body: reportBatchStatusSchema, summary: '批量启停仪表盘' }),
+  list: op.get('/', { access: { permission: 'report:dashboard:list' }, query: reportDashboardListQuery, response: paginated(reportDashboardSchema), summary: '仪表盘列表' }),
+  lookup: op.get('/lookup', { access: { permission: 'report:dashboard:list' }, query: reportDashboardLookupQuery, response: z.array(reportLookupOptionSchema), summary: '仪表盘轻量下拉' }),
+  batch: op.post('/batch', { access: { permission: 'report:dashboard:list' }, body: reportDashboardBatchSchema, response: z.array(reportDashboardSchema), summary: '批量获取仪表盘详情' }),
+  batchStatus: op.put('/batch-status', { access: { permission: 'report:dashboard:update' }, audit: '批量更新报表仪表盘状态', body: reportBatchStatusSchema, summary: '批量启停仪表盘' }),
   data: op.post('/{id}/data', {
+    access: { permission: 'report:dashboard:list' },
     params: idParam,
     query: reportDashboardViewQuery,
     body: reportDashboardDataBodySchema,
     response: reportDashboardDataSchema,
     summary: '仪表盘批量取数',
   }),
-  detail: op.get('/{id}', { params: idParam, query: reportDashboardViewQuery, response: reportDashboardSchema, summary: '仪表盘详情' }),
-  create: op.post('/', { body: createReportDashboardSchema, response: reportDashboardSchema, summary: '创建仪表盘' }),
-  update: op.put('/{id}', { params: idParam, body: updateReportDashboardSchema, response: reportDashboardSchema, summary: '保存仪表盘草稿' }),
-  publish: op.post('/{id}/publish', { params: idParam, body: reportDashboardLifecycleActionSchema, response: reportDashboardSchema, summary: '发布仪表盘' }),
-  offline: op.post('/{id}/offline', { params: idParam, body: reportDashboardLifecycleActionSchema, response: reportDashboardSchema, summary: '下线仪表盘' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除仪表盘' }),
-  clone: op.post('/{id}/clone', { params: idParam, body: reportCloneSchema, response: reportDashboardSchema, summary: '复制仪表盘' }),
-}, { tags: TAGS });
+  detail: op.get('/{id}', { access: { permission: 'report:dashboard:list' }, params: idParam, query: reportDashboardViewQuery, response: reportDashboardSchema, summary: '仪表盘详情' }),
+  create: op.post('/', { access: { permission: 'report:dashboard:create' }, audit: '创建报表仪表盘', body: createReportDashboardSchema, response: reportDashboardSchema, summary: '创建仪表盘' }),
+  update: op.put('/{id}', { access: { permission: 'report:dashboard:update' }, audit: '保存仪表盘草稿', params: idParam, body: updateReportDashboardSchema, response: reportDashboardSchema, summary: '保存仪表盘草稿' }),
+  publish: op.post('/{id}/publish', { access: { permission: 'report:dashboard:update' }, audit: '发布报表仪表盘', params: idParam, body: reportDashboardLifecycleActionSchema, response: reportDashboardSchema, summary: '发布仪表盘' }),
+  offline: op.post('/{id}/offline', { access: { permission: 'report:dashboard:update' }, audit: '下线报表仪表盘', params: idParam, body: reportDashboardLifecycleActionSchema, response: reportDashboardSchema, summary: '下线仪表盘' }),
+  remove: op.delete('/{id}', { access: { permission: 'report:dashboard:delete' }, audit: '删除报表仪表盘', params: idParam, summary: '删除仪表盘' }),
+  clone: op.post('/{id}/clone', { access: { permission: 'report:dashboard:create' }, audit: '复制报表仪表盘', params: idParam, body: reportCloneSchema, response: reportDashboardSchema, summary: '复制仪表盘' }),
+}, { auditModule: '报表仪表盘', tags: TAGS });

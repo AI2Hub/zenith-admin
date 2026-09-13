@@ -174,14 +174,15 @@ const replaySegmentUploadBody = multipart(z.object({
 
 export const sessionReplayContract = defineContract('/api/session-replays', {
   ingestSegment: op.post('/segments', { body: replaySegmentUploadBody, public: true, summary: '上报回放分片（multipart：meta JSON + gzip 二进制）' }),
-  list: op.get('/', { query: replayListQuery, response: paginated(replaySessionSchema), summary: '回放会话列表' }),
-  stats: op.get('/stats', { response: replayStorageStatsSchema, summary: '回放存储统计（容量看板）' }),
-  heatmapPages: op.get('/heatmap/pages', { query: replayHeatmapPagesQuery, response: z.array(z.string()), summary: '有点击热力数据的页面清单' }),
-  heatmap: op.get('/heatmap', { query: replayHeatmapQuery, response: replayClickHeatmapSchema, summary: '页面点击热力聚合（2% 网格）' }),
-  accessLogs: op.get('/access-logs', { query: replayAccessLogListQuery, response: paginated(replayAccessLogSchema), summary: '回放访问审计（谁查看了谁的录像）' }),
-  removeBatch: op.delete('/batch', { body: replayIdsBody, summary: '批量删除回放会话' }),
-  detail: op.get('/{id}', { params: replayIdParam, response: replaySessionDetailSchema, summary: '回放会话详情（含分片清单与关联错误）' }),
+  list: op.get('/', { access: { permission: 'monitor:replay:list' }, query: replayListQuery, response: paginated(replaySessionSchema), summary: '回放会话列表' }),
+  stats: op.get('/stats', { access: { permission: 'monitor:replay:list' }, response: replayStorageStatsSchema, summary: '回放存储统计（容量看板）' }),
+  heatmapPages: op.get('/heatmap/pages', { access: { permission: 'monitor:replay:list' }, query: replayHeatmapPagesQuery, response: z.array(z.string()), summary: '有点击热力数据的页面清单' }),
+  heatmap: op.get('/heatmap', { access: { permission: 'monitor:replay:list' }, query: replayHeatmapQuery, response: replayClickHeatmapSchema, summary: '页面点击热力聚合（2% 网格）' }),
+  accessLogs: op.get('/access-logs', { access: { permission: 'monitor:replay:manage' }, query: replayAccessLogListQuery, response: paginated(replayAccessLogSchema), summary: '回放访问审计（谁查看了谁的录像）' }),
+  removeBatch: op.delete('/batch', { access: { permission: 'monitor:replay:manage' }, body: replayIdsBody, summary: '批量删除回放会话' }),
+  detail: op.get('/{id}', { access: { permission: 'monitor:replay:list' }, params: replayIdParam, response: replaySessionDetailSchema, summary: '回放会话详情（含分片清单与关联错误）' }),
   segmentData: op.get('/{id}/segments/{seq}/data', {
+    access: { permission: 'monitor:replay:list' },
     params: replaySegmentParam,
     kind: 'file',
     summary: '拉取回放分片数据（gzip JSON 透传）',

@@ -17,6 +17,6 @@ export type CheckinSettings = z.infer<typeof checkinSettingsSchema>;
 // ─── 契约（后台） ────────────────────────────────────────────────────────────
 
 export const checkinSettingsContract = defineContract('/api/checkin-settings', {
-  get: op.get('/', { response: checkinSettingsSchema, summary: '获取签到设置' }),
-  update: op.put('/', { body: updateCheckinSettingsSchema, response: checkinSettingsSchema, summary: '更新签到设置' }),
-}, { tags: ['会员签到'] });
+  get: op.get('/', { access: { permission: 'member:checkin:rule:list' }, response: checkinSettingsSchema, summary: '获取签到设置' }),
+  update: op.put('/', { access: { permission: 'member:checkin:setting:update' }, audit: '更新签到设置', body: updateCheckinSettingsSchema, response: checkinSettingsSchema, summary: '更新签到设置' }),
+}, { auditModule: '会员签到', tags: ['会员签到'] });

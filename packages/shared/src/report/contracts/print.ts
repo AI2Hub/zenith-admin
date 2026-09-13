@@ -115,13 +115,13 @@ export const reportPrintListQuery = paginationQuery.extend({
 });
 
 export const reportPrintContract = defineContract('/api/report/print', {
-  list: op.get('/', { query: reportPrintListQuery, response: paginated(reportPrintTemplateSchema), summary: '打印报表列表' }),
-  lookup: op.get('/lookup', { query: reportLookupQuerySchema, response: z.array(reportLookupOptionSchema), summary: '打印模板轻量下拉' }),
-  batchStatus: op.put('/batch-status', { body: reportBatchStatusSchema, summary: '批量启停打印模板' }),
-  detail: op.get('/{id}', { params: idParam, response: reportPrintTemplateSchema, summary: '打印报表详情' }),
-  create: op.post('/', { body: createReportPrintTemplateSchema, response: reportPrintTemplateSchema, summary: '创建打印报表' }),
-  update: op.put('/{id}', { params: idParam, body: updateReportPrintTemplateSchema, response: reportPrintTemplateSchema, summary: '更新打印报表' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除打印报表' }),
-  render: op.post('/{id}/render', { params: idParam, body: reportPrintRenderSchema, response: reportPrintRenderResultSchema, summary: '取数渲染打印报表' }),
-  clone: op.post('/{id}/clone', { params: idParam, body: reportCloneSchema, response: reportPrintTemplateSchema, summary: '复制打印模板' }),
-}, { tags: ['报表打印'] });
+  list: op.get('/', { access: { permission: 'report:print:list' }, query: reportPrintListQuery, response: paginated(reportPrintTemplateSchema), summary: '打印报表列表' }),
+  lookup: op.get('/lookup', { access: { permission: 'report:print:list' }, query: reportLookupQuerySchema, response: z.array(reportLookupOptionSchema), summary: '打印模板轻量下拉' }),
+  batchStatus: op.put('/batch-status', { access: { permission: 'report:print:update' }, audit: '批量更新打印模板状态', body: reportBatchStatusSchema, summary: '批量启停打印模板' }),
+  detail: op.get('/{id}', { access: { permission: 'report:print:list' }, params: idParam, response: reportPrintTemplateSchema, summary: '打印报表详情' }),
+  create: op.post('/', { access: { permission: 'report:print:create' }, audit: '创建打印报表', body: createReportPrintTemplateSchema, response: reportPrintTemplateSchema, summary: '创建打印报表' }),
+  update: op.put('/{id}', { access: { permission: 'report:print:update' }, audit: '更新打印报表', params: idParam, body: updateReportPrintTemplateSchema, response: reportPrintTemplateSchema, summary: '更新打印报表' }),
+  remove: op.delete('/{id}', { access: { permission: 'report:print:delete' }, audit: '删除打印报表', params: idParam, summary: '删除打印报表' }),
+  render: op.post('/{id}/render', { access: { permission: 'report:print:list' }, params: idParam, body: reportPrintRenderSchema, response: reportPrintRenderResultSchema, summary: '取数渲染打印报表' }),
+  clone: op.post('/{id}/clone', { access: { permission: 'report:print:create' }, audit: '复制打印模板', params: idParam, body: reportCloneSchema, response: reportPrintTemplateSchema, summary: '复制打印模板' }),
+}, { auditModule: '报表打印', tags: ['报表打印'] });

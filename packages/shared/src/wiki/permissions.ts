@@ -1,4 +1,4 @@
-import { definePermissions, type PermissionCodes } from '../core/permissions';
+import { definePermissions } from '../core/permissions';
 
 /**
  * wiki 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
@@ -41,8 +41,3 @@ export const WIKI_PERMISSIONS = definePermissions({
   'wiki:governance:archive': { label: '归档', menu: 'WikiGovernance' },
   'wiki:governance:edit': { label: '治理编辑', menu: 'WikiGovernance' },
 });
-
-declare module '../core/permissions' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
-  interface PermissionRegistry extends PermissionCodes<typeof WIKI_PERMISSIONS> {}
-}

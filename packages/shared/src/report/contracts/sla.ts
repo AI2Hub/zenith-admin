@@ -69,12 +69,12 @@ export const reportSlaViolationListQuery = paginationQuery.extend({
 });
 
 export const reportSlaContract = defineContract('/api/report/sla', {
-  rules: op.get('/rules', { query: reportSlaRuleListQuery, response: paginated(reportSlaRuleSchema), summary: 'SLA 规则列表' }),
-  ruleDetail: op.get('/rules/{id}', { params: idParam, response: reportSlaRuleSchema, summary: 'SLA 规则详情' }),
-  createRule: op.post('/rules', { body: createReportSlaRuleSchema, response: reportSlaRuleSchema, summary: '创建 SLA 规则' }),
-  updateRule: op.put('/rules/{id}', { params: idParam, body: updateReportSlaRuleSchema, response: reportSlaRuleSchema, summary: '更新 SLA 规则' }),
-  removeRule: op.delete('/rules/{id}', { params: idParam, summary: '删除 SLA 规则' }),
-  evaluate: op.post('/rules/{id}/evaluate', { params: idParam, response: asyncTaskSchema, summary: '异步评估 SLA' }),
-  violations: op.get('/violations', { query: reportSlaViolationListQuery, response: paginated(reportSlaViolationSchema), summary: 'SLA 违规列表' }),
-  updateViolationStatus: op.post('/violations/{id}/status', { params: idParam, body: updateReportSlaViolationSchema, response: reportSlaViolationSchema, summary: '确认或解决 SLA 违规' }),
-}, { tags: ['报表 SLA'] });
+  rules: op.get('/rules', { access: { permission: 'report:sla:list' }, query: reportSlaRuleListQuery, response: paginated(reportSlaRuleSchema), summary: 'SLA 规则列表' }),
+  ruleDetail: op.get('/rules/{id}', { access: { permission: 'report:sla:list' }, params: idParam, response: reportSlaRuleSchema, summary: 'SLA 规则详情' }),
+  createRule: op.post('/rules', { access: { permission: 'report:sla:create' }, audit: '创建 SLA 规则', body: createReportSlaRuleSchema, response: reportSlaRuleSchema, summary: '创建 SLA 规则' }),
+  updateRule: op.put('/rules/{id}', { access: { permission: 'report:sla:update' }, audit: '更新 SLA 规则', params: idParam, body: updateReportSlaRuleSchema, response: reportSlaRuleSchema, summary: '更新 SLA 规则' }),
+  removeRule: op.delete('/rules/{id}', { access: { permission: 'report:sla:delete' }, audit: '删除 SLA 规则', params: idParam, summary: '删除 SLA 规则' }),
+  evaluate: op.post('/rules/{id}/evaluate', { access: { permission: 'report:sla:evaluate' }, audit: '评估 SLA', params: idParam, response: asyncTaskSchema, summary: '异步评估 SLA' }),
+  violations: op.get('/violations', { access: { permission: 'report:sla:list' }, query: reportSlaViolationListQuery, response: paginated(reportSlaViolationSchema), summary: 'SLA 违规列表' }),
+  updateViolationStatus: op.post('/violations/{id}/status', { access: { permission: 'report:sla:update' }, audit: '更新 SLA 违规状态', params: idParam, body: updateReportSlaViolationSchema, response: reportSlaViolationSchema, summary: '确认或解决 SLA 违规' }),
+}, { auditModule: '报表 SLA', tags: ['报表 SLA'] });

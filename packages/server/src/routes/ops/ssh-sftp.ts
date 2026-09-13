@@ -2,8 +2,6 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { Readable } from 'node:stream';
 import { HTTPException } from 'hono/http-exception';
 import { sshSftpContract } from '@zenith/shared/ops';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { currentUser } from '../../lib/context';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
@@ -30,14 +28,8 @@ import { attachmentDisposition } from '../../lib/content-disposition';
  * 配置归属校验在 service 层（getSshConnectParams 按 userId 过滤）完成，杜绝越权访问他人主机。
  */
 const router = new OpenAPIHono({ defaultHook: validationHook });
-const PERM = 'system:terminal:execute';
-
-const read = [authMiddleware, guard({ permission: PERM })] as const;
-const write = (description: string, recordBody = true) =>
-  [authMiddleware, guard({ permission: PERM, audit: { description, module: 'Web 终端', recordBody } })] as const;
 
 const homeRoute = defineContractRoute(sshSftpContract.home, {
-  middleware: read,
   handler: async (c) => {
     const user = currentUser();
     return c.json(okBody(await sftpHome(user.userId, Number(c.req.valid('param').profileId))), 200);
@@ -45,7 +37,6 @@ const homeRoute = defineContractRoute(sshSftpContract.home, {
 });
 
 const listRoute = defineContractRoute(sshSftpContract.list, {
-  middleware: read,
   handler: async (c) => {
     const user = currentUser();
     return c.json(okBody(await sftpList(user.userId, Number(c.req.valid('param').profileId), c.req.valid('query').path)), 200);
@@ -53,7 +44,6 @@ const listRoute = defineContractRoute(sshSftpContract.list, {
 });
 
 const readContentRoute = defineContractRoute(sshSftpContract.content, {
-  middleware: read,
   handler: async (c) => {
     const user = currentUser();
     return c.json(okBody(await sftpReadText(user.userId, Number(c.req.valid('param').profileId), c.req.valid('query').path)), 200);
@@ -61,7 +51,6 @@ const readContentRoute = defineContractRoute(sshSftpContract.content, {
 });
 
 const writeContentRoute = defineContractRoute(sshSftpContract.saveContent, {
-  middleware: write('SFTP 保存文件', false),
   responses: { 409: { content: jsonContent(ErrorResponse), description: '文件已被他人修改' } },
   handler: async (c) => {
     const user = currentUser();
@@ -71,7 +60,6 @@ const writeContentRoute = defineContractRoute(sshSftpContract.saveContent, {
 });
 
 const createEntryRoute = defineContractRoute(sshSftpContract.create, {
-  middleware: write('SFTP 新建文件/目录'),
   handler: async (c) => {
     const user = currentUser();
     const { path: targetPath, type } = c.req.valid('json');
@@ -80,7 +68,6 @@ const createEntryRoute = defineContractRoute(sshSftpContract.create, {
 });
 
 const renameEntryRoute = defineContractRoute(sshSftpContract.rename, {
-  middleware: write('SFTP 重命名/移动'),
   handler: async (c) => {
     const user = currentUser();
     const { from, to } = c.req.valid('json');
@@ -89,7 +76,6 @@ const renameEntryRoute = defineContractRoute(sshSftpContract.rename, {
 });
 
 const deleteEntryRoute = defineContractRoute(sshSftpContract.remove, {
-  middleware: write('SFTP 删除文件/目录'),
   handler: async (c) => {
     const user = currentUser();
     await sftpDelete(user.userId, Number(c.req.valid('param').profileId), c.req.valid('query').path);
@@ -98,7 +84,6 @@ const deleteEntryRoute = defineContractRoute(sshSftpContract.remove, {
 });
 
 const chmodEntryRoute = defineContractRoute(sshSftpContract.chmod, {
-  middleware: write('SFTP 修改权限'),
   handler: async (c) => {
     const user = currentUser();
     const { path: targetPath, mode } = c.req.valid('json');
@@ -108,7 +93,6 @@ const chmodEntryRoute = defineContractRoute(sshSftpContract.chmod, {
 });
 
 const downloadRoute = defineContractRoute(sshSftpContract.download, {
-  middleware: read,
   responses: { 404: { content: jsonContent(ErrorResponse), description: '文件不存在' } },
   handler: async (c) => {
     const user = currentUser();
@@ -124,7 +108,6 @@ const downloadRoute = defineContractRoute(sshSftpContract.download, {
 });
 
 const uploadRoute = defineContractRoute(sshSftpContract.upload, {
-  middleware: write('SFTP 上传文件', false),
   responses: { 400: { content: jsonContent(ErrorResponse), description: '未选择文件或目标无效' } },
   handler: async (c) => {
     const user = currentUser();

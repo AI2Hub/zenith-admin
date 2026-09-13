@@ -29,9 +29,9 @@ export const mpTagListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const mpTagContract = defineContract('/api/mp/tags', {
-  list: op.get('/', { query: mpTagListQuery, response: paginated(mpTagSchema), summary: '标签列表' }),
-  sync: op.post('/sync', { body: mpAccountIdBody, response: mpSyncResultSchema, summary: '从微信同步标签' }),
-  create: op.post('/', { body: createMpTagSchema, response: mpTagSchema, summary: '创建标签' }),
-  update: op.put('/{id}', { params: idParam, body: updateMpTagSchema, response: mpTagSchema, summary: '更新标签' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除标签' }),
-}, { tags: ['公众号标签'] });
+  list: op.get('/', { access: { permission: 'mp:tag:list' }, query: mpTagListQuery, response: paginated(mpTagSchema), summary: '标签列表' }),
+  sync: op.post('/sync', { access: { permission: 'mp:tag:sync' }, audit: '同步公众号标签', body: mpAccountIdBody, response: mpSyncResultSchema, summary: '从微信同步标签' }),
+  create: op.post('/', { access: { permission: 'mp:tag:create' }, audit: '创建公众号标签', body: createMpTagSchema, response: mpTagSchema, summary: '创建标签' }),
+  update: op.put('/{id}', { access: { permission: 'mp:tag:update' }, audit: '更新公众号标签', params: idParam, body: updateMpTagSchema, response: mpTagSchema, summary: '更新标签' }),
+  remove: op.delete('/{id}', { access: { permission: 'mp:tag:delete' }, audit: '删除公众号标签', params: idParam, summary: '删除标签' }),
+}, { auditModule: '公众号标签', tags: ['公众号标签'] });

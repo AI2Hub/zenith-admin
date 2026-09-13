@@ -77,15 +77,15 @@ export const dictItemParam = idParam.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const dictContract = defineContract('/api/dicts', {
-  list: op.get('/', { query: dictListQuery, response: paginated(dictSchema), summary: '字典列表' }),
-  detail: op.get('/{id}', { params: idParam, response: dictSchema, summary: '字典详情' }),
-  create: op.post('/', { body: createDictSchema, response: dictSchema, summary: '创建字典' }),
-  update: op.put('/{id}', { params: idParam, body: updateDictSchema, response: dictSchema, summary: '更新字典' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除字典' }),
-  items: op.get('/{id}/items', { params: idParam, response: z.array(dictItemSchema), summary: '获取字典下所有字典项' }),
-  itemsByCode: op.get('/code/{code}/items', { params: dictCodeParam, response: z.array(dictItemSchema), summary: '通过字典编码获取字典项（供前端使用）' }),
-  itemDetail: op.get('/{id}/items/{itemId}', { params: dictItemParam, response: dictItemSchema, summary: '获取字典项详情' }),
-  createItem: op.post('/{id}/items', { params: idParam, body: createDictItemSchema, response: dictItemSchema, summary: '创建字典项' }),
-  updateItem: op.put('/{id}/items/{itemId}', { params: dictItemParam, body: updateDictItemSchema, response: dictItemSchema, summary: '更新字典项' }),
-  removeItem: op.delete('/{id}/items/{itemId}', { params: dictItemParam, summary: '删除字典项' }),
-}, { tags: ['Dicts'] });
+  list: op.get('/', { access: { permission: 'system:dict:list' }, query: dictListQuery, response: paginated(dictSchema), summary: '字典列表' }),
+  detail: op.get('/{id}', { access: { permission: 'system:dict:list' }, params: idParam, response: dictSchema, summary: '字典详情' }),
+  create: op.post('/', { access: { permission: 'system:dict:create' }, audit: '创建字典', body: createDictSchema, response: dictSchema, summary: '创建字典' }),
+  update: op.put('/{id}', { access: { permission: 'system:dict:update' }, audit: '更新字典', params: idParam, body: updateDictSchema, response: dictSchema, summary: '更新字典' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:dict:delete' }, audit: '删除字典', params: idParam, summary: '删除字典' }),
+  items: op.get('/{id}/items', { access: { permission: 'system:dict:list' }, params: idParam, response: z.array(dictItemSchema), summary: '获取字典下所有字典项' }),
+  itemsByCode: op.get('/code/{code}/items', { access: 'authenticated', params: dictCodeParam, response: z.array(dictItemSchema), summary: '通过字典编码获取字典项（供前端使用）' }),
+  itemDetail: op.get('/{id}/items/{itemId}', { access: { permission: 'system:dict:item' }, params: dictItemParam, response: dictItemSchema, summary: '获取字典项详情' }),
+  createItem: op.post('/{id}/items', { access: { permission: 'system:dict:item' }, audit: '创建字典项', params: idParam, body: createDictItemSchema, response: dictItemSchema, summary: '创建字典项' }),
+  updateItem: op.put('/{id}/items/{itemId}', { access: { permission: 'system:dict:item' }, audit: '更新字典项', params: dictItemParam, body: updateDictItemSchema, response: dictItemSchema, summary: '更新字典项' }),
+  removeItem: op.delete('/{id}/items/{itemId}', { access: { permission: 'system:dict:item' }, audit: '删除字典项', params: dictItemParam, summary: '删除字典项' }),
+}, { auditModule: '字典管理', tags: ['Dicts'] });

@@ -169,22 +169,24 @@ export const systemSchedulerTaskNameParam = z.object({
 });
 
 export const systemSchedulerContract = defineContract('/api/system-scheduler', {
-  tasks: op.get('/tasks', { response: z.array(systemSchedulerTaskSchema), summary: '系统调度任务列表' }),
-  runs: op.get('/runs', { query: systemSchedulerRunListQuery, response: paginated(systemSchedulerRunSchema), summary: '系统调度运行日志' }),
-  cleanupRuns: op.post('/runs/cleanup', { query: systemSchedulerCleanupQuery, response: systemSchedulerCleanupResultSchema, summary: '手动清理系统调度运行日志' }),
-  runDetail: op.get('/runs/{id}', { params: idParam, response: systemSchedulerRunSchema, summary: '系统调度运行日志详情' }),
+  tasks: op.get('/tasks', { access: { permission: 'system:scheduler:view' }, response: z.array(systemSchedulerTaskSchema), summary: '系统调度任务列表' }),
+  runs: op.get('/runs', { access: { permission: 'system:scheduler:view' }, query: systemSchedulerRunListQuery, response: paginated(systemSchedulerRunSchema), summary: '系统调度运行日志' }),
+  cleanupRuns: op.post('/runs/cleanup', { access: { permission: 'system:scheduler:cleanup' }, audit: '手动清理系统调度运行日志', query: systemSchedulerCleanupQuery, response: systemSchedulerCleanupResultSchema, summary: '手动清理系统调度运行日志' }),
+  runDetail: op.get('/runs/{id}', { access: { permission: 'system:scheduler:view' }, params: idParam, response: systemSchedulerRunSchema, summary: '系统调度运行日志详情' }),
   acknowledgeAlert: op.post('/runs/{id}/ack-alert', {
+    access: { permission: 'system:scheduler:alert' }, audit: '确认系统调度告警',
     params: idParam,
     body: acknowledgeSystemSchedulerAlertSchema,
     response: systemSchedulerRunSchema,
     summary: '确认系统调度告警',
   }),
-  nodes: op.get('/nodes', { query: paginationQuery, response: paginated(systemSchedulerNodeSchema), summary: '系统调度节点列表' }),
-  runTask: op.post('/tasks/{name}/run', { params: systemSchedulerTaskNameParam, response: systemSchedulerRunResultSchema, summary: '手动执行系统周期任务' }),
+  nodes: op.get('/nodes', { access: { permission: 'system:scheduler:view' }, query: paginationQuery, response: paginated(systemSchedulerNodeSchema), summary: '系统调度节点列表' }),
+  runTask: op.post('/tasks/{name}/run', { access: { permission: 'system:scheduler:run' }, audit: '手动执行系统周期任务', params: systemSchedulerTaskNameParam, response: systemSchedulerRunResultSchema, summary: '手动执行系统周期任务' }),
   updateTaskConfig: op.put('/tasks/{name}/config', {
+    access: { permission: 'system:scheduler:config' }, audit: '更新系统调度任务策略',
     params: systemSchedulerTaskNameParam,
     body: updateSystemSchedulerTaskConfigSchema,
     response: systemSchedulerTaskConfigSchema,
     summary: '更新系统调度任务策略',
   }),
-}, { tags: ['SystemScheduler'] });
+}, { auditModule: '系统调度', tags: ['SystemScheduler'] });

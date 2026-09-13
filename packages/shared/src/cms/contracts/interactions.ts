@@ -248,18 +248,18 @@ export const cmsInteractionTrendQuery = z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsInteractionContract = defineContract('/api/cms/interactions', {
-  list: op.get('/', { query: cmsInteractionListQuery, response: paginated(cmsInteractionSchema), summary: '统一互动问卷分页列表' }),
-  responses: op.get('/responses', { query: cmsInteractionResponseListQuery, response: paginated(cmsInteractionResponseSchema), summary: '互动答卷明细（会员信息脱敏）' }),
-  batchStatus: op.post('/batch/status', { body: batchCmsInteractionStatusSchema, response: asyncTaskSchema, summary: '批量发布/关闭互动问卷（任务中心）' }),
-  detail: op.get('/{id}', { params: idParam, response: cmsInteractionSchema, summary: '互动问卷详情（含题目）' }),
-  texts: op.get('/{id}/stats/texts', { params: idParam, query: cmsInteractionTextsQuery, response: paginated(cmsInteractionTextAnswerSchema), summary: '文本 / 日期 /「其他」填空答案分页' }),
-  crossStats: op.get('/{id}/stats/cross', { params: idParam, query: cmsInteractionCrossQuery, response: cmsInteractionCrossStatsSchema, summary: '两道选择题的交叉分析' }),
-  trend: op.get('/{id}/stats/trend', { params: idParam, query: cmsInteractionTrendQuery, response: cmsInteractionTrendStatsSchema, summary: '答卷提交趋势（按天）' }),
-  stats: op.get('/{id}/stats', { params: idParam, response: cmsInteractionStatsSchema, summary: '统一互动结果统计' }),
-  create: op.post('/', { body: createCmsInteractionSchema, response: cmsInteractionSchema, summary: '创建互动问卷' }),
-  update: op.put('/{id}', { params: idParam, body: updateCmsInteractionSchema, response: cmsInteractionSchema, summary: '更新互动问卷' }),
-  setStatus: op.post('/{id}/status', { params: idParam, body: setCmsInteractionStatusSchema, response: cmsInteractionSchema, summary: '流转互动问卷状态' }),
-  copy: op.post('/{id}/copy', { params: idParam, response: cmsInteractionSchema, summary: '复制互动问卷（生成草稿副本）' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除互动问卷及全部答卷' }),
-}, { tags: ['CMS-互动问卷'] });
+  list: op.get('/', { access: { permission: 'cms:interaction:list' }, query: cmsInteractionListQuery, response: paginated(cmsInteractionSchema), summary: '统一互动问卷分页列表' }),
+  responses: op.get('/responses', { access: { permission: 'cms:interaction:list' }, query: cmsInteractionResponseListQuery, response: paginated(cmsInteractionResponseSchema), summary: '互动答卷明细（会员信息脱敏）' }),
+  batchStatus: op.post('/batch/status', { access: { permission: 'cms:interaction:batch' }, audit: '批量流转 CMS 互动问卷', body: batchCmsInteractionStatusSchema, response: asyncTaskSchema, summary: '批量发布/关闭互动问卷（任务中心）' }),
+  detail: op.get('/{id}', { access: { permission: 'cms:interaction:list' }, params: idParam, response: cmsInteractionSchema, summary: '互动问卷详情（含题目）' }),
+  texts: op.get('/{id}/stats/texts', { access: { permission: 'cms:interaction:list' }, params: idParam, query: cmsInteractionTextsQuery, response: paginated(cmsInteractionTextAnswerSchema), summary: '文本 / 日期 /「其他」填空答案分页' }),
+  crossStats: op.get('/{id}/stats/cross', { access: { permission: 'cms:interaction:list' }, params: idParam, query: cmsInteractionCrossQuery, response: cmsInteractionCrossStatsSchema, summary: '两道选择题的交叉分析' }),
+  trend: op.get('/{id}/stats/trend', { access: { permission: 'cms:interaction:list' }, params: idParam, query: cmsInteractionTrendQuery, response: cmsInteractionTrendStatsSchema, summary: '答卷提交趋势（按天）' }),
+  stats: op.get('/{id}/stats', { access: { permission: 'cms:interaction:list' }, params: idParam, response: cmsInteractionStatsSchema, summary: '统一互动结果统计' }),
+  create: op.post('/', { access: { permission: 'cms:interaction:manage' }, audit: '创建 CMS 互动问卷', body: createCmsInteractionSchema, response: cmsInteractionSchema, summary: '创建互动问卷' }),
+  update: op.put('/{id}', { access: { permission: 'cms:interaction:manage' }, audit: '更新 CMS 互动问卷', params: idParam, body: updateCmsInteractionSchema, response: cmsInteractionSchema, summary: '更新互动问卷' }),
+  setStatus: op.post('/{id}/status', { access: { permission: 'cms:interaction:manage' }, audit: '流转 CMS 互动问卷状态', params: idParam, body: setCmsInteractionStatusSchema, response: cmsInteractionSchema, summary: '流转互动问卷状态' }),
+  copy: op.post('/{id}/copy', { access: { permission: 'cms:interaction:manage' }, audit: '复制 CMS 互动问卷', params: idParam, response: cmsInteractionSchema, summary: '复制互动问卷（生成草稿副本）' }),
+  remove: op.delete('/{id}', { access: { permission: 'cms:interaction:manage' }, audit: '删除 CMS 互动问卷', params: idParam, summary: '删除互动问卷及全部答卷' }),
+}, { auditModule: 'CMS内容管理', tags: ['CMS-互动问卷'] });
 

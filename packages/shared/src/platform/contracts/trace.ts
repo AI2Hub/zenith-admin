@@ -52,6 +52,6 @@ export const traceFailureListQuery = z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const traceContract = defineContract('/api/trace', {
-  recentFailures: op.get('/recent-failures', { query: traceFailureListQuery, response: z.array(traceFailureEntrySchema), summary: '最近失败链路（请求 5xx / 作业失败 / 任务失败 / 通知派发失败）' }),
-  timeline: op.get('/{traceId}', { params: traceIdParam, response: traceTimelineSchema, summary: '按 traceId 聚合一次操作的时间线（请求/作业/事件/通知/任务）' }),
+  recentFailures: op.get('/recent-failures', { access: { permission: 'system:trace:view' }, query: traceFailureListQuery, response: z.array(traceFailureEntrySchema), summary: '最近失败链路（请求 5xx / 作业失败 / 任务失败 / 通知派发失败）' }),
+  timeline: op.get('/{traceId}', { access: { permission: 'system:trace:view' }, params: traceIdParam, response: traceTimelineSchema, summary: '按 traceId 聚合一次操作的时间线（请求/作业/事件/通知/任务）' }),
 }, { tags: ['链路追踪'] });

@@ -48,14 +48,14 @@ export const sshSftpProfileIdParam = z.object({
 });
 
 export const sshSftpContract = defineContract('/api/ssh-sftp', {
-  home: op.get('/{profileId}/home', { params: sshSftpProfileIdParam, response: sftpHomeSchema, summary: '获取远程 home 目录' }),
-  list: op.get('/{profileId}/list', { params: sshSftpProfileIdParam, query: fsOptionalPathQuery, response: sftpDirListingSchema, summary: '列出远程目录内容' }),
-  content: op.get('/{profileId}/content', { params: sshSftpProfileIdParam, query: fsPathQuery, response: sftpFileContentSchema, summary: '读取远程文本文件内容' }),
-  saveContent: op.put('/{profileId}/content', { params: sshSftpProfileIdParam, body: fsWriteTextSchema, response: sftpFileEntrySchema, summary: '保存远程文本文件内容' }),
-  create: op.post('/{profileId}/create', { params: sshSftpProfileIdParam, body: fsCreateEntrySchema, response: sftpFileEntrySchema, summary: '新建远程文件或目录' }),
-  rename: op.post('/{profileId}/rename', { params: sshSftpProfileIdParam, body: fsRenameSchema, response: sftpFileEntrySchema, summary: '重命名 / 移动远程文件或目录' }),
-  remove: op.delete('/{profileId}/entry', { params: sshSftpProfileIdParam, query: fsPathQuery, summary: '删除远程文件或目录' }),
-  chmod: op.post('/{profileId}/chmod', { params: sshSftpProfileIdParam, body: fsChmodSchema, summary: '修改远程文件 / 目录权限' }),
-  download: op.get('/{profileId}/download', { params: sshSftpProfileIdParam, query: fsPathQuery, kind: 'file', summary: '下载远程文件' }),
-  upload: op.post('/{profileId}/upload', { params: sshSftpProfileIdParam, body: fsUploadBody, response: sftpFileEntrySchema, summary: '上传文件到远程目录' }),
-}, { tags: ['SshSftp'] });
+  home: op.get('/{profileId}/home', { access: { permission: 'system:terminal:execute' }, params: sshSftpProfileIdParam, response: sftpHomeSchema, summary: '获取远程 home 目录' }),
+  list: op.get('/{profileId}/list', { access: { permission: 'system:terminal:execute' }, params: sshSftpProfileIdParam, query: fsOptionalPathQuery, response: sftpDirListingSchema, summary: '列出远程目录内容' }),
+  content: op.get('/{profileId}/content', { access: { permission: 'system:terminal:execute' }, params: sshSftpProfileIdParam, query: fsPathQuery, response: sftpFileContentSchema, summary: '读取远程文本文件内容' }),
+  saveContent: op.put('/{profileId}/content', { access: { permission: 'system:terminal:execute' }, audit: { description: 'SFTP 保存文件', recordBody: false }, params: sshSftpProfileIdParam, body: fsWriteTextSchema, response: sftpFileEntrySchema, summary: '保存远程文本文件内容' }),
+  create: op.post('/{profileId}/create', { access: { permission: 'system:terminal:execute' }, audit: 'SFTP 新建文件/目录', params: sshSftpProfileIdParam, body: fsCreateEntrySchema, response: sftpFileEntrySchema, summary: '新建远程文件或目录' }),
+  rename: op.post('/{profileId}/rename', { access: { permission: 'system:terminal:execute' }, audit: 'SFTP 重命名/移动', params: sshSftpProfileIdParam, body: fsRenameSchema, response: sftpFileEntrySchema, summary: '重命名 / 移动远程文件或目录' }),
+  remove: op.delete('/{profileId}/entry', { access: { permission: 'system:terminal:execute' }, audit: 'SFTP 删除文件/目录', params: sshSftpProfileIdParam, query: fsPathQuery, summary: '删除远程文件或目录' }),
+  chmod: op.post('/{profileId}/chmod', { access: { permission: 'system:terminal:execute' }, audit: 'SFTP 修改权限', params: sshSftpProfileIdParam, body: fsChmodSchema, summary: '修改远程文件 / 目录权限' }),
+  download: op.get('/{profileId}/download', { access: { permission: 'system:terminal:execute' }, params: sshSftpProfileIdParam, query: fsPathQuery, kind: 'file', summary: '下载远程文件' }),
+  upload: op.post('/{profileId}/upload', { access: { permission: 'system:terminal:execute' }, audit: { description: 'SFTP 上传文件', recordBody: false }, params: sshSftpProfileIdParam, body: fsUploadBody, response: sftpFileEntrySchema, summary: '上传文件到远程目录' }),
+}, { auditModule: 'Web 终端', tags: ['SshSftp'] });

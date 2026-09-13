@@ -77,9 +77,9 @@ export const dataMaskFieldParams = z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const dataMaskContract = defineContract('/api/data-mask', {
-  fields: op.get('/fields', { query: dataMaskFieldListQuery, response: z.array(dataMaskFieldSchema), summary: '敏感字段清单与生效策略' }),
-  effective: op.get('/effective', { response: dataMaskEffectiveSchema, summary: '当前用户视角的脱敏字段' }),
-  savePolicy: op.put('/fields/{entity}/{field}', { params: dataMaskFieldParams, body: saveDataMaskPolicySchema, response: dataMaskFieldSchema, summary: '保存字段脱敏策略（整体替换）' }),
-  resetPolicy: op.delete('/fields/{entity}/{field}', { params: dataMaskFieldParams, response: dataMaskFieldSchema, summary: '恢复字段为契约默认策略' }),
-  reveal: op.post('/reveal', { body: revealSensitiveValueSchema, response: revealedSensitiveValueSchema, summary: '按需查看脱敏字段明文（记录审计）' }),
-}, { tags: ['DataMask'] });
+  fields: op.get('/fields', { access: { permission: 'system:data-mask:list' }, query: dataMaskFieldListQuery, response: z.array(dataMaskFieldSchema), summary: '敏感字段清单与生效策略' }),
+  effective: op.get('/effective', { access: 'authenticated', response: dataMaskEffectiveSchema, summary: '当前用户视角的脱敏字段' }),
+  savePolicy: op.put('/fields/{entity}/{field}', { access: { permission: 'system:data-mask:update', platformOnly: 'multi-tenant' }, audit: '保存脱敏策略', params: dataMaskFieldParams, body: saveDataMaskPolicySchema, response: dataMaskFieldSchema, summary: '保存字段脱敏策略（整体替换）' }),
+  resetPolicy: op.delete('/fields/{entity}/{field}', { access: { permission: 'system:data-mask:update', platformOnly: 'multi-tenant' }, audit: '恢复脱敏默认策略', params: dataMaskFieldParams, response: dataMaskFieldSchema, summary: '恢复字段为契约默认策略' }),
+  reveal: op.post('/reveal', { access: { permission: 'system:data-mask:reveal' }, audit: { description: '查看脱敏字段明文', recordResponseBody: false }, body: revealSensitiveValueSchema, response: revealedSensitiveValueSchema, summary: '按需查看脱敏字段明文（记录审计）' }),
+}, { auditModule: '数据脱敏', tags: ['DataMask'] });

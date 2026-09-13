@@ -81,12 +81,12 @@ export const cmsModelListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsModelContract = defineContract('/api/cms/models', {
-  list: op.get('/', { query: cmsModelListQuery, response: paginated(cmsModelSchema), summary: '模型分页列表' }),
-  all: op.get('/all', { query: cmsModelScopeQuery, response: z.array(cmsModelSchema), summary: '全部启用模型（栏目绑定下拉；普通请求必须提供 siteId）' }),
-  detail: op.get('/{id}', { params: idParam, query: cmsModelScopeQuery, response: cmsModelSchema, summary: '模型详情（含字段）' }),
-  refs: op.get('/{id}/refs', { params: idParam, query: cmsModelScopeQuery, response: cmsModelRefsSchema, summary: '模型引用统计（被哪些栏目绑定、内容/站点扩展使用量）' }),
-  create: op.post('/', { body: createCmsModelSchema, response: cmsModelSchema, summary: '创建模型' }),
-  update: op.put('/{id}', { params: idParam, query: cmsModelScopeQuery, body: updateCmsModelSchema, response: cmsModelSchema, summary: '更新模型（fields 提供时整组替换）' }),
-  remove: op.delete('/{id}', { params: idParam, query: cmsModelScopeQuery, summary: '删除模型' }),
-}, { tags: ['CMS-内容模型'] });
+  list: op.get('/', { access: { permission: 'cms:model:list' }, query: cmsModelListQuery, response: paginated(cmsModelSchema), summary: '模型分页列表' }),
+  all: op.get('/all', { access: { permission: 'cms:channel:list' }, query: cmsModelScopeQuery, response: z.array(cmsModelSchema), summary: '全部启用模型（栏目绑定下拉；普通请求必须提供 siteId）' }),
+  detail: op.get('/{id}', { access: { permission: 'cms:model:list' }, params: idParam, query: cmsModelScopeQuery, response: cmsModelSchema, summary: '模型详情（含字段）' }),
+  refs: op.get('/{id}/refs', { access: { permission: 'cms:model:list' }, params: idParam, query: cmsModelScopeQuery, response: cmsModelRefsSchema, summary: '模型引用统计（被哪些栏目绑定、内容/站点扩展使用量）' }),
+  create: op.post('/', { access: { permission: 'cms:model:create' }, audit: '创建 CMS 内容模型', body: createCmsModelSchema, response: cmsModelSchema, summary: '创建模型' }),
+  update: op.put('/{id}', { access: { permission: 'cms:model:update' }, audit: '更新 CMS 内容模型', params: idParam, query: cmsModelScopeQuery, body: updateCmsModelSchema, response: cmsModelSchema, summary: '更新模型（fields 提供时整组替换）' }),
+  remove: op.delete('/{id}', { access: { permission: 'cms:model:delete' }, audit: '删除 CMS 内容模型', params: idParam, query: cmsModelScopeQuery, summary: '删除模型' }),
+}, { auditModule: 'CMS内容管理', tags: ['CMS-内容模型'] });
 

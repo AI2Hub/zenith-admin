@@ -72,11 +72,11 @@ export const cmsPageBlockAclQuery = z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsPageContract = defineContract('/api/cms/pages', {
-  list: op.get('/', { query: cmsPageListQuery, response: paginated(cmsPageSchema), summary: '页面分页列表' }),
-  blockAcls: op.get('/{id}/block-acls', { params: idParam, query: cmsPageBlockAclQuery, response: z.array(cmsPageBlockAclSchema), summary: '查看页面区块 ACL' }),
-  setBlockAcls: op.put('/{id}/block-acls', { params: idParam, body: setCmsPageBlockAclSchema, response: z.array(cmsPageBlockAclSchema), summary: '批量设置页面区块 ACL（用户/角色）' }),
-  detail: op.get('/{id}', { params: idParam, response: cmsPageSchema, summary: '页面详情' }),
-  create: op.post('/', { body: createCmsPageSchema, response: cmsPageSchema, summary: '创建页面' }),
-  update: op.put('/{id}', { params: idParam, body: updateCmsPageSchema, response: cmsPageSchema, summary: '更新页面' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除页面' }),
-}, { tags: ['CMS-页面搭建'] });
+  list: op.get('/', { access: { permission: 'cms:page:list' }, query: cmsPageListQuery, response: paginated(cmsPageSchema), summary: '页面分页列表' }),
+  blockAcls: op.get('/{id}/block-acls', { access: { permission: 'cms:page:acl' }, params: idParam, query: cmsPageBlockAclQuery, response: z.array(cmsPageBlockAclSchema), summary: '查看页面区块 ACL' }),
+  setBlockAcls: op.put('/{id}/block-acls', { access: { permission: 'cms:page:acl' }, audit: '设置 CMS 页面区块 ACL', params: idParam, body: setCmsPageBlockAclSchema, response: z.array(cmsPageBlockAclSchema), summary: '批量设置页面区块 ACL（用户/角色）' }),
+  detail: op.get('/{id}', { access: { permission: 'cms:page:list' }, params: idParam, response: cmsPageSchema, summary: '页面详情' }),
+  create: op.post('/', { access: { permission: 'cms:page:create' }, audit: '创建 CMS 搭建页面', body: createCmsPageSchema, response: cmsPageSchema, summary: '创建页面' }),
+  update: op.put('/{id}', { access: { permission: ['cms:page:list', 'cms:page:update'] }, audit: '更新 CMS 搭建页面', params: idParam, body: updateCmsPageSchema, response: cmsPageSchema, summary: '更新页面' }),
+  remove: op.delete('/{id}', { access: { permission: 'cms:page:delete' }, audit: '删除 CMS 搭建页面', params: idParam, summary: '删除页面' }),
+}, { auditModule: 'CMS内容管理', tags: ['CMS-页面搭建'] });

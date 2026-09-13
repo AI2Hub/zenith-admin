@@ -55,10 +55,10 @@ export const paymentSettlementListQuery = paginationQuery.extend({
 });
 
 export const paymentSettlementContract = defineContract('/api/payment/settlements', {
-  list: op.get('/', { query: paymentSettlementListQuery, response: paginated(paymentSettlementBatchSchema), summary: '结算批次列表' }),
-  items: op.get('/{id}/items', { params: idParam, response: z.array(paymentSettlementItemSchema), summary: '结算批次逐笔资金明细' }),
-  detail: op.get('/{id}', { params: idParam, response: paymentSettlementBatchSchema, summary: '结算批次详情' }),
-  generate: op.post('/generate', { body: createPaymentSettlementSchema, response: paymentSettlementBatchSchema, summary: '生成结算批次（聚合账期成功订单）' }),
-  transition: op.post('/{id}/status', { params: idParam, body: transitionPaymentSettlementSchema, response: paymentSettlementBatchSchema, summary: '结算批次状态流转（结算中/已结算/失败）' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除结算批次' }),
-}, { tags: ['支付中心-结算'] });
+  list: op.get('/', { access: { permission: 'payment:settlement:list' }, query: paymentSettlementListQuery, response: paginated(paymentSettlementBatchSchema), summary: '结算批次列表' }),
+  items: op.get('/{id}/items', { access: { permission: 'payment:settlement:list' }, params: idParam, response: z.array(paymentSettlementItemSchema), summary: '结算批次逐笔资金明细' }),
+  detail: op.get('/{id}', { access: { permission: 'payment:settlement:list' }, params: idParam, response: paymentSettlementBatchSchema, summary: '结算批次详情' }),
+  generate: op.post('/generate', { access: { permission: 'payment:settlement:generate' }, audit: '生成支付结算批次', body: createPaymentSettlementSchema, response: paymentSettlementBatchSchema, summary: '生成结算批次（聚合账期成功订单）' }),
+  transition: op.post('/{id}/status', { access: { permission: 'payment:settlement:settle' }, audit: '流转支付结算批次状态', params: idParam, body: transitionPaymentSettlementSchema, response: paymentSettlementBatchSchema, summary: '结算批次状态流转（结算中/已结算/失败）' }),
+  remove: op.delete('/{id}', { access: { permission: 'payment:settlement:settle' }, audit: '删除支付结算批次', params: idParam, summary: '删除结算批次' }),
+}, { auditModule: '支付中心', tags: ['支付中心-结算'] });

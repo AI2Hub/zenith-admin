@@ -363,11 +363,12 @@ export type MonitorWsMetrics = z.infer<typeof monitorWsMetricsSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const monitorContract = defineContract('/api/monitor', {
-  snapshot: op.get('/', { response: monitorSnapshotSchema, summary: '获取服务器监控信息' }),
-  timeseries: op.get('/timeseries', { response: monitorTimeseriesSchema, summary: '获取最近 1h 监控时序数据' }),
-  history: op.get('/history', { query: monitorHistoryQuerySchema, response: monitorHistorySchema, summary: '获取持久化历史监控趋势（按时间范围分桶聚合）' }),
-  ws: op.get('/ws', { response: monitorWsMetricsSchema, summary: '获取 WebSocket 实时连接监控' }),
+  snapshot: op.get('/', { access: { permission: 'system:monitor:view' }, response: monitorSnapshotSchema, summary: '获取服务器监控信息' }),
+  timeseries: op.get('/timeseries', { access: { permission: 'system:monitor:view' }, response: monitorTimeseriesSchema, summary: '获取最近 1h 监控时序数据' }),
+  history: op.get('/history', { access: { permission: 'system:monitor:view' }, query: monitorHistoryQuerySchema, response: monitorHistorySchema, summary: '获取持久化历史监控趋势（按时间范围分桶聚合）' }),
+  ws: op.get('/ws', { access: { permission: 'system:monitor:view' }, response: monitorWsMetricsSchema, summary: '获取 WebSocket 实时连接监控' }),
   stream: op.get('/stream', {
+    access: { permission: 'system:monitor:view' },
     kind: 'sse',
     response: z.string(),
     summary: '实时推送监控指标（SSE）',

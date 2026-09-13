@@ -53,5 +53,5 @@ export const paymentReportSummaryQuery = z.object({
 });
 
 export const paymentReportContract = defineContract('/api/payment/reports', {
-  summary: op.get('/summary', { query: paymentReportSummaryQuery, response: paymentReportSummarySchema, summary: '财务报表汇总（按日/应用/商户账户/币种/渠道）' }),
+  summary: op.get('/summary', { access: { permission: 'payment:report:view' }, query: paymentReportSummaryQuery, response: paymentReportSummarySchema, summary: '财务报表汇总（按日/应用/商户账户/币种/渠道）' }),
 }, { tags: ['支付中心-财务报表'] });

@@ -1,9 +1,7 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { ANALYTICS_SITE_KEY_HEADER, replaySegmentUploadMetaSchema, sessionReplayContract } from '@zenith/shared/analytics';
-import { authMiddleware } from '../../middleware/auth';
 import { optionalAuthMiddleware } from '../../middleware/optional-auth';
-import { guard } from '../../middleware/guard';
 import { namedRateLimit } from '../../middleware/rate-limit';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
@@ -23,9 +21,6 @@ import { getClientIp } from '../../lib/request-helpers';
 import { mountCrud } from '../_crud';
 
 const r = new OpenAPIHono({ defaultHook: validationHook });
-
-const replayList = [authMiddleware, guard({ permission: 'monitor:replay:list' })] as const;
-const replayManage = [authMiddleware, guard({ permission: 'monitor:replay:manage' })] as const;
 
 // 回放分片为持续流式上报热点，meta 解析走 AOT 预编译换事件循环余量
 // （在 server 使用点编译而非 shared 定义点，避免把 zod 编译器带进 web 包；strict 防未来改动静默退化）
@@ -59,17 +54,14 @@ const ingestRoute = defineContractRoute(sessionReplayContract.ingestSegment, {
 });
 
 const statsRoute = defineContractRoute(sessionReplayContract.stats, {
-  middleware: replayList,
   handler: async (c) => c.json(okBody(await getReplayStorageStats()), 200),
 });
 
 const heatmapPagesRoute = defineContractRoute(sessionReplayContract.heatmapPages, {
-  middleware: replayList,
   handler: async (c) => c.json(okBody(await listHeatmapPages(c.req.valid('query').days)), 200),
 });
 
 const heatmapRoute = defineContractRoute(sessionReplayContract.heatmap, {
-  middleware: replayList,
   handler: async (c) => {
     const q = c.req.valid('query');
     return c.json(okBody(await getClickHeatmap(q.pagePath, q.days)), 200);
@@ -77,17 +69,14 @@ const heatmapRoute = defineContractRoute(sessionReplayContract.heatmap, {
 });
 
 const detailRoute = defineContractRoute(sessionReplayContract.detail, {
-  middleware: replayList,
   handler: async (c) => c.json(okBody(await getReplaySessionDetail(c.req.valid('param').id, getClientIp(c))), 200),
 });
 
 const accessLogsRoute = defineContractRoute(sessionReplayContract.accessLogs, {
-  middleware: replayManage,
   handler: async (c) => c.json(okBody(await listReplayAccessLogs(c.req.valid('query'))), 200),
 });
 
 const segmentDataRoute = defineContractRoute(sessionReplayContract.segmentData, {
-  middleware: replayList,
   handler: async (c) => {
     const { id, seq } = c.req.valid('param');
     const data = await getReplaySegmentData(id, seq);
@@ -101,7 +90,6 @@ const segmentDataRoute = defineContractRoute(sessionReplayContract.segmentData, 
 });
 
 const batchDeleteRoute = defineContractRoute(sessionReplayContract.removeBatch, {
-  middleware: replayManage,
   handler: async (c) => {
     const n = await deleteReplaySessions(c.req.valid('json').ids);
     return c.json(okBody(null, `已删除 ${n} 条回放`), 200);
@@ -110,7 +98,7 @@ const batchDeleteRoute = defineContractRoute(sessionReplayContract.removeBatch, 
 
 mountCrud(r, sessionReplayContract,
   { list: listReplaySessions },
-  { permission: 'monitor:replay', exclude: ['detail', 'removeBatch'] },
+  { exclude: ['detail', 'removeBatch'] },
   [
     ingestRoute,
     statsRoute,

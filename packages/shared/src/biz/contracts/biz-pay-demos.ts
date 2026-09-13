@@ -41,10 +41,10 @@ export const bizPayDemoListQuery = paginationQuery.extend({
 });
 
 export const bizPayDemoContract = defineContract('/api/biz/pay-demos', {
-  list: op.get('/', { query: bizPayDemoListQuery, response: paginated(bizPayDemoSchema), summary: '我的支付示例单列表' }),
-  detail: op.get('/{id}', { params: idParam, response: bizPayDemoSchema, summary: '支付示例单详情' }),
-  create: op.post('/', { body: createBizPayDemoSchema, response: bizPayDemoSchema, summary: '新建支付示例单' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除支付示例单' }),
-  pay: op.post('/{id}/pay', { params: idParam, body: payBizPayDemoSchema, response: bizPayDemoPayResultSchema, summary: '发起支付（调用统一支付门面下单）' }),
-  simulatePaid: op.post('/{id}/simulate-paid', { params: idParam, response: bizPayDemoSchema, summary: '模拟支付成功（演示专用，驱动真实履约订阅器）' }),
+  list: op.get('/', { access: 'authenticated', query: bizPayDemoListQuery, response: paginated(bizPayDemoSchema), summary: '我的支付示例单列表' }),
+  detail: op.get('/{id}', { access: 'authenticated', params: idParam, response: bizPayDemoSchema, summary: '支付示例单详情' }),
+  create: op.post('/', { access: 'authenticated', body: createBizPayDemoSchema, response: bizPayDemoSchema, summary: '新建支付示例单' }),
+  remove: op.delete('/{id}', { access: 'authenticated', params: idParam, summary: '删除支付示例单' }),
+  pay: op.post('/{id}/pay', { access: 'authenticated', params: idParam, body: payBizPayDemoSchema, response: bizPayDemoPayResultSchema, summary: '发起支付（调用统一支付门面下单）' }),
+  simulatePaid: op.post('/{id}/simulate-paid', { access: 'authenticated', params: idParam, response: bizPayDemoSchema, summary: '模拟支付成功（演示专用，驱动真实履约订阅器）' }),
 }, { tags: ['BizPayDemo'] });

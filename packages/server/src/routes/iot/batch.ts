@@ -6,8 +6,6 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { iotBatchContract, IOT_BATCH_DEVICE_MAX } from '@zenith/shared/iot';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
@@ -16,10 +14,6 @@ import { resolveIotBatchTargets } from '../../services/iot/iot-groups.service';
 const iotBatchRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 const batchCommandRoute = defineContractRoute(iotBatchContract.commands, {
-  middleware: [authMiddleware, guard({
-    permission: 'iot:device:batch',
-    audit: { description: '批量下发 IoT 指令', module: 'IoT 设备' },
-  })],
   handler: async (c) => {
     const input = c.req.valid('json');
     const targets = await resolveIotBatchTargets(input.deviceIds, input.groupId, IOT_BATCH_DEVICE_MAX);
@@ -39,10 +33,6 @@ const batchCommandRoute = defineContractRoute(iotBatchContract.commands, {
 });
 
 const batchDesiredRoute = defineContractRoute(iotBatchContract.desired, {
-  middleware: [authMiddleware, guard({
-    permission: 'iot:device:batch',
-    audit: { description: '批量设置 IoT 期望属性', module: 'IoT 设备' },
-  })],
   handler: async (c) => {
     const input = c.req.valid('json');
     const targets = await resolveIotBatchTargets(input.deviceIds, input.groupId, IOT_BATCH_DEVICE_MAX);

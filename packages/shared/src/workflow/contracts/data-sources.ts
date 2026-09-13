@@ -49,17 +49,18 @@ export const workflowDataSourceRecordQuery = z.object({
 });
 
 export const workflowDataSourceContract = defineContract('/api/workflows/data-sources', {
-  list: op.get('/', { query: workflowDataSourceListQuery, response: paginated(workflowDataSourceSchema), summary: '数据源列表' }),
-  options: op.get('/{id}/options', { params: idParam, query: workflowDataSourceOptionsQuery, response: z.array(workflowDataSourceOptionSchema), summary: '拉取数据源选项' }),
+  list: op.get('/', { access: { permission: 'workflow:datasource:list' }, query: workflowDataSourceListQuery, response: paginated(workflowDataSourceSchema), summary: '数据源列表' }),
+  options: op.get('/{id}/options', { access: 'authenticated', params: idParam, query: workflowDataSourceOptionsQuery, response: z.array(workflowDataSourceOptionSchema), summary: '拉取数据源选项' }),
   record: op.get('/{id}/record', {
+    access: 'authenticated',
     params: idParam,
     query: workflowDataSourceRecordQuery,
     response: z.record(z.string(), z.unknown()).nullable(),
     summary: '按选项值取数据源完整记录',
     description: '联动赋值回填用；未命中返回 null',
   }),
-  detail: op.get('/{id}', { params: idParam, response: workflowDataSourceSchema, summary: '数据源详情' }),
-  create: op.post('/', { body: createWorkflowDataSourceSchema, response: workflowDataSourceSchema, summary: '创建数据源' }),
-  update: op.put('/{id}', { params: idParam, body: updateWorkflowDataSourceSchema, response: workflowDataSourceSchema, summary: '更新数据源' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除数据源' }),
-}, { tags: ['远程数据源'] });
+  detail: op.get('/{id}', { access: { permission: 'workflow:datasource:list' }, params: idParam, response: workflowDataSourceSchema, summary: '数据源详情' }),
+  create: op.post('/', { access: { permission: 'workflow:datasource:create' }, audit: '创建远程数据源', body: createWorkflowDataSourceSchema, response: workflowDataSourceSchema, summary: '创建数据源' }),
+  update: op.put('/{id}', { access: { permission: 'workflow:datasource:update' }, audit: '更新远程数据源', params: idParam, body: updateWorkflowDataSourceSchema, response: workflowDataSourceSchema, summary: '更新数据源' }),
+  remove: op.delete('/{id}', { access: { permission: 'workflow:datasource:delete' }, audit: '删除远程数据源', params: idParam, summary: '删除数据源' }),
+}, { auditModule: '远程数据源', tags: ['远程数据源'] });

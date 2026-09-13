@@ -14,6 +14,7 @@ import { getEffectiveTenantId } from '../lib/tenant';
 import { assertFeatureEnabled } from '../lib/licensing';
 import type { LicenseFeatureKey } from '@zenith/shared/licensing';
 import { permissionList, type Permission } from '@zenith/shared/core';
+import { tagMiddleware } from '../lib/route-facts';
 
 export interface AuditLogOptions {
   description: string;
@@ -123,7 +124,7 @@ async function resolveAuditRequestBody(c: Context, options: AuditLogOptions): Pr
  * 按顺序执行：权限校验 → 审计日志（可选）→ next()
  */
 export function guard(opts: GuardOptions) {
-  return createMiddleware<AppEnv>(async (c, next) => {
+  const middleware = createMiddleware<AppEnv>(async (c, next) => {
     // ── License 功能门控（先于权限；超管不豁免）──
     if (opts.feature) {
       await assertFeatureEnabled(opts.feature);
@@ -192,5 +193,11 @@ export function guard(opts: GuardOptions) {
     }
 
     await next();
+  });
+  return tagMiddleware(middleware, {
+    kind: 'guard',
+    permission: opts.permission ? [...permissionList(opts.permission)] : null,
+    audit: opts.audit ? { ...opts.audit } : null,
+    feature: opts.feature ?? null,
   });
 }

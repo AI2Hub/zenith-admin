@@ -30,11 +30,11 @@ export const apiScopeListQuery = paginationQuery.extend({
 });
 
 export const apiScopeContract = defineContract('/api/api-scopes', {
-  list: op.get('/', { query: apiScopeListQuery, response: paginated(apiScopeSchema), summary: '获取 API Scope 列表' }),
-  options: op.get('/options', { response: z.array(apiScopeSchema), summary: '获取全部启用的 Scope（供应用配置下拉）' }),
-  detail: op.get('/{id}', { params: idParam, response: apiScopeSchema, summary: '获取 API Scope 详情' }),
-  create: op.post('/', { body: createApiScopeSchema, response: apiScopeSchema, summary: '创建 API Scope' }),
-  update: op.put('/{id}', { params: idParam, body: updateApiScopeSchema, response: apiScopeSchema, summary: '更新 API Scope' }),
-  removeBatch: op.delete('/batch', { body: batchIdsBody, summary: '批量删除 API Scope' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除 API Scope' }),
-}, { tags: ['ApiScopes'] });
+  list: op.get('/', { access: { permission: 'open:scope:view' }, query: apiScopeListQuery, response: paginated(apiScopeSchema), summary: '获取 API Scope 列表' }),
+  options: op.get('/options', { access: 'authenticated', response: z.array(apiScopeSchema), summary: '获取全部启用的 Scope（供应用配置下拉）' }),
+  detail: op.get('/{id}', { access: { permission: 'open:scope:view' }, params: idParam, response: apiScopeSchema, summary: '获取 API Scope 详情' }),
+  create: op.post('/', { access: { permission: 'open:scope:manage' }, audit: '创建 API Scope', body: createApiScopeSchema, response: apiScopeSchema, summary: '创建 API Scope' }),
+  update: op.put('/{id}', { access: { permission: 'open:scope:manage' }, audit: '更新 API Scope', params: idParam, body: updateApiScopeSchema, response: apiScopeSchema, summary: '更新 API Scope' }),
+  removeBatch: op.delete('/batch', { access: { permission: 'open:scope:manage' }, audit: '批量删除 API Scope', body: batchIdsBody, summary: '批量删除 API Scope' }),
+  remove: op.delete('/{id}', { access: { permission: 'open:scope:manage' }, audit: '删除 API Scope', params: idParam, summary: '删除 API Scope' }),
+}, { auditModule: '开放平台-API Scope', tags: ['ApiScopes'] });

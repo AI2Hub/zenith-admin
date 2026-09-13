@@ -100,16 +100,16 @@ export const cmsPublishActionParam = idParam.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsPublishingContract = defineContract('/api/cms/publishing', {
-  list: op.get('/', { query: cmsPublishingListQuery, response: paginated(cmsPublishingTaskSchema), summary: 'CMS 发布任务受权投影' }),
-  artifacts: op.get('/artifacts', { query: cmsPublishArtifactListQuery, response: paginated(cmsPublishArtifactSchema), summary: '发布产物分页列表' }),
-  submit: op.post('/submit', { body: submitCmsPublishSchema, response: asyncTaskSchema, summary: '统一提交内容/栏目/整站/影响重建任务' }),
-  batchAction: op.post('/batch-action', { body: batchCmsPublishActionSchema, response: cmsPublishBatchActionResultSchema, summary: '批量取消/恢复/重试/重建发布任务' }),
-  detail: op.get('/{id}', { params: idParam, response: cmsPublishingDetailSchema, summary: '发布任务、明细与产物详情' }),
-  action: op.post('/{id}/{action}', { params: cmsPublishActionParam, response: asyncTaskSchema, summary: '取消/恢复/重试/重建发布任务' }),
-  groupSubmit: op.post('/group-submit', { body: submitCmsSiteGroupPublishSchema, response: cmsSiteGroupPublishResultSchema, summary: '站点父子树整组重建' }),
-}, { tags: ['CMS-发布中心'] });
+  list: op.get('/', { access: { permission: 'cms:publish:view' }, query: cmsPublishingListQuery, response: paginated(cmsPublishingTaskSchema), summary: 'CMS 发布任务受权投影' }),
+  artifacts: op.get('/artifacts', { access: { permission: 'cms:publish:view' }, query: cmsPublishArtifactListQuery, response: paginated(cmsPublishArtifactSchema), summary: '发布产物分页列表' }),
+  submit: op.post('/submit', { access: { permission: 'cms:publish:build' }, audit: '提交 CMS 发布任务', body: submitCmsPublishSchema, response: asyncTaskSchema, summary: '统一提交内容/栏目/整站/影响重建任务' }),
+  batchAction: op.post('/batch-action', { access: { permission: 'cms:publish:manage' }, audit: '批量操作 CMS 发布任务', body: batchCmsPublishActionSchema, response: cmsPublishBatchActionResultSchema, summary: '批量取消/恢复/重试/重建发布任务' }),
+  detail: op.get('/{id}', { access: { permission: 'cms:publish:view' }, params: idParam, response: cmsPublishingDetailSchema, summary: '发布任务、明细与产物详情' }),
+  action: op.post('/{id}/{action}', { access: { permission: 'cms:publish:manage' }, audit: '操作 CMS 发布任务', params: cmsPublishActionParam, response: asyncTaskSchema, summary: '取消/恢复/重试/重建发布任务' }),
+  groupSubmit: op.post('/group-submit', { access: { permission: 'cms:publish:group' }, audit: '提交 CMS 站群整组重建', body: submitCmsSiteGroupPublishSchema, response: cmsSiteGroupPublishResultSchema, summary: '站点父子树整组重建' }),
+}, { auditModule: 'CMS内容管理', tags: ['CMS-发布中心'] });
 
 export const cmsStaticContract = defineContract('/api/cms/static', {
-  build: op.post('/build', { body: cmsSiteIdBodySchema, response: asyncTaskSchema, summary: '提交全站静态化任务（任务中心执行）' }),
-}, { tags: ['CMS-静态化'] });
+  build: op.post('/build', { access: { permission: 'cms:publish:build' }, audit: 'CMS 全站静态化', body: cmsSiteIdBodySchema, response: asyncTaskSchema, summary: '提交全站静态化任务（任务中心执行）' }),
+}, { auditModule: 'CMS内容管理', tags: ['CMS-静态化'] });
 

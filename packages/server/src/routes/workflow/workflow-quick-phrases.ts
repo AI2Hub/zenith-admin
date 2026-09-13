@@ -21,10 +21,6 @@ mountCrud(router, workflowQuickPhraseContract,
     remove: deleteMyQuickPhrase,
   },
   {
-    permission: null,
-    label: '审批常用语',
-    module: '工作流管理',
-    audit: { create: '新增审批常用语' },
     messages: { create: '已新增', update: '已更新', remove: '已删除' },
   },
 );

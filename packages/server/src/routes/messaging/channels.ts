@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { channelContract, channelCsContract, channelDashboardContract, channelMessageContract } from '@zenith/shared/messaging';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -69,18 +68,13 @@ import { mountCrud } from '../_crud';
 
 const channelsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
-const publisher = [authMiddleware, guard({ permission: 'channel:message:publish' })] as const;
-const cs = [authMiddleware, guard({ permission: 'channel:cs' })] as const;
-
 // ─── 用户侧 ──────────────────────────────────────────────────────────────────
 
 const listMine = defineContractRoute(channelContract.mine, {
-  middleware: [authMiddleware],
   handler: async (c) => c.json(okBody(await listMyChannels()), 200),
 });
 
 const listMessages = defineContractRoute(channelContract.messages, {
-  middleware: [authMiddleware],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await listChannelMessages(id, c.req.valid('query'))), 200);
@@ -88,7 +82,6 @@ const listMessages = defineContractRoute(channelContract.messages, {
 });
 
 const read = defineContractRoute(channelContract.markRead, {
-  middleware: [authMiddleware],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await markChannelRead(id);
@@ -97,7 +90,6 @@ const read = defineContractRoute(channelContract.markRead, {
 });
 
 const publish = defineContractRoute(channelMessageContract.publish, {
-  middleware: [authMiddleware, guard({ permission: 'channel:message:publish', audit: { description: '频道群发', module: '消息中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await publishToChannel(id, c.req.valid('json')), '已发布'), 200);
@@ -107,12 +99,10 @@ const publish = defineContractRoute(channelMessageContract.publish, {
 // ─── 订阅（运营号） ───────────────────────────────────────────────────────────
 
 const discoverable = defineContractRoute(channelContract.discoverable, {
-  middleware: [authMiddleware],
   handler: async (c) => c.json(okBody(await listDiscoverableChannels(c.req.valid('query').keyword)), 200),
 });
 
 const subscribe = defineContractRoute(channelContract.subscribe, {
-  middleware: [authMiddleware],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const firstTime = await subscribeChannel(id);
@@ -122,7 +112,6 @@ const subscribe = defineContractRoute(channelContract.subscribe, {
 });
 
 const unsubscribe = defineContractRoute(channelContract.unsubscribe, {
-  middleware: [authMiddleware],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await unsubscribeChannel(id);
@@ -133,7 +122,6 @@ const unsubscribe = defineContractRoute(channelContract.unsubscribe, {
 // ─── 双向消息（用户侧） ───────────────────────────────────────────────────────
 
 const sendMessage = defineContractRoute(channelContract.send, {
-  middleware: [authMiddleware],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { content } = c.req.valid('json');
@@ -144,7 +132,6 @@ const sendMessage = defineContractRoute(channelContract.send, {
 // ─── 公众号底部菜单 ───────────────────────────────────────────────────────────
 
 const listMenus = defineContractRoute(channelContract.menus, {
-  middleware: [authMiddleware],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await getChannelMenus(id)), 200);
@@ -152,7 +139,6 @@ const listMenus = defineContractRoute(channelContract.menus, {
 });
 
 const saveMenus = defineContractRoute(channelContract.saveMenus, {
-  middleware: [authMiddleware, guard({ permission: 'channel:menu:save', audit: { description: '保存频道菜单', module: '消息中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getChannelMenus(id));
@@ -163,7 +149,6 @@ const saveMenus = defineContractRoute(channelContract.saveMenus, {
 // ─── 自动回复 ─────────────────────────────────────────────────────────────────
 
 const listAutoReplies = defineContractRoute(channelContract.autoReplies, {
-  middleware: [authMiddleware, guard({ permission: 'channel:reply:list' })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await listChannelAutoReplies(id)), 200);
@@ -171,7 +156,6 @@ const listAutoReplies = defineContractRoute(channelContract.autoReplies, {
 });
 
 const createAutoReply = defineContractRoute(channelContract.createAutoReply, {
-  middleware: [authMiddleware, guard({ permission: 'channel:reply:save', audit: { description: '新建自动回复', module: '消息中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await createChannelAutoReply(id, c.req.valid('json')), '创建成功'), 200);
@@ -179,7 +163,6 @@ const createAutoReply = defineContractRoute(channelContract.createAutoReply, {
 });
 
 const updateAutoReply = defineContractRoute(channelContract.updateAutoReply, {
-  middleware: [authMiddleware, guard({ permission: 'channel:reply:save', audit: { description: '编辑自动回复', module: '消息中心' } })],
   handler: async (c) => {
     const { replyId } = c.req.valid('param');
     setAuditBeforeData(c, await getChannelAutoReplyBeforeAudit(replyId));
@@ -188,7 +171,6 @@ const updateAutoReply = defineContractRoute(channelContract.updateAutoReply, {
 });
 
 const removeAutoReply = defineContractRoute(channelContract.removeAutoReply, {
-  middleware: [authMiddleware, guard({ permission: 'channel:reply:delete', audit: { description: '删除自动回复', module: '消息中心' } })],
   handler: async (c) => {
     const { replyId } = c.req.valid('param');
     setAuditBeforeData(c, await getChannelAutoReplyBeforeAudit(replyId));
@@ -200,12 +182,10 @@ const removeAutoReply = defineContractRoute(channelContract.removeAutoReply, {
 // ─── 客服工作台 ───────────────────────────────────────────────────────────────
 
 const csChannels = defineContractRoute(channelCsContract.csChannels, {
-  middleware: cs,
   handler: async (c) => c.json(okBody(await listCsChannels()), 200),
 });
 
 const csConversations = defineContractRoute(channelCsContract.conversations, {
-  middleware: cs,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await listChannelConversations(id, c.req.valid('query'))), 200);
@@ -213,7 +193,6 @@ const csConversations = defineContractRoute(channelCsContract.conversations, {
 });
 
 const csMessages = defineContractRoute(channelCsContract.conversationMessages, {
-  middleware: cs,
   handler: async (c) => {
     const { id, userId } = c.req.valid('param');
     return c.json(okBody(await listConversationMessages(id, userId, c.req.valid('query'))), 200);
@@ -221,7 +200,6 @@ const csMessages = defineContractRoute(channelCsContract.conversationMessages, {
 });
 
 const csReply = defineContractRoute(channelCsContract.reply, {
-  middleware: [authMiddleware, guard({ permission: 'channel:cs', audit: { description: '客服回复', module: '消息中心' } })],
   handler: async (c) => {
     const { id, userId } = c.req.valid('param');
     const { content } = c.req.valid('json');
@@ -232,7 +210,6 @@ const csReply = defineContractRoute(channelCsContract.reply, {
 // ─── 群发消息记录管理（草稿 / 定时 / 已发） ────────────────────────────────────
 
 const adminMessages = defineContractRoute(channelMessageContract.adminMessages, {
-  middleware: publisher,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await listChannelMessageRecords(id, c.req.valid('query'))), 200);
@@ -240,7 +217,6 @@ const adminMessages = defineContractRoute(channelMessageContract.adminMessages, 
 });
 
 const updateDraft = defineContractRoute(channelMessageContract.updateDraft, {
-  middleware: [authMiddleware, guard({ permission: 'channel:message:publish', audit: { description: '编辑草稿消息', module: '消息中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getChannelMessageBeforeAudit(id));
@@ -249,7 +225,6 @@ const updateDraft = defineContractRoute(channelMessageContract.updateDraft, {
 });
 
 const deleteDraft = defineContractRoute(channelMessageContract.removeDraft, {
-  middleware: [authMiddleware, guard({ permission: 'channel:message:publish', audit: { description: '删除草稿消息', module: '消息中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getChannelMessageBeforeAudit(id));
@@ -259,7 +234,6 @@ const deleteDraft = defineContractRoute(channelMessageContract.removeDraft, {
 });
 
 const publishDraftNow = defineContractRoute(channelMessageContract.publishDraftNow, {
-  middleware: [authMiddleware, guard({ permission: 'channel:message:publish', audit: { description: '立即发送草稿', module: '消息中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getChannelMessageBeforeAudit(id));
@@ -268,7 +242,6 @@ const publishDraftNow = defineContractRoute(channelMessageContract.publishDraftN
 });
 
 const retract = defineContractRoute(channelMessageContract.retract, {
-  middleware: [authMiddleware, guard({ permission: 'channel:message:publish', audit: { description: '撤回消息', module: '消息中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getChannelMessageBeforeAudit(id));
@@ -279,14 +252,12 @@ const retract = defineContractRoute(channelMessageContract.retract, {
 });
 
 const dashboard = defineContractRoute(channelDashboardContract.dashboard, {
-  middleware: [authMiddleware, guard({ permission: 'channel:dashboard' })],
   handler: async (c) => c.json(okBody(await getChannelDashboard()), 200),
 });
 
 // ─── 订阅者管理 ───────────────────────────────────────────────────────────────
 
 const subscribers = defineContractRoute(channelContract.subscribers, {
-  middleware: [authMiddleware, guard({ permission: 'channel:channel:list' })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await listChannelSubscribers(id, c.req.valid('query'))), 200);
@@ -294,7 +265,6 @@ const subscribers = defineContractRoute(channelContract.subscribers, {
 });
 
 const addSubscribers = defineContractRoute(channelContract.addSubscribers, {
-  middleware: [authMiddleware, guard({ permission: 'channel:channel:update', audit: { description: '添加订阅者', module: '消息中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await exportChannelSubscribers(id));
@@ -305,7 +275,6 @@ const addSubscribers = defineContractRoute(channelContract.addSubscribers, {
 });
 
 const removeSubscriber = defineContractRoute(channelContract.removeSubscriber, {
-  middleware: [authMiddleware, guard({ permission: 'channel:channel:update', audit: { description: '移除订阅者', module: '消息中心' } })],
   handler: async (c) => {
     const { id, userId } = c.req.valid('param');
     setAuditBeforeData(c, await exportChannelSubscribers(id));
@@ -318,17 +287,14 @@ const removeSubscriber = defineContractRoute(channelContract.removeSubscriber, {
 // ─── 群发消息模板 ─────────────────────────────────────────────────────────────
 
 const listTemplates = defineContractRoute(channelMessageContract.templates, {
-  middleware: publisher,
   handler: async (c) => c.json(okBody(await listChannelTemplates()), 200),
 });
 
 const createTemplate = defineContractRoute(channelMessageContract.createTemplate, {
-  middleware: [authMiddleware, guard({ permission: 'channel:message:publish', audit: { description: '新建群发模板', module: '消息中心' } })],
   handler: async (c) => c.json(okBody(await createChannelTemplate(c.req.valid('json')), '已创建'), 200),
 });
 
 const updateTemplate = defineContractRoute(channelMessageContract.updateTemplate, {
-  middleware: [authMiddleware, guard({ permission: 'channel:message:publish', audit: { description: '编辑群发模板', module: '消息中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getChannelTemplateBeforeAudit(id));
@@ -337,7 +303,6 @@ const updateTemplate = defineContractRoute(channelMessageContract.updateTemplate
 });
 
 const removeTemplate = defineContractRoute(channelMessageContract.removeTemplate, {
-  middleware: [authMiddleware, guard({ permission: 'channel:message:publish', audit: { description: '删除群发模板', module: '消息中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getChannelTemplateBeforeAudit(id));
@@ -347,10 +312,6 @@ const removeTemplate = defineContractRoute(channelMessageContract.removeTemplate
 });
 
 const testSendRoute = defineContractRoute(channelMessageContract.testSend, {
-  middleware: [authMiddleware, guard({
-    permission: 'channel:message:publish',
-    audit: { description: '测试发送频道消息', module: '消息中心' },
-  })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await testSend(id, c.req.valid('json')), '已发送测试，请在消息中心查看'), 200);
@@ -360,7 +321,6 @@ const testSendRoute = defineContractRoute(channelMessageContract.testSend, {
 // ─── 会话评价 / 客服绩效 ───────────────────────────────────────────────────────
 
 const rateConv = defineContractRoute(channelContract.rate, {
-  middleware: [authMiddleware],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { rating, comment } = c.req.valid('json');
@@ -370,22 +330,18 @@ const rateConv = defineContractRoute(channelContract.rate, {
 });
 
 const csPerformance = defineContractRoute(channelCsContract.csPerformance, {
-  middleware: cs,
   handler: async (c) => c.json(okBody(await getCsPerformance()), 200),
 });
 
 const listQuickReplies = defineContractRoute(channelCsContract.quickReplies, {
-  middleware: cs,
   handler: async (c) => c.json(okBody(await listChannelQuickReplies(c.req.valid('query').channelId)), 200),
 });
 
 const createQuickReply = defineContractRoute(channelCsContract.createQuickReply, {
-  middleware: [authMiddleware, guard({ permission: 'channel:cs', audit: { description: '新建快捷回复', module: '消息中心' } })],
   handler: async (c) => c.json(okBody(await createChannelQuickReply(c.req.valid('json')), '已创建'), 200),
 });
 
 const updateQuickReply = defineContractRoute(channelCsContract.updateQuickReply, {
-  middleware: [authMiddleware, guard({ permission: 'channel:cs', audit: { description: '编辑快捷回复', module: '消息中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getChannelQuickReplyBeforeAudit(id));
@@ -394,7 +350,6 @@ const updateQuickReply = defineContractRoute(channelCsContract.updateQuickReply,
 });
 
 const deleteQuickReply = defineContractRoute(channelCsContract.removeQuickReply, {
-  middleware: [authMiddleware, guard({ permission: 'channel:cs', audit: { description: '删除快捷回复', module: '消息中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getChannelQuickReplyBeforeAudit(id));
@@ -406,12 +361,10 @@ const deleteQuickReply = defineContractRoute(channelCsContract.removeQuickReply,
 // ─── 客服会话治理（指派/转接 · 解决 · 标签 · 客服列表） ─────────────────────────
 
 const csAgents = defineContractRoute(channelCsContract.csAgents, {
-  middleware: cs,
   handler: async (c) => c.json(okBody(await listCsAgents()), 200),
 });
 
 const csAssign = defineContractRoute(channelCsContract.assign, {
-  middleware: [authMiddleware, guard({ permission: 'channel:cs', audit: { description: '指派会话', module: '消息中心' } })],
   handler: async (c) => {
     const { id, userId } = c.req.valid('param');
     const before = await getConversationBeforeAudit(id, userId);
@@ -424,7 +377,6 @@ const csAssign = defineContractRoute(channelCsContract.assign, {
 });
 
 const csResolve = defineContractRoute(channelCsContract.resolve, {
-  middleware: [authMiddleware, guard({ permission: 'channel:cs', audit: { description: '解决会话', module: '消息中心' } })],
   handler: async (c) => {
     const { id, userId } = c.req.valid('param');
     const before = await getConversationBeforeAudit(id, userId);
@@ -437,7 +389,6 @@ const csResolve = defineContractRoute(channelCsContract.resolve, {
 });
 
 const csTags = defineContractRoute(channelCsContract.setTags, {
-  middleware: [authMiddleware, guard({ permission: 'channel:cs', audit: { description: '设置会话标签', module: '消息中心' } })],
   handler: async (c) => {
     const { id, userId } = c.req.valid('param');
     const before = await getConversationBeforeAudit(id, userId);
@@ -452,7 +403,6 @@ const csTags = defineContractRoute(channelCsContract.setTags, {
 // ─── 群发受众预估 ─────────────────────────────────────────────────────────────
 
 const audienceEstimate = defineContractRoute(channelMessageContract.audienceEstimate, {
-  middleware: publisher,
   handler: async (c) => c.json(okBody({ count: await estimateAudience(c.req.valid('json').audience) }), 200),
 });
 
@@ -465,7 +415,7 @@ mountCrud(channelsRoute, channelContract,
     update: updateChannel,
     remove: deleteChannel,
   },
-  { permission: 'channel:channel', label: '频道', module: '消息中心', audit: { create: '新建频道', update: '编辑频道' } },
+  {},
   [
     listMine,
     listMessages,

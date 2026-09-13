@@ -41,7 +41,7 @@ export const maintenanceLogListQuery = paginationQuery.extend({
 
 export const maintenanceContract = defineContract('/api/maintenance', {
   status: op.get('/status', { response: maintenanceStatusSchema, public: true, summary: '获取维护模式状态（公开）' }),
-  detail: op.get('/', { response: maintenanceStatusSchema, summary: '获取维护模式详情' }),
-  update: op.put('/', { body: updateMaintenanceSchema, response: maintenanceStatusSchema, summary: '开启 / 关闭维护模式' }),
-  logs: op.get('/logs', { query: maintenanceLogListQuery, response: paginated(maintenanceLogSchema), summary: '维护记录分页查询' }),
-}, { tags: ['维护模式'] });
+  detail: op.get('/', { access: { permission: 'system:maintenance:manage' }, response: maintenanceStatusSchema, summary: '获取维护模式详情' }),
+  update: op.put('/', { access: { permission: 'system:maintenance:manage' }, audit: '更新维护模式', body: updateMaintenanceSchema, response: maintenanceStatusSchema, summary: '开启 / 关闭维护模式' }),
+  logs: op.get('/logs', { access: { permission: 'system:maintenance:manage' }, query: maintenanceLogListQuery, response: paginated(maintenanceLogSchema), summary: '维护记录分页查询' }),
+}, { auditModule: '维护模式', tags: ['维护模式'] });

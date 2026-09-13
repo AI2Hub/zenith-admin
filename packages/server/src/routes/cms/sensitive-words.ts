@@ -8,11 +8,6 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(router, cmsSensitiveWordContract,
   cmsSensitiveWordService,
-  {
-    permission: { read: 'cms:sensitive:list', write: 'cms:sensitive:manage' },
-    label: ' CMS 敏感词',
-    module: 'CMS内容管理',
-  },
 );
 
 export default router;

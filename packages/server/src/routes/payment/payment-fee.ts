@@ -8,12 +8,6 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(router, paymentFeeRuleContract,
   paymentFeeRuleService,
-  {
-    permission: 'payment:fee',
-    label: '支付费率规则',
-    module: '支付中心',
-    audit: { create: '新增支付费率规则', update: '编辑支付费率规则' },
-  },
 );
 
 export default router;

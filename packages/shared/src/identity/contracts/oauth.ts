@@ -53,7 +53,7 @@ export const oauthProviderParam = z.object({
 });
 
 export const oauthContract = defineContract('/api/auth/oauth', {
-  accounts: op.get('/accounts', { response: z.array(oauthAccountSchema), summary: '当前用户绑定列表' }),
+  accounts: op.get('/accounts', { access: 'authenticated', response: z.array(oauthAccountSchema), summary: '当前用户绑定列表' }),
   providers: op.get('/providers', {
     response: oauthEnabledProvidersSchema,
     summary: '已启用的第三方登录提供方',
@@ -68,12 +68,13 @@ export const oauthContract = defineContract('/api/auth/oauth', {
     public: true,
   }),
   bindUrl: op.get('/{provider}/bind', {
+    access: 'authenticated',
     params: oauthProviderParam,
     response: oauthAuthUrlSchema,
     summary: '获取绑定授权链接（当前用户）',
     description: 'state 绑定到当前登录用户，回调时只能由同一用户经 POST /bind 完成，不会替换当前会话',
   }),
   callback: op.post('/{provider}/callback', { params: oauthProviderParam, body: oauthCallbackSchema, response: oauthLoginResultSchema, summary: 'OAuth 登录回调', public: true }),
-  bind: op.post('/bind', { body: oauthBindSchema, summary: '绑定 OAuth 账号' }),
-  unbind: op.delete('/unbind/{provider}', { params: oauthProviderParam, summary: '解绑 OAuth 账号' }),
+  bind: op.post('/bind', { access: 'authenticated', body: oauthBindSchema, summary: '绑定 OAuth 账号' }),
+  unbind: op.delete('/unbind/{provider}', { access: 'authenticated', params: oauthProviderParam, summary: '解绑 OAuth 账号' }),
 }, { tags: ['OAuth'] });

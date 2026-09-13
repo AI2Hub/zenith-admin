@@ -66,9 +66,9 @@ export const wikiStatsLimitQuery = z.object({
 });
 
 export const wikiStatsContract = defineContract('/api/wiki/stats', {
-  overview: op.get('/overview', { response: wikiStatsOverviewSchema, summary: '知识库概览统计' }),
-  hotDocs: op.get('/hot-docs', { query: wikiStatsLimitQuery, response: z.array(wikiHotDocSchema), summary: '热门文档 Top N' }),
-  contributors: op.get('/contributors', { query: wikiStatsLimitQuery, response: z.array(wikiContributorSchema), summary: '贡献榜 Top N' }),
-  staleDocs: op.get('/stale-docs', { query: wikiStatsLimitQuery, response: z.array(wikiStaleDocSchema), summary: '沉睡文档（长期未更新）' }),
-  ops: op.get('/ops', { response: wikiOpsStatsSchema, summary: '运营统计（趋势/分布/搜索/审批/治理计数）' }),
+  overview: op.get('/overview', { access: { permission: 'wiki:stats:view' }, response: wikiStatsOverviewSchema, summary: '知识库概览统计' }),
+  hotDocs: op.get('/hot-docs', { access: { permission: 'wiki:stats:view' }, query: wikiStatsLimitQuery, response: z.array(wikiHotDocSchema), summary: '热门文档 Top N' }),
+  contributors: op.get('/contributors', { access: { permission: 'wiki:stats:view' }, query: wikiStatsLimitQuery, response: z.array(wikiContributorSchema), summary: '贡献榜 Top N' }),
+  staleDocs: op.get('/stale-docs', { access: { permission: 'wiki:stats:view' }, query: wikiStatsLimitQuery, response: z.array(wikiStaleDocSchema), summary: '沉睡文档（长期未更新）' }),
+  ops: op.get('/ops', { access: { permission: 'wiki:stats:view' }, response: wikiOpsStatsSchema, summary: '运营统计（趋势/分布/搜索/审批/治理计数）' }),
 }, { tags: ['知识中心-统计'] });

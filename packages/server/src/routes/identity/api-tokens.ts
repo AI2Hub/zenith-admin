@@ -1,6 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { apiTokenContract } from '@zenith/shared/identity';
-import { authMiddleware } from '../../middleware/auth';
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import { listApiTokens, createApiToken, deleteApiToken } from '../../services/identity/api-tokens.service';
@@ -8,7 +7,6 @@ import { mountCrud } from '../_crud';
 
 const apiTokensRoute = new OpenAPIHono({ defaultHook: validationHook });
 const deleteToken = defineContractRoute(apiTokenContract.remove, {
-  middleware: [authMiddleware] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await deleteApiToken(id);
@@ -19,8 +17,6 @@ const deleteToken = defineContractRoute(apiTokenContract.remove, {
 mountCrud(apiTokensRoute, apiTokenContract,
   { create: createApiToken, list: listApiTokens },
   {
-    permission: null,
-    audit: null,
     messages: { create: 'Token 已创建，请务必复制保存，此后将无法再次查看完整 Token', remove: 'Token 已撤销' },
     exclude: ['remove'],
   },

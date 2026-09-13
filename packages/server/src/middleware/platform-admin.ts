@@ -1,5 +1,6 @@
 import { createMiddleware } from 'hono/factory';
 import { errBody } from '../lib/openapi-schemas';
+import { tagMiddleware } from '../lib/route-facts';
 import { isPlatformAdmin } from '../lib/tenant';
 import { config } from '../config';
 import type { AppEnv } from '../lib/context';
@@ -15,7 +16,7 @@ import type { AppEnv } from '../lib/context';
  */
 export function platformAdminOnly(options?: { message?: string; onlyInMultiTenant?: boolean }) {
   const { message = '仅平台管理员可执行此操作', onlyInMultiTenant = false } = options ?? {};
-  return createMiddleware<AppEnv>(async (c, next) => {
+  return tagMiddleware(createMiddleware<AppEnv>(async (c, next) => {
     if (onlyInMultiTenant && !config.multiTenantMode) {
       await next();
       return;
@@ -25,5 +26,5 @@ export function platformAdminOnly(options?: { message?: string; onlyInMultiTenan
       return c.json(errBody(message, 403), 403);
     }
     await next();
-  });
+  }), { kind: 'platform', onlyInMultiTenant });
 }

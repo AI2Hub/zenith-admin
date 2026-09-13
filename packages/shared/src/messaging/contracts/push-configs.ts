@@ -39,10 +39,10 @@ export const pushConfigListQuery = paginationQuery.extend({
 });
 
 export const pushConfigContract = defineContract('/api/push-configs', {
-  list: op.get('/', { query: pushConfigListQuery, response: paginated(pushConfigSchema), summary: '推送配置列表' }),
-  detail: op.get('/{id}', { params: idParam, response: pushConfigSchema, summary: '推送配置详情（编辑回填，密钥不回传）' }),
-  create: op.post('/', { body: createPushConfigSchema, response: pushConfigSchema, summary: '创建推送配置' }),
-  update: op.put('/{id}', { params: idParam, body: updatePushConfigSchema, response: pushConfigSchema, summary: '更新推送配置' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除推送配置' }),
-  testSend: op.post('/{id}/test', { params: idParam, body: testPushSendSchema, response: pushTestSendResultSchema, summary: '测试发送（直发 RegistrationID）' }),
-}, { tags: ['推送管理'] });
+  list: op.get('/', { access: { permission: 'system:push:list' }, query: pushConfigListQuery, response: paginated(pushConfigSchema), summary: '推送配置列表' }),
+  detail: op.get('/{id}', { access: { permission: 'system:push:list' }, params: idParam, response: pushConfigSchema, summary: '推送配置详情（编辑回填，密钥不回传）' }),
+  create: op.post('/', { access: { permission: 'system:push:create' }, audit: { description: '创建推送配置', recordBody: false }, body: createPushConfigSchema, response: pushConfigSchema, summary: '创建推送配置' }),
+  update: op.put('/{id}', { access: { permission: 'system:push:update' }, audit: { description: '更新推送配置', recordBody: false }, params: idParam, body: updatePushConfigSchema, response: pushConfigSchema, summary: '更新推送配置' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:push:delete' }, audit: '删除推送配置', params: idParam, summary: '删除推送配置' }),
+  testSend: op.post('/{id}/test', { access: { permission: 'system:push:send' }, audit: '测试推送', params: idParam, body: testPushSendSchema, response: pushTestSendResultSchema, summary: '测试发送（直发 RegistrationID）' }),
+}, { auditModule: '推送管理', tags: ['推送管理'] });

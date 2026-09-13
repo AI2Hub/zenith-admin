@@ -4,8 +4,7 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { paymentDeductPlanContract, paymentSigningContract } from '@zenith/shared/payment';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
@@ -32,22 +31,18 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 // ─── 扣款计划 ─────────────────────────────────────────────────────────────────
 
 const listPlansRoute = defineContractRoute(paymentDeductPlanContract.deductPlans, {
-  middleware: [authMiddleware, guard({ permission: 'payment:contract:list' })],
   handler: async (c) => c.json(okBody(await listDeductPlans(c.req.valid('query'))), 200),
 });
 
 const allPlansRoute = defineContractRoute(paymentDeductPlanContract.deductPlansAll, {
-  middleware: [authMiddleware, guard({ permission: 'payment:contract:list' })],
   handler: async (c) => c.json(okBody(await allDeductPlans()), 200),
 });
 
 const createPlanRoute = defineContractRoute(paymentDeductPlanContract.createDeductPlan, {
-  middleware: [authMiddleware, guard({ permission: 'payment:contract:plan', audit: { description: '创建扣款计划', module: '支付中心' } })],
   handler: async (c) => c.json(okBody(await createDeductPlan(c.req.valid('json')), '创建成功'), 200),
 });
 
 const updatePlanRoute = defineContractRoute(paymentDeductPlanContract.updateDeductPlan, {
-  middleware: [authMiddleware, guard({ permission: 'payment:contract:plan', audit: { description: '更新扣款计划', module: '支付中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await ensureDeductPlan(id));
@@ -56,7 +51,6 @@ const updatePlanRoute = defineContractRoute(paymentDeductPlanContract.updateDedu
 });
 
 const deletePlanRoute = defineContractRoute(paymentDeductPlanContract.removeDeductPlan, {
-  middleware: [authMiddleware, guard({ permission: 'payment:contract:plan', audit: { description: '删除扣款计划', module: '支付中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await ensureDeductPlan(id));
@@ -68,26 +62,19 @@ const deletePlanRoute = defineContractRoute(paymentDeductPlanContract.removeDedu
 // ─── 签约协议 ─────────────────────────────────────────────────────────────────
 
 const listContractsRoute = defineContractRoute(paymentSigningContract.contracts, {
-  middleware: [authMiddleware, guard({ permission: 'payment:contract:list' })],
   handler: async (c) => c.json(okBody(await listContracts(c.req.valid('query'))), 200),
 });
 
 const contractDetailRoute = defineContractRoute(paymentSigningContract.contractDetail, {
-  middleware: [authMiddleware, guard({ permission: 'payment:contract:list' })],
   handler: async (c) => c.json(okBody(await getContract(c.req.valid('param').id, c.req.valid('query').applicationId)), 200),
 });
 
 const createContractRoute = defineContractRoute(paymentSigningContract.createContract, {
-  middleware: [
-    authMiddleware,
-    guard({ permission: 'payment:contract:manage', audit: { description: '创建签约协议', module: '支付中心' } }),
-    idempotencyGuard({ ttlSeconds: 10 }),
-  ],
+  middleware: [idempotencyGuard({ ttlSeconds: 10 })],
   handler: async (c) => c.json(okBody(await adminCreateContract(c.req.valid('json')), '签约完成'), 200),
 });
 
 const terminateRoute = defineContractRoute(paymentSigningContract.terminateContract, {
-  middleware: [authMiddleware, guard({ permission: 'payment:contract:manage', audit: { description: '解约签约协议', module: '支付中心' } })],
   handler: async (c) => {
     const row = await ensureWritableContract(c.req.valid('param').id, c.req.valid('query').applicationId);
     setAuditBeforeData(c, row);
@@ -96,26 +83,19 @@ const terminateRoute = defineContractRoute(paymentSigningContract.terminateContr
 });
 
 const pauseRoute = defineContractRoute(paymentSigningContract.pauseContract, {
-  middleware: [authMiddleware, guard({ permission: 'payment:contract:manage', audit: { description: '暂停签约协议', module: '支付中心' } })],
   handler: async (c) => c.json(okBody(await pauseContract(c.req.valid('param').id, c.req.valid('query').applicationId), '已暂停'), 200),
 });
 
 const resumeRoute = defineContractRoute(paymentSigningContract.resumeContract, {
-  middleware: [authMiddleware, guard({ permission: 'payment:contract:manage', audit: { description: '恢复签约协议', module: '支付中心' } })],
   handler: async (c) => c.json(okBody(await resumeContract(c.req.valid('param').id, c.req.valid('query').applicationId), '已恢复'), 200),
 });
 
 const deductNowRoute = defineContractRoute(paymentSigningContract.deductContract, {
-  middleware: [
-    authMiddleware,
-    guard({ permission: 'payment:contract:manage', audit: { description: '手动补扣', module: '支付中心' } }),
-    idempotencyGuard({ ttlSeconds: 10 }),
-  ],
+  middleware: [idempotencyGuard({ ttlSeconds: 10 })],
   handler: async (c) => c.json(okBody(await deductContractById(c.req.valid('param').id, c.req.valid('query').applicationId), '扣款执行完成'), 200),
 });
 
 const recoverContractRoute = defineContractRoute(paymentSigningContract.recoverContract, {
-  middleware: [authMiddleware, guard({ permission: 'payment:contract:manage', audit: { description: '查询恢复签约协议', module: '支付中心' } })],
   handler: async (c) => c.json(okBody(await recoverContract(c.req.valid('param').id, c.req.valid('query').applicationId), '查询完成'), 200),
 });
 

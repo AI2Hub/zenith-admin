@@ -19,6 +19,7 @@
  */
 import { vi } from 'vitest';
 import { createRedisStub } from './redis-stub';
+import { collectRouteAccessFacts, type RouteAccessFacts } from './route-facts';
 
 /** OpenAPI 中承载操作的 HTTP 方法 */
 export const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;
@@ -133,6 +134,8 @@ export async function buildContractApp(): Promise<{
   operations: RouteOperation[];
   /** Hono 运行时路由表（含重复挂载），供路由表快照使用 */
   routes: Array<{ method: string; path: string }>;
+  /** 每个端点实际生效的门禁事实（认证 / 权限码 / 平台超管 / 审计 / 功能门控），供契约 access 对账 */
+  accessFacts: Map<string, RouteAccessFacts>;
 }> {
   const { createApp } = await import('../app');
   const { app } = createApp();
@@ -142,7 +145,7 @@ export async function buildContractApp(): Promise<{
   }
   const doc = (await res.json()) as OpenAPIDoc;
   const routes = app.routes.map((r) => ({ method: r.method, path: r.path }));
-  return { app: app as AppLike, doc, operations: listOperations(doc), routes };
+  return { app: app as AppLike, doc, operations: listOperations(doc), routes, accessFacts: collectRouteAccessFacts(app.routes) };
 }
 
 /** 把 OpenAPI 文档摊平成操作列表，按 id 稳定排序 */

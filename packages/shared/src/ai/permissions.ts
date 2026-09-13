@@ -1,4 +1,4 @@
-import { definePermissions, type PermissionCodes } from '../core/permissions';
+import { definePermissions } from '../core/permissions';
 
 /**
  * ai 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
@@ -28,8 +28,3 @@ export const AI_PERMISSIONS = definePermissions({
   'ai:eval:list': { label: '查询', menu: 'AiEval' },
   'ai:eval:manage': { label: '管理', menu: 'AiEval' },
 });
-
-declare module '../core/permissions' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
-  interface PermissionRegistry extends PermissionCodes<typeof AI_PERMISSIONS> {}
-}

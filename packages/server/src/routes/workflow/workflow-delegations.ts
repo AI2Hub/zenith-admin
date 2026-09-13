@@ -21,10 +21,6 @@ mountCrud(router, workflowDelegationContract,
     remove: deleteWorkflowDelegation,
   },
   {
-    permission: { read: 'workflow:delegation:view', write: 'workflow:delegation:manage' },
-    label: '审批代理',
-    module: '工作流管理',
-    audit: { create: '新增审批代理' },
     messages: { create: '已新增', update: '已更新', remove: '已删除' },
   },
 );

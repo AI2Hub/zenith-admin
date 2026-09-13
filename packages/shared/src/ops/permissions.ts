@@ -1,4 +1,4 @@
-import { definePermissions, type PermissionCodes } from '../core/permissions';
+import { definePermissions } from '../core/permissions';
 
 /**
  * ops 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
@@ -50,8 +50,3 @@ export const OPS_PERMISSIONS = definePermissions({
   'system:app-release:delete': { label: '删除版本', menu: 'SystemAppReleases' },
   'system:app-release:publish': { label: '发布/撤回', menu: 'SystemAppReleases' },
 });
-
-declare module '../core/permissions' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
-  interface PermissionRegistry extends PermissionCodes<typeof OPS_PERMISSIONS> {}
-}

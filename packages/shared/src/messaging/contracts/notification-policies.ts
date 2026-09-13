@@ -74,9 +74,9 @@ export const notificationDispatchListQuery = paginationQuery.extend({
 });
 
 export const notificationPolicyContract = defineContract('/api/notification-policies', {
-  events: op.get('/events', { response: z.array(notificationPolicyEventSchema), summary: '通知事件目录与当前作用域覆盖' }),
-  saveOverride: op.put('/overrides', { body: saveNotificationOverrideSchema, summary: '保存事件渠道覆盖' }),
-  resetOverride: op.post('/overrides/reset', { body: resetNotificationOverrideSchema, summary: '重置事件渠道覆盖（恢复默认）' }),
-  testFire: op.post('/test-fire', { body: testFireNotificationSchema, response: notificationTestFireResultSchema, summary: '测试触发事件（真实派发给当前管理员）' }),
-  dispatches: op.get('/dispatches', { query: notificationDispatchListQuery, response: paginated(notificationDispatchSchema), summary: '通知派发日志（含抑制归因）' }),
-}, { tags: ['NotificationPolicies'] });
+  events: op.get('/events', { access: { permission: 'system:notify-policy:list' }, response: z.array(notificationPolicyEventSchema), summary: '通知事件目录与当前作用域覆盖' }),
+  saveOverride: op.put('/overrides', { access: { permission: 'system:notify-policy:save' }, audit: '保存通知策略覆盖', body: saveNotificationOverrideSchema, summary: '保存事件渠道覆盖' }),
+  resetOverride: op.post('/overrides/reset', { access: { permission: 'system:notify-policy:save' }, audit: '重置通知策略覆盖', body: resetNotificationOverrideSchema, summary: '重置事件渠道覆盖（恢复默认）' }),
+  testFire: op.post('/test-fire', { access: { permission: 'system:notify-policy:test' }, audit: '测试触发通知事件', body: testFireNotificationSchema, response: notificationTestFireResultSchema, summary: '测试触发事件（真实派发给当前管理员）' }),
+  dispatches: op.get('/dispatches', { access: { permission: 'system:notify-policy:list' }, query: notificationDispatchListQuery, response: paginated(notificationDispatchSchema), summary: '通知派发日志（含抑制归因）' }),
+}, { auditModule: '通知策略', tags: ['NotificationPolicies'] });

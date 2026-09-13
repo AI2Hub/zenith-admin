@@ -1,6 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { workflowDataSourceContract } from '@zenith/shared/workflow';
-import { authMiddleware } from '../../middleware/auth';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -14,7 +13,6 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 
 // 代理拉取选项（运行时填表用，仅需登录态）
 const optionsRoute = defineContractRoute(workflowDataSourceContract.options, {
-  middleware: [authMiddleware] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { keyword } = c.req.valid('query');
@@ -24,7 +22,6 @@ const optionsRoute = defineContractRoute(workflowDataSourceContract.options, {
 
 // 按选项值取完整记录（联动赋值回填用，仅需登录态）
 const recordRoute = defineContractRoute(workflowDataSourceContract.record, {
-  middleware: [authMiddleware] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { value } = c.req.valid('query');
@@ -34,7 +31,7 @@ const recordRoute = defineContractRoute(workflowDataSourceContract.record, {
 
 mountCrud(router, workflowDataSourceContract,
   workflowDataSourceService,
-  { permission: 'workflow:datasource', label: '远程数据源', module: '远程数据源' },
+  {},
   [optionsRoute, recordRoute],
 );
 

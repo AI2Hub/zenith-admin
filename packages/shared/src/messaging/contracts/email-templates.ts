@@ -28,9 +28,9 @@ export const emailTemplateListQuery = paginationQuery.extend({
 });
 
 export const emailTemplateContract = defineContract('/api/email-templates', {
-  list: op.get('/', { query: emailTemplateListQuery, response: paginated(emailTemplateSchema), summary: '邮件模板列表' }),
-  detail: op.get('/{id}', { params: idParam, response: emailTemplateSchema, summary: '获取邮件模板详情' }),
-  create: op.post('/', { body: createEmailTemplateSchema, response: emailTemplateSchema, summary: '创建邮件模板' }),
-  update: op.put('/{id}', { params: idParam, body: updateEmailTemplateSchema, response: emailTemplateSchema, summary: '更新邮件模板' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除邮件模板' }),
-}, { tags: ['EmailTemplates'] });
+  list: op.get('/', { access: { permission: 'system:email-template:list' }, query: emailTemplateListQuery, response: paginated(emailTemplateSchema), summary: '邮件模板列表' }),
+  detail: op.get('/{id}', { access: { permission: 'system:email-template:list' }, params: idParam, response: emailTemplateSchema, summary: '获取邮件模板详情' }),
+  create: op.post('/', { access: { permission: 'system:email-template:create' }, audit: '创建邮件模板', body: createEmailTemplateSchema, response: emailTemplateSchema, summary: '创建邮件模板' }),
+  update: op.put('/{id}', { access: { permission: 'system:email-template:update' }, audit: '更新邮件模板', params: idParam, body: updateEmailTemplateSchema, response: emailTemplateSchema, summary: '更新邮件模板' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:email-template:delete' }, audit: '删除邮件模板', params: idParam, summary: '删除邮件模板' }),
+}, { auditModule: '邮件模板', tags: ['EmailTemplates'] });

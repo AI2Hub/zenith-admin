@@ -1,6 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { oauthContract } from '@zenith/shared/identity';
-import { authMiddleware } from '../../middleware/auth';
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import { getClientInfo } from '../../lib/request-helpers';
@@ -12,7 +11,6 @@ import {
 const oauth = new OpenAPIHono({ defaultHook: validationHook });
 
 const accountsRoute = defineContractRoute(oauthContract.accounts, {
-  middleware: [authMiddleware] as const,
   handler: async (c) => c.json(okBody(await listOAuthAccounts()), 200),
 });
 
@@ -28,7 +26,6 @@ const authUrlRoute = defineContractRoute(oauthContract.authUrl, {
 });
 
 const bindUrlRoute = defineContractRoute(oauthContract.bindUrl, {
-  middleware: [authMiddleware] as const,
   handler: async (c) => c.json(okBody(await generateBindAuthUrl(c.req.valid('param').provider)), 200),
 });
 
@@ -44,7 +41,6 @@ const callbackRoute = defineContractRoute(oauthContract.callback, {
 });
 
 const bindRoute = defineContractRoute(oauthContract.bind, {
-  middleware: [authMiddleware] as const,
   handler: async (c) => {
     const { provider, code, state } = c.req.valid('json');
     await bindOAuthAccount(provider, code, state);
@@ -53,7 +49,6 @@ const bindRoute = defineContractRoute(oauthContract.bind, {
 });
 
 const unbindRoute = defineContractRoute(oauthContract.unbind, {
-  middleware: [authMiddleware] as const,
   handler: async (c) => {
     await unbindOAuthAccount(c.req.valid('param').provider);
     return c.json(okBody(null, '已解绑'), 200);

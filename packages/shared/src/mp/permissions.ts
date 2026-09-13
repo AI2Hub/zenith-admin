@@ -1,4 +1,4 @@
-import { definePermissions, type PermissionCodes } from '../core/permissions';
+import { definePermissions } from '../core/permissions';
 
 /**
  * mp 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
@@ -76,8 +76,3 @@ export const MP_PERMISSIONS = definePermissions({
   'mp:condmenu:publish': { label: '发布菜单', menu: 'MpConditionalMenus' },
   'mp:condmenu:delete': { label: '删除菜单', menu: 'MpConditionalMenus' },
 });
-
-declare module '../core/permissions' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
-  interface PermissionRegistry extends PermissionCodes<typeof MP_PERMISSIONS> {}
-}

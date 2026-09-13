@@ -43,5 +43,5 @@ export const ruleExecutionListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const ruleExecutionContract = defineContract('/api/rules/executions', {
-  list: op.get('/', { query: ruleExecutionListQuery, response: paginated(ruleExecutionSchema), summary: '规则执行记录（全资产 trace/审计，分页）' }),
+  list: op.get('/', { access: { permission: 'rule:table:list' }, query: ruleExecutionListQuery, response: paginated(ruleExecutionSchema), summary: '规则执行记录（全资产 trace/审计，分页）' }),
 }, { tags: ['RuleExecutions'] });

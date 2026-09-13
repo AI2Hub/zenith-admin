@@ -1,4 +1,4 @@
-import { definePermissions, type PermissionCodes } from '../core/permissions';
+import { definePermissions } from '../core/permissions';
 
 /**
  * open-platform 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
@@ -18,8 +18,3 @@ export const OPEN_PLATFORM_PERMISSIONS = definePermissions({
   'open:webhook:manage': { label: '管理 Webhook', menu: 'OpenWebhooks' },
   'open:sdk:view': { label: '查询', menu: 'OpenSdk', uiOnly: true },
 });
-
-declare module '../core/permissions' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
-  interface PermissionRegistry extends PermissionCodes<typeof OPEN_PLATFORM_PERMISSIONS> {}
-}

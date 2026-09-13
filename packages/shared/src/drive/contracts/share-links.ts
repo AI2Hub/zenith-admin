@@ -84,11 +84,11 @@ export const driveShareLinkListQuery = paginationQuery.extend({
 });
 
 export const driveShareLinkContract = defineContract('/api/drive/share-links', {
-  list: op.get('/', { query: driveShareLinkListQuery, response: paginated(driveShareLinkSchema), summary: '我创建的外链' }),
-  update: op.put('/{id}', { params: idParam, body: updateDriveShareLinkSchema, response: driveShareLinkSchema, summary: '修改外链（创建者或节点 manager）' }),
-  revoke: op.post('/{id}/revoke', { params: idParam, summary: '撤销外链（保留记录）' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除外链记录' }),
-  accessLogs: op.get('/{id}/access-logs', { params: idParam, query: paginationQuery, response: paginated(driveShareAccessLogSchema), summary: '外链访问日志' }),
-  submissions: op.get('/{id}/submissions', { params: idParam, query: paginationQuery, response: paginated(driveCollectSubmissionSchema), summary: '文件收集的提交记录' }),
-  shortLink: op.post('/{id}/short-link', { params: idParam, response: driveShareShortLinkSchema, summary: '为外链生成（或复用）短链' }),
-}, { tags: ['企业网盘-外链'] });
+  list: op.get('/', { access: { permission: 'drive:link:create' }, query: driveShareLinkListQuery, response: paginated(driveShareLinkSchema), summary: '我创建的外链' }),
+  update: op.put('/{id}', { access: { permission: 'drive:link:create' }, audit: { description: '修改网盘外链', recordBody: false }, params: idParam, body: updateDriveShareLinkSchema, response: driveShareLinkSchema, summary: '修改外链（创建者或节点 manager）' }),
+  revoke: op.post('/{id}/revoke', { access: { permission: 'drive:link:create' }, audit: '撤销网盘外链', params: idParam, summary: '撤销外链（保留记录）' }),
+  remove: op.delete('/{id}', { access: { permission: 'drive:link:create' }, audit: '删除网盘外链', params: idParam, summary: '删除外链记录' }),
+  accessLogs: op.get('/{id}/access-logs', { access: { permission: 'drive:link:create' }, params: idParam, query: paginationQuery, response: paginated(driveShareAccessLogSchema), summary: '外链访问日志' }),
+  submissions: op.get('/{id}/submissions', { access: { permission: 'drive:link:create' }, params: idParam, query: paginationQuery, response: paginated(driveCollectSubmissionSchema), summary: '文件收集的提交记录' }),
+  shortLink: op.post('/{id}/short-link', { access: { permission: 'drive:link:create' }, audit: '生成网盘外链短链', params: idParam, response: driveShareShortLinkSchema, summary: '为外链生成（或复用）短链' }),
+}, { auditModule: '企业网盘', tags: ['企业网盘-外链'] });

@@ -1,8 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { chatContract } from '@zenith/shared/chat';
-import { authMiddleware } from '../../middleware/auth';
-import { namedRateLimit } from '../../middleware/rate-limit';
 import { defineContractRoute } from '../../lib/contract-route';
+import { namedRateLimit } from '../../middleware/rate-limit';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
   listConversations, getOrCreateDirectConversation, listMessages,
@@ -32,14 +31,9 @@ import {
 
 const chatRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const authed = [authMiddleware] as const;
-/** 发送 / 转发消息受同一限流桶约束 */
-const sender = [authMiddleware, namedRateLimit('chat_send')] as const;
-
 // ─── 用户搜索（开始聊天前选对象） ────────────────────────────────────────────
 
 const usersRoute = defineContractRoute(chatContract.users, {
-  middleware: authed,
   handler: async (c) => {
     const { keyword } = c.req.valid('query');
     const list = await listChatUsers(keyword);
@@ -50,7 +44,6 @@ const usersRoute = defineContractRoute(chatContract.users, {
 // ─── 在线状态（presence）────────────────────────────────────────────────────
 
 const presenceRoute = defineContractRoute(chatContract.presence, {
-  middleware: authed,
   handler: async (c) => {
     const { userIds } = c.req.valid('query');
     const ids = (userIds ?? '')
@@ -65,12 +58,10 @@ const presenceRoute = defineContractRoute(chatContract.presence, {
 // ─── WebRTC 音视频通话 ───────────────────────────────────────────────────────
 
 const rtcConfigRoute = defineContractRoute(chatContract.rtcConfig, {
-  middleware: authed,
   handler: async (c) => c.json(okBody(getRtcConfig()), 200),
 });
 
 const callRecordRoute = defineContractRoute(chatContract.postCallRecord, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await postCallRecord(id, c.req.valid('json'));
@@ -81,7 +72,6 @@ const callRecordRoute = defineContractRoute(chatContract.postCallRecord, {
 // ─── 会话列表 ─────────────────────────────────────────────────────────────────
 
 const conversationsRoute = defineContractRoute(chatContract.conversations, {
-  middleware: authed,
   handler: async (c) => {
     const list = await listConversations();
     return c.json(okBody(list), 200);
@@ -89,7 +79,6 @@ const conversationsRoute = defineContractRoute(chatContract.conversations, {
 });
 
 const globalFavoriteMessagesRoute = defineContractRoute(chatContract.globalFavoriteMessages, {
-  middleware: authed,
   handler: async (c) => {
     const { page, pageSize } = c.req.valid('query');
     const result = await listGlobalFavoriteMessages(page, pageSize);
@@ -100,7 +89,6 @@ const globalFavoriteMessagesRoute = defineContractRoute(chatContract.globalFavor
 // ─── 创建/获取单聊会话 ────────────────────────────────────────────────────────
 
 const createDirectRoute = defineContractRoute(chatContract.createDirect, {
-  middleware: authed,
   handler: async (c) => {
     const { targetUserId } = c.req.valid('json');
     const conv = await getOrCreateDirectConversation(targetUserId);
@@ -111,7 +99,6 @@ const createDirectRoute = defineContractRoute(chatContract.createDirect, {
 // ─── 会话消息列表 ─────────────────────────────────────────────────────────────
 
 const messagesRoute = defineContractRoute(chatContract.messages, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { beforeId, limit } = c.req.valid('query');
@@ -121,7 +108,6 @@ const messagesRoute = defineContractRoute(chatContract.messages, {
 });
 
 const searchMessagesRoute = defineContractRoute(chatContract.searchMessages, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const result = await searchConversationMessages(id, c.req.valid('query'));
@@ -130,7 +116,6 @@ const searchMessagesRoute = defineContractRoute(chatContract.searchMessages, {
 });
 
 const messageContextRoute = defineContractRoute(chatContract.messageContext, {
-  middleware: authed,
   handler: async (c) => {
     const { id, messageId } = c.req.valid('param');
     const { before, after } = c.req.valid('query');
@@ -142,7 +127,6 @@ const messageContextRoute = defineContractRoute(chatContract.messageContext, {
 // ─── 发送消息 ─────────────────────────────────────────────────────────────────
 
 const linkPreviewRoute = defineContractRoute(chatContract.linkPreview, {
-  middleware: authed,
   handler: async (c) => {
     const { url } = c.req.valid('query');
     const data = await getLinkPreview(url);
@@ -151,7 +135,7 @@ const linkPreviewRoute = defineContractRoute(chatContract.linkPreview, {
 });
 
 const sendMessageRoute = defineContractRoute(chatContract.sendMessage, {
-  middleware: sender,
+  middleware: [namedRateLimit('chat_send')],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const msg = await sendMessage(id, c.req.valid('json'));
@@ -160,7 +144,6 @@ const sendMessageRoute = defineContractRoute(chatContract.sendMessage, {
 });
 
 const pinnedMessagesRoute = defineContractRoute(chatContract.pinnedMessages, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const list = await listPinnedMessages(id);
@@ -169,7 +152,6 @@ const pinnedMessagesRoute = defineContractRoute(chatContract.pinnedMessages, {
 });
 
 const favoriteMessagesRoute = defineContractRoute(chatContract.favoriteMessages, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { page, pageSize } = c.req.valid('query');
@@ -179,7 +161,6 @@ const favoriteMessagesRoute = defineContractRoute(chatContract.favoriteMessages,
 });
 
 const editMessageRoute = defineContractRoute(chatContract.editMessage, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { content } = c.req.valid('json');
@@ -191,7 +172,6 @@ const editMessageRoute = defineContractRoute(chatContract.editMessage, {
 // ─── 撤回消息 ─────────────────────────────────────────────────────────────────
 
 const recallMessageRoute = defineContractRoute(chatContract.recallMessage, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await recallMessage(id);
@@ -200,7 +180,6 @@ const recallMessageRoute = defineContractRoute(chatContract.recallMessage, {
 });
 
 const favoriteMessageRoute = defineContractRoute(chatContract.favoriteMessage, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { favorite } = c.req.valid('json');
@@ -210,7 +189,6 @@ const favoriteMessageRoute = defineContractRoute(chatContract.favoriteMessage, {
 });
 
 const pinMessageRoute = defineContractRoute(chatContract.pinMessage, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { pin } = c.req.valid('json');
@@ -222,7 +200,6 @@ const pinMessageRoute = defineContractRoute(chatContract.pinMessage, {
 // ─── 标记已读 ─────────────────────────────────────────────────────────────────
 
 const markReadRoute = defineContractRoute(chatContract.markRead, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await markConversationRead(id);
@@ -233,7 +210,6 @@ const markReadRoute = defineContractRoute(chatContract.markRead, {
 // ─── 已读回执：会话成员已读状态 ──────────────────────────────────────────────
 
 const readStatesRoute = defineContractRoute(chatContract.readStates, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const list = await getConversationReadStates(id);
@@ -244,7 +220,6 @@ const readStatesRoute = defineContractRoute(chatContract.readStates, {
 // ─── 创建群聊 ─────────────────────────────────────────────────────────────────
 
 const createGroupRoute = defineContractRoute(chatContract.createGroup, {
-  middleware: authed,
   handler: async (c) => {
     const { name, memberIds } = c.req.valid('json');
     const conv = await createGroupConversation(name, memberIds ?? []);
@@ -255,7 +230,6 @@ const createGroupRoute = defineContractRoute(chatContract.createGroup, {
 // ─── 归档 / 取消归档 ──────────────────────────────────────────────────────────
 
 const archiveConversationRoute = defineContractRoute(chatContract.archiveConversation, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { archive } = c.req.valid('json');
@@ -267,7 +241,6 @@ const archiveConversationRoute = defineContractRoute(chatContract.archiveConvers
 // ─── 常用语（个人快捷回复） ───────────────────────────────────────────────────
 
 const quickRepliesRoute = defineContractRoute(chatContract.quickReplies, {
-  middleware: authed,
   handler: async (c) => {
     const list = await listMyQuickReplies();
     return c.json(okBody(list), 200);
@@ -275,7 +248,6 @@ const quickRepliesRoute = defineContractRoute(chatContract.quickReplies, {
 });
 
 const createQuickReplyRoute = defineContractRoute(chatContract.createQuickReply, {
-  middleware: authed,
   handler: async (c) => {
     const body = c.req.valid('json');
     const item = await createQuickReply(body.content, body.sort);
@@ -284,7 +256,6 @@ const createQuickReplyRoute = defineContractRoute(chatContract.createQuickReply,
 });
 
 const updateQuickReplyRoute = defineContractRoute(chatContract.updateQuickReply, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const item = await updateQuickReply(id, c.req.valid('json'));
@@ -293,7 +264,6 @@ const updateQuickReplyRoute = defineContractRoute(chatContract.updateQuickReply,
 });
 
 const removeQuickReplyRoute = defineContractRoute(chatContract.removeQuickReply, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await deleteQuickReply(id);
@@ -304,7 +274,6 @@ const removeQuickReplyRoute = defineContractRoute(chatContract.removeQuickReply,
 // ─── 定时消息 ─────────────────────────────────────────────────────────────────
 
 const createScheduledMessageRoute = defineContractRoute(chatContract.createScheduledMessage, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
@@ -314,7 +283,6 @@ const createScheduledMessageRoute = defineContractRoute(chatContract.createSched
 });
 
 const scheduledMessagesRoute = defineContractRoute(chatContract.scheduledMessages, {
-  middleware: authed,
   handler: async (c) => {
     const { status } = c.req.valid('query');
     const list = await listMyScheduledMessages(status);
@@ -323,7 +291,6 @@ const scheduledMessagesRoute = defineContractRoute(chatContract.scheduledMessage
 });
 
 const cancelScheduledMessageRoute = defineContractRoute(chatContract.cancelScheduledMessage, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await cancelScheduledMessage(id);
@@ -334,7 +301,6 @@ const cancelScheduledMessageRoute = defineContractRoute(chatContract.cancelSched
 // ─── 自定义表情 ───────────────────────────────────────────────────────────────
 
 const customEmojisRoute = defineContractRoute(chatContract.customEmojis, {
-  middleware: authed,
   handler: async (c) => {
     const list = await listMyCustomEmojis();
     return c.json(okBody(list), 200);
@@ -342,7 +308,6 @@ const customEmojisRoute = defineContractRoute(chatContract.customEmojis, {
 });
 
 const addCustomEmojiRoute = defineContractRoute(chatContract.addCustomEmoji, {
-  middleware: authed,
   handler: async (c) => {
     const item = await addCustomEmoji(c.req.valid('json'));
     return c.json(okBody(item), 200);
@@ -350,7 +315,6 @@ const addCustomEmojiRoute = defineContractRoute(chatContract.addCustomEmoji, {
 });
 
 const removeCustomEmojiRoute = defineContractRoute(chatContract.removeCustomEmoji, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await deleteCustomEmoji(id);
@@ -361,7 +325,6 @@ const removeCustomEmojiRoute = defineContractRoute(chatContract.removeCustomEmoj
 // ─── 群邀请链接 / 入群审批 ────────────────────────────────────────────────────
 
 const createInviteRoute = defineContractRoute(chatContract.createInvite, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const invite = await getOrCreateInvite(id);
@@ -370,7 +333,6 @@ const createInviteRoute = defineContractRoute(chatContract.createInvite, {
 });
 
 const resetInviteRoute = defineContractRoute(chatContract.resetInvite, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const invite = await resetInvite(id);
@@ -379,7 +341,6 @@ const resetInviteRoute = defineContractRoute(chatContract.resetInvite, {
 });
 
 const inviteInfoRoute = defineContractRoute(chatContract.inviteInfo, {
-  middleware: authed,
   handler: async (c) => {
     const { token } = c.req.valid('param');
     const info = await getInviteInfo(token);
@@ -388,7 +349,6 @@ const inviteInfoRoute = defineContractRoute(chatContract.inviteInfo, {
 });
 
 const joinByInviteRoute = defineContractRoute(chatContract.joinByInvite, {
-  middleware: authed,
   handler: async (c) => {
     const { token } = c.req.valid('param');
     const { message } = c.req.valid('json');
@@ -398,7 +358,6 @@ const joinByInviteRoute = defineContractRoute(chatContract.joinByInvite, {
 });
 
 const joinRequestsRoute = defineContractRoute(chatContract.joinRequests, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const list = await listJoinRequests(id);
@@ -407,7 +366,6 @@ const joinRequestsRoute = defineContractRoute(chatContract.joinRequests, {
 });
 
 const handleJoinRequestRoute = defineContractRoute(chatContract.handleJoinRequest, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { approve } = c.req.valid('json');
@@ -417,7 +375,6 @@ const handleJoinRequestRoute = defineContractRoute(chatContract.handleJoinReques
 });
 
 const setJoinApprovalRoute = defineContractRoute(chatContract.setJoinApproval, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { enabled } = c.req.valid('json');
@@ -429,7 +386,6 @@ const setJoinApprovalRoute = defineContractRoute(chatContract.setJoinApproval, {
 // ─── 组织架构选人数据 ─────────────────────────────────────────────────────────
 
 const orgUsersRoute = defineContractRoute(chatContract.orgUsers, {
-  middleware: authed,
   handler: async (c) => {
     const data = await getChatOrgData();
     return c.json(okBody(data), 200);
@@ -439,7 +395,6 @@ const orgUsersRoute = defineContractRoute(chatContract.orgUsers, {
 // ─── 群成员 ───────────────────────────────────────────────────────────────────
 
 const groupMembersRoute = defineContractRoute(chatContract.groupMembers, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const members = await listGroupMembers(id);
@@ -448,7 +403,6 @@ const groupMembersRoute = defineContractRoute(chatContract.groupMembers, {
 });
 
 const addGroupMemberRoute = defineContractRoute(chatContract.addGroupMember, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { userId } = c.req.valid('json');
@@ -460,7 +414,6 @@ const addGroupMemberRoute = defineContractRoute(chatContract.addGroupMember, {
 // ─── 置顶 / 星标 / 免打扰 ─────────────────────────────────────────────────────
 
 const pinConversationRoute = defineContractRoute(chatContract.pinConversation, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { pin } = c.req.valid('json');
@@ -470,7 +423,6 @@ const pinConversationRoute = defineContractRoute(chatContract.pinConversation, {
 });
 
 const starConversationRoute = defineContractRoute(chatContract.starConversation, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { star } = c.req.valid('json');
@@ -480,7 +432,6 @@ const starConversationRoute = defineContractRoute(chatContract.starConversation,
 });
 
 const muteConversationRoute = defineContractRoute(chatContract.muteConversation, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { mute } = c.req.valid('json');
@@ -492,7 +443,6 @@ const muteConversationRoute = defineContractRoute(chatContract.muteConversation,
 // ─── 删除/退出会话 ───────────────────────────────────────────────────────────
 
 const disbandConversationRoute = defineContractRoute(chatContract.disbandConversation, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await disbandConversation(id);
@@ -501,7 +451,6 @@ const disbandConversationRoute = defineContractRoute(chatContract.disbandConvers
 });
 
 const removeConversationRoute = defineContractRoute(chatContract.removeConversation, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await removeConversation(id);
@@ -512,7 +461,6 @@ const removeConversationRoute = defineContractRoute(chatContract.removeConversat
 // ─── 移除群成员 ───────────────────────────────────────────────────────────────
 
 const removeGroupMemberRoute = defineContractRoute(chatContract.removeGroupMember, {
-  middleware: authed,
   handler: async (c) => {
     const { id, userId } = c.req.valid('param');
     await removeGroupMember(id, userId);
@@ -523,7 +471,6 @@ const removeGroupMemberRoute = defineContractRoute(chatContract.removeGroupMembe
 // ─── 更新群聊信息（群名/公告）────────────────────────────────────────────────
 
 const updateGroupInfoRoute = defineContractRoute(chatContract.updateGroupInfo, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await updateGroupInfo(id, c.req.valid('json'));
@@ -534,7 +481,6 @@ const updateGroupInfoRoute = defineContractRoute(chatContract.updateGroupInfo, {
 // ─── 转让群主 ─────────────────────────────────────────────────────────────────
 
 const transferGroupRoute = defineContractRoute(chatContract.transferGroup, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { newOwnerId } = c.req.valid('json');
@@ -546,7 +492,6 @@ const transferGroupRoute = defineContractRoute(chatContract.transferGroup, {
 // ─── 群管理员 / 禁言 ──────────────────────────────────────────────────────────
 
 const setMemberRoleRoute = defineContractRoute(chatContract.setMemberRole, {
-  middleware: authed,
   handler: async (c) => {
     const { id, userId } = c.req.valid('param');
     const { role } = c.req.valid('json');
@@ -556,7 +501,6 @@ const setMemberRoleRoute = defineContractRoute(chatContract.setMemberRole, {
 });
 
 const muteMemberRoute = defineContractRoute(chatContract.muteMember, {
-  middleware: authed,
   handler: async (c) => {
     const { id, userId } = c.req.valid('param');
     const { mute, durationMinutes } = c.req.valid('json');
@@ -566,7 +510,6 @@ const muteMemberRoute = defineContractRoute(chatContract.muteMember, {
 });
 
 const setMuteAllRoute = defineContractRoute(chatContract.setMuteAll, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { muteAll } = c.req.valid('json');
@@ -576,7 +519,6 @@ const setMuteAllRoute = defineContractRoute(chatContract.setMuteAll, {
 });
 
 const announcementHistoryRoute = defineContractRoute(chatContract.announcementHistory, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const list = await listAnnouncementHistory(id);
@@ -585,7 +527,6 @@ const announcementHistoryRoute = defineContractRoute(chatContract.announcementHi
 });
 
 const removeAnnouncementHistoryRoute = defineContractRoute(chatContract.removeAnnouncementHistory, {
-  middleware: authed,
   handler: async (c) => {
     const { id, messageId } = c.req.valid('param');
     await deleteAnnouncementHistory(id, messageId);
@@ -596,7 +537,7 @@ const removeAnnouncementHistoryRoute = defineContractRoute(chatContract.removeAn
 // ─── 转发消息 ─────────────────────────────────────────────────────────────────
 
 const forwardMessagesRoute = defineContractRoute(chatContract.forwardMessages, {
-  middleware: sender,
+  middleware: [namedRateLimit('chat_send')],
   handler: async (c) => {
     await forwardMessages(c.req.valid('json'));
     return c.json(okBody(null), 200);
@@ -606,7 +547,6 @@ const forwardMessagesRoute = defineContractRoute(chatContract.forwardMessages, {
 // ─── 删除消息（仅对自己） ─────────────────────────────────────────────────────
 
 const batchDeleteMessagesRoute = defineContractRoute(chatContract.batchDeleteMessages, {
-  middleware: authed,
   handler: async (c) => {
     const { messageIds } = c.req.valid('json');
     await deleteMessagesForUser(messageIds);
@@ -617,7 +557,6 @@ const batchDeleteMessagesRoute = defineContractRoute(chatContract.batchDeleteMes
 // ─── 全局消息搜索 ─────────────────────────────────────────────────────────────
 
 const globalSearchRoute = defineContractRoute(chatContract.globalSearch, {
-  middleware: authed,
   handler: async (c) => {
     const result = await searchGlobalMessages(c.req.valid('query'));
     return c.json(okBody(result), 200);
@@ -627,7 +566,6 @@ const globalSearchRoute = defineContractRoute(chatContract.globalSearch, {
 // ─── 消息表情回应 ─────────────────────────────────────────────────────────────
 
 const toggleReactionRoute = defineContractRoute(chatContract.toggleReaction, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { emoji } = c.req.valid('json');
@@ -639,7 +577,6 @@ const toggleReactionRoute = defineContractRoute(chatContract.toggleReaction, {
 // ─── 投票 ──────────────────────────────────────────────────────────────────────
 
 const voteRoute = defineContractRoute(chatContract.vote, {
-  middleware: authed,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { optionIds } = c.req.valid('json');

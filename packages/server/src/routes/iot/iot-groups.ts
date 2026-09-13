@@ -3,8 +3,7 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { iotDeviceGroupContract } from '@zenith/shared/iot';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -21,23 +20,15 @@ import { mountCrud } from '../_crud';
 
 const iotGroupsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'iot:device:list' })] as const;
-const manage = (description: string) => [authMiddleware, guard({
-  permission: 'iot:group:manage',
-  audit: { description, module: 'IoT 设备' },
-})] as const;
 const notFound = { 404: { content: jsonContent(ErrorResponse), description: '不存在' } } as const;
 const allRoute = defineContractRoute(iotDeviceGroupContract.all, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listAllIotDeviceGroups()), 200),
 });
 const createRoute_ = defineContractRoute(iotDeviceGroupContract.create, {
-  middleware: manage('创建 IoT 设备分组'),
   handler: async (c) => c.json(okBody(await createIotDeviceGroup(c.req.valid('json')), '创建成功'), 200),
 });
 
 const updateRoute_ = defineContractRoute(iotDeviceGroupContract.update, {
-  middleware: manage('更新 IoT 设备分组'),
   responses: notFound,
   handler: async (c) => {
     const { id } = c.req.valid('param');
@@ -47,7 +38,6 @@ const updateRoute_ = defineContractRoute(iotDeviceGroupContract.update, {
 });
 
 const deleteRoute_ = defineContractRoute(iotDeviceGroupContract.remove, {
-  middleware: manage('删除 IoT 设备分组'),
   responses: notFound,
   handler: async (c) => {
     const { id } = c.req.valid('param');
@@ -59,7 +49,7 @@ const deleteRoute_ = defineContractRoute(iotDeviceGroupContract.remove, {
 
 mountCrud(iotGroupsRouter, iotDeviceGroupContract,
   { list: listIotDeviceGroups, get: getIotDeviceGroup },
-  { permission: 'iot:device', exclude: ['create', 'update', 'remove'], responses: { detail: notFound } },
+  { exclude: ['create', 'update', 'remove'], responses: { detail: notFound } },
   [allRoute, createRoute_, updateRoute_, deleteRoute_],
 );
 

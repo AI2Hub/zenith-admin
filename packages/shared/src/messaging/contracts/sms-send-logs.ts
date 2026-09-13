@@ -51,7 +51,7 @@ export const smsSendLogListQuery = paginationQuery.extend({
 });
 
 export const smsSendLogContract = defineContract('/api/sms-send-logs', {
-  list: op.get('/', { query: smsSendLogListQuery, response: paginated(smsSendLogSchema), summary: '短信发送记录列表' }),
-  testSend: op.post('/test-send', { body: sendSmsSchema, response: smsSendResultSchema, summary: '测试发送短信' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除短信发送记录' }),
-}, { tags: ['SmsSendLogs'] });
+  list: op.get('/', { access: { permission: 'system:sms-send-log:list' }, query: smsSendLogListQuery, response: paginated(smsSendLogSchema), summary: '短信发送记录列表' }),
+  testSend: op.post('/test-send', { access: { permission: 'system:sms-send-log:test' }, audit: '测试发送短信', body: sendSmsSchema, response: smsSendResultSchema, summary: '测试发送短信' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:sms-send-log:delete' }, audit: '删除短信发送记录', params: idParam, summary: '删除短信发送记录' }),
+}, { auditModule: '短信发送记录', tags: ['SmsSendLogs'] });

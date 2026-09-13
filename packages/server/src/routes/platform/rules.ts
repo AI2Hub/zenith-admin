@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { decisionTableContract } from '@zenith/shared/rules';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { sensitiveRateLimit } from '../../middleware/rate-limit';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
@@ -37,15 +36,11 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'rule:table:list' })] as const;
-const evaluate = [authMiddleware, guard({ permission: 'rule:table:evaluate' })] as const;
 const versionsRoute = defineContractRoute(decisionTableContract.versions, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listDecisionTableVersions(c.req.valid('param').id)), 200),
 });
 
 const diffRoute = defineContractRoute(decisionTableContract.diff, {
-  middleware: read,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { from, to } = c.req.valid('query');
@@ -54,7 +49,6 @@ const diffRoute = defineContractRoute(decisionTableContract.diff, {
 });
 
 const rollbackRoute = defineContractRoute(decisionTableContract.rollback, {
-  middleware: [authMiddleware, guard({ permission: 'rule:table:update', audit: { description: '回滚决策表版本', module: '规则中心' } })],
   handler: async (c) => {
     const { id, version } = c.req.valid('param');
     return c.json(okBody(await rollbackDecisionTable(id, version), '回滚成功'), 200);
@@ -62,27 +56,22 @@ const rollbackRoute = defineContractRoute(decisionTableContract.rollback, {
 });
 
 const usagesRoute = defineContractRoute(decisionTableContract.usages, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listDecisionTableUsages(c.req.valid('param').id)), 200),
 });
 
 const casesRoute = defineContractRoute(decisionTableContract.cases, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listTestCases(c.req.valid('param').id)), 200),
 });
 
 const caseCreateRoute = defineContractRoute(decisionTableContract.createCase, {
-  middleware: [authMiddleware, guard({ permission: 'rule:table:update', audit: { description: '新增决策表用例', module: '规则中心' } })],
   handler: async (c) => c.json(okBody(await createTestCase(c.req.valid('param').id, c.req.valid('json')), '创建成功'), 200),
 });
 
 const caseRunRoute = defineContractRoute(decisionTableContract.runCases, {
-  middleware: evaluate,
   handler: async (c) => c.json(okBody(await runTestCases(c.req.valid('param').id)), 200),
 });
 
 const caseUpdateRoute = defineContractRoute(decisionTableContract.updateCase, {
-  middleware: [authMiddleware, guard({ permission: 'rule:table:update', audit: { description: '更新决策表用例', module: '规则中心' } })],
   handler: async (c) => {
     const { id, caseId } = c.req.valid('param');
     return c.json(okBody(await updateTestCase(id, caseId, c.req.valid('json')), '更新成功'), 200);
@@ -90,7 +79,6 @@ const caseUpdateRoute = defineContractRoute(decisionTableContract.updateCase, {
 });
 
 const caseDeleteRoute = defineContractRoute(decisionTableContract.removeCase, {
-  middleware: [authMiddleware, guard({ permission: 'rule:table:update', audit: { description: '删除决策表用例', module: '规则中心' } })],
   handler: async (c) => {
     const { id, caseId } = c.req.valid('param');
     await deleteTestCase(id, caseId);
@@ -98,7 +86,6 @@ const caseDeleteRoute = defineContractRoute(decisionTableContract.removeCase, {
   },
 });
 const publishRoute = defineContractRoute(decisionTableContract.publish, {
-  middleware: [authMiddleware, guard({ permission: 'rule:table:publish', audit: { description: '发布决策表', module: '规则中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
@@ -108,7 +95,6 @@ const publishRoute = defineContractRoute(decisionTableContract.publish, {
 });
 
 const grayActionRoute = defineContractRoute(decisionTableContract.grayAction, {
-  middleware: [authMiddleware, guard({ permission: 'rule:table:publish', audit: { description: '决策表灰度操作', module: '规则中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { action } = c.req.valid('json');
@@ -117,12 +103,10 @@ const grayActionRoute = defineContractRoute(decisionTableContract.grayAction, {
 });
 
 const simulateRoute = defineContractRoute(decisionTableContract.simulate, {
-  middleware: evaluate,
   handler: async (c) => c.json(okBody(await simulateDecisionTable(c.req.valid('param').id, c.req.valid('json').rows)), 200),
 });
 
 const toggleRoute = defineContractRoute(decisionTableContract.toggle, {
-  middleware: [authMiddleware, guard({ permission: 'rule:table:publish', audit: { description: '启用/停用决策表', module: '规则中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { enabled } = c.req.valid('json');
@@ -133,7 +117,6 @@ const toggleRoute = defineContractRoute(decisionTableContract.toggle, {
 });
 
 const statsRoute = defineContractRoute(decisionTableContract.stats, {
-  middleware: read,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await getDecisionTableStats(id, c.req.valid('query').days)), 200);
@@ -141,7 +124,6 @@ const statsRoute = defineContractRoute(decisionTableContract.stats, {
 });
 
 const shadowRunRoute = defineContractRoute(decisionTableContract.shadowRun, {
-  middleware: evaluate,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await shadowRunDecisionTable(id, c.req.valid('json').limit)), 200);
@@ -149,12 +131,10 @@ const shadowRunRoute = defineContractRoute(decisionTableContract.shadowRun, {
 });
 
 const submitReviewRoute = defineContractRoute(decisionTableContract.submitReview, {
-  middleware: [authMiddleware, guard({ permission: 'rule:table:publish', audit: { description: '申请发布决策表', module: '规则中心' } })],
   handler: async (c) => c.json(okBody(await submitDecisionTableReview(c.req.valid('param').id), '已提交审批'), 200),
 });
 
 const reviewRoute = defineContractRoute(decisionTableContract.review, {
-  middleware: [authMiddleware, guard({ permission: 'rule:table:approve', audit: { description: '审批决策表发布', module: '规则中心' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { approve, comment } = c.req.valid('json');
@@ -163,12 +143,11 @@ const reviewRoute = defineContractRoute(decisionTableContract.review, {
 });
 
 const testRoute = defineContractRoute(decisionTableContract.test, {
-  middleware: evaluate,
   handler: async (c) => c.json(okBody(await testEvaluateDecisionTable(c.req.valid('param').id, c.req.valid('json').input)), 200),
 });
 
 const evaluateRoute = defineContractRoute(decisionTableContract.evaluate, {
-  middleware: [authMiddleware, sensitiveRateLimit, guard({ permission: 'rule:table:evaluate' })],
+  middleware: [sensitiveRateLimit],
   handler: async (c) => {
     const b = c.req.valid('json');
     return c.json(okBody(await evaluateDecisionTableByKey(b.key, b.input)), 200);
@@ -184,7 +163,7 @@ mountCrud(router, decisionTableContract,
     remove: deleteDecisionTable,
     removeMany: deleteDecisionTables,
   },
-  { permission: 'rule:table', label: '决策表', module: '规则中心', messages: { removeBatch: '删除成功' } },
+  { messages: { removeBatch: '删除成功' } },
   [
     versionsRoute,
     diffRoute,

@@ -28,7 +28,7 @@
 - **微信能力封装**：`packages/server/src/lib/wechat/` 按能力拆分（`access-token`、`api`、`menu`、`material`、`draft`、`template`、`broadcast`、`qrcode`、`reply`、`oauth`、`datacube`、`kf`、`security`、`jssdk`、`users`、`tags`、`messages`、`crypto`、`xml`、`signature` 等），统一通过 `index.ts` 桶导出。
 - **错误映射**：微信业务错误（`errcode` 非 0）抛 `WechatApiError`，由 `lib/wechat-error.ts` 的 `mapWechatError` 统一映射——`WechatApiError → 400`、其余 → `502`。
 - **租户隔离**：所有 `mp_*` 表带 `tenant_id`，鉴权路由统一用 `tenantScope()` 过滤；**公开回调无登录上下文**，按 `accountId` 直接查询并携带账号 `tenantId` 落库。
-- **统一响应**：`{ code: 0, message, data }`；实体 schema 与操作契约在 `packages/shared/src/mp/contracts/`，路由用 `defineContractRoute` + 显式 `middleware: [authMiddleware, guard(...)]`。
+- **统一响应**：`{ code: 0, message, data }`；实体 schema 与操作契约（含每个操作的 `access` 权限声明）在 `packages/shared/src/mp/contracts/`，路由用 `defineContractRoute`，门禁由契约装配。
 - **凭证缓存**：`access_token`（key `mp:access_token:{id}`）与 `jsapi_ticket`（key `mp:jsapi_ticket:{id}`）缓存于 Redis，留 300s 安全余量。
 
 ---

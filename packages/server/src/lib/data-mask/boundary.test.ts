@@ -32,6 +32,8 @@ vi.mock('../context', () => ({
 vi.mock('../permissions', () => ({
   isSuperAdmin: (user: { roles: string[]; tenantId?: number | null }) => user.roles.includes('super_admin') && (user.tenantId ?? null) === null,
 }));
+// 查看者由上面的 context mock 注入；契约 access 装配出的登录令牌门禁在这里放行
+vi.mock('../../middleware/auth', () => ({ authMiddleware: async (_c: unknown, next: () => Promise<void>) => next() }));
 
 import { HTTPException } from 'hono/http-exception';
 import { defineContractRoute } from '../contract-route';
@@ -49,11 +51,11 @@ const personSchema = z.object({
 }).meta({ id: 'ProbePerson' });
 
 const probe = defineContract('/api/mask-probe', {
-  list: op.get('/', { response: paginated(personSchema), summary: '列表' }),
-  detail: op.get('/{id}', { params: idParam, response: personSchema, summary: '详情' }),
-  me: op.get('/me', { response: personSchema, summary: '自视图', unmasked: true }),
-  update: op.put('/{id}', { params: idParam, body: z.object({ name: z.string().optional(), phone: z.string().optional() }), response: personSchema, summary: '更新' }),
-  plain: op.get('/plain', { response: z.object({ ok: z.boolean() }), summary: '无敏感字段' }),
+  list: op.get('/', { access: 'authenticated', response: paginated(personSchema), summary: '列表' }),
+  detail: op.get('/{id}', { access: 'authenticated', params: idParam, response: personSchema, summary: '详情' }),
+  me: op.get('/me', { access: 'authenticated', response: personSchema, summary: '自视图', unmasked: true }),
+  update: op.put('/{id}', { access: 'authenticated', params: idParam, body: z.object({ name: z.string().optional(), phone: z.string().optional() }), response: personSchema, summary: '更新' }),
+  plain: op.get('/plain', { access: 'authenticated', response: z.object({ ok: z.boolean() }), summary: '无敏感字段' }),
 });
 
 const person = { id: 1, name: '张三', phone: '13812341234', contacts: [{ email: 'admin@example.com' }, { email: null }] };

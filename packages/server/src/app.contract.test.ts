@@ -28,6 +28,8 @@
  * 相关约束见 .agents/skills/zenith/references/constraints.md 的 Route 层章节。
  */
 import { describe, it, expect, beforeAll } from 'vitest';
+import { accessPermissions, accessPlatformOnly } from '@zenith/shared/core';
+import { listAllOperations } from '@zenith/shared/contracts';
 import {
   mockServerInfra,
   buildContractApp,
@@ -37,6 +39,7 @@ import {
   type OpenAPIDoc,
   type RouteOperation,
 } from './test-utils/contract';
+import type { RouteAccessFacts } from './test-utils/route-facts';
 
 mockServerInfra();
 
@@ -44,6 +47,7 @@ let app: AppLike;
 let doc: OpenAPIDoc;
 let operations: RouteOperation[];
 let routes: Array<{ method: string; path: string }>;
+let accessFacts: Map<string, RouteAccessFacts>;
 /** 无凭证访问时的实际状态码，按操作 id 索引 */
 const unauthenticatedStatus = new Map<string, number>();
 
@@ -53,6 +57,7 @@ beforeAll(async () => {
   doc = built.doc;
   operations = built.operations;
   routes = built.routes;
+  accessFacts = built.accessFacts;
 
   // 全量探测一次，后续断言复用结果——对所有操作的进程内请求成本可观，
   // 拆到各 it 里重复发送会让耗时翻倍。
@@ -162,6 +167,41 @@ describe('认证契约：声明与运行时行为必须一致', () => {
     // 无表单内容与参与人、无脚本、noindex；全局路径限流可按 /api/workflows/print-verify/* 配置。
     const publicOps = operations.filter((op) => op.isDeclaredPublic);
     expect(publicOps.length).toBeLessThanOrEqual(67);
+  });
+});
+
+describe('权限契约：契约 access 与运行时门禁必须一致', () => {
+  /**
+   * 后台登录令牌（bearer）操作的门禁由 `defineContractRoute` 按契约 `access` / `audit` / `feature` 装配，
+   * 路由文件不再手写 `authMiddleware` / `guard()` / `platformAdminOnly()`。这里沿 `app.routes` 读回
+   * 中间件的自描述标记（`lib/route-facts.ts`），逐端点对照契约：
+   *  - 权限码集合、平台超管限定、审计声明、功能门控与契约完全一致
+   *  - 门禁链上认证 / 平台 / 权限守卫各至多一条——多出来的就是路由里重新手写的门禁
+   * 权限矩阵、Demo Mock 与前端按钮都从契约读取访问要求，这条断言保证它们读到的与线上生效的是同一份。
+   */
+  it('每个后台登录令牌操作生效的门禁等于契约声明', () => {
+    const toHonoPath = (fullPath: string) => fullPath.replace(/\{([^}]+)\}/g, ':$1');
+    const mismatches: string[] = [];
+    let checked = 0;
+    for (const { op } of listAllOperations()) {
+      if (op.security !== 'bearer') continue;
+      const key = `${op.method.toUpperCase()} ${toHonoPath(op.fullPath)}`;
+      const fact = accessFacts.get(key);
+      if (!fact) continue; // 契约存在但未挂载的操作由路由表快照 / crud-coverage 负责
+      checked++;
+      const problems: string[] = [];
+      if (!fact.auth) problems.push('未挂认证');
+      const expectedPermission = [...accessPermissions(op.access)].sort();
+      const actualPermission = [...new Set(fact.permission ?? [])].sort();
+      if (JSON.stringify(expectedPermission) !== JSON.stringify(actualPermission)) problems.push(`权限码 ${JSON.stringify(actualPermission)} ≠ 契约 ${JSON.stringify(expectedPermission)}`);
+      if (fact.platformOnly !== accessPlatformOnly(op.access)) problems.push(`platformOnly ${String(fact.platformOnly)} ≠ 契约 ${String(accessPlatformOnly(op.access))}`);
+      if ((fact.audit?.description ?? null) !== (op.audit?.description ?? null)) problems.push(`审计 ${String(fact.audit?.description)} ≠ 契约 ${String(op.audit?.description)}`);
+      if ((fact.feature ?? null) !== (op.feature ?? null)) problems.push(`feature ${String(fact.feature)} ≠ 契约 ${String(op.feature)}`);
+      if (fact.gateCounts.auth > 1 || fact.gateCounts.platform > 1 || fact.gateCounts.guard > 1) problems.push(`门禁重复挂载 ${JSON.stringify(fact.gateCounts)}（路由里不要再手写 authMiddleware / guard / platformAdminOnly）`);
+      if (problems.length) mismatches.push(`${key}: ${problems.join('；')}`);
+    }
+    expect(checked).toBeGreaterThan(2000);
+    expect(mismatches).toEqual([]);
   });
 });
 

@@ -109,14 +109,14 @@ export const reportQuotaUsageQuery = z.object({
 });
 
 export const reportQueryCapacityContract = defineContract('/api/report/query-capacity', {
-  quotas: op.get('/quotas', { query: paginationQuery, response: paginated(reportQueryQuotaSchema), summary: '查询配额列表' }),
-  quotaDetail: op.get('/quotas/{id}', { params: idParam, response: reportQueryQuotaSchema, summary: '查询配额详情' }),
-  createQuota: op.post('/quotas', { body: createReportQueryQuotaSchema, response: reportQueryQuotaSchema, summary: '创建查询配额' }),
-  updateQuota: op.put('/quotas/{id}', { params: idParam, body: updateReportQueryQuotaSchema, response: reportQueryQuotaSchema, summary: '更新查询配额' }),
-  removeQuota: op.delete('/quotas/{id}', { params: idParam, summary: '删除查询配额' }),
-  quotaUsage: op.get('/quotas/{id}/usage', { params: idParam, query: reportQuotaUsageQuery, response: reportQueryQuotaUsageSchema, summary: '查询配额用量' }),
-  resetQuota: op.post('/quotas/{id}/reset', { params: idParam, body: resetReportQueryQuotaSchema, summary: '重置查询配额用量' }),
-  costLogs: op.get('/cost-logs', { query: reportQueryCostLogListQuery, response: paginated(reportQueryCostLogSchema), summary: '查询成本日志' }),
-  costStats: op.get('/cost-stats', { query: reportQueryCostRangeQuery, response: reportQueryCostStatsSchema, summary: '查询成本统计' }),
-  costTrend: op.get('/cost-trend', { query: reportQueryCostTrendQuery, response: z.array(reportQueryCostTrendPointSchema), summary: '查询成本趋势' }),
-}, { tags: ['报表查询容量'] });
+  quotas: op.get('/quotas', { access: { permission: 'report:query-quota:list' }, query: paginationQuery, response: paginated(reportQueryQuotaSchema), summary: '查询配额列表' }),
+  quotaDetail: op.get('/quotas/{id}', { access: { permission: 'report:query-quota:list' }, params: idParam, response: reportQueryQuotaSchema, summary: '查询配额详情' }),
+  createQuota: op.post('/quotas', { access: { permission: 'report:query-quota:create' }, audit: '创建查询配额', body: createReportQueryQuotaSchema, response: reportQueryQuotaSchema, summary: '创建查询配额' }),
+  updateQuota: op.put('/quotas/{id}', { access: { permission: 'report:query-quota:update' }, audit: '更新查询配额', params: idParam, body: updateReportQueryQuotaSchema, response: reportQueryQuotaSchema, summary: '更新查询配额' }),
+  removeQuota: op.delete('/quotas/{id}', { access: { permission: 'report:query-quota:delete' }, audit: '删除查询配额', params: idParam, summary: '删除查询配额' }),
+  quotaUsage: op.get('/quotas/{id}/usage', { access: { permission: 'report:query-quota:list' }, params: idParam, query: reportQuotaUsageQuery, response: reportQueryQuotaUsageSchema, summary: '查询配额用量' }),
+  resetQuota: op.post('/quotas/{id}/reset', { access: { permission: 'report:query-quota:update' }, audit: '重置查询配额用量', params: idParam, body: resetReportQueryQuotaSchema, summary: '重置查询配额用量' }),
+  costLogs: op.get('/cost-logs', { access: { permission: 'report:query-cost:list' }, query: reportQueryCostLogListQuery, response: paginated(reportQueryCostLogSchema), summary: '查询成本日志' }),
+  costStats: op.get('/cost-stats', { access: { permission: 'report:query-cost:list' }, query: reportQueryCostRangeQuery, response: reportQueryCostStatsSchema, summary: '查询成本统计' }),
+  costTrend: op.get('/cost-trend', { access: { permission: 'report:query-cost:list' }, query: reportQueryCostTrendQuery, response: z.array(reportQueryCostTrendPointSchema), summary: '查询成本趋势' }),
+}, { auditModule: '报表查询容量', tags: ['报表查询容量'] });

@@ -1,8 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
 import { monitorContract } from '@zenith/shared/platform';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import { getMonitorStatus, getMonitorTimeseries, getWsMetrics } from '../../services/platform/monitor.service';
@@ -11,20 +9,15 @@ import { metricsSampler } from '../../lib/metrics-sampler';
 
 const monitorRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const view = [authMiddleware, guard({ permission: 'system:monitor:view' })] as const;
-
 const statusRoute = defineContractRoute(monitorContract.snapshot, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getMonitorStatus(), 'success'), 200),
 });
 
 const timeseriesRoute = defineContractRoute(monitorContract.timeseries, {
-  middleware: view,
   handler: (c) => c.json(okBody(getMonitorTimeseries(), 'success'), 200),
 });
 
 const historyRoute = defineContractRoute(monitorContract.history, {
-  middleware: view,
   handler: async (c) => {
     const { range } = c.req.valid('query');
     return c.json(okBody(await getMonitorHistory(range), 'success'), 200);
@@ -32,7 +25,6 @@ const historyRoute = defineContractRoute(monitorContract.history, {
 });
 
 const wsRoute = defineContractRoute(monitorContract.ws, {
-  middleware: view,
   handler: async (c) => c.json(okBody(await getWsMetrics(), 'success'), 200),
 });
 
@@ -83,7 +75,6 @@ function diff(prev: unknown, cur: unknown): unknown {
  * 与 WS 指标全量（ws，体量小无需 diff），客户端深合并/追加到本地状态。
  */
 const streamRoute = defineContractRoute(monitorContract.stream, {
-  middleware: view,
   handler: (c) => streamSSE(c, async (stream) => {
     let lastSnapshot: Awaited<ReturnType<typeof getMonitorStatus>> | null = null;
 

@@ -1,8 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { drivePublicShareContract, drivePublicUploadFieldsSchema } from '@zenith/shared/drive';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, errBody, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import { parseRangeHeader, rangeNotSatisfiable, supportsRange } from '../../lib/http-range';
@@ -98,7 +96,6 @@ const uploadRoute = defineContractRoute(drivePublicShareContract.upload, {
 });
 
 const saveRoute = defineContractRoute(drivePublicShareContract.save, {
-  middleware: [authMiddleware, guard({ permission: 'drive:node:upload', audit: { description: '外链转存到网盘', module: '企业网盘' } })],
   handler: async (c) => {
     const { token } = c.req.valid('param');
     const session = readSession(c.req.header('session'), c.req.query('session'));

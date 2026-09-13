@@ -99,6 +99,6 @@ export const memberCheckinCalendarQuery = z.object({
 });
 
 export const memberCheckinContract = defineContract('/api/member-checkins', {
-  list: op.get('/', { query: memberCheckinListQuery, response: paginated(memberCheckinSchema), summary: '签到记录列表' }),
-  calendar: op.get('/calendar', { query: memberCheckinCalendarQuery, response: z.array(memberCheckinCalendarDaySchema), summary: '签到日历（按月聚合）' }),
+  list: op.get('/', { access: { permission: 'member:checkin:log:list' }, query: memberCheckinListQuery, response: paginated(memberCheckinSchema), summary: '签到记录列表' }),
+  calendar: op.get('/calendar', { access: { permission: 'member:checkin:log:list' }, query: memberCheckinCalendarQuery, response: z.array(memberCheckinCalendarDaySchema), summary: '签到日历（按月聚合）' }),
 }, { tags: ['会员签到'] });

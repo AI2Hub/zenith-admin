@@ -37,5 +37,5 @@ export const channelAnalysisQuery = z.object({
 });
 
 export const channelAnalysisContract = defineContract('/api/growth/channel-analysis', {
-  analyze: op.get('/', { query: channelAnalysisQuery, response: channelAnalysisResultSchema, summary: '按 UTM 维度聚合短链点击与转化' }),
+  analyze: op.get('/', { access: { permission: 'shortlink:analysis:view' }, query: channelAnalysisQuery, response: channelAnalysisResultSchema, summary: '按 UTM 维度聚合短链点击与转化' }),
 }, { tags: ['渠道推广分析'] });

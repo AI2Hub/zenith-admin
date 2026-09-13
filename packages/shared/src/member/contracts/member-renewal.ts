@@ -81,4 +81,4 @@ export const memberRenewalContract = defineContract('/api/member/renewal', {
   sign: op.post('/sign', { body: memberSignRenewalSchema, response: memberRenewalSignResultSchema, summary: '开通自动续费（签约并首期扣款）' }),
   terminate: op.post('/terminate', { query: memberRenewalApplicationQuery, summary: '关闭自动续费（解约）' }),
   deduct: op.post('/deduct', { query: memberRenewalApplicationQuery, response: memberRenewalDeductResultSchema, summary: '立即续费一期（手动扣款）' }),
-}, { tags: ['MemberSelf'] });
+}, { tags: ['MemberSelf'], security: 'member-bearer' });

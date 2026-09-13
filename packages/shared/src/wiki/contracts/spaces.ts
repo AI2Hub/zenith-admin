@@ -47,12 +47,12 @@ export const wikiSpaceListQuery = paginationQuery.extend({
 });
 
 export const wikiSpaceContract = defineContract('/api/wiki/spaces', {
-  list: op.get('/', { query: wikiSpaceListQuery, response: paginated(wikiSpaceSchema), summary: '知识空间列表' }),
-  my: op.get('/my', { response: z.array(wikiSpaceSchema), summary: '我可访问的空间（文档中心侧栏）' }),
-  detail: op.get('/{id}', { params: idParam, response: wikiSpaceSchema, summary: '空间详情' }),
-  create: op.post('/', { body: createWikiSpaceSchema, response: wikiSpaceSchema, summary: '创建空间' }),
-  update: op.put('/{id}', { params: idParam, body: updateWikiSpaceSchema, response: wikiSpaceSchema, summary: '更新空间' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除空间' }),
-  listMembers: op.get('/{id}/members', { params: idParam, response: z.array(wikiSpaceMemberSchema), summary: '空间成员列表' }),
-  saveMembers: op.put('/{id}/members', { params: idParam, body: saveWikiSpaceMembersSchema, summary: '保存空间成员（全量替换）' }),
-}, { tags: ['知识中心-空间'] });
+  list: op.get('/', { access: { permission: 'wiki:space:list' }, query: wikiSpaceListQuery, response: paginated(wikiSpaceSchema), summary: '知识空间列表' }),
+  my: op.get('/my', { access: { permission: 'wiki:doc:list' }, response: z.array(wikiSpaceSchema), summary: '我可访问的空间（文档中心侧栏）' }),
+  detail: op.get('/{id}', { access: { permission: 'wiki:space:list' }, params: idParam, response: wikiSpaceSchema, summary: '空间详情' }),
+  create: op.post('/', { access: { permission: 'wiki:space:create' }, audit: '创建知识空间', body: createWikiSpaceSchema, response: wikiSpaceSchema, summary: '创建空间' }),
+  update: op.put('/{id}', { access: { permission: 'wiki:space:edit' }, audit: '更新知识空间', params: idParam, body: updateWikiSpaceSchema, response: wikiSpaceSchema, summary: '更新空间' }),
+  remove: op.delete('/{id}', { access: { permission: 'wiki:space:delete' }, audit: '删除知识空间', params: idParam, summary: '删除空间' }),
+  listMembers: op.get('/{id}/members', { access: { permission: 'wiki:space:list' }, params: idParam, response: z.array(wikiSpaceMemberSchema), summary: '空间成员列表' }),
+  saveMembers: op.put('/{id}/members', { access: { permission: 'wiki:space:grant' }, audit: '分配空间成员', params: idParam, body: saveWikiSpaceMembersSchema, summary: '保存空间成员（全量替换）' }),
+}, { auditModule: '知识中心', tags: ['知识中心-空间'] });

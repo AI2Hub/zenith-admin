@@ -7,6 +7,6 @@ import { iotBatchCommandSchema, iotBatchDesiredSchema } from '../validation';
  * 响应即任务中心的任务记录（进度 / 重试 / 取消 / 行级明细均在任务中心查看）。
  */
 export const iotBatchContract = defineContract('/api/iot/batch', {
-  commands: op.post('/commands', { body: iotBatchCommandSchema, response: asyncTaskSchema, summary: '批量下发指令（任务中心执行，行级明细可见）' }),
-  desired: op.post('/desired', { body: iotBatchDesiredSchema, response: asyncTaskSchema, summary: '批量设置期望属性（任务中心执行）' }),
-}, { tags: ['IoT 设备'] });
+  commands: op.post('/commands', { access: { permission: 'iot:device:batch' }, audit: '批量下发 IoT 指令', body: iotBatchCommandSchema, response: asyncTaskSchema, summary: '批量下发指令（任务中心执行，行级明细可见）' }),
+  desired: op.post('/desired', { access: { permission: 'iot:device:batch' }, audit: '批量设置 IoT 期望属性', body: iotBatchDesiredSchema, response: asyncTaskSchema, summary: '批量设置期望属性（任务中心执行）' }),
+}, { auditModule: 'IoT 设备', tags: ['IoT 设备'] });

@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cmsChannelContract } from '@zenith/shared/cms';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData, setAuditAfterData } from '../../middleware/guard';
+import { setAuditBeforeData, setAuditAfterData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
@@ -20,15 +19,11 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'cms:channel:list' })] as const;
-
 const treeRoute = defineContractRoute(cmsChannelContract.tree, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listCmsChannelTree(c.req.valid('query'))), 200),
 });
 // ─── 栏目运维：合并 / 清空 / 批量新增 ─────────────────────────────────────────
 const mergeRoute = defineContractRoute(cmsChannelContract.merge, {
-  middleware: [authMiddleware, guard({ permission: 'cms:channel:update', audit: { description: 'CMS 栏目合并', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { sourceIds, targetId } = c.req.valid('json');
     const count = await mergeCmsChannels(sourceIds, targetId);
@@ -37,7 +32,6 @@ const mergeRoute = defineContractRoute(cmsChannelContract.merge, {
 });
 
 const clearRoute = defineContractRoute(cmsChannelContract.clear, {
-  middleware: [authMiddleware, guard({ permission: 'cms:channel:update', audit: { description: 'CMS 栏目清空', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const count = await clearCmsChannel(c.req.valid('param').id);
     return c.json(okBody(null, `已将 ${count} 条内容移入回收站`), 200);
@@ -45,7 +39,6 @@ const clearRoute = defineContractRoute(cmsChannelContract.clear, {
 });
 
 const batchCreateRoute = defineContractRoute(cmsChannelContract.batchCreate, {
-  middleware: [authMiddleware, guard({ permission: 'cms:channel:create', audit: { description: 'CMS 栏目批量新增', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { siteId, parentId, names, slugStrategy } = c.req.valid('json');
     const count = await batchCreateCmsChannels(siteId, parentId, names, slugStrategy);
@@ -55,12 +48,10 @@ const batchCreateRoute = defineContractRoute(cmsChannelContract.batchCreate, {
 
 // ─── 栏目授权用户（栏目级数据权限：绑定后仅授权用户可管理该栏目下内容）─────────
 const getChannelUsersRoute = defineContractRoute(cmsChannelContract.users, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await getCmsChannelUsers(c.req.valid('param').id)), 200),
 });
 
 const setChannelUsersRoute = defineContractRoute(cmsChannelContract.setUsers, {
-  middleware: [authMiddleware, guard({ permission: 'cms:channel:update', audit: { description: '设置 CMS 栏目授权用户', module: 'CMS内容管理' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { userIds } = c.req.valid('json');
@@ -73,7 +64,7 @@ const setChannelUsersRoute = defineContractRoute(cmsChannelContract.setUsers, {
 
 mountCrud(router, cmsChannelContract,
   { get: getCmsChannel, create: createCmsChannel, update: updateCmsChannel, remove: deleteCmsChannel },
-  { permission: 'cms:channel', label: ' CMS 栏目', module: 'CMS内容管理' },
+  {},
   [treeRoute, mergeRoute, clearRoute, batchCreateRoute, getChannelUsersRoute, setChannelUsersRoute],
 );
 

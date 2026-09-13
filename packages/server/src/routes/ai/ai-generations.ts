@@ -2,7 +2,6 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
 import type { SSEStreamingApi } from 'hono/streaming';
 import { aiGenerationContract } from '@zenith/shared/ai';
-import { authMiddleware } from '../../middleware/auth';
 import { defineContractRoute } from '../../lib/contract-route';
 import { errBody, okBody, validationHook } from '../../lib/openapi-schemas';
 import { currentUser } from '../../lib/context';
@@ -13,8 +12,6 @@ import {
 } from '../../lib/ai/generation-buffer';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
-
-const authed = [authMiddleware] as const;
 
 /** tail 轮询间隔（毫秒） */
 const POLL_INTERVAL = 150;
@@ -52,7 +49,6 @@ export async function tailGenerationToSSE(stream: SSEStreamingApi, genId: string
 
 /** SSE 恢复流：断线 / 刷新后从指定 offset 继续接收生成事件 */
 const stream = defineContractRoute(aiGenerationContract.stream, {
-  middleware: authed,
   handler: async (c) => {
     const { genId } = c.req.valid('param');
     const { offset } = c.req.valid('query');
@@ -70,7 +66,6 @@ const stream = defineContractRoute(aiGenerationContract.stream, {
 
 /** 停止生成（生成与连接解耦后，前端"停止"按钮走此端点） */
 const cancel = defineContractRoute(aiGenerationContract.cancel, {
-  middleware: authed,
   handler: async (c) => {
     const { genId } = c.req.valid('param');
     const user = currentUser();

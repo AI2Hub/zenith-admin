@@ -1,6 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { ratePlanContract } from '@zenith/shared/open-platform';
-import { authMiddleware } from '../../middleware/auth';
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
@@ -13,9 +12,7 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const MODULE = '开放平台-限流套餐';
 const options = defineContractRoute(ratePlanContract.options, {
-  middleware: [authMiddleware],
   handler: async (c) => c.json(okBody(await listEnabledRatePlans()), 200),
 });
 
@@ -27,7 +24,7 @@ mountCrud(router, ratePlanContract,
     update: updateRatePlan,
     remove: ratePlanService.remove,
   },
-  { permission: { read: 'open:rate-plan:view', write: 'open:rate-plan:manage' }, label: '限流套餐', module: MODULE },
+  {},
   [options],
 );
 

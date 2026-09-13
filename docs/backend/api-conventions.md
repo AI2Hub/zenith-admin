@@ -93,9 +93,9 @@ const user = currentUser();
 
 每个端点由 `@zenith/shared/{业务域}/contracts/` 中的契约操作定义：方法、路径、`params` / `query` / `headers` / `body`
 schema 与响应 schema（`headers` 只声明业务请求头，如幂等键 `x-idempotency-key`；认证头由 security 表达）。
-标准操作（`list` / `detail` / `create` / `update` / `remove` / `removeBatch`）由 `mountCrud(router, contract, service, { permission, label })`
-（`routes/_crud.ts`）按契约派生路由：权限码按前缀 + 约定后缀，审计文案与更新 / 删除前的实体快照统一，`DELETE /batch` 先于 `/{id}`；
-非标准操作用 `defineContractRoute(op, { middleware, handler })`（`lib/contract-route.ts`）
+标准操作（`list` / `detail` / `create` / `update` / `remove` / `removeBatch`）由 `mountCrud(router, contract, service)`
+（`routes/_crud.ts`）按契约派生路由：权限 / 审计取契约操作的 `access` / `audit`，更新 / 删除前的实体快照统一，`DELETE /batch` 先于 `/{id}`；
+非标准操作用 `defineContractRoute(op, { handler })`（`lib/contract-route.ts`）
 把契约变成 Hono 路由。两者的入参都按契约 schema 校验，由 `validationHook` 统一转为标准错误响应。
 
 ```json
@@ -122,13 +122,15 @@ export const xxxSchema = z.object({
 }).meta({ id: 'Xxx' });
 export type Xxx = z.infer<typeof xxxSchema>;
 
+// 每个后台登录令牌操作必须声明 access（权限码 / 'authenticated' / platformOnly），写操作声明 audit；
+// 服务端门禁、前端按钮、Demo Mock、OpenAPI 与权限矩阵都从这里读取
 export const xxxContract = defineContract('/api/xxxs', {
-  list: op.get('/', { query: paginationQuery.extend({ keyword: z.string().optional() }), response: paginated(xxxSchema), summary: 'XXX 列表' }),
-  detail: op.get('/{id}', { params: idParam, response: xxxSchema, summary: 'XXX 详情' }),
-  create: op.post('/', { body: createXxxSchema, response: xxxSchema, summary: '创建 XXX' }),
-  update: op.put('/{id}', { params: idParam, body: updateXxxSchema, response: xxxSchema, summary: '更新 XXX' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除 XXX' }),
-}, { tags: ['Xxx'] });
+  list: op.get('/', { access: { permission: 'system:xxx:list' }, query: paginationQuery.extend({ keyword: z.string().optional() }), response: paginated(xxxSchema), summary: 'XXX 列表' }),
+  detail: op.get('/{id}', { access: { permission: 'system:xxx:list' }, params: idParam, response: xxxSchema, summary: 'XXX 详情' }),
+  create: op.post('/', { access: { permission: 'system:xxx:create' }, audit: '创建 XXX', body: createXxxSchema, response: xxxSchema, summary: '创建 XXX' }),
+  update: op.put('/{id}', { access: { permission: 'system:xxx:update' }, audit: '更新 XXX', params: idParam, body: updateXxxSchema, response: xxxSchema, summary: '更新 XXX' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:xxx:delete' }, audit: '删除 XXX', params: idParam, summary: '删除 XXX' }),
+}, { tags: ['Xxx'], auditModule: 'XXX 管理' });
 ```
 
 路由（`packages/server/src/routes/platform/xxxs.ts`）：
@@ -136,15 +138,13 @@ export const xxxContract = defineContract('/api/xxxs', {
 ```ts
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { xxxContract } from '@zenith/shared/platform';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 
 const xxxRouter = new OpenAPIHono({ defaultHook: validationHook });
 
+// 认证 / 权限 / 审计按契约 access / audit 自动装配，路由只写 handler；认证前的限流放 preAuth，认证后追加的中间件放 middleware
 const createXxxRoute = defineContractRoute(xxxContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'system:xxx:create', audit: { description: '创建 XXX', module: 'XXX 管理' } })],
   handler: async (c) => c.json(okBody(await createXxx(c.req.valid('json')), '创建成功'), 200),
 });
 
@@ -156,10 +156,13 @@ export default xxxRouter;
 
 - 每个 `OpenAPIHono` 实例传入 `{ defaultHook: validationHook }`。
 - 每个路由用命名常量声明，并通过 `router.openapiRoutes([... ] as const)` 统一注册；挂载路径取 `xxxContract.basePath`。
-- 认证与权限只出现在 `middleware:`（`authMiddleware` / `guard(...)`）；文档中的 `security` 由契约推导：
-  默认 `BearerAuth`，公开接口标 `public: true`（`security: []`），IoT 设备签名与开放平台网关接口标
+- 认证与权限不在路由文件出现：后台登录令牌操作的 `access` / `audit` / `feature` 声明在契约上，`defineContractRoute` 据此装配
+  `preAuth → authMiddleware → platformAdminOnly → guard(权限 / 审计 / 功能门控)`，`app.contract.test.ts` 逐端点对账契约与运行时门禁。
+  文档中的 `security` 同样由契约推导：默认 `BearerAuth`，公开接口标 `public: true`（`security: []`），会员前台契约组整组标
+  `{ security: 'member-bearer' }`（`MemberBearerAuth`），IoT 设备签名与开放平台网关接口标
   `security: 'device-signature' | 'open-gateway'`（对应 `IotDeviceSignature` / `OpenGatewayToken` + `OpenGatewaySignature`
-  安全方案，由 `lib/contract-route.ts` 的 `CONTRACT_SECURITY_SCHEMES` 注册）。`commonErrorResponses` 与 200 响应信封由适配层统一施加。
+  安全方案，由 `lib/contract-route.ts` 的 `CONTRACT_SECURITY_SCHEMES` 注册；这些非后台令牌操作的鉴权 / 验签中间件写在路由 `middleware:`）。
+  `commonErrorResponses` 与 200 响应信封由适配层统一施加。
 - `handler` 内 `c.req.valid('param' | 'query' | 'json')` 与 `c.json(okBody(...), 200)` 均按契约类型检查：
   service 返回值与契约实体不一致时编译失败。
 - 路径参数用 `idParam`；自定义路径参数写 `z.object({ code: z.string().meta({ description, example }) })`；

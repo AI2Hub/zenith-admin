@@ -31,10 +31,10 @@ export const ratePlanListQuery = paginationQuery.extend({
 });
 
 export const ratePlanContract = defineContract('/api/rate-plans', {
-  list: op.get('/', { query: ratePlanListQuery, response: paginated(ratePlanSchema), summary: '获取限流套餐列表' }),
-  options: op.get('/options', { response: z.array(ratePlanSchema), summary: '获取全部启用的套餐（供应用配置下拉）' }),
-  detail: op.get('/{id}', { params: idParam, response: ratePlanSchema, summary: '获取限流套餐详情' }),
-  create: op.post('/', { body: createRatePlanSchema, response: ratePlanSchema, summary: '创建限流套餐' }),
-  update: op.put('/{id}', { params: idParam, body: updateRatePlanSchema, response: ratePlanSchema, summary: '更新限流套餐' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除限流套餐' }),
-}, { tags: ['RatePlans'] });
+  list: op.get('/', { access: { permission: 'open:rate-plan:view' }, query: ratePlanListQuery, response: paginated(ratePlanSchema), summary: '获取限流套餐列表' }),
+  options: op.get('/options', { access: 'authenticated', response: z.array(ratePlanSchema), summary: '获取全部启用的套餐（供应用配置下拉）' }),
+  detail: op.get('/{id}', { access: { permission: 'open:rate-plan:view' }, params: idParam, response: ratePlanSchema, summary: '获取限流套餐详情' }),
+  create: op.post('/', { access: { permission: 'open:rate-plan:manage' }, audit: '创建限流套餐', body: createRatePlanSchema, response: ratePlanSchema, summary: '创建限流套餐' }),
+  update: op.put('/{id}', { access: { permission: 'open:rate-plan:manage' }, audit: '更新限流套餐', params: idParam, body: updateRatePlanSchema, response: ratePlanSchema, summary: '更新限流套餐' }),
+  remove: op.delete('/{id}', { access: { permission: 'open:rate-plan:manage' }, audit: '删除限流套餐', params: idParam, summary: '删除限流套餐' }),
+}, { auditModule: '开放平台-限流套餐', tags: ['RatePlans'] });

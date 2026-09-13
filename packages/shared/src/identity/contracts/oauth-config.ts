@@ -27,6 +27,6 @@ export type OAuthConfig = z.infer<typeof oauthConfigSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const oauthConfigContract = defineContract('/api/oauth-config', {
-  list: op.get('/', { response: z.array(oauthConfigSchema), summary: '获取所有 OAuth 配置' }),
-  update: op.put('/{provider}', { params: oauthProviderParam, body: updateOauthConfigSchema, response: oauthConfigSchema.nullable(), summary: '更新指定 provider 的 OAuth 配置' }),
-}, { tags: ['OAuthConfig'] });
+  list: op.get('/', { access: { permission: 'system:oauth-config:view', platformOnly: 'multi-tenant' }, response: z.array(oauthConfigSchema), summary: '获取所有 OAuth 配置' }),
+  update: op.put('/{provider}', { access: { permission: 'system:oauth-config:update', platformOnly: 'multi-tenant' }, audit: '更新OAuth配置', params: oauthProviderParam, body: updateOauthConfigSchema, response: oauthConfigSchema.nullable(), summary: '更新指定 provider 的 OAuth 配置' }),
+}, { auditModule: 'OAuth配置', tags: ['OAuthConfig'] });

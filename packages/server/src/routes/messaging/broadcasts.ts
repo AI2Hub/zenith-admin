@@ -3,8 +3,6 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { broadcastContract } from '@zenith/shared/messaging';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -20,10 +18,6 @@ import { mountCrud } from '../_crud';
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const sendRoute = defineContractRoute(broadcastContract.send, {
-  middleware: [authMiddleware, guard({
-    permission: 'system:broadcast:send',
-    audit: { description: '发送群发活动', module: '运营群发' },
-  })],
   handler: async (c) => c.json(okBody(await sendBroadcast(c.req.valid('param').id), '任务已提交'), 200),
 });
 
@@ -35,7 +29,7 @@ mountCrud(router, broadcastContract,
     update: updateBroadcast,
     remove: deleteBroadcast,
   },
-  { permission: 'system:broadcast', label: '群发活动', module: '运营群发' },
+  {},
   [sendRoute],
 );
 

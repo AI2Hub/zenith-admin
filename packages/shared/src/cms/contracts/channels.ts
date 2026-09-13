@@ -67,15 +67,15 @@ export const cmsChannelTreeQuery = z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsChannelContract = defineContract('/api/cms/channels', {
-  tree: op.get('/tree', { query: cmsChannelTreeQuery, response: z.array(cmsChannelSchema), summary: '站点栏目树' }),
-  detail: op.get('/{id}', { params: idParam, response: cmsChannelSchema, summary: '栏目详情' }),
-  create: op.post('/', { body: createCmsChannelSchema, response: cmsChannelSchema, summary: '创建栏目' }),
-  update: op.put('/{id}', { params: idParam, body: updateCmsChannelSchema, response: cmsChannelSchema, summary: '更新栏目' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除栏目' }),
-  merge: op.post('/merge', { body: mergeCmsChannelsSchema, summary: '栏目合并（来源栏目内容并入目标栏目后删除来源栏目）' }),
-  clear: op.post('/{id}/clear', { params: idParam, summary: '清空栏目（栏目下内容全部移入回收站）' }),
-  batchCreate: op.post('/batch-create', { body: batchCreateCmsChannelsSchema, summary: '批量新增栏目（行支持「名称|slug」；slug 默认首字母缩写，路径冲突自动加序号）' }),
-  users: op.get('/{id}/users', { params: idParam, response: cmsAuthorizedUsersSchema, summary: '栏目授权用户' }),
-  setUsers: op.put('/{id}/users', { params: idParam, body: setCmsAuthorizedUsersSchema, summary: '设置栏目授权用户（绑定后仅授权用户可管理该栏目下内容）' }),
-}, { tags: ['CMS-栏目管理'] });
+  tree: op.get('/tree', { access: { permission: 'cms:channel:list' }, query: cmsChannelTreeQuery, response: z.array(cmsChannelSchema), summary: '站点栏目树' }),
+  detail: op.get('/{id}', { access: { permission: 'cms:channel:list' }, params: idParam, response: cmsChannelSchema, summary: '栏目详情' }),
+  create: op.post('/', { access: { permission: 'cms:channel:create' }, audit: '创建 CMS 栏目', body: createCmsChannelSchema, response: cmsChannelSchema, summary: '创建栏目' }),
+  update: op.put('/{id}', { access: { permission: 'cms:channel:update' }, audit: '更新 CMS 栏目', params: idParam, body: updateCmsChannelSchema, response: cmsChannelSchema, summary: '更新栏目' }),
+  remove: op.delete('/{id}', { access: { permission: 'cms:channel:delete' }, audit: '删除 CMS 栏目', params: idParam, summary: '删除栏目' }),
+  merge: op.post('/merge', { access: { permission: 'cms:channel:update' }, audit: 'CMS 栏目合并', body: mergeCmsChannelsSchema, summary: '栏目合并（来源栏目内容并入目标栏目后删除来源栏目）' }),
+  clear: op.post('/{id}/clear', { access: { permission: 'cms:channel:update' }, audit: 'CMS 栏目清空', params: idParam, summary: '清空栏目（栏目下内容全部移入回收站）' }),
+  batchCreate: op.post('/batch-create', { access: { permission: 'cms:channel:create' }, audit: 'CMS 栏目批量新增', body: batchCreateCmsChannelsSchema, summary: '批量新增栏目（行支持「名称|slug」；slug 默认首字母缩写，路径冲突自动加序号）' }),
+  users: op.get('/{id}/users', { access: { permission: 'cms:channel:list' }, params: idParam, response: cmsAuthorizedUsersSchema, summary: '栏目授权用户' }),
+  setUsers: op.put('/{id}/users', { access: { permission: 'cms:channel:update' }, audit: '设置 CMS 栏目授权用户', params: idParam, body: setCmsAuthorizedUsersSchema, summary: '设置栏目授权用户（绑定后仅授权用户可管理该栏目下内容）' }),
+}, { auditModule: 'CMS内容管理', tags: ['CMS-栏目管理'] });
 

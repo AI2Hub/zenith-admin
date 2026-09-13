@@ -1,8 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { regionContract } from '@zenith/shared/platform';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
-import { platformAdminOnly } from '../../middleware/platform-admin';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -18,26 +16,18 @@ import { mountCrud } from '../_crud';
 
 const regionsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'system:region:list' })] as const;
-
-const globalRegionAdmin = platformAdminOnly({ message: '多租户模式下仅平台管理员可管理全局地区数据', onlyInMultiTenant: true });
-
 const listRoute = defineContractRoute(regionContract.tree, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listRegionTree(c.req.valid('query'))), 200),
 });
 
 const flatRoute = defineContractRoute(regionContract.flat, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listRegionsFlat()), 200),
 });
 const createRegionRoute = defineContractRoute(regionContract.create, {
-  middleware: [authMiddleware, globalRegionAdmin, guard({ permission: 'system:region:create', audit: { description: '创建地区', module: '地区管理' } })],
   handler: async (c) => c.json(okBody(await createRegion(c.req.valid('json')), '创建成功'), 200),
 });
 
 const updateRegionRoute = defineContractRoute(regionContract.update, {
-  middleware: [authMiddleware, globalRegionAdmin, guard({ permission: 'system:region:update', audit: { description: '更新地区', module: '地区管理' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getRegionBeforeAudit(id);
@@ -47,7 +37,6 @@ const updateRegionRoute = defineContractRoute(regionContract.update, {
 });
 
 const deleteRoute = defineContractRoute(regionContract.remove, {
-  middleware: [authMiddleware, globalRegionAdmin, guard({ permission: 'system:region:delete', audit: { description: '删除地区', module: '地区管理' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getRegionBeforeAudit(id);
@@ -59,7 +48,7 @@ const deleteRoute = defineContractRoute(regionContract.remove, {
 
 mountCrud(regionsRouter, regionContract,
   { get: getRegion },
-  { permission: 'system:region', exclude: ['create', 'update', 'remove'] },
+  { exclude: ['create', 'update', 'remove'] },
   [listRoute, flatRoute, createRegionRoute, updateRegionRoute, deleteRoute],
 );
 

@@ -8,7 +8,6 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(router, paymentCapabilityContract,
   { list: listEffectivePaymentCapabilities },
-  { permission: 'payment:channel' },
 );
 
 export default router;

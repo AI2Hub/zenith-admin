@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
 import { aiConversationContract } from '@zenith/shared/ai';
-import { authMiddleware } from '../../middleware/auth';
 import { namedRateLimit } from '../../middleware/rate-limit';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, errBody, jsonContent, validationHook } from '../../lib/openapi-schemas';
@@ -27,7 +26,7 @@ const rateLimitedResponse = {
  * 本接口启动生成后 tail 缓冲透传；断线后可通过 `aiGenerationContract.stream` 续传。
  */
 const chat = defineContractRoute(aiConversationContract.chat, {
-  middleware: [authMiddleware, namedRateLimit('ai_chat_send')],
+  middleware: [namedRateLimit('ai_chat_send')],
   responses: rateLimitedResponse,
   handler: async (c) => {
     const { id } = c.req.valid('param');

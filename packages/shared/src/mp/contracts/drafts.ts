@@ -31,10 +31,10 @@ export const mpDraftListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const mpDraftContract = defineContract('/api/mp/drafts', {
-  list: op.get('/', { query: mpDraftListQuery, response: paginated(mpDraftSchema), summary: '图文草稿列表' }),
-  detail: op.get('/{id}', { params: idParam, response: mpDraftSchema, summary: '图文草稿详情' }),
-  create: op.post('/', { body: createMpDraftSchema, response: mpDraftSchema, summary: '创建图文草稿' }),
-  update: op.put('/{id}', { params: idParam, body: updateMpDraftSchema, response: mpDraftSchema, summary: '更新图文草稿' }),
-  push: op.post('/{id}/push', { params: idParam, response: mpDraftSchema, summary: '推送到微信草稿箱' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除图文草稿' }),
-}, { tags: ['公众号图文'] });
+  list: op.get('/', { access: { permission: 'mp:draft:list' }, query: mpDraftListQuery, response: paginated(mpDraftSchema), summary: '图文草稿列表' }),
+  detail: op.get('/{id}', { access: { permission: 'mp:draft:list' }, params: idParam, response: mpDraftSchema, summary: '图文草稿详情' }),
+  create: op.post('/', { access: { permission: 'mp:draft:create' }, audit: '创建图文草稿', body: createMpDraftSchema, response: mpDraftSchema, summary: '创建图文草稿' }),
+  update: op.put('/{id}', { access: { permission: 'mp:draft:update' }, audit: '更新图文草稿', params: idParam, body: updateMpDraftSchema, response: mpDraftSchema, summary: '更新图文草稿' }),
+  push: op.post('/{id}/push', { access: { permission: 'mp:draft:push' }, audit: '推送图文草稿', params: idParam, response: mpDraftSchema, summary: '推送到微信草稿箱' }),
+  remove: op.delete('/{id}', { access: { permission: 'mp:draft:delete' }, audit: '删除图文草稿', params: idParam, summary: '删除图文草稿' }),
+}, { auditModule: '公众号图文', tags: ['公众号图文'] });

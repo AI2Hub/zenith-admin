@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { CMS_PREVIEW_PREFIX } from '@zenith/shared/cms';
-import { config } from '../../config';
 import { db } from '../../db';
 import redis from '../../lib/redis';
+import { config } from '../../config';
 import logger from '../../lib/logger';
 import type { CmsSiteRow } from '../../db/schema';
 import { resolveSiteByHost, resolveSiteByCode } from '../../services/cms/cms-sites.service';
@@ -105,7 +105,6 @@ async function resolveTarget(host: string | undefined, pathname: string): Promis
   if (!site) return null;
   return { site, sitePath: pathname.replace(/^\/+/, ''), baseUrl: '', isPreview: false };
 }
-
 
 /** 详情路径提取纯数字内容 id（静态命中无渲染上下文时尽力关联；slug 详情返回 null） */
 function extractContentIdFromPath(sitePath: string): number | null {

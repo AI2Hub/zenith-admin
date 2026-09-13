@@ -39,8 +39,8 @@ export const memberWalletTransactionListQuery = paginationQuery.extend({
 });
 
 export const memberWalletContract = defineContract('/api/member-wallets', {
-  transactions: op.get('/transactions', { query: memberWalletTransactionListQuery, response: paginated(memberWalletTransactionSchema), summary: '钱包流水' }),
-  account: op.get('/account/{id}', { params: idParam, response: memberWalletSchema, summary: '会员钱包账户' }),
-  adjust: op.post('/adjust', { body: adjustMemberWalletSchema, response: memberWalletSchema, summary: '手动调整余额' }),
-  refund: op.post('/refund', { body: refundMemberWalletSchema, response: memberWalletSchema, summary: '钱包退款入账' }),
-}, { tags: ['会员钱包'] });
+  transactions: op.get('/transactions', { access: { permission: 'member:wallet:list' }, query: memberWalletTransactionListQuery, response: paginated(memberWalletTransactionSchema), summary: '钱包流水' }),
+  account: op.get('/account/{id}', { access: { permission: 'member:wallet:list' }, params: idParam, response: memberWalletSchema, summary: '会员钱包账户' }),
+  adjust: op.post('/adjust', { access: { permission: 'member:wallet:adjust' }, audit: '调整会员余额', body: adjustMemberWalletSchema, response: memberWalletSchema, summary: '手动调整余额' }),
+  refund: op.post('/refund', { access: { permission: 'member:wallet:refund' }, audit: '会员钱包退款', body: refundMemberWalletSchema, response: memberWalletSchema, summary: '钱包退款入账' }),
+}, { auditModule: '会员钱包', tags: ['会员钱包'] });

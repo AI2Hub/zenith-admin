@@ -28,7 +28,7 @@ export const workflowSimulationCaseListQuery = z.object({
 });
 
 export const workflowSimulationCaseContract = defineContract('/api/workflows/simulation-cases', {
-  list: op.get('/', { query: workflowSimulationCaseListQuery, response: z.array(workflowSimulationCaseSchema), summary: '按定义列出仿真用例' }),
-  save: op.post('/', { body: saveWorkflowSimulationCaseSchema, response: workflowSimulationCaseSchema, summary: '保存仿真用例（同名覆盖）' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除仿真用例' }),
-}, { tags: ['流程仿真用例'] });
+  list: op.get('/', { access: { permission: 'workflow:definition:list' }, query: workflowSimulationCaseListQuery, response: z.array(workflowSimulationCaseSchema), summary: '按定义列出仿真用例' }),
+  save: op.post('/', { access: { permission: 'workflow:definition:edit' }, audit: '保存流程仿真用例', body: saveWorkflowSimulationCaseSchema, response: workflowSimulationCaseSchema, summary: '保存仿真用例（同名覆盖）' }),
+  remove: op.delete('/{id}', { access: { permission: 'workflow:definition:edit' }, audit: '删除流程仿真用例', params: idParam, summary: '删除仿真用例' }),
+}, { auditModule: '流程仿真', tags: ['流程仿真用例'] });

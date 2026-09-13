@@ -8,12 +8,6 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(router, paymentRiskRuleContract,
   paymentRiskRuleService,
-  {
-    permission: 'payment:risk',
-    label: '支付风控规则',
-    module: '支付中心',
-    audit: { create: '新增支付风控规则', update: '编辑支付风控规则' },
-  },
 );
 
 export default router;

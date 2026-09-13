@@ -19,5 +19,5 @@ export type AiChatModel = z.infer<typeof aiChatModelSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const aiChatModelContract = defineContract('/api/ai/models', {
-  list: op.get('/', { response: z.array(aiChatModelSchema), summary: '聊天可用模型列表（所有登录用户，仅返回启用配置的非敏感字段）' }),
+  list: op.get('/', { access: 'authenticated', response: z.array(aiChatModelSchema), summary: '聊天可用模型列表（所有登录用户，仅返回启用配置的非敏感字段）' }),
 }, { tags: ['AI'] });

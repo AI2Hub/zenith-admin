@@ -1,4 +1,4 @@
-import { definePermissions, type PermissionCodes } from '../core/permissions';
+import { definePermissions } from '../core/permissions';
 
 /**
  * marketing 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
@@ -13,8 +13,3 @@ export const MARKETING_PERMISSIONS = definePermissions({
   'marketing:campaign:publish': { label: '发布/结束', menu: 'GrowthMarketingCampaigns' },
   'marketing:record:list': { label: '参与记录', menu: 'GrowthMarketingCampaigns' },
 });
-
-declare module '../core/permissions' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
-  interface PermissionRegistry extends PermissionCodes<typeof MARKETING_PERMISSIONS> {}
-}

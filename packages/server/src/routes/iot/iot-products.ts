@@ -3,8 +3,7 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { iotProductContract } from '@zenith/shared/iot';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -39,20 +38,12 @@ import { mountCrud } from '../_crud';
 
 const iotProductsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'iot:product:list' })] as const;
 const notFound = { 404: { content: jsonContent(ErrorResponse), description: '不存在' } } as const;
 const allRoute = defineContractRoute(iotProductContract.all, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await listAllIotProducts()), 200),
 });
-// ─── 物模型 ───────────────────────────────────────────────────────────────────
-const modelWrite = (description: string) => [authMiddleware, guard({
-  permission: 'iot:product:update',
-  audit: { description, module: 'IoT 产品' },
-})] as const;
 
 const getModelRoute = defineContractRoute(iotProductContract.model, {
-  middleware: read,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await ensureIotProductExists(id);
@@ -61,7 +52,6 @@ const getModelRoute = defineContractRoute(iotProductContract.model, {
 });
 
 const importModelRoute = defineContractRoute(iotProductContract.importModel, {
-  middleware: modelWrite('导入 IoT 物模型'),
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await ensureIotProductExists(id);
@@ -70,7 +60,6 @@ const importModelRoute = defineContractRoute(iotProductContract.importModel, {
 });
 
 const createPropertyRoute = defineContractRoute(iotProductContract.createProperty, {
-  middleware: modelWrite('新增 IoT 物模型属性'),
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await ensureIotProductExists(id);
@@ -79,7 +68,6 @@ const createPropertyRoute = defineContractRoute(iotProductContract.createPropert
 });
 
 const updatePropertyRoute = defineContractRoute(iotProductContract.updateProperty, {
-  middleware: modelWrite('更新 IoT 物模型属性'),
   handler: async (c) => {
     const { id, propertyId } = c.req.valid('param');
     await ensureIotProductExists(id);
@@ -89,7 +77,6 @@ const updatePropertyRoute = defineContractRoute(iotProductContract.updatePropert
 });
 
 const deletePropertyRoute = defineContractRoute(iotProductContract.removeProperty, {
-  middleware: modelWrite('删除 IoT 物模型属性'),
   handler: async (c) => {
     const { id, propertyId } = c.req.valid('param');
     await ensureIotProductExists(id);
@@ -100,7 +87,6 @@ const deletePropertyRoute = defineContractRoute(iotProductContract.removePropert
 });
 
 const createServiceRoute = defineContractRoute(iotProductContract.createService, {
-  middleware: modelWrite('新增 IoT 物模型服务'),
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await ensureIotProductExists(id);
@@ -109,7 +95,6 @@ const createServiceRoute = defineContractRoute(iotProductContract.createService,
 });
 
 const updateServiceRoute = defineContractRoute(iotProductContract.updateService, {
-  middleware: modelWrite('更新 IoT 物模型服务'),
   handler: async (c) => {
     const { id, serviceId } = c.req.valid('param');
     await ensureIotProductExists(id);
@@ -119,7 +104,6 @@ const updateServiceRoute = defineContractRoute(iotProductContract.updateService,
 });
 
 const deleteServiceRoute = defineContractRoute(iotProductContract.removeService, {
-  middleware: modelWrite('删除 IoT 物模型服务'),
   handler: async (c) => {
     const { id, serviceId } = c.req.valid('param');
     await ensureIotProductExists(id);
@@ -130,7 +114,6 @@ const deleteServiceRoute = defineContractRoute(iotProductContract.removeService,
 });
 
 const createEventRoute = defineContractRoute(iotProductContract.createEvent, {
-  middleware: modelWrite('新增 IoT 物模型事件'),
   handler: async (c) => {
     const { id } = c.req.valid('param');
     await ensureIotProductExists(id);
@@ -139,7 +122,6 @@ const createEventRoute = defineContractRoute(iotProductContract.createEvent, {
 });
 
 const updateEventRoute = defineContractRoute(iotProductContract.updateEvent, {
-  middleware: modelWrite('更新 IoT 物模型事件'),
   handler: async (c) => {
     const { id, eventId } = c.req.valid('param');
     await ensureIotProductExists(id);
@@ -149,7 +131,6 @@ const updateEventRoute = defineContractRoute(iotProductContract.updateEvent, {
 });
 
 const deleteEventRoute = defineContractRoute(iotProductContract.removeEvent, {
-  middleware: modelWrite('删除 IoT 物模型事件'),
   handler: async (c) => {
     const { id, eventId } = c.req.valid('param');
     await ensureIotProductExists(id);
@@ -168,9 +149,6 @@ mountCrud(iotProductsRouter, iotProductContract,
     remove: deleteIotProduct,
   },
   {
-    permission: 'iot:product',
-    label: ' IoT 产品',
-    module: 'IoT 产品',
     responses: { detail: notFound, update: notFound, remove: notFound },
   },
   [

@@ -33,6 +33,6 @@ export const workflowTriggerExecutionListQuery = paginationQuery.extend({
 });
 
 export const workflowTriggerExecutionContract = defineContract('/api/workflows/trigger-executions', {
-  list: op.get('/', { query: workflowTriggerExecutionListQuery, response: paginated(workflowTriggerExecutionSchema), summary: '获取触发器执行记录列表' }),
-  detail: op.get('/{id}', { params: idParam, response: workflowTriggerExecutionSchema, summary: '获取触发器执行记录详情' }),
+  list: op.get('/', { access: { permission: 'workflow:trigger-execution:view' }, query: workflowTriggerExecutionListQuery, response: paginated(workflowTriggerExecutionSchema), summary: '获取触发器执行记录列表' }),
+  detail: op.get('/{id}', { access: { permission: 'workflow:trigger-execution:view' }, params: idParam, response: workflowTriggerExecutionSchema, summary: '获取触发器执行记录详情' }),
 }, { tags: ['WorkflowTriggerExecutions'] });

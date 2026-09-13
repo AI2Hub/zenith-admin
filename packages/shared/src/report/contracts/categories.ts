@@ -23,9 +23,9 @@ export type ReportDashboardCategory = z.infer<typeof reportDashboardCategorySche
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const reportCategoryContract = defineContract('/api/report/categories', {
-  list: op.get('/', { response: z.array(reportDashboardCategorySchema), summary: '分类列表' }),
-  lookup: op.get('/lookup', { query: reportLookupQuerySchema.omit({ status: true }), response: z.array(reportLookupOptionSchema), summary: '分类轻量下拉' }),
-  create: op.post('/', { body: createReportCategorySchema, response: reportDashboardCategorySchema, summary: '创建分类' }),
-  update: op.put('/{id}', { params: idParam, body: updateReportCategorySchema, response: reportDashboardCategorySchema, summary: '更新分类' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除分类' }),
-}, { tags: ['报表分类'] });
+  list: op.get('/', { access: { permission: 'report:dashboard:list' }, response: z.array(reportDashboardCategorySchema), summary: '分类列表' }),
+  lookup: op.get('/lookup', { access: { permission: 'report:dashboard:list' }, query: reportLookupQuerySchema.omit({ status: true }), response: z.array(reportLookupOptionSchema), summary: '分类轻量下拉' }),
+  create: op.post('/', { access: { permission: 'report:dashboard:update' }, audit: '创建报表分类', body: createReportCategorySchema, response: reportDashboardCategorySchema, summary: '创建分类' }),
+  update: op.put('/{id}', { access: { permission: 'report:dashboard:update' }, audit: '更新报表分类', params: idParam, body: updateReportCategorySchema, response: reportDashboardCategorySchema, summary: '更新分类' }),
+  remove: op.delete('/{id}', { access: { permission: 'report:dashboard:update' }, audit: '删除报表分类', params: idParam, summary: '删除分类' }),
+}, { auditModule: '报表分类', tags: ['报表分类'] });

@@ -53,13 +53,13 @@ export const aiPromptTemplateVersionParams = idParam.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const aiPromptTemplateContract = defineContract('/api/ai/prompt-templates', {
-  list: op.get('/', { query: aiPromptTemplateListQuery, response: paginated(aiPromptTemplateSchema), summary: '获取提示词模板列表' }),
-  all: op.get('/available', { response: z.array(aiPromptTemplateSchema), summary: '获取可用提示词模板（聊天选择器用，仅需登录）' }),
-  use: op.post('/{id}/use', { params: idParam, summary: '记录模板被应用为对话角色一次（使用统计）' }),
-  detail: op.get('/{id}', { params: idParam, response: aiPromptTemplateSchema, summary: '获取提示词模板详情' }),
-  versions: op.get('/{id}/versions', { params: idParam, response: z.array(aiPromptTemplateVersionSchema), summary: '获取提示词模板历史版本列表' }),
-  restoreVersion: op.post('/{id}/versions/{versionId}/restore', { params: aiPromptTemplateVersionParams, response: aiPromptTemplateSchema, summary: '恢复到指定历史版本（当前内容自动留档）' }),
-  create: op.post('/', { body: createAiPromptTemplateSchema, response: aiPromptTemplateSchema, summary: '创建提示词模板' }),
-  update: op.put('/{id}', { params: idParam, body: updateAiPromptTemplateSchema, response: aiPromptTemplateSchema, summary: '更新提示词模板' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除提示词模板' }),
-}, { tags: ['AI'] });
+  list: op.get('/', { access: { permission: 'ai:prompt:list' }, query: aiPromptTemplateListQuery, response: paginated(aiPromptTemplateSchema), summary: '获取提示词模板列表' }),
+  all: op.get('/available', { access: 'authenticated', response: z.array(aiPromptTemplateSchema), summary: '获取可用提示词模板（聊天选择器用，仅需登录）' }),
+  use: op.post('/{id}/use', { access: 'authenticated', params: idParam, summary: '记录模板被应用为对话角色一次（使用统计）' }),
+  detail: op.get('/{id}', { access: { permission: 'ai:prompt:list' }, params: idParam, response: aiPromptTemplateSchema, summary: '获取提示词模板详情' }),
+  versions: op.get('/{id}/versions', { access: { permission: 'ai:prompt:list' }, params: idParam, response: z.array(aiPromptTemplateVersionSchema), summary: '获取提示词模板历史版本列表' }),
+  restoreVersion: op.post('/{id}/versions/{versionId}/restore', { access: { permission: 'ai:prompt:edit' }, audit: '恢复提示词模板版本', params: aiPromptTemplateVersionParams, response: aiPromptTemplateSchema, summary: '恢复到指定历史版本（当前内容自动留档）' }),
+  create: op.post('/', { access: { permission: 'ai:prompt:create' }, body: createAiPromptTemplateSchema, response: aiPromptTemplateSchema, summary: '创建提示词模板' }),
+  update: op.put('/{id}', { access: { permission: 'ai:prompt:edit' }, params: idParam, body: updateAiPromptTemplateSchema, response: aiPromptTemplateSchema, summary: '更新提示词模板' }),
+  remove: op.delete('/{id}', { access: { permission: 'ai:prompt:delete' }, params: idParam, summary: '删除提示词模板' }),
+}, { auditModule: '智能助手', tags: ['AI'] });

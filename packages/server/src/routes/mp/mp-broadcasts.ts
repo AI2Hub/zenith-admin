@@ -1,7 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { mpBroadcastContract } from '@zenith/shared/mp';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
@@ -16,13 +15,8 @@ import { mountCrud } from '../_crud';
 
 const mpBroadcastsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'mp:broadcast:list' })] as const;
 const sendRoute = defineContractRoute(mpBroadcastContract.send, {
-  middleware: [
-    authMiddleware,
-    guard({ permission: 'mp:broadcast:send', audit: { description: '发送公众号群发', module: '公众号群发' } }),
-    idempotencyGuard({ ttlSeconds: 10 }),
-  ],
+  middleware: [idempotencyGuard({ ttlSeconds: 10 })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getMpBroadcastBeforeAudit(id));
@@ -30,7 +24,6 @@ const sendRoute = defineContractRoute(mpBroadcastContract.send, {
   },
 });
 const previewRoute = defineContractRoute(mpBroadcastContract.preview, {
-  middleware: [authMiddleware, guard({ permission: 'mp:broadcast:send', audit: { description: '群发预览', module: '公众号群发' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getMpBroadcastBeforeAudit(id));
@@ -40,13 +33,12 @@ const previewRoute = defineContractRoute(mpBroadcastContract.preview, {
 });
 
 const resultRoute = defineContractRoute(mpBroadcastContract.result, {
-  middleware: read,
   handler: async (c) => c.json(okBody(await getMpBroadcastResult(c.req.valid('param').id)), 200),
 });
 
 mountCrud(mpBroadcastsRouter, mpBroadcastContract,
   mpBroadcastService,
-  { permission: 'mp:broadcast', label: '公众号群发', module: '公众号群发', messages: { create: '已创建群发草稿' } },
+  { messages: { create: '已创建群发草稿' } },
   [sendRoute, previewRoute, resultRoute],
 );
 

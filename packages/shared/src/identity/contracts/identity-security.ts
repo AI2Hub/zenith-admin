@@ -28,5 +28,5 @@ export const loginRiskEventListQuery = paginationQuery.extend({
 });
 
 export const identitySecurityContract = defineContract('/api/identity-security', {
-  riskEvents: op.get('/risk-events', { query: loginRiskEventListQuery, response: paginated(loginRiskEventSchema), summary: '登录风险事件' }),
+  riskEvents: op.get('/risk-events', { access: { permission: 'system:login-risk:list' }, query: loginRiskEventListQuery, response: paginated(loginRiskEventSchema), summary: '登录风险事件' }),
 }, { tags: ['IdentitySecurity'] });

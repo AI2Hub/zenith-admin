@@ -243,23 +243,23 @@
 ## Route 层（Step 6-7）
 
 - **标准操作由契约派生**：契约上的 `list` / `detail` / `create` / `update` / `remove` / `removeBatch` 一律经
-  `mountCrud(router, contract, service, { permission, label, module?, messages?, responses?, middleware?, exclude? }, extraRoutes)`
-  （`routes/_crud.ts`）生成：权限码按前缀 + 约定后缀（不按约定传 `{ read, write }` 或逐操作映射）、审计文案
-  「创建 / 更新 / 删除 / 批量删除 + label」、更新 / 删除前以契约实体做审计快照、`DELETE /batch` 先于 `/{id}`；
+  `mountCrud(router, contract, service, { messages?, responses?, middleware?, exclude? }?, extraRoutes?)`
+  （`routes/_crud.ts`）生成：权限 / 审计 / 功能门控全部来自契约操作的 `access` / `audit` / `feature`，
+  更新 / 删除前以契约实体做审计快照、`DELETE /batch` 先于 `/{id}`；
   服务侧传 `defineCrudService` 产物或显式函数包 `{ list, get, create, update, remove, removeMany, snapshot }`，
   返回值**逐操作**对照契约响应（列表行 / 详情实体 / 创建结果可为不同 schema）；需要请求上下文或闭包参数的服务函数在 bag 里以箭头函数绑定。
   需要自定义 handler 的标准操作在 `exclude` 里声明后显式书写，并在 `routes/_crud-explicit.ts` 登记理由（`crud-coverage.test.ts`：
   未登记即失败、登记表只准缩小）；**禁止**再逐条手写与派生形态等价的
-  `c.json(okBody(await listXxxs(c.req.valid('query'))), 200)` / `setAuditBeforeData(c, await ensureXxxExists(id))` 路由块。
-  读 / 写中间件元组用 `readGuard(permission)` / `writeGuard(permission, audit)`
-- **访问要求声明在契约上**：每个登录令牌（bearer）操作在 `op` 上写 `access`——权限码 `{ permission }`
-  （数组 = 任一即可，可叠加 `platformOnly: true | 'multi-tenant'`）、仅平台超管 `{ platformOnly }` 或 `'authenticated'`
-  （登录即可，归属校验在 service）；写操作再写 `audit`（字符串即 description，`module` 缺省取契约组 `auditModule`），
-  License 门控写在契约组 / op 的 `feature`。`defineContractRoute` 据此自动装配
-  `preAuth → authMiddleware → platformAdminOnly → guard(权限 / 审计 / 功能)`，路由只提供 `handler`
-  （限流等认证前中间件放 `preAuth`，认证后追加的放 `middleware`，动态审计文案用 `audit` 覆盖）；
-  `mountCrud` 对已声明 `access` 的契约**省略** `permission` 选项。**禁止**在已声明 `access` 的路由再手写
-  `authMiddleware` / `guard({ permission })`；尚未迁移的域按 `shared/src/contract-access.test.ts` 的基线只准缩小
+  `c.json(okBody(await listXxxs(c.req.valid('query'))), 200)` / `setAuditBeforeData(c, await ensureXxxExists(id))` 路由块
+- **访问要求只声明在契约上**：每个后台登录令牌（bearer）操作**必须**在 `op` 上写 `access`（`defineContract` 构造期拒绝缺失）——
+  权限码 `{ permission }`（数组 = 任一即可，可叠加 `platformOnly: true | 'multi-tenant'`）、仅平台超管 `{ platformOnly }`
+  或 `'authenticated'`（登录即可，归属校验在 service）；写操作再写 `audit`（字符串即 description，`module` 缺省取契约组
+  `auditModule`，含密码 / 一次性密钥时 `recordBody: false` / `recordResponseBody: false`），License 门控写在契约组 / op 的 `feature`。
+  `defineContractRoute` 据此自动装配 `preAuth → authMiddleware → platformAdminOnly → guard(权限 / 审计 / 功能)`，
+  路由只提供 `handler`（认证前的限流等放 `preAuth`，认证后追加的幂等 / 限流 / 平台侧账号限定放 `middleware`）。
+  **禁止**在路由文件 import / 使用 `authMiddleware`、`guard()`、`platformAdminOnly()`，**禁止**路由级覆盖审计文案
+  （`app.contract.test.ts` 的「权限契约」用中间件自描述标记逐端点对账契约 ↔ 运行时，重复挂载即失败）。
+  会员前台契约组整组声明 `defineContract(..., { security: 'member-bearer' })`，会员鉴权中间件仍写在路由 `middleware`
 - **路由一律由契约定义**：`defineContractRoute(xxxContract.op, { handler })`（`lib/contract-route.ts`）；
   方法、路径、入参校验、响应 schema、security、tags 与 `commonErrorResponses` 全部由契约推导。
   **禁止**在路由文件调用 `createRoute` / `defineOpenAPIRoute`、**禁止**手写 `request:` / `responses:`、
@@ -267,15 +267,16 @@
 - **薄路由**：**禁止在路由 handler 中直接调用 `db.*`**；DB 访问与业务逻辑全部在 service
 - **响应体构造**：统一 `okBody(data, msg?)` / `errBody(msg, code?)`（`lib/openapi-schemas`），
   **禁止内联** `{ code: 0 as const, message, data }` 字面量；每个 `c.json(...)` 必须显式带状态码
-- **非登录令牌的中间件在路由侧声明**：公开接口在契约上标 `public: true`，设备签名 / 开放网关鉴权的接口标
-  `security: 'device-signature' | 'open-gateway'`（文档 security 随之变化，验签中间件仍写在 `middleware:`）；
+- **非后台令牌的中间件在路由侧声明**：公开接口在契约上标 `public: true`，设备签名 / 开放网关鉴权的接口标
+  `security: 'device-signature' | 'open-gateway'`，会员前台契约组整组标 `{ security: 'member-bearer' }`
+  （文档 security 随之变化，验签 / 会员鉴权中间件仍写在 `middleware:`，这些操作**不得**声明 `access`）；
   **禁止**在路由器上 `use('*', authMiddleware)`
 - **批量路由顺序**：`DELETE /batch` 必须注册在 `DELETE /{id}` **之前**，否则 `/batch` 被匹配为 `id="batch"`；
   静态 `/all` 同理早于 `/{id}`（`mountCrud` / `orderRoutes` 已按「静态路径先于参数路径」自动排序）
 - **挂载路径取契约**：`routes/{业务域}/index.ts` 的挂载写 `[xxxContract.basePath, xxxRoutes]`，**禁止**路径字面量
 - **设置类接口不另开端点**：模块级设置的读写只经 `routes/platform/settings.ts` 循环注册表生成的 `GET/PUT /api/settings/{module-path}`，
-  **禁止**在业务域路由再暴露 `/settings` / `/policy` 之类的独立设置端点；写接口的 `guard` 权限取模块 `writePermission`，
-  平台作用域在多租户模式下仅平台管理员可写
+  **禁止**在业务域路由再暴露 `/settings` / `/policy` 之类的独立设置端点；读写权限与 License 门控由 `settingsContract`
+  直接取模块定义的 `readPermission` / `writePermission` / `feature`，平台作用域在多租户模式下仅平台管理员可写
 - **契约编译期检查**：`npm run typecheck:contracts`（随 `lint` 执行）以 `src/**/*.typecheck.ts` 锁定
   handler 入参 / 响应类型约束，改动 `lib/contract-route.ts` 必须保持其绿色
 - **外呼 HTTP**：服务端任何对外请求**必须**走 `lib/http-client.ts` 的 `httpRequest` / `httpGet` /
@@ -291,7 +292,7 @@
 - **权限码只在注册表声明一次**：每个业务域的 `shared/src/{域}/permissions.ts` 用 `definePermissions()` 登记
   `code → { label, menu }`，域 `index.ts` 导出它并加入 `shared/src/permissions.ts` 的 `PERMISSION_REGISTRY_BY_DOMAIN`；
   种子 `button` 节点由 `expandPermissionButtons()` 生成，**禁止**在 `seed/menus/*.ts` 手写 `button` 行。
-  服务端 `guard({ permission })` / `mountCrud({ permission })` / `hasPermission()`、前端 `hasPermission()` /
+  契约操作的 `access.permission`、服务端 `hasPermission()`、前端 `hasPermission()` /
   `permission=` 属性的参数类型都是 `Permission`（`@zenith/shared/core`），不在注册表的码编译报错；
   **禁止**用 `as Permission` 绕过（仅数据库配置等真正动态的码可在边界处断言，并在保存时按注册表校验）。
   服务端没有接口检查的码必须标 `uiOnly: true`（`permission-registry.test.ts` 双向守住）

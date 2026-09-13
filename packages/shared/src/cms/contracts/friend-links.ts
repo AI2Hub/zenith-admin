@@ -62,14 +62,14 @@ export const cmsFriendLinkGroupListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsFriendLinkContract = defineContract('/api/cms/friend-links', {
-  groupAll: op.get('/groups/all', { query: cmsSiteScopeQuery, response: z.array(cmsFriendLinkGroupSchema), summary: '站点全部启用分组（下拉用）' }),
-  groupList: op.get('/groups', { query: cmsFriendLinkGroupListQuery, response: paginated(cmsFriendLinkGroupSchema), summary: '友链分组分页列表' }),
-  groupCreate: op.post('/groups', { body: createCmsFriendLinkGroupSchema, response: cmsFriendLinkGroupSchema, summary: '创建友链分组' }),
-  groupUpdate: op.put('/groups/{id}', { params: idParam, body: updateCmsFriendLinkGroupSchema, response: cmsFriendLinkGroupSchema, summary: '更新友链分组' }),
-  groupRemove: op.delete('/groups/{id}', { params: idParam, summary: '删除友链分组（组内友链转为未分组）' }),
-  list: op.get('/', { query: cmsFriendLinkListQuery, response: paginated(cmsFriendLinkSchema), summary: '友链分页列表' }),
-  create: op.post('/', { body: createCmsFriendLinkSchema, response: cmsFriendLinkSchema, summary: '创建友链' }),
-  update: op.put('/{id}', { params: idParam, body: updateCmsFriendLinkSchema, response: cmsFriendLinkSchema, summary: '更新友链' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除友链' }),
-}, { tags: ['CMS-友情链接'] });
+  groupAll: op.get('/groups/all', { access: { permission: 'cms:link:list' }, query: cmsSiteScopeQuery, response: z.array(cmsFriendLinkGroupSchema), summary: '站点全部启用分组（下拉用）' }),
+  groupList: op.get('/groups', { access: { permission: 'cms:link:list' }, query: cmsFriendLinkGroupListQuery, response: paginated(cmsFriendLinkGroupSchema), summary: '友链分组分页列表' }),
+  groupCreate: op.post('/groups', { access: { permission: 'cms:link:create' }, audit: '创建 CMS 友链分组', body: createCmsFriendLinkGroupSchema, response: cmsFriendLinkGroupSchema, summary: '创建友链分组' }),
+  groupUpdate: op.put('/groups/{id}', { access: { permission: 'cms:link:update' }, audit: '更新 CMS 友链分组', params: idParam, body: updateCmsFriendLinkGroupSchema, response: cmsFriendLinkGroupSchema, summary: '更新友链分组' }),
+  groupRemove: op.delete('/groups/{id}', { access: { permission: 'cms:link:delete' }, audit: '删除 CMS 友链分组', params: idParam, summary: '删除友链分组（组内友链转为未分组）' }),
+  list: op.get('/', { access: { permission: 'cms:link:list' }, query: cmsFriendLinkListQuery, response: paginated(cmsFriendLinkSchema), summary: '友链分页列表' }),
+  create: op.post('/', { access: { permission: 'cms:link:create' }, audit: '创建 CMS 友情链接', body: createCmsFriendLinkSchema, response: cmsFriendLinkSchema, summary: '创建友链' }),
+  update: op.put('/{id}', { access: { permission: 'cms:link:update' }, audit: '更新 CMS 友情链接', params: idParam, body: updateCmsFriendLinkSchema, response: cmsFriendLinkSchema, summary: '更新友链' }),
+  remove: op.delete('/{id}', { access: { permission: 'cms:link:delete' }, audit: '删除 CMS 友情链接', params: idParam, summary: '删除友链' }),
+}, { auditModule: 'CMS内容管理', tags: ['CMS-友情链接'] });
 

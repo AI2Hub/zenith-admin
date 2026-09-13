@@ -46,6 +46,6 @@ export const paymentTrendQuery = z.object({
 
 /** 统计概览与趋势：共用支付资源根 */
 export const paymentStatsContract = defineContract('/api/payment', {
-  stats: op.get('/stats', { response: paymentStatsSchema, summary: '支付统计概览' }),
-  trend: op.get('/trend', { query: paymentTrendQuery, response: z.array(paymentTrendPointSchema), summary: '收款趋势（近 N 天）' }),
+  stats: op.get('/stats', { access: { permission: 'payment:order:list' }, response: paymentStatsSchema, summary: '支付统计概览' }),
+  trend: op.get('/trend', { access: { permission: 'payment:order:list' }, query: paymentTrendQuery, response: z.array(paymentTrendPointSchema), summary: '收款趋势（近 N 天）' }),
 }, { tags: ['支付中心'] });

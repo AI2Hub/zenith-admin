@@ -7,7 +7,6 @@
 import { Hono } from 'hono';
 import { pathBoundRateLimit } from '../../middleware/rate-limit';
 import { getClientInfo } from '../../lib/request-helpers';
-import { escapeHtml } from '@zenith/shared/core';
 import {
   resolveShortLink,
   getLiveVisitCount,
@@ -96,3 +95,4 @@ redirectRouter.get('/:code', async (c) => {
 });
 
 export default redirectRouter;
+import { escapeHtml } from '@zenith/shared/core';

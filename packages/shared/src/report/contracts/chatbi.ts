@@ -124,14 +124,14 @@ export const reportChatbiAuditQuery = paginationQuery.extend({
 });
 
 export const reportChatbiContract = defineContract('/api/report/chatbi', {
-  sessions: op.get('/sessions', { query: reportChatbiSessionListQuery, response: paginated(reportChatbiSessionSchema), summary: 'ChatBI 会话列表' }),
-  createSession: op.post('/sessions', { body: createReportChatbiSessionSchema, response: reportChatbiSessionSchema, summary: '创建 ChatBI 会话' }),
-  sessionDetail: op.get('/sessions/{id}', { params: idParam, response: reportChatbiSessionDetailSchema, summary: 'ChatBI 会话详情与消息历史' }),
-  updateSession: op.put('/sessions/{id}', { params: idParam, body: updateReportChatbiSessionSchema, response: reportChatbiSessionSchema, summary: '更新 ChatBI 会话' }),
-  archiveSession: op.post('/sessions/{id}/archive', { params: idParam, response: reportChatbiSessionSchema, summary: '归档 ChatBI 会话' }),
-  removeSession: op.delete('/sessions/{id}', { params: idParam, summary: '删除 ChatBI 会话' }),
-  ask: op.post('/sessions/{id}/ask', { params: idParam, body: createReportChatbiMessageSchema, response: reportChatbiMessageSchema, summary: 'ChatBI 多轮提问' }),
-  saveMessage: op.post('/messages/{id}/save', { params: idParam, body: saveReportChatbiMessageAssetSchema, response: reportChatbiSavedResourceSchema, summary: '保存 ChatBI 回答为数据集或仪表盘' }),
-  myQuota: op.get('/quotas/me', { response: reportChatbiQuotaSchema, summary: '我的 ChatBI 当日用量' }),
-  audit: op.get('/audit', { query: reportChatbiAuditQuery, response: paginated(reportChatbiMessageSchema), summary: 'ChatBI 审计与成本明细' }),
-}, { tags: ['报表 ChatBI'] });
+  sessions: op.get('/sessions', { access: { permission: 'report:chatbi:list' }, query: reportChatbiSessionListQuery, response: paginated(reportChatbiSessionSchema), summary: 'ChatBI 会话列表' }),
+  createSession: op.post('/sessions', { access: { permission: 'report:chatbi:create' }, audit: '创建 ChatBI 会话', body: createReportChatbiSessionSchema, response: reportChatbiSessionSchema, summary: '创建 ChatBI 会话' }),
+  sessionDetail: op.get('/sessions/{id}', { access: { permission: 'report:chatbi:list' }, params: idParam, response: reportChatbiSessionDetailSchema, summary: 'ChatBI 会话详情与消息历史' }),
+  updateSession: op.put('/sessions/{id}', { access: { permission: 'report:chatbi:update' }, audit: '更新 ChatBI 会话', params: idParam, body: updateReportChatbiSessionSchema, response: reportChatbiSessionSchema, summary: '更新 ChatBI 会话' }),
+  archiveSession: op.post('/sessions/{id}/archive', { access: { permission: 'report:chatbi:update' }, audit: '归档 ChatBI 会话', params: idParam, response: reportChatbiSessionSchema, summary: '归档 ChatBI 会话' }),
+  removeSession: op.delete('/sessions/{id}', { access: { permission: 'report:chatbi:delete' }, audit: '删除 ChatBI 会话', params: idParam, summary: '删除 ChatBI 会话' }),
+  ask: op.post('/sessions/{id}/ask', { access: { permission: 'report:chatbi:ask' }, audit: { description: '执行 ChatBI 提问', recordResponseBody: false }, params: idParam, body: createReportChatbiMessageSchema, response: reportChatbiMessageSchema, summary: 'ChatBI 多轮提问' }),
+  saveMessage: op.post('/messages/{id}/save', { access: { permission: 'report:chatbi:save' }, audit: '保存 ChatBI 资源', params: idParam, body: saveReportChatbiMessageAssetSchema, response: reportChatbiSavedResourceSchema, summary: '保存 ChatBI 回答为数据集或仪表盘' }),
+  myQuota: op.get('/quotas/me', { access: { permission: 'report:chatbi:list' }, response: reportChatbiQuotaSchema, summary: '我的 ChatBI 当日用量' }),
+  audit: op.get('/audit', { access: { permission: 'report:chatbi:audit' }, query: reportChatbiAuditQuery, response: paginated(reportChatbiMessageSchema), summary: 'ChatBI 审计与成本明细' }),
+}, { auditModule: '报表 ChatBI', tags: ['报表 ChatBI'] });

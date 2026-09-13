@@ -118,16 +118,16 @@ export const announcementReadStatsQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const announcementContract = defineContract('/api/announcements', {
-  published: op.get('/published', { response: z.array(myAnnouncementSchema), summary: '最近 20 条已发布公告' }),
-  unreadCount: op.get('/unread-count', { response: announcementUnreadCountSchema, summary: '未读公告数' }),
-  markRead: op.post('/{id}/read', { params: idParam, summary: '标记已读' }),
-  markAllRead: op.post('/read-all', { summary: '全部标记已读' }),
-  inbox: op.get('/inbox', { query: announcementInboxQuery, response: paginated(myAnnouncementSchema), summary: '收件箱' }),
-  list: op.get('/', { query: announcementListQuery, response: paginated(announcementSchema), summary: '公告列表（管理）' }),
-  removeBatch: op.delete('/batch', { body: batchIdsBody, summary: '批量删除' }),
-  readStats: op.get('/{id}/read-stats', { params: idParam, query: announcementReadStatsQuery, response: announcementReadStatsSchema, summary: '阅读统计' }),
-  detail: op.get('/{id}', { params: idParam, response: announcementDetailSchema, summary: '详情' }),
-  create: op.post('/', { body: createAnnouncementSchema, response: announcementSchema, summary: '创建公告' }),
-  update: op.put('/{id}', { params: idParam, body: updateAnnouncementSchema, response: announcementSchema, summary: '更新公告' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除公告' }),
-}, { tags: ['Announcements'] });
+  published: op.get('/published', { access: 'authenticated', response: z.array(myAnnouncementSchema), summary: '最近 20 条已发布公告' }),
+  unreadCount: op.get('/unread-count', { access: 'authenticated', response: announcementUnreadCountSchema, summary: '未读公告数' }),
+  markRead: op.post('/{id}/read', { access: 'authenticated', params: idParam, summary: '标记已读' }),
+  markAllRead: op.post('/read-all', { access: 'authenticated', summary: '全部标记已读' }),
+  inbox: op.get('/inbox', { access: 'authenticated', query: announcementInboxQuery, response: paginated(myAnnouncementSchema), summary: '收件箱' }),
+  list: op.get('/', { access: { permission: 'system:announcement:list' }, query: announcementListQuery, response: paginated(announcementSchema), summary: '公告列表（管理）' }),
+  removeBatch: op.delete('/batch', { access: { permission: 'system:announcement:delete' }, audit: '批量删除公告', body: batchIdsBody, summary: '批量删除' }),
+  readStats: op.get('/{id}/read-stats', { access: { permission: 'system:announcement:list' }, params: idParam, query: announcementReadStatsQuery, response: announcementReadStatsSchema, summary: '阅读统计' }),
+  detail: op.get('/{id}', { access: { permission: 'system:announcement:list' }, params: idParam, response: announcementDetailSchema, summary: '详情' }),
+  create: op.post('/', { access: { permission: 'system:announcement:create' }, audit: '创建公告', body: createAnnouncementSchema, response: announcementSchema, summary: '创建公告' }),
+  update: op.put('/{id}', { access: { permission: 'system:announcement:update' }, audit: '更新公告', params: idParam, body: updateAnnouncementSchema, response: announcementSchema, summary: '更新公告' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:announcement:delete' }, audit: '删除公告', params: idParam, summary: '删除公告' }),
+}, { auditModule: '公告', tags: ['Announcements'] });
