@@ -1,4 +1,5 @@
 import * as z from 'zod';
+import type { Permission } from './permissions';
 
 /**
  * API 契约 DSL —— 前后端与 Mock 的唯一真相。
@@ -29,6 +30,36 @@ export type ResponseKind = 'json' | 'excel' | 'csv' | 'file' | 'sse';
  * 凭证的**校验**仍由路由 `middleware` 完成；这里只描述契约，让文档与运行时一致。
  */
 export type SecurityScheme = 'none' | 'bearer' | 'device-signature' | 'open-gateway';
+
+/**
+ * 登录令牌（`bearer`）操作的访问要求——权限声明的唯一位置，服务端路由据此自动挂门禁，
+ * 前端按钮 / Demo Mock / OpenAPI / 权限矩阵都从这里读：
+ * - `'authenticated'`：任何登录用户（个人中心、我的 xxx；归属 / 租户校验在 service 内）
+ * - `{ permission }`：需要权限码，数组 = 任一即可；`platformOnly: true` 叠加平台超管限定
+ * - `{ platformOnly: true }`：仅平台超管，不看权限码
+ *
+ * `public: true` 与非 bearer 的 `security` 操作**不得**声明 `access`（凭证不是登录令牌，无权限码语义）。
+ */
+export type OperationAccess =
+  | 'authenticated'
+  | { readonly permission: Permission | readonly Permission[]; readonly platformOnly?: PlatformOnly }
+  | { readonly platformOnly: Exclude<PlatformOnly, false>; readonly permission?: undefined };
+
+/**
+ * 平台超管限定：`true` = 始终要求平台超管（租户 / 套餐等纯多租户资源）；
+ * `'multi-tenant'` = 仅多租户模式下要求（菜单 / 地区 / 脱敏等全局共享资源，单租户部署由权限码控制即可）
+ */
+export type PlatformOnly = boolean | 'multi-tenant';
+
+/** 写操作的审计声明；字符串即 description，module 缺省取契约组 `auditModule` */
+export interface OperationAudit {
+  readonly description: string;
+  readonly module?: string;
+  /** 请求体含密码 / 密钥时关闭；默认记录 */
+  readonly recordBody?: boolean;
+  /** 响应含一次性凭证时关闭；默认记录 */
+  readonly recordResponseBody?: boolean;
+}
 
 /** 路径参数 / 查询参数 schema 的形态约束 */
 export type ParamsSchema = z.ZodObject<z.ZodRawShape>;
@@ -92,6 +123,15 @@ export interface OperationConfig<
   /** 覆盖契约组的 tags */
   readonly tags?: readonly string[];
   readonly deprecated?: boolean;
+  /**
+   * 访问要求（仅 bearer 操作）。声明后服务端 `defineContractRoute` 自动挂 `authMiddleware` + 权限 / 平台超管门禁，
+   * 路由文件不再手写 `guard({ permission })`；缺省 = 尚未迁移（`contract-access.test` 以基线只准缩小）
+   */
+  readonly access?: OperationAccess;
+  /** 写操作审计：字符串即 description；服务端据此在门禁里记操作日志，路由无需再传 `audit` */
+  readonly audit?: string | OperationAudit;
+  /** 所属可授权功能（License 门控），覆盖契约组的 `feature` */
+  readonly feature?: string;
 }
 
 /** `op.xxx()` 的产物：尚未绑定资源根路径 */
@@ -123,6 +163,12 @@ export interface UnboundOperation<
   readonly unmasked: boolean;
   readonly tags?: readonly string[];
   readonly deprecated: boolean;
+  /** 访问要求；`undefined` = 尚未在契约声明（路由仍自行挂门禁） */
+  readonly access: OperationAccess | undefined;
+  /** 归一后的审计声明（`module` 在绑定契约组时补缺省） */
+  readonly audit: OperationAudit | undefined;
+  /** 所属可授权功能（op 级覆盖，缺省在绑定契约组时取组级） */
+  readonly feature: string | undefined;
 }
 
 /** 已绑定到契约组的操作 */
@@ -212,6 +258,9 @@ function createOperation<
   if (!path.startsWith('/')) throw new Error(`契约路径必须以 / 开头：${path}`);
   if (config.public && config.security) throw new Error(`公开操作不能同时声明 security：${path}`);
   const security: SecurityScheme = config.public ? 'none' : (config.security ?? 'bearer');
+  if (config.access !== undefined && security !== 'bearer') {
+    throw new Error(`access 只能声明在登录令牌（bearer）操作上：${path}（security=${security}）`);
+  }
   return {
     method,
     path,
@@ -228,6 +277,9 @@ function createOperation<
     unmasked: config.unmasked ?? false,
     tags: config.tags,
     deprecated: config.deprecated ?? false,
+    access: config.access,
+    audit: typeof config.audit === 'string' ? { description: config.audit } : config.audit,
+    feature: config.feature,
   };
 }
 
@@ -259,6 +311,10 @@ export const op = {
 export interface ContractDefaults {
   /** OpenAPI tags，默认由 basePath 派生 */
   readonly tags?: readonly string[];
+  /** 组内写操作审计的缺省 module（如「用户管理」）；op 级 `audit.module` 可覆盖 */
+  readonly auditModule?: string;
+  /** 组内操作的缺省 License 功能门控；op 级 `feature` 可覆盖 */
+  readonly feature?: string;
 }
 
 export type Bind<T> = T extends UnboundOperation<
@@ -311,7 +367,18 @@ export function defineContract<const TOps extends Record<string, OperationMarker
   const bound: Record<string, unknown> = { basePath };
   for (const [name, def] of Object.entries(ops as unknown as Record<string, UnboundOperation>)) {
     const fullPath = joinPath(basePath, def.path);
-    bound[name] = { ...def, name, basePath, fullPath, tags: def.tags ?? defaultTags } satisfies Operation;
+    const audit = def.audit && def.audit.module === undefined && defaults.auditModule
+      ? { ...def.audit, module: defaults.auditModule }
+      : def.audit;
+    bound[name] = {
+      ...def,
+      name,
+      basePath,
+      fullPath,
+      tags: def.tags ?? defaultTags,
+      audit,
+      feature: def.feature ?? defaults.feature,
+    } satisfies Operation;
   }
   return bound as Contract<TOps>;
 }
@@ -319,6 +386,18 @@ export function defineContract<const TOps extends Record<string, OperationMarker
 /** 契约组内的全部操作（跳过 basePath 等非操作字段） */
 export function contractOperations(contract: AnyContract): AnyOperation[] {
   return Object.values(contract).filter((v): v is AnyOperation => typeof v === 'object' && v !== null && 'method' in v);
+}
+
+/** 访问要求里的权限码列表（`'authenticated'` / 仅平台超管 → 空数组） */
+export function accessPermissions(access: OperationAccess | undefined): readonly Permission[] {
+  if (!access || access === 'authenticated' || access.permission === undefined) return [];
+  return typeof access.permission === 'string' ? [access.permission] : access.permission;
+}
+
+/** 访问要求的平台超管限定形态（`false` = 不限定） */
+export function accessPlatformOnly(access: OperationAccess | undefined): PlatformOnly {
+  if (access === undefined || access === 'authenticated') return false;
+  return access.platformOnly ?? false;
 }
 
 // ─── 路径工具 ────────────────────────────────────────────────────────────────

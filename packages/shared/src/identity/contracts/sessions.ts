@@ -28,7 +28,7 @@ export const sessionListQuery = paginationQuery.extend({
 });
 
 export const sessionContract = defineContract('/api/sessions', {
-  list: op.get('/', { query: sessionListQuery, response: paginated(onlineSessionSchema), summary: '获取在线会话列表' }),
-  forceLogoutUser: op.delete('/user/{id}', { params: idParam, summary: '强制指定用户所有会话下线' }),
-  forceLogout: op.delete('/{tokenId}', { params: tokenIdParam, summary: '强制指定会话下线' }),
-}, { tags: ['Sessions'] });
+  list: op.get('/', { access: { permission: 'system:session:list' }, query: sessionListQuery, response: paginated(onlineSessionSchema), summary: '获取在线会话列表' }),
+  forceLogoutUser: op.delete('/user/{id}', { access: { permission: 'system:session:forceLogout' }, audit: '强制下线全部会话', params: idParam, summary: '强制指定用户所有会话下线' }),
+  forceLogout: op.delete('/{tokenId}', { access: { permission: 'system:session:forceLogout' }, audit: '强制下线', params: tokenIdParam, summary: '强制指定会话下线' }),
+}, { tags: ['Sessions'], auditModule: '会话管理' });

@@ -252,16 +252,23 @@
   未登记即失败、登记表只准缩小）；**禁止**再逐条手写与派生形态等价的
   `c.json(okBody(await listXxxs(c.req.valid('query'))), 200)` / `setAuditBeforeData(c, await ensureXxxExists(id))` 路由块。
   读 / 写中间件元组用 `readGuard(permission)` / `writeGuard(permission, audit)`
-- **路由一律由契约定义**：`defineContractRoute(xxxContract.op, { middleware, handler })`（`lib/contract-route.ts`）；
+- **访问要求声明在契约上**：每个登录令牌（bearer）操作在 `op` 上写 `access`——权限码 `{ permission }`
+  （数组 = 任一即可，可叠加 `platformOnly: true | 'multi-tenant'`）、仅平台超管 `{ platformOnly }` 或 `'authenticated'`
+  （登录即可，归属校验在 service）；写操作再写 `audit`（字符串即 description，`module` 缺省取契约组 `auditModule`），
+  License 门控写在契约组 / op 的 `feature`。`defineContractRoute` 据此自动装配
+  `preAuth → authMiddleware → platformAdminOnly → guard(权限 / 审计 / 功能)`，路由只提供 `handler`
+  （限流等认证前中间件放 `preAuth`，认证后追加的放 `middleware`，动态审计文案用 `audit` 覆盖）；
+  `mountCrud` 对已声明 `access` 的契约**省略** `permission` 选项。**禁止**在已声明 `access` 的路由再手写
+  `authMiddleware` / `guard({ permission })`；尚未迁移的域按 `shared/src/contract-access.test.ts` 的基线只准缩小
+- **路由一律由契约定义**：`defineContractRoute(xxxContract.op, { handler })`（`lib/contract-route.ts`）；
   方法、路径、入参校验、响应 schema、security、tags 与 `commonErrorResponses` 全部由契约推导。
   **禁止**在路由文件调用 `createRoute` / `defineOpenAPIRoute`、**禁止**手写 `request:` / `responses:`、
   **禁止**声明实体 DTO；契约之外的额外响应（如 `conflictResponse`）经 `responses` 选项追加
 - **薄路由**：**禁止在路由 handler 中直接调用 `db.*`**；DB 访问与业务逻辑全部在 service
 - **响应体构造**：统一 `okBody(data, msg?)` / `errBody(msg, code?)`（`lib/openapi-schemas`），
   **禁止内联** `{ code: 0 as const, message, data }` 字面量；每个 `c.json(...)` 必须显式带状态码
-- **中间件在路由侧声明**：`authMiddleware` / `guard({ permission, audit })` / `platformAdminOnly` 等只出现在
-  `middleware:`；公开接口在契约上标 `public: true`，设备签名 / 开放网关鉴权的接口标
-  `security: 'device-signature' | 'open-gateway'`（文档 security 随之变化，校验仍由中间件完成）；
+- **非登录令牌的中间件在路由侧声明**：公开接口在契约上标 `public: true`，设备签名 / 开放网关鉴权的接口标
+  `security: 'device-signature' | 'open-gateway'`（文档 security 随之变化，验签中间件仍写在 `middleware:`）；
   **禁止**在路由器上 `use('*', authMiddleware)`
 - **批量路由顺序**：`DELETE /batch` 必须注册在 `DELETE /{id}` **之前**，否则 `/batch` 被匹配为 `id="batch"`；
   静态 `/all` 同理早于 `/{id}`（`mountCrud` / `orderRoutes` 已按「静态路径先于参数路径」自动排序）

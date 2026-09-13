@@ -1,15 +1,14 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { sessionContract } from '@zenith/shared/identity';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import { listSessions, forceLogoutSession, forceLogoutVisibleUserSessions, getSessionBeforeAudit, getUserSessionsBeforeAudit } from '../../services/identity/sessions.service';
 import { mountCrud } from '../_crud';
 
+// 权限 / 审计已在契约 access / audit 上声明
 const sessionsRoute = new OpenAPIHono({ defaultHook: validationHook });
 const forceLogoutRouteDef = defineContractRoute(sessionContract.forceLogout, {
-  middleware: [authMiddleware, guard({ permission: 'system:session:forceLogout', audit: { module: '会话管理', description: '强制下线' } })] as const,
   handler: async (c) => {
     const { tokenId } = c.req.valid('param');
     const before = await getSessionBeforeAudit(tokenId);
@@ -20,7 +19,6 @@ const forceLogoutRouteDef = defineContractRoute(sessionContract.forceLogout, {
 });
 
 const forceLogoutAllRouteDef = defineContractRoute(sessionContract.forceLogoutUser, {
-  middleware: [authMiddleware, guard({ permission: 'system:session:forceLogout', audit: { module: '会话管理', description: '强制下线全部会话' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getUserSessionsBeforeAudit(id);
@@ -30,10 +28,6 @@ const forceLogoutAllRouteDef = defineContractRoute(sessionContract.forceLogoutUs
   },
 });
 
-mountCrud(sessionsRoute, sessionContract,
-  { list: listSessions },
-  { permission: 'system:session' },
-  [forceLogoutAllRouteDef, forceLogoutRouteDef],
-);
+mountCrud(sessionsRoute, sessionContract, { list: listSessions }, {}, [forceLogoutAllRouteDef, forceLogoutRouteDef]);
 
 export default sessionsRoute;

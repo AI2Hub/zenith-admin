@@ -15,9 +15,16 @@
 import { createRoute, defineOpenAPIRoute, type OpenAPIRoute, type RouteConfig, type RouteHandler, type RouteHook } from '@hono/zod-openapi';
 import type { Context, MiddlewareHandler } from 'hono';
 import type { z } from 'zod';
-import { isMultipart, MULTIPART_CONTENT_TYPE, type AnyOperation, type MultipartBody, type ParamsSchema, type SecurityScheme } from '@zenith/shared/core';
+import {
+  accessPermissions, accessPlatformOnly, isMultipart, MULTIPART_CONTENT_TYPE,
+  type AnyOperation, type MultipartBody, type OperationAudit, type ParamsSchema, type SecurityScheme,
+} from '@zenith/shared/core';
 import { IOT_SIGN_HEADER, IOT_SN_HEADER, IOT_TIMESTAMP_HEADER } from '@zenith/shared/iot';
+import { isLicenseFeatureKey } from '@zenith/shared/licensing';
 import { OPEN_SIGNATURE_HEADERS } from '@zenith/shared/open-platform';
+import { authMiddleware } from '../middleware/auth';
+import { guard, type AuditLogOptions } from '../middleware/guard';
+import { platformAdminOnly } from '../middleware/platform-admin';
 import { withDataMasking } from './data-mask/boundary';
 import { apiResponse, commonErrorResponses, jsonContent, okCsv, okExcel, okFile } from './openapi-schemas';
 
@@ -87,8 +94,15 @@ type SuccessFor<Op extends AnyOperation> =
 type ExtraResponses = Record<number, { description: string; content?: Record<string, { schema: z.ZodType }> }>;
 
 export type RouteOptions<M extends readonly MiddlewareHandler[], Extra extends ExtraResponses> = {
-  /** 路由级中间件：认证 / 权限 / 审计；顺序即执行顺序 */
-  readonly middleware: M;
+  /**
+   * 路由级中间件。契约声明了 `access` 的操作：自动门禁（认证 → 功能门控 → 平台超管 → 权限 / 审计）之后追加的中间件；
+   * 未声明 `access`（尚未迁移）或非 bearer 凭证的操作：完整链（认证 / 权限 / 审计 / 验签），顺序即执行顺序
+   */
+  readonly middleware?: M;
+  /** 认证之前执行的中间件（限流 / IP 白名单等）；仅对自动门禁生效 */
+  readonly preAuth?: readonly MiddlewareHandler[];
+  /** 覆盖契约上的审计声明（动态 module / 关闭响应体记录等） */
+  readonly audit?: AuditLogOptions;
   /** 契约之外的额外响应（如 `conflictResponse`） */
   readonly responses?: Extra;
   /** 不进入 OpenAPI 文档 */
@@ -146,6 +160,42 @@ function buildSuccess(op: AnyOperation): RouteConfig['responses'] {
   }
 }
 
+function toAuditLogOptions(audit: OperationAudit): AuditLogOptions {
+  return {
+    description: audit.description,
+    ...(audit.module ? { module: audit.module } : {}),
+    ...(audit.recordBody === false ? { recordBody: false } : {}),
+    ...(audit.recordResponseBody === false ? { recordResponseBody: false } : {}),
+  };
+}
+
+/**
+ * 按契约 `access` 装配门禁链：preAuth → authMiddleware → [平台超管] → guard(权限 / 审计 / 功能门控) → 路由追加中间件。
+ * 契约未声明 `access`（尚未迁移）或凭证不是登录令牌时，原样使用路由提供的 `middleware`。
+ */
+export function resolveRouteMiddleware(op: AnyOperation, options: Pick<RouteOptions<readonly MiddlewareHandler[], ExtraResponses>, 'middleware' | 'preAuth' | 'audit'>): MiddlewareHandler[] {
+  const explicit = [...(options.middleware ?? [])];
+  if (op.access === undefined || op.security !== 'bearer') {
+    if (options.preAuth?.length) throw new Error(`preAuth 只对声明了 access 的登录令牌操作生效：${op.method.toUpperCase()} ${op.fullPath}`);
+    return explicit;
+  }
+  if (op.feature !== undefined && !isLicenseFeatureKey(op.feature)) {
+    throw new Error(`契约 feature 不是已登记的 License 功能：${op.feature}（${op.method.toUpperCase()} ${op.fullPath}）`);
+  }
+  const chain: MiddlewareHandler[] = [...(options.preAuth ?? []), authMiddleware];
+  const platformOnly = accessPlatformOnly(op.access);
+  if (platformOnly) chain.push(platformAdminOnly(platformOnly === 'multi-tenant' ? { onlyInMultiTenant: true } : undefined));
+  const permission = accessPermissions(op.access);
+  const audit = options.audit ?? (op.audit ? toAuditLogOptions(op.audit) : undefined);
+  const guardOptions = {
+    ...(permission.length > 0 ? { permission } : {}),
+    ...(audit ? { audit } : {}),
+    ...(op.feature && isLicenseFeatureKey(op.feature) ? { feature: op.feature } : {}),
+  };
+  if (Object.keys(guardOptions).length > 0) chain.push(guard(guardOptions));
+  return [...chain, ...explicit];
+}
+
 /** 契约操作 → `createRoute()` 配置 */
 export function toRoute<
   Op extends AnyOperation,
@@ -160,7 +210,7 @@ export function toRoute<
     ...(op.description ? { description: op.description } : {}),
     ...(op.deprecated ? { deprecated: true } : {}),
     security: SECURITY_REQUIREMENTS[op.security],
-    middleware: [...options.middleware],
+    middleware: resolveRouteMiddleware(op, options),
     ...(options.hide ? { hide: true } : {}),
     request: buildRequest(op),
     responses: { ...buildSuccess(op), ...commonErrorResponses, ...(options.responses ?? {}) },
@@ -189,11 +239,11 @@ export type ContractRouteDefinition<
  */
 export function defineContractRoute<
   Op extends AnyOperation,
-  const M extends readonly MiddlewareHandler[],
+  const M extends readonly MiddlewareHandler[] = readonly [],
   const Extra extends ExtraResponses = Record<never, never>,
 >(op: Op, def: ContractRouteDefinition<Op, M, Extra>): Registered<RouteOf<Op, M, Extra>> {
-  const { middleware, responses, hide, handler, hook } = def;
-  const route = toRoute(op, { middleware, responses, hide });
+  const { middleware, preAuth, audit, responses, hide, handler, hook } = def;
+  const route = toRoute(op, { middleware, preAuth, audit, responses, hide });
   const masked = withDataMasking(op, handler as unknown as (c: Context) => Response | Promise<Response>);
   // 同 toRoute：泛型 Op 下 RouteOf 无法静态满足 RouteConfig 约束，具体实例的类型由返回类型给出
   return defineOpenAPIRoute({ route: route as RouteConfig, handler: masked as never, hook: hook as never }) as unknown as Registered<RouteOf<Op, M, Extra>>;

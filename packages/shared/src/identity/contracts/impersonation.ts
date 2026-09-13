@@ -69,8 +69,15 @@ export const impersonationListQuery = paginationQuery.extend({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const impersonationContract = defineContract('/api/impersonation', {
-  start: op.post('/start', { body: startImpersonationSchema, response: impersonationStartResultSchema, summary: '开始模拟登录（以目标用户身份签发短时会话）' }),
-  end: op.post('/end', { summary: '结束当前模拟会话（由模拟会话自身调用）' }),
-  list: op.get('/records', { query: impersonationListQuery, response: paginated(impersonationSessionSchema), summary: '模拟登录记录' }),
-  forceEnd: op.post('/records/{id}/end', { params: idParam, summary: '强制结束进行中的模拟会话' }),
-}, { tags: ['Impersonation'] });
+  start: op.post('/start', {
+    access: { permission: 'system:user:impersonate' },
+    // 请求体含操作者密码、响应含目标身份令牌：两者都不进审计，事实由路由 setAuditAfterData 记录
+    audit: { description: '模拟登录', recordBody: false, recordResponseBody: false },
+    body: startImpersonationSchema,
+    response: impersonationStartResultSchema,
+    summary: '开始模拟登录（以目标用户身份签发短时会话）',
+  }),
+  end: op.post('/end', { access: 'authenticated', summary: '结束当前模拟会话（由模拟会话自身调用）' }),
+  list: op.get('/records', { access: { permission: 'system:impersonation:list' }, query: impersonationListQuery, response: paginated(impersonationSessionSchema), summary: '模拟登录记录' }),
+  forceEnd: op.post('/records/{id}/end', { access: { permission: 'system:impersonation:forceEnd' }, audit: '强制结束模拟登录', params: idParam, summary: '强制结束进行中的模拟会话' }),
+}, { tags: ['Impersonation'], auditModule: '用户管理' });

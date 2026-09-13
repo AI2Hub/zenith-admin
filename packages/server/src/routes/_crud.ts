@@ -94,9 +94,10 @@ export interface CrudMountOptions {
   /**
    * 权限：传前缀字符串（`system:tag`，注册表里须存在 `system:tag:list`）按约定派生 `:list` / `:create` / `:update` / `:delete`；
    * 不按约定的资源传映射表（`{ read: 'x:view', write: 'x:manage' }` 或逐操作指定）；
-   * `null` = 只要求登录（`[authMiddleware]`），不加权限码
+   * `null` = 只要求登录（`[authMiddleware]`），不加权限码；
+   * **省略** = 权限已在契约操作的 `access` 上声明（迁移完成态），门禁由 `defineContractRoute` 装配
    */
-  readonly permission: PermissionPrefix | CrudPermissionMap | null;
+  readonly permission?: PermissionPrefix | CrudPermissionMap | null;
   /** 审计里的资源名：「标签」→ 创建标签 / 更新标签 / 删除标签 / 批量删除标签；只派生读操作时可省略 */
   readonly label?: string;
   /** 审计 module；缺省 `${label}管理` */
@@ -144,7 +145,7 @@ export function writeGuard(permission: Permission, audit: AuditLogOptions, featu
 }
 
 function resolvePermission(permission: CrudMountOptions['permission'], op: CrudOpName): Permission | undefined {
-  if (permission === null) return undefined;
+  if (permission === null || permission === undefined) return undefined;
   // 前缀 + 约定后缀：`PermissionPrefix` 已保证 `${prefix}:list` 在注册表；其余后缀由 permission-registry.test 守住
   if (typeof permission === 'string') return `${permission}:${PERMISSION_SUFFIX[op]}` as SharedPermission;
   return permission[op] ?? (WRITE_OPS.includes(op) ? permission.write : permission.read);
@@ -175,13 +176,33 @@ function middlewareFor(options: CrudMountOptions, op: CrudOpName): MiddlewareHan
   return [authMiddleware, ...(options.middleware ?? []), ...(needsGuard ? [guard(guardOptions)] : [])];
 }
 
+/**
+ * 契约操作已声明 `access` 时的路由选项：门禁由 `defineContractRoute` 按契约自动装配，
+ * 这里只提供追加中间件与「路由级审计覆盖」（`options.audit` 显式给出的文案 / 关闭）。
+ */
+function accessRouteOptions(options: CrudMountOptions, op: CrudOpName): { middleware?: readonly MiddlewareHandler[]; audit?: AuditLogOptions } {
+  const override = op === 'list' || op === 'detail' ? undefined : options.audit?.[op];
+  const audit = override === undefined || override === null || op === 'list' || op === 'detail' ? undefined : resolveAudit(options, op);
+  return {
+    ...(options.middleware?.length ? { middleware: options.middleware } : {}),
+    ...(audit ? { audit } : {}),
+  };
+}
+
 /** 契约路由的校验产物：`@hono/zod-openapi` 已按契约 schema 校验并挂到请求上 */
 function valid<T>(c: Context, target: 'query' | 'param' | 'json'): T {
   return (c.req as unknown as { valid(t: string): T }).valid(target);
 }
 
-function route(op: AnyOperation, middleware: MiddlewareHandler[], handler: Handler, responses?: ExtraResponses): ContractRoute {
-  return defineContractRoute(op, { middleware, handler, ...(responses ? { responses } : {}) } as never) as unknown as ContractRoute;
+function route(op: AnyOperation, options: CrudMountOptions, name: CrudOpName, handler: Handler, responses?: ExtraResponses): ContractRoute {
+  // 契约声明了 access：门禁按契约装配；否则沿用挂载选项里的权限 / 审计（迁移期兼容）
+  if (op.access === undefined && options.permission === undefined) {
+    throw new Error(`${op.basePath} 的 ${name} 操作未在契约声明 access，mountCrud 必须提供 permission 选项`);
+  }
+  const routeOptions = op.access !== undefined
+    ? accessRouteOptions(options, name)
+    : { middleware: middlewareFor(options, name) };
+  return defineContractRoute(op, { ...routeOptions, handler, ...(responses ? { responses } : {}) } as never) as unknown as ContractRoute;
 }
 
 /** 派生某操作所需的服务函数缺失时立即报错（模块加载期，被 app.contract 测试捕获），而不是运行时 500 */
@@ -217,28 +238,27 @@ export function crudRoutes<C extends CrudContractLike>(
   for (const name of CRUD_OPS) {
     const op = contract[name] as AnyOperation | undefined;
     if (!op || options.exclude?.includes(name)) continue;
-    const middleware = middlewareFor(options, name);
     switch (name) {
       case 'list': {
         const list = required(service, 'list', contract, name);
         // 无 query 的列表（「我的 xxx」一类）：服务函数不取参
-        routes.push(route(op, middleware, async (c) => c.json(okBody(await list(op.query ? valid(c, 'query') : (undefined as never))), 200), options.responses?.list));
+        routes.push(route(op, options, name, async (c) => c.json(okBody(await list(op.query ? valid(c, 'query') : (undefined as never))), 200), options.responses?.list));
         break;
       }
       case 'detail': {
         const get = required(service, 'get', contract, name);
-        routes.push(route(op, middleware, async (c) => c.json(okBody(await get(valid<{ id: CrudIdOf<C> }>(c, 'param').id)), 200), options.responses?.detail));
+        routes.push(route(op, options, name, async (c) => c.json(okBody(await get(valid<{ id: CrudIdOf<C> }>(c, 'param').id)), 200), options.responses?.detail));
         break;
       }
       case 'create': {
         const create = required(service, 'create', contract, name);
-        routes.push(route(op, middleware, async (c) => c.json(okBody(await create(valid(c, 'json')), message('create', '创建成功')), 200), options.responses?.create));
+        routes.push(route(op, options, name, async (c) => c.json(okBody(await create(valid(c, 'json')), message('create', '创建成功')), 200), options.responses?.create));
         break;
       }
       case 'update': {
         const get = required(service, 'get', contract, name);
         const update = required(service, 'update', contract, name);
-        routes.push(route(op, middleware, async (c) => {
+        routes.push(route(op, options, name, async (c) => {
           const { id } = valid<{ id: CrudIdOf<C> }>(c, 'param');
           setAuditBeforeData(c, await get(id));
           return c.json(okBody(await update(id, valid(c, 'json')), message('update', '更新成功')), 200);
@@ -247,7 +267,7 @@ export function crudRoutes<C extends CrudContractLike>(
       }
       case 'removeBatch': {
         const removeMany = required(service, 'removeMany', contract, name);
-        routes.push(route(op, middleware, async (c) => {
+        routes.push(route(op, options, name, async (c) => {
           const { ids } = valid<{ ids: CrudIdOf<C>[] }>(c, 'json');
           const before = await snapshot(ids);
           if (before.length > 0) setAuditBeforeData(c, before);
@@ -261,7 +281,7 @@ export function crudRoutes<C extends CrudContractLike>(
       case 'remove': {
         const get = required(service, 'get', contract, name);
         const remove = required(service, 'remove', contract, name);
-        routes.push(route(op, middleware, async (c) => {
+        routes.push(route(op, options, name, async (c) => {
           const { id } = valid<{ id: CrudIdOf<C> }>(c, 'param');
           setAuditBeforeData(c, await get(id));
           await remove(id);

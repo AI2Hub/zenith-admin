@@ -136,18 +136,25 @@ export const xxxListQuery = paginationQuery.extend({
 });
 
 // ─── 契约：键名即操作名（list / detail / create / update / remove 为标准 CRUD 约定）──
+//     每个登录令牌操作都声明 access（权限码 / 'authenticated' / platformOnly），写操作声明 audit；
+//     服务端路由据此自动装配门禁，前端按钮 / Mock / 文档 / 权限矩阵同源读取
 export const xxxContract = defineContract('/api/xxxs', {
-  list:   op.get('/', { query: xxxListQuery, response: paginated(xxxSchema), summary: 'XXX 列表' }),
-  // all:  op.get('/all', { response: z.array(xxxOptionSchema), summary: '全部启用 XXX（供下拉框）' }),
-  detail: op.get('/{id}', { params: idParam, response: xxxSchema, summary: 'XXX 详情' }),
-  create: op.post('/', { body: createXxxSchema, response: xxxSchema, summary: '创建 XXX' }),
-  update: op.put('/{id}', { params: idParam, body: updateXxxSchema, response: xxxSchema, summary: '更新 XXX' }),
-  // removeBatch: op.delete('/batch', { body: batchIdsBody, summary: '批量删除 XXX' }),
-  remove: op.delete('/{id}', { params: idParam, summary: '删除 XXX' }),
-}, { tags: ['XXX管理'] });
+  list:   op.get('/', { access: { permission: 'system:xxx:list' }, query: xxxListQuery, response: paginated(xxxSchema), summary: 'XXX 列表' }),
+  // all:  op.get('/all', { access: { permission: 'system:xxx:list' }, response: z.array(xxxOptionSchema), summary: '全部启用 XXX（供下拉框）' }),
+  detail: op.get('/{id}', { access: { permission: 'system:xxx:list' }, params: idParam, response: xxxSchema, summary: 'XXX 详情' }),
+  create: op.post('/', { access: { permission: 'system:xxx:create' }, audit: '创建XXX', body: createXxxSchema, response: xxxSchema, summary: '创建 XXX' }),
+  update: op.put('/{id}', { access: { permission: 'system:xxx:update' }, audit: '更新XXX', params: idParam, body: updateXxxSchema, response: xxxSchema, summary: '更新 XXX' }),
+  // removeBatch: op.delete('/batch', { access: { permission: 'system:xxx:delete' }, audit: '批量删除XXX', body: batchIdsBody, summary: '批量删除 XXX' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:xxx:delete' }, audit: '删除XXX', params: idParam, summary: '删除 XXX' }),
+}, { tags: ['XXX管理'], auditModule: 'XXX管理' });
 ```
 
 - `contracts/index.ts` 里 `export * from './xxxs'`；域 `index.ts` 已 `export * from './contracts'`
+- 权限码先在 `shared/src/{业务域}/permissions.ts` 登记（见 [seed-config.md](./seed-config.md)），`access.permission` 只接受注册表里的码
+- `access` 形态：`{ permission }`（数组 = 任一即可；`platformOnly: true` 始终平台超管 / `'multi-tenant'` 仅多租户模式）、
+  `{ platformOnly: true }`（不看权限码）、`'authenticated'`（登录即可，归属 / 租户校验在 service）
+- `audit`：字符串即 description；请求体含密码 / 密钥或响应含一次性凭证时用对象 `{ description, recordBody: false, recordResponseBody: false }`
+- License 门控：契约组 `defaults.feature` 或 op 级 `feature`（`LicenseFeatureKey`）
 - 非 JSON 响应：`kind: 'excel' | 'csv' | 'file' | 'sse'`（此时 `response` 忽略）；上传：`body: multipart(z.object({ file: fileField() }))`
 - 公开接口：`public: true`；设备签名 / 开放网关鉴权的接口：`security: 'device-signature' | 'open-gateway'`
   （默认 Bearer 登录令牌；凭证校验仍由 `middleware` 完成）；额外文档说明：`description`
@@ -299,8 +306,8 @@ async function ensureYyyExists(yyyId: number | null | undefined): Promise<void> 
 
 ## Step 6：路由（`routes/{业务域}/xxx.ts`）
 
-标准操作由 **`mountCrud`** 按契约派生：权限码按前缀 + 约定后缀（`:list` / `:create` / `:update` / `:delete`），
-审计文案「创建 / 更新 / 删除 / 批量删除 + label」，更新 / 删除前统一以契约实体做审计快照，`DELETE /batch` 自动先于 `/{id}` 注册。
+权限与审计已在契约 `access` / `audit` 上声明，`defineContractRoute` 自动装配门禁；标准操作由 **`mountCrud`** 按契约派生：
+更新 / 删除前统一以契约实体做审计快照，`DELETE /batch` 自动先于 `/{id}` 注册。
 非标准操作继续 `defineContractRoute`，与派生路由一起交给 `mountCrud`（静态路径自动排在同方法的参数路径之前）。
 
 ```ts
@@ -309,28 +316,29 @@ import { xxxContract } from '@zenith/shared/{业务域}';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import { listAllXxxs, xxxService } from '../../services/{业务域}/xxx.service';
-import { mountCrud, readGuard } from '../_crud';
+import { mountCrud } from '../_crud';
 
 // 不使用 <AuthEnv> 泛型，不添加全局 use('*', authMiddleware)
 const xxxRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(xxxRouter, xxxContract, xxxService, {
-  permission: 'system:xxx',               // 派生 system:xxx:list / :create / :update / :delete；不按约定的资源传 { read, write } 或逐操作映射
-  label: 'XXX',                           // 审计：创建 XXX / 更新 XXX / 删除 XXX / 批量删除 XXX；module 缺省「XXX管理」
+  // 权限 / 审计文案来自契约；这里只放派生路由的差异项
   // messages: { create: '已新增' },       // 成功提示覆盖；缺省 创建成功 / 更新成功 / 删除成功 / 批量删除成功
   // responses: { remove: conflictResponse }, // 契约之外的额外响应
   // exclude: ['update'],                  // 需要自定义 handler 的标准操作：排除后在 extra 里显式书写
 }, [
   // 契约启用 all 时：下拉源复用列表的访问边界（Service 里 listAllXxxs 用 xxxService.scope()）
   defineContractRoute(xxxContract.all, {
-    middleware: readGuard('system:xxx:list'),
     handler: async (c) => c.json(okBody(await listAllXxxs()), 200),
   }),
+  // 认证前的限流 / IP 校验放 preAuth；认证后追加的中间件放 middleware；动态审计文案用 audit 覆盖
+  // defineContractRoute(xxxContract.export, { preAuth: [sensitiveRateLimit], handler: … }),
 ]);
 
 export default xxxRouter;
 ```
 
+- 尚未迁移到契约 `access` 的域仍可传 `permission: 'system:xxx'`（前缀派生）/ `{ read, write }` 与 `label`；迁移后删除
 - 服务侧既可传 `defineCrudService` 的产物，也可传显式函数包 `{ list, get, create, update, remove, removeMany, snapshot }`
   （显式 Service 的资源）；返回类型**逐操作**对照契约响应检查——列表行可以是精简 schema、`detail` 返回扩展实体
   （`paginated(xxxSchema)` + `xxxDetailSchema`）、`create` 返回专用结果都能直接派生；缺函数在模块加载期报错而不是运行时 500。
