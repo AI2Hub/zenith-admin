@@ -58,6 +58,7 @@ function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canManage ? [
         { key: 'edit', label: '编辑', onClick: () => slotModal.openEdit(record) },
+        // eslint-disable-next-line no-restricted-syntax -- 按权限条件拼装的动作数组，保留 createOperationColumn
         deleteAction({
           title: '确定要删除该广告位吗？',
           content: '需先清空广告位下的广告',
@@ -141,6 +142,7 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canManage ? [
         { key: 'edit', label: '编辑', onClick: () => adModal.openEdit(record) },
+        // eslint-disable-next-line no-restricted-syntax -- 按权限条件拼装的动作数组，保留 createOperationColumn
         deleteAction({
           title: '确定要删除该广告吗？',
           run: () => deleteMutation.mutateAsync([record.id]),

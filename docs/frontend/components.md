@@ -46,9 +46,28 @@ const columns: ColumnProps<User>[] = [
 `createOperationColumn` 创建的操作列带内部标记，列设置中不可隐藏；移动端宽度固定为 64。
 开发期若操作列内容宽超过列内可用宽，控制台会给出一次告警。
 
-### ResponsiveTableActions / createOperationColumn
+### useCrudOperationColumn / createOperationColumn
 
-`ResponsiveTableActions` 负责表格操作按钮的桌面内联与移动端更多菜单。列表页通常直接使用 `createOperationColumn`。
+标准资源的操作列用 `@/components/list-page` 的 `useCrudOperationColumn`：`[...extra, 编辑, ...extraBetween, 删除, ...extraAfter]`，
+编辑 / 删除的权限门控（`permission` 前缀派生 `:update` / `:delete`，或 `permissions` / `allow`）、行级 `hidden` / `disabled`、
+删除确认（`label` → 「确定要删除「xxx」吗？」或自定义 `title`、`content`）、执行（`remove` 传 `useDelete()` 的 mutation 或回调）与
+`successMessage` / `onDeleted` 都按 `deleteAction` 约定接好；列宽缺省 150，每组附加动作 +60。
+
+```tsx
+const operationColumn = useCrudOperationColumn<Tag>({
+  permission: 'system:tag',
+  edit: tagModal,                       // useEditModal 的返回（取 openEdit）或 (record) => …
+  remove: deleteMutation,               // 按 [record.id] 调 mutateAsync；或 (record) => …
+  label: (r) => r.name,
+  extra: (r) => [{ key: 'test', label: '测试', onClick: () => void handleTest(r) }],
+  width: 210,
+  desktopInlineKeys: ['test', 'edit', 'delete'],
+});
+```
+
+只有删除或只有编辑、按权限条件拼装的动作数组、`useMemo` 内定义的列继续用下面的 `createOperationColumn`。
+
+`ResponsiveTableActions` 负责表格操作按钮的桌面内联与移动端更多菜单；`createOperationColumn` 是其列形态。
 
 | 字段 | 说明 |
 | --- | --- |
@@ -126,7 +145,9 @@ const operationColumn = createOperationColumn<User>({
 | `StatusSelect` | `items`、`value`、`onChange(value)`、`width` | `FilterSelect` 的状态特化，占位固定 `全部状态` |
 | `DateRangeFilter` | `value`、`onChange(range)`、`type`、`width` | 默认 `dateTimeRange`、宽度 400（`DATE_TIME_RANGE_FILTER_WIDTH`）；`type="dateRange"` 时宽度 280（`DATE_RANGE_FILTER_WIDTH`）。默认宽度是不截断内容的下限，`width` 只用于 `100%` 之类自适应场景 |
 
-标准列表页的工具栏用 `@/components/list-page` 的 `ListSearchToolbar`（关键字 / 筛选 / 查询 / 重置 / 新增 / 低频操作按桌面与移动端排布）；
+标准列表页的工具栏用 `@/components/list-page` 的 `ListSearchToolbar`（关键字 / 筛选 / 查询 / 重置 / 新增 / 低频操作按桌面与移动端排布）：
+契约写法 `<ListSearchToolbar page={page} filters={['keyword', 'status', ['startTime', 'endTime']]} overrides={…} extraFilters={…} />`
+由契约 query 的 `x-filter` 语义派生控件（`components/list-page/ContractFilters.tsx`），槽位写法（`keyword` / `filters` + `onSearch` / `onReset`）留给映射模式页面；
 边输边筛、没有「查询」按钮语义的即时过滤页用同目录的 `InstantFilterToolbar`（`primary` / `filters` / `onRefresh` / `onReset` / `actions` / `extra`）。
 控件的 `value` / `onChange` 由 `@/hooks/useListPage`（标准分页列表：搜索状态 → `toQuery` 筛选映射 → 域 `useList` → 表格 `tableProps` 一次接好）
 或 `@/hooks/useListSearch` 的 `bind` / `bindKeyword` 展开，见 [数据获取与缓存 → 列表页模式](./data-fetching.md#列表页模式)。

@@ -103,32 +103,35 @@ export const useAssignXxxMenus = () =>
 
 ## 列表页模式
 
-标准分页列表页统一使用 `useListPage`：它组合 `useListSearch`（分页状态、输入草稿态、已提交查询态、「查询 / 重置必须回源」的失效逻辑）、
-`useFilterQuery`（已提交筛选 → 契约查询参数）、契约派生的域 `useList` 与 `listTableProps`，一次返回搜索绑定、`filterQuery`、`listQuery` 与表格 `tableProps`。
+标准分页列表页统一使用 `useListPage` **契约模式**：筛选状态类型 = 契约 list 操作的 query 去掉分页键，`listKey` 由
+`contractKey(contract.list)` 派生（与 `createResourceQueries` 的 `keys.lists` 同键），`defaults` / `toQuery` 不再由页面书写。
+它组合 `useListSearch`（分页状态、输入草稿态、已提交查询态、「查询 / 重置必须回源」的失效逻辑）、
+`useFilterQuery`（已提交筛选 → 契约查询参数）、契约派生的域 `useList` 与 `listTableProps`，一次返回搜索绑定、`filterQuery`、
+`listQuery`、表格 `tableProps` 与工具栏所需的 `toolbarProps` / `filterSchema` / `bindRange`。
 
 ```tsx
-const { bind, bindKeyword, handleSearch, handleReset, applySearch, filterQuery, tableProps } = useListPage({
-  defaults: defaultSearchParams,
-  listKey: xxxKeys.lists,
+const page = useListPage({
+  contract: xxxContract,
   useList: useXxxList,                                   // createResourceQueries 派生的域 hook，模块级稳定
-  toQuery: (s) => ({                                     // 已提交筛选 → 契约查询参数：丢弃 undefined / null / 空串、保留 0 / false
-    keyword: s.keyword,
-    status: enumValueOf(XXX_STATUSES, s.status),         // 契约按枚举声明，先收窄 string
-  }),
+  // defaults: { status: 'enabled' },                    // 初始筛选（重置回到这里）
   // params: { siteId },                                 // 契约必填的作用域参数：原样传给 useList，不经 compact
   // enabled: siteId !== undefined,
   // table: { rowSelection, empty: '暂无数据' },
 });
 
-// 受控筛选控件整体绑定：bind(key) 展开 value / onChange（onChange 按 key 缓存、引用稳定），bindKeyword 额外接回车查询
-<KeywordInput placeholder="搜索名称" {...bindKeyword('keyword')} />
-<StatusSelect items={statusItems} {...bind('status')} />
-
-<ConfigurableTable<Xxx> columns={columns} {...tableProps} />
-<ExportButton entity="system.xxxs" query={filterQuery} permission="system:xxx:export" />
+// 筛选控件由契约 query 的 x-filter 语义派生：keyword → 搜索框（占位 = 「搜索 + 匹配字段」），enum → 下拉（标签取契约声明的字典 / options），
+// bool → 是 / 否，id → 数字，成对时间端点 → 范围选择器；专用控件走 overrides，契约之外的手写控件走 extraFilters
+<ListSearchToolbar page={page} filters={['keyword', 'status', ['startTime', 'endTime']]} create={…} actions={…} />
+<ConfigurableTable<Xxx> columns={columns} {...page.tableProps} />
+<ExportButton entity="system.xxxs" query={page.filterQuery} permission="system:xxx:export" />
 ```
 
-`bind(key)` / `bindKeyword(key)` 是受控筛选控件的标准绑定；控件回传类型比字段宽时传 `parse` 收窄：`bind('status', (v) => enumValueOf(XXX_STATUSES, v))`。
+搜索状态不是契约 query 形状（客户端派生条件、字段改名、日期只到天）时用**映射模式**：`defaults` + `listKey: xxxKeys.lists` +
+`toQuery: (s) => ({ … })`（结果即 `filterQuery`），工具栏用槽位写法 `keyword={<KeywordInput {...bindKeyword('keyword')} />}` /
+`filters={…}` / `onSearch` / `onReset`。
+
+`bind(key)` / `bindKeyword(key)` / `bindRange([start, end])` 是受控筛选控件的标准绑定；控件回传类型比字段宽时传 `parse` 收窄：
+`bind('status', (v) => enumValueOf(XXX_STATUSES, v))`。
 `Checkbox` 等非 `value` / `onChange` 形态的控件才用 `setField(key)`（如 `(e) => setField('archived')(!!e.target.checked)`），一次改多个字段才用 `setDraftParams`。
 `applySearch(params)` 用于点击部门树、标签、收藏开关、保存视图等不经过输入框的筛选；它同步更新 draft 与 submitted，回到第一页并失效列表。不要暴露 `submittedParams` 的裸 setter。
 

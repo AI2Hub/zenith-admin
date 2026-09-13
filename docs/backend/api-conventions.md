@@ -93,8 +93,10 @@ const user = currentUser();
 
 每个端点由 `@zenith/shared/{业务域}/contracts/` 中的契约操作定义：方法、路径、`params` / `query` / `headers` / `body`
 schema 与响应 schema（`headers` 只声明业务请求头，如幂等键 `x-idempotency-key`；认证头由 security 表达）。
-路由文件用 `defineContractRoute(op, { middleware, handler })`（`lib/contract-route.ts`）
-把契约变成 Hono 路由，入参按契约 schema 校验，由 `validationHook` 统一转为标准错误响应。
+标准操作（`list` / `detail` / `create` / `update` / `remove` / `removeBatch`）由 `mountCrud(router, contract, service, { permission, label })`
+（`routes/_crud.ts`）按契约派生路由：权限码按前缀 + 约定后缀，审计文案与更新 / 删除前的实体快照统一，`DELETE /batch` 先于 `/{id}`；
+非标准操作用 `defineContractRoute(op, { middleware, handler })`（`lib/contract-route.ts`）
+把契约变成 Hono 路由。两者的入参都按契约 schema 校验，由 `validationHook` 统一转为标准错误响应。
 
 ```json
 {
@@ -179,16 +181,15 @@ export default xxxRouter;
 | route handler | 读取 `c.req.valid()`、调用 service、返回 HTTP 响应、设置必要审计快照 | 直接写业务规则、数据映射、DB 查询 |
 | service | 业务规则、数据映射、前置校验、复杂查询、事务、关联写操作；通过 `currentUser()` 获取登录用户 | `c.json()`、直接依赖 Hono `Context`、`console.*` |
 
-常用命名：
+标准资源的 Service 由 `defineCrudService(contract, { table, map, notFound, unique, tenant | scope, list, create, update, remove })`
+（`lib/crud-service.ts`）生成，类型全部从契约派生，可见范围只声明一次并对读写全部生效；行 → 实体映射用
+`entityMapper(xxxSchema, overrides?)` / `pickEntity(xxxSchema, row, overrides?)`（`lib/entity-map.ts`）按契约实体 schema 投影。
+常用命名（工厂产物以解构别名导出，显式 Service 沿用同名）：
 
 ```ts
-export function mapXxx(row: XxxRow) { ... }
-
-export async function ensureXxxExists(id: number) {
-  const [row] = await db.select().from(xxxs).where(eq(xxxs.id, id)).limit(1);
-  if (!row) throw new HTTPException(404, { message: 'XXX 不存在' });
-  return row;
-}
+export const mapXxx = entityMapper(xxxSchema);
+export const xxxService = defineCrudService(xxxContract, { table: xxxs, map: mapXxx, notFound: 'XXX 不存在', list: (q) => ({ where: [...], orderBy: [...] }) });
+export const { list: listXxxs, get: getXxx, ensure: ensureXxxExists, create: createXxx, update: updateXxx, remove: deleteXxx } = xxxService;
 ```
 
 业务错误抛 `HTTPException(statusCode, { message })`，由 `app.onError()` 转为统一 JSON。唯一约束冲突使用 `rethrowPgUniqueViolation(err, message, byConstraint?)` 映射为 400。

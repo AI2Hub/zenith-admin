@@ -162,96 +162,65 @@ export const xxxContract = defineContract('/api/xxxs', {
 
 ## Step 5：Service 层（`services/{业务域}/xxx.service.ts`）
 
+标准资源默认用 **`defineCrudService`** 工厂：以契约为类型来源（列表入参 = `QueryOutputOf<contract.list>`，
+创建 / 更新入参 = 契约 body 解析输出，返回实体 = 契约 `detail` 响应），把「取行断言 / 列表编排 / 插入 / 更新 / 删除 / 批量删除」
+按同一套规则生成；资源只声明差异——筛选条件、行 → 实体映射、写入换算与业务钩子。
+
 ```ts
-import { eq, asc } from 'drizzle-orm';
-import type { QueryOutputOf } from '@zenith/shared/core';
-import { xxxContract } from '@zenith/shared/{业务域}';
-import { db } from '../../db';
+import { asc, eq } from 'drizzle-orm';
+import { xxxContract, xxxSchema } from '@zenith/shared/{业务域}';
 import { xxxs, type XxxRow } from '../../db/schema';
-import { formatTimestamps } from '../../lib/datetime';
-import { requireRow } from '../../lib/db-assert';
-import { buildListResult, emptyListResult, listRows } from '../../lib/list-query';
-import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { defineCrudService } from '../../lib/crud-service';
+import { entityMapper } from '../../lib/entity-map';
+import { dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 
-// ─── 数据映射（DB 行 → 公开字段），纯函数、无副作用 ──────────────────────
-export function mapXxx(row: XxxRow) {
-  return {
-    id:          row.id,
-    name:        row.name,
-    description: row.description ?? null,
-    status:      row.status,
-    createdBy:   row.createdBy ?? null,
-    updatedBy:   row.updatedBy ?? null,
-    // 审计时间戳成对映射；其它单点时间仍用 formatDateTime / formatNullableDateTime
-    ...formatTimestamps(row),
-  };
-}
+// ─── 行 → 契约实体：按 xxxSchema 的键投影（Date 自动格式化、undefined → null、多余列不泄漏），只写差异字段 ──
+export const mapXxx = entityMapper(xxxSchema, (row: XxxRow) => ({
+  secret: row.secretEncrypted ? '******' : null,   // 解密 / 脱敏 / 换算字段写在这里；纯投影的资源直接 entityMapper(xxxSchema)
+}));
 
-// ─── 入参类型只从契约操作派生：QueryOutputOf 是解析后输出（page / pageSize 必填、枚举已收窄）──
-// 不手写 interface ListXxxsQuery，不在契约文件导出 z.infer 别名。
-// 带租户 / 数据权限 / 可见性条件的资源：所有读取入口共用的访问条件（筛选 + dataScope / tenantScope）集中在这里，
-// 筛选部分不含分页、字段全部可选，供 list / detail / update / delete / 导出中心复用，漏加隔离条件即安全缺陷；
-// 没有任何隔离条件的纯平台配置表可以在 list 里直接写 buildWhere(...)，不必为此抽函数
-type XxxWhereInput = Partial<Omit<QueryOutputOf<typeof xxxContract.list>, 'page' | 'pageSize'>> & { id?: number };
+export const xxxService = defineCrudService(xxxContract, {
+  table: xxxs,
+  map: mapXxx,
+  notFound: 'XXX 不存在',
+  unique: 'XXX 名称已存在',                 // 唯一约束冲突 → 400；同表多个约束传 { message, byConstraint }
+  tenant: true,                              // Step 0 确认租户隔离时：读写一律套 tenantScope，插入补 tenantId
+  // scope: () => getDataScopeCondition(...), // 数据权限等更细的可见范围；与 tenant 叠加，对 detail / update / remove / list 全部生效
+  list: (q) => ({
+    where: [
+      keywordCondition(q.keyword, [xxxs.name, xxxs.description]),   // 内部已 trim / 判空 / 转义
+      q.status ? eq(xxxs.status, q.status) : undefined,             // 契约已收窄为枚举 | undefined
+      ...dateRangeConditions(xxxs.createdAt, q.startTime, q.endTime),
+    ],
+    orderBy: [asc(xxxs.sort), asc(xxxs.id)],
+  }),
+  create: {
+    before: async (input) => { await ensureYyyExists(input.yyyId); },   // 前置校验 / 引用存在性
+    toRow: (input) => ({ ...input, secretEncrypted: encryptSecret(input.secret) }),
+  },
+  update: {
+    toRow: (input, existing) => ({ ...input, secretEncrypted: mergeSecret(input.secret, existing.secretEncrypted) }),
+    after: async (entity) => { invalidateXxxCache(entity.id); },       // 副作用：缓存失效 / 事件发布
+  },
+  remove: {
+    before: async (row) => { if (row.isBuiltin) throw new HTTPException(400, { message: '内置 XXX 不可删除' }); },
+  },
+});
 
-async function buildXxxWhere(q: XxxWhereInput) {
-  // 静态条件序列直接写成 buildWhere 的实参；不适用的写 undefined，不攒 conditions 数组
-  return buildWhere(
-    q.id !== undefined ? eq(xxxs.id, q.id) : undefined,
-    // 内部已 trim、判空并转义，调用点不要再包 if (q.keyword)
-    keywordCondition(q.keyword, [xxxs.name, xxxs.description]),
-    // 契约已把 status 收窄为枚举 | undefined，不再做 === 'enabled' || === 'disabled' 之类运行时判断
-    q.status ? eq(xxxs.status, q.status) : undefined,
-    q.type ? eq(xxxs.type, q.type) : undefined,
-    // 终点自动取当天 23:59:59.999，不会漏掉当天数据
-    ...dateRangeConditions(xxxs.createdAt, q.startTime, q.endTime),
-  );
-}
-
-export async function listXxxs(q: QueryOutputOf<typeof xxxContract.list>) {
-  // 默认值由契约 paginationQuery 提供，这里不写 = 1 / = 10
-  const { page, pageSize } = q;
-  const where = await buildXxxWhere(q);
-
-  // 单表、全行、无 join：listRows 把 count / rows / 包络一次接好，count 与 rows 结构上共用同一 where
-  return listRows({ page, pageSize, table: xxxs, where, orderBy: [asc(xxxs.id)], map: mapXxx });
-}
-
-// 带 join / 投影 / 行后处理的列表：buildListResult 只负责 count 与 rows 并行 + 分页包络，
-// 条件 / 排序 / 投影仍在这里显式书写；可见范围为空等无需查库的短路用 emptyListResult
-export async function listXxxItems(q: QueryOutputOf<typeof xxxContract.items>) {
-  const { page, pageSize } = q;
-  const accessibleIds = await listAccessibleXxxIds();
-  if (accessibleIds?.length === 0) return emptyListResult(page, pageSize);
-  const where = buildWhere(accessibleIds ? inArray(xxxItems.xxxId, accessibleIds) : undefined, keywordCondition(q.keyword, [xxxItems.name]));
-  return buildListResult({
-    page,
-    pageSize,
-    count: () => db.$count(xxxItems, where),
-    rows: () => withPagination(
-      db.select({ item: xxxItems, xxxName: xxxs.name }).from(xxxItems).leftJoin(xxxs, eq(xxxs.id, xxxItems.xxxId)).where(where).orderBy(desc(xxxItems.id)).$dynamic(),
-      page,
-      pageSize,
-    ),
-    map: (row) => ({ ...mapXxxItem(row.item), xxxName: row.xxxName }),
-  });
-}
-
-export async function getXxx(id: number) {
-  return mapXxx(await ensureXxxExists(id));
-}
-
-// ─── 前置校验：取不到就抛 HTTPException(404)，由全局 onError 转标准 JSON ──────
-// 查询（投影、行级隔离条件）仍写在这里；requireRow 只收口「不存在则抛」这一句
-export async function ensureXxxExists(id: number) {
-  const [row] = await db.select().from(xxxs).where(await buildXxxWhere({ id })).limit(1);
-  return requireRow(row, 'XXX 不存在');
-}
+// 旧命名的别名：其它模块（导出中心 / 通知 / 其它域 Service）按函数名调用
+export const { list: listXxxs, get: getXxx, ensure: ensureXxxExists, create: createXxx, update: updateXxx, remove: deleteXxx, removeMany: deleteXxxs } = xxxService;
 ```
 
-带隔离条件的资源，更新与删除也使用 `await buildXxxWhere({ id })`（或域内既有的 `requireVisibleXxx` 类 helper）；route 的前置校验不替代 service 行级隔离。
+- **适用判据**：钩子每个操作 ≤ 2 个、无跨表事务、无自定义响应形状。不满足的资源写显式 Service（下文 RQB / 事务小节），
+  **不许**把事务塞进钩子；部分满足时工厂只接标准操作，自定义操作（启停 / 排序 / 导出…）另写函数。
+- **可见范围只声明一次**：`tenant` / `scope` 对 detail / update / remove / removeMany / list 全部生效，
+  结构上杜绝「列表套了租户、详情没套」的漏洞；工厂返回的 `scope()` / `whereId(id)` 供同模块自定义查询复用。
+- 契约入参类型不手写：`QueryOutputOf<typeof xxxContract.list>` 是解析后输出（page / pageSize 必填、枚举已收窄）。
+- 显式 Service 里的列表：单表全行用 `listRows({ page, pageSize, table, where, orderBy, map })`，
+  带 join / 投影 / 聚合的用 `buildListResult({ count, rows, map })`，可见范围为空的短路用 `emptyListResult(page, pageSize)`；
+  行映射同样用 `pickEntity(xxxSchema, row, overrides)` / `entityMapper`，不再逐字段 `row.x ?? null`。
 
-命名约定：数据映射函数 `mapXxx` 前缀，前置校验函数 `ensureXxx` 前缀。
+命名约定：数据映射 `mapXxx`，前置校验 `ensureXxxExists`，列表 `listXxxs`，删除 `deleteXxx` / `deleteXxxs`。
 
 ### 关联查询优先用 RQB
 
@@ -329,137 +298,43 @@ async function ensureYyyExists(yyyId: number | null | undefined): Promise<void> 
 
 ## Step 6：路由（`routes/{业务域}/xxx.ts`）
 
-路由文件只提供 `middleware` 与 `handler`，其余由 `defineContractRoute` 从契约推导（规则见
-[constraints.md → Route 层](./constraints.md#route-层step-6-7)）；`c.req.valid('param' | 'query' | 'json')`
-与 `c.json(okBody(...), 200)` 都按契约类型检查。
+标准操作由 **`mountCrud`** 按契约派生：权限码按前缀 + 约定后缀（`:list` / `:create` / `:update` / `:delete`），
+审计文案「创建 / 更新 / 删除 / 批量删除 + label」，更新 / 删除前统一以契约实体做审计快照，`DELETE /batch` 自动先于 `/{id}` 注册。
+非标准操作继续 `defineContractRoute`，与派生路由一起交给 `mountCrud`（静态路径自动排在同方法的参数路径之前）。
 
 ```ts
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { xxxContract } from '@zenith/shared/{业务域}';
-import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
-import { validationHook, okBody, errBody, conflictResponse } from '../../lib/openapi-schemas';
-import { listXxxs, getXxx, createXxx, updateXxx, deleteXxx, ensureXxxExists } from '../../services/{业务域}/xxx.service';
+import { okBody, validationHook } from '../../lib/openapi-schemas';
+import { listAllXxxs, xxxService } from '../../services/{业务域}/xxx.service';
+import { mountCrud, readGuard } from '../_crud';
 
 // 不使用 <AuthEnv> 泛型，不添加全局 use('*', authMiddleware)
 const xxxRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const read = [authMiddleware, guard({ permission: 'system:xxx:list' })] as const;
-
-const listRoute = defineContractRoute(xxxContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listXxxs(c.req.valid('query'))), 200),
-});
-
-const detailRoute = defineContractRoute(xxxContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getXxx(c.req.valid('param').id)), 200),
-});
-
-const createRouteDef = defineContractRoute(xxxContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'system:xxx:create', audit: { description: '创建 XXX', module: 'XXX管理' } })],
-  handler: async (c) => c.json(okBody(await createXxx(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRouteDef = defineContractRoute(xxxContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'system:xxx:update', audit: { description: '更新 XXX', module: 'XXX管理' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await ensureXxxExists(id));   // 不存在时抛 HTTPException(404)；操作日志 diff 的变更前快照
-    return c.json(okBody(await updateXxx(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const deleteRouteDef = defineContractRoute(xxxContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'system:xxx:delete', audit: { description: '删除 XXX', module: 'XXX管理' } })],
-  // 契约之外的额外响应（如删除冲突）经 responses 追加
-  responses: conflictResponse,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await ensureXxxExists(id));
-    await deleteXxx(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
-// 路由注册与 export 见下方「最终注册顺序」
-```
-
-### 下拉源（契约启用 `all` 时）
-
-先在 service 添加：
-
-```ts
-export async function listAllXxxs() {
-  // 必须复用列表的访问边界；否则 /all 会绕过 dataScope / tenantScope
-  const where = await buildXxxWhere({ status: 'enabled' });
-  return db.select({ id: xxxs.id, name: xxxs.name, status: xxxs.status }).from(xxxs).where(where).orderBy(asc(xxxs.id));
-}
-```
-
-再添加路由：
-
-```ts
-const allRoute = defineContractRoute(xxxContract.all, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listAllXxxs()), 200),
-});
-```
-
-若 Step 0 未确认需要下拉源，契约中不声明 `all`；启用 Demo 模式时 Mock 用同一契约操作实现。
-
-### 批量删除（契约启用 `removeBatch` 时）
-
-适用边界（有界同步操作 vs 任务中心）见 [constraints.md → 异步任务](./constraints.md#异步任务)，
-注册顺序见 [constraints.md → Route 层](./constraints.md#route-层step-6-7)。
-
-先在 service 添加同样受行级权限约束的批量删除（并从 `drizzle-orm` 导入 `inArray`）：
-
-```ts
-export async function deleteXxxs(ids: number[]) {
-  const where = buildWhere(
-    inArray(xxxs.id, ids),
-    await buildXxxWhere({}),   // 复用 dataScope / tenantScope
-  );
-  const deleted = await db.delete(xxxs).where(where).returning({ id: xxxs.id });
-  return deleted.length;
-}
-```
-
-路由：
-
-```ts
-const batchDeleteRoute = defineContractRoute(xxxContract.removeBatch, {
-  middleware: [authMiddleware, guard({ permission: 'system:xxx:delete', audit: { description: '批量删除 XXX', module: 'XXX管理' } })],
-  handler: async (c) => {
-    const { ids } = c.req.valid('json');
-    if (!ids.length) return c.json(errBody('请选择要删除的记录'), 400);
-    const deleted = await deleteXxxs(ids);
-    return c.json(okBody(null, `已删除 ${deleted} 条记录`), 200);
-  },
-});
-```
-
-### 最终注册顺序
-
-路由文件只调用**一次** `openapiRoutes()`，放在 `export default` 之前；按实际启用项取消注释：
-
-```ts
-xxxRouter.openapiRoutes([
-  listRoute,
-  // allRoute,             // 启用 all 时；静态 /all 早于动态 /{id}
-  // batchDeleteRoute,     // 启用 removeBatch 时；静态 /batch 早于动态 /{id}
-  detailRoute,
-  createRouteDef,
-  updateRouteDef,
-  deleteRouteDef,
-] as const);
+mountCrud(xxxRouter, xxxContract, xxxService, {
+  permission: 'system:xxx',               // 派生 system:xxx:list / :create / :update / :delete；不按约定的资源传 { read, write } 或逐操作映射
+  label: 'XXX',                           // 审计：创建 XXX / 更新 XXX / 删除 XXX / 批量删除 XXX；module 缺省「XXX管理」
+  // messages: { create: '已新增' },       // 成功提示覆盖；缺省 创建成功 / 更新成功 / 删除成功 / 批量删除成功
+  // responses: { remove: conflictResponse }, // 契约之外的额外响应
+  // exclude: ['update'],                  // 需要自定义 handler 的标准操作：排除后在 extra 里显式书写
+}, [
+  // 契约启用 all 时：下拉源复用列表的访问边界（Service 里 listAllXxxs 用 xxxService.scope()）
+  defineContractRoute(xxxContract.all, {
+    middleware: readGuard('system:xxx:list'),
+    handler: async (c) => c.json(okBody(await listAllXxxs()), 200),
+  }),
+]);
 
 export default xxxRouter;
 ```
 
----
+- 服务侧既可传 `defineCrudService` 的产物，也可传显式函数包 `{ list, get, create, update, remove, removeMany, snapshot }`
+  （显式 Service 的资源）；返回类型对照契约实体检查，缺函数在模块加载期报错而不是运行时 500。
+- 写操作的中间件写法（显式路由用）：`writeGuard('system:xxx:xxx', { description, module })`；读操作 `readGuard(permission)`。
+- 契约上有标准操作却没有经 `mountCrud` 挂载的，须在 `exclude` 里给出并显式书写——路由表快照测试会暴露漏挂。
+- 权限码必须先在 `packages/shared/src/seed/menus/{段}.ts` 的菜单按钮里声明（`permission-audit` 测试对账，含 mountCrud 派生的权限码）。
 
 ## Step 7：注册路由（`routes/{业务域}/index.ts`）
 

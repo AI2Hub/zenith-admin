@@ -10,9 +10,14 @@ import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  createIotWhitelistEntries, deleteIotWhitelistEntry, disableIotRegistration,
-  getIotWhitelistStats, listIotWhitelist, resetIotRegistrationSecret,
+  createIotWhitelistEntries,
+  deleteIotWhitelistEntry,
+  disableIotRegistration,
+  getIotWhitelistStats,
+  listIotWhitelist,
+  resetIotRegistrationSecret,
 } from '../../services/iot/iot-register.service';
+import { mountCrud } from '../_crud';
 
 export const iotWhitelistRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -30,12 +35,6 @@ const statsRoute = defineContractRoute(iotWhitelistContract.stats, {
     return c.json(okBody(await getIotWhitelistStats(productId)), 200);
   },
 });
-
-const listRoute = defineContractRoute(iotWhitelistContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listIotWhitelist(c.req.valid('query'))), 200),
-});
-
 const importRoute = defineContractRoute(iotWhitelistContract.import, {
   middleware: manage('导入 IoT 注册白名单'),
   handler: async (c) => c.json(okBody(await createIotWhitelistEntries(c.req.valid('json')), '导入完成'), 200),
@@ -70,11 +69,8 @@ const disableSecretRoute = defineContractRoute(iotWhitelistContract.disableRegis
   },
 });
 
-iotWhitelistRouter.openapiRoutes([
-  statsRoute,
-  listRoute,
-  importRoute,
-  deleteRoute_,
-  resetSecretRoute,
-  disableSecretRoute,
-] as const);
+mountCrud(iotWhitelistRouter, iotWhitelistContract,
+  { list: listIotWhitelist },
+  { permission: { read: 'iot:register:manage' }, exclude: ['remove'] },
+  [statsRoute, importRoute, deleteRoute_, resetSecretRoute, disableSecretRoute],
+);

@@ -125,13 +125,20 @@
 
 ## Service 层（Step 5）
 
+- **标准资源用工厂**：满足判据（每操作钩子 ≤ 2、无跨表事务、无自定义响应形状）的资源一律
+  `defineCrudService(contract, { table, map, notFound, unique?, tenant? | scope?, defaults?, list, create?, update?, remove? })`（`lib/crud-service.ts`），
+  旧函数名以解构别名导出（`export const { list: listXxxs, get: getXxx, ensure: ensureXxxExists, … } = xxxService`）；
+  可见范围（`tenant` / `scope`）只声明一次并对 detail / update / remove / removeMany / list 全部生效；
+  钩子里**禁止**开事务，不满足判据的资源写显式 Service。行 → 实体映射一律 `entityMapper(xxxSchema, overrides?)` /
+  `pickEntity(xxxSchema, row, overrides?)`（`lib/entity-map.ts`）：按契约实体 schema 投影、Date 自动格式化、`undefined → null`、
+  多余列不泄漏，只写解密 / 脱敏 / 关联字段等差异；**禁止**再逐字段手写 `x: row.x ?? null` 的纯投影 `mapXxx`
 - **职责边界**：业务逻辑、数据映射（`mapXxx`）、前置校验（`ensureXxx`）放
   `services/{业务域}/xxx.service.ts`；route handler 只取参数、调 service、返回响应
 - **禁止事项**：service 中**禁止** `c.json()`、直接引用 Hono 上下文 `c`、`console.*`
 - **HTTPException 抛出**：业务校验失败统一 `throw new HTTPException(statusCode, { message })`
   （`hono/http-exception`），由全局 `onError` 处理
-- **DB 唯一约束**：PG 错误码 `23505` 在写入 `try-catch` 中用 `rethrowPgUniqueViolation(err, msg)`
-  映射为 `HTTPException(400)`
+- **DB 唯一约束**：工厂传 `unique: msg`（或 `{ message, byConstraint }`）；显式写入的 `try-catch` 中用 `rethrowPgUniqueViolation(err, msg)`
+  （需要表达式形态时 `throw toPgUniqueViolationError(err, msg)`）映射为 `HTTPException(400)`
 - **事务**：多步写操作（replace 模式 delete+insert、写主表+关联表）必须 `db.transaction()`；
   辅助写函数接受 `executor: DbExecutor` 参数；副作用（WebSocket、邮件）不放入事务
 - **事务内禁止走全局池读取**：`db.transaction()` 回调内**禁止**调用 `getSettings*`（`lib/settings`）及任何走全局 `db` 的读取——
@@ -223,6 +230,14 @@
 
 ## Route 层（Step 6-7）
 
+- **标准操作由契约派生**：契约上的 `list` / `detail` / `create` / `update` / `remove` / `removeBatch` 一律经
+  `mountCrud(router, contract, service, { permission, label, module?, messages?, responses?, exclude? }, extraRoutes)`
+  （`routes/_crud.ts`）生成：权限码按前缀 + 约定后缀（不按约定传 `{ read, write }` 或逐操作映射）、审计文案
+  「创建 / 更新 / 删除 / 批量删除 + label」、更新 / 删除前以契约实体做审计快照、`DELETE /batch` 先于 `/{id}`；
+  服务侧传 `defineCrudService` 产物或显式函数包 `{ list, get, create, update, remove, removeMany, snapshot }`。
+  需要自定义 handler 的标准操作在 `exclude` 里声明后显式书写；**禁止**再逐条手写与派生形态等价的
+  `c.json(okBody(await listXxxs(c.req.valid('query'))), 200)` / `setAuditBeforeData(c, await ensureXxxExists(id))` 路由块。
+  读 / 写中间件元组用 `readGuard(permission)` / `writeGuard(permission, audit)`
 - **路由一律由契约定义**：`defineContractRoute(xxxContract.op, { middleware, handler })`（`lib/contract-route.ts`）；
   方法、路径、入参校验、响应 schema、security、tags 与 `commonErrorResponses` 全部由契约推导。
   **禁止**在路由文件调用 `createRoute` / `defineOpenAPIRoute`、**禁止**手写 `request:` / `responses:`、
@@ -235,7 +250,7 @@
   `security: 'device-signature' | 'open-gateway'`（文档 security 随之变化，校验仍由中间件完成）；
   **禁止**在路由器上 `use('*', authMiddleware)`
 - **批量路由顺序**：`DELETE /batch` 必须注册在 `DELETE /{id}` **之前**，否则 `/batch` 被匹配为 `id="batch"`；
-  静态 `/all` 同理早于 `/{id}`
+  静态 `/all` 同理早于 `/{id}`（`mountCrud` / `orderRoutes` 已按「静态路径先于参数路径」自动排序）
 - **挂载路径取契约**：`routes/{业务域}/index.ts` 的挂载写 `[xxxContract.basePath, xxxRoutes]`，**禁止**路径字面量
 - **设置类接口不另开端点**：模块级设置的读写只经 `routes/platform/settings.ts` 循环注册表生成的 `GET/PUT /api/settings/{module-path}`，
   **禁止**在业务域路由再暴露 `/settings` / `/policy` 之类的独立设置端点；写接口的 `guard` 权限取模块 `writePermission`，
@@ -268,6 +283,11 @@
 
 ## MSW Mock 层（Step 11）
 
+- **标准操作由契约派生**：契约上的 list / detail / create / update / remove / removeBatch 一律
+  `...mockResource(xxxContract, { store, notFound, keyword?, match?, dateField?, filter?, sort?, unique?, create?, update?, beforeRemove?, messages?, exclude? })`
+  （`mocks/utils/resource.ts`）：列表筛选由契约 query 的 `x-filter` 语义驱动（keyword 模糊、enum / bool / id 同名精确、
+  成对时间端点闭区间），`DELETE /batch` 自动先于 `/{id}`；写法与真实后端不同的操作放 `exclude` 后显式 `mock(op)`，
+  自定义操作与派生结果拼在同一数组。**禁止**再逐条手写与派生形态等价的 `requireItem → ok` / `Object.assign → ok` / `removeByIds → ok`
 - **handler 由契约绑定**：一律 `mock(xxxContract.op, ({ params, query, body, ok, paginate }) => ...)`
   （`mocks/utils/contract.ts`）；路径、方法与入参解析来自契约，`ok(data)` 的载荷按契约响应类型检查。
   **禁止** `http.get('/api/...')` 路径字面量、**禁止**自行 `new URL(request.url).searchParams` / `request.json()` 解析入参

@@ -136,6 +136,7 @@ export default function FormsPage() {
         { key: 'preview', label: '预览', onClick: () => setPreviewingForm(record) },
         ...(canManage ? [
           { key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) },
+          // eslint-disable-next-line no-restricted-syntax -- 嵌套组件 / 复合操作列，保留 createOperationColumn
           deleteAction({
             title: '确定要删除该表单吗？',
             content: '表单的全部提交数据将一并删除',

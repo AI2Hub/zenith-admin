@@ -371,6 +371,7 @@ export default function AnalyticsSegmentsTab() {
         { key: 'campaign', label: '触达', onClick: () => setCampaignSegment(record) },
         { key: 'materialize', label: '重算', loading: materializeMutation.isPending, onClick: () => handleMaterialize(record) },
         { key: 'edit', label: '编辑', onClick: () => openEdit(record) },
+        // eslint-disable-next-line no-restricted-syntax -- 嵌套组件 / 复合操作列，保留 createOperationColumn
         deleteAction({
           title: `确定删除分群「${record.name}」吗？`,
           run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),

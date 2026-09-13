@@ -115,6 +115,7 @@ export default function PaymentAppsPage() {
       width: 150,
       actions: (r) => canManage ? [
         { key: 'edit', label: '编辑', onClick: () => openEdit(r) },
+        // eslint-disable-next-line no-restricted-syntax -- 按权限条件拼装的动作数组，保留 createOperationColumn
         deleteAction({
           title: '确定要删除吗？',
           content: `删除应用「${r.name}」后不可恢复`,

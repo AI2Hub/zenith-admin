@@ -94,6 +94,16 @@ const listPageBoilerplateRestrictions = [
     selector: 'JSXAttribute[name.name="wrapperClassName"] > Literal[value="modal-spin-wrapper"]',
     message: 'modal-spin-wrapper 没有任何 CSS 定义（Semi 带 children 的 Spin 本就是 block）：编辑表单壳用 EditFormModal / EditFormSheet，其它 Spin 直接去掉该属性。',
   },
+  {
+    // 契约模式的 useListPage 页面里仍手写工具栏槽位控件：筛选控件应由契约 x-filter 派生（filters={[…]}），专用控件走 overrides
+    selector: 'JSXOpeningElement[name.name="ListSearchToolbar"]:has(JSXAttribute[name.name="page"]):has(JSXAttribute[name.name=/^(keyword|onSearch|onReset)$/])',
+    message: '契约写法的 ListSearchToolbar 只声明 page + filters（键序，成对时间端点写 [start, end]）；keyword / onSearch / onReset 由 page 派生，专用控件放 overrides，契约之外的手写控件放 extraFilters。',
+  },
+  {
+    // createOperationColumn 里相邻的「编辑 + deleteAction」二元组：useCrudOperationColumn 已收口权限门控、确认与执行
+    selector: 'CallExpression[callee.name="createOperationColumn"] ArrayExpression > ObjectExpression:has(Property[key.name="key"] > Literal[value="edit"]) + CallExpression[callee.name="deleteAction"]',
+    message: '操作列的「编辑 + 删除」请用 @/components/list-page 的 useCrudOperationColumn({ permission, edit, remove, label, extra… })；条件数组 / useMemo 内定义 / 仅删除的列继续 createOperationColumn 并加 eslint-disable 注释注明理由。',
+  },
 ];
 
 // ── Mock 纪律（crud-mock.md）：可选等值筛选统一 matchesFilter(actual, expected)，

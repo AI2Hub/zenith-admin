@@ -76,6 +76,7 @@ export function ChannelQuickReplyDrawer({ channelId, channelName, visible, onClo
           label: '编辑',
           onClick: () => openEdit(record),
         },
+        // eslint-disable-next-line no-restricted-syntax -- 嵌套组件 / 复合操作列，保留 createOperationColumn
         deleteAction({
           title: '确定删除该快捷回复？',
           run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),

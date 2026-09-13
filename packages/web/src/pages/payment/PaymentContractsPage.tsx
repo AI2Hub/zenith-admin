@@ -279,6 +279,7 @@ export default function PaymentContractsPage() {
         label: '编辑',
         onClick: () => openEditPlan(p),
       },
+      // eslint-disable-next-line no-restricted-syntax -- 按权限条件拼装的动作数组，保留 createOperationColumn
       deleteAction({
         title: '确定要删除吗？',
         content: '仅无签约协议引用的计划可删除',

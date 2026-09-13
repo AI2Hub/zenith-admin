@@ -106,6 +106,7 @@ export default function MarketingPrizesDrawer({ campaign, onClose }: MarketingPr
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canEdit ? [
         { key: 'edit', label: '编辑', onClick: () => { modal.openEdit(record); } },
+        // eslint-disable-next-line no-restricted-syntax -- 按权限条件拼装的动作数组，保留 createOperationColumn
         deleteAction({
           disabledReason: campaign?.status === 'published' ? '进行中不可删' : undefined,
           title: `确定要删除奖品「${record.name}」吗？`,

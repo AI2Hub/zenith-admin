@@ -93,80 +93,46 @@ export function getNextXxxId(): number {
 
 ## 11b：`mocks/handlers/xxxs.ts`
 
-每条 handler 由契约操作绑定：`mock(op, resolver)` 负责路径（`{id}` → `:id`）、方法与入参解析——
-`params` / `query` / `body` 已按契约 schema 解析（含 coerce 与默认值，非法输入同样返回 400），
-`ok(data)` 的载荷按契约响应类型检查，`paginate(list)` 按解析后的 `page` / `pageSize` 切片。
+标准操作由契约派生：`mockResource(xxxContract, options)`（`mocks/utils/resource.ts`）按契约上存在的
+list / detail / create / update / remove / removeBatch 生成内存 CRUD——列表筛选由契约 query 的 `x-filter` 语义驱动
+（keyword 按 `keyword` 声明的字段模糊匹配、enum / bool / id 与行上同名字段精确匹配、成对时间端点按 `dateField` 闭区间），
+`DELETE /batch` 自动先于 `/{id}`；自定义操作用 `mock(op, resolver)` 与派生结果拼在同一数组。
 
 ```ts
-import { xxxContract } from '@zenith/shared/{业务域}';
-import type { Xxx } from '@zenith/shared/{业务域}';
+import { xxxContract, type Xxx } from '@zenith/shared/{业务域}';
 import { mock } from '@/mocks/utils/contract';
-import { badRequest, notFound } from '@/mocks/utils/handlers';
-import { filterByKeyword, matchesFilter } from '@/mocks/utils/filter';
-import { removeByIds, requireItem, updateItem } from '@/mocks/utils/crud';
-import { mockXxxs, getNextXxxId } from '../data/xxxs';
-import { mockDateTime } from '../utils/date';
+import { mockResource } from '@/mocks/utils/resource';
+import { mockXxxs } from '../data/xxxs';
 
 export const xxxsHandlers = [
-  // ─── 列表：关键词搜索 + 状态筛选 + 分页（枚举 / 布尔筛选用 matchesFilter，不写 `!query.x || …`）──
-  mock(xxxContract.list, ({ query, ok, paginate }) => {
-    const list = filterByKeyword(mockXxxs, query.keyword, [(x) => x.name, (x) => x.description])
-      .filter((x) => matchesFilter(x.status, query.status));
-    return ok(paginate(list));
-  }),
+  // ─── 契约声明 all 时：静态 /all 必须先于派生的 detail（/{id}），所以放在 ...mockResource(...) 之前 ──
+  mock(xxxContract.all, ({ ok }) =>
+    ok(mockXxxs.filter((x) => x.status === 'enabled').map(({ id, name, status }) => ({ id, name, status })))),
 
-  // ─── 详情：requireItem 找不到时抛 MockHttpError，由 mock() 转为 404 ──────
-  mock(xxxContract.detail, ({ params, ok }) => ok(requireItem(mockXxxs, params.id, 'XXX 不存在'))),
-
-  // ─── 创建：body 即 CreateXxxInput（已校验、已补默认值）────────────────
-  mock(xxxContract.create, ({ body, ok }) => {
-    if (mockXxxs.some((x) => x.name === body.name)) return badRequest('名称已存在', { status: 400 });
-    const now = mockDateTime();
-    const newXxx: Xxx = {
-      id: getNextXxxId(),
-      name: body.name,
-      description: body.description ?? null,
-      status: body.status,
-      createdAt: now,
-      updatedAt: now,
-    };
-    mockXxxs.push(newXxx);
-    return ok(newXxx, '创建成功');
-  }),
-
-  // ─── 更新 ───────────────────────────────────────────────────────────────
-  mock(xxxContract.update, ({ params, body, ok }) =>
-    ok(updateItem(mockXxxs, params.id, body, { notFoundMessage: 'XXX 不存在', now: mockDateTime }), '更新成功')),
-
-  // ─── 删除 ───────────────────────────────────────────────────────────────
-  mock(xxxContract.remove, ({ params, ok }) => {
-    if (removeByIds(mockXxxs, [params.id]) === 0) return notFound('XXX 不存在', { status: 404 });
-    // 显式传 null 保留 `data: null`；省略则响应体不含 data 字段
-    return ok(null, '删除成功');
+  ...mockResource(xxxContract, {
+    store: mockXxxs,
+    notFound: 'XXX 不存在',
+    keyword: (x) => [x.name, x.description],          // 契约 keywordQuery 匹配的行字段；缺省匹配 name
+    unique: { field: 'name', message: '名称已存在' },   // 创建 / 更新时重复即 400
+    // match: { ownerId: (x) => x.owner.id },          // 筛选键与行字段不同名时的取值
+    // dateField: (x) => x.publishedAt,                // 时间范围作用的字段；缺省 createdAt
+    // sort: (a, b) => b.id - a.id,
+    // 请求体 → 新行；缺省 { id, ...body, createdAt: now, updatedAt: now }，实体字段与 body 不同形时给出
+    create: (body, id, now): Xxx => ({ id, name: body.name, description: body.description ?? null, status: body.status, createdAt: now, updatedAt: now }),
+    // update: (item, body, now) => { … },              // 缺省 Object.assign(item, body, { updatedAt: now })
+    // beforeRemove: (x) => (x.isBuiltin ? '内置 XXX 不可删除' : undefined),
+    // messages: { removeBatch: (count) => `已删除 ${count} 条记录` },
+    // exclude: ['update'],                             // 写法与真实后端不同的操作：排除后显式 mock(op)
   }),
 ];
 ```
 
-### 可选端点
-
-契约声明 `all` 时，在 `detail` handler **之前**添加：
-
-```ts
-mock(xxxContract.all, ({ ok }) =>
-  ok(mockXxxs.filter((x) => x.status === 'enabled').map(({ id, name, status }) => ({ id, name, status })))),
-```
-
-契约声明 `removeBatch` 时，在 `remove` handler **之前**添加：
-
-```ts
-mock(xxxContract.removeBatch, ({ body, ok }) => {
-  if (body.ids.length === 0) return badRequest('请选择要删除的记录', { status: 400 });
-  const deleted = removeByIds(mockXxxs, body.ids);
-  return ok(null, `已删除 ${deleted} 条记录`);
-}),
-```
-
-静态路径 handler 的排序规则见 [constraints.md → MSW Mock 层](./constraints.md#msw-mock-层step-11)；契约声明的操作在服务端与 Mock 同时实现。
+- 派生 handler 与真实后端同源：`params` / `query` / `body` 按契约 schema 解析（非法输入同样 400），
+  `ok(data)` 的载荷按契约响应类型检查。
+- 显式 handler（自定义操作 / `exclude` 的标准操作）沿用 `mock(op, ({ params, query, body, ok, paginate }) => …)`，
+  机械 CRUD 用 `mocks/utils/crud.ts` 的 `requireItem` / `updateItem` / `removeItem` / `removeByIds`，
+  筛选用 `mocks/utils/filter.ts` 的 `filterByKeyword` / `matchesFilter` / `withinDateRange`。
+- 静态路径（`/all` 等自定义 GET）的 handler 必须排在派生的 `detail`（`/{id}`）之前：放在 `...mockResource(...)` **之前**。
 
 上传类操作（`multipart(...)`）的 `body` 是原始 `FormData`；非 JSON 响应（`kind: 'excel'` 等）的 handler 直接返回
 `new HttpResponse(blob, { headers })`。

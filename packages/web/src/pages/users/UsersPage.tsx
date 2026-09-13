@@ -405,6 +405,7 @@ export default function UsersPage() {
               openEdit(record);
             },
           },
+          // eslint-disable-next-line no-restricted-syntax -- 按权限条件拼装的动作数组，保留 createOperationColumn
           deleteAction({
             hidden: !hasPermission('system:user:delete'),
             disabled: isAdmin,

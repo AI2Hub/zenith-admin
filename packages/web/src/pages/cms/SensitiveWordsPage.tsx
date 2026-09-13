@@ -52,6 +52,7 @@ export default function SensitiveWordsPage() {
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canManage ? [
         { key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) },
+        // eslint-disable-next-line no-restricted-syntax -- 按权限条件拼装的动作数组，保留 createOperationColumn
         deleteAction({
           title: '确定要删除该敏感词吗？',
           run: () => deleteMutation.mutateAsync([record.id]),

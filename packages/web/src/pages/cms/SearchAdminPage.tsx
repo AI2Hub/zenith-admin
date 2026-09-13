@@ -337,6 +337,7 @@ function HotKeywordsTab({ siteId, onSiteChange }: Readonly<{ siteId: number | un
             },
           });
         },
+      // eslint-disable-next-line no-restricted-syntax -- 按权限条件拼装的动作数组，保留 createOperationColumn
       },       deleteAction({
         hidden: !canManage || !record.id,
         title: `删除热词「${record.keyword}」？`,
