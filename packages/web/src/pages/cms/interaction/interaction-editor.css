@@ -71,10 +71,6 @@
   border-left: 1px solid var(--semi-color-border);
 }
 
-.interaction-editor__step-desc {
-  margin-bottom: 12px;
-}
-
 /* ─── 模板库 ───────────────────────────────────────────────────────────────── */
 .interaction-templates {
   display: flex;
@@ -441,4 +437,3 @@
   font-size: 12px;
   color: var(--semi-color-text-2);
 }
-

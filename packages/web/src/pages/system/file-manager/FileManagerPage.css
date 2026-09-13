@@ -19,12 +19,6 @@
   flex-shrink: 0;
 }
 
-.fm-sidebar__shortcuts {
-  padding: 4px;
-  border-bottom: 1px solid var(--semi-color-border);
-  flex-shrink: 0;
-}
-
 .fm-sidebar__dirs {
   flex: 1;
   overflow-y: auto;

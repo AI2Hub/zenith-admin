@@ -579,14 +579,6 @@ body[theme-mode='dark'] .fd-node-card:hover {
   padding: 12px 16px 16px;
 }
 
-.fd-simulation-drawer__footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  padding: 12px 0;
-}
-
 .fd-simulation-section {
   display: flex;
   flex-direction: column;

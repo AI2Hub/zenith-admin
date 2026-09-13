@@ -101,11 +101,6 @@
   flex-shrink: 0;
 }
 
-.dg-header-cell__sort {
-  display: inline-flex;
-  color: var(--semi-color-primary);
-}
-
 .dg-pk-icon {
   color: var(--semi-color-warning);
   flex-shrink: 0;
