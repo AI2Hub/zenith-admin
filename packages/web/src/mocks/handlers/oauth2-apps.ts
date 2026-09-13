@@ -1,11 +1,12 @@
 import { oauth2ClientContract } from '@zenith/shared/open-platform';
 import type { OAuth2Client, OAuth2ClientCreated, OAuth2MyGrant, OAuth2Token, OAuth2UserGrant } from '@zenith/shared/open-platform';
 import { mock } from '@/mocks/utils/contract';
-import { requireItem, removeByIds } from '@/mocks/utils/crud';
+import { requireItem } from '@/mocks/utils/crud';
 import { notFound } from '@/mocks/utils/handlers';
 import { mockDateTime } from '@/mocks/utils/date';
 import { includesKeyword, matchesFilter } from '@/mocks/utils/filter';
 import { randomHex } from '@/mocks/utils/random';
+import { mockResource } from '@/mocks/utils/resource';
 
 let nextId = 1;
 
@@ -217,10 +218,10 @@ export const oauth2AppsHandlers = [
     const result: OAuth2ClientCreated = { ...newClient, clientSecret: body.isPublic ? '' : clientSecret };
     return ok(result, '创建成功');
   }),
-
-  mock(oauth2ClientContract.detail, ({ params, ok }) => {
-    const found = requireItem(mockOAuth2Clients, params.id, '不存在', { status: 404 });
-    return ok(found);
+  ...mockResource(oauth2ClientContract, {
+    store: mockOAuth2Clients,
+    notFound: '不存在',
+    exclude: ['list', 'create', 'update'],
   }),
 
   mock(oauth2ClientContract.update, ({ params, body, ok }) => {
@@ -234,12 +235,6 @@ export const oauth2AppsHandlers = [
       updatedAt: mockDateTime(),
     };
     return ok(mockOAuth2Clients[idx], '更新成功');
-  }),
-
-  mock(oauth2ClientContract.remove, ({ params, ok }) => {
-    requireItem(mockOAuth2Clients, params.id, '不存在', { status: 404 });
-    removeByIds(mockOAuth2Clients, [params.id]);
-    return ok(null, '删除成功');
   }),
 
   mock(oauth2ClientContract.regenerateSecret, ({ params, ok }) => {

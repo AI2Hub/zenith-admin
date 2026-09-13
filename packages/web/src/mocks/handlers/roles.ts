@@ -5,29 +5,18 @@ import { badRequest, conflict } from '@/mocks/utils/handlers';
 import { mockRoles, getNextRoleId } from '@/mocks/data/roles';
 import { mockUsers } from '@/mocks/data/users';
 import { mockDateTime } from '@/mocks/utils/date';
-import { includesKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 export const rolesHandlers = [
   // 所有角色（不分页，供下拉框使用）
   mock(roleContract.all, ({ ok }) => {
     return ok(mockRoles);
   }),
-
-  // 角色列表（支持服务端分页）
-  mock(roleContract.list, ({ query, ok, paginate }) => {
-    const { keyword, status } = query;
-    const filtered = mockRoles.filter((r) => {
-      if (keyword && !includesKeyword(keyword, r.name, r.code)) return false;
-      if (status && r.status !== status) return false;
-      return true;
-    });
-    return ok(paginate(filtered));
-  }),
-
-  // 获取单个角色
-  mock(roleContract.detail, ({ params, ok }) => {
-    const role = requireItem(mockRoles, params.id, '角色不存在', { status: 404 });
-    return ok(role);
+  ...mockResource(roleContract, {
+    store: mockRoles,
+    notFound: '角色不存在',
+    keyword: (item) => [item.name, item.code],
+    exclude: ['create', 'update', 'remove'],
   }),
 
   // 新增角色

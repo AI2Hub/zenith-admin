@@ -1,6 +1,6 @@
 import { badRequest, notFound } from '@/mocks/utils/handlers';
 import { mock } from '@/mocks/utils/contract';
-import { removeByIds, requireItem, updateItem } from '@/mocks/utils/crud';
+import { removeByIds, requireItem } from '@/mocks/utils/crud';
 import {
   renderPrintContent,
   reportAiContract,
@@ -281,9 +281,10 @@ export const reportHandlers = [
       && matchesFilter(d.status, query.status));
     return ok(paginate(list));
   }),
-  mock(reportDatasetContract.detail, ({ params, ok }) => {
-    const d = requireItem(mockReportDatasets, params.id, '数据集不存在');
-    return ok(d);
+  ...mockResource(reportDatasetContract, {
+    store: mockReportDatasets,
+    notFound: '数据集不存在',
+    exclude: ['list', 'create', 'remove'],
   }),
   mock(reportDatasetContract.create, ({ body, ok }) => {
     const datasource = mockReportDatasources.find((x) => x.id === body.datasourceId);
@@ -295,10 +296,6 @@ export const reportHandlers = [
     };
     mockReportDatasets.push(item);
     return ok(item, '新增成功');
-  }),
-  mock(reportDatasetContract.update, ({ params, body, ok }) => {
-    const d = updateItem(mockReportDatasets, params.id, body, { notFoundMessage: '数据集不存在', now: mockDateTime });
-    return ok(d, '更新成功');
   }),
   mock(reportDatasetContract.remove, ({ params, ok }) => {
     const id = params.id;
@@ -411,9 +408,10 @@ export const reportHandlers = [
       && (!query.favorited || !!d.favorited));
     return ok(paginate(list));
   }),
-  mock(reportDashboardContract.detail, ({ params, ok }) => {
-    const d = requireItem(mockReportDashboards, params.id, '仪表盘不存在');
-    return ok(d);
+  ...mockResource(reportDashboardContract, {
+    store: mockReportDashboards,
+    notFound: '仪表盘不存在',
+    exclude: ['list', 'create', 'update'],
   }),
   mock(reportDashboardContract.create, ({ body, ok }) => {
     const item: ReportDashboard = {
@@ -432,11 +430,6 @@ export const reportHandlers = [
     Object.assign(d, rest, { updatedAt: mockDateTime() });
     return ok(d, '更新成功');
   }),
-  mock(reportDashboardContract.remove, ({ params, ok }) => {
-    requireItem(mockReportDashboards, params.id, '仪表盘不存在');
-    removeByIds(mockReportDashboards, [params.id]);
-    return ok(null, '删除成功');
-  }),
 
   // ─── 分类 ─────────────────────────────────────────────────
   mock(reportCategoryContract.list, ({ ok }) => ok([...mockReportCategories].sort((a, b) => a.sort - b.sort))),
@@ -448,14 +441,10 @@ export const reportHandlers = [
     mockReportCategories.push(item);
     return ok(item, '新增成功');
   }),
-  mock(reportCategoryContract.update, ({ params, body, ok }) => {
-    const c = updateItem(mockReportCategories, params.id, body, { notFoundMessage: '分类不存在', now: mockDateTime });
-    return ok(c, '更新成功');
-  }),
-  mock(reportCategoryContract.remove, ({ params, ok }) => {
-    requireItem(mockReportCategories, params.id, '分类不存在');
-    removeByIds(mockReportCategories, [params.id]);
-    return ok(null, '删除成功');
+  ...mockResource(reportCategoryContract, {
+    store: mockReportCategories,
+    notFound: '分类不存在',
+    exclude: ['list', 'create'],
   }),
 
   // ─── 数据预警 ─────────────────────────────────────────────
@@ -633,14 +622,10 @@ export const reportHandlers = [
     mockReportSubscriptions.push(item);
     return ok(item, '新增成功');
   }),
-  mock(reportSubscriptionContract.update, ({ params, body, ok }) => {
-    const s = updateItem(mockReportSubscriptions, params.id, body, { notFoundMessage: '订阅不存在', now: mockDateTime });
-    return ok(s, '更新成功');
-  }),
-  mock(reportSubscriptionContract.remove, ({ params, ok }) => {
-    requireItem(mockReportSubscriptions, params.id, '订阅不存在');
-    removeByIds(mockReportSubscriptions, [params.id]);
-    return ok(null, '删除成功');
+  ...mockResource(reportSubscriptionContract, {
+    store: mockReportSubscriptions,
+    notFound: '订阅不存在',
+    exclude: ['list', 'create'],
   }),
 
   mock(reportDeliveryRunContract.list, ({ query, ok, paginate }) => {

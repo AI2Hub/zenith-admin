@@ -2,9 +2,9 @@ import { userAiConfigContract } from '@zenith/shared/ai';
 import type { UserAiConfig } from '@zenith/shared/ai';
 import { maskSecret, SECRET_PLACEHOLDER } from '@zenith/shared/core';
 import { mock } from '@/mocks/utils/contract';
-import { notFound, nextIdFrom } from '@/mocks/utils/handlers';
+import { notFound } from '@/mocks/utils/handlers';
 import { mockDateTime } from '../utils/date';
-import { removeItem } from '../utils/crud';
+import { mockResource } from '@/mocks/utils/resource';
 
 const mockUserAiConfigs: UserAiConfig[] = [];
 
@@ -15,29 +15,11 @@ function maskApiKey(apiKey: string) {
 
 export const userAiConfigHandlers = [
   mock(userAiConfigContract.list, ({ ok }) => ok(mockUserAiConfigs)),
-
-  mock(userAiConfigContract.create, ({ body, ok }) => {
-    const now = mockDateTime();
-    const newCfg: UserAiConfig = {
-      id: nextIdFrom(mockUserAiConfigs),
-      userId: 1,
-      name: body.name ?? null,
-      providerId: body.providerId ?? 'custom',
-      baseUrl: body.baseUrl ?? null,
-      apiKey: body.apiKey ? maskApiKey(body.apiKey) : null,
-      headers: body.headers ?? null,
-      models: body.models ?? [],
-      defaultModel: body.defaultModel ?? body.models?.[0] ?? null,
-      modelSettings: body.modelSettings ?? null,
-      providerOptions: body.providerOptions ?? null,
-      capabilities: body.capabilities ?? null,
-      systemPrompt: body.systemPrompt ?? null,
-      isEnabled: body.isEnabled ?? true,
-      createdAt: now,
-      updatedAt: now,
-    };
-    mockUserAiConfigs.push(newCfg);
-    return ok(newCfg, '创建成功');
+  ...mockResource(userAiConfigContract, {
+    store: mockUserAiConfigs,
+    notFound: '配置不存在',
+    create: (body, id, now): UserAiConfig => ({ id, userId: 1, name: body.name ?? null, providerId: body.providerId ?? 'custom', baseUrl: body.baseUrl ?? null, apiKey: body.apiKey ? maskApiKey(body.apiKey) : null, headers: body.headers ?? null, models: body.models ?? [], defaultModel: body.defaultModel ?? body.models?.[0] ?? null, modelSettings: body.modelSettings ?? null, providerOptions: body.providerOptions ?? null, capabilities: body.capabilities ?? null, systemPrompt: body.systemPrompt ?? null, isEnabled: body.isEnabled ?? true, createdAt: now, updatedAt: now }),
+    exclude: ['list', 'update'],
   }),
 
   // 更新：脱敏格式的 apiKey 表示保持不变
@@ -54,10 +36,5 @@ export const userAiConfigHandlers = [
     };
     mockUserAiConfigs[idx] = updated;
     return ok(updated, '更新成功');
-  }),
-
-  mock(userAiConfigContract.remove, ({ params, ok }) => {
-    removeItem(mockUserAiConfigs, params.id, '配置不存在', { status: 404 });
-    return ok(null, '删除成功');
   }),
 ];

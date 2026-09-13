@@ -2,11 +2,12 @@ import { chatBotContract, chatWebhookPublicContract } from '@zenith/shared/chat'
 import type { ChatWebhook } from '@zenith/shared/chat';
 import { urlOf } from '@/lib/contract-query';
 import { mock } from '@/mocks/utils/contract';
-import { requireItem, updateItem, removeByIds } from '@/mocks/utils/crud';
+import { requireItem } from '@/mocks/utils/crud';
 import { mockChatWebhooks, getNextWebhookId, genWebhookToken } from '@/mocks/data/chat-bots';
 import { mockChatConversations } from '@/mocks/data/chat';
 import { mockDateTime } from '@/mocks/utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 function convName(conversationId: number): string | null {
   const conv = mockChatConversations.find((c) => c.id === conversationId);
@@ -45,10 +46,10 @@ export const chatBotsHandlers = [
     mockChatWebhooks.unshift(item);
     return ok(item, '创建成功');
   }),
-
-  mock(chatBotContract.update, ({ params, body, ok }) => {
-    const hook = updateItem(mockChatWebhooks, params.id, body, { notFoundMessage: 'Webhook 不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(hook, '更新成功');
+  ...mockResource(chatBotContract, {
+    store: mockChatWebhooks,
+    notFound: 'Webhook 不存在',
+    exclude: ['list', 'create'],
   }),
 
   mock(chatBotContract.regenerateToken, ({ params, ok }) => {
@@ -58,11 +59,5 @@ export const chatBotsHandlers = [
     hook.webhookUrl = webhookUrl(tk);
     hook.updatedAt = mockDateTime();
     return ok(hook, '令牌已重置');
-  }),
-
-  mock(chatBotContract.remove, ({ params, ok }) => {
-    requireItem(mockChatWebhooks, params.id, 'Webhook 不存在', { status: 404 });
-    removeByIds(mockChatWebhooks, [params.id]);
-    return ok(null, '删除成功');
   }),
 ];

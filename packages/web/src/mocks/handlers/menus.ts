@@ -1,11 +1,12 @@
 import { menuContract, type Menu } from '@zenith/shared/identity';
 import { mock } from '@/mocks/utils/contract';
-import { requireItem, updateItem } from '@/mocks/utils/crud';
+import { requireItem } from '@/mocks/utils/crud';
 import { conflict } from '@/mocks/utils/handlers';
 import { removeWhere } from '@/mocks/utils/array';
 import { mockMenus, buildMenuTree, getNextMenuId } from '@/mocks/data/menus';
 import { mockRoles } from '@/mocks/data/roles';
 import { mockDateTime } from '@/mocks/utils/date';
+import { mockResource } from '@/mocks/utils/resource';
 
 export const menusHandlers = [
   // 当前用户的菜单树（用于渲染侧边栏）
@@ -23,11 +24,10 @@ export const menusHandlers = [
   mock(menuContract.tree, ({ ok }) => {
     return ok(buildMenuTree(mockMenus));
   }),
-
-  // 获取单个菜单
-  mock(menuContract.detail, ({ params, ok }) => {
-    const menu = requireItem(mockMenus, params.id, '菜单不存在', { status: 404 });
-    return ok(menu);
+  ...mockResource(menuContract, {
+    store: mockMenus,
+    notFound: '菜单不存在',
+    exclude: ['create', 'remove'],
   }),
 
   // 新增菜单
@@ -40,12 +40,6 @@ export const menusHandlers = [
     };
     mockMenus.push(newMenu);
     return ok(newMenu, '新增成功');
-  }),
-
-  // 更新菜单
-  mock(menuContract.update, ({ params, body, ok }) => {
-    const menu = updateItem(mockMenus, params.id, body, { notFoundMessage: '菜单不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(menu, '更新成功');
   }),
 
   // 删除菜单（在用保护：被非超管角色引用的菜单返回 409；级联删除子菜单）

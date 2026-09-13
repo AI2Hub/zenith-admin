@@ -194,9 +194,10 @@ export const rulesP2Handlers = [
     Object.assign(r, { name: snap.name, description: snap.description ?? null, baseScore: snap.baseScore ?? 0, variables: snap.variables ?? [], grades: snap.grades ?? [], status: 'draft', updatedAt: mockDateTime() });
     return ok(r, '回滚成功');
   }),
-  mock(ruleScorecardContract.detail, ({ params, ok }) => {
-    const r = requireItem(mockRuleScorecards, params.id, '评分卡不存在', { status: 404 });
-    return ok(r);
+  ...mockResource(ruleScorecardContract, {
+    store: mockRuleScorecards,
+    notFound: '评分卡不存在',
+    exclude: ['list', 'create', 'update'],
   }),
   mock(ruleScorecardContract.update, ({ params, body, ok }) => {
     const r = requireItem(mockRuleScorecards, params.id, '评分卡不存在', { status: 404 });
@@ -204,11 +205,6 @@ export const rulesP2Handlers = [
     if (expectedUpdatedAt && expectedUpdatedAt !== r.updatedAt) return conflict('评分卡已被他人修改，请刷新后重试', { status: 409 });
     Object.assign(r, patch, { updatedAt: mockDateTime(), dirty: r.status === 'published' ? true : r.dirty });
     return ok(r, '更新成功');
-  }),
-  mock(ruleScorecardContract.remove, ({ params, ok }) => {
-    requireItem(mockRuleScorecards, params.id, '评分卡不存在', { status: 404 });
-    removeByIds(mockRuleScorecards, [params.id]);
-    return ok(null, '删除成功');
   }),
   mock(ruleScorecardContract.publish, ({ params, ok }) => {
     const r = requireItem(mockRuleScorecards, params.id, '评分卡不存在', { status: 404 });

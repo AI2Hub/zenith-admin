@@ -1,11 +1,12 @@
 import type { RuleDecisionTable, RuleDecisionOutput, RuleDecisionRow, RuleDecisionTableVersion, RuleEvaluateResult, RuleTestRunResult, RuleUsageItem, RuleVersionChange } from '@zenith/shared/rules';
 import { decisionTableContract, matchDecisionRows, resolveDecisionHits, ruleExecutionContract } from '@zenith/shared/rules';
 import { mock } from '@/mocks/utils/contract';
-import { removeByIds, requireItem, updateItem } from '@/mocks/utils/crud';
+import { requireItem, updateItem } from '@/mocks/utils/crud';
 import { badRequest, notFound, conflict } from '@/mocks/utils/handlers';
 import { mockDecisionTables, getNextTableId, mockDecisionVersions, getNextVersionId, mockTestCases, getNextCaseId, mockExecutions, getNextExecId } from '@/mocks/data/decision-tables';
 import { mockDateTime } from '@/mocks/utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 const get = (obj: Record<string, unknown>, path: string) => path.split('.').reduce<unknown>((o, k) => (o == null ? o : (o as Record<string, unknown>)[k]), obj);
 const SIMPLE_PATH = /^[a-zA-Z_$][\w$]*(\.[a-zA-Z_$][\w$]*)*$/;
@@ -173,9 +174,10 @@ export const decisionTablesHandlers = [
     r.dirty = computeDirty(r);
     return ok(r);
   }),
-  mock(decisionTableContract.detail, ({ params, ok }) => {
-    const row = requireItem(mockDecisionTables, params.id, '决策表不存在', { status: 404 });
-    return ok(row);
+  ...mockResource(decisionTableContract, {
+    store: mockDecisionTables,
+    notFound: '决策表不存在',
+    exclude: ['list', 'create', 'update', 'removeBatch'],
   }),
   mock(decisionTableContract.create, ({ body, ok }) => {
     const now = mockDateTime();
@@ -246,10 +248,5 @@ export const decisionTablesHandlers = [
     const res = evaluate(r, input);
     mockExecutions.unshift({ id: getNextExecId(), refKind: 'table', refId: r.id, ruleKey: r.key, version: r.status === 'published' ? r.version : null, caller: 'admin.evaluate', callerName: '后台求值', bizRef: null, source: 'manual', matched: res.matched, hitPolicy: r.hitPolicy, input, outputs: res.outputs, matchedRowIds: res.matchedRowIds, createdAt: mockDateTime() });
     return ok(res);
-  }),
-  mock(decisionTableContract.remove, ({ params, ok }) => {
-    requireItem(mockDecisionTables, params.id, '决策表不存在', { status: 404 });
-    removeByIds(mockDecisionTables, [params.id]);
-    return ok(null);
   }),
 ];

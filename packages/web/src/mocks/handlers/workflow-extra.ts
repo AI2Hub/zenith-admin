@@ -58,7 +58,6 @@ const mockQuickPhrases: WorkflowQuickPhrase[] = [
 let nextPhraseId = 100;
 
 const mockDelegations: WorkflowDelegation[] = [];
-let nextDelegationId = 1;
 
 const mockTemplates: WorkflowTemplate[] = SEED_WORKFLOW_TEMPLATES.map((t) => ({
   id: t.id,
@@ -736,37 +735,17 @@ export const workflowExtraHandlers = [
 
   // ── 审批代理 / 离岗委托 ──
   mock(workflowDelegationContract.list, ({ ok, paginate }) => ok(paginate(mockDelegations))),
-  mock(workflowDelegationContract.create, ({ body, ok }) => {
-    const now = mockDateTime();
-    const row: WorkflowDelegation = {
-      id: nextDelegationId++,
-      principalId: body.principalId ?? 1,
-      principalName: getMockUserName(body.principalId ?? 1),
-      delegateId: body.delegateId,
-      delegateName: getMockUserName(body.delegateId),
-      definitionId: body.definitionId ?? null,
-      definitionName: getMockDefinitionName(body.definitionId),
-      mode: body.mode,
-      reason: body.reason ?? null,
-      startAt: body.startAt ?? null,
-      endAt: body.endAt ?? null,
-      enabled: body.enabled,
-      active: body.enabled,
-      createdAt: now,
-      updatedAt: now,
-    };
-    mockDelegations.push(row);
-    return ok(row, '已新增');
+  ...mockResource(workflowDelegationContract, {
+    store: mockDelegations,
+    notFound: '委托规则不存在',
+    create: (body, id, now): WorkflowDelegation => ({ id, principalId: body.principalId ?? 1, principalName: getMockUserName(body.principalId ?? 1), delegateId: body.delegateId, delegateName: getMockUserName(body.delegateId), definitionId: body.definitionId ?? null, definitionName: getMockDefinitionName(body.definitionId), mode: body.mode, reason: body.reason ?? null, startAt: body.startAt ?? null, endAt: body.endAt ?? null, enabled: body.enabled, active: body.enabled, createdAt: now, updatedAt: now }),
+    messages: { create: '已新增', remove: '已删除' },
+    exclude: ['list', 'update'],
   }),
   mock(workflowDelegationContract.update, ({ params, body, ok }) => {
     const row = requireItem(mockDelegations, params.id, '委托规则不存在');
     Object.assign(row, body, { updatedAt: mockDateTime() });
     if (body.enabled !== undefined) row.active = body.enabled;
     return ok(row, '已更新');
-  }),
-  mock(workflowDelegationContract.remove, ({ params, ok }) => {
-    requireItem(mockDelegations, params.id, '委托规则不存在');
-    removeByIds(mockDelegations, [params.id]);
-    return ok(null, '已删除');
   }),
 ];

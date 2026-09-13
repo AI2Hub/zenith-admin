@@ -6,7 +6,7 @@ import type {
   WikiComment, WikiDoc, WikiDocTag, WikiDocTreeNode, WikiReviewRecord, WikiSpace, WikiTag, WikiTemplate,
 } from '@zenith/shared/wiki';
 import { mock } from '@/mocks/utils/contract';
-import { removeByIds, requireItem, updateItem } from '@/mocks/utils/crud';
+import { removeByIds, requireItem } from '@/mocks/utils/crud';
 import { badRequest, notFound } from '@/mocks/utils/handlers';
 import { removeWhere } from '@/mocks/utils/array';
 import { mockDateTime } from '@/mocks/utils/date';
@@ -15,7 +15,6 @@ import {
   getNextWikiCommentId,
   getNextWikiDocId,
   getNextWikiSpaceId,
-  getNextWikiTagId,
   getNextWikiVersionId,
   mockWikiComments,
   mockWikiDocVersions,
@@ -185,10 +184,10 @@ const spaceHandlers = [
     }
     return ok(null, '保存成功');
   }),
-
-  mock(wikiSpaceContract.detail, ({ params, ok }) => {
-    const space = requireItem(mockWikiSpaces, params.id, '知识空间不存在', { status: 404 });
-    return ok(space);
+  ...mockResource(wikiSpaceContract, {
+    store: mockWikiSpaces,
+    notFound: '知识空间不存在',
+    exclude: ['list', 'create', 'remove'],
   }),
 
   mock(wikiSpaceContract.create, ({ body, ok }) => {
@@ -210,11 +209,6 @@ const spaceHandlers = [
     mockWikiSpaces.push(space);
     mockWikiSpaceMembers.push({ spaceId: space.id, userId: 1, role: 'owner', username: 'admin', nickname: '管理员', createdAt: now });
     return ok(space, '创建成功');
-  }),
-
-  mock(wikiSpaceContract.update, ({ params, body, ok }) => {
-    const space = updateItem(mockWikiSpaces, params.id, body, { notFoundMessage: '知识空间不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(space, '更新成功');
   }),
 
   mock(wikiSpaceContract.remove, ({ params, ok }) => {
@@ -546,20 +540,12 @@ const tagHandlers = [
     list = filterByKeyword(list, keyword, [(t) => t.name]);
     return ok(paginate(list));
   }),
-
-  mock(wikiTagContract.create, ({ body, ok }) => {
-    if (mockWikiTags.some((t) => t.name === body.name)) {
-      return badRequest('标签名称已存在', { status: 400 });
-    }
-    const now = mockDateTime();
-    const tag: WikiTag = { id: getNextWikiTagId(), name: body.name, color: body.color ?? null, createdAt: now, updatedAt: now };
-    mockWikiTags.push(tag);
-    return ok(tag, '创建成功');
-  }),
-
-  mock(wikiTagContract.update, ({ params, body, ok }) => {
-    const tag = updateItem(mockWikiTags, params.id, body, { notFoundMessage: '标签不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(tag, '更新成功');
+  ...mockResource(wikiTagContract, {
+    store: mockWikiTags,
+    notFound: '标签不存在',
+    unique: { field: 'name', message: '标签名称已存在' },
+    create: (body, id, now): WikiTag => ({ id, name: body.name, color: body.color ?? null, createdAt: now, updatedAt: now }),
+    exclude: ['list', 'remove'],
   }),
 
   mock(wikiTagContract.remove, ({ params, ok }) => {

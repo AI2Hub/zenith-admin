@@ -1,11 +1,12 @@
 import { departmentContract, type Department } from '@zenith/shared/identity';
 import { mock } from '@/mocks/utils/contract';
-import { requireItem, updateItem, removeByIds } from '@/mocks/utils/crud';
+import { requireItem, removeByIds } from '@/mocks/utils/crud';
 import { mockDepartments, getNextDeptId } from '@/mocks/data/departments';
 import { mockUsers } from '@/mocks/data/users';
 import { mockDriveSpaces } from '@/mocks/data/drive';
 import { mockDateTime } from '@/mocks/utils/date';
 import { includesKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 function withLeaderName(dept: Department): Department {
   const leader = dept.leaderId ? mockUsers.find((u) => u.id === dept.leaderId) : undefined;
@@ -58,11 +59,10 @@ export const departmentsHandlers = [
   mock(departmentContract.tree, ({ query, ok }) => {
     return ok(buildDeptTree(filterDepartments(mockDepartments, query.keyword, query.status)));
   }),
-
-  // 获取单个部门
-  mock(departmentContract.detail, ({ params, ok }) => {
-    const dept = requireItem(mockDepartments, params.id, '部门不存在', { status: 404 });
-    return ok(dept);
+  ...mockResource(departmentContract, {
+    store: mockDepartments,
+    notFound: '部门不存在',
+    exclude: ['create', 'remove'],
   }),
 
   // 新增部门
@@ -76,12 +76,6 @@ export const departmentsHandlers = [
     };
     mockDepartments.push(newDept);
     return ok(newDept, '新增成功');
-  }),
-
-  // 更新部门
-  mock(departmentContract.update, ({ params, body, ok }) => {
-    const dept = updateItem(mockDepartments, params.id, body, { notFoundMessage: '部门不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(dept, '更新成功');
   }),
 
   // 删除部门

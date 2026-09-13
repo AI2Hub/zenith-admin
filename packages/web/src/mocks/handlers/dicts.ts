@@ -6,6 +6,7 @@ import { removeWhere } from '@/mocks/utils/array';
 import { mockDicts, mockDictItems, getNextDictId, getNextDictItemId } from '@/mocks/data/dicts';
 import { mockDateTime } from '@/mocks/utils/date';
 import { includesKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 export const dictsHandlers = [
   // 字典列表（支持服务端分页）
@@ -20,11 +21,10 @@ export const dictsHandlers = [
     });
     return ok(paginate(filtered));
   }),
-
-  // 获取单个字典
-  mock(dictContract.detail, ({ params, ok }) => {
-    const dict = requireItem(mockDicts, params.id, '字典不存在');
-    return ok(dict);
+  ...mockResource(dictContract, {
+    store: mockDicts,
+    notFound: '字典不存在',
+    exclude: ['list', 'create', 'remove'],
   }),
 
   // 新增字典
@@ -40,12 +40,6 @@ export const dictsHandlers = [
     };
     mockDicts.push(newDict);
     return ok(newDict, '新增成功');
-  }),
-
-  // 更新字典
-  mock(dictContract.update, ({ params, body, ok }) => {
-    const dict = updateItem(mockDicts, params.id, body, { notFoundMessage: '字典不存在', now: mockDateTime });
-    return ok(dict, '更新成功');
   }),
 
   // 删除字典（同时删除该字典下的所有条目）

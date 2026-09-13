@@ -2,10 +2,11 @@ import { aiChatModelContract, aiProviderContract, AI_COMMON_PROVIDERS, AI_CUSTOM
 import type { AiProviderCatalogEntry, AiProviderConfig } from '@zenith/shared/ai';
 import { maskSecret, SECRET_PLACEHOLDER } from '@zenith/shared/core';
 import { mock } from '@/mocks/utils/contract';
-import { requireItem, removeByIds } from '@/mocks/utils/crud';
+import { requireItem } from '@/mocks/utils/crud';
 import { notFound } from '@/mocks/utils/handlers';
 import { mockAiProviders, getNextProviderId } from '@/mocks/data/ai';
 import { mockDateTime } from '@/mocks/utils/date';
+import { mockResource } from '@/mocks/utils/resource';
 
 const store = [...mockAiProviders];
 
@@ -71,11 +72,10 @@ export const aiProvidersHandlers = [
 
   // 列表
   mock(aiProviderContract.list, ({ ok }) => ok(store)),
-
-  // 单条
-  mock(aiProviderContract.detail, ({ params, ok }) => {
-    const item = requireItem(store, params.id, '服务商不存在', { status: 404 });
-    return ok(item);
+  ...mockResource(aiProviderContract, {
+    store: store,
+    notFound: '服务商不存在',
+    exclude: ['list', 'create', 'update'],
   }),
 
   // 创建：body 即 CreateAiProviderConfigInput（已校验、已补默认值）
@@ -125,13 +125,6 @@ export const aiProvidersHandlers = [
       updatedAt: mockDateTime(),
     };
     return ok(store[idx], '修改成功');
-  }),
-
-  // 删除
-  mock(aiProviderContract.remove, ({ params, ok }) => {
-    requireItem(store, params.id, '服务商不存在', { status: 404 });
-    removeByIds(store, [params.id]);
-    return ok(null, '删除成功');
   }),
 
   // 设为默认

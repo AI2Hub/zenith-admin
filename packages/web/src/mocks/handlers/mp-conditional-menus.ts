@@ -1,8 +1,9 @@
 import { mpConditionalMenuContract, type MpConditionalMenu } from '@zenith/shared/mp';
 import { mock } from '@/mocks/utils/contract';
-import { requireItem, removeByIds } from '@/mocks/utils/crud';
-import { mockMpConditionalMenus, getNextMpConditionalMenuId } from '@/mocks/data/mp-conditional-menus';
+import { requireItem } from '@/mocks/utils/crud';
+import { mockMpConditionalMenus } from '@/mocks/data/mp-conditional-menus';
 import { mockDateTime } from '@/mocks/utils/date';
+import { mockResource } from '@/mocks/utils/resource';
 
 export const mpConditionalMenusHandlers = [
   mock(mpConditionalMenuContract.list, ({ query, ok }) => {
@@ -15,15 +16,11 @@ export const mpConditionalMenusHandlers = [
     const m = mockMpConditionalMenus.find((x) => x.accountId === body.accountId);
     return ok({ buttons: m?.buttons ?? [] });
   }),
-
-  mock(mpConditionalMenuContract.create, ({ body, ok }) => {
-    const now = mockDateTime();
-    const item: MpConditionalMenu = {
-      id: getNextMpConditionalMenuId(), accountId: body.accountId, name: body.name, buttons: body.buttons,
-      matchRule: body.matchRule, menuId: null, status: 'draft', publishedAt: null, createdAt: now, updatedAt: now,
-    };
-    mockMpConditionalMenus.push(item);
-    return ok(item, '创建成功');
+  ...mockResource(mpConditionalMenuContract, {
+    store: mockMpConditionalMenus,
+    notFound: '个性化菜单不存在',
+    create: (body, id, now): MpConditionalMenu => ({ id, accountId: body.accountId, name: body.name, buttons: body.buttons, matchRule: body.matchRule, menuId: null, status: 'draft', publishedAt: null, createdAt: now, updatedAt: now }),
+    exclude: ['list', 'update'],
   }),
 
   mock(mpConditionalMenuContract.update, ({ params, body, ok }) => {
@@ -39,11 +36,5 @@ export const mpConditionalMenusHandlers = [
     const m = requireItem(mockMpConditionalMenus, params.id, '个性化菜单不存在', { status: 404 });
     m.status = 'published'; m.menuId = `mock-${m.id}`; m.publishedAt = mockDateTime(); m.updatedAt = mockDateTime();
     return ok(m, '发布成功');
-  }),
-
-  mock(mpConditionalMenuContract.remove, ({ params, ok }) => {
-    requireItem(mockMpConditionalMenus, params.id, '个性化菜单不存在', { status: 404 });
-    removeByIds(mockMpConditionalMenus, [params.id]);
-    return ok(null, '删除成功');
   }),
 ];

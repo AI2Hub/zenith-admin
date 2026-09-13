@@ -10,7 +10,7 @@ import type {
   AiEvalExperimentResult,
 } from '@zenith/shared/ai';
 import { mock } from '@/mocks/utils/contract';
-import { removeByIds, removeItem, requireItem, updateItem } from '@/mocks/utils/crud';
+import { removeItem, requireItem } from '@/mocks/utils/crud';
 import { notFound } from '@/mocks/utils/handlers';
 import { mockDateTime } from '../utils/date';
 import { mockResource } from '@/mocks/utils/resource';
@@ -215,14 +215,10 @@ export const aiP3Handlers = [
     toolStore.unshift(tool);
     return ok(tool, '创建成功');
   }),
-  mock(aiHttpToolContract.update, ({ params, body, ok }) => {
-    const tool = updateItem(toolStore, params.id, body, { notFoundMessage: '工具不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(tool, '更新成功');
-  }),
-  mock(aiHttpToolContract.remove, ({ params, ok }) => {
-    requireItem(toolStore, params.id, '工具不存在', { status: 404 });
-    removeByIds(toolStore, [params.id]);
-    return ok(null, '删除成功');
+  ...mockResource(aiHttpToolContract, {
+    store: toolStore,
+    notFound: '工具不存在',
+    exclude: ['list', 'create'],
   }),
 
   // ── 评测:数据集条目 ──

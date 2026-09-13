@@ -7,11 +7,12 @@ import {
 } from '@zenith/shared/identity';
 import { SECRET_PLACEHOLDER } from '@zenith/shared/core';
 import { mock } from '@/mocks/utils/contract';
-import { requireItem, removeByIds } from '@/mocks/utils/crud';
+import { requireItem } from '@/mocks/utils/crud';
 import { badRequest, nextIdFrom } from '@/mocks/utils/handlers';
 import { mockUsers } from '@/mocks/data/users';
 import { mockDateTime } from '@/mocks/utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 const directoryUsers: LdapDirectoryUser[] = [
   {
@@ -172,10 +173,10 @@ export const identityProvidersHandlers = [
     if (status) list = list.filter((item) => item.status === status);
     return ok(paginate(list));
   }),
-
-  mock(identityProviderContract.detail, ({ params, ok }) => {
-    const item = requireItem(providers, params.id, '身份源不存在', { status: 404 });
-    return ok(item);
+  ...mockResource(identityProviderContract, {
+    store: providers,
+    notFound: '身份源不存在',
+    exclude: ['list', 'create', 'update'],
   }),
 
   mock(identityProviderContract.create, ({ body, ok }) => {
@@ -232,12 +233,6 @@ export const identityProvidersHandlers = [
       failed: 0,
       message: '同步完成：创建 1，绑定 0，更新 1，跳过 0，失败 0',
     }, '同步完成');
-  }),
-
-  mock(identityProviderContract.remove, ({ params, ok }) => {
-    requireItem(providers, params.id, '身份源不存在', { status: 404 });
-    removeByIds(providers, [params.id]);
-    return ok(null, '删除成功');
   }),
 
   mock(enterpriseAuthContract.providers, ({ query, ok }) => {

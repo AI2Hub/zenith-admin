@@ -622,13 +622,10 @@ const riskHandlers = [
 const methodHandlers = [
   mock(paymentMethodContract.enabled, ({ ok }) => ok(methodConfigs.filter((m) => m.enabled).sort((a, b) => a.sort - b.sort))),
   mock(paymentMethodContract.list, ({ ok }) => ok([...methodConfigs].sort((a, b) => a.sort - b.sort))),
-  mock(paymentMethodContract.detail, ({ params, ok }) => {
-    const m = requireItem(methodConfigs, params.id, '支付方式配置不存在');
-    return ok(m);
-  }),
-  mock(paymentMethodContract.update, ({ params, body, ok }) => {
-    const m = updateItem(methodConfigs, params.id, body, { notFoundMessage: '支付方式配置不存在', now: mockDateTime });
-    return ok(m, '更新成功');
+  ...mockResource(paymentMethodContract, {
+    store: methodConfigs,
+    notFound: '支付方式配置不存在',
+    exclude: ['list'],
   }),
 ];
 

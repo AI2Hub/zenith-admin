@@ -1,11 +1,12 @@
 import { workflowConnectorContract } from '@zenith/shared/workflow';
 import type { WorkflowConnector, WorkflowConnectorInvocation } from '@zenith/shared/workflow';
 import { mock } from '@/mocks/utils/contract';
-import { requireItem, removeByIds } from '@/mocks/utils/crud';
+import { requireItem } from '@/mocks/utils/crud';
 import { notFound } from '@/mocks/utils/handlers';
 import { mockWorkflowConnectors, getNextConnectorId } from '@/mocks/data/workflow-connectors';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 const hasCred = (c?: Record<string, string | undefined>) => !!c && Object.values(c).some((v) => v != null && v !== '');
 
@@ -53,10 +54,10 @@ export const workflowConnectorsHandlers = [
     });
     return ok(rows);
   }),
-
-  mock(workflowConnectorContract.detail, ({ params, ok }) => {
-    const item = requireItem(mockWorkflowConnectors, params.id, '连接器不存在', { status: 404 });
-    return ok(item);
+  ...mockResource(workflowConnectorContract, {
+    store: mockWorkflowConnectors,
+    notFound: '连接器不存在',
+    exclude: ['list', 'create', 'update'],
   }),
 
   mock(workflowConnectorContract.create, ({ body, ok }) => {
@@ -90,11 +91,5 @@ export const workflowConnectorsHandlers = [
     };
     Object.assign(cur, next);
     return ok(cur, '更新成功');
-  }),
-
-  mock(workflowConnectorContract.remove, ({ params, ok }) => {
-    requireItem(mockWorkflowConnectors, params.id, '连接器不存在', { status: 404 });
-    removeByIds(mockWorkflowConnectors, [params.id]);
-    return ok(null, '删除成功');
   }),
 ];

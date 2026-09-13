@@ -1,11 +1,11 @@
 import { ratePlanContract } from '@zenith/shared/open-platform';
 import type { RatePlan } from '@zenith/shared/open-platform';
 import { mock } from '@/mocks/utils/contract';
-import { requireItem, removeByIds } from '@/mocks/utils/crud';
 import { badRequest, notFound, nextIdFrom } from '@/mocks/utils/handlers';
 import { mockRatePlans } from '@/mocks/data/rate-plans';
 import { mockDateTime } from '@/mocks/utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 const plans: RatePlan[] = mockRatePlans.map((p) => ({ ...p }));
 let nextId = nextIdFrom(plans);
@@ -49,10 +49,10 @@ export const ratePlansHandlers = [
     if (created.isDefault) clearDefault(created.id);
     return ok(created, '创建成功');
   }),
-
-  mock(ratePlanContract.detail, ({ params, ok }) => {
-    const found = requireItem(plans, params.id, '限流套餐不存在', { status: 404 });
-    return ok(found);
+  ...mockResource(ratePlanContract, {
+    store: plans,
+    notFound: '限流套餐不存在',
+    exclude: ['list', 'create', 'update'],
   }),
 
   mock(ratePlanContract.update, ({ params, body, ok }) => {
@@ -61,11 +61,5 @@ export const ratePlansHandlers = [
     plans[idx] = { ...plans[idx], ...body, updatedAt: mockDateTime() };
     if (plans[idx].isDefault) clearDefault(plans[idx].id);
     return ok(plans[idx], '更新成功');
-  }),
-
-  mock(ratePlanContract.remove, ({ params, ok }) => {
-    requireItem(plans, params.id, '限流套餐不存在', { status: 404 });
-    removeByIds(plans, [params.id]);
-    return ok(null, '删除成功');
   }),
 ];

@@ -2,10 +2,11 @@ import type { QueryOf } from '@zenith/shared/core';
 import { exportJobContract } from '@zenith/shared/tasks';
 import type { ExportEntityMeta, ExportJob, ExportJobDownload } from '@zenith/shared/tasks';
 import { mock } from '@/mocks/utils/contract';
-import { requireItem, removeByIds } from '@/mocks/utils/crud';
+import { requireItem } from '@/mocks/utils/crud';
 import { badRequest, notFound } from '@/mocks/utils/handlers';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 import { includesKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 const entities: ExportEntityMeta[] = [
   {
@@ -387,10 +388,11 @@ export const exportJobsHandlers = [
     });
     return makeDownloadResponse(job);
   }),
-
-  mock(exportJobContract.detail, ({ params, ok }) => {
-    const job = requireItem(jobs, params.id, '导出任务不存在', { status: 404 });
-    return ok(job);
+  ...mockResource(exportJobContract, {
+    store: jobs,
+    notFound: '导出任务不存在',
+    messages: { remove: '已删除' },
+    exclude: ['list', 'create'],
   }),
 
   mock(exportJobContract.cancel, ({ params, ok }) => {
@@ -409,11 +411,5 @@ export const exportJobsHandlers = [
     job.completedAt = null;
     job.updatedAt = mockDateTime();
     return ok(job, '已重试');
-  }),
-
-  mock(exportJobContract.remove, ({ params, ok }) => {
-    requireItem(jobs, params.id, '导出任务不存在', { status: 404 });
-    removeByIds(jobs, [params.id]);
-    return ok(null, '已删除');
   }),
 ];

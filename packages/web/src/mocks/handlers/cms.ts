@@ -1302,14 +1302,10 @@ export const cmsP2Handlers = [
     mockCmsAds.push(row);
     return ok(row, '创建成功');
   }),
-  mock(cmsAdContract.update, ({ params, body, ok }) => {
-    const item = updateItem(mockCmsAds, params.id, body, { notFoundMessage: '广告不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(item, '更新成功');
-  }),
-  mock(cmsAdContract.remove, ({ params, ok }) => {
-    requireItem(mockCmsAds, params.id, '广告不存在', { status: 404 });
-    removeByIds(mockCmsAds, [params.id]);
-    return ok(null, '删除成功');
+  ...mockResource(cmsAdContract, {
+    store: mockCmsAds,
+    notFound: '广告不存在',
+    exclude: ['list', 'create'],
   }),
 
   // ─── 表单 ───────────────────────────────────────────────────────────────────

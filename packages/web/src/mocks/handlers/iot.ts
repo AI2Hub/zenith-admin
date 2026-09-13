@@ -13,17 +13,51 @@ import { mock } from '@/mocks/utils/contract';
 import { removeByIds, removeItem, requireItem, updateItem } from '@/mocks/utils/crud';
 import { badRequest, notFound } from '@/mocks/utils/handlers';
 import {
-  buildMockTelemetry, buildMockTelemetryAgg, getNextIotAlarmRuleId, getNextIotAutomationId, getNextIotCommandId, getNextIotDeviceId,
-  getNextIotFirmwareId, getNextIotForwardRuleId, getNextIotGroupId, getNextIotMaintenanceWindowId, getNextIotModelItemId, getNextIotOtaTaskDeviceId,
-  getNextIotOtaTaskId, getNextIotProductId, getNextIotScheduleId, getNextIotWhitelistId,
-  mockIotAlarmRules, mockIotAlarms, mockIotAutomationRuns, mockIotAutomations, mockIotCommands, mockIotDeviceEvents, mockIotDeviceLogs, mockIotDevices,
-  mockIotEvents, mockIotFirmwares, mockIotForwardLogs, mockIotForwardRules, mockIotGroups, mockIotMaintenanceWindows, mockIotOtaTaskDevices, mockIotOtaTasks,
-  mockIotProducts, mockIotProperties, mockIotScheduleRuns, mockIotSchedules, mockIotServices, mockIotShadows, mockIotWhitelist, withGroupInfo,
+  buildMockTelemetry,
+  buildMockTelemetryAgg,
+  getNextIotAlarmRuleId,
+  getNextIotAutomationId,
+  getNextIotCommandId,
+  getNextIotDeviceId,
+  getNextIotFirmwareId,
+  getNextIotForwardRuleId,
+  getNextIotMaintenanceWindowId,
+  getNextIotModelItemId,
+  getNextIotOtaTaskDeviceId,
+  getNextIotOtaTaskId,
+  getNextIotProductId,
+  getNextIotScheduleId,
+  getNextIotWhitelistId,
+  mockIotAlarmRules,
+  mockIotAlarms,
+  mockIotAutomationRuns,
+  mockIotAutomations,
+  mockIotCommands,
+  mockIotDeviceEvents,
+  mockIotDeviceLogs,
+  mockIotDevices,
+  mockIotEvents,
+  mockIotFirmwares,
+  mockIotForwardLogs,
+  mockIotForwardRules,
+  mockIotGroups,
+  mockIotMaintenanceWindows,
+  mockIotOtaTaskDevices,
+  mockIotOtaTasks,
+  mockIotProducts,
+  mockIotProperties,
+  mockIotScheduleRuns,
+  mockIotSchedules,
+  mockIotServices,
+  mockIotShadows,
+  mockIotWhitelist,
+  withGroupInfo,
 } from '../data/iot';
 import { mockDateTime } from '../utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
 import { abortMockUploadSession, completeMockUploadSession, initMockUploadSession, mockUploadSessionStatus, receiveMockUploadChunk } from '@/mocks/utils/upload-sessions';
 import { randomHex } from '@/mocks/utils/random';
+import { mockResource } from '@/mocks/utils/resource';
 
 function productWithCounts(p: IotProduct): IotProduct {
   return {
@@ -518,15 +552,11 @@ export const iotHandlers = [
     if (query.keyword) list = filterByKeyword(list, query.keyword, [(g) => g.name, (g) => g.description]);
     return ok(paginate([...list].sort((a, b) => b.id - a.id)));
   }),
-  mock(iotDeviceGroupContract.create, ({ body, ok }) => {
-    const now = mockDateTime();
-    const group = {
-      id: getNextIotGroupId(), name: body.name, description: body.description ?? null,
-      deviceCount: body.deviceIds.length, deviceIds: body.deviceIds,
-      createdAt: now, updatedAt: now,
-    };
-    mockIotGroups.push(group);
-    return ok(group, '创建成功');
+  ...mockResource(iotDeviceGroupContract, {
+    store: mockIotGroups,
+    notFound: '设备分组不存在',
+    create: (body, id, now) => ({ id, name: body.name, description: body.description ?? null, deviceCount: body.deviceIds.length, deviceIds: body.deviceIds, createdAt: now, updatedAt: now }),
+    exclude: ['list', 'detail', 'update'],
   }),
   mock(iotDeviceGroupContract.detail, ({ params, ok }) => {
     const group = requireItem(mockIotGroups, params.id, '设备分组不存在', { status: 404 });
@@ -536,11 +566,6 @@ export const iotHandlers = [
     const group = requireItem(mockIotGroups, params.id, '设备分组不存在', { status: 404 });
     Object.assign(group, body, { updatedAt: mockDateTime() });
     return ok({ ...group, deviceCount: group.deviceIds.length }, '更新成功');
-  }),
-  mock(iotDeviceGroupContract.remove, ({ params, ok }) => {
-    requireItem(mockIotGroups, params.id, '设备分组不存在', { status: 404 });
-    removeByIds(mockIotGroups, [params.id]);
-    return ok(null, '删除成功');
   }),
 
   // ─── 批量操作（Demo：同步逐台模拟，提交后任务在 async-tasks mock 中推进）─────
@@ -686,14 +711,10 @@ export const iotHandlers = [
     mockIotMaintenanceWindows.push(win);
     return ok(win, '创建成功');
   }),
-  mock(iotMaintenanceWindowContract.update, ({ params, body, ok }) => {
-    const win = updateItem(mockIotMaintenanceWindows, params.id, body, { notFoundMessage: '维护窗口不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(win, '更新成功');
-  }),
-  mock(iotMaintenanceWindowContract.remove, ({ params, ok }) => {
-    requireItem(mockIotMaintenanceWindows, params.id, '维护窗口不存在', { status: 404 });
-    removeByIds(mockIotMaintenanceWindows, [params.id]);
-    return ok(null, '删除成功');
+  ...mockResource(iotMaintenanceWindowContract, {
+    store: mockIotMaintenanceWindows,
+    notFound: '维护窗口不存在',
+    exclude: ['list', 'create'],
   }),
 
   // ─── 计划任务（/runs 静态段先于 /:id）───────────────────────────────────────

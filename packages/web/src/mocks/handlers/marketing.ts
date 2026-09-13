@@ -5,11 +5,14 @@ import { requireItem } from '@/mocks/utils/crud';
 import { badRequest, notFound } from '@/mocks/utils/handlers';
 import { mockCoupons } from '@/mocks/data/members';
 import {
-  getNextMarketingCampaignId, getNextMarketingPrizeId,
-  mockMarketingCampaigns, mockMarketingParticipations, mockMarketingPrizes,
+  getNextMarketingPrizeId,
+  mockMarketingCampaigns,
+  mockMarketingParticipations,
+  mockMarketingPrizes,
 } from '../data/marketing';
 import { mockDateTime } from '../utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 /** 优惠券名称按模板关联回填（与服务端 leftJoin coupons 口径一致） */
 function withCouponName(prize: MarketingPrize): MarketingPrize {
@@ -115,33 +118,11 @@ export const marketingHandlers = [
     campaign.updatedAt = mockDateTime();
     return ok(campaign, '活动已结束');
   }),
-
-  // ─── 详情 / 创建 / 更新 / 删除 ──────────────────────────────────────────────
-  mock(marketingCampaignContract.detail, ({ params, ok }) => {
-    const campaign = requireItem(mockMarketingCampaigns, params.id, '营销活动不存在', { status: 404 });
-    return ok(campaign);
-  }),
-  mock(marketingCampaignContract.create, ({ body, ok }) => {
-    const now = mockDateTime();
-    const campaign: MarketingCampaign = {
-      id: getNextMarketingCampaignId(),
-      name: body.name,
-      type: 'lottery',
-      status: 'draft',
-      startAt: body.startAt,
-      endAt: body.endAt,
-      perMemberLimit: body.perMemberLimit,
-      dailyPerMemberLimit: body.dailyPerMemberLimit ?? null,
-      landingUrl: body.landingUrl ?? null,
-      shortUrl: null,
-      description: body.description ?? null,
-      participationCount: 0,
-      awardCount: 0,
-      createdAt: now,
-      updatedAt: now,
-    };
-    mockMarketingCampaigns.push(campaign);
-    return ok(campaign, '创建成功');
+  ...mockResource(marketingCampaignContract, {
+    store: mockMarketingCampaigns,
+    notFound: '营销活动不存在',
+    create: (body, id, now): MarketingCampaign => ({ id, name: body.name, type: 'lottery', status: 'draft', startAt: body.startAt, endAt: body.endAt, perMemberLimit: body.perMemberLimit, dailyPerMemberLimit: body.dailyPerMemberLimit ?? null, landingUrl: body.landingUrl ?? null, shortUrl: null, description: body.description ?? null, participationCount: 0, awardCount: 0, createdAt: now, updatedAt: now }),
+    exclude: ['list', 'update', 'remove'],
   }),
   mock(marketingCampaignContract.update, ({ params, body, ok }) => {
     const campaign = requireItem(mockMarketingCampaigns, params.id, '营销活动不存在', { status: 404 });
