@@ -1,8 +1,8 @@
-import { timestampColumns } from './common';
+import { timestampColumns, idColumn, remarkColumn } from './common';
 import { pgTable, varchar, timestamp, pgEnum, integer, bigint, boolean, text, uniqueIndex, index, jsonb, smallint, real, date, uuid, primaryKey, customType, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import type { AnalyticsEnvironment, AnalyticsEventPropertyDef, AnalyticsExperimentVariant, AnalyticsSegmentRule, ReplayTrigger } from '@zenith/shared/analytics';
-import { auditColumns, tenants, users } from './core';
+import { auditColumns, tenants, users, tenantIdColumn } from './core';
 import { members } from './member';
 
 // ─── 枚举 ────────────────────────────────────────────────────────────────────
@@ -26,9 +26,9 @@ export const analyticsExperimentStatusEnum = pgEnum('analytics_experiment_status
 
 // ─── 用户行为事件表（原始事件流）──────────────────────────────────────────────
 export const userEvents = pgTable('user_events', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   eventId: uuid(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   // 身份
   distinctId: varchar({ length: 64 }),
   anonymousId: varchar({ length: 64 }),
@@ -122,8 +122,8 @@ export type NewUserEvent = typeof userEvents.$inferInsert;
 // 匿名 ingest 批次查表做前向合并，$identify 时做历史回溯合并（user_events / sessions / profiles）。
 // 纯映射表，不加审计列。
 export const analyticsIdentityMap = pgTable('analytics_identity_map', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   anonymousId: varchar({ length: 64 }).notNull(),
   distinctId: varchar({ length: 64 }).notNull(),
   identityType: analyticsIdentityTypeEnum().notNull(),
@@ -138,8 +138,8 @@ export type AnalyticsIdentityMapRow = typeof analyticsIdentityMap.$inferSelect;
 
 // ─── 会话聚合表 ──────────────────────────────────────────────────────────────
 export const analyticsSessions = pgTable('analytics_sessions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   sessionId: varchar({ length: 36 }).notNull(),
   distinctId: varchar({ length: 64 }),
   userId: integer(),
@@ -182,7 +182,7 @@ export type NewAnalyticsSession = typeof analyticsSessions.$inferInsert;
 // ─── 每日预聚合表（趋势查询提速）─────────────────────────────────────────────
 // tenantId 非空（0 = 平台/无租户），避免 NULL 在唯一索引中视为相异导致 upsert 失效
 export const analyticsDailyRollup = pgTable('analytics_daily_rollup', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   tenantId: integer().notNull().default(0),
   statDate: date().notNull(),
   metric: varchar({ length: 32 }).notNull(),
@@ -204,7 +204,7 @@ export type NewAnalyticsDailyRollup = typeof analyticsDailyRollup.$inferInsert;
 export const analyticsEventStatusEnum = pgEnum('analytics_event_status', ['active', 'deprecated', 'blocked']);
 
 export const analyticsEventMeta = pgTable('analytics_event_meta', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   tenantId: integer(),
   eventName: varchar({ length: 128 }).notNull(),
   displayName: varchar({ length: 128 }),
@@ -236,7 +236,7 @@ export type NewAnalyticsEventMeta = typeof analyticsEventMeta.$inferInsert;
 
 // ─── 采集配置 / 采样 / 保留策略（SDK 远程配置）──────────────────────────────
 export const analyticsSettings = pgTable('analytics_settings', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   tenantId: integer(),
   enabled: boolean().notNull().default(true),
   sampleRate: real().notNull().default(1),
@@ -287,8 +287,8 @@ export const errorAlertConditionEnum = pgEnum('error_alert_condition', ['new_err
 
 // 错误分组（Issue）：fingerprint 全局唯一（已含 tenant 因子），修复原 ON CONFLICT 缺唯一索引的 Bug
 export const errorGroups = pgTable('error_groups', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   fingerprint: varchar({ length: 64 }).notNull(),
   errorType: frontendErrorTypeEnum().notNull(),
   level: errorLevelEnum().notNull().default('error'),
@@ -322,8 +322,8 @@ export type NewErrorGroup = typeof errorGroups.$inferInsert;
 
 // 单次错误事件（追加型日志，含堆栈/面包屑/上下文/解析后的 UA）
 export const errorEvents = pgTable('error_events', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   groupId: integer().notNull().references((): AnyPgColumn => errorGroups.id, { onDelete: 'cascade' }),
   fingerprint: varchar({ length: 64 }).notNull(),
   errorType: frontendErrorTypeEnum().notNull(),
@@ -387,8 +387,8 @@ export type ErrorGroupIdentityRow = typeof errorGroupIdentities.$inferSelect;
 
 // 错误告警规则
 export const errorAlertRules = pgTable('error_alert_rules', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   name: varchar({ length: 128 }).notNull(),
   errorType: frontendErrorTypeEnum(),
   level: errorLevelEnum(),
@@ -412,8 +412,8 @@ export type NewErrorAlertRule = typeof errorAlertRules.$inferInsert;
 
 // 告警触发历史（规则命中即记录，供回溯与审计）
 export const errorAlertLogs = pgTable('error_alert_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   ruleId: integer().references(() => errorAlertRules.id, { onDelete: 'set null' }),
   ruleName: varchar({ length: 128 }).notNull(),
   condition: errorAlertConditionEnum().notNull(),
@@ -433,8 +433,8 @@ export type NewErrorAlertLog = typeof errorAlertLogs.$inferInsert;
 
 // Source Map（用于压缩堆栈还原）— 服务层以 replace 语义维护，无需唯一约束
 export const sourceMaps = pgTable('source_maps', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   release: varchar({ length: 64 }).notNull(),
   fileName: varchar({ length: 256 }).notNull(),
   content: text().notNull(),
@@ -452,8 +452,8 @@ export type NewSourceMap = typeof sourceMaps.$inferInsert;
 
 // 保存的分析报表配置（漏斗步骤等），供复用加载
 export const analyticsSavedReports = pgTable('analytics_saved_reports', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   name: varchar({ length: 128 }).notNull(),
   reportType: varchar({ length: 32 }).notNull().default('funnel'),
   config: jsonb().$type<Record<string, unknown>>().notNull(),
@@ -474,7 +474,7 @@ export type NewAnalyticsSavedReport = typeof analyticsSavedReports.$inferInsert;
 export const analyticsEventOverrideStatusEnum = pgEnum('analytics_event_override_status', ['enabled', 'disabled']);
 
 export const analyticsEventOverrides = pgTable('analytics_event_overrides', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   tenantId: integer().notNull().references(() => tenants.id, { onDelete: 'cascade' }),
   eventName: varchar({ length: 128 }).notNull(),
   status: analyticsEventOverrideStatusEnum().notNull().default('enabled'),
@@ -493,15 +493,15 @@ export type NewAnalyticsEventOverride = typeof analyticsEventOverrides.$inferIns
 
 // ─── 行为中心阶段 2：站点模型（匿名 site key 归属）──────────────────────────────
 export const analyticsSites = pgTable('analytics_sites', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   siteKey: varchar({ length: 64 }).notNull(),
   name: varchar({ length: 100 }).notNull(),
   appId: varchar({ length: 50 }).notNull(),
   allowedOrigins: jsonb().$type<string[]>(),
   dailyEventQuota: integer(),
   status: analyticsEventOverrideStatusEnum().notNull().default('enabled'),
-  remark: varchar({ length: 500 }),
+  remark: remarkColumn(500),
   ...auditColumns(),
   ...timestampColumns({ withTimezone: true }),
 }, (t) => [
@@ -520,7 +520,7 @@ export const analyticsEventQualityIssueTypeEnum = pgEnum('analytics_event_qualit
 ]);
 
 export const analyticsEventQualityDaily = pgTable('analytics_event_quality_daily', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   tenantId: integer().notNull().default(0),
   statDate: date().notNull(),
   eventName: varchar({ length: 128 }).notNull(),
@@ -542,8 +542,8 @@ export type NewAnalyticsEventQualityDaily = typeof analyticsEventQualityDaily.$i
 
 // ─── 行为中心阶段 1：统一用户画像（系统派生，供分群圈选使用）────────────────────
 export const analyticsUserProfiles = pgTable('analytics_user_profiles', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   distinctId: varchar({ length: 64 }).notNull(),
   identityType: analyticsIdentityTypeEnum().notNull().default('anonymous'),
   // userId / memberId 为跨系统弱关联标识，不建立物理外键（与 user_events / error_events 现有约定一致），
@@ -571,8 +571,8 @@ export type NewAnalyticsUserProfile = typeof analyticsUserProfiles.$inferInsert;
 
 // ─── 行为中心阶段 1：用户分群定义 ──────────────────────────────────────────────
 export const analyticsUserSegments = pgTable('analytics_user_segments', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   name: varchar({ length: 128 }).notNull(),
   description: text(),
   rules: jsonb().$type<AnalyticsSegmentRule>().notNull(),
@@ -605,7 +605,7 @@ const bytea = customType<{ data: Buffer }>({
 // 回放会话：id 为客户端生成 UUID（幂等重试锚点），首分片到达时 upsert
 export const replaySessions = pgTable('replay_sessions', {
   id: varchar({ length: 36 }).primaryKey(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   sessionId: varchar({ length: 36 }).notNull(),
   mode: replayModeEnum().notNull(),
   status: replayStatusEnum().notNull().default('recording'),
@@ -651,7 +651,7 @@ export type ReplaySessionRow = typeof replaySessions.$inferSelect;
 export type NewReplaySession = typeof replaySessions.$inferInsert;
 
 export const replaySegments = pgTable('replay_segments', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   replayId: varchar({ length: 36 }).notNull()
     .references(() => replaySessions.id, { onDelete: 'cascade' }),
   seq: integer().notNull(),
@@ -675,8 +675,8 @@ export type NewReplaySegment = typeof replaySegments.$inferInsert;
 // 点击坐标聚合（页面级热力图）：与回放会话解耦的独立事实表，
 // 回放删除不影响热力累计，保留期独立（数据保留策略 90 天）
 export const replayClickPoints = pgTable('replay_click_points', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   pagePath: varchar({ length: 256 }).notNull(),
   /** 视口归一化坐标（0-100 百分比） */
   xPct: smallint().notNull(),
@@ -693,8 +693,8 @@ export type ReplayClickPointRow = typeof replayClickPoints.$inferSelect;
 
 // 回放访问审计：谁在什么时候查看了谁的操作录像（合规留痕，读操作专表）
 export const replayAccessLogs = pgTable('replay_access_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   replayId: varchar({ length: 36 }).notNull(),
   /** 回放归属（被查看用户的展示名，冗余存储避免回放删除后审计失联） */
   replayOwner: varchar({ length: 64 }),
@@ -715,9 +715,9 @@ export type ReplayAccessLogRow = typeof replayAccessLogs.$inferSelect;
 
 // ─── 行为中心阶段 1：分群成员物化快照（系统派生，定时任务重算）─────────────────
 export const analyticsSegmentMembers = pgTable('analytics_segment_members', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   segmentId: integer().notNull().references(() => analyticsUserSegments.id, { onDelete: 'cascade' }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   distinctId: varchar({ length: 64 }).notNull(),
   identityType: analyticsIdentityTypeEnum().notNull().default('anonymous'),
   // 与 analytics_user_profiles 一致：弱关联标识，不建立物理外键
@@ -738,8 +738,8 @@ export type NewAnalyticsSegmentMember = typeof analyticsSegmentMembers.$inferIns
 
 // ─── 行为中心阶段 2：A/B 实验（无状态确定性分流）───────────────────────────────
 export const analyticsExperiments = pgTable('analytics_experiments', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   expKey: varchar({ length: 64 }).notNull(),
   name: varchar({ length: 100 }).notNull(),
   description: varchar({ length: 500 }),
@@ -763,8 +763,8 @@ export type NewAnalyticsExperiment = typeof analyticsExperiments.$inferInsert;
 
 // ─── 行为中心阶段 2：分群触达活动 ──────────────────────────────────────────────
 export const analyticsSegmentCampaigns = pgTable('analytics_segment_campaigns', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   segmentId: integer().notNull().references(() => analyticsUserSegments.id, { onDelete: 'cascade' }),
   name: varchar({ length: 100 }).notNull(),
   channel: analyticsCampaignChannelEnum().notNull(),

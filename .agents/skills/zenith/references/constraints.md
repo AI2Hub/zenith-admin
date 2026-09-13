@@ -40,6 +40,11 @@
 - **时间戳列用积木**：`created_at` / `updated_at` 一律展开 `...timestampColumns()`（`db/schema/common.ts`；
   `timestamptz` 传 `{ withTimezone: true }`），**禁止**逐表手写 `timestamp().defaultNow()…$onUpdate(...)` 两行；
   只有 `created_at` 的追加型表单独声明
+- **通用列用积木**：自增主键 `id: idColumn()`、启用 / 禁用 `status: statusColumn()`（`statusColumn('disabled')` 改默认）、
+  排序 `sort: sortColumn()`、备注 `remark: remarkColumn()`（`remarkColumn(500)` 改长度）——均在 `db/schema/common.ts`；
+  租户归属 `tenantId: tenantIdColumn()`（`core.ts`，缺省 `cascade`，可传 `'set null' | 'restrict'`）。
+  **禁止**在表文件里直写 `integer().primaryKey().generatedAlwaysAsIdentity()` / `statusEnum().notNull().default(...)` /
+  `integer().references(() => tenants.id, …)`；bigint / uuid / 业务编码主键、`text()` 备注等非通用形态才逐个声明
 - **审计字段禁止手写**：`created_by` / `updated_by` 由 `db/index.ts` 的 Proxy 自动写入，
   **禁止**在 service / route / seed 中手动赋值；需指定操作人时用 `runAsUser(userId, fn)` 包裹；
   契约实体 schema 用 `...auditFieldsSchema`（`@zenith/shared/core`）

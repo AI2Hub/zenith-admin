@@ -1,5 +1,5 @@
-import { timestampColumns } from './common';
-import { pgTable, varchar, pgEnum, boolean, unique, jsonb, integer } from 'drizzle-orm/pg-core';
+import { timestampColumns, idColumn, remarkColumn } from './common';
+import { pgTable, varchar, pgEnum, boolean, unique, jsonb } from 'drizzle-orm/pg-core';
 import { MASK_TYPES, type CustomMaskRule } from '@zenith/shared/core';
 import { auditColumns } from './core';
 
@@ -13,7 +13,7 @@ export const maskTypeEnum = pgEnum('mask_type', MASK_TYPES);
  * 没有记录的字段按契约默认类型脱敏，仅平台超管免脱敏。
  */
 export const dataMaskPolicies = pgTable('data_mask_policies', {
-  id:                integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:                idColumn(),
   /** 契约实体名（schema meta.id），如 User / Member */
   entity:            varchar({ length: 64 }).notNull(),
   /** 实体内字段路径，嵌套以 . 连接，如 phone / initialAdmin.email */
@@ -24,7 +24,7 @@ export const dataMaskPolicies = pgTable('data_mask_policies', {
   /** 拥有任一权限码即看到明文；平台超管无需配置 */
   exemptPermissions: jsonb().$type<string[]>().notNull().default([]),
   enabled:           boolean().notNull().default(true),
-  remark:            varchar({ length: 256 }),
+  remark:            remarkColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [unique('data_mask_policies_entity_field_unique').on(t.entity, t.field)]);

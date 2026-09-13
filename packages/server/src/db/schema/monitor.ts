@@ -1,13 +1,13 @@
-import { timestampColumns } from './common';
+import { timestampColumns, idColumn } from './common';
 import { pgTable, varchar, timestamp, pgEnum, integer, boolean, text, index, jsonb, real, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { MONITOR_ALERT_HANDLE_STATUSES, MONITOR_ALERT_NOTIFY_STATUSES, MONITOR_METRICS } from '@zenith/shared/platform';
-import { auditColumns, tenants, users } from './core';
+import { auditColumns, users, tenantIdColumn } from './core';
 
 // ─── 系统监控指标采样（时序持久化，追加型）──────────────────────────────────────
 // 由 pg-boss 定时任务（默认每分钟）将 metricsSampler 最新快照落库，用于历史趋势与容量规划。
 // 各百分比字段范围 0-100；*Bps 字段为字节/秒。
 export const systemMetricSamples = pgTable('system_metric_samples', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   sampledAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   cpu: real().notNull().default(0),
   memory: real().notNull().default(0),
@@ -60,8 +60,8 @@ export const monitorAlertHandleStatusEnum = pgEnum(
 );
 
 export const monitorAlertRules = pgTable('monitor_alert_rules', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   name: varchar({ length: 128 }).notNull(),
   metric: monitorMetricEnum().notNull(),
   operator: monitorAlertOperatorEnum().notNull().default('gt'),
@@ -96,8 +96,8 @@ export type NewMonitorAlertRule = typeof monitorAlertRules.$inferInsert;
 
 // ─── 监控告警记录（追加型日志）────────────────────────────────────────────────
 export const monitorAlertEvents = pgTable('monitor_alert_events', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   ruleId: integer().references((): AnyPgColumn => monitorAlertRules.id, { onDelete: 'set null' }),
   ruleName: varchar({ length: 128 }).notNull(),
   metric: monitorMetricEnum().notNull(),
@@ -142,7 +142,7 @@ export const sslCertTypeEnum = pgEnum('ssl_cert_type', ['self_signed', 'uploaded
 export const sslCertStatusEnum = pgEnum('ssl_cert_status', ['valid', 'expiring', 'expired', 'invalid']);
 
 export const sslCertificates = pgTable('ssl_certificates', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 128 }).notNull(),
   domain: varchar({ length: 256 }).notNull(),
   type: sslCertTypeEnum().notNull().default('self_signed'),

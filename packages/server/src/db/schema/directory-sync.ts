@@ -1,6 +1,6 @@
 import { pgTable, varchar, timestamp, pgEnum, integer, boolean, unique, text, index, jsonb } from 'drizzle-orm/pg-core';
-import { statusEnum, timestampColumns } from './common';
-import { auditColumns, tenants, users, departments } from './core';
+import { timestampColumns, idColumn, statusColumn } from './common';
+import { auditColumns, users, departments, tenantIdColumn } from './core';
 import { tenantIdentityProviders } from './identity-providers';
 
 export const directorySyncSourceTypeEnum = pgEnum('directory_sync_source_type', ['ldap', 'dingtalk', 'wechat_work', 'feishu', 'scim']);
@@ -29,11 +29,11 @@ export interface DirectorySyncScopeConfig {
 
 // ─── 同步源配置 ───────────────────────────────────────────────────────────────
 export const directorySyncSources = pgTable('directory_sync_sources', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 100 }).notNull(),
   type: directorySyncSourceTypeEnum().notNull(),
-  status: statusEnum().notNull().default('disabled'),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  status: statusColumn('disabled'),
+  tenantId: tenantIdColumn(),
   /** LDAP/AD 源：绑定企业身份源（凭证与连接信息的单一事实源） */
   identityProviderId: integer().references(() => tenantIdentityProviders.id, { onDelete: 'set null' }),
   /** 平台 API 源：绑定 OAuth 配置的 provider（如 'dingtalk'），凭证从 oauth_configs 读取 */
@@ -85,7 +85,7 @@ export type NewDirectorySyncSource = typeof directorySyncSources.$inferInsert;
 
 // ─── 同步运行记录（追加型日志，不加审计列）──────────────────────────────────────
 export const directorySyncRuns = pgTable('directory_sync_runs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   sourceId: integer().notNull().references(() => directorySyncSources.id, { onDelete: 'cascade' }),
   triggerType: varchar({ length: 16 }).notNull().default('manual'),
   /** 预览模式：只计算差异不落库 */
@@ -118,7 +118,7 @@ export type NewDirectorySyncRun = typeof directorySyncRuns.$inferInsert;
 
 // ─── 运行明细（每个对象的变更动作与字段 diff）───────────────────────────────────
 export const directorySyncRunItems = pgTable('directory_sync_run_items', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   runId: integer().notNull().references(() => directorySyncRuns.id, { onDelete: 'cascade' }),
   entityType: varchar({ length: 16 }).notNull(),
   externalId: varchar({ length: 256 }).notNull(),
@@ -141,7 +141,7 @@ export type NewDirectorySyncRunItem = typeof directorySyncRunItems.$inferInsert;
 
 // ─── 冲突挂起队列 ─────────────────────────────────────────────────────────────
 export const directorySyncConflicts = pgTable('directory_sync_conflicts', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   sourceId: integer().notNull().references(() => directorySyncSources.id, { onDelete: 'cascade' }),
   runId: integer().references(() => directorySyncRuns.id, { onDelete: 'set null' }),
   entityType: varchar({ length: 16 }).notNull(),
@@ -170,7 +170,7 @@ export type NewDirectorySyncConflict = typeof directorySyncConflicts.$inferInser
 
 // ─── 用户绑定表（外部用户 ↔ 本地用户，externalData 存上次源侧快照用于三方对比）──
 export const directorySyncUserLinks = pgTable('directory_sync_user_links', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   sourceId: integer().notNull().references(() => directorySyncSources.id, { onDelete: 'cascade' }),
   externalId: varchar({ length: 256 }).notNull(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -189,7 +189,7 @@ export type NewDirectorySyncUserLink = typeof directorySyncUserLinks.$inferInser
 
 // ─── 部门绑定表（外部部门 ↔ 本地部门）──────────────────────────────────────────
 export const directorySyncDeptLinks = pgTable('directory_sync_dept_links', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   sourceId: integer().notNull().references(() => directorySyncSources.id, { onDelete: 'cascade' }),
   externalId: varchar({ length: 256 }).notNull(),
   departmentId: integer().notNull().references(() => departments.id, { onDelete: 'cascade' }),

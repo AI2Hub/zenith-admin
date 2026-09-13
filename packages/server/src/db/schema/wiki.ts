@@ -1,6 +1,6 @@
 import { pgTable, varchar, timestamp, pgEnum, integer, boolean, primaryKey, unique, index, text, type AnyPgColumn } from 'drizzle-orm/pg-core';
-import { statusEnum, timestampColumns } from './common';
-import { auditColumns, tenants, users } from './core';
+import { timestampColumns, idColumn, statusColumn, sortColumn } from './common';
+import { auditColumns, users, tenantIdColumn } from './core';
 
 // ─── 枚举 ─────────────────────────────────────────────────────────────────────
 
@@ -17,18 +17,18 @@ export const wikiReviewActionEnum = pgEnum('wiki_review_action', ['submit', 'app
 // ─── 知识空间 ─────────────────────────────────────────────────────────────────
 
 export const wikiSpaces = pgTable('wiki_spaces', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 100 }).notNull(),
   description: varchar({ length: 300 }),
   /** lucide 图标名 */
   icon: varchar({ length: 50 }),
   /** public = 全员可读；private = 仅空间成员可见 */
   visibility: wikiSpaceVisibilityEnum().notNull().default('public'),
-  status: statusEnum().notNull().default('enabled'),
-  sort: integer().notNull().default(0),
+  status: statusColumn(),
+  sort: sortColumn(),
   /** 发布的文档是否同步到 AI 知识库（需全局设置同时开启） */
   aiSyncEnabled: boolean().notNull().default(false),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 });
@@ -49,7 +49,7 @@ export type WikiSpaceMemberRow = typeof wikiSpaceMembers.$inferSelect;
 // ─── 文档 ─────────────────────────────────────────────────────────────────────
 
 export const wikiDocs = pgTable('wiki_docs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   spaceId: integer().notNull().references(() => wikiSpaces.id, { onDelete: 'cascade' }),
   /** 目录树父节点；null = 空间根级 */
   parentId: integer().references((): AnyPgColumn => wikiDocs.id, { onDelete: 'set null' }),
@@ -60,7 +60,7 @@ export const wikiDocs = pgTable('wiki_docs', {
   status: wikiDocStatusEnum().notNull().default('draft'),
   /** 驳回意见（status = rejected 时展示） */
   rejectReason: varchar({ length: 500 }),
-  sort: integer().notNull().default(0),
+  sort: sortColumn(),
   isPinned: boolean().notNull().default(false),
   viewCount: integer().notNull().default(0),
   /** 当前版本号，与 wiki_doc_versions.version 对应 */
@@ -83,7 +83,7 @@ export const wikiDocs = pgTable('wiki_docs', {
   publishedAt: timestamp(),
   /** 软删除时间；非 null 表示在回收站 */
   deletedAt: timestamp(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -100,7 +100,7 @@ export type NewWikiDoc = typeof wikiDocs.$inferInsert;
 
 /** 文档版本快照（追加型，作者即当前用户） */
 export const wikiDocVersions = pgTable('wiki_doc_versions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   docId: integer().notNull().references(() => wikiDocs.id, { onDelete: 'cascade' }),
   version: integer().notNull(),
   title: varchar({ length: 200 }).notNull(),
@@ -115,13 +115,13 @@ export type WikiDocVersionRow = typeof wikiDocVersions.$inferSelect;
 // ─── 模板与标签 ───────────────────────────────────────────────────────────────
 
 export const wikiTemplates = pgTable('wiki_templates', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 100 }).notNull(),
   description: varchar({ length: 300 }),
   /** Markdown 模板内容 */
   content: text().notNull().default(''),
-  status: statusEnum().notNull().default('enabled'),
-  sort: integer().notNull().default(0),
+  status: statusColumn(),
+  sort: sortColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 });
@@ -129,7 +129,7 @@ export const wikiTemplates = pgTable('wiki_templates', {
 export type WikiTemplateRow = typeof wikiTemplates.$inferSelect;
 
 export const wikiTags = pgTable('wiki_tags', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 50 }).notNull().unique(),
   /** 展示色（hex），空则前端取默认色板 */
   color: varchar({ length: 20 }),
@@ -149,7 +149,7 @@ export const wikiDocTags = pgTable('wiki_doc_tags', {
 
 /** 文档评论（作者即当前用户） */
 export const wikiComments = pgTable('wiki_comments', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   docId: integer().notNull().references(() => wikiDocs.id, { onDelete: 'cascade' }),
   /** 回复的父评论；null = 顶层评论 */
   parentId: integer().references((): AnyPgColumn => wikiComments.id, { onDelete: 'cascade' }),
@@ -175,7 +175,7 @@ export const wikiDocFavorites = pgTable('wiki_doc_favorites', {
 
 /** 浏览记录（追加型日志，统计用） */
 export const wikiDocViews = pgTable('wiki_doc_views', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   docId: integer().notNull().references(() => wikiDocs.id, { onDelete: 'cascade' }),
   userId: integer().references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp().defaultNow().notNull(),
@@ -188,13 +188,13 @@ export type WikiDocViewRow = typeof wikiDocViews.$inferSelect;
 
 /** 搜索日志（追加型，供无结果关键词与搜索成功率统计） */
 export const wikiSearchLogs = pgTable('wiki_search_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   keyword: varchar({ length: 200 }).notNull(),
   resultCount: integer().notNull().default(0),
   /** 用户点击进入的文档；null = 未点击（无结果或未选中） */
   clickedDocId: integer().references(() => wikiDocs.id, { onDelete: 'set null' }),
   userId: integer().references(() => users.id, { onDelete: 'set null' }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [
   index('wiki_search_logs_created_idx').on(t.createdAt),
@@ -214,7 +214,7 @@ export const wikiDocSubscriptions = pgTable('wiki_doc_subscriptions', {
 
 /** 审核时间线（追加型）：提交 / 通过 / 驳回 / 撤回全记录 */
 export const wikiReviewRecords = pgTable('wiki_review_records', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   docId: integer().notNull().references(() => wikiDocs.id, { onDelete: 'cascade' }),
   /** 动作发生时的文档版本（审批绑定版本） */
   version: integer().notNull(),

@@ -1,6 +1,6 @@
-import { timestampColumns } from './common';
+import { timestampColumns, idColumn } from './common';
 import { pgTable, varchar, timestamp, pgEnum, integer, boolean, unique, text, index, jsonb } from 'drizzle-orm/pg-core';
-import { auditColumns, tenants, users } from './core';
+import { auditColumns, users, tenantIdColumn } from './core';
 
 export const identityProviderTypeEnum = pgEnum('identity_provider_type', ['oidc', 'saml', 'ldap', 'ad']);
 
@@ -10,8 +10,8 @@ export const identityProviderSyncStatusEnum = pgEnum('identity_provider_sync_sta
 
 // ─── 租户级企业身份源配置 ──────────────────────────────────────────────────────
 export const tenantIdentityProviders = pgTable('tenant_identity_providers', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   name: varchar({ length: 100 }).notNull(),
   code: varchar({ length: 64 }).notNull(),
   type: identityProviderTypeEnum().notNull(),
@@ -63,7 +63,7 @@ export type TenantIdentityProviderRow = typeof tenantIdentityProviders.$inferSel
 export type NewTenantIdentityProvider = typeof tenantIdentityProviders.$inferInsert;
 
 export const userIdentityAccounts = pgTable('user_identity_accounts', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   providerId: integer().notNull().references(() => tenantIdentityProviders.id, { onDelete: 'cascade' }),
   subject: varchar({ length: 256 }).notNull(),
@@ -85,7 +85,7 @@ export type UserIdentityAccountRow = typeof userIdentityAccounts.$inferSelect;
 export type NewUserIdentityAccount = typeof userIdentityAccounts.$inferInsert;
 
 export const identityProviderSyncLogs = pgTable('identity_provider_sync_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   providerId: integer().notNull().references(() => tenantIdentityProviders.id, { onDelete: 'cascade' }),
   status: identityProviderSyncStatusEnum().notNull(),
   triggerType: varchar({ length: 32 }).notNull().default('manual'),

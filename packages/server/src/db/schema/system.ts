@@ -1,8 +1,8 @@
 import { pgTable, varchar, timestamp, pgEnum, integer, boolean, unique, text, index, jsonb, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { PROCESS_ROLES } from '@zenith/shared/platform';
-import { statusEnum, timestampColumns } from './common';
-import { auditColumns, tenants, users } from './core';
+import { timestampColumns, idColumn, statusColumn, sortColumn } from './common';
+import { auditColumns, users, tenantIdColumn } from './core';
 
 export const systemSchedulerTaskTypeEnum = pgEnum('system_scheduler_task_type', ['recurring', 'queue']);
 
@@ -20,10 +20,10 @@ export const processRoleEnum = pgEnum('process_role', PROCESS_ROLES);
  * 读写一律经 `lib/settings`，禁止业务代码直查本表；写入触发 `cache_invalidate` 通知（触发器见 0001_extensions.sql）。
  */
 export const systemSettings = pgTable('system_settings', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   module: varchar({ length: 64 }).notNull(),
   /** null = 平台级 */
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   data: jsonb().$type<Record<string, unknown>>().notNull().default({}),
   /** 乐观锁版本：每次保存 +1；客户端携带的 version 不一致时拒绝（409） */
   version: integer().notNull().default(1),
@@ -55,12 +55,12 @@ export const cronRunStatusEnum = pgEnum('cron_run_status', ['success', 'fail', '
 export const cronRunTriggerEnum = pgEnum('cron_run_trigger', ['schedule', 'manual', 'retry']);
 
 export const cronJobs = pgTable('cron_jobs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull().unique(),
   cronExpression: varchar({ length: 128 }).notNull(),
   handler: varchar({ length: 128 }).notNull(),
   params: text(),
-  status: statusEnum().notNull().default('disabled'),
+  status: statusColumn('disabled'),
   description: varchar({ length: 256 }).notNull().default(''),
   retryCount: integer().notNull().default(0),
   /** 重试间隔，单位：秒 */
@@ -81,7 +81,7 @@ export type NewCronJob = typeof cronJobs.$inferInsert;
 
 // ─── 定时任务执行日志表 ────────────────────────────────────────────────────────
 export const cronJobLogs = pgTable('cron_job_logs', {
-  id:             integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:             idColumn(),
   jobId:          integer().notNull().references(() => cronJobs.id, { onDelete: 'cascade' }),
   jobName:        varchar({ length: 64 }).notNull(),
   executionCount: integer().notNull().default(1),
@@ -116,7 +116,7 @@ export type NewCronJobLog = typeof cronJobLogs.$inferInsert;
 
 // ─── 系统调度运行日志表（启动时注册的系统级任务 / 队列 Worker）─────────────────────
 export const systemSchedulerRuns = pgTable('system_scheduler_runs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   taskName: varchar({ length: 128 }).notNull(),
   taskTitle: varchar({ length: 128 }).notNull(),
   taskType: systemSchedulerTaskTypeEnum().notNull(),
@@ -222,13 +222,13 @@ export type NewRetentionPolicy = typeof retentionPolicies.$inferInsert;
 export const regionLevelEnum = pgEnum('region_level', ['province', 'city', 'county']);
 
 export const regions = pgTable('regions', {
-  id:         integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:         idColumn(),
   code:       varchar({ length: 12 }).notNull().unique(),
   name:       varchar({ length: 64 }).notNull(),
   level:      regionLevelEnum().notNull(),
   parentCode: varchar({ length: 12 }),
-  sort:       integer().notNull().default(0),
-  status:     statusEnum().notNull().default('enabled'),
+  sort:       sortColumn(),
+  status:     statusColumn(),
   ...auditColumns(),
   createdAt:  timestamp().defaultNow().notNull(),
   updatedAt:  timestamp().defaultNow().notNull(),
@@ -240,7 +240,7 @@ export type NewRegion = typeof regions.$inferInsert;
 
 // ─── 维护模式（单例，id 固定为 1）───────────────────────────────────────────
 export const maintenanceMode = pgTable('maintenance_mode', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   enabled: boolean().notNull().default(false),
   message: varchar({ length: 512 }).notNull().default('系统维护中，请稍后重试'),
   estimatedEndAt: timestamp(),
@@ -255,7 +255,7 @@ export type NewMaintenanceMode = typeof maintenanceMode.$inferInsert;
 
 // ─── 维护记录（每次「开启→关闭」为一条维护时段）─────────────────────────────
 export const maintenanceLogs = pgTable('maintenance_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   message: varchar({ length: 512 }).notNull(),
   estimatedEndAt: timestamp(),
   startedAt: timestamp().notNull(),
@@ -281,7 +281,7 @@ export const userFeedbackCategoryEnum = pgEnum('user_feedback_category', ['sugge
 export const userFeedbackStatusEnum = pgEnum('user_feedback_status', ['pending', 'processing', 'resolved', 'ignored']);
 
 export const userFeedbacks = pgTable('user_feedbacks', {
-  id:           integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:           idColumn(),
   userId:       integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   /** 满意度评分 1-5，可空（评分与内容至少其一） */
   score:        integer(),

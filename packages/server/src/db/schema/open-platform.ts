@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { bigint, boolean, check, date, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique, varchar, type AnyPgColumn } from 'drizzle-orm/pg-core';
-import { statusEnum, timestampColumns } from './common';
-import { auditColumns, tenants, users } from './core';
+import { timestampColumns, idColumn, statusColumn } from './common';
+import { auditColumns, users, tenantIdColumn } from './core';
 import { cmsSites } from './cms';
 
 export const openAppEnvironmentEnum = pgEnum('open_app_environment', ['production', 'sandbox']);
@@ -12,7 +12,7 @@ export const openAppReviewStatusEnum = pgEnum('open_app_review_status', ['draft'
  * 管理接入本系统的第三方应用（ClientID / Secret / 回调URL / 权限范围）
  */
 export const oauth2Clients = pgTable('oauth2_clients', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** UUID，即 client_id */
   clientId: varchar({ length: 64 }).notNull().unique('oauth2_clients_client_id_unique'),
   /** client_secret sha256 哈希值（机密客户端），公开客户端为 null */
@@ -47,11 +47,11 @@ export const oauth2Clients = pgTable('oauth2_clients', {
   submittedAt: timestamp({ withTimezone: true }),
   reviewedAt: timestamp({ withTimezone: true }),
   reviewedBy: integer().references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   /** 应用归属用户 */
   ownerId: integer().references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
   /** 外部调用的租户权威来源，不接受请求参数覆盖。 */
-  tenantId: integer().references((): AnyPgColumn => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('oauth2_clients_tenant_idx').on(t.tenantId)]);
@@ -65,7 +65,7 @@ export type NewOAuth2Client = typeof oauth2Clients.$inferInsert;
  * 短期有效（10 分钟），用于 authorization_code 流程
  */
 export const oauth2AuthorizationCodes = pgTable('oauth2_authorization_codes', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 授权码 SHA-256 摘要；旧版明文授权码在迁移时全部失效 */
   codeHash: varchar({ length: 64 }).unique('oauth2_authorization_codes_code_hash_unique'),
   clientId: varchar({ length: 64 }).notNull().references(() => oauth2Clients.clientId, { onDelete: 'cascade' }),
@@ -104,7 +104,7 @@ export type OAuth2TokenFamilyRow = typeof oauth2TokenFamilies.$inferSelect;
  * OAuth2 令牌表（access_token + refresh_token 共用）
  */
 export const oauth2Tokens = pgTable('oauth2_tokens', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** access | refresh */
   tokenType: varchar({ length: 20 }).notNull(),
   /** sha256 哈希后存储 */
@@ -135,7 +135,7 @@ export type NewOAuth2Token = typeof oauth2Tokens.$inferInsert;
  * 记录用户对某应用授权的 scope 集合，避免重复弹同意页
  */
 export const oauth2UserGrants = pgTable('oauth2_user_grants', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   clientId: varchar({ length: 64 }).notNull(),
   scopes: text().array().notNull().default([]),
@@ -154,14 +154,14 @@ export type NewOAuth2UserGrant = typeof oauth2UserGrants.$inferInsert;
  * 资源级权限作用域（如 user:read / order:write），供开发者应用申请、网关鉴权使用
  */
 export const apiScopes = pgTable('api_scopes', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** scope 编码（唯一），如 user:read */
   code: varchar({ length: 64 }).notNull().unique(),
   name: varchar({ length: 100 }).notNull(),
   description: text(),
   /** 分组（用户/订单/支付…），便于界面归类 */
   scopeGroup: varchar({ length: 64 }).notNull().default('general'),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 });
@@ -175,7 +175,7 @@ export type NewApiScope = typeof apiScopes.$inferInsert;
  * 定义每个开发者应用的调用配额，按 AppKey 在网关处强制执行
  */
 export const ratePlans = pgTable('rate_plans', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 套餐编码（唯一），如 free / pro / enterprise */
   code: varchar({ length: 64 }).notNull().unique(),
   name: varchar({ length: 100 }).notNull(),
@@ -188,7 +188,7 @@ export const ratePlans = pgTable('rate_plans', {
   monthlyQuota: integer().notNull().default(0),
   /** 是否为默认套餐（应用未绑定套餐时回退使用） */
   isDefault: boolean().notNull().default(false),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 });
@@ -202,7 +202,7 @@ export type NewRatePlan = typeof ratePlans.$inferInsert;
  * 由网关计量中间件异步写入，供「调用统计」聚合分析
  */
 export const openApiCallLogs = pgTable('open_api_call_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 调用方 AppKey（= oauth2_clients.client_id） */
   clientId: varchar({ length: 64 }).notNull(),
   appName: varchar({ length: 100 }),
@@ -235,7 +235,7 @@ export type NewOpenApiCallLog = typeof openApiCallLogs.$inferInsert;
 
 /** 开放 API 每日聚合统计；原始日志到期清理后仍保留长期趋势 */
 export const openApiCallStatsDaily = pgTable('open_api_call_stats_daily', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   statDate: date().notNull(),
   clientId: varchar({ length: 64 }).notNull(),
   appName: varchar({ length: 100 }),
@@ -261,7 +261,7 @@ export const appWebhookDeliveryStatusEnum = pgEnum('app_webhook_delivery_status'
 
 /** 开发者应用的 Webhook 订阅 */
 export const appWebhookSubscriptions = pgTable('app_webhook_subscriptions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 所属应用 AppKey；内部 CMS 订阅为 null，外部订阅必须引用 OAuth2 客户端。 */
   clientId: varchar({ length: 64 }).references(() => oauth2Clients.clientId, { onDelete: 'cascade' }),
   name: varchar({ length: 100 }).notNull(),
@@ -282,12 +282,12 @@ export const appWebhookSubscriptions = pgTable('app_webhook_subscriptions', {
   internal: boolean().notNull().default(false),
   /** 自定义请求头 */
   headers: jsonb().$type<Record<string, string>>(),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   lastDeliveryAt: timestamp({ withTimezone: true }),
   consecutiveFailures: integer().notNull().default(0),
   autoDisabledAt: timestamp({ withTimezone: true }),
   /** 外部订阅与 OAuth2 客户端保持同一租户；内部 CMS 订阅为平台级 null。 */
-  tenantId: integer().references((): AnyPgColumn => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -305,11 +305,11 @@ export type NewAppWebhookSubscription = typeof appWebhookSubscriptions.$inferIns
 
 /** Webhook 投递日志（追加型，无审计列） */
 export const appWebhookDeliveries = pgTable('app_webhook_deliveries', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   subscriptionId: integer().notNull().references(() => appWebhookSubscriptions.id, { onDelete: 'cascade' }),
   /** 外部投递的 OAuth2 client_id；内部 CMS 投递为 null。 */
   clientId: varchar({ length: 64 }),
-  tenantId: integer().references((): AnyPgColumn => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   eventType: varchar({ length: 64 }).notNull(),
   eventId: varchar({ length: 64 }).notNull(),
   payload: jsonb(),
@@ -339,7 +339,7 @@ export type NewAppWebhookDelivery = typeof appWebhookDeliveries.$inferInsert;
 
 /** 配额告警持久化 outbox，确保进程崩溃后可恢复投递 */
 export const openQuotaAlerts = pgTable('open_quota_alerts', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   clientId: varchar({ length: 64 }).notNull(),
   dimension: varchar({ length: 20 }).notNull(),
   period: varchar({ length: 16 }).notNull(),

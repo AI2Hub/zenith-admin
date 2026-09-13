@@ -5,9 +5,9 @@
  * - marketing_prizes          奖品（按权重抽取，库存原子扣减；prize_type=none 为「谢谢参与」不占库存）
  * - marketing_participations  参与记录（追加型：prizeId 为 null 表示未中奖，中奖时带发放状态）
  */
-import { timestampColumns } from './common';
+import { timestampColumns, idColumn, sortColumn } from './common';
 import { pgTable, pgEnum, varchar, timestamp, integer, text, index } from 'drizzle-orm/pg-core';
-import { auditColumns, tenants } from './core';
+import { auditColumns, tenantIdColumn } from './core';
 import { coupons } from './member';
 
 export const marketingCampaignTypeEnum = pgEnum('marketing_campaign_type', ['lottery']);
@@ -19,7 +19,7 @@ export const marketingPrizeTypeEnum = pgEnum('marketing_prize_type', ['points', 
 export const marketingGrantStatusEnum = pgEnum('marketing_grant_status', ['none', 'granted', 'failed']);
 
 export const marketingCampaigns = pgTable('marketing_campaigns', {
-  id:                  integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:                  idColumn(),
   name:                varchar({ length: 128 }).notNull(),
   type:                marketingCampaignTypeEnum().notNull().default('lottery'),
   status:              marketingCampaignStatusEnum().notNull().default('draft'),
@@ -32,7 +32,7 @@ export const marketingCampaigns = pgTable('marketing_campaigns', {
   /** C 端活动落地页地址（分享短链目标，选填） */
   landingUrl:          varchar({ length: 2048 }),
   description:         text(),
-  tenantId:            integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId:            tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -45,7 +45,7 @@ export type MarketingCampaignRow = typeof marketingCampaigns.$inferSelect;
 export type NewMarketingCampaign = typeof marketingCampaigns.$inferInsert;
 
 export const marketingPrizes = pgTable('marketing_prizes', {
-  id:         integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:         idColumn(),
   campaignId: integer().notNull().references(() => marketingCampaigns.id, { onDelete: 'cascade' }),
   name:       varchar({ length: 128 }).notNull(),
   prizeType:  marketingPrizeTypeEnum().notNull(),
@@ -58,7 +58,7 @@ export const marketingPrizes = pgTable('marketing_prizes', {
   totalStock: integer().notNull().default(0),
   /** 抽取权重，越大越易中 */
   weight:     integer().notNull().default(1),
-  sort:       integer().notNull().default(0),
+  sort:       sortColumn(),
   ...timestampColumns(),
 }, (t) => [
   index('idx_marketing_prizes_campaign').on(t.campaignId),
@@ -69,7 +69,7 @@ export type MarketingPrizeRow = typeof marketingPrizes.$inferSelect;
 export type NewMarketingPrize = typeof marketingPrizes.$inferInsert;
 
 export const marketingParticipations = pgTable('marketing_participations', {
-  id:          integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:          idColumn(),
   campaignId:  integer().notNull().references(() => marketingCampaigns.id, { onDelete: 'cascade' }),
   memberId:    integer().notNull(),
   /** 抽中的奖品；null = 未中奖（谢谢参与） */

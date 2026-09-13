@@ -1,4 +1,4 @@
-import { timestampColumns } from './common';
+import { timestampColumns, idColumn, remarkColumn } from './common';
 import { pgTable, varchar, timestamp, pgEnum, integer, text, jsonb, boolean, index } from 'drizzle-orm/pg-core';
 import { OPS_HOST_AUTH_TYPES, OPS_HOST_STATUSES } from '@zenith/shared/ops';
 import type { OpsHostSnapshot } from '@zenith/shared/ops';
@@ -19,7 +19,7 @@ export const opsHostAuthTypeEnum = pgEnum('ops_host_auth_type', OPS_HOST_AUTH_TY
 export const opsHostStatusEnum = pgEnum('ops_host_status', OPS_HOST_STATUSES);
 
 export const opsHosts = pgTable('ops_hosts', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull().unique(),
   host: varchar({ length: 255 }).notNull(),
   port: integer().notNull().default(22),
@@ -37,7 +37,7 @@ export const opsHosts = pgTable('ops_hosts', {
   probedAt: timestamp(),
   probeError: text(),
   enabled: boolean().notNull().default(true),
-  remark: varchar({ length: 500 }),
+  remark: remarkColumn(500),
   ...timestampColumns(),
   ...auditColumns(),
 }, (t) => [

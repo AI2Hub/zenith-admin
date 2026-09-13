@@ -12,15 +12,15 @@ import type {
   NotificationChannelPolicy,
   NotificationRecipient,
 } from '@zenith/shared/messaging';
-import { statusEnum, pushProviderEnum, timestampColumns } from './common';
-import { auditColumns, tenants, users } from './core';
+import { pushProviderEnum, timestampColumns, idColumn, statusColumn } from './common';
+import { auditColumns, users, tenantIdColumn } from './core';
 import { clientApps } from './app-releases';
 
 // ─── 邮件配置表 ──────────────────────────────────────────────────────────────
 export const emailEncryptionEnum = pgEnum('email_encryption', ['none', 'ssl', 'tls']);
 
 export const emailConfigs = pgTable('email_configs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   smtpHost: varchar({ length: 128 }).notNull().default(''),
   smtpPort: integer().notNull().default(465),
   smtpUser: varchar({ length: 128 }).notNull().default(''),
@@ -28,7 +28,7 @@ export const emailConfigs = pgTable('email_configs', {
   fromName: varchar({ length: 64 }).notNull().default('Zenith Admin'),
   fromEmail: varchar({ length: 128 }).notNull().default(''),
   encryption: emailEncryptionEnum().notNull().default('ssl'),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 });
@@ -49,15 +49,15 @@ export const inAppMessageTypeEnum = pgEnum('in_app_message_type', ['info', 'succ
 
 // ── 邮件模板 ────────────────────────────────────────────────────────────────
 export const emailTemplates = pgTable('email_templates', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 100 }).notNull(),
   code: varchar({ length: 100 }).notNull().unique(),
   subject: varchar({ length: 200 }).notNull(),
   content: text().notNull(),
   variables: text(),
-  status: statusEnum().default('enabled').notNull(),
+  status: statusColumn(),
   remark: text(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('email_templates_tenant_idx').on(t.tenantId)]);
@@ -68,7 +68,7 @@ export type NewEmailTemplate = typeof emailTemplates.$inferInsert;
 
 // ── 邮件发送记录 ────────────────────────────────────────────────────────────
 export const emailSendLogs = pgTable('email_send_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   templateId: integer().references(() => emailTemplates.id, { onDelete: 'set null' }),
   toEmail: varchar({ length: 256 }).notNull(),
   subject: varchar({ length: 200 }).notNull(),
@@ -78,7 +78,7 @@ export const emailSendLogs = pgTable('email_send_logs', {
   source: sendSourceEnum().default('manual').notNull(),
   userId: integer().references(() => users.id, { onDelete: 'set null' }),
   ip: varchar({ length: 64 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   sentAt: timestamp({ withTimezone: true }),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('email_send_logs_user_idx').on(t.userId), index('email_send_logs_tenant_idx').on(t.tenantId), 
@@ -92,7 +92,7 @@ export type NewEmailSendLog = typeof emailSendLogs.$inferInsert;
 
 // ── 短信服务商配置 ──────────────────────────────────────────────────────────
 export const smsConfigs = pgTable('sms_configs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 100 }).notNull(),
   provider: smsProviderEnum().notNull(),
   accessKeyId: varchar({ length: 256 }).notNull().default(''),
@@ -100,9 +100,9 @@ export const smsConfigs = pgTable('sms_configs', {
   region: varchar({ length: 64 }),
   signName: varchar({ length: 64 }).notNull().default(''),
   isDefault: boolean().notNull().default(false),
-  status: statusEnum().default('enabled').notNull(),
+  status: statusColumn(),
   remark: text(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('sms_configs_tenant_idx').on(t.tenantId)]);
@@ -113,7 +113,7 @@ export type NewSmsConfig = typeof smsConfigs.$inferInsert;
 
 // ── 短信模板 ────────────────────────────────────────────────────────────────
 export const smsTemplates = pgTable('sms_templates', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 100 }).notNull(),
   code: varchar({ length: 100 }).notNull().unique(),
   templateCode: varchar({ length: 100 }).notNull().default(''),
@@ -121,9 +121,9 @@ export const smsTemplates = pgTable('sms_templates', {
   content: text().notNull(),
   variables: text(),
   provider: smsProviderEnum().notNull(),
-  status: statusEnum().default('enabled').notNull(),
+  status: statusColumn(),
   remark: text(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('sms_templates_tenant_idx').on(t.tenantId)]);
@@ -134,7 +134,7 @@ export type NewSmsTemplate = typeof smsTemplates.$inferInsert;
 
 // ── 短信发送记录 ────────────────────────────────────────────────────────────
 export const smsSendLogs = pgTable('sms_send_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   configId: integer().references(() => smsConfigs.id, { onDelete: 'set null' }),
   templateId: integer().references(() => smsTemplates.id, { onDelete: 'set null' }),
   provider: smsProviderEnum().notNull(),
@@ -148,7 +148,7 @@ export const smsSendLogs = pgTable('sms_send_logs', {
   source: sendSourceEnum().default('manual').notNull(),
   userId: integer().references(() => users.id, { onDelete: 'set null' }),
   ip: varchar({ length: 64 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   sentAt: timestamp({ withTimezone: true }),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('sms_send_logs_user_idx').on(t.userId), index('sms_send_logs_tenant_idx').on(t.tenantId), 
@@ -165,7 +165,7 @@ export type NewSmsSendLog = typeof smsSendLogs.$inferInsert;
 
 /** 推送凭证一对一挂应用:供应商侧凭证本就按 App 发放,unique(appId) 是客观模型 */
 export const pushConfigs = pgTable('push_configs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   appId: integer().notNull().references(() => clientApps.id, { onDelete: 'cascade' }),
   name: varchar({ length: 100 }).notNull(),
   provider: pushProviderEnum().notNull().default('jpush'),
@@ -173,7 +173,7 @@ export const pushConfigs = pgTable('push_configs', {
   masterSecret: varchar({ length: 256 }).notNull().default(''),
   /** iOS APNs 环境:true=生产 false=开发（极光 options.apns_production） */
   apnsProduction: boolean().notNull().default(false),
-  status: statusEnum().default('enabled').notNull(),
+  status: statusColumn(),
   remark: text(),
   ...auditColumns(),
   ...timestampColumns(),
@@ -185,7 +185,7 @@ export type NewPushConfig = typeof pushConfigs.$inferInsert;
 
 // 推送发送记录（追加型日志）
 export const pushSendLogs = pgTable('push_send_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   configId: integer().references(() => pushConfigs.id, { onDelete: 'set null' }),
   /** 所属应用（多应用凭证路由下,一次派发可能按应用拆成多行） */
   appId: integer().references(() => clientApps.id, { onDelete: 'set null' }),
@@ -209,7 +209,7 @@ export const pushSendLogs = pgTable('push_send_logs', {
   clickedAt: timestamp({ withTimezone: true }),
   errorMsg: text(),
   source: sendSourceEnum().default('system').notNull(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   sentAt: timestamp({ withTimezone: true }),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [
@@ -233,7 +233,7 @@ export const broadcastStatusEnum = pgEnum('broadcast_status', ['draft', 'sending
  * （hidden 事件 messaging.broadcast,dedupeKey `broadcast:{id}:batch:{n}` 幂等）。
  */
 export const broadcastCampaigns = pgTable('broadcast_campaigns', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   title: varchar({ length: 200 }).notNull(),
   content: text().notNull(),
   link: varchar({ length: 500 }),
@@ -251,7 +251,7 @@ export const broadcastCampaigns = pgTable('broadcast_campaigns', {
   taskId: integer(),
   sentAt: timestamp({ withTimezone: true }),
   remark: text(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -265,16 +265,16 @@ export type NewBroadcastCampaign = typeof broadcastCampaigns.$inferInsert;
 
 // ── 站内信模板 ──────────────────────────────────────────────────────────────
 export const inAppTemplates = pgTable('in_app_templates', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 100 }).notNull(),
   code: varchar({ length: 100 }).notNull().unique(),
   title: varchar({ length: 200 }).notNull(),
   content: text().notNull(),
   type: inAppMessageTypeEnum().default('info').notNull(),
   variables: text(),
-  status: statusEnum().default('enabled').notNull(),
+  status: statusColumn(),
   remark: text(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('in_app_templates_tenant_idx').on(t.tenantId)]);
@@ -285,7 +285,7 @@ export type NewInAppTemplate = typeof inAppTemplates.$inferInsert;
 
 // ── 站内信收件记录 ──────────────────────────────────────────────────────────
 export const inAppMessages = pgTable('in_app_messages', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   templateId: integer().references(() => inAppTemplates.id, { onDelete: 'set null' }),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   title: varchar({ length: 200 }).notNull(),
@@ -299,7 +299,7 @@ export const inAppMessages = pgTable('in_app_messages', {
   link: varchar({ length: 512 }),
   /** 系统消息幂等键；按收件人拼接后唯一 */
   dedupeKey: varchar({ length: 192 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('in_app_messages_tenant_idx').on(t.tenantId), 
   unique('in_app_messages_dedupe_key_unique').on(t.dedupeKey),
@@ -333,9 +333,9 @@ export const notificationDecisionEnum = pgEnum('notification_decision', NOTIFICA
  * `locked = true` 时收件人偏好对该渠道失效，用于合规必达类通知。
  */
 export const notificationEventOverrides = pgTable('notification_event_overrides', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** null 表示平台级覆盖 */
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   eventKey: varchar({ length: 100 }).notNull(),
   channel: notificationChannelEnum().notNull(),
   enabled: boolean().notNull(),
@@ -358,7 +358,7 @@ export type NewNotificationEventOverride = typeof notificationEventOverrides.$in
  * 且默认值一变全部失真，等于把配置默认值这件事永久锁死。
  */
 export const notificationPreferences = pgTable('notification_preferences', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   recipientType: notificationRecipientTypeEnum().notNull(),
   recipientId: integer().notNull(),
   eventKey: varchar({ length: 100 }).notNull(),
@@ -376,7 +376,7 @@ export type NewNotificationPreference = typeof notificationPreferences.$inferIns
 
 /** 收件人全局设置：免打扰时段、时区与摘要模式。 */
 export const notificationRecipientSettings = pgTable('notification_recipient_settings', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   recipientType: notificationRecipientTypeEnum().notNull(),
   recipientId: integer().notNull(),
   globalMuted: boolean().notNull().default(false),
@@ -403,7 +403,7 @@ export type NewNotificationRecipientSettings = typeof notificationRecipientSetti
  * 直接在业务流程里同步调渠道两头都保证不了。
  */
 export const notificationOutbox = pgTable('notification_outbox', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   eventKey: varchar({ length: 100 }).notNull(),
   /** 收件人快照，避免派发时业务数据已变更 */
   recipients: jsonb().$type<NotificationRecipient[]>().notNull(),
@@ -431,7 +431,7 @@ export const notificationOutbox = pgTable('notification_outbox', {
   traceId: varchar({ length: 64 }),
   /** 因果父引用（`kind:refId` 或 `request`），链路时间线树形展示的触发源 */
   parentRef: varchar({ length: 32 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('notification_outbox_dedupe_uq').on(t.dedupeKey).where(sql`${t.dedupeKey} is not null`),
@@ -454,7 +454,7 @@ export type NewNotificationOutbox = typeof notificationOutbox.$inferInsert;
  * 就只能靠翻服务器日志排查，而这恰恰是通知系统最高频的故障报告。
  */
 export const notificationDispatches = pgTable('notification_dispatches', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   outboxId: integer().references(() => notificationOutbox.id, { onDelete: 'set null' }),
   eventKey: varchar({ length: 100 }).notNull(),
   recipientType: notificationRecipientTypeEnum().notNull(),
@@ -470,7 +470,7 @@ export const notificationDispatches = pgTable('notification_dispatches', {
   providerMsgId: varchar({ length: 128 }),
   /** 幂等键：`${outboxDedupeKey}:${recipient}:${channel}` */
   dedupeKey: varchar({ length: 256 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('notification_dispatches_dedupe_uq').on(t.dedupeKey).where(sql`${t.dedupeKey} is not null`),

@@ -1,4 +1,4 @@
-import { timestampColumns } from './common';
+import { timestampColumns, idColumn } from './common';
 import { pgTable, varchar, timestamp, pgEnum, integer, boolean, text, uuid as pgUuid, index } from 'drizzle-orm/pg-core';
 import { auditColumns, users } from './core';
 import { managedFiles } from './files';
@@ -9,7 +9,7 @@ export const backupTypeEnum = pgEnum('backup_type', ['pg_dump', 'drizzle_export'
 export const backupStatusEnum = pgEnum('backup_status', ['pending', 'running', 'success', 'failed']);
 
 export const dbBackups = pgTable('db_backups', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 128 }).notNull(),
   type: backupTypeEnum().notNull(),
   fileId: pgUuid().references(() => managedFiles.id, { onDelete: 'set null' }),
@@ -30,7 +30,7 @@ export type NewDbBackup = typeof dbBackups.$inferInsert;
 
 // ─── 数据库管理 SQL 查询历史表 ──────────────────────────────────────────────────
 export const dbAdminQueryHistory = pgTable('db_admin_query_history', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   sqlText: text().notNull(),
   durationMs: integer().notNull().default(0),
@@ -49,7 +49,7 @@ export type NewDbAdminQueryHistory = typeof dbAdminQueryHistory.$inferInsert;
 
 // ─── 数据库管理 SQL 查询收藏夹 ───────────────────────────────────────────────────
 export const dbQueryFavorites = pgTable('db_query_favorites', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: varchar({ length: 100 }).notNull(),
   sql: text().notNull(),

@@ -1,14 +1,14 @@
 import { pgTable, varchar, timestamp, pgEnum, integer, bigint, boolean, unique, text, uniqueIndex, index, jsonb, smallint, real, foreignKey, uuid as pgUuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import type { WorkflowAutomationAction, WorkflowDefinitionSnapshot } from '@zenith/shared/workflow';
-import { statusEnum, timestampColumns } from './common';
-import { auditColumns, tenants, users } from './core';
+import { timestampColumns, idColumn, statusColumn, sortColumn, remarkColumn } from './common';
+import { auditColumns, users, tenantIdColumn } from './core';
 import { managedFiles } from './files';
 import { reportPrintTemplates } from './report';
 
 // ─── 工作流引擎健康快照表（append-only，由定时任务 platform-wide 采集，驱动健康趋势 + 告警指标源）───
 export const workflowEngineHealthSnapshots = pgTable('workflow_engine_health_snapshots', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 健康分 0-100 */
   healthScore: smallint().notNull(),
   /** 综合严重级别：healthy / warning / critical */
@@ -73,14 +73,14 @@ export const workflowTokenStatusEnum = pgEnum('workflow_token_status', ['active'
 
 // 流程分类
 export const workflowCategories = pgTable('workflow_categories', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull(),
   code: varchar({ length: 64 }),
   icon: varchar({ length: 64 }),
   color: varchar({ length: 16 }),
-  sort: integer().default(0).notNull(),
+  sort: sortColumn(),
   description: text(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [unique('workflow_categories_code_uniq').on(t.tenantId, t.code)]);
@@ -91,15 +91,15 @@ export type NewWorkflowCategory = typeof workflowCategories.$inferInsert;
 
 // 表单库（流程表单设计，独立于流程定义、可被多个流程复用）
 export const workflowForms = pgTable('workflow_forms', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull(),
   code: varchar({ length: 64 }),
   description: text(),
   categoryId: integer().references(() => workflowCategories.id, { onDelete: 'set null' }),
   schema: jsonb(), // { fields: WorkflowFormField[], settings: WorkflowFormSettings }
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   revision: integer().notNull().default(1), // 乐观锁版本号，每次更新 +1
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [unique('workflow_forms_code_uniq').on(t.tenantId, t.code)]);
@@ -110,7 +110,7 @@ export type NewWorkflowForm = typeof workflowForms.$inferInsert;
 
 // 流程定义
 export const workflowDefinitions = pgTable('workflow_definitions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull(),
   description: text(),
   categoryId: integer().references(() => workflowCategories.id, { onDelete: 'set null' }),
@@ -125,7 +125,7 @@ export const workflowDefinitions = pgTable('workflow_definitions', {
   printTemplateId: integer(),
   status: workflowDefinitionStatusEnum().default('draft').notNull(),
   version: integer().default(1).notNull(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -142,7 +142,7 @@ export type NewWorkflowDefinition = typeof workflowDefinitions.$inferInsert;
 
 // 流程定义版本快照（发布时写入一行）
 export const workflowDefinitionVersions = pgTable('workflow_definition_versions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   definitionId: integer().notNull().references(() => workflowDefinitions.id, { onDelete: 'cascade' }),
   version: integer().notNull(),
   name: varchar({ length: 64 }).notNull(),
@@ -155,7 +155,7 @@ export const workflowDefinitionVersions = pgTable('workflow_definition_versions'
   formSchema: jsonb().$type<{ name: string | null; schema: unknown } | null>(),
   publishedAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
   publishedBy: integer().references(() => users.id, { onDelete: 'set null' }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
 }, (t) => [index('workflow_definition_versions_tenant_idx').on(t.tenantId), unique('workflow_def_versions_def_ver_uniq').on(t.definitionId, t.version)]);
 
 export type WorkflowDefinitionVersionRow = typeof workflowDefinitionVersions.$inferSelect;
@@ -169,14 +169,14 @@ export const workflowAutomationTriggerEnum = pgEnum('workflow_automation_trigger
 export type WorkflowAutomationActionConfig = WorkflowAutomationAction;
 
 export const workflowAutomations = pgTable('workflow_automations', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   definitionId: integer().notNull().references(() => workflowDefinitions.id, { onDelete: 'cascade' }),
   name: varchar({ length: 128 }).notNull(),
   trigger: workflowAutomationTriggerEnum().notNull(),
   actions: jsonb().$type<WorkflowAutomationActionConfig[]>().notNull().default([]),
-  status: statusEnum().notNull().default('enabled'),
-  sort: integer().notNull().default(0),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  status: statusColumn(),
+  sort: sortColumn(),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('workflow_automations_definition_idx').on(t.definitionId), index('workflow_automations_tenant_idx').on(t.tenantId)]);
@@ -187,7 +187,7 @@ export type NewWorkflowAutomation = typeof workflowAutomations.$inferInsert;
 
 // 自动化动作执行留痕：每个动作执行一次记一行（成功/失败/跳过），供管理员核对 Webhook 等副作用是否生效
 export const workflowAutomationRuns = pgTable('workflow_automation_runs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 规则删除后保留历史记录（置空），靠 ruleName 冗余追溯 */
   ruleId: integer().references(() => workflowAutomations.id, { onDelete: 'set null' }),
   ruleName: varchar({ length: 128 }).notNull(),
@@ -200,7 +200,7 @@ export const workflowAutomationRuns = pgTable('workflow_automation_runs', {
   status: varchar({ length: 16 }).notNull(),
   error: varchar({ length: 512 }),
   durationMs: integer(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [
   index('workflow_automation_runs_rule_idx').on(t.ruleId),
@@ -212,7 +212,7 @@ export type WorkflowAutomationRunRow = typeof workflowAutomationRuns.$inferSelec
 
 // 流程定时发起：按 cron 周期自动发起流程实例
 export const workflowSchedules = pgTable('workflow_schedules', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   definitionId: integer().notNull().references(() => workflowDefinitions.id, { onDelete: 'cascade' }),
   name: varchar({ length: 128 }).notNull(),
   /** 标准 cron 表达式（5 段） */
@@ -225,13 +225,13 @@ export const workflowSchedules = pgTable('workflow_schedules', {
   titleTemplate: varchar({ length: 256 }),
   /** 自动发起时预填的表单数据 */
   formData: jsonb().$type<Record<string, unknown>>(),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   lastRunAt: timestamp({ withTimezone: true }),
   lastRunStatus: varchar({ length: 16 }),
   lastRunMessage: varchar({ length: 512 }),
   /** 下次触发时间（调度器扫描 nextRunAt <= now 的启用规则执行） */
   nextRunAt: timestamp({ withTimezone: true }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('workflow_schedules_definition_idx').on(t.definitionId), index('workflow_schedules_tenant_idx').on(t.tenantId)]);
@@ -242,7 +242,7 @@ export type NewWorkflowSchedule = typeof workflowSchedules.$inferInsert;
 
 // 列表保存视图：用户为某个列表页保存的命名筛选条件
 export const workflowSavedViews = pgTable('workflow_saved_views', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   /** 列表页标识（如 my-applications / monitor / pending / cc / handled） */
   pageKey: varchar({ length: 64 }).notNull(),
@@ -250,8 +250,8 @@ export const workflowSavedViews = pgTable('workflow_saved_views', {
   /** 保存的筛选条件（任意键值，前端各页自行约定） */
   filters: jsonb().$type<Record<string, unknown>>().notNull().default({}),
   isDefault: boolean().notNull().default(false),
-  sort: integer().notNull().default(0),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  sort: sortColumn(),
+  tenantId: tenantIdColumn(),
   ...timestampColumns(),
 }, (t) => [index('workflow_saved_views_user_idx').on(t.userId), index('workflow_saved_views_tenant_idx').on(t.tenantId)]);
 
@@ -261,7 +261,7 @@ export type NewWorkflowSavedView = typeof workflowSavedViews.$inferInsert;
 
 // 表单远程数据源：登记式外部接口，供表单 select 字段拉取选项（仅登记 URL 可被代理调用，防 SSRF）
 export const workflowDataSources = pgTable('workflow_data_sources', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull().unique(),
   /** 请求方法 GET / POST */
   method: varchar({ length: 8 }).notNull().default('GET'),
@@ -276,8 +276,8 @@ export const workflowDataSources = pgTable('workflow_data_sources', {
   labelField: varchar({ length: 64 }).notNull(),
   /** 远程搜索时传入关键词的参数名（留空表示不支持远程搜索） */
   keywordParam: varchar({ length: 64 }),
-  status: statusEnum().notNull().default('enabled'),
-  remark: varchar({ length: 256 }),
+  status: statusColumn(),
+  remark: remarkColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 });
@@ -290,7 +290,7 @@ export type NewWorkflowDataSource = typeof workflowDataSources.$inferInsert;
 export const workflowConnectorTypeEnum = pgEnum('workflow_connector_type', ['http', 'webhook', 'email', 'sms', 'wecom', 'dingtalk', 'feishu', 'mq', 'database']);
 
 export const workflowConnectors = pgTable('workflow_connectors', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull(),
   code: varchar({ length: 64 }).notNull(),
   description: text(),
@@ -315,8 +315,8 @@ export const workflowConnectors = pgTable('workflow_connectors', {
   rateLimitWindowSec: integer().notNull().default(1),
   /** 限流：窗口内最大调用次数（<=0 不限制） */
   rateLimitMax: integer().notNull().default(0),
-  status: statusEnum().notNull().default('enabled'),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  status: statusColumn(),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [unique('workflow_connectors_code_uniq').on(t.tenantId, t.code)]);
@@ -329,7 +329,7 @@ export type NewWorkflowConnector = typeof workflowConnectors.$inferInsert;
 export const workflowConnectorInvocationSourceEnum = pgEnum('workflow_connector_invocation_source', ['test', 'trigger', 'external', 'webhook', 'manual']);
 
 export const workflowConnectorInvocations = pgTable('workflow_connector_invocations', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   connectorId: integer().notNull().references(() => workflowConnectors.id, { onDelete: 'cascade' }),
   source: workflowConnectorInvocationSourceEnum().notNull().default('manual'),
   ok: boolean().notNull(),
@@ -345,7 +345,7 @@ export type WorkflowConnectorInvocationRow = typeof workflowConnectorInvocations
 
 // 流程仿真用例（保存的测试场景：表单数据 + 决策 + 发起人，按定义归档，供回归仿真复用）
 export const workflowSimulationCases = pgTable('workflow_simulation_cases', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   definitionId: integer().notNull().references(() => workflowDefinitions.id, { onDelete: 'cascade' }),
   name: varchar({ length: 64 }).notNull(),
   /** 测试发起人（可空，空表示用当前登录用户） */
@@ -354,7 +354,7 @@ export const workflowSimulationCases = pgTable('workflow_simulation_cases', {
   formData: jsonb().notNull().default(sql`'{}'::jsonb`),
   /** 仿真决策序列（逐节点 approve/reject/skip/wait + reason + formPatch） */
   decisions: jsonb().notNull().default(sql`'[]'::jsonb`),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('workflow_simulation_cases_tenant_idx').on(t.tenantId), unique('workflow_simulation_cases_name_uniq').on(t.definitionId, t.name)]);
@@ -363,7 +363,7 @@ export type WorkflowSimulationCaseRow = typeof workflowSimulationCases.$inferSel
 
 // 运行中实例迁移记录（append-only）：旧版本→新版本，节点映射快照与结果
 export const workflowInstanceMigrations = pgTable('workflow_instance_migrations', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   instanceId: integer().notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),
   definitionId: integer().notNull(),
   fromVersion: integer().notNull(),
@@ -372,7 +372,7 @@ export const workflowInstanceMigrations = pgTable('workflow_instance_migrations'
   status: varchar({ length: 16 }).notNull().default('done'),
   note: text(),
   createdBy: integer().references(() => users.id, { onDelete: 'set null' }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('workflow_instance_migrations_tenant_idx').on(t.tenantId), index('wf_inst_migration_idx').on(t.instanceId)]);
 
@@ -382,7 +382,7 @@ export type NewWorkflowInstanceMigration = typeof workflowInstanceMigrations.$in
 
 // 工作流补偿/人工修复工单（catch 节点异常生成，运维手动恢复/终止）
 export const workflowCompensations = pgTable('workflow_compensations', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   instanceId: integer().notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),
   nodeKey: varchar({ length: 64 }).notNull(),
   nodeName: varchar({ length: 64 }),
@@ -398,13 +398,13 @@ export const workflowCompensations = pgTable('workflow_compensations', {
   resolution: text(),
   resolvedBy: integer().references(() => users.id, { onDelete: 'set null' }),
   resolvedAt: timestamp({ withTimezone: true }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('workflow_compensations_tenant_idx').on(t.tenantId), index('wf_compensation_instance_idx').on(t.instanceId), index('wf_compensation_status_idx').on(t.status)]);
 
 /** 补偿工单处理历史（时间线：备注 / 附件 / 自动动作结果 / 恢复续跑 / 放行终止） */
 export const workflowCompensationLogs = pgTable('workflow_compensation_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   compensationId: integer().notNull().references(() => workflowCompensations.id, { onDelete: 'cascade' }),
   /** 事件类型：note（备注）| attachment | auto（自动动作结果）| retry | resume（恢复续跑）| resolve | terminate */
   action: varchar({ length: 16 }).notNull(),
@@ -412,7 +412,7 @@ export const workflowCompensationLogs = pgTable('workflow_compensation_logs', {
   /** 附件：managed_files 的 { id, name, url } 数组 */
   attachments: jsonb(),
   operatorId: integer().references(() => users.id, { onDelete: 'set null' }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('workflow_compensation_logs_operator_idx').on(t.operatorId), index('workflow_compensation_logs_tenant_idx').on(t.tenantId), index('wf_compensation_log_cid_idx').on(t.compensationId)]);
 
@@ -422,7 +422,7 @@ export type NewWorkflowCompensation = typeof workflowCompensations.$inferInsert;
 
 // 流程实例
 export const workflowInstances = pgTable('workflow_instances', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   definitionId: integer().notNull().references(() => workflowDefinitions.id, { onDelete: 'restrict' }),
   definitionSnapshot: jsonb().$type<WorkflowDefinitionSnapshot>().notNull(), // 发起时的定义快照
   formSnapshot: jsonb(), // 发起时的表单快照（兼容旧 WorkflowFormField[]；新数据含 fields/settings/customForm）
@@ -435,7 +435,7 @@ export const workflowInstances = pgTable('workflow_instances', {
   priority: varchar({ length: 16 }).notNull().default('normal'),
   currentNodeKey: varchar({ length: 64 }),
   initiatorId: integer().notNull().references(() => users.id, { onDelete: 'restrict' }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   /** 子流程：父实例 ID（subProcess 节点触发产生的子实例填此字段） */
   parentInstanceId: integer(),
   /** 子流程：父实例中触发本子流程的 subProcess 任务 ID，子实例完成时用于唤醒父任务 */
@@ -482,7 +482,7 @@ export type NewWorkflowInstance = typeof workflowInstances.$inferInsert;
 
 // 审批任务
 export const workflowTasks = pgTable('workflow_tasks', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   instanceId: integer().notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),
   nodeKey: varchar({ length: 64 }).notNull(),
   nodeName: varchar({ length: 64 }).notNull(),
@@ -544,7 +544,7 @@ export const workflowTaskTransferActionEnum = pgEnum('workflow_task_transfer_act
 
 // 任务转办明细（替代原 transfer_chain 数组：完整回答"谁在何时因何把任务交给了谁"）
 export const workflowTaskTransfers = pgTable('workflow_task_transfers', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   taskId: integer().notNull().references(() => workflowTasks.id, { onDelete: 'cascade' }),
   instanceId: integer().notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),
   /** 移出方（系统超时转交等场景可能无原处理人） */
@@ -555,7 +555,7 @@ export const workflowTaskTransfers = pgTable('workflow_task_transfers', {
   reason: varchar({ length: 500 }),
   /** 操作人（本人转办=fromUserId；管理员改派/交接=管理员；系统超时=null） */
   operatorId: integer().references(() => users.id, { onDelete: 'set null' }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('workflow_task_transfers_operator_idx').on(t.operatorId), index('workflow_task_transfers_tenant_idx').on(t.tenantId), 
   index('wf_task_transfers_task_idx').on(t.taskId),
@@ -569,7 +569,7 @@ export type WorkflowTaskTransferRow = typeof workflowTaskTransfers.$inferSelect;
 // fork 沿 branchPath 压入一帧分支栈、产生多条兄弟 token；join 在同组分支全部 parked
 // 后消费它们并产出 1 条续接 token（弹出栈顶帧），构成可观测、可重放的执行树。
 export const workflowTokens = pgTable('workflow_tokens', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   instanceId: integer().notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),
   /** token 当前停留的节点 key（frontier 人工/等待节点，或 parked 的网关 join 节点） */
   nodeKey: varchar({ length: 64 }).notNull(),
@@ -584,7 +584,7 @@ export const workflowTokens = pgTable('workflow_tokens', {
   parentTokenId: integer(),
   /** 子流程/多实例项作用域（预留） */
   scopeKey: varchar({ length: 128 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...timestampColumns(),
   consumedAt: timestamp(),
 }, (t) => [index('workflow_tokens_tenant_idx').on(t.tenantId), 
@@ -603,7 +603,7 @@ export type NewWorkflowToken = typeof workflowTokens.$inferInsert;
 
 // 任务催办记录：发起人或管理员对 pending 任务的催办流水
 export const workflowTaskUrges = pgTable('workflow_task_urges', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   taskId: integer().notNull().references(() => workflowTasks.id, { onDelete: 'cascade' }),
   instanceId: integer().notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),
   urgerId: integer().references(() => users.id, { onDelete: 'set null' }),
@@ -618,7 +618,7 @@ export type NewWorkflowTaskUrge = typeof workflowTaskUrges.$inferInsert;
 
 // ─── 工作流事件订阅 / 投递 / 触发器执行 ─────────────────────────────────────
 export const workflowEventSubscriptions = pgTable('workflow_event_subscriptions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull(),
   description: varchar({ length: 256 }),
   /** 为 null 表示订阅全部流程；否则仅订阅指定流程 */
@@ -634,7 +634,7 @@ export const workflowEventSubscriptions = pgTable('workflow_event_subscriptions'
   /** 经连接器投递：引用 http 连接器 id（设置后由连接器提供基础地址/鉴权/超时/重试/熔断，url 退化为相对路径） */
   connectorId: integer().references(() => workflowConnectors.id, { onDelete: 'set null' }),
   enabled: boolean().default(true).notNull(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdBy: integer().references(() => users.id, { onDelete: 'set null' }),
   updatedBy: integer().references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp().defaultNow().notNull(),
@@ -651,7 +651,7 @@ export type NewWorkflowEventSubscription = typeof workflowEventSubscriptions.$in
 // 统一作业账本：延时唤醒、超时、触发器派发、外部审批派发、子流程、事件派发、Webhook 投递与补偿动作
 // 以及 workflow_tasks 上的 trigger*/external*/wakeAt/timeout* 调度列。
 export const workflowJobs = pgTable('workflow_jobs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 作业类型，决定派发到哪个 handler */
   jobType: workflowJobTypeEnum().notNull(),
   status: workflowJobStatusEnum().notNull().default('pending'),
@@ -690,7 +690,7 @@ export const workflowJobs = pgTable('workflow_jobs', {
   lastError: text(),
   /** 执行结果（成功时写入，供审计/串联） */
   result: jsonb(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'set null' }),
+  tenantId: tenantIdColumn('set null'),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('workflow_jobs_task_idx').on(t.taskId), index('workflow_jobs_tenant_idx').on(t.tenantId), 
@@ -707,7 +707,7 @@ export type NewWorkflowJob = typeof workflowJobs.$inferInsert;
 
 // 作业每一次执行尝试的审计日志（取代 workflow_trigger_executions，泛化到所有 jobType）
 export const workflowJobExecutions = pgTable('workflow_job_executions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   jobId: integer().notNull().references(() => workflowJobs.id, { onDelete: 'cascade' }),
   jobType: workflowJobTypeEnum().notNull(),
   attempt: integer().notNull().default(0),
@@ -724,7 +724,7 @@ export const workflowJobExecutions = pgTable('workflow_job_executions', {
   durationMs: integer(),
   startedAt: timestamp({ withTimezone: true }),
   finishedAt: timestamp({ withTimezone: true }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'set null' }),
+  tenantId: tenantIdColumn('set null'),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('workflow_job_executions_tenant_idx').on(t.tenantId), 
   index('workflow_job_executions_job_idx').on(t.jobId, t.attempt),
@@ -739,7 +739,7 @@ export type NewWorkflowJobExecution = typeof workflowJobExecutions.$inferInsert;
 // ─── 流程评论 / 沟通时间线 ────────────────────────────────────────────────────
 // 审批人 / 抄送人 / 发起人均可在实例下自由留言（不影响审批流转），支持 @ 提及
 export const workflowComments = pgTable('workflow_comments', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   instanceId: integer().notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),
   /** 关联的任务（在某审批任务上下文中评论时填写，可为空） */
   taskId: integer().references(() => workflowTasks.id, { onDelete: 'set null' }),
@@ -751,7 +751,7 @@ export const workflowComments = pgTable('workflow_comments', {
   mentions: jsonb().$type<number[]>().default([]).notNull(),
   /** 附件列表（{ name, url, size? }[]） */
   attachments: jsonb().$type<Array<{ name: string; url: string; size?: number }>>().default([]).notNull(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('workflow_comments_task_idx').on(t.taskId), index('workflow_comments_parent_idx').on(t.parentId), index('workflow_comments_instance_idx').on(t.instanceId), index('workflow_comments_user_idx').on(t.userId), index('workflow_comments_tenant_idx').on(t.tenantId)]);
 
@@ -762,11 +762,11 @@ export type NewWorkflowComment = typeof workflowComments.$inferInsert;
 // ─── 审批意见常用语 ───────────────────────────────────────────────────────────
 // userId 为 null 表示系统预置（所有人可见）；否则为个人常用语
 export const workflowQuickPhrases = pgTable('workflow_quick_phrases', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().references(() => users.id, { onDelete: 'cascade' }),
   content: varchar({ length: 255 }).notNull(),
-  sort: integer().default(0).notNull(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  sort: sortColumn(),
+  tenantId: tenantIdColumn(),
   ...timestampColumns(),
 }, (t) => [index('workflow_quick_phrases_user_idx').on(t.userId), index('workflow_quick_phrases_tenant_idx').on(t.tenantId)]);
 
@@ -777,7 +777,7 @@ export type NewWorkflowQuickPhrase = typeof workflowQuickPhrases.$inferInsert;
 // ─── 审批代理 / 离岗委托 ──────────────────────────────────────────────────────
 // principal 在 [startAt, endAt] 区间内（或永久）将其待审批任务自动转交给 delegate
 export const workflowDelegations = pgTable('workflow_delegations', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 委托人（被代理人）：其待办将被转交 */
   principalId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   /** 代理人（受托人）：接收待办 */
@@ -792,7 +792,7 @@ export const workflowDelegations = pgTable('workflow_delegations', {
   /** 生效结束时间（为 null 表示长期有效） */
   endAt: timestamp({ withTimezone: true }),
   enabled: boolean().default(true).notNull(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('workflow_delegations_definition_idx').on(t.definitionId), index('workflow_delegations_tenant_idx').on(t.tenantId)]);
@@ -804,7 +804,7 @@ export type NewWorkflowDelegation = typeof workflowDelegations.$inferInsert;
 // ─── 业务编号计数器 ───────────────────────────────────────────────────────────
 // 每个流程定义 + 周期键（如 '20260620' / 'ALL'）维护一个自增序列，原子自增防并发
 export const workflowSerialCounters = pgTable('workflow_serial_counters', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   definitionId: integer().notNull().references(() => workflowDefinitions.id, { onDelete: 'cascade' }),
   periodKey: varchar({ length: 16 }).notNull(),
   seq: integer().default(0).notNull(),
@@ -816,7 +816,7 @@ export type NewWorkflowSerialCounter = typeof workflowSerialCounters.$inferInser
 
 // ─── 流程模板库 ───────────────────────────────────────────────────────────────
 export const workflowTemplates = pgTable('workflow_templates', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull(),
   code: varchar({ length: 64 }),
   description: text(),
@@ -827,10 +827,10 @@ export const workflowTemplates = pgTable('workflow_templates', {
   flowData: jsonb(),
   /** 表单结构（{ fields, settings }），克隆时创建对应表单 */
   formSchema: jsonb(),
-  sort: integer().default(0).notNull(),
+  sort: sortColumn(),
   /** 系统内置模板（不可删除） */
   builtin: boolean().default(false).notNull(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('workflow_templates_tenant_idx').on(t.tenantId), unique('workflow_templates_code_uniq').on(t.code)]);
@@ -843,7 +843,7 @@ export type NewWorkflowTemplate = typeof workflowTemplates.$inferInsert;
 export const workflowTaskConsultStatusEnum = pgEnum('workflow_task_consult_status', ['pending', 'replied', 'revoked']);
 
 export const workflowTaskConsults = pgTable('workflow_task_consults', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   taskId: integer().notNull().references(() => workflowTasks.id, { onDelete: 'cascade' }),
   instanceId: integer().notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),
   /** 发起协办的审批人 */
@@ -854,7 +854,7 @@ export const workflowTaskConsults = pgTable('workflow_task_consults', {
   opinion: text(),
   status: workflowTaskConsultStatusEnum().default('pending').notNull(),
   repliedAt: timestamp({ withTimezone: true }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('workflow_task_consults_task_idx').on(t.taskId), index('workflow_task_consults_instance_idx').on(t.instanceId), index('workflow_task_consults_tenant_idx').on(t.tenantId)]);
 

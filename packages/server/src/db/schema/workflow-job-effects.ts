@@ -1,9 +1,10 @@
 import { index, integer, jsonb, pgTable, timestamp, unique, varchar } from 'drizzle-orm/pg-core';
 import { workflowJobs } from './workflow';
+import { idColumn } from './common';
 
 /** Internal form changes and their receipts commit together under the job lease. */
 export const workflowJobEffects = pgTable('workflow_job_effects', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   jobId: integer().notNull().references(() => workflowJobs.id, { onDelete: 'cascade' }),
   operationKey: varchar({ length: 64 }).notNull(),
   effectKey: varchar({ length: 128 }).notNull(),

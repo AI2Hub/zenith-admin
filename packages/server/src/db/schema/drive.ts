@@ -1,8 +1,8 @@
 import { pgTable, varchar, timestamp, pgEnum, integer, bigint, boolean, primaryKey, foreignKey, unique, index, uniqueIndex, text, jsonb, smallint, uuid as pgUuid, customType, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import type { DriveCollectPolicy } from '@zenith/shared/drive';
-import { statusEnum, timestampColumns } from './common';
-import { auditColumns, departments, tenants, users } from './core';
+import { timestampColumns, idColumn, statusColumn, sortColumn, remarkColumn } from './common';
+import { auditColumns, departments, users, tenantIdColumn } from './core';
 import { managedFiles } from './files';
 
 // ─── 枚举（与 @zenith/shared/drive constants 三端同步）─────────────────────────
@@ -42,7 +42,7 @@ export const driveActivityActionEnum = pgEnum('drive_activity_action', [
 // ─── 空间 ─────────────────────────────────────────────────────────────────────
 
 export const driveSpaces = pgTable('drive_spaces', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   type: driveSpaceTypeEnum().notNull(),
   name: varchar({ length: 100 }).notNull(),
   description: varchar({ length: 300 }),
@@ -61,11 +61,11 @@ export const driveSpaces = pgTable('drive_spaces', {
   /** 每文件保留版本数上限；null = 取系统配置默认值 */
   maxVersions: integer(),
   allowExternalShare: boolean().notNull().default(true),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   /** 归档时间；非空即只读（不可上传 / 修改 / 分享），空间 manager 可恢复 */
   archivedAt: timestamp(),
-  sort: integer().notNull().default(0),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  sort: sortColumn(),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -94,7 +94,7 @@ export type DriveSpaceMemberRow = typeof driveSpaceMembers.$inferSelect;
 // ─── 节点（文件夹 / 文件统一树）───────────────────────────────────────────────
 
 export const driveNodes = pgTable('drive_nodes', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   spaceId: integer().notNull().references(() => driveSpaces.id, { onDelete: 'cascade' }),
   /** 父节点；null = 空间根级 */
   parentId: integer().references((): AnyPgColumn => driveNodes.id, { onDelete: 'cascade' }),
@@ -128,7 +128,7 @@ export const driveNodes = pgTable('drive_nodes', {
   deletedBy: integer().references(() => users.id, { onDelete: 'set null' }),
   /** 同一次删除的子树根节点 id；回收站只展示 deletedRootId = id 的根项 */
   deletedRootId: integer(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -153,14 +153,14 @@ export type NewDriveNode = typeof driveNodes.$inferInsert;
 
 /** 节点授权（含 expireAt 临时授权；子树继承） */
 export const driveNodePermissions = pgTable('drive_node_permissions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   nodeId: integer().notNull().references(() => driveNodes.id, { onDelete: 'cascade' }),
   subjectType: driveSubjectTypeEnum().notNull(),
   subjectId: integer().notNull(),
   role: driveRoleEnum().notNull(),
   /** 到期自动失效；null = 长期 */
   expireAt: timestamp(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -172,7 +172,7 @@ export type DriveNodePermissionRow = typeof driveNodePermissions.$inferSelect;
 
 /** 文件版本（追加型，作者即上传人） */
 export const driveFileVersions = pgTable('drive_file_versions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   nodeId: integer().notNull().references(() => driveNodes.id, { onDelete: 'cascade' }),
   version: integer().notNull(),
   fileId: pgUuid().notNull().references(() => managedFiles.id, { onDelete: 'restrict' }),
@@ -191,7 +191,7 @@ export type DriveFileVersionRow = typeof driveFileVersions.$inferSelect;
 // ─── 外链 ─────────────────────────────────────────────────────────────────────
 
 export const driveShareLinks = pgTable('drive_share_links', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   nodeId: integer().notNull().references(() => driveNodes.id, { onDelete: 'cascade' }),
   /** share = 分享；collect = 文件收集（目标必须是文件夹，能力位含 upload） */
   kind: driveShareKindEnum().notNull().default('share'),
@@ -219,8 +219,8 @@ export const driveShareLinks = pgTable('drive_share_links', {
   /** 访问会话版本；+1 即让所有已签发会话失效 */
   sessionVersion: integer().notNull().default(1),
   revokedAt: timestamp(),
-  remark: varchar({ length: 256 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  remark: remarkColumn(),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -232,7 +232,7 @@ export type DriveShareLinkRow = typeof driveShareLinks.$inferSelect;
 
 /** 文件收集的提交记录：谁通过哪条收集链接提交了什么（文件彻底删除后保留记录） */
 export const driveCollectSubmissions = pgTable('drive_collect_submissions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   shareId: integer().notNull().references(() => driveShareLinks.id, { onDelete: 'cascade' }),
   nodeId: integer().references(() => driveNodes.id, { onDelete: 'set null' }),
   fileName: varchar({ length: 255 }).notNull(),
@@ -251,7 +251,7 @@ export const driveAccessRequestStatusEnum = pgEnum('drive_access_request_status'
 
 /** 无权限用户对节点发起的访问申请；通过后写入 drive_node_permissions 的用户直接授权 */
 export const driveAccessRequests = pgTable('drive_access_requests', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   nodeId: integer().notNull().references(() => driveNodes.id, { onDelete: 'cascade' }),
   spaceId: integer().notNull().references(() => driveSpaces.id, { onDelete: 'cascade' }),
   requesterId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -263,7 +263,7 @@ export const driveAccessRequests = pgTable('drive_access_requests', {
   decidedBy: integer().references(() => users.id, { onDelete: 'set null' }),
   decidedAt: timestamp(),
   decisionNote: varchar({ length: 200 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...timestampColumns(),
 }, (t) => [
   // 同一人对同一节点同时只允许一条待审批申请
@@ -281,7 +281,7 @@ export type DriveAccessRequestRow = typeof driveAccessRequests.$inferSelect;
  * 也不参与回收站到期清理与版本修剪。解除后记录保留（active=false）供审计。
  */
 export const driveLegalHolds = pgTable('drive_legal_holds', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   nodeId: integer().notNull().references(() => driveNodes.id, { onDelete: 'cascade' }),
   spaceId: integer().notNull().references(() => driveSpaces.id, { onDelete: 'cascade' }),
   reason: varchar({ length: 500 }).notNull(),
@@ -289,7 +289,7 @@ export const driveLegalHolds = pgTable('drive_legal_holds', {
   releasedBy: integer().references(() => users.id, { onDelete: 'set null' }),
   releasedAt: timestamp(),
   releaseNote: varchar({ length: 200 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -302,7 +302,7 @@ export type DriveLegalHoldRow = typeof driveLegalHolds.$inferSelect;
 
 /** 空间扩容申请：空间 manager 发起，网盘管理员审批；通过即写入空间显式配额 */
 export const driveQuotaRequests = pgTable('drive_quota_requests', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   spaceId: integer().notNull().references(() => driveSpaces.id, { onDelete: 'cascade' }),
   requesterId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   /** 申请时的生效配额（字节）；0 = 不限 */
@@ -315,7 +315,7 @@ export const driveQuotaRequests = pgTable('drive_quota_requests', {
   decidedBy: integer().references(() => users.id, { onDelete: 'set null' }),
   decidedAt: timestamp(),
   decisionNote: varchar({ length: 200 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...timestampColumns(),
 }, (t) => [
   // 同一空间同时只允许一条待审批申请
@@ -330,15 +330,15 @@ export type DriveQuotaRequestRow = typeof driveQuotaRequests.$inferSelect;
  * 未授权空间对第三方应用完全不可见（与 cms_open_app_grants 同一思路）。
  */
 export const driveOpenAppGrants = pgTable('drive_open_app_grants', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 开放应用 AppKey（= oauth2_clients.client_id） */
   clientId: varchar({ length: 64 }).notNull(),
   spaceId: integer().notNull().references(() => driveSpaces.id, { onDelete: 'cascade' }),
   /** 该应用在空间内的最高角色：viewer 只读元数据 / downloader 可取内容 / editor 可上传 */
   role: driveRoleEnum().notNull().default('downloader'),
-  status: statusEnum().notNull().default('enabled'),
-  remark: varchar({ length: 200 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  status: statusColumn(),
+  remark: remarkColumn(200),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -388,7 +388,7 @@ export const driveActivities = pgTable('drive_activities', {
   shareId: integer(),
   detail: jsonb().$type<Record<string, unknown>>(),
   clientIp: varchar({ length: 64 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [
   index('drive_activities_node_idx').on(t.nodeId, t.createdAt),
@@ -423,7 +423,7 @@ export const driveRecentAccess = pgTable('drive_recent_access', {
 
 /** 分片上传会话与目标目录的绑定（随 upload_sessions 保留策略清理） */
 export const driveUploadBindings = pgTable('drive_upload_bindings', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   uploadId: varchar({ length: 64 }).notNull().unique('drive_upload_bindings_upload_id_unique'),
   spaceId: integer().notNull().references(() => driveSpaces.id, { onDelete: 'cascade' }),
   parentId: integer().references(() => driveNodes.id, { onDelete: 'cascade' }),
@@ -433,7 +433,7 @@ export const driveUploadBindings = pgTable('drive_upload_bindings', {
   fileSize: bigint({ mode: 'number' }).notNull(),
   conflictPolicy: driveUploadConflictPolicyEnum().notNull().default('rename'),
   expectedHash: varchar({ length: 64 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdBy: integer().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp().defaultNow().notNull(),
 });
@@ -441,11 +441,11 @@ export const driveUploadBindings = pgTable('drive_upload_bindings', {
 // ─── 标签 / 评论 / 全文索引（P2）─────────────────────────────────────────────
 
 export const driveTags = pgTable('drive_tags', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   spaceId: integer().notNull().references(() => driveSpaces.id, { onDelete: 'cascade' }),
   name: varchar({ length: 50 }).notNull(),
   color: varchar({ length: 20 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [unique('drive_tags_space_name_unique').on(t.spaceId, t.name)]);
@@ -462,13 +462,13 @@ export const driveNodeTags = pgTable('drive_node_tags', {
 
 /** 文件评论（作者即当前用户） */
 export const driveNodeComments = pgTable('drive_node_comments', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   nodeId: integer().notNull().references(() => driveNodes.id, { onDelete: 'cascade' }),
   parentId: integer().references((): AnyPgColumn => driveNodeComments.id, { onDelete: 'cascade' }),
   content: varchar({ length: 2000 }).notNull(),
   mentionUserIds: integer().array().notNull().default([]),
   authorId: integer().references(() => users.id, { onDelete: 'set null' }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...timestampColumns(),
 }, (t) => [index('drive_node_comments_node_idx').on(t.nodeId)]);
 
@@ -517,7 +517,7 @@ export const driveNodeTexts = pgTable('drive_node_texts', {
  * 生产者是系统队列 worker `drive-renditions`（去重键 node:version:kind），正文本体存 drive_node_texts。
  */
 export const driveNodeRenditions = pgTable('drive_node_renditions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   nodeId: integer().notNull().references(() => driveNodes.id, { onDelete: 'cascade' }),
   /** 产物对应的文件版本号 */
   version: integer().notNull(),

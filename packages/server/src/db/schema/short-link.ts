@@ -6,20 +6,20 @@
  * - short_link_daily_stats 按日聚合（P2 起由定时任务物化，长周期趋势与明细瘦身后的数据源）
  */
 import { pgTable, pgEnum, varchar, timestamp, integer, text, boolean, date, index, uniqueIndex, bigint } from 'drizzle-orm/pg-core';
-import { statusEnum, timestampColumns } from './common';
-import { auditColumns, tenants } from './core';
+import { timestampColumns, idColumn, statusColumn, remarkColumn } from './common';
+import { auditColumns, tenantIdColumn } from './core';
 
 /** 跳转方式：302 临时（默认，可统计可改址）/ 301 永久（浏览器缓存，改址不生效） */
 export const shortLinkRedirectTypeEnum = pgEnum('short_link_redirect_type', ['302', '301']);
 
 export const shortLinks = pgTable('short_links', {
-  id:           integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:           idColumn(),
   /** 短码，全局唯一（多租户下也不重复，跳转按 code 寻址） */
   code:         varchar({ length: 32 }).notNull().unique(),
   targetUrl:    text().notNull(),
   title:        varchar({ length: 128 }),
   redirectType: shortLinkRedirectTypeEnum().notNull().default('302'),
-  status:       statusEnum().notNull().default('enabled'),
+  status:       statusColumn(),
   /** 过期时间，null = 永久有效 */
   expiresAt:    timestamp(),
   /** 访问次数上限，null = 不限 */
@@ -35,11 +35,11 @@ export const shortLinks = pgTable('short_links', {
   bizType:      varchar({ length: 32 }).notNull().default('custom'),
   /** 来源业务标识（与 bizType 组合定位业务对象，幂等复用） */
   bizRef:       varchar({ length: 64 }),
-  remark:       varchar({ length: 256 }),
+  remark:       remarkColumn(),
   /** 累计访问次数（不含爬虫，异步点击落库时递增，maxVisits 判定依据） */
   totalPv:      integer().notNull().default(0),
   lastVisitAt:  timestamp(),
-  tenantId:     integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId:     tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -75,7 +75,7 @@ export type ShortLinkClickRow = typeof shortLinkClicks.$inferSelect;
 export type NewShortLinkClick = typeof shortLinkClicks.$inferInsert;
 
 export const shortLinkDailyStats = pgTable('short_link_daily_stats', {
-  id:       integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:       idColumn(),
   linkId:   integer().notNull().references(() => shortLinks.id, { onDelete: 'cascade' }),
   statDate: date().notNull(),
   pv:       integer().notNull().default(0),

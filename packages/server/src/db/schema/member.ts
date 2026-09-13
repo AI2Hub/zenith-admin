@@ -1,7 +1,7 @@
 import { pgTable, varchar, timestamp, pgEnum, integer, boolean, unique, uniqueIndex, index, jsonb, date, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { statusEnum, timestampColumns } from './common';
-import { auditColumns, tenants, users } from './core';
+import { timestampColumns, idColumn, statusColumn, sortColumn, remarkColumn } from './common';
+import { auditColumns, users, tenantIdColumn } from './core';
 import { loginStatusEnum } from './logs';
 
 // ─── 会员相关枚举（三端同步：pgEnum / TS union / Zod enum）───────────────────
@@ -21,7 +21,7 @@ export const memberCouponStatusEnum = pgEnum('member_coupon_status', ['unused', 
 
 // ─── 会员等级配置表 ───────────────────────────────────────────────────────────
 export const memberLevels = pgTable('member_levels', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 32 }).notNull(),
   /** 等级序号（0=最低，数字越大等级越高，全局唯一）*/
   level: integer().notNull().default(0),
@@ -33,8 +33,8 @@ export const memberLevels = pgTable('member_levels', {
   /** 等级权益描述列表 */
   benefits: jsonb().$type<string[]>().notNull().default([]),
   description: varchar({ length: 256 }),
-  sort: integer().notNull().default(0),
-  status: statusEnum().notNull().default('enabled'),
+  sort: sortColumn(),
+  status: statusColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [unique('member_levels_level_unique').on(t.level)]);
@@ -45,7 +45,7 @@ export type NewMemberLevel = typeof memberLevels.$inferInsert;
 
 // ─── 会员主表（前台用户，全局唯一，保留 tenantId 备用，默认 null）──────────────
 export const members = pgTable('members', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 登录用户名（可空，全局唯一）*/
   username: varchar({ length: 32 }),
   /** 手机号（可空，全局唯一，国内主登录凭证）*/
@@ -70,14 +70,14 @@ export const members = pgTable('members', {
   registerIp: varchar({ length: 64 }),
   lastLoginAt: timestamp({ withTimezone: true }),
   lastLoginIp: varchar({ length: 64 }),
-  remark: varchar({ length: 256 }),
+  remark: remarkColumn(),
   /** 软删除时间（非 null 即已删除；资金流水/券码等历史数据保留）*/
   deletedAt: timestamp({ withTimezone: true }),
   /** 邀请码（懒生成，全局唯一）*/
   inviteCode: varchar({ length: 16 }),
   /** 邀请人会员 ID */
   invitedBy: integer().references((): AnyPgColumn => members.id, { onDelete: 'set null' }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('members_tenant_idx').on(t.tenantId), 
@@ -96,7 +96,7 @@ export type NewMember = typeof members.$inferInsert;
 
 // ─── VIP 续费记录（自动续费扣款成功的幂等键 + 前台续费历史）────────────────────
 export const memberVipRenewals = pgTable('member_vip_renewals', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   memberId: integer().notNull().references(() => members.id, { onDelete: 'cascade' }),
   /** 支付订单号（唯一，防事件重投重复延期） */
   orderNo: varchar({ length: 64 }).notNull().unique('member_vip_renewals_order_no_unique'),
@@ -114,13 +114,13 @@ export type NewMemberVipRenewal = typeof memberVipRenewals.$inferInsert;
 
 // ─── 会员标签（运营分群基础）──────────────────────────────────────────────────
 export const memberTags = pgTable('member_tags', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 32 }).notNull(),
   /** 展示颜色（Semi Tag color 或 hex）*/
   color: varchar({ length: 20 }),
   description: varchar({ length: 256 }),
-  sort: integer().notNull().default(0),
-  status: statusEnum().notNull().default('enabled'),
+  sort: sortColumn(),
+  status: statusColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [unique('member_tags_name_unique').on(t.name)]);
@@ -131,7 +131,7 @@ export type NewMemberTag = typeof memberTags.$inferInsert;
 
 // ─── 会员-标签绑定 ────────────────────────────────────────────────────────────
 export const memberTagBindings = pgTable('member_tag_bindings', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   memberId: integer().notNull().references(() => members.id, { onDelete: 'cascade' }),
   tagId: integer().notNull().references(() => memberTags.id, { onDelete: 'cascade' }),
   createdAt: timestamp().defaultNow().notNull(),
@@ -146,7 +146,7 @@ export type NewMemberTagBinding = typeof memberTagBindings.$inferInsert;
 
 // ─── 会员积分账户表（一会员一账户，version 乐观锁）──────────────────────────────
 export const memberPointAccounts = pgTable('member_point_accounts', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   memberId: integer().notNull().references(() => members.id, { onDelete: 'cascade' }),
   /** 当前可用积分 */
   balance: integer().notNull().default(0),
@@ -167,7 +167,7 @@ export type NewMemberPointAccount = typeof memberPointAccounts.$inferInsert;
 
 // ─── 会员积分流水表（追加型）──────────────────────────────────────────────────
 export const memberPointTransactions = pgTable('member_point_transactions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   memberId: integer().notNull().references(() => members.id, { onDelete: 'cascade' }),
   type: pointTxTypeEnum().notNull(),
   /** 积分变动量（正=增加，负=减少）*/
@@ -177,7 +177,7 @@ export const memberPointTransactions = pgTable('member_point_transactions', {
   /** 业务类型：signin / purchase / redeem / admin_adjust / refund ... */
   bizType: varchar({ length: 64 }),
   bizId: varchar({ length: 128 }),
-  remark: varchar({ length: 256 }),
+  remark: remarkColumn(),
   /** 后台操作人（管理员手动调整时记录）*/
   operatorId: integer().references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp().defaultNow().notNull(),
@@ -192,7 +192,7 @@ export type NewMemberPointTransaction = typeof memberPointTransactions.$inferIns
 
 // ─── 会员钱包账户表（余额单位：分，version 乐观锁）─────────────────────────────
 export const memberWallets = pgTable('member_wallets', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   memberId: integer().notNull().references(() => members.id, { onDelete: 'cascade' }),
   /** 余额（分）*/
   balance: integer().notNull().default(0),
@@ -213,7 +213,7 @@ export type NewMemberWallet = typeof memberWallets.$inferInsert;
 
 // ─── 会员钱包流水表（追加型）──────────────────────────────────────────────────
 export const memberWalletTransactions = pgTable('member_wallet_transactions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   memberId: integer().notNull().references(() => members.id, { onDelete: 'cascade' }),
   type: walletTxTypeEnum().notNull(),
   /** 金额变动（分，正=增加，负=减少）*/
@@ -225,7 +225,7 @@ export const memberWalletTransactions = pgTable('member_wallet_transactions', {
   /** 充值履约引用的不可变支付意图号与事件 ID；不直接外键依赖支付内部表。 */
   paymentIntentNo: varchar({ length: 64 }),
   paymentEventId: varchar({ length: 128 }),
-  remark: varchar({ length: 256 }),
+  remark: remarkColumn(),
   operatorId: integer().references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('member_wallet_transactions_operator_idx').on(t.operatorId), 
@@ -240,7 +240,7 @@ export type NewMemberWalletTransaction = typeof memberWalletTransactions.$inferI
 
 // ─── 优惠券模板表 ─────────────────────────────────────────────────────────────
 export const coupons = pgTable('coupons', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull(),
   /** amount=满减券, percent=折扣券 */
   type: couponTypeEnum().notNull(),
@@ -266,7 +266,7 @@ export const coupons = pgTable('coupons', {
   exchangePoints: integer().notNull().default(0),
   status: couponTemplateStatusEnum().notNull().default('draft'),
   description: varchar({ length: 256 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('coupons_tenant_idx').on(t.tenantId), index('coupons_status_idx').on(t.status)]);
@@ -277,7 +277,7 @@ export type NewCoupon = typeof coupons.$inferInsert;
 
 // ─── 会员优惠券（券码 / 领取记录）─────────────────────────────────────────────
 export const memberCoupons = pgTable('member_coupons', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   couponId: integer().notNull().references(() => coupons.id, { onDelete: 'cascade' }),
   memberId: integer().notNull().references(() => members.id, { onDelete: 'cascade' }),
   /** 券码（全局唯一）*/
@@ -303,7 +303,7 @@ export type NewMemberCoupon = typeof memberCoupons.$inferInsert;
 
 // ─── 会员登录日志表 ──────────────────────────────────────────────────────────
 export const memberLoginLogs = pgTable('member_login_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   memberId: integer().references(() => members.id, { onDelete: 'cascade' }),
   ip: varchar({ length: 64 }),
   location: varchar({ length: 128 }),
@@ -324,11 +324,11 @@ export type NewMemberLoginLog = typeof memberLoginLogs.$inferInsert;
 
 // ─── 签到规则 ──────────────────────────────────────────────────────────────────
 export const checkinRules = pgTable('checkin_rules', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   dayNumber: integer().notNull(),
   points: integer().notNull().default(0),
   experience: integer().notNull().default(0),
-  remark: varchar({ length: 256 }),
+  remark: remarkColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -341,7 +341,7 @@ export type NewCheckinRule = typeof checkinRules.$inferInsert;
 
 // ─── 会员签到记录 ───────────────────────────────────────────────────────────────
 export const memberCheckins = pgTable('member_checkins', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   memberId: integer().notNull().references(() => members.id, { onDelete: 'cascade' }),
   checkinDate: date().notNull(),
   consecutiveDays: integer().notNull().default(1),
@@ -349,7 +349,7 @@ export const memberCheckins = pgTable('member_checkins', {
   experienceAwarded: integer().notNull().default(0),
   isMakeup: boolean().notNull().default(false),
   /** 备注（管理端补签时记录补签原因）*/
-  remark: varchar({ length: 256 }),
+  remark: remarkColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [
   unique('member_checkins_member_id_checkin_date_unique').on(t.memberId, t.checkinDate),
@@ -361,7 +361,7 @@ export type NewMemberCheckin = typeof memberCheckins.$inferInsert;
 
 // ─── 签到设置（单行配置：补签开关 / 消耗积分 / 可回溯天数）────────────────────────
 export const checkinSettings = pgTable('checkin_settings', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   makeupEnabled: boolean().notNull().default(true),
   makeupCostPoints: integer().notNull().default(20),
   makeupMaxDays: integer().notNull().default(7),
@@ -377,14 +377,14 @@ export type NewCheckinSettings = typeof checkinSettings.$inferInsert;
 export const checkinMilestoneRewardTypeEnum = pgEnum('checkin_milestone_reward_type', ['points', 'coupon']);
 
 export const checkinMilestones = pgTable('checkin_milestones', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   title: varchar({ length: 64 }).notNull(),
   cumulativeDays: integer().notNull(),
   rewardType: checkinMilestoneRewardTypeEnum().notNull().default('points'),
   rewardPoints: integer().notNull().default(0),
   couponId: integer().references(() => coupons.id, { onDelete: 'set null' }),
   enabled: boolean().notNull().default(true),
-  remark: varchar({ length: 256 }),
+  remark: remarkColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -397,7 +397,7 @@ export type NewCheckinMilestone = typeof checkinMilestones.$inferInsert;
 
 // ─── 会员里程碑发放记录（防重复发放）──────────────────────────────────────────
 export const memberCheckinMilestoneAwards = pgTable('member_checkin_milestone_awards', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   memberId: integer().notNull().references(() => members.id, { onDelete: 'cascade' }),
   milestoneId: integer().notNull().references(() => checkinMilestones.id, { onDelete: 'cascade' }),
   cumulativeDays: integer().notNull(),
@@ -416,7 +416,7 @@ export type NewMemberCheckinMilestoneAward = typeof memberCheckinMilestoneAwards
 
 // ─── 会员站内通知 ─────────────────────────────────────────────────────────────
 export const memberNotifications = pgTable('member_notifications', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   memberId: integer().notNull().references(() => members.id, { onDelete: 'cascade' }),
   /** 通知类型：birthday / coupon_expiring / point_adjust / wallet_adjust / invite_reward / system ... */
   type: varchar({ length: 32 }).notNull(),

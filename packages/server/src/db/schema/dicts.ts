@@ -1,15 +1,15 @@
 import { pgTable, varchar, integer, unique, uniqueIndex, jsonb, type AnyPgColumn, index } from 'drizzle-orm/pg-core';
-import { statusEnum, timestampColumns } from './common';
-import { auditColumns, tenants } from './core';
+import { timestampColumns, idColumn, statusColumn, sortColumn, remarkColumn } from './common';
+import { auditColumns, tenantIdColumn } from './core';
 
 // ─── 字典表 ───────────────────────────────────────────────────────────────────
 export const dicts = pgTable('dicts', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull(),
   code: varchar({ length: 64 }).notNull(),
   description: varchar({ length: 256 }),
-  status: statusEnum().notNull().default('enabled'),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  status: statusColumn(),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [unique('dicts_tenant_code_unique').on(t.tenantId, t.code)]);
@@ -20,15 +20,15 @@ export type NewDict = typeof dicts.$inferInsert;
 
 // ─── 字典项表 ─────────────────────────────────────────────────────────────────
 export const dictItems = pgTable('dict_items', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   dictId: integer().notNull().references(() => dicts.id, { onDelete: 'cascade' }),
   parentId: integer().references((): AnyPgColumn => dictItems.id, { onDelete: 'cascade' }),
   label: varchar({ length: 64 }).notNull(),
   value: varchar({ length: 64 }).notNull(),
   color: varchar({ length: 32 }),
-  sort: integer().notNull().default(0),
-  status: statusEnum().notNull().default('enabled'),
-  remark: varchar({ length: 256 }),
+  sort: sortColumn(),
+  status: statusColumn(),
+  remark: remarkColumn(),
   metadata: jsonb(),
   ...auditColumns(),
   ...timestampColumns(),

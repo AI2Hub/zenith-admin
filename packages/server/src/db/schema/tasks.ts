@@ -1,7 +1,7 @@
-import { timestampColumns } from './common';
+import { timestampColumns, idColumn } from './common';
 import { pgTable, varchar, timestamp, pgEnum, integer, boolean, unique, uniqueIndex, text, index, jsonb, uuid as pgUuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { auditColumns, tenants, users } from './core';
+import { auditColumns, users, tenantIdColumn } from './core';
 import { managedFiles } from './files';
 import { EXPORT_JOB_FORMATS } from '@zenith/shared/tasks';
 
@@ -19,7 +19,7 @@ export const asyncTaskItemStatusEnum = pgEnum('async_task_item_status', ['pendin
 
 // ─── 导出中心任务 ──────────────────────────────────────────────────────────────
 export const exportJobs = pgTable('export_jobs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   entity: varchar({ length: 64 }).notNull(),
   moduleName: varchar({ length: 64 }).notNull(),
   format: exportJobFormatEnum().notNull(),
@@ -41,7 +41,7 @@ export const exportJobs = pgTable('export_jobs', {
   deleteReason: exportJobDeleteReasonEnum(),
   downloadCount: integer().notNull().default(0),
   lastDownloadedAt: timestamp(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   startedAt: timestamp(),
   completedAt: timestamp(),
@@ -60,7 +60,7 @@ export type NewExportJob = typeof exportJobs.$inferInsert;
 
 // ─── 任务中心（通用异步任务）────────────────────────────────────────────────────
 export const asyncTasks = pgTable('async_tasks', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 任务类型标识，对应 lib/task-center 注册表中的 handler */
   taskType: varchar({ length: 64 }).notNull(),
   title: varchar({ length: 128 }).notNull(),
@@ -104,7 +104,7 @@ export const asyncTasks = pgTable('async_tasks', {
   parentRef: varchar({ length: 32 }),
   /** 节点亲和任务（handler.affinity = 'node'）的目标进程（hostname:pid）；普通任务为 null，任何 worker 可领取 */
   nodeId: varchar({ length: 128 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   startedAt: timestamp(),
   completedAt: timestamp(),
@@ -137,7 +137,7 @@ export type NewAsyncTask = typeof asyncTasks.$inferInsert;
 
 /** 任务项明细（可选层）：行级处理状态，导入/批量场景的逐行错误报告 */
 export const asyncTaskItems = pgTable('async_task_items', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   taskId: integer().notNull().references(() => asyncTasks.id, { onDelete: 'cascade' }),
   /** 业务标识（行号、用户ID、单号等），同一任务内唯一，重试时按 key 覆盖 */
   itemKey: varchar({ length: 128 }).notNull(),
@@ -176,10 +176,10 @@ export const asyncTaskTypeConfigs = pgTable('async_task_type_configs', {
 export type AsyncTaskTypeConfigRow = typeof asyncTaskTypeConfigs.$inferSelect;
 
 export const exportJobDownloads = pgTable('export_job_downloads', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   jobId: integer().notNull().references(() => exportJobs.id, { onDelete: 'cascade' }),
   downloadedBy: integer().references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ip: varchar({ length: 64 }),
   userAgent: varchar({ length: 512 }),
   createdAt: timestamp().defaultNow().notNull(),

@@ -1,12 +1,12 @@
-import { timestampColumns } from './common';
+import { timestampColumns, idColumn } from './common';
 import { pgTable, varchar, timestamp, pgEnum, integer, text, real, index } from 'drizzle-orm/pg-core';
-import { auditColumns, tenants } from './core';
+import { auditColumns, tenantIdColumn } from './core';
 
 // ─── 业务接入示例：请假（业务模块自有实体，通过 businessKey 关联工作流）──────────
 export const bizLeaveStatusEnum = pgEnum('biz_leave_status', ['draft', 'pending', 'approved', 'rejected', 'cancelled']);
 
 export const bizLeaves = pgTable('biz_leaves', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   leaveType: varchar({ length: 32 }).notNull(),
   startDate: timestamp({ withTimezone: true }).notNull(),
   endDate: timestamp({ withTimezone: true }).notNull(),
@@ -17,7 +17,7 @@ export const bizLeaves = pgTable('biz_leaves', {
   workflowInstanceId: integer(),
   /** 冗余的工作流状态，便于列表直接展示（由订阅器回写） */
   workflowStatus: varchar({ length: 16 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('biz_leaves_tenant_idx').on(t.tenantId)]);
@@ -30,7 +30,7 @@ export type NewBizLeave = typeof bizLeaves.$inferInsert;
 export const bizPayDemoStatusEnum = pgEnum('biz_pay_demo_status', ['pending', 'paying', 'paid', 'closed']);
 
 export const bizPayDemos = pgTable('biz_pay_demos', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 示例事项 / 商品名称 */
   subject: varchar({ length: 128 }).notNull(),
   /** 金额（分） */
@@ -44,7 +44,7 @@ export const bizPayDemos = pgTable('biz_pay_demos', {
   paidAt: timestamp({ withTimezone: true }),
   /** 履约备注（演示：支付成功后自动发放示例权益） */
   fulfillRemark: varchar({ length: 255 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('biz_pay_demos_tenant_idx').on(t.tenantId)]);

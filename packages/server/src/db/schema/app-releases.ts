@@ -6,7 +6,7 @@
  * app_release_events 是追加型日志（检查 / 下载 / 安装回执），供升级看板统计。
  */
 import { pgTable, pgEnum, varchar, text, integer, smallint, bigint, boolean, timestamp, unique, index, uuid, uniqueIndex } from 'drizzle-orm/pg-core';
-import { statusEnum, pushProviderEnum, timestampColumns } from './common';
+import { pushProviderEnum, timestampColumns, idColumn, statusColumn } from './common';
 import { auditColumns } from './core';
 import { managedFiles } from './files';
 
@@ -20,12 +20,12 @@ export const appReleaseEventTypeEnum = pgEnum('app_release_event_type', ['check'
 
 // ─── 应用 ────────────────────────────────────────────────────────────────────
 export const clientApps = pgTable('client_apps', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 客户端侧标识（如 zenith-desktop），公开 check API 用它定位应用 */
   appKey: varchar({ length: 64 }).notNull().unique('client_apps_app_key_unique'),
   name: varchar({ length: 100 }).notNull(),
   description: text(),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 });
@@ -35,7 +35,7 @@ export type NewClientApp = typeof clientApps.$inferInsert;
 
 // ─── 版本 ────────────────────────────────────────────────────────────────────
 export const appReleases = pgTable('app_releases', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   appId: integer().notNull().references(() => clientApps.id, { onDelete: 'cascade' }),
   channel: appReleaseChannelEnum().notNull().default('stable'),
   /** semver，如 1.86.0 */
@@ -59,7 +59,7 @@ export type NewAppRelease = typeof appReleases.$inferInsert;
 
 // ─── 制品 ────────────────────────────────────────────────────────────────────
 export const appArtifacts = pgTable('app_artifacts', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   releaseId: integer().notNull().references(() => appReleases.id, { onDelete: 'cascade' }),
   platform: appPlatformEnum().notNull(),
   arch: appArchEnum().notNull().default('x64'),
@@ -86,7 +86,7 @@ export type NewAppArtifact = typeof appArtifacts.$inferInsert;
 
 // ─── 升级事件（追加型日志，无审计列）────────────────────────────────────────
 export const appReleaseEvents = pgTable('app_release_events', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   appId: integer().notNull().references(() => clientApps.id, { onDelete: 'cascade' }),
   releaseId: integer().references(() => appReleases.id, { onDelete: 'set null' }),
   artifactId: integer().references(() => appArtifacts.id, { onDelete: 'set null' }),
@@ -108,7 +108,7 @@ export type NewAppReleaseEvent = typeof appReleaseEvents.$inferInsert;
 // 设备是一等公民:升级灰度、App 推送与在网统计共用一份档案。
 // 写入来自客户端上报（升级检查心跳顺手 upsert、登录后绑定推送），无审计列。
 export const clientDevices = pgTable('client_devices', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 客户端生成并持久化的匿名设备标识（与升级灰度 deviceId 同源） */
   deviceId: varchar({ length: 64 }).notNull().unique('client_devices_device_id_unique'),
   appId: integer().notNull().references(() => clientApps.id, { onDelete: 'cascade' }),

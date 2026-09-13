@@ -1,7 +1,7 @@
 import { pgTable, varchar, timestamp, pgEnum, integer, boolean, primaryKey, unique, index, text, jsonb, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { TenantPackageQuotas } from '@zenith/shared/licensing';
 import type { UserGroupMemberRule } from '@zenith/shared/identity';
-import { statusEnum, timestampColumns } from './common';
+import { timestampColumns, idColumn, statusColumn, sortColumn, remarkColumn } from './common';
 
 export const menuTypeEnum = pgEnum('menu_type', ['directory', 'menu', 'button']);
 
@@ -18,15 +18,22 @@ export const auditColumns = () => ({
   updatedBy: integer().references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
 });
 
+/**
+ * 租户归属列：`tenantId: tenantIdColumn()`（缺省随租户级联删除）；平台级资源被删除后需保留行时传 `'set null'`，
+ * 禁止在有归属数据时删租户传 `'restrict'`。可空 = 平台级 / 全局记录。
+ */
+export const tenantIdColumn = (onDelete: 'cascade' | 'set null' | 'restrict' = 'cascade') =>
+  integer().references((): AnyPgColumn => tenants.id, { onDelete });
+
 // ─── 租户表 ───────────────────────────────────────────────────────────────────
 export const tenants = pgTable('tenants', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 100 }).notNull(),
   code: varchar({ length: 50 }).notNull().unique(),
   logo: varchar({ length: 500 }),
   contactName: varchar({ length: 50 }),
   contactPhone: varchar({ length: 20 }),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   expireAt: timestamp({ withTimezone: true }),
   maxUsers: integer(),
   /** 租户套餐（菜单白名单）；为空表示不限制。应用层禁止删除在用套餐，restrict 兜底防 fail-open */
@@ -44,9 +51,9 @@ export type NewTenant = typeof tenants.$inferInsert;
 // 套餐 = 一组可授权功能 + 配额。租户绑定套餐即圈定其可用功能范围（SaaS 标配）。
 // 菜单可见性由 menus.featureKey 与套餐功能交集派生，不维护菜单 ID 白名单。
 export const tenantPackages = pgTable('tenant_packages', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 100 }).notNull().unique(),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   /** 套餐配额（席位等）；与 License / 租户级上限取最小值生效 */
   quotas: jsonb().$type<TenantPackageQuotas>(),
   remark: text(),
@@ -66,7 +73,7 @@ export const tenantPackageFeatures = pgTable('tenant_package_features', {
 
 // ─── 部门表 ───────────────────────────────────────────────────────────────────
 export const departments = pgTable('departments', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   parentId: integer().notNull().default(0),
   name: varchar({ length: 64 }).notNull(),
   code: varchar({ length: 64 }).notNull(),
@@ -74,8 +81,8 @@ export const departments = pgTable('departments', {
   leaderId: integer().references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
   phone: varchar({ length: 32 }),
   email: varchar({ length: 128 }),
-  sort: integer().notNull().default(0),
-  status: statusEnum().notNull().default('enabled'),
+  sort: sortColumn(),
+  status: statusColumn(),
   tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
   ...timestampColumns(),
@@ -87,12 +94,12 @@ export type NewDepartment = typeof departments.$inferInsert;
 
 // ─── 岗位表 ───────────────────────────────────────────────────────────────────
 export const positions = pgTable('positions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull(),
   code: varchar({ length: 64 }).notNull(),
-  sort: integer().notNull().default(0),
-  status: statusEnum().notNull().default('enabled'),
-  remark: varchar({ length: 256 }),
+  sort: sortColumn(),
+  status: statusColumn(),
+  remark: remarkColumn(),
   tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
   ...timestampColumns(),
@@ -103,7 +110,7 @@ export type PositionRow = typeof positions.$inferSelect;
 export type NewPosition = typeof positions.$inferInsert;
 
 export const users = pgTable('users', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   username: varchar({ length: 32 }).notNull(),
   nickname: varchar({ length: 32 }).notNull(),
   email: varchar({ length: 128 }),
@@ -113,7 +120,7 @@ export const users = pgTable('users', {
   departmentId: integer().references((): AnyPgColumn => departments.id, { onDelete: 'set null' }),
   tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
   gender: varchar({ length: 20 }),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   preferences: jsonb(),
   /** 用户收藏的菜单 ID 列表（有序） */
   favoriteMenus: jsonb().$type<number[]>(),
@@ -137,7 +144,7 @@ export type NewUser = typeof users.$inferInsert;
 
 // ─── 菜单表 ───────────────────────────────────────────────────────────────────
 export const menus = pgTable('menus', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   parentId: integer().notNull().default(0),
   title: varchar({ length: 64 }).notNull(),
   name: varchar({ length: 64 }),
@@ -152,8 +159,8 @@ export const menus = pgTable('menus', {
   embed: boolean().notNull().default(false),
   // 页面缓存：开启后该页面在多页签模式下切走保留状态（React Activity），关闭页签时释放
   keepAlive: boolean().notNull().default(false),
-  sort: integer().notNull().default(0),
-  status: statusEnum().notNull().default('enabled'),
+  sort: sortColumn(),
+  status: statusColumn(),
   visible: boolean().notNull().default(true),
   /** 所属可授权功能（null = 核心能力）；由功能目录经种子派生，权限解析按套餐/License 功能交集过滤 */
   featureKey: varchar({ length: 50 }),
@@ -167,11 +174,11 @@ export type NewMenu = typeof menus.$inferInsert;
 
 // ─── 角色表 ───────────────────────────────────────────────────────────────────
 export const roles = pgTable('roles', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull(),
   code: varchar({ length: 64 }).notNull(),
   description: varchar({ length: 256 }),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   dataScope: dataScopeEnum().notNull().default('all'),
   tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
@@ -206,7 +213,7 @@ export const userPositions = pgTable('user_positions', {
 // memberMode 决定成员维护方式：static = 手工维护；dynamic = 按 memberRule 自动
 // 物化到 user_group_members（消费方无感知）。动态组的成员接口只读。
 export const userGroups = pgTable('user_groups', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull(),
   code: varchar({ length: 64 }).notNull(),
   description: varchar({ length: 256 }),
@@ -216,7 +223,7 @@ export const userGroups = pgTable('user_groups', {
   memberRule: jsonb().$type<UserGroupMemberRule>(),
   /** 动态组最近一次成员同步时间 */
   ruleSyncedAt: timestamp(),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
   ...timestampColumns(),

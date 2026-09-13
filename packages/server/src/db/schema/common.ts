@@ -1,9 +1,23 @@
-import { pgEnum, timestamp } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 export const statusEnum = pgEnum('status', ['enabled', 'disabled']);
 
 /** App 推送聚合供应商（定义在 common 破除 messaging ↔ app-releases 模块环） */
 export const pushProviderEnum = pgEnum('push_provider', ['jpush']);
+
+// ─── 列积木：同一列在全库只声明一次，表文件只写业务字段 ────────────────────────
+
+/** 自增整数主键：`id: idColumn()`（业务主键为 bigint / uuid / 业务编码的表仍逐个声明） */
+export const idColumn = () => integer().primaryKey().generatedAlwaysAsIdentity();
+
+/** 启用 / 禁用状态列，默认 `enabled`：`status: statusColumn()` / `statusColumn('disabled')` */
+export const statusColumn = (defaultValue: 'enabled' | 'disabled' = 'enabled') => statusEnum().notNull().default(defaultValue);
+
+/** 排序值，默认 0：`sort: sortColumn()` */
+export const sortColumn = () => integer().notNull().default(0);
+
+/** 备注列，默认 256 字符：`remark: remarkColumn()` / `remarkColumn(500)`；长文本备注用 `text()` */
+export const remarkColumn = (length = 256) => varchar({ length });
 
 export interface TimestampColumnsOptions {
   /** `timestamptz`；缺省为不带时区的 `timestamp`（与历史多数表一致） */

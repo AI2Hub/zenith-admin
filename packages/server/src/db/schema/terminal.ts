@@ -1,8 +1,8 @@
-import { timestampColumns } from './common';
+import { timestampColumns, idColumn } from './common';
 import { pgTable, varchar, timestamp, pgEnum, integer, text, jsonb, real, uuid as pgUuid, index } from 'drizzle-orm/pg-core';
 import { v7 as uuidv7 } from 'uuid';
 import { TERMINAL_SESSION_KINDS, TERMINAL_SESSION_STATES } from '@zenith/shared/ops';
-import { tenants, users } from './core';
+import { users, tenantIdColumn } from './core';
 
 // ─── 终端会话表 ─────────────────────────────────────────────────────────
 /**
@@ -20,7 +20,7 @@ export const terminalSessions = pgTable('terminal_sessions', {
   /** 服务端生成的 UUIDv7；客户端无法指定，杜绝按 ID 抢占他人会话 */
   id: pgUuid().primaryKey().$defaultFn(() => uuidv7()),
   userId: integer().references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   kind: terminalSessionKindEnum().notNull(),
   /** 连接目标：本地 shell id / ssh:<profileId> / docker-exec:<container>:<shell> */
   target: varchar({ length: 255 }).notNull().default(''),
@@ -56,10 +56,10 @@ export type NewTerminalSession = typeof terminalSessions.$inferInsert;
 export type RecordingEvent = [number, 'o' | 'i', string];
 
 export const terminalRecordings = pgTable('terminal_recordings', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   title: varchar({ length: 256 }).notNull().default(''),
   userId: integer().references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   shell: varchar({ length: 64 }),
   cols: integer().notNull().default(80),
   rows: integer().notNull().default(24),
@@ -77,7 +77,7 @@ export type NewTerminalRecording = typeof terminalRecordings.$inferInsert;
 export const sshAuthTypeEnum = pgEnum('ssh_auth_type', ['password', 'key_path', 'key_content', 'agent']);
 
 export const sshProfiles = pgTable('ssh_profiles', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().references(() => users.id, { onDelete: 'cascade' }).notNull(),
   name: varchar({ length: 128 }).notNull(),
   host: varchar({ length: 255 }).notNull(),

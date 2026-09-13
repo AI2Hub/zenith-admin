@@ -1,6 +1,6 @@
 import { pgTable, varchar, timestamp, pgEnum, integer, boolean, primaryKey, text, jsonb, uniqueIndex, index, customType, uuid as pgUuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { statusEnum, timestampColumns } from './common';
+import { timestampColumns, idColumn, statusColumn, sortColumn, remarkColumn } from './common';
 import { auditColumns, users, departments } from './core';
 import { members } from './member';
 import { asyncTasks } from './tasks';
@@ -55,7 +55,7 @@ const tsvector = customType<{ data: string }>({
 
 // ─── CMS 站点（站群支持：一站一域名一主题）──────────────────────────────────────
 export const cmsSites = pgTable('cms_sites', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 站群父站点；null 为根站点。层级约束由服务层在全局层级锁内维护。 */
   parentId: integer().references((): AnyPgColumn => cmsSites.id, { onDelete: 'restrict' }),
   name: varchar({ length: 100 }).notNull(),
@@ -93,8 +93,8 @@ export const cmsSites = pgTable('cms_sites', {
   robots: text(),
   /** 主题参数 / URL 规则等站点级配置 */
   settings: jsonb().$type<Record<string, unknown>>().notNull().default({}),
-  status: statusEnum().notNull().default('enabled'),
-  sort: integer().notNull().default(0),
+  status: statusColumn(),
+  sort: sortColumn(),
   remark: text(),
   ...auditColumns(),
   ...timestampColumns(),
@@ -129,7 +129,7 @@ export type CmsSiteInheritanceRow = typeof cmsSiteInheritances.$inferSelect;
 
 // ─── CMS 内容模型（元数据驱动的自定义字段体系）─────────────────────────────────
 export const cmsModels = pgTable('cms_models', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 归属站点：NULL = 平台共享（全部站点可用）；非空 = 该站点专属（其他站点不可见、不可绑定） */
   ownerSiteId: integer().references((): AnyPgColumn => cmsSites.id, { onDelete: 'cascade' }),
   name: varchar({ length: 100 }).notNull(),
@@ -137,8 +137,8 @@ export const cmsModels = pgTable('cms_models', {
   description: text(),
   /** 系统内置模型（article/page 等）不可删除 */
   isSystem: boolean().notNull().default(false),
-  status: statusEnum().notNull().default('enabled'),
-  sort: integer().notNull().default(0),
+  status: statusColumn(),
+  sort: sortColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 });
@@ -148,7 +148,7 @@ export type NewCmsModel = typeof cmsModels.$inferInsert;
 
 // ─── CMS 模型字段定义（内容 extend JSONB 的字段元数据）──────────────────────────
 export const cmsModelFields = pgTable('cms_model_fields', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   modelId: integer().notNull().references(() => cmsModels.id, { onDelete: 'cascade' }),
   /** 字段标识（extend JSONB 的 key，小写字母/数字/下划线） */
   name: varchar({ length: 50 }).notNull(),
@@ -173,7 +173,7 @@ export const cmsModelFields = pgTable('cms_model_fields', {
   dictCode: varchar({ length: 64 }),
   /** select/radio/checkbox 的选项（optionSource=manual 时生效） */
   options: jsonb().$type<{ label: string; value: string }[]>(),
-  sort: integer().notNull().default(0),
+  sort: sortColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -185,7 +185,7 @@ export type NewCmsModelField = typeof cmsModelFields.$inferInsert;
 
 // ─── CMS 栏目（树形，list=列表 / page=单页 / link=外链）─────────────────────────
 export const cmsChannels = pgTable('cms_channels', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   /** 父栏目 id，0 = 顶级（与 menus 表约定一致，删除守卫在 service 层） */
   parentId: integer().notNull().default(0),
@@ -222,8 +222,8 @@ export const cmsChannels = pgTable('cms_channels', {
   image: varchar({ length: 500 }),
   /** 是否在前台导航显示 */
   visible: boolean().notNull().default(true),
-  status: statusEnum().notNull().default('enabled'),
-  sort: integer().notNull().default(0),
+  status: statusColumn(),
+  sort: sortColumn(),
   settings: jsonb().$type<Record<string, unknown>>().notNull().default({}),
   ...auditColumns(),
   ...timestampColumns(),
@@ -238,7 +238,7 @@ export type NewCmsChannel = typeof cmsChannels.$inferInsert;
 
 // ─── CMS 受治理内容分发规则（执行记录与行级结果复用 async_tasks/items）──────────
 export const cmsDistributionRules = pgTable('cms_distribution_rules', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 100 }).notNull(),
   sourceSiteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'restrict' }),
   sourceChannelId: integer().references(() => cmsChannels.id, { onDelete: 'restrict' }),
@@ -256,10 +256,10 @@ export const cmsDistributionRules = pgTable('cms_distribution_rules', {
   scheduleCron: varchar({ length: 100 }),
   nextRunAt: timestamp(),
   lastRunAt: timestamp(),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   /** 规则变更 fence；每次编辑/启停 +1，旧任务协作取消。 */
   revision: integer().notNull().default(1),
-  remark: varchar({ length: 500 }),
+  remark: remarkColumn(500),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -273,7 +273,7 @@ export type NewCmsDistributionRule = typeof cmsDistributionRules.$inferInsert;
 
 // ─── CMS 内容（全站统一表 + JSONB 扩展字段 + tsvector 检索向量）─────────────────
 export const cmsContents = pgTable('cms_contents', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   channelId: integer().notNull().references(() => cmsChannels.id, { onDelete: 'restrict' }),
   modelId: integer().references(() => cmsModels.id, { onDelete: 'set null' }),
@@ -343,7 +343,7 @@ export const cmsContents = pgTable('cms_contents', {
   favoriteCount: integer().notNull().default(0),
   /** 乐观锁版本号（每次更新 +1；更新携带 expectedVersion 不一致时拒绝，防并发编辑覆盖） */
   version: integer().notNull().default(1),
-  sort: integer().notNull().default(0),
+  sort: sortColumn(),
   // 内容级 SEO（覆盖栏目/站点默认）
   seoTitle: varchar({ length: 255 }),
   seoKeywords: varchar({ length: 500 }),
@@ -403,7 +403,7 @@ export type NewCmsContent = typeof cmsContents.$inferInsert;
 
 // ─── CMS 内容操作日志（内容级时间线：创建/发布/驳回/归档等；随内容级联删除）────────
 export const cmsContentOpLogs = pgTable('cms_content_op_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   contentId: integer().notNull().references(() => cmsContents.id, { onDelete: 'cascade' }),
   /** 操作类型：created/updated/submitted/published/rejected/offlined/recycled/restored/rolled_back/archived/unarchived/moved */
   action: varchar({ length: 30 }).notNull(),
@@ -421,12 +421,12 @@ export type CmsContentOpLogRow = typeof cmsContentOpLogs.$inferSelect;
 
 // ─── CMS 易错词库（编辑辅助：常见错误词 → 正确词，编辑器检查一键替换）────────────
 export const cmsErrorProneWords = pgTable('cms_error_prone_words', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   word: varchar({ length: 50 }).notNull().unique(),
   /** 对应正确写法 */
   correction: varchar({ length: 50 }).notNull(),
-  status: statusEnum().notNull().default('enabled'),
-  remark: varchar({ length: 200 }),
+  status: statusColumn(),
+  remark: remarkColumn(200),
   ...auditColumns(),
   ...timestampColumns(),
 });
@@ -462,7 +462,7 @@ export type CmsContentFavoriteRow = typeof cmsContentFavorites.$inferSelect;
 
 // ─── 会员浏览历史（会员×内容去重累计；每人保留最近 100 条由 service 裁剪）─────────
 export const cmsMemberViewHistory = pgTable('cms_member_view_history', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   memberId: integer().notNull().references(() => members.id, { onDelete: 'cascade' }),
   contentId: integer().notNull().references(() => cmsContents.id, { onDelete: 'cascade' }),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
@@ -478,7 +478,7 @@ export type CmsMemberViewHistoryRow = typeof cmsMemberViewHistory.$inferSelect;
 
 // ─── CMS 会员订阅（取消采用 inactive 留痕，保留首次积分幂等事实）────────────────
 export const cmsMemberSubscriptions = pgTable('cms_member_subscriptions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   memberId: integer().notNull().references(() => members.id, { onDelete: 'cascade' }),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   subjectType: cmsSubscriptionSubjectTypeEnum().notNull(),
@@ -504,7 +504,7 @@ export type CmsMemberSubscriptionRow = typeof cmsMemberSubscriptions.$inferSelec
 // ═══ Stage 4：统一互动问卷（survey / poll）══════════════════════════════════════
 
 export const cmsInteractions = pgTable('cms_interactions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   code: varchar({ length: 50 }).notNull(),
   kind: cmsInteractionKindEnum().notNull(),
@@ -531,7 +531,7 @@ export const cmsInteractions = pgTable('cms_interactions', {
 export type CmsInteractionRow = typeof cmsInteractions.$inferSelect;
 
 export const cmsInteractionQuestions = pgTable('cms_interaction_questions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   interactionId: integer().notNull().references(() => cmsInteractions.id, { onDelete: 'cascade' }),
   label: varchar({ length: 200 }).notNull(),
   type: cmsInteractionQuestionTypeEnum().notNull().default('single'),
@@ -539,7 +539,7 @@ export const cmsInteractionQuestions = pgTable('cms_interaction_questions', {
   options: jsonb().$type<{ id: string; label: string; value: string }[]>().notNull().default([]),
   minChoices: integer().notNull().default(1),
   maxChoices: integer().notNull().default(1),
-  sort: integer().notNull().default(0),
+  sort: sortColumn(),
   /** 单选/多选题是否提供「其他 ___」自由填空；答案形如 `__other__:自由文本` */
   allowOther: boolean().notNull().default(false),
   otherLabel: varchar({ length: 50 }),
@@ -558,7 +558,7 @@ export const cmsInteractionQuestions = pgTable('cms_interaction_questions', {
 export type CmsInteractionQuestionRow = typeof cmsInteractionQuestions.$inferSelect;
 
 export const cmsInteractionResponses = pgTable('cms_interaction_responses', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   interactionId: integer().notNull().references(() => cmsInteractions.id, { onDelete: 'cascade' }),
   memberId: integer().references(() => members.id, { onDelete: 'set null' }),
   visitorHash: varchar({ length: 64 }).notNull(),
@@ -578,7 +578,7 @@ export const cmsInteractionResponses = pgTable('cms_interaction_responses', {
 export type CmsInteractionResponseRow = typeof cmsInteractionResponses.$inferSelect;
 
 export const cmsInteractionAnswers = pgTable('cms_interaction_answers', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   responseId: integer().notNull().references(() => cmsInteractionResponses.id, { onDelete: 'cascade' }),
   questionId: integer().notNull().references(() => cmsInteractionQuestions.id, { onDelete: 'cascade' }),
   value: jsonb().$type<string | string[]>().notNull(),
@@ -595,7 +595,7 @@ export const cmsDeviceTypeEnum = pgEnum('cms_device_type', CMS_DEVICE_TYPES);
 
 // ─── 前台访问日志（服务端响应路径记录，静态命中同样统计；原始日志保留 90 天）──────
 export const cmsVisitLogs = pgTable('cms_visit_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   /** 站内相对路径（含前导 /，截断 500） */
   path: varchar({ length: 500 }).notNull(),
@@ -619,7 +619,7 @@ export type CmsVisitLogRow = typeof cmsVisitLogs.$inferSelect;
 
 // ─── 广告效果日聚合（曝光/点击；CTR 报表用）─────────────────────────────────────
 export const cmsAdStats = pgTable('cms_ad_stats', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   adId: integer().notNull().references(() => cmsAds.id, { onDelete: 'cascade' }),
   /** 统计日（YYYY-MM-DD） */
   statDate: varchar({ length: 10 }).notNull(),
@@ -633,7 +633,7 @@ export type CmsAdStatRow = typeof cmsAdStats.$inferSelect;
 
 // ─── 广告事件明细（append-only；按 occurred_at 范围索引，便于未来按月分区）──────
 export const cmsAdEvents = pgTable('cms_ad_events', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   /** 事实快照 ID，不设 FK：广告/广告位删除后事件仍保留至 retention 清理。 */
   adId: integer().notNull(),
@@ -662,7 +662,7 @@ export type CmsAdEventRow = typeof cmsAdEvents.$inferSelect;
 
 // ─── 前台搜索日志（搜索量趋势 / 无结果词榜；原始日志保留 90 天）──────────────────
 export const cmsSearchLogs = pgTable('cms_search_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   keyword: varchar({ length: 64 }).notNull(),
   resultCount: integer().notNull().default(0),
@@ -688,14 +688,14 @@ export type CmsContentChannelRow = typeof cmsContentChannels.$inferSelect;
 export const cmsContentRelations = pgTable('cms_content_relations', {
   contentId: integer().notNull().references(() => cmsContents.id, { onDelete: 'cascade' }),
   relatedId: integer().notNull().references(() => cmsContents.id, { onDelete: 'cascade' }),
-  sort: integer().notNull().default(0),
+  sort: sortColumn(),
 }, (t) => [primaryKey({ columns: [t.contentId, t.relatedId] })]);
 
 export type CmsContentRelationRow = typeof cmsContentRelations.$inferSelect;
 
 // ─── CMS 标签（按站点隔离，带 slug 供生成 tag 聚合页；可选分组便于归类管理）──────
 export const cmsTags = pgTable('cms_tags', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   name: varchar({ length: 50 }).notNull(),
   slug: varchar({ length: 100 }).notNull(),
@@ -723,13 +723,13 @@ export type CmsContentTagRow = typeof cmsContentTags.$inferSelect;
 
 // ─── CMS 友链分组（独立实体：需排序与稳定 code 供主题按组取数，字符串分组表达不了）───
 export const cmsFriendLinkGroups = pgTable('cms_friend_link_groups', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   name: varchar({ length: 100 }).notNull(),
   /** 分组标识（站内唯一）：主题按组取数的稳定引用，改名不影响 */
   code: varchar({ length: 50 }).notNull(),
-  status: statusEnum().notNull().default('enabled'),
-  sort: integer().notNull().default(0),
+  status: statusColumn(),
+  sort: sortColumn(),
   remark: text(),
   ...auditColumns(),
   ...timestampColumns(),
@@ -743,15 +743,15 @@ export type NewCmsFriendLinkGroup = typeof cmsFriendLinkGroups.$inferInsert;
 
 // ─── CMS 友情链接 ─────────────────────────────────────────────────────────────
 export const cmsFriendLinks = pgTable('cms_friend_links', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   /** 所属分组；空 = 未分组（主题渲染时归入默认块） */
   groupId: integer().references(() => cmsFriendLinkGroups.id, { onDelete: 'set null' }),
   name: varchar({ length: 100 }).notNull(),
   url: varchar({ length: 500 }).notNull(),
   logo: varchar({ length: 500 }),
-  status: statusEnum().notNull().default('enabled'),
-  sort: integer().notNull().default(0),
+  status: statusColumn(),
+  sort: sortColumn(),
   remark: text(),
   ...auditColumns(),
   ...timestampColumns(),
@@ -768,13 +768,13 @@ export const cmsCommentStatusEnum = pgEnum('cms_comment_status', ['pending', 'ap
 
 // ─── 内容版本快照（更新前自动留档，可回滚；每内容保留最近 N 版）─────────────────
 export const cmsContentVersions = pgTable('cms_content_versions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   contentId: integer().notNull().references(() => cmsContents.id, { onDelete: 'cascade' }),
   version: integer().notNull(),
   title: varchar({ length: 255 }).notNull(),
   /** 完整可回滚快照（title/summary/body/extend/seo/属性等） */
   snapshot: jsonb().$type<Record<string, unknown>>().notNull(),
-  remark: varchar({ length: 200 }),
+  remark: remarkColumn(200),
   ...auditColumns(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [
@@ -785,7 +785,7 @@ export type CmsContentVersionRow = typeof cmsContentVersions.$inferSelect;
 
 // ─── 301/302 重定向 ───────────────────────────────────────────────────────────
 export const cmsRedirects = pgTable('cms_redirects', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   /** 站内来源路径（以 / 开头，如 /old-news/1.html） */
   fromPath: varchar({ length: 500 }).notNull(),
@@ -793,8 +793,8 @@ export const cmsRedirects = pgTable('cms_redirects', {
   toUrl: varchar({ length: 500 }).notNull(),
   /** 301=永久 302=临时 */
   redirectType: integer().notNull().default(301),
-  status: statusEnum().notNull().default('enabled'),
-  remark: varchar({ length: 200 }),
+  status: statusColumn(),
+  remark: remarkColumn(200),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -805,13 +805,13 @@ export type CmsRedirectRow = typeof cmsRedirects.$inferSelect;
 
 // ─── 内链词（正文关键词自动加链，SEO 内链建设）─────────────────────────────────
 export const cmsLinkWords = pgTable('cms_link_words', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   keyword: varchar({ length: 50 }).notNull(),
   url: varchar({ length: 500 }).notNull(),
   /** 每篇正文最多替换次数 */
   maxReplaces: integer().notNull().default(1),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -822,7 +822,7 @@ export type CmsLinkWordRow = typeof cmsLinkWords.$inferSelect;
 
 // ─── 评论（前台游客/登录会员提交，审核后展示；审核通过触发详情页增量重建）─────────
 export const cmsComments = pgTable('cms_comments', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   contentId: integer().notNull().references(() => cmsContents.id, { onDelete: 'cascade' }),
   /** 父评论 id，0 = 顶级（树形回复，前台展示两级） */
@@ -848,12 +848,12 @@ export type CmsCommentRow = typeof cmsComments.$inferSelect;
 
 // ─── 广告位 / 广告投放 ─────────────────────────────────────────────────────────
 export const cmsAdSlots = pgTable('cms_ad_slots', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   /** 模板引用标识（如 home-ad） */
   code: varchar({ length: 50 }).notNull(),
   name: varchar({ length: 100 }).notNull(),
-  remark: varchar({ length: 200 }),
+  remark: remarkColumn(200),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -863,7 +863,7 @@ export const cmsAdSlots = pgTable('cms_ad_slots', {
 export type CmsAdSlotRow = typeof cmsAdSlots.$inferSelect;
 
 export const cmsAds = pgTable('cms_ads', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   slotId: integer().notNull().references(() => cmsAdSlots.id, { onDelete: 'cascade' }),
   name: varchar({ length: 100 }).notNull(),
   image: varchar({ length: 500 }),
@@ -875,8 +875,8 @@ export const cmsAds = pgTable('cms_ads', {
   clickCount: integer().notNull().default(0),
   /** 曝光计数（前台页面加载 beacon 批量上报累加） */
   viewCount: integer().notNull().default(0),
-  sort: integer().notNull().default(0),
-  status: statusEnum().notNull().default('enabled'),
+  sort: sortColumn(),
+  status: statusColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 });
@@ -885,7 +885,7 @@ export type CmsAdRow = typeof cmsAds.$inferSelect;
 
 // ─── 自定义表单（留言/报名等，前台原生 form POST 提交）──────────────────────────
 export const cmsForms = pgTable('cms_forms', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   /** 前台提交与栏目绑定引用标识 */
   code: varchar({ length: 50 }).notNull(),
@@ -901,7 +901,7 @@ export const cmsForms = pgTable('cms_forms', {
   turnstileSiteKey: varchar({ length: 200 }),
   /** write-only；DTO 仅返回掩码 */
   turnstileSecret: varchar({ length: 500 }),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -911,7 +911,7 @@ export const cmsForms = pgTable('cms_forms', {
 export type CmsFormRow = typeof cmsForms.$inferSelect;
 
 export const cmsFormSubmissions = pgTable('cms_form_submissions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   formId: integer().notNull().references(() => cmsForms.id, { onDelete: 'cascade' }),
   data: jsonb().$type<Record<string, unknown>>().notNull(),
   ip: varchar({ length: 64 }),
@@ -925,11 +925,11 @@ export type CmsFormSubmissionRow = typeof cmsFormSubmissions.$inferSelect;
 
 // ─── 敏感词库（全局共享，评论/表单提交拦截或替换）────────────────────────────────
 export const cmsSensitiveWords = pgTable('cms_sensitive_words', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   word: varchar({ length: 50 }).notNull().unique(),
   /** 非空 = 替换模式；空 = 拦截模式（命中直接拒绝提交） */
   replaceWith: varchar({ length: 50 }),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 });
@@ -938,7 +938,7 @@ export type CmsSensitiveWordRow = typeof cmsSensitiveWords.$inferSelect;
 
 // ─── 搜索引擎推送日志（百度普通收录 / IndexNow）─────────────────────────────────
 export const cmsPushLogs = pgTable('cms_push_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   /** baidu | indexnow */
   engine: varchar({ length: 20 }).notNull(),
@@ -976,15 +976,15 @@ export type CmsChannelUserRow = typeof cmsChannelUsers.$inferSelect;
 
 // ─── 检索自定义词典（jieba 运行时加载；删除词条需重启进程才彻底失效）─────────────
 export const cmsSearchWords = pgTable('cms_search_words', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   word: varchar({ length: 50 }).notNull(),
   type: cmsSearchWordTypeEnum().notNull().default('extension'),
   groupName: varchar({ length: 100 }).notNull().default('默认分组'),
   /** 词频权重（越大越优先成词），jieba 用户词典格式 */
   weight: integer().notNull().default(1000),
-  status: statusEnum().notNull().default('enabled'),
-  remark: varchar({ length: 200 }),
+  status: statusColumn(),
+  remark: remarkColumn(200),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -996,11 +996,11 @@ export type CmsSearchWordRow = typeof cmsSearchWords.$inferSelect;
 
 // ─── 可管理热词分组与词条（实时热度仍存 Redis ZSET）────────────────────────────
 export const cmsHotwordGroups = pgTable('cms_hotword_groups', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   name: varchar({ length: 100 }).notNull(),
-  sort: integer().notNull().default(0),
-  status: statusEnum().notNull().default('enabled'),
+  sort: sortColumn(),
+  status: statusColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -1011,12 +1011,12 @@ export const cmsHotwordGroups = pgTable('cms_hotword_groups', {
 export type CmsHotwordGroupRow = typeof cmsHotwordGroups.$inferSelect;
 
 export const cmsHotwords = pgTable('cms_hotwords', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   groupId: integer().references(() => cmsHotwordGroups.id, { onDelete: 'set null' }),
   keyword: varchar({ length: 100 }).notNull(),
-  sort: integer().notNull().default(0),
-  status: statusEnum().notNull().default('enabled'),
+  sort: sortColumn(),
+  status: statusColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -1032,7 +1032,7 @@ export const cmsCollectItemStatusEnum = pgEnum('cms_collect_item_status', ['succ
 
 // ─── 采集规则（列表页翻页 + CSS 选择器抽取，任务中心执行）───────────────────────
 export const cmsCollectRules = pgTable('cms_collect_rules', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   /** 采集入库的目标栏目 */
   channelId: integer().notNull().references(() => cmsChannels.id, { onDelete: 'restrict' }),
@@ -1055,9 +1055,9 @@ export const cmsCollectRules = pgTable('cms_collect_rules', {
   localizeImages: boolean().notNull().default(false),
   /** 单次执行最大采集条数 */
   maxItems: integer().notNull().default(50),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   lastRunAt: timestamp(),
-  remark: varchar({ length: 200 }),
+  remark: remarkColumn(200),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('cms_collect_rules_channel_idx').on(t.channelId), 
@@ -1068,7 +1068,7 @@ export type CmsCollectRuleRow = typeof cmsCollectRules.$inferSelect;
 
 // ─── 采集明细（URL 去重 + 结果留痕）────────────────────────────────────────────
 export const cmsCollectItems = pgTable('cms_collect_items', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   ruleId: integer().notNull().references(() => cmsCollectRules.id, { onDelete: 'cascade' }),
   url: varchar({ length: 500 }).notNull(),
   title: varchar({ length: 255 }),
@@ -1088,7 +1088,7 @@ export type CmsCollectItemRow = typeof cmsCollectItems.$inferSelect;
 
 // ─── 页面部件：结构化草稿 + 当前线上快照，不维护历史版本 ────────────────────────
 export const cmsWidgets = pgTable('cms_widgets', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   name: varchar({ length: 100 }).notNull(),
   code: varchar({ length: 100 }).notNull(),
@@ -1101,7 +1101,7 @@ export const cmsWidgets = pgTable('cms_widgets', {
   publishedRevision: integer().notNull().default(0),
   status: cmsWidgetStatusEnum().notNull().default('draft'),
   defaultRendererKey: varchar({ length: 50 }).notNull().default('list-sidebar'),
-  remark: varchar({ length: 200 }),
+  remark: remarkColumn(200),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -1117,7 +1117,7 @@ export type NewCmsWidget = typeof cmsWidgets.$inferInsert;
  * page 行由 cms_pages.blocks 同步生成；theme_slot 行本身就是站点插槽绑定。
  */
 export const cmsWidgetRefs = pgTable('cms_widget_refs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   widgetId: integer().notNull().references(() => cmsWidgets.id, { onDelete: 'cascade' }),
   ownerType: cmsWidgetRefOwnerTypeEnum().notNull(),
@@ -1138,7 +1138,7 @@ export type CmsWidgetRefRow = typeof cmsWidgetRefs.$inferSelect;
 
 /** 已发布部件对实时内容/栏目的依赖索引；发布时整体重建，下线时清空。 */
 export const cmsWidgetSourceRefs = pgTable('cms_widget_source_refs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   widgetId: integer().notNull().references(() => cmsWidgets.id, { onDelete: 'cascade' }),
   itemId: varchar({ length: 100 }).notNull(),
@@ -1155,7 +1155,7 @@ export type CmsWidgetSourceRefRow = typeof cmsWidgetSourceRefs.$inferSelect;
 
 // ─── 自定义页面（区块 JSON 装配，前台 /p/{slug}/；isHome 可接管站点首页）────────
 export const cmsPages = pgTable('cms_pages', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   name: varchar({ length: 100 }).notNull(),
   /** 前台路径：/p/{slug}/ */
@@ -1179,8 +1179,8 @@ export const cmsPages = pgTable('cms_pages', {
   seoTitle: varchar({ length: 255 }),
   seoKeywords: varchar({ length: 500 }),
   seoDescription: varchar({ length: 500 }),
-  status: statusEnum().notNull().default('enabled'),
-  remark: varchar({ length: 200 }),
+  status: statusColumn(),
+  remark: remarkColumn(200),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -1194,7 +1194,7 @@ export type CmsPageRow = typeof cmsPages.$inferSelect;
 
 // ─── 页面区块管理 ACL（配置后 fail-closed；未配置继承页面编辑权限）─────────────
 export const cmsPageBlockAcls = pgTable('cms_page_block_acls', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   pageId: integer().notNull().references(() => cmsPages.id, { onDelete: 'cascade' }),
   blockId: varchar({ length: 100 }).notNull(),
   subjectType: cmsPageBlockAclSubjectTypeEnum().notNull(),
@@ -1210,7 +1210,7 @@ export type CmsPageBlockAclRow = typeof cmsPageBlockAcls.$inferSelect;
 
 // ─── CMS 发布产物事实（队列状态复用 async_tasks，不另建发布任务表）──────────────
 export const cmsPublishArtifacts = pgTable('cms_publish_artifacts', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   taskId: integer().notNull().references(() => asyncTasks.id, { onDelete: 'cascade' }),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   targetType: cmsPublishTargetTypeEnum().notNull(),
@@ -1243,12 +1243,12 @@ export type CmsPublishArtifactRow = typeof cmsPublishArtifacts.$inferSelect;
 export const cmsResourceTypeEnum = pgEnum('cms_resource_type', ['image', 'video', 'audio', 'document', 'other']);
 
 export const cmsResourceFolders = pgTable('cms_resource_folders', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   /** null = 根目录；规范化自关联，删除前由 service 做非空保护 */
   parentId: integer().references((): AnyPgColumn => cmsResourceFolders.id, { onDelete: 'restrict' }),
   name: varchar({ length: 100 }).notNull(),
-  sort: integer().notNull().default(0),
+  sort: sortColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('cms_resource_folders_parent_idx').on(t.parentId), 
@@ -1262,7 +1262,7 @@ export const cmsResourceFolders = pgTable('cms_resource_folders', {
 export type CmsResourceFolderRow = typeof cmsResourceFolders.$inferSelect;
 
 export const cmsResources = pgTable('cms_resources', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   folderId: integer().references(() => cmsResourceFolders.id, { onDelete: 'set null' }),
   type: cmsResourceTypeEnum().notNull().default('image'),
@@ -1283,7 +1283,7 @@ export const cmsResources = pgTable('cms_resources', {
   width: integer(),
   height: integer(),
   mimeType: varchar({ length: 128 }),
-  remark: varchar({ length: 200 }),
+  remark: remarkColumn(200),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -1305,7 +1305,7 @@ export type CmsResourceRow = typeof cmsResources.$inferSelect;
  * 取代原先「按 URL 子串对 9 张表做全表 LIKE 扫描」的 O(N×M) 实现。
  */
 export const cmsResourceRefs = pgTable('cms_resource_refs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   resourceId: integer().notNull().references(() => cmsResources.id, { onDelete: 'cascade' }),
   ownerType: cmsResourceOwnerTypeEnum().notNull(),
@@ -1329,7 +1329,7 @@ export type CmsResourceRefRow = typeof cmsResourceRefs.$inferSelect;
  * 与人类侧的 `cms_site_users` / `cms_channel_users` 同构：未显式授权一律拒绝。
  */
 export const cmsOpenAppGrants = pgTable('cms_open_app_grants', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 开放应用 AppKey（= oauth2_clients.client_id） */
   clientId: varchar({ length: 64 }).notNull(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
@@ -1337,8 +1337,8 @@ export const cmsOpenAppGrants = pgTable('cms_open_app_grants', {
   channelIds: integer().array().notNull().default([]),
   /** 是否允许直接发布（还需 cms:publish scope 与站点开关同时成立） */
   canPublish: boolean().notNull().default(false),
-  status: statusEnum().notNull().default('enabled'),
-  remark: varchar({ length: 200 }),
+  status: statusColumn(),
+  remark: remarkColumn(200),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -1356,7 +1356,7 @@ export type CmsOpenAppGrantRow = typeof cmsOpenAppGrants.$inferSelect;
  * 客户端按 `updated_at` 游标永远拉不到这条变更，本地缓存会残留已删内容。
  */
 export const cmsContentTombstones = pgTable('cms_content_tombstones', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   contentId: integer().notNull(),
   deletedAt: timestamp().defaultNow().notNull(),

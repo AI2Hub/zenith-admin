@@ -1,12 +1,13 @@
 import { pgTable, varchar, timestamp, integer, text, jsonb, index } from 'drizzle-orm/pg-core';
 import type { LicenseFeatureKey, LicensePayload } from '@zenith/shared/licensing';
+import { idColumn } from './common';
 
 // ─── 部署安装身份 ─────────────────────────────────────────────────────────────
 // 单行表：首次启动时生成 installationId（License 绑定目标）。
 // seed 绝不清理本表；licenseEpoch 是单调递增的失效版本号——激活/停用 License 时 +1，
 // 各节点的进程内快照发现 epoch 变化即强制重载，实现跨节点秒级收敛。
 export const systemInstallations = pgTable('system_installations', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   installationId: varchar({ length: 64 }).notNull().unique('system_installations_installation_id_unique'),
   licenseEpoch: integer().notNull().default(0),
   createdAt: timestamp().defaultNow().notNull(),
@@ -18,7 +19,7 @@ export type SystemInstallationRow = typeof systemInstallations.$inferSelect;
 // envelope 保留原始 .zenlic 内容：每次启动/巡检都对原始字节重新验签，
 // 数据库仅是缓存介质而非信任来源（改库无法伪造授权）。
 export const licenses = pgTable('licenses', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** payload.licenseId（签发方生成的业务标识） */
   licenseId: varchar({ length: 64 }).notNull().unique('licenses_license_id_unique'),
   /** 原始 .zenlic 文件内容（JSON envelope） */
@@ -45,7 +46,7 @@ export type LicenseRow = typeof licenses.$inferSelect;
 
 // ─── License 事件（追加型审计日志）────────────────────────────────────────────
 export const licenseEvents = pgTable('license_events', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   licenseId: integer(),
   type: varchar({ length: 40 }).notNull(),
   detail: text(),

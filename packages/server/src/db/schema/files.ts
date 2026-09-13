@@ -1,8 +1,8 @@
 import { pgTable, varchar, timestamp, pgEnum, integer, bigint, boolean, unique, text, smallint, uuid as pgUuid, index, jsonb } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { v7 as uuidv7 } from 'uuid';
-import { statusEnum, timestampColumns } from './common';
-import { auditColumns, tenants } from './core';
+import { timestampColumns, idColumn, statusColumn, remarkColumn } from './common';
+import { auditColumns, tenantIdColumn } from './core';
 
 export const fileStorageProviderEnum = pgEnum('file_storage_provider', ['local', 'oss', 's3', 'cos', 'obs', 'kodo', 'bos', 'azure', 'sftp']);
 
@@ -21,10 +21,10 @@ export const fileGcStateEnum = pgEnum('file_gc_state', ['live', 'orphan', 'delet
 
 // ─── 文件存储配置表 ──────────────────────────────────────────────────────────
 export const fileStorageConfigs = pgTable('file_storage_configs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull(),
   provider: fileStorageProviderEnum().notNull().default('local'),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   isDefault: boolean().notNull().default(false),
   basePath: varchar({ length: 256 }),
   // 上传对象的读写权限，仅 oss/s3/cos/obs/bos 生效
@@ -82,7 +82,7 @@ export const fileStorageConfigs = pgTable('file_storage_configs', {
   sftpPrivateKey: text(),
   sftpRootPath: varchar({ length: 512 }),
   sftpBaseUrl: varchar({ length: 512 }),
-  remark: varchar({ length: 256 }),
+  remark: remarkColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 });
@@ -116,7 +116,7 @@ export const managedFiles = pgTable('managed_files', {
   gcState: fileGcStateEnum().notNull().default('live'),
   /** 引用计数归零的时间；非 null = 待 GC（超过宽限期由 files-gc 任务删除对象与记录，期间可被重新引用复活） */
   orphanedAt: timestamp(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -137,7 +137,7 @@ export type NewManagedFile = typeof managedFiles.$inferInsert;
 export const uploadSessionStatusEnum = pgEnum('upload_session_status', ['uploading', 'completing', 'completed', 'aborted']);
 
 export const uploadSessions = pgTable('upload_sessions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   uploadId: varchar({ length: 64 }).notNull().unique('upload_sessions_upload_id_unique'),
   fileName: varchar({ length: 256 }).notNull(),
   fileSize: bigint({ mode: 'number' }).notNull(),
@@ -153,7 +153,7 @@ export const uploadSessions = pgTable('upload_sessions', {
   // 初始化时实际发送的对象 ACL 快照，完成上传时拷贝到 managed_files
   objectAcl: fileObjectAclEnum(),
   status: uploadSessionStatusEnum().notNull().default('uploading'),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('upload_sessions_tenant_idx').on(t.tenantId), 
@@ -167,7 +167,7 @@ export type NewUploadSession = typeof uploadSessions.$inferInsert;
 
 /** 已上传分片记录；index 从 0 计，etag 供云原生 multipart 使用，唯一约束保证并发幂等 */
 export const uploadChunks = pgTable('upload_chunks', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   uploadSessionId: integer().notNull().references(() => uploadSessions.id, { onDelete: 'cascade' }),
   index: integer().notNull(),
   size: integer().notNull(),
@@ -187,14 +187,14 @@ export type NewUploadChunk = typeof uploadChunks.$inferInsert;
  * 企业网盘因需要 FK 级联到空间 / 节点，仍使用自己的 drive_upload_bindings。
  */
 export const uploadSessionBindings = pgTable('upload_session_bindings', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   uploadId: varchar({ length: 64 }).notNull().references(() => uploadSessions.uploadId, { onDelete: 'cascade' })
     .unique('upload_session_bindings_upload_id_unique'),
   /** 归属模块标识，如 app-release-artifact / iot-firmware；complete 时校验与调用方一致 */
   module: varchar({ length: 64 }).notNull(),
   /** 模块自定义上下文（目标 id、枚举等小对象），由模块的 Zod schema 在读取时校验 */
   payload: jsonb().$type<Record<string, unknown>>().notNull(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -207,14 +207,14 @@ export type UploadSessionBindingRow = typeof uploadSessionBindings.$inferSelect;
 export const businessTypeEnum = pgEnum('business_type', ['announcement', 'wiki_doc']);
 
 export const businessFiles = pgTable('business_files', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   businessType: businessTypeEnum().notNull(),
   businessId: integer().notNull(),
   fileId: pgUuid().notNull().references(() => managedFiles.id, { onDelete: 'cascade' }),
   name: varchar({ length: 256 }),
   category: varchar({ length: 64 }),
   sortOrder: smallint().default(0),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('business_files_tenant_idx').on(t.tenantId), 
   unique('uniq_business_file').on(t.businessType, t.businessId, t.fileId),

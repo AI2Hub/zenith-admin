@@ -1,6 +1,6 @@
-import { timestampColumns } from './common';
+import { timestampColumns, idColumn, sortColumn } from './common';
 import { pgTable, varchar, timestamp, pgEnum, integer, boolean, primaryKey, unique, text, jsonb, index } from 'drizzle-orm/pg-core';
-import { auditColumns, tenants, users } from './core';
+import { auditColumns, users, tenantIdColumn } from './core';
 
 // ─── 聊天会话表 ───────────────────────────────────────────────────────────────
 export const chatConversationTypeEnum = pgEnum('chat_conversation_type', ['direct', 'group']);
@@ -8,7 +8,7 @@ export const chatConversationTypeEnum = pgEnum('chat_conversation_type', ['direc
 export const chatMemberRoleEnum = pgEnum('chat_member_role', ['owner', 'admin', 'member']);
 
 export const chatConversations = pgTable('chat_conversations', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   type: chatConversationTypeEnum().notNull().default('direct'),
   name: varchar({ length: 64 }),
   announcement: varchar({ length: 500 }),
@@ -17,7 +17,7 @@ export const chatConversations = pgTable('chat_conversations', {
   /** 入群审批开关：开启后通过邀请链接加群需群主/管理员审批 */
   joinApproval: boolean().notNull().default(false),
   ...auditColumns(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...timestampColumns(),
 }, (t) => [index('chat_conversations_tenant_idx').on(t.tenantId)]);
 
@@ -51,7 +51,7 @@ export type ChatConversationMemberRow = typeof chatConversationMembers.$inferSel
 export const chatMessageTypeEnum = pgEnum('chat_message_type', ['text', 'image', 'file', 'system', 'forward', 'vote', 'voice', 'card', 'video']);
 
 export const chatMessages = pgTable('chat_messages', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   conversationId: integer().notNull().references(() => chatConversations.id, { onDelete: 'cascade' }),
   senderId: integer().references(() => users.id, { onDelete: 'set null' }),
   type: chatMessageTypeEnum().notNull().default('text'),
@@ -75,7 +75,7 @@ export type ChatMessageRow = typeof chatMessages.$inferSelect;
 export type NewChatMessage = typeof chatMessages.$inferInsert;
 
 export const chatMessageReactions = pgTable('chat_message_reactions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   messageId: integer().notNull().references(() => chatMessages.id, { onDelete: 'cascade' }),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   emoji: varchar({ length: 10 }).notNull(),
@@ -88,7 +88,7 @@ export type ChatMessageReactionRow = typeof chatMessageReactions.$inferSelect;
 
 // ─── 消息收藏（按用户隔离；置顶是会话级共享，收藏是个人行为） ─────────────────
 export const chatMessageFavorites = pgTable('chat_message_favorites', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   messageId: integer().notNull().references(() => chatMessages.id, { onDelete: 'cascade' }),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
@@ -102,7 +102,7 @@ export type ChatMessageFavoriteRow = typeof chatMessageFavorites.$inferSelect;
 
 // ─── 聊天入站 Webhook 机器人 ────────────────────────────────────────────────
 export const chatWebhooks = pgTable('chat_webhooks', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull(),
   avatar: varchar({ length: 256 }),
   description: varchar({ length: 255 }),
@@ -113,7 +113,7 @@ export const chatWebhooks = pgTable('chat_webhooks', {
   enabled: boolean().notNull().default(true),
   lastUsedAt: timestamp({ withTimezone: true }),
   ...auditColumns(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...timestampColumns(),
 }, (t) => [index('chat_webhooks_conversation_idx').on(t.conversationId), index('chat_webhooks_tenant_idx').on(t.tenantId)]);
 
@@ -123,10 +123,10 @@ export type NewChatWebhook = typeof chatWebhooks.$inferInsert;
 
 // ─── 个人快捷回复（常用语） ───────────────────────────────────────────────────
 export const chatQuickReplies = pgTable('chat_quick_replies', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   content: varchar({ length: 500 }).notNull(),
-  sort: integer().notNull().default(0),
+  sort: sortColumn(),
   ...timestampColumns(),
 }, (t) => [
   index('chat_quick_replies_user_idx').on(t.userId),
@@ -138,7 +138,7 @@ export type ChatQuickReplyRow = typeof chatQuickReplies.$inferSelect;
 export const chatScheduledStatusEnum = pgEnum('chat_scheduled_status', ['pending', 'sent', 'canceled', 'failed']);
 
 export const chatScheduledMessages = pgTable('chat_scheduled_messages', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   conversationId: integer().notNull().references(() => chatConversations.id, { onDelete: 'cascade' }),
   senderId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   type: chatMessageTypeEnum().notNull().default('text'),
@@ -161,7 +161,7 @@ export type ChatScheduledMessageRow = typeof chatScheduledMessages.$inferSelect;
 
 // ─── 自定义表情（个人收藏） ───────────────────────────────────────────────────
 export const chatCustomEmojis = pgTable('chat_custom_emojis', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   /** 图片访问 URL */
   url: varchar({ length: 512 }).notNull(),
@@ -179,7 +179,7 @@ export type ChatCustomEmojiRow = typeof chatCustomEmojis.$inferSelect;
 
 // ─── 群邀请链接 ───────────────────────────────────────────────────────────────
 export const chatGroupInvites = pgTable('chat_group_invites', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   conversationId: integer().notNull().references(() => chatConversations.id, { onDelete: 'cascade' }),
   /** 邀请令牌（链接/二维码携带） */
   token: varchar({ length: 64 }).notNull().unique(),
@@ -201,7 +201,7 @@ export type ChatGroupInviteRow = typeof chatGroupInvites.$inferSelect;
 export const chatJoinRequestStatusEnum = pgEnum('chat_join_request_status', ['pending', 'approved', 'rejected']);
 
 export const chatGroupJoinRequests = pgTable('chat_group_join_requests', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   conversationId: integer().notNull().references(() => chatConversations.id, { onDelete: 'cascade' }),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   inviteId: integer().references(() => chatGroupInvites.id, { onDelete: 'set null' }),

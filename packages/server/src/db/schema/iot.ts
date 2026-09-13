@@ -34,8 +34,8 @@
  */
 import { pgTable, pgEnum, varchar, timestamp, integer, text, jsonb, boolean, doublePrecision, bigint, uuid, index, uniqueIndex, primaryKey, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { statusEnum, timestampColumns } from './common';
-import { auditColumns, tenants } from './core';
+import { timestampColumns, idColumn, statusColumn, sortColumn, remarkColumn } from './common';
+import { auditColumns, tenantIdColumn } from './core';
 import { managedFiles } from './files';
 
 // ─── 枚举 ─────────────────────────────────────────────────────────────────────
@@ -73,15 +73,15 @@ export const iotScheduleActionEnum = pgEnum('iot_schedule_action', ['command', '
 
 // ─── 产品与物模型 ─────────────────────────────────────────────────────────────
 export const iotProducts = pgTable('iot_products', {
-  id:             integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:             idColumn(),
   name:           varchar({ length: 128 }).notNull(),
   description:    text(),
   /** 遥测校验模式：loose = 已声明属性校验类型/量程（不符丢弃该键）、未声明键放行；strict = 仅接受已声明属性 */
   validationMode: iotValidationModeEnum().notNull().default('loose'),
-  status:         statusEnum().notNull().default('enabled'),
+  status:         statusColumn(),
   /** 一型一密动态注册密钥（null = 关闭动态注册；设备用它签名换取设备密钥自动建档） */
   registrationSecret: varchar({ length: 64 }),
-  tenantId:       integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId:       tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -106,7 +106,7 @@ export interface IotParamDef {
 }
 
 export const iotProductProperties = pgTable('iot_product_properties', {
-  id:          integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:          idColumn(),
   productId:   integer().notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
   /** 属性标识符（遥测/影子的键名） */
   identifier:  varchar({ length: 64 }).notNull(),
@@ -123,7 +123,7 @@ export const iotProductProperties = pgTable('iot_product_properties', {
   featured:    boolean().notNull().default(false),
   /** 遥测异常检测：按近 7 天小时聚合基线做 3σ 偏离判定（仅数值型属性生效） */
   anomalyEnabled: boolean().notNull().default(false),
-  sort:        integer().notNull().default(0),
+  sort:        sortColumn(),
   description: varchar({ length: 256 }),
   ...auditColumns(),
   ...timestampColumns(),
@@ -136,7 +136,7 @@ export type IotProductPropertyRow = typeof iotProductProperties.$inferSelect;
 export type NewIotProductProperty = typeof iotProductProperties.$inferInsert;
 
 export const iotProductServices = pgTable('iot_product_services', {
-  id:          integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:          idColumn(),
   productId:   integer().notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
   identifier:  varchar({ length: 64 }).notNull(),
   name:        varchar({ length: 64 }).notNull(),
@@ -144,7 +144,7 @@ export const iotProductServices = pgTable('iot_product_services', {
   params:      jsonb().$type<IotParamDef[]>().notNull().default([]),
   /** 高危服务：前端下发前二次确认 */
   danger:      boolean().notNull().default(false),
-  sort:        integer().notNull().default(0),
+  sort:        sortColumn(),
   description: varchar({ length: 256 }),
   ...auditColumns(),
   ...timestampColumns(),
@@ -157,14 +157,14 @@ export type IotProductServiceRow = typeof iotProductServices.$inferSelect;
 export type NewIotProductService = typeof iotProductServices.$inferInsert;
 
 export const iotProductEvents = pgTable('iot_product_events', {
-  id:          integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:          idColumn(),
   productId:   integer().notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
   identifier:  varchar({ length: 64 }).notNull(),
   name:        varchar({ length: 64 }).notNull(),
   level:       iotEventLevelEnum().notNull().default('info'),
   /** 事件携带参数定义 */
   params:      jsonb().$type<IotParamDef[]>().notNull().default([]),
-  sort:        integer().notNull().default(0),
+  sort:        sortColumn(),
   description: varchar({ length: 256 }),
   ...auditColumns(),
   ...timestampColumns(),
@@ -178,14 +178,14 @@ export type NewIotProductEvent = typeof iotProductEvents.$inferInsert;
 
 // ─── 设备 ─────────────────────────────────────────────────────────────────────
 export const iotDevices = pgTable('iot_devices', {
-  id:              integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:              idColumn(),
   /** 设备序列号，全局唯一（接入寻址标识） */
   sn:              varchar({ length: 64 }).notNull().unique(),
   /** 一机一密：HMAC 签名密钥（管理端可见可重置） */
   secret:          varchar({ length: 64 }).notNull(),
   productId:       integer().notNull().references(() => iotProducts.id, { onDelete: 'restrict' }),
   name:            varchar({ length: 128 }).notNull(),
-  status:          statusEnum().notNull().default('enabled'),
+  status:          statusColumn(),
   /** 设备形态：direct 直连；gateway 网关（可代理子设备）；sub 子设备（经网关接入，免密） */
   nodeType:        iotNodeTypeEnum().notNull().default('direct'),
   /** 子设备所属网关（仅 node_type = sub 时有值） */
@@ -199,8 +199,8 @@ export const iotDevices = pgTable('iot_devices', {
   activatedAt:     timestamp(),
   /** 最近心跳/上报落库时间（节流更新，实时在线态在 Redis） */
   lastSeenAt:      timestamp(),
-  remark:          varchar({ length: 256 }),
-  tenantId:        integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  remark:          remarkColumn(),
+  tenantId:        tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -286,7 +286,7 @@ export type IotTelemetryRow = typeof iotTelemetry.$inferSelect;
 export type NewIotTelemetry = typeof iotTelemetry.$inferInsert;
 
 export const iotCommands = pgTable('iot_commands', {
-  id:        integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:        idColumn(),
   deviceId:  integer().notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
   /** 服务标识符（物模型 services.identifier） */
   service:   varchar({ length: 64 }).notNull(),
@@ -311,7 +311,7 @@ export type NewIotCommand = typeof iotCommands.$inferInsert;
 
 // ─── 告警 ─────────────────────────────────────────────────────────────────────
 export const iotAlarmRules = pgTable('iot_alarm_rules', {
-  id:                 integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:                 idColumn(),
   name:               varchar({ length: 128 }).notNull(),
   productId:          integer().notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
   /** 空 = 产品下全部设备；指定则仅对该设备生效 */
@@ -334,8 +334,8 @@ export const iotAlarmRules = pgTable('iot_alarm_rules', {
   escalateAfterMinutes: integer(),
   /** 升级通知接收人（如值班主管） */
   escalateUserIds:    jsonb().$type<number[]>().notNull().default([]),
-  status:             statusEnum().notNull().default('enabled'),
-  tenantId:           integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  status:             statusColumn(),
+  tenantId:           tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -347,7 +347,7 @@ export type IotAlarmRuleRow = typeof iotAlarmRules.$inferSelect;
 export type NewIotAlarmRule = typeof iotAlarmRules.$inferInsert;
 
 export const iotAlarms = pgTable('iot_alarms', {
-  id:         integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:         idColumn(),
   /** 规则删除后记录保留（ruleName 冗余展示） */
   ruleId:     integer().references(() => iotAlarmRules.id, { onDelete: 'set null' }),
   ruleName:   varchar({ length: 128 }).notNull(),
@@ -383,10 +383,10 @@ export type NewIotAlarm = typeof iotAlarms.$inferInsert;
 
 // ─── 设备分组 ─────────────────────────────────────────────────────────────────
 export const iotDeviceGroups = pgTable('iot_device_groups', {
-  id:          integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:          idColumn(),
   name:        varchar({ length: 64 }).notNull(),
   description: varchar({ length: 256 }),
-  tenantId:    integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId:    tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -429,7 +429,7 @@ export type NewIotTelemetryHourly = typeof iotTelemetryHourly.$inferInsert;
 
 /** 在线率采样：离线扫描任务每分钟顺带落点（仪表盘在线趋势） */
 export const iotOnlineSnapshots = pgTable('iot_online_snapshots', {
-  id:          integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:          idColumn(),
   totalCount:  integer().notNull(),
   onlineCount: integer().notNull(),
   sampledAt:   timestamp().defaultNow().notNull(),
@@ -447,7 +447,7 @@ export const iotOtaDeviceStatusEnum = pgEnum('iot_ota_device_status', [
 ]);
 
 export const iotFirmwares = pgTable('iot_firmwares', {
-  id:           integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:           idColumn(),
   productId:    integer().notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
   /** 语义化版本（同产品唯一），设备上报一致即判定升级成功 */
   version:      varchar({ length: 32 }).notNull(),
@@ -457,8 +457,8 @@ export const iotFirmwares = pgTable('iot_firmwares', {
   size:         bigint({ mode: 'number' }).notNull().default(0),
   sha256:       varchar({ length: 64 }).notNull(),
   releaseNotes: text(),
-  status:       statusEnum().notNull().default('enabled'),
-  tenantId:     integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  status:       statusColumn(),
+  tenantId:     tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -470,7 +470,7 @@ export type IotFirmwareRow = typeof iotFirmwares.$inferSelect;
 export type NewIotFirmware = typeof iotFirmwares.$inferInsert;
 
 export const iotOtaTasks = pgTable('iot_ota_tasks', {
-  id:              integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:              idColumn(),
   title:           varchar({ length: 128 }).notNull(),
   /** 固件存在升级任务时禁止删除（restrict），保证任务明细可追溯 */
   firmwareId:      integer().notNull().references(() => iotFirmwares.id, { onDelete: 'restrict' }),
@@ -488,7 +488,7 @@ export const iotOtaTasks = pgTable('iot_ota_tasks', {
   totalCount:      integer().notNull().default(0),
   succeededCount:  integer().notNull().default(0),
   failedCount:     integer().notNull().default(0),
-  tenantId:        integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId:        tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -501,7 +501,7 @@ export type IotOtaTaskRow = typeof iotOtaTasks.$inferSelect;
 export type NewIotOtaTask = typeof iotOtaTasks.$inferInsert;
 
 export const iotOtaTaskDevices = pgTable('iot_ota_task_devices', {
-  id:          integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:          idColumn(),
   taskId:      integer().notNull().references(() => iotOtaTasks.id, { onDelete: 'cascade' }),
   deviceId:    integer().notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
   status:      iotOtaDeviceStatusEnum().notNull().default('pending'),
@@ -547,7 +547,7 @@ export interface IotAutomationActionDef {
 }
 
 export const iotAutomations = pgTable('iot_automations', {
-  id:                 integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:                 idColumn(),
   name:               varchar({ length: 128 }).notNull(),
   productId:          integer().notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
   /** 空 = 产品下全部设备触发；指定则仅该设备 */
@@ -564,8 +564,8 @@ export const iotAutomations = pgTable('iot_automations', {
   /** 冷却期（秒）：同一联动 × 同一触发设备在窗口内不重复执行 */
   cooldownSeconds:    integer().notNull().default(60),
   actions:            jsonb().$type<IotAutomationActionDef[]>().notNull().default([]),
-  status:             statusEnum().notNull().default('enabled'),
-  tenantId:           integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  status:             statusColumn(),
+  tenantId:           tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -597,7 +597,7 @@ export type IotAutomationRunRow = typeof iotAutomationRuns.$inferSelect;
 
 // ─── 五期：数据流转 ───────────────────────────────────────────────────────────
 export const iotForwardRules = pgTable('iot_forward_rules', {
-  id:                  integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:                  idColumn(),
   name:                varchar({ length: 128 }).notNull(),
   /** 数据源：telemetry 遥测 / event 设备事件 / alarm 告警 / lifecycle 生命周期 */
   source:              iotForwardSourceEnum().notNull(),
@@ -611,11 +611,11 @@ export const iotForwardRules = pgTable('iot_forward_rules', {
   secret:              varchar({ length: 128 }),
   /** 自定义请求头 */
   headers:             jsonb().$type<Record<string, string>>(),
-  status:              statusEnum().notNull().default('enabled'),
+  status:              statusColumn(),
   /** 连续投递失败计数；达到阈值自动停用（autoDisabledAt 置位） */
   consecutiveFailures: integer().notNull().default(0),
   autoDisabledAt:      timestamp(),
-  tenantId:            integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId:            tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -665,7 +665,7 @@ export type IotDeviceLogRow = typeof iotDeviceLogs.$inferSelect;
 // ─── 六期：维护窗口 ───────────────────────────────────────────────────────────
 /** 计划性维护静默：窗口内命中的告警仍记录但不派发通知/升级 */
 export const iotMaintenanceWindows = pgTable('iot_maintenance_windows', {
-  id:        integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:        idColumn(),
   name:      varchar({ length: 128 }).notNull(),
   /** 作用范围（三者至少其一；同时填写取并集语义按设备命中判断） */
   productId: integer().references(() => iotProducts.id, { onDelete: 'cascade' }),
@@ -674,7 +674,7 @@ export const iotMaintenanceWindows = pgTable('iot_maintenance_windows', {
   startAt:   timestamp().notNull(),
   endAt:     timestamp().notNull(),
   reason:    varchar({ length: 256 }),
-  tenantId:  integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId:  tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -686,7 +686,7 @@ export type IotMaintenanceWindowRow = typeof iotMaintenanceWindows.$inferSelect;
 // ─── 六期：设备计划任务 ───────────────────────────────────────────────────────
 /** 时间驱动的自动化（与场景联动的事件驱动互补）：cron/一次性定时下发指令或期望属性 */
 export const iotSchedules = pgTable('iot_schedules', {
-  id:             integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:             idColumn(),
   name:           varchar({ length: 128 }).notNull(),
   scheduleType:   iotScheduleTypeEnum().notNull(),
   /** cron 型：五段 cron 表达式（分 时 日 月 周） */
@@ -702,11 +702,11 @@ export const iotSchedules = pgTable('iot_schedules', {
   service:        varchar({ length: 64 }),
   params:         jsonb().$type<Record<string, unknown>>(),
   desired:        jsonb().$type<Record<string, number | string | boolean>>(),
-  status:         statusEnum().notNull().default('enabled'),
+  status:         statusColumn(),
   /** 调度游标：下次应执行时刻（分钟级扫描按此判定到期；once 执行后置空并停用） */
   nextRunAt:      timestamp(),
   lastRunAt:      timestamp(),
-  tenantId:       integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId:       tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -736,7 +736,7 @@ export type IotScheduleRunRow = typeof iotScheduleRuns.$inferSelect;
 // ─── 六期：动态注册白名单 ─────────────────────────────────────────────────────
 /** 一型一密预注册：SN 白名单（设备首连以产品注册密钥签名，命中白名单即自动建档换取设备密钥） */
 export const iotDeviceWhitelist = pgTable('iot_device_whitelist', {
-  id:        integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:        idColumn(),
   productId: integer().notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
   sn:        varchar({ length: 64 }).notNull().unique(),
   /** 已使用：注册成功后置位（一次性凭证语义） */
@@ -744,8 +744,8 @@ export const iotDeviceWhitelist = pgTable('iot_device_whitelist', {
   usedAt:    timestamp(),
   /** 注册产生的设备 id（追溯） */
   deviceId:  integer().references(() => iotDevices.id, { onDelete: 'set null' }),
-  remark:    varchar({ length: 256 }),
-  tenantId:  integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  remark:    remarkColumn(),
+  tenantId:  tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [

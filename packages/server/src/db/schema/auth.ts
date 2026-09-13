@@ -1,7 +1,7 @@
-import { timestampColumns } from './common';
+import { timestampColumns, idColumn } from './common';
 import { pgTable, varchar, timestamp, pgEnum, integer, boolean, unique, text, uniqueIndex, index, jsonb } from 'drizzle-orm/pg-core';
 import { OAUTH_PROVIDERS } from '@zenith/shared/identity';
-import { auditColumns, tenants, users } from './core';
+import { auditColumns, users, tenantIdColumn } from './core';
 
 export const mfaFactorTypeEnum = pgEnum('mfa_factor_type', ['totp', 'passkey', 'recovery_code']);
 
@@ -15,7 +15,7 @@ export const loginRiskActionEnum = pgEnum('login_risk_action', ['allow', 'challe
 export const oauthProviderEnum = pgEnum('oauth_provider', OAUTH_PROVIDERS);
 
 export const userOauthAccounts = pgTable('user_oauth_accounts', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   provider: oauthProviderEnum().notNull(),
   openId: varchar({ length: 128 }).notNull(),
@@ -35,7 +35,7 @@ export type NewUserOauthAccount = typeof userOauthAccounts.$inferInsert;
 
 // ─── OAuth 配置表 ──────────────────────────────────────────────────────────────
 export const oauthConfigs = pgTable('oauth_configs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   provider: oauthProviderEnum().notNull().unique(),
   clientId: varchar({ length: 256 }).notNull().default(''),
   clientSecret: varchar({ length: 512 }).notNull().default(''),
@@ -54,7 +54,7 @@ export type NewOauthConfig = typeof oauthConfigs.$inferInsert;
 
 // ─── 个人 API Token 表 ─────────────────────────────────────────────────────────
 export const userApiTokens = pgTable('user_api_tokens', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: varchar({ length: 64 }).notNull(),
   /**
@@ -75,7 +75,7 @@ export type NewUserApiToken = typeof userApiTokens.$inferInsert;
 
 // ─── 密码重置 Token 表 ─────────────────────────────────────────────────────────
 export const passwordResetTokens = pgTable('password_reset_tokens', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   token: varchar({ length: 128 }).notNull().unique(),
   expiresAt: timestamp({ withTimezone: true }).notNull(),
@@ -89,7 +89,7 @@ export type NewPasswordResetToken = typeof passwordResetTokens.$inferInsert;
 
 // ─── 用户 MFA 因子 ─────────────────────────────────────────────────────────────
 export const userMfaFactors = pgTable('user_mfa_factors', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   type: mfaFactorTypeEnum().notNull(),
   name: varchar({ length: 64 }).notNull(),
@@ -110,7 +110,7 @@ export type NewUserMfaFactor = typeof userMfaFactors.$inferInsert;
 
 // ─── 用户可信设备 ─────────────────────────────────────────────────────────────
 export const userTrustedDevices = pgTable('user_trusted_devices', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   deviceIdHash: varchar({ length: 128 }).notNull(),
   deviceName: varchar({ length: 128 }),
@@ -131,10 +131,10 @@ export type NewUserTrustedDevice = typeof userTrustedDevices.$inferInsert;
 
 // ─── 登录风险事件 ─────────────────────────────────────────────────────────────
 export const loginRiskEvents = pgTable('login_risk_events', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().references(() => users.id, { onDelete: 'set null' }),
   username: varchar({ length: 64 }).notNull(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   riskLevel: loginRiskLevelEnum().notNull().default('low'),
   reason: varchar({ length: 256 }).notNull(),
   action: loginRiskActionEnum().notNull().default('allow'),
@@ -163,7 +163,7 @@ export const rateLimitModeEnum = pgEnum('rate_limit_mode', ['enforce', 'monitor'
 export const rateLimitAlgorithmEnum = pgEnum('rate_limit_algorithm', ['fixed_window', 'sliding_window']);
 
 export const rateLimitRules = pgTable('rate_limit_rules', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 64 }).notNull().unique(),
   description: varchar({ length: 255 }),
   windowMs: integer().notNull(),

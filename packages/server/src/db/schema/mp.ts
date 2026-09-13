@@ -1,7 +1,7 @@
 import { pgTable, varchar, timestamp, pgEnum, integer, boolean, text, uniqueIndex, index, jsonb, smallint, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { statusEnum, timestampColumns } from './common';
-import { auditColumns, tenants, users } from './core';
+import { timestampColumns, idColumn, statusColumn, sortColumn, remarkColumn } from './common';
+import { auditColumns, users, tenantIdColumn } from './core';
 import { members } from './member';
 
 // ─── 公众号管理 ────────────────────────────────────────────────────────────────
@@ -12,7 +12,7 @@ export const mpAccountTypeEnum = pgEnum('mp_account_type', ['subscribe', 'servic
 export const mpEncryptModeEnum = pgEnum('mp_encrypt_mode', ['plaintext', 'compatible', 'safe']);
 
 export const mpAccounts = pgTable('mp_accounts', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 公众号名称 */
   name: varchar({ length: 100 }).notNull(),
   /** 微信号 / 原始 ID（gh_xxx） */
@@ -37,9 +37,9 @@ export const mpAccounts = pgTable('mp_accounts', {
   autoCreateMember: boolean().notNull().default(false),
   /** 是否对群发/客服消息启用内容安全校验（msg_sec_check） */
   contentCheckEnabled: boolean().notNull().default(false),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   remark: text(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -52,14 +52,14 @@ export type NewMpAccount = typeof mpAccounts.$inferInsert;
 
 // 公众号粉丝标签（与微信标签同步；wechat_tag_id 同步后回填）
 export const mpTags = pgTable('mp_tags', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   /** 微信侧标签 id（从微信同步后回填，本地新建时为空） */
   wechatTagId: integer(),
   name: varchar({ length: 30 }).notNull(),
   /** 该标签下粉丝数（同步时更新） */
   fansCount: integer().notNull().default(0),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('mp_tags_tenant_idx').on(t.tenantId), 
@@ -75,7 +75,7 @@ export type NewMpTag = typeof mpTags.$inferInsert;
 export const mpFanSubscribeEnum = pgEnum('mp_fan_subscribe', ['subscribed', 'unsubscribed']);
 
 export const mpFans = pgTable('mp_fans', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   openid: varchar({ length: 64 }).notNull(),
   nickname: varchar({ length: 128 }),
@@ -89,7 +89,7 @@ export const mpFans = pgTable('mp_fans', {
   subscribe: mpFanSubscribeEnum().notNull().default('subscribed'),
   subscribeTime: timestamp({ withTimezone: true }),
   /** 本地备注 */
-  remark: varchar({ length: 128 }),
+  remark: remarkColumn(128),
   /** 本地标签 id 列表（指向 mp_tags.id） */
   tagIds: jsonb().$type<number[]>().notNull().default([]),
   /** 微信 unionid（账号绑定开放平台时可获取，用于跨应用打通会员） */
@@ -98,7 +98,7 @@ export const mpFans = pgTable('mp_fans', {
   memberId: integer().references((): AnyPgColumn => members.id, { onDelete: 'set null' }),
   /** 是否已加入黑名单（微信 batchblacklist） */
   blacklisted: boolean().notNull().default(false),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('mp_fans_tenant_idx').on(t.tenantId), 
@@ -119,7 +119,7 @@ export const mpMessageTypeEnum = pgEnum('mp_message_type', ['text', 'image', 'vo
 export const mpMessageStatusEnum = pgEnum('mp_message_status', ['received', 'sent', 'failed']);
 
 export const mpMessages = pgTable('mp_messages', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   openid: varchar({ length: 64 }).notNull(),
   /** in=用户发来 out=客服回复 */
@@ -137,7 +137,7 @@ export const mpMessages = pgTable('mp_messages', {
   msgId: varchar({ length: 64 }),
   status: mpMessageStatusEnum().notNull().default('received'),
   errorMsg: text(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('mp_messages_tenant_idx').on(t.tenantId), 
   index('mp_messages_account_openid_idx').on(t.accountId, t.openid),
@@ -158,7 +158,7 @@ export const mpAutoReplyMatchEnum = pgEnum('mp_auto_reply_match', ['exact', 'con
 export const mpReplyContentTypeEnum = pgEnum('mp_reply_content_type', ['text', 'image', 'voice', 'video', 'news']);
 
 export const mpAutoReplies = pgTable('mp_auto_replies', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   replyType: mpAutoReplyTypeEnum().notNull(),
   /** 关键词（仅 replyType=keyword） */
@@ -174,10 +174,10 @@ export const mpAutoReplies = pgTable('mp_auto_replies', {
   newsArticles: jsonb().$type<{ title: string; description?: string; picUrl?: string; url: string }[]>(),
   /** 命中后是否转人工客服（接入多客服会话） */
   transferToKf: boolean().notNull().default(false),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   /** 关键词优先级（小在前） */
-  sort: integer().notNull().default(0),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  sort: sortColumn(),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('mp_auto_replies_tenant_idx').on(t.tenantId), 
@@ -190,12 +190,12 @@ export type NewMpAutoReply = typeof mpAutoReplies.$inferInsert;
 
 // 自动回复未命中关键词收集（用于优化关键词库；按 account+keyword 累计命中次数）
 export const mpUnmatchedKeywords = pgTable('mp_unmatched_keywords', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   keyword: varchar({ length: 128 }).notNull(),
   count: integer().notNull().default(1),
   lastAt: timestamp().defaultNow().notNull(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('mp_unmatched_keywords_tenant_idx').on(t.tenantId), 
   uniqueIndex('mp_unmatched_keywords_account_kw_uq').on(t.accountId, t.keyword),
@@ -209,13 +209,13 @@ export type NewMpUnmatchedKeyword = typeof mpUnmatchedKeywords.$inferInsert;
 export const mpMenuStatusEnum = pgEnum('mp_menu_status', ['draft', 'published']);
 
 export const mpMenus = pgTable('mp_menus', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   accountId: integer().notNull().unique('mp_menus_account_id_unique').references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   /** 微信菜单按钮树（最多 3 个一级，每个最多 5 个二级） */
   buttons: jsonb().$type<unknown[]>().notNull().default([]),
   status: mpMenuStatusEnum().notNull().default('draft'),
   publishedAt: timestamp({ withTimezone: true }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('mp_menus_tenant_idx').on(t.tenantId)]);
@@ -226,7 +226,7 @@ export type NewMpMenu = typeof mpMenus.$inferInsert;
 
 // 个性化菜单（按标签/性别/地区等匹配规则向不同人群下发不同菜单）
 export const mpConditionalMenus = pgTable('mp_conditional_menus', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   /** 本地名称（便于管理识别） */
   name: varchar({ length: 64 }).notNull(),
@@ -238,7 +238,7 @@ export const mpConditionalMenus = pgTable('mp_conditional_menus', {
   menuId: varchar({ length: 64 }),
   status: mpMenuStatusEnum().notNull().default('draft'),
   publishedAt: timestamp({ withTimezone: true }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('mp_conditional_menus_tenant_idx').on(t.tenantId), 
@@ -253,7 +253,7 @@ export type NewMpConditionalMenu = typeof mpConditionalMenus.$inferInsert;
 export const mpMaterialTypeEnum = pgEnum('mp_material_type', ['image', 'voice', 'video', 'thumb']);
 
 export const mpMaterials = pgTable('mp_materials', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   type: mpMaterialTypeEnum().notNull().default('image'),
   name: varchar({ length: 200 }).notNull(),
@@ -263,7 +263,7 @@ export const mpMaterials = pgTable('mp_materials', {
   url: varchar({ length: 1000 }),
   /** 文件大小（字节） */
   fileSize: integer(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('mp_materials_tenant_idx').on(t.tenantId), 
@@ -280,7 +280,7 @@ export type NewMpMaterial = typeof mpMaterials.$inferInsert;
 export const mpDraftStatusEnum = pgEnum('mp_draft_status', ['draft', 'published']);
 
 export const mpDrafts = pgTable('mp_drafts', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   /** 草稿标题（内部标识，取首篇文章标题） */
   title: varchar({ length: 200 }).notNull(),
@@ -289,7 +289,7 @@ export const mpDrafts = pgTable('mp_drafts', {
   /** 微信草稿 media_id（推送后回填） */
   wechatMediaId: varchar({ length: 128 }),
   status: mpDraftStatusEnum().notNull().default('draft'),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('mp_drafts_tenant_idx').on(t.tenantId), 
@@ -302,14 +302,14 @@ export type NewMpDraft = typeof mpDrafts.$inferInsert;
 
 // 公众号模板消息：模板库（与微信同步）
 export const mpMessageTemplates = pgTable('mp_message_templates', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   /** 微信模板 id */
   templateId: varchar({ length: 128 }).notNull(),
   title: varchar({ length: 200 }).notNull(),
   content: text(),
   example: text(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('mp_message_templates_tenant_idx').on(t.tenantId), 
@@ -324,7 +324,7 @@ export type NewMpMessageTemplate = typeof mpMessageTemplates.$inferInsert;
 export const mpTemplateSendStatusEnum = pgEnum('mp_template_send_status', ['success', 'failed']);
 
 export const mpTemplateSendLogs = pgTable('mp_template_send_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   templateId: varchar({ length: 128 }).notNull(),
   openid: varchar({ length: 64 }).notNull(),
@@ -334,7 +334,7 @@ export const mpTemplateSendLogs = pgTable('mp_template_send_logs', {
   errorMsg: text(),
   /** 微信返回的 msgid */
   msgId: varchar({ length: 64 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('mp_template_send_logs_tenant_idx').on(t.tenantId), 
   index('mp_template_send_logs_account_idx').on(t.accountId),
@@ -352,7 +352,7 @@ export const mpBroadcastTargetEnum = pgEnum('mp_broadcast_target', ['all', 'tag'
 export const mpBroadcastStatusEnum = pgEnum('mp_broadcast_status', ['draft', 'sent', 'failed']);
 
 export const mpBroadcasts = pgTable('mp_broadcasts', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   msgType: mpBroadcastTypeEnum().notNull().default('text'),
   /** 群发对象：all=全部粉丝 tag=指定标签 */
@@ -370,7 +370,7 @@ export const mpBroadcasts = pgTable('mp_broadcasts', {
   scheduledAt: timestamp(),
   errorMsg: text(),
   sentAt: timestamp(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('mp_broadcasts_tenant_idx').on(t.tenantId), 
@@ -386,7 +386,7 @@ export type NewMpBroadcast = typeof mpBroadcasts.$inferInsert;
 export const mpQrcodeTypeEnum = pgEnum('mp_qrcode_type', ['temporary', 'permanent']);
 
 export const mpQrcodes = pgTable('mp_qrcodes', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   type: mpQrcodeTypeEnum().notNull().default('permanent'),
   /** 场景值（字符串型 scene_str，用于渠道来源标识） */
@@ -403,7 +403,7 @@ export const mpQrcodes = pgTable('mp_qrcodes', {
   scanCount: integer().notNull().default(0),
   /** 扫码关注奖励积分（粉丝已绑定会员时自动入账，0=不奖励） */
   rewardPoints: integer().notNull().default(0),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('mp_qrcodes_tenant_idx').on(t.tenantId), 
@@ -417,7 +417,7 @@ export type NewMpQrcode = typeof mpQrcodes.$inferInsert;
 
 // 公众号多客服账号（与微信多客服 kf_account 对应）
 export const mpKfAccounts = pgTable('mp_kf_accounts', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   /** 微信客服账号（形如 kf2001@gh_xxx） */
   kfAccount: varchar({ length: 64 }).notNull(),
@@ -429,8 +429,8 @@ export const mpKfAccounts = pgTable('mp_kf_accounts', {
   inviteStatus: varchar({ length: 32 }).notNull().default('none'),
   /** 绑定的微信号 */
   inviteWx: varchar({ length: 64 }),
-  status: statusEnum().notNull().default('enabled'),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  status: statusColumn(),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('mp_kf_accounts_tenant_idx').on(t.tenantId), 
@@ -453,7 +453,7 @@ export const mpKfSessionEventTypeEnum = pgEnum('mp_kf_session_event_type', ['cre
 
 // 多客服会话：一名粉丝（openid）与一个客服账号的一次会话，含排队(waiting)/进行(active)/结束(closed)状态机
 export const mpKfSessions = pgTable('mp_kf_sessions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   openid: varchar({ length: 64 }).notNull(),
   /** 当前承接的客服账号；waiting 时为 null */
@@ -476,8 +476,8 @@ export const mpKfSessions = pgTable('mp_kf_sessions', {
   /** 满意度评分（1-5，结束后由粉丝/客服记录） */
   rating: integer(),
   ratingRemark: varchar({ length: 255 }),
-  remark: varchar({ length: 255 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  remark: remarkColumn(255),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('mp_kf_sessions_tenant_idx').on(t.tenantId), 
@@ -493,7 +493,7 @@ export type NewMpKfSession = typeof mpKfSessions.$inferInsert;
 
 // 会话事件流水：创建/分配/接入/转接/重路由/结束，支撑时间线与转接历史审计
 export const mpKfSessionEvents = pgTable('mp_kf_session_events', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   sessionId: integer().notNull().references((): AnyPgColumn => mpKfSessions.id, { onDelete: 'cascade' }),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   type: mpKfSessionEventTypeEnum().notNull(),
@@ -502,7 +502,7 @@ export const mpKfSessionEvents = pgTable('mp_kf_session_events', {
   /** 操作人（人工操作时为后台用户；系统自动时为 null） */
   operatorId: integer().references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
   detail: varchar({ length: 255 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('mp_kf_session_events_operator_idx').on(t.operatorId), index('mp_kf_session_events_tenant_idx').on(t.tenantId), 
   index('mp_kf_session_events_session_idx').on(t.sessionId),
@@ -514,7 +514,7 @@ export type NewMpKfSessionEvent = typeof mpKfSessionEvents.$inferInsert;
 
 // 多客服路由治理配置：每公众号一份，决定会话分配策略与超时阈值
 export const mpKfRoutingConfigs = pgTable('mp_kf_routing_configs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   /** 是否启用会话治理（关闭则回调不再建会话） */
   enabled: boolean().notNull().default(true),
@@ -528,7 +528,7 @@ export const mpKfRoutingConfigs = pgTable('mp_kf_routing_configs', {
   autoCloseEnabled: boolean().notNull().default(true),
   /** 接入后自动发送的欢迎语（可空） */
   welcomeText: varchar({ length: 500 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('mp_kf_routing_configs_tenant_idx').on(t.tenantId), 

@@ -22,11 +22,14 @@ export const xxxStatusEnum = pgEnum('xxx_status', ['enabled', 'disabled']);
 
 // ─── 主表 ───────────────────────────────────────────────────────────────
 // 列名由 casing: 'snake_case' 自动派生，不写显式列名（constraints.md → Schema 层）
+// 通用列一律用 common.ts 的积木：idColumn / statusColumn / sortColumn / remarkColumn（租户归属用 core.ts 的 tenantIdColumn）
 export const xxxs = pgTable('xxxs', {
-  id:          integer().primaryKey().generatedAlwaysAsIdentity(),
+  id:          idColumn(),
   name:        varchar({ length: 64 }).notNull(),
   description: text(),
-  status:      statusEnum().notNull().default('enabled'),
+  status:      statusColumn(),          // 启用 / 禁用，默认 enabled；statusColumn('disabled') 改默认
+  sort:        sortColumn(),            // 排序值，默认 0
+  remark:      remarkColumn(),          // varchar(256)；remarkColumn(500) 改长度，长文本用 text()
   // 可选外键用 set null，关联表用 cascade
   parentId:    integer().references(() => xxxs.id, { onDelete: 'set null' }),
   // 审计列：created_by / updated_by → users.id，由 db Proxy 自动写入
@@ -41,7 +44,7 @@ export type NewXxx = typeof xxxs.$inferInsert;
 ```
 
 Step 0 确认需要租户隔离时，才按 [backend-patterns.md → 多租户隔离](./backend-patterns.md#多租户隔离tenantscope)
-添加 `tenantId`；基础模板不默认调用租户工具。
+添加 `tenantId: tenantIdColumn()`（随租户级联删除；平台级资源被删后需保留行时 `tenantIdColumn('set null')`）；基础模板不默认调用租户工具。
 
 多对多联结表：
 

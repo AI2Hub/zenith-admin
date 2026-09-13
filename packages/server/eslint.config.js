@@ -115,6 +115,28 @@ export default tseslint.config(
       ],
     },
   },
+  // Schema 层：通用列一律用 common.ts / core.ts 的列积木，表文件只写业务字段（constraints.md → Schema 层）
+  {
+    files: ['src/db/schema/*.ts'],
+    ignores: ['src/db/schema/common.ts', 'src/db/schema/core.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "Property[key.name='id'] > CallExpression[callee.property.name='generatedAlwaysAsIdentity'][callee.object.callee.property.name='primaryKey'][callee.object.callee.object.callee.name='integer']",
+          message: '自增整数主键请写 id: idColumn()（db/schema/common.ts），不要直写 integer().primaryKey().generatedAlwaysAsIdentity()。',
+        },
+        {
+          selector: "Property[key.name='status'] > CallExpression[callee.property.name=/^(default|notNull)$/]:has(CallExpression[callee.name='statusEnum'])",
+          message: "启用 / 禁用状态列请写 status: statusColumn() / statusColumn('disabled')（db/schema/common.ts），不要直写 statusEnum().notNull().default(...)。",
+        },
+        {
+          selector: "Property[key.name='tenantId'] > CallExpression[callee.property.name='references'][callee.object.callee.name='integer']",
+          message: "租户归属列请写 tenantId: tenantIdColumn() / tenantIdColumn('set null')（db/schema/core.ts），不要直写 integer().references(() => tenants.id, …)。",
+        },
+      ],
+    },
+  },
   // 通知渠道收口：业务域一律通过 notify() 发事件通知，不得直接调底层渠道。
   // 绕过统一入口就等于绕过收件人偏好、免打扰、幂等与派发留痕——
   // 而「明明配好了却没人收到」的排查完全依赖这些留痕。

@@ -4,8 +4,8 @@ import {
 import { REPORT_ACL_ROLES, REPORT_ACL_SUBJECT_TYPES, REPORT_APPROVAL_STATUSES, REPORT_ASSET_TEMPLATE_TYPES, REPORT_CHATBI_MESSAGE_ROLES, REPORT_CHATBI_SESSION_STATUSES, REPORT_DQ_ANOMALY_STATUSES, REPORT_DQ_RULE_TYPES, REPORT_DQ_RUN_STATUSES, REPORT_DQ_SEVERITIES, REPORT_ENVIRONMENT_KINDS, REPORT_FILL_RECORD_STATUSES, REPORT_FILL_SYNC_STATUSES, REPORT_FILL_TEMPLATE_STATUSES, REPORT_MATERIALIZATION_STRATEGIES, REPORT_METRIC_LIFECYCLE_STATUSES, REPORT_METRIC_TYPES, REPORT_PROMOTION_STATUSES, REPORT_QUOTA_SCOPES, REPORT_SLA_TYPES, REPORT_SLA_VIOLATION_STATUSES, REPORT_SNAPSHOT_STATUSES, REPORT_TRANSFER_STATUSES } from '@zenith/shared/report';
 import type { ReportChatbiChartSuggestion, ReportChatbiContextSnapshot, ReportDataResult, ReportDqRuleConfig, ReportNotifyChannel } from '@zenith/shared/report';
 import type { WorkflowFormSchema } from '@zenith/shared/workflow';
-import { statusEnum, timestampColumns } from './common';
-import { auditColumns, tenants, users } from './core';
+import { timestampColumns, idColumn, statusColumn } from './common';
+import { auditColumns, users, tenantIdColumn } from './core';
 import { managedFiles } from './files';
 import {
   reportDatasets,
@@ -41,8 +41,8 @@ export const reportFillRecordStatusEnum = pgEnum('report_fill_record_status', RE
 export const reportFillSyncStatusEnum = pgEnum('report_fill_sync_status', REPORT_FILL_SYNC_STATUSES);
 
 export const reportMetrics = pgTable('report_metrics', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   folderId: integer().references(() => reportFolders.id, { onDelete: 'set null' }),
   ownerId: integer().references(() => users.id, { onDelete: 'set null' }),
   code: varchar({ length: 64 }).notNull(),
@@ -78,8 +78,8 @@ export const reportMetrics = pgTable('report_metrics', {
 ]);
 
 export const reportResourceAcls = pgTable('report_resource_acls', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   resourceType: reportResourceTypeEnum().notNull(),
   resourceId: integer().notNull(),
   subjectType: reportAclSubjectTypeEnum().notNull(),
@@ -103,8 +103,8 @@ export const reportResourceAcls = pgTable('report_resource_acls', {
 ]);
 
 export const reportPublishApprovals = pgTable('report_publish_approvals', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   resourceType: reportResourceTypeEnum().notNull(),
   resourceId: integer().notNull(),
   action: varchar({ length: 16 }).$type<'publish' | 'promote' | 'deprecate'>().notNull(),
@@ -125,8 +125,8 @@ export const reportPublishApprovals = pgTable('report_publish_approvals', {
 ]);
 
 export const reportResourceTransfers = pgTable('report_resource_transfers', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   resourceType: reportResourceTypeEnum().notNull(),
   resourceId: integer().notNull(),
   fromOwnerId: integer().references(() => users.id, { onDelete: 'set null' }),
@@ -145,8 +145,8 @@ export const reportResourceTransfers = pgTable('report_resource_transfers', {
 ]);
 
 export const reportEnvironments = pgTable('report_environments', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   code: varchar({ length: 64 }).notNull(),
   name: varchar({ length: 128 }).notNull(),
   kind: reportEnvironmentKindEnum().notNull(),
@@ -154,7 +154,7 @@ export const reportEnvironments = pgTable('report_environments', {
   baseUrl: varchar({ length: 1024 }),
   config: jsonb().$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
   isDefault: boolean().notNull().default(false),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   ...auditColumns(),
   ...timestampColumns({ withTimezone: true }),
 }, (t) => [
@@ -166,8 +166,8 @@ export const reportEnvironments = pgTable('report_environments', {
 ]);
 
 export const reportEnvironmentPromotions = pgTable('report_environment_promotions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   resourceType: reportResourceTypeEnum().notNull(),
   resourceId: integer().notNull(),
   sourceEnvironmentId: integer().notNull().references(() => reportEnvironments.id, { onDelete: 'restrict' }),
@@ -191,8 +191,8 @@ export const reportEnvironmentPromotions = pgTable('report_environment_promotion
 ]);
 
 export const reportDqRules = pgTable('report_dq_rules', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   datasetId: integer().notNull().references(() => reportDatasets.id, { onDelete: 'cascade' }),
   name: varchar({ length: 128 }).notNull(),
   type: reportDqRuleTypeEnum().notNull(),
@@ -214,8 +214,8 @@ export const reportDqRules = pgTable('report_dq_rules', {
 ]);
 
 export const reportDqRuns = pgTable('report_dq_runs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'set null' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn('set null'),
   ruleId: integer().notNull().references(() => reportDqRules.id, { onDelete: 'cascade' }),
   datasetId: integer().notNull().references(() => reportDatasets.id, { onDelete: 'cascade' }),
   status: reportDqRunStatusEnum().notNull().default('pending'),
@@ -240,8 +240,8 @@ export const reportDqRuns = pgTable('report_dq_runs', {
 ]);
 
 export const reportDqScores = pgTable('report_dq_scores', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'set null' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn('set null'),
   datasetId: integer().notNull().references(() => reportDatasets.id, { onDelete: 'cascade' }),
   score: doublePrecision().notNull(),
   passedRules: integer().notNull().default(0),
@@ -256,8 +256,8 @@ export const reportDqScores = pgTable('report_dq_scores', {
 ]);
 
 export const reportDqAnomalies = pgTable('report_dq_anomalies', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'set null' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn('set null'),
   datasetId: integer().notNull().references(() => reportDatasets.id, { onDelete: 'cascade' }),
   ruleId: integer().references(() => reportDqRules.id, { onDelete: 'set null' }),
   runId: integer().references(() => reportDqRuns.id, { onDelete: 'set null' }),
@@ -281,8 +281,8 @@ export const reportDqAnomalies = pgTable('report_dq_anomalies', {
 ]);
 
 export const reportMaterializationSnapshots = pgTable('report_materialization_snapshots', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'set null' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn('set null'),
   datasetId: integer().notNull().references(() => reportDatasets.id, { onDelete: 'cascade' }),
   strategy: reportMaterializationStrategyEnum().notNull().default('full'),
   status: reportSnapshotStatusEnum().notNull().default('pending'),
@@ -308,8 +308,8 @@ export const reportMaterializationSnapshots = pgTable('report_materialization_sn
 ]);
 
 export const reportQueryQuotas = pgTable('report_query_quotas', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   scope: reportQuotaScopeEnum().notNull(),
   userId: integer().references(() => users.id, { onDelete: 'cascade' }),
   maxConcurrent: integer().notNull(),
@@ -334,8 +334,8 @@ export const reportQueryQuotas = pgTable('report_query_quotas', {
 ]);
 
 export const reportQueryCostLogs = pgTable('report_query_cost_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'set null' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn('set null'),
   userId: integer().references(() => users.id, { onDelete: 'set null' }),
   datasetId: integer().references(() => reportDatasets.id, { onDelete: 'set null' }),
   datasourceId: integer().references(() => reportDatasources.id, { onDelete: 'set null' }),
@@ -358,8 +358,8 @@ export const reportQueryCostLogs = pgTable('report_query_cost_logs', {
 ]);
 
 export const reportSlaRules = pgTable('report_sla_rules', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   datasetId: integer().notNull().references(() => reportDatasets.id, { onDelete: 'cascade' }),
   name: varchar({ length: 128 }).notNull(),
   type: reportSlaTypeEnum().notNull(),
@@ -385,8 +385,8 @@ export const reportSlaRules = pgTable('report_sla_rules', {
 ]);
 
 export const reportSlaViolations = pgTable('report_sla_violations', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'set null' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn('set null'),
   ruleId: integer().notNull().references(() => reportSlaRules.id, { onDelete: 'cascade' }),
   datasetId: integer().notNull().references(() => reportDatasets.id, { onDelete: 'cascade' }),
   status: reportSlaViolationStatusEnum().notNull().default('open'),
@@ -407,8 +407,8 @@ export const reportSlaViolations = pgTable('report_sla_violations', {
 ]);
 
 export const reportAssetUsageLogs = pgTable('report_asset_usage_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'set null' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn('set null'),
   resourceType: reportResourceTypeEnum().notNull(),
   resourceId: integer().notNull(),
   userId: integer().references(() => users.id, { onDelete: 'set null' }),
@@ -425,8 +425,8 @@ export const reportAssetUsageLogs = pgTable('report_asset_usage_logs', {
 ]);
 
 export const reportDeprecationNotices = pgTable('report_deprecation_notices', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   resourceType: reportResourceTypeEnum().notNull(),
   resourceId: integer().notNull(),
   title: varchar({ length: 128 }).notNull(),
@@ -446,8 +446,8 @@ export const reportDeprecationNotices = pgTable('report_deprecation_notices', {
 ]);
 
 export const reportAssetTemplates = pgTable('report_asset_templates', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   folderId: integer().references(() => reportFolders.id, { onDelete: 'set null' }),
   ownerId: integer().references(() => users.id, { onDelete: 'set null' }),
   code: varchar({ length: 64 }).notNull(),
@@ -458,7 +458,7 @@ export const reportAssetTemplates = pgTable('report_asset_templates', {
   previewFileId: pgUuid().references(() => managedFiles.id, { onDelete: 'set null' }),
   version: integer().notNull().default(1),
   usageCount: integer().notNull().default(0),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   ...auditColumns(),
   ...timestampColumns({ withTimezone: true }),
 }, (t) => [
@@ -470,8 +470,8 @@ export const reportAssetTemplates = pgTable('report_asset_templates', {
 ]);
 
 export const reportChatbiSessions = pgTable('report_chatbi_sessions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   title: varchar({ length: 128 }).notNull(),
   datasourceId: integer().references(() => reportDatasources.id, { onDelete: 'set null' }),
@@ -490,8 +490,8 @@ export const reportChatbiSessions = pgTable('report_chatbi_sessions', {
 ]);
 
 export const reportChatbiMessages = pgTable('report_chatbi_messages', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'set null' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn('set null'),
   sessionId: integer().notNull().references(() => reportChatbiSessions.id, { onDelete: 'cascade' }),
   userId: integer().references(() => users.id, { onDelete: 'set null' }),
   role: reportChatbiMessageRoleEnum().notNull(),
@@ -518,8 +518,8 @@ export const reportChatbiMessages = pgTable('report_chatbi_messages', {
 ]);
 
 export const reportFillTemplates = pgTable('report_fill_templates', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   folderId: integer().references(() => reportFolders.id, { onDelete: 'set null' }),
   ownerId: integer().references(() => users.id, { onDelete: 'set null' }),
   code: varchar({ length: 64 }).notNull(),
@@ -547,8 +547,8 @@ export const reportFillTemplates = pgTable('report_fill_templates', {
 ]);
 
 export const reportFillRecords = pgTable('report_fill_records', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   templateId: integer().notNull().references(() => reportFillTemplates.id, { onDelete: 'restrict' }),
   submitterId: integer().notNull().references(() => users.id, { onDelete: 'restrict' }),
   status: reportFillRecordStatusEnum().notNull().default('draft'),

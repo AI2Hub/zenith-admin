@@ -3,8 +3,8 @@ import { sql } from 'drizzle-orm';
 // 报表中心 jsonb 列形态（前后端共享契约；type-only 导入，编译期即擦除）
 import type { ReportDatasourceConfig, ReportDatasetContent, ReportField, ReportGridItem, ReportWidget, ReportDatasetParam, ReportFilter, ReportDashboardConfig, ReportComputedField, ReportCanvasItem, ReportPrintContent, ReportPrintPageConfig, ReportDatasetMaterialize, ReportNotifyChannel, ReportRowRule, ReportScheduleMisfirePolicy, ReportDeliveryStatus, ReportDeliveryTargetType, ReportDeliveryTriggerType, ReportDashboardLifecycleStatus, ReportDashboardVersionSource, ReportDashboardSnapshot, ReportResourceType } from '@zenith/shared/report';
 import { REPORT_PRINT_SOURCE_TYPES, REPORT_RESOURCE_TYPES } from '@zenith/shared/report';
-import { statusEnum, timestampColumns } from './common';
-import { auditColumns, tenants, users } from './core';
+import { timestampColumns, idColumn, statusColumn, sortColumn, remarkColumn } from './common';
+import { auditColumns, users, tenantIdColumn } from './core';
 
 // ════════════════════════════════════════════════════════════════════════════
 // 报表中心（Report Center）—— 通用报表设计器 / 数据大屏
@@ -21,14 +21,14 @@ export const reportResourceTypeEnum = pgEnum('report_resource_type', REPORT_RESO
 
 /** 资源目录：按租户及资源类型组织，可嵌套并独立授权。 */
 export const reportFolders = pgTable('report_folders', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   parentId: integer().references((): AnyPgColumn => reportFolders.id, { onDelete: 'cascade' }),
   name: varchar({ length: 64 }).notNull(),
   resourceType: reportResourceTypeEnum().$type<ReportResourceType>().notNull(),
   ownerId: integer().references(() => users.id, { onDelete: 'set null' }),
-  sort: integer().notNull().default(0),
-  status: statusEnum().notNull().default('enabled'),
+  sort: sortColumn(),
+  status: statusColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -50,21 +50,21 @@ export type NewReportFolder = typeof reportFolders.$inferInsert;
 
 /** 报表数据源：api=远程 HTTP；sql=内置只读主库 */
 export const reportDatasources = pgTable('report_datasources', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   ownerId: integer().references(() => users.id, { onDelete: 'set null' }),
   folderId: integer().references(() => reportFolders.id, { onDelete: 'set null' }),
   name: varchar({ length: 64 }).notNull(),
   type: reportDatasourceTypeEnum().notNull(),
   /** 连接配置：api→{url,method,headers}；sql→{connection:'internal'} */
   config: jsonb().$type<ReportDatasourceConfig>().notNull().default(sql`'{}'::jsonb`),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   lastTestAt: timestamp({ withTimezone: true }),
   lastTestStatus: varchar({ length: 16 }),
   lastTestLatencyMs: integer(),
   lastTestError: varchar({ length: 512 }),
   consecutiveFailures: integer().notNull().default(0),
-  remark: varchar({ length: 256 }),
+  remark: remarkColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -81,8 +81,8 @@ export type NewReportDatasource = typeof reportDatasources.$inferInsert;
 
 /** 报表数据集：绑定数据源 + 查询内容 + 字段定义 */
 export const reportDatasets = pgTable('report_datasets', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   ownerId: integer().references(() => users.id, { onDelete: 'set null' }),
   folderId: integer().references(() => reportFolders.id, { onDelete: 'set null' }),
   name: varchar({ length: 64 }).notNull(),
@@ -103,8 +103,8 @@ export const reportDatasets = pgTable('report_datasets', {
   materialize: jsonb().$type<ReportDatasetMaterialize>().notNull().default(sql`'{}'::jsonb`),
   /** 行级权限规则（仅 SQL 型数据集生效；按角色命中 OR 拼接 WHERE） */
   rowRules: jsonb().$type<ReportRowRule[]>().notNull().default(sql`'[]'::jsonb`),
-  status: statusEnum().notNull().default('enabled'),
-  remark: varchar({ length: 256 }),
+  status: statusColumn(),
+  remark: remarkColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -122,8 +122,8 @@ export type NewReportDataset = typeof reportDatasets.$inferInsert;
 
 /** 数据集执行日志：记录运行场景、耗时、命中缓存与错误摘要（不落敏感参数值） */
 export const reportDatasetExecutionLogs = pgTable('report_dataset_execution_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'set null' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn('set null'),
   datasetId: integer().references((): AnyPgColumn => reportDatasets.id, { onDelete: 'set null' }),
   datasourceId: integer().references((): AnyPgColumn => reportDatasources.id, { onDelete: 'set null' }),
   userId: integer().references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
@@ -152,8 +152,8 @@ export type ReportDatasetExecutionLogRow = typeof reportDatasetExecutionLogs.$in
 
 /** 类 Excel 单据/中国式打印报表模板 */
 export const reportPrintTemplates = pgTable('report_print_templates', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   ownerId: integer().references(() => users.id, { onDelete: 'set null' }),
   folderId: integer().references(() => reportFolders.id, { onDelete: 'set null' }),
   name: varchar({ length: 64 }).notNull(),
@@ -171,8 +171,8 @@ export const reportPrintTemplates = pgTable('report_print_templates', {
   params: jsonb().$type<ReportDatasetParam[]>().notNull().default(sql`'[]'::jsonb`),
   /** 页面/打印配置 */
   pageConfig: jsonb().$type<ReportPrintPageConfig>().notNull().default(sql`'{}'::jsonb`),
-  status: statusEnum().notNull().default('enabled'),
-  remark: varchar({ length: 256 }),
+  status: statusColumn(),
+  remark: remarkColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -191,8 +191,8 @@ export type NewReportPrintTemplate = typeof reportPrintTemplates.$inferInsert;
 
 /** 数据预警规则：监控某数据集聚合值，超阈值时通知 */
 export const reportAlertRules = pgTable('report_alert_rules', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   name: varchar({ length: 64 }).notNull(),
   datasetId: integer().references((): AnyPgColumn => reportDatasets.id, { onDelete: 'cascade' }),
   metricId: integer(),
@@ -229,7 +229,7 @@ export const reportAlertRules = pgTable('report_alert_rules', {
   lastDeliveryAt: timestamp({ withTimezone: true }),
   lastDeliveryStatus: reportDeliveryStatusEnum().$type<ReportDeliveryStatus>(),
   lastDeliveryError: varchar({ length: 512 }),
-  remark: varchar({ length: 256 }),
+  remark: remarkColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -246,7 +246,7 @@ export type NewReportAlertRule = typeof reportAlertRules.$inferInsert;
 
 /** 仪表盘评论（协作批注） */
 export const reportDashboardComments = pgTable('report_dashboard_comments', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   dashboardId: integer().notNull().references((): AnyPgColumn => reportDashboards.id, { onDelete: 'cascade' }),
   /** 关联组件 id（可空，整盘评论） */
   widgetId: varchar({ length: 64 }),
@@ -269,8 +269,8 @@ export type NewReportDashboardComment = typeof reportDashboardComments.$inferIns
 
 /** 报表仪表盘：网格布局 + 组件配置 */
 export const reportDashboards = pgTable('report_dashboards', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   ownerId: integer().references(() => users.id, { onDelete: 'set null' }),
   folderId: integer().references(() => reportFolders.id, { onDelete: 'set null' }),
   name: varchar({ length: 64 }).notNull(),
@@ -286,14 +286,14 @@ export const reportDashboards = pgTable('report_dashboards', {
   config: jsonb().$type<ReportDashboardConfig>().notNull().default(sql`'{}'::jsonb`),
   /** 分类（可空）*/
   categoryId: integer().references((): AnyPgColumn => reportDashboardCategories.id, { onDelete: 'set null' }),
-  status: statusEnum().notNull().default('enabled'),
+  status: statusColumn(),
   lifecycleStatus: reportDashboardLifecycleStatusEnum().$type<ReportDashboardLifecycleStatus>().notNull().default('draft'),
   lifecycleInitialized: boolean().notNull().default(false),
   revision: integer().notNull().default(1),
   publishedSnapshot: jsonb().$type<ReportDashboardSnapshot | null>(),
   publishedAt: timestamp(),
   publishedBy: integer().references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
-  remark: varchar({ length: 256 }),
+  remark: remarkColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
@@ -311,11 +311,11 @@ export type NewReportDashboard = typeof reportDashboards.$inferInsert;
 
 /** 仪表盘分类 */
 export const reportDashboardCategories = pgTable('report_dashboard_categories', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   name: varchar({ length: 64 }).notNull().unique(),
-  sort: integer().notNull().default(0),
-  remark: varchar({ length: 256 }),
+  sort: sortColumn(),
+  remark: remarkColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('report_dashboard_categories_tenant_idx').on(t.tenantId)]);
@@ -326,12 +326,12 @@ export type NewReportDashboardCategory = typeof reportDashboardCategories.$infer
 
 /** 仪表盘版本快照（追加型）*/
 export const reportDashboardVersions = pgTable('report_dashboard_versions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   dashboardId: integer().notNull().references(() => reportDashboards.id, { onDelete: 'cascade' }),
   version: integer().notNull(),
   snapshot: jsonb().$type<ReportDashboardSnapshot>().notNull(),
   source: reportDashboardVersionSourceEnum().$type<ReportDashboardVersionSource>().notNull().default('manual'),
-  remark: varchar({ length: 256 }),
+  remark: remarkColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [uniqueIndex('report_dashboard_versions_dash_ver_uq').on(t.dashboardId, t.version)]);
@@ -342,7 +342,7 @@ export type NewReportDashboardVersion = typeof reportDashboardVersions.$inferIns
 
 /** 公开分享链接 */
 export const reportDashboardShares = pgTable('report_dashboard_shares', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   dashboardId: integer().notNull().references(() => reportDashboards.id, { onDelete: 'cascade' }),
   token: varchar({ length: 64 }).notNull().unique(),
   tokenEncrypted: varchar({ length: 256 }),
@@ -364,7 +364,7 @@ export type NewReportDashboardShare = typeof reportDashboardShares.$inferInsert;
 
 /** 匿名嵌入 token */
 export const reportDashboardEmbedTokens = pgTable('report_dashboard_embed_tokens', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   dashboardId: integer().notNull().references(() => reportDashboards.id, { onDelete: 'cascade' }),
   token: varchar({ length: 64 }).notNull().unique(),
   tokenEncrypted: varchar({ length: 256 }),
@@ -372,7 +372,7 @@ export const reportDashboardEmbedTokens = pgTable('report_dashboard_embed_tokens
   fixedFilters: jsonb().$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
   expireAt: timestamp({ withTimezone: true }),
   revokedAt: timestamp({ withTimezone: true }),
-  remark: varchar({ length: 256 }),
+  remark: remarkColumn(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [index('report_dashboard_embed_tokens_dashboard_idx').on(t.dashboardId)]);
@@ -383,7 +383,7 @@ export type NewReportDashboardEmbedToken = typeof reportDashboardEmbedTokens.$in
 
 /** 公开分享访问日志（无登录访问的审计线索；含被拒绝的尝试） */
 export const reportShareAccessLogs = pgTable('report_share_access_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   shareId: integer().notNull().references(() => reportDashboardShares.id, { onDelete: 'cascade' }),
   /** 冗余仪表盘 id（分享删除后日志级联删除，此列便于按盘检索） */
   dashboardId: integer().notNull(),
@@ -411,8 +411,8 @@ export type ReportDashboardFavoriteRow = typeof reportDashboardFavorites.$inferS
 
 /** 订阅推送（按 Cron 推送报表摘要）*/
 export const reportDashboardSubscriptions = pgTable('report_dashboard_subscriptions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn(),
   dashboardId: integer().notNull().references(() => reportDashboards.id, { onDelete: 'cascade' }),
   cron: varchar({ length: 64 }).notNull(),
   timezone: varchar({ length: 64 }).notNull().default('Asia/Shanghai'),
@@ -423,7 +423,7 @@ export const reportDashboardSubscriptions = pgTable('report_dashboard_subscripti
   /** Webhook 通知地址（企微/钉钉机器人或通用 JSON 端点） */
   webhookUrl: varchar({ length: 1024 }),
   enabled: boolean().notNull().default(true),
-  remark: varchar({ length: 256 }),
+  remark: remarkColumn(),
   lastRunAt: timestamp({ withTimezone: true }),
   lastDeliveryAt: timestamp({ withTimezone: true }),
   lastDeliveryStatus: reportDeliveryStatusEnum().$type<ReportDeliveryStatus>(),
@@ -443,8 +443,8 @@ export type ReportDashboardSubscriptionRow = typeof reportDashboardSubscriptions
 export type NewReportDashboardSubscription = typeof reportDashboardSubscriptions.$inferInsert;
 
 export const reportDeliveryRuns = pgTable('report_delivery_runs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'set null' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn('set null'),
   targetType: reportDeliveryTargetTypeEnum().$type<ReportDeliveryTargetType>().notNull(),
   subscriptionId: integer().references((): AnyPgColumn => reportDashboardSubscriptions.id, { onDelete: 'set null' }),
   alertRuleId: integer().references((): AnyPgColumn => reportAlertRules.id, { onDelete: 'set null' }),
@@ -482,8 +482,8 @@ export const reportDeliveryRuns = pgTable('report_delivery_runs', {
 export type ReportDeliveryRunRow = typeof reportDeliveryRuns.$inferSelect;
 
 export const reportDeliveryAttempts = pgTable('report_delivery_attempts', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'set null' }),
+  id: idColumn(),
+  tenantId: tenantIdColumn('set null'),
   runId: integer().notNull().references((): AnyPgColumn => reportDeliveryRuns.id, { onDelete: 'cascade' }),
   channel: varchar({ length: 16 }).$type<ReportNotifyChannel>().notNull(),
   attempt: integer().notNull().default(1),

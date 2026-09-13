@@ -1,5 +1,6 @@
 import { pgTable, varchar, timestamp, pgEnum, integer, text, smallint, index } from 'drizzle-orm/pg-core';
-import { tenants } from './core';
+import { tenantIdColumn } from './core';
+import { idColumn } from './common';
 
 // ─── 登录日志表 ─────────────────────────────────────────────────────────────────
 export const loginStatusEnum = pgEnum('login_status', ['success', 'fail']);
@@ -7,7 +8,7 @@ export const loginStatusEnum = pgEnum('login_status', ['success', 'fail']);
 export const loginEventTypeEnum = pgEnum('login_event_type', ['login', 'logout']);
 
 export const loginLogs = pgTable('login_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer(),
   username: varchar({ length: 64 }).notNull(),
   ip: varchar({ length: 64 }),
@@ -18,7 +19,7 @@ export const loginLogs = pgTable('login_logs', {
   eventType: loginEventTypeEnum().notNull().default('login'),
   status: loginStatusEnum().notNull(),
   message: varchar({ length: 256 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   // 设备信息（登录时由前端上报）
   screenWidth: smallint(),
   screenHeight: smallint(),
@@ -38,7 +39,7 @@ export const loginLogs = pgTable('login_logs', {
 
 // ─── 操作日志表 ─────────────────────────────────────────────────────────────────
 export const operationLogs = pgTable('operation_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer(),
   username: varchar({ length: 32 }),
   module: varchar({ length: 64 }),
@@ -57,7 +58,7 @@ export const operationLogs = pgTable('operation_logs', {
   userAgent: varchar({ length: 512 }),
   os: varchar({ length: 64 }),
   browser: varchar({ length: 64 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   // 同 login_logs：租户 + 时间范围复合索引取代单列 tenant 索引
@@ -79,7 +80,7 @@ export type NewOperationLog = typeof operationLogs.$inferInsert;
 
 // ─── IP 访问控制拦截日志表 ───────────────────────────────────────────────────────
 export const ipAccessLogs = pgTable('ip_access_logs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   ip: varchar({ length: 64 }).notNull(),
   path: varchar({ length: 256 }).notNull(),
   method: varchar({ length: 16 }).notNull(),

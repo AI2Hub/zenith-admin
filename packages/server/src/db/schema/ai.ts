@@ -1,7 +1,7 @@
-import { timestampColumns } from './common';
+import { timestampColumns, idColumn, sortColumn } from './common';
 import { pgTable, varchar, timestamp, pgEnum, integer, boolean, text, jsonb, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import type { AiModelSettings, AiModelFallbackRef, AiUserSettingsPatch } from '@zenith/shared/ai';
-import { auditColumns, tenants, users } from './core';
+import { auditColumns, users, tenantIdColumn } from './core';
 
 export const aiMessageRoleEnum = pgEnum('ai_message_role', ['system', 'user', 'assistant']);
 
@@ -15,7 +15,7 @@ export interface AiModelCapabilities {
 }
 
 export const aiProviderConfigs = pgTable('ai_provider_configs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 100 }).notNull(),
   /** Mastra 模型目录 provider ID（'openai' / 'anthropic' / ...）或 'custom'（OpenAI 兼容自定义端点） */
   providerId: varchar({ length: 50 }).notNull(),
@@ -53,9 +53,9 @@ export type AiProviderConfigRow = typeof aiProviderConfigs.$inferSelect;
 export type NewAiProviderConfig = typeof aiProviderConfigs.$inferInsert;
 
 export const aiConversations = pgTable('ai_conversations', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
   title: varchar({ length: 200 }).notNull().default('新对话'),
   providerSnapshot: jsonb().$type<{ providerId: string; model: string; configId?: number }>(),
   isArchived: boolean().notNull().default(false),
@@ -85,7 +85,7 @@ export interface AiTraceStep {
 }
 
 export const aiMessages = pgTable('ai_messages', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   conversationId: integer().notNull().references(() => aiConversations.id, { onDelete: 'cascade' }),
   /** 分支树父消息 ID（null = 根消息；同 parent 的多条同角色消息互为兄弟分支） */
   parentId: integer(),
@@ -130,7 +130,7 @@ export type AiMessageRow = typeof aiMessages.$inferSelect;
 export type NewAiMessage = typeof aiMessages.$inferInsert;
 
 export const userAiConfigs = pgTable('user_ai_configs', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: varchar({ length: 100 }),
   /** Mastra 模型目录 provider ID 或 'custom'(与全局 ai_provider_configs 同构的用户子集) */
@@ -161,7 +161,7 @@ export type NewUserAiConfig = typeof userAiConfigs.$inferInsert;
 export const aiPromptScopeEnum = pgEnum('ai_prompt_scope', ['system', 'user']);
 
 export const aiPromptTemplates = pgTable('ai_prompt_templates', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 100 }).notNull(),
   content: text().notNull(),
   description: varchar({ length: 300 }),
@@ -169,7 +169,7 @@ export const aiPromptTemplates = pgTable('ai_prompt_templates', {
   scope: aiPromptScopeEnum().notNull().default('system'),
   userId: integer().references(() => users.id, { onDelete: 'cascade' }),
   isBuiltin: boolean().notNull().default(false),
-  sort: integer().notNull().default(0),
+  sort: sortColumn(),
   /** 被应用为对话角色的累计次数 */
   usageCount: integer().notNull().default(0),
   isEnabled: boolean().notNull().default(true),
@@ -183,7 +183,7 @@ export type NewAiPromptTemplate = typeof aiPromptTemplates.$inferInsert;
 
 /** 用户级 AI 设置(单份文档:个人指令 / AI 记忆开关等,分域稀疏存储,读取时与默认值深合并) */
 export const aiUserSettings = pgTable('ai_user_settings', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   settings: jsonb().$type<AiUserSettingsPatch>().notNull().default({}),
   ...timestampColumns(),
@@ -193,7 +193,7 @@ export type AiUserSettingsRow = typeof aiUserSettings.$inferSelect;
 
 /** 对话分享链接 */
 export const aiSharedConversations = pgTable('ai_shared_conversations', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   token: varchar({ length: 64 }).notNull(),
   conversationId: integer().notNull().references(() => aiConversations.id, { onDelete: 'cascade' }),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -206,7 +206,7 @@ export type AiSharedConversationRow = typeof aiSharedConversations.$inferSelect;
 
 /** 多模型对比（Arena）投票记录 */
 export const aiArenaVotes = pgTable('ai_arena_votes', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   question: text().notNull(),
   modelA: varchar({ length: 100 }).notNull(),
@@ -218,7 +218,7 @@ export const aiArenaVotes = pgTable('ai_arena_votes', {
 
 /** 知识库 */
 export const aiKnowledgeBases = pgTable('ai_knowledge_bases', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   name: varchar({ length: 100 }).notNull(),
   description: varchar({ length: 300 }),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -231,7 +231,7 @@ export type AiKnowledgeBaseRow = typeof aiKnowledgeBases.$inferSelect;
 
 /** 知识库文档 */
 export const aiKbDocuments = pgTable('ai_kb_documents', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   kbId: integer().notNull().references(() => aiKnowledgeBases.id, { onDelete: 'cascade' }),
   name: varchar({ length: 200 }).notNull(),
   /** 网页抓取来源 URL（手工文本 / 文件导入为 null） */
@@ -248,7 +248,7 @@ export type AiKbDocumentRow = typeof aiKbDocuments.$inferSelect;
 
 /** 知识库分块（embedding 为空时该分块走关键词检索） */
 export const aiKbChunks = pgTable('ai_kb_chunks', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   kbId: integer().notNull().references(() => aiKnowledgeBases.id, { onDelete: 'cascade' }),
   docId: integer().notNull().references(() => aiKbDocuments.id, { onDelete: 'cascade' }),
   /** 分块文本(关键词兜底检索 + UI 展示);向量归 Mastra PgVector(mastra schema,索引 kb_{kbId}) */
@@ -262,7 +262,7 @@ export type AiKbChunkRow = typeof aiKbChunks.$inferSelect;
 
 /** 自定义智能体(Mastra AgentConfig 形状:instructions + model + tools + memory 组合;创建即用) */
 export const aiAgents = pgTable('ai_agents', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: varchar({ length: 100 }).notNull(),
   description: varchar({ length: 300 }),
@@ -309,7 +309,7 @@ export interface AiHttpToolParam {
 
 /** 管理员配置的 HTTP API 工具（动态注入 function calling 工具集） */
 export const aiHttpTools = pgTable('ai_http_tools', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   /** 工具函数名（a-z0-9_，全局唯一，与内置工具共用命名空间） */
   name: varchar({ length: 60 }).notNull(),
   description: varchar({ length: 500 }).notNull(),
@@ -329,7 +329,7 @@ export type AiHttpToolRow = typeof aiHttpTools.$inferSelect;
 
 /** 提示词模板历史版本快照（内容变更时自动留档） */
 export const aiPromptTemplateVersions = pgTable('ai_prompt_template_versions', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: idColumn(),
   templateId: integer().notNull().references(() => aiPromptTemplates.id, { onDelete: 'cascade' }),
   version: integer().notNull(),
   name: varchar({ length: 100 }).notNull(),
