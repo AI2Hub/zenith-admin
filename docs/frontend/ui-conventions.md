@@ -46,7 +46,7 @@
 
 ## 弹窗与表单约定
 
-- 新增/编辑弹窗优先使用 `useEditModal` + `AppModal`
+- 新增/编辑弹窗优先使用 `useEditModal` + `EditFormModal`（抽屉形态 `EditFormSheet`），页面只写字段
 - `Form` 使用 `labelPosition="left"`；`Form key={modal.formKey}` 必须显式写出
 - 所有 `Modal` 应允许 `closeOnEsc`；使用 `AppModal` 时默认具备 ESC 关闭与全屏按钮
 - 单图上传使用 `ImageUploadField`；时区字段使用 `FormTimezoneSelect`

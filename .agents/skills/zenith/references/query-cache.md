@@ -23,13 +23,13 @@
    工厂之外按契约操作预取 / 失效天然命中同一缓存）；单操作查询 `useApiQuery(op, input, extras)`，`extras` 可带
    `enabled` / `placeholderData` / `staleTime` / `refetchInterval` / `select`（`select` 可改变数据形状，缓存与 key 不变）；
    `useQueries` / `prefetchQuery` / `ensureQueryData` 用 `apiQueryOptions(op, input, extras)`。
-   每个域文件仍导出 keys 常量对象（名字稳定供页面 `useListSearch({ listKey })` 与失效引用），取值全部由 `contractKey` 生成，
+   每个域文件仍导出 keys 常量对象（名字稳定供页面 `useListPage` / `useListSearch` 的 `listKey` 与失效引用），取值全部由 `contractKey` 生成，
    **禁止**手写字面量 key 树（`['workflow', 'monitor', 'list', params]` 之类）；`src/hooks/queries/**` 直接 import
    `useQuery` / `useMutation` 会被 ESLint 拦截，确需手写（组合多次请求、`request.getBlob` / SSE 等非契约通道、
    按参数在多个契约操作间分派、上传进度、`apiRaw` 读信封、`useInfiniteQuery`）在 import 行 `eslint-disable` 并注明理由，
    其 key 仍以 `contractKey(主操作, input)` 为前缀再追加区分段
 3. 分页列表查询必须 `placeholderData: keepPreviousData`（翻页不闪白屏）
-4. **查询 / 重置必回源**：列表页统一用 `useListSearch`，它把 draft/submitted 双状态、页码重置与
+4. **查询 / 重置必回源**：列表页统一用 `useListPage`（内部即 `useListSearch`），它把 draft/submitted 双状态、页码重置与
    `invalidateQueries` 焊在一处。条件未变化时 query key 不变，不失效则 staleTime 内不发请求，
    而本系统「查询」按钮兼具刷新语义
 5. **mutation 按副作用精确失效**（见下文），成功 Toast 留在页面代码。变更用 `useApiMutation(op, { invalidate })`，

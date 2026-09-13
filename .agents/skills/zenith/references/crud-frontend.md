@@ -94,25 +94,25 @@ export const usePurgeXxxs = () =>
 ## Step 8b：完整页面模板
 
 列表页四类「每页都一样」的机制一律走 `components/list-page`：工具栏槽位（`ListSearchToolbar`）、状态开关列（`useStatusToggle`）、
-删除动作（`deleteAction` / `confirmAndDelete`）、表格接线（`listTableProps`）。页面只显式声明筛选控件、列、权限与文案。
+删除动作（`deleteAction` / `confirmAndDelete`）、表格接线（由 `useListPage` 返回的 `tableProps` 承接）。
+搜索状态 → 筛选映射 → 列表查询 → 表格 props 由 `hooks/useListPage` 一次接好；新增 / 编辑弹窗壳由 `components/EditFormModal` 承接。
+页面只显式声明筛选控件、`toQuery` 映射、列、表单字段、权限与文案。
 
 ```tsx
-import { useMemo } from 'react';
-import { Form, Spin, Row, Col } from '@douyinfe/semi-ui';
+import { Form, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
-import AppModal from '@/components/AppModal';
+import { EditFormModal } from '@/components/EditFormModal';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 // 有日期时间范围筛选时：import { formatDateTimeRangeForApi } from '@/utils/date';
 // beforeSave 需要中断提交时：import { abortSubmit } from '@/lib/abort-submit';
 import { useDeleteXxxs, useSaveXxx, useXxxDetail, useXxxList, xxxKeys } from '@/hooks/queries/xxxs';
@@ -132,28 +132,27 @@ export default function XxxPage() {
   const { hasPermission } = usePermission();
   const canUpdate = hasPermission('system:xxx:update');
 
-  // ─── 搜索状态：draft 绑输入框，submitted 进 query key ────────────────────
-  // useListSearch 内部整合 usePagination，并保证「查询 / 重置」必定失效 listKey；
+  // ─── 搜索状态 → 筛选映射 → 列表查询 → 表格 props：一次接好 ──────────────────
+  // useListPage 内部组合 useListSearch（draft / submitted 双状态 + 查询 / 重置必回源）、useFilterQuery（compactParams 后
+  // 按内容稳定引用）、useList（契约派生的域 hook）与 listTableProps；结构上不可能漏 ...filterQuery、误传草稿或漏分页。
   // 筛选控件用 bind / bindKeyword 整体绑定，只有 Checkbox 之类非 value/onChange 形态的控件才取 setField
-  const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: xxxKeys.lists });
-
-  // ─── 已提交筛选 → 契约查询参数：只映射一次，列表 / 导出 / 深链共用 ──────────
-  // compactParams 丢弃 undefined / null / 空串、保留 0 / false，并保留键类型（可直接展开进 QueryOf）；
-  // 不要为列表写一份 `x || undefined`、再为导出写一份 compactQuery({...})
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    // 契约查询参数按枚举声明，筛选控件的 string 值先收窄
-    status: enumValueOf(XXX_STATUSES, submittedParams.status),
-    // 标准 startTime / endTime 范围（Date → 字符串后再进 params）：
-    // ...formatDateTimeRangeForApi(submittedParams.timeRange),
-  }), [submittedParams]);
-
-  // ─── 列表查询（key 驱动：page/pageSize/filterQuery 变化自动请求）────────
-  const listQuery = useXxxList({ page, pageSize, ...filterQuery });
+  const { bind, bindKeyword, handleSearch, handleReset, filterQuery, tableProps } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: xxxKeys.lists,
+    useList: useXxxList,                     // 必须是模块级稳定 hook（createResourceQueries 派生）
+    // 已提交筛选 → 契约查询参数：只写一次，列表 / 导出 / 深链共用返回的 filterQuery；
+    // 丢弃 undefined / null / 空串、保留 0 / false，结果由契约 QueryOf 类型检查
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      // 契约查询参数按枚举声明，筛选控件的 string 值先收窄
+      status: enumValueOf(XXX_STATUSES, s.status),
+      // 标准 startTime / endTime 范围（Date → 字符串后再进 params）：
+      // ...formatDateTimeRangeForApi(s.timeRange),
+    }),
+    // params: { siteId },                   // 契约必填的作用域参数：原样传给 useList，不经 compact
+    // enabled: siteId !== undefined,        // 作用域未就绪时不发请求
+    // table: { rowSelection, empty: '暂无数据' },   // rowSelection / empty / rowKey → listTableProps
+  });
 
   // ─── 新增 / 编辑弹窗 ────────────────────────────────────────────────────
   // 表单值类型取契约创建入参的部分形态；保存 mutation 的 values 类型与之一致
@@ -241,42 +240,36 @@ export default function XxxPage() {
         actions={<ExportButton entity="system.xxxs" query={filterQuery} permission="system:xxx:export" />}
       />
 
-      {/* 数据源 / loading / 刷新 / 分页由 listTableProps 接好；默认 rowKey id · size small · bordered */}
+      {/* 数据源 / loading / 刷新 / 分页（/ 多选）由 useListPage 的 tableProps 接好；默认 rowKey id · size small · bordered */}
       <ConfigurableTable<Xxx>
         columns={columns}
-        empty="暂无数据"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
-      {/* 新增 / 编辑共用一个弹窗 */}
-      <AppModal {...modal.modalProps} width={660}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          {/* key 必须显式写在 JSX 上（React 不从 spread 里取 key）：formKey 在详情到达时变化，驱动表单重挂载；
-              formProps 含 getFormApi、allowEmpty、initValues、labelPosition 与 labelWidth */}
-          <Form key={modal.formKey} {...modal.formProps}>
-            {/* 全宽字段（树形选择、长文本）：直接写，不包 Col */}
-            <Form.TreeSelect field="parentId" label="上级" style={{ width: '100%' }}
-              treeData={[]} placeholder="请选择上级" filterTreeNode showClear />
-            {/* 双列：Row gutter={16} + Col span={12} */}
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="name" label="名称" placeholder="请输入名称"
-                  rules={[{ required: true, message: '名称不能为空' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.Input field="code" label="编码" placeholder="请输入编码" />
-              </Col>
-            </Row>
-            {/* 奇数个字段时最后一个单独占左半列 */}
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Select field="status" label="状态" style={{ width: '100%' }}
-                  optionList={statusOptions}
-                  rules={[{ required: true, message: '请选择状态' }]} />
-              </Col>
-            </Row>
-          </Form>
-        </Spin>
-      </AppModal>
+      {/* 新增 / 编辑共用一个弹窗：EditFormModal = AppModal({...modal.modalProps}) > Spin(detailLoading) > Form(key=formKey, formProps)，
+          title / okText / width 直接作为属性覆盖；Form 之前的说明传 header，Form 额外属性传 formProps；抽屉形态用 EditFormSheet */}
+      <EditFormModal modal={modal} width={660}>
+        {/* 全宽字段（树形选择、长文本）：直接写，不包 Col */}
+        <Form.TreeSelect field="parentId" label="上级" style={{ width: '100%' }}
+          treeData={[]} placeholder="请选择上级" filterTreeNode showClear />
+        {/* 双列：Row gutter={16} + Col span={12} */}
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="name" label="名称" placeholder="请输入名称"
+              rules={[{ required: true, message: '名称不能为空' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="code" label="编码" placeholder="请输入编码" />
+          </Col>
+        </Row>
+        {/* 奇数个字段时最后一个单独占左半列 */}
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select field="status" label="状态" style={{ width: '100%' }}
+              optionList={statusOptions}
+              rules={[{ required: true, message: '请选择状态' }]} />
+          </Col>
+        </Row>
+      </EditFormModal>
     </div>
   );
 }
@@ -286,12 +279,13 @@ export default function XxxPage() {
 
 ## 搜索参数与分页联动
 
-`useListSearch` 可选项：
+`useListPage` 除 `useList` / `toQuery` / `params` / `enabled` / `table` 外，其余选项与 `useListSearch` 相同：
 
 | 选项 | 用途 |
 | --- | --- |
 | `extraKeys` | 一个页面同时驱动多个列表时，一并失效它们的 key |
-| `pageSize` | 覆盖默认页大小（默认取用户偏好） |
+| `pageSize` / `pageSizeOpts` | 覆盖默认页大小（默认取用户偏好）/ 每页条数候选 |
+| `resetKey` | 外部作用域（当前站点 / 公众号…）变化时回到第 1 页 |
 | `onSearch` / `onReset` | 查询 / 重置后的额外副作用，如清空已选中的行 |
 | `defaults` 传函数 | 「最近 7 天」这类相对当前时间的默认条件，每次重置重新求值 |
 
@@ -299,16 +293,19 @@ export default function XxxPage() {
 它同步更新 draft 与 submitted、回到第 1 页并失效列表：
 
 ```tsx
-const { draftParams, applySearch } = useListSearch<SearchParams>({ ... });
+const { draftParams, applySearch } = useListPage({ ... });
 
 onSelect={(deptId) => applySearch({ ...draftParams, departmentId: deptId })}
 ```
 
-**树形 / 不分页 / 客户端过滤的列表**（菜单树、部门树、模板全量列表）同样用 `useListSearch`：
-`listKey` 传该数据的查询 key（如 `menuKeys.tree`），`submittedParams` 进请求参数或客户端过滤谓词，
-返回的 `page` / `pageSize` 不取即可。它收口的「草稿 / 已提交双状态 + 查询必回源」与是否分页无关，
+**非标准形态退一层用 `useListSearch` + `useFilterQuery`**：树形 / 不分页 / 客户端过滤的列表（菜单树、部门树、模板全量列表）、
+一页多个列表、列表 hook 第二实参不是 `enabled`（轮询选项 / 作用域枚举）、会员端 `requestOptions`、`pagination` 需要翻页回调等。
+`useListSearch` 的 `listKey` 传该数据的查询 key（如 `menuKeys.tree`），`submittedParams` 经
+`const filterQuery = useFilterQuery({ ... })` 映射（compactParams 后按内容稳定引用，不写依赖数组）后进请求参数或客户端过滤谓词，
+表格仍用 `listTableProps(listQuery, { pagination: buildPagination })`。
+它收口的「草稿 / 已提交双状态 + 查询必回源」与是否分页无关，
 不要退回手写 `pendingKeyword` / `keyword` 两个 `useState` + `invalidateQueries`（参考 `DepartmentsPage`）。
-只有**边输边筛、没有「查询」按钮语义**的即时过滤才不属于本 hook。
+只有**边输边筛、没有「查询」按钮语义**的即时过滤才不属于这两个 hook。
 
 ## 搜索工具栏筛选控件
 
@@ -321,7 +318,7 @@ onSelect={(deptId) => applySearch({ ...draftParams, departmentId: deptId })}
 | `DateRangeFilter` | `dateTimeRange`、占位「开始时间/结束时间」、宽度 400（`DATE_TIME_RANGE_FILTER_WIDTH`） | `type="dateRange"`（占位「开始日期/结束日期」，宽度 280 = `DATE_RANGE_FILTER_WIDTH`）/ `placeholder` / `width`（只用于 `"100%"`、`style={{ flex: 1 }}` 这类自适应场景，**不要改小**） |
 
 - 只收敛**装饰性属性**，业务属性（`items` / `placeholder`）仍显式传入；`value` / `onChange` 一律由
-  `useListSearch` 的 `bind('字段')` 展开（关键字用 `bindKeyword`，额外接回车触发的 `onSearch`），
+  `useListPage` / `useListSearch` 的 `bind('字段')` 展开（关键字用 `bindKeyword`，额外接回车触发的 `onSearch`），
   控件回传类型比字段宽时传 `parse`：`bind('status', (v) => enumValueOf(STATUSES, v))`
 - 适用范围、占位 / 哨兵 / 空值规则见 [constraints-frontend.md → 搜索栏与表格](./constraints-frontend.md#搜索栏与表格)；
   `items` 取 shared 导出的 `XXX_OPTIONS` 或 `useDictItems(...).items`，表单 `Form.Select` 的 `optionList` 取 `useDictItems(...).options`，
@@ -363,7 +360,7 @@ if (!(await confirmDangerAsync({ title: `确认停用「${name}」？`, okText: 
 
 `labelPosition` / `closeOnEsc` 的要求与豁免见 [constraints-frontend.md → 表单与展示组件](./constraints-frontend.md#表单与展示组件)。
 
-**Modal 宽度与表单列数**（`width` 由页面按内容决定，展开 `modalProps` 后单独传）：
+**Modal 宽度与表单列数**（`width` 由页面按内容决定，作为 `EditFormModal` 的属性单独传）：
 
 - 有 **3 对及以上可并排的普通字段**（Input / Select / InputNumber）→ 双列布局，`width={660}`
 - 字段较少，或主要是 TreeSelect / TextArea 等不适合并排的字段 → 单列布局，`width` 取 480–520
@@ -392,12 +389,12 @@ const { hasPermission } = usePermission();
 ## 批量操作（Step 0 确认需要时）
 
 多选状态走 `components/list-page` 的 `useRowSelection`（Semi 回传的 keys 归一、`clear` 引用稳定、`rowSelection` 直接接线），
-在 `useListSearch` **之前**声明，这样 `onSearch: clearSelection` 可直接引用：
+在 `useListPage` **之前**声明，这样 `onSearch: clearSelection` 与 `table: { rowSelection }` 可直接引用：
 
 ```tsx
 const { selectedRowKeys, hasSelection, clear: clearSelection, rowSelection } = useRowSelection();
 // 行键为字符串时 useRowSelection<string>()；行级禁用传 { extra: { getCheckboxProps: (r) => ({ disabled: … }) } }
-const { ... } = useListSearch<SearchParams>({ defaults, listKey: xxxKeys.lists, onSearch: clearSelection });
+const { ..., tableProps } = useListPage({ defaults, listKey: xxxKeys.lists, useList: useXxxList, toQuery, onSearch: clearSelection, table: { rowSelection } });
 
 const handleBatchDelete = () => confirmAndDelete({
   title: `确认删除选中的 ${selectedRowKeys.length} 条记录？`,
@@ -410,10 +407,7 @@ const handleBatchDelete = () => confirmAndDelete({
 // 工具栏 actions 槽：仅「有选中 && 有权限」时渲染（工具栏据此决定移动端是否出现更多菜单）
 {hasSelection && hasPermission('system:xxx:delete') && <BatchDeleteButton count={selectedRowKeys.length} onClick={handleBatchDelete} />}
 
-<ConfigurableTable<Xxx>
-  columns={columns}
-  {...listTableProps(listQuery, { pagination: buildPagination, rowSelection })}
-/>
+<ConfigurableTable<Xxx> columns={columns} {...tableProps} />
 ```
 
 `useDeleteXxxs` 内部按 ids 长度自动选择 `remove` / `removeBatch`（契约未声明 `removeBatch` 时并发逐条删除）。

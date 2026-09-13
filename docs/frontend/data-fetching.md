@@ -15,8 +15,10 @@ packages/web/src/
 ├── lib/query.ts            # queryClient 单例 + unwrap + toQueryString + compactQuery + LOOKUP_STALE_TIME + createLimiter
 ├── lib/contract-query.ts   # 契约调用层：api / useApiQuery / useApiMutation / useSaveMutation / createResourceQueries
 ├── lib/api-conformance.test.ts  # 字面量 URL 对照服务端路由快照
-├── hooks/useListSearch.ts  # 列表搜索状态：draft/submitted + 分页 + 查询必回源
-├── hooks/useEditModal.ts   # 新增/编辑弹窗编排：校验/提交/提示/关闭/表单重挂载
+├── hooks/useListPage.ts    # 标准分页列表页：useListSearch + useFilterQuery + 域 useList + listTableProps 一次接好
+├── hooks/useListSearch.ts  # 列表搜索状态：draft/submitted + 分页 + 查询必回源（非标准页直接使用）
+├── hooks/useFilterQuery.ts # 已提交筛选 → 契约查询参数：compactParams 后按内容稳定引用
+├── hooks/useEditModal.ts   # 新增/编辑弹窗编排：校验/提交/提示/关闭/表单重挂载（壳由 components/EditFormModal 承接）
 ├── hooks/queries/          # 后台域 hooks：每个业务域一个文件
 ├── utils/request.ts        # 后台 request 实例
 └── member/
@@ -37,7 +39,7 @@ packages/web/src/
 | `unwrap(res)` | 解包统一响应：`code !== 0` 时抛 `ApiError` |
 | `ApiError` | 携带业务 `code` 的错误类型，`mutateAsync` 抛出后可保持弹窗打开 |
 | `toQueryString(params)` | 构建查询串，过滤 `undefined` / `null` / 空字符串，非空时带 `?` 前缀 |
-| `compactParams(params)` | 过滤 `undefined` / `null` / 空串、保留 `0` / `false`，**保留键类型**：由 `submittedParams` 映射一次得到 `filterQuery`，直接展开进契约列表参数并传给 `ExportButton` / 深链 |
+| `compactParams(params)` | 过滤 `undefined` / `null` / 空串、保留 `0` / `false`，**保留键类型**；页面内经 `useListPage({ toQuery })` 或 `useFilterQuery({ … })` 使用（同内容同引用），纯函数形态只用于 hook 之外的导出 / 深链工具函数 |
 | `compactQuery(params)` | `compactParams` 的弱类型形态（`Record<string, T>`），用于拼查询串或透传非契约通道 |
 | `LOOKUP_STALE_TIME` | 5 分钟，用于字典、部门树、用户下拉源等低频 lookup |
 | `createLimiter(max)` | 轻量并发信号量，限制同类请求并发数 |
@@ -101,42 +103,45 @@ export const useAssignXxxMenus = () =>
 
 ## 列表页模式
 
-列表页统一使用 `useListSearch`。它整合分页状态、输入草稿态、已提交查询态，以及「查询 / 重置必须回源」的失效逻辑。
+标准分页列表页统一使用 `useListPage`：它组合 `useListSearch`（分页状态、输入草稿态、已提交查询态、「查询 / 重置必须回源」的失效逻辑）、
+`useFilterQuery`（已提交筛选 → 契约查询参数）、契约派生的域 `useList` 与 `listTableProps`，一次返回搜索绑定、`filterQuery`、`listQuery` 与表格 `tableProps`。
 
 ```tsx
-const {
-  page, pageSize, buildPagination,
-  bind, bindKeyword, submittedParams,
-  handleSearch, handleReset, applySearch,
-} = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: xxxKeys.lists });
-
-const listQuery = useXxxList({
-  page,
-  pageSize,
-  keyword: submittedParams.keyword || undefined,
-  status: enumValueOf(XXX_STATUSES, submittedParams.status),   // 契约按枚举声明，先收窄 string
+const { bind, bindKeyword, handleSearch, handleReset, applySearch, filterQuery, tableProps } = useListPage({
+  defaults: defaultSearchParams,
+  listKey: xxxKeys.lists,
+  useList: useXxxList,                                   // createResourceQueries 派生的域 hook，模块级稳定
+  toQuery: (s) => ({                                     // 已提交筛选 → 契约查询参数：丢弃 undefined / null / 空串、保留 0 / false
+    keyword: s.keyword,
+    status: enumValueOf(XXX_STATUSES, s.status),         // 契约按枚举声明，先收窄 string
+  }),
+  // params: { siteId },                                 // 契约必填的作用域参数：原样传给 useList，不经 compact
+  // enabled: siteId !== undefined,
+  // table: { rowSelection, empty: '暂无数据' },
 });
 
 // 受控筛选控件整体绑定：bind(key) 展开 value / onChange（onChange 按 key 缓存、引用稳定），bindKeyword 额外接回车查询
 <KeywordInput placeholder="搜索名称" {...bindKeyword('keyword')} />
 <StatusSelect items={statusItems} {...bind('status')} />
+
+<ConfigurableTable<Xxx> columns={columns} {...tableProps} />
+<ExportButton entity="system.xxxs" query={filterQuery} permission="system:xxx:export" />
 ```
 
 `bind(key)` / `bindKeyword(key)` 是受控筛选控件的标准绑定；控件回传类型比字段宽时传 `parse` 收窄：`bind('status', (v) => enumValueOf(XXX_STATUSES, v))`。
 `Checkbox` 等非 `value` / `onChange` 形态的控件才用 `setField(key)`（如 `(e) => setField('archived')(!!e.target.checked)`），一次改多个字段才用 `setDraftParams`。
 `applySearch(params)` 用于点击部门树、标签、收藏开关、保存视图等不经过输入框的筛选；它同步更新 draft 与 submitted，回到第一页并失效列表。不要暴露 `submittedParams` 的裸 setter。
 
-表格接线：
+树形 / 不分页 / 客户端过滤、一页多列表、列表 hook 第二实参不是 `enabled` 等非标准形态退一层直接用 `useListSearch` + `useFilterQuery`，
+表格用 `listTableProps(listQuery, { pagination: buildPagination })`：
 
 ```tsx
-<ConfigurableTable
-  bordered
-  dataSource={listQuery.data?.list ?? []}
-  loading={listQuery.isFetching}
-  onRefresh={() => void listQuery.refetch()}
-  refreshLoading={listQuery.isFetching}
-  pagination={buildPagination(listQuery.data?.total ?? 0)}
-/>
+const { page, pageSize, buildPagination, bind, bindKeyword, submittedParams, handleSearch, handleReset }
+  = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: xxxKeys.lists });
+const filterQuery = useFilterQuery({ keyword: submittedParams.keyword, status: enumValueOf(XXX_STATUSES, submittedParams.status) });
+const listQuery = useXxxList({ page, pageSize, ...filterQuery }, { refetchInterval: hasActive ? 3000 : false });
+
+<ConfigurableTable<Xxx> columns={columns} {...listTableProps(listQuery, { pagination: buildPagination })} />
 ```
 
 ## 弹窗 / 抽屉懒加载
@@ -151,11 +156,9 @@ const modal = useEditModal<Xxx, Partial<CreateXxxInput>>({
   defaults: { status: 'enabled' },
 });
 
-<AppModal {...modal.modalProps} width={660}>
-  <Spin spinning={modal.detailLoading}>
-    <Form key={modal.formKey} {...modal.formProps}>…字段…</Form>
-  </Spin>
-</AppModal>
+// EditFormModal = AppModal({...modal.modalProps}) > Spin(detailLoading) > Form(key=formKey, formProps)；
+// title / okText / width 作属性覆盖，Form 之前的说明传 header，Form 额外属性传 formProps；抽屉形态用 EditFormSheet
+<EditFormModal modal={modal} width={660}>…字段…</EditFormModal>
 ```
 
 注意：React 的 `key` 不能通过 spread 传入，必须显式写在 `<Form key={modal.formKey} ...>` 上。少数自持表单实例的页面可直接复用 `formRemountKey(id, detail)`。

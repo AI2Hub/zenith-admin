@@ -128,6 +128,8 @@ const operationColumn = createOperationColumn<User>({
 
 标准列表页的工具栏用 `@/components/list-page` 的 `ListSearchToolbar`（关键字 / 筛选 / 查询 / 重置 / 新增 / 低频操作按桌面与移动端排布）；
 边输边筛、没有「查询」按钮语义的即时过滤页用同目录的 `InstantFilterToolbar`（`primary` / `filters` / `onRefresh` / `onReset` / `actions` / `extra`）。
+控件的 `value` / `onChange` 由 `@/hooks/useListPage`（标准分页列表：搜索状态 → `toQuery` 筛选映射 → 域 `useList` → 表格 `tableProps` 一次接好）
+或 `@/hooks/useListSearch` 的 `bind` / `bindKeyword` 展开，见 [数据获取与缓存 → 列表页模式](./data-fetching.md#列表页模式)。
 
 ---
 
@@ -136,6 +138,7 @@ const operationColumn = createOperationColumn<User>({
 | 组件 | 用途 |
 | --- | --- |
 | `AppModal` | 带全屏/还原按钮的 Semi `Modal` 封装，默认 `closeOnEsc`；扩展 props 为 `fullscreenable`、`fullscreen`、`onToggleFullscreen` |
+| `EditFormModal` / `EditFormSheet` | 新增 / 编辑表单壳：接 `useEditModal` 的返回值，渲染 `AppModal({...modalProps}) > Spin(detailLoading) > Form(key=formKey, formProps)`（抽屉形态为 `SideSheet` + `ModalFooter(footerProps)`）；`title` / `okText` / `width` 直接作属性覆盖，Form 之前的说明传 `header`，Form 额外属性传 `formProps` |
 | `ImageUploadField` | 单图上传字段，封装上传、缩略图预览与删除 |
 | `FormTimezoneSelect` | 表单内时区选择字段，默认必填；可传 `field`、`label`、`required` |
 | `SliderInput` / `FormSliderInput` | 滑块 + 精确输入联动；适合有明确上下界的数值配置 |
