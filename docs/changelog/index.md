@@ -4,6 +4,56 @@
 
 ---
 
+## v2.35.0 - 2026-09-13
+
+**契约派生第三轮：把「派生不到」的地方逐个解掉，并给两条纪律装上静态守卫**。上一版把标准 CRUD 派生到四端后，剩下的是三类「结构性剩余」：服务返回形态与工厂类型不匹配的路由、逐函数手写的租户隔离、契约字段缺筛选语义导致的映射模式页面。本版把 `mountCrud` 的服务类型改为逐操作对照契约响应（列表行 / 详情实体 / 创建结果可以是不同 schema），此前判为「漂移」的 17 个路由文件全部直接派生，**接口形态零变化**（OpenAPI 全文档 0 差异）；新增两条只准缩小的登记表守卫：标准操作路由必须 `mountCrud`（`routes/_crud-explicit.ts` + `crud-coverage.test.ts`）、按请求 id 访问带租户列的表必须叠租户条件（`services/_tenant-isolation-baseline.ts` + `tenant-isolation.test.ts`），并修掉扫出的 7 处真实跨租户引用；契约 list query 的筛选语义补齐到 496 / 503，`useListPage` 新增操作模式，列表页第二波派生。jscpd（同参数）：812 克隆 / 5,699 行（0.97%）→ 796 / 5,618（0.95%）；结构性指标：显式标准操作路由块 260 → 128、`mountCrud` 134 → 170、`toQuery` 页面 69 → 31、契约 / 操作模式页 39 → 73、`mockResource` 契约组 26 → 59、路由层 29,632 → 25,934 行。
+
+### 升级注意
+
+- 本次**没有**数据库迁移。
+- 服务端行为变化（安全修复，均为收紧）：转办 / 委派 / 改派 / 交接预览 / 审批委托 / wiki 负责人 / 事件治理负责人指定的**目标用户必须在当前租户可见范围内**（此前按 id 裸查 `users`，租户用户可把任务指到别的租户账号）；公告阅读统计、审批常用语 / 工作流保存视图归属校验、定时发起详情补齐租户条件；`workflow` 域 5 个 `getXxxBeforeAudit`（吞 404 返回 null）改为 `getXxx`（不存在 404），更新 / 删除不存在的记录仍是 404，仅审计前快照的取法统一。
+- 契约（解析行为收紧）：10 个关联 ID 查询参数（`departmentId` / `definitionId` / `categoryId` / `principalId` / `instanceId` / `refId`）由 `z.coerce.number().int().optional()` 改为 `idQuery()`，现在拒绝 0 与负数；CMS 各资源 / 支付预授权的 `siteId` / `applicationId` 改 `requiredIdQuery()`（形状不变）；131 个 list query 字段换成积木后 OpenAPI 描述与 `x-filter` 有变化，取值范围不变。
+- 前端行为变化：34 个切到契约 / 操作模式的列表页，关键字占位与下拉占位按契约生成（同 v2.34.0 的口径）；4 个布尔筛选（告警规则启用、IoT 白名单注册状态、公众号黑名单、事件订阅启用）的文案由契约 `labels` 提供，与此前页面文案一致。
+- 公共 API（仅影响自定义代码）：`CrudServiceLike` 改为逐操作类型（`CrudListResponseOf` / `CrudDetailOf` / `CrudCreateResponseOf` / `CrudUpdateResponseOf`），返回精简列表行或扩展详情实体的服务不再需要 `exclude`；`mountCrud` 的 `messages.{create|update|remove}: null` 表示不带成功提示，无 query 的 `list` 可派生，`middleware` 选项可加整组中间件；`crudRoutes` 不再因 list 缺 query 抛错。新增 `requiredIdQuery` / `dictQuery` / `keywordQuery(fields, { max })` / `queryBool(desc, { labels })` / `requireTenantUser` / `platformHostOnly` / `accessibleReportResourceCondition` / `requireGroupMember` / `regionFieldsSchema` / `wikiCommentFieldsSchema`；`useListPage({ op })`。新增 ESLint 守卫见 Added，命中的旧写法需迁移。
+
+### Added
+
+#### 服务端（server）
+
+- `routes/_crud-explicit.ts` + `routes/crud-coverage.test.ts`：显式书写的标准操作路由块登记表（71 条，带理由），未登记即失败、登记表只准缩小。
+- `services/_tenant-isolation-scan.ts` + `_tenant-isolation-baseline.ts` + `tenant-isolation.test.ts`：租户隔离静态扫描——带 `tenantId` 列的表按请求侧 id 做 select / update / delete 时，所在函数须叠加 `tenantScope` / 走 `defineCrudService` 产物 / 经 `ensureXxx(id)` 校验 / 按归属用户校验；覆盖链式 `.where()` 与 `db.query.X.findFirst({ where })`。现状 163 个访问点分类登记（后台作业 64、平台级系统号 16、会话成员校验 14、报表 ACL 13、待复核 10 …）。
+- `lib/user-nicknames.ts` `requireTenantUser(id, message, { enabledOnly? })`：请求侧指定目标用户的统一校验，6 处 `users` 裸查改用。
+- `lib/host-access.ts` `platformHostOnly` 中间件（替代各 handler 首行的 `assertPlatformHostAccess(c)`）。
+- `report-resource-acl.service.ts` `accessibleReportResourceCondition(type, column, { pinnedId?, requiredRole? })`：报表列表可见范围条件（12 个列表函数收口）；`chat-shared.ts` `requireGroupMember(conversationId, roles, messages)`（5 处群管理校验收口）。
+- `CrudServiceLike` 逐操作契约类型；`mountCrud` `messages: null` / 无 query 列表 / `middleware` 整组中间件。
+
+#### 契约（shared）
+
+- 积木：`keywordQuery(fields, { max })`、`requiredIdQuery(description?)`、`dictQuery(dict, description?)`（字典开放枚举，`x-filter` kind=enum + dict）、`queryBool(description, { labels: [是, 否] })`（`FilterMeta` bool 新增 `labels`）。
+- 选项常量：`AI_PROMPT_SCOPE_OPTIONS`、`IP_ACCESS_BLOCK_TYPE_OPTIONS`、`WORKFLOW_INSTANCE_STATUS_OPTIONS`、`WORKFLOW_INSTANCE_PRIORITY_OPTIONS`；`regionFieldsSchema` / `wikiCommentFieldsSchema`（递归树 schema 的节点字段，供服务端行投影）。
+- ESLint（`src/*/contracts/**`）：封禁 `xxxId` 键下的 `z.coerce.number().int().optional()` / `.positive()`、`keyword` 键下的 `z.string().max(N).optional()`、积木之后再链 `.meta()`。
+
+#### 前端（web）
+
+- `useListPage` 操作模式：`useListPage({ op: xxxContract.events, useList })`，列表为契约分页子操作（事件 / 访问日志 / 回收站 / 领券记录 / 风险事件 / 目录同步冲突）时同样由该操作派生筛选状态、`listKey` 与 `filterSchema`。
+- `deriveFilterControls` 读取契约 `labels` 渲染布尔筛选文案。
+
+### Changed
+
+- 132 个显式标准操作路由块并入 `mountCrud`（多路由器文件、中间件工厂 / 展开、平台侧限定、闭包绑定当前用户 / 领域参数）；`app-webhooks` 路由工厂、`ssh-profiles` / `hosts` / `saved-views` 手工收口。
+- 11 个手写行投影改 `pickEntity`（cms 栏目 / 模型 / 素材夹、区划、wiki 文档 / 评论、优惠券、IoT 物模型 / 影子）。
+- 131 个 list / 子列表 query 字段改用契约积木；页面本地选项常量上移 shared。
+- 34 个列表页由映射模式转契约 / 操作模式（`ListSearchToolbar` 的 `overrides` 保留关联选择器等自定义控件）；33 个契约组的规范写操作接入 `mockResource`（`exclude` 保留自定义 list / create）。
+- 缓存管理 / 字典页删除迁到 `NavListPanel` 后遗留的 240 行死样式。
+- 依赖：zod 4.5.4 → 4.6.4（`.validate()` 短路校验、`z.emoji()`）。
+
+### Fixed
+
+- 跨租户引用：工作流转办 / 委派 / 改派 / 交接预览、审批委托、wiki 负责人、事件治理负责人可指定其它租户的用户；公告阅读统计、审批常用语与工作流视图归属校验、定时发起详情缺少租户条件。
+- `mountCrud` 对「列表行 ≠ 详情实体」的资源误报类型不匹配（`aiConversation` / `announcement` / `sessionReplay` / `paymentDispute` / `terminalRecording` / `cmsPublishing` / `mpKfSession` / `exportJob` 等 17 个路由文件此前因此保持显式）。
+
+---
+
 ## v2.34.0 - 2026-09-13
 
 **契约派生补到最后一层：标准资源的 CRUD 行为在四端派生**。架构文档规定「路由、hooks、Mock 与 OpenAPI 都由契约派生」，此前派生止步于类型与路径，CRUD 行为仍逐资源手写。本版把「一个标准资源只写①契约②表结构③业务钩子④列与表单字段」变成默认路径：server `defineCrudService` + `mountCrud`（可见范围只声明一次，对 detail / update / remove / list 全部生效），web `useListPage({ contract })` + 契约派生筛选控件 + `useCrudOperationColumn`，mock `mockResource`，契约查询积木写入 `x-filter` 语义供三端共用；db/schema 通用列改用列积木，行 → 实体映射改 `pickEntity` 按契约实体投影。jscpd（min-tokens 50 / min-lines 5，排除测试与快照，三端 src）：925 克隆 / 6,477 行（1.09%）→ 812 / 5,699（0.97%）；结构性指标：手写标准操作路由块 708 → 260、手写 `mapXxx` 232 → 81、页面 `toQuery` 108 → 69、schema 克隆 91 → 42。
