@@ -38,7 +38,7 @@ export type EmailSendResult = z.infer<typeof emailSendResultSchema>;
 
 export const emailSendLogListQuery = paginationQuery.extend({
   keyword: keywordQuery('主题'),
-  toEmail: z.string().optional(),
+  toEmail: keywordQuery('收件邮箱'),
   status: queryEnum(SEND_STATUSES),
   source: queryEnum(SEND_SOURCES),
 });

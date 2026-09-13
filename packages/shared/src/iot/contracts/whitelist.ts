@@ -51,7 +51,7 @@ export const iotWhitelistStatsQuery = z.object({
 export const iotWhitelistListQuery = paginationQuery.extend({
   keyword: keywordQuery(' SN '),
   productId: idQuery(),
-  used: queryBool('是否已核销'),
+  used: queryBool('注册状态；是否已核销', { labels: ['已注册', '待注册'] }),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

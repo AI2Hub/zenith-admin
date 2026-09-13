@@ -92,17 +92,22 @@
   加 `eslint-disable-next-line no-restricted-syntax -- 理由` 注明
 - **契约操作命名**：标准 CRUD 固定为 `list` / `detail` / `create` / `update` / `remove`，可选 `all`（下拉源）/
   `removeBatch`（`DELETE /batch`）——web 的 `createResourceQueries` 按此约定派生 hooks；其余操作按业务动词命名
-- **契约积木**：路径 `{id}` 用 `idParam`；查询串里的关联 ID 筛选（`channelId` / `taskId`…）用 `idQuery(description?)`；
-  关键字模糊匹配 `keyword: keywordQuery('名称 / 编码')`（参数是人可读的匹配字段，派生 OpenAPI 描述「按名称 / 编码模糊匹配」
-  与前端占位「搜索名称 / 编码」；带 `.max()` / `.trim()` 约束的关键字才逐个书写）；
+- **契约积木**：路径 `{id}` 用 `idParam`；查询串里的关联 ID 筛选（`channelId` / `taskId`…）用 `idQuery(description?)`，
+  必填的切分维度（CMS 各资源的 `siteId`、预授权的 `applicationId`）用 `requiredIdQuery(description?)`；
+  关键字模糊匹配 `keyword: keywordQuery('名称 / 编码', { max?, description? })`（参数是人可读的匹配字段，派生 OpenAPI 描述「按名称 / 编码模糊匹配」
+  与前端占位「搜索名称 / 编码」；长度上限走 `max`，`username` / `phone` / `ip` / `path` 等按单字段模糊匹配的参数同样用它并写明字段）；
+  取值来自运行时字典的开放枚举（公告类型 / 发布状态）用 `dictQuery('字典编码', description?)`；
   列表查询 `paginationQuery.extend({...})`；分页响应 `paginated(xxxSchema)`；
   标准 `startTime` / `endTime` 范围 `...dateRangeQuery('创建时间')`（非标准键名如 `startAt` / `dateStart` 才逐个
   `dateRangeBound(desc, 'start' | 'end')`，止端必须标 `'end'`）；
   `packages/shared/eslint.config.js` 对 `src/*/contracts/**` 封禁 `startTime` / `endTime` 键下的 `dateRangeBound()`、
   `xxxId` 键下手写的 `z.coerce.number().int().positive().optional()` 与 `keyword` 键下直写的 `z.string().optional()[.meta()]`；
-  查询串布尔 `queryBool()`、查询串枚举筛选 `queryEnum(XXX_VALUES, { description, dict | options })`（空串 = 未筛选；
-  标签来源写 `dict: '字典编码'` 或 `options: XXX_OPTIONS`，前端筛选下拉据此取标签）、启用 / 禁用状态筛选 `entityStatusQuery`；
+  查询串布尔 `queryBool(description?, { labels?: ['已启用', '已停用'] })`（业务文案声明在契约，前端缺省「是 / 否」）、
+  查询串枚举筛选 `queryEnum(XXX_VALUES, { description, dict | options })`（空串 = 未筛选；
+  标签来源写 `dict: '字典编码'` 或 `options: XXX_OPTIONS`，前端筛选下拉据此取标签；页面本地的选项常量一律上移 shared 常量并进契约）、
+  启用 / 禁用状态筛选 `entityStatusQuery`；
   这些查询积木都写入 `x-filter` 语义（`core/filter-meta.ts`），**只描述参数是什么，不放控件名**；
+  list query 的每个筛选字段都必须带 `x-filter` 语义（裸 `z.string().optional()` / `z.coerce.number().optional()` 不再允许出现在列表查询里）；
   批量 ID `batchIdsBody`；审计列 `...auditFieldsSchema`；业务请求头 `headers: z.object({...})`；
   上传 `multipart(z.object({ file: fileField() }))`；非 JSON 响应 `kind: 'excel' | 'csv' | 'file' | 'sse'`。
   query 里**禁止**裸写 `z.enum([...]).optional()` / `xxxEnumSchema.optional()`、`z.coerce.boolean()`、`z.enum(['true', 'false'])`、

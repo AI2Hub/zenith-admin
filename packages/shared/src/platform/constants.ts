@@ -202,6 +202,10 @@ export const FILE_STORAGE_PROVIDER_OPTIONS: Array<{ value: (typeof FILE_STORAGE_
 
 /** IP 访问控制拦截类型 */
 export const IP_ACCESS_BLOCK_TYPES = ['blacklist', 'whitelist'] as const;
+export const IP_ACCESS_BLOCK_TYPE_OPTIONS = [
+  { value: 'blacklist', label: '黑名单' },
+  { value: 'whitelist', label: '白名单' },
+] as const satisfies readonly { value: (typeof IP_ACCESS_BLOCK_TYPES)[number]; label: string }[];
 
 export type IpAccessBlockType = (typeof IP_ACCESS_BLOCK_TYPES)[number];
 

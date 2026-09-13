@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, batchIdsBody, dateRangeQuery, idParam, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, batchIdsBody, dateRangeQuery, idParam, paginated, paginationQuery, queryBool, queryEnum, keywordQuery, dictQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { ANNOUNCEMENT_RECIPIENT_TYPES, ANNOUNCEMENT_TARGET_TYPES } from '../constants';
 import { createAnnouncementSchema, updateAnnouncementSchema } from '../validation';
@@ -101,9 +101,9 @@ export type AnnouncementUnreadCount = z.infer<typeof announcementUnreadCountSche
 // ─── 查询参数 ────────────────────────────────────────────────────────────────
 
 export const announcementListQuery = paginationQuery.extend({
-  title: z.string().optional(),
-  type: z.string().optional(),
-  publishStatus: z.string().optional(),
+  title: keywordQuery('标题'),
+  type: dictQuery('announcement_type', '公告类型'),
+  publishStatus: dictQuery('announcement_publish_status', '发布状态'),
   ...dateRangeQuery(),
 });
 

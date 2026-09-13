@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum, requiredIdQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { asyncTaskSchema } from '../../tasks/contracts/async-tasks';
 import { CMS_SEARCH_WORD_TYPES } from '../constants';
@@ -86,17 +86,17 @@ export type CmsHotwordGroup = z.infer<typeof cmsHotwordGroupSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const cmsSearchTestQuery = paginationQuery.extend({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   keyword: z.string().min(1),
 });
 
 export const cmsSegmentQuery = z.object({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   text: z.string().min(1).max(200),
 });
 
 export const cmsSearchWordListQuery = paginationQuery.extend({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   keyword: keywordQuery(),
   type: queryEnum(CMS_SEARCH_WORD_TYPES),
   groupName: z.string().optional(),
@@ -104,7 +104,7 @@ export const cmsSearchWordListQuery = paginationQuery.extend({
 });
 
 export const cmsHotKeywordQuery = z.object({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   groupId: idQuery(),
   keyword: keywordQuery(),
   status: entityStatusQuery,

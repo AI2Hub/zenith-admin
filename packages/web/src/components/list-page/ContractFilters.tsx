@@ -62,16 +62,18 @@ function renderControl<TSearch>(page: FilterPageLike<TSearch>, name: keyof TSear
       const items: FilterOption[] = meta.options ? meta.options.map((o) => ({ value: o.value, label: o.label })) : meta.values.map((v) => ({ value: v, label: v }));
       return <FilterSelect key={name} placeholder={placeholder} items={items} value={binding.value as string | undefined} onChange={binding.onChange} />;
     }
-    case 'bool':
+    case 'bool': {
+      const items: readonly FilterOption[] = meta.labels ? [{ value: 'true', label: meta.labels[0] }, { value: 'false', label: meta.labels[1] }] : BOOL_ITEMS;
       return (
         <FilterSelect
           key={name}
           placeholder={labelOf(field, name)}
-          items={BOOL_ITEMS}
+          items={items}
           value={binding.value === undefined ? undefined : String(binding.value)}
           onChange={(v) => binding.onChange(v === 'true' ? true : v === 'false' ? false : undefined)}
         />
       );
+    }
     case 'id':
       return <NumberFilter key={name} placeholder={labelOf(field, name)} value={binding.value as number | undefined} onChange={binding.onChange} />;
     case 'date-bound':

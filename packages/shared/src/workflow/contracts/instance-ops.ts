@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { idParam, paginated, paginationQuery, queryEnum, idQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { WORKFLOW_COMPENSATION_ACTION_STATUSES, WORKFLOW_ENGINE_EXPLANATION_STATES, WORKFLOW_JOB_EXECUTION_STATUSES, WORKFLOW_JOB_TYPES, WORKFLOW_RUNTIME_ISSUE_SEVERITIES, WORKFLOW_COMPENSATION_STATUSES } from '../constants';
 import {
@@ -263,7 +263,7 @@ export type WorkflowCompensationDetail = z.infer<typeof workflowCompensationDeta
 
 export const workflowCompensationListQuery = paginationQuery.extend({
   status: queryEnum(WORKFLOW_COMPENSATION_STATUSES),
-  instanceId: z.coerce.number().int().optional(),
+  instanceId: idQuery(),
 });
 
 export const workflowMigrateBatchParam = z.object({

@@ -107,7 +107,7 @@ export const paymentLedgerAccountListQuery = paginationQuery.extend({
 export const paymentFundReservationListQuery = paginationQuery.extend({
   accountId: idQuery(),
   status: queryEnum(PAYMENT_FUND_RESERVATION_STATUSES),
-  sourceType: z.string().max(64).optional(),
+  sourceType: keywordQuery('来源类型', { max: 64 }),
   ...dateRangeQuery(),
 });
 

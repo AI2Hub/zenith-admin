@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { auditFieldsSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { WORKFLOW_INSTANCE_PRIORITIES, WORKFLOW_INSTANCE_STATUSES, WORKFLOW_SLA_LEVELS, WORKFLOW_TASK_CONSULT_STATUSES, WORKFLOW_TASK_STATUSES, WORKFLOW_INSTANCE_STATUS_FILTERS, WORKFLOW_INSTANCE_PRINT_SOURCES } from '../constants';
+import { WORKFLOW_INSTANCE_PRIORITIES, WORKFLOW_INSTANCE_PRIORITY_OPTIONS, WORKFLOW_INSTANCE_STATUSES, WORKFLOW_INSTANCE_STATUS_OPTIONS, WORKFLOW_SLA_LEVELS, WORKFLOW_TASK_CONSULT_STATUSES, WORKFLOW_TASK_STATUSES, WORKFLOW_INSTANCE_STATUS_FILTERS, WORKFLOW_INSTANCE_PRINT_SOURCES } from '../constants';
 import {
   addInstanceCcSchema,
   batchUrgeWorkflowInstanceSchema,
@@ -396,14 +396,14 @@ export type WorkflowInstanceBatchActionResponse = z.infer<typeof workflowInstanc
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const workflowMyInstanceListQuery = paginationQuery.extend({
-  status: queryEnum(WORKFLOW_INSTANCE_STATUS_FILTERS),
-  priority: queryEnum(WORKFLOW_INSTANCE_PRIORITIES),
-  definitionId: z.coerce.number().int().optional(),
+  status: queryEnum(WORKFLOW_INSTANCE_STATUS_FILTERS, { description: '实例状态', options: WORKFLOW_INSTANCE_STATUS_OPTIONS }),
+  priority: queryEnum(WORKFLOW_INSTANCE_PRIORITIES, { description: '优先级', options: WORKFLOW_INSTANCE_PRIORITY_OPTIONS }),
+  definitionId: idQuery(),
 });
 
 export const workflowPendingMineQuery = paginationQuery.extend({
   keyword: keywordQuery(),
-  definitionId: z.coerce.number().int().optional(),
+  definitionId: idQuery(),
 });
 
 export const workflowKeywordPageQuery = paginationQuery.extend({
@@ -411,26 +411,26 @@ export const workflowKeywordPageQuery = paginationQuery.extend({
 });
 
 export const workflowInstanceMonitorQuery = paginationQuery.extend({
-  status: queryEnum(WORKFLOW_INSTANCE_STATUS_FILTERS),
+  status: queryEnum(WORKFLOW_INSTANCE_STATUS_FILTERS, { description: '实例状态', options: WORKFLOW_INSTANCE_STATUS_OPTIONS }),
   keyword: keywordQuery(),
-  categoryId: z.coerce.number().int().optional(),
-  definitionId: z.coerce.number().int().optional(),
+  categoryId: idQuery(),
+  definitionId: idQuery(),
   initiatorKeyword: z.string().optional(),
-  priority: queryEnum(WORKFLOW_INSTANCE_PRIORITIES),
+  priority: queryEnum(WORKFLOW_INSTANCE_PRIORITIES, { description: '优先级', options: WORKFLOW_INSTANCE_PRIORITY_OPTIONS }),
 });
 
 export const workflowRelationOptionsQuery = z.object({
-  definitionId: z.coerce.number().int().optional(),
+  definitionId: idQuery(),
   keyword: keywordQuery(),
   limit: z.coerce.number().int().min(1).max(50).optional(),
 });
 
 export const workflowAnalyticsQuery = z.object({
-  definitionId: z.coerce.number().int().optional(),
+  definitionId: idQuery(),
 });
 
 export const workflowOverdueQuery = paginationQuery.extend({
-  definitionId: z.coerce.number().int().optional(),
+  definitionId: idQuery(),
 });
 
 export const workflowCcTaskParam = z.object({

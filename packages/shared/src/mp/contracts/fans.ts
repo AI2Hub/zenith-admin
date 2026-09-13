@@ -54,7 +54,7 @@ export const mpFanListQuery = paginationQuery.extend({
   keyword: keywordQuery('昵称 / openid / 备注'),
   subscribe: queryEnum(MP_FAN_SUBSCRIBES, { options: MP_FAN_SUBSCRIBE_OPTIONS }),
   tagId: idQuery('按本地标签筛选'),
-  blacklisted: queryBool('是否在黑名单'),
+  blacklisted: queryBool('黑名单；是否在黑名单', { labels: ['黑名单', '正常'] }),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

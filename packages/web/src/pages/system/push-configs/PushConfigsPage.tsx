@@ -8,27 +8,21 @@ import { useRef, useState } from 'react';
 import { Banner, Col, Form, Modal, Row, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
-import {
-  PUSH_PROVIDER_LABELS,
+import { PUSH_PROVIDER_LABELS,
   PUSH_PROVIDER_OPTIONS,
   type CreatePushConfigInput,
   type PushConfig,
   type PushProvider,
-  type TestPushSendInput,
-} from '@zenith/shared/messaging';
+  type TestPushSendInput, pushConfigContract } from '@zenith/shared/messaging';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
-import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useAllClientApps } from '@/hooks/queries/app-releases';
 import {
-  pushConfigKeys,
   useDeletePushConfigs,
   usePushConfigDetail,
   usePushConfigList,
@@ -37,13 +31,6 @@ import {
 } from '@/hooks/queries/push';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
-
-interface SearchParams {
-  keyword: string;
-  status?: string;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
 
 /** 测试发送对话框:直发 RegistrationID,不依赖设备登记 */
 function TestSendModal({ config, onClose }: { config: PushConfig | null; onClose: () => void }) {
@@ -99,20 +86,11 @@ function TestSendModal({ config, onClose }: { config: PushConfig | null; onClose
 
 export default function PushConfigsPage() {
   const { hasPermission } = usePermission();
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: pushConfigKeys.lists,
+  const page = useListPage({
+    contract: pushConfigContract,
     useList: usePushConfigList,
-    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
   });
-
-
+  const { tableProps } = page;
 
   const modal = useEditModal<PushConfig, Partial<CreatePushConfigInput>>({
     entityName: '推送配置',
@@ -143,8 +121,6 @@ export default function PushConfigsPage() {
 
   const appsQuery = useAllClientApps();
   const appOptions = (appsQuery.data ?? []).map((a) => ({ value: a.id, label: a.name }));
-
-  const { items: statusItems } = useDictItems('common_status');
 
   const columns: ColumnProps<PushConfig>[] = [
     { title: '所属应用', dataIndex: 'appName', width: 140, render: renderEllipsis },
@@ -182,20 +158,8 @@ export default function PushConfigsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="搜索名称 / 备注..."
-            {...bindKeyword('keyword')}
-          />
-        )}
-        filters={(
-          <StatusSelect
-            items={statusItems}
-            {...bind('status')}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status']}
         create={<CreateButton permission="system:push:create" onClick={modal.openCreate}>新增配置</CreateButton>}
         filterTitle="筛选条件"
       />

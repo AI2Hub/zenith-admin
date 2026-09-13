@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeBound, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { dateRangeBound, paginated, paginationQuery, queryBool, queryEnum, idQuery, keywordQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { RULE_EXECUTION_SOURCES, RULE_HIT_POLICIES, RULE_REF_KINDS } from '../constants';
 
@@ -30,10 +30,10 @@ export type RuleExecution = z.infer<typeof ruleExecutionSchema>;
 
 export const ruleExecutionListQuery = paginationQuery.extend({
   refKind: queryEnum(RULE_REF_KINDS),
-  refId: z.coerce.number().int().optional(),
-  caller: z.string().optional(),
-  bizRef: z.string().max(128).optional().meta({ description: '关联上下文前缀匹配（如 workflow:42）' }),
-  ruleKey: z.string().optional(),
+  refId: idQuery(),
+  caller: keywordQuery('调用方'),
+  bizRef: keywordQuery('关联上下文', { description: '关联上下文前缀匹配（如 workflow:42）', max: 128 }),
+  ruleKey: keywordQuery('规则标识'),
   source: queryEnum(RULE_EXECUTION_SOURCES),
   matched: queryBool('仅命中 / 仅未命中'),
   dateStart: dateRangeBound('执行时间起'),

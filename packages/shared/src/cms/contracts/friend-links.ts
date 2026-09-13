@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
+import { entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, requiredIdQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import {
   createCmsFriendLinkGroupSchema,
@@ -47,14 +47,14 @@ export type CmsFriendLink = z.infer<typeof cmsFriendLinkSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const cmsFriendLinkListQuery = paginationQuery.extend({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   keyword: keywordQuery(),
   status: entityStatusQuery,
   groupId: z.coerce.number().int().min(0).optional().meta({ description: '0 = 仅未分组' }),
 });
 
 export const cmsFriendLinkGroupListQuery = paginationQuery.extend({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   keyword: keywordQuery(),
   status: entityStatusQuery,
 });

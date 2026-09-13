@@ -98,7 +98,7 @@ export const identityProviderListQuery = paginationQuery.extend({
   keyword: keywordQuery('名称 / 编码'),
   tenantId: idQuery(),
   type: queryEnum(IDENTITY_PROVIDER_TYPES),
-  status: queryEnum(IDENTITY_PROVIDER_STATUSES),
+  status: queryEnum(IDENTITY_PROVIDER_STATUSES, { dict: 'common_status' }),
 });
 
 export const identityProviderContract = defineContract('/api/identity-providers', {

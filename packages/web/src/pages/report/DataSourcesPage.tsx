@@ -8,7 +8,6 @@ import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/tabl
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
-  reportDatasourceKeys,
   useBatchReportDatasourceStatus,
   useCloneReportDatasource,
   useDeleteReportDatasources,
@@ -17,51 +16,31 @@ import {
   useSaveReportDatasource,
   useTestReportDatasourceConnection,
 } from '@/hooks/queries/report-datasources';
-import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
-import type { ReportDatasource, ReportDatasourceType, ReportApiDatasourceConfig, ReportExternalDbConfig } from '@zenith/shared/report';
-import { REPORT_DATASOURCE_TYPE_OPTIONS, REPORT_DATASOURCE_TYPES, isExternalDbType } from '@zenith/shared/report';
+import { reportDatasourceContract, type ReportDatasource, type ReportDatasourceType, type ReportApiDatasourceConfig, type ReportExternalDbConfig } from '@zenith/shared/report';
+import { REPORT_DATASOURCE_TYPE_OPTIONS, isExternalDbType } from '@zenith/shared/report';
 import { useDictItems } from '@/hooks/useDictItems';
 import { renderReportDatasourceTypeTag } from './report-datasource-ui';
 import { ReportFolderFilter, ReportOwnerFilter } from './report-filters';
 import { ReportOwnerFolderFields } from './report-form-fields';
 import { useReportOwnerFolderOptions } from './report-lookups';
 import { BatchStatusButtons, CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import { batchStatusHandler, deleteAction, ListSearchToolbar, useStatusToggle, useRowSelection } from '@/components/list-page';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 
-interface SearchParams { keyword: string; type?: string; status?: string; ownerId?: number; folderId?: number }
-const defaultSearchParams: SearchParams = { keyword: '', type: undefined, status: undefined, ownerId: undefined, folderId: undefined };
-
 export default function DataSourcesPage() {
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
+  const { options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
 
-
-
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: reportDatasourceKeys.lists,
+  const page = useListPage({
+    contract: reportDatasourceContract,
     useList: useReportDatasourceList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      type: enumValueOf(REPORT_DATASOURCE_TYPES, s.type),
-      status: enumValueOf(USER_STATUSES, s.status),
-      ownerId: s.ownerId,
-      folderId: s.folderId,
-    }),
     table: { empty: '暂无数据', rowSelection: hasPermission('report:datasource:update') ? rowSelection : undefined },
   });
+  const { tableProps } = page;
 
   const { userOptions, folderOptions } = useReportOwnerFolderOptions('datasource');
   const saveMutation = useSaveReportDatasource();
@@ -286,18 +265,12 @@ export default function DataSourcesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索名称/备注..." {...bindKeyword('keyword')} />}
-        filters={<><FilterSelect
-          placeholder="全部类型"
-          items={REPORT_DATASOURCE_TYPE_OPTIONS}
-          {...bind('type')}
-          width={140}
-        /><ReportOwnerFilter items={userOptions} {...bind('ownerId')} /><ReportFolderFilter items={folderOptions} {...bind('folderId')} /><StatusSelect
-          items={statusItems}
-          {...bind('status')}
-        /></>}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'type', 'ownerId', 'folderId', 'status']}
+        overrides={{
+          ownerId: (p) => <ReportOwnerFilter items={userOptions} {...p.bind('ownerId')} />,
+          folderId: (p) => <ReportFolderFilter items={folderOptions} {...p.bind('folderId')} />,
+        }}
         create={<CreateButton permission="report:datasource:create" onClick={datasourceModal.openCreate} />}
         actions={toolbarActions}
         filterTitle="数据源筛选"

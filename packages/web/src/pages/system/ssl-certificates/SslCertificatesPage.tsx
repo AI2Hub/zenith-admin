@@ -2,15 +2,13 @@ import { useState } from 'react';
 import { Button, Descriptions, Form, SideSheet, Space, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Lock, Upload } from 'lucide-react';
-import { enumValueOf } from '@zenith/shared/core';
 import {
   SSL_CERT_STATUS_LABELS,
   SSL_CERT_TYPE_LABELS,
-  SSL_CERT_TYPE_OPTIONS,
-  SSL_CERT_TYPES,
   type GenerateSelfSignedCertInput,
   type SslCertDownloadKind,
   type SslCertificate,
+  sslCertificateContract,
 } from '@zenith/shared/ops';
 import type { UploadCertSchemaInput } from '@zenith/shared/platform';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -22,23 +20,14 @@ import { formatDateTime } from '@/utils/date';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import {
   downloadSslCertificate,
-  sslCertificateKeys,
   useDeleteSslCertificates,
   useGenerateSslCertificate,
   useSslCertificateDetail,
   useSslCertificateList,
   useUploadSslCertificate,
 } from '@/hooks/queries/ssl-certificates';
-import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
-
-interface SearchParams {
-  keyword: string;
-  type?: string;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '', type: undefined };
 
 const STATUS_COLORS: Record<SslCertificate['status'], 'green' | 'orange' | 'red' | 'grey'> = {
   valid: 'green',
@@ -62,19 +51,12 @@ function renderDaysRemaining(daysRemaining: number | null) {
 
 export default function SslCertificatesPage() {
   const { hasPermission } = usePermission();
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: sslCertificateKeys.lists,
+  const page = useListPage({
+    contract: sslCertificateContract,
     useList: useSslCertificateList,
-    toQuery: (s) => ({ keyword: s.keyword.trim(), type: enumValueOf(SSL_CERT_TYPES, s.type) }),
     table: { empty: '暂无证书' },
   });
+  const { tableProps } = page;
   const [detailVisible, setDetailVisible] = useState(false);
   const [detail, setDetail] = useState<SslCertificate | null>(null);
 
@@ -179,17 +161,8 @@ export default function SslCertificatesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索名称或域名" {...bindKeyword('keyword')} width={240} />}
-        filters={(
-          <FilterSelect
-            placeholder="全部证书类型"
-            items={SSL_CERT_TYPE_OPTIONS}
-            {...bind('type')}
-            width={160}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'type']}
         create={canCreate ? (
           <>
             <Button type="primary" icon={<Lock size={14} />} onClick={generateModal.openCreate}>生成自签名证书</Button>

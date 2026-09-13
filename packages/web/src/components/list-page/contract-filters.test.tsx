@@ -39,6 +39,7 @@ const rowContract = defineContract('/api/test-filter-rows', {
       level: queryEnum(['low', 'high'], { description: '等级；空 = 全部', options: [{ value: 'low', label: '低' }, { value: 'high', label: '高' }] }),
       kind: queryEnum(['x', 'y'], { description: '类型', dict: 'demo_kind' }),
       pinned: queryBool('是否置顶'),
+      enabled: queryBool('启用状态', { labels: ['已启用', '已停用'] }),
       channelId: idQuery('栏目 ID'),
       ...dateRangeQuery('创建时间'),
       plain: z.string().optional(),
@@ -102,6 +103,13 @@ describe('deriveFilterControls / ListSearchToolbar 契约写法', () => {
     fireEvent.click(container.querySelector('.responsive-toolbar__desktop .semi-select')!);
     expect(screen.getByText('低')).toBeTruthy();
     expect(screen.getByText('高')).toBeTruthy();
+  });
+
+  it('bool 的契约 labels 替换缺省的「是 / 否」', () => {
+    const { container } = render(<Harness filters={['enabled']} />, { wrapper: wrapper() });
+    fireEvent.click(container.querySelector('.responsive-toolbar__desktop .semi-select')!);
+    expect(screen.getByText('已启用')).toBeTruthy();
+    expect(screen.getByText('已停用')).toBeTruthy();
   });
 
   it('override 替换指定键的控件，extraFilters 追加在派生控件之后', () => {

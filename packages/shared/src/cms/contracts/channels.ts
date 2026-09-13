@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { entityStatusQuery, entityStatusSchema, idParam } from '../../core/api-schemas';
+import { entityStatusQuery, entityStatusSchema, idParam, requiredIdQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { CMS_CHANNEL_DETAIL_PATH_RULES, CMS_CHANNEL_STATIC_MODES, CMS_CHANNEL_TYPES } from '../constants';
 import {
@@ -60,7 +60,7 @@ export const cmsChannelSchema: z.ZodType<CmsChannel> = cmsChannelFieldsSchema
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const cmsChannelTreeQuery = z.object({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   status: entityStatusQuery,
 });
 

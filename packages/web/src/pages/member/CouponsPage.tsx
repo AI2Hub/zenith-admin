@@ -3,9 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Form, Toast, Tag, Row, Col, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { Coupon, CouponType, CouponTemplateStatus, CreateCouponInput } from '@zenith/shared/member';
-import { COUPON_TEMPLATE_STATUSES, COUPON_TYPES, COUPON_TYPE_LABELS, COUPON_TEMPLATE_STATUS_LABELS } from '@zenith/shared/member';
-import { enumValueOf } from '@zenith/shared/core';
+import { couponContract, type Coupon, type CouponType, type CouponTemplateStatus, type CreateCouponInput } from '@zenith/shared/member';
+import { COUPON_TYPE_LABELS, COUPON_TEMPLATE_STATUS_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -14,14 +13,13 @@ import { MemberSelect } from '@/components/MemberSelect';
 import { EMPTY_PLACEHOLDER, createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { formatDateTimeForApi } from '@/utils/date';
 import {
-  memberAdminKeys,
   useCouponList,
   useDeleteCoupons,
   useIssueCoupon,
   useSaveCoupon,
 } from '@/hooks/queries/member-admin';
 import { CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, StatusSelect } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useListPage } from '@/hooks/useListPage';
@@ -37,8 +35,6 @@ const renderThreshold = (v: number) => (v > 0 ? `满¥${yuan(v)}` : '无门槛')
 const renderValid = (r: Coupon) =>
   r.validType === 'fixed' ? `${r.validStart ?? EMPTY_PLACEHOLDER} ~ ${r.validEnd ?? EMPTY_PLACEHOLDER}` : `领取后 ${r.validDays ?? 0} 天`;
 const renderQuantity = (r: Coupon) => `${r.issuedQuantity}/${r.totalQuantity > 0 ? r.totalQuantity : '不限'}`;
-
-interface SearchParams { keyword?: string; status?: CouponType | string; type?: string }
 interface FormValues {
   name: string; type: CouponType; faceValue: number; threshold?: number; maxDiscount?: number;
   totalQuantity?: number; perLimit?: number; exchangePoints?: number; validType: 'fixed' | 'relative';
@@ -51,24 +47,12 @@ export default function CouponsPage() {
   const { hasPermission } = usePermission();
   // useEditModal 例外：向指定会员发放优惠券的动作表单，非实体新增 / 编辑
   const issueFormApi = useRef<FormApi | null>(null);
-  const defaultSearchParams: SearchParams = {};
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: memberAdminKeys.couponLists,
+  const page = useListPage({
+    contract: couponContract,
     useList: useCouponList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      status: enumValueOf(COUPON_TEMPLATE_STATUSES, s.status),
-      type: enumValueOf(COUPON_TYPES, s.type),
-    }),
     table: { empty: '暂无优惠券' },
   });
+  const { tableProps } = page;
 
   const [formType, setFormType] = useState<CouponType>('amount');
   const [formValidType, setFormValidType] = useState<'fixed' | 'relative'>('fixed');
@@ -195,22 +179,23 @@ export default function CouponsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="券名称" {...bindKeyword('keyword')} width={180} />}
-        filters={(
-          <>
+        page={page}
+        filters={['keyword', 'type', 'status']}
+        overrides={{
+          type: (p) => (
             <FilterSelect
               placeholder="全部类型"
               items={typeOptions}
-              {...bind('type')}
+              {...p.bind('type')}
             />
+          ),
+          status: (p) => (
             <StatusSelect
               items={statusOptions}
-              {...bind('status')}
+              {...p.bind('status')}
             />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+          ),
+        }}
         create={<CreateButton permission="member:coupon:create" onClick={openCreate} />}
         filterTitle="优惠券筛选"
       />

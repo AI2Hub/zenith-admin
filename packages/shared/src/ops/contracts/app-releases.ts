@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, entityStatusQuery, entityStatusSchema, idParam, idQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, entityStatusQuery, entityStatusSchema, idParam, idQuery, paginated, paginationQuery, queryBool, queryEnum, keywordQuery, requiredIdQuery } from '../../core/api-schemas';
 import { defineContract, fileField, multipart, op } from '../../core/contract';
 import { uploadChunkBody, uploadChunkResultSchema, uploadSessionInitSchema, uploadSessionStatusSchema } from '../../platform/contracts';
 import { completeChunkUploadSchema, initChunkUploadSchema } from '../../platform/validation';
@@ -163,7 +163,7 @@ export type AppPublicReleaseInfo = z.infer<typeof appPublicReleaseInfoSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const clientAppListQuery = paginationQuery.extend({
-  keyword: z.string().max(256).optional(),
+  keyword: keywordQuery(undefined, { max: 256 }),
   status: entityStatusQuery,
 });
 
@@ -171,11 +171,11 @@ export const appReleaseListQuery = paginationQuery.extend({
   appId: idQuery(),
   channel: queryEnum(APP_RELEASE_CHANNELS),
   status: queryEnum(APP_RELEASE_STATUSES),
-  keyword: z.string().max(256).optional(),
+  keyword: keywordQuery(undefined, { max: 256 }),
 });
 
 export const appReleaseStatsQuery = z.object({
-  appId: z.coerce.number().int().positive(),
+  appId: requiredIdQuery(),
   days: z.coerce.number().int().min(1).max(90).default(30),
 });
 
@@ -184,7 +184,7 @@ export const clientDeviceListQuery = paginationQuery.extend({
   platform: queryEnum(APP_PLATFORMS),
   subjectType: queryEnum(DEVICE_SUBJECT_TYPES),
   pushBound: queryBool('true 只看已绑定推送的设备'),
-  keyword: z.string().max(256).optional(),
+  keyword: keywordQuery(undefined, { max: 256 }),
 });
 
 /** 制品文件上传：文件本体 + 平台 / 架构 / 类型（arch 缺省 x64，kind 缺省 installer） */

@@ -1,6 +1,6 @@
 import { describe, it, expect, expectTypeOf } from 'vitest';
 import * as z from 'zod';
-import { dateRangeBound, dateRangeQuery, entityStatusQuery, idQuery, keywordQuery, paginated, paginationQuery, queryBool, queryEnum } from './api-schemas';
+import { dateRangeBound, dateRangeQuery, dictQuery, entityStatusQuery, idQuery, keywordQuery, paginated, paginationQuery, queryBool, queryEnum, requiredIdQuery } from './api-schemas';
 import { filterMetaMap, filterMetaOf } from './filter-meta';
 
 describe('queryBool', () => {
@@ -116,6 +116,22 @@ describe('paginationQuery / dateRangeBound', () => {
     expect(filterMetaOf(z.optional(inner))).toEqual({ kind: 'keyword', fields: '名称' });
     expect(filterMetaOf(inner.default('x'))).toEqual({ kind: 'keyword', fields: '名称' });
     expect(filterMetaOf(inner.meta({ description: '外层覆盖了 description' }))).toEqual({ kind: 'keyword', fields: '名称' });
+  });
+
+  it('keywordQuery max / requiredIdQuery / dictQuery / queryBool labels：第二批积木的形态与语义', () => {
+    const query = z.object({
+      keyword: keywordQuery('标题', { max: 3 }),
+      siteId: requiredIdQuery('站点'),
+      type: dictQuery('announcement_type', '公告类型'),
+      enabled: queryBool('启用状态', { labels: ['已启用', '已停用'] }),
+    });
+    expect(query.safeParse({ keyword: 'abcd', siteId: '1' }).success).toBe(false);
+    expect(query.safeParse({ siteId: '' }).success).toBe(false);
+    expect(query.parse({ keyword: 'abc', siteId: '7', type: 'notice', enabled: 'false' })).toEqual({ keyword: 'abc', siteId: 7, type: 'notice', enabled: false });
+    expect(filterMetaOf(query.shape.siteId)).toEqual({ kind: 'id' });
+    expect(filterMetaOf(query.shape.type)).toEqual({ kind: 'enum', values: [], dict: 'announcement_type' });
+    expect(filterMetaOf(query.shape.enabled)).toEqual({ kind: 'bool', labels: ['已启用', '已停用'] });
+    expectTypeOf<z.output<typeof query>['siteId']>().toEqualTypeOf<number>();
   });
 
   it('wraps items into the paginated payload shape', () => {

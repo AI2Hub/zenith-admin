@@ -1,6 +1,5 @@
 import { Col, Form, Row, Tag } from '@douyinfe/semi-ui';
-import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
-import type { CreateInAppTemplateInput, InAppMessageType, InAppTemplate } from '@zenith/shared/messaging';
+import { inAppTemplateContract, type CreateInAppTemplateInput, type InAppMessageType, type InAppTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -8,7 +7,6 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { ListSearchToolbar, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import {
-  inAppTemplateKeys,
   useDeleteInAppTemplate,
   useInAppTemplateDetail,
   useInAppTemplateList,
@@ -16,29 +14,19 @@ import {
 } from '@/hooks/queries/in-app-templates';
 import { IN_APP_MESSAGE_TYPE_OPTIONS_WITH_COLOR as TYPE_OPTIONS } from '../in-app-message-constants';
 import { CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect } from '@/components/search-filters';
 import { TemplateNameCodeRow, TemplateVariablesRemarkRows } from '../message-template-form';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 
 export default function InAppTemplatesPage() {
   const { hasPermission: can } = usePermission();
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
-
-  interface SearchParams { keyword: string; filterType: InAppMessageType | undefined; filterStatus: string | undefined; }
-  const defaultSearchParams: SearchParams = { keyword: '', filterType: undefined, filterStatus: undefined };
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: inAppTemplateKeys.lists,
+  const { options: statusOptions } = useDictItems('common_status');
+  const page = useListPage({
+    contract: inAppTemplateContract,
     useList: useInAppTemplateList,
-    toQuery: (s) => ({ keyword: s.keyword, type: s.filterType, status: enumValueOf(USER_STATUSES, s.filterStatus) }),
   });
+  const { tableProps } = page;
 
   const saveMutation = useSaveInAppTemplate();
   const modal = useEditModal<InAppTemplate, Partial<CreateInAppTemplateInput>>({
@@ -94,22 +82,17 @@ export default function InAppTemplatesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索模板名称/编码/标题" {...bindKeyword('keyword')} width={240} />}
-        filters={(
-          <>
+        page={page}
+        filters={['keyword', 'type', 'status']}
+        overrides={{
+          type: (p) => (
             <FilterSelect
               placeholder="全部类型"
               items={TYPE_OPTIONS}
-              {...bind('filterType')}
+              {...p.bind('type')}
             />
-            <StatusSelect
-              items={statusItems}
-              {...bind('filterStatus')}
-            />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+          ),
+        }}
         create={<CreateButton permission="system:in-app-template:create" onClick={modal.openCreate} />}
         filterTitle="站内信模板筛选"
       />

@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, batchIdsBody, dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
+import { auditFieldsSchema, batchIdsBody, dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, idQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { sensitive } from '../../core/sensitive';
 import { DATA_SCOPES } from '../constants';
@@ -103,8 +103,8 @@ export type UserEffectivePermissions = z.infer<typeof userEffectivePermissionsSc
 
 export const userListQuery = paginationQuery.extend({
   keyword: keywordQuery('用户名 / 昵称 / 邮箱'),
-  phone: z.string().optional(),
-  departmentId: z.coerce.number().optional(),
+  phone: keywordQuery('手机号'),
+  departmentId: idQuery(),
   status: entityStatusQuery,
   ...dateRangeQuery('创建时间'),
 });

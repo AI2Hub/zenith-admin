@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { idParam, idQuery, paginated, paginationQuery, queryEnum, requiredIdQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { memberSubmitCmsCommentSchema } from '../../member/validation';
 import { CMS_CONTENT_STATUSES, CMS_CONTENT_TYPES, CMS_SUBSCRIPTION_SUBJECT_TYPES } from '../constants';
@@ -95,14 +95,14 @@ export const memberCmsSubscriptionListQuery = paginationQuery.extend({
 });
 
 export const memberCmsSubscriptionStatusQuery = z.object({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   subjectType: z.enum(CMS_SUBSCRIPTION_SUBJECT_TYPES),
   subjectId: idQuery(),
   subjectKey: z.string().max(255).optional(),
 });
 
 export const memberCmsInteractionSubmitQuery = z.object({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
 });
 
 // ─── 契约（会员登录态 CMS 接口） ───────────────────────────────────────────────

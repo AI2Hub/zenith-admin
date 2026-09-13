@@ -5,12 +5,11 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { batchStatusHandler, confirmAndDelete, ListSearchToolbar, useStatusToggle, useRowSelection, useCrudOperationColumn } from '@/components/list-page';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import type { CreateMonitorAlertRuleInput, MonitorAlertRule, MonitorMetric } from '@zenith/shared/platform';
-import { MONITOR_ALERT_LEVELS, MONITOR_ALERT_LEVEL_OPTIONS, MONITOR_ALERT_STATE_OPTIONS, MONITOR_ALERT_STATES, MONITOR_METRICS } from '@zenith/shared/platform';
-import { BASIC_COMPARISON_OPERATOR_LABELS, enumValueOf } from '@zenith/shared/core';
+import { monitorAlertContract, type CreateMonitorAlertRuleInput, type MonitorAlertRule, type MonitorMetric } from '@zenith/shared/platform';
+import { MONITOR_ALERT_LEVEL_OPTIONS } from '@zenith/shared/platform';
+import { BASIC_COMPARISON_OPERATOR_LABELS } from '@zenith/shared/core';
 import { NOTIFY_CHANNEL_OPTIONS } from '@zenith/shared/messaging';
 import {
-  monitorAlertKeys,
   useBatchToggleMonitorAlerts,
   useDeleteMonitorAlerts,
   useMonitorAlertList,
@@ -25,7 +24,6 @@ import {
   formatMonitorMetricValue,
 } from './constants';
 import { BatchDeleteButton, BatchStatusButtons, CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { dateTimeColumn, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import AlertRecipientUserSelect from './AlertRecipientUserSelect';
 import {
@@ -42,18 +40,6 @@ const OP_OPTIONS = (['gt', 'gte', 'lt', 'lte'] as const)
   .map((value) => ({ value, label: BASIC_COMPARISON_OPERATOR_LABELS[value] }));
 const FormAlertRecipientUserSelect = withField(AlertRecipientUserSelect);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const ENABLED_OPTIONS = [{ value: 'true', label: '已启用' }, { value: 'false', label: '已停用' }];
-
-interface SearchParams {
-  keyword: string;
-  metric?: string;
-  level?: string;
-  enabled?: string;
-  state?: string;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '', metric: undefined, level: undefined, enabled: undefined, state: undefined };
 
 /** 阈值输入提示随指标单位变化：百分比与吞吐的量级差了 7 个数量级，统一文案必然误导 */
 function thresholdHint(metric: MonitorMetric | undefined): string {
@@ -75,27 +61,14 @@ export default function AlertRulesPage() {
   const canCreate = hasPermission('alert:rule:create');
   const canUpdate = hasPermission('alert:rule:update');
   const canDelete = hasPermission('alert:rule:delete');
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: monitorAlertKeys.lists,
+  const page = useListPage({
+    contract: monitorAlertContract,
     onSearch: clearSelection,
     onReset: clearSelection,
     useList: useMonitorAlertList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      metric: enumValueOf(MONITOR_METRICS, s.metric),
-      level: enumValueOf(MONITOR_ALERT_LEVELS, s.level),
-      enabled: s.enabled === undefined ? undefined : s.enabled === 'true',
-      state: enumValueOf(MONITOR_ALERT_STATES, s.state),
-    }),
     table: { rowSelection: canUpdate || canDelete ? rowSelection : undefined },
   });
+  const { tableProps } = page;
   const canTest = hasPermission('alert:rule:test');
   const canViewEvents = hasPermission('alert:event:list');
   const saveMutation = useSaveMonitorAlert();
@@ -255,36 +228,13 @@ export default function AlertRulesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="搜索规则名称..."
-            {...bindKeyword('keyword')}
-          />
-        )}
-        filters={<>
-          <MonitorMetricFilterSelect
-            {...bind('metric')}
-          />
-          <FilterSelect
-            placeholder="全部级别"
-            items={MONITOR_ALERT_LEVEL_OPTIONS}
-            {...bind('level')}
-          />
-          <FilterSelect
-            placeholder="全部告警状态"
-            items={MONITOR_ALERT_STATE_OPTIONS}
-            {...bind('state')}
-            width={140}
-          />
-          <FilterSelect
-            placeholder="全部启用状态"
-            items={ENABLED_OPTIONS}
-            {...bind('enabled')}
-            width={140}
-          />
-        </>}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'metric', 'level', 'state', 'enabled']}
+        overrides={{
+          metric: (p) => (
+            <MonitorMetricFilterSelect value={p.bind('metric').value} onChange={(v) => p.bind('metric').onChange(v as MonitorMetric | undefined)} />
+          ),
+        }}
         create={canCreate ? <CreateButton onClick={alertModal.openCreate}>新增规则</CreateButton> : null}
         actions={renderBatchActions()}
         filterTitle="告警规则筛选"

@@ -112,7 +112,7 @@ export type ExportJobDownload = z.infer<typeof exportJobDownloadSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const exportJobListQuery = paginationQuery.extend({
-  entity: z.string().optional(),
+  entity: keywordQuery('导出实体'),
   status: queryEnum(EXPORT_JOB_STATUSES),
   format: queryEnum(EXPORT_JOB_FORMATS),
   keyword: keywordQuery('模块名 / 文件名 / 实体'),

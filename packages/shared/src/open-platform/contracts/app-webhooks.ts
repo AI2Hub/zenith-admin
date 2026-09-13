@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, batchIdsBody, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, batchIdsBody, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum, idQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { OPEN_WEBHOOK_DELIVERY_STATUSES, OPEN_WEBHOOK_SIGN_MODES } from '../constants';
 import { createAppWebhookSchema, updateAppWebhookSchema } from '../validation';
@@ -96,7 +96,7 @@ export const appWebhookListQuery = paginationQuery.extend({
 });
 
 export const appWebhookDeliveryListQuery = paginationQuery.extend({
-  subscriptionId: z.coerce.number().int().optional(),
+  subscriptionId: idQuery(),
   clientId: z.string().optional(),
   status: queryEnum(OPEN_WEBHOOK_DELIVERY_STATUSES),
   eventType: z.string().optional(),

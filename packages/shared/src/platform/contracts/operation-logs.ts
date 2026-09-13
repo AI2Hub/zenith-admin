@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, paginated, paginationQuery, queryEnum, keywordQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { OPERATION_LOG_RESULTS } from '../constants';
 
@@ -71,14 +71,14 @@ export type OperationLogStats = z.infer<typeof operationLogStatsSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const operationLogListQuery = paginationQuery.extend({
-  username: z.string().optional().meta({ description: '按用户名 / 昵称匹配' }),
-  module: z.string().optional(),
-  description: z.string().optional(),
-  method: z.string().optional(),
-  path: z.string().optional(),
-  ip: z.string().optional(),
+  username: keywordQuery('用户名 / 昵称', { description: '按用户名 / 昵称匹配' }),
+  module: keywordQuery('模块'),
+  description: keywordQuery('操作描述'),
+  method: keywordQuery('请求方法'),
+  path: keywordQuery('请求路径'),
+  ip: keywordQuery('IP'),
   status: queryEnum(OPERATION_LOG_RESULTS),
-  content: z.string().optional().meta({ description: '内容关键字（匹配请求体与操作前后快照）' }),
+  content: keywordQuery('内容', { description: '内容关键字（匹配请求体与操作前后快照）' }),
   ...dateRangeQuery('操作时间'),
   minDurationMs: z.coerce.number().int().nonnegative().optional(),
   maxDurationMs: z.coerce.number().int().nonnegative().optional(),

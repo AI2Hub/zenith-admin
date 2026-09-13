@@ -3,8 +3,7 @@ import { confirmAndDelete, ListSearchToolbar } from '@/components/list-page';
 import { Button, Checkbox, DatePicker, Input, InputNumber, Select, Space, Tag, Modal, Form, TextArea, Toast, Typography, SideSheet, List, Empty } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Save, Upload } from 'lucide-react';
-import { RULE_DECISION_STATUSES, type RuleDecisionTable, type RuleEvaluateResult, type RuleTestRunResult, type RuleHitPolicy, type RuleTestCase, type RuleUsageItem, type RuleDecisionTableSettings, type RuleShadowRunResult, type RuleSimulateResult } from '@zenith/shared/rules';
-import { enumValueOf } from '@zenith/shared/core';
+import { type RuleDecisionTable, type RuleEvaluateResult, type RuleTestRunResult, type RuleHitPolicy, type RuleTestCase, type RuleUsageItem, type RuleDecisionTableSettings, type RuleShadowRunResult, type RuleSimulateResult, decisionTableContract } from '@zenith/shared/rules';
 import { EMPTY_PLACEHOLDER, createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -17,7 +16,6 @@ import { formatDateTimeForApi } from '@/utils/date';
 import { DataBar } from '@/components/data-viz/DataBar';
 import {
   fetchRuleUsages,
-  ruleKeys,
   type RuleDecisionTableSaveValues,
   useDeleteRuleDecisionTable,
   useDeleteRuleTestCase,
@@ -44,7 +42,7 @@ import {
 } from '@/hooks/queries/rules';
 import { PUBLISHABLE_STATUS_META as STATUS } from '@/lib/publishable-status';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { StatusSelect } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { JsonBlock } from '@/components/JsonBlock';
@@ -144,20 +142,11 @@ export default function RuleTablesPage() {
   const canCreate = hasPermission('rule:table:create');
   const canDelete = hasPermission('rule:table:delete');
   const canPublish = hasPermission('rule:table:publish');
-  const defaultSearchParams: { keyword: string; status?: string } = { keyword: '', status: undefined };
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: ruleKeys.decisionTables.lists,
+  const page = useListPage({
+    contract: decisionTableContract,
     useList: useRuleDecisionTableList,
-    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(RULE_DECISION_STATUSES, s.status) }),
   });
-
+  const { tableProps } = page;
 
   const [editorFullscreen, setEditorFullscreen] = useState(false);
   const [editorHitPolicy, setEditorHitPolicy] = useState<RuleHitPolicy>('first');
@@ -811,13 +800,16 @@ export default function RuleTablesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索名称" {...bindKeyword('keyword')} />}
-        filters={<StatusSelect
-          items={[{ value: 'draft', label: '草稿' }, { value: 'published', label: '已发布' }, { value: 'disabled', label: '已禁用' }]}
-          {...bind('status')}
-        />}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status']}
+        overrides={{
+          status: (p) => (
+            <StatusSelect
+              items={[{ value: 'draft', label: '草稿' }, { value: 'published', label: '已发布' }, { value: 'disabled', label: '已禁用' }]}
+              {...p.bind('status')}
+            />
+          ),
+        }}
         actions={canCreate ? <Button icon={<Upload size={14} />} onClick={importTable}>导入</Button> : null}
         create={canCreate ? <CreateButton onClick={openCreate} /> : null}
         filterTitle="决策表筛选"

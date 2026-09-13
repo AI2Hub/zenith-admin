@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, idQuery, paginated, paginationQuery, queryEnum, keywordQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { asyncTaskItemSchema, asyncTaskSchema } from '../../tasks/contracts/async-tasks';
 import {
@@ -75,7 +75,7 @@ export type CmsDistributionRunDetail = z.infer<typeof cmsDistributionRunDetailSc
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const cmsDistributionRuleListQuery = paginationQuery.extend({
-  keyword: z.string().max(100).optional(),
+  keyword: keywordQuery(undefined, { max: 100 }),
   sourceSiteId: idQuery(),
   targetSiteId: idQuery(),
   mode: queryEnum(CMS_DISTRIBUTION_MODES),

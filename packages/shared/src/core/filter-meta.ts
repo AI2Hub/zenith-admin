@@ -12,8 +12,8 @@ export type FilterMeta =
   | { readonly kind: 'keyword'; readonly fields?: string }
   /** 枚举单选；标签取 `dict`（运行时字典编码）或静态 `options`，两者都缺省时以取值本身为标签 */
   | { readonly kind: 'enum'; readonly values: readonly string[]; readonly dict?: string; readonly options?: readonly FilterMetaOption[] }
-  /** 是 / 否 */
-  | { readonly kind: 'bool' }
+  /** 是 / 否；`labels` 为自定义文案（`['已启用', '已禁用']` 依次对应 true / false），缺省「是 / 否」 */
+  | { readonly kind: 'bool'; readonly labels?: readonly [trueLabel: string, falseLabel: string] }
   /** 关联 ID（正整数） */
   | { readonly kind: 'id' }
   /** 时间范围端点；`bound` 标明起 / 止，成对键由页面以元组 `['startTime', 'endTime']` 声明 */

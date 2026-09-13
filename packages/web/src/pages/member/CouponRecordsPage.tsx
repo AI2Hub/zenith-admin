@@ -2,9 +2,8 @@ import { useState } from 'react';
 import { Button, Descriptions, Input, Toast, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ScanLine } from 'lucide-react';
-import type { MemberCoupon, MemberCouponStatus } from '@zenith/shared/member';
-import { MEMBER_COUPON_STATUSES, MEMBER_COUPON_STATUS_LABELS } from '@zenith/shared/member';
-import { enumValueOf } from '@zenith/shared/core';
+import { couponContract, type MemberCoupon, type MemberCouponStatus } from '@zenith/shared/member';
+import { MEMBER_COUPON_STATUS_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { ListSearchToolbar } from '@/components/list-page';
@@ -12,7 +11,7 @@ import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
-import { memberAdminKeys, useCouponByCode, useCouponRecordList, useRedeemCoupon, useRevokeCouponRecord } from '@/hooks/queries/member-admin';
+import { useCouponByCode, useCouponRecordList, useRedeemCoupon, useRevokeCouponRecord } from '@/hooks/queries/member-admin';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { KeywordInput, NumberFilter, StatusSelect } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
@@ -22,30 +21,14 @@ import { useListPage } from '@/hooks/useListPage';
 const statusOptions = (Object.keys(MEMBER_COUPON_STATUS_LABELS) as MemberCouponStatus[]).map((v) => ({ value: v, label: MEMBER_COUPON_STATUS_LABELS[v] }));
 const STATUS_COLORS: Record<string, string> = { unused: 'blue', used: 'green', expired: 'grey', frozen: 'orange' };
 
-interface SearchParams { memberKeyword?: string; couponId?: number; status?: string }
-
 export default function CouponRecordsPage() {
   const { hasPermission } = usePermission();
-  const defaultSearchParams: SearchParams = {};
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    applySearch,
-    tableProps,
-    filterQuery,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: memberAdminKeys.couponRecords,
+  const page = useListPage({
+    op: couponContract.records,
     useList: useCouponRecordList,
-    toQuery: (s) => ({
-      memberKeyword: s.memberKeyword,
-      couponId: s.couponId,
-      status: enumValueOf(MEMBER_COUPON_STATUSES, s.status),
-    }),
     table: { empty: '暂无领券记录' },
   });
+  const { applySearch, tableProps, filterQuery } = page;
   // 会员详情/优惠券列表入口的深链筛选（?memberKeyword= / ?couponId=，消费后即从 URL 移除）
   useListDeepLink(['memberKeyword', 'couponId'], (p) => applySearch({
     memberKeyword: p.memberKeyword,
@@ -119,22 +102,24 @@ export default function CouponRecordsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="会员ID/昵称" {...bindKeyword('memberKeyword')} width={180} />}
-        filters={(
-          <>
+        page={page}
+        filters={['memberKeyword', 'couponId', 'status']}
+        overrides={{
+          memberKeyword: (p) => <KeywordInput placeholder="会员ID/昵称" {...p.bindKeyword('memberKeyword')} width={180} />,
+          couponId: (p) => (
             <NumberFilter
               placeholder="优惠券ID"
               min={1}
-              {...bind('couponId')}
+              {...p.bind('couponId')}
             />
+          ),
+          status: (p) => (
             <StatusSelect
               items={statusOptions}
-              {...bind('status')}
+              {...p.bind('status')}
             />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+          ),
+        }}
         create={(
           hasPermission('member:coupon:update') ? (
             <Button type="primary" icon={<ScanLine size={14} />} onClick={openRedeem}>核销券码</Button>

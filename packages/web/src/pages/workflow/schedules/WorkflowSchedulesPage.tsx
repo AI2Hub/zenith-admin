@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Form, Space, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { WorkflowSchedule } from '@zenith/shared/workflow';
+import { workflowScheduleContract, type WorkflowSchedule } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -14,7 +14,6 @@ import {
   useRunWorkflowSchedule,
   useSaveWorkflowSchedule,
   useWorkflowScheduleList,
-  workflowScheduleKeys,
 } from '@/hooks/queries/workflow-schedules';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton } from '@/components/toolbar-controls';
@@ -23,16 +22,11 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, enabledStatusColumn } from '@/utils/table-columns';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
-import { FilterSelect, StatusSelect } from '@/components/search-filters';
+import { FilterSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 
 type ScheduleStatus = WorkflowSchedule['status'];
-
-interface SearchParams {
-  definitionId?: number;
-  status?: ScheduleStatus;
-}
 
 interface FormValues extends Record<string, unknown> {
   definitionId?: number | null;
@@ -44,8 +38,6 @@ interface FormValues extends Record<string, unknown> {
   formDataJson?: string;
   status?: ScheduleStatus;
 }
-
-const defaultSearchParams: SearchParams = { definitionId: undefined, status: undefined };
 
 // CronBuilderPopover 内部使用 6 段（含秒）cron；定时发起存标准 5 段，故在边界转换
 const toSixField = (expr: string) => {
@@ -74,17 +66,11 @@ export default function WorkflowSchedulesPage() {
   const { options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
 
-  const {
-    bind,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: workflowScheduleKeys.lists,
+  const page = useListPage({
+    contract: workflowScheduleContract,
     useList: useWorkflowScheduleList,
-    toQuery: (s) => ({ definitionId: s.definitionId, status: s.status }),
   });
+  const { tableProps } = page;
 
   const definitionsQuery = usePublishedWorkflowDefinitions();
   const usersQuery = useAllUsers();
@@ -231,23 +217,19 @@ export default function WorkflowSchedulesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        filters={(
-          <>
+        page={page}
+        filters={['definitionId', 'status']}
+        overrides={{
+          definitionId: (p) => (
             <FilterSelect
               placeholder="全部流程"
               items={definitionOptions}
-              {...bind('definitionId')}
+              {...p.bind('definitionId')}
               width={220}
               filter
             />
-            <StatusSelect
-              items={statusOptions}
-              {...bind('status', (value) => value as ScheduleStatus | undefined)}
-            />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+          ),
+        }}
         create={(
           canCreate ? (
             <CreateButton onClick={openCreate} />

@@ -1,37 +1,22 @@
 import { Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { WikiDoc } from '@zenith/shared/wiki';
+import { wikiDocContract, type WikiDoc } from '@zenith/shared/wiki';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
-import { KeywordInput } from '@/components/search-filters';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { usePurgeWikiDoc, useRestoreWikiDoc, useWikiDocRecycleList, wikiDocRecycleKeys } from '@/hooks/queries/wiki-docs';
+import { usePurgeWikiDoc, useRestoreWikiDoc, useWikiDocRecycleList } from '@/hooks/queries/wiki-docs';
 import { useListPage } from '@/hooks/useListPage';
-
-interface SearchParams {
-  keyword: string;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '' };
 
 export default function WikiRecyclePage() {
   const { hasPermission } = usePermission();
 
-  const {
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: wikiDocRecycleKeys.all,
+  const page = useListPage({
+    op: wikiDocContract.recycle,
     useList: useWikiDocRecycleList,
-    toQuery: (s) => ({ keyword: s.keyword }),
   });
-
-
+  const { tableProps } = page;
 
   const restoreMutation = useRestoreWikiDoc();
   const purgeMutation = usePurgeWikiDoc();
@@ -65,14 +50,8 @@ export default function WikiRecyclePage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="搜索标题..."
-            {...bindKeyword('keyword')}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword']}
       />
 
       <ConfigurableTable<WikiDoc>

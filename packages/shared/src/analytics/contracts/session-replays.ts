@@ -144,8 +144,8 @@ export const replayListQuery = paginationQuery.extend({
   keyword: keywordQuery('用户名 / 入口页 / 回放 ID / 会话 ID'),
   hasError: queryBool('仅含错误的回放'),
   source: queryEnum(['web_admin', 'web_member']),
-  pagePath: z.string().max(256).optional().meta({ description: '内容检索：访问过的页面路径（模糊）' }),
-  clickLabel: z.string().max(64).optional().meta({ description: '内容检索：点击过的元素文案（模糊）' }),
+  pagePath: keywordQuery('页面路径', { description: '内容检索：访问过的页面路径（模糊）', max: 256 }),
+  clickLabel: keywordQuery('点击文案', { description: '内容检索：点击过的元素文案（模糊）', max: 64 }),
 });
 
 export const replayHeatmapPagesQuery = z.object({ days: daysQuery(90, 30) });

@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { batchIdsBody, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { batchIdsBody, idParam, keywordQuery, paginated, paginationQuery, queryEnum, idQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import {
   ANALYTICS_DEVICE_TYPES,
@@ -161,7 +161,7 @@ export const errorGroupListQuery = paginationQuery.extend({
   errorType: queryEnum(FRONTEND_ERROR_TYPES),
   level: queryEnum(ERROR_LEVELS),
   keyword: keywordQuery(),
-  assigneeId: z.coerce.number().int().optional(),
+  assigneeId: idQuery(),
   environment: queryEnum(ANALYTICS_ENVIRONMENTS, { options: OPEN_APP_ENVIRONMENT_OPTIONS }),
 });
 
@@ -170,7 +170,7 @@ export const errorGroupBatchStatusQuery = z.object({
 });
 
 export const errorEventListQuery = paginationQuery.extend({
-  groupId: z.coerce.number().int().optional(),
+  groupId: idQuery(),
 });
 
 export const errorCleanQuery = z.object({
@@ -182,7 +182,7 @@ export const sourceMapListQuery = paginationQuery.extend({
 });
 
 export const errorAlertLogListQuery = paginationQuery.extend({
-  ruleId: z.coerce.number().int().optional(),
+  ruleId: idQuery(),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

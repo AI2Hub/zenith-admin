@@ -1,8 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Form, Input, Space, Typography } from '@douyinfe/semi-ui';
 import { Tags } from 'lucide-react';
-import type { CreateTagInput, Tag } from '@zenith/shared/platform';
-import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
+import { tagContract, type CreateTagInput, type Tag } from '@zenith/shared/platform';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -10,7 +9,6 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { confirmAndDelete, ListSearchToolbar, useStatusToggle, useRowSelection, useCrudOperationColumn } from '@/components/list-page';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import {
-  tagKeys,
   useDeleteTags,
   useSaveTag,
   useTagDetail,
@@ -19,7 +17,7 @@ import {
   useUpdateTagStatus,
 } from '@/hooks/queries/tags';
 import { BatchDeleteButton, CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 
@@ -113,25 +111,15 @@ function ColorInput({ value, onChange }: { readonly value?: string; readonly onC
 
 export default function TagsPage() {
   const { hasPermission: can } = usePermission();
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
-
-  interface SearchParams { keyword: string; filterStatus: string | undefined; filterGroup: string | undefined; }
-  const defaultSearchParams: SearchParams = { keyword: '', filterStatus: undefined, filterGroup: undefined };
+  const { options: statusOptions } = useDictItems('common_status');
 
   const { selectedRowKeys, setSelectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: tagKeys.lists,
+  const page = useListPage({
+    contract: tagContract,
     useList: useTagList,
-    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.filterStatus), groupName: s.filterGroup }),
     table: { rowSelection: can('system:tag:delete') ? rowSelection : undefined },
   });
+  const { tableProps } = page;
 
   const [colorValue, setColorValue] = useState('');
 
@@ -231,23 +219,18 @@ export default function TagsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索标签名称或描述" {...bindKeyword('keyword')} width={200} />}
-        filters={(
-          <>
+        page={page}
+        filters={['keyword', 'groupName', 'status']}
+        overrides={{
+          groupName: (p) => (
             <FilterSelect
               placeholder="全部所属分组"
               items={groupOptions}
-              {...bind('filterGroup')}
+              {...p.bind('groupName')}
               width={160}
             />
-            <StatusSelect
-              items={statusItems}
-              {...bind('filterStatus')}
-            />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+          ),
+        }}
         create={<CreateButton permission="system:tag:create" onClick={openCreate} />}
         actions={can('system:tag:delete') && selectedRowKeys.length > 0 && <BatchDeleteButton count={selectedRowKeys.length} onClick={handleBatchDelete} />}
         filterTitle="标签筛选"

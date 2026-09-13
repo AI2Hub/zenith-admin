@@ -3,18 +3,17 @@ import { Button, Empty, Form, Tabs, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Save } from 'lucide-react';
-import type { LoginRiskEvent } from '@zenith/shared/identity';
+import { identitySecurityContract, type LoginRiskEvent } from '@zenith/shared/identity';
 import { identitySecuritySettingsSchema, type IdentitySecuritySettings } from '@zenith/shared/settings';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { ListSearchToolbar } from '@/components/list-page';
 import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { identitySecurityKeys, useLoginRiskEventList } from '@/hooks/queries/identity-security';
+import { useLoginRiskEventList } from '@/hooks/queries/identity-security';
 import { useSaveSettings, useSettings } from '@/hooks/queries/settings';
 import { ApiError } from '@/lib/query';
 import { RefreshButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useListPage } from '@/hooks/useListPage';
@@ -35,17 +34,15 @@ export default function IdentitySecurityPage() {
   // useEditModal 例外：页面级全局配置表单（身份安全策略），保存后不关闭；表单 key 跟随策略值重挂载
   const formApi = useRef<FormApi | null>(null);
   const [policy, setPolicy] = useState<IdentitySecuritySettings>(defaultPolicy);
-  const { bindKeyword, handleSearch, handleReset, tableProps } = useListPage({
-    defaults: { keyword: '' },
-    listKey: identitySecurityKeys.riskLists,
+  const page = useListPage({
+    op: identitySecurityContract.riskEvents,
     useList: useLoginRiskEventList,
-    toQuery: (s) => ({ keyword: s.keyword.trim() }),
     enabled: canReadRiskEvents && activeTab === 'risk',
   });
+  const { tableProps } = page;
   // 页面级全局配置表单（无弹窗、保存后不关闭），不走 useEditModal；策略由运行时设置 identitySecurity 模块承载
   const policyQuery = useSettings('identitySecurity', canManagePolicy && activeTab === 'policy');
   const savePolicyMutation = useSaveSettings('identitySecurity');
-
 
   useEffect(() => {
     if (policyQuery.data) setPolicy(policyQuery.data.effective);
@@ -143,9 +140,8 @@ export default function IdentitySecurityPage() {
 
         {canReadRiskEvents && <TabPane tab="风险事件" itemKey="risk">
           <ListSearchToolbar
-            keyword={<KeywordInput placeholder="搜索账号、IP、原因" {...bindKeyword('keyword')} />}
-            onSearch={handleSearch}
-            onReset={handleReset}
+            page={page}
+            filters={['keyword']}
           />
           <ConfigurableTable<LoginRiskEvent>
             columns={riskColumns}

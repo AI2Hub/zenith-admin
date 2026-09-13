@@ -1,8 +1,7 @@
 import { ListSearchToolbar } from '@/components/list-page';
 import { Avatar, Button, Form, Modal, Space, Tag, Toast } from '@douyinfe/semi-ui';
 import { RefreshCw, Ban } from 'lucide-react';
-import { MP_FAN_SUBSCRIBE_OPTIONS, MP_FAN_SUBSCRIBES, type MpFan, type MpFanSubscribe, type UpdateMpFanInput } from '@zenith/shared/mp';
-import { enumValueOf } from '@zenith/shared/core';
+import { type MpFan, type MpFanSubscribe, type UpdateMpFanInput, mpFanContract } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -11,7 +10,6 @@ import { useMpAccounts } from './useMpAccounts';
 import { MpAccountRequiredBanner } from './MpAccountRequiredBanner';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import {
-  mpFanKeys,
   useBlacklistMpFans,
   useCreateMpFanMember,
   useMpFanList,
@@ -22,7 +20,7 @@ import {
   useUnbindMpFanMember,
 } from '@/hooks/queries/mp-fans';
 import { useMpTagOptions } from '@/hooks/queries/mp-tags';
-import { FilterSelect, KeywordInput } from '@/components/search-filters';
+import { FilterSelect } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListPage } from '@/hooks/useListPage';
@@ -37,30 +35,14 @@ export default function MpFansPage() {
   const tagsQuery = useMpTagOptions(currentId);
   const tags = tagsQuery.data?.list ?? [];
   const tagMap = new Map(tags.map((t) => [t.id, t.name]));
-
-  /** 黑名单筛选在草稿里以 'true' / 'false' 字串保存（Select 选项值），提交时收窄为布尔 */
-  interface SearchParams { keyword: string; subscribe: MpFanSubscribe | undefined; tagId: number | undefined; blacklisted?: 'true' | 'false'; }
-  const defaultSearch: SearchParams = { keyword: '', subscribe: undefined, tagId: undefined, blacklisted: undefined };
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearch,
-    listKey: mpFanKeys.lists,
+  const page = useListPage({
+    contract: mpFanContract,
     resetKey: currentId,
     useList: useMpFanList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      subscribe: s.subscribe,
-      tagId: s.tagId,
-      blacklisted: s.blacklisted === undefined ? undefined : s.blacklisted === 'true',
-    }),
     params: { accountId: currentId ?? 0 },
     enabled: !!currentId,
   });
+  const { tableProps } = page;
 
   const syncFansMutation = useSyncMpFans();
   const syncBlacklistMutation = useSyncMpBlacklist();
@@ -195,37 +177,20 @@ export default function MpFansPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <>
-            <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
-            <KeywordInput placeholder="搜索昵称/openid/备注" {...bindKeyword('keyword')} width={200} />
-          </>
-        )}
-        filters={(
-          <>
-            <FilterSelect
-              placeholder="全部关注状态"
-              items={MP_FAN_SUBSCRIBE_OPTIONS}
-              {...bind('subscribe', (v) => enumValueOf(MP_FAN_SUBSCRIBES, v))}
-              width={140}
-            />
+        page={page}
+        filters={['keyword', 'subscribe', 'tagId', 'blacklisted']}
+        overrides={{
+          tagId: (p) => (
             <FilterSelect
               placeholder="全部标签"
               items={tags.map((t) => ({ label: t.name, value: t.id }))}
-              {...bind('tagId')}
+              {...p.bind('tagId')}
               width={150}
               filter
             />
-            <FilterSelect<'true' | 'false'>
-              placeholder="全部黑名单"
-              items={[{ label: '黑名单', value: 'true' }, { label: '正常', value: 'false' }]}
-              {...bind('blacklisted')}
-              width={140}
-            />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+          ),
+        }}
+        extraFilters={<MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />}
         actions={syncActions}
         filterTitle="粉丝筛选"
         actionTitle="粉丝操作"

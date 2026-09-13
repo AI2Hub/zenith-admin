@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeBound, paginated, paginationQuery } from '../../core/api-schemas';
+import { dateRangeBound, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { CHECKIN_MILESTONE_REWARD_TYPES } from '../constants';
 
@@ -89,7 +89,7 @@ export type MemberMilestoneStatus = z.infer<typeof memberMilestoneStatusSchema>;
 // ─── 契约（后台签到记录） ────────────────────────────────────────────────────
 
 export const memberCheckinListQuery = paginationQuery.extend({
-  memberKeyword: z.string().optional().meta({ description: '会员昵称 / 手机号 / 用户名模糊匹配；纯数字额外按会员 ID 精确匹配' }),
+  memberKeyword: keywordQuery('会员昵称 / 手机号 / 用户名', { description: '会员昵称 / 手机号 / 用户名模糊匹配；纯数字额外按会员 ID 精确匹配' }),
   dateStart: dateRangeBound('起始日期'),
   dateEnd: dateRangeBound('结束日期', 'end'),
 });

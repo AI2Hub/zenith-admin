@@ -1,7 +1,7 @@
 import * as z from 'zod';
-import { auditFieldsSchema, batchIdsBody, entityStatusSchema, idParam, paginated, paginationQuery, entityStatusQuery, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, batchIdsBody, entityStatusSchema, idParam, paginated, paginationQuery, entityStatusQuery, queryEnum, idQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { WORKFLOW_AUTOMATION_TRIGGERS, WORKFLOW_AUTOMATION_RUN_STATUSES } from '../constants';
+import { WORKFLOW_AUTOMATION_TRIGGERS, WORKFLOW_AUTOMATION_RUN_STATUSES, WORKFLOW_AUTOMATION_TRIGGER_OPTIONS } from '../constants';
 import { createWorkflowAutomationSchema, updateWorkflowAutomationSchema, workflowAutomationActionSchema } from '../validation';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
@@ -46,14 +46,14 @@ export type WorkflowAutomationRun = z.infer<typeof workflowAutomationRunSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const workflowAutomationListQuery = paginationQuery.extend({
-  definitionId: z.coerce.number().int().optional(),
-  trigger: queryEnum(WORKFLOW_AUTOMATION_TRIGGERS),
+  definitionId: idQuery(),
+  trigger: queryEnum(WORKFLOW_AUTOMATION_TRIGGERS, { options: WORKFLOW_AUTOMATION_TRIGGER_OPTIONS }),
   status: entityStatusQuery,
 });
 
 export const workflowAutomationRunListQuery = paginationQuery.extend({
-  ruleId: z.coerce.number().int().optional(),
-  instanceId: z.coerce.number().int().optional(),
+  ruleId: idQuery(),
+  instanceId: idQuery(),
   status: queryEnum(WORKFLOW_AUTOMATION_RUN_STATUSES),
 });
 

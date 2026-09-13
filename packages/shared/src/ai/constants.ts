@@ -56,6 +56,10 @@ export const AI_FEEDBACK_STATUS_OPTIONS: Array<{ value: AiFeedbackStatus; label:
 
 /** 提示词模板范围：system 系统级 / user 用户私有 */
 export const AI_PROMPT_SCOPES = ['system', 'user'] as const;
+export const AI_PROMPT_SCOPE_OPTIONS = [
+  { value: 'system', label: '系统级' },
+  { value: 'user', label: '用户私有' },
+] as const satisfies readonly { value: (typeof AI_PROMPT_SCOPES)[number]; label: string }[];
 
 export type AiPromptScope = (typeof AI_PROMPT_SCOPES)[number];
 

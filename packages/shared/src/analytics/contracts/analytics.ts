@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, idParam, keywordQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, idParam, keywordQuery, paginated, paginationQuery, queryBool, queryEnum, idQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { userBehaviorEventTypeEnum } from '../validation';
 import { asyncTaskSchema } from '../../tasks/contracts/async-tasks';
@@ -121,7 +121,7 @@ export const analyticsPathQuery = z.object({
 });
 
 export const analyticsUserTimelineQuery = z.object({
-  userId: z.coerce.number().int().optional(),
+  userId: idQuery(),
   username: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
 });

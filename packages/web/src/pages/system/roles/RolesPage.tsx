@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Form, Toast, Spin, SideSheet } from '@douyinfe/semi-ui';
-import { DATA_SCOPES, type CreateRoleInput, type Role, type Department } from '@zenith/shared/identity';
-import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
+import { DATA_SCOPES, type CreateRoleInput, type Role, type Department, roleContract } from '@zenith/shared/identity';
+import { enumValueOf } from '@zenith/shared/core';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
 import type { UserTransferUser } from '@/components/UserTransferSelect';
 import { UserPreviewCell } from '@/components/UserPreviewCell';
 import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -20,7 +19,6 @@ import { useMenuTree } from '@/hooks/queries/menus';
 import { useAllUsers } from '@/hooks/queries/users';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
-  roleKeys,
   useAssignRoleMenus,
   useAssignRoleUsers,
   useDeleteRoles,
@@ -31,7 +29,7 @@ import {
   useUpdateRoleDataScope,
 } from '@/hooks/queries/roles';
 import { CreateButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { DateRangeFilter } from '@/components/search-filters';
 import { ListSearchToolbar, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import ModalFooter from '@/components/ModalFooter';
 import { useListPage } from '@/hooks/useListPage';
@@ -39,31 +37,12 @@ import { EditFormModal } from '@/components/EditFormModal';
 
 export default function RolesPage() {
   const { hasPermission } = usePermission();
-  interface SearchParams {
-    keyword: string;
-    status?: string;
-    timeRange: [Date, Date] | null;
-  }
-
-  const defaultSearchParams: SearchParams = { keyword: '', status: undefined, timeRange: null };
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-    filterQuery,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: roleKeys.lists,
+  const { options: statusOptions } = useDictItems('common_status');
+  const page = useListPage({
+    contract: roleContract,
     useList: useRoleList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      status: enumValueOf(USER_STATUSES, s.status),
-      ...formatDateTimeRangeForApi(s.timeRange),
-    }),
   });
+  const { tableProps, filterQuery } = page;
   const [menuModalVisible, setMenuModalVisible] = useState(false);
   const [menuRole, setMenuRole] = useState<Role | null>(null);
   const [checkedMenuIds, setCheckedMenuIds] = useState<number[]>([]);
@@ -237,18 +216,11 @@ export default function RolesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索角色名称/编码" {...bindKeyword('keyword')} />}
-        filters={(
-          <>
-            <StatusSelect
-              items={statusItems}
-              {...bind('status')}
-            />
-            <DateRangeFilter placeholder={["开始时间", "结束时间"]} {...bind('timeRange')} />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status', ['startTime', 'endTime']]}
+        overrides={{
+          startTime: (p) => <DateRangeFilter placeholder={["开始时间", "结束时间"]} {...p.bindRange(['startTime', 'endTime'])} />,
+        }}
         create={<CreateButton permission="system:role:create" onClick={roleModal.openCreate} />}
         actions={<ExportButton entity="system.roles" query={filterQuery} />}
         filterTitle="角色筛选"

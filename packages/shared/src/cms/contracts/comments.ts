@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { batchIdsBody, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { batchIdsBody, paginated, paginationQuery, queryEnum, requiredIdQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { CMS_COMMENT_SOURCES, CMS_COMMENT_STATUSES } from '../constants';
 import { cmsSiteScopeQuery } from './tags';
@@ -39,7 +39,7 @@ export type CmsPendingCommentCount = z.infer<typeof cmsPendingCommentCountSchema
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const cmsCommentListQuery = paginationQuery.extend({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   status: queryEnum(CMS_COMMENT_STATUSES),
   source: queryEnum(CMS_COMMENT_SOURCES, '来源筛选：member=会员评论 guest=游客评论'),
 });

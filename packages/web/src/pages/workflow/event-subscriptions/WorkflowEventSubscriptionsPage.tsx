@@ -8,7 +8,7 @@ import { Button, Col, Form, Modal, Row, Space, SideSheet, Switch, Tag, Toast, Ty
 
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RotateCcw } from 'lucide-react';
-import { WORKFLOW_EVENT_DELIVERY_STATUS_LABELS, WORKFLOW_EVENT_TYPE_LABELS, WORKFLOW_EVENT_TYPE_OPTIONS, type CreateWorkflowEventSubscriptionInput, type WorkflowDefinition, type WorkflowEventDelivery, type WorkflowEventDeliveryStatus, type WorkflowEventSubscription, type WorkflowEventType } from '@zenith/shared/workflow';
+import { WORKFLOW_EVENT_DELIVERY_STATUS_LABELS, WORKFLOW_EVENT_TYPE_LABELS, WORKFLOW_EVENT_TYPE_OPTIONS, type CreateWorkflowEventSubscriptionInput, type WorkflowDefinition, type WorkflowEventDelivery, type WorkflowEventDeliveryStatus, type WorkflowEventSubscription, type WorkflowEventType, workflowEventSubscriptionContract } from '@zenith/shared/workflow';
 import { isPlainObject } from '@zenith/shared/core';
 import { formatDateTimeRangeValuesForApi } from '@/utils/date';
 import { AppModal } from '@/components/AppModal';
@@ -28,7 +28,6 @@ import {
   useWorkflowEventSubscriptionDetail,
   useWorkflowEventSubscriptionList,
   useWorkflowEventSubscriptionSecret,
-  workflowEventSubscriptionKeys,
 } from '@/hooks/queries/workflow-event-subscriptions';
 import { useWorkflowConnectorList } from '@/hooks/queries/workflow-connectors';
 import { CreateButton } from '@/components/toolbar-controls';
@@ -36,7 +35,7 @@ import { ListSearchToolbar, listTableProps, useCrudOperationColumn } from '@/com
 import { useEditModal } from '@/hooks/useEditModal';
 import { EMPTY_PLACEHOLDER, dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
-import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, StatusSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormSheet } from '@/components/EditFormModal';
 
@@ -63,24 +62,11 @@ interface FormValues {
 export default function WorkflowEventSubscriptionsPage() {
   const { hasPermission } = usePermission();
   const canManageEventSubscription = hasPermission('workflow:event-subscription:view');
-  interface SearchParams { keyword: string; definitionId?: number; enabled?: 'true' | 'false' }
-  const defaultSearchParams: SearchParams = { keyword: '', definitionId: undefined, enabled: undefined };
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: workflowEventSubscriptionKeys.lists,
+  const page = useListPage({
+    contract: workflowEventSubscriptionContract,
     useList: useWorkflowEventSubscriptionList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      definitionId: s.definitionId,
-      enabled: s.enabled === undefined ? undefined : s.enabled === 'true',
-    }),
   });
+  const { tableProps } = page;
 
   const definitionsQuery = useWorkflowDefinitionList({ page: 1, pageSize: 200 });
   const defs: WorkflowDefinition[] = definitionsQuery.data?.list ?? [];
@@ -316,26 +302,18 @@ export default function WorkflowEventSubscriptionsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="名称 / URL" {...bindKeyword('keyword')} width={220} />}
-        filters={(
-          <>
+        page={page}
+        filters={['keyword', 'definitionId', 'enabled']}
+        overrides={{
+          definitionId: (p) => (
             <FilterSelect
               placeholder="全部所属流程"
               items={defs.map((d) => ({ value: d.id, label: d.name }))}
-              {...bind('definitionId')}
+              {...p.bind('definitionId')}
               width={200}
             />
-            <StatusSelect
-              items={[
-                { value: 'true', label: '启用' },
-                { value: 'false', label: '禁用' },
-              ]}
-              {...bind('enabled')}
-            />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+          ),
+        }}
         create={(
           canManageEventSubscription ? (
             <CreateButton onClick={openCreate} />

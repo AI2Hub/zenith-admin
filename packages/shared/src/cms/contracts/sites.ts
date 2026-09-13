@@ -293,7 +293,7 @@ export const cmsSiteListQuery = paginationQuery.extend({
 });
 
 export const cmsSiteTreeQuery = z.object({
-  keyword: z.string().max(100).optional(),
+  keyword: keywordQuery(undefined, { max: 100 }),
   status: entityStatusQuery,
 });
 

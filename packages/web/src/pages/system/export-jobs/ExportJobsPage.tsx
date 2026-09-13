@@ -4,9 +4,8 @@ import { Button, Descriptions, Modal, SideSheet, Space, Tag, Toast, Typography }
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
-import type { ExportEntityMeta, ExportJob, ExportJobDownload, ExportJobFormat, ExportJobStatus } from '@zenith/shared/tasks';
-import { EXPORT_JOB_FORMATS, EXPORT_JOB_STATUSES, exportJobContract } from '@zenith/shared/tasks';
-import { enumValueOf, formatBytes } from '@zenith/shared/core';
+import { exportJobContract, type ExportEntityMeta, type ExportJob, type ExportJobDownload, type ExportJobFormat, type ExportJobStatus } from '@zenith/shared/tasks';
+import { formatBytes } from '@zenith/shared/core';
 import { urlOf } from '@/lib/contract-query';
 import { request } from '@/utils/request';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -27,23 +26,9 @@ import {
   useRetryExportJob,
 } from '@/hooks/queries/export-jobs';
 import { BatchDeleteButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, StatusSelect } from '@/components/search-filters';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { useListPage } from '@/hooks/useListPage';
-
-interface SearchParams {
-  entity?: string;
-  status?: string;
-  format?: string;
-  keyword: string;
-}
-
-const defaultSearchParams: SearchParams = {
-  entity: undefined,
-  status: undefined,
-  format: undefined,
-  keyword: '',
-};
 const EMPTY_ENTITIES: ExportEntityMeta[] = [];
 const EMPTY_EXPORT_JOBS: ExportJob[] = [];
 
@@ -86,25 +71,12 @@ export default function ExportJobsPage() {
   const [currentJob, setCurrentJob] = useState<ExportJob | null>(null);
   const [downloadLoadingId, setDownloadLoadingId] = useState<number | null>(null);
   const { selectedRowKeys, setSelectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-    listQuery,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: exportJobKeys.lists,
+  const page = useListPage({
+    contract: exportJobContract,
     useList: useExportJobList,
-    toQuery: (s) => ({
-      entity: s.entity,
-      status: enumValueOf(EXPORT_JOB_STATUSES, s.status),
-      format: enumValueOf(EXPORT_JOB_FORMATS, s.format),
-      keyword: s.keyword,
-    }),
     table: { rowSelection, empty: '暂无导出任务' },
   });
+  const { tableProps, listQuery } = page;
   const entitiesQuery = useExportEntities();
   const entities = entitiesQuery.data ?? EMPTY_ENTITIES;
 
@@ -327,28 +299,31 @@ export default function ExportJobsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索文件名/模块" {...bindKeyword('keyword')} width={240} />}
-        filters={(
-          <>
+        page={page}
+        filters={['keyword', 'entity', 'status', 'format']}
+        overrides={{
+          entity: (p) => (
             <FilterSelect
               placeholder="全部模块"
               items={entityOptions}
-              {...bind('entity')}
+              {...p.bind('entity')}
               width={160}
             />
+          ),
+          status: (p) => (
             <StatusSelect
               items={statusOptions}
-              {...bind('status')}
+              {...p.bind('status')}
             />
+          ),
+          format: (p) => (
             <FilterSelect
               placeholder="全部格式"
               items={formatOptions}
-              {...bind('format')}
+              {...p.bind('format')}
             />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+          ),
+        }}
         actions={(
           <>
             <Button icon={<RefreshCw size={14} />} onClick={() => void listQuery.refetch()} loading={listQuery.isFetching}>刷新</Button>

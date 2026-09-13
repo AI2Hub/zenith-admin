@@ -43,7 +43,7 @@ export type MpConversation = z.infer<typeof mpConversationSchema>;
 
 export const mpMessageListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
-  openid: z.string().optional().meta({ description: '只看某个粉丝的会话' }),
+  openid: keywordQuery('粉丝 openid', { description: '只看某个粉丝的会话' }),
   direction: queryEnum(MP_MESSAGE_DIRECTIONS),
   msgType: queryEnum(MP_MESSAGE_TYPES),
   keyword: keywordQuery('消息内容'),

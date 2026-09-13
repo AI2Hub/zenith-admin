@@ -5,9 +5,8 @@
 import { Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
-import { KeywordInput } from '@/components/search-filters';
-import type { ReplayAccessLog } from '@zenith/shared/analytics';
-import { replayKeys, useReplayAccessLogs } from '@/hooks/queries/session-replays';
+import { sessionReplayContract, type ReplayAccessLog } from '@zenith/shared/analytics';
+import { useReplayAccessLogs } from '@/hooks/queries/session-replays';
 import { ListSearchToolbar } from '@/components/list-page';
 import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { useListPage } from '@/hooks/useListPage';
@@ -15,20 +14,12 @@ import { useListPage } from '@/hooks/useListPage';
 const { Text } = Typography;
 
 export default function ReplayAccessLogsTab({ onOpenReplay }: Readonly<{ onOpenReplay: (id: string) => void }>) {
-  const defaultSearchParams: { keyword: string } = { keyword: '' };
-  const {
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: replayKeys.accessLogs,
+  const page = useListPage({
+    op: sessionReplayContract.accessLogs,
     useList: useReplayAccessLogs,
-    toQuery: (s) => ({ keyword: s.keyword }),
     table: { empty: '暂无访问记录（同一用户对同一回放 10 分钟内只留痕一次）' },
   });
-
+  const { tableProps } = page;
 
   const columns: ColumnProps<ReplayAccessLog>[] = [
     { title: '时间', dataIndex: 'createdAt', width: 170 },
@@ -50,15 +41,8 @@ export default function ReplayAccessLogsTab({ onOpenReplay }: Readonly<{ onOpenR
   return (
     <div>
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="操作人/录像归属/回放 ID"
-            {...bindKeyword('keyword')}
-            width={240}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword']}
       />
       <ConfigurableTable
         columnSettingsKey="replay-access-logs"

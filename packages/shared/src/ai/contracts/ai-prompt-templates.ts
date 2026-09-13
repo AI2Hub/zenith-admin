@@ -1,7 +1,7 @@
 import * as z from 'zod';
-import { idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { idParam, paginated, paginationQuery, queryEnum, keywordQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { AI_PROMPT_SCOPES } from '../constants';
+import { AI_PROMPT_SCOPE_OPTIONS, AI_PROMPT_SCOPES } from '../constants';
 import { createAiPromptTemplateSchema, updateAiPromptTemplateSchema } from '../validation';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
@@ -41,8 +41,8 @@ export type AiPromptTemplateVersion = z.infer<typeof aiPromptTemplateVersionSche
 // ─── 路径 / 查询参数 ─────────────────────────────────────────────────────────
 
 export const aiPromptTemplateListQuery = paginationQuery.extend({
-  scope: queryEnum(AI_PROMPT_SCOPES, '范围筛选：system / user'),
-  keyword: z.string().max(100).optional().meta({ description: '搜索关键词（名称或描述）' }),
+  scope: queryEnum(AI_PROMPT_SCOPES, { description: '作用域；system / user', options: AI_PROMPT_SCOPE_OPTIONS }),
+  keyword: keywordQuery(undefined, { description: '搜索关键词（名称或描述）', max: 100 }),
 });
 
 /** `{id}` 模板 + `{versionId}` 历史版本 */

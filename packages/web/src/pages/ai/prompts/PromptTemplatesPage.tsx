@@ -3,7 +3,7 @@ import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-pag
 import { Button, Col, Form, Modal, Row, SideSheet, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useQueryClient } from '@tanstack/react-query';
-import type { AiPromptTemplate, AiPromptScope, CreateAiPromptTemplateInput } from '@zenith/shared/ai';
+import { aiPromptTemplateContract, type AiPromptTemplate, type AiPromptScope, type CreateAiPromptTemplateInput } from '@zenith/shared/ai';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { usePermission } from '@/hooks/usePermission';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
@@ -16,15 +16,9 @@ import {
 } from '@/hooks/queries/ai-prompts';
 import { useAiPromptVersions, useRestoreAiPromptVersion } from '@/hooks/queries/ai-extras';
 import { CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
-
-interface SearchParams {
-  keyword: string;
-  scope?: AiPromptScope;
-}
 
 interface PromptTemplateFormValues {
   name: string;
@@ -35,8 +29,6 @@ interface PromptTemplateFormValues {
   sort: number;
   isEnabled: boolean;
 }
-
-const defaultSearchParams: SearchParams = { keyword: '', scope: undefined };
 
 const scopeFormOptions = [
   { value: 'system', label: '系统级' },
@@ -63,18 +55,11 @@ function normalizeNullable(value: unknown) {
 export default function PromptTemplatesPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: aiPromptKeys.lists,
+  const page = useListPage({
+    contract: aiPromptTemplateContract,
     useList: useAiPromptList,
-    toQuery: (s) => ({ keyword: s.keyword, scope: s.scope }),
   });
+  const { tableProps } = page;
   const [versionTemplate, setVersionTemplate] = useState<AiPromptTemplate | null>(null);
   const versionsQuery = useAiPromptVersions(versionTemplate?.id ?? null);
   const restoreVersionMutation = useRestoreAiPromptVersion();
@@ -141,17 +126,8 @@ export default function PromptTemplatesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索名称/描述" {...bindKeyword('keyword')} />}
-        filters={(
-          <FilterSelect
-            placeholder="全部作用域"
-            items={scopeFormOptions}
-            {...bind('scope', (value) => value as AiPromptScope | undefined)}
-            width={140}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'scope']}
         create={<CreateButton permission="ai:prompt:create" onClick={promptModal.openCreate} />}
         filterTitle="提示词筛选"
       />

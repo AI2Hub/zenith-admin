@@ -1,8 +1,8 @@
 import * as z from 'zod';
-import { idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { idParam, paginated, paginationQuery, queryEnum, keywordQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { uploadCertSchema } from '../../platform/validation';
-import { SSL_CERT_DOWNLOAD_KINDS, SSL_CERT_STATUSES, SSL_CERT_TYPES } from '../constants';
+import { SSL_CERT_DOWNLOAD_KINDS, SSL_CERT_STATUSES, SSL_CERT_TYPES, SSL_CERT_TYPE_OPTIONS } from '../constants';
 import { generateSelfSignedCertSchema } from '../validation';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
@@ -36,8 +36,8 @@ export type SslCertificateCreated = z.infer<typeof sslCertificateCreatedSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const sslCertificateListQuery = paginationQuery.extend({
-  keyword: z.string().max(256).optional(),
-  type: queryEnum(SSL_CERT_TYPES),
+  keyword: keywordQuery(undefined, { max: 256 }),
+  type: queryEnum(SSL_CERT_TYPES, { options: SSL_CERT_TYPE_OPTIONS }),
 });
 
 export const sslCertificateDownloadQuery = z.object({

@@ -12,7 +12,6 @@ import { useEditModal } from '@/hooks/useEditModal';
 import {
   useBatchReportDatasetStatus,
   useCloneReportDataset,
-  reportDatasetKeys,
   useDeleteReportDatasets,
   useEnabledReportDatasources,
   useGenerateReportDatasetSql,
@@ -22,8 +21,7 @@ import {
   useReportDatasetList,
   useSaveReportDataset,
 } from '@/hooks/queries/report-datasets';
-import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
-import { REPORT_DATASOURCE_TYPE_LABELS, REPORT_FIELD_TYPE_OPTIONS } from '@zenith/shared/report';
+import { REPORT_DATASOURCE_TYPE_LABELS, REPORT_FIELD_TYPE_OPTIONS, reportDatasetContract } from '@zenith/shared/report';
 import type { ReportDataset, ReportDatasourceType, ReportField, ReportDataResult, ReportApiDatasetContent, ReportSqlDatasetContent, ReportComputedField, ReportStaticDatasetContent, ReportFieldFormat, ReportDatasetParam, ReportLookupOption, ReportRowRule, ReportVisualModel } from '@zenith/shared/report';
 import { useAllRoles } from '@/hooks/queries/roles';
 import VisualModelBuilder from './components/VisualModelBuilder';
@@ -35,7 +33,6 @@ import { useReportOwnerFolderOptions } from './report-lookups';
 import { useReportDqAnomalyList } from '@/hooks/queries/report-dq';
 import { useReportDeprecationList } from '@/hooks/queries/report-assets';
 import { BatchStatusButtons, CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import { batchStatusHandler, deleteAction, ListSearchToolbar, useRowSelection } from '@/components/list-page';
 import { useListPage } from '@/hooks/useListPage';
@@ -44,9 +41,6 @@ import { EditFormSheet } from '@/components/EditFormModal';
 const DatasetRefsModal = lazy(() => import('./components/DatasetRefsModal').then((module) => ({
   default: module.DatasetRefsModal,
 })));
-
-interface SearchParams { keyword: string; status?: string; ownerId?: number; folderId?: number }
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined, ownerId: undefined, folderId: undefined };
 
 function isSqlAuthoringType(type: ReportDatasourceType | null) {
   return type === 'sql' || type === 'mysql' || type === 'postgresql' || type === 'sqlserver';
@@ -83,12 +77,10 @@ function fieldsFromColumns(columns: string[], rows: Record<string, unknown>[] = 
 }
 
 export default function DatasetsPage() {
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
+  const { options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
   const staticFileInputRef = useRef<HTMLInputElement | null>(null);
-
-
 
   const datasourcesQuery = useEnabledReportDatasources();
   const datasources = useMemo<ReportLookupOption[]>(() => datasourcesQuery.data ?? [], [datasourcesQuery.data]);
@@ -101,24 +93,12 @@ export default function DatasetsPage() {
   }, [datasources]);
 
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: reportDatasetKeys.lists,
+  const page = useListPage({
+    contract: reportDatasetContract,
     useList: useReportDatasetList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      status: enumValueOf(USER_STATUSES, s.status),
-      ownerId: s.ownerId,
-      folderId: s.folderId,
-    }),
     table: { empty: '暂无数据', rowSelection: hasPermission('report:dataset:update') ? rowSelection : undefined },
   });
+  const { tableProps } = page;
   const [selectedDsId, setSelectedDsId] = useState<number | null>(null);
   const [fields, setFields] = useState<ReportField[]>([]);
   const [computedFields, setComputedFields] = useState<ReportComputedField[]>([]);
@@ -578,13 +558,12 @@ export default function DatasetsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索名称/备注..." {...bindKeyword('keyword')} />}
-        filters={<><ReportOwnerFilter items={userOptions} {...bind('ownerId')} /><ReportFolderFilter items={folderOptions} {...bind('folderId')} /><StatusSelect
-          items={statusItems}
-          {...bind('status')}
-        /></>}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'ownerId', 'folderId', 'status']}
+        overrides={{
+          ownerId: (p) => <ReportOwnerFilter items={userOptions} {...p.bind('ownerId')} />,
+          folderId: (p) => <ReportFolderFilter items={folderOptions} {...p.bind('folderId')} />,
+        }}
         create={<CreateButton permission="report:dataset:create" onClick={openCreate} />}
         actions={batchStatusButtons}
         filterTitle="数据集筛选"

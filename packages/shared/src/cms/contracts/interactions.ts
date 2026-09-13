@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum, requiredIdQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { asyncTaskSchema } from '../../tasks/contracts/async-tasks';
 import {
@@ -218,27 +218,27 @@ export type CmsInteractionResponse = z.infer<typeof cmsInteractionResponseSchema
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const cmsInteractionListQuery = paginationQuery.extend({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   keyword: keywordQuery(),
   kind: queryEnum(CMS_INTERACTION_KINDS),
   status: queryEnum(CMS_INTERACTION_STATUSES),
 });
 
 export const cmsInteractionResponseListQuery = paginationQuery.extend({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   interactionId: idQuery(),
   kind: queryEnum(CMS_INTERACTION_KINDS),
   ...dateRangeQuery(),
 });
 
 export const cmsInteractionTextsQuery = paginationQuery.extend({
-  questionId: z.coerce.number().int().positive(),
+  questionId: requiredIdQuery(),
   keyword: keywordQuery(),
 });
 
 export const cmsInteractionCrossQuery = z.object({
-  xQuestionId: z.coerce.number().int().positive(),
-  yQuestionId: z.coerce.number().int().positive(),
+  xQuestionId: requiredIdQuery(),
+  yQuestionId: requiredIdQuery(),
 });
 
 export const cmsInteractionTrendQuery = z.object({

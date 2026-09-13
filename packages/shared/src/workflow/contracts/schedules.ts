@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { entityStatusSchema, idParam, paginated, paginationQuery, entityStatusQuery } from '../../core/api-schemas';
+import { entityStatusSchema, idParam, paginated, paginationQuery, entityStatusQuery, idQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { createWorkflowScheduleSchema, updateWorkflowScheduleSchema } from '../validation';
 
@@ -32,7 +32,7 @@ export type WorkflowSchedule = z.infer<typeof workflowScheduleSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const workflowScheduleListQuery = paginationQuery.extend({
-  definitionId: z.coerce.number().int().optional(),
+  definitionId: idQuery(),
   status: entityStatusQuery,
 });
 

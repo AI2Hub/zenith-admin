@@ -5,32 +5,23 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { ListChecks } from 'lucide-react';
 import { ListSearchToolbar, useRowSelection } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, StatusSelect } from '@/components/search-filters';
 import AppModal from '@/components/AppModal';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import {
-  directorySyncConflictKeys, useDirectorySyncConflictList,
-  useResolveDirectorySyncConflict, useIgnoreDirectorySyncConflicts,
+  useDirectorySyncConflictList,
+  useResolveDirectorySyncConflict,
+  useIgnoreDirectorySyncConflicts,
   useDirectorySyncSourceList,
 } from '@/hooks/queries/directory-sync';
 import { useAllUsers } from '@/hooks/queries/users';
-import type { DirectorySyncConflict, DirectorySyncResolution } from '@zenith/shared/identity';
-import { enumValueOf } from '@zenith/shared/core';
+import { directorySyncContract, type DirectorySyncConflict, type DirectorySyncResolution } from '@zenith/shared/identity';
 import {
   DIRECTORY_SYNC_CONFLICT_STATUSES, DIRECTORY_SYNC_CONFLICT_STATUS_LABELS,
   DIRECTORY_SYNC_CONFLICT_TYPE_LABELS, DIRECTORY_SYNC_ENTITY_TYPE_LABELS,
 } from '@zenith/shared/identity';
 import { useListPage } from '@/hooks/useListPage';
-
-interface SearchParams {
-  keyword: string;
-  sourceId?: number;
-  status?: string;
-}
-
-// 默认只看待裁决
-const defaultSearchParams: SearchParams = { keyword: '', sourceId: undefined, status: 'pending' };
 
 const CONFLICT_STATUS_TAG_COLOR: Record<string, 'orange' | 'green' | 'grey'> = {
   pending: 'orange',
@@ -61,27 +52,15 @@ export default function DirectorySyncConflictsPage() {
     extra: { getCheckboxProps: (record?: DirectorySyncConflict) => ({ disabled: record?.status !== 'pending' }) },
   });
 
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: directorySyncConflictKeys.lists,
+  const page = useListPage({
+    op: directorySyncContract.listConflicts,
+    defaults: { status: 'pending' },
     onSearch: clearSelection,
     onReset: clearSelection,
     useList: useDirectorySyncConflictList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      sourceId: s.sourceId,
-      status: enumValueOf(DIRECTORY_SYNC_CONFLICT_STATUSES, s.status),
-    }),
     table: { empty: '暂无冲突，同步产生的挂起项会出现在这里', rowSelection },
   });
-
-
+  const { tableProps } = page;
 
   const sourcesQuery = useDirectorySyncSourceList({ page: 1, pageSize: 100 });
   const sourceItems = useMemo(
@@ -192,29 +171,25 @@ export default function DirectorySyncConflictsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="搜索姓名 / 外部 ID..."
-            {...bindKeyword('keyword')}
-          />
-        )}
-        filters={(
-          <>
+        page={page}
+        filters={['keyword', 'sourceId', 'status']}
+        overrides={{
+          sourceId: (p) => (
             <FilterSelect<number>
               placeholder="全部同步源"
               width={160}
               items={sourceItems}
-              {...bind('sourceId')}
+              {...p.bind('sourceId')}
             />
+          ),
+          status: (p) => (
             <StatusSelect
-
-              items={DIRECTORY_SYNC_CONFLICT_STATUSES.map((s) => ({ value: s, label: DIRECTORY_SYNC_CONFLICT_STATUS_LABELS[s] }))}
-              {...bind('status')}
+              
+                            items={DIRECTORY_SYNC_CONFLICT_STATUSES.map((s) => ({ value: s, label: DIRECTORY_SYNC_CONFLICT_STATUS_LABELS[s] }))}
+                            {...p.bind('status')}
             />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+          ),
+        }}
         actions={selectedRowKeys.length > 0 && hasPermission('system:dirsync-conflict:ignore') && (
           <Button theme="light" icon={<ListChecks size={14} />} onClick={() => handleIgnore(selectedRowKeys)}>
             批量忽略 ({selectedRowKeys.length})

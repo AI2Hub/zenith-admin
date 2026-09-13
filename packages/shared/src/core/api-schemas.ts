@@ -26,25 +26,47 @@ export const idParam = z.object({
  * 查询串里的可选关联 ID 筛选（`?channelId=3`）：正整数，缺省不过滤。
  * 与路径参数 `idParam` 对称；列表查询里的 `xxxId` 一律用它，不再逐个写 `z.coerce.number().int().positive().optional()`。
  */
+/**
+ * 查询串里的可选关联 ID 筛选（`?channelId=3`）：正整数，缺省不过滤。
+ * 与路径参数 `idParam` 对称；列表查询里的 `xxxId` 一律用它，不再逐个写 `z.coerce.number().int().positive().optional()`。
+ */
 export function idQuery(description?: string) {
   return z.coerce.number().int().positive().optional().meta({ ...(description ? { description } : {}), ...filterMeta({ kind: 'id' }) });
+}
+
+/** 必填的关联 ID 切分维度（CMS 各资源按 `siteId` 切分、预授权按 `applicationId`）：不带 `.optional()`，前端以选择器 override 呈现 */
+export function requiredIdQuery(description?: string) {
+  return z.coerce.number().int().positive().meta({ ...(description ? { description } : {}), ...filterMeta({ kind: 'id' }) });
 }
 
 export interface KeywordQueryOptions {
   /** 覆盖自动生成的 OpenAPI 描述（匹配规则有额外说明时，如「纯数字额外按 ID 精确匹配」） */
   readonly description?: string;
+  /** 长度上限（日志 / 检索类接口防超长串） */
+  readonly max?: number;
 }
 
 /**
  * 列表查询的关键字模糊匹配参数（`?keyword=…`）：可选字符串，缺省不过滤。
  * `fields` 写人可读的匹配字段（「名称 / 编码」）：OpenAPI 描述生成「按名称 / 编码模糊匹配」，
  * 前端筛选控件的占位生成「搜索名称 / 编码」——匹配哪些字段只在契约里说一次。
- * 服务端配合 `keywordCondition(q.keyword, [cols])`（trim / 判空 / 转义都在那里）。
- * 带长度上限或 `.trim()` 的关键字仍逐个书写，不套本积木。
+ * 服务端配合 `keywordCondition(q.keyword, [cols])`（trim / 判空 / 转义都在那里）；长度上限用 `{ max }`。
  */
 export function keywordQuery(fields?: string, options: KeywordQueryOptions = {}) {
   const description = options.description ?? (fields ? `按${fields}模糊匹配` : '关键字模糊匹配');
-  return z.string().optional().meta({ description, ...filterMeta({ kind: 'keyword', ...(fields ? { fields } : {}) }) });
+  const base = options.max ? z.string().max(options.max) : z.string();
+  return base.optional().meta({ description, ...filterMeta({ kind: 'keyword', ...(fields ? { fields } : {}) }) });
+}
+
+/**
+ * 取值来自运行时字典的筛选参数（`?type=notice`，字典 `announcement_type`）：开放字符串，
+ * 标签与可选项由前端 `useDictItems(dict)` 提供，OpenAPI 只标注字典编码。
+ */
+export function dictQuery(dict: string, description?: string) {
+  return z.string().optional().meta({
+    description: description ?? `按字典 ${dict} 取值筛选`,
+    ...filterMeta({ kind: 'enum', values: [], dict }),
+  });
 }
 
 /** 分页查询参数；列表接口用 `paginationQuery.extend({ ... })` 追加筛选字段 */
@@ -82,16 +104,22 @@ export function dateRangeQuery(subject?: string) {
   };
 }
 
+export interface QueryBoolOptions {
+  /** 自定义是 / 否文案，依次对应 true / false：`['已启用', '已禁用']`、`['已注册', '待注册']` */
+  readonly labels?: readonly [trueLabel: string, falseLabel: string];
+}
+
 /**
  * 查询串布尔参数（`?enabled=true` / `?enabled=false`）。
  * 禁止 `z.coerce.boolean()`——它把字符串 `'false'` 转成 `true`。
  * `'true' | '1' | 'yes' | 'on'` → true；`'false' | '0' | 'no' | 'off'` → false；空串视为未传；其余 400。
+ * 前端筛选控件缺省「是 / 否」，业务文案（启用 / 禁用、已注册 / 待注册）用 `{ labels }` 声明在契约里。
  */
-export function queryBool(description?: string) {
+export function queryBool(description?: string, options: QueryBoolOptions = {}) {
   return z
     .union([z.literal('').transform(() => undefined), z.stringbool()])
     .optional()
-    .meta({ type: 'boolean', ...(description ? { description } : {}), ...filterMeta({ kind: 'bool' }) });
+    .meta({ type: 'boolean', ...(description ? { description } : {}), ...filterMeta({ kind: 'bool', ...(options.labels ? { labels: options.labels } : {}) }) });
 }
 
 export interface QueryEnumOptions {

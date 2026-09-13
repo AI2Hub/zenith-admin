@@ -6,17 +6,16 @@ import { useMemo, useState } from 'react';
 import { Card, Select, Skeleton, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CheckCircle2, MousePointerClick, Send, XCircle } from 'lucide-react';
-import { enumValueOf } from '@zenith/shared/core';
 import {
   PUSH_DELIVERY_STATUS_LABELS,
   PUSH_PROVIDER_LABELS,
   SEND_SOURCE_LABELS,
-  SEND_STATUSES,
   type PushDeliveryStatus,
   type PushProvider,
   type PushSendLog,
   type SendSource,
   type SendStatus,
+  pushSendLogContract,
 } from '@zenith/shared/messaging';
 import {
   LineChart,
@@ -28,10 +27,10 @@ import {
 } from '@/components/charts';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { ListSearchToolbar } from '@/components/list-page';
-import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { StatusSelect } from '@/components/search-filters';
 import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
-import { formatDateTimeRangeForApi, shortDate } from '@/utils/date';
-import { pushSendLogKeys, usePushSendLogList, usePushSendLogStats } from '@/hooks/queries/push';
+import { shortDate } from '@/utils/date';
+import { usePushSendLogList, usePushSendLogStats } from '@/hooks/queries/push';
 import { SEND_LOG_STATUS_OPTIONS } from '../send-log-constants';
 import { SendStatusTag } from '../send-log-ui';
 import { useListPage } from '@/hooks/useListPage';
@@ -42,14 +41,6 @@ const DELIVERY_COLORS: Record<PushDeliveryStatus, 'green' | 'blue'> = {
   delivered: 'green',
   clicked: 'blue',
 };
-
-interface SearchParams {
-  keyword: string;
-  status?: string;
-  timeRange: [Date, Date] | null;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined, timeRange: null };
 
 const STATS_DAYS_OPTIONS = [
   { value: 7, label: '近 7 天' },
@@ -117,24 +108,11 @@ function PushStatsSection() {
 }
 
 export default function PushSendLogsPage() {
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: pushSendLogKeys.lists,
+  const page = useListPage({
+    contract: pushSendLogContract,
     useList: usePushSendLogList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      status: enumValueOf(SEND_STATUSES, s.status),
-      ...formatDateTimeRangeForApi(s.timeRange),
-    }),
   });
-
-
+  const { tableProps } = page;
 
   const columns: ColumnProps<PushSendLog>[] = [
     { title: '应用', dataIndex: 'appName', width: 120, render: renderEllipsis },
@@ -186,25 +164,16 @@ export default function PushSendLogsPage() {
     <div className="page-container zx-flat-panels">
       <PushStatsSection />
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="搜索标题 / 内容 / 事件..."
-            {...bindKeyword('keyword')}
-          />
-        )}
-        filters={(
-          <>
+        page={page}
+        filters={['keyword', 'status', ['startTime', 'endTime']]}
+        overrides={{
+          status: (p) => (
             <StatusSelect
               items={SEND_LOG_STATUS_OPTIONS}
-              {...bind('status')}
+              {...p.bind('status')}
             />
-            <DateRangeFilter
-              {...bind('timeRange')}
-            />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+          ),
+        }}
         filterTitle="筛选条件"
       />
 

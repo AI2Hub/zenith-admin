@@ -8,7 +8,6 @@ import { ClearLogsButtons } from '@/components/logs/ClearLogsControl';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { useUserOptions } from '@/hooks/useUserOptions';
-import { formatDateTimeRangeForApi } from '@/utils/date';
 import { formatClock } from '@/utils/format';
 import RecordingPlayer from './RecordingPlayer';
 import {
@@ -19,26 +18,18 @@ import {
   useTerminalRecordingDetail,
   useTerminalRecordingList,
 } from '@/hooks/queries/terminal';
-import type { TerminalRecording, TerminalRecordingDetail, TerminalRecordingEvent } from '@zenith/shared/ops';
-import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search-filters';
+import { terminalRecordingContract, type TerminalRecording, type TerminalRecordingDetail, type TerminalRecordingEvent } from '@zenith/shared/ops';
+import { FilterSelect } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { CLEAR_LOGS_LABELS } from '@/hooks/useClearLogs';
 import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useListPage } from '@/hooks/useListPage';
 
-interface SearchParams {
-  keyword: string;
-  operatorUserId?: number;
-  timeRange: [Date, Date] | null;
-}
-
 interface CommandItem {
   time: number;
   cmd: string;
 }
-
-const defaultSearchParams: SearchParams = { keyword: '', operatorUserId: undefined, timeRange: null };
 
 /** 从录屏事件中还原用户执行的命令列表（按行切割 'i' 输入事件，处理退格和 ANSI 转义序列）。 */
 function extractCommands(events: TerminalRecordingEvent[]): CommandItem[] {
@@ -110,26 +101,17 @@ function getKeyCommandLabel(cmd: string): string | null {
 
 export default function TerminalRecordingsPage() {
   const queryClient = useQueryClient();
-  const {
-    resetPage,
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: terminalKeys.recordingLists,
+  const page = useListPage({
+    contract: terminalRecordingContract,
     useList: useTerminalRecordingList,
-    toQuery: (s) => ({ keyword: s.keyword, operatorUserId: s.operatorUserId, ...formatDateTimeRangeForApi(s.timeRange) }),
     table: { empty: '暂无录屏记录，使用 Web 终端后会自动保存' },
   });
+  const { resetPage, tableProps } = page;
   const [playRec, setPlayRec] = useState<TerminalRecordingDetail | null>(null);
   const [playStartTime, setPlayStartTime] = useState(0);
   const [detailRec, setDetailRec] = useState<TerminalRecordingDetail | null>(null);
   const [exportingId, setExportingId] = useState<number | null>(null);
   const { userOptions, loading: userOptionsLoading, ensureLoaded } = useUserOptions({ immediate: true });
-
 
   const [playId, setPlayId] = useState<number | undefined>();
   const [detailId, setDetailId] = useState<number | undefined>();
@@ -257,23 +239,21 @@ export default function TerminalRecordingsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索标题" {...bindKeyword('keyword')} />}
-        filters={(
-          <>
+        page={page}
+        filters={['keyword', 'operatorUserId', ['startTime', 'endTime']]}
+        overrides={{
+          operatorUserId: (p) => (
             <FilterSelect<number>
               placeholder="全部操作人"
               items={userOptions}
-              {...bind('operatorUserId')}
+              {...p.bind('operatorUserId')}
               width={180}
               loading={userOptionsLoading}
               filter
               onFocus={() => { void ensureLoaded(); }}
             />
-            <DateRangeFilter {...bind('timeRange')} />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+          ),
+        }}
         actions={<ClearLogsButtons label="录屏" loading={cleanMutation.isPending} onClear={handleClear} />}
         actionTitle="录屏操作"
       />

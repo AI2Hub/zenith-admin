@@ -31,7 +31,7 @@ export type BizLeave = z.infer<typeof bizLeaveSchema>;
 
 export const bizLeaveListQuery = paginationQuery.extend({
   keyword: keywordQuery('事由'),
-  status: queryEnum(BIZ_LEAVE_STATUSES).meta({ description: '按业务状态过滤' }),
+  status: queryEnum(BIZ_LEAVE_STATUSES, '按业务状态过滤'),
 });
 
 export const bizLeaveContract = defineContract('/api/biz/leaves', {

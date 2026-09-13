@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { idParam, paginated, paginationQuery, queryEnum, requiredIdQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import {
   PAYMENT_CHANNELS,
@@ -73,9 +73,9 @@ export const paymentReconItemListQuery = paginationQuery.extend({
 });
 
 export const paymentReconSampleBillQuery = z.object({
-  applicationId: z.coerce.number().int().positive(),
+  applicationId: requiredIdQuery(),
   channel: z.enum(PAYMENT_CHANNELS),
-  channelConfigId: z.coerce.number().int().positive(),
+  channelConfigId: requiredIdQuery(),
   currency: z.string().regex(/^[A-Z]{3}$/).default('CNY'),
   billDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '账单日期须为 YYYY-MM-DD'),
 });

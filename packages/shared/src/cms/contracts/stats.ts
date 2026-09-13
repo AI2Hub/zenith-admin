@@ -1,4 +1,5 @@
 import * as z from 'zod';
+import { requiredIdQuery } from '../../core';
 import { defineContract, op } from '../../core/contract';
 import { CMS_DEVICE_TYPES } from '../constants';
 
@@ -66,12 +67,12 @@ export type CmsDashboardStats = z.infer<typeof cmsDashboardStatsSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const cmsStatsQuery = z.object({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   days: z.coerce.number().int().min(1).max(90).default(30),
 });
 
 export const cmsDashboardQuery = z.object({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

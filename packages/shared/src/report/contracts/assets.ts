@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, dateRangeBound, entityStatusQuery, idParam, idQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, dateRangeBound, entityStatusQuery, idParam, idQuery, paginated, paginationQuery, queryBool, queryEnum, keywordQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { REPORT_ASSET_TEMPLATE_TYPES, REPORT_RESOURCE_TYPES } from '../types';
 import {
@@ -126,7 +126,7 @@ export type ReportAssetTemplateApplyResult = z.infer<typeof reportAssetTemplateA
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const reportAssetCatalogQuery = paginationQuery.extend({
-  keyword: z.string().max(128).optional(),
+  keyword: keywordQuery(undefined, { max: 128 }),
   types: z.string().optional().meta({ description: '资源类型，逗号分隔' }),
   ownerId: idQuery(),
   folderId: idQuery(),
@@ -167,7 +167,7 @@ export const reportDeprecationListQuery = paginationQuery.extend({
 });
 
 export const reportAssetTemplateListQuery = paginationQuery.extend({
-  keyword: z.string().max(128).optional(),
+  keyword: keywordQuery(undefined, { max: 128 }),
   type: queryEnum(REPORT_ASSET_TEMPLATE_TYPES),
   status: entityStatusQuery,
 });

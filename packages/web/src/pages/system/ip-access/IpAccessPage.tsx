@@ -3,15 +3,13 @@ import { Button, Card, Switch, TextArea, Toast, Spin, Typography, Tabs, TabPane,
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { ListSearchToolbar } from '@/components/list-page';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { IP_ACCESS_BLOCK_TYPES, type IpAccessLog } from '@zenith/shared/platform';
-import { enumValueOf } from '@zenith/shared/core';
+import { type IpAccessLog, ipAccessLogContract } from '@zenith/shared/platform';
 import { usePermission } from '@/hooks/usePermission';
 import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
-import { ipAccessKeys, useIpAccessLogs } from '@/hooks/queries/ip-access';
+import { useIpAccessLogs } from '@/hooks/queries/ip-access';
 import { useSaveSettings, useSettings } from '@/hooks/queries/settings';
 import { isIpOrCidr, type IpAccessSettings } from '@zenith/shared/settings';
 import { ApiError } from '@/lib/query';
-import { FilterSelect, KeywordInput } from '@/components/search-filters';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useListPage } from '@/hooks/useListPage';
@@ -28,23 +26,11 @@ function listToLines(list: readonly string[]): string {
 // ─── 拦截日志子页面 ─────────────────────────────────────────────
 
 function IpAccessLogsTab() {
-
-  const BLOCK_TYPE_OPTIONS = [{ value: 'blacklist', label: '黑名单' }, { value: 'whitelist', label: '白名单' }];
-
-interface SearchParams { filterIp: string; filterBlockType: string | undefined; }
-  const defaultSearchParams: SearchParams = { filterIp: '', filterBlockType: undefined };
-  const {
-    bind,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: ipAccessKeys.logs,
+  const page = useListPage({
+    contract: ipAccessLogContract,
     useList: useIpAccessLogs,
-    toQuery: (s) => ({ ip: s.filterIp, blockType: enumValueOf(IP_ACCESS_BLOCK_TYPES, s.filterBlockType) }),
   });
-
+  const { tableProps } = page;
 
   const columns: ColumnProps<IpAccessLog>[] = [
     { title: 'IP 地址', dataIndex: 'ip', width: 160 },
@@ -65,17 +51,8 @@ interface SearchParams { filterIp: string; filterBlockType: string | undefined; 
   return (
     <>
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索 IP 地址" {...bind('filterIp')} width={200} />}
-        filters={(
-          <FilterSelect
-            placeholder="全部拦截类型"
-            items={BLOCK_TYPE_OPTIONS}
-            {...bind('filterBlockType')}
-            width={140}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['ip', 'blockType']}
         filterTitle="IP 访问筛选"
       />
       <ConfigurableTable<IpAccessLog>

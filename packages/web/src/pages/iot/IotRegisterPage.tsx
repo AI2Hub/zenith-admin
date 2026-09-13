@@ -4,7 +4,7 @@ import { RefreshCw } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
 import { StatCard, StatGrid } from '@/components/charts';
@@ -12,49 +12,31 @@ import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table
 import { usePermission } from '@/hooks/usePermission';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { copyTextWithToast } from '@/utils/clipboard';
-import { iotIngestContract } from '@zenith/shared/iot';
+import { iotIngestContract, iotWhitelistContract } from '@zenith/shared/iot';
 import type { CreateIotWhitelistInput, IotWhitelistEntry } from '@zenith/shared/iot';
 import { IotProductSelectField, useIotProductOptions } from './components/IotSelectors';
 import {
-  iotWhitelistKeys, useDeleteIotWhitelistEntry, useDisableIotRegistration,
-  useImportIotWhitelist, useIotWhitelistList, useIotWhitelistStats, useResetIotRegistrationSecret,
+  useDeleteIotWhitelistEntry,
+  useDisableIotRegistration,
+  useImportIotWhitelist,
+  useIotWhitelistList,
+  useIotWhitelistStats,
+  useResetIotRegistrationSecret,
 } from '@/hooks/queries/iot-register';
 import { useListPage } from '@/hooks/useListPage';
 
 const { Text, Paragraph } = Typography;
 
-interface WhitelistSearchParams {
-  keyword: string;
-  productId?: number;
-  /** 注册状态：'true' 已注册 / 'false' 待注册，undefined = 全部 */
-  used?: 'true' | 'false';
-}
-
-const defaultSearch: WhitelistSearchParams = { keyword: '', productId: undefined, used: undefined };
-
 export default function IotRegisterPage() {
   const { hasPermission } = usePermission();
   const canManage = hasPermission('iot:register:manage');
 
-  const {
-    bind,
-    bindKeyword,
-    submittedParams,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearch,
-    listKey: iotWhitelistKeys.lists,
+  const page = useListPage({
+    contract: iotWhitelistContract,
     useList: useIotWhitelistList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      productId: s.productId,
-      used: s.used === undefined ? undefined : s.used === 'true',
-    }),
     table: { empty: '暂无白名单，点击「批量导入 SN」把产线 SN 加入白名单' },
   });
-
+  const { submittedParams, tableProps } = page;
 
   const statsQuery = useIotWhitelistStats(submittedParams.productId);
   const stats = statsQuery.data;
@@ -185,26 +167,18 @@ export default function IotRegisterPage() {
       )}
 
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="搜索 SN / 备注..."
-            {...bindKeyword('keyword')}
-          />
-        )}
-        filters={<>
-          <FilterSelect<number>
-            placeholder="全部产品"
-            items={productOptions}
-            {...bind('productId')}
-            width={180}
-          />
-          <StatusSelect<'true' | 'false'>
-            items={[{ value: 'false', label: '待注册' }, { value: 'true', label: '已注册' }]}
-            {...bind('used')}
-          />
-        </>}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'productId', 'used']}
+        overrides={{
+          productId: (p) => (
+            <FilterSelect<number>
+              placeholder="全部产品"
+              items={productOptions}
+              {...p.bind('productId')}
+              width={180}
+            />
+          ),
+        }}
         create={canManage ? <CreateButton onClick={() => setImportVisible(true)}>批量导入 SN</CreateButton> : null}
         mobileActions={false}
         filterTitle="筛选条件"

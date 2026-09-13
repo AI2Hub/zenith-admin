@@ -24,7 +24,7 @@ export type Tag = z.infer<typeof tagSchema>;
 export const tagListQuery = paginationQuery.extend({
   keyword: keywordQuery('名称 / 描述'),
   status: entityStatusQuery,
-  groupName: z.string().optional(),
+  groupName: keywordQuery('分组'),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

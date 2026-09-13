@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, idParam, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, idParam, paginated, paginationQuery, queryBool, queryEnum, requiredIdQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { REPORT_APPROVAL_ACTIONS } from '../constants';
 import { REPORT_ACL_ROLES, REPORT_ACL_SUBJECT_TYPES, REPORT_APPROVAL_STATUSES, REPORT_RESOURCE_TYPES, REPORT_TRANSFER_STATUSES } from '../types';
@@ -95,7 +95,7 @@ export type ReportResourceTransfer = z.infer<typeof reportResourceTransferSchema
 
 export const reportResourceRefQuery = z.object({
   resourceType: reportResourceTypeSchema,
-  resourceId: z.coerce.number().int().positive(),
+  resourceId: requiredIdQuery(),
   inheritFromFolder: queryBool('是否包含从目录继承的权限').default(false),
 });
 

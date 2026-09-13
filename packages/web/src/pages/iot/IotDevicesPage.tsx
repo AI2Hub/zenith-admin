@@ -4,7 +4,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import ExportButton from '@/components/ExportButton';
 import ImportButton from '@/components/ImportButton';
@@ -12,18 +12,19 @@ import AppModal from '@/components/AppModal';
 import { EMPTY_PLACEHOLDER, copyableNoColumn, dateTimeColumn, renderEllipsis, enabledStatusColumn } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
-import { useDictItems } from '@/hooks/useDictItems';
 import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { abortSubmit } from '@/lib/abort-submit';
-import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
-import type { CreateIotDeviceGroupInput, CreateIotDeviceInput, IotDevice, IotDeviceGroup, IotMetricValue } from '@zenith/shared/iot';
-import { IOT_NODE_TYPES, IOT_NODE_TYPE_OPTIONS } from '@zenith/shared/iot';
+import { iotDeviceContract, type CreateIotDeviceGroupInput, type CreateIotDeviceInput, type IotDevice, type IotDeviceGroup, type IotMetricValue } from '@zenith/shared/iot';
+import { IOT_NODE_TYPE_OPTIONS } from '@zenith/shared/iot';
 import { IotProductSelectField, useIotGroupOptions, useIotProductOptions } from './components/IotSelectors';
 import { parseJsonObjectInput } from './iot-form-utils';
 import {
-  iotDeviceKeys, useDeleteIotDevices, useIotDeviceList, useSaveIotDevice,
-  useSubmitIotBatchCommand, useSubmitIotBatchDesired,
+  useDeleteIotDevices,
+  useIotDeviceList,
+  useSaveIotDevice,
+  useSubmitIotBatchCommand,
+  useSubmitIotBatchDesired,
 } from '@/hooks/queries/iot-devices';
 import { useAllIotGroups, useDeleteIotGroups, useSaveIotGroup } from '@/hooks/queries/iot-groups';
 import IotDeviceDetailDrawer from './IotDeviceDetailDrawer';
@@ -31,16 +32,6 @@ import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal, EditFormSheet } from '@/components/EditFormModal';
 
 const { Text } = Typography;
-
-interface SearchParams {
-  keyword: string;
-  status?: string;
-  productId?: number;
-  groupId?: number;
-  nodeType?: string;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined, productId: undefined, groupId: undefined, nodeType: undefined };
 
 /** 设备表单值：记录里的 null 在表单中归一为空串 / 未填，提交前由 beforeSave 还原 */
 type IotDeviceFormValues = Partial<CreateIotDeviceInput>;
@@ -54,7 +45,6 @@ function renderMetricValue(v: number | string | boolean): string {
 
 export default function IotDevicesPage() {
   const { hasPermission } = usePermission();
-  const { items: statusItems } = useDictItems('common_status');
   const [detailDevice, setDetailDevice] = useState<IotDevice | null>(null);
   const { selectedRowKeys, setSelectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
   const [groupsVisible, setGroupsVisible] = useState(false);
@@ -67,8 +57,6 @@ export default function IotDevicesPage() {
   // 网关设备清单（子设备表单「所属网关」选项）
   const gatewaysQuery = useIotDeviceList({ page: 1, pageSize: 100, nodeType: 'gateway' });
   const gatewayOptions = (gatewaysQuery.data?.list ?? []).map((d) => ({ value: d.id, label: `${d.name}（${d.sn}）` }));
-
-
 
   const modal = useEditModal<IotDevice, IotDeviceFormValues, Partial<CreateIotDeviceInput>>({
     entityName: '设备',
@@ -277,60 +265,34 @@ export default function IotDevicesPage() {
   ];
 
   const canBatch = hasPermission('iot:device:batch');
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-    filterQuery,
-    listQuery,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: iotDeviceKeys.lists,
+  const page = useListPage({
+    contract: iotDeviceContract,
     useList: useIotDeviceList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      status: enumValueOf(USER_STATUSES, s.status),
-      productId: s.productId,
-      groupId: s.groupId,
-      nodeType: enumValueOf(IOT_NODE_TYPES, s.nodeType),
-    }),
     table: { empty: '暂无设备，点击「注册设备」接入第一台设备', rowSelection: canBatch ? rowSelection : undefined },
   });
+  const { tableProps, filterQuery, listQuery } = page;
 
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="搜索 SN / 设备名..."
-            {...bindKeyword('keyword')}
-          />
-        )}
-        filters={<>
-          <FilterSelect<number>
-            placeholder="全部产品"
-            items={productOptions}
-            {...bind('productId')}
-          />
-          <FilterSelect<number>
-            placeholder="全部分组"
-            items={groupOptions}
-            {...bind('groupId')}
-          />
-          <FilterSelect
-            placeholder="全部形态"
-            items={IOT_NODE_TYPE_OPTIONS}
-            {...bind('nodeType')}
-          />
-          <StatusSelect
-            items={statusItems}
-            {...bind('status')}
-          />
-        </>}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'productId', 'groupId', 'nodeType', 'status']}
+        overrides={{
+          productId: (p) => (
+            <FilterSelect<number>
+              placeholder="全部产品"
+              items={productOptions}
+              {...p.bind('productId')}
+            />
+          ),
+          groupId: (p) => (
+            <FilterSelect<number>
+              placeholder="全部分组"
+              items={groupOptions}
+              {...p.bind('groupId')}
+            />
+          ),
+        }}
         create={<CreateButton permission="iot:device:create" onClick={modal.openCreate}>注册设备</CreateButton>}
         actions={<>
           {canBatch && selectedRowKeys.length > 0 && (

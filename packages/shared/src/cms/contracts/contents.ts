@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { batchIdsBody, dateRangeQuery, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { batchIdsBody, dateRangeQuery, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryBool, queryEnum, requiredIdQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { CMS_CONTENT_STATUSES, CMS_CONTENT_TYPES } from '../constants';
 import type { CmsLinkTarget } from '../link';
@@ -254,7 +254,7 @@ export type CmsContentBatchStatusResult = z.infer<typeof cmsContentBatchStatusRe
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const cmsContentListQuery = paginationQuery.extend({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   channelId: idQuery(),
   status: queryEnum(CMS_CONTENT_STATUSES),
   contentType: queryEnum(CMS_CONTENT_TYPES),
@@ -268,13 +268,13 @@ export const cmsContentListQuery = paginationQuery.extend({
 });
 
 export const cmsContentTitleCheckQuery = z.object({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   title: z.string().min(1).max(255),
   excludeId: idQuery(),
 });
 
 export const cmsLinkTargetQuery = z.object({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   link: z.string().max(500),
 });
 

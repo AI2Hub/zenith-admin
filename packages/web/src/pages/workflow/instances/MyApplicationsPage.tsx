@@ -15,8 +15,8 @@ import {
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ExternalLink, Megaphone, Plus, Undo2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import type { WorkflowDefinition, WorkflowInstance } from '@zenith/shared/workflow';
-import { buildWorkflowSummaryItems, WORKFLOW_INSTANCE_PRIORITIES, WORKFLOW_INSTANCE_STATUSES } from '@zenith/shared/workflow';
+import { WORKFLOW_INSTANCE_PRIORITIES, WORKFLOW_INSTANCE_STATUSES, workflowInstanceContract, type WorkflowDefinition, type WorkflowInstance } from '@zenith/shared/workflow';
+import { buildWorkflowSummaryItems } from '@zenith/shared/workflow';
 import { enumValueOf } from '@zenith/shared/core';
 import SavedViewsBar from '@/components/workflow/SavedViewsBar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -25,8 +25,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { AppModal } from '@/components/AppModal';
 import WorkflowInstanceDetailPanel from '@/components/workflow/WorkflowInstanceDetailPanel';
 import WorkflowLaunchForm, { type WorkflowLaunchFormHandle } from '@/components/workflow/WorkflowLaunchForm';
-import WorkflowPriorityTag, { WORKFLOW_PRIORITY_OPTIONS } from '@/components/workflow/WorkflowPriorityTag';
-import { INSTANCE_STATUS_MAP } from '@/components/workflow/workflow-runtime';
+import WorkflowPriorityTag, {} from '@/components/workflow/WorkflowPriorityTag';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { normalizeWorkflowFormSnapshot, resolveWorkflowFormType } from '@/utils/workflow-snapshot';
@@ -44,12 +43,11 @@ import {
   useUpdateWorkflowDraft,
   useUrgeWorkflowInstance,
   useWithdrawWorkflowInstance,
-  workflowInstanceKeys,
 } from '@/hooks/queries/workflow-instances';
 import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
 import { deleteAction, ListSearchToolbar, useRowSelection } from '@/components/list-page';
 import { workflowInstanceStatusColumn } from '@/components/workflow/WorkflowInstanceListColumns';
-import { FilterSelect, StatusSelect } from '@/components/search-filters';
+import { FilterSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
 
 function InstanceDetailDrawer({
@@ -256,25 +254,12 @@ export default function MyApplicationsPage() {
     // 草稿不参与批量操作
     extra: { getCheckboxProps: (record: WorkflowInstance) => ({ disabled: record.status === 'draft' }) },
   });
-  const defaultSearchParams: { status?: string; priority?: string } = { status: undefined, priority: undefined };
-  const {
-    bind,
-    submittedParams,
-    handleSearch,
-    applySearch,
-    handleReset,
-    tableProps,
-    listQuery,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: workflowInstanceKeys.lists,
+  const page = useListPage({
+    contract: workflowInstanceContract,
     useList: useMyWorkflowInstances,
-    toQuery: (s) => ({
-      status: enumValueOf(WORKFLOW_INSTANCE_STATUSES, s.status),
-      priority: enumValueOf(WORKFLOW_INSTANCE_PRIORITIES, s.priority),
-    }),
     table: { rowSelection },
   });
+  const { submittedParams, applySearch, tableProps, listQuery } = page;
   const [batchWithdrawVisible, setBatchWithdrawVisible] = useState(false);
   const [batchWithdrawComment, setBatchWithdrawComment] = useState('');
   const [batchUrgeVisible, setBatchUrgeVisible] = useState(false);
@@ -612,27 +597,17 @@ export default function MyApplicationsPage() {
         pageKey="workflow-my-applications"
         currentFilters={submittedParams as unknown as Record<string, unknown>}
         onApply={(filters) => {
-          const next = { status: undefined, priority: undefined, ...(filters as Partial<{ status?: string; priority?: string }>) };
-          applySearch(next);
+          // 保存的视图存的是裸字符串：按契约枚举校验后再回填（非法值当作未选）
+          const saved = filters as Partial<{ status?: string; priority?: string }>;
+          applySearch({
+            status: enumValueOf(WORKFLOW_INSTANCE_STATUSES, saved.status),
+            priority: enumValueOf(WORKFLOW_INSTANCE_PRIORITIES, saved.priority),
+          });
         }}
       />
       <ListSearchToolbar
-        filters={(
-          <>
-            <StatusSelect
-              items={Object.entries(INSTANCE_STATUS_MAP).map(([value, s]) => ({ value, label: s.text }))}
-              {...bind('status')}
-            />
-            <FilterSelect
-              placeholder="全部优先级"
-              items={WORKFLOW_PRIORITY_OPTIONS}
-              {...bind('priority')}
-              width={140}
-            />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['status', 'priority']}
         create={(
           <Button type="primary" icon={<Plus size={14} />} onClick={() => { void openApply(); }}>
             发起申请

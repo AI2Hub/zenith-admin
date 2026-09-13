@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum, requiredIdQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { asyncTaskSchema } from '../../tasks/contracts/async-tasks';
 import { CMS_COLLECT_ITEM_STATUSES } from '../constants';
@@ -50,7 +50,7 @@ export type CmsCollectItem = z.infer<typeof cmsCollectItemSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const cmsCollectRuleListQuery = paginationQuery.extend({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   keyword: keywordQuery(),
 });
 

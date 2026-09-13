@@ -1,7 +1,7 @@
 import * as z from 'zod';
-import { idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { idParam, paginated, paginationQuery, queryEnum, idQuery, keywordQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { WORKFLOW_TRIGGER_EXECUTION_STATUSES, WORKFLOW_TRIGGER_TYPES } from '../constants';
+import { WORKFLOW_TRIGGER_EXECUTION_STATUSES, WORKFLOW_TRIGGER_TYPES, WORKFLOW_TRIGGER_EXECUTION_STATUS_OPTIONS } from '../constants';
 import { workflowOutboundTraceFields } from './_common';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
@@ -27,9 +27,9 @@ export type WorkflowTriggerExecution = z.infer<typeof workflowTriggerExecutionSc
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const workflowTriggerExecutionListQuery = paginationQuery.extend({
-  instanceId: z.coerce.number().int().optional(),
-  nodeKey: z.string().optional(),
-  status: queryEnum(WORKFLOW_TRIGGER_EXECUTION_STATUSES),
+  instanceId: idQuery(),
+  nodeKey: keywordQuery('节点标识'),
+  status: queryEnum(WORKFLOW_TRIGGER_EXECUTION_STATUSES, { options: WORKFLOW_TRIGGER_EXECUTION_STATUS_OPTIONS }),
 });
 
 export const workflowTriggerExecutionContract = defineContract('/api/workflows/trigger-executions', {

@@ -91,6 +91,7 @@ const rowSchema = z.object({ id: z.int(), name: z.string() });
 const rowContract = defineContract('/api/test-rows', {
   list: op.get('/', { query: paginationQuery.extend({ keyword: keywordQuery('名称'), status: entityStatusQuery, ...dateRangeQuery('创建时间') }), response: paginated(rowSchema), summary: 'list' }),
   detail: op.get('/{id}', { params: idParam, response: rowSchema, summary: 'detail' }),
+  events: op.get('/events', { query: paginationQuery.extend({ level: keywordQuery('级别') }), response: paginated(rowSchema), summary: 'events' }),
 });
 
 const useContractListMock = vi.fn((params: { page: number; pageSize: number; keyword?: string; status?: 'enabled' | 'disabled'; startTime?: string; endTime?: string }, enabled?: boolean) => ({
@@ -109,6 +110,21 @@ function setupContract(defaults?: { status?: 'enabled' | 'disabled' }) {
 }
 
 describe('useListPage · 契约模式', () => {
+  it('操作模式：列表为契约子操作时，筛选状态 / listKey / filterSchema 取该操作', () => {
+    const useEventsMock = vi.fn((params: { page: number; pageSize: number; level?: string }, enabled?: boolean) => ({
+      data: { list: [] as Row[], total: 0 }, isFetching: false, refetch: vi.fn(), enabled, params,
+    }));
+    const client = createTestQueryClient();
+    const eventsKey = contractKey(rowContract.events);
+    client.setQueryData([...eventsKey, { page: 1 }], { list: [], total: 0 });
+    const { result } = renderHook(() => useListPage({ op: rowContract.events, useList: useEventsMock }), { wrapper: createWrapper(client) });
+    expect(result.current.filterSchema).toBe(rowContract.events.query);
+    act(() => { result.current.setField('level')('error'); });
+    act(() => { result.current.handleSearch(); });
+    expect(useEventsMock).toHaveBeenLastCalledWith({ page: 1, pageSize: 10, level: 'error' }, undefined);
+    expect(isInvalidated(client, [...eventsKey, { page: 1 }])).toBe(true);
+  });
+
   it('筛选状态即契约 query（去分页键）；listKey 取 contractKey(contract.list)，与 createResourceQueries 同键', () => {
     const { result, client, listsKey } = setupContract();
     expect(useContractListMock).toHaveBeenLastCalledWith({ page: 1, pageSize: 10 }, undefined);

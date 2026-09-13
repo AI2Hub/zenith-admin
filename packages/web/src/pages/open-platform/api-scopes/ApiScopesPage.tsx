@@ -1,7 +1,6 @@
 import { Tag, Form, Typography, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
-import { API_SCOPE_GROUPS, API_SCOPE_GROUP_LABELS } from '@zenith/shared/open-platform';
+import { API_SCOPE_GROUPS, API_SCOPE_GROUP_LABELS, apiScopeContract } from '@zenith/shared/open-platform';
 import type { ApiScope, CreateApiScopeInput } from '@zenith/shared/open-platform';
 import { copyableNoColumn, createdAtColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -9,14 +8,13 @@ import { confirmAndDelete, ListSearchToolbar, useRowSelection, useCrudOperationC
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
-  apiScopeKeys,
   useApiScopeList,
   useDeleteApiScopes,
   useSaveApiScope,
 } from '@/hooks/queries/open-platform';
 import { useDictItems } from '@/hooks/useDictItems';
 import { BatchDeleteButton, CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 
@@ -29,23 +27,13 @@ export default function ApiScopesPage() {
   const { hasPermission } = usePermission();
   const canManage = hasPermission('open:scope:manage');
 
-  interface SearchParams { keyword: string; scopeGroup?: string; status?: string }
-  const defaultSearchParams: SearchParams = { keyword: '', scopeGroup: undefined, status: undefined };
-
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: apiScopeKeys.lists,
+  const page = useListPage({
+    contract: apiScopeContract,
     useList: useApiScopeList,
-    toQuery: (s) => ({ keyword: s.keyword, scopeGroup: s.scopeGroup, status: enumValueOf(USER_STATUSES, s.status) }),
     table: { empty: '暂无数据', rowSelection: canManage ? rowSelection : undefined },
   });
+  const { tableProps } = page;
 
   const deleteMutation = useDeleteApiScopes();
 
@@ -118,22 +106,17 @@ export default function ApiScopesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索编码 / 名称" {...bindKeyword('keyword')} width={200} />}
-        filters={(
-          <>
+        page={page}
+        filters={['keyword', 'scopeGroup', 'status']}
+        overrides={{
+          scopeGroup: (p) => (
             <FilterSelect
               placeholder="全部分组"
               items={GROUP_OPTIONS}
-              {...bind('scopeGroup')}
+              {...p.bind('scopeGroup')}
             />
-            <StatusSelect
-              items={statusOptions}
-              {...bind('status')}
-            />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+          ),
+        }}
         create={canManage && <CreateButton onClick={modal.openCreate} />}
         actions={canManage && selectedRowKeys.length > 0 && <BatchDeleteButton label="批量删除" count={selectedRowKeys.length} onClick={handleBatchDelete} />}
         actionTitle="Scope 操作"

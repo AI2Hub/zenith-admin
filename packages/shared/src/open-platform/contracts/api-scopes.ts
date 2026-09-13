@@ -25,7 +25,7 @@ export type ApiScope = z.infer<typeof apiScopeSchema>;
 
 export const apiScopeListQuery = paginationQuery.extend({
   keyword: keywordQuery('编码 / 名称'),
-  scopeGroup: z.string().optional(),
+  scopeGroup: keywordQuery('权限组'),
   status: entityStatusQuery,
 });
 

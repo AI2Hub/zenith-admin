@@ -1,9 +1,7 @@
 import * as z from 'zod';
 import { auditFieldsSchema, batchIdsBody, dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import {
-  IOT_COMMAND_STATUSES, IOT_DEVICE_EVENT_KINDS, IOT_EVENT_LEVELS, IOT_LOG_LEVELS, IOT_NODE_TYPES,
-} from '../constants';
+import { IOT_COMMAND_STATUSES, IOT_DEVICE_EVENT_KINDS, IOT_EVENT_LEVELS, IOT_LOG_LEVELS, IOT_NODE_TYPES, IOT_NODE_TYPE_OPTIONS } from '../constants';
 import { createIotDeviceSchema, sendIotCommandSchema, setIotDesiredSchema, updateIotDeviceSchema } from '../validation';
 
 // ─── 属性值 ──────────────────────────────────────────────────────────────────
@@ -154,7 +152,7 @@ export const iotDeviceListQuery = paginationQuery.extend({
   status: entityStatusQuery,
   productId: idQuery(),
   groupId: idQuery(),
-  nodeType: queryEnum(IOT_NODE_TYPES),
+  nodeType: queryEnum(IOT_NODE_TYPES, { options: IOT_NODE_TYPE_OPTIONS }),
   gatewayId: idQuery(),
   ...dateRangeQuery('创建时间'),
 });

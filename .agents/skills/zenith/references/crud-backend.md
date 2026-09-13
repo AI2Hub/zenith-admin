@@ -152,9 +152,10 @@ export const xxxContract = defineContract('/api/xxxs', {
 - 公开接口：`public: true`；设备签名 / 开放网关鉴权的接口：`security: 'device-signature' | 'open-gateway'`
   （默认 Bearer 登录令牌；凭证校验仍由 `middleware` 完成）；额外文档说明：`description`
 - 自定义路径参数：`params: z.object({ code: z.string().meta({ description: '编码', example: 'demo' }) })`
-- 查询串积木：布尔 `queryBool()`、枚举筛选 `queryEnum(XXX_VALUES, { dict | options })`、启用 / 禁用状态 `entityStatusQuery`
-  （三者都把空串视为未传，handler 无需再 `|| undefined`）、关键字 `keywordQuery(fields?)`、关联 ID `idQuery()`；
-  `entityStatusSchema` 只用于请求体 / 实体字段。积木的 `x-filter` 语义只描述参数是什么（匹配字段、标签来源），不放控件名
+- 查询串积木：布尔 `queryBool(desc?, { labels? })`、枚举筛选 `queryEnum(XXX_VALUES, { dict | options })`、字典开放枚举 `dictQuery('字典编码')`、
+  启用 / 禁用状态 `entityStatusQuery`（都把空串视为未传，handler 无需再 `|| undefined`）、关键字 `keywordQuery(fields?, { max? })`、
+  关联 ID `idQuery()` / 必填切分维度 `requiredIdQuery()`；列表查询的每个筛选字段都要有 `x-filter` 语义。
+  `entityStatusSchema` 只用于请求体 / 实体字段。积木的 `x-filter` 语义只描述参数是什么（匹配字段、标签来源、布尔文案），不放控件名
 - 业务请求头（如幂等键）：`headers: z.object({ 'x-idempotency-key': z.string().min(8).max(128) })`，键为小写头名；
   服务端 `c.req.valid('header')`，客户端在输入的 `headers` 段提供；认证头不在契约声明
 

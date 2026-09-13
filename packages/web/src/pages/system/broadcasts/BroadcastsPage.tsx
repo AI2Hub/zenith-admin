@@ -11,22 +11,19 @@ import {
   BROADCAST_AUDIENCE_TYPE_LABELS,
   BROADCAST_AUDIENCE_TYPE_OPTIONS,
   BROADCAST_CHANNELS,
-  BROADCAST_STATUSES,
   BROADCAST_STATUS_LABELS,
-  BROADCAST_STATUS_OPTIONS,
   NOTIFICATION_CHANNEL_LABELS,
   type BroadcastAudienceType,
   type BroadcastCampaign,
   type BroadcastChannel,
   type BroadcastStatus,
   type CreateBroadcastInput,
+  broadcastContract,
 } from '@zenith/shared/messaging';
-import { enumValueOf } from '@zenith/shared/core';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import { EMPTY_PLACEHOLDER, createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -60,13 +57,6 @@ const CHANNEL_OPTIONS = BROADCAST_CHANNELS.map((c) => ({ value: c, label: NOTIFI
 /** 可编辑状态(编辑后回草稿重新发送) */
 const EDITABLE_STATUSES: BroadcastStatus[] = ['draft', 'failed', 'cancelled'];
 
-interface SearchParams {
-  keyword: string;
-  status?: string;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
-
 interface BroadcastFormValues {
   title: string;
   content: string;
@@ -81,20 +71,11 @@ interface BroadcastFormValues {
 export default function BroadcastsPage() {
   const { hasPermission } = usePermission();
   const qc = useQueryClient();
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: broadcastKeys.lists,
+  const page = useListPage({
+    contract: broadcastContract,
     useList: useBroadcastList,
-    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(BROADCAST_STATUSES, s.status) }),
   });
-
-
+  const { tableProps } = page;
 
   // 群发任务实时进度;任务结束时刷新列表让状态列落定
   const { tasks } = useMyAsyncTasks({ taskTypes: ['messaging-broadcast'] });
@@ -222,20 +203,8 @@ export default function BroadcastsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="搜索标题 / 内容..."
-            {...bindKeyword('keyword')}
-          />
-        )}
-        filters={(
-          <StatusSelect
-            items={BROADCAST_STATUS_OPTIONS}
-            {...bind('status')}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status']}
         create={<CreateButton permission="system:broadcast:create" onClick={modal.openCreate}>新建活动</CreateButton>}
         filterTitle="筛选条件"
       />

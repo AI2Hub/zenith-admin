@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, idParam, paginated, paginationQuery, queryEnum, keywordQuery, requiredIdQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { saveCmsWidgetSlotSchema } from '../../report/validation';
 import { asyncTaskSchema } from '../../tasks/contracts/async-tasks';
@@ -149,14 +149,14 @@ export type CmsWidgetSlot = z.infer<typeof cmsWidgetSlotSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const cmsWidgetListQuery = paginationQuery.extend({
-  siteId: z.coerce.number().int().positive(),
-  keyword: z.string().max(100).optional(),
+  siteId: requiredIdQuery(),
+  keyword: keywordQuery(undefined, { max: 100 }),
   status: queryEnum(CMS_WIDGET_STATUSES),
   type: queryEnum(CMS_WIDGET_TYPES),
 });
 
 export const cmsWidgetRenderersQuery = z.object({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   type: cmsWidgetTypeSchema.default('manual-list'),
 });
 
@@ -166,7 +166,7 @@ export const cmsWidgetSlotKeyParam = z.object({
 
 export const cmsWidgetSourceRefsQuery = z.object({
   sourceType: z.enum(CMS_WIDGET_LIVE_SOURCE_TYPES),
-  sourceId: z.coerce.number().int().positive(),
+  sourceId: requiredIdQuery(),
 });
 
 export const cmsWidgetPreviewQuery = z.object({

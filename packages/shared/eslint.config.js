@@ -81,12 +81,28 @@ export default tseslint.config(
           message: '查询串里的关联 ID 筛选请用 idQuery(description?)（core/api-schemas），不要逐个写 z.coerce.number().int().positive().optional()。',
         },
         {
+          selector: "Property[key.name=/Id$/] > CallExpression[callee.property.name='optional'][callee.object.callee.property.name='int'][callee.object.callee.object.callee.property.name='number'][callee.object.callee.object.callee.object.property.name='coerce']",
+          message: '查询串里的关联 ID 筛选请用 idQuery(description?)（core/api-schemas），不要写 z.coerce.number().int().optional()——前端筛选控件与 Mock 过滤都靠它的 x-filter 语义。',
+        },
+        {
+          selector: "Property[key.name=/Id$/] > CallExpression[callee.property.name='positive'][callee.object.callee.property.name='int'][callee.object.callee.object.callee.property.name='number'][callee.object.callee.object.callee.object.property.name='coerce']",
+          message: '查询串里必填的切分维度（siteId / applicationId）请用 requiredIdQuery(description?)（core/api-schemas），不要写 z.coerce.number().int().positive()。',
+        },
+        {
           selector: "Property[key.name='keyword'] > CallExpression[callee.property.name='optional'][callee.object.callee.property.name='string'][callee.object.callee.object.name='z']",
-          message: "列表查询的关键字参数请用 keywordQuery('X / Y')（core/api-schemas），不要直写 z.string().optional()；带 .max() / .trim() 约束的关键字才逐个书写。",
+          message: "列表查询的关键字参数请用 keywordQuery('X / Y', { max? })（core/api-schemas），不要直写 z.string().optional()。",
+        },
+        {
+          selector: "Property[key.name='keyword'] > CallExpression[callee.property.name='optional'][callee.object.callee.property.name='max'][callee.object.callee.object.callee.property.name='string']",
+          message: "带长度上限的关键字参数请用 keywordQuery('X / Y', { max: N })（core/api-schemas），不要直写 z.string().max(N).optional()。",
         },
         {
           selector: "Property[key.name='keyword'] > CallExpression[callee.property.name='meta'][callee.object.callee.property.name='optional'][callee.object.callee.object.callee.property.name='string'][callee.object.callee.object.callee.object.name='z']",
           message: "列表查询的关键字参数请用 keywordQuery('X / Y')（core/api-schemas），不要直写 z.string().optional().meta({ description })。",
+        },
+        {
+          selector: "CallExpression[callee.property.name='meta'] > CallExpression.callee > MemberExpression > CallExpression[callee.name=/^(queryEnum|queryBool|keywordQuery|idQuery)$/]",
+          message: '不要在 queryEnum / queryBool / keywordQuery / idQuery 之后再链 .meta()（会覆盖积木写入的 x-filter 语义）：描述请通过积木的 options.description 传入。',
         },
       ],
     },

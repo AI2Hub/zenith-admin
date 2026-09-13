@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, idParam, idQuery, paginated, paginationQuery, queryEnum, keywordQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { asyncTaskItemSchema, asyncTaskSchema } from '../../tasks/contracts/async-tasks';
 import { CMS_PUBLISH_ACTIONS, CMS_PUBLISH_ARTIFACT_STATUSES, CMS_PUBLISH_TARGET_TYPES, CMS_PUBLISHING_TASK_STATUS_FILTERS } from '../constants';
@@ -78,10 +78,10 @@ export const cmsPublishingListQuery = paginationQuery.extend({
   siteId: idQuery(),
   targetType: queryEnum(CMS_PUBLISH_TARGET_TYPES),
   status: queryEnum(CMS_PUBLISHING_TASK_STATUS_FILTERS),
-  taskType: z.string().max(64).optional(),
-  createdBy: z.string().max(100).optional(),
+  taskType: keywordQuery('任务类型', { max: 64 }),
+  createdBy: keywordQuery('提交人', { max: 100 }),
   ...dateRangeQuery(),
-  keyword: z.string().max(100).optional(),
+  keyword: keywordQuery(undefined, { max: 100 }),
 });
 
 export const cmsPublishArtifactListQuery = paginationQuery.extend({
@@ -90,7 +90,7 @@ export const cmsPublishArtifactListQuery = paginationQuery.extend({
   targetType: queryEnum(CMS_PUBLISH_TARGET_TYPES),
   status: queryEnum(CMS_PUBLISH_ARTIFACT_STATUSES),
   ...dateRangeQuery(),
-  keyword: z.string().max(100).optional(),
+  keyword: keywordQuery(undefined, { max: 100 }),
 });
 
 export const cmsPublishActionParam = idParam.extend({

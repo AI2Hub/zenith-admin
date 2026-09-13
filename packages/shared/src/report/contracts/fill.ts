@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, idParam, idQuery, paginated, paginationQuery, queryEnum, keywordQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import type { WorkflowFormSchema } from '../../workflow/types';
 import { workflowFormSchemaSchema } from '../../workflow/validation';
@@ -85,14 +85,14 @@ export type ReportFillRecord = z.infer<typeof reportFillRecordSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const reportFillTemplateListQuery = paginationQuery.extend({
-  keyword: z.string().max(128).optional(),
+  keyword: keywordQuery(undefined, { max: 128 }),
   status: queryEnum(REPORT_FILL_TEMPLATE_STATUSES),
   ownerId: idQuery(),
   folderId: idQuery(),
 });
 
 export const reportFillMyRecordsQuery = paginationQuery.extend({
-  keyword: z.string().max(128).optional(),
+  keyword: keywordQuery(undefined, { max: 128 }),
   status: queryEnum(REPORT_FILL_RECORD_STATUSES),
   templateId: idQuery(),
 });

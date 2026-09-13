@@ -14,15 +14,13 @@ import { useReportDesignerDatasets } from '@/hooks/queries/report-designer';
 import {
   useBatchReportPrintTemplateStatus,
   useCloneReportPrintTemplate,
-  reportPrintKeys,
   useDeleteReportPrintTemplates,
   useRenderReportPrintTemplate,
   useReportPrintTemplateList,
   useSaveReportPrintTemplate,
 } from '@/hooks/queries/report-print';
 import PrintPreviewModal from './PrintPreviewModal';
-import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
-import { REPORT_PRINT_ENTITY_KIND_LABELS } from '@zenith/shared/report';
+import { REPORT_PRINT_ENTITY_KIND_LABELS, reportPrintContract } from '@zenith/shared/report';
 import type { CreateReportPrintTemplateInput, ReportPrintRenderResult, ReportPrintSourceType, ReportPrintTemplate, UpdateReportPrintTemplateInput } from '@zenith/shared/report';
 import type { ExportJobFormat } from '@zenith/shared/tasks';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -30,41 +28,23 @@ import { ReportFolderFilter, ReportOwnerFilter } from './report-filters';
 import { ReportOwnerFolderFields } from './report-form-fields';
 import { useReportOwnerFolderOptions } from './report-lookups';
 import { BatchStatusButtons, CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { batchStatusHandler, deleteAction, ListSearchToolbar, useStatusToggle, useRowSelection } from '@/components/list-page';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 
-interface SearchParams { keyword: string; status?: string; ownerId?: number; folderId?: number }
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined, ownerId: undefined, folderId: undefined };
-
 export default function PrintTemplatesPage() {
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
+  const { options: statusOptions } = useDictItems('common_status');
   const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const exportResolveRef = useRef<((value: Record<string, unknown> | null) => void) | null>(null);
 
-
-
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: reportPrintKeys.lists,
+  const page = useListPage({
+    contract: reportPrintContract,
     useList: useReportPrintTemplateList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      status: enumValueOf(USER_STATUSES, s.status),
-      ownerId: s.ownerId,
-      folderId: s.folderId,
-    }),
     table: { empty: '暂无数据', rowSelection: hasPermission('report:print:update') ? rowSelection : undefined },
   });
+  const { tableProps } = page;
   // 新增 / 编辑弹窗中的数据来源（控制数据集选择器显隐）；打开弹窗时随记录回填
   const [dialogSourceType, setDialogSourceType] = useState<ReportPrintSourceType>('dataset');
   const [previewVisible, setPreviewVisible] = useState(false);
@@ -253,13 +233,12 @@ export default function PrintTemplatesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索名称/备注..." {...bindKeyword('keyword')} />}
-        filters={<><ReportOwnerFilter items={userOptions} {...bind('ownerId')} /><ReportFolderFilter items={folderOptions} {...bind('folderId')} /><StatusSelect
-          items={statusItems}
-          {...bind('status')}
-        /></>}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'ownerId', 'folderId', 'status']}
+        overrides={{
+          ownerId: (p) => <ReportOwnerFilter items={userOptions} {...p.bind('ownerId')} />,
+          folderId: (p) => <ReportFolderFilter items={folderOptions} {...p.bind('folderId')} />,
+        }}
         create={<CreateButton permission="report:print:create" onClick={() => { setDialogSourceType('dataset'); printModal.openCreate(); }} />}
         actions={batchStatusButtons}
         filterTitle="打印模板筛选"

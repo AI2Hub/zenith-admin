@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, paginated, paginationQuery, queryEnum, keywordQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { LOGIN_EVENT_TYPES, LOGIN_STATUSES } from '../constants';
 
@@ -59,7 +59,7 @@ export type LoginLogStats = z.infer<typeof loginLogStatsSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const loginLogListQuery = paginationQuery.extend({
-  username: z.string().optional().meta({ description: '按用户名 / 昵称模糊匹配' }),
+  username: keywordQuery('用户名 / 昵称'),
   eventType: queryEnum(LOGIN_EVENT_TYPES),
   status: queryEnum(LOGIN_STATUSES),
   ...dateRangeQuery(),

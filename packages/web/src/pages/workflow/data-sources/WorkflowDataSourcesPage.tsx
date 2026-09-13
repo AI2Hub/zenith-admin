@@ -5,26 +5,20 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
-import type { WorkflowDataSource, WorkflowDataSourceOption } from '@zenith/shared/workflow';
+import { workflowDataSourceContract, type WorkflowDataSource, type WorkflowDataSourceOption } from '@zenith/shared/workflow';
 import {
   useDeleteWorkflowDataSources,
   useSaveWorkflowDataSource,
   useTestWorkflowDataSource,
   useWorkflowDataSourceList,
-  workflowDataSourceKeys,
 } from '@/hooks/queries/workflow-data-sources';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { ListSearchToolbar, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { parseHeadersJson } from '../components/http-integration';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
-
-interface SearchParams { keyword: string; status?: string }
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
 
 interface DataSourceFormValues {
   name: string;
@@ -42,19 +36,12 @@ interface DataSourceFormValues {
 export default function WorkflowDataSourcesPage() {
   const { options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: workflowDataSourceKeys.lists,
+  const page = useListPage({
+    contract: workflowDataSourceContract,
     useList: useWorkflowDataSourceList,
-    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
     table: { empty: '暂无数据' },
   });
+  const { tableProps } = page;
 
   const saveMutation = useSaveWorkflowDataSource();
   const toggleStatusMutation = useSaveWorkflowDataSource();
@@ -144,15 +131,8 @@ export default function WorkflowDataSourcesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索名称 / 地址..." {...bindKeyword('keyword')} />}
-        filters={(
-          <StatusSelect
-            items={statusOptions}
-            {...bind('status')}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status']}
         create={<CreateButton permission="workflow:datasource:create" onClick={openCreate} />}
         filterTitle="数据源筛选"
       />

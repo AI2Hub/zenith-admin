@@ -435,6 +435,8 @@ export const WORKFLOW_INSTANCE_STATUS_LABELS = {
   withdrawn: '已撤回',
   cancelled: '已取消',
 } as const;
+/** 实例状态筛选选项（契约 x-filter 与页面下拉共用） */
+export const WORKFLOW_INSTANCE_STATUS_OPTIONS = WORKFLOW_INSTANCE_STATUSES.map((value) => ({ value, label: WORKFLOW_INSTANCE_STATUS_LABELS[value] }));
 
 /** 审批任务状态标签 */
 export const WORKFLOW_TASK_STATUS_LABELS = {
@@ -452,3 +454,5 @@ export const WORKFLOW_INSTANCE_PRIORITY_LABELS: Record<typeof WORKFLOW_INSTANCE_
   high: '高',
   urgent: '加急',
 };
+/** 实例优先级筛选选项（契约 x-filter 与页面下拉共用） */
+export const WORKFLOW_INSTANCE_PRIORITY_OPTIONS = WORKFLOW_INSTANCE_PRIORITIES.map((value) => ({ value, label: WORKFLOW_INSTANCE_PRIORITY_LABELS[value] }));

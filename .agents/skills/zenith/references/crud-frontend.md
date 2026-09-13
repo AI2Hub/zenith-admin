@@ -226,10 +226,15 @@ export default function XxxPage() {
 }
 ```
 
-契约派生的前提：契约 list query 用 `keywordQuery('名称 / 编码')` / `entityStatusQuery` / `queryEnum(VALUES, { dict | options })` /
-`queryBool()` / `idQuery()` / `...dateRangeQuery('创建时间')` 声明（crud-backend.md Step 4）——枚举下拉的标签来源
-（字典编码或 shared 的 `XXX_OPTIONS`）在契约里声明一次，OpenAPI 与筛选控件共用。没有 `x-filter` 语义的键（自定义校验的字符串、
-关联选择器）在 `overrides` 里给出控件，或在 `extraFilters` 里用 `{...page.bind('key')}` 手写。
+契约派生的前提：契约 list query 用 `keywordQuery('名称 / 编码', { max? })` / `entityStatusQuery` / `queryEnum(VALUES, { dict | options })` /
+`queryBool(desc, { labels? })` / `idQuery()` / `requiredIdQuery()` / `dictQuery('字典编码')` / `...dateRangeQuery('创建时间')` 声明
+（crud-backend.md Step 4）——枚举下拉的标签来源（字典编码或 shared 的 `XXX_OPTIONS`）与布尔文案在契约里声明一次，OpenAPI 与筛选控件共用。
+关联选择器（按产品 / 流程 / 标签下拉选 id）、带 `groups` / `filter` 等额外属性的控件在 `overrides` 里给出：
+`overrides={{ productId: (p) => <FilterSelect items={productOptions} {...p.bind('productId')} /> }}`（键仍写进 `filters`，控件按声明位置渲染）；
+不绑定筛选状态的控件（站点 / 账号切换）放 `extraFilters`。
+
+**操作模式**：列表是契约的分页子操作（`contract.events` / `contract.accessLogs` / `contract.adminList` / `contract.recycle`…）时
+`useListPage({ op: xxxContract.events, useList: useXxxEventList })`，筛选状态、`listKey` 与 `filterSchema` 同样由该操作的 query 派生。
 
 **映射模式**（搜索状态不是契约 query 形状：客户端派生条件、字段改名、日期只到天…）保留
 `useListPage({ defaults, listKey: xxxKeys.lists, useList, toQuery: (s) => ({ ... }) })` 与工具栏槽位写法

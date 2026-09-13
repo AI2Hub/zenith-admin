@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, paginated, paginationQuery, queryEnum, keywordQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { PUSH_DELIVERY_STATUSES, PUSH_PROVIDERS, SEND_SOURCES, SEND_STATUSES } from '../constants';
 
@@ -52,7 +52,7 @@ export type PushSendLogStats = z.infer<typeof pushSendLogStatsSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const pushSendLogListQuery = paginationQuery.extend({
-  keyword: z.string().max(256).optional().meta({ description: '按标题 / 内容 / 事件 key 模糊匹配' }),
+  keyword: keywordQuery('标题 / 内容 / 事件 key', { description: '按标题 / 内容 / 事件 key 模糊匹配', max: 256 }),
   provider: queryEnum(PUSH_PROVIDERS),
   status: queryEnum(SEND_STATUSES),
   ...dateRangeQuery('发送时间'),

@@ -3,7 +3,7 @@ import { idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '..
 import { defineContract, op } from '../../core/contract';
 import { PAYMENT_METHODS } from '../../payment/constants';
 import { createPaymentResultSchema } from '../../payment/contracts/payment-orders';
-import { BIZ_PAY_DEMO_STATUSES } from '../constants';
+import { BIZ_PAY_DEMO_STATUSES, BIZ_PAY_DEMO_STATUS_OPTIONS } from '../constants';
 import { createBizPayDemoSchema, payBizPayDemoSchema } from '../validation';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ export type BizPayDemoPayResult = z.infer<typeof bizPayDemoPayResultSchema>;
 
 export const bizPayDemoListQuery = paginationQuery.extend({
   keyword: keywordQuery('事项名称'),
-  status: queryEnum(BIZ_PAY_DEMO_STATUSES).meta({ description: '按业务状态过滤' }),
+  status: queryEnum(BIZ_PAY_DEMO_STATUSES, { description: '按业务状态过滤', options: BIZ_PAY_DEMO_STATUS_OPTIONS }),
 });
 
 export const bizPayDemoContract = defineContract('/api/biz/pay-demos', {

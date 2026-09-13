@@ -4,22 +4,25 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
-import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import {
-  directorySyncSourceKeys, useDirectorySyncSourceList, useDirectorySyncSourceDetail,
-  useSaveDirectorySyncSource, useDeleteDirectorySyncSources,
-  useTestDirectorySyncSource, useRunDirectorySyncSource, usePreviewDirectorySyncSource,
+  useDirectorySyncSourceList,
+  useDirectorySyncSourceDetail,
+  useSaveDirectorySyncSource,
+  useDeleteDirectorySyncSources,
+  useTestDirectorySyncSource,
+  useRunDirectorySyncSource,
+  usePreviewDirectorySyncSource,
 } from '@/hooks/queries/directory-sync';
 import { useIdentityProviderList } from '@/hooks/queries/identity-providers';
 import { useAllRoles } from '@/hooks/queries/roles';
 import { directorySyncSourceContract, type DirectorySyncSource } from '@zenith/shared/identity';
-import { USER_STATUSES, enumValueOf, type BodyOf } from '@zenith/shared/core';
+import { type BodyOf } from '@zenith/shared/core';
 import {
   SUPER_ADMIN_CODE,
   DIRECTORY_SYNC_SOURCE_TYPES, DIRECTORY_SYNC_SOURCE_TYPE_LABELS,
@@ -50,36 +53,15 @@ const MAPPING_SOURCE_OPTIONS = DIRECTORY_SYNC_MAPPABLE_SOURCE_FIELDS.map((f) => 
   label: DIRECTORY_SYNC_SOURCE_FIELD_LABELS[f],
 }));
 
-interface SearchParams {
-  keyword: string;
-  type?: string;
-  status?: string;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '', type: undefined, status: undefined };
-
 export default function DirectorySyncSourcesPage() {
   const { hasPermission } = usePermission();
 
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: directorySyncSourceKeys.lists,
+  const page = useListPage({
+    contract: directorySyncSourceContract,
     useList: useDirectorySyncSourceList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      type: enumValueOf(DIRECTORY_SYNC_SOURCE_TYPES, s.type),
-      status: enumValueOf(USER_STATUSES, s.status),
-    }),
     table: { empty: '暂无同步源，点击「新增」接入 LDAP/AD 或钉钉通讯录' },
   });
-
-
+  const { tableProps } = page;
 
   // LDAP 绑定下拉：复用身份源域的列表查询（该域无 /all 端点）
   const providersQuery = useIdentityProviderList({ page: 1, pageSize: 100 });
@@ -151,8 +133,6 @@ export default function DirectorySyncSourcesPage() {
   const runMutation = useRunDirectorySyncSource();
   const previewMutation = usePreviewDirectorySyncSource();
   const [testingId, setTestingId] = useState<number | null>(null);
-
-  const { items: statusItems } = useDictItems('common_status');
 
   const status = useStatusToggle<DirectorySyncSource>({
     toggle: (record, enabled) => toggleStatusMutation.mutateAsync({ id: record.id, values: { status: enabled ? 'enabled' : 'disabled' } }),
@@ -256,22 +236,17 @@ export default function DirectorySyncSourcesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="搜索名称..."
-            {...bindKeyword('keyword')}
-          />
-        )}
-        filters={<><FilterSelect
-          placeholder="全部类型"
-          items={DIRECTORY_SYNC_SOURCE_TYPES.map((t) => ({ value: t, label: DIRECTORY_SYNC_SOURCE_TYPE_LABELS[t] }))}
-          {...bind('type')}
-        /><StatusSelect
-          items={statusItems}
-          {...bind('status')}
-        /></>}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'type', 'status']}
+        overrides={{
+          type: (p) => (
+            <FilterSelect
+              placeholder="全部类型"
+              items={DIRECTORY_SYNC_SOURCE_TYPES.map((t) => ({ value: t, label: DIRECTORY_SYNC_SOURCE_TYPE_LABELS[t] }))}
+              {...p.bind('type')}
+            />
+          ),
+        }}
         create={<CreateButton permission="system:dirsync-source:create" onClick={modal.openCreate} />}
         filterTitle="筛选条件"
       />

@@ -5,19 +5,17 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import AppModal from '@/components/AppModal';
 import { createdAtColumn, dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
-import { WORKFLOW_CONNECTOR_BREAKER_STATE_LABELS, WORKFLOW_CONNECTOR_INVOCATION_SOURCE_LABELS, WORKFLOW_CONNECTOR_TYPE_LABELS, WORKFLOW_CONNECTOR_TYPES, type WorkflowConnector, type WorkflowConnectorType, type WorkflowConnectorBreakerState, type WorkflowConnectorInvokeResult, type WorkflowConnectorHttpConfig, type WorkflowConnectorInvocation } from '@zenith/shared/workflow';
+import { WORKFLOW_CONNECTOR_BREAKER_STATE_LABELS, WORKFLOW_CONNECTOR_INVOCATION_SOURCE_LABELS, WORKFLOW_CONNECTOR_TYPE_LABELS, type WorkflowConnector, type WorkflowConnectorType, type WorkflowConnectorBreakerState, type WorkflowConnectorInvokeResult, type WorkflowConnectorHttpConfig, type WorkflowConnectorInvocation, workflowConnectorContract } from '@zenith/shared/workflow';
 import {
   useDeleteWorkflowConnectors,
   useSaveWorkflowConnector,
   useTestWorkflowConnector,
   useWorkflowConnectorList,
   useWorkflowConnectorMonitor,
-  workflowConnectorKeys,
 } from '@/hooks/queries/workflow-connectors';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect } from '@/components/search-filters';
 import { ListSearchToolbar, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { parseHeadersJson } from '../components/http-integration';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -40,9 +38,6 @@ const BREAKER_COLORS: Record<WorkflowConnectorBreakerState, 'green' | 'red' | 'o
   halfOpen: 'orange',
 };
 
-interface SearchParams { keyword: string; type?: string; status?: string }
-const defaultSearchParams: SearchParams = { keyword: '', type: undefined, status: undefined };
-
 interface ConnectorFormValues {
   name: string; code: string; description?: string; type: WorkflowConnectorType;
   baseUrl: string; method: string; authType: 'none' | 'bearer' | 'basic' | 'apiKey'; apiKeyHeader?: string;
@@ -63,23 +58,12 @@ function parseJsonObject(text: string | undefined, label: string): Record<string
 export default function WorkflowConnectorsPage() {
   const { options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: workflowConnectorKeys.lists,
+  const page = useListPage({
+    contract: workflowConnectorContract,
     useList: useWorkflowConnectorList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      type: enumValueOf(WORKFLOW_CONNECTOR_TYPES, s.type),
-      status: enumValueOf(USER_STATUSES, s.status),
-    }),
     table: { empty: '暂无连接器' },
   });
+  const { tableProps } = page;
 
   const saveMutation = useSaveWorkflowConnector();
   const toggleStatusMutation = useSaveWorkflowConnector();
@@ -216,14 +200,17 @@ export default function WorkflowConnectorsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索名称 / 编码..." {...bindKeyword('keyword')} />}
-        filters={(<><FilterSelect
-          placeholder="全部类型"
-          items={TYPE_OPTIONS}
-          {...bind('type')}
-        /><StatusSelect items={statusOptions} {...bind('status')} /></>)}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'type', 'status']}
+        overrides={{
+          type: (p) => (
+            <FilterSelect
+              placeholder="全部类型"
+              items={TYPE_OPTIONS}
+              {...p.bind('type')}
+            />
+          ),
+        }}
         create={<CreateButton permission="workflow:connector:create" onClick={openCreate} />}
         filterTitle="连接器筛选"
       />

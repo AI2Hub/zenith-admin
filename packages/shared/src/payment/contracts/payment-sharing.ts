@@ -76,7 +76,7 @@ export const paymentSharingReceiverListQuery = paginationQuery.extend({
 export const paymentSharingOrderListQuery = paginationQuery.extend({
   keyword: keywordQuery(),
   status: queryEnum(PAYMENT_SHARING_ORDER_STATUSES),
-  receiverId: z.coerce.number().int().optional(),
+  receiverId: idQuery(),
 });
 
 export const paymentSharingReversalListQuery = paginationQuery.extend({

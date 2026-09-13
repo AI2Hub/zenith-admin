@@ -44,7 +44,7 @@ export type SmsSendResult = z.infer<typeof smsSendResultSchema>;
 
 export const smsSendLogListQuery = paginationQuery.extend({
   keyword: keywordQuery('内容'),
-  phone: z.string().optional(),
+  phone: keywordQuery('手机号'),
   provider: queryEnum(SMS_PROVIDERS),
   status: queryEnum(SEND_STATUSES),
   source: queryEnum(SEND_SOURCES),

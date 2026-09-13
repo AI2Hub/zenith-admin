@@ -12,7 +12,7 @@ import { Button, Col, Empty, Form, Input, Row, Select, SideSheet, Space, Spin, T
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag/interface';
 import { Plus, Trash2 } from 'lucide-react';
-import { WORKFLOW_AUTOMATION_TRIGGER_LABELS, WORKFLOW_AUTOMATION_TRIGGER_OPTIONS, type WorkflowAutomation, type WorkflowAutomationAction, type WorkflowAutomationRun, type WorkflowAutomationTrigger, type WorkflowDefinition } from '@zenith/shared/workflow';
+import { WORKFLOW_AUTOMATION_TRIGGER_LABELS, WORKFLOW_AUTOMATION_TRIGGER_OPTIONS, type WorkflowAutomation, type WorkflowAutomationAction, type WorkflowAutomationRun, type WorkflowAutomationTrigger, type WorkflowDefinition, workflowAutomationContract } from '@zenith/shared/workflow';
 import { isPlainObject } from '@zenith/shared/core';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { usePermission } from '@/hooks/usePermission';
@@ -24,14 +24,13 @@ import {
   useWorkflowAutomationDetail,
   useWorkflowAutomationList,
   useWorkflowAutomationRunList,
-  workflowAutomationKeys,
 } from '@/hooks/queries/workflow-automations';
 import { CreateButton } from '@/components/toolbar-controls';
 import { ListSearchToolbar, listTableProps, useCrudOperationColumn } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
 import { EMPTY_PLACEHOLDER, dateTimeColumn, enabledStatusColumn, renderEllipsis } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
-import { FilterSelect, StatusSelect } from '@/components/search-filters';
+import { FilterSelect } from '@/components/search-filters';
 import ModalFooter from '@/components/ModalFooter';
 
 import { useListPage } from '@/hooks/useListPage';
@@ -301,23 +300,14 @@ function draftToAction(d: ActionDraft): WorkflowAutomationAction | { __error: st
 }
 
 export default function WorkflowAutomationsPage() {
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
+  const { options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const canEditAutomation = hasPermission('workflow:definition:edit');
-
-  interface SearchParams { definitionId?: number; trigger?: WorkflowAutomationTrigger; status?: 'enabled' | 'disabled' }
-  const defaultSearchParams: SearchParams = { definitionId: undefined, trigger: undefined, status: undefined };
-  const {
-    bind,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: workflowAutomationKeys.lists,
+  const listPage = useListPage({
+    contract: workflowAutomationContract,
     useList: useWorkflowAutomationList,
-    toQuery: (s) => ({ definitionId: s.definitionId, trigger: s.trigger, status: s.status }),
   });
+  const { tableProps } = listPage;
 
   const definitionsQuery = useWorkflowDefinitionList({ page: 1, pageSize: 200 });
   const defs: WorkflowDefinition[] = useMemo(() => definitionsQuery.data?.list ?? [], [definitionsQuery.data]);
@@ -442,28 +432,18 @@ export default function WorkflowAutomationsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        filters={(
-          <>
+        page={listPage}
+        filters={['definitionId', 'trigger', 'status']}
+        overrides={{
+          definitionId: (p) => (
             <FilterSelect
               placeholder="全部所属流程"
               items={filterDefOptions}
-              {...bind('definitionId')}
+              {...p.bind('definitionId')}
               width={220}
             />
-            <FilterSelect
-              placeholder="全部触发时机"
-              items={WORKFLOW_AUTOMATION_TRIGGER_OPTIONS}
-              {...bind('trigger')}
-              width={140}
-            />
-            <StatusSelect
-              items={statusItems}
-              {...bind('status', (v) => v as 'enabled' | 'disabled' | undefined)}
-            />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+          ),
+        }}
         create={(
           canEditAutomation ? (
             <CreateButton onClick={openCreate} />

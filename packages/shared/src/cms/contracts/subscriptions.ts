@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, paginated, paginationQuery, queryEnum, requiredIdQuery } from '../../core/api-schemas';
 import { defineContract, fileField, multipart, op } from '../../core/contract';
 import { CMS_SUBSCRIPTION_SUBJECT_TYPES } from '../constants';
 
@@ -53,7 +53,7 @@ export type CmsImageUpload = z.infer<typeof cmsImageUploadSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 const cmsSubscriptionFilters = {
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
   subjectType: queryEnum(CMS_SUBSCRIPTION_SUBJECT_TYPES),
   subjectKeyword: z.string().max(255).optional(),
   ...dateRangeQuery(),
@@ -64,7 +64,7 @@ export const cmsSubscriptionListQuery = paginationQuery.extend(cmsSubscriptionFi
 export const cmsSubscriptionAggregateQuery = z.object(cmsSubscriptionFilters);
 
 export const cmsImageUploadQuery = z.object({
-  siteId: z.coerce.number().int().positive(),
+  siteId: requiredIdQuery(),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

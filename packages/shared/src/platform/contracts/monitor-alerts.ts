@@ -1,16 +1,14 @@
 import * as z from 'zod';
-import { dateRangeQuery, idParam, idQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, idParam, idQuery, paginated, paginationQuery, queryBool, queryEnum, keywordQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import {
-  MONITOR_ALERT_EVENT_STATUSES,
+import { MONITOR_ALERT_EVENT_STATUSES,
   MONITOR_ALERT_HANDLE_STATUSES,
   MONITOR_ALERT_LEVELS,
   MONITOR_ALERT_NOTIFY_STATUSES,
   MONITOR_ALERT_OPERATORS,
   MONITOR_ALERT_OVERVIEW_RANGES,
   MONITOR_ALERT_STATES,
-  MONITOR_METRICS,
-} from '../constants';
+  MONITOR_METRICS, MONITOR_ALERT_LEVEL_OPTIONS, MONITOR_ALERT_STATE_OPTIONS } from '../constants';
 import {
   batchHandleMonitorAlertEventsSchema,
   batchSetMonitorAlertRulesEnabledSchema,
@@ -126,17 +124,17 @@ export type MonitorAlertTestResult = z.infer<typeof monitorAlertTestResultSchema
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const monitorAlertRuleListQuery = paginationQuery.extend({
-  keyword: z.string().max(128).optional(),
+  keyword: keywordQuery(undefined, { max: 128 }),
   metric: queryEnum(MONITOR_METRICS),
-  level: queryEnum(MONITOR_ALERT_LEVELS),
-  enabled: queryBool('规则是否参与定时评估'),
-  state: queryEnum(MONITOR_ALERT_STATES, '规则当前是否处于告警中'),
+  level: queryEnum(MONITOR_ALERT_LEVELS, { options: MONITOR_ALERT_LEVEL_OPTIONS }),
+  enabled: queryBool('启用状态；规则是否参与定时评估', { labels: ['已启用', '已停用'] }),
+  state: queryEnum(MONITOR_ALERT_STATES, { description: '规则当前是否处于告警中', options: MONITOR_ALERT_STATE_OPTIONS }),
 });
 
 export type MonitorAlertRuleQuery = z.infer<typeof monitorAlertRuleListQuery>;
 
 export const monitorAlertEventListQuery = paginationQuery.extend({
-  keyword: z.string().max(128).optional(),
+  keyword: keywordQuery(undefined, { max: 128 }),
   metric: queryEnum(MONITOR_METRICS),
   level: queryEnum(MONITOR_ALERT_LEVELS),
   status: queryEnum(MONITOR_ALERT_EVENT_STATUSES),

@@ -1,7 +1,7 @@
 import * as z from 'zod';
-import { dateRangeQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, paginated, paginationQuery, queryEnum, keywordQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { IP_ACCESS_BLOCK_TYPES } from '../constants';
+import { IP_ACCESS_BLOCK_TYPE_OPTIONS, IP_ACCESS_BLOCK_TYPES } from '../constants';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
 
@@ -20,8 +20,8 @@ export type IpAccessLog = z.infer<typeof ipAccessLogSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const ipAccessLogListQuery = paginationQuery.extend({
-  ip: z.string().optional(),
-  blockType: queryEnum(IP_ACCESS_BLOCK_TYPES),
+  ip: keywordQuery('IP'),
+  blockType: queryEnum(IP_ACCESS_BLOCK_TYPES, { description: '拦截类型', options: IP_ACCESS_BLOCK_TYPE_OPTIONS }),
   ...dateRangeQuery('拦截时间'),
 });
 

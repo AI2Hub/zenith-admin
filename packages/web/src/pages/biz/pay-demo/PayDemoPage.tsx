@@ -12,14 +12,13 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Info } from 'lucide-react';
 import { enumValueOf } from '@zenith/shared/core';
 import { PAYMENT_CASHIER_METHODS, PAYMENT_METHOD_CHANNEL, PAYMENT_METHOD_LABELS } from '@zenith/shared/payment';
-import { BIZ_PAY_DEMO_STATUS_LABELS, BIZ_PAY_DEMO_STATUS_OPTIONS, type BizPayDemo, type BizPayDemoStatus, type CreateBizPayDemoInput } from '@zenith/shared/biz';
+import { BIZ_PAY_DEMO_STATUS_LABELS, type BizPayDemo, type BizPayDemoStatus, type CreateBizPayDemoInput, bizPayDemoContract } from '@zenith/shared/biz';
 import type { CreatePaymentResult, PaymentMethod } from '@zenith/shared/payment';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
 import AppModal from '@/components/AppModal';
 import {
-  bizPayDemoKeys,
   useBizPayDemoList,
   useCreateBizPayDemo,
   useDeleteBizPayDemo,
@@ -27,7 +26,6 @@ import {
   useSimulateBizPayDemoPaid,
 } from '@/hooks/queries/biz-pay-demo';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -99,16 +97,6 @@ const { payParams } = await payMutation.mutateAsync({ params: { id }, body: { ap
 <QRCodeSVG value={payParams.codeUrl} size={200} />
 // 支付成功后后端经 WebSocket 推送 'payment:success'，前端据此刷新列表（或主动查单）`;
 
-interface PayDemoSearchParams {
-  keyword: string;
-  status?: BizPayDemoStatus;
-}
-
-const DEFAULT_PAY_DEMO_SEARCH_PARAMS: PayDemoSearchParams = {
-  keyword: '',
-  status: undefined,
-};
-
 interface CreatePayDemoFormValues {
   subject?: string;
   amount?: number;
@@ -116,18 +104,11 @@ interface CreatePayDemoFormValues {
 
 export default function PayDemoPage() {
 
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: DEFAULT_PAY_DEMO_SEARCH_PARAMS,
-    listKey: bizPayDemoKeys.lists,
+  const page = useListPage({
+    contract: bizPayDemoContract,
     useList: useBizPayDemoList,
-    toQuery: (s) => ({ keyword: s.keyword.trim(), status: s.status }),
   });
+  const { tableProps } = page;
 
   const [payTarget, setPayTarget] = useState<BizPayDemo | null>(null);
   // useEditModal 例外：对既有订单发起支付的动作表单（结果为收银台 / 支付信息），非实体新增 / 编辑
@@ -268,15 +249,8 @@ export default function PayDemoPage() {
       />
 
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索示例事项" {...bindKeyword('keyword')} />}
-        filters={(
-          <StatusSelect
-            items={BIZ_PAY_DEMO_STATUS_OPTIONS}
-            {...bind('status')}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status']}
         create={<CreateButton onClick={createModal.openCreate}>新建示例单</CreateButton>}
         filterTitle="支付示例筛选"
       />

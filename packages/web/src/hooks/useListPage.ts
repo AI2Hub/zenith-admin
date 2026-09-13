@@ -56,6 +56,17 @@ export interface UseListPageContractOptions<C extends ResourceContract, TFixed e
   readonly defaults?: FilterStateOf<C['list']> | (() => FilterStateOf<C['list']>);
 }
 
+/**
+ * 操作模式：列表不是契约的 `list`（`contract.events` / `contract.accessLogs` / `contract.adminList` 等分页子列表）时，
+ * 直接给出该操作；筛选状态与 `listKey` 同样由该操作的 query 派生。
+ */
+export interface UseListPageOperationOptions<Op extends AnyOperation, TFixed extends Record<string, unknown>, TList extends ListQueryLike<Data>>
+  extends UseListPageBaseOptions<FilterStateOf<Op>, TFixed, TList> {
+  readonly op: Op;
+  readonly useList: (params: PageParams & NoInfer<TFixed> & NoInfer<CompactParams<FilterStateOf<Op>>>, enabled?: boolean) => TList;
+  readonly defaults?: FilterStateOf<Op> | (() => FilterStateOf<Op>);
+}
+
 /** 映射模式（非契约类型的搜索状态 + `toQuery`）：树形 / 客户端过滤 / 一页多列表等非标准形态使用 */
 export interface UseListPageOptions<TSearch, TRaw extends Record<string, unknown>, TFixed extends Record<string, unknown>, TList extends ListQueryLike<Data>>
   extends UseListPageBaseOptions<TSearch, TFixed, TList>, Pick<UseListSearchOptions<TSearch>, 'defaults' | 'listKey'> {
@@ -91,6 +102,9 @@ export interface UseListPageReturn<TSearch, TRaw extends Record<string, unknown>
 function isContractOptions(options: object): options is { contract: ResourceContract } {
   return 'contract' in options;
 }
+function isOperationOptions(options: object): options is { op: AnyOperation } {
+  return 'op' in options;
+}
 
 /**
  * 标准分页列表页的一站式接线：搜索状态（`useListSearch`）→ 筛选映射（`useFilterQuery`）→ 列表查询 → 表格 props。
@@ -105,6 +119,9 @@ function isContractOptions(options: object): options is { contract: ResourceCont
  * <ConfigurableTable<Xxx> columns={columns} {...page.tableProps} />
  * <ExportButton entity="system.xxxs" query={page.filterQuery} permission="system:xxx:export" />
  *
+ * @example 操作模式（列表是契约的子操作：事件 / 访问日志 / 管理端收件记录）
+ * const page = useListPage({ op: monitorAlertContract.events, useList: useMonitorAlertEventList });
+ *
  * @example 映射模式（搜索状态不是契约 query 的形状时）
  * const page = useListPage({
  *   defaults: defaultSearchParams,
@@ -116,27 +133,33 @@ function isContractOptions(options: object): options is { contract: ResourceCont
 export function useListPage<C extends ResourceContract, TFixed extends Record<string, unknown>, TList extends ListQueryLike<Data>>(
   options: UseListPageContractOptions<C, TFixed, TList>,
 ): UseListPageReturn<FilterStateOf<C['list']>, FilterStateOf<C['list']>, TList>;
+export function useListPage<Op extends AnyOperation, TFixed extends Record<string, unknown>, TList extends ListQueryLike<Data>>(
+  options: UseListPageOperationOptions<Op, TFixed, TList>,
+): UseListPageReturn<FilterStateOf<Op>, FilterStateOf<Op>, TList>;
 export function useListPage<TSearch, TRaw extends Record<string, unknown>, TFixed extends Record<string, unknown>, TList extends ListQueryLike<Data>>(
   options: UseListPageOptions<TSearch, TRaw, TFixed, TList>,
 ): UseListPageReturn<TSearch, TRaw, TList>;
 export function useListPage(
-  options: UseListPageContractOptions<ResourceContract, Record<string, unknown>, ListQueryLike<Data>> | UseListPageOptions<Record<string, unknown>, Record<string, unknown>, Record<string, unknown>, ListQueryLike<Data>>,
+  options:
+    | UseListPageContractOptions<ResourceContract, Record<string, unknown>, ListQueryLike<Data>>
+    | UseListPageOperationOptions<AnyOperation, Record<string, unknown>, ListQueryLike<Data>>
+    | UseListPageOptions<Record<string, unknown>, Record<string, unknown>, Record<string, unknown>, ListQueryLike<Data>>,
 ): UseListPageReturn<Record<string, unknown>, Record<string, unknown>, ListQueryLike<Data>> {
-  const contractMode = isContractOptions(options);
+  const listOp = isContractOptions(options) ? options.contract.list : isOperationOptions(options) ? options.op : undefined;
   const { useList, params, enabled, table } = options;
-  const searchOptions: UseListSearchOptions<Record<string, unknown>> = contractMode
+  const searchOptions: UseListSearchOptions<Record<string, unknown>> = listOp
     ? {
       ...options,
-      defaults: (options.defaults ?? {}) as Record<string, unknown> | (() => Record<string, unknown>),
-      listKey: contractKey(options.contract.list),
+      defaults: ((options as { defaults?: unknown }).defaults ?? {}) as Record<string, unknown> | (() => Record<string, unknown>),
+      listKey: contractKey(listOp),
     }
-    : options;
+    : (options as UseListSearchOptions<Record<string, unknown>>);
   const search = useListSearch<Record<string, unknown>>(searchOptions);
-  const raw = contractMode ? search.submittedParams : options.toQuery(search.submittedParams);
+  const raw = listOp ? search.submittedParams : (options as UseListPageOptions<Record<string, unknown>, Record<string, unknown>, Record<string, unknown>, ListQueryLike<Data>>).toQuery(search.submittedParams);
   const filterQuery = useFilterQuery(raw);
   const listQuery = useList({ page: search.page, pageSize: search.pageSize, ...params, ...filterQuery }, enabled);
   const tableProps = listTableProps<Data>(listQuery as ListQueryLike<Data>, { pagination: search.buildPagination, ...table });
-  const filterSchema = contractMode ? (options.contract.list.query as z.ZodObject<z.ZodRawShape> | undefined) : undefined;
+  const filterSchema = listOp ? (listOp.query as z.ZodObject<z.ZodRawShape> | undefined) : undefined;
 
   const { draftParams, setDraftParams, handleSearch, handleReset } = search;
   const bindRange = useCallback((keys: RangeKeys<Record<string, unknown>>) => {
