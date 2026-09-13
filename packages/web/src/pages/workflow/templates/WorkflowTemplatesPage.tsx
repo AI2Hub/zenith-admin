@@ -5,11 +5,10 @@ import { LayoutTemplate } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkflowTemplate } from '@zenith/shared/workflow';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar, listTableProps, useCrudOperationColumn } from '@/components/list-page';
 import { KeywordInput } from '@/components/search-filters';
 import WorkflowTemplateFormModal, { type WorkflowTemplateFormValues } from '../components/WorkflowTemplateFormModal';
 import {
@@ -79,12 +78,32 @@ export default function WorkflowTemplatesPage() {
     closeModal();
   };
 
-
   const handleCloneToDefinition = async (record: WorkflowTemplate) => {
     const res = await cloneMutation.mutateAsync({ params: { id: record.id }, body: {} });
     Toast.success('已从模板创建流程');
     navigate(`/workflow/designer/${res.id}`);
   };
+
+  const operationColumn = useCrudOperationColumn<WorkflowTemplate>({
+    edit: openEdit,
+    remove: (record) => deleteMutation.mutateAsync({ params: { id: record.id } }),
+    allow: { edit: canEdit, remove: canEdit },
+    title: '确定要删除该模板吗？',
+    successMessage: '已删除',
+    disabled: { remove: (record) => record.builtin, reason: '系统内置模板不可删除' },
+    extra: (record) => [
+      {
+        key: 'clone',
+        label: '从模板新建',
+        hidden: !canCreate,
+        loading: cloningId === record.id,
+        disabled: cloningId !== null,
+        onClick: () => void handleCloneToDefinition(record),
+      },
+    ],
+    width: 250,
+    desktopInlineKeys: ['clone', 'edit', 'delete'],
+  });
 
   const columns: ColumnProps<WorkflowTemplate>[] = [
     {
@@ -134,34 +153,7 @@ export default function WorkflowTemplatesPage() {
       ),
     },
     dateTimeColumn('更新时间', 'updatedAt'),
-    createOperationColumn<WorkflowTemplate>({
-      width: 250,
-      desktopInlineKeys: ['clone', 'edit', 'delete'],
-      actions: (record) => [
-        {
-          key: 'clone',
-          label: '从模板新建',
-          hidden: !canCreate,
-          loading: cloningId === record.id,
-          disabled: cloningId !== null,
-          onClick: () => void handleCloneToDefinition(record),
-        },
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !canEdit,
-          onClick: () => openEdit(record),
-        },
-        deleteAction({
-          hidden: !canEdit,
-          disabled: record.builtin,
-          disabledReason: '系统内置模板不可删除',
-          title: '确定要删除该模板吗？',
-          run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),
-          successMessage: '已删除',
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

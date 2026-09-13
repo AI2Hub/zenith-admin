@@ -5,8 +5,7 @@ import { API_SCOPE_GROUPS, API_SCOPE_GROUP_LABELS } from '@zenith/shared/open-pl
 import type { ApiScope, CreateApiScopeInput } from '@zenith/shared/open-platform';
 import { copyableNoColumn, createdAtColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection } from '@/components/list-page';
+import { confirmAndDelete, ListSearchToolbar, useRowSelection, useCrudOperationColumn } from '@/components/list-page';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -74,6 +73,15 @@ export default function ApiScopesPage() {
     });
   }
 
+  const operationColumn = useCrudOperationColumn<ApiScope>({
+    edit: modal,
+    remove: deleteMutation,
+    allow: { edit: canManage, remove: canManage },
+    title: '确定要删除此 Scope 吗？',
+    content: '删除后不可恢复',
+    width: 150,
+  });
+
   const columns: ColumnProps<ApiScope>[] = [
     { title: 'ID', dataIndex: 'id', width: 60 },
     copyableNoColumn('Scope 编码', 'code', { width: 200 }),
@@ -104,18 +112,7 @@ export default function ApiScopesPage() {
       fixed: 'right' as const,
       render: renderEnabledStatusTag,
     },
-    createOperationColumn<ApiScope>({
-      width: 150,
-      actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => modal.openEdit(record) },
-        deleteAction({
-          hidden: !canManage,
-          title: '确定要删除此 Scope 吗？',
-          content: '删除后不可恢复',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

@@ -4,8 +4,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import {
   useDeleteEmailTemplate,
@@ -54,6 +53,14 @@ export default function EmailTemplatesPage() {
     messages: { disabled: '已禁用' },
   });
 
+  const operationColumn = useCrudOperationColumn<EmailTemplate>({
+    permission: 'system:email-template',
+    edit: modal,
+    remove: deleteMutation,
+    title: '确定要删除该邮件模板吗？',
+    width: 150,
+  });
+
   const columns = [
     { title: '模板名称', dataIndex: 'name', width: 160 },
     { title: '模板编码', dataIndex: 'code', width: 180 },
@@ -62,22 +69,7 @@ export default function EmailTemplatesPage() {
     { title: '备注', dataIndex: 'remark', render: renderEllipsis },
     createdAtColumn,
     status.column(),
-    createOperationColumn<EmailTemplate>({
-      width: 150,
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !can('system:email-template:update'),
-          onClick: () => modal.openEdit(record),
-        },
-        deleteAction({
-          hidden: !can('system:email-template:delete'),
-          title: '确定要删除该邮件模板吗？',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

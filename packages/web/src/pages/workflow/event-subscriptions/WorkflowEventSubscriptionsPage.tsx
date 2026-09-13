@@ -32,7 +32,7 @@ import {
 } from '@/hooks/queries/workflow-event-subscriptions';
 import { useWorkflowConnectorList } from '@/hooks/queries/workflow-connectors';
 import { CreateButton } from '@/components/toolbar-controls';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar, listTableProps, useCrudOperationColumn } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
 import { EMPTY_PLACEHOLDER, dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -217,6 +217,31 @@ export default function WorkflowEventSubscriptionsPage() {
     setReplayVisible(false);
   };
 
+  const operationColumn = useCrudOperationColumn<WorkflowEventSubscription>({
+    edit: openEdit,
+    remove: deleteMutation,
+    allow: { edit: canManageEventSubscription, remove: canManageEventSubscription },
+    title: '确定要删除该订阅吗？',
+    successMessage: '已删除',
+    extraBetween: (record) => [
+      {
+        key: 'test',
+        label: '测试',
+        hidden: !canManageEventSubscription,
+        onClick: () => handleTestDelivery(record),
+      },
+      { key: 'deliveries', label: '投递', onClick: () => openDeliveries(record) },
+      {
+        key: 'secret',
+        label: '密钥',
+        hidden: !canManageEventSubscription,
+        onClick: () => handleViewSecret(record.id),
+      },
+    ],
+    width: 240,
+    desktopInlineKeys: ['edit', 'deliveries', 'delete'],
+  });
+
   const columns: ColumnProps<WorkflowEventSubscription>[] = [
     { title: 'ID', dataIndex: 'id', width: 70 },
     { title: '名称', dataIndex: 'name', width: 180 },
@@ -245,37 +270,7 @@ export default function WorkflowEventSubscriptionsPage() {
         ? <Switch checked={v} loading={toggleMutation.isPending && toggleMutation.variables?.params.id === r.id} onChange={() => handleToggle(r)} />
         : (v ? <Tag color="green">启用</Tag> : <Tag color="grey">禁用</Tag>),
     },
-    createOperationColumn<WorkflowEventSubscription>({
-      width: 240,
-      desktopInlineKeys: ['edit', 'deliveries', 'delete'],
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !canManageEventSubscription,
-          onClick: () => openEdit(record),
-        },
-        {
-          key: 'test',
-          label: '测试',
-          hidden: !canManageEventSubscription,
-          onClick: () => handleTestDelivery(record),
-        },
-        { key: 'deliveries', label: '投递', onClick: () => openDeliveries(record) },
-        {
-          key: 'secret',
-          label: '密钥',
-          hidden: !canManageEventSubscription,
-          onClick: () => handleViewSecret(record.id),
-        },
-        deleteAction({
-          hidden: !canManageEventSubscription,
-          title: '确定要删除该订阅吗？',
-          run: () => deleteMutation.mutateAsync([record.id]),
-          successMessage: '已删除',
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   // 投递详情

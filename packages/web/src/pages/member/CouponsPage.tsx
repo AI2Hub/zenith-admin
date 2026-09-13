@@ -9,9 +9,8 @@ import { enumValueOf } from '@zenith/shared/core';
 import { usePermission } from '@/hooks/usePermission';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { MemberSelect } from '@/components/MemberSelect';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { EMPTY_PLACEHOLDER, createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { formatDateTimeForApi } from '@/utils/date';
 import {
@@ -154,6 +153,25 @@ export default function CouponsPage() {
   const canIssue = hasPermission('member:coupon:issue');
   const hasOps = canEdit || canDelete || canIssue;
 
+  const operationColumn = useCrudOperationColumn<Coupon>({
+    edit: openEdit,
+    remove: deleteMutation,
+    allow: { edit: canEdit, remove: canDelete },
+    title: '确定要删除该优惠券吗？',
+    successMessage: '已删除',
+    extra: (record) => [
+      { key: 'issue', label: '发券', hidden: !canIssue || record.status !== 'active', onClick: () => openIssue(record) },
+      {
+        key: 'toggle',
+        label: record.status === 'active' ? '停用' : '上架',
+        hidden: !canEdit || record.status === 'expired',
+        onClick: () => void handleToggleStatus(record),
+      },
+    ],
+    width: 240,
+    desktopInlineKeys: ['issue', 'toggle', 'edit'],
+  });
+
   const columns: ColumnProps<Coupon>[] = [
     { title: '名称', dataIndex: 'name', width: 160, render: renderEllipsis, fixed: 'left' },
     { title: '类型', dataIndex: 'type', width: 90, render: (v: CouponType) => <Tag color={v === 'amount' ? 'green' : 'blue'}>{COUPON_TYPE_LABELS[v]}</Tag> },
@@ -170,21 +188,7 @@ export default function CouponsPage() {
     { title: '状态', dataIndex: 'status', width: 90, render: (v: CouponTemplateStatus) => <Tag color={STATUS_COLORS[v] as 'green'}>{COUPON_TEMPLATE_STATUS_LABELS[v]}</Tag> },
     createdAtColumn,
     ...(hasOps ? [
-      createOperationColumn<Coupon>({
-        width: 240,
-        desktopInlineKeys: ['issue', 'toggle', 'edit'],
-        actions: (record) => [
-          { key: 'issue', label: '发券', hidden: !canIssue || record.status !== 'active', onClick: () => openIssue(record) },
-          {
-            key: 'toggle',
-            label: record.status === 'active' ? '停用' : '上架',
-            hidden: !canEdit || record.status === 'expired',
-            onClick: () => void handleToggleStatus(record),
-          },
-          { key: 'edit', label: '编辑', hidden: !canEdit, onClick: () => openEdit(record) },
-          deleteAction({ hidden: !canDelete, title: '确定要删除该优惠券吗？', run: () => deleteMutation.mutateAsync([record.id]), successMessage: '已删除' }),
-        ],
-      }),
+      operationColumn,
     ] : []),
   ];
 

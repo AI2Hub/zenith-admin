@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { deleteAction, listTableProps, ListSearchToolbar } from '@/components/list-page';
+import { listTableProps, ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { Form, Modal, Select, Spin, Tag, Toast, Banner, Tooltip, Input, Descriptions } from '@douyinfe/semi-ui';
 import { MP_BROADCAST_STATUS_OPTIONS, MP_BROADCAST_TYPE_LABELS, MP_BROADCAST_TYPE_OPTIONS } from '@zenith/shared/mp';
 import type { CreateMpBroadcastInput, MpBroadcast, MpBroadcastType, MpBroadcastTarget, MpBroadcastStatus } from '@zenith/shared/mp';
@@ -8,7 +8,6 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { formatDateTimeForApi } from '@/utils/date';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useMpAccounts } from './useMpAccounts';
@@ -120,6 +119,33 @@ export default function MpBroadcastsPage() {
     return `[图文素材] ${r.mediaId ?? ''}`;
   };
 
+  const operationColumn = useCrudOperationColumn<MpBroadcast>({
+    permission: 'mp:broadcast',
+    edit: openEdit,
+    remove: deleteMutation,
+    hidden: { edit: (record) => record.status === 'sent' },
+    title: '确定要删除该群发记录吗？',
+    extra: (record) => [
+      {
+        key: 'send',
+        label: '发送',
+        loading: sendingId === record.id,
+        hidden: record.status === 'sent' || !can('mp:broadcast:send'),
+        onClick: () => handleSend(record),
+      },
+      {
+        key: 'preview',
+        label: '预览',
+        hidden: !can('mp:broadcast:send'),
+        onClick: () => { setPreviewOpenid(''); setPreviewState({ visible: true, id: record.id }); },
+      },
+      { key: 'result', label: '结果', hidden: record.status !== 'sent', onClick: () => openResult(record) },
+    ],
+    width: 240,
+    desktopInlineKeys: ['send', 'preview', 'result', 'edit'],
+    menuAriaLabel: '群发操作',
+  });
+
   const columns = [
     { title: '内容类型', dataIndex: 'msgType', width: 90, render: (v: MpBroadcastType) => <Tag type="light" color="blue">{MP_BROADCAST_TYPE_LABELS[v]}</Tag> },
     {
@@ -137,33 +163,7 @@ export default function MpBroadcastsPage() {
         return v === 'failed' && r.errorMsg ? <Tooltip content={r.errorMsg}>{tag}</Tooltip> : tag;
       },
     },
-    createOperationColumn<MpBroadcast>({
-      width: 240,
-      desktopInlineKeys: ['send', 'preview', 'result', 'edit'],
-      menuAriaLabel: '群发操作',
-      actions: (record) => [
-        {
-          key: 'send',
-          label: '发送',
-          loading: sendingId === record.id,
-          hidden: record.status === 'sent' || !can('mp:broadcast:send'),
-          onClick: () => handleSend(record),
-        },
-        {
-          key: 'preview',
-          label: '预览',
-          hidden: !can('mp:broadcast:send'),
-          onClick: () => { setPreviewOpenid(''); setPreviewState({ visible: true, id: record.id }); },
-        },
-        { key: 'result', label: '结果', hidden: record.status !== 'sent', onClick: () => openResult(record) },
-        { key: 'edit', label: '编辑', hidden: record.status === 'sent' || !can('mp:broadcast:update'), onClick: () => openEdit(record) },
-        deleteAction({
-          hidden: !can('mp:broadcast:delete'),
-          title: '确定要删除该群发记录吗？',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   const mediaOptions = modalType === 'image'

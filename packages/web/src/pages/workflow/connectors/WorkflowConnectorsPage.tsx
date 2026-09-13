@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Form, Input, Select, Spin, Toast, Row, Col, Typography, Tag, Banner, SideSheet, Table } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import AppModal from '@/components/AppModal';
 import { createdAtColumn, dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
@@ -19,7 +18,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { parseHeadersJson } from '../components/http-integration';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListPage } from '@/hooks/useListPage';
@@ -189,6 +188,19 @@ export default function WorkflowConnectorsPage() {
     setMonitorTarget(record); setMonitorDays(7); setMonitorVisible(true);
   }
 
+  const operationColumn = useCrudOperationColumn<WorkflowConnector>({
+    permission: 'workflow:connector',
+    edit: openEdit,
+    remove: deleteMutation,
+    content: '删除后引用该连接器的节点将无法调用',
+    extra: (record) => [
+      { key: 'test', label: '测试', hidden: !hasPermission('workflow:connector:test'), onClick: () => openTest(record) },
+      { key: 'monitor', label: '监控', hidden: !hasPermission('workflow:connector:list'), onClick: () => openMonitor(record) },
+    ],
+    width: 240,
+    desktopInlineKeys: ['test', 'edit', 'delete'],
+  });
+
   const columns: ColumnProps<WorkflowConnector>[] = [
     { title: '名称', dataIndex: 'name', minWidth: 160, render: renderEllipsis },
     { title: '编码', dataIndex: 'code', width: 140, render: (v: string) => <Typography.Text size="small" type="tertiary">{v}</Typography.Text> },
@@ -198,21 +210,7 @@ export default function WorkflowConnectorsPage() {
     { title: '熔断', dataIndex: 'breakerState', width: 80, render: (s: WorkflowConnectorBreakerState) => { const color = BREAKER_COLORS[s] ?? BREAKER_COLORS.closed; return <Tag size="small" color={color}>{WORKFLOW_CONNECTOR_BREAKER_STATE_LABELS[s] ?? s}</Tag>; } },
     createdAtColumn,
     status.column(),
-    createOperationColumn<WorkflowConnector>({
-      width: 240,
-      desktopInlineKeys: ['test', 'edit', 'delete'],
-      actions: (record) => [
-        { key: 'test', label: '测试', hidden: !hasPermission('workflow:connector:test'), onClick: () => openTest(record) },
-        { key: 'monitor', label: '监控', hidden: !hasPermission('workflow:connector:list'), onClick: () => openMonitor(record) },
-        { key: 'edit', label: '编辑', hidden: !hasPermission('workflow:connector:update'), onClick: () => openEdit(record) },
-        deleteAction({
-          hidden: !hasPermission('workflow:connector:delete'),
-          title: '确定要删除吗？',
-          content: '删除后引用该连接器的节点将无法调用',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

@@ -28,7 +28,7 @@ import { CreateButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { dateTimeColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
-import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useCrudOperationColumn } from '@/components/list-page';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
@@ -187,6 +187,16 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
   const batchMutation = useBatchCmsSearchWords();
   const canManage = hasPermission('cms:search:manage');
 
+  const operationColumn = useCrudOperationColumn<CmsSearchWord>({
+    edit: modal,
+    remove: (record) => deleteMutation.mutateAsync({ params: { id: record.id } }),
+    allow: { edit: canManage, remove: canManage },
+    title: '确定要删除该词条吗？',
+    content: '词典会即时重建；历史内容索引仍建议重新构建',
+    width: 150,
+    desktopInlineKeys: ['edit', 'delete'],
+  });
+
   const columns: ColumnProps<CmsSearchWord>[] = [
     { title: '词条', dataIndex: 'word', width: 200 },
     { title: '类型', dataIndex: 'type', width: 100, render: (value: CmsSearchWord['type']) => CMS_SEARCH_WORD_TYPE_LABELS[value] },
@@ -197,19 +207,7 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
       render: renderEnabledStatusTag,
     },
-    createOperationColumn<CmsSearchWord>({
-      width: 150,
-      desktopInlineKeys: ['edit', 'delete'],
-      actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => modal.openEdit(record) },
-        deleteAction({
-          hidden: !canManage,
-          title: '确定要删除该词条吗？',
-          content: '词典会即时重建；历史内容索引仍建议重新构建',
-          run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   // 批量操作按钮组：桌面 `actions` 与移动端更多菜单共用一份定义（菜单内视觉由容器样式统一）

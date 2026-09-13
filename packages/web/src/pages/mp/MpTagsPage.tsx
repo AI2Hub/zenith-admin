@@ -4,8 +4,7 @@ import { mpTagContract, type CreateMpTagInput, type MpTag } from '@zenith/shared
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountRequiredBanner } from './MpAccountRequiredBanner';
@@ -52,25 +51,23 @@ export default function MpTagsPage() {
     },
   });
 
+  const operationColumn = useCrudOperationColumn<MpTag>({
+    permission: 'mp:tag',
+    edit: modal,
+    remove: deleteMutation,
+    title: (record) => `确定要删除标签「${record.name}」吗？`,
+    content: '删除后将从所有粉丝的本地标签中移除该标签。',
+    width: 150,
+    desktopInlineKeys: ['edit', 'delete'],
+    menuAriaLabel: '标签操作',
+  });
+
   const columns = [
     { title: '标签名称', dataIndex: 'name', minWidth: 200, render: renderEllipsis },
     { title: '微信标签ID', dataIndex: 'wechatTagId', width: 140, render: (v: number | null) => (v == null ? '— 未同步' : v) },
     { title: '粉丝数', dataIndex: 'fansCount', width: 120, align: 'right' as const },
     createdAtColumn,
-    createOperationColumn<MpTag>({
-      width: 150,
-      desktopInlineKeys: ['edit', 'delete'],
-      menuAriaLabel: '标签操作',
-      actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !can('mp:tag:update'), onClick: () => modal.openEdit(record) },
-        deleteAction({
-          hidden: !can('mp:tag:delete'),
-          title: `确定要删除标签「${record.name}」吗？`,
-          content: '删除后将从所有粉丝的本地标签中移除该标签。',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   const syncButton = can('mp:tag:sync') ? (

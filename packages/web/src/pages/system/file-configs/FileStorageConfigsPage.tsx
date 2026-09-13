@@ -9,8 +9,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import ExportButton from '@/components/ExportButton';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { abortSubmit } from '@/lib/abort-submit';
 import StorageFileBrowser from './StorageFileBrowser';
 import {
@@ -339,6 +338,42 @@ export default function FileStorageConfigsPage() {
     messages: { disabled: '已禁用' },
   });
 
+  const operationColumn = useCrudOperationColumn<FileStorageConfig>({
+    permission: 'system:file:config',
+    edit: openEdit,
+    remove: deleteMutation,
+    title: '确认删除此文件服务配置？',
+    content: '若已绑定文件记录，后端会阻止删除。',
+    successMessage: '文件服务配置已删除',
+    disabled: { remove: (record) => record.isDefault },
+    extra: (record) => [
+      {
+        key: 'browse',
+        label: '浏览',
+        hidden: !hasPermission('system:file:list'),
+        onClick: () => setBrowsingConfig(record),
+      },
+      {
+        key: 'default',
+        label: '设为默认',
+        hidden: !hasPermission('system:file:config:default'),
+        disabled: record.isDefault || record.status !== 'enabled',
+        onClick: () => handleSetDefault(record),
+      },
+    ],
+    extraBetween: (record) => [
+      {
+        key: 'test',
+        label: '测试连接',
+        loading: testingConfigId === record.id,
+        hidden: !hasPermission('system:file:config'),
+        onClick: () => { void handleTestSaved(record); },
+      },
+    ],
+    width: 180,
+    desktopInlineKeys: ['browse', 'edit'],
+  });
+
   const columns: ColumnProps<FileStorageConfig>[] = [
     {
       title: '配置名称',
@@ -428,46 +463,7 @@ export default function FileStorageConfigsPage() {
     },
     dateTimeColumn('更新时间', 'updatedAt'),
     status.column(),
-    createOperationColumn<FileStorageConfig>({
-      width: 180,
-      desktopInlineKeys: ['browse', 'edit'],
-      actions: (record) => [
-        {
-          key: 'browse',
-          label: '浏览',
-          hidden: !hasPermission('system:file:list'),
-          onClick: () => setBrowsingConfig(record),
-        },
-        {
-          key: 'default',
-          label: '设为默认',
-          hidden: !hasPermission('system:file:config:default'),
-          disabled: record.isDefault || record.status !== 'enabled',
-          onClick: () => handleSetDefault(record),
-        },
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('system:file:config:update'),
-          onClick: () => openEdit(record),
-        },
-        {
-          key: 'test',
-          label: '测试连接',
-          loading: testingConfigId === record.id,
-          hidden: !hasPermission('system:file:config'),
-          onClick: () => { void handleTestSaved(record); },
-        },
-        deleteAction({
-          hidden: !hasPermission('system:file:config:delete'),
-          disabled: record.isDefault,
-          title: '确认删除此文件服务配置？',
-          content: '若已绑定文件记录，后端会阻止删除。',
-          run: () => deleteMutation.mutateAsync([record.id]),
-          successMessage: '文件服务配置已删除',
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

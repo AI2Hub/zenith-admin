@@ -6,8 +6,7 @@ import { chatBotContract, type ChatWebhook } from '@zenith/shared/chat';
 import { maskSecret } from '@zenith/shared/core';
 import { UserAvatar } from '@/components/UserAvatar';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { AppModal } from '@/components/AppModal';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
@@ -127,6 +126,27 @@ export default function ChatBotsPage() {
     setSecretInfo(result);
   }
 
+  const operationColumn = useCrudOperationColumn<ChatWebhook>({
+    permission: 'chat:bot',
+    edit: botModal,
+    remove: (row) => deleteMutation.mutateAsync({ params: { id: row.id } }),
+    title: '确定删除该机器人？',
+    extraBetween: (row) => [
+      {
+        key: 'regenerate',
+        label: '重置令牌',
+        hidden: !hasPermission('chat:bot:update'),
+        onClick: () => {
+          confirmDanger({
+            title: '重置后旧地址立即失效，确认重置？',
+            onOk: () => { void handleRegenerate(row); },
+          });
+        },
+      },
+    ],
+    width: 240,
+  });
+
   const columns: ColumnProps<ChatWebhook>[] = [
     {
       title: '名称',
@@ -170,33 +190,7 @@ export default function ChatBotsPage() {
       fixed: 'right',
       render: (enabled: boolean) => enabled ? <Tag color="green">启用</Tag> : <Tag color="grey">停用</Tag>,
     },
-    createOperationColumn<ChatWebhook>({
-      width: 240,
-      actions: (row) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('chat:bot:update'),
-          onClick: () => botModal.openEdit(row),
-        },
-        {
-          key: 'regenerate',
-          label: '重置令牌',
-          hidden: !hasPermission('chat:bot:update'),
-          onClick: () => {
-            confirmDanger({
-              title: '重置后旧地址立即失效，确认重置？',
-              onOk: () => { void handleRegenerate(row); },
-            });
-          },
-        },
-        deleteAction({
-          hidden: !hasPermission('chat:bot:delete'),
-          title: '确定删除该机器人？',
-          run: () => deleteMutation.mutateAsync({ params: { id: row.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

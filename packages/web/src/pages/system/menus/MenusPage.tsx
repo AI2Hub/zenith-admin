@@ -14,13 +14,12 @@ import { useTreeExpansion } from '@/hooks/useTreeExpansion';
 import DictTag from '@/components/DictTag';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { useDictItems } from '@/hooks/useDictItems';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../../utils/table-columns';
 import { menuKeys, useDeleteMenu, useMenuDetail, useMenuTree, useSaveMenu, type MenuFormValues } from '@/hooks/queries/menus';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams {
@@ -182,6 +181,24 @@ export default function MenusPage() {
     disabled: !hasPermission('system:menu:update'),
   });
 
+  const operationColumn = useCrudOperationColumn<Menu>({
+    permission: 'system:menu',
+    edit: openEdit,
+    remove: (row) => deleteMutation.mutateAsync({ params: { id: row.id } }),
+    title: '确认删除此菜单？',
+    content: '子菜单也将一并删除',
+    extra: (row) => [
+      {
+        key: 'child',
+        label: '子项',
+        hidden: row.type === 'button' || !hasPermission('system:menu:create'),
+        onClick: () => openCreate(row.id),
+      },
+    ],
+    width: 210,
+    desktopInlineKeys: ['child', 'edit', 'delete'],
+  });
+
   const columns: ColumnProps<Menu>[] = [
     {
       title: '菜单名称',
@@ -251,30 +268,7 @@ export default function MenusPage() {
       fixed: 'right',
       render: (val: boolean, row: Menu) => row.type === 'button' ? EMPTY_PLACEHOLDER : <DictTag dictCode="menu_visible" value={val ? 'show' : 'hidden'} />,
     },
-    createOperationColumn<Menu>({
-      width: 210,
-      desktopInlineKeys: ['child', 'edit', 'delete'],
-      actions: (row) => [
-        {
-          key: 'child',
-          label: '子项',
-          hidden: row.type === 'button' || !hasPermission('system:menu:create'),
-          onClick: () => openCreate(row.id),
-        },
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('system:menu:update'),
-          onClick: () => openEdit(row),
-        },
-        deleteAction({
-          hidden: !hasPermission('system:menu:delete'),
-          title: '确认删除此菜单？',
-          content: '子菜单也将一并删除',
-          run: () => deleteMutation.mutateAsync({ params: { id: row.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   const renderExpandButton = () => (

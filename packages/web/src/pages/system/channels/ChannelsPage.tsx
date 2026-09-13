@@ -9,8 +9,7 @@ import { urlOf } from '@/lib/contract-query';
 import { request } from '@/utils/request';
 import { usePermission } from '@/hooks/usePermission';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { UserAvatar } from '@/components/UserAvatar';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -84,6 +83,51 @@ export default function ChannelsPage() {
 
   const openPublish = (ch: ChannelAdmin) => { setPublishTarget(ch); setPublishVisible(true); };
 
+  const operationColumn = useCrudOperationColumn<ChannelAdmin>({
+    permission: 'channel:channel',
+    edit: openEdit,
+    remove: deleteMutation,
+    hidden: { remove: (record) => record.builtin },
+    title: (record) => `确认删除频道「${record.name}」？`,
+    content: '该频道下的所有消息与订阅将一并删除',
+    successMessage: '已删除',
+    extra: (record) => [
+      {
+        key: 'publish',
+        label: '群发',
+        hidden: !hasPermission('channel:message:publish'),
+        onClick: () => openPublish(record),
+      },
+      {
+        key: 'messages',
+        label: '消息记录',
+        hidden: !hasPermission('channel:message:publish'),
+        onClick: () => setMessagesDrawer(record),
+      },
+    ],
+    extraBetween: (record) => [
+      {
+        key: 'subscribers',
+        label: '订阅者',
+        onClick: () => setSubscribersDrawer(record),
+      },
+      {
+        key: 'menu',
+        label: '菜单配置',
+        hidden: record.type !== 'business' || !hasPermission('channel:menu:save'),
+        onClick: () => setMenuDrawer(record),
+      },
+      {
+        key: 'reply',
+        label: '自动回复',
+        hidden: record.type !== 'business' || !hasPermission('channel:reply:list'),
+        onClick: () => setReplyDrawer(record),
+      },
+    ],
+    width: 260,
+    desktopInlineKeys: ['publish', 'messages', 'edit'],
+  });
+
   const columns: ColumnProps<ChannelAdmin>[] = [
     {
       title: '频道', dataIndex: 'name',
@@ -100,54 +144,7 @@ export default function ChannelsPage() {
     { title: '消息数', dataIndex: 'messageCount', width: 90, align: 'right' },
     { title: '状态', dataIndex: 'status', width: 80, render: renderEnabledStatusTag },
     dateTimeColumn('创建时间', 'createdAt'),
-    createOperationColumn<ChannelAdmin>({
-      width: 260,
-      desktopInlineKeys: ['publish', 'messages', 'edit'],
-      actions: (record) => [
-        {
-          key: 'publish',
-          label: '群发',
-          hidden: !hasPermission('channel:message:publish'),
-          onClick: () => openPublish(record),
-        },
-        {
-          key: 'messages',
-          label: '消息记录',
-          hidden: !hasPermission('channel:message:publish'),
-          onClick: () => setMessagesDrawer(record),
-        },
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('channel:channel:update'),
-          onClick: () => openEdit(record),
-        },
-        {
-          key: 'subscribers',
-          label: '订阅者',
-          onClick: () => setSubscribersDrawer(record),
-        },
-        {
-          key: 'menu',
-          label: '菜单配置',
-          hidden: record.type !== 'business' || !hasPermission('channel:menu:save'),
-          onClick: () => setMenuDrawer(record),
-        },
-        {
-          key: 'reply',
-          label: '自动回复',
-          hidden: record.type !== 'business' || !hasPermission('channel:reply:list'),
-          onClick: () => setReplyDrawer(record),
-        },
-        deleteAction({
-          hidden: !hasPermission('channel:channel:delete') || record.builtin,
-          title: `确认删除频道「${record.name}」？`,
-          content: '该频道下的所有消息与订阅将一并删除',
-          run: () => deleteMutation.mutateAsync([record.id]),
-          successMessage: '已删除',
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

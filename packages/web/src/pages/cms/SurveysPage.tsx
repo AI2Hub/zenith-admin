@@ -26,7 +26,7 @@ import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import InteractionResultsSheet from './interaction/InteractionResultsSheet';
 import { CreateButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar, listTableProps, useCrudOperationColumn } from '@/components/list-page';
 import { compactParams } from '@/lib/query';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -135,6 +135,54 @@ export default function SurveysPage() {
     });
   };
 
+  const operationColumn = useCrudOperationColumn<CmsInteraction>({
+    edit: openEditor,
+    editLabel: '设计',
+    remove: (record) => deleteMutation.mutateAsync({ params: { id: record.id } }),
+    allow: { edit: canManage, remove: canManage },
+    title: (record) => `删除「${record.title}」？`,
+    content: (record) => `将级联删除 ${record.responseCount} 份答卷，无法恢复。`,
+    extra: (record) => [
+      { key: 'results', label: '结果', onClick: () => setResultsTarget(record) },
+      {
+        key: 'visit',
+        label: '访问',
+        hidden: record.status === 'draft' || !currentSite,
+        onClick: () => {
+          if (currentSite) window.open(cmsPreviewUrl(currentSite.code, `interaction/${record.code}/`), '_blank');
+        },
+      },
+      {
+        key: 'publish', label: '发布',
+        hidden: !canManage || record.status === 'published',
+        onClick: () => { void changeStatus(record, 'published'); },
+      },
+      {
+        key: 'close', label: '关闭',
+        hidden: !canManage || record.status !== 'published',
+        onClick: () => { void changeStatus(record, 'closed'); },
+      },
+    ],
+    extraBetween: (record) => [
+      {
+        key: 'copy', label: '复制', hidden: !canManage,
+        onClick: () => {
+          Modal.confirm({
+            title: `复制「${record.title}」？`,
+            content: '将生成一份草稿副本（配置与题目全量复制，答卷不复制），可直接修改题目。',
+            onOk: async () => {
+              const created = await copyMutation.mutateAsync({ params: { id: record.id } });
+              Toast.success(`已生成副本「${created.title}」`);
+              openEditor(created);
+            },
+          });
+        },
+      },
+    ],
+    width: 240,
+    desktopInlineKeys: ['results', 'publish', 'close', 'edit'],
+  });
+
   const listColumns: ColumnProps<CmsInteraction>[] = [
     { title: '标题', dataIndex: 'title', minWidth: 240, render: renderEllipsis },
     {
@@ -150,55 +198,7 @@ export default function SurveysPage() {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
       render: (value: CmsInteractionStatus) => <Tag size="small" color={STATUS_COLORS[value]}>{CMS_INTERACTION_STATUS_LABELS[value]}</Tag>,
     },
-    createOperationColumn<CmsInteraction>({
-      width: 240,
-      desktopInlineKeys: ['results', 'publish', 'close', 'edit'],
-      actions: (record) => [
-        { key: 'results', label: '结果', onClick: () => setResultsTarget(record) },
-        {
-          key: 'visit',
-          label: '访问',
-          hidden: record.status === 'draft' || !currentSite,
-          onClick: () => {
-            if (currentSite) window.open(cmsPreviewUrl(currentSite.code, `interaction/${record.code}/`), '_blank');
-          },
-        },
-        {
-          key: 'publish', label: '发布',
-          hidden: !canManage || record.status === 'published',
-          onClick: () => { void changeStatus(record, 'published'); },
-        },
-        {
-          key: 'close', label: '关闭',
-          hidden: !canManage || record.status !== 'published',
-          onClick: () => { void changeStatus(record, 'closed'); },
-        },
-        {
-          key: 'edit', label: '设计', hidden: !canManage,
-          onClick: () => openEditor(record),
-        },
-        {
-          key: 'copy', label: '复制', hidden: !canManage,
-          onClick: () => {
-            Modal.confirm({
-              title: `复制「${record.title}」？`,
-              content: '将生成一份草稿副本（配置与题目全量复制，答卷不复制），可直接修改题目。',
-              onOk: async () => {
-                const created = await copyMutation.mutateAsync({ params: { id: record.id } });
-                Toast.success(`已生成副本「${created.title}」`);
-                openEditor(created);
-              },
-            });
-          },
-        },
-        deleteAction({
-          hidden: !canManage,
-          title: `删除「${record.title}」？`,
-          content: `将级联删除 ${record.responseCount} 份答卷，无法恢复。`,
-          run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   const responseColumns: ColumnProps<CmsInteractionResponse>[] = [

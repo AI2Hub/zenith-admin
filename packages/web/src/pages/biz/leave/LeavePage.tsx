@@ -13,7 +13,6 @@ import { BIZ_LEAVE_STATUS_LABELS, BIZ_LEAVE_STATUS_OPTIONS, BIZ_LEAVE_TYPES, typ
 import { enumValueOf } from '@zenith/shared/core';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { AppModal } from '@/components/AppModal';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useDictItems } from '@/hooks/useDictItems';
 import { formatDateRangeValuesForApi } from '@/utils/date';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
@@ -27,7 +26,7 @@ import {
 } from '@/hooks/queries/biz-leave';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useListPage } from '@/hooks/useListPage';
@@ -160,6 +159,48 @@ export default function LeavePage() {
     navigate(`/workflow/instance/${record.workflowInstanceId}`, { state: { tabTitle: `请假审批 - ${record.applicantName ?? ''}` } });
   };
 
+  const operationColumn = useCrudOperationColumn<BizLeave>({
+    edit: openEdit,
+    remove: deleteMutation,
+    hidden: { edit: (record) => record.status !== 'draft', remove: (record) => record.status !== 'draft' },
+    title: '确定删除吗？',
+    successMessage: '已删除',
+    extraBetween: (record) => [
+      {
+        key: 'submit',
+        label: '提交审批',
+        type: 'primary',
+        hidden: record.status !== 'draft',
+        onClick: () => {
+          Modal.confirm({
+            title: '确定提交审批吗？',
+            onOk: () => handleSubmitApproval(record.id),
+          });
+        },
+      },
+      {
+        key: 'workflow',
+        label: '流程详情',
+        hidden: !record.workflowInstanceId,
+        onClick: () => openWorkflow(record),
+      },
+      {
+        key: 'reopen',
+        label: '重新编辑',
+        hidden: record.status !== 'rejected' && record.status !== 'cancelled',
+        onClick: () => {
+          Modal.confirm({
+            title: '重新编辑该请假单？',
+            content: '将转回草稿状态，修改后可再次提交审批（届时发起新的审批流程）。',
+            onOk: () => handleReopen(record),
+          });
+        },
+      },
+    ],
+    width: 150,
+    desktopInlineKeys: ['edit', 'workflow'],
+  });
+
   const columns: ColumnProps<BizLeave>[] = [
     { title: '请假类型', dataIndex: 'leaveType', width: 110, render: (v: string) => getLeaveTypeLabel(v) },
     { title: '日期', width: 200, render: (_: unknown, r: BizLeave) => `${r.startDate} ~ ${r.endDate}` },
@@ -170,55 +211,7 @@ export default function LeavePage() {
       title: '状态', dataIndex: 'status', width: 110, fixed: 'right',
       render: (v: BizLeaveStatus) => <Tag color={STATUS_COLORS[v] ?? 'grey'}>{BIZ_LEAVE_STATUS_LABELS[v] ?? v}</Tag>,
     },
-    createOperationColumn<BizLeave>({
-      // 草稿只有「编辑」（流程实例在转回草稿时清空），其余状态只有「流程详情」；低频动作进更多
-      width: 150,
-      desktopInlineKeys: ['edit', 'workflow'],
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: record.status !== 'draft',
-          onClick: () => openEdit(record),
-        },
-        {
-          key: 'submit',
-          label: '提交审批',
-          type: 'primary',
-          hidden: record.status !== 'draft',
-          onClick: () => {
-            Modal.confirm({
-              title: '确定提交审批吗？',
-              onOk: () => handleSubmitApproval(record.id),
-            });
-          },
-        },
-        {
-          key: 'workflow',
-          label: '流程详情',
-          hidden: !record.workflowInstanceId,
-          onClick: () => openWorkflow(record),
-        },
-        {
-          key: 'reopen',
-          label: '重新编辑',
-          hidden: record.status !== 'rejected' && record.status !== 'cancelled',
-          onClick: () => {
-            Modal.confirm({
-              title: '重新编辑该请假单？',
-              content: '将转回草稿状态，修改后可再次提交审批（届时发起新的审批流程）。',
-              onOk: () => handleReopen(record),
-            });
-          },
-        },
-        deleteAction({
-          hidden: record.status !== 'draft',
-          title: '确定删除吗？',
-          run: () => deleteMutation.mutateAsync([record.id]),
-          successMessage: '已删除',
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

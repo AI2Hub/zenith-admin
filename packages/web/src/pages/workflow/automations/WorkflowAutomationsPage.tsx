@@ -15,7 +15,6 @@ import { Plus, Trash2 } from 'lucide-react';
 import { WORKFLOW_AUTOMATION_TRIGGER_LABELS, WORKFLOW_AUTOMATION_TRIGGER_OPTIONS, type WorkflowAutomation, type WorkflowAutomationAction, type WorkflowAutomationRun, type WorkflowAutomationTrigger, type WorkflowDefinition } from '@zenith/shared/workflow';
 import { isPlainObject } from '@zenith/shared/core';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useWorkflowDefinitionList } from '@/hooks/queries/workflow-definitions';
 import { usePagination } from '@/hooks/usePagination';
@@ -28,7 +27,7 @@ import {
   workflowAutomationKeys,
 } from '@/hooks/queries/workflow-automations';
 import { CreateButton } from '@/components/toolbar-controls';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar, listTableProps, useCrudOperationColumn } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
 import { EMPTY_PLACEHOLDER, dateTimeColumn, enabledStatusColumn, renderEllipsis } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -400,6 +399,23 @@ export default function WorkflowAutomationsPage() {
     [defs],
   );
 
+  const operationColumn = useCrudOperationColumn<WorkflowAutomation>({
+    edit: openEdit,
+    remove: deleteMutation,
+    allow: { edit: canEditAutomation, remove: canEditAutomation },
+    title: '确定要删除该规则吗？',
+    successMessage: '已删除',
+    extra: (record) => [
+      {
+        key: 'runs',
+        label: '执行记录',
+        onClick: () => setRunsRule(record),
+      },
+    ],
+    width: 240,
+    desktopInlineKeys: ['runs', 'edit', 'delete'],
+  });
+
   const columns: ColumnProps<WorkflowAutomation>[] = [
     { title: 'ID', dataIndex: 'id', width: 70 },
     { title: '所属流程', dataIndex: 'definitionName', width: 200,
@@ -420,29 +436,7 @@ export default function WorkflowAutomationsPage() {
     dateTimeColumn('更新时间', 'updatedAt'),
     // 固定列必须连续贴在两端：状态若夹在中间，会被抽到右侧固定层，原位留下空洞，表头表体错位
     enabledStatusColumn({ width: 90 }),
-    createOperationColumn<WorkflowAutomation>({
-      width: 240,
-      desktopInlineKeys: ['runs', 'edit', 'delete'],
-      actions: (record) => [
-        {
-          key: 'runs',
-          label: '执行记录',
-          onClick: () => setRunsRule(record),
-        },
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !canEditAutomation,
-          onClick: () => openEdit(record),
-        },
-        deleteAction({
-          hidden: !canEditAutomation,
-          title: '确定要删除该规则吗？',
-          run: () => deleteMutation.mutateAsync([record.id]),
-          successMessage: '已删除',
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { Button, Input, Space, Spin, Tag, Toast, Typography, TextArea } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
 import { mpDraftContract, type MpDraft, type MpArticle } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../utils/table-columns';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountRequiredBanner } from './MpAccountRequiredBanner';
@@ -72,6 +71,19 @@ export default function MpDraftsPage() {
     Toast.success('已推送到微信草稿箱');
   };
 
+  const operationColumn = useCrudOperationColumn<MpDraft>({
+    permission: 'mp:draft',
+    edit: openEdit,
+    remove: deleteMutation,
+    title: (record) => `确定删除图文「${record.title}」吗？`,
+    extraBetween: (record) => [
+      { key: 'push', label: '推送', loading: pushingId === record.id, hidden: !can('mp:draft:push'), onClick: () => void handlePush(record) },
+    ],
+    width: 210,
+    desktopInlineKeys: ['edit', 'push', 'delete'],
+    menuAriaLabel: '图文草稿操作',
+  });
+
   const columns = [
     { title: '标题', dataIndex: 'title', minWidth: 220, render: renderEllipsis },
     { title: '文章数', dataIndex: 'articles', width: 90, render: (v: MpArticle[]) => `${v?.length ?? 0} 篇` },
@@ -81,20 +93,7 @@ export default function MpDraftsPage() {
     },
     { title: '微信 MediaID', dataIndex: 'wechatMediaId', width: 200, render: (v: string | null) => v || EMPTY_PLACEHOLDER },
     createdAtColumn,
-    createOperationColumn<MpDraft>({
-      width: 210,
-      desktopInlineKeys: ['edit', 'push', 'delete'],
-      menuAriaLabel: '图文草稿操作',
-      actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !can('mp:draft:update'), onClick: () => openEdit(record) },
-        { key: 'push', label: '推送', loading: pushingId === record.id, hidden: !can('mp:draft:push'), onClick: () => void handlePush(record) },
-        deleteAction({
-          hidden: !can('mp:draft:delete'),
-          title: `确定删除图文「${record.title}」吗？`,
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

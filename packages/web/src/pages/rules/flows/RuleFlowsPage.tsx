@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { Button, Form, Input, List, Modal, Select, SideSheet, Space, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
@@ -7,7 +7,6 @@ import { decisionFlowContract, type RuleDecisionFlow, type RuleFlowEvaluateResul
 import { EMPTY_PLACEHOLDER, createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useWorkflowDesignerDecisionRefOptions } from '@/hooks/queries/workflow-designer';
 import {
@@ -109,6 +108,24 @@ export default function RuleFlowsPage() {
     if (res) setTestResult(res);
   };
 
+  const operationColumn = useCrudOperationColumn<RuleDecisionFlow>({
+    edit: openEdit,
+    remove: (r) => deleteMutation.mutateAsync({ params: { id: r.id } }),
+    allow: { edit: canEdit, remove: canDelete },
+    title: '确定删除？',
+    content: '删除后不可恢复',
+    extra: (r) => [
+      { key: 'test', label: '测试', onClick: () => { setTestRow(r); setTestResult(null); } },
+    ],
+    extraBetween: (r) => [
+      { key: 'publish', label: '发布', hidden: !canPublish || r.status === 'disabled', onClick: () => handlePublish(r) },
+      { key: 'versions', label: '版本', onClick: () => setVersionsRow(r) },
+      { key: 'toggle', label: r.status === 'disabled' ? '启用' : '停用', danger: r.status !== 'disabled', hidden: !canPublish, onClick: () => handleToggle(r) },
+    ],
+    width: 180,
+    desktopInlineKeys: ['edit', 'publish'],
+  });
+
   const columns: ColumnProps<RuleDecisionFlow>[] = [
     { title: 'Key', dataIndex: 'key', width: 240, render: (t: string) => <Text code>{t}</Text> },
     { title: '名称', dataIndex: 'name', minWidth: 180, render: renderEllipsis },
@@ -126,23 +143,7 @@ export default function RuleFlowsPage() {
         {r.dirty && s === 'published' && <Tag size="small" color="orange">改动未发布</Tag>}
       </Space>
     ) },
-    createOperationColumn<RuleDecisionFlow>({
-      width: 180,
-      desktopInlineKeys: ['edit', 'publish'],
-      actions: (r) => [
-        { key: 'test', label: '测试', onClick: () => { setTestRow(r); setTestResult(null); } },
-        { key: 'edit', label: '编辑', hidden: !canEdit, onClick: () => openEdit(r) },
-        { key: 'publish', label: '发布', hidden: !canPublish || r.status === 'disabled', onClick: () => handlePublish(r) },
-        { key: 'versions', label: '版本', onClick: () => setVersionsRow(r) },
-        { key: 'toggle', label: r.status === 'disabled' ? '启用' : '停用', danger: r.status !== 'disabled', hidden: !canPublish, onClick: () => handleToggle(r) },
-        deleteAction({
-          hidden: !canDelete,
-          title: '确定删除？',
-          content: '删除后不可恢复',
-          run: () => deleteMutation.mutateAsync({ params: { id: r.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

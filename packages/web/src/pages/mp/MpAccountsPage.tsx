@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { Banner, Col, Form, Row, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { MP_ACCOUNT_TYPE_LABELS, MP_ACCOUNT_TYPE_OPTIONS, MP_ENCRYPT_MODE_LABELS, MP_ENCRYPT_MODE_OPTIONS, type CreateMpAccountInput, type MpAccount, type MpAccountType, mpAccountContract } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
@@ -8,7 +8,6 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { config } from '@/config';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../utils/table-columns';
 import {
   useDeleteMpAccounts,
@@ -100,6 +99,35 @@ export default function MpAccountsPage() {
     Toast.success(newStatus === 'enabled' ? '已启用' : '已禁用');
   };
 
+  const operationColumn = useCrudOperationColumn<MpAccount>({
+    permission: 'mp:account',
+    edit: modal,
+    remove: deleteMutation,
+    title: (record) => `确定要删除公众号「${record.name}」吗？`,
+    extra: (record) => [
+      { key: 'config', label: '服务器配置', onClick: () => setConfigRecord(record) },
+      {
+        key: 'default',
+        label: '设为默认',
+        disabled: record.isDefault,
+        hidden: !can('mp:account:default'),
+        onClick: () => void handleSetDefault(record),
+      },
+    ],
+    extraBetween: (record) => [
+      {
+        key: 'test',
+        label: testingId === record.id ? '测试中...' : '测试连接',
+        loading: testingId === record.id,
+        hidden: !can('mp:account:token'),
+        onClick: () => void handleTest(record),
+      },
+    ],
+    width: 220,
+    desktopInlineKeys: ['config', 'edit'],
+    menuAriaLabel: '公众号账号操作',
+  });
+
   const columns = [
     { title: '公众号名称', dataIndex: 'name', minWidth: 160, render: renderEllipsis },
     {
@@ -127,34 +155,7 @@ export default function MpAccountsPage() {
         />
       ),
     },
-    createOperationColumn<MpAccount>({
-      width: 220,
-      desktopInlineKeys: ['config', 'edit'],
-      menuAriaLabel: '公众号账号操作',
-      actions: (record) => [
-        { key: 'config', label: '服务器配置', onClick: () => setConfigRecord(record) },
-        {
-          key: 'default',
-          label: '设为默认',
-          disabled: record.isDefault,
-          hidden: !can('mp:account:default'),
-          onClick: () => void handleSetDefault(record),
-        },
-        { key: 'edit', label: '编辑', hidden: !can('mp:account:update'), onClick: () => modal.openEdit(record) },
-        {
-          key: 'test',
-          label: testingId === record.id ? '测试中...' : '测试连接',
-          loading: testingId === record.id,
-          hidden: !can('mp:account:token'),
-          onClick: () => void handleTest(record),
-        },
-        deleteAction({
-          hidden: !can('mp:account:delete'),
-          title: `确定要删除公众号「${record.name}」吗？`,
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

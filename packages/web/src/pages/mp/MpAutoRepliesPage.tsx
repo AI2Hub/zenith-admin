@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { Button, Col, Form, Input, Row, Select, Space, Spin, Tag, Toast, Switch, Typography } from '@douyinfe/semi-ui';
 import { Plus, Trash2, Flame } from 'lucide-react';
 import { MP_AUTO_REPLY_MATCH_OPTIONS, MP_AUTO_REPLY_TYPE_LABELS, MP_AUTO_REPLY_TYPE_OPTIONS, MP_REPLY_CONTENT_TYPE_LABELS, MP_REPLY_CONTENT_TYPE_OPTIONS, mpAutoReplyContract } from '@zenith/shared/mp';
@@ -8,7 +8,6 @@ import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useMpAccounts } from './useMpAccounts';
@@ -124,6 +123,16 @@ export default function MpAutoRepliesPage() {
     setArticles((prev) => prev.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
   };
 
+  const operationColumn = useCrudOperationColumn<MpAutoReply>({
+    permission: 'mp:reply',
+    edit: openEdit,
+    remove: deleteMutation,
+    title: '确定要删除该自动回复吗？',
+    width: 150,
+    desktopInlineKeys: ['edit', 'delete'],
+    menuAriaLabel: '自动回复操作',
+  });
+
   const columns = [
     {
       title: '类型', dataIndex: 'replyType', width: 110,
@@ -141,19 +150,7 @@ export default function MpAutoRepliesPage() {
           disabled={!can('mp:reply:update')} onChange={(ck: boolean) => void handleToggle(record, ck ? 'enabled' : 'disabled')} />
       ),
     },
-    createOperationColumn<MpAutoReply>({
-      width: 150,
-      desktopInlineKeys: ['edit', 'delete'],
-      menuAriaLabel: '自动回复操作',
-      actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !can('mp:reply:update'), onClick: () => openEdit(record) },
-        deleteAction({
-          hidden: !can('mp:reply:delete'),
-          title: '确定要删除该自动回复吗？',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   const [hotwordsVisible, setHotwordsVisible] = useState(false);

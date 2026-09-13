@@ -1,11 +1,10 @@
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { Avatar, Button, Form, Space, Tag, Toast } from '@douyinfe/semi-ui';
 import { RefreshCw } from 'lucide-react';
 import { mpKfAccountContract, type CreateMpKfAccountInput, type MpKfAccount } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../utils/table-columns';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountRequiredBanner } from './MpAccountRequiredBanner';
@@ -60,6 +59,17 @@ export default function MpKfAccountsPage() {
     },
   });
 
+  const operationColumn = useCrudOperationColumn<MpKfAccount>({
+    permission: 'mp:kf',
+    edit: modal,
+    remove: deleteMutation,
+    title: (record) => `确定删除客服「${record.nickname}」吗？`,
+    content: '将同时删除微信侧客服账号。',
+    width: 150,
+    desktopInlineKeys: ['edit', 'delete'],
+    menuAriaLabel: '多客服操作',
+  });
+
   const columns = [
     {
       title: '客服', dataIndex: 'nickname', width: 200,
@@ -77,20 +87,7 @@ export default function MpKfAccountsPage() {
       render: (v: string) => { const m = INVITE_LABEL[v] ?? INVITE_LABEL.none; return <Tag color={m.color} type="light">{m.label}</Tag>; },
     },
     createdAtColumn,
-    createOperationColumn<MpKfAccount>({
-      width: 150,
-      desktopInlineKeys: ['edit', 'delete'],
-      menuAriaLabel: '多客服操作',
-      actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !can('mp:kf:update'), onClick: () => modal.openEdit(record) },
-        deleteAction({
-          hidden: !can('mp:kf:delete'),
-          title: `确定删除客服「${record.nickname}」吗？`,
-          content: '将同时删除微信侧客服账号。',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   const syncButton = can('mp:kf:sync') ? (

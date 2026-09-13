@@ -8,7 +8,6 @@ import { usePermission } from '@/hooks/usePermission';
 import type { UserTransferUser } from '@/components/UserTransferSelect';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../../utils/table-columns';
 import { departmentsToTreeData, useFlatDepartments } from '@/hooks/queries/departments';
 import { useAllPositions } from '@/hooks/queries/positions';
@@ -29,7 +28,7 @@ import { useAllRoles } from '@/hooks/queries/roles';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import { BatchDeleteButton, CreateButton } from '@/components/toolbar-controls';
-import { confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection, useStatusToggle } from '@/components/list-page';
+import { confirmAndDelete, ListSearchToolbar, useRowSelection, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { MemberAssignmentSheet, memberPreviewColumn } from '@/components/members/MemberAssignmentSheet';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormSheet } from '@/components/EditFormModal';
@@ -160,6 +159,37 @@ export default function UserGroupsPage() {
     setMemberSheetVisible(false);
   };
 
+  const operationColumn = useCrudOperationColumn<UserGroup>({
+    permission: 'system:user-groups',
+    edit: (record) => { groupModal.openEdit(record); },
+    remove: deleteMutation,
+    title: '确定要删除该用户组吗？',
+    extra: (record) => [
+      {
+        key: 'members',
+        label: '成员',
+        hidden: !hasPermission('system:user-groups:assign'),
+        onClick: () => { void openMembers(record); },
+      },
+      {
+        key: 'roles',
+        label: '角色',
+        hidden: !hasPermission('system:user-groups:assign'),
+        onClick: () => { void openRoles(record); },
+      },
+      {
+        key: 'sync',
+        label: '同步',
+        hidden: record.memberMode !== 'dynamic' || !hasPermission('system:user-groups:assign'),
+        onClick: () => {
+          syncMutation.mutate({ params: { id: record.id } }, { onSuccess: () => Toast.success('成员已按规则同步') });
+        },
+      },
+    ],
+    width: 240,
+    desktopInlineKeys: ['members', 'roles', 'edit'],
+  });
+
   const columns: ColumnProps<UserGroup>[] = [
     { title: '用户组名称', dataIndex: 'name', width: 200, render: renderEllipsis },
     { title: '编码', dataIndex: 'code', width: 180, render: renderEllipsis },
@@ -195,43 +225,7 @@ export default function UserGroupsPage() {
     },
     createdAtColumn,
     status.column(),
-    createOperationColumn<UserGroup>({
-      width: 240,
-      desktopInlineKeys: ['members', 'roles', 'edit'],
-      actions: (record) => [
-        {
-          key: 'members',
-          label: '成员',
-          hidden: !hasPermission('system:user-groups:assign'),
-          onClick: () => { void openMembers(record); },
-        },
-        {
-          key: 'roles',
-          label: '角色',
-          hidden: !hasPermission('system:user-groups:assign'),
-          onClick: () => { void openRoles(record); },
-        },
-        {
-          key: 'sync',
-          label: '同步',
-          hidden: record.memberMode !== 'dynamic' || !hasPermission('system:user-groups:assign'),
-          onClick: () => {
-            syncMutation.mutate({ params: { id: record.id } }, { onSuccess: () => Toast.success('成员已按规则同步') });
-          },
-        },
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('system:user-groups:update'),
-          onClick: () => { groupModal.openEdit(record); },
-        },
-        deleteAction({
-          hidden: !hasPermission('system:user-groups:delete'),
-          title: '确定要删除该用户组吗？',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

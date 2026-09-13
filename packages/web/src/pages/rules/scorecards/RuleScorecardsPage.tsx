@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { Banner, Button, Divider, Input, InputNumber, Modal, Select, Space, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, Trash2 } from 'lucide-react';
@@ -7,7 +7,6 @@ import { RULE_SCORECARD_BAND_OP_OPTIONS, RULE_SCORECARD_VARIABLE_TYPE_OPTIONS, t
 import { createdAtColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { CreateButton } from '@/components/toolbar-controls';
 import {
@@ -145,6 +144,25 @@ export default function RuleScorecardsPage() {
   const patchGrade = (index: number, patch: Partial<RuleScorecardGrade>) =>
     setEditor((e) => e && ({ ...e, grades: e.grades.map((g, i) => (i === index ? { ...g, ...patch } : g)) }));
 
+  const operationColumn = useCrudOperationColumn<RuleScorecard>({
+    edit: openEdit,
+    remove: (r) => deleteMutation.mutateAsync({ params: { id: r.id } }),
+    allow: { edit: canEdit, remove: canDelete },
+    title: (r) => `删除评分卡「${r.name}」？`,
+    content: '删除后不可恢复',
+    extraBetween: (r) => [
+      { key: 'publish', label: '发布', hidden: !canPublish, onClick: () => handlePublish(r) },
+      { key: 'test', label: '测试', hidden: !canEvaluate, onClick: () => openTest(r) },
+      { key: 'versions', label: '版本', onClick: () => setVersionsRow(r) },
+      {
+        key: 'toggle', label: r.status === 'disabled' ? '启用' : '停用', hidden: !canEdit || r.status === 'draft',
+        onClick: async () => { await toggleMutation.mutateAsync({ params: { id: r.id }, body: { enabled: r.status === 'disabled' } }); Toast.success('操作成功'); },
+      },
+    ],
+    width: 240,
+    desktopInlineKeys: ['edit', 'publish', 'test'],
+  });
+
   const columns: ColumnProps<RuleScorecard>[] = [
     { title: 'Key', dataIndex: 'key', width: 170, render: renderEllipsis },
     {
@@ -166,26 +184,7 @@ export default function RuleScorecardsPage() {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
       render: (v: string) => <Tag color={STATUS_META[v]?.color}>{STATUS_META[v]?.text ?? v}</Tag>,
     },
-    createOperationColumn<RuleScorecard>({
-      width: 240,
-      desktopInlineKeys: ['edit', 'publish', 'test'],
-      actions: (r) => [
-        { key: 'edit', label: '编辑', hidden: !canEdit, onClick: () => openEdit(r) },
-        { key: 'publish', label: '发布', hidden: !canPublish, onClick: () => handlePublish(r) },
-        { key: 'test', label: '测试', hidden: !canEvaluate, onClick: () => openTest(r) },
-        { key: 'versions', label: '版本', onClick: () => setVersionsRow(r) },
-        {
-          key: 'toggle', label: r.status === 'disabled' ? '启用' : '停用', hidden: !canEdit || r.status === 'draft',
-          onClick: async () => { await toggleMutation.mutateAsync({ params: { id: r.id }, body: { enabled: r.status === 'disabled' } }); Toast.success('操作成功'); },
-        },
-        deleteAction({
-          hidden: !canDelete,
-          title: `删除评分卡「${r.name}」？`,
-          content: '删除后不可恢复',
-          run: () => deleteMutation.mutateAsync({ params: { id: r.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

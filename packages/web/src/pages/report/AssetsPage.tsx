@@ -37,7 +37,7 @@ import { normalizeTemplateApplyValues, parseJsonObject } from './report-platform
 import { REPORT_RESOURCE_TYPE_OPTIONS } from './report-platform-options';
 import { CreateButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, FilterSelect, KeywordInput, type FilterOption } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar, listTableProps, useCrudOperationColumn } from '@/components/list-page';
 import { abortSubmit } from '@/lib/abort-submit';
 import { JsonBlock } from '@/components/JsonBlock';
 
@@ -217,6 +217,23 @@ export default function AssetsPage() {
       ],
     }),
   ];
+  const operationColumn = useCrudOperationColumn<ReportAssetTemplate>({
+    permission: 'report:asset-template',
+    edit: openTemplate,
+    remove: (record) => deleteTemplateMutation.mutateAsync({ params: { id: record.id } }),
+    title: (record) => `删除模板「${record.name}」？`,
+    successMessage: '模板已删除',
+    extra: (record) => [
+      { key: 'apply', label: '应用', hidden: !hasPermission('report:asset-template:apply'), onClick: () => applyTemplate(record) },
+    ],
+    extraBetween: (record) => [
+      { key: 'preview', label: '预览', onClick: () => setPreviewTemplate(record) },
+      { key: 'clone', label: '克隆', hidden: !hasPermission('report:asset-template:create'), onClick: () => cloneTemplate(record) },
+    ],
+    width: 180,
+    desktopInlineKeys: ['apply', 'edit'],
+  });
+
   const templateColumns: ColumnProps<ReportAssetTemplate>[] = [
     { title: '模板名称', dataIndex: 'name', minWidth: 190, render: renderEllipsis },
     { title: '编码', dataIndex: 'code', width: 150, render: renderEllipsis },
@@ -225,52 +242,37 @@ export default function AssetsPage() {
     { title: '版本/使用', width: 120, render: (_v, r) => `v${r.version} / ${r.usageCount}` },
     dateTimeColumn('更新时间', 'updatedAt'),
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: renderEnabledStatusTag },
-    createOperationColumn<ReportAssetTemplate>({
-      width: 180,
-      desktopInlineKeys: ['apply', 'edit'],
-      actions: (record) => [
-        { key: 'apply', label: '应用', hidden: !hasPermission('report:asset-template:apply'), onClick: () => applyTemplate(record) },
-        { key: 'edit', label: '编辑', hidden: !hasPermission('report:asset-template:update'), onClick: () => openTemplate(record) },
-        { key: 'preview', label: '预览', onClick: () => setPreviewTemplate(record) },
-        { key: 'clone', label: '克隆', hidden: !hasPermission('report:asset-template:create'), onClick: () => cloneTemplate(record) },
-        deleteAction({
-          hidden: !hasPermission('report:asset-template:delete'),
-          title: `删除模板「${record.name}」？`,
-          run: () => deleteTemplateMutation.mutateAsync({ params: { id: record.id } }),
-          successMessage: '模板已删除',
-        }),
-      ],
-    }),
+    operationColumn,
   ];
+  const operationColumn2 = useCrudOperationColumn<ReportDeprecationNotice>({
+    permission: 'report:deprecation',
+    edit: openNotice,
+    remove: (record) => deleteNoticeMutation.mutateAsync({ params: { id: record.id } }),
+    title: '删除弃用公告？',
+    successMessage: '公告已删除',
+    extra: (record) => [
+      {
+        key: 'publish', label: record.publishedAt ? '撤销发布' : '发布', danger: !!record.publishedAt, hidden: !hasPermission('report:deprecation:publish'),
+        onClick: () => { Modal.confirm({
+          title: record.publishedAt ? '撤销该弃用公告？' : '发布该弃用公告？',
+          onOk: async () => {
+            await publishNoticeMutation.mutateAsync({ params: { id: record.id }, body: { publish: !record.publishedAt } });
+            Toast.success(record.publishedAt ? '已撤销发布' : '已发布');
+          },
+        }); },
+      },
+    ],
+    width: 210,
+    desktopInlineKeys: ['publish', 'edit'],
+  });
+
   const noticeColumns: ColumnProps<ReportDeprecationNotice>[] = [
     { title: '公告标题', dataIndex: 'title', minWidth: 220, render: renderEllipsis },
     { title: '资源', width: 150, render: (_v, r) => `${r.resourceType} #${r.resourceId}` },
     dateTimeColumn('生效时间', 'effectiveAt'),
     dateTimeColumn('到期时间', 'expiresAt'),
     { title: '状态', dataIndex: 'publishedAt', width: 100, fixed: 'right', render: (v) => <Tag color={v ? 'orange' : 'grey'}>{v ? '已发布' : '草稿'}</Tag> },
-    createOperationColumn<ReportDeprecationNotice>({
-      width: 210,
-      desktopInlineKeys: ['publish', 'edit'],
-      actions: (record) => [
-        {
-          key: 'publish', label: record.publishedAt ? '撤销发布' : '发布', danger: !!record.publishedAt, hidden: !hasPermission('report:deprecation:publish'),
-          onClick: () => { Modal.confirm({
-            title: record.publishedAt ? '撤销该弃用公告？' : '发布该弃用公告？',
-            onOk: async () => {
-              await publishNoticeMutation.mutateAsync({ params: { id: record.id }, body: { publish: !record.publishedAt } });
-              Toast.success(record.publishedAt ? '已撤销发布' : '已发布');
-            },
-          }); },
-        },
-        { key: 'edit', label: '编辑', hidden: !hasPermission('report:deprecation:update'), onClick: () => openNotice(record) },
-        deleteAction({
-          hidden: !hasPermission('report:deprecation:delete'),
-          title: '删除弃用公告？',
-          run: () => deleteNoticeMutation.mutateAsync({ params: { id: record.id } }),
-          successMessage: '公告已删除',
-        }),
-      ],
-    }),
+    operationColumn2,
   ];
   const usageColumns: ColumnProps<ReportAssetUsageSummary>[] = [
     { title: '资源', minWidth: 150, render: (_v, r) => `${r.resourceType} #${r.resourceId}` },

@@ -11,7 +11,6 @@ import { SensitiveFormInput, SensitiveText } from '@/components/sensitive';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn, dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricMeter';
 import { useAllTenantPackages } from '@/hooks/queries/tenant-packages';
 import {
@@ -22,7 +21,7 @@ import {
   useTenantStats,
 } from '@/hooks/queries/tenants';
 import { CreateButton } from '@/components/toolbar-controls';
-import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormSheet } from '@/components/EditFormModal';
@@ -134,6 +133,23 @@ export default function TenantsPage() {
     return <span>剩 {days} 天{expireAt ? `（${expireAt}）` : ''}</span>;
   }
 
+  const operationColumn = useCrudOperationColumn<Tenant>({
+    permission: 'system:tenant',
+    edit: (row) => { tenantModal.openEdit(row); },
+    remove: deleteMutation,
+    title: '确认删除此租户？',
+    content: '删除后该租户下的所有数据将不可访问',
+    extra: (row) => [
+      {
+        key: 'stats',
+        label: '概览',
+        onClick: () => { void openStats(row); },
+      },
+    ],
+    width: 210,
+    desktopInlineKeys: ['stats', 'edit', 'delete'],
+  });
+
   const columns: ColumnProps<Tenant>[] = [
     { title: '租户名称', dataIndex: 'name', minWidth: 160, render: renderEllipsis },
     { title: '租户编码', dataIndex: 'code', width: 140, render: renderEllipsis },
@@ -157,29 +173,7 @@ export default function TenantsPage() {
     dateTimeColumn('到期时间', 'expireAt', { empty: '永不过期' }),
     createdAtColumn,
     status.column(),
-    createOperationColumn<Tenant>({
-      width: 210,
-      desktopInlineKeys: ['stats', 'edit', 'delete'],
-      actions: (row) => [
-        {
-          key: 'stats',
-          label: '概览',
-          onClick: () => { void openStats(row); },
-        },
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('system:tenant:update'),
-          onClick: () => { tenantModal.openEdit(row); },
-        },
-        deleteAction({
-          hidden: !hasPermission('system:tenant:delete'),
-          title: '确认删除此租户？',
-          content: '删除后该租户下的所有数据将不可访问',
-          run: () => deleteMutation.mutateAsync([row.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

@@ -2,8 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Form, Space, Toast, Tag, Row, Col, Select, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { batchStatusHandler, confirmAndDelete, deleteAction, ListSearchToolbar, useStatusToggle, useRowSelection } from '@/components/list-page';
+import { batchStatusHandler, confirmAndDelete, ListSearchToolbar, useStatusToggle, useRowSelection, useCrudOperationColumn } from '@/components/list-page';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import type { CreateMonitorAlertRuleInput, MonitorAlertRule, MonitorMetric } from '@zenith/shared/platform';
@@ -72,7 +71,6 @@ export default function AlertRulesPage() {
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
-
 
   const canCreate = hasPermission('alert:rule:create');
   const canUpdate = hasPermission('alert:rule:update');
@@ -183,6 +181,30 @@ export default function AlertRulesPage() {
     successMessage: (status) => (status === 'enabled' ? '已批量启用' : '已批量停用'),
   });
 
+  const operationColumn = useCrudOperationColumn<MonitorAlertRule>({
+    edit: alertModal,
+    remove: deleteMutation,
+    allow: { edit: canUpdate, remove: canDelete },
+    label: (record) => record.name,
+    content: '删除后不可恢复',
+    extraBetween: (record) => [
+      {
+        key: 'test',
+        label: '试发通知',
+        hidden: !canTest,
+        onClick: () => void handleTest(record),
+      },
+      {
+        key: 'events',
+        label: '查看事件',
+        hidden: !canViewEvents,
+        onClick: () => navigate(`/alerts/events?ruleId=${record.id}`),
+      },
+    ],
+    width: 180,
+    desktopInlineKeys: ['edit', 'delete'],
+  });
+
   const columns: ColumnProps<MonitorAlertRule>[] = [
     { title: '规则名称', dataIndex: 'name', width: 180, fixed: 'left' },
     {
@@ -216,36 +238,7 @@ export default function AlertRulesPage() {
       render: (state: string) => <MonitorAlertStateTag state={state} okText="未触发" />,
     },
     enabledStatus.column({ title: '启用状态', width: 100, dataIndex: 'enabled' }),
-    createOperationColumn<MonitorAlertRule>({
-      width: 180,
-      desktopInlineKeys: ['edit', 'delete'],
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !canUpdate,
-          onClick: () => alertModal.openEdit(record),
-        },
-        {
-          key: 'test',
-          label: '试发通知',
-          hidden: !canTest,
-          onClick: () => void handleTest(record),
-        },
-        {
-          key: 'events',
-          label: '查看事件',
-          hidden: !canViewEvents,
-          onClick: () => navigate(`/alerts/events?ruleId=${record.id}`),
-        },
-        deleteAction({
-          hidden: !canDelete,
-          title: `确定要删除「${record.name}」吗？`,
-          content: '删除后不可恢复',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   const renderBatchActions = () => selectedRowKeys.length > 0 ? (

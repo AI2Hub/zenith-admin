@@ -4,11 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { Space, Form, Tag, Row, Col, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { MemberLevel } from '@zenith/shared/member';
-import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, listTableProps } from '@/components/list-page';
+import { listTableProps, useCrudOperationColumn } from '@/components/list-page';
 import { EMPTY_PLACEHOLDER, renderEllipsis, enabledStatusColumn } from '@/utils/table-columns';
 import { memberAdminKeys, useDeleteMemberLevel, useMemberLevels, useSaveMemberLevel, type MemberLevelFormValues } from '@/hooks/queries/member-admin';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -19,7 +17,6 @@ import { EditFormModal } from '@/components/EditFormModal';
 export default function MemberLevelsPage() {
   const navigate = useNavigate();
   const { options: statusOptions } = useDictItems('common_status');
-  const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
   const listQuery = useMemberLevels();
   const saveMutation = useSaveMemberLevel();
@@ -30,6 +27,16 @@ export default function MemberLevelsPage() {
     save: saveMutation,
     defaults: { level: 0, growthThreshold: 0, discount: 100, sort: 0, status: 'enabled' as const, benefits: [] },
     toValues: (record) => ({ name: record.name, level: record.level, growthThreshold: record.growthThreshold, discount: record.discount, benefits: record.benefits, description: record.description, sort: record.sort, status: record.status }),
+  });
+
+  const operationColumn = useCrudOperationColumn<MemberLevel>({
+    permission: 'member:level',
+    edit: levelModal,
+    remove: (record) => deleteMutation.mutateAsync({ params: { id: record.id } }),
+    title: (record) => `确认删除等级「${record.name}」？`,
+    content: '删除后该等级下会员的等级将被置空。',
+    width: 150,
+    desktopInlineKeys: ['edit', 'delete'],
   });
 
   const columns: ColumnProps<MemberLevel>[] = [
@@ -44,19 +51,7 @@ export default function MemberLevelsPage() {
     ) },
     { title: '权益', dataIndex: 'benefits', width: 220, render: (v: string[]) => (v?.length ? <Space wrap spacing={4}>{v.map((b, i) => <Tag key={i} color="light-blue">{b}</Tag>)}</Space> : EMPTY_PLACEHOLDER) },
     enabledStatusColumn(),
-    createOperationColumn<MemberLevel>({
-      width: 150,
-      desktopInlineKeys: ['edit', 'delete'],
-      actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !hasPermission('member:level:update'), onClick: () => levelModal.openEdit(record) },
-        deleteAction({
-          hidden: !hasPermission('member:level:delete'),
-          title: `确认删除等级「${record.name}」？`,
-          content: '删除后该等级下会员的等级将被置空。',
-          run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

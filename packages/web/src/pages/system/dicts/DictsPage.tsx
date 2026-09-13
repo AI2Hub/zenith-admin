@@ -17,7 +17,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { usePermission } from '@/hooks/usePermission';
 import './DictsPage.css';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import {
   dictKeys,
   useCreateDictItem,
@@ -32,7 +31,7 @@ import {
 } from '@/hooks/queries/dicts';
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
-import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { abortSubmit } from '@/lib/abort-submit';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
@@ -388,6 +387,23 @@ export default function DictsPage() {
     />
   );
 
+  const operationColumn = useCrudOperationColumn<DictItem>({
+    permissions: { edit: 'system:dict:item', remove: 'system:dict:item' },
+    edit: openEditItem,
+    remove: (row) => handleItemDelete(row.id),
+    title: '确认删除此字典项？',
+    extra: (row) => [
+      {
+        key: 'child',
+        label: '子项',
+        hidden: !hasPermission('system:dict:item'),
+        onClick: () => openCreateChildItem(row),
+      },
+    ],
+    width: 210,
+    desktopInlineKeys: ['child', 'edit', 'delete'],
+  });
+
   const itemColumns: ColumnProps<DictItem>[] = [
     { title: '标签', dataIndex: 'label', width: 160, render: (v: string, record: DictItem) =>
       record.color ? <Tag color={tagColor(record.color)} size="small">{v}</Tag> : renderEllipsis(v)
@@ -397,29 +413,7 @@ export default function DictsPage() {
     { title: '备注', dataIndex: 'remark', minWidth: 200, render: renderEllipsis },
     createdAtColumn,
     itemStatus.column(),
-    createOperationColumn<DictItem>({
-      width: 210,
-      desktopInlineKeys: ['child', 'edit', 'delete'],
-      actions: (row) => [
-        {
-          key: 'child',
-          label: '子项',
-          hidden: !hasPermission('system:dict:item'),
-          onClick: () => openCreateChildItem(row),
-        },
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('system:dict:item'),
-          onClick: () => openEditItem(row),
-        },
-        deleteAction({
-          hidden: !hasPermission('system:dict:item'),
-          title: '确认删除此字典项？',
-          run: () => handleItemDelete(row.id),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   const renderItemExpandButton = () => allRowKeys.length > 0 ? (

@@ -34,7 +34,7 @@ import {
   normalizeDqRuleFormValues,
 } from './report-platform-utils';
 import { CreateButton } from '@/components/toolbar-controls';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, listTableProps, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { FilterSelect } from '@/components/search-filters';
@@ -193,6 +193,22 @@ export default function QualityPage() {
     });
   };
 
+  const operationColumn = useCrudOperationColumn<ReportDqRule>({
+    permission: 'report:dq',
+    edit: openEdit,
+    remove: (record) => deleteMutation.mutateAsync({ params: { id: record.id } }),
+    title: (record) => `删除规则「${record.name}」？`,
+    successMessage: '规则已删除',
+    extra: (record) => [
+      { key: 'run', label: '执行', hidden: !hasPermission('report:dq:run'), loading: runMutation.isPending && runMutation.variables?.params.id === record.id, onClick: () => void runRule(record) },
+    ],
+    extraBetween: (record) => [
+      { key: 'history', label: '运行历史', onClick: () => setHistoryRule(record) },
+    ],
+    width: 180,
+    desktopInlineKeys: ['run', 'edit'],
+  });
+
   const ruleColumns: ColumnProps<ReportDqRule>[] = [
     { title: '规则名称', dataIndex: 'name', minWidth: 180, render: renderEllipsis },
     { title: '数据集', dataIndex: 'datasetName', width: 160, render: renderEllipsis },
@@ -203,21 +219,7 @@ export default function QualityPage() {
     { title: '时区', dataIndex: 'timezone', width: 150, render: renderEllipsis },
     dateTimeColumn('最近运行', 'lastRunAt'),
     ruleStatus.column({ dataIndex: 'enabled' }),
-    createOperationColumn<ReportDqRule>({
-      width: 180,
-      desktopInlineKeys: ['run', 'edit'],
-      actions: (record) => [
-        { key: 'run', label: '执行', hidden: !hasPermission('report:dq:run'), loading: runMutation.isPending && runMutation.variables?.params.id === record.id, onClick: () => void runRule(record) },
-        { key: 'edit', label: '编辑', hidden: !hasPermission('report:dq:update'), onClick: () => openEdit(record) },
-        { key: 'history', label: '运行历史', onClick: () => setHistoryRule(record) },
-        deleteAction({
-          hidden: !hasPermission('report:dq:delete'),
-          title: `删除规则「${record.name}」？`,
-          run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),
-          successMessage: '规则已删除',
-        }),
-      ],
-    }),
+    operationColumn,
   ];
   const runColumns: ColumnProps<ReportDqRun>[] = [
     { title: '规则', dataIndex: 'ruleId', minWidth: 150, render: (v: number, r) => renderEllipsis(r.ruleName || `#${v}`) },

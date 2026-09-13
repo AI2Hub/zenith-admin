@@ -18,9 +18,8 @@ import {
   useTenantPackageList,
 } from '@/hooks/queries/tenant-packages';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { BatchDeleteButton, CreateButton } from '@/components/toolbar-controls';
-import { confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection, useStatusToggle } from '@/components/list-page';
+import { confirmAndDelete, ListSearchToolbar, useRowSelection, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { EditFormModal } from '@/components/EditFormModal';
 
 export default function TenantPackagesPage() {
@@ -91,6 +90,24 @@ export default function TenantPackagesPage() {
     setFeatureModalVisible(false);
   };
 
+  const operationColumn = useCrudOperationColumn<TenantPackage>({
+    permission: 'system:tenant-package',
+    edit: modal,
+    remove: deleteMutation,
+    title: '确认删除此套餐？',
+    content: '删除后已绑定该套餐的租户将解除关联。',
+    extraBetween: (row) => [
+      {
+        key: 'features',
+        label: '分配功能',
+        hidden: !hasPermission('system:tenant-package:assign'),
+        onClick: () => openFeatureModal(row),
+      },
+    ],
+    width: 240,
+    desktopInlineKeys: ['edit', 'features', 'delete'],
+  });
+
   const columns: ColumnProps<TenantPackage>[] = [
     { title: '套餐名称', dataIndex: 'name', width: 180, render: renderEllipsis },
     {
@@ -114,30 +131,7 @@ export default function TenantPackagesPage() {
     { title: '备注', dataIndex: 'remark', minWidth: 200, render: renderEllipsis },
     createdAtColumn,
     status.column(),
-    createOperationColumn<TenantPackage>({
-      width: 240,
-      desktopInlineKeys: ['edit', 'features', 'delete'],
-      actions: (row) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('system:tenant-package:update'),
-          onClick: () => modal.openEdit(row),
-        },
-        {
-          key: 'features',
-          label: '分配功能',
-          hidden: !hasPermission('system:tenant-package:assign'),
-          onClick: () => openFeatureModal(row),
-        },
-        deleteAction({
-          hidden: !hasPermission('system:tenant-package:delete'),
-          title: '确认删除此套餐？',
-          content: '删除后已绑定该套餐的租户将解除关联。',
-          run: () => deleteMutation.mutateAsync([row.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

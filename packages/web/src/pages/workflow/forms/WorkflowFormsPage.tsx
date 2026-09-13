@@ -7,7 +7,6 @@ import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import {
   useDeleteWorkflowForm,
   useDuplicateWorkflowForm,
@@ -16,7 +15,7 @@ import {
 } from '@/hooks/queries/workflow-forms';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { EMPTY_PLACEHOLDER, dateTimeColumn } from '@/utils/table-columns';
 import { useListPage } from '@/hooks/useListPage';
 
@@ -80,6 +79,24 @@ export default function WorkflowFormsPage() {
     }
   };
 
+  const operationColumn = useCrudOperationColumn<WorkflowForm>({
+    permissions: { edit: 'workflow:form:edit', remove: 'workflow:form:delete' },
+    edit: (record) => navigate(`/workflow/forms/designer?id=${record.id}`),
+    remove: (record) => deleteMutation.mutateAsync({ params: { id: record.id } }),
+    title: '确定要删除该表单吗？',
+    disabled: { remove: (record) => (record.usageCount ?? 0) > 0, reason: (record) => `该表单正被 ${record.usageCount} 个流程引用，解除引用后才能删除` },
+    extraBetween: (record) => [
+      {
+        key: 'duplicate',
+        label: '复制',
+        hidden: !hasPermission('workflow:form:create'),
+        onClick: () => void handleDuplicate(record.id),
+      },
+    ],
+    width: 210,
+    desktopInlineKeys: ['edit', 'duplicate', 'delete'],
+  });
+
   const columns: ColumnProps<WorkflowForm>[] = [
     {
       title: '表单名称',
@@ -129,31 +146,7 @@ export default function WorkflowFormsPage() {
         return <Tag color={STATUS_COLORS[value]}>{WORKFLOW_FORM_STATUS_LABELS[value]}</Tag>;
       },
     },
-    createOperationColumn<WorkflowForm>({
-      width: 210,
-      desktopInlineKeys: ['edit', 'duplicate', 'delete'],
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('workflow:form:edit'),
-          onClick: () => navigate(`/workflow/forms/designer?id=${record.id}`),
-        },
-        {
-          key: 'duplicate',
-          label: '复制',
-          hidden: !hasPermission('workflow:form:create'),
-          onClick: () => void handleDuplicate(record.id),
-        },
-        deleteAction({
-          hidden: !hasPermission('workflow:form:delete'),
-          disabled: (record.usageCount ?? 0) > 0,
-          disabledReason: `该表单正被 ${record.usageCount} 个流程引用，解除引用后才能删除`,
-          title: '确定要删除该表单吗？',
-          run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

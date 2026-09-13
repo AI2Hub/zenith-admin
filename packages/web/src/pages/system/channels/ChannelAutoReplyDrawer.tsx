@@ -15,8 +15,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { AppModal } from '@/components/AppModal';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, listTableProps } from '@/components/list-page';
+import { listTableProps, useCrudOperationColumn } from '@/components/list-page';
 import {
   ChannelContentFields,
   ChannelNewsBodyField,
@@ -138,6 +137,14 @@ export function ChannelAutoReplyDrawer({ channelId, channelName, visible, onClos
     setEditVisible(false);
   };
 
+  const operationColumn = useCrudOperationColumn<ChannelAutoReply>({
+    edit: openEdit,
+    remove: (record) => deleteMutation.mutateAsync({ params: { channelId, replyId: record.id } }),
+    allow: { edit: canSave, remove: canDelete },
+    title: '确定删除该规则？',
+    successMessage: '已删除',
+    width: 150,
+  });
 
   const columns: ColumnProps<ChannelAutoReply>[] = [
     {
@@ -176,23 +183,7 @@ export function ChannelAutoReplyDrawer({ channelId, channelName, visible, onClos
     },
     { title: '状态', dataIndex: 'status', width: 80, render: renderEnabledStatusTag },
     { title: '排序', dataIndex: 'sort', width: 64 },
-    createOperationColumn<ChannelAutoReply>({
-      width: 150,
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !canSave,
-          onClick: () => openEdit(record),
-        },
-        deleteAction({
-          hidden: !canDelete,
-          title: '确定删除该规则？',
-          run: () => deleteMutation.mutateAsync({ params: { channelId, replyId: record.id } }),
-          successMessage: '已删除',
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

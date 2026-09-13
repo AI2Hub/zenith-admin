@@ -8,7 +8,6 @@ import type { UserTransferUser } from '@/components/UserTransferSelect';
 import { usePermission } from '@/hooks/usePermission';
 import ExportButton from '@/components/ExportButton';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { useFlatDepartments } from '@/hooks/queries/departments';
 import {
@@ -22,7 +21,7 @@ import {
 import { useAllUsers } from '@/hooks/queries/users';
 import { useEditModal } from '@/hooks/useEditModal';
 import { BatchDeleteButton, CreateButton } from '@/components/toolbar-controls';
-import { confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection, useStatusToggle } from '@/components/list-page';
+import { confirmAndDelete, ListSearchToolbar, useRowSelection, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { MemberAssignmentSheet, memberPreviewColumn } from '@/components/members/MemberAssignmentSheet';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
@@ -96,6 +95,22 @@ export default function PositionsPage() {
     setMemberSheetVisible(false);
   };
 
+  const operationColumn = useCrudOperationColumn<Position>({
+    permission: 'system:position',
+    edit: (record) => { positionModal.openEdit(record); },
+    remove: deleteMutation,
+    title: '确定要删除该岗位吗？',
+    extraBetween: (record) => [
+      {
+        key: 'members',
+        label: '成员',
+        hidden: !hasPermission('system:position:update'),
+        onClick: () => { void openMembers(record); },
+      },
+    ],
+    width: 210,
+  });
+
   const columns: ColumnProps<Position>[] = [
     { title: '岗位名称', dataIndex: 'name', minWidth: 200, render: renderEllipsis },
     { title: '岗位编码', dataIndex: 'code', width: 180, render: renderEllipsis },
@@ -115,28 +130,7 @@ export default function PositionsPage() {
     },
     createdAtColumn,
     status.column(),
-    createOperationColumn<Position>({
-      width: 210,
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('system:position:update'),
-          onClick: () => { positionModal.openEdit(record); },
-        },
-        {
-          key: 'members',
-          label: '成员',
-          hidden: !hasPermission('system:position:update'),
-          onClick: () => { void openMembers(record); },
-        },
-        deleteAction({
-          hidden: !hasPermission('system:position:delete'),
-          title: '确定要删除该岗位吗？',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

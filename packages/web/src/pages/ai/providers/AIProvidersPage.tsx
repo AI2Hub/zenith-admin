@@ -3,7 +3,6 @@ import { Button, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { useTreeExpansion, type TreeRowKey } from '@/hooks/useTreeExpansion';
@@ -19,7 +18,7 @@ import {
 } from '@/hooks/queries/ai-providers';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, listTableProps, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 
 const { Text } = Typography;
 
@@ -118,6 +117,23 @@ export default function AIProvidersPage() {
     setExpandedRowKeys((prev) => [...prev, ...newKeys]);
   }, [allGroupKeys, setExpandedRowKeys]);
 
+  const operationColumn = useCrudOperationColumn<AiProviderConfig>({
+    permissions: { edit: 'ai:provider:edit', remove: 'ai:provider:delete' },
+    edit: openEdit,
+    remove: (record) => deleteMutation.mutateAsync({ params: { id: record.id } }),
+    title: '确定要删除该服务商配置吗？',
+    extraBetween: (record) => [
+      {
+        key: 'set-default',
+        label: '设为默认',
+        hidden: !hasPermission('ai:provider:edit') || record.isDefault,
+        onClick: () => handleSetDefault(record.id),
+      },
+    ],
+    width: 180,
+    desktopInlineKeys: ['edit', 'delete'],
+  });
+
   const columns: ColumnProps<AiProviderConfig>[] = [
     {
       title: '名称',
@@ -141,29 +157,7 @@ export default function AIProvidersPage() {
         (record.isDefault ? <Tag color="blue" size="small">默认</Tag> : null),
     },
     status.column({ dataIndex: 'isEnabled' }),
-    createOperationColumn<AiProviderConfig>({
-      width: 180,
-      desktopInlineKeys: ['edit', 'delete'],
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('ai:provider:edit'),
-          onClick: () => openEdit(record),
-        },
-        {
-          key: 'set-default',
-          label: '设为默认',
-          hidden: !hasPermission('ai:provider:edit') || record.isDefault,
-          onClick: () => handleSetDefault(record.id),
-        },
-        deleteAction({
-          hidden: !hasPermission('ai:provider:delete'),
-          title: '确定要删除该服务商配置吗？',
-          run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

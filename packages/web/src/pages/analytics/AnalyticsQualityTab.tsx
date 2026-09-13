@@ -6,7 +6,6 @@ import { Form, Select, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { config } from '@/config';
 import {
   analyticsKeys,
@@ -23,7 +22,7 @@ import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { useEditModal } from '@/hooks/useEditModal';
 import { EMPTY_PLACEHOLDER, dateColumn, dateTimeColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { ANALYTICS_ISSUE_TAG_COLOR } from './analytics-tag-colors';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar, listTableProps, useCrudOperationColumn } from '@/components/list-page';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
 import { EditFormModal } from '@/components/EditFormModal';
 
@@ -111,6 +110,14 @@ export default function AnalyticsQualityTab() {
     dateTimeColumn('最近发生', 'lastSeenAt'),
   ];
 
+  const operationColumn = useCrudOperationColumn<AnalyticsEventOverride>({
+    edit: overrideModal,
+    remove: (record) => deleteOverrideMutation.mutateAsync({ params: { id: record.id } }),
+    title: (record) => `确定删除事件「${record.eventName}」的覆盖规则吗？`,
+    width: 150,
+    desktopInlineKeys: ['edit', 'delete'],
+  });
+
   const overrideColumns: ColumnProps<AnalyticsEventOverride>[] = [
     { title: '事件名', dataIndex: 'eventName', width: 200 },
     {
@@ -121,17 +128,7 @@ export default function AnalyticsQualityTab() {
     },
     { title: '原因', dataIndex: 'reason', render: renderEllipsis },
     dateTimeColumn('更新时间', 'updatedAt'),
-    createOperationColumn<AnalyticsEventOverride>({
-      width: 150,
-      desktopInlineKeys: ['edit', 'delete'],
-      actions: (record) => [
-        { key: 'edit', label: '编辑', onClick: () => overrideModal.openEdit(record) },
-        deleteAction({
-          title: `确定删除事件「${record.eventName}」的覆盖规则吗？`,
-          run: () => deleteOverrideMutation.mutateAsync({ params: { id: record.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

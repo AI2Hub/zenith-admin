@@ -8,7 +8,6 @@ import { CMS_WIDGET_STATUS_LABELS, CMS_WIDGET_TYPE_LABELS, CMS_WIDGET_STATUS_OPT
 import type { CmsWidget, CmsWidgetRef, CmsWidgetStatus, CmsWidgetType } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
@@ -26,7 +25,7 @@ import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar, listTableProps, useCrudOperationColumn } from '@/components/list-page';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 interface SearchState {
@@ -138,6 +137,40 @@ export default function WidgetsPage() {
     });
   }
 
+  const operationColumn = useCrudOperationColumn<CmsWidget>({
+    permission: 'cms:widget',
+    edit: (record) => navigate(`/cms/widgets/edit?id=${record.id}&siteId=${record.siteId}`),
+    remove: (record) => deleteMutation.mutateAsync({ params: { id: record.id } }),
+    title: (record) => `删除页面部件「${record.name}」？`,
+    content: (record) => record.referenceCount > 0
+              ? `该部件仍有 ${record.referenceCount} 个引用，无法删除。`
+              : '删除后不可恢复。',
+    disabled: { remove: (record) => record.referenceCount > 0, reason: (record) => record.referenceCount > 0 ? '请先解除所有页面和主题插槽引用' : undefined },
+    extraBetween: (record) => [
+      {
+        key: 'publish',
+        label: '发布',
+        hidden: !hasPermission('cms:widget:publish'),
+        loading: publishMutation.isPending && publishMutation.variables?.params.id === record.id,
+        onClick: () => runSingle('publish', record),
+      },
+      {
+        key: 'offline',
+        label: '下线',
+        hidden: record.status !== 'published' || !hasPermission('cms:widget:offline'),
+        loading: offlineMutation.isPending && offlineMutation.variables?.params.id === record.id,
+        onClick: () => runSingle('offline', record),
+      },
+      {
+        key: 'refs',
+        label: `引用（${record.referenceCount}）`,
+        onClick: () => setRefsWidget(record),
+      },
+    ],
+    width: 180,
+    desktopInlineKeys: ['edit', 'publish'],
+  });
+
   const columns: ColumnProps<CmsWidget>[] = [
     { title: '部件名称', dataIndex: 'name', minWidth: 190, render: renderEllipsis },
     { title: '编码', dataIndex: 'code', width: 180, render: renderEllipsis },
@@ -180,47 +213,7 @@ export default function WidgetsPage() {
         <Tag size="small" color={STATUS_COLOR[value]}>{CMS_WIDGET_STATUS_LABELS[value]}</Tag>
       ),
     },
-    createOperationColumn<CmsWidget>({
-      width: 180,
-      desktopInlineKeys: ['edit', 'publish'],
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('cms:widget:update'),
-          onClick: () => navigate(`/cms/widgets/edit?id=${record.id}&siteId=${record.siteId}`),
-        },
-        {
-          key: 'publish',
-          label: '发布',
-          hidden: !hasPermission('cms:widget:publish'),
-          loading: publishMutation.isPending && publishMutation.variables?.params.id === record.id,
-          onClick: () => runSingle('publish', record),
-        },
-        {
-          key: 'offline',
-          label: '下线',
-          hidden: record.status !== 'published' || !hasPermission('cms:widget:offline'),
-          loading: offlineMutation.isPending && offlineMutation.variables?.params.id === record.id,
-          onClick: () => runSingle('offline', record),
-        },
-        {
-          key: 'refs',
-          label: `引用（${record.referenceCount}）`,
-          onClick: () => setRefsWidget(record),
-        },
-        deleteAction({
-          hidden: !hasPermission('cms:widget:delete'),
-          disabled: record.referenceCount > 0,
-          disabledReason: record.referenceCount > 0 ? '请先解除所有页面和主题插槽引用' : undefined,
-          title: `删除页面部件「${record.name}」？`,
-          content: record.referenceCount > 0
-            ? `该部件仍有 ${record.referenceCount} 个引用，无法删除。`
-            : '删除后不可恢复。',
-          run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   // 站点切换与查询 / 重置都会清空已选行（后两者经 useListSearch 的 onSearch / onReset），避免跨条件误批量操作；

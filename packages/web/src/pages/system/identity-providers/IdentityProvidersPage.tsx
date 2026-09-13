@@ -6,7 +6,6 @@ import type { IdentityProviderType, TenantIdentityProvider } from '@zenith/share
 import { IDENTITY_PROVIDER_STATUSES, IDENTITY_PROVIDER_TYPES, SUPER_ADMIN_CODE, identityProviderContract } from '@zenith/shared/identity';
 import { enumValueOf, type BodyOf } from '@zenith/shared/core';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useAllRoles } from '@/hooks/queries/roles';
 import { useIsPlatformAdmin } from '@/hooks/useIsPlatformAdmin';
@@ -25,7 +24,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import { CreateButton, SearchButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormSheet } from '@/components/EditFormModal';
 
@@ -282,6 +281,20 @@ export default function IdentityProvidersPage() {
     });
   }
 
+  const operationColumn = useCrudOperationColumn<TenantIdentityProvider>({
+    edit: (row) => { void openEdit(row); },
+    remove: deleteMutation,
+    title: (row) => `确认删除身份源「${row.name}」？`,
+    content: '删除后，已绑定的企业身份账号关系也会被移除。',
+    extraBetween: (row) => [
+      { key: 'test', label: '测试', hidden: !isDirectoryType(row.type), onClick: () => { void handleTestConnection(row); } },
+      { key: 'searchUsers', label: '搜索用户', hidden: !isDirectoryType(row.type), onClick: () => openLdapSearch(row) },
+      { key: 'sync', label: '同步', hidden: !isDirectoryType(row.type), onClick: () => handleSyncDirectory(row) },
+    ],
+    width: 240,
+    desktopInlineKeys: ['edit', 'test', 'delete'],
+  });
+
   const columns: ColumnProps<TenantIdentityProvider>[] = [
     { title: '名称', dataIndex: 'name', minWidth: 180, render: renderEllipsis },
     { title: '编码', dataIndex: 'code', width: 130, render: renderEllipsis },
@@ -300,17 +313,7 @@ export default function IdentityProvidersPage() {
     },
     createdAtColumn,
     status.column(),
-    createOperationColumn<TenantIdentityProvider>({
-      width: 240,
-      desktopInlineKeys: ['edit', 'test', 'delete'],
-      actions: (row) => [
-        { key: 'edit', label: '编辑', onClick: () => { void openEdit(row); } },
-        { key: 'test', label: '测试', hidden: !isDirectoryType(row.type), onClick: () => { void handleTestConnection(row); } },
-        { key: 'searchUsers', label: '搜索用户', hidden: !isDirectoryType(row.type), onClick: () => openLdapSearch(row) },
-        { key: 'sync', label: '同步', hidden: !isDirectoryType(row.type), onClick: () => handleSyncDirectory(row) },
-        deleteAction({ title: `确认删除身份源「${row.name}」？`, content: '删除后，已绑定的企业身份账号关系也会被移除。', run: () => deleteMutation.mutateAsync([row.id]) }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

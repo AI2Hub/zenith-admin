@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { deleteAction, ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
+import { ListSearchToolbar, listTableProps, useRowSelection, useCrudOperationColumn } from '@/components/list-page';
 import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Banner, SideSheet, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
@@ -222,6 +222,28 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
     Toast.success(`已将 ${result.scheduled} 条投递加入重试队列`);
   }
 
+  const operationColumn = useCrudOperationColumn<AppWebhookSubscription>({
+    edit: openEdit,
+    remove: (record) => deleteMutation.mutateAsync({ params: { id: record.id } }),
+    allow: { edit: canManage, remove: canManage },
+    title: '确定删除此 Webhook 订阅？',
+    content: '关联投递日志将一并删除',
+    extra: (record) => [
+      { key: 'deliveries', label: '投递日志', onClick: () => openDeliveries(record) },
+    ],
+    extraBetween: (record) => [
+      { key: 'test', label: '测试', hidden: !canManage, onClick: () => void handleTest(record.id) },
+      {
+        key: 'regenerate', label: '重置密钥', hidden: !canManage,
+        onClick: () => {
+          confirmDanger({ title: '重置签名密钥？旧密钥将立即失效', onOk: () => handleRegenerate(record.id) });
+        },
+      },
+    ],
+    width: 210,
+    desktopInlineKeys: ['deliveries', 'edit'],
+  });
+
   const columns: ColumnProps<AppWebhookSubscription>[] = [
     { title: 'ID', dataIndex: 'id', width: 60 },
     { title: '名称', dataIndex: 'name', width: 200, render: renderEllipsis },
@@ -245,27 +267,7 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
     { title: '签名', dataIndex: 'signMode', width: 90, render: (v: string) => v === 'hmacSha256' ? <Tag size="small" color="orange">HMAC</Tag> : <Text type="tertiary">无</Text> },
     dateTimeColumn('最近投递', 'lastDeliveryAt'),
     enabledStatusColumn(),
-    createOperationColumn<AppWebhookSubscription>({
-      width: 210,
-      desktopInlineKeys: ['deliveries', 'edit'],
-      actions: (record) => [
-        { key: 'deliveries', label: '投递日志', onClick: () => openDeliveries(record) },
-        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => openEdit(record) },
-        { key: 'test', label: '测试', hidden: !canManage, onClick: () => void handleTest(record.id) },
-        {
-          key: 'regenerate', label: '重置密钥', hidden: !canManage,
-          onClick: () => {
-            confirmDanger({ title: '重置签名密钥？旧密钥将立即失效', onOk: () => handleRegenerate(record.id) });
-          },
-        },
-        deleteAction({
-          hidden: !canManage,
-          title: '确定删除此 Webhook 订阅？',
-          content: '关联投递日志将一并删除',
-          run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   const deliveryColumns: ColumnProps<AppWebhookDelivery>[] = [
@@ -331,11 +333,6 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
       <ConfigurableTable
 
         columns={columns}
-
-
-
-
-
 
         empty={paymentScope ? '暂无支付 Webhook 订阅' : '暂无 Webhook 订阅'}
         {...listTableProps(listQuery, { pagination: buildPagination })}

@@ -7,7 +7,6 @@ import { enumValueOf } from '@zenith/shared/core';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENT_OPTIONS, developerAppContract } from '@zenith/shared/open-platform';
 import type { OAuth2Client, OAuth2GrantType } from '@zenith/shared/open-platform';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useOAuth2ApiScopes } from '@/hooks/queries/oauth2-apps';
 import {
   useDeleteMyApp,
@@ -19,7 +18,7 @@ import {
   useSubmitMyApp,
 } from '@/hooks/queries/developer-apps';
 import { CreateButton } from '@/components/toolbar-controls';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
 import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricMeter';
 import { copyableNoColumn, dateTimeColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
@@ -127,6 +126,47 @@ export default function MyAppsPage() {
     });
   };
 
+  const operationColumn = useCrudOperationColumn<OAuth2Client>({
+    edit: modal,
+    remove: (app) => deleteMutation.mutateAsync({ params: { id: app.id } }),
+    hidden: { edit: (app) => app.reviewStatus === 'pending', remove: (app) => app.reviewStatus === 'pending' },
+    title: '确认删除应用？',
+    successMessage: '应用已删除',
+    extraBetween: (app) => [
+      { key: 'usage', label: '用量', onClick: () => setUsageApp(app) },
+      {
+        key: 'submit',
+        label: '提交审核',
+        hidden: !['draft', 'rejected'].includes(app.reviewStatus),
+        onClick: () => {
+          Modal.confirm({
+            title: '提交应用审核？',
+            content: '审核期间将暂时无法修改应用配置。',
+            onOk: async () => {
+              await submitMutation.mutateAsync({ params: { id: app.id } });
+              Toast.success('已提交审核');
+            },
+          });
+        },
+      },
+      { key: 'debug', label: '在线调试', onClick: () => navigate(`/open-platform/debug?appId=${app.id}`) },
+      {
+        key: 'rotate',
+        label: '轮换密钥',
+        hidden: app.isPublic,
+        onClick: () => {
+          Modal.confirm({
+            title: '轮换应用密钥？',
+            content: '旧密钥将在宽限期内继续有效，已颁发令牌会被撤销。',
+            onOk: () => rotateSecret(app),
+          });
+        },
+      },
+    ],
+    width: 180,
+    desktopInlineKeys: ['edit', 'usage'],
+  });
+
   const columns: ColumnProps<OAuth2Client>[] = [
     { title: '应用名称', dataIndex: 'name', minWidth: 240, render: renderEllipsis },
     copyableNoColumn('Client ID', 'clientId', { width: 270 }),
@@ -141,49 +181,7 @@ export default function MyAppsPage() {
       fixed: 'right',
       render: renderEnabledStatusTag,
     },
-    createOperationColumn<OAuth2Client>({
-      // 提交审核 / 在线调试 / 轮换密钥 / 删除 随审核状态出现，进更多；行内保留编辑 / 用量
-      width: 180,
-      desktopInlineKeys: ['edit', 'usage'],
-      actions: (app) => [
-        { key: 'edit', label: '编辑', hidden: app.reviewStatus === 'pending', onClick: () => modal.openEdit(app) },
-        { key: 'usage', label: '用量', onClick: () => setUsageApp(app) },
-        {
-          key: 'submit',
-          label: '提交审核',
-          hidden: !['draft', 'rejected'].includes(app.reviewStatus),
-          onClick: () => {
-            Modal.confirm({
-              title: '提交应用审核？',
-              content: '审核期间将暂时无法修改应用配置。',
-              onOk: async () => {
-                await submitMutation.mutateAsync({ params: { id: app.id } });
-                Toast.success('已提交审核');
-              },
-            });
-          },
-        },
-        { key: 'debug', label: '在线调试', onClick: () => navigate(`/open-platform/debug?appId=${app.id}`) },
-        {
-          key: 'rotate',
-          label: '轮换密钥',
-          hidden: app.isPublic,
-          onClick: () => {
-            Modal.confirm({
-              title: '轮换应用密钥？',
-              content: '旧密钥将在宽限期内继续有效，已颁发令牌会被撤销。',
-              onOk: () => rotateSecret(app),
-            });
-          },
-        },
-        deleteAction({
-          hidden: app.reviewStatus === 'pending',
-          title: '确认删除应用？',
-          run: () => deleteMutation.mutateAsync({ params: { id: app.id } }),
-          successMessage: '应用已删除',
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

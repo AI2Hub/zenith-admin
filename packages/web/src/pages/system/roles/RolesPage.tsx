@@ -15,7 +15,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { MenuPermissionPanel } from '@/components/permissions/MenuPermissionPanel';
 import { DataScopePanel } from '@/components/permissions/DataScopePanel';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { departmentTreeToTreeData, useDepartmentTree } from '@/hooks/queries/departments';
 import { useMenuTree } from '@/hooks/queries/menus';
 import { useAllUsers } from '@/hooks/queries/users';
@@ -33,7 +32,7 @@ import {
 } from '@/hooks/queries/roles';
 import { CreateButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import ModalFooter from '@/components/ModalFooter';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
@@ -75,7 +74,6 @@ export default function RolesPage() {
   const [dataScopeRole, setDataScopeRole] = useState<Role | null>(null);
   const [selectedDataScope, setSelectedDataScope] = useState<string>('all');
   const [selectedDeptScopeIds, setSelectedDeptScopeIds] = useState<number[]>([]);
-
 
   const menuTreeQuery = useMenuTree({ enabled: menuModalVisible });
   const menuRoleDetailQuery = useRoleDetail(menuRole?.id, menuModalVisible);
@@ -179,6 +177,38 @@ export default function RolesPage() {
     setDataScopeModalVisible(false);
   };
 
+  const operationColumn = useCrudOperationColumn<Role>({
+    permission: 'system:role',
+    edit: roleModal,
+    remove: deleteMutation,
+    title: '确认删除此角色？',
+    disabled: { remove: (row) => row.code === 'super_admin', reason: '超级管理员角色不允许删除' },
+    extraBetween: (row) => [
+      {
+        key: 'menu',
+        label: '菜单权限',
+        hidden: !hasPermission('system:role:assign'),
+        onClick: () => openMenuModal(row),
+      },
+    ],
+    extraAfter: (row) => [
+      {
+        key: 'users',
+        label: '分配用户',
+        hidden: !hasPermission('system:role:assign'),
+        onClick: () => openUserModal(row),
+      },
+      {
+        key: 'dataScope',
+        label: '数据权限',
+        hidden: !hasPermission('system:role:update'),
+        onClick: () => openDataScopeModal(row),
+      },
+    ],
+    width: 260,
+    desktopInlineKeys: ['edit', 'menu', 'delete'],
+  });
+
   const columns: ColumnProps<Role>[] = [
     { title: '角色名称', dataIndex: 'name', width: 160, render: renderEllipsis },
     { title: '角色编码', dataIndex: 'code', width: 160, render: renderEllipsis },
@@ -201,43 +231,7 @@ export default function RolesPage() {
     },
     createdAtColumn,
     status.column(),
-    createOperationColumn<Role>({
-      width: 260,
-      desktopInlineKeys: ['edit', 'menu', 'delete'],
-      actions: (row) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('system:role:update'),
-          onClick: () => roleModal.openEdit(row),
-        },
-        {
-          key: 'menu',
-          label: '菜单权限',
-          hidden: !hasPermission('system:role:assign'),
-          onClick: () => openMenuModal(row),
-        },
-        deleteAction({
-          hidden: !hasPermission('system:role:delete'),
-          disabled: row.code === 'super_admin',
-          disabledReason: '超级管理员角色不允许删除',
-          title: '确认删除此角色？',
-          run: () => deleteMutation.mutateAsync([row.id]),
-        }),
-        {
-          key: 'users',
-          label: '分配用户',
-          hidden: !hasPermission('system:role:assign'),
-          onClick: () => openUserModal(row),
-        },
-        {
-          key: 'dataScope',
-          label: '数据权限',
-          hidden: !hasPermission('system:role:update'),
-          onClick: () => openDataScopeModal(row),
-        },
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

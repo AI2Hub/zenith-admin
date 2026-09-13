@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { Button, Col, Form, Modal, Row, SideSheet, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AiPromptTemplate, AiPromptScope, CreateAiPromptTemplateInput } from '@zenith/shared/ai';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import {
@@ -103,6 +102,24 @@ export default function PromptTemplatesPage() {
   });
   const openEdit = promptModal.openEdit;
 
+  const operationColumn = useCrudOperationColumn<AiPromptTemplate>({
+    permissions: { edit: 'ai:prompt:edit', remove: 'ai:prompt:delete' },
+    edit: openEdit,
+    remove: deleteMutation,
+    hidden: { remove: (record) => record.isBuiltin },
+    title: '确定要删除该提示词模板吗？',
+    content: '删除后不可恢复',
+    extraBetween: (record) => [
+      {
+        key: 'versions',
+        label: '版本',
+        onClick: () => setVersionTemplate(record),
+      },
+    ],
+    width: 210,
+    desktopInlineKeys: ['edit', 'versions', 'delete'],
+  });
+
   const columns: ColumnProps<AiPromptTemplate>[] = [
     { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
     { title: '分类', dataIndex: 'category', width: 120, render: renderEllipsis },
@@ -118,29 +135,7 @@ export default function PromptTemplatesPage() {
       fixed: 'right',
       render: (enabled: boolean) => statusTag(enabled),
     },
-    createOperationColumn<AiPromptTemplate>({
-      width: 210,
-      desktopInlineKeys: ['edit', 'versions', 'delete'],
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('ai:prompt:edit'),
-          onClick: () => openEdit(record),
-        },
-        {
-          key: 'versions',
-          label: '版本',
-          onClick: () => setVersionTemplate(record),
-        },
-        deleteAction({
-          hidden: !hasPermission('ai:prompt:delete') || record.isBuiltin,
-          title: '确定要删除该提示词模板吗？',
-          content: '删除后不可恢复',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

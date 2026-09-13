@@ -4,7 +4,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WorkflowDelegation } from '@zenith/shared/workflow';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useWorkflowDefinitionList } from '@/hooks/queries/workflow-definitions';
 import { useWorkflowSelectableUsers } from '@/hooks/queries/workflow-shared';
@@ -16,7 +15,7 @@ import {
   workflowDelegationKeys,
 } from '@/hooks/queries/workflow-delegations';
 import { CreateButton } from '@/components/toolbar-controls';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar, listTableProps, useCrudOperationColumn } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { EditFormModal } from '@/components/EditFormModal';
@@ -101,6 +100,16 @@ export default function WorkflowDelegationsPage() {
     }),
   });
 
+  const operationColumn = useCrudOperationColumn<WorkflowDelegation>({
+    edit: delegationModal,
+    remove: deleteMutation,
+    allow: { edit: canManage, remove: canManage },
+    title: '确定删除该审批代理？',
+    successMessage: '已删除',
+    width: 150,
+    desktopInlineKeys: ['edit', 'delete'],
+  });
+
   const columns: ColumnProps<WorkflowDelegation>[] = [
     {
       title: '委托人',
@@ -147,24 +156,7 @@ export default function WorkflowDelegationsPage() {
       fixed: 'right',
       render: (_v: unknown, r: WorkflowDelegation) => renderDelegationStatus(r),
     },
-    createOperationColumn<WorkflowDelegation>({
-      width: 150,
-      desktopInlineKeys: ['edit', 'delete'],
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !canManage,
-          onClick: () => delegationModal.openEdit(record),
-        },
-        deleteAction({
-          hidden: !canManage,
-          title: '确定删除该审批代理？',
-          run: () => deleteMutation.mutateAsync([record.id]),
-          successMessage: '已删除',
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

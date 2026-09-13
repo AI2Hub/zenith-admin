@@ -5,8 +5,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../../utils/table-columns';
 import {
   useDeleteSmsConfig,
@@ -68,6 +67,23 @@ export default function SmsConfigsPage() {
     Toast.success('已设为默认');
   };
 
+  const operationColumn = useCrudOperationColumn<SmsConfig>({
+    permission: 'system:sms-config',
+    edit: configModal,
+    remove: deleteMutation,
+    title: '确定要删除该短信配置吗？',
+    extra: (record) => [
+      {
+        key: 'default',
+        label: '设为默认',
+        hidden: !can('system:sms-config:update') || record.isDefault,
+        onClick: () => handleSetDefault(record),
+      },
+    ],
+    width: 180,
+    desktopInlineKeys: ['edit', 'delete'],
+  });
+
   const columns = [
     { title: '名称', dataIndex: 'name', minWidth: 160 },
     {
@@ -83,29 +99,7 @@ export default function SmsConfigsPage() {
     },
     createdAtColumn,
     status.column(),
-    createOperationColumn<SmsConfig>({
-      desktopInlineKeys: ['edit', 'delete'],
-      width: 180,
-      actions: (record) => [
-        {
-          key: 'default',
-          label: '设为默认',
-          hidden: !can('system:sms-config:update') || record.isDefault,
-          onClick: () => handleSetDefault(record),
-        },
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !can('system:sms-config:update'),
-          onClick: () => configModal.openEdit(record),
-        },
-        deleteAction({
-          hidden: !can('system:sms-config:delete'),
-          title: '确定要删除该短信配置吗？',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

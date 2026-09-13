@@ -5,8 +5,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import {
   inAppTemplateKeys,
@@ -41,7 +40,6 @@ export default function InAppTemplatesPage() {
     toQuery: (s) => ({ keyword: s.keyword, type: s.filterType, status: enumValueOf(USER_STATUSES, s.filterStatus) }),
   });
 
-
   const saveMutation = useSaveInAppTemplate();
   const modal = useEditModal<InAppTemplate, Partial<CreateInAppTemplateInput>>({
     entityName: '站内信模板',
@@ -69,6 +67,13 @@ export default function InAppTemplatesPage() {
     messages: { disabled: '已禁用' },
   });
 
+  const operationColumn = useCrudOperationColumn<InAppTemplate>({
+    permission: 'system:in-app-template',
+    edit: modal,
+    remove: deleteMutation,
+    title: '确定要删除该站内信模板吗？',
+    width: 150,
+  });
 
   const columns = [
     { title: '模板名称', dataIndex: 'name', width: 160 },
@@ -83,22 +88,7 @@ export default function InAppTemplatesPage() {
     },
     createdAtColumn,
     status.column(),
-    createOperationColumn<InAppTemplate>({
-      width: 150,
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !can('system:in-app-template:update'),
-          onClick: () => modal.openEdit(record),
-        },
-        deleteAction({
-          hidden: !can('system:in-app-template:delete'),
-          title: '确定要删除该站内信模板吗？',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

@@ -16,8 +16,7 @@ import ExportButton from '@/components/ExportButton';
 import ImportButton from '@/components/ImportButton';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
+import { ListSearchToolbar, listTableProps, useRowSelection, useCrudOperationColumn } from '@/components/list-page';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { MemberDetailDrawer } from './MemberDetailDrawer';
 import { MemberTagsManageModal } from './MemberTagsManageModal';
@@ -106,7 +105,6 @@ export default function MembersPage() {
   const batchLevelMutation = useBatchMemberLevel();
   const setTagsMutation = useSetMemberTags();
   const batchTagsMutation = useBatchMemberTags();
-
 
   // 敏感字段（手机号 / 邮箱）对非豁免用户是掩码：编辑时锁定，提交前剔除未修改的锁定字段
   const sensitiveFieldsRef = useRef<ReturnType<typeof useSensitiveFormFields<Member>> | null>(null);
@@ -208,6 +206,25 @@ export default function MembersPage() {
     clearSelection();
   };
 
+  const operationColumn = useCrudOperationColumn<Member>({
+    permission: 'member:member',
+    edit: memberModal,
+    remove: deleteMutation,
+    title: (record) => `确认删除会员「${record.nickname}」？`,
+    content: '删除后该会员将无法登录、不再出现在列表中；其积分/钱包流水、券码与签到记录将保留用于审计对账。',
+    extra: (record) => [
+      { key: 'detail', label: '详情', onClick: () => setDetailMemberId(record.id) },
+    ],
+    extraBetween: (record) => [
+      { key: 'set-tags', label: '设置标签', hidden: !hasPermission('member:member:update'), onClick: () => openSetTags(record) },
+      { key: 'quick-status', label: record.status === 'banned' ? '恢复正常' : '封禁', danger: record.status !== 'banned', hidden: !hasPermission('member:member:update'), onClick: () => handleQuickStatus(record, record.status === 'banned' ? 'active' : 'banned') },
+      { key: 'adjust-growth', label: '调整成长值', hidden: !hasPermission('member:member:update'), onClick: () => openAdjustGrowth(record) },
+      { key: 'reset-password', label: '重置密码', hidden: !hasPermission('member:member:update'), onClick: () => openResetPwd(record) },
+    ],
+    width: 180,
+    desktopInlineKeys: ['detail', 'edit'],
+  });
+
   const columns: ColumnProps<Member>[] = [
     {
       title: '昵称', dataIndex: 'nickname', minWidth: 180,
@@ -238,24 +255,7 @@ export default function MembersPage() {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
       render: (v: string) => <Tag color={MEMBER_STATUS_COLORS[v]}>{MEMBER_STATUS_LABELS[v as keyof typeof MEMBER_STATUS_LABELS]}</Tag>,
     },
-    createOperationColumn<Member>({
-      width: 180,
-      desktopInlineKeys: ['detail', 'edit'],
-      actions: (record) => [
-        { key: 'detail', label: '详情', onClick: () => setDetailMemberId(record.id) },
-        { key: 'edit', label: '编辑', hidden: !hasPermission('member:member:update'), onClick: () => memberModal.openEdit(record) },
-        { key: 'set-tags', label: '设置标签', hidden: !hasPermission('member:member:update'), onClick: () => openSetTags(record) },
-        { key: 'quick-status', label: record.status === 'banned' ? '恢复正常' : '封禁', danger: record.status !== 'banned', hidden: !hasPermission('member:member:update'), onClick: () => handleQuickStatus(record, record.status === 'banned' ? 'active' : 'banned') },
-        { key: 'adjust-growth', label: '调整成长值', hidden: !hasPermission('member:member:update'), onClick: () => openAdjustGrowth(record) },
-        { key: 'reset-password', label: '重置密码', hidden: !hasPermission('member:member:update'), onClick: () => openResetPwd(record) },
-        deleteAction({
-          hidden: !hasPermission('member:member:delete'),
-          title: `确认删除会员「${record.nickname}」？`,
-          content: '删除后该会员将无法登录、不再出现在列表中；其积分/钱包流水、券码与签到记录将保留用于审计对账。',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

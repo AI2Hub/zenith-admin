@@ -5,8 +5,7 @@ import { KeyRound, Radar, RotateCcw } from 'lucide-react';
 import type { CreateOpsHostInput, OpsHost, OpsHostAuthType } from '@zenith/shared/ops';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import PageLoading from '@/components/PageLoading';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, listTableProps } from '@/components/list-page';
+import { listTableProps, useCrudOperationColumn } from '@/components/list-page';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
 import { usePermission } from '@/hooks/usePermission';
@@ -132,6 +131,53 @@ export default function HostsPage() {
     else Toast.error(result.probeError ?? '主机离线');
   };
 
+  const operationColumn = useCrudOperationColumn<OpsHost>({
+    edit: (record) => {
+              setFormAuthType(record.authType);
+              modal.openEdit(record);
+            },
+    remove: deleteMutation,
+    allow: { edit: canManage, remove: canManage },
+    title: (record) => `确认删除主机「${record.name}」？`,
+    successMessage: '主机已删除',
+    extra: (record) => [
+      { key: 'detail', label: '详情', onClick: () => setDetailId(record.id) },
+      {
+        key: 'probe',
+        label: '探测',
+        loading: probeMutation.isPending && probeMutation.variables?.params.id === record.id,
+        onClick: () => { void handleProbe(record.id); },
+      },
+      {
+        key: 'test',
+        label: '测试连接',
+        hidden: !canManage,
+        loading: testMutation.isPending && testMutation.variables?.params.id === record.id,
+        onClick: () => { void handleTest(record.id); },
+      },
+    ],
+    extraBetween: (record) => [
+      {
+        key: 'resetKey',
+        label: '重置指纹',
+        hidden: !canManage || !record.hostKeyFingerprint,
+        onClick: () => {
+          confirmDanger({
+            title: '重置 SSH host key 指纹？',
+            content: '仅在确认主机已安全重装或密钥已合法变更时执行。下次连接将重新信任收到的指纹。',
+            okText: '确认重置',
+            onOk: async () => {
+              await resetKeyMutation.mutateAsync({ params: { id: record.id } });
+              Toast.success('指纹已重置');
+            },
+          });
+        },
+      },
+    ],
+    width: 180,
+    desktopInlineKeys: ['detail', 'probe'],
+  });
+
   const columns: ColumnProps<OpsHost>[] = [
     { title: '名称', dataIndex: 'name', minWidth: 160, render: renderEllipsis },
     copyableNoColumn('连接地址', 'host', {
@@ -156,57 +202,7 @@ export default function HostsPage() {
         <Tag color={STATUS_META[value].color} size="small">{STATUS_META[value].label}</Tag>
       ),
     },
-    createOperationColumn<OpsHost>({
-      width: 180,
-      desktopInlineKeys: ['detail', 'probe'],
-      actions: (record) => [
-        { key: 'detail', label: '详情', onClick: () => setDetailId(record.id) },
-        {
-          key: 'probe',
-          label: '探测',
-          loading: probeMutation.isPending && probeMutation.variables?.params.id === record.id,
-          onClick: () => { void handleProbe(record.id); },
-        },
-        {
-          key: 'test',
-          label: '测试连接',
-          hidden: !canManage,
-          loading: testMutation.isPending && testMutation.variables?.params.id === record.id,
-          onClick: () => { void handleTest(record.id); },
-        },
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !canManage,
-          onClick: () => {
-            setFormAuthType(record.authType);
-            modal.openEdit(record);
-          },
-        },
-        {
-          key: 'resetKey',
-          label: '重置指纹',
-          hidden: !canManage || !record.hostKeyFingerprint,
-          onClick: () => {
-            confirmDanger({
-              title: '重置 SSH host key 指纹？',
-              content: '仅在确认主机已安全重装或密钥已合法变更时执行。下次连接将重新信任收到的指纹。',
-              okText: '确认重置',
-              onOk: async () => {
-                await resetKeyMutation.mutateAsync({ params: { id: record.id } });
-                Toast.success('指纹已重置');
-              },
-            });
-          },
-        },
-        deleteAction({
-          hidden: !canManage,
-          title: `确认删除主机「${record.name}」？`,
-          run: () => deleteMutation.mutateAsync([record.id]),
-          successMessage: '主机已删除',
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   if (hostsQuery.isPending) return <PageLoading inline />;

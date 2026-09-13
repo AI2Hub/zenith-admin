@@ -9,8 +9,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { AppModal } from '@/components/AppModal';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, listTableProps } from '@/components/list-page';
+import { listTableProps, useCrudOperationColumn } from '@/components/list-page';
 import { dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
 import {
   memberAdminKeys,
@@ -59,30 +58,23 @@ export default function CheckinRulesPage() {
     defaults: { dayNumber: 1, points: 0, experience: 0, remark: '' },
   });
 
+  const operationColumn = useCrudOperationColumn<CheckinRule>({
+    permission: 'member:checkin:rule',
+    edit: (record) => { ruleModal.openEdit(record); },
+    remove: (record) => deleteRuleMutation.mutateAsync({ params: { id: record.id } }),
+    title: (record) => `确认删除第 ${record.dayNumber} 天规则？`,
+    content: '删除后该连续天数的奖励配置将失效。',
+    width: 150,
+    desktopInlineKeys: ['edit', 'delete'],
+  });
+
   const columns: ColumnProps<CheckinRule>[] = [
     { title: '连续天数', dataIndex: 'dayNumber', width: 100, align: 'right' },
     { title: '积分奖励', dataIndex: 'points', width: 100, align: 'right' },
     { title: '经验奖励', dataIndex: 'experience', width: 100, align: 'right' },
     { title: '备注', dataIndex: 'remark', render: renderEllipsis },
     dateTimeColumn('更新时间', 'updatedAt'),
-    createOperationColumn<CheckinRule>({
-      width: 150,
-      desktopInlineKeys: ['edit', 'delete'],
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('member:checkin:rule:update'),
-          onClick: () => { ruleModal.openEdit(record); },
-        },
-        deleteAction({
-          hidden: !hasPermission('member:checkin:rule:delete'),
-          title: `确认删除第 ${record.dayNumber} 天规则？`,
-          content: '删除后该连续天数的奖励配置将失效。',
-          run: () => deleteRuleMutation.mutateAsync({ params: { id: record.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   const renderRefreshButton = () => (

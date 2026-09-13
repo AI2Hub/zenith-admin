@@ -9,7 +9,6 @@ import { createdAtColumn, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import ExportButton from '@/components/ExportButton';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { regionKeys, useDeleteRegion, useFlatRegions, useRegionDetail, useRegionTree, useSaveRegion } from '@/hooks/queries/regions';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useElementSize } from '@/hooks/useElementSize';
@@ -19,7 +18,7 @@ import { REGION_LEVELS, REGION_LEVEL_LABELS } from '@zenith/shared/platform';
 import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, listTableProps, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
 import { EditFormModal } from '@/components/EditFormModal';
 
@@ -133,6 +132,16 @@ export default function RegionsPage() {
     return [parentCode];
   }
 
+  const operationColumn = useCrudOperationColumn<Region>({
+    permission: 'system:region',
+    edit: (record) => { void openEdit(record); },
+    remove: (record) => deleteMutation.mutateAsync({ params: { id: record.id } }),
+    title: '确定要删除该地区吗？',
+    content: '若有子地区，需先删除子地区',
+    width: 150,
+    desktopInlineKeys: ['edit', 'delete'],
+  });
+
   const columns: ColumnProps<Region>[] = [
     {
       title: '地区名称',
@@ -164,24 +173,7 @@ export default function RegionsPage() {
     },
     createdAtColumn,
     status.column(),
-    createOperationColumn<Region>({
-      width: 150,
-      desktopInlineKeys: ['edit', 'delete'],
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('system:region:update'),
-          onClick: () => { void openEdit(record); },
-        },
-        deleteAction({
-          hidden: !hasPermission('system:region:delete'),
-          title: '确定要删除该地区吗？',
-          content: '若有子地区，需先删除子地区',
-          run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   const renderExpandButton = () => (

@@ -7,8 +7,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { confirmAndDelete, deleteAction, ListSearchToolbar, useStatusToggle, useRowSelection } from '@/components/list-page';
+import { confirmAndDelete, ListSearchToolbar, useStatusToggle, useRowSelection, useCrudOperationColumn } from '@/components/list-page';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import {
   tagKeys,
@@ -136,7 +135,6 @@ export default function TagsPage() {
 
   const [colorValue, setColorValue] = useState('');
 
-
   const groupsQuery = useTagGroups();
   const saveMutation = useSaveTag();
   const tagModal = useEditModal<Tag, Partial<CreateTagInput>>({
@@ -187,6 +185,15 @@ export default function TagsPage() {
     });
   };
 
+  const operationColumn = useCrudOperationColumn<Tag>({
+    permission: 'system:tag',
+    edit: openEdit,
+    remove: deleteMutation,
+    title: '确定要删除该标签吗？',
+    onDeleted: (record) => setSelectedRowKeys((keys) => keys.filter((k) => k !== record.id)),
+    width: 150,
+  });
+
   const columns = [
     {
       title: '标签名称',
@@ -216,23 +223,7 @@ export default function TagsPage() {
     },
     createdAtColumn,
     status.column(),
-    createOperationColumn<Tag>({
-      width: 150,
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !can('system:tag:update'),
-          onClick: () => openEdit(record),
-        },
-        deleteAction({
-          hidden: !can('system:tag:delete'),
-          title: '确定要删除该标签吗？',
-          run: () => deleteMutation.mutateAsync([record.id]),
-          onDeleted: () => setSelectedRowKeys((keys) => keys.filter((k) => k !== record.id)),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   const groupOptions = (groupsQuery.data ?? []).map((g) => ({ label: g, value: g }));

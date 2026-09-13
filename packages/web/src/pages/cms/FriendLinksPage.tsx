@@ -18,7 +18,7 @@ import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, listTableProps, useCrudOperationColumn } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
 import { EditFormModal } from '@/components/EditFormModal';
@@ -160,7 +160,6 @@ export default function FriendLinksPage() {
 function FriendLinkGroupSheet({ siteId, visible, onClose }: Readonly<{
   siteId: number | undefined; visible: boolean; onClose: () => void;
 }>) {
-  const { hasPermission } = usePermission();
   const { page, pageSize, buildPagination } = usePagination();
   const listQuery = useCmsFriendLinkGroupList({ page, pageSize, siteId: siteId ?? 0 }, visible && siteId !== undefined);
   const saveMutation = useSaveCmsFriendLinkGroup();
@@ -176,22 +175,20 @@ function FriendLinkGroupSheet({ siteId, visible, onClose }: Readonly<{
   });
   const deleteMutation = useDeleteCmsFriendLinkGroup();
 
+  const operationColumn = useCrudOperationColumn<CmsFriendLinkGroup>({
+    permission: 'cms:link',
+    edit: groupModal,
+    remove: (record) => deleteMutation.mutateAsync({ params: { id: record.id } }),
+    title: '删除后组内友链将转为未分组，确定删除？',
+    width: 150,
+  });
+
   const columns: ColumnProps<CmsFriendLinkGroup>[] = [
     { title: '分组名称', dataIndex: 'name', minWidth: 140 },
     { title: '标识', dataIndex: 'code', width: 120 },
     { title: '友链数', dataIndex: 'linkCount', width: 80, align: 'right' },
     { title: '排序', dataIndex: 'sort', width: 70 },
-    createOperationColumn<CmsFriendLinkGroup>({
-      width: 150,
-      actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !hasPermission('cms:link:update'), onClick: () => groupModal.openEdit(record) },
-        deleteAction({
-          hidden: !hasPermission('cms:link:delete'),
-          title: '删除后组内友链将转为未分组，确定删除？',
-          run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

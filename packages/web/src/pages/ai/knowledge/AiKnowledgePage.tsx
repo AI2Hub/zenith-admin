@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { deleteAction } from '@/components/list-page';
+import { deleteAction, useCrudOperationColumn } from '@/components/list-page';
 import { Button, Form, SideSheet, Space, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -112,6 +112,23 @@ export default function AiKnowledgePage() {
     reader.readAsText(file);
   }
 
+  const operationColumn = useCrudOperationColumn<AiKnowledgeBase>({
+    permissions: { edit: 'ai:kb:edit', remove: 'ai:kb:delete' },
+    edit: (record) => { kbModal.openEdit(record); },
+    remove: (record) => deleteMutation.mutateAsync({ params: { id: record.id } }),
+    title: '确定要删除该知识库吗？',
+    content: '将级联删除全部文档与分块，且解除已挂载对话',
+    extra: (record) => [
+      {
+        key: 'docs',
+        label: '文档',
+        onClick: () => setDocsKb(record),
+      },
+    ],
+    width: 210,
+    desktopInlineKeys: ['docs', 'edit', 'delete'],
+  });
+
   const columns: ColumnProps<AiKnowledgeBase>[] = [
     { title: '名称', dataIndex: 'name', width: 200, render: renderEllipsis },
     { title: '描述', dataIndex: 'description', render: renderEllipsis },
@@ -126,29 +143,7 @@ export default function AiKnowledgePage() {
         : <Tag color="grey" size="small">关键词</Tag>,
     },
     dateTimeColumn('更新时间', 'updatedAt'),
-    createOperationColumn<AiKnowledgeBase>({
-      width: 210,
-      desktopInlineKeys: ['docs', 'edit', 'delete'],
-      actions: (record) => [
-        {
-          key: 'docs',
-          label: '文档',
-          onClick: () => setDocsKb(record),
-        },
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('ai:kb:edit'),
-          onClick: () => { kbModal.openEdit(record); },
-        },
-        deleteAction({
-          hidden: !hasPermission('ai:kb:delete'),
-          title: '确定要删除该知识库吗？',
-          content: '将级联删除全部文档与分块，且解除已挂载对话',
-          run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   const docColumns: ColumnProps<AiKbDocument>[] = [

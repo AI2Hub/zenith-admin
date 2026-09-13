@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Button, Form, Spin, Row, Col, Typography, Tag, Empty } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
@@ -18,7 +17,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { parseHeadersJson } from '../components/http-integration';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListPage } from '@/hooks/useListPage';
@@ -119,6 +118,18 @@ export default function WorkflowDataSourcesPage() {
     }
   }
 
+  const operationColumn = useCrudOperationColumn<WorkflowDataSource>({
+    permission: 'workflow:datasource',
+    edit: openEdit,
+    remove: deleteMutation,
+    content: '删除后引用该数据源的表单字段将无法加载选项',
+    extra: (record) => [
+      { key: 'test', label: '测试', onClick: () => void handleTest(record) },
+    ],
+    width: 210,
+    desktopInlineKeys: ['test', 'edit', 'delete'],
+  });
+
   const columns: ColumnProps<WorkflowDataSource>[] = [
     { title: '名称', dataIndex: 'name', width: 160, render: renderEllipsis },
     { title: '方法', dataIndex: 'method', width: 80, render: (m: string) => <Tag size="small" color={m === 'POST' ? 'orange' : 'blue'}>{m}</Tag> },
@@ -127,25 +138,7 @@ export default function WorkflowDataSourcesPage() {
     { title: '备注', dataIndex: 'remark', width: 160, render: renderEllipsis },
     createdAtColumn,
     status.column(),
-    createOperationColumn<WorkflowDataSource>({
-      width: 210,
-      desktopInlineKeys: ['test', 'edit', 'delete'],
-      actions: (record) => [
-        { key: 'test', label: '测试', onClick: () => void handleTest(record) },
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('workflow:datasource:update'),
-          onClick: () => openEdit(record),
-        },
-        deleteAction({
-          hidden: !hasPermission('workflow:datasource:delete'),
-          title: '确定要删除吗？',
-          content: '删除后引用该数据源的表单字段将无法加载选项',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

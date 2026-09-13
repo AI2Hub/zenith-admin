@@ -12,8 +12,7 @@ import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import ExportButton from '@/components/ExportButton';
 import { ClearLogsButtons } from '@/components/logs/ClearLogsControl';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, listTableProps, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { usePagination } from '@/hooks/usePagination';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../../utils/table-columns';
 import CronJobDashboard from './CronJobDashboard';
@@ -228,6 +227,31 @@ export default function CronJobsPage() {
     });
   };
 
+  const operationColumn = useCrudOperationColumn<CronJob>({
+    permission: 'system:cronjob',
+    edit: openEdit,
+    remove: deleteMutation,
+    title: '确定要删除此任务吗？',
+    extra: (record) => [
+      {
+        key: 'execute',
+        label: '执行',
+        hidden: !hasPermission('system:cronjob:execute'),
+        onClick: () => handleRunOnce(record.id, record.name),
+      },
+    ],
+    extraAfter: (record) => [
+      {
+        key: 'logs',
+        label: '执行日志',
+        hidden: !hasPermission('system:cronjob:list'),
+        onClick: () => openLogsDrawer(record),
+      },
+    ],
+    width: 240,
+    desktopInlineKeys: ['execute', 'edit', 'delete'],
+  });
+
   const columns: ColumnProps<CronJob>[] = [
     { title: '任务名称', dataIndex: 'name', width: 180, render: renderEllipsis },
     {
@@ -326,35 +350,7 @@ export default function CronJobsPage() {
     },
     { title: '描述', dataIndex: 'description', minWidth: 200, render: renderEllipsis },
     status.column({ title: '启用' }),
-    createOperationColumn<CronJob>({
-      width: 240,
-      desktopInlineKeys: ['execute', 'edit', 'delete'],
-      actions: (record) => [
-        {
-          key: 'execute',
-          label: '执行',
-          hidden: !hasPermission('system:cronjob:execute'),
-          onClick: () => handleRunOnce(record.id, record.name),
-        },
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('system:cronjob:update'),
-          onClick: () => openEdit(record),
-        },
-        deleteAction({
-          hidden: !hasPermission('system:cronjob:delete'),
-          title: '确定要删除此任务吗？',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-        {
-          key: 'logs',
-          label: '执行日志',
-          hidden: !hasPermission('system:cronjob:list'),
-          onClick: () => openLogsDrawer(record),
-        },
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

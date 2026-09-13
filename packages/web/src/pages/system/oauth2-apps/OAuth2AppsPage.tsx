@@ -8,8 +8,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { copyableNoColumn, createdAtColumn } from '@/utils/table-columns';
 import { openAppEnvironmentColumn, openAppReviewStatusColumn, openAppScopesColumn } from '../../open-platform/open-app-columns';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -161,6 +160,58 @@ export default function OAuth2AppsPage() {
     setReviewComment('');
   }
 
+  const operationColumn = useCrudOperationColumn<OAuth2Client>({
+    edit: appModal,
+    remove: (record) => deleteMutation.mutateAsync({ params: { id: record.id } }),
+    allow: { remove: canManage },
+    title: '确定要删除此应用吗？',
+    content: '删除后不可恢复',
+    extra: (record) => [
+      {
+        key: 'detail',
+        label: '详情',
+        onClick: () => navigate(`/system/oauth2-apps/${record.id}`),
+      },
+    ],
+    extraBetween: (record) => [
+      {
+        key: 'approve',
+        label: '通过',
+        hidden: !canManage || record.reviewStatus !== 'pending',
+        onClick: () => {
+          Modal.confirm({
+            title: '通过应用审核？',
+            content: `「${record.name}」通过后即可调用开放 API。`,
+            onOk: () => handleApprove(record),
+          });
+        },
+      },
+      {
+        key: 'reject',
+        label: '驳回',
+        danger: true,
+        hidden: !canManage || record.reviewStatus !== 'pending',
+        onClick: () => {
+          setReviewComment('');
+          setReviewTarget(record);
+        },
+      },
+      {
+        key: 'regenerate',
+        label: '重置 Secret',
+        hidden: !canManage || record.isPublic,
+        onClick: () => {
+          confirmDanger({
+            title: '重置 client_secret？此操作不可撤销',
+            onOk: () => { void handleRegenerate(record); },
+          });
+        },
+      },
+    ],
+    width: 180,
+    desktopInlineKeys: ['detail', 'edit'],
+  });
+
   const columns: ColumnProps<OAuth2Client>[] = [
     { title: 'ID', dataIndex: 'id', width: 60 },
     {
@@ -213,61 +264,7 @@ export default function OAuth2AppsPage() {
     },
     createdAtColumn,
     status.column(),
-    createOperationColumn<OAuth2Client>({
-      width: 180,
-      desktopInlineKeys: ['detail', 'edit'],
-      actions: (record) => [
-        {
-          key: 'detail',
-          label: '详情',
-          onClick: () => navigate(`/system/oauth2-apps/${record.id}`),
-        },
-        {
-          key: 'edit',
-          label: '编辑',
-          onClick: () => appModal.openEdit(record),
-        },
-        {
-          key: 'approve',
-          label: '通过',
-          hidden: !canManage || record.reviewStatus !== 'pending',
-          onClick: () => {
-            Modal.confirm({
-              title: '通过应用审核？',
-              content: `「${record.name}」通过后即可调用开放 API。`,
-              onOk: () => handleApprove(record),
-            });
-          },
-        },
-        {
-          key: 'reject',
-          label: '驳回',
-          danger: true,
-          hidden: !canManage || record.reviewStatus !== 'pending',
-          onClick: () => {
-            setReviewComment('');
-            setReviewTarget(record);
-          },
-        },
-        {
-          key: 'regenerate',
-          label: '重置 Secret',
-          hidden: !canManage || record.isPublic,
-          onClick: () => {
-            confirmDanger({
-              title: '重置 client_secret？此操作不可撤销',
-              onOk: () => { void handleRegenerate(record); },
-            });
-          },
-        },
-        deleteAction({
-          hidden: !canManage,
-          title: '确定要删除此应用吗？',
-          content: '删除后不可恢复',
-          run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

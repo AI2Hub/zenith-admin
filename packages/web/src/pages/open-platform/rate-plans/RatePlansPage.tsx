@@ -3,8 +3,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ratePlanContract, type CreateRatePlanInput, type RatePlan } from '@zenith/shared/open-platform';
 import { copyableNoColumn, createdAtColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useDeleteRatePlans, useRatePlanList, useSaveRatePlan } from '@/hooks/queries/open-platform';
@@ -47,6 +46,15 @@ export default function RatePlansPage() {
     }),
   });
 
+  const operationColumn = useCrudOperationColumn<RatePlan>({
+    edit: modal,
+    remove: deleteMutation,
+    allow: { edit: canManage, remove: canManage },
+    title: '确定要删除此套餐吗？',
+    content: '已被应用绑定的套餐无法删除',
+    width: 150,
+  });
+
   const columns: ColumnProps<RatePlan>[] = [
     { title: 'ID', dataIndex: 'id', width: 60 },
     {
@@ -73,18 +81,7 @@ export default function RatePlansPage() {
       fixed: 'right' as const,
       render: renderEnabledStatusTag,
     },
-    createOperationColumn<RatePlan>({
-      width: 150,
-      actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => modal.openEdit(record) },
-        deleteAction({
-          hidden: !canManage,
-          title: '确定要删除此套餐吗？',
-          content: '已被应用绑定的套餐无法删除',
-          run: () => deleteMutation.mutateAsync([record.id]),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

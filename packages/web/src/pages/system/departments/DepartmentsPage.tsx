@@ -13,7 +13,6 @@ import { useTreeExpansion } from '@/hooks/useTreeExpansion';
 import { useEditModal } from '@/hooks/useEditModal';
 import ExportButton from '@/components/ExportButton';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../../utils/table-columns';
 import {
   departmentKeys,
@@ -27,7 +26,7 @@ import {
 } from '@/hooks/queries/departments';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { ListSearchToolbar, listTableProps, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { memberPreviewColumn } from '@/components/members/MemberAssignmentSheet';
 import { compactParams } from '@/lib/query';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
@@ -142,6 +141,14 @@ export default function DepartmentsPage() {
     disabled: !hasPermission('system:department:update'),
   });
 
+  const operationColumn = useCrudOperationColumn<Department>({
+    permission: 'system:department',
+    edit: (record) => { void openEdit(record); },
+    remove: (record) => deleteMutation.mutateAsync({ params: { id: record.id } }),
+    title: '确定要删除该部门吗？',
+    width: 150,
+  });
+
   const columns: ColumnProps<Department>[] = [
     { title: '部门名称', dataIndex: 'name', minWidth: 220 },
     { title: '部门编码', dataIndex: 'code', width: 180, render: renderEllipsis },
@@ -159,22 +166,7 @@ export default function DepartmentsPage() {
     }),
     createdAtColumn,
     status.column(),
-    createOperationColumn<Department>({
-      width: 150,
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !hasPermission('system:department:update'),
-          onClick: () => { void openEdit(record); },
-        },
-        deleteAction({
-          hidden: !hasPermission('system:department:delete'),
-          title: '确定要删除该部门吗？',
-          run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   // 移动端更多菜单内的按钮由容器 CSS 平铺，无需再传 borderless 版本

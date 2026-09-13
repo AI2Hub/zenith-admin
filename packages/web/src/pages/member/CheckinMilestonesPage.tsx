@@ -4,11 +4,9 @@ import { Form, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { CheckinMilestone, CheckinMilestoneRewardType } from '@zenith/shared/member';
 import { CHECKIN_MILESTONE_REWARD_TYPE_LABELS } from '@zenith/shared/member';
-import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, listTableProps } from '@/components/list-page';
+import { listTableProps, useCrudOperationColumn } from '@/components/list-page';
 import { EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import {
   memberAdminKeys,
@@ -28,7 +26,6 @@ interface CouponOption {
 }
 
 export default function CheckinMilestonesPage() {
-  const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
   const [rewardType, setRewardType] = useState<CheckinMilestoneRewardType>('points');
   const listQuery = useCheckinMilestones();
@@ -53,6 +50,16 @@ export default function CheckinMilestonesPage() {
     if (record) modal.openEdit(record);
     else modal.openCreate();
   };
+
+  const operationColumn = useCrudOperationColumn<CheckinMilestone>({
+    permission: 'member:checkin:milestone',
+    edit: openModal,
+    remove: (record) => deleteMutation.mutateAsync({ params: { id: record.id } }),
+    title: (record) => `确认删除里程碑「${record.title}」？`,
+    content: '删除后该累计天数的奖励配置将失效。',
+    width: 150,
+    desktopInlineKeys: ['edit', 'delete'],
+  });
 
   const columns: ColumnProps<CheckinMilestone>[] = [
     { title: '名称', dataIndex: 'title', minWidth: 160, render: renderEllipsis },
@@ -82,19 +89,7 @@ export default function CheckinMilestonesPage() {
         <Tag color={value ? 'green' : 'grey'} size="small">{value ? '启用' : '停用'}</Tag>
       ),
     },
-    createOperationColumn<CheckinMilestone>({
-      width: 150,
-      desktopInlineKeys: ['edit', 'delete'],
-      actions: (record) => [
-        { key: 'edit', label: '编辑', hidden: !hasPermission('member:checkin:milestone:update'), onClick: () => openModal(record) },
-        deleteAction({
-          hidden: !hasPermission('member:checkin:milestone:delete'),
-          title: `确认删除里程碑「${record.title}」？`,
-          content: '删除后该累计天数的奖励配置将失效。',
-          run: () => deleteMutation.mutateAsync({ params: { id: record.id } }),
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (

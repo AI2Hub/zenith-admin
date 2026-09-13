@@ -25,7 +25,7 @@ import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useEditModal } from '@/hooks/useEditModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, InstantFilterToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { InstantFilterToolbar, listTableProps, useStatusToggle, useCrudOperationColumn } from '@/components/list-page';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
@@ -308,6 +308,25 @@ export default function RateLimitPage() {
     },
   });
 
+  const operationColumn = useCrudOperationColumn<RateLimitRule>({
+    edit: editModal,
+    remove: (rule) => deleteMutation.mutateAsync({ params: { id: rule.id } }),
+    allow: { edit: canManage, remove: canManage },
+    hidden: { remove: (rule) => rule.predefined },
+    title: (rule) => `删除限流规则 ${rule.name}？`,
+    content: '删除后该规则的限流与统计立即停止，操作不可恢复。',
+    successMessage: '已删除',
+    onDeleted: (rule) => { if (detailRuleName === rule.name) setDetailRuleName(null); },
+    extra: (rule) => [
+      { key: 'detail', label: '详情', onClick: () => setDetailRuleName(rule.name) },
+    ],
+    extraBetween: (rule) => [
+      { key: 'reset', label: '重置统计', danger: true, hidden: !canManage, onClick: () => handleResetStats(rule.name) },
+    ],
+    width: 180,
+    desktopInlineKeys: ['detail', 'edit'],
+  });
+
   const rulesColumns = [
     {
       title: '规则',
@@ -358,23 +377,7 @@ export default function RateLimitPage() {
       },
     },
     statusToggle.column({ dataIndex: 'enabled' }),
-    createOperationColumn<RateLimitRule>({
-      width: 180,
-      desktopInlineKeys: ['detail', 'edit'],
-      actions: (rule) => [
-        { key: 'detail', label: '详情', onClick: () => setDetailRuleName(rule.name) },
-        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => editModal.openEdit(rule) },
-        { key: 'reset', label: '重置统计', danger: true, hidden: !canManage, onClick: () => handleResetStats(rule.name) },
-        deleteAction({
-          hidden: !canManage || rule.predefined,
-          title: `删除限流规则 ${rule.name}？`,
-          content: '删除后该规则的限流与统计立即停止，操作不可恢复。',
-          run: () => deleteMutation.mutateAsync({ params: { id: rule.id } }),
-          successMessage: '已删除',
-          onDeleted: () => { if (detailRuleName === rule.name) setDetailRuleName(null); },
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   const blockColumns = [

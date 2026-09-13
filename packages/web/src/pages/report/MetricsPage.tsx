@@ -3,7 +3,6 @@ import { Banner, Button, Col, Empty, Form, Modal, Row, SideSheet, Space, Tag, To
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportMetric, ReportMetricType } from '@zenith/shared/report';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -24,7 +23,7 @@ import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table
 import { isRevisionConflict, metricLifecyclePayload, normalizeMetricFormValues } from './report-platform-utils';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import ModalFooter from '@/components/ModalFooter';
 import { useListPage } from '@/hooks/useListPage';
 
@@ -158,6 +157,26 @@ export default function MetricsPage() {
     evaluateMutation.reset();
   };
 
+  const operationColumn = useCrudOperationColumn<ReportMetric>({
+    permission: 'report:metric',
+    edit: openEdit,
+    remove: deleteMutation,
+    hidden: { remove: (record) => record.lifecycleStatus !== 'draft' },
+    title: (record) => `删除指标「${record.name}」？`,
+    content: '仅无引用的草稿指标可删除。',
+    successMessage: '指标已删除',
+    extra: (record) => [
+      { key: 'preview', label: '预览', hidden: !hasPermission('report:metric:evaluate'), onClick: () => openPreview(record) },
+    ],
+    extraBetween: (record) => [
+      { key: 'refs', label: '引用关系', onClick: () => { setSheetMetric(record); setSheetMode('refs'); } },
+      { key: 'publish', label: '发布', hidden: !hasPermission('report:metric:publish') || record.lifecycleStatus !== 'draft', onClick: () => lifecycle(record, 'publish') },
+      { key: 'deprecate', label: '废弃', danger: true, hidden: !hasPermission('report:metric:publish') || record.lifecycleStatus !== 'published', onClick: () => lifecycle(record, 'deprecate') },
+    ],
+    width: 180,
+    desktopInlineKeys: ['preview', 'edit'],
+  });
+
   const columns: ColumnProps<ReportMetric>[] = [
     {
       title: '指标名称', dataIndex: 'name', minWidth: 180,
@@ -177,24 +196,7 @@ export default function MetricsPage() {
       title: '状态', dataIndex: 'lifecycleStatus', width: 100, fixed: 'right',
       render: (value: ReportMetric['lifecycleStatus']) => <Tag color={statusColor[value]}>{statusOptions.find((item) => item.value === value)?.label}</Tag>,
     },
-    createOperationColumn<ReportMetric>({
-      width: 180,
-      desktopInlineKeys: ['preview', 'edit'],
-      actions: (record) => [
-        { key: 'preview', label: '预览', hidden: !hasPermission('report:metric:evaluate'), onClick: () => openPreview(record) },
-        { key: 'edit', label: '编辑', hidden: !hasPermission('report:metric:update'), onClick: () => openEdit(record) },
-        { key: 'refs', label: '引用关系', onClick: () => { setSheetMetric(record); setSheetMode('refs'); } },
-        { key: 'publish', label: '发布', hidden: !hasPermission('report:metric:publish') || record.lifecycleStatus !== 'draft', onClick: () => lifecycle(record, 'publish') },
-        { key: 'deprecate', label: '废弃', danger: true, hidden: !hasPermission('report:metric:publish') || record.lifecycleStatus !== 'published', onClick: () => lifecycle(record, 'deprecate') },
-        deleteAction({
-          hidden: !hasPermission('report:metric:delete') || record.lifecycleStatus !== 'draft',
-            title: `删除指标「${record.name}」？`,
-            content: '仅无引用的草稿指标可删除。',
-          run: () => deleteMutation.mutateAsync([record.id]),
-          successMessage: '指标已删除',
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   const keyword = (

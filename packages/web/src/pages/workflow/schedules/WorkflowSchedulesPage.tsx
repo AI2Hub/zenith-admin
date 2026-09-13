@@ -6,7 +6,6 @@ import { formatDateTime } from '@/utils/date';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { FormTimezoneSelect } from '@/components/FormTimezoneSelect';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { usePublishedWorkflowDefinitions, useWorkflowDefinitionDetail } from '@/hooks/queries/workflow-definitions';
 import { toUserOptions, useAllUsers } from '@/hooks/queries/users';
@@ -19,7 +18,7 @@ import {
 } from '@/hooks/queries/workflow-schedules';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton } from '@/components/toolbar-controls';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, enabledStatusColumn } from '@/utils/table-columns';
@@ -164,6 +163,26 @@ export default function WorkflowSchedulesPage() {
     Toast.success('已触发');
   };
 
+  const operationColumn = useCrudOperationColumn<WorkflowSchedule>({
+    edit: openEdit,
+    remove: deleteMutation,
+    allow: { edit: canEdit, remove: canDelete },
+    title: '确定要删除该定时发起规则吗？',
+    successMessage: '已删除',
+    extraBetween: (record) => [
+      {
+        key: 'run-once',
+        label: '立即执行',
+        hidden: !canEdit,
+        loading: runMutation.isPending && runMutation.variables?.params.id === record.id,
+        disabled: runMutation.isPending,
+        onClick: () => handleRunOnce(record),
+      },
+    ],
+    width: 240,
+    desktopInlineKeys: ['edit', 'run-once', 'delete'],
+  });
+
   const columns: ColumnProps<WorkflowSchedule>[] = [
     {
       title: '规则名称',
@@ -206,32 +225,7 @@ export default function WorkflowSchedulesPage() {
       ),
     },
     enabledStatusColumn({ width: 90 }),
-    createOperationColumn<WorkflowSchedule>({
-      width: 240,
-      desktopInlineKeys: ['edit', 'run-once', 'delete'],
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          hidden: !canEdit,
-          onClick: () => openEdit(record),
-        },
-        {
-          key: 'run-once',
-          label: '立即执行',
-          hidden: !canEdit,
-          loading: runMutation.isPending && runMutation.variables?.params.id === record.id,
-          disabled: runMutation.isPending,
-          onClick: () => handleRunOnce(record),
-        },
-        deleteAction({
-          hidden: !canDelete,
-          title: '确定要删除该定时发起规则吗？',
-          run: () => deleteMutation.mutateAsync([record.id]),
-          successMessage: '已删除',
-        }),
-      ],
-    }),
+    operationColumn,
   ];
 
   return (
