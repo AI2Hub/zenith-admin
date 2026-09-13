@@ -46,46 +46,6 @@ body {
   min-height: 100vh;
 }
 
-/* ── 左侧边栏 ─────────────────────────────────────────────── */
-.mc-sidebar {
-  width: var(--m-sidebar-width);
-  flex-shrink: 0;
-  background: var(--m-card-bg);
-  border-right: 1px solid var(--m-border);
-  display: flex;
-  flex-direction: column;
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 100vh;
-  overflow-y: auto;
-}
-
-.mc-brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 20px 20px 16px;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--m-text);
-  border-bottom: 1px solid var(--m-border);
-}
-
-.mc-member-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--m-border);
-}
-
-.mc-member-name {
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
 .mc-member-level {
   display: inline-flex;
   align-items: center;
@@ -105,69 +65,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-.mc-nav-section {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--m-text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 10px 8px 4px;
-}
-
-.mc-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border-radius: var(--m-radius);
-  font-size: 14px;
-  color: var(--m-text-secondary);
-  text-decoration: none;
-  transition: background 0.15s, color 0.15s;
-  cursor: pointer;
-  border: none;
-  background: none;
-  width: 100%;
-  font-family: inherit;
-}
-
-.mc-nav-item:hover {
-  background: var(--m-bg);
-  color: var(--m-text);
-}
-
-.mc-nav-item.active {
-  background: var(--m-primary-light);
-  color: var(--m-primary);
-  font-weight: 500;
-}
-
-.mc-sidebar-footer {
-  padding: 12px;
-  border-top: 1px solid var(--m-border);
-}
-
-.mc-logout-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 9px 12px;
-  border-radius: var(--m-radius);
-  font-size: 14px;
-  color: var(--m-text-secondary);
-  cursor: pointer;
-  border: none;
-  background: none;
-  font-family: inherit;
-  transition: background 0.15s, color 0.15s;
-}
-
-.mc-logout-btn:hover {
-  background: #fff1f0;
-  color: var(--m-danger);
 }
 
 /* ── 主内容区 ─────────────────────────────────────────────── */
@@ -799,13 +696,6 @@ body {
   color: rgba(255, 255, 255, 0.85);
 }
 
-.mc-cta-actions {
-  margin-top: 32px;
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-}
-
 /* 底部 Footer */
 .mc-landing-footer {
   padding: 32px 40px;
@@ -916,8 +806,7 @@ body {
 
   /* 公共区块 padding */
   .mc-features-section,
-  .mc-cta-section,
-  .mc-placeholder-section {
+  .mc-cta-section {
     padding: 40px 16px;
   }
 
@@ -937,11 +826,6 @@ body {
     gap: 12px;
   }
 
-  /* 占位页面网格 */
-  .mc-placeholder-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   /* 会员中心侧边栏在移动端收起（用户可手动展开） */
   .mc-semi-nav {
     position: fixed;
@@ -959,11 +843,6 @@ body {
     width: 56px;
     height: 56px;
     font-size: 28px;
-  }
-
-  /* 占位页面网格改为 1 列 */
-  .mc-placeholder-grid {
-    grid-template-columns: 1fr;
   }
 
   .mc-features-section,

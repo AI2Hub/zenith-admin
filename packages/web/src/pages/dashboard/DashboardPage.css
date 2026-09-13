@@ -362,27 +362,6 @@
   flex-shrink: 0;
 }
 
-.notice-modal-content {
-  color: var(--semi-color-text-0);
-  line-height: 1.75;
-}
-
-.notice-modal-content p {
-  margin: 0 0 0.75em;
-}
-
-.notice-modal-content ul,
-.notice-modal-content ol {
-  margin: 0.5em 0;
-  padding-left: 1.5em;
-}
-
-.notice-modal-content img {
-  max-width: 100%;
-  height: auto;
-  border-radius: var(--semi-border-radius-small);
-}
-
 /* 窄屏：栏数下降后行首那一项必须重置竖线，否则行首会悬着一条线。
    注意**不要**给次行补 border-top：横线会与竖线交叉成 T 形，
    看起来就是竖线在中途分叉。行距改由每项的上下内边距撑开，

@@ -1,25 +1,4 @@
-/* ─── 表列表项悬停显示「更多」按钮 ─────────────────────────────────────────── */
-.db-admin-table-item .db-admin-table-more-btn {
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.15s, visibility 0.15s;
-  flex-shrink: 0;
-}
-
-.db-admin-table-item:hover .db-admin-table-more-btn,
-.db-admin-table-item .db-admin-table-more-btn.semi-dropdown-open {
-  opacity: 1;
-  visibility: visible;
-}
-
 /* Schema 折叠面板内容区域清零默认 padding，紧凑布局 */
 .db-admin-schema-collapse .semi-collapse-content {
   padding: 0;
-}
-
-.db-admin-table-item:hover .db-admin-table-size {
-  max-width: 52px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }

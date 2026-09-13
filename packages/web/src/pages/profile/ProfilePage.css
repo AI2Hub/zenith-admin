@@ -87,10 +87,6 @@
   margin-bottom: 20px;
 }
 
-.profile-tab-content {
-  padding: 20px 0 8px;
-}
-
 /* OAuth 绑定列表 */
 .oauth-list {
   overflow: hidden;

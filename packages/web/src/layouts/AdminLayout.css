@@ -11,7 +11,6 @@
   overflow: hidden;
 }
 
-
 /* ===== Top bar (horizontal / mixed modes) ===== */
 .admin-topbar {
   height: var(--header-height);
@@ -342,7 +341,6 @@
   background: var(--color-sidebar-active) !important;
 }
 
-
 .admin-sidebar__nav .semi-navigation-footer {
   border-top: 1px solid var(--color-border);
   padding: 8px 14px !important;
@@ -475,8 +473,6 @@
   overflow: hidden;
   margin: 0 !important;
 }
-
-
 
 .admin-sidebar__nav.semi-navigation-collapsed .semi-navigation-footer .semi-button {
   justify-content: center;
@@ -891,22 +887,7 @@
   flex-shrink: 0;
 }
 
-/* Breadcrumb bar (horizontal/mixed layouts) */
-.admin-breadcrumb-bar {
-  height: 36px;
-  display: flex;
-  align-items: center;
-  padding: 0 20px;
-  background: var(--color-header-bg);
-  flex-shrink: 0;
-  position: relative;
-  z-index: 1;
-}
-
 @media (--sm-down) {
-  .admin-breadcrumb-bar {
-    padding: 0 10px;
-  }
   .admin-tabs-bar {
     padding: 0 10px;
     gap: 10px;
@@ -1480,81 +1461,6 @@
   justify-content: center;
   color: #fff;
   filter: drop-shadow(0 1px 1px rgba(0,0,0,0.3));
-}
-
-/* ===== 标签页动画选择器 ===== */
-.tab-animation-picker {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.tab-animation-option {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: var(--semi-border-radius-medium);
-  border: 1.5px solid var(--color-border);
-  cursor: pointer;
-  background: transparent;
-  transition: border-color 0.15s, background 0.15s;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-}
-
-.tab-animation-option:hover {
-  border-color: var(--semi-color-primary);
-  background: var(--semi-color-primary-light-default);
-  color: var(--semi-color-primary);
-}
-
-.tab-animation-option--active {
-  border-color: var(--semi-color-primary);
-  background: var(--semi-color-primary-light-default);
-  color: var(--semi-color-primary);
-  font-weight: 500;
-}
-
-.tab-animation-option__icon {
-  font-size: 18px;
-  line-height: 1;
-}
-
-/* ===== 标签页动画选择器（自定义按钮组） ===== */
-.tab-anim-picker {
-  display: inline-flex;
-  border: 1px solid var(--semi-color-border);
-  border-radius: var(--semi-border-radius-medium);
-  overflow: hidden;
-}
-
-.tab-anim-picker__btn {
-  padding: 5px 12px;
-  font-size: 13px;
-  background: transparent;
-  border: none;
-  border-right: 1px solid var(--semi-color-border);
-  cursor: pointer;
-  color: var(--semi-color-text-0);
-  transition: background 0.12s, color 0.12s;
-  line-height: 1.5;
-}
-
-.tab-anim-picker__btn:last-child {
-  border-right: none;
-}
-
-.tab-anim-picker__btn:hover {
-  background: var(--semi-color-fill-0);
-}
-
-.tab-anim-picker__btn--active {
-  background: var(--semi-color-primary-light-default);
-  color: var(--semi-color-primary);
-  font-weight: 500;
 }
 
 /* ===== 标签页动画预览弹出层（Popover 内容） ===== */
@@ -2241,29 +2147,6 @@ body[theme-mode='dark'] .lock-screen .lock-screen__input.semi-input-wrapper-erro
 }
 .admin-layout--content-fullscreen .admin-content {
   border-radius: 0;
-}
-/* 退出内容全屏的悬浮按钮 */
-.admin-content-fullscreen-exit {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: var(--semi-color-bg-2);
-  border: 1px solid var(--semi-color-border);
-  border-radius: var(--semi-border-radius-medium);
-  font-size: 12px;
-  color: var(--semi-color-text-1);
-  cursor: pointer;
-  box-shadow: var(--semi-shadow-elevated);
-  transition: opacity 0.2s;
-  opacity: 0.6;
-}
-.admin-content-fullscreen-exit:hover {
-  opacity: 1;
 }
 
 /* ===== 无障碍模式 ===== */

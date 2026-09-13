@@ -89,20 +89,6 @@
   margin-top: 4px;
 }
 
-/* ─── 分类组 ────────────────────────────────────────────────────────────────── */
-.icon-picker-group {
-  margin-bottom: 6px;
-}
-
-.icon-picker-group-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--semi-color-text-2);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 4px 2px 3px;
-}
-
 /* ─── 单个图标格（置于 List.Item 内部）──────────────────────────────────────── */
 .icon-picker-cell {
   display: flex;
@@ -138,12 +124,4 @@
   padding: 24px 0;
   color: var(--semi-color-text-2);
   font-size: 13px;
-}
-
-/* ─── （已废弃，保留占位）────────────────────────────────────────────────────── */
-.icon-picker-load-more {
-  display: none;
-  padding: 0;
-  font-size: 11px;
-  color: var(--semi-color-text-3);
 }

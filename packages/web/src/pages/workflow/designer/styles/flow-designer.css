@@ -346,26 +346,6 @@ body[theme-mode='dark'] .fd-node-card:hover {
   color: #fff;
 }
 
-.fd-branch-delete-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 12px;
-  border-radius: var(--semi-border-radius-large);
-  background: var(--semi-color-bg-2);
-  border: 1px solid var(--semi-color-danger);
-  color: var(--semi-color-danger);
-  font-size: 12px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s;
-}
-
-.fd-branch-delete-btn:hover {
-  background: var(--semi-color-danger);
-  color: #fff;
-}
-
 /* ─── 运行态节点卡片（实例详情流程图叠加状态） ─────────────────────── */
 
 .fd-node-card--rt {
@@ -1532,14 +1512,6 @@ body[theme-mode='dark'] .fd-branch-banner--inclusive {
   pointer-events: none;
 }
 
-/* ─── 汇聚连接线 ──────────────────────────────────────────────────── */
-
-.fd-merge-line {
-  width: 2px;
-  height: 20px;
-  background: var(--fd-line-color, #cacaca);
-}
-
 /* ─── 顶部工具栏 ──────────────────────────────────────────────────── */
 
 .fd-toolbar {
@@ -1915,41 +1887,6 @@ td.fd-action-button-table__action {
   color: var(--semi-color-text-2);
 }
 
-/* ─── 批量设置按钮 ─────────────────────────────────────────────────── */
-
-.fd-batch-btn {
-  padding: 2px 8px;
-  font-size: 12px;
-  border: 1px solid var(--semi-color-border);
-  border-radius: var(--semi-border-radius-small);
-  background: var(--surface-card);
-  color: var(--semi-color-text-1);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.fd-batch-btn:hover {
-  border-color: var(--semi-color-primary);
-  color: var(--semi-color-primary);
-}
-
-/* ─── 操作权限列表 ─────────────────────────────────────────────────── */
-
-.fd-operation-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.fd-operation-item {
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  border: 1px solid var(--semi-color-border);
-  border-radius: var(--semi-border-radius-medium);
-  background: var(--surface-card);
-}
-
 /* ─── 条件编辑器 ──────────────────────────────────────────────────── */
 
 .fd-condition-editor {
@@ -2240,17 +2177,6 @@ td.fd-action-button-table__action {
 
 .fd-radio-list .semi-radio {
   padding: 4px 0;
-}
-
-/* ─── 钉钉式分区分割线（短线 + 标题 + 长线；基于 Semi Divider 微调） ─── */
-
-.fd-section-divider.semi-divider-with-text-left::before {
-  width: 28px;
-}
-
-.fd-section-divider .semi-divider_inner-text {
-  padding: 0 12px;
-  font-size: 14px;
 }
 
 /* ─── 必填字段标签 ─────────────────────────────────────────────────── */

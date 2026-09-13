@@ -146,29 +146,6 @@
   align-items: center;
 }
 
-/* ===== 信息行 ===== */
-.monitor-info-row {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px 10px 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.monitor-info-row:last-child {
-  border-bottom: none;
-}
-
-.monitor-info-label {
-  font-size: 12px;
-}
-
-.monitor-info-value {
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  font-size: 13px;
-}
-
 /* 系统基本信息网格（总览下方） */
 .monitor-overview-sys {
   display: grid;
@@ -182,30 +159,6 @@
   .monitor-overview-sys {
     grid-template-columns: 1fr;
   }
-}
-
-.monitor-overview-sys .monitor-info-row:nth-child(2n) {
-  padding-left: 16px;
-  border-left: 1px solid var(--color-border);
-}
-
-/* ===== 详情 Tab 两列网格 ===== */
-.monitor-detail-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
-  margin-top: 4px;
-}
-
-@media (--md-down) {
-  .monitor-detail-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.monitor-detail-grid .monitor-info-row:nth-child(2n) {
-  padding-left: 16px;
-  border-left: 1px solid var(--color-border);
 }
 
 /* ===== 高占用数值颜色 ===== */
