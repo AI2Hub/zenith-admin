@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { useState } from 'react';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { Button, Form, Input, List, Modal, Select, SideSheet, Space, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
@@ -8,8 +8,6 @@ import { EMPTY_PLACEHOLDER, createdAtColumn, renderEllipsis } from '@/utils/tabl
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { usePermission } from '@/hooks/usePermission';
 import { useWorkflowDesignerDecisionRefOptions } from '@/hooks/queries/workflow-designer';
 import {
@@ -31,6 +29,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { JsonBlock } from '@/components/JsonBlock';
 import { abortSubmit } from '@/lib/abort-submit';
 import { RuleVersionHistorySheet } from '../components/RuleVersionHistorySheet';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text } = Typography;
 
@@ -44,16 +43,19 @@ export default function RuleFlowsPage() {
   const canEdit = hasPermission('rule:flow:update');
   const canDelete = hasPermission('rule:flow:delete');
   const canPublish = hasPermission('rule:flow:publish');
+  const defaultSearchParams: { keyword: string } = { keyword: '' };
   const {
-    page, pageSize, buildPagination,
-    bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<{ keyword: string }>({ defaults: { keyword: '' }, listKey: ruleKeys.flows.lists });
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: ruleKeys.flows.lists,
+    useList: useRuleFlowList,
+    toQuery: (s) => ({ keyword: s.keyword }),
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-  }), [submittedParams]);
 
   const [steps, setSteps] = useState<RuleFlowStep[]>([]);
   const [testRow, setTestRow] = useState<RuleDecisionFlow | null>(null);
@@ -61,7 +63,6 @@ export default function RuleFlowsPage() {
   const [testResult, setTestResult] = useState<RuleFlowEvaluateResult | null>(null);
   const [versionsRow, setVersionsRow] = useState<RuleDecisionFlow | null>(null);
 
-  const listQuery = useRuleFlowList({ page, pageSize, ...filterQuery });
   const saveMutation = useSaveRuleFlow();
   const publishMutation = usePublishRuleFlow();
   const toggleMutation = useToggleRuleFlow();
@@ -163,7 +164,7 @@ export default function RuleFlowsPage() {
         create={canCreate ? <CreateButton onClick={openCreate} /> : null}
       />
       <ConfigurableTable columns={columns} empty="暂无数据"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal

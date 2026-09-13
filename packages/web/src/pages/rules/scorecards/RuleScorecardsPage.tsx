@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { useState } from 'react';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { Banner, Button, Divider, Input, InputNumber, Modal, Select, Space, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, Trash2 } from 'lucide-react';
@@ -9,8 +9,6 @@ import { createdAtColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/tabl
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { usePermission } from '@/hooks/usePermission';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
@@ -22,6 +20,7 @@ import {
   useSaveRuleScorecard, useToggleRuleScorecard,
 } from '@/hooks/queries/rules-scorecards';
 import { RuleVersionHistorySheet } from '../components/RuleVersionHistorySheet';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text } = Typography;
 
@@ -54,17 +53,20 @@ export default function RuleScorecardsPage() {
   const canDelete = hasPermission('rule:scorecard:delete');
   const canPublish = hasPermission('rule:scorecard:publish');
   const canEvaluate = hasPermission('rule:scorecard:evaluate');
+  const defaultSearchParams: { keyword: string; status?: string } = { keyword: '', status: undefined };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<{ keyword: string; status?: string }>({ defaults: { keyword: '', status: undefined }, listKey: ruleScorecardKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: ruleScorecardKeys.lists,
+    useList: useRuleScorecardList,
+    toQuery: (s) => ({ keyword: s.keyword.trim(), status: enumValueOf(RULE_DECISION_STATUSES, s.status) }),
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword.trim(),
-    status: enumValueOf(RULE_DECISION_STATUSES, submittedParams.status),
-  }), [submittedParams]);
 
   // 编辑器为嵌套动态结构（变量 × 分段 × 等级），不适用 useEditModal 的 Form 模式，走受控状态
   const [editor, setEditor] = useState<EditorState | null>(null);
@@ -73,7 +75,6 @@ export default function RuleScorecardsPage() {
   const [testResult, setTestResult] = useState<RuleScorecardEvaluateResult | null>(null);
   const [versionsRow, setVersionsRow] = useState<RuleScorecard | null>(null);
 
-  const listQuery = useRuleScorecardList({ page, pageSize, ...filterQuery });
   const saveMutation = useSaveRuleScorecard();
   const deleteMutation = useDeleteRuleScorecard();
   const publishMutation = usePublishRuleScorecard();
@@ -212,7 +213,7 @@ export default function RuleScorecardsPage() {
 
 
         empty="暂无评分卡"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       {/* 结构化编辑器：基本信息 + 变量分段 + 等级映射 */}

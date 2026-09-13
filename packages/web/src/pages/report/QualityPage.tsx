@@ -9,7 +9,6 @@ import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import ExportButton from '@/components/ExportButton';
 import { FormTimezoneSelect } from '@/components/FormTimezoneSelect';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -41,6 +40,7 @@ import { compactParams } from '@/lib/query';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { FilterSelect } from '@/components/search-filters';
+import { useListPage } from '@/hooks/useListPage';
 const ruleTypeOptions: { value: ReportDqRuleType; label: string }[] = [
   { value: 'not_null', label: '非空' },
   { value: 'uniqueness', label: '唯一性' },
@@ -95,23 +95,38 @@ export default function QualityPage() {
   const { hasPermission } = usePermission();
   const [activeTab, setActiveTab] = useUrlTabState(['rules', 'scores', 'anomalies', 'runs'] as const, 'rules');
   // 四个页签共用一组筛选与分页
+  const defaultSearchParams: DqSearch = {};
   const {
-    page, pageSize, setPage, buildPagination,
-    draftParams, setField, bind, submittedParams: submitted,
-    handleSearch: applySearch, handleReset: resetSearch, applySearch: applyParams,
-  } = useListSearch<DqSearch>({ defaults: {}, listKey: reportDqKeys.lists });
+    page,
+    pageSize,
+    setPage,
+    buildPagination,
+    draftParams,
+    setField,
+    bind,
+    submittedParams: submitted,
+    handleSearch: applySearch,
+    handleReset: resetSearch,
+    applySearch: applyParams,
+    tableProps,
+    listQuery: rulesQuery,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: reportDqKeys.lists,
+    useList: useReportDqRuleList,
+    toQuery: (s) => ({
+      datasetId: s.datasetId,
+      type: s.ruleType,
+      enabled: s.enabled === undefined ? undefined : s.enabled === 'true',
+    }),
+    table: { empty: <Empty title="暂无质量规则" /> },
+  });
   const [formRuleType, setFormRuleType] = useState<ReportDqRuleType>('not_null');
   const [cronExprValue, setCronExprValue] = useState('');
   const [historyRule, setHistoryRule] = useState<ReportDqRule | null>(null);
 
   const datasetsQuery = useEnabledReportDatasets();
   const datasetOptions = (datasetsQuery.data ?? []).map((item) => ({ value: item.id, label: item.name }));
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const ruleFilterQuery = useMemo(() => compactParams({
-    datasetId: submitted.datasetId,
-    type: submitted.ruleType,
-    enabled: submitted.enabled === undefined ? undefined : submitted.enabled === 'true',
-  }), [submitted]);
   const runFilterQuery = useMemo(() => compactParams({
     datasetId: submitted.datasetId,
     status: submitted.runStatus,
@@ -120,7 +135,6 @@ export default function QualityPage() {
     datasetId: submitted.datasetId,
     status: submitted.anomalyStatus,
   }), [submitted]);
-  const rulesQuery = useReportDqRuleList({ page, pageSize, ...ruleFilterQuery });
   const runsQuery = useReportDqRunList({ page, pageSize, ...runFilterQuery });
   const historyQuery = useReportDqRunList({ page: 1, pageSize: 30, ruleId: historyRule?.id });
   const anomaliesQuery = useReportDqAnomalyList({ page, pageSize, ...anomalyFilterQuery });
@@ -306,7 +320,7 @@ export default function QualityPage() {
             <CreateButton permission="report:dq:create" onClick={openCreate} />,
           )}
           {rulesQuery.isError && <Banner type="danger" description={rulesQuery.error instanceof Error ? rulesQuery.error.message : '质量规则加载失败'} />}
-          <ConfigurableTable<ReportDqRule> columns={ruleColumns} {...listTableProps(rulesQuery, { pagination: buildPagination, empty: <Empty title="暂无质量规则" /> })} />
+          <ConfigurableTable<ReportDqRule> columns={ruleColumns} {...tableProps} />
         </TabPane>
         <TabPane tab="数据集评分" itemKey="scores">
           {commonToolbar()}

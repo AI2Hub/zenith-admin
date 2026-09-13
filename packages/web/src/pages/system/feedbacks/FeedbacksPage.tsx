@@ -8,19 +8,18 @@ import { createLabelOptionsFromMap } from '@zenith/shared/core';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
+import { confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection } from '@/components/list-page';
 import AppModal from '@/components/AppModal';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { formatDateRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useMySettings } from '@/hooks/queries/settings';
 import { useDeleteFeedbacks, useHandleFeedback, useUserFeedbackList, userFeedbackKeys } from '@/hooks/queries/user-feedbacks';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 import { BatchDeleteButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 const CATEGORY_OPTIONS = createLabelOptionsFromMap<UserFeedbackCategory>(USER_FEEDBACK_CATEGORY_LABELS);
 const STATUS_OPTIONS = createLabelOptionsFromMap<UserFeedbackStatus>(USER_FEEDBACK_STATUS_LABELS);
@@ -63,23 +62,24 @@ export default function FeedbacksPage() {
   const entryEnabled = entryConfigQuery.data?.ui.feedbackEntryEnabled ?? false;
 
   // ─── 搜索状态 ──────────────────────────────────────────────────────────
-  const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: userFeedbackKeys.lists });
 
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    category: submittedParams.category,
-    status: submittedParams.status,
-    ...formatDateRangeForApi(submittedParams.dateRange),
-  }), [submittedParams]);
-  const listQuery = useUserFeedbackList({ page, pageSize, ...filterQuery });
 
   // ─── 批量选择 ──────────────────────────────────────────────────────────
   const { selectedRowKeys, setSelectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
+  const {
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+    filterQuery,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: userFeedbackKeys.lists,
+    useList: useUserFeedbackList,
+    toQuery: (s) => ({ keyword: s.keyword, category: s.category, status: s.status, ...formatDateRangeForApi(s.dateRange) }),
+    table: { rowSelection },
+  });
 
   // ─── 处理弹窗 ──────────────────────────────────────────────────────────
   const handleMutation = useHandleFeedback();
@@ -225,10 +225,7 @@ export default function FeedbacksPage() {
       <ConfigurableTable<UserFeedback>
         columns={columns}
         empty="暂无反馈"
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          rowSelection,
-        })}
+        {...tableProps}
       />
 
       <AppModal

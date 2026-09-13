@@ -1,11 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Banner, Button, Col, Empty, Form, Modal, Row, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportMetric, ReportMetricType } from '@zenith/shared/report';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -26,8 +24,9 @@ import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table
 import { isRevisionConflict, metricLifecyclePayload, normalizeMetricFormValues } from './report-platform-utils';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import ModalFooter from '@/components/ModalFooter';
+import { useListPage } from '@/hooks/useListPage';
 
 interface MetricSearch {
   keyword: string;
@@ -54,25 +53,31 @@ const statusColor = { draft: 'grey', published: 'green', deprecated: 'red' } as 
 export default function MetricsPage() {
   const { hasPermission } = usePermission();
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams: submitted,
-    handleSearch, handleReset,
-  } = useListSearch<MetricSearch>({ defaults: defaultSearch, listKey: reportMetricKeys.lists });
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submitted.keyword,
-    type: submitted.type,
-    status: submitted.status,
-    datasetId: submitted.datasetId,
-    folderId: submitted.folderId,
-    ownerId: submitted.ownerId,
-  }), [submitted]);
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+    listQuery,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: reportMetricKeys.lists,
+    useList: useReportMetricList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      type: s.type,
+      status: s.status,
+      datasetId: s.datasetId,
+      folderId: s.folderId,
+      ownerId: s.ownerId,
+    }),
+    table: { empty: <Empty title="暂无指标" description="创建指标以统一复用业务口径" /> },
+  });
 
   const [conflict, setConflict] = useState('');
   const [sheetMetric, setSheetMetric] = useState<ReportMetric | null>(null);
   const [sheetMode, setSheetMode] = useState<'preview' | 'refs'>('preview');
 
-  const listQuery = useReportMetricList({ page, pageSize, ...filterQuery });
   const evaluateMutation = useEvaluateReportMetric();
   const refsQuery = useReportMetricRefs(sheetMetric?.id, !!sheetMetric && sheetMode === 'refs');
   const saveMutation = useSaveReportMetric();
@@ -242,10 +247,7 @@ export default function MetricsPage() {
       {listQuery.isError && <Banner type="danger" description={listQuery.error instanceof Error ? listQuery.error.message : '指标加载失败'} />}
       <ConfigurableTable<ReportMetric>
         columns={columns}
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          empty: <Empty title="暂无指标" description="创建指标以统一复用业务口径" />,
-        })}
+        {...tableProps}
       />
 
       <SideSheet

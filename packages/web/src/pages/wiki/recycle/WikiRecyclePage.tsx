@@ -1,16 +1,14 @@
-import { useMemo } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WikiDoc } from '@zenith/shared/wiki';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { KeywordInput } from '@/components/search-filters';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import { usePurgeWikiDoc, useRestoreWikiDoc, useWikiDocRecycleList, wikiDocRecycleKeys } from '@/hooks/queries/wiki-docs';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   keyword: string;
@@ -22,15 +20,18 @@ export default function WikiRecyclePage() {
   const { hasPermission } = usePermission();
 
   const {
-    page, pageSize, buildPagination,
-    bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: wikiDocRecycleKeys.all });
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: wikiDocRecycleKeys.all,
+    useList: useWikiDocRecycleList,
+    toQuery: (s) => ({ keyword: s.keyword }),
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword }), [submittedParams]);
 
-  const listQuery = useWikiDocRecycleList({ page, pageSize, ...filterQuery });
 
   const restoreMutation = useRestoreWikiDoc();
   const purgeMutation = usePurgeWikiDoc();
@@ -77,7 +78,7 @@ export default function WikiRecyclePage() {
       <ConfigurableTable<WikiDoc>
         columns={columns}
         empty="回收站是空的"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
     </div>
   );

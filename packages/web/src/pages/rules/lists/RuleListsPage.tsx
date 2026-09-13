@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { confirmAndDelete, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { useState } from 'react';
+import { confirmAndDelete, ListSearchToolbar } from '@/components/list-page';
 import { Button, DatePicker, Form, Input, Modal, Select, SideSheet, Space, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RULE_LIST_TYPE_OPTIONS, RULE_LIST_TYPES, type RuleList, type RuleListItem, type RuleUsageItem } from '@zenith/shared/rules';
@@ -8,8 +8,6 @@ import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis, ren
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { formatDateTimeForApi } from '@/utils/date';
@@ -30,6 +28,7 @@ import {
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text } = Typography;
 
@@ -47,17 +46,20 @@ export default function RuleListsPage() {
   const canEdit = hasPermission('rule:list:update');
   const canDelete = hasPermission('rule:list:delete');
   const canManageItems = hasPermission('rule:list:item');
+  const defaultSearchParams: SearchParams = { keyword: '', type: undefined };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: { keyword: '', type: undefined }, listKey: ruleKeys.ruleLists.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: ruleKeys.ruleLists.lists,
+    useList: useRuleListList,
+    toQuery: (s) => ({ keyword: s.keyword, type: enumValueOf(RULE_LIST_TYPES, s.type) }),
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    type: enumValueOf(RULE_LIST_TYPES, submittedParams.type),
-  }), [submittedParams]);
 
   const [itemsRow, setItemsRow] = useState<RuleList | null>(null);
   const { page: itemsPage, pageSize: itemsPageSize, setPage: setItemsPage, buildPagination: buildItemsPagination } = usePagination(10);
@@ -67,7 +69,6 @@ export default function RuleListsPage() {
   const [checkValue, setCheckValue] = useState('');
   const [checkResult, setCheckResult] = useState<{ hit: boolean; listType?: string } | null>(null);
 
-  const listQuery = useRuleListList({ page, pageSize, ...filterQuery });
   const itemsQuery = useRuleListItems(itemsRow?.id, { page: itemsPage, pageSize: itemsPageSize, keyword: itemKeyword || undefined }, !!itemsRow);
   const items = itemsQuery.data ?? null;
   const saveMutation = useSaveRuleList();
@@ -194,7 +195,7 @@ export default function RuleListsPage() {
         filterTitle="名单筛选"
       />
       <ConfigurableTable columns={columns} empty="暂无数据"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal

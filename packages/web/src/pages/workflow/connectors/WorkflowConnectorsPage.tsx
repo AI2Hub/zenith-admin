@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import ModalFooter from '@/components/ModalFooter';
 import {
   Form,
@@ -31,13 +31,12 @@ import {
   workflowConnectorKeys,
 } from '@/hooks/queries/workflow-connectors';
 import { useDictItems } from '@/hooks/useDictItems';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { parseHeadersJson } from '../components/http-integration';
 import { useEditModal } from '@/hooks/useEditModal';
+import { useListPage } from '@/hooks/useListPage';
 
 /** 可创建的连接器类型（与后端 workflowConnectorTypeSchema 对齐；mq/database 暂无运行时实现不开放） */
 const TYPE_OPTIONS: Array<{ value: WorkflowConnectorType; label: string }> = [
@@ -79,18 +78,23 @@ export default function WorkflowConnectorsPage() {
   const { options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowConnectorKeys.lists });
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    type: enumValueOf(WORKFLOW_CONNECTOR_TYPES, submittedParams.type),
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: workflowConnectorKeys.lists,
+    useList: useWorkflowConnectorList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      type: enumValueOf(WORKFLOW_CONNECTOR_TYPES, s.type),
+      status: enumValueOf(USER_STATUSES, s.status),
+    }),
+    table: { empty: '暂无连接器' },
+  });
 
-  const listQuery = useWorkflowConnectorList({ page, pageSize, ...filterQuery });
   const saveMutation = useSaveWorkflowConnector();
   const toggleStatusMutation = useSaveWorkflowConnector();
   const deleteMutation = useDeleteWorkflowConnectors();
@@ -241,7 +245,7 @@ export default function WorkflowConnectorsPage() {
 
       <ConfigurableTable<WorkflowConnector>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无连接器' })}
+        {...tableProps}
       />
 
       <SideSheet

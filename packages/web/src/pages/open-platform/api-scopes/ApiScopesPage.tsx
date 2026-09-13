@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Tag, Form, Typography, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
@@ -8,7 +7,7 @@ import { copyableNoColumn, createdAtColumn, renderEnabledStatusTag } from '@/uti
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
+import { confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection } from '@/components/list-page';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -18,10 +17,9 @@ import {
   useSaveApiScope,
 } from '@/hooks/queries/open-platform';
 import { useDictItems } from '@/hooks/useDictItems';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { BatchDeleteButton, CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text } = Typography;
 
@@ -34,25 +32,22 @@ export default function ApiScopesPage() {
 
   interface SearchParams { keyword: string; scopeGroup?: string; status?: string }
   const defaultSearchParams: SearchParams = { keyword: '', scopeGroup: undefined, status: undefined };
-  const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: apiScopeKeys.lists });
 
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
-
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    scopeGroup: submittedParams.scopeGroup,
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
-  const listQuery = useApiScopeList({
-    page,
-    pageSize,
-    ...filterQuery,
+  const {
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: apiScopeKeys.lists,
+    useList: useApiScopeList,
+    toQuery: (s) => ({ keyword: s.keyword, scopeGroup: s.scopeGroup, status: enumValueOf(USER_STATUSES, s.status) }),
+    table: { empty: '暂无数据', rowSelection: canManage ? rowSelection : undefined },
   });
+
   const deleteMutation = useDeleteApiScopes();
 
   const modal = useEditModal<ApiScope, Partial<CreateApiScopeInput>>({
@@ -149,11 +144,7 @@ export default function ApiScopesPage() {
 
       <ConfigurableTable<ApiScope>
         columns={columns}
-        {...listTableProps(listQuery, {
-          empty: '暂无数据',
-          rowSelection: canManage ? rowSelection : undefined,
-          pagination: buildPagination,
-        })}
+        {...tableProps}
       />
 
       <AppModal

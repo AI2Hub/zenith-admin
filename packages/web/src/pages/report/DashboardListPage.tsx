@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Form, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -32,11 +32,10 @@ import { ReportFolderFilter, ReportOwnerFilter } from './report-filters';
 import { ReportOwnerFolderFields } from './report-form-fields';
 import { useReportOwnerFolderOptions } from './report-lookups';
 import { useReportDeprecationList } from '@/hooks/queries/report-assets';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { BatchStatusButtons, CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { batchStatusHandler, confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
+import { batchStatusHandler, confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection } from '@/components/list-page';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams { keyword: string; status?: string; lifecycleStatus?: ReportDashboard['lifecycleStatus']; categoryId?: number; favorited: boolean; ownerId?: number; folderId?: number }
 const defaultSearchParams: SearchParams = { keyword: '', status: undefined, lifecycleStatus: undefined, favorited: false, ownerId: undefined, folderId: undefined };
@@ -47,29 +46,37 @@ export default function DashboardListPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const {
-    page, pageSize, buildPagination,
-    draftParams, setDraftParams, bind, bindKeyword, submittedParams,
-    handleSearch, applySearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: reportDashboardKeys.lists });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-    lifecycleStatus: submittedParams.lifecycleStatus,
-    categoryId: submittedParams.categoryId,
-    favorited: submittedParams.favorited ? true : undefined,
-    ownerId: submittedParams.ownerId,
-    folderId: submittedParams.folderId,
-  }), [submittedParams]);
 
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
+  const {
+    draftParams,
+    setDraftParams,
+    bind,
+    bindKeyword,
+    handleSearch,
+    applySearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: reportDashboardKeys.lists,
+    useList: useReportDashboardList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      status: enumValueOf(USER_STATUSES, s.status),
+      lifecycleStatus: s.lifecycleStatus,
+      categoryId: s.categoryId,
+      favorited: s.favorited ? true : undefined,
+      ownerId: s.ownerId,
+      folderId: s.folderId,
+    }),
+    table: { empty: '暂无数据', rowSelection: hasPermission('report:dashboard:update') ? rowSelection : undefined },
+  });
   const [categorySheetVisible, setCategorySheetVisible] = useState(false);
   const [shareTarget, setShareTarget] = useState<number | null>(null);
   const [versionTarget, setVersionTarget] = useState<number | null>(null);
 
-  const listQuery = useReportDashboardList({ page, pageSize, ...filterQuery });
   const { userOptions, folderOptions } = useReportOwnerFolderOptions('dashboard');
   const deprecationQuery = useReportDeprecationList(
     { page: 1, pageSize: 200, resourceType: 'dashboard', published: true },
@@ -274,11 +281,7 @@ export default function DashboardListPage() {
 
       <ConfigurableTable<ReportDashboard>
         columns={columns}
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          empty: '暂无数据',
-          rowSelection: hasPermission('report:dashboard:update') ? rowSelection : undefined,
-        })}
+        {...tableProps}
       />
 
       <AppModal

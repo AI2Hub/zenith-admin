@@ -1,6 +1,5 @@
 /** 页面搭建：区块 JSON 装配（P3 Batch6）——列表 + 区块搭建器 SideSheet */
-import { useMemo, useEffect, useRef, useState } from 'react';
-import { compactParams } from '@/lib/query';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Dropdown, Form, Input, Select, SideSheet, Tag, Toast, Typography, Empty } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -9,7 +8,6 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import AppModal from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
-import { useListSearch } from '@/hooks/useListSearch';
 import { formRemountKey } from '@/hooks/useEditModal';
 import {
   useCmsSiteList, useCmsPageList, useSaveCmsPage, useDeleteCmsPages, useCmsChannelTree,
@@ -28,9 +26,10 @@ import { dateTimeColumn, enabledStatusColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 import { mapTree } from '@zenith/shared/core';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import ModalFooter from '@/components/ModalFooter';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
+import { useListPage } from '@/hooks/useListPage';
 
 /** 区块按栏目标识引用栏目：value 用 code，站点复制/重建后配置无需重配 */
 function channelsToSelectTree(nodes: CmsChannel[]): TreeNodeData[] {
@@ -63,14 +62,19 @@ export default function PagesPage() {
   const { hasPermission } = usePermission();
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
   const {
-    page, pageSize, buildPagination, resetPage,
-    bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: cmsPageKeys.lists });
+    resetPage,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: cmsPageKeys.lists,
+    useList: useCmsPageList,
+    toQuery: (s) => ({ keyword: s.keyword }),
+    params: { siteId },
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword }), [submittedParams]);
-  const listQuery = useCmsPageList({ page, pageSize, siteId, ...filterQuery });
   const { data: sitesPage } = useCmsSiteList({ page: 1, pageSize: 100 });
   const treeQuery = useCmsChannelTree(siteId);
   const tagOptionsQuery = useCmsTagList({ page: 1, pageSize: 200, siteId: siteId ?? 0 }, siteId !== undefined);
@@ -304,7 +308,7 @@ export default function PagesPage() {
 
       <ConfigurableTable<CmsPage>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       {/* 搭建器 */}

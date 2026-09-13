@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -10,12 +9,11 @@ import { PaymentExpandedDetail } from './payment-expanded-detail';
 import { usePermission } from '@/hooks/usePermission';
 import { PAYMENT_OUTBOX_EVENT_STATUS_LABELS, PAYMENT_OUTBOX_EVENT_STATUS_OPTIONS, PAYMENT_OUTBOX_EVENT_STATUSES, type PaymentOutboxEvent } from '@zenith/shared/payment';
 import { paymentEventKeys, usePaymentEventList, usePaymentOpsHealth, useRedispatchPaymentEvent } from '@/hooks/queries/payment-events';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
-import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar } from '@/components/list-page';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { enumValueOf } from '@zenith/shared/core';
+import { useListPage } from '@/hooks/useListPage';
 
 const EVENT_STATUS_COLOR = { pending: 'blue', done: 'green', failed: 'red' } as const satisfies Record<PaymentOutboxEvent['status'], string>;
 const HEALTH_LABELS = [
@@ -44,20 +42,16 @@ function formatPayload(raw: string | null | undefined): string {
 export default function PaymentEventsPage() {
   const { hasPermission } = usePermission();
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentEventKeys.lists });
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(PAYMENT_OUTBOX_EVENT_STATUSES, submittedParams.status),
-    type: submittedParams.type,
-  }), [submittedParams]);
-  const listQuery = usePaymentEventList({
-    page,
-    pageSize,
-    ...filterQuery,
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: paymentEventKeys.lists,
+    useList: usePaymentEventList,
+    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(PAYMENT_OUTBOX_EVENT_STATUSES, s.status), type: s.type }),
   });
   const healthQuery = usePaymentOpsHealth();
   const health = healthQuery.data ?? null;
@@ -142,7 +136,7 @@ export default function PaymentEventsPage() {
       <ConfigurableTable
         columns={columns}
         empty="暂无数据"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
         expandedRowRender={renderExpanded}
         expandRowByClick
       />

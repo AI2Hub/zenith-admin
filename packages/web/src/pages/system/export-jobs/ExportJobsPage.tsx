@@ -28,9 +28,8 @@ import {
 } from '@/hooks/queries/export-jobs';
 import { BatchDeleteButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { copyTextWithToast } from '@/utils/clipboard';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   entity?: string;
@@ -83,26 +82,32 @@ function renderProgress(record: ExportJob) {
 export default function ExportJobsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: exportJobKeys.lists });
   const [logsVisible, setLogsVisible] = useState(false);
   const [currentJob, setCurrentJob] = useState<ExportJob | null>(null);
   const [downloadLoadingId, setDownloadLoadingId] = useState<number | null>(null);
   const { selectedRowKeys, setSelectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
+  const {
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+    listQuery,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: exportJobKeys.lists,
+    useList: useExportJobList,
+    toQuery: (s) => ({
+      entity: s.entity,
+      status: enumValueOf(EXPORT_JOB_STATUSES, s.status),
+      format: enumValueOf(EXPORT_JOB_FORMATS, s.format),
+      keyword: s.keyword,
+    }),
+    table: { rowSelection, empty: '暂无导出任务' },
+  });
   const entitiesQuery = useExportEntities();
   const entities = entitiesQuery.data ?? EMPTY_ENTITIES;
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    entity: submittedParams.entity,
-    status: enumValueOf(EXPORT_JOB_STATUSES, submittedParams.status),
-    format: enumValueOf(EXPORT_JOB_FORMATS, submittedParams.format),
-    keyword: submittedParams.keyword,
-  }), [submittedParams]);
 
-  const listQuery = useExportJobList({ page, pageSize, ...filterQuery });
   const data = listQuery.data?.list ?? EMPTY_EXPORT_JOBS;
   const downloadsQuery = useExportJobDownloads(currentJob?.id, logsVisible && currentJob != null);
   const cancelMutation = useCancelExportJob();
@@ -354,11 +359,7 @@ export default function ExportJobsPage() {
 
       <ConfigurableTable<ExportJob>
         columns={columns}
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          rowSelection,
-          empty: '暂无导出任务',
-        })}
+        {...tableProps}
       />
 
       <SideSheet

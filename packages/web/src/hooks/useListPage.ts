@@ -14,16 +14,21 @@ type ItemOfData<TData> = [TData] extends [never] ? never : TData extends { list:
 /** 列表查询结果里的行类型：只看 `data` 的成功形态 */
 type ItemOf<TList> = TList extends { data?: infer TData } ? ItemOfData<NonNullable<TData>> : never;
 
-export interface UseListPageOptions<TSearch, TRaw extends Record<string, unknown>, TList extends ListQueryLike<Data>>
+export interface UseListPageOptions<TSearch, TRaw extends Record<string, unknown>, TFixed extends Record<string, unknown>, TList extends ListQueryLike<Data>>
   extends UseListSearchOptions<TSearch> {
   /**
    * 域 hooks 的列表查询（`createResourceQueries(...).useList` 或同签名的手写 hook）。
    * 与 `useEditModal({ useDetail })` 一样必须是模块级稳定函数；参数类型即契约 `QueryOf`，
-   * `toQuery` 的结果会在这里被契约类型检查（`NoInfer` 保证映射类型只从 `toQuery` 推导）。
+   * `toQuery` / `params` 的结果会在这里被契约类型检查（`NoInfer` 保证映射类型只从 `toQuery` 推导）。
    */
-  readonly useList: (params: PageParams & NoInfer<CompactParams<TRaw>>, enabled?: boolean) => TList;
+  readonly useList: (params: PageParams & NoInfer<TFixed> & NoInfer<CompactParams<TRaw>>, enabled?: boolean) => TList;
   /** 已提交筛选 → 契约查询参数（不含 page / pageSize）；结果经 `useFilterQuery` 收口后再交给 `useList` */
   readonly toQuery: (submitted: TSearch) => TRaw;
+  /**
+   * 不经筛选映射、原样传给 `useList` 的固定 / 作用域参数（`siteId` / `accountId` / `taskType: 'data-import'`…）：
+   * 契约里的必填键在这里给出，不会被 compact 掉
+   */
+  readonly params?: TFixed;
   /** 列表查询的启用开关（等待作用域就绪时传 false） */
   readonly enabled?: boolean;
   /** 表格接线选项：`rowSelection` / `empty` / `rowKey` / `size` / `bordered`；分页由本 hook 接好 */
@@ -32,7 +37,7 @@ export interface UseListPageOptions<TSearch, TRaw extends Record<string, unknown
 
 export interface UseListPageReturn<TSearch, TRaw extends Record<string, unknown>, TList extends ListQueryLike<Data>>
   extends UseListSearchReturn<TSearch> {
-  /** 已提交筛选映射出的契约查询参数（不含分页）：给 `ExportButton query` / 深链 / 其它同源查询 */
+  /** 已提交筛选映射出的契约查询参数（不含分页与固定参数）：给 `ExportButton query` / 深链 / 其它同源查询 */
   readonly filterQuery: CompactParams<TRaw>;
   /** 列表查询结果（`data` / `isFetching` / `refetch` …） */
   readonly listQuery: TList;
@@ -53,17 +58,18 @@ export interface UseListPageReturn<TSearch, TRaw extends Record<string, unknown>
  *   listKey: xxxKeys.lists,
  *   useList: useXxxList,
  *   toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(XXX_STATUSES, s.status) }),
+ *   params: { siteId },              // 契约必填的作用域参数（可选）
  *   table: { rowSelection },
  * });
  * <ConfigurableTable<Xxx> columns={columns} {...tableProps} />
  * <ExportButton entity="system.xxxs" query={filterQuery} permission="system:xxx:export" />
  */
-export function useListPage<TSearch, TRaw extends Record<string, unknown>, TList extends ListQueryLike<Data>>(
-  { useList, toQuery, enabled, table, ...searchOptions }: UseListPageOptions<TSearch, TRaw, TList>,
+export function useListPage<TSearch, TRaw extends Record<string, unknown>, TFixed extends Record<string, unknown>, TList extends ListQueryLike<Data>>(
+  { useList, toQuery, params, enabled, table, ...searchOptions }: UseListPageOptions<TSearch, TRaw, TFixed, TList>,
 ): UseListPageReturn<TSearch, TRaw, TList> {
   const search = useListSearch<TSearch>(searchOptions);
   const filterQuery = useFilterQuery(toQuery(search.submittedParams));
-  const listQuery = useList({ page: search.page, pageSize: search.pageSize, ...filterQuery }, enabled);
+  const listQuery = useList({ page: search.page, pageSize: search.pageSize, ...(params as TFixed), ...filterQuery }, enabled);
   const tableProps = listTableProps<ItemOf<TList>>(listQuery as unknown as ListQueryLike<ItemOf<TList>>, { pagination: search.buildPagination, ...table });
   return { ...search, filterQuery, listQuery, tableProps };
 }

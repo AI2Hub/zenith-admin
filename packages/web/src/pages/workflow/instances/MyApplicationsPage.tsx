@@ -47,11 +47,10 @@ import {
   workflowInstanceKeys,
 } from '@/hooks/queries/workflow-instances';
 import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
-import { useListSearch } from '@/hooks/useListSearch';
-import { deleteAction, ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useRowSelection } from '@/components/list-page';
 import { workflowInstanceStatusColumn } from '@/components/workflow/WorkflowInstanceListColumns';
 import { FilterSelect, StatusSelect } from '@/components/search-filters';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 function InstanceDetailDrawer({
   instanceId,
@@ -248,11 +247,6 @@ function InstanceDetailDrawer({
 
 export default function MyApplicationsPage() {
   const launchFormRef = useRef<WorkflowLaunchFormHandle>(null);
-  const {
-    page, pageSize, buildPagination,
-    bind, submittedParams,
-    handleSearch, applySearch, handleReset,
-  } = useListSearch<{ status?: string; priority?: string }>({ defaults: { status: undefined, priority: undefined }, listKey: workflowInstanceKeys.lists });
   const [detailVisible, setDetailVisible] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [applyVisible, setApplyVisible] = useState(false);
@@ -261,6 +255,25 @@ export default function MyApplicationsPage() {
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection<number, WorkflowInstance>({
     // 草稿不参与批量操作
     extra: { getCheckboxProps: (record: WorkflowInstance) => ({ disabled: record.status === 'draft' }) },
+  });
+  const defaultSearchParams: { status?: string; priority?: string } = { status: undefined, priority: undefined };
+  const {
+    bind,
+    submittedParams,
+    handleSearch,
+    applySearch,
+    handleReset,
+    tableProps,
+    listQuery,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: workflowInstanceKeys.lists,
+    useList: useMyWorkflowInstances,
+    toQuery: (s) => ({
+      status: enumValueOf(WORKFLOW_INSTANCE_STATUSES, s.status),
+      priority: enumValueOf(WORKFLOW_INSTANCE_PRIORITIES, s.priority),
+    }),
+    table: { rowSelection },
   });
   const [batchWithdrawVisible, setBatchWithdrawVisible] = useState(false);
   const [batchWithdrawComment, setBatchWithdrawComment] = useState('');
@@ -271,12 +284,6 @@ export default function MyApplicationsPage() {
   const [editingDraft, setEditingDraft] = useState<WorkflowInstance | null>(null);
   const [dynamicFormInitValues, setDynamicFormInitValues] = useState<Record<string, unknown>>({});
   const [formKey, setFormKey] = useState(0);
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
-    status: enumValueOf(WORKFLOW_INSTANCE_STATUSES, submittedParams.status),
-    priority: enumValueOf(WORKFLOW_INSTANCE_PRIORITIES, submittedParams.priority),
-  }), [submittedParams]);
-  const listQuery = useMyWorkflowInstances({ page, pageSize, ...filterQuery });
   const data = listQuery.data;
   const definitionsQuery = usePublishedWorkflowDefinitions({ enabled: applyVisible });
   const definitions = definitionsQuery.data ?? [];
@@ -655,10 +662,7 @@ export default function MyApplicationsPage() {
       />
       <ConfigurableTable<WorkflowInstance>
         columns={columns}
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          rowSelection,
-        })}
+        {...tableProps}
       />
 
       {/* 申请详情 */}

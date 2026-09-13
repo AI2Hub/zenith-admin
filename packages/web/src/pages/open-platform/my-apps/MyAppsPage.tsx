@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import ModalFooter from '@/components/ModalFooter';
 import { useNavigate } from 'react-router-dom';
 import { Banner, Button, Checkbox, Col, Form, Modal, Row, SideSheet, Spin, Toast, Typography } from '@douyinfe/semi-ui';
@@ -9,8 +9,6 @@ import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENT_OPTI
 import type { OAuth2Client, OAuth2GrantType } from '@zenith/shared/open-platform';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { useOAuth2ApiScopes } from '@/hooks/queries/oauth2-apps';
 import {
   developerAppKeys,
@@ -24,11 +22,12 @@ import {
 } from '@/hooks/queries/developer-apps';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
 import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricMeter';
 import { copyableNoColumn, dateTimeColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { openAppEnvironmentColumn, openAppReviewStatusColumn, openAppScopesColumn } from '../open-app-columns';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Paragraph, Text } = Typography;
 
@@ -77,25 +76,23 @@ export default function MyAppsPage() {
     environment?: OAuth2Client['environment'];
     reviewStatus?: OAuth2Client['reviewStatus'];
   };
+  const defaultSearchParams: SearchParams = { keyword: '' };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams: submitted,
-    handleSearch: search, handleReset: reset,
-  } = useListSearch<SearchParams>({ defaults: { keyword: '' }, listKey: developerAppKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch: search,
+    handleReset: reset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: developerAppKeys.lists,
+    useList: useMyAppList,
+    toQuery: (s) => ({ keyword: s.keyword, environment: s.environment, reviewStatus: s.reviewStatus }),
+    table: { empty: '还没有应用，创建一个沙箱应用开始接入' },
+  });
   const [secret, setSecret] = useState<{ clientId: string; value: string; previousValidUntil?: string } | null>(null);
   const [usageApp, setUsageApp] = useState<OAuth2Client | null>(null);
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submitted.keyword,
-    environment: submitted.environment,
-    reviewStatus: submitted.reviewStatus,
-  }), [submitted]);
-  const listQuery = useMyAppList({
-    page,
-    pageSize,
-    ...filterQuery,
-  });
   const scopes = useOAuth2ApiScopes().data ?? [];
   const quotaQuery = useMyAppQuota(usageApp?.id, Boolean(usageApp));
   const saveMutation = useSaveMyApp();
@@ -230,10 +227,7 @@ export default function MyAppsPage() {
       />
       <ConfigurableTable<OAuth2Client>
         columns={columns}
-        {...listTableProps(listQuery, {
-          empty: '还没有应用，创建一个沙箱应用开始接入',
-          pagination: buildPagination,
-        })}
+        {...tableProps}
       />
 
       <SideSheet

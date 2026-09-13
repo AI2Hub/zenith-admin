@@ -1,19 +1,17 @@
-import { useMemo } from 'react';
 import { Form, Spin, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { CreateWikiTagInput, WikiTag } from '@zenith/shared/wiki';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { KeywordInput } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
 import { createdAtColumn } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useDeleteWikiTags, useSaveWikiTag, useWikiTagList, wikiTagKeys } from '@/hooks/queries/wiki-tags';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   keyword: string;
@@ -27,15 +25,18 @@ export default function WikiTagsPage() {
   const { hasPermission } = usePermission();
 
   const {
-    page, pageSize, buildPagination,
-    bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: wikiTagKeys.lists });
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: wikiTagKeys.lists,
+    useList: useWikiTagList,
+    toQuery: (s) => ({ keyword: s.keyword }),
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword }), [submittedParams]);
 
-  const listQuery = useWikiTagList({ page, pageSize, ...filterQuery });
 
   const modal = useEditModal<WikiTag, Partial<CreateWikiTagInput>>({
     entityName: '标签',
@@ -91,7 +92,7 @@ export default function WikiTagsPage() {
       <ConfigurableTable<WikiTag>
         columns={columns}
         empty="暂无标签"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal {...modal.modalProps} width={480}>

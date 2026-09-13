@@ -5,28 +5,31 @@ import { TOKEN_KEY } from '@zenith/shared/core';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { usePermission } from '@/hooks/usePermission';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { sessionKeys, useForceLogoutSession, useForceLogoutUserSessions, useSessionList } from '@/hooks/queries/sessions';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
+import { useListPage } from '@/hooks/useListPage';
 
 export default function OnlineSessionsPage() {
   const { hasPermission } = usePermission();
   interface SearchParams { keyword: string; }
   const defaultSearchParams: SearchParams = { keyword: '' };
   const {
-    page, pageSize, buildPagination,
-    bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: sessionKeys.lists });
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword }), [submittedParams]);
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: sessionKeys.lists,
+    useList: useSessionList,
+    toQuery: (s) => ({ keyword: s.keyword }),
+    table: { rowKey: 'tokenId', empty: '暂无在线用户' },
+  });
 
-  const listQuery = useSessionList({ page, pageSize, ...filterQuery });
   const forceLogoutMutation = useForceLogoutSession();
   const forceLogoutUserMutation = useForceLogoutUserSessions();
 
@@ -113,11 +116,7 @@ export default function OnlineSessionsPage() {
 
       <ConfigurableTable<OnlineSession>
         columns={columns}
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          rowKey: 'tokenId',
-          empty: '暂无在线用户',
-        })}
+        {...tableProps}
       />
     </div>
   );

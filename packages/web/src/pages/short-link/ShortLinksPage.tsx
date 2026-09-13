@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import ModalFooter from '@/components/ModalFooter';
 import { Col, Collapse, Form, Modal, Row, SideSheet, Spin, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -6,14 +6,13 @@ import { QRCodeSVG } from 'qrcode.react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { batchStatusHandler, confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useRowSelection, useStatusToggle } from '@/components/list-page';
+import { batchStatusHandler, confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection, useStatusToggle } from '@/components/list-page';
 import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { BatchDeleteButton, BatchStatusButtons, CreateButton } from '@/components/toolbar-controls';
 import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
-import { useListSearch } from '@/hooks/useListSearch';
 import { formatDateTimeForApi, formatDateTimeRangeForApi } from '@/utils/date';
 import {
   shortLinkKeys, useBatchUpdateShortLinkStatus, useDeleteShortLinks,
@@ -26,7 +25,7 @@ import {
 } from '@zenith/shared/short-link';
 import type { CreateShortLinkInput, ShortLink } from '@zenith/shared/short-link';
 import ShortLinkStatsDrawer from './ShortLinkStatsDrawer';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text } = Typography;
 
@@ -72,24 +71,27 @@ export default function ShortLinksPage() {
   const [statsLink, setStatsLink] = useState<ShortLink | null>(null);
 
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+    filterQuery,
+  } = useListPage({
     defaults: defaultSearchParams,
     listKey: shortLinkKeys.lists,
     onSearch: clearSelection,
     onReset: clearSelection,
+    useList: useShortLinkList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      status: enumValueOf(USER_STATUSES, s.status),
+      bizType: enumValueOf(SHORT_LINK_BIZ_TYPES, s.bizType),
+      ...formatDateTimeRangeForApi(s.timeRange),
+    }),
+    table: { rowSelection },
   });
 
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-    bizType: enumValueOf(SHORT_LINK_BIZ_TYPES, submittedParams.bizType),
-    ...formatDateTimeRangeForApi(submittedParams.timeRange),
-  }), [submittedParams]);
-  const listQuery = useShortLinkList({ page, pageSize, ...filterQuery });
 
   const modal = useEditModal<ShortLink, ShortLinkFormValues, Partial<CreateShortLinkInput>>({
     entityName: '短链',
@@ -248,10 +250,7 @@ export default function ShortLinksPage() {
       <ConfigurableTable<ShortLink>
         columns={columns}
         empty="暂无数据"
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          rowSelection,
-        })}
+        {...tableProps}
       />
 
       {/* 新增 / 编辑 */}

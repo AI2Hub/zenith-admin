@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 
 import { Button, Col, Form, Modal, Row, Tag, Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
@@ -7,11 +6,9 @@ import type { InAppMessage, InAppMessageType } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { createdAtColumn, dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../../utils/table-columns';
 import { useAllUsers } from '@/hooks/queries/users';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
   inAppMessageKeys,
@@ -26,6 +23,7 @@ import {
 import { IN_APP_MESSAGE_TYPE_OPTIONS_WITH_COLOR as TYPE_OPTIONS } from '../in-app-message-constants';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { parseTemplateVariables } from '../send-log-constants';
+import { useListPage } from '@/hooks/useListPage';
 
 const READ_OPTIONS = [
   { label: '未读', value: 'false' },
@@ -48,19 +46,23 @@ export default function InAppMessagesPage() {
   interface SearchParams { keyword: string; filterType: InAppMessageType | undefined; filterRead: string | undefined; }
   const defaultSearchParams: SearchParams = { keyword: '', filterType: undefined, filterRead: undefined };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: inAppMessageKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: inAppMessageKeys.lists,
+    useList: useInAppMessageList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      type: s.filterType,
+      isRead: s.filterRead === undefined ? undefined : s.filterRead === 'true',
+    }),
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    type: submittedParams.filterType,
-    isRead: submittedParams.filterRead === undefined ? undefined : submittedParams.filterRead === 'true',
-  }), [submittedParams]);
 
-  const listQuery = useInAppMessageList({ page, pageSize, ...filterQuery });
   const sendMutation = useSendInAppMessage();
   const sendModal = useEditModal<{ id: number }, SendInAppFormValues, SendInAppValues>({
     save: {
@@ -172,7 +174,7 @@ export default function InAppMessagesPage() {
 
       <ConfigurableTable<InAppMessage>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal {...sendModal.modalProps} title="发送站内信" width={720}>

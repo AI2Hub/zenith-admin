@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import ModalFooter from '@/components/ModalFooter';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Form, Modal, Row, SideSheet, Spin, Table, Tag, Toast } from '@douyinfe/semi-ui';
@@ -23,12 +23,11 @@ import {
   useTestIdentityProviderConnection,
 } from '@/hooks/queries/identity-providers';
 import { useDictItems } from '@/hooks/useDictItems';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { useEditModal } from '@/hooks/useEditModal';
 import { CreateButton, SearchButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   keyword: string;
@@ -116,19 +115,23 @@ export default function IdentityProvidersPage() {
   const [ldapSearchProvider, setLdapSearchProvider] = useState<TenantIdentityProvider | null>(null);
   const [ldapSearchKeyword, setLdapSearchKeyword] = useState('');
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: identityProviderKeys.lists });
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    type: enumValueOf(IDENTITY_PROVIDER_TYPES, submittedParams.type),
-    status: enumValueOf(IDENTITY_PROVIDER_STATUSES, submittedParams.status),
-    tenantId: submittedParams.tenantId,
-  }), [submittedParams]);
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: identityProviderKeys.lists,
+    useList: useIdentityProviderList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      type: enumValueOf(IDENTITY_PROVIDER_TYPES, s.type),
+      status: enumValueOf(IDENTITY_PROVIDER_STATUSES, s.status),
+      tenantId: s.tenantId,
+    }),
+  });
 
-  const listQuery = useIdentityProviderList({ page, pageSize, ...filterQuery });
   // 归属租户只有平台管理员可选；租户管理员的身份源由服务端强制落到自身租户
   const isPlatformAdmin = useIsPlatformAdmin();
   const tenantsQuery = useIdentityProviderTenants({ enabled: isPlatformAdmin });
@@ -330,7 +333,7 @@ export default function IdentityProvidersPage() {
 
       <ConfigurableTable<TenantIdentityProvider>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <SideSheet

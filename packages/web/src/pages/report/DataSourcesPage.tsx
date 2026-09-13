@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Col, Form, Row, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -27,12 +26,11 @@ import { renderReportDatasourceTypeTag } from './report-datasource-ui';
 import { ReportFolderFilter, ReportOwnerFilter } from './report-filters';
 import { ReportOwnerFolderFields } from './report-form-fields';
 import { useReportOwnerFolderOptions } from './report-lookups';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { BatchStatusButtons, CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
-import { batchStatusHandler, deleteAction, ListSearchToolbar, listTableProps, useStatusToggle, useRowSelection } from '@/components/list-page';
+import { batchStatusHandler, deleteAction, ListSearchToolbar, useStatusToggle, useRowSelection } from '@/components/list-page';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams { keyword: string; type?: string; status?: string; ownerId?: number; folderId?: number }
 const defaultSearchParams: SearchParams = { keyword: '', type: undefined, status: undefined, ownerId: undefined, folderId: undefined };
@@ -42,24 +40,29 @@ export default function DataSourcesPage() {
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
 
-  const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: reportDatasourceKeys.lists });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    type: enumValueOf(REPORT_DATASOURCE_TYPES, submittedParams.type),
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-    ownerId: submittedParams.ownerId,
-    folderId: submittedParams.folderId,
-  }), [submittedParams]);
 
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
+  const {
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: reportDatasourceKeys.lists,
+    useList: useReportDatasourceList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      type: enumValueOf(REPORT_DATASOURCE_TYPES, s.type),
+      status: enumValueOf(USER_STATUSES, s.status),
+      ownerId: s.ownerId,
+      folderId: s.folderId,
+    }),
+    table: { empty: '暂无数据', rowSelection: hasPermission('report:datasource:update') ? rowSelection : undefined },
+  });
 
-  const listQuery = useReportDatasourceList({ page, pageSize, ...filterQuery });
   const { userOptions, folderOptions } = useReportOwnerFolderOptions('datasource');
   const saveMutation = useSaveReportDatasource();
   const toggleMutation = useSaveReportDatasource();
@@ -302,11 +305,7 @@ export default function DataSourcesPage() {
 
       <ConfigurableTable<ReportDatasource>
         columns={columns}
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          empty: '暂无数据',
-          rowSelection: hasPermission('report:datasource:update') ? rowSelection : undefined,
-        })}
+        {...tableProps}
       />
 
       <AppModal

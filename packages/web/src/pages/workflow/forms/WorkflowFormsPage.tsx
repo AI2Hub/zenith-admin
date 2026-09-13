@@ -6,8 +6,6 @@ import { WORKFLOW_FORM_STATUS_LABELS, type WorkflowForm, type WorkflowFormStatus
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import {
@@ -18,8 +16,9 @@ import {
 } from '@/hooks/queries/workflow-forms';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { EMPTY_PLACEHOLDER, dateTimeColumn } from '@/utils/table-columns';
+import { useListPage } from '@/hooks/useListPage';
 
 type StatusFilter = WorkflowFormStatus | undefined;
 type TagColor = 'green' | 'grey';
@@ -46,19 +45,19 @@ export default function WorkflowFormsPage() {
   const navigate = useNavigate();
   const { items: statusItems } = useDictItems('common_status');
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowFormKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: workflowFormKeys.lists,
+    useList: useWorkflowFormList,
+    toQuery: (s) => ({ keyword: s.keyword, status: s.status, categoryId: s.categoryId }),
+  });
   const { categories } = useWorkflowCategories();
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: submittedParams.status,
-    categoryId: submittedParams.categoryId,
-  }), [submittedParams]);
 
-  const listQuery = useWorkflowFormList({ page, pageSize, ...filterQuery });
   const deleteMutation = useDeleteWorkflowForm();
   const duplicateMutation = useDuplicateWorkflowForm();
 
@@ -183,7 +182,7 @@ export default function WorkflowFormsPage() {
 
       <ConfigurableTable<WorkflowForm>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
     </div>
   );

@@ -4,7 +4,7 @@
  * 活动 = 受众 × 渠道 × 文案;发送经任务中心分批走通知派发层
  * (站内信/推送/邮件复用各渠道适配器与用户免打扰设置),进度实时展示。
  */
-import { useMemo, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Form, Modal, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import {
@@ -26,14 +26,12 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import AppModal from '@/components/AppModal';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import { EMPTY_PLACEHOLDER, createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import InsertShortLinkButton from '@/components/short-link/InsertShortLinkButton';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { usePermission } from '@/hooks/usePermission';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import {
@@ -45,6 +43,7 @@ import {
   useSendBroadcast,
 } from '@/hooks/queries/broadcasts';
 import { useQueryClient } from '@tanstack/react-query';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text } = Typography;
 
@@ -83,18 +82,19 @@ export default function BroadcastsPage() {
   const { hasPermission } = usePermission();
   const qc = useQueryClient();
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: broadcastKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: broadcastKeys.lists,
+    useList: useBroadcastList,
+    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(BROADCAST_STATUSES, s.status) }),
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(BROADCAST_STATUSES, submittedParams.status),
-  }), [submittedParams]);
 
-  const listQuery = useBroadcastList({ page, pageSize, ...filterQuery });
 
   // 群发任务实时进度;任务结束时刷新列表让状态列落定
   const { tasks } = useMyAsyncTasks({ taskTypes: ['messaging-broadcast'] });
@@ -243,7 +243,7 @@ export default function BroadcastsPage() {
       <ConfigurableTable<BroadcastCampaign>
         columns={columns}
         empty="暂无群发活动,新建后圈定受众与渠道即可发送"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal {...modal.modalProps} width={640}>

@@ -1,6 +1,5 @@
 /** 采集中心：规则 CRUD + 任务中心执行 + 采集明细（P3 Batch5） */
 import { useMemo, useState } from 'react';
-import { compactParams } from '@/lib/query';
 import ModalFooter from '@/components/ModalFooter';
 import { Col, Form, Row, SideSheet, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -9,7 +8,6 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import {
@@ -25,6 +23,7 @@ import { abortSubmit } from '@/lib/abort-submit';
 import { channelsToSelectTree } from './channel-tree';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
+import { useListPage } from '@/hooks/useListPage';
 
 const ITEM_STATUS_META: Record<CmsCollectItem['status'], { label: string; color: 'green' | 'grey' | 'red' }> = {
   success: { label: '成功', color: 'green' },
@@ -38,16 +37,21 @@ export default function CollectPage() {
   const { hasPermission } = usePermission();
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
   const {
-    page, pageSize, buildPagination, resetPage,
-    bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: cmsCollectKeys.lists });
+    resetPage,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: cmsCollectKeys.lists,
+    useList: useCmsCollectRules,
+    toQuery: (s) => ({ keyword: s.keyword }),
+    params: { siteId },
+  });
   const [itemsRule, setItemsRule] = useState<CmsCollectRule | null>(null);
   const itemsPagination = usePagination(10);
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword }), [submittedParams]);
-  const listQuery = useCmsCollectRules({ page, pageSize, siteId, ...filterQuery });
   const treeQuery = useCmsChannelTree(siteId);
   const saveMutation = useSaveCmsCollectRule();
   const modal = useEditModal<CmsCollectRule, Partial<CmsCollectRule>, Record<string, unknown>>({
@@ -160,7 +164,7 @@ export default function CollectPage() {
 
       <ConfigurableTable<CmsCollectRule>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <SideSheet

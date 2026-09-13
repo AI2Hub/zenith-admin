@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import ModalFooter from '@/components/ModalFooter';
 import { useNavigate } from 'react-router-dom';
 import { Form, Toast, Tag, Row, Col, Typography, SideSheet } from '@douyinfe/semi-ui';
@@ -8,10 +8,9 @@ import type { Coupon, CouponType, CouponTemplateStatus, CreateCouponInput } from
 import { COUPON_TEMPLATE_STATUSES, COUPON_TYPES, COUPON_TYPE_LABELS, COUPON_TEMPLATE_STATUS_LABELS } from '@zenith/shared/member';
 import { enumValueOf } from '@zenith/shared/core';
 import { usePermission } from '@/hooks/usePermission';
-import { useListSearch } from '@/hooks/useListSearch';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { MemberSelect } from '@/components/MemberSelect';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { EMPTY_PLACEHOLDER, createdAtColumn, renderEllipsis } from '@/utils/table-columns';
@@ -27,7 +26,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 const typeOptions = (Object.keys(COUPON_TYPE_LABELS) as CouponType[]).map((v) => ({ value: v, label: COUPON_TYPE_LABELS[v] }));
 const statusOptions = (Object.keys(COUPON_TEMPLATE_STATUS_LABELS) as CouponTemplateStatus[]).map((v) => ({ value: v, label: COUPON_TEMPLATE_STATUS_LABELS[v] }));
@@ -53,11 +52,24 @@ export default function CouponsPage() {
   const { hasPermission } = usePermission();
   // useEditModal 例外：向指定会员发放优惠券的动作表单，非实体新增 / 编辑
   const issueFormApi = useRef<FormApi | null>(null);
+  const defaultSearchParams: SearchParams = {};
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: {}, listKey: memberAdminKeys.couponLists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: memberAdminKeys.couponLists,
+    useList: useCouponList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      status: enumValueOf(COUPON_TEMPLATE_STATUSES, s.status),
+      type: enumValueOf(COUPON_TYPES, s.type),
+    }),
+    table: { empty: '暂无优惠券' },
+  });
 
   const [formType, setFormType] = useState<CouponType>('amount');
   const [formValidType, setFormValidType] = useState<'fixed' | 'relative'>('fixed');
@@ -65,17 +77,6 @@ export default function CouponsPage() {
 
   const [issueVisible, setIssueVisible] = useState(false);
   const [issuing, setIssuing] = useState<Coupon | null>(null);
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(COUPON_TEMPLATE_STATUSES, submittedParams.status),
-    type: enumValueOf(COUPON_TYPES, submittedParams.type),
-  }), [submittedParams]);
-  const listQuery = useCouponList({
-    page,
-    pageSize,
-    ...filterQuery,
-  });
   const saveMutation = useSaveCoupon();
   const deleteMutation = useDeleteCoupons();
   const issueMutation = useIssueCoupon();
@@ -210,7 +211,7 @@ export default function CouponsPage() {
         filterTitle="优惠券筛选"
       />
 
-      <ConfigurableTable<Coupon> columns={columns} {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无优惠券' })} />
+      <ConfigurableTable<Coupon> columns={columns} {...tableProps} />
 
       <SideSheet
         title={couponModal.modalProps.title}

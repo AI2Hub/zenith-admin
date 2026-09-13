@@ -11,9 +11,7 @@ import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import {
   directorySyncSourceKeys, useDirectorySyncSourceList, useDirectorySyncSourceDetail,
   useSaveDirectorySyncSource, useDeleteDirectorySyncSources,
@@ -33,6 +31,7 @@ import {
   DIRECTORY_SYNC_SOURCE_FIELD_LABELS, DIRECTORY_SYNC_FIELD_IGNORE,
 } from '@zenith/shared/identity';
 import { DIRECTORY_SYNC_RUN_STATUS_TAG_COLOR } from './directory-sync-tag-colors';
+import { useListPage } from '@/hooks/useListPage';
 
 const CALLBACK_TYPE_SET = new Set<string>(DIRECTORY_SYNC_CALLBACK_TYPES);
 
@@ -63,19 +62,24 @@ export default function DirectorySyncSourcesPage() {
   const { hasPermission } = usePermission();
 
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: directorySyncSourceKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: directorySyncSourceKeys.lists,
+    useList: useDirectorySyncSourceList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      type: enumValueOf(DIRECTORY_SYNC_SOURCE_TYPES, s.type),
+      status: enumValueOf(USER_STATUSES, s.status),
+    }),
+    table: { empty: '暂无同步源，点击「新增」接入 LDAP/AD 或钉钉通讯录' },
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    type: enumValueOf(DIRECTORY_SYNC_SOURCE_TYPES, submittedParams.type),
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
 
-  const listQuery = useDirectorySyncSourceList({ page, pageSize, ...filterQuery });
 
   // LDAP 绑定下拉：复用身份源域的列表查询（该域无 /all 端点）
   const providersQuery = useIdentityProviderList({ page: 1, pageSize: 100 });
@@ -274,10 +278,7 @@ export default function DirectorySyncSourcesPage() {
 
       <ConfigurableTable<DirectorySyncSource>
         columns={columns}
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          empty: '暂无同步源，点击「新增」接入 LDAP/AD 或钉钉通讯录',
-        })}
+        {...tableProps}
       />
 
       <SideSheet

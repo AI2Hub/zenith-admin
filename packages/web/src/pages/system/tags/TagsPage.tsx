@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Form, Input, Space, Spin, Typography } from '@douyinfe/semi-ui';
 import { Tags } from 'lucide-react';
 import type { CreateTagInput, Tag } from '@zenith/shared/platform';
@@ -6,12 +6,10 @@ import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useStatusToggle, useRowSelection } from '@/components/list-page';
+import { confirmAndDelete, deleteAction, ListSearchToolbar, useStatusToggle, useRowSelection } from '@/components/list-page';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import {
   tagKeys,
@@ -24,6 +22,7 @@ import {
 } from '@/hooks/queries/tags';
 import { BatchDeleteButton, CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text } = Typography;
 
@@ -119,24 +118,25 @@ export default function TagsPage() {
 
   interface SearchParams { keyword: string; filterStatus: string | undefined; filterGroup: string | undefined; }
   const defaultSearchParams: SearchParams = { keyword: '', filterStatus: undefined, filterGroup: undefined };
-  const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: tagKeys.lists });
 
   const { selectedRowKeys, setSelectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
+  const {
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: tagKeys.lists,
+    useList: useTagList,
+    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.filterStatus), groupName: s.filterGroup }),
+    table: { rowSelection: can('system:tag:delete') ? rowSelection : undefined },
+  });
 
   const [colorValue, setColorValue] = useState('');
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(USER_STATUSES, submittedParams.filterStatus),
-    groupName: submittedParams.filterGroup,
-  }), [submittedParams]);
 
-  const listQuery = useTagList({ page, pageSize, ...filterQuery });
   const groupsQuery = useTagGroups();
   const saveMutation = useSaveTag();
   const tagModal = useEditModal<Tag, Partial<CreateTagInput>>({
@@ -265,12 +265,7 @@ export default function TagsPage() {
 
       <ConfigurableTable<Tag>
         columns={columns}
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          rowSelection: can('system:tag:delete')
-            ? rowSelection
-            : undefined,
-        })}
+        {...tableProps}
       />
 
       <AppModal

@@ -5,8 +5,7 @@
  * createPayment 拿到二维码/跳转链接；③ 支付成功后由 paymentEventBus 订阅器按 bizType
  * 履约（置 paid、发放权益）。「模拟支付成功」用于在未配置真实渠道时演示完整闭环。
  */
-import { useMemo, useRef, useState, type CSSProperties } from 'react';
-import { compactParams } from '@/lib/query';
+import { useRef, useState, type CSSProperties } from 'react';
 import { Banner, Collapse, Form, Modal, Space, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -29,13 +28,13 @@ import {
 } from '@/hooks/queries/biz-pay-demo';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
-import { useListSearch } from '@/hooks/useListSearch';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 import { PaymentResultModal } from '@/pages/payment/PaymentResultModal';
 import { usePaymentAppList } from '@/hooks/queries/payment-apps';
 import { usePaymentMethodList } from '@/hooks/queries/payment-methods';
+import { useListPage } from '@/hooks/useListPage';
 
 type TagColor = 'grey' | 'blue' | 'green' | 'orange';
 
@@ -117,10 +116,17 @@ interface CreatePayDemoFormValues {
 export default function PayDemoPage() {
 
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<PayDemoSearchParams>({ defaults: DEFAULT_PAY_DEMO_SEARCH_PARAMS, listKey: bizPayDemoKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: DEFAULT_PAY_DEMO_SEARCH_PARAMS,
+    listKey: bizPayDemoKeys.lists,
+    useList: useBizPayDemoList,
+    toQuery: (s) => ({ keyword: s.keyword.trim(), status: s.status }),
+  });
 
   const [payTarget, setPayTarget] = useState<BizPayDemo | null>(null);
   // useEditModal 例外：对既有订单发起支付的动作表单（结果为收银台 / 支付信息），非实体新增 / 编辑
@@ -143,12 +149,6 @@ export default function PayDemoPage() {
     return configId != null && allowedConfigIds.has(configId);
   });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword.trim(),
-    status: submittedParams.status,
-  }), [submittedParams]);
-  const listQuery = useBizPayDemoList({ page, pageSize, ...filterQuery });
   const createMutation = useCreateBizPayDemo();
   const payMutation = usePayBizPayDemo();
   const simulateMutation = useSimulateBizPayDemoPaid();
@@ -283,7 +283,7 @@ export default function PayDemoPage() {
       <ConfigurableTable
         columns={columns}
         columnSettingsKey="biz-pay-demo"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <Collapse style={{ marginTop: 16 }}>

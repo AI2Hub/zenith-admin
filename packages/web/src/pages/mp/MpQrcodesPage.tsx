@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { useState } from 'react';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { Button, Form, Image, Select, Spin, Tag, Typography } from '@douyinfe/semi-ui';
 import { Plus } from 'lucide-react';
 import { enumValueOf } from '@zenith/shared/core';
@@ -13,11 +13,10 @@ import { useMpAccounts } from './useMpAccounts';
 import { MpAccountRequiredBanner } from './MpAccountRequiredBanner';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import { mpQrcodeKeys, useCreateMpQrcode, useDeleteMpQrcodes, useMpQrcodeList } from '@/hooks/queries/mp-qrcodes';
-import { useListSearch } from '@/hooks/useListSearch';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 const TYPE_META: Record<MpQrcodeType, { label: string; color: 'green' | 'orange' }> = {
   permanent: { label: '永久', color: 'green' },
@@ -32,24 +31,23 @@ export default function MpQrcodesPage() {
   interface SearchParams { filterType: MpQrcodeType | undefined; keyword: string; }
   const defaultSearch: SearchParams = { filterType: undefined, keyword: '' };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: mpQrcodeKeys.lists, resetKey: currentId });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: mpQrcodeKeys.lists,
+    resetKey: currentId,
+    useList: useMpQrcodeList,
+    toQuery: (s) => ({ type: s.filterType, keyword: s.keyword }),
+    params: { accountId: currentId ?? 0 },
+    enabled: !!currentId,
+  });
 
   const [modalType, setModalType] = useState<MpQrcodeType>('permanent');
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    type: submittedParams.filterType,
-    keyword: submittedParams.keyword,
-  }), [submittedParams]);
-  const listQuery = useMpQrcodeList({
-    accountId: currentId ?? 0,
-    page,
-    pageSize,
-    ...filterQuery,
-  }, !!currentId);
   const createMutation = useCreateMpQrcode();
   const deleteMutation = useDeleteMpQrcodes();
   const createModal = useEditModal<MpQrcode, QrcodeFormValues, Partial<CreateMpQrcodeInput>>({
@@ -127,7 +125,7 @@ export default function MpQrcodesPage() {
       <MpAccountRequiredBanner loading={accountsLoading} accountCount={accounts.length} />
 
       <ConfigurableTable columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal {...createModal.modalProps} title="生成带参二维码" width={560}>

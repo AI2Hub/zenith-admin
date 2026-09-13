@@ -19,8 +19,6 @@ import CategorySidebar from './components/CategorySidebar';
 import { TemplateGalleryModal } from './components/TemplateGalleryModal';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import {
   useBatchDeleteWorkflowDefinitions,
   useBatchDisableWorkflowDefinitions,
@@ -41,8 +39,9 @@ import { WORKFLOW_DIFF_KIND_META as DIFF_KIND_META } from '../constants';
 import { PUBLISHABLE_STATUS_META as STATUS_MAP } from '@/lib/publishable-status';
 import { BatchDeleteButton, BatchDisableButton, BatchEnableButton, CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
-import { batchStatusHandler, confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
+import { batchStatusHandler, confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection } from '@/components/list-page';
 import { confirmDanger } from '@/utils/confirm';
+import { useListPage } from '@/hooks/useListPage';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
 
@@ -67,18 +66,28 @@ export default function WorkflowDefinitionsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
+  const canBatchOperate = hasPermission('workflow:definition:publish') || hasPermission('workflow:definition:delete');
   const {
-    page, pageSize, buildPagination,
-    draftParams, bind, submittedParams,
-    handleSearch, applySearch, handleReset,
-  } = useListSearch<SearchParams>({
+    draftParams,
+    bind,
+    handleSearch,
+    applySearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
     defaults: defaultSearchParams,
     listKey: workflowDefinitionKeys.lists,
     // 条件变化后原先勾选的行可能已不在结果集里，一并清空
     onSearch: clearSelection,
     onReset: clearSelection,
+    useList: useWorkflowDefinitionList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      status: enumValueOf(WORKFLOW_DEFINITION_STATUSES, s.status),
+      categoryId: s.selectedCategoryId ?? undefined,
+    }),
+    table: { rowSelection: canBatchOperate ? rowSelection : undefined },
   });
-  const canBatchOperate = hasPermission('workflow:definition:publish') || hasPermission('workflow:definition:delete');
   const [historyTarget, setHistoryTarget] = useState<WorkflowDefinition | null>(null);
   const [templateGalleryVisible, setTemplateGalleryVisible] = useState(false);
   const [saveAsTarget, setSaveAsTarget] = useState<WorkflowDefinition | null>(null);
@@ -93,14 +102,7 @@ export default function WorkflowDefinitionsPage() {
   const [isLayoutNarrow, setIsLayoutNarrow] = useState(false);
   const [showCategorySidebar, setShowCategorySidebar] = useState(false);
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(WORKFLOW_DEFINITION_STATUSES, submittedParams.status),
-    categoryId: submittedParams.selectedCategoryId ?? undefined,
-  }), [submittedParams]);
 
-  const listQuery = useWorkflowDefinitionList({ page, pageSize, ...filterQuery });
   const publishMutation = usePublishWorkflowDefinition();
   const disableMutation = useDisableWorkflowDefinition();
   const enableMutation = useEnableWorkflowDefinition();
@@ -480,10 +482,7 @@ export default function WorkflowDefinitionsPage() {
           />
           <ConfigurableTable<WorkflowDefinition>
             columns={columns}
-            {...listTableProps(listQuery, {
-              pagination: buildPagination,
-              rowSelection: canBatchOperate ? rowSelection : undefined,
-            })}
+            {...tableProps}
           />
           {historyTarget && (
             <WorkflowVersionsSheet

@@ -1,7 +1,7 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Card, Switch, TextArea, Toast, Spin, Typography, Tabs, TabPane, Tag } from '@douyinfe/semi-ui';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
-import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar } from '@/components/list-page';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { IP_ACCESS_BLOCK_TYPES, type IpAccessLog } from '@zenith/shared/platform';
 import { enumValueOf } from '@zenith/shared/core';
@@ -10,11 +10,11 @@ import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { ipAccessKeys, useIpAccessLogs } from '@/hooks/queries/ip-access';
 import { useSaveSettings, useSettings } from '@/hooks/queries/settings';
 import { isIpOrCidr, type IpAccessSettings } from '@zenith/shared/settings';
-import { ApiError, compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
+import { ApiError } from '@/lib/query';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { useListPage } from '@/hooks/useListPage';
 const { Title, Text } = Typography;
 
 /** 文本域（每行一条）↔ 名单数组 */
@@ -34,17 +34,17 @@ function IpAccessLogsTab() {
 interface SearchParams { filterIp: string; filterBlockType: string | undefined; }
   const defaultSearchParams: SearchParams = { filterIp: '', filterBlockType: undefined };
   const {
-    page, pageSize, buildPagination,
-    bind, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: ipAccessKeys.logs });
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    ip: submittedParams.filterIp,
-    blockType: enumValueOf(IP_ACCESS_BLOCK_TYPES, submittedParams.filterBlockType),
-  }), [submittedParams]);
+    bind,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: ipAccessKeys.logs,
+    useList: useIpAccessLogs,
+    toQuery: (s) => ({ ip: s.filterIp, blockType: enumValueOf(IP_ACCESS_BLOCK_TYPES, s.filterBlockType) }),
+  });
 
-  const logsQuery = useIpAccessLogs({ page, pageSize, ...filterQuery });
 
   const columns: ColumnProps<IpAccessLog>[] = [
     { title: 'IP 地址', dataIndex: 'ip', width: 160 },
@@ -80,7 +80,7 @@ interface SearchParams { filterIp: string; filterBlockType: string | undefined; 
       />
       <ConfigurableTable<IpAccessLog>
         columns={columns}
-        {...listTableProps(logsQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
     </>
   );

@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Tag, Form, Typography, Row, Col, Space } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
@@ -7,15 +6,14 @@ import { copyableNoColumn, createdAtColumn, renderEnabledStatusTag } from '@/uti
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { ratePlanKeys, useDeleteRatePlans, useRatePlanList, useSaveRatePlan } from '@/hooks/queries/open-platform';
 import { useDictItems } from '@/hooks/useDictItems';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text } = Typography;
 
@@ -29,21 +27,19 @@ export default function RatePlansPage() {
   interface SearchParams { keyword: string; status?: string }
   const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: ratePlanKeys.lists });
-
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
-  const listQuery = useRatePlanList({
-    page,
-    pageSize,
-    ...filterQuery,
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: ratePlanKeys.lists,
+    useList: useRatePlanList,
+    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
+    table: { empty: '暂无数据' },
   });
+
   const deleteMutation = useDeleteRatePlans();
 
   const modal = useEditModal<RatePlan, Partial<CreateRatePlanInput>>({
@@ -123,7 +119,7 @@ export default function RatePlansPage() {
 
       <ConfigurableTable<RatePlan>
         columns={columns}
-        {...listTableProps(listQuery, { empty: '暂无数据', pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal {...modal.modalProps} width={660}>

@@ -1,5 +1,4 @@
-import { useMemo } from 'react';
-import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar } from '@/components/list-page';
 import { Avatar, Button, Form, Modal, Space, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import { RefreshCw, Ban } from 'lucide-react';
 import { MP_FAN_SUBSCRIBE_OPTIONS, MP_FAN_SUBSCRIBES, type MpFan, type MpFanSubscribe, type UpdateMpFanInput } from '@zenith/shared/mp';
@@ -24,11 +23,10 @@ import {
   useUnbindMpFanMember,
 } from '@/hooks/queries/mp-fans';
 import { useMpTagOptions } from '@/hooks/queries/mp-tags';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { useListPage } from '@/hooks/useListPage';
 
 const SEX_LABELS: Record<number, string> = { 0: '未知', 1: '男', 2: '女' };
 
@@ -44,24 +42,26 @@ export default function MpFansPage() {
   interface SearchParams { keyword: string; subscribe: MpFanSubscribe | undefined; tagId: number | undefined; blacklisted?: 'true' | 'false'; }
   const defaultSearch: SearchParams = { keyword: '', subscribe: undefined, tagId: undefined, blacklisted: undefined };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: mpFanKeys.lists, resetKey: currentId });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: mpFanKeys.lists,
+    resetKey: currentId,
+    useList: useMpFanList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      subscribe: s.subscribe,
+      tagId: s.tagId,
+      blacklisted: s.blacklisted === undefined ? undefined : s.blacklisted === 'true',
+    }),
+    params: { accountId: currentId ?? 0 },
+    enabled: !!currentId,
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    subscribe: submittedParams.subscribe,
-    tagId: submittedParams.tagId,
-    blacklisted: submittedParams.blacklisted === undefined ? undefined : submittedParams.blacklisted === 'true',
-  }), [submittedParams]);
-  const listQuery = useMpFanList({
-    accountId: currentId ?? 0,
-    page,
-    pageSize,
-    ...filterQuery,
-  }, !!currentId);
   const syncFansMutation = useSyncMpFans();
   const syncBlacklistMutation = useSyncMpBlacklist();
   const blacklistMutation = useBlacklistMpFans();
@@ -234,7 +234,7 @@ export default function MpFansPage() {
       <MpAccountRequiredBanner loading={accountsLoading} accountCount={accounts.length} />
 
       <ConfigurableTable columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal {...fanModal.modalProps} title="编辑粉丝" width={520}>

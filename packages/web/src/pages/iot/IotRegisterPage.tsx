@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Banner, Button, Form, Modal, Popconfirm, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { RefreshCw } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -10,9 +10,7 @@ import AppModal from '@/components/AppModal';
 import { StatCard, StatGrid } from '@/components/charts';
 import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { iotIngestContract } from '@zenith/shared/iot';
 import type { CreateIotWhitelistInput, IotWhitelistEntry } from '@zenith/shared/iot';
@@ -21,6 +19,7 @@ import {
   iotWhitelistKeys, useDeleteIotWhitelistEntry, useDisableIotRegistration,
   useImportIotWhitelist, useIotWhitelistList, useIotWhitelistStats, useResetIotRegistrationSecret,
 } from '@/hooks/queries/iot-register';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text, Paragraph } = Typography;
 
@@ -38,22 +37,24 @@ export default function IotRegisterPage() {
   const canManage = hasPermission('iot:register:manage');
 
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<WhitelistSearchParams>({ defaults: defaultSearch, listKey: iotWhitelistKeys.lists });
-
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    productId: submittedParams.productId,
-    used: submittedParams.used === undefined ? undefined : submittedParams.used === 'true',
-  }), [submittedParams]);
-  const listQuery = useIotWhitelistList({
-    page,
-    pageSize,
-    ...filterQuery,
+    bind,
+    bindKeyword,
+    submittedParams,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: iotWhitelistKeys.lists,
+    useList: useIotWhitelistList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      productId: s.productId,
+      used: s.used === undefined ? undefined : s.used === 'true',
+    }),
+    table: { empty: '暂无白名单，点击「批量导入 SN」把产线 SN 加入白名单' },
   });
+
 
   const statsQuery = useIotWhitelistStats(submittedParams.productId);
   const stats = statsQuery.data;
@@ -211,7 +212,7 @@ export default function IotRegisterPage() {
 
       <ConfigurableTable<IotWhitelistEntry>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无白名单，点击「批量导入 SN」把产线 SN 加入白名单' })}
+        {...tableProps}
       />
 
       <ImportModal

@@ -1,13 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import ModalFooter from '@/components/ModalFooter';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { Banner, Col, Form, Row, SideSheet, Spin, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import { MP_ACCOUNT_TYPE_LABELS, MP_ACCOUNT_TYPE_OPTIONS, MP_ACCOUNT_TYPES, MP_ENCRYPT_MODE_LABELS, MP_ENCRYPT_MODE_OPTIONS, type CreateMpAccountInput, type MpAccount, type MpAccountType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { useEditModal } from '@/hooks/useEditModal';
 import { config } from '@/config';
 import { AppModal } from '@/components/AppModal';
@@ -25,6 +23,7 @@ import {
 } from '@/hooks/queries/mp-accounts';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { useListPage } from '@/hooks/useListPage';
 
 const TYPE_TAG_COLOR: Record<MpAccountType, 'blue' | 'green' | 'grey'> = {
   subscribe: 'blue',
@@ -46,23 +45,23 @@ export default function MpAccountsPage() {
   interface SearchParams { keyword: string; filterType: MpAccountType | undefined; filterStatus: string | undefined; }
   const defaultSearchParams: SearchParams = { keyword: '', filterType: undefined, filterStatus: undefined };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: mpAccountKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: mpAccountKeys.lists,
+    useList: useMpAccountList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      type: enumValueOf(MP_ACCOUNT_TYPES, s.filterType),
+      status: enumValueOf(USER_STATUSES, s.filterStatus),
+    }),
+  });
 
   const [configRecord, setConfigRecord] = useState<MpAccount | null>(null);
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    type: enumValueOf(MP_ACCOUNT_TYPES, submittedParams.filterType),
-    status: enumValueOf(USER_STATUSES, submittedParams.filterStatus),
-  }), [submittedParams]);
-  const listQuery = useMpAccountList({
-    page,
-    pageSize,
-    ...filterQuery,
-  });
   const saveMutation = useSaveMpAccount();
   const modal = useEditModal<MpAccount, Partial<CreateMpAccountInput>>({
     entityName: '公众号',
@@ -199,7 +198,7 @@ export default function MpAccountsPage() {
       />
 
       <ConfigurableTable columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <SideSheet

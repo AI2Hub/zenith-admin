@@ -30,13 +30,12 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { useAllRoles } from '@/hooks/queries/roles';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import { BatchDeleteButton, CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
-import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useRowSelection, useStatusToggle } from '@/components/list-page';
+import { confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection, useStatusToggle } from '@/components/list-page';
 import { MemberAssignmentSheet, memberPreviewColumn } from '@/components/members/MemberAssignmentSheet';
 import ModalFooter from '@/components/ModalFooter';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   keyword: string;
@@ -53,19 +52,21 @@ const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
 export default function UserGroupsPage() {
   const { items: statusItems, options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
-  const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: userGroupKeys.lists });
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
 
-  const listQuery = useUserGroupList({ page, pageSize, ...filterQuery });
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
+  const {
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: userGroupKeys.lists,
+    useList: useUserGroupList,
+    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
+    table: { empty: '暂无数据', rowSelection },
+  });
 
   // 选项数据
   const allUsersQuery = useAllUsers();
@@ -270,11 +271,7 @@ export default function UserGroupsPage() {
 
       <ConfigurableTable<UserGroup>
         columns={columns}
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          empty: '暂无数据',
-          rowSelection,
-        })}
+        {...tableProps}
       />
 
       <SideSheet

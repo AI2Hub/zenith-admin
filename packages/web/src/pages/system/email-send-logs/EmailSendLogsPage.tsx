@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
 import { Plus } from 'lucide-react';
@@ -7,10 +6,9 @@ import { usePermission } from '@/hooks/usePermission';
 import ExportButton from '@/components/ExportButton';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../../utils/table-columns';
 import { useEmailTemplateList } from '@/hooks/queries/email-templates';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
   emailSendLogKeys,
@@ -22,7 +20,7 @@ import { parseTemplateVariables } from '../send-log-constants';
 import { KeywordInput } from '@/components/search-filters';
 import { SendLogStatusSourceFilters } from '../send-log-ui';
 import { sendLogErrorColumn, sendLogOperatorColumn, sendLogSourceColumn, sendLogStatusColumn } from '../send-log-columns';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 /** 测试发送表单值：变量以 JSON 文本输入 */
 interface TestEmailFormValues {
@@ -39,19 +37,19 @@ export default function EmailSendLogsPage() {
   interface SearchParams { keyword: string; toEmail: string; filterStatus?: SendStatus; filterSource?: SendSource }
   const defaultSearchParams: SearchParams = { keyword: '', toEmail: '', filterStatus: undefined, filterSource: undefined };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: emailSendLogKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+    filterQuery,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: emailSendLogKeys.lists,
+    useList: useEmailSendLogList,
+    toQuery: (s) => ({ keyword: s.keyword, toEmail: s.toEmail, status: s.filterStatus, source: s.filterSource }),
+  });
 
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    toEmail: submittedParams.toEmail,
-    status: submittedParams.filterStatus,
-    source: submittedParams.filterSource,
-  }), [submittedParams]);
-  const listQuery = useEmailSendLogList({ page, pageSize, ...filterQuery });
   const testMutation = useTestEmailSendLog();
   const testModal = useEditModal<{ id: number }, TestEmailFormValues, SendEmailInput>({
     save: {
@@ -116,7 +114,7 @@ export default function EmailSendLogsPage() {
 
       <ConfigurableTable<EmailSendLog>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal {...testModal.modalProps} title="测试发送邮件" width={560}>

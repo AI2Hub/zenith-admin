@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Button, Descriptions, Form, SideSheet, Space, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Lock, Upload } from 'lucide-react';
@@ -16,11 +16,9 @@ import type { UploadCertSchemaInput } from '@zenith/shared/platform';
 import AppModal from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import { formatDateTime } from '@/utils/date';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import {
@@ -33,6 +31,7 @@ import {
   useUploadSslCertificate,
 } from '@/hooks/queries/ssl-certificates';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   keyword: string;
@@ -64,19 +63,21 @@ function renderDaysRemaining(daysRemaining: number | null) {
 export default function SslCertificatesPage() {
   const { hasPermission } = usePermission();
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: sslCertificateKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: sslCertificateKeys.lists,
+    useList: useSslCertificateList,
+    toQuery: (s) => ({ keyword: s.keyword.trim(), type: enumValueOf(SSL_CERT_TYPES, s.type) }),
+    table: { empty: '暂无证书' },
+  });
   const [detailVisible, setDetailVisible] = useState(false);
   const [detail, setDetail] = useState<SslCertificate | null>(null);
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword.trim(),
-    type: enumValueOf(SSL_CERT_TYPES, submittedParams.type),
-  }), [submittedParams]);
 
-  const listQuery = useSslCertificateList({ page, pageSize, ...filterQuery });
   const detailQuery = useSslCertificateDetail(detail?.id, detailVisible);
   const displayDetail = detail ? (detailQuery.data ?? detail) : null;
   const generateMutation = useGenerateSslCertificate();
@@ -206,7 +207,7 @@ export default function SslCertificatesPage() {
 
       <ConfigurableTable
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无证书' })}
+        {...tableProps}
       />
 
       <AppModal

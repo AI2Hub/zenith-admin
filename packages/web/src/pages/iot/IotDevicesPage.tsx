@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import ModalFooter from '@/components/ModalFooter';
 import { Badge, Button, Col, Form, Row, SideSheet, Spin, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -13,7 +13,6 @@ import AppModal from '@/components/AppModal';
 import { EMPTY_PLACEHOLDER, copyableNoColumn, dateTimeColumn, renderEllipsis, enabledStatusColumn } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useDictItems } from '@/hooks/useDictItems';
 import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
@@ -29,7 +28,7 @@ import {
 } from '@/hooks/queries/iot-devices';
 import { useAllIotGroups, useDeleteIotGroups, useSaveIotGroup } from '@/hooks/queries/iot-groups';
 import IotDeviceDetailDrawer from './IotDeviceDetailDrawer';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text } = Typography;
 
@@ -69,25 +68,7 @@ export default function IotDevicesPage() {
   const gatewaysQuery = useIotDeviceList({ page: 1, pageSize: 100, nodeType: 'gateway' });
   const gatewayOptions = (gatewaysQuery.data?.list ?? []).map((d) => ({ value: d.id, label: `${d.name}（${d.sn}）` }));
 
-  const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: iotDeviceKeys.lists });
 
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-    productId: submittedParams.productId,
-    groupId: submittedParams.groupId,
-    nodeType: enumValueOf(IOT_NODE_TYPES, submittedParams.nodeType),
-  }), [submittedParams]);
-  const listQuery = useIotDeviceList({
-    page,
-    pageSize,
-    ...filterQuery,
-  });
 
   const modal = useEditModal<IotDevice, IotDeviceFormValues, Partial<CreateIotDeviceInput>>({
     entityName: '设备',
@@ -296,6 +277,27 @@ export default function IotDevicesPage() {
   ];
 
   const canBatch = hasPermission('iot:device:batch');
+  const {
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+    filterQuery,
+    listQuery,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: iotDeviceKeys.lists,
+    useList: useIotDeviceList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      status: enumValueOf(USER_STATUSES, s.status),
+      productId: s.productId,
+      groupId: s.groupId,
+      nodeType: enumValueOf(IOT_NODE_TYPES, s.nodeType),
+    }),
+    table: { empty: '暂无设备，点击「注册设备」接入第一台设备', rowSelection: canBatch ? rowSelection : undefined },
+  });
 
   return (
     <div className="page-container">
@@ -350,11 +352,7 @@ export default function IotDevicesPage() {
 
       <ConfigurableTable<IotDevice>
         columns={columns}
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          empty: '暂无设备，点击「注册设备」接入第一台设备',
-          rowSelection: canBatch ? rowSelection : undefined,
-        })}
+        {...tableProps}
       />
 
       {/* 注册 / 编辑设备 */}

@@ -16,15 +16,14 @@ import { PAYMENT_CASHIER_METHODS, PAYMENT_METHOD_LABELS, PAYMENT_LINK_STATUS_LAB
 import type { PaymentApp, PaymentCashierMethod, PaymentLink, PaymentLinkStatus } from '@zenith/shared/payment';
 import { paymentLinkKeys, useDeletePaymentLinks, usePaymentLinkDetail, usePaymentLinkList, useRotatePaymentLinkToken, useSavePaymentLink, type PaymentLinkSaveValues } from '@/hooks/queries/payment-links';
 import { useEnsureShortLink } from '@/hooks/queries/short-links';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { useAppPaymentMethodOptions, useEnabledPaymentAppLookup } from './payment-app-options';
 import { paymentMoneyColumn } from './payment-display';
+import { useListPage } from '@/hooks/useListPage';
 
 const yuan = (cents: number | null | undefined) => formatYuan(cents, '用户填写');
 const LINK_STATUS_COLOR = { active: 'green', disabled: 'grey', expired: 'red' } as const satisfies Record<PaymentLinkStatus, string>;
@@ -62,10 +61,17 @@ export default function PaymentLinksPage() {
   const { hasPermission } = usePermission();
   const qrContainerRef = useRef<HTMLDivElement | null>(null);
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentLinkKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: paymentLinkKeys.lists,
+    useList: usePaymentLinkList,
+    toQuery: (s) => ({ keyword: s.keyword, status: s.status }),
+  });
 
   const [qrLink, setQrLink] = useState<PaymentLink | null>(null);
   const [selectedApplicationId, setSelectedApplicationId] = useState<number>();
@@ -73,16 +79,6 @@ export default function PaymentLinksPage() {
   const [payShortUrl, setPayShortUrl] = useState<string | null>(null);
   const ensureShortLinkMutation = useEnsureShortLink();
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: submittedParams.status,
-  }), [submittedParams]);
-  const listQuery = usePaymentLinkList({
-    page,
-    pageSize,
-    ...filterQuery,
-  });
   const { apps: paymentApps, appOptions, isFetching: appsFetching } = useEnabledPaymentAppLookup({ label: paymentAppOptionLabel });
   const appNameById = useMemo(() => new Map(paymentApps.map((app) => [app.id, app.name])), [paymentApps]);
   const selectedPaymentApp = paymentApps.find((app) => app.id === selectedApplicationId);
@@ -253,7 +249,7 @@ export default function PaymentLinksPage() {
       <ConfigurableTable<PaymentLink>
         columns={columns}
         empty="暂无数据"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal {...modal.modalProps} width={700}>

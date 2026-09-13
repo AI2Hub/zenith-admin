@@ -1,6 +1,5 @@
-import { useMemo, useState } from 'react';
-import { compactParams } from '@/lib/query';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { useState } from 'react';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { Button, Col, Form, Modal, Row, SideSheet, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useQueryClient } from '@tanstack/react-query';
@@ -18,10 +17,10 @@ import {
   useSaveAiPrompt,
 } from '@/hooks/queries/ai-prompts';
 import { useAiPromptVersions, useRestoreAiPromptVersion } from '@/hooks/queries/ai-extras';
-import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   keyword: string;
@@ -66,19 +65,20 @@ export default function PromptTemplatesPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: aiPromptKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: aiPromptKeys.lists,
+    useList: useAiPromptList,
+    toQuery: (s) => ({ keyword: s.keyword, scope: s.scope }),
+  });
   const [versionTemplate, setVersionTemplate] = useState<AiPromptTemplate | null>(null);
   const versionsQuery = useAiPromptVersions(versionTemplate?.id ?? null);
   const restoreVersionMutation = useRestoreAiPromptVersion();
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    scope: submittedParams.scope,
-  }), [submittedParams]);
-  const listQuery = useAiPromptList({ page, pageSize, ...filterQuery });
   const saveMutation = useSaveAiPrompt();
   const deleteMutation = useDeleteAiPrompts();
 
@@ -166,7 +166,7 @@ export default function PromptTemplatesPage() {
         columns={columns}
 
         empty="暂无提示词模板"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal

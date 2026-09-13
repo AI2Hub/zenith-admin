@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Col, Row, SideSheet, Form, Modal, Popover, Space, Spin, Tabs, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
 import { ScrollText, HelpCircle } from 'lucide-react';
 import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
@@ -35,15 +35,14 @@ import {
   useUpdateCronJobStatus,
 } from '@/hooks/queries/cron-jobs';
 import { useDictItems } from '@/hooks/useDictItems';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { CLEAR_LOGS_LABELS } from '@/hooks/useClearLogs';
-import { compactParams } from '@/lib/query';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { useListPage } from '@/hooks/useListPage';
 interface SearchParams {
   keyword: string;
   status?: string;
@@ -110,10 +109,20 @@ export default function CronJobsPage() {
   const { items: statusItems, options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: cronJobKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+    filterQuery,
+    listQuery,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: cronJobKeys.lists,
+    useList: useCronJobList,
+    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
+    table: { empty: '暂无数据' },
+  });
   const [cronExprValue, setCronExprValue] = useState('');
   const [logsDrawerVisible, setLogsDrawerVisible] = useState(false);
   const [logsJobName, setLogsJobName] = useState('');
@@ -132,12 +141,6 @@ export default function CronJobsPage() {
     buildPagination: buildAllLogsPagination,
   } = usePagination(20);
   const [allLogsJobFilter, setAllLogsJobFilter] = useState<number | null>(null);
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
-  const listQuery = useCronJobList({ page, pageSize, ...filterQuery });
   const data = listQuery.data?.list ?? [];
   const handlersQuery = useCronJobHandlers();
   const handlers = handlersQuery.data ?? [];
@@ -400,7 +403,7 @@ export default function CronJobsPage() {
 
       <ConfigurableTable<CronJob>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无数据' })}
+        {...tableProps}
       />
         </Tabs.TabPane>
         <Tabs.TabPane tab="执行概览" itemKey="dashboard">

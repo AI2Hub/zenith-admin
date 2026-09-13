@@ -2,29 +2,33 @@
  * 回放访问审计 Tab：谁在什么时候查看了谁的操作录像（合规留痕，manage 权限）。
  * 同一用户对同一回放 10 分钟内去重，实时旁观轮询不会刷屏。
  */
-import { useMemo } from 'react';
-import { compactParams } from '@/lib/query';
 import { Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { KeywordInput } from '@/components/search-filters';
-import { useListSearch } from '@/hooks/useListSearch';
 import type { ReplayAccessLog } from '@zenith/shared/analytics';
 import { replayKeys, useReplayAccessLogs } from '@/hooks/queries/session-replays';
-import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar } from '@/components/list-page';
 import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text } = Typography;
 
 export default function ReplayAccessLogsTab({ onOpenReplay }: Readonly<{ onOpenReplay: (id: string) => void }>) {
+  const defaultSearchParams: { keyword: string } = { keyword: '' };
   const {
-    page, pageSize, buildPagination,
-    bindKeyword, submittedParams, handleSearch, handleReset,
-  } = useListSearch<{ keyword: string }>({ defaults: { keyword: '' }, listKey: replayKeys.accessLogs });
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: replayKeys.accessLogs,
+    useList: useReplayAccessLogs,
+    toQuery: (s) => ({ keyword: s.keyword }),
+    table: { empty: '暂无访问记录（同一用户对同一回放 10 分钟内只留痕一次）' },
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword }), [submittedParams]);
-  const listQuery = useReplayAccessLogs({ page, pageSize, ...filterQuery });
 
   const columns: ColumnProps<ReplayAccessLog>[] = [
     { title: '时间', dataIndex: 'createdAt', width: 170 },
@@ -59,10 +63,7 @@ export default function ReplayAccessLogsTab({ onOpenReplay }: Readonly<{ onOpenR
       <ConfigurableTable
         columnSettingsKey="replay-access-logs"
         columns={columns}
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          empty: '暂无访问记录（同一用户对同一回放 10 分钟内只留痕一次）',
-        })}
+        {...tableProps}
       />
     </div>
   );

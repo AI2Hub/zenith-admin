@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Button, Form, Spin, Toast } from '@douyinfe/semi-ui';
 import { RefreshCw } from 'lucide-react';
 import type { CreateMpTagInput, MpTag } from '@zenith/shared/mp';
@@ -7,9 +6,8 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountRequiredBanner } from './MpAccountRequiredBanner';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
@@ -17,27 +15,28 @@ import { mpTagKeys, useDeleteMpTags, useMpTagList, useSaveMpTag, useSyncMpTags }
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 export default function MpTagsPage() {
   const { hasPermission: can } = usePermission();
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
 
+  const defaultSearchParams: { keyword: string } = { keyword: '' };
   const {
-    page, pageSize, buildPagination,
-    bindKeyword, submittedParams, handleSearch, handleReset,
-  } = useListSearch<{ keyword: string }>({ defaults: { keyword: '' }, listKey: mpTagKeys.lists, resetKey: currentId });
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: mpTagKeys.lists,
+    resetKey: currentId,
+    useList: useMpTagList,
+    toQuery: (s) => ({ keyword: s.keyword }),
+    params: { accountId: currentId ?? 0 },
+    enabled: !!currentId,
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-  }), [submittedParams]);
-  const listQuery = useMpTagList({
-    accountId: currentId ?? 0,
-    page,
-    pageSize,
-    ...filterQuery,
-  }, !!currentId);
   const syncMutation = useSyncMpTags();
   const saveMutation = useSaveMpTag();
   const deleteMutation = useDeleteMpTags();
@@ -106,7 +105,7 @@ export default function MpTagsPage() {
 
       <MpAccountRequiredBanner loading={accountsLoading} accountCount={accounts.length} />
 
-      <ConfigurableTable<MpTag> columns={columns} {...listTableProps(listQuery, { pagination: buildPagination })} />
+      <ConfigurableTable<MpTag> columns={columns} {...tableProps} />
 
       <AppModal {...modal.modalProps} width={480}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">

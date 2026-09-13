@@ -1,5 +1,5 @@
-import { useMemo, useEffect, useState } from 'react';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { useEffect, useState } from 'react';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { Button, Input, Space, Spin, Tag, Toast, Typography, TextArea } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
 import type { MpDraft, MpArticle } from '@zenith/shared/mp';
@@ -8,7 +8,6 @@ import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../utils/table-columns';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountRequiredBanner } from './MpAccountRequiredBanner';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
@@ -23,28 +22,28 @@ import {
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 const blankArticle = (): MpArticle => ({ title: '', author: '', digest: '', content: '', thumbUrl: '', showCoverPic: true });
 
 export default function MpDraftsPage() {
   const { hasPermission: can } = usePermission();
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
+  const defaultSearchParams: { keyword: string } = { keyword: '' };
   const {
-    page, pageSize, buildPagination,
-    bindKeyword, submittedParams, handleSearch, handleReset,
-  } = useListSearch<{ keyword: string }>({ defaults: { keyword: '' }, listKey: mpDraftKeys.lists });
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: mpDraftKeys.lists,
+    useList: useMpDraftList,
+    toQuery: (s) => ({ keyword: s.keyword }),
+    params: { accountId: currentId ?? 0 },
+    enabled: !!currentId,
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-  }), [submittedParams]);
-  const listQuery = useMpDraftList({
-    accountId: currentId ?? 0,
-    page,
-    pageSize,
-    ...filterQuery,
-  }, !!currentId);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<MpDraft | null>(null);
@@ -122,7 +121,7 @@ export default function MpDraftsPage() {
       <MpAccountRequiredBanner loading={accountsLoading} accountCount={accounts.length} />
 
       <ConfigurableTable columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal title={editingRecord ? '编辑图文' : '新增图文'} visible={modalVisible}

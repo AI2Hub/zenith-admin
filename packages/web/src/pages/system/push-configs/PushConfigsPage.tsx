@@ -4,7 +4,7 @@
  * 聚合供应商凭证管理(一对一挂应用、密钥脱敏、APNs 环境)+ 测试发送(直发 RegistrationID)。
  * 厂商通道(华为/小米/OV/荣耀/APNs)在供应商后台配置,本页只管聚合商凭证。
  */
-import { useRef, useState, useMemo } from 'react';
+import { useRef, useState } from 'react';
 import { Banner, Col, Form, Modal, Row, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
@@ -20,14 +20,12 @@ import {
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AppModal from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { useAllClientApps } from '@/hooks/queries/app-releases';
 import {
@@ -38,6 +36,7 @@ import {
   useSavePushConfig,
   useTestPushSend,
 } from '@/hooks/queries/push';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   keyword: string;
@@ -101,18 +100,19 @@ function TestSendModal({ config, onClose }: { config: PushConfig | null; onClose
 export default function PushConfigsPage() {
   const { hasPermission } = usePermission();
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: pushConfigKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: pushConfigKeys.lists,
+    useList: usePushConfigList,
+    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
 
-  const listQuery = usePushConfigList({ page, pageSize, ...filterQuery });
 
   const modal = useEditModal<PushConfig, Partial<CreatePushConfigInput>>({
     entityName: '推送配置',
@@ -203,7 +203,7 @@ export default function PushConfigsPage() {
       <ConfigurableTable<PushConfig>
         columns={columns}
         empty="暂无推送配置,新增聚合供应商凭证后即可推送"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal {...modal.modalProps} width={720}>

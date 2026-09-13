@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Modal, Tag, Toast, Typography, Space } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -6,9 +6,7 @@ import { Copy, Terminal, Star } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { ClearLogsButtons } from '@/components/logs/ClearLogsControl';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { useUserOptions } from '@/hooks/useUserOptions';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { formatClock } from '@/utils/format';
@@ -27,6 +25,7 @@ import { confirmDanger } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { CLEAR_LOGS_LABELS } from '@/hooks/useClearLogs';
 import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   keyword: string;
@@ -112,24 +111,26 @@ function getKeyCommandLabel(cmd: string): string | null {
 export default function TerminalRecordingsPage() {
   const queryClient = useQueryClient();
   const {
-    page, pageSize, resetPage, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: terminalKeys.recordingLists });
+    resetPage,
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: terminalKeys.recordingLists,
+    useList: useTerminalRecordingList,
+    toQuery: (s) => ({ keyword: s.keyword, operatorUserId: s.operatorUserId, ...formatDateTimeRangeForApi(s.timeRange) }),
+    table: { empty: '暂无录屏记录，使用 Web 终端后会自动保存' },
+  });
   const [playRec, setPlayRec] = useState<TerminalRecordingDetail | null>(null);
   const [playStartTime, setPlayStartTime] = useState(0);
   const [detailRec, setDetailRec] = useState<TerminalRecordingDetail | null>(null);
   const [exportingId, setExportingId] = useState<number | null>(null);
   const { userOptions, loading: userOptionsLoading, ensureLoaded } = useUserOptions({ immediate: true });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    operatorUserId: submittedParams.operatorUserId,
-    ...formatDateTimeRangeForApi(submittedParams.timeRange),
-  }), [submittedParams]);
 
-  const listQuery = useTerminalRecordingList({ page, pageSize, ...filterQuery });
   const [playId, setPlayId] = useState<number | undefined>();
   const [detailId, setDetailId] = useState<number | undefined>();
   const playQuery = useTerminalRecordingDetail(playId, playId !== undefined);
@@ -279,7 +280,7 @@ export default function TerminalRecordingsPage() {
 
       <ConfigurableTable
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无录屏记录，使用 Web 终端后会自动保存' })}
+        {...tableProps}
       />
 
       <Modal

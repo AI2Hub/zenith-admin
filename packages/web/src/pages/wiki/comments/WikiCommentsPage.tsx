@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -7,16 +6,15 @@ import { WIKI_COMMENT_STATUSES, WIKI_COMMENT_STATUS_LABELS, WIKI_COMMENT_STATUS_
 import { enumValueOf } from '@zenith/shared/core';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import {
   useRemoveWikiComment, useUpdateWikiCommentStatus, useWikiCommentList, wikiCommentKeys,
 } from '@/hooks/queries/wiki-comments';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   keyword: string;
@@ -31,19 +29,23 @@ export default function WikiCommentsPage() {
   const navigate = useNavigate();
 
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: wikiCommentKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: wikiCommentKeys.lists,
+    useList: useWikiCommentList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      status: enumValueOf(WIKI_COMMENT_STATUSES, s.status),
+      ...formatDateTimeRangeForApi(s.timeRange),
+    }),
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(WIKI_COMMENT_STATUSES, submittedParams.status),
-    ...formatDateTimeRangeForApi(submittedParams.timeRange),
-  }), [submittedParams]);
 
-  const listQuery = useWikiCommentList({ page, pageSize, ...filterQuery });
 
   const statusMutation = useUpdateWikiCommentStatus();
   const removeMutation = useRemoveWikiComment();
@@ -115,7 +117,7 @@ export default function WikiCommentsPage() {
       <ConfigurableTable<WikiComment>
         columns={columns}
         empty="暂无评论"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
     </div>
   );

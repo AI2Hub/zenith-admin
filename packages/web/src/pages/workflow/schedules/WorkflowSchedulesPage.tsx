@@ -19,15 +19,14 @@ import {
   workflowScheduleKeys,
 } from '@/hooks/queries/workflow-schedules';
 import { useDictItems } from '@/hooks/useDictItems';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton } from '@/components/toolbar-controls';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, enabledStatusColumn } from '@/utils/table-columns';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 import { FilterSelect, StatusSelect } from '@/components/search-filters';
+import { useListPage } from '@/hooks/useListPage';
 
 type ScheduleStatus = WorkflowSchedule['status'];
 
@@ -77,17 +76,17 @@ export default function WorkflowSchedulesPage() {
   const { hasPermission } = usePermission();
 
   const {
-    page, pageSize, buildPagination,
-    bind, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowScheduleKeys.lists });
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    definitionId: submittedParams.definitionId,
-    status: submittedParams.status,
-  }), [submittedParams]);
+    bind,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: workflowScheduleKeys.lists,
+    useList: useWorkflowScheduleList,
+    toQuery: (s) => ({ definitionId: s.definitionId, status: s.status }),
+  });
 
-  const listQuery = useWorkflowScheduleList({ page, pageSize, ...filterQuery });
   const definitionsQuery = usePublishedWorkflowDefinitions();
   const usersQuery = useAllUsers();
 
@@ -265,7 +264,7 @@ export default function WorkflowSchedulesPage() {
 
       <ConfigurableTable<WorkflowSchedule>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal

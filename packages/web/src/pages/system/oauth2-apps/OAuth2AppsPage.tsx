@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import ModalFooter from '@/components/ModalFooter';
 import { useNavigate } from 'react-router-dom';
 import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Checkbox, Spin, Banner, Row, Col, SideSheet, TextArea } from '@douyinfe/semi-ui';
@@ -10,7 +10,7 @@ import { copyableNoColumn, createdAtColumn } from '@/utils/table-columns';
 import { openAppEnvironmentColumn, openAppReviewStatusColumn, openAppScopesColumn } from '../../open-platform/open-app-columns';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -26,11 +26,10 @@ import {
   type SaveOAuth2AppValues,
 } from '@/hooks/queries/oauth2-apps';
 import { useDictItems } from '@/hooks/useDictItems';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text, Paragraph } = Typography;
 
@@ -76,10 +75,17 @@ export default function OAuth2AppsPage() {
   }
   const defaultSearchParams: SearchParams = { keyword: '' };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: oauth2AppKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: oauth2AppKeys.lists,
+    useList: useOAuth2AppList,
+    toQuery: (s) => ({ keyword: s.keyword, environment: s.environment, reviewStatus: s.reviewStatus }),
+  });
 
   // 一次性 Secret 展示
   const [secretModal, setSecretModal] = useState(false);
@@ -87,15 +93,7 @@ export default function OAuth2AppsPage() {
   const [oneTimeClientId, setOneTimeClientId] = useState('');
   const [previousValidUntil, setPreviousValidUntil] = useState('');
 
-  // ─── 数据加载 ──────────────────────────────────────────────────────────
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    environment: submittedParams.environment,
-    reviewStatus: submittedParams.reviewStatus,
-  }), [submittedParams]);
 
-  const listQuery = useOAuth2AppList({ page, pageSize, ...filterQuery });
   const ratePlans = useOAuth2RatePlans().data ?? [];
   const scopeOptions = useOAuth2ApiScopes().data ?? [];
   const saveMutation = useSaveOAuth2App();
@@ -317,7 +315,7 @@ export default function OAuth2AppsPage() {
       <ConfigurableTable<OAuth2Client>
         columns={columns}
         empty="暂无数据"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       {/* 新增 / 编辑抽屉 */}

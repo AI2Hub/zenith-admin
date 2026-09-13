@@ -3,14 +3,12 @@ import { Button, Form, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { ListChecks } from 'lucide-react';
-import { ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
+import { ListSearchToolbar, useRowSelection } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import AppModal from '@/components/AppModal';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import {
   directorySyncConflictKeys, useDirectorySyncConflictList,
   useResolveDirectorySyncConflict, useIgnoreDirectorySyncConflicts,
@@ -23,6 +21,7 @@ import {
   DIRECTORY_SYNC_CONFLICT_STATUSES, DIRECTORY_SYNC_CONFLICT_STATUS_LABELS,
   DIRECTORY_SYNC_CONFLICT_TYPE_LABELS, DIRECTORY_SYNC_ENTITY_TYPE_LABELS,
 } from '@zenith/shared/identity';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   keyword: string;
@@ -63,24 +62,26 @@ export default function DirectorySyncConflictsPage() {
   });
 
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
     defaults: defaultSearchParams,
     listKey: directorySyncConflictKeys.lists,
     onSearch: clearSelection,
     onReset: clearSelection,
+    useList: useDirectorySyncConflictList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      sourceId: s.sourceId,
+      status: enumValueOf(DIRECTORY_SYNC_CONFLICT_STATUSES, s.status),
+    }),
+    table: { empty: '暂无冲突，同步产生的挂起项会出现在这里', rowSelection },
   });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    sourceId: submittedParams.sourceId,
-    status: enumValueOf(DIRECTORY_SYNC_CONFLICT_STATUSES, submittedParams.status),
-  }), [submittedParams]);
 
-  const listQuery = useDirectorySyncConflictList({ page, pageSize, ...filterQuery });
 
   const sourcesQuery = useDirectorySyncSourceList({ page: 1, pageSize: 100 });
   const sourceItems = useMemo(
@@ -224,11 +225,7 @@ export default function DirectorySyncConflictsPage() {
 
       <ConfigurableTable<DirectorySyncConflict>
         columns={columns}
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          empty: '暂无冲突，同步产生的挂起项会出现在这里',
-          rowSelection,
-        })}
+        {...tableProps}
       />
 
       <AppModal

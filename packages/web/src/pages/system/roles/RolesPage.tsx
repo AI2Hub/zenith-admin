@@ -20,7 +20,6 @@ import { departmentTreeToTreeData, useDepartmentTree } from '@/hooks/queries/dep
 import { useMenuTree } from '@/hooks/queries/menus';
 import { useAllUsers } from '@/hooks/queries/users';
 import { useEditModal } from '@/hooks/useEditModal';
-import { useListSearch } from '@/hooks/useListSearch';
 import {
   roleKeys,
   useAssignRoleMenus,
@@ -34,9 +33,9 @@ import {
 } from '@/hooks/queries/roles';
 import { CreateButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import ModalFooter from '@/components/ModalFooter';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 export default function RolesPage() {
   const { hasPermission } = usePermission();
@@ -49,10 +48,22 @@ export default function RolesPage() {
   const defaultSearchParams: SearchParams = { keyword: '', status: undefined, timeRange: null };
   const { items: statusItems, options: statusOptions } = useDictItems('common_status');
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: roleKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+    filterQuery,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: roleKeys.lists,
+    useList: useRoleList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      status: enumValueOf(USER_STATUSES, s.status),
+      ...formatDateTimeRangeForApi(s.timeRange),
+    }),
+  });
   const [menuModalVisible, setMenuModalVisible] = useState(false);
   const [menuRole, setMenuRole] = useState<Role | null>(null);
   const [checkedMenuIds, setCheckedMenuIds] = useState<number[]>([]);
@@ -64,13 +75,6 @@ export default function RolesPage() {
   const [selectedDataScope, setSelectedDataScope] = useState<string>('all');
   const [selectedDeptScopeIds, setSelectedDeptScopeIds] = useState<number[]>([]);
 
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-    ...formatDateTimeRangeForApi(submittedParams.timeRange),
-  }), [submittedParams]);
-  const listQuery = useRoleList({ page, pageSize, ...filterQuery });
 
   const menuTreeQuery = useMenuTree({ enabled: menuModalVisible });
   const menuRoleDetailQuery = useRoleDetail(menuRole?.id, menuModalVisible);
@@ -258,7 +262,7 @@ export default function RolesPage() {
 
       <ConfigurableTable<Role>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       {/* 创建/编辑 Modal */}

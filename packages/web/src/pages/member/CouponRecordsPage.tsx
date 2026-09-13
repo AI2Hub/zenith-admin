@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Button, Descriptions, Input, Toast, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ScanLine } from 'lucide-react';
@@ -7,18 +7,17 @@ import { MEMBER_COUPON_STATUSES, MEMBER_COUPON_STATUS_LABELS } from '@zenith/sha
 import { enumValueOf } from '@zenith/shared/core';
 import { usePermission } from '@/hooks/usePermission';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar } from '@/components/list-page';
 import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
 import { memberAdminKeys, useCouponByCode, useCouponRecordList, useRedeemCoupon, useRevokeCouponRecord } from '@/hooks/queries/member-admin';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { KeywordInput, NumberFilter, StatusSelect } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { memberCellColumn } from './member-admin-display';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 const statusOptions = (Object.keys(MEMBER_COUPON_STATUS_LABELS) as MemberCouponStatus[]).map((v) => ({ value: v, label: MEMBER_COUPON_STATUS_LABELS[v] }));
 const STATUS_COLORS: Record<string, string> = { unused: 'blue', used: 'green', expired: 'grey', frozen: 'orange' };
@@ -27,23 +26,31 @@ interface SearchParams { memberKeyword?: string; couponId?: number; status?: str
 
 export default function CouponRecordsPage() {
   const { hasPermission } = usePermission();
+  const defaultSearchParams: SearchParams = {};
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset, applySearch,
-  } = useListSearch<SearchParams>({ defaults: {}, listKey: memberAdminKeys.couponRecords });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    applySearch,
+    tableProps,
+    filterQuery,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: memberAdminKeys.couponRecords,
+    useList: useCouponRecordList,
+    toQuery: (s) => ({
+      memberKeyword: s.memberKeyword,
+      couponId: s.couponId,
+      status: enumValueOf(MEMBER_COUPON_STATUSES, s.status),
+    }),
+    table: { empty: '暂无领券记录' },
+  });
   // 会员详情/优惠券列表入口的深链筛选（?memberKeyword= / ?couponId=，消费后即从 URL 移除）
   useListDeepLink(['memberKeyword', 'couponId'], (p) => applySearch({
     memberKeyword: p.memberKeyword,
     couponId: Number(p.couponId) || undefined,
   }));
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
-    memberKeyword: submittedParams.memberKeyword,
-    couponId: submittedParams.couponId,
-    status: enumValueOf(MEMBER_COUPON_STATUSES, submittedParams.status),
-  }), [submittedParams]);
-  const listQuery = useCouponRecordList({ page, pageSize, ...filterQuery });
   const revokeMutation = useRevokeCouponRecord();
   // 核销
   const [redeemVisible, setRedeemVisible] = useState(false);
@@ -137,7 +144,7 @@ export default function CouponRecordsPage() {
         filterTitle="领券记录筛选"
       />
 
-      <ConfigurableTable<MemberCoupon> columns={columns} {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无领券记录' })} />
+      <ConfigurableTable<MemberCoupon> columns={columns} {...tableProps} />
 
       {/* 核销券码 Modal */}
       <AppModal title="核销券码" visible={redeemVisible} width={520}

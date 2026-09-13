@@ -7,11 +7,9 @@ import { maskSecret } from '@zenith/shared/core';
 import { UserAvatar } from '@/components/UserAvatar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { AppModal } from '@/components/AppModal';
 import { useEditModal } from '@/hooks/useEditModal';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { usePermission } from '@/hooks/usePermission';
 import { copyableNoColumn, createdAtColumn, dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import {
@@ -28,6 +26,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { abortSubmit } from '@/lib/abort-submit';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text } = Typography;
 
@@ -59,18 +58,21 @@ function maskToken(token: string): string {
 
 export default function ChatBotsPage() {
   const { hasPermission } = usePermission();
+  const defaultSearchParams: { keyword: string } = { keyword: '' };
   const {
-    page, pageSize, buildPagination,
-    bindKeyword, submittedParams, handleSearch, handleReset,
-  } = useListSearch<{ keyword: string }>({ defaults: { keyword: '' }, listKey: chatBotKeys.lists });
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: chatBotKeys.lists,
+    useList: useChatBotList,
+    toQuery: (s) => ({ keyword: s.keyword.trim() }),
+  });
   const [secretInfo, setSecretInfo] = useState<ChatWebhook | null>(null);
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword.trim(),
-  }), [submittedParams]);
 
-  const listQuery = useChatBotList({ page, pageSize, ...filterQuery });
   const saveMutation = useSaveChatBot();
   const botModal = useEditModal<ChatWebhook, BotFormValues, SaveChatBotValues>({
     entityName: ' Webhook 机器人',
@@ -220,7 +222,7 @@ export default function ChatBotsPage() {
       <ConfigurableTable<ChatWebhook>
         columns={columns}
         empty="暂无数据"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal

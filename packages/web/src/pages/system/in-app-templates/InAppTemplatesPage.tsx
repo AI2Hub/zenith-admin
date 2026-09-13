@@ -1,16 +1,13 @@
-import { useMemo } from 'react';
 import { Col, Form, Row, Spin, Tag } from '@douyinfe/semi-ui';
 import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
 import type { CreateInAppTemplateInput, InAppMessageType, InAppTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { useEditModal } from '@/hooks/useEditModal';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import {
   inAppTemplateKeys,
@@ -23,6 +20,7 @@ import { IN_APP_MESSAGE_TYPE_OPTIONS_WITH_COLOR as TYPE_OPTIONS } from '../in-ap
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { TemplateNameCodeRow, TemplateVariablesRemarkRows } from '../message-template-form';
+import { useListPage } from '@/hooks/useListPage';
 
 export default function InAppTemplatesPage() {
   const { hasPermission: can } = usePermission();
@@ -31,19 +29,19 @@ export default function InAppTemplatesPage() {
   interface SearchParams { keyword: string; filterType: InAppMessageType | undefined; filterStatus: string | undefined; }
   const defaultSearchParams: SearchParams = { keyword: '', filterType: undefined, filterStatus: undefined };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: inAppTemplateKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: inAppTemplateKeys.lists,
+    useList: useInAppTemplateList,
+    toQuery: (s) => ({ keyword: s.keyword, type: s.filterType, status: enumValueOf(USER_STATUSES, s.filterStatus) }),
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    type: submittedParams.filterType,
-    status: enumValueOf(USER_STATUSES, submittedParams.filterStatus),
-  }), [submittedParams]);
 
-  const listQuery = useInAppTemplateList({ page, pageSize, ...filterQuery });
   const saveMutation = useSaveInAppTemplate();
   const modal = useEditModal<InAppTemplate, Partial<CreateInAppTemplateInput>>({
     entityName: '站内信模板',
@@ -128,7 +126,7 @@ export default function InAppTemplatesPage() {
 
       <ConfigurableTable<InAppTemplate>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal {...modal.modalProps} width={720}>

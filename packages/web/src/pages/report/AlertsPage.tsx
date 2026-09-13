@@ -26,14 +26,13 @@ import type { CreateReportAlertInput, ReportAlertAggregate, ReportAlertOp, Repor
 import { NOTIFY_CHANNEL_LABELS } from '@zenith/shared/messaging';
 import { REPORT_DELIVERY_STATUS_LABELS, REPORT_DELIVERY_TRIGGER_LABELS, REPORT_MISFIRE_POLICY_OPTIONS } from '@zenith/shared/report';
 import { useDictItems } from '@/hooks/useDictItems';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { switchAlertSource } from './report-platform-utils';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle, useRowSelection } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useStatusToggle, useRowSelection } from '@/components/list-page';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 import ModalFooter from '@/components/ModalFooter';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   keyword: string;
@@ -87,11 +86,6 @@ function formatRule(record: ReportAlertRule) {
 export default function AlertsPage() {
   const { items: statusItems, options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
-  const {
-    page, pageSize, buildPagination,
-    draftParams, setDraftParams, bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: reportAlertKeys.lists });
 
   const datasetsQuery = useEnabledReportDatasets();
   const datasets = useMemo(() => datasetsQuery.data ?? [], [datasetsQuery.data]);
@@ -101,22 +95,34 @@ export default function AlertsPage() {
   );
   const metrics = metricsQuery.data ?? [];
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    datasetId: submittedParams.datasetId,
-    metricId: submittedParams.metricId,
-    enabled: submittedParams.enabled ? submittedParams.enabled === 'enabled' : undefined,
-  }), [submittedParams]);
 
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
+  const {
+    draftParams,
+    setDraftParams,
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: reportAlertKeys.lists,
+    useList: useReportAlertList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      datasetId: s.datasetId,
+      metricId: s.metricId,
+      enabled: s.enabled ? s.enabled === 'enabled' : undefined,
+    }),
+    table: { empty: '暂无预警', rowSelection: hasPermission('report:alert:update') ? rowSelection : undefined },
+  });
   const [historyTarget, setHistoryTarget] = useState<ReportAlertRule | null>(null);
   const [selectedDatasetId, setSelectedDatasetId] = useState<number | null>(null);
   const [sourceType, setSourceType] = useState<'dataset' | 'metric'>('dataset');
   const [selectedAggregate, setSelectedAggregate] = useState<ReportAlertAggregate>('sum');
   const [selectedChannels, setSelectedChannels] = useState<Array<'email' | 'inApp' | 'webhook'>>(['inApp']);
   const [cronExprValue, setCronExprValue] = useState('');
-  const listQuery = useReportAlertList({ page, pageSize, ...filterQuery });
   const saveMutation = useSaveReportAlert();
   const toggleMutation = useToggleReportAlertEnabled();
   const batchEnabledMutation = useBatchReportAlertEnabled();
@@ -350,11 +356,7 @@ export default function AlertsPage() {
 
       <ConfigurableTable<ReportAlertRule>
         columns={columns}
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          empty: '暂无预警',
-          rowSelection: hasPermission('report:alert:update') ? rowSelection : undefined,
-        })}
+        {...tableProps}
       />
 
       <SideSheet

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import ModalFooter from '@/components/ModalFooter';
 import { Button, Modal, Form, Row, Col, Spin, SideSheet, Descriptions, Tag, Divider } from '@douyinfe/semi-ui';
 import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
@@ -16,7 +16,6 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricMeter';
 import { useAllTenantPackages } from '@/hooks/queries/tenant-packages';
-import { useListSearch } from '@/hooks/useListSearch';
 import {
   useDeleteTenants,
   useSaveTenant,
@@ -27,9 +26,9 @@ import {
 } from '@/hooks/queries/tenants';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { copyTextWithToast } from '@/utils/clipboard';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   keyword: string;
@@ -51,17 +50,19 @@ export default function TenantsPage() {
   const { hasPermission } = usePermission();
   const { items: statusItems, options: statusOptions } = useDictItems('common_status');
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: tenantKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+    filterQuery,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: tenantKeys.lists,
+    useList: useTenantList,
+    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
+  });
 
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
-  const listQuery = useTenantList({ page, pageSize, ...filterQuery });
 
   const saveMutation = useSaveTenant();
   // 联系电话是契约敏感字段：对非豁免用户是掩码，编辑时锁定、未修改则不提交
@@ -220,7 +221,7 @@ export default function TenantsPage() {
 
       <ConfigurableTable<Tenant>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <SideSheet

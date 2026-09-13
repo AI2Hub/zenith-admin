@@ -35,12 +35,11 @@ import { ReportOwnerFolderFields } from './report-form-fields';
 import { useReportOwnerFolderOptions } from './report-lookups';
 import { useReportDqAnomalyList } from '@/hooks/queries/report-dq';
 import { useReportDeprecationList } from '@/hooks/queries/report-assets';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { BatchStatusButtons, CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
-import { batchStatusHandler, deleteAction, ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
+import { batchStatusHandler, deleteAction, ListSearchToolbar, useRowSelection } from '@/components/list-page';
+import { useListPage } from '@/hooks/useListPage';
 
 const DatasetRefsModal = lazy(() => import('./components/DatasetRefsModal').then((module) => ({
   default: module.DatasetRefsModal,
@@ -89,19 +88,7 @@ export default function DatasetsPage() {
   const navigate = useNavigate();
   const staticFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: reportDatasetKeys.lists });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-    ownerId: submittedParams.ownerId,
-    folderId: submittedParams.folderId,
-  }), [submittedParams]);
 
   const datasourcesQuery = useEnabledReportDatasources();
   const datasources = useMemo<ReportLookupOption[]>(() => datasourcesQuery.data ?? [], [datasourcesQuery.data]);
@@ -114,6 +101,24 @@ export default function DatasetsPage() {
   }, [datasources]);
 
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
+  const {
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: reportDatasetKeys.lists,
+    useList: useReportDatasetList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      status: enumValueOf(USER_STATUSES, s.status),
+      ownerId: s.ownerId,
+      folderId: s.folderId,
+    }),
+    table: { empty: '暂无数据', rowSelection: hasPermission('report:dataset:update') ? rowSelection : undefined },
+  });
   const [selectedDsId, setSelectedDsId] = useState<number | null>(null);
   const [fields, setFields] = useState<ReportField[]>([]);
   const [computedFields, setComputedFields] = useState<ReportComputedField[]>([]);
@@ -132,7 +137,6 @@ export default function DatasetsPage() {
   const [aiQuestion, setAiQuestion] = useState('');
   const [datasetTab, setDatasetTab] = useState('basic');
 
-  const listQuery = useReportDatasetList({ page, pageSize, ...filterQuery });
   const { userOptions, folderOptions } = useReportOwnerFolderOptions('dataset');
   const anomalyQuery = useReportDqAnomalyList({ page: 1, pageSize: 200, status: 'open' });
   const deprecationQuery = useReportDeprecationList({ page: 1, pageSize: 200, resourceType: 'dataset', published: true });
@@ -588,11 +592,7 @@ export default function DatasetsPage() {
 
       <ConfigurableTable<ReportDataset>
         columns={columns}
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          empty: '暂无数据',
-          rowSelection: hasPermission('report:dataset:update') ? rowSelection : undefined,
-        })}
+        {...tableProps}
       />
 
       <SideSheet

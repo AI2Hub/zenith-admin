@@ -3,7 +3,7 @@
  *
  * 提供事件订阅 CRUD + 启用/禁用 + 投递记录查看与重试。
  */
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Button, Col, Form, Modal, Row, Space, SideSheet, Spin, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -31,8 +31,6 @@ import {
   workflowEventSubscriptionKeys,
 } from '@/hooks/queries/workflow-event-subscriptions';
 import { useWorkflowConnectorList } from '@/hooks/queries/workflow-connectors';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton } from '@/components/toolbar-controls';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -40,6 +38,7 @@ import { EMPTY_PLACEHOLDER, dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import ModalFooter from '@/components/ModalFooter';
+import { useListPage } from '@/hooks/useListPage';
 
 const DELIVERY_STATUS_COLORS: Record<WorkflowEventDeliveryStatus, 'green' | 'red' | 'orange' | 'grey'> = {
   pending: 'grey',
@@ -67,18 +66,22 @@ export default function WorkflowEventSubscriptionsPage() {
   interface SearchParams { keyword: string; definitionId?: number; enabled?: 'true' | 'false' }
   const defaultSearchParams: SearchParams = { keyword: '', definitionId: undefined, enabled: undefined };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowEventSubscriptionKeys.lists });
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    definitionId: submittedParams.definitionId,
-    enabled: submittedParams.enabled === undefined ? undefined : submittedParams.enabled === 'true',
-  }), [submittedParams]);
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: workflowEventSubscriptionKeys.lists,
+    useList: useWorkflowEventSubscriptionList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      definitionId: s.definitionId,
+      enabled: s.enabled === undefined ? undefined : s.enabled === 'true',
+    }),
+  });
 
-  const listQuery = useWorkflowEventSubscriptionList({ page, pageSize, ...filterQuery });
   const definitionsQuery = useWorkflowDefinitionList({ page: 1, pageSize: 200 });
   const defs: WorkflowDefinition[] = definitionsQuery.data?.list ?? [];
   const connectorsQuery = useWorkflowConnectorList({ page: 1, pageSize: 100, status: 'enabled' });
@@ -348,7 +351,7 @@ export default function WorkflowEventSubscriptionsPage() {
 
       <ConfigurableTable<WorkflowEventSubscription>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <SideSheet

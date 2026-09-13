@@ -7,7 +7,7 @@ import { WIKI_SPACE_MEMBER_ROLE_LABELS, WIKI_SPACE_MEMBER_ROLE_OPTIONS, WIKI_SPA
 import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
@@ -16,14 +16,13 @@ import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useAllUsers } from '@/hooks/queries/users';
 import {
   useDeleteWikiSpaces, useSaveWikiSpace, useSaveWikiSpaceMembers, useWikiSpaceDetail,
   useWikiSpaceList, useWikiSpaceMembers, wikiSpaceKeys,
 } from '@/hooks/queries/wiki-spaces';
 import ModalFooter from '@/components/ModalFooter';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text } = Typography;
 
@@ -40,19 +39,23 @@ export default function WikiSpacesPage() {
   const navigate = useNavigate();
 
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: wikiSpaceKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: wikiSpaceKeys.lists,
+    useList: useWikiSpaceList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      visibility: enumValueOf(WIKI_SPACE_VISIBILITIES, s.visibility),
+      status: enumValueOf(USER_STATUSES, s.status),
+    }),
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    visibility: enumValueOf(WIKI_SPACE_VISIBILITIES, submittedParams.visibility),
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
 
-  const listQuery = useWikiSpaceList({ page, pageSize, ...filterQuery });
 
   const modal = useEditModal<WikiSpace, Partial<CreateWikiSpaceInput>>({
     entityName: '知识空间',
@@ -189,7 +192,7 @@ export default function WikiSpacesPage() {
       <ConfigurableTable<WikiSpace>
         columns={columns}
         empty="暂无数据"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal {...modal.modalProps} width={660}>

@@ -1,5 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
-import { compactParams } from '@/lib/query';
+import { useRef, useState } from 'react';
 import { Form } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -8,15 +7,15 @@ import AppModal from '@/components/AppModal';
 import { EMPTY_PLACEHOLDER, createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useCmsTagList, useSaveCmsTag, useDeleteCmsTags, cmsTagKeys } from '@/hooks/queries/cms';
 import type { CmsTag, CreateCmsTagInput } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { slugifyName } from '@/utils/slug';
 import { abortSubmit } from '@/lib/abort-submit';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams { keyword: string }
 const defaultSearch: SearchParams = { keyword: '' };
@@ -25,16 +24,21 @@ export default function TagsPage() {
   const { hasPermission } = usePermission();
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
   const {
-    page, pageSize, setPage, buildPagination,
-    bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: cmsTagKeys.lists });
+    setPage,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: cmsTagKeys.lists,
+    useList: useCmsTagList,
+    toQuery: (s) => ({ keyword: s.keyword }),
+    params: { siteId: siteId ?? 0 },
+    enabled: siteId !== undefined,
+    table: { empty: '暂无标签' },
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword }), [submittedParams]);
-  const listQuery = useCmsTagList({
-    page, pageSize, siteId: siteId ?? 0, ...filterQuery,
-  }, siteId !== undefined);
   const saveMutation = useSaveCmsTag();
   const modal = useEditModal<CmsTag, Partial<CmsTag>, Partial<CreateCmsTagInput>>({
     entityName: '标签',
@@ -106,7 +110,7 @@ export default function TagsPage() {
 
       <ConfigurableTable<CmsTag>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无标签' })}
+        {...tableProps}
       />
 
       <AppModal {...modal.modalProps} width={480}>

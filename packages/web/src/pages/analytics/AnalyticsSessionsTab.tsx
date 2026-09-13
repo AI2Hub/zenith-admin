@@ -1,18 +1,17 @@
 /** 会话列表：按用户名 / 设备筛选，分页浏览会话并可打开单会话事件时间轴 */
-import { useMemo, useState } from 'react';
-import { compactParams } from '@/lib/query';
-import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { useState } from 'react';
+import { ListSearchToolbar } from '@/components/list-page';
 import { Empty, SideSheet, Spin, Tag, Timeline, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { analyticsKeys, useAnalyticsSessions, useSessionTimeline } from '@/hooks/queries/analytics';
-import { useListSearch } from '@/hooks/useListSearch';
 import type { SessionListItem } from '@zenith/shared/analytics';
 import { ANALYTICS_DEVICE_TYPE_OPTIONS, USER_BEHAVIOR_EVENT_TYPE_LABELS } from '@zenith/shared/analytics';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { msToReadable, sectionStyle, type DeviceFilter } from './analytics-format';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   username: string;
@@ -93,17 +92,19 @@ function SessionTimelineSheet({ sessionId, onClose }: { sessionId: string | null
 export default function AnalyticsSessionsTab() {
   // 搜索状态：draft 绑输入框，submitted 进 query key；查询 / 重置回到第 1 页并失效会话列表
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: analyticsKeys.sessionsLists, pageSize: 20 });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: analyticsKeys.sessionsLists,
+    pageSize: 20,
+    useList: useAnalyticsSessions,
+    toQuery: (s) => ({ username: s.username.trim(), deviceType: s.deviceType }),
+  });
   const [timelineSessionId, setTimelineSessionId] = useState<string | null>(null);
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    username: submittedParams.username.trim(),
-    deviceType: submittedParams.deviceType,
-  }), [submittedParams]);
-  const sessionsQuery = useAnalyticsSessions({ page, pageSize, ...filterQuery });
 
   const columns: ColumnProps<SessionListItem>[] = [
     { title: '用户', dataIndex: 'username', width: 150, render: (_value, record) => record.username || (record.userId == null ? '匿名访客' : `用户 #${record.userId}`) },
@@ -150,7 +151,7 @@ export default function AnalyticsSessionsTab() {
       />
       <ConfigurableTable<SessionListItem>
         columns={columns}
-        {...listTableProps(sessionsQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
       <SessionTimelineSheet sessionId={timelineSessionId} onClose={() => setTimelineSessionId(null)} />
     </div>

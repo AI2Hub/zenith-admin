@@ -18,8 +18,6 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useWorkflowDefinitionList } from '@/hooks/queries/workflow-definitions';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import { usePagination } from '@/hooks/usePagination';
 import {
   useDeleteWorkflowAutomations,
@@ -36,6 +34,7 @@ import { EMPTY_PLACEHOLDER, dateTimeColumn, enabledStatusColumn, renderEllipsis 
 import { abortSubmit } from '@/lib/abort-submit';
 import { FilterSelect, StatusSelect } from '@/components/search-filters';
 import ModalFooter from '@/components/ModalFooter';
+import { useListPage } from '@/hooks/useListPage';
 
 const TRIGGER_COLORS: Record<WorkflowAutomationTrigger, TagColor> = {
   created: 'blue',
@@ -309,18 +308,17 @@ export default function WorkflowAutomationsPage() {
   interface SearchParams { definitionId?: number; trigger?: WorkflowAutomationTrigger; status?: 'enabled' | 'disabled' }
   const defaultSearchParams: SearchParams = { definitionId: undefined, trigger: undefined, status: undefined };
   const {
-    page, pageSize, buildPagination,
-    bind, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowAutomationKeys.lists });
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    definitionId: submittedParams.definitionId,
-    trigger: submittedParams.trigger,
-    status: submittedParams.status,
-  }), [submittedParams]);
+    bind,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: workflowAutomationKeys.lists,
+    useList: useWorkflowAutomationList,
+    toQuery: (s) => ({ definitionId: s.definitionId, trigger: s.trigger, status: s.status }),
+  });
 
-  const listQuery = useWorkflowAutomationList({ page, pageSize, ...filterQuery });
   const definitionsQuery = useWorkflowDefinitionList({ page: 1, pageSize: 200 });
   const defs: WorkflowDefinition[] = useMemo(() => definitionsQuery.data?.list ?? [], [definitionsQuery.data]);
 
@@ -481,7 +479,7 @@ export default function WorkflowAutomationsPage() {
 
       <ConfigurableTable<WorkflowAutomation>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <SideSheet

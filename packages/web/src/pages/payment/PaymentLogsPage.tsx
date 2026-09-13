@@ -1,5 +1,4 @@
 import { PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { useMemo } from 'react';
 import { Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -8,13 +7,12 @@ import { enumValueOf } from '@zenith/shared/core';
 import { PAYMENT_CHANNELS, PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentNotifyLog } from '@zenith/shared/payment';
 import { paymentLogKeys, usePaymentLogList } from '@/hooks/queries/payment-logs';
-import { useListSearch } from '@/hooks/useListSearch';
-import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar } from '@/components/list-page';
 import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search-filters';
-import { compactParams } from '@/lib/query';
 import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { JsonBlock } from '@/components/JsonBlock';
 import { PaymentExpandedDetail } from './payment-expanded-detail';
+import { useListPage } from '@/hooks/useListPage';
 
 const NOTIFY_SCENES = ['payment', 'refund'] as const;
 
@@ -26,23 +24,27 @@ function formatRaw(raw: string | null | undefined): string {
   try { return JSON.stringify(JSON.parse(raw), null, 2); } catch { return raw; }
 }
 
-export default function PaymentLogsPage() {  const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentLogKeys.lists });
+export default function PaymentLogsPage() {
+  const {
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: paymentLogKeys.lists,
+    useList: usePaymentLogList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      channel: enumValueOf(PAYMENT_CHANNELS, s.channel),
+      scene: enumValueOf(NOTIFY_SCENES, s.scene),
+      signatureValid: s.signatureValid === undefined ? undefined : s.signatureValid === 'true',
+      ...formatDateTimeRangeForApi(s.timeRange),
+    }),
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次；枚举筛选从 string 收窄，
-  // 验签结果在草稿以 'true' / 'false' 字串保存（Select 选项值），提交时收窄为布尔（compactParams 保留 false）
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    channel: enumValueOf(PAYMENT_CHANNELS, submittedParams.channel),
-    scene: enumValueOf(NOTIFY_SCENES, submittedParams.scene),
-    signatureValid: submittedParams.signatureValid === undefined ? undefined : submittedParams.signatureValid === 'true',
-    ...formatDateTimeRangeForApi(submittedParams.timeRange),
-  }), [submittedParams]);
 
-  const listQuery = usePaymentLogList({ page, pageSize, ...filterQuery });
 
   const columns: ColumnProps<PaymentNotifyLog>[] = [
     // 订单号置于首列承载展开箭头；内部日志 ID 移入展开详情
@@ -100,7 +102,7 @@ export default function PaymentLogsPage() {  const {
       <ConfigurableTable
         columns={columns}
         empty="暂无数据"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
         expandedRowRender={renderExpanded}
         rowExpandable={(r) => !!(r && (r.rawBody || r.headers))}
         expandRowByClick

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Button, Form, Spin, Row, Col, Typography, Tag, Empty } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -16,13 +16,12 @@ import {
   workflowDataSourceKeys,
 } from '@/hooks/queries/workflow-data-sources';
 import { useDictItems } from '@/hooks/useDictItems';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { parseHeadersJson } from '../components/http-integration';
 import { useEditModal } from '@/hooks/useEditModal';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams { keyword: string; status?: string }
 const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
@@ -44,17 +43,19 @@ export default function WorkflowDataSourcesPage() {
   const { options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowDataSourceKeys.lists });
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: workflowDataSourceKeys.lists,
+    useList: useWorkflowDataSourceList,
+    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
+    table: { empty: '暂无数据' },
+  });
 
-  const listQuery = useWorkflowDataSourceList({ page, pageSize, ...filterQuery });
   const saveMutation = useSaveWorkflowDataSource();
   const toggleStatusMutation = useSaveWorkflowDataSource();
   const deleteMutation = useDeleteWorkflowDataSources();
@@ -164,7 +165,7 @@ export default function WorkflowDataSourcesPage() {
 
       <ConfigurableTable<WorkflowDataSource>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无数据' })}
+        {...tableProps}
       />
 
       <AppModal

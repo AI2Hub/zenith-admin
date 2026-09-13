@@ -1,17 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Col, Form, Modal, Row, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
 import { createdAtColumn, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { formatDateTimeForApi, formatDateTimeRangeForApi } from '@/utils/date';
 import {
   marketingCampaignKeys, useDeleteMarketingCampaigns, useEndMarketingCampaign,
@@ -24,6 +22,7 @@ import {
 import type { CreateMarketingCampaignInput, MarketingCampaign } from '@zenith/shared/marketing';
 import MarketingPrizesDrawer from './MarketingPrizesDrawer';
 import MarketingRecordsDrawer from './MarketingRecordsDrawer';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text } = Typography;
 
@@ -53,22 +52,22 @@ export default function MarketingCampaignsPage() {
   const [recordsCampaign, setRecordsCampaign] = useState<MarketingCampaign | null>(null);
 
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: marketingCampaignKeys.lists });
-
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(MARKETING_CAMPAIGN_STATUSES, submittedParams.status),
-    ...formatDateTimeRangeForApi(submittedParams.timeRange),
-  }), [submittedParams]);
-  const listQuery = useMarketingCampaignList({
-    page,
-    pageSize,
-    ...filterQuery,
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: marketingCampaignKeys.lists,
+    useList: useMarketingCampaignList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      status: enumValueOf(MARKETING_CAMPAIGN_STATUSES, s.status),
+      ...formatDateTimeRangeForApi(s.timeRange),
+    }),
   });
+
 
   const modal = useEditModal<MarketingCampaign, MarketingCampaignFormValues, Partial<CreateMarketingCampaignInput>>({
     entityName: '营销活动',
@@ -210,7 +209,7 @@ export default function MarketingCampaignsPage() {
       <ConfigurableTable<MarketingCampaign>
         columns={columns}
         empty="暂无营销活动"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       {/* 新增 / 编辑 */}

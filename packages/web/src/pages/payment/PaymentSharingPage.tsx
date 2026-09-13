@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { Button, Descriptions, Form, SideSheet, Spin, Tabs, TabPane, Tag, TextArea, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -7,7 +7,6 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { AppModal } from '@/components/AppModal';
 import { EMPTY_PLACEHOLDER, copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
-import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -31,10 +30,10 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
-import { compactParams } from '@/lib/query';
-import { deleteAction, useStatusToggle, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, useStatusToggle, ListSearchToolbar } from '@/components/list-page';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { useListPage } from '@/hooks/useListPage';
 const yuan = formatYuan;
 const receiverTypeOptions = PAYMENT_SHARING_RECEIVER_TYPE_OPTIONS;
 const ORDER_STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red', reversed: 'orange' } as const satisfies Record<PaymentSharingOrderStatus, string>;
@@ -51,42 +50,35 @@ export default function PaymentSharingPage() {
   const [activeTab, setActiveTab] = useUrlTabState(['receivers', 'orders', 'reversals'] as const, 'receivers');
 
   // ── 接收方 / 分账单 / 冲正记录：三组独立的搜索 + 分页 ──
-  const receiverSearch = useListSearch<{ keyword: string }>({ defaults: { keyword: '' }, listKey: paymentSharingKeys.receiverLists });
-  const orderSearch = useListSearch<{ keyword: string; status?: string }>({ defaults: { keyword: '' }, listKey: paymentSharingKeys.orderLists });
-  const reversalSearch = useListSearch<{ status?: string }>({ defaults: {}, listKey: paymentSharingKeys.reversalLists });
+  const defaultSearchParams: { keyword: string } = { keyword: '' };
+  const receiverSearch = useListPage({
+    defaults: defaultSearchParams,
+    listKey: paymentSharingKeys.receiverLists,
+    useList: usePaymentSharingReceivers,
+    toQuery: (s) => ({ keyword: s.keyword }),
+    table: { empty: '暂无数据' },
+  });
+  const orderSearchDefaults: { keyword: string; status?: string } = { keyword: '' };
+  const orderSearch = useListPage({
+    defaults: orderSearchDefaults,
+    listKey: paymentSharingKeys.orderLists,
+    useList: usePaymentSharingOrders,
+    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(PAYMENT_SHARING_ORDER_STATUSES, s.status) }),
+    table: { empty: '暂无数据' },
+  });
+  const reversalSearchDefaults: { status?: string } = {};
+  const reversalSearch = useListPage({
+    defaults: reversalSearchDefaults,
+    listKey: paymentSharingKeys.reversalLists,
+    useList: usePaymentSharingReversals,
+    toQuery: (s) => ({ status: enumValueOf(PAYMENT_SHARING_REVERSAL_STATUSES, s.status) }),
+    table: { empty: '暂无冲正记录' },
+  });
   const [reverseTarget, setReverseTarget] = useState<PaymentSharingOrder | null>(null);
   const [reverseReason, setReverseReason] = useState('');
   const [reverseIdempotencyKey, setReverseIdempotencyKey] = useState('');
   const [reversalDetailTarget, setReversalDetailTarget] = useState<PaymentSharingReversal | null>(null);
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const receiverFilterQuery = useMemo(() => compactParams({
-    keyword: receiverSearch.submittedParams.keyword,
-  }), [receiverSearch.submittedParams]);
-  const receiverQuery = usePaymentSharingReceivers({
-    page: receiverSearch.page,
-    pageSize: receiverSearch.pageSize,
-    ...receiverFilterQuery,
-  });
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const orderFilterQuery = useMemo(() => compactParams({
-    keyword: orderSearch.submittedParams.keyword,
-    status: enumValueOf(PAYMENT_SHARING_ORDER_STATUSES, orderSearch.submittedParams.status),
-  }), [orderSearch.submittedParams]);
-  const orderQuery = usePaymentSharingOrders({
-    page: orderSearch.page,
-    pageSize: orderSearch.pageSize,
-    ...orderFilterQuery,
-  });
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const reversalFilterQuery = useMemo(() => compactParams({
-    status: enumValueOf(PAYMENT_SHARING_REVERSAL_STATUSES, reversalSearch.submittedParams.status),
-  }), [reversalSearch.submittedParams]);
-  const reversalQuery = usePaymentSharingReversals({
-    page: reversalSearch.page,
-    pageSize: reversalSearch.pageSize,
-    ...reversalFilterQuery,
-  });
   const reversalDetailQuery = usePaymentSharingReversalDetail(reversalDetailTarget?.id, !!reversalDetailTarget);
   const reversalDetail = reversalDetailTarget ? (reversalDetailQuery.data ?? reversalDetailTarget) : null;
   const saveReceiverMutation = useSavePaymentSharingReceiver();
@@ -286,7 +278,7 @@ export default function PaymentSharingPage() {
           />
           <ConfigurableTable
             columns={receiverColumns}
-            {...listTableProps(receiverQuery, { pagination: receiverSearch.buildPagination, empty: '暂无数据' })}
+            {...receiverSearch.tableProps}
           />
         </TabPane>
         <TabPane tab="分账单" itemKey="orders">
@@ -309,7 +301,7 @@ export default function PaymentSharingPage() {
           />
           <ConfigurableTable
             columns={orderColumns}
-            {...listTableProps(orderQuery, { pagination: orderSearch.buildPagination, empty: '暂无数据' })}
+            {...orderSearch.tableProps}
           />
         </TabPane>
         <TabPane tab="冲正记录" itemKey="reversals">
@@ -326,7 +318,7 @@ export default function PaymentSharingPage() {
           />
           <ConfigurableTable
             columns={reversalColumns}
-            {...listTableProps(reversalQuery, { pagination: reversalSearch.buildPagination, empty: '暂无冲正记录' })}
+            {...reversalSearch.tableProps}
           />
         </TabPane>
       </Tabs>

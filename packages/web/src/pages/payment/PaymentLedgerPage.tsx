@@ -1,6 +1,6 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import ModalFooter from '@/components/ModalFooter';
-import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar } from '@/components/list-page';
 import { ArrayField, Banner, Button, Descriptions, Form, Modal, SideSheet, TabPane, Tabs, Tag, TextArea, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Trash2 } from 'lucide-react';
@@ -32,7 +32,6 @@ import { AppModal } from '@/components/AppModal';
 import { CreateButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { usePermission } from '@/hooks/usePermission';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { usePaymentAppList } from '@/hooks/queries/payment-apps';
@@ -56,8 +55,8 @@ import { formatMinorAmount } from '@/utils/payment';
 import { confirmDanger } from '@/utils/confirm';
 import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
-import { compactParams } from '@/lib/query';
 import { COMMON_STATUS_OPTIONS, enumValueOf } from '@zenith/shared/core';
+import { useListPage } from '@/hooks/useListPage';
 
 const RESERVATION_STATUS_COLORS = {
   active: 'blue',
@@ -224,57 +223,51 @@ export default function PaymentLedgerPage() {
   const appNameById = useMemo(() => new Map(apps.map((app) => [app.id, app.name])), [apps]);
   const merchantNameById = useMemo(() => new Map(merchants.map((merchant) => [merchant.id, merchant.name])), [merchants]);
 
-  const accountSearch = useListSearch<AccountSearchParams>({
-    defaults: { keyword: '', currency: undefined, status: undefined },
+  const defaultSearchParams: AccountSearchParams = { keyword: '', currency: undefined, status: undefined };
+  const accountSearch = useListPage({
+    defaults: defaultSearchParams,
     listKey: paymentLedgerAccountKeys.lists,
+    useList: usePaymentLedgerAccountList,
+    toQuery: (s) => ({
+      keyword: s.keyword.trim(),
+      appId: s.appId,
+      channelConfigId: s.channelConfigId,
+      currency: s.currency,
+      status: enumValueOf(['enabled', 'disabled'] as const, s.status),
+    }),
+    enabled: canView && activeTab === 'accounts',
+    table: { empty: '暂无账本账户' },
   });
-  const journalSearch = useListSearch<JournalSearchParams>({
-    defaults: { sourceType: '', currency: undefined, timeRange: null },
+  const journalSearchDefaults: JournalSearchParams = { sourceType: '', currency: undefined, timeRange: null };
+  const journalSearch = useListPage({
+    defaults: journalSearchDefaults,
     listKey: paymentJournalKeys.lists,
+    useList: usePaymentJournalList,
+    toQuery: (s) => ({
+      sourceType: s.sourceType.trim(),
+      appId: s.appId,
+      channelConfigId: s.channelConfigId,
+      currency: s.currency,
+      ...formatDateTimeRangeForApi(s.timeRange),
+    }),
+    enabled: canView && activeTab === 'journals',
+    table: { empty: '暂无资金凭证' },
   });
-  const reservationSearch = useListSearch<ReservationSearchParams>({
-    defaults: { status: undefined, sourceType: '', timeRange: null },
+  const reservationSearchDefaults: ReservationSearchParams = { status: undefined, sourceType: '', timeRange: null };
+  const reservationSearch = useListPage({
+    defaults: reservationSearchDefaults,
     listKey: paymentFundReservationKeys.lists,
+    useList: usePaymentFundReservationList,
+    toQuery: (s) => ({
+      accountId: s.accountId,
+      status: enumValueOf(PAYMENT_FUND_RESERVATION_STATUSES, s.status),
+      sourceType: s.sourceType.trim(),
+      ...formatDateTimeRangeForApi(s.timeRange),
+    }),
+    enabled: canView && activeTab === 'reservations',
+    table: { empty: '暂无资金预占' },
   });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const accountFilterQuery = useMemo(() => compactParams({
-    keyword: accountSearch.submittedParams.keyword.trim(),
-    appId: accountSearch.submittedParams.appId,
-    channelConfigId: accountSearch.submittedParams.channelConfigId,
-    currency: accountSearch.submittedParams.currency,
-    status: enumValueOf(['enabled', 'disabled'] as const, accountSearch.submittedParams.status),
-  }), [accountSearch.submittedParams]);
-  const accountQuery = usePaymentLedgerAccountList({
-    page: accountSearch.page,
-    pageSize: accountSearch.pageSize,
-    ...accountFilterQuery,
-  }, canView && activeTab === 'accounts');
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const journalFilterQuery = useMemo(() => compactParams({
-    sourceType: journalSearch.submittedParams.sourceType.trim(),
-    appId: journalSearch.submittedParams.appId,
-    channelConfigId: journalSearch.submittedParams.channelConfigId,
-    currency: journalSearch.submittedParams.currency,
-    ...formatDateTimeRangeForApi(journalSearch.submittedParams.timeRange),
-  }), [journalSearch.submittedParams]);
-  const journalQuery = usePaymentJournalList({
-    page: journalSearch.page,
-    pageSize: journalSearch.pageSize,
-    ...journalFilterQuery,
-  }, canView && activeTab === 'journals');
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const reservationFilterQuery = useMemo(() => compactParams({
-    accountId: reservationSearch.submittedParams.accountId,
-    status: enumValueOf(PAYMENT_FUND_RESERVATION_STATUSES, reservationSearch.submittedParams.status),
-    sourceType: reservationSearch.submittedParams.sourceType.trim(),
-    ...formatDateTimeRangeForApi(reservationSearch.submittedParams.timeRange),
-  }), [reservationSearch.submittedParams]);
-  const reservationQuery = usePaymentFundReservationList({
-    page: reservationSearch.page,
-    pageSize: reservationSearch.pageSize,
-    ...reservationFilterQuery,
-  }, canView && activeTab === 'reservations');
 
   const accountCreateMutation = useCreatePaymentLedgerAccount();
   const accountModal = useEditModal<PaymentLedgerAccount, AccountFormValues, CreatePaymentLedgerAccountInput>({
@@ -605,7 +598,7 @@ export default function PaymentLedgerPage() {
           />
           <ConfigurableTable
             columns={accountColumns}
-            {...listTableProps(accountQuery, { pagination: accountSearch.buildPagination, empty: '暂无账本账户' })}
+            {...accountSearch.tableProps}
           />
         </TabPane>
 
@@ -627,7 +620,7 @@ export default function PaymentLedgerPage() {
           />
           <ConfigurableTable
             columns={journalColumns}
-            {...listTableProps(journalQuery, { pagination: journalSearch.buildPagination, empty: '暂无资金凭证' })}
+            {...journalSearch.tableProps}
           />
         </TabPane>
 
@@ -654,7 +647,7 @@ export default function PaymentLedgerPage() {
           />
           <ConfigurableTable
             columns={reservationColumns}
-            {...listTableProps(reservationQuery, { pagination: reservationSearch.buildPagination, empty: '暂无资金预占' })}
+            {...reservationSearch.tableProps}
           />
         </TabPane>
       </Tabs>

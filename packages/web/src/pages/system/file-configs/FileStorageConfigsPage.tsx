@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Col, Form, Radio, Row, Select, SideSheet, Spin, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { PlugZap } from 'lucide-react';
 import type { CreateFileStorageConfigInput, FileObjectAcl, FileStorageConfig, FileStorageProvider, FileUrlStrategy, UpdateFileStorageConfigInput } from '@zenith/shared/platform';
@@ -7,13 +7,12 @@ import { FILE_OBJECT_ACL_LABELS, FILE_OBJECT_ACL_SUPPORT, FILE_STORAGE_PROVIDER_
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
 import ExportButton from '@/components/ExportButton';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { abortSubmit } from '@/lib/abort-submit';
 import StorageFileBrowser from './StorageFileBrowser';
 import {
@@ -27,7 +26,7 @@ import {
 } from '@/hooks/queries/file-storage-configs';
 import { CreateButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, StatusSelect } from '@/components/search-filters';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 import './FileStorageConfigsPage.css';
 
@@ -200,19 +199,20 @@ export default function FileStorageConfigsPage() {
 
   const defaultSearchParams: SearchParams = { status: undefined, timeRange: null };
   const {
-    page, pageSize, buildPagination,
-    bind, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: fileStorageConfigKeys.lists });
+    bind,
+    handleSearch,
+    handleReset,
+    tableProps,
+    filterQuery,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: fileStorageConfigKeys.lists,
+    useList: useFileStorageConfigList,
+    toQuery: (s) => ({ status: enumValueOf(USER_STATUSES, s.status), ...formatDateTimeRangeForApi(s.timeRange) }),
+  });
   const [formProvider, setFormProvider] = useState<FileStorageProvider>('local');
   const [formIsDefault, setFormIsDefault] = useState(false);
   const [browsingConfig, setBrowsingConfig] = useState<FileStorageConfig | null>(null);
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-    ...formatDateTimeRangeForApi(submittedParams.timeRange),
-  }), [submittedParams]);
-  const listQuery = useFileStorageConfigList({ page, pageSize, ...filterQuery });
   const saveMutation = useSaveFileStorageConfig();
   const statusMutation = useSaveFileStorageConfig();
   const modal = useEditModal<FileStorageConfig, FileStorageConfigFormValues, CreateFileStorageConfigInput>({
@@ -514,7 +514,7 @@ export default function FileStorageConfigsPage() {
 
       <ConfigurableTable<FileStorageConfig>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <SideSheet

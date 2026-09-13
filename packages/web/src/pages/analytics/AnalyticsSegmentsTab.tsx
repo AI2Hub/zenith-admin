@@ -2,9 +2,7 @@
  * 行为中心阶段 1：用户分群 CRUD + 成员物化（异步任务）+ 成员明细查看。
  */
 import { useMemo, useState } from 'react';
-import { compactParams } from '@/lib/query';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
-import { useListSearch } from '@/hooks/useListSearch';
 import { usePagination } from '@/hooks/usePagination';
 import { Button, InputNumber, Input, Select, SideSheet, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -33,6 +31,7 @@ import { ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS, ANALYTICS_CAMPAIGN_CHANNEL_OPT
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER, renderEnabledStatusTag } from '@/utils/table-columns';
+import { useListPage } from '@/hooks/useListPage';
 
 const PAGE_SIZE = 20;
 const MAX_CONDITIONS = 10;
@@ -247,10 +246,19 @@ function CampaignDrawer({ segment, onClose }: { segment: AnalyticsUserSegment; o
 
 export default function AnalyticsSegmentsTab() {
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams: submittedFilter,
-    handleSearch, handleReset,
-  } = useListSearch<SegmentFilter>({ defaults: defaultFilter, listKey: analyticsKeys.data.segmentsLists, pageSize: PAGE_SIZE });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultFilter,
+    listKey: analyticsKeys.data.segmentsLists,
+    pageSize: PAGE_SIZE,
+    useList: useAnalyticsSegments,
+    toQuery: (s) => ({ keyword: s.keyword, status: s.status }),
+    table: { empty: '暂无分群' },
+  });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<AnalyticsUserSegment | null>(null);
@@ -264,12 +272,6 @@ export default function AnalyticsSegmentsTab() {
   const [campaignSegment, setCampaignSegment] = useState<AnalyticsUserSegment | null>(null);
   const membersPagination = usePagination(PAGE_SIZE);
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedFilter.keyword,
-    status: submittedFilter.status,
-  }), [submittedFilter]);
-  const segmentsQuery = useAnalyticsSegments({ page, pageSize, ...filterQuery });
 
   const saveMutation = useSaveAnalyticsSegment();
   const deleteMutation = useDeleteAnalyticsSegment();
@@ -397,7 +399,7 @@ export default function AnalyticsSegmentsTab() {
       />
       <ConfigurableTable
         columns={columns}
-        {...listTableProps(segmentsQuery, { pagination: buildPagination, empty: '暂无分群' })}
+        {...tableProps}
       />
 
       <AppModal

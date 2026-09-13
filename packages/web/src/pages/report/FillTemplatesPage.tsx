@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Banner, Button, Col, Form, Modal, Row, SideSheet, Space, Steps, TabPane, Tabs, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -9,8 +9,6 @@ import type { WorkflowFormField, WorkflowFormSettings } from '@zenith/shared/wor
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import AppModal from '@/components/AppModal';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { ReportFolderFilter, ReportOwnerFilter } from './report-filters';
@@ -32,7 +30,8 @@ import { isRevisionConflict, validateFillTemplateInput } from './report-p2-utils
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchState {
   keyword: string;
@@ -56,17 +55,18 @@ export default function FillTemplatesPage() {
   const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams: submitted,
-    handleSearch, handleReset,
-  } = useListSearch<SearchState>({ defaults: DEFAULT_SEARCH, listKey: reportFillKeys.templateLists });
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submitted.keyword,
-    status: submitted.status,
-    ownerId: submitted.ownerId,
-    folderId: submitted.folderId,
-  }), [submitted]);
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+    listQuery,
+  } = useListPage({
+    defaults: DEFAULT_SEARCH,
+    listKey: reportFillKeys.templateLists,
+    useList: useReportFillTemplateList,
+    toQuery: (s) => ({ keyword: s.keyword, status: s.status, ownerId: s.ownerId, folderId: s.folderId }),
+  });
 
   const [fields, setFields] = useState<WorkflowFormField[]>([]);
   const [settings, setSettings] = useState<WorkflowFormSettings>(DEFAULT_SCHEMA.settings);
@@ -75,7 +75,6 @@ export default function FillTemplatesPage() {
   const [editorTab, setEditorTab] = useState('designer');
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
 
-  const listQuery = useReportFillTemplateList({ page, pageSize, ...filterQuery });
   const { userOptions, folderOptions } = useReportOwnerFolderOptions('fill_template');
   const definitions = (usePublishedWorkflowDefinitions().data ?? []).filter((definition) => definition.formType === 'external');
   const createMutation = useCreateReportFillTemplate();
@@ -340,7 +339,7 @@ export default function FillTemplatesPage() {
       />
       <ConfigurableTable<ReportFillTemplate>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
         columnSettingsKey="report-fill-templates"
       />
 

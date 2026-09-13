@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Empty, Form, Tabs, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -7,17 +7,17 @@ import type { LoginRiskEvent } from '@zenith/shared/identity';
 import { identitySecuritySettingsSchema, type IdentitySecuritySettings } from '@zenith/shared/settings';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar } from '@/components/list-page';
 import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
-import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { identitySecurityKeys, useLoginRiskEventList } from '@/hooks/queries/identity-security';
 import { useSaveSettings, useSettings } from '@/hooks/queries/settings';
-import { ApiError, compactParams } from '@/lib/query';
+import { ApiError } from '@/lib/query';
 import { RefreshButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { useListPage } from '@/hooks/useListPage';
 const { TabPane } = Tabs;
 
 // 默认值以 shared schema 为唯一真相（通用设置页与服务端同源）
@@ -35,21 +35,17 @@ export default function IdentitySecurityPage() {
   // useEditModal 例外：页面级全局配置表单（身份安全策略），保存后不关闭；表单 key 跟随策略值重挂载
   const formApi = useRef<FormApi | null>(null);
   const [policy, setPolicy] = useState<IdentitySecuritySettings>(defaultPolicy);
-  const { page, pageSize, buildPagination, bindKeyword, submittedParams, handleSearch, handleReset } = useListSearch({
-    defaults: { keyword: '' }, listKey: identitySecurityKeys.riskLists,
+  const { bindKeyword, handleSearch, handleReset, tableProps } = useListPage({
+    defaults: { keyword: '' },
+    listKey: identitySecurityKeys.riskLists,
+    useList: useLoginRiskEventList,
+    toQuery: (s) => ({ keyword: s.keyword.trim() }),
+    enabled: canReadRiskEvents && activeTab === 'risk',
   });
   // 页面级全局配置表单（无弹窗、保存后不关闭），不走 useEditModal；策略由运行时设置 identitySecurity 模块承载
   const policyQuery = useSettings('identitySecurity', canManagePolicy && activeTab === 'policy');
   const savePolicyMutation = useSaveSettings('identitySecurity');
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword.trim(),
-  }), [submittedParams]);
 
-  const riskQuery = useLoginRiskEventList(
-    { page, pageSize, ...filterQuery },
-    canReadRiskEvents && activeTab === 'risk',
-  );
 
   useEffect(() => {
     if (policyQuery.data) setPolicy(policyQuery.data.effective);
@@ -153,7 +149,7 @@ export default function IdentitySecurityPage() {
           />
           <ConfigurableTable<LoginRiskEvent>
             columns={riskColumns}
-            {...listTableProps(riskQuery, { pagination: buildPagination })}
+            {...tableProps}
           />
         </TabPane>}
       </Tabs>

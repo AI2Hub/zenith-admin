@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import ModalFooter from '@/components/ModalFooter';
 import { Button, Form, SideSheet, Spin, Toast, Tag, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -19,13 +19,12 @@ import {
   useTestPaymentChannel,
 } from '@/hooks/queries/payment-channels';
 import { useDictItems } from '@/hooks/useDictItems';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { PaymentChannelTag } from './payment-display';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   keyword: string;
@@ -38,24 +37,24 @@ export default function PaymentChannelsPage() {
   const { items: statusItems, options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentChannelKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: paymentChannelKeys.lists,
+    useList: usePaymentChannelList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      channel: enumValueOf(PAYMENT_CHANNELS, s.channel),
+      status: enumValueOf(USER_STATUSES, s.status),
+    }),
+  });
 
   const [formChannel, setFormChannel] = useState<PaymentChannel>('wechat');
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    channel: enumValueOf(PAYMENT_CHANNELS, submittedParams.channel),
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
-  const listQuery = usePaymentChannelList({
-    page,
-    pageSize,
-    ...filterQuery,
-  });
   const saveMutation = useSavePaymentChannel();
   const modal = useEditModal<PaymentChannelConfig, Record<string, unknown>>({
     entityName: '支付渠道',
@@ -196,7 +195,7 @@ export default function PaymentChannelsPage() {
       <ConfigurableTable<PaymentChannelConfig>
         columns={columns}
         empty="暂无数据"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <SideSheet

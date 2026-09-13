@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Form, Spin, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -9,10 +9,8 @@ import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis, EMPTY_PLACEHOLDER, enabledStatusColumn } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { useDictItems } from '@/hooks/useDictItems';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import { IOT_VALIDATION_MODE_OPTIONS } from '@zenith/shared/iot';
@@ -21,6 +19,7 @@ import {
   iotProductKeys, useDeleteIotProducts, useIotProductList, useSaveIotProduct,
 } from '@/hooks/queries/iot-products';
 import IotThingModelDrawer from './IotThingModelDrawer';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text } = Typography;
 
@@ -40,21 +39,19 @@ export default function IotProductsPage() {
   const [modelProduct, setModelProduct] = useState<IotProduct | null>(null);
 
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: iotProductKeys.lists });
-
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
-  const listQuery = useIotProductList({
-    page,
-    pageSize,
-    ...filterQuery,
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: iotProductKeys.lists,
+    useList: useIotProductList,
+    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
+    table: { empty: '暂无 IoT 产品' },
   });
+
 
   const modal = useEditModal<IotProduct, IotProductFormValues, Partial<CreateIotProductInput>>({
     entityName: '产品',
@@ -152,7 +149,7 @@ export default function IotProductsPage() {
 
       <ConfigurableTable<IotProduct>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无 IoT 产品' })}
+        {...tableProps}
       />
 
       <AppModal {...modal.modalProps} width={560}>

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { confirmAndDelete, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { confirmAndDelete, ListSearchToolbar } from '@/components/list-page';
 import { Button, Checkbox, DatePicker, Input, InputNumber, Select, Space, Tag, Modal, Form, TextArea, Toast, Typography, SideSheet, List, Empty } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Save, Upload } from 'lucide-react';
@@ -11,8 +11,6 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import DecisionTableEditor from './DecisionTableEditor';
 import { buildExpectedValues, buildTestScope, coerceRuleValue, diffCaseOutputs, explainDecisionRows, flattenInputValues, formatRuleValue, generateCaseFromRule, inspectDecisionDraft } from './ruleTableUtils';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { formatDateTimeForApi } from '@/utils/date';
@@ -51,6 +49,7 @@ import { confirmDanger } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { JsonBlock } from '@/components/JsonBlock';
 import { abortSubmit } from '@/lib/abort-submit';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text } = Typography;
 
@@ -145,17 +144,20 @@ export default function RuleTablesPage() {
   const canCreate = hasPermission('rule:table:create');
   const canDelete = hasPermission('rule:table:delete');
   const canPublish = hasPermission('rule:table:publish');
+  const defaultSearchParams: { keyword: string; status?: string } = { keyword: '', status: undefined };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<{ keyword: string; status?: string }>({ defaults: { keyword: '', status: undefined }, listKey: ruleKeys.decisionTables.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: ruleKeys.decisionTables.lists,
+    useList: useRuleDecisionTableList,
+    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(RULE_DECISION_STATUSES, s.status) }),
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(RULE_DECISION_STATUSES, submittedParams.status),
-  }), [submittedParams]);
 
   const [editorFullscreen, setEditorFullscreen] = useState(false);
   const [editorHitPolicy, setEditorHitPolicy] = useState<RuleHitPolicy>('first');
@@ -179,7 +181,6 @@ export default function RuleTablesPage() {
   const [execRow, setExecRow] = useState<RuleDecisionTable | null>(null);
   const [draft, setDraft] = useState<{ inputs: RuleDecisionTable['inputs']; outputs: RuleDecisionTable['outputs']; rules: RuleDecisionTable['rules'] }>({ inputs: [], outputs: [], rules: [] });
 
-  const listQuery = useRuleDecisionTableList({ page, pageSize, ...filterQuery });
   const versionsQuery = useRuleVersions(verRow?.id, !!verRow);
   const versions = versionsQuery.data ?? [];
   const diffQuery = useRuleVersionDiff(verRow?.id, diffVersion, diffTarget, !!verRow && diffVersion !== null);
@@ -822,7 +823,7 @@ export default function RuleTablesPage() {
         filterTitle="决策表筛选"
       />
       <ConfigurableTable columns={columns} empty="暂无数据"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal

@@ -1,5 +1,3 @@
-import { useMemo } from 'react';
-import { compactParams } from '@/lib/query';
 import { Banner, Form, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -8,13 +6,13 @@ import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useCmsSensitiveWordList, useSaveCmsSensitiveWord, useDeleteCmsSensitiveWords, cmsSensitiveWordKeys } from '@/hooks/queries/cms';
 import type { CmsSensitiveWord } from '@zenith/shared/cms';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams { keyword: string }
 const defaultSearch: SearchParams = { keyword: '' };
@@ -22,13 +20,17 @@ const defaultSearch: SearchParams = { keyword: '' };
 export default function SensitiveWordsPage() {
   const { hasPermission } = usePermission();
   const {
-    page, pageSize, buildPagination,
-    bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: cmsSensitiveWordKeys.lists });
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword }), [submittedParams]);
-  const listQuery = useCmsSensitiveWordList({ page, pageSize, ...filterQuery });
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: cmsSensitiveWordKeys.lists,
+    useList: useCmsSensitiveWordList,
+    toQuery: (s) => ({ keyword: s.keyword }),
+    table: { empty: '暂无敏感词' },
+  });
   const saveMutation = useSaveCmsSensitiveWord();
   const modal = useEditModal<CmsSensitiveWord, Partial<CmsSensitiveWord>, Record<string, unknown>>({
     entityName: '敏感词',
@@ -80,7 +82,7 @@ export default function SensitiveWordsPage() {
 
       <ConfigurableTable<CmsSensitiveWord>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无敏感词' })}
+        {...tableProps}
       />
 
       <AppModal {...modal.modalProps} width={480}>

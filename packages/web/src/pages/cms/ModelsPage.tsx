@@ -1,7 +1,6 @@
 import { Button, Form, Tag, ArrayField, Row, Col, useFormApi, Spin } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { useMemo, useState } from 'react';
-import { compactParams } from '@/lib/query';
+import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -9,7 +8,6 @@ import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useCmsModelList, useSaveCmsModel, useDeleteCmsModel, cmsModelKeys } from '@/hooks/queries/cms';
 import { useDictList } from '@/hooks/queries/dicts';
 import { CMS_FIELD_OPTION_SOURCE_LABELS, CMS_FIELD_OPTION_SOURCES, CMS_FIELD_TYPES, CMS_FIELD_TYPES_WITH_OPTIONS, CMS_FIELD_TYPE_LABELS } from '@zenith/shared/cms';
@@ -18,8 +16,9 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { abortSubmit } from '@/lib/abort-submit';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
+import { useListPage } from '@/hooks/useListPage';
 
 const FIELD_TYPE_OPTIONS = CMS_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FIELD_TYPE_LABELS[t] }));
 const OPTION_SOURCE_OPTIONS = CMS_FIELD_OPTION_SOURCES.map((s) => ({ value: s, label: CMS_FIELD_OPTION_SOURCE_LABELS[s] }));
@@ -71,14 +70,21 @@ export default function ModelsPage() {
   const { hasPermission } = usePermission();
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
   const {
-    page, pageSize, setPage, buildPagination,
-    bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: cmsModelKeys.lists });
+    setPage,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: cmsModelKeys.lists,
+    useList: useCmsModelList,
+    toQuery: (s) => ({ keyword: s.keyword }),
+    params: { siteId },
+    enabled: siteId !== undefined,
+    table: { empty: siteId ? '暂无内容模型' : '请先选择站点' },
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword }), [submittedParams]);
-  const listQuery = useCmsModelList({ page, pageSize, siteId, ...filterQuery }, siteId !== undefined);
   const saveMutation = useSaveCmsModel(siteId);
   const modal = useEditModal<CmsModel, Record<string, unknown>, Record<string, unknown>>({
     entityName: '模型',
@@ -200,7 +206,7 @@ export default function ModelsPage() {
 
       <ConfigurableTable<CmsModel>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination, empty: siteId ? '暂无内容模型' : '请先选择站点' })}
+        {...tableProps}
       />
 
       <AppModal {...modal.modalProps} width={860}>

@@ -1,15 +1,12 @@
-import { useMemo } from 'react';
-import { compactParams } from '@/lib/query';
 import { useNavigate } from 'react-router-dom';
 import { Form, Space, Spin, Toast, Tag, Row, Col, Select, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { batchStatusHandler, confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useStatusToggle, useRowSelection } from '@/components/list-page';
+import { batchStatusHandler, confirmAndDelete, deleteAction, ListSearchToolbar, useStatusToggle, useRowSelection } from '@/components/list-page';
 import AppModal from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { useListSearch } from '@/hooks/useListSearch';
 import type { CreateMonitorAlertRuleInput, MonitorAlertRule, MonitorMetric } from '@zenith/shared/platform';
 import { MONITOR_ALERT_LEVELS, MONITOR_ALERT_LEVEL_OPTIONS, MONITOR_ALERT_STATE_OPTIONS, MONITOR_ALERT_STATES, MONITOR_METRICS } from '@zenith/shared/platform';
 import { BASIC_COMPARISON_OPERATOR_LABELS, enumValueOf } from '@zenith/shared/core';
@@ -40,6 +37,7 @@ import {
   MonitorMetricFilterSelect,
   MONITOR_OPERATOR_SYMBOLS,
 } from '../monitor-alert-display';
+import { useListPage } from '@/hooks/useListPage';
 
 const OP_OPTIONS = (['gt', 'gte', 'lt', 'lte'] as const)
   .map((value) => ({ value, label: BASIC_COMPARISON_OPERATOR_LABELS[value] }));
@@ -75,31 +73,31 @@ export default function AlertRulesPage() {
   const navigate = useNavigate();
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
 
+
+  const canCreate = hasPermission('alert:rule:create');
+  const canUpdate = hasPermission('alert:rule:update');
+  const canDelete = hasPermission('alert:rule:delete');
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
     defaults: defaultSearchParams,
     listKey: monitorAlertKeys.lists,
     onSearch: clearSelection,
     onReset: clearSelection,
+    useList: useMonitorAlertList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      metric: enumValueOf(MONITOR_METRICS, s.metric),
+      level: enumValueOf(MONITOR_ALERT_LEVELS, s.level),
+      enabled: s.enabled === undefined ? undefined : s.enabled === 'true',
+      state: enumValueOf(MONITOR_ALERT_STATES, s.state),
+    }),
+    table: { rowSelection: canUpdate || canDelete ? rowSelection : undefined },
   });
-
-  // 筛选条件全部下推服务端：此前在当前页做 filter，翻到第 2 页就搜不到第 1 页的规则，
-  // 且分页总数仍是未过滤的值，列表与页码对不上
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    metric: enumValueOf(MONITOR_METRICS, submittedParams.metric),
-    level: enumValueOf(MONITOR_ALERT_LEVELS, submittedParams.level),
-    enabled: submittedParams.enabled === undefined ? undefined : submittedParams.enabled === 'true',
-    state: enumValueOf(MONITOR_ALERT_STATES, submittedParams.state),
-  }), [submittedParams]);
-  const listQuery = useMonitorAlertList({ page, pageSize, ...filterQuery });
-  const canCreate = hasPermission('alert:rule:create');
-  const canUpdate = hasPermission('alert:rule:update');
-  const canDelete = hasPermission('alert:rule:delete');
   const canTest = hasPermission('alert:rule:test');
   const canViewEvents = hasPermission('alert:event:list');
   const saveMutation = useSaveMonitorAlert();
@@ -303,12 +301,7 @@ export default function AlertRulesPage() {
       <ConfigurableTable<MonitorAlertRule>
         columns={columns}
         empty="暂无告警规则"
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          rowSelection: canUpdate || canDelete
-            ? rowSelection
-            : undefined,
-        })}
+        {...tableProps}
       />
 
       <AppModal

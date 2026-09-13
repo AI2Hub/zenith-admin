@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Button, Form, Tag, Toast, Modal, SideSheet, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -8,8 +8,6 @@ import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { FormTimezoneSelect } from '@/components/FormTimezoneSelect';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -29,8 +27,9 @@ import { REPORT_DELIVERY_STATUS_LABELS, REPORT_DELIVERY_TRIGGER_LABELS, REPORT_M
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useRowSelection } from '@/components/list-page';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
+import { useListPage } from '@/hooks/useListPage';
 
 const deliveryStatusColorMap: Record<string, 'green' | 'red' | 'orange' | 'grey' | 'blue' | 'amber'> = {
   success: 'green',
@@ -45,21 +44,25 @@ export default function SubscriptionsPage() {
   const { options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
-  const {
-    page, pageSize, buildPagination,
-    bindKeyword, submittedParams, handleSearch, handleReset,
-  } = useListSearch<{ keyword: string }>({ defaults: { keyword: '' }, listKey: reportSubscriptionKeys.lists });
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-  }), [submittedParams]);
 
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
+  const defaultSearchParams: { keyword: string } = { keyword: '' };
+  const {
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: reportSubscriptionKeys.lists,
+    useList: useReportSubscriptionList,
+    toQuery: (s) => ({ keyword: s.keyword }),
+    table: { empty: '暂无订阅', rowSelection: hasPermission('report:subscription:update') ? rowSelection : undefined },
+  });
   const [historyTarget, setHistoryTarget] = useState<ReportDashboardSubscription | null>(null);
   const [cronExprValue, setCronExprValue] = useState('');
   const [selectedChannels, setSelectedChannels] = useState<string[]>(['inApp']);
 
-  const listQuery = useReportSubscriptionList({ page, pageSize, ...filterQuery });
   const dashboardsQuery = useReportSubscriptionDashboardOptions();
   const dashboards = dashboardsQuery.data ?? [];
   const saveMutation = useSaveReportSubscription();
@@ -172,11 +175,7 @@ export default function SubscriptionsPage() {
       />
       <ConfigurableTable<ReportDashboardSubscription>
         columns={columns}
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          empty: '暂无订阅',
-          rowSelection: hasPermission('report:subscription:update') ? rowSelection : undefined,
-        })}
+        {...tableProps}
       />
 
       <AppModal {...subscriptionModal.modalProps} width={560}>

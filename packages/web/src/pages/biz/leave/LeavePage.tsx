@@ -4,8 +4,6 @@
  * 演示「业务模块自存数据 + 工作流编排」：请假数据存 biz_leaves，提交审批时由后端
  * 通过 workflow-biz-bridge 发起并关联工作流；列表展示业务状态，详情跳转到流程实例整页。
  */
-import { useMemo } from 'react';
-import { compactParams } from '@/lib/query';
 import { useNavigate } from 'react-router-dom';
 import { Button, Form, Modal, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -17,7 +15,6 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { AppModal } from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useDictItems } from '@/hooks/useDictItems';
-import { useListSearch } from '@/hooks/useListSearch';
 import { formatDateRangeValuesForApi } from '@/utils/date';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import {
@@ -30,9 +27,10 @@ import {
 } from '@/hooks/queries/biz-leave';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
+import { useListPage } from '@/hooks/useListPage';
 
 type TagColor = 'grey' | 'blue' | 'green' | 'red' | 'orange';
 
@@ -58,17 +56,18 @@ export default function LeavePage() {
   const navigate = useNavigate();
   const { options: leaveTypeOptions, getLabel: getLeaveTypeLabel } = useDictItems('leave_type');
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<LeaveSearchParams>({ defaults: DEFAULT_LEAVE_SEARCH_PARAMS, listKey: bizLeaveKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: DEFAULT_LEAVE_SEARCH_PARAMS,
+    listKey: bizLeaveKeys.lists,
+    useList: useBizLeaveList,
+    toQuery: (s) => ({ keyword: s.keyword.trim(), status: s.status }),
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword.trim(),
-    status: submittedParams.status,
-  }), [submittedParams]);
-  const listQuery = useBizLeaveList({ page, pageSize, ...filterQuery });
   const saveMutation = useSaveBizLeave();
   const saveForApprovalMutation = useSaveBizLeave();
   const submitApprovalMutation = useSubmitBizLeave();
@@ -241,7 +240,7 @@ export default function LeavePage() {
       <ConfigurableTable<BizLeave>
         columns={columns}
         columnSettingsKey="biz-leave"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal

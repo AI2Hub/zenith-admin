@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
 import { Plus } from 'lucide-react';
@@ -9,10 +8,9 @@ import { useEditModal } from '@/hooks/useEditModal';
 import ExportButton from '@/components/ExportButton';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../../utils/table-columns';
 import { useSmsTemplateList } from '@/hooks/queries/sms-templates';
-import { useListSearch } from '@/hooks/useListSearch';
 import {
   smsSendLogKeys,
   useDeleteSmsSendLog,
@@ -23,7 +21,7 @@ import { parseTemplateVariables } from '../send-log-constants';
 import { KeywordInput } from '@/components/search-filters';
 import { SendLogStatusSourceFilters } from '../send-log-ui';
 import { sendLogErrorColumn, sendLogOperatorColumn, sendLogSourceColumn, sendLogStatusColumn } from '../send-log-columns';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 /** 测试发送表单值：变量以 JSON 文本输入 */
 interface TestSmsFormValues {
@@ -38,19 +36,19 @@ export default function SmsSendLogsPage() {
   interface SearchParams { keyword: string; phone: string; filterStatus?: SendStatus; filterSource?: SendSource }
   const defaultSearchParams: SearchParams = { keyword: '', phone: '', filterStatus: undefined, filterSource: undefined };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: smsSendLogKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+    filterQuery,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: smsSendLogKeys.lists,
+    useList: useSmsSendLogList,
+    toQuery: (s) => ({ keyword: s.keyword, phone: s.phone, status: s.filterStatus, source: s.filterSource }),
+  });
 
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    phone: submittedParams.phone,
-    status: submittedParams.filterStatus,
-    source: submittedParams.filterSource,
-  }), [submittedParams]);
-  const listQuery = useSmsSendLogList({ page, pageSize, ...filterQuery });
   const testMutation = useTestSmsSendLog();
   const testModal = useEditModal<{ id: number }, TestSmsFormValues, SendSmsInput>({
     save: {
@@ -117,7 +115,7 @@ export default function SmsSendLogsPage() {
 
       <ConfigurableTable<SmsSendLog>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal {...testModal.modalProps} title="测试发送短信" width={520}>

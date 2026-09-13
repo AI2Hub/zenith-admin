@@ -1,12 +1,11 @@
-import { useMemo, useState } from 'react';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { useState } from 'react';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { Button, Form, Input, Modal, Select, Spin, Tag, Toast, Upload, Typography } from '@douyinfe/semi-ui';
 import { RefreshCw, UploadCloud } from 'lucide-react';
 import { MP_MATERIAL_TYPES, MP_MATERIAL_TYPE_LABELS, MP_MATERIAL_TYPE_OPTIONS } from '@zenith/shared/mp';
 import type { CreateMpMaterialInput, MpMaterial, MpMaterialType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { useListSearch } from '@/hooks/useListSearch';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -25,8 +24,8 @@ import {
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
-import { compactParams } from '@/lib/query';
 import { enumValueOf, formatBytes } from '@zenith/shared/core';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams { filterType: MpMaterialType | undefined; keyword: string; }
 const defaultSearch: SearchParams = { filterType: undefined, keyword: '' };
@@ -35,22 +34,20 @@ export default function MpMaterialsPage() {
   const { hasPermission: can } = usePermission();
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: mpMaterialKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: mpMaterialKeys.lists,
+    useList: useMpMaterialList,
+    toQuery: (s) => ({ type: s.filterType, keyword: s.keyword }),
+    params: { accountId: currentId ?? 0 },
+    enabled: !!currentId,
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    type: submittedParams.filterType,
-    keyword: submittedParams.keyword,
-  }), [submittedParams]);
-  const listQuery = useMpMaterialList({
-    accountId: currentId ?? 0,
-    page,
-    pageSize,
-    ...filterQuery,
-  }, !!currentId);
 
   const [uploadVisible, setUploadVisible] = useState(false);
   const [uploadType, setUploadType] = useState<MpMaterialType>('image');
@@ -144,7 +141,7 @@ export default function MpMaterialsPage() {
       <MpAccountRequiredBanner loading={accountsLoading} accountCount={accounts.length} />
 
       <ConfigurableTable columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal {...modal.modalProps} title={modal.isEdit ? '重命名素材' : '新增素材'} width={520}>

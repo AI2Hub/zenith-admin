@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Col, Form, Row, Spin } from '@douyinfe/semi-ui';
 import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
 import { SMS_PROVIDER_OPTIONS } from '@zenith/shared/messaging';
@@ -7,12 +6,10 @@ import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import InsertShortLinkButton from '@/components/short-link/InsertShortLinkButton';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
+import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../../utils/table-columns';
 import {
   smsTemplateKeys,
@@ -24,6 +21,7 @@ import {
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { TemplateNameCodeRow, TemplateVariablesRemarkRows } from '../message-template-form';
+import { useListPage } from '@/hooks/useListPage';
 
 export default function SmsTemplatesPage() {
   const { hasPermission: can } = usePermission();
@@ -32,19 +30,19 @@ export default function SmsTemplatesPage() {
   interface SearchParams { keyword: string; filterProvider: SmsProvider | undefined; filterStatus: string | undefined; }
   const defaultSearchParams: SearchParams = { keyword: '', filterProvider: undefined, filterStatus: undefined };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: smsTemplateKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: smsTemplateKeys.lists,
+    useList: useSmsTemplateList,
+    toQuery: (s) => ({ keyword: s.keyword, provider: s.filterProvider, status: enumValueOf(USER_STATUSES, s.filterStatus) }),
+  });
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    provider: submittedParams.filterProvider,
-    status: enumValueOf(USER_STATUSES, submittedParams.filterStatus),
-  }), [submittedParams]);
 
-  const listQuery = useSmsTemplateList({ page, pageSize, ...filterQuery });
 
   const saveMutation = useSaveSmsTemplate();
   const templateModal = useEditModal<SmsTemplate, Partial<CreateSmsTemplateInput>>({
@@ -131,7 +129,7 @@ export default function SmsTemplatesPage() {
 
       <ConfigurableTable<SmsTemplate>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal {...templateModal.modalProps} width={720}>

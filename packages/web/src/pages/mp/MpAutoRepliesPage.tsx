@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { useState } from 'react';
+import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { Button, Col, Form, Input, Row, Select, Space, Spin, Tag, Toast, Switch, Typography } from '@douyinfe/semi-ui';
 import { Plus, Trash2, Flame } from 'lucide-react';
 import { enumValueOf } from '@zenith/shared/core';
@@ -12,7 +12,6 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountRequiredBanner } from './MpAccountRequiredBanner';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
@@ -28,7 +27,7 @@ import {
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 const TYPE_TAG_COLOR: Record<MpAutoReplyType, 'green' | 'blue' | 'orange'> = {
   subscribe: 'green', keyword: 'blue', default: 'orange',
@@ -54,25 +53,24 @@ export default function MpAutoRepliesPage() {
   interface SearchParams { filterType: MpAutoReplyType | undefined; keyword: string; }
   const defaultSearch: SearchParams = { filterType: undefined, keyword: '' };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: mpAutoReplyKeys.lists, resetKey: currentId });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: mpAutoReplyKeys.lists,
+    resetKey: currentId,
+    useList: useMpAutoReplyList,
+    toQuery: (s) => ({ replyType: s.filterType, keyword: s.keyword }),
+    params: { accountId: currentId ?? 0 },
+    enabled: !!currentId,
+  });
 
   const [modalType, setModalType] = useState<MpAutoReplyType>('keyword');
   const [contentType, setContentType] = useState<MpReplyContentType>('text');
   const [articles, setArticles] = useState<MpReplyArticle[]>([emptyArticle()]);
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    replyType: submittedParams.filterType,
-    keyword: submittedParams.keyword,
-  }), [submittedParams]);
-  const listQuery = useMpAutoReplyList({
-    accountId: currentId ?? 0,
-    page,
-    pageSize,
-    ...filterQuery,
-  }, !!currentId);
   const materialsQuery = useMpAutoReplyMaterials(currentId);
   const materials = (materialsQuery.data?.list ?? []).filter((m) => m.wechatMediaId);
   const saveMutation = useSaveMpAutoReply();
@@ -216,7 +214,7 @@ export default function MpAutoRepliesPage() {
       <MpAccountRequiredBanner loading={accountsLoading} accountCount={accounts.length} />
 
       <ConfigurableTable columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
 
       <AppModal {...modal.modalProps} width={640}>

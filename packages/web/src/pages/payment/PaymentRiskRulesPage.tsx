@@ -31,6 +31,7 @@ import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-fi
 import { deleteAction, useStatusToggle, ListSearchToolbar, listTableProps } from '@/components/list-page';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { useListPage } from '@/hooks/useListPage';
 const yuan = formatYuan;
 const channelOptions = PAYMENT_CHANNEL_OPTIONS;
 const scopeOptions = PAYMENT_RISK_SCOPE_OPTIONS;
@@ -72,10 +73,16 @@ export default function PaymentRiskRulesPage() {
 
   // ── 规则 ──
   const {
-    page, pageSize, buildPagination,
-    bind, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentRiskKeys.lists });
+    bind,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: paymentRiskKeys.lists,
+    useList: usePaymentRiskRuleList,
+    toQuery: (s) => ({ scope: enumValueOf(PAYMENT_RISK_SCOPES, s.scope), status: enumValueOf(USER_STATUSES, s.status) }),
+  });
   const [scopeWatch, setScopeWatch] = useState<PaymentRiskScope>('global');
 
   // ── 拦截记录 / 审核队列：各自独立的搜索 + 分页 ──
@@ -84,16 +91,6 @@ export default function PaymentRiskRulesPage() {
   const submittedHitParams = hitSearch.submittedParams;
   const submittedReviewParams = reviewSearch.submittedParams;
 
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    scope: enumValueOf(PAYMENT_RISK_SCOPES, submittedParams.scope),
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
-  const listQuery = usePaymentRiskRuleList({
-    page,
-    pageSize,
-    ...filterQuery,
-  });
   // 已提交筛选 → 契约查询参数：只映射一次
   const hitFilterQuery = useMemo(() => compactParams({
     keyword: submittedHitParams.keyword,
@@ -295,7 +292,7 @@ export default function PaymentRiskRulesPage() {
           />
           <ConfigurableTable
  columns={columns} empty="暂无数据"
-        {...listTableProps(listQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
         </TabPane>
 
