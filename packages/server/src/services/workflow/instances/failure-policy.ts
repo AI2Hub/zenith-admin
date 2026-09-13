@@ -122,6 +122,25 @@ async function swapFailedTokenTo(tx: DbExecutor, args: { instanceId: number; fai
  * - notify / retry(已耗尽) / 默认：挂起为「待人工修复」工单（指派管理员）
  * - terminate：终止实例
  */
+/** 在异常处理节点落一条 catch 任务（处理人 / 状态 / 备注按失败策略而定），返回插入行 */
+async function insertCatchTask(tx: DbExecutor, args: {
+  instanceId: number; nodeKey: string; nodeName: string; assigneeId: number | null;
+  status: 'pending' | 'approved' | 'rejected'; comment: string; actionAt?: Date;
+}) {
+  const [task] = await tx.insert(workflowTasks).values({
+    instanceId: args.instanceId,
+    nodeKey: args.nodeKey,
+    nodeName: args.nodeName,
+    nodeType: 'catchNode',
+    assigneeId: args.assigneeId,
+    status: args.status,
+    comment: args.comment,
+    ...(args.actionAt ? { actionAt: args.actionAt } : {}),
+    activationId: randomUUID(),
+  }).returning();
+  return task;
+}
+
 async function applyNodeFailurePolicy(input: {
   instance: typeof workflowInstances.$inferSelect;
   task: typeof workflowTasks.$inferSelect | null;
@@ -228,16 +247,7 @@ async function applyNodeFailurePolicy(input: {
     if (compensationCfg) {
       await enqueueJob({ jobType: 'compensation_action', payload: { compensationId: compId, instanceId: lockedInst.id, nodeKey: input.nodeKey, error: input.errorMessage, action: compensationCfg }, instanceId: lockedInst.id, nodeKey: input.nodeKey, idempotencyKey: `compaction:${compId}`, maxAttempts: (compensationCfg.maxRetries ?? 3) + 1, tenantId: lockedInst.tenantId }, tx);
     }
-    const [repairTask] = await tx.insert(workflowTasks).values({
-      instanceId: lockedInst.id,
-      nodeKey: input.nodeKey,
-      nodeName: `${input.nodeName}（待修复）`,
-      nodeType: 'catchNode',
-      assigneeId: adminId,
-      status: 'pending',
-      comment: errorComment,
-      activationId: randomUUID(),
-    }).returning();
+    const repairTask = await insertCatchTask(tx, { instanceId: lockedInst.id, nodeKey: input.nodeKey, nodeName: `${input.nodeName}（待修复）`, assigneeId: adminId, status: 'pending', comment: errorComment });
     // Token 一致性：消费失败节点 token，在同一节点新建 frontier token（其余分支保留）
     await swapFailedTokenTo(tx, { instanceId: lockedInst.id, failedNodeKey: input.nodeKey, targetNodeKey: input.nodeKey, tenantId: lockedInst.tenantId });
     const [row] = await tx.update(workflowInstances).set({ currentNodeKey: input.nodeKey })
@@ -369,17 +379,7 @@ export async function handleNodeExecutionError(input: {
       : [];
 
     if (action === 'terminate') {
-      const [catchTask] = await tx.insert(workflowTasks).values({
-        instanceId: lockedInst.id,
-        nodeKey: catchCfg.key,
-        nodeName: catchCfg.label,
-        nodeType: 'catchNode',
-        assigneeId: null,
-        status: 'rejected',
-        comment: errorComment,
-        actionAt: new Date(),
-        activationId: randomUUID(),
-      }).returning();
+      const catchTask = await insertCatchTask(tx, { instanceId: lockedInst.id, nodeKey: catchCfg.key, nodeName: catchCfg.label, assigneeId: null, status: 'rejected', comment: errorComment, actionAt: new Date() });
       const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment, killTokens: true, actorId: input.actor.userId });
       return { row, affectedTasks, catchTask, newTasks: [] as typeof workflowTasks.$inferSelect[], finished: false, rejected: true };
     }
@@ -387,30 +387,11 @@ export async function handleNodeExecutionError(input: {
     if (action === 'toAdmin') {
       const adminId = await resolveAdminUserId(tx);
       if (!adminId) {
-        const [catchTask] = await tx.insert(workflowTasks).values({
-          instanceId: lockedInst.id,
-          nodeKey: catchCfg.key,
-          nodeName: catchCfg.label,
-          nodeType: 'catchNode',
-          assigneeId: null,
-          status: 'rejected',
-          comment: `${errorComment}；未找到管理员`,
-          actionAt: new Date(),
-          activationId: randomUUID(),
-        }).returning();
+        const catchTask = await insertCatchTask(tx, { instanceId: lockedInst.id, nodeKey: catchCfg.key, nodeName: catchCfg.label, assigneeId: null, status: 'rejected', comment: `${errorComment}；未找到管理员`, actionAt: new Date() });
         const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment, killTokens: true, actorId: input.actor.userId });
         return { row, affectedTasks, catchTask, newTasks: [] as typeof workflowTasks.$inferSelect[], finished: false, rejected: true };
       }
-      const [catchTask] = await tx.insert(workflowTasks).values({
-        instanceId: lockedInst.id,
-        nodeKey: catchCfg.key,
-        nodeName: catchCfg.label,
-        nodeType: 'catchNode',
-        assigneeId: adminId,
-        status: 'pending',
-        comment: errorComment,
-        activationId: randomUUID(),
-      }).returning();
+      const catchTask = await insertCatchTask(tx, { instanceId: lockedInst.id, nodeKey: catchCfg.key, nodeName: catchCfg.label, assigneeId: adminId, status: 'pending', comment: errorComment });
       // Token 一致性：消费失败节点 token，在 catch 节点新建 frontier token（其余分支 token 保留）
       await swapFailedTokenTo(tx, { instanceId: lockedInst.id, failedNodeKey: input.nodeKey, targetNodeKey: catchCfg.key, tenantId: lockedInst.tenantId });
       const [row] = await tx.update(workflowInstances)
@@ -420,17 +401,7 @@ export async function handleNodeExecutionError(input: {
       return { row, affectedTasks, catchTask, newTasks: [catchTask], finished: false, rejected: false };
     }
 
-    const [catchTask] = await tx.insert(workflowTasks).values({
-      instanceId: lockedInst.id,
-      nodeKey: catchCfg.key,
-      nodeName: catchCfg.label,
-      nodeType: 'catchNode',
-      assigneeId: null,
-      status: 'approved',
-      comment: errorComment,
-      actionAt: new Date(),
-      activationId: randomUUID(),
-    }).returning();
+    const catchTask = await insertCatchTask(tx, { instanceId: lockedInst.id, nodeKey: catchCfg.key, nodeName: catchCfg.label, assigneeId: null, status: 'approved', comment: errorComment, actionAt: new Date() });
     const formData = (lockedInst.formData ?? {}) as Record<string, unknown>;
     const starter = await buildStarterContext(lockedInst.initiatorId, tx);
     const materialized = await advanceAndMaterialize(
