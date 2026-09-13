@@ -10,3 +10,4 @@ export * from './types';
 export * from './validation';
 export * from './cell';
 export * from './decision-table';
+export * from './permissions';

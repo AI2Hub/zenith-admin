@@ -1,0 +1,21 @@
+import { definePermissions, type PermissionCodes } from '../core/permissions';
+
+/**
+ * short-link 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
+ * 种子 button 节点由此生成（@zenith/shared/seed），契约操作 / 路由门禁 / 前端按钮以 `Permission` 类型引用。
+ * `uiOnly` = 服务端没有任何接口检查该码（纯前端门控或待清理）。
+ */
+export const SHORT_LINK_PERMISSIONS = definePermissions({
+  'shortlink:link:list': { label: '查询', menu: 'GrowthShortLinks' },
+  'shortlink:link:create': { label: '新增短链', menu: 'GrowthShortLinks' },
+  'shortlink:link:update': { label: '编辑短链', menu: 'GrowthShortLinks' },
+  'shortlink:link:delete': { label: '删除短链', menu: 'GrowthShortLinks' },
+  'shortlink:link:export': { label: '导出', menu: 'GrowthShortLinks' },
+  'shortlink:stats:view': { label: '访问统计', menu: 'GrowthShortLinks' },
+  'shortlink:analysis:view': { label: '查询', menu: 'GrowthChannelAnalysis' },
+});
+
+declare module '../core/permissions' {
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
+  interface PermissionRegistry extends PermissionCodes<typeof SHORT_LINK_PERMISSIONS> {}
+}

@@ -1,0 +1,55 @@
+import { definePermissions, type PermissionCodes } from '../core/permissions';
+
+/**
+ * workflow 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
+ * 种子 button 节点由此生成（@zenith/shared/seed），契约操作 / 路由门禁 / 前端按钮以 `Permission` 类型引用。
+ * `uiOnly` = 服务端没有任何接口检查该码（纯前端门控或待清理）。
+ */
+export const WORKFLOW_PERMISSIONS = definePermissions({
+  'workflow:instance:create': { label: '发起申请', menu: ['WorkflowLaunchpad', 'MyApplications'], id: [undefined, 4072], sort: [undefined, 1] },
+  'workflow:task:handle': { label: '查询', menu: ['PendingApprovals', 'WorkflowHandled'] },
+  'workflow:instance:print': { label: '打印审批单', menu: ['PendingApprovals', 'MyApplications', 'WorkflowMonitor'], id: [undefined, 4073, 4116], sort: [undefined, 2, 5] },
+  'workflow:instance:list': { label: '查询', menu: ['MyApplications', 'WorkflowCcToMe'], id: [4071, undefined], sort: [0, undefined] },
+  'workflow:delegation:view': { label: '查询', menu: 'WorkflowDelegations' },
+  'workflow:delegation:manage': { label: '管理审批代理', menu: 'WorkflowDelegations' },
+  'workflow:definition:list': { label: '查询', menu: ['WorkflowDefinitions', 'WorkflowTemplates', 'WorkflowAutomations'] },
+  'workflow:definition:create': { label: '新建流程', menu: 'WorkflowDefinitions' },
+  'workflow:definition:edit': { label: '编辑流程 / 自动化规则', menu: ['WorkflowDefinitions', 'WorkflowAutomations'] },
+  'workflow:definition:delete': { label: '删除流程', menu: 'WorkflowDefinitions' },
+  'workflow:definition:publish': { label: '发布/禁用', menu: 'WorkflowDefinitions' },
+  'workflow:form:list': { label: '查询', menu: 'WorkflowForms' },
+  'workflow:form:create': { label: '新建表单', menu: 'WorkflowForms' },
+  'workflow:form:edit': { label: '编辑表单', menu: 'WorkflowForms' },
+  'workflow:form:delete': { label: '删除表单', menu: 'WorkflowForms' },
+  'workflow:schedule:list': { label: '查询', menu: 'WorkflowSchedules' },
+  'workflow:schedule:create': { label: '新建定时', menu: 'WorkflowSchedules' },
+  'workflow:schedule:edit': { label: '编辑定时', menu: 'WorkflowSchedules' },
+  'workflow:schedule:delete': { label: '删除定时', menu: 'WorkflowSchedules' },
+  'workflow:instance:monitor': { label: '查询', menu: 'WorkflowMonitor', id: 4111, sort: 0 },
+  'workflow:instance:cancel': { label: '取消流程', menu: 'WorkflowMonitor', id: 4112, sort: 1 },
+  'workflow:instance:delete': { label: '删除流程', menu: 'WorkflowMonitor', id: 4113, sort: 2 },
+  'workflow:engine:operate': { label: '引擎运维', menu: 'WorkflowMonitor', id: 4114, sort: 3 },
+  'workflow:task:handover': { label: '离职交接', menu: 'WorkflowMonitor', id: 4115, sort: 4 },
+  'workflow:health:view': { label: '查询', menu: 'WorkflowHealth' },
+  'workflow:event-subscription:view': { label: '查询', menu: 'WorkflowEventSubscriptions' },
+  'workflow:event-subscription:create': { label: '新建订阅', menu: 'WorkflowEventSubscriptions' },
+  'workflow:event-subscription:edit': { label: '编辑订阅', menu: 'WorkflowEventSubscriptions' },
+  'workflow:event-subscription:delete': { label: '删除订阅', menu: 'WorkflowEventSubscriptions' },
+  'workflow:event-delivery:view': { label: '投递记录', menu: 'WorkflowEventSubscriptions' },
+  'workflow:event-delivery:retry': { label: '重试投递', menu: 'WorkflowEventSubscriptions' },
+  'workflow:trigger-execution:view': { label: '查询', menu: 'WorkflowTriggerExecutions' },
+  'workflow:datasource:list': { label: '查询', menu: 'WorkflowDataSources' },
+  'workflow:datasource:create': { label: '新增数据源', menu: 'WorkflowDataSources' },
+  'workflow:datasource:update': { label: '编辑数据源', menu: 'WorkflowDataSources' },
+  'workflow:datasource:delete': { label: '删除数据源', menu: 'WorkflowDataSources' },
+  'workflow:connector:list': { label: '查询', menu: 'WorkflowConnectors' },
+  'workflow:connector:create': { label: '新增连接器', menu: 'WorkflowConnectors' },
+  'workflow:connector:update': { label: '编辑连接器', menu: 'WorkflowConnectors' },
+  'workflow:connector:delete': { label: '删除连接器', menu: 'WorkflowConnectors' },
+  'workflow:connector:test': { label: '测试连接器', menu: 'WorkflowConnectors' },
+});
+
+declare module '../core/permissions' {
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
+  interface PermissionRegistry extends PermissionCodes<typeof WORKFLOW_PERMISSIONS> {}
+}

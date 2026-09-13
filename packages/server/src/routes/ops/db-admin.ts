@@ -57,11 +57,12 @@ import {
   listDbBackups,
 } from '../../services/ops/db-admin-backups.service';
 import { attachmentDisposition } from '../../lib/content-disposition';
+import type { Permission } from '@zenith/shared/core';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const view = [authMiddleware, guard({ permission: 'system:db-admin:view' })] as const;
-const audited = (permission: string, description: string, recordBody = true) =>
+const audited = (permission: Permission, description: string, recordBody = true) =>
   [authMiddleware, guard({ permission, audit: { description, module: '数据库管理', recordBody } })] as const;
 
 /** 流式导出的公共响应头：禁止缓存、禁止嗅探 */

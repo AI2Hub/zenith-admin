@@ -28,6 +28,7 @@ import {
   searchFiles,
 } from '../../services/ops/terminal-files.service';
 import { attachmentDisposition } from '../../lib/content-disposition';
+import type { Permission } from '@zenith/shared/core';
 
 /**
  * Web 终端文件浏览/传输路由
@@ -37,7 +38,7 @@ import { attachmentDisposition } from '../../lib/content-disposition';
 const terminalFilesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 /** 文件管理器独立权限;Web 终端页的文件树 / shell 探测复用终端权限,满足其一即可 */
-const TERMINAL_PERM = ['system:file:use', 'system:terminal:execute'];
+const TERMINAL_PERM: readonly Permission[] = ['system:file:use', 'system:terminal:execute'];
 
 const read = [authMiddleware, guard({ permission: TERMINAL_PERM })] as const;
 const write = (description: string, module = 'Web 终端', recordBody = true) =>

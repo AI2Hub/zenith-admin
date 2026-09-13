@@ -16,6 +16,7 @@ import { createTestQueryClient } from '@/test-utils/query-harness';
 import { ListSearchToolbar } from './ListSearchToolbar';
 import { deriveFilterControls } from './ContractFilters';
 import { useCrudOperationColumn } from './useCrudOperationColumn';
+import type { CrudPermissionPrefix, Permission } from '@zenith/shared/core';
 
 const confirmCalls = vi.hoisted(() => [] as ModalReactProps[]);
 vi.mock('@douyinfe/semi-ui', async (importOriginal) => {
@@ -137,7 +138,7 @@ describe('useCrudOperationColumn', () => {
   it('权限前缀派生 :update / :delete 门控；删除弹确认（含对象名）并按 [id] 调 mutateAsync', async () => {
     const openEdit = vi.fn();
     const mutateAsync = vi.fn().mockResolvedValue(null);
-    const { result } = renderHook(() => useCrudOperationColumn<Row>({ permission: 'demo:item', edit: { openEdit }, remove: { mutateAsync }, label: (r) => r.name, content: '不可恢复' }), { wrapper: wrapper(['demo:item:update', 'demo:item:delete']) });
+    const { result } = renderHook(() => useCrudOperationColumn<Row>({ permission: 'demo:item' as CrudPermissionPrefix, edit: { openEdit }, remove: { mutateAsync }, label: (r) => r.name, content: '不可恢复' }), { wrapper: wrapper(['demo:item:update', 'demo:item:delete']) });
     const cell = render(<>{result.current.render?.(undefined, record, 0)}</>);
     fireEvent.click(cell.getByRole('button', { name: '编辑' }));
     expect(openEdit).toHaveBeenCalledWith(record);
@@ -152,7 +153,7 @@ describe('useCrudOperationColumn', () => {
 
   it('无权限时动作隐藏；extra 动作排在编辑之前并加宽', () => {
     const { result } = renderHook(() => useCrudOperationColumn<Row>({
-      permission: 'demo:item',
+      permission: 'demo:item' as CrudPermissionPrefix,
       edit: { openEdit: vi.fn() },
       remove: { mutateAsync: vi.fn() },
       extra: (r) => [{ key: 'test', label: `测试${r.name}`, onClick: vi.fn() }],
@@ -167,7 +168,7 @@ describe('useCrudOperationColumn', () => {
   it('permissions 映射覆盖前缀约定；edit / remove 传回调直接调用', async () => {
     const edit = vi.fn();
     const remove = vi.fn().mockResolvedValue(undefined);
-    const { result } = renderHook(() => useCrudOperationColumn<Row>({ permissions: { edit: 'x:manage', remove: 'x:manage' }, edit, remove }), { wrapper: wrapper(['x:manage']) });
+    const { result } = renderHook(() => useCrudOperationColumn<Row>({ permissions: { edit: 'x:manage' as Permission, remove: 'x:manage' as Permission }, edit, remove }), { wrapper: wrapper(['x:manage']) });
     const cell = render(<>{result.current.render?.(undefined, record, 0)}</>);
     fireEvent.click(cell.getByRole('button', { name: '编辑' }));
     expect(edit).toHaveBeenCalledWith(record);

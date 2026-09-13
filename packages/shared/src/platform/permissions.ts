@@ -1,0 +1,73 @@
+import { definePermissions, type PermissionCodes } from '../core/permissions';
+
+/**
+ * platform 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
+ * 种子 button 节点由此生成（@zenith/shared/seed），契约操作 / 路由门禁 / 前端按钮以 `Permission` 类型引用。
+ * `uiOnly` = 服务端没有任何接口检查该码（纯前端门控或待清理）。
+ */
+export const PLATFORM_PERMISSIONS = definePermissions({
+  'system:dict:list': { label: '查询', menu: 'SystemDicts' },
+  'system:dict:create': { label: '新增字典', menu: 'SystemDicts' },
+  'system:dict:update': { label: '编辑字典', menu: 'SystemDicts' },
+  'system:dict:delete': { label: '删除字典', menu: 'SystemDicts' },
+  'system:dict:item': { label: '管理字典项', menu: 'SystemDicts' },
+  'system:license:view': { label: '查询', menu: 'SystemLicense' },
+  'system:license:manage': { label: '激活/停用', menu: 'SystemLicense' },
+  'system:region:list': { label: '查询', menu: 'SystemRegions', id: 1101, sort: 0 },
+  'system:region:create': { label: '新增地区', menu: 'SystemRegions', id: 1102, sort: 1 },
+  'system:region:update': { label: '编辑地区', menu: 'SystemRegions', id: 1103, sort: 2 },
+  'system:region:delete': { label: '删除地区', menu: 'SystemRegions', id: 1104, sort: 3 },
+  'system:region:export': { label: '导出地区', menu: 'SystemRegions', id: 1105, sort: 4 },
+  'system:file:list': { label: '查询', menu: ['SystemFiles', 'SystemFileList'] },
+  'system:file:config': { label: '查询', menu: 'SystemFileConfigs' },
+  'system:file:config:create': { label: '新增配置', menu: 'SystemFileConfigs' },
+  'system:file:config:update': { label: '编辑配置', menu: 'SystemFileConfigs' },
+  'system:file:config:delete': { label: '删除配置', menu: 'SystemFileConfigs' },
+  'system:file:config:default': { label: '设为默认', menu: 'SystemFileConfigs' },
+  'system:file:upload': { label: '上传文件', menu: 'SystemFileList' },
+  'system:file:delete': { label: '删除文件', menu: 'SystemFileList' },
+  'system:monitor:view': { label: '查询', menu: 'SystemMonitor' },
+  'system:log:operation': { label: '查询', menu: 'SystemOperationLogs' },
+  'system:trace:view': { label: '查询', menu: 'SystemTrace' },
+  'system:ip-access:view': { label: '查询', menu: 'SystemIpAccess' },
+  'system:ip-access:update': { label: '保存配置', menu: 'SystemIpAccess' },
+  'system:ip-access:log': { label: '查看拦截日志', menu: 'SystemIpAccess' },
+  'system:feedback:list': { label: '查询', menu: 'SystemFeedbacks' },
+  'system:feedback:handle': { label: '处理反馈', menu: 'SystemFeedbacks' },
+  'system:feedback:delete': { label: '删除反馈', menu: 'SystemFeedbacks' },
+  'system:cache:list': { label: '查询', menu: 'SystemCache' },
+  'system:cache:delete': { label: '删除缓存', menu: 'SystemCache' },
+  'system:cache:update': { label: '编辑缓存', menu: 'SystemCache' },
+  'system:tag:list': { label: '查询', menu: 'SystemTags' },
+  'system:tag:create': { label: '新增标签', menu: 'SystemTags' },
+  'system:tag:update': { label: '编辑标签', menu: 'SystemTags' },
+  'system:tag:delete': { label: '删除标签', menu: 'SystemTags' },
+  'system:rate-limit:view': { label: '查询', menu: 'SystemRateLimit' },
+  'system:rate-limit:manage': { label: '管理规则（编辑 / 解封 / 重置）', menu: 'SystemRateLimit' },
+  'system:data-mask:list': { label: '查询', menu: 'SystemDataMask', id: 2391, sort: 0 },
+  'system:data-mask:update': { label: '编辑策略', menu: 'SystemDataMask', id: 2393, sort: 1 },
+  'system:data-mask:reveal': { label: '按需查看明文', menu: 'SystemDataMask', id: 2396, sort: 3 },
+  'system:data-mask:bypass': { label: '免脱敏查看', menu: 'SystemDataMask', id: 2395, sort: 2 },
+  'system:setting:view': { label: '查看设置', menu: 'SystemSettingsCenter' },
+  'system:setting:update': { label: '修改设置', menu: 'SystemSettingsCenter' },
+  'alert:overview:list': { label: '查询', menu: 'AlertOverview' },
+  'alert:rule:list': { label: '查询', menu: 'AlertRules' },
+  'alert:rule:create': { label: '新增规则', menu: 'AlertRules' },
+  'alert:rule:update': { label: '编辑规则', menu: 'AlertRules' },
+  'alert:rule:delete': { label: '删除规则', menu: 'AlertRules' },
+  'alert:rule:test': { label: '试发通知', menu: 'AlertRules' },
+  'alert:event:list': { label: '查询', menu: 'AlertEvents' },
+  'alert:event:export': { label: '导出', menu: 'AlertEvents' },
+  'alert:event:handle': { label: '处理告警', menu: 'AlertEvents' },
+  'monitor:error:list': { label: '查询', menu: 'FrontendErrors' },
+  'monitor:error:manage': { label: '清除错误', menu: 'FrontendErrors' },
+  'monitor:alert:list': { label: '告警查看', menu: 'FrontendErrors' },
+  'monitor:alert:manage': { label: '告警管理', menu: 'FrontendErrors' },
+  'monitor:replay:list': { label: '查询', menu: 'SessionReplays' },
+  'monitor:replay:manage': { label: '删除', menu: 'SessionReplays' },
+});
+
+declare module '../core/permissions' {
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
+  interface PermissionRegistry extends PermissionCodes<typeof PLATFORM_PERMISSIONS> {}
+}

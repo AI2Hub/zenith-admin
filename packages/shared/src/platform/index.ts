@@ -13,3 +13,4 @@ export * from './regions';
 export * from './types';
 export * from './upload';
 export * from './validation';
+export * from './permissions';

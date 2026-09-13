@@ -20,12 +20,13 @@ import {
   updateSubscription,
   type AppWebhookDomain,
 } from '../../services/open-platform/app-webhooks.service';
+import type { Permission } from '@zenith/shared/core';
 
 export interface AppWebhookRouteOptions {
   /** 订阅可见的事件域：all = 开放平台全部事件；payment = 仅支付 / 退款事件 */
   domain: AppWebhookDomain;
-  viewPermission: string;
-  managePermission: string;
+  viewPermission: Permission;
+  managePermission: Permission;
   auditModule: string;
 }
 

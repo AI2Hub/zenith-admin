@@ -11,6 +11,7 @@
 import { getContext, tryGetContext } from 'hono/context-storage';
 import { eq } from 'drizzle-orm';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import type { Permission } from '@zenith/shared/core';
 import type { AuthEnv, JwtPayload } from '../middleware/auth';
 import { db } from '../db';
 import { users, departments } from '../db/schema';
@@ -341,7 +342,7 @@ export function hasAllRoles(...codes: string[]): boolean {
  *   // 有删除用户权限才执行
  * }
  */
-export async function hasPermission(...codes: string[]): Promise<boolean> {
+export async function hasPermission(...codes: Permission[]): Promise<boolean> {
   const openAccess = currentCmsOpenApiAccess();
   if (openAccess) return codes.some((code) => openAccess.permissions.includes(code));
   if (isSuperAdmin()) return true;

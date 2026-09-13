@@ -9,3 +9,4 @@ export * from './contracts';
 export * from './data-scope';
 export * from './types';
 export * from './validation';
+export * from './permissions';

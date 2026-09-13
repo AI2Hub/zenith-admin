@@ -8,3 +8,4 @@ export * from './constants';
 export * from './contracts';
 export * from './types';
 export * from './validation';
+export * from './permissions';

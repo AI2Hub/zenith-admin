@@ -9,6 +9,7 @@
  * 进度/重试/取消/行级 items/幂等/链路追踪全部复用。
  */
 import type { ImportColumnMeta } from '@zenith/shared/tasks';
+import type { Permission } from '@zenith/shared/core';
 
 export interface ImportDefinition<TRow = unknown, TPrepared = unknown> {
   /** 实体标识，如 'member.members'（提交与模板下载的路径参数） */
@@ -17,7 +18,7 @@ export interface ImportDefinition<TRow = unknown, TPrepared = unknown> {
   title: string;
   module: string;
   /** 提交与模板下载所需权限 */
-  permission: string;
+  permission: Permission;
   description?: string;
   /** 单文件最大数据行数，默认 10000 */
   maxRows?: number;

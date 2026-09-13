@@ -1,0 +1,72 @@
+import { definePermissions, type PermissionCodes } from '../core/permissions';
+
+/**
+ * messaging 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
+ * 种子 button 节点由此生成（@zenith/shared/seed），契约操作 / 路由门禁 / 前端按钮以 `Permission` 类型引用。
+ * `uiOnly` = 服务端没有任何接口检查该码（纯前端门控或待清理）。
+ */
+export const MESSAGING_PERMISSIONS = definePermissions({
+  'system:announcement:list': { label: '查询', menu: 'SystemAnnouncements' },
+  'system:announcement:create': { label: '新增公告', menu: 'SystemAnnouncements' },
+  'system:announcement:update': { label: '编辑公告', menu: 'SystemAnnouncements' },
+  'system:announcement:delete': { label: '删除公告', menu: 'SystemAnnouncements' },
+  'system:email-config:view': { label: '查询', menu: 'NotificationEmailConfig' },
+  'system:email-config:update': { label: '保存配置 / 测试邮件', menu: 'NotificationEmailConfig' },
+  'system:email-template:list': { label: '查询', menu: 'NotificationEmailTemplates' },
+  'system:email-template:create': { label: '新增模板', menu: 'NotificationEmailTemplates' },
+  'system:email-template:update': { label: '编辑模板', menu: 'NotificationEmailTemplates' },
+  'system:email-template:delete': { label: '删除模板', menu: 'NotificationEmailTemplates' },
+  'system:email-send-log:list': { label: '查询', menu: 'NotificationEmailSendLogs' },
+  'system:email-send-log:delete': { label: '删除记录', menu: 'NotificationEmailSendLogs' },
+  'system:email-send-log:export': { label: '导出记录', menu: 'NotificationEmailSendLogs' },
+  'system:sms-config:list': { label: '查询', menu: 'NotificationSmsConfigs' },
+  'system:sms-config:create': { label: '新增配置', menu: 'NotificationSmsConfigs' },
+  'system:sms-config:update': { label: '编辑配置', menu: 'NotificationSmsConfigs' },
+  'system:sms-config:delete': { label: '删除配置', menu: 'NotificationSmsConfigs' },
+  'system:sms-config:default': { label: '设为默认', menu: 'NotificationSmsConfigs' },
+  'system:sms-template:list': { label: '查询', menu: 'NotificationSmsTemplates' },
+  'system:sms-template:create': { label: '新增模板', menu: 'NotificationSmsTemplates' },
+  'system:sms-template:update': { label: '编辑模板', menu: 'NotificationSmsTemplates' },
+  'system:sms-template:delete': { label: '删除模板', menu: 'NotificationSmsTemplates' },
+  'system:sms-send-log:list': { label: '查询', menu: 'NotificationSmsSendLogs' },
+  'system:sms-send-log:test': { label: '测试发送', menu: 'NotificationSmsSendLogs' },
+  'system:sms-send-log:delete': { label: '删除记录', menu: 'NotificationSmsSendLogs' },
+  'system:sms-send-log:export': { label: '导出记录', menu: 'NotificationSmsSendLogs' },
+  'system:in-app-template:list': { label: '查询', menu: 'NotificationInAppTemplates' },
+  'system:in-app-template:create': { label: '新增模板', menu: 'NotificationInAppTemplates' },
+  'system:in-app-template:update': { label: '编辑模板', menu: 'NotificationInAppTemplates' },
+  'system:in-app-template:delete': { label: '删除模板', menu: 'NotificationInAppTemplates' },
+  'system:in-app-message:list': { label: '查询', menu: 'NotificationInAppMessages' },
+  'system:in-app-message:read': { label: '标记已读', menu: 'NotificationInAppMessages' },
+  'system:in-app-message:delete': { label: '删除记录', menu: 'NotificationInAppMessages' },
+  'channel:channel:list': { label: '查询', menu: 'NotificationChannels' },
+  'channel:channel:create': { label: '新建频道', menu: 'NotificationChannels' },
+  'channel:channel:update': { label: '编辑频道', menu: 'NotificationChannels' },
+  'channel:channel:delete': { label: '删除频道', menu: 'NotificationChannels' },
+  'channel:message:publish': { label: '群发消息', menu: 'NotificationChannels' },
+  'channel:menu:save': { label: '菜单配置', menu: 'NotificationChannels' },
+  'channel:reply:list': { label: '自动回复', menu: 'NotificationChannels' },
+  'channel:reply:save': { label: '保存自动回复', menu: 'NotificationChannels' },
+  'channel:reply:delete': { label: '删除自动回复', menu: 'NotificationChannels' },
+  'channel:cs': { label: '查询', menu: 'ChannelCustomerService' },
+  'channel:dashboard': { label: '查询', menu: 'ChannelDashboard' },
+  'system:notify-policy:list': { label: '查询', menu: 'NotificationPolicies' },
+  'system:notify-policy:save': { label: '保存策略', menu: 'NotificationPolicies' },
+  'system:notify-policy:test': { label: '测试触发', menu: 'NotificationPolicies' },
+  'system:push:list': { label: '查询', menu: 'NotificationPushConfigs' },
+  'system:push:create': { label: '新增配置', menu: 'NotificationPushConfigs' },
+  'system:push:update': { label: '编辑配置', menu: 'NotificationPushConfigs' },
+  'system:push:delete': { label: '删除配置', menu: 'NotificationPushConfigs' },
+  'system:push:send': { label: '测试发送', menu: 'NotificationPushConfigs' },
+  'system:push-log:list': { label: '查询', menu: 'NotificationPushSendLogs' },
+  'system:broadcast:list': { label: '查询', menu: 'NotificationBroadcasts' },
+  'system:broadcast:create': { label: '新建活动', menu: 'NotificationBroadcasts' },
+  'system:broadcast:update': { label: '编辑活动', menu: 'NotificationBroadcasts' },
+  'system:broadcast:delete': { label: '删除活动', menu: 'NotificationBroadcasts' },
+  'system:broadcast:send': { label: '发送', menu: 'NotificationBroadcasts' },
+});
+
+declare module '../core/permissions' {
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
+  interface PermissionRegistry extends PermissionCodes<typeof MESSAGING_PERMISSIONS> {}
+}

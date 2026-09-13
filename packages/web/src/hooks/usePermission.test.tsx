@@ -3,12 +3,13 @@
  *
  * 覆盖要点：
  *  1. hasPermission(code)      — 存在 / 不存在 / 通配符 '*'
- *  2. hasAnyPermission(...codes) — 至少一个匹配 / 全不匹配 / 通配符
+ *  2.  — 至少一个匹配 / 全不匹配 / 通配符
  *  3. permissions 列表通过 context 正确透传
  */
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import type { Permission } from '@zenith/shared/core';
 import { PermissionContext, usePermission } from './usePermission';
 
 // ─── 工具：构造带权限上下文的 Wrapper ─────────────────────────────────────────
@@ -28,29 +29,29 @@ describe('hasPermission', () => {
     const { result } = renderHook(() => usePermission(), {
       wrapper: makeWrapper(['user:read', 'user:write']),
     });
-    expect(result.current.hasPermission('user:read')).toBe(true);
+    expect(result.current.hasPermission('user:read' as Permission)).toBe(true);
   });
 
   it('权限码不存在时返回 false', () => {
     const { result } = renderHook(() => usePermission(), {
       wrapper: makeWrapper(['user:read']),
     });
-    expect(result.current.hasPermission('user:delete')).toBe(false);
+    expect(result.current.hasPermission('user:delete' as Permission)).toBe(false);
   });
 
   it('空权限列表时返回 false', () => {
     const { result } = renderHook(() => usePermission(), {
       wrapper: makeWrapper([]),
     });
-    expect(result.current.hasPermission('anything')).toBe(false);
+    expect(result.current.hasPermission('anything' as Permission)).toBe(false);
   });
 
   it("权限列表包含 '*' 时任意码返回 true", () => {
     const { result } = renderHook(() => usePermission(), {
       wrapper: makeWrapper(['*']),
     });
-    expect(result.current.hasPermission('any:arbitrary:code')).toBe(true);
-    expect(result.current.hasPermission('')).toBe(true);
+    expect(result.current.hasPermission('any:arbitrary:code' as Permission)).toBe(true);
+    expect(result.current.hasPermission('' as Permission)).toBe(true);
   });
 });
 
@@ -60,28 +61,28 @@ describe('hasAnyPermission', () => {
     const { result } = renderHook(() => usePermission(), {
       wrapper: makeWrapper(['user:read', 'role:read']),
     });
-    expect(result.current.hasAnyPermission('user:read', 'user:write')).toBe(true);
+    expect(result.current.hasAnyPermission('user:read' as Permission, 'user:write' as Permission)).toBe(true);
   });
 
   it('全部权限码均不匹配时返回 false', () => {
     const { result } = renderHook(() => usePermission(), {
       wrapper: makeWrapper(['user:read']),
     });
-    expect(result.current.hasAnyPermission('user:write', 'user:delete')).toBe(false);
+    expect(result.current.hasAnyPermission('user:write' as Permission, 'user:delete' as Permission)).toBe(false);
   });
 
   it("权限列表包含 '*' 时任意组合返回 true", () => {
     const { result } = renderHook(() => usePermission(), {
       wrapper: makeWrapper(['*']),
     });
-    expect(result.current.hasAnyPermission('a', 'b', 'c')).toBe(true);
+    expect(result.current.hasAnyPermission('a' as Permission, 'b' as Permission, 'c' as Permission)).toBe(true);
   });
 
   it('单个参数匹配时返回 true', () => {
     const { result } = renderHook(() => usePermission(), {
       wrapper: makeWrapper(['menu:view']),
     });
-    expect(result.current.hasAnyPermission('menu:view')).toBe(true);
+    expect(result.current.hasAnyPermission('menu:view' as Permission)).toBe(true);
   });
 });
 

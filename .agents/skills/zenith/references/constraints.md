@@ -281,13 +281,20 @@
 
 ## 菜单与权限配置（Step 9-10）
 
+- **权限码只在注册表声明一次**：每个业务域的 `shared/src/{域}/permissions.ts` 用 `definePermissions()` 登记
+  `code → { label, menu }`，域 `index.ts` 导出它并加入 `shared/src/permissions.ts` 的 `PERMISSION_REGISTRY_BY_DOMAIN`；
+  种子 `button` 节点由 `expandPermissionButtons()` 生成，**禁止**在 `seed/menus/*.ts` 手写 `button` 行。
+  服务端 `guard({ permission })` / `mountCrud({ permission })` / `hasPermission()`、前端 `hasPermission()` /
+  `permission=` 属性的参数类型都是 `Permission`（`@zenith/shared/core`），不在注册表的码编译报错；
+  **禁止**用 `as Permission` 绕过（仅数据库配置等真正动态的码可在边界处断言，并在保存时按注册表校验）。
+  服务端没有接口检查的码必须标 `uiOnly: true`（`permission-registry.test.ts` 双向守住）
 - **显示与操作解耦**：`directory` / `menu` 节点是纯显示资源，**禁止**携带 `permission`；
   全部权限码（含查询）挂在 `button` 节点上。每个页面菜单的第一个按钮固定为「查询」
-  （`sort: 0`，权限码 `xxx:list`）；无列表语义的页面级设置页用 `xxx:view` / `xxx:update`
+  （注册表里该页面的首个条目，权限码 `xxx:list`）；无列表语义的页面级设置页用 `xxx:view` / `xxx:update`
   （通用设置页 `/system/settings` 为 `system:setting:view` / `system:setting:update`，模块 `readPermission` / `writePermission` 与之对齐）
 - **菜单 ID 分段**：每个一级目录独占 1000 段（系统管理 = 1000、系统设置 = 2000…）；
-  页面落 10 的倍数槽位，按钮从父菜单 ID 顺延 +1..+n。**分配前必读 `SEED_MENUS` 源文件确认段内分布**，
-  **严禁**依据任何文档记录的「当前最大 ID」分配
+  页面落 10 的倍数槽位，按钮 id 由生成器按父菜单 ID 顺延 +1..+n（注册表 `id` / `sort` 可逐位覆盖以保持历史 id）。
+  **分配页面 id 前必读 `SEED_MENUS` 源文件确认段内分布**，**严禁**依据任何文档记录的「当前最大 ID」分配
 - **菜单种子只新增不更新**：seed.ts 对 `menus` 按 id `onConflictDoNothing`，`SEED_MENUS` 只决定新菜单的初始定义；
   已存在的行（含管理后台的改名 / 图标 / 排序 / 禁用 / 隐藏 / 换父级）不会被 seed 回写。
   **修改既有内置菜单的 path / component / 权限码等结构字段时，必须同时提供数据迁移**

@@ -128,7 +128,7 @@ export default function InAppMessagesPage() {
         {
           key: 'mark-read',
           label: '标记已读',
-          hidden: !can('system:in-app-message:update') || record.isRead,
+          hidden: !can('system:in-app-message:read') || record.isRead,
           onClick: () => handleMarkRead(record.id),
         },
         deleteAction({
@@ -162,10 +162,10 @@ export default function InAppMessagesPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={can('system:in-app-message:send') && (
+        create={can('system:in-app-template:list') && (
           <Button type="primary" icon={<Plus size={14} />} onClick={sendModal.openCreate}>发送站内信</Button>
         )}
-        actions={can('system:in-app-message:update') && (
+        actions={can('system:in-app-message:read') && (
           <Button type="tertiary" icon={<CheckCheck size={14} />} onClick={handleMarkAllRead}>全部已读</Button>
         )}
         filterTitle="站内信筛选"

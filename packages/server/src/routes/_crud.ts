@@ -19,7 +19,7 @@
 import type { OpenAPIHono, RouteConfig } from '@hono/zod-openapi';
 import type { Context, MiddlewareHandler } from 'hono';
 import type { LicenseFeatureKey } from '@zenith/shared/licensing';
-import type { AnyOperation } from '@zenith/shared/core';
+import { permissionList, type AnyOperation, type Permission as SharedPermission, type PermissionPrefix } from '@zenith/shared/core';
 import { defineContractRoute } from '../lib/contract-route';
 import type {
   CrudContractLike, CrudCreateInputOf, CrudCreateResponseOf, CrudDetailOf, CrudIdOf, CrudListQueryOf, CrudListResponseOf, CrudUpdateInputOf, CrudUpdateResponseOf,
@@ -74,7 +74,8 @@ const AUDIT_VERB: Record<Exclude<CrudOpName, 'list' | 'detail'>, string> = {
   removeBatch: '批量删除',
 };
 
-type Permission = string | readonly string[];
+/** 权限码（单个或「任一即可」数组），只接受注册表里的码 */
+type Permission = SharedPermission | readonly SharedPermission[];
 
 export interface CrudPermissionMap {
   /** 读操作（list / detail）共用 */
@@ -91,11 +92,11 @@ export interface CrudPermissionMap {
 
 export interface CrudMountOptions {
   /**
-   * 权限：传前缀字符串（`system:tag`）按约定派生 `:list` / `:create` / `:update` / `:delete`；
+   * 权限：传前缀字符串（`system:tag`，注册表里须存在 `system:tag:list`）按约定派生 `:list` / `:create` / `:update` / `:delete`；
    * 不按约定的资源传映射表（`{ read: 'x:view', write: 'x:manage' }` 或逐操作指定）；
    * `null` = 只要求登录（`[authMiddleware]`），不加权限码
    */
-  readonly permission: string | CrudPermissionMap | null;
+  readonly permission: PermissionPrefix | CrudPermissionMap | null;
   /** 审计里的资源名：「标签」→ 创建标签 / 更新标签 / 删除标签 / 批量删除标签；只派生读操作时可省略 */
   readonly label?: string;
   /** 审计 module；缺省 `${label}管理` */
@@ -130,7 +131,7 @@ export interface ContractRoute {
 
 type Handler = (c: Context) => Promise<Response>;
 
-const toArray = (permission: Permission): string[] => (typeof permission === 'string' ? [permission] : [...permission]);
+const toArray = (permission: Permission): readonly SharedPermission[] => permissionList(permission);
 
 /** 已登录 + 权限码的读中间件元组（供同文件的非标准读操作复用） */
 export function readGuard(permission: Permission, feature?: LicenseFeatureKey) {
@@ -144,7 +145,8 @@ export function writeGuard(permission: Permission, audit: AuditLogOptions, featu
 
 function resolvePermission(permission: CrudMountOptions['permission'], op: CrudOpName): Permission | undefined {
   if (permission === null) return undefined;
-  if (typeof permission === 'string') return `${permission}:${PERMISSION_SUFFIX[op]}`;
+  // 前缀 + 约定后缀：`PermissionPrefix` 已保证 `${prefix}:list` 在注册表；其余后缀由 permission-registry.test 守住
+  if (typeof permission === 'string') return `${permission}:${PERMISSION_SUFFIX[op]}` as SharedPermission;
   return permission[op] ?? (WRITE_OPS.includes(op) ? permission.write : permission.read);
 }
 

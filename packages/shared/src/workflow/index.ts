@@ -14,3 +14,4 @@ export * from './health';
 export * from './helpers';
 export * from './print';
 export * from './serial';
+export * from './permissions';

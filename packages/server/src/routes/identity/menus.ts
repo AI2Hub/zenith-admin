@@ -29,7 +29,7 @@ const userMenuRoute = defineContractRoute(menuContract.userTree, {
 });
 
 const listRoute = defineContractRoute(menuContract.tree, {
-  middleware: [authMiddleware, guard({ permission: '' })] as const,
+  middleware: [authMiddleware, guard({ permission: 'system:menu:list' })] as const,
   handler: async (c) => c.json(okBody(await listMenuTree()), 200),
 });
 

@@ -1,0 +1,77 @@
+import { definePermissions, type PermissionCodes } from '../core/permissions';
+
+/**
+ * identity 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
+ * 种子 button 节点由此生成（@zenith/shared/seed），契约操作 / 路由门禁 / 前端按钮以 `Permission` 类型引用。
+ * `uiOnly` = 服务端没有任何接口检查该码（纯前端门控或待清理）。
+ */
+export const IDENTITY_PERMISSIONS = definePermissions({
+  'system:user:list': { label: '查询', menu: 'SystemUsers' },
+  'system:user:create': { label: '新增用户', menu: 'SystemUsers' },
+  'system:user:update': { label: '编辑用户', menu: 'SystemUsers' },
+  'system:user:delete': { label: '删除用户', menu: 'SystemUsers' },
+  'system:user:import': { label: '导入用户', menu: 'SystemUsers' },
+  'system:user:export': { label: '导出用户', menu: 'SystemUsers' },
+  'system:user:export-raw': { label: '明文导出', menu: 'SystemUsers' },
+  'system:user:assign': { label: '用户授权', menu: 'SystemUsers' },
+  'system:user:impersonate': { label: '模拟登录', menu: 'SystemUsers' },
+  'system:department:list': { label: '查询', menu: 'SystemDepartments' },
+  'system:department:create': { label: '新增部门', menu: 'SystemDepartments' },
+  'system:department:update': { label: '编辑部门', menu: 'SystemDepartments' },
+  'system:department:delete': { label: '删除部门', menu: 'SystemDepartments' },
+  'system:position:list': { label: '查询', menu: 'SystemPositions' },
+  'system:position:create': { label: '新增岗位', menu: 'SystemPositions' },
+  'system:position:update': { label: '编辑岗位', menu: 'SystemPositions' },
+  'system:position:delete': { label: '删除岗位', menu: 'SystemPositions' },
+  'system:menu:list': { label: '查询', menu: 'SystemMenus' },
+  'system:menu:create': { label: '新增菜单', menu: 'SystemMenus' },
+  'system:menu:update': { label: '编辑菜单', menu: 'SystemMenus' },
+  'system:menu:delete': { label: '删除菜单', menu: 'SystemMenus' },
+  'system:user-groups:list': { label: '查询', menu: 'SystemUserGroups' },
+  'system:user-groups:create': { label: '新增用户组', menu: 'SystemUserGroups' },
+  'system:user-groups:update': { label: '编辑用户组', menu: 'SystemUserGroups' },
+  'system:user-groups:delete': { label: '删除用户组', menu: 'SystemUserGroups' },
+  'system:user-groups:assign': { label: '分配成员', menu: 'SystemUserGroups' },
+  'system:role:list': { label: '查询', menu: 'SystemRoles' },
+  'system:role:create': { label: '新增角色', menu: 'SystemRoles' },
+  'system:role:update': { label: '编辑角色', menu: 'SystemRoles' },
+  'system:role:delete': { label: '删除角色', menu: 'SystemRoles' },
+  'system:role:assign': { label: '分配菜单', menu: 'SystemRoles' },
+  'system:tenant:list': { label: '查询', menu: 'SystemTenants' },
+  'system:tenant:create': { label: '新增租户', menu: 'SystemTenants', uiOnly: true },
+  'system:tenant:update': { label: '编辑租户', menu: 'SystemTenants', uiOnly: true },
+  'system:tenant:delete': { label: '删除租户', menu: 'SystemTenants', uiOnly: true },
+  'system:tenant-package:list': { label: '查询', menu: 'SystemTenantPackages', uiOnly: true },
+  'system:tenant-package:create': { label: '新增套餐', menu: 'SystemTenantPackages', uiOnly: true },
+  'system:tenant-package:update': { label: '编辑套餐', menu: 'SystemTenantPackages', uiOnly: true },
+  'system:tenant-package:delete': { label: '删除套餐', menu: 'SystemTenantPackages', uiOnly: true },
+  'system:tenant-package:assign': { label: '分配功能', menu: 'SystemTenantPackages', uiOnly: true },
+  'system:identity-security:manage': { label: '管理策略', menu: 'SystemIdentitySecurity', sort: 1 },
+  'system:login-risk:list': { label: '查询风险事件', menu: 'SystemIdentitySecurity', sort: 0 },
+  'system:identity-provider:manage': { label: '管理身份源', menu: 'SystemIdentityProviders', sort: 1 },
+  'system:dirsync-source:list': { label: '查询', menu: 'DirectorySyncSources' },
+  'system:dirsync-source:create': { label: '新增源', menu: 'DirectorySyncSources' },
+  'system:dirsync-source:edit': { label: '编辑源', menu: 'DirectorySyncSources' },
+  'system:dirsync-source:delete': { label: '删除源', menu: 'DirectorySyncSources' },
+  'system:dirsync-source:test': { label: '测试连接', menu: 'DirectorySyncSources' },
+  'system:dirsync-source:preview': { label: '预览差异', menu: 'DirectorySyncSources' },
+  'system:dirsync-source:run': { label: '立即同步', menu: 'DirectorySyncSources' },
+  'system:dirsync-log:list': { label: '查询', menu: 'DirectorySyncLogs' },
+  'system:dirsync-log:detail': { label: '查看差异', menu: 'DirectorySyncLogs' },
+  'system:dirsync-log:retry': { label: '重试失败项', menu: 'DirectorySyncLogs' },
+  'system:dirsync-conflict:list': { label: '查询', menu: 'DirectorySyncConflicts' },
+  'system:dirsync-conflict:resolve': { label: '裁决', menu: 'DirectorySyncConflicts' },
+  'system:dirsync-conflict:ignore': { label: '批量忽略', menu: 'DirectorySyncConflicts' },
+  'system:oauth-config:view': { label: '查询', menu: 'SystemOAuthConfig' },
+  'system:oauth-config:update': { label: '保存配置', menu: 'SystemOAuthConfig' },
+  'system:session:list': { label: '查询', menu: 'SystemSessions' },
+  'system:session:forceLogout': { label: '强制下线', menu: 'SystemSessions' },
+  'system:log:login': { label: '查询', menu: 'SystemLoginLogs' },
+  'system:impersonation:list': { label: '查询', menu: 'SystemImpersonationRecords' },
+  'system:impersonation:forceEnd': { label: '强制结束', menu: 'SystemImpersonationRecords' },
+});
+
+declare module '../core/permissions' {
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
+  interface PermissionRegistry extends PermissionCodes<typeof IDENTITY_PERMISSIONS> {}
+}

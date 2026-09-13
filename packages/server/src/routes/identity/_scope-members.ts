@@ -13,13 +13,14 @@ import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody } from '../../lib/openapi-schemas';
 import { listScopeMembers, type UserScopeType } from '../../services/identity/user-scope.service';
+import type { Permission } from '@zenith/shared/core';
 
 type MemberPreviewOperation = Bind<ReturnType<typeof memberPreviewOp>>;
 
 export function defineScopeMembersRoute(options: {
   op: MemberPreviewOperation;
   scopeType: UserScopeType;
-  permission: string;
+  permission: Permission;
 }) {
   return defineContractRoute(options.op, {
     middleware: [authMiddleware, guard({ permission: options.permission })] as const,

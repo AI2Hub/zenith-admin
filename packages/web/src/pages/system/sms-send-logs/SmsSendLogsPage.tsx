@@ -103,7 +103,7 @@ export default function SmsSendLogsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={can('system:sms-send-log:send') && (
+        create={can('system:sms-send-log:test') && (
           <Button type="primary" icon={<Plus size={14} />} onClick={testModal.openCreate}>测试发送</Button>
         )}
         actions={(

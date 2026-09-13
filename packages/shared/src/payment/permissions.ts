@@ -1,0 +1,71 @@
+import { definePermissions, type PermissionCodes } from '../core/permissions';
+
+/**
+ * payment 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
+ * 种子 button 节点由此生成（@zenith/shared/seed），契约操作 / 路由门禁 / 前端按钮以 `Permission` 类型引用。
+ * `uiOnly` = 服务端没有任何接口检查该码（纯前端门控或待清理）。
+ */
+export const PAYMENT_PERMISSIONS = definePermissions({
+  'payment:channel:list': { label: '查询', menu: 'PaymentChannels' },
+  'payment:channel:create': { label: '新增渠道', menu: 'PaymentChannels' },
+  'payment:channel:update': { label: '编辑渠道', menu: 'PaymentChannels' },
+  'payment:channel:delete': { label: '删除渠道', menu: 'PaymentChannels' },
+  'payment:order:list': { label: '查询', menu: 'PaymentOrders' },
+  'payment:order:create': { label: '发起支付', menu: 'PaymentOrders' },
+  'payment:order:close': { label: '关闭订单', menu: 'PaymentOrders' },
+  'payment:order:refund': { label: '发起退款', menu: 'PaymentOrders' },
+  'payment:refund:list': { label: '查询', menu: 'PaymentRefunds' },
+  'payment:refund:approve': { label: '退款审批', menu: 'PaymentRefunds' },
+  'payment:log:list': { label: '查询', menu: 'PaymentLogs' },
+  'payment:recon:list': { label: '查询', menu: 'PaymentRecon' },
+  'payment:recon:create': { label: '新建对账', menu: 'PaymentRecon' },
+  'payment:recon:delete': { label: '删除对账', menu: 'PaymentRecon' },
+  'payment:recon:handle': { label: '处理差异', menu: 'PaymentRecon' },
+  'payment:ledger:list': { label: '查询', menu: 'PaymentLedger' },
+  'payment:ledger:account:create': { label: '创建账户', menu: 'PaymentLedger' },
+  'payment:ledger:post': { label: '凭证过账', menu: 'PaymentLedger' },
+  'payment:ledger:reverse': { label: '凭证冲正', menu: 'PaymentLedger' },
+  'payment:ledger:reserve': { label: '预占管理', menu: 'PaymentLedger' },
+  'payment:webhook:list': { label: '查询', menu: 'PaymentWebhooks' },
+  'payment:webhook:manage': { label: '管理 Webhook', menu: 'PaymentWebhooks' },
+  'payment:ops:manage': { label: '查询', menu: 'PaymentEvents' },
+  'payment:fee:list': { label: '查询', menu: 'PaymentFeeRules' },
+  'payment:fee:create': { label: '新增费率', menu: 'PaymentFeeRules' },
+  'payment:fee:update': { label: '编辑费率', menu: 'PaymentFeeRules' },
+  'payment:fee:delete': { label: '删除费率', menu: 'PaymentFeeRules' },
+  'payment:settlement:list': { label: '查询', menu: 'PaymentSettlements' },
+  'payment:settlement:generate': { label: '生成结算', menu: 'PaymentSettlements' },
+  'payment:settlement:settle': { label: '标记结算', menu: 'PaymentSettlements' },
+  'payment:sharing:list': { label: '查询', menu: 'PaymentSharing' },
+  'payment:sharing:manage': { label: '接收方管理', menu: 'PaymentSharing' },
+  'payment:sharing:dispatch': { label: '发起分账', menu: 'PaymentSharing' },
+  'payment:link:list': { label: '查询', menu: 'PaymentLinks' },
+  'payment:link:create': { label: '新增链接', menu: 'PaymentLinks' },
+  'payment:link:update': { label: '编辑链接', menu: 'PaymentLinks' },
+  'payment:link:delete': { label: '删除链接', menu: 'PaymentLinks' },
+  'payment:risk:list': { label: '查询', menu: 'PaymentRiskRules' },
+  'payment:risk:create': { label: '新增规则', menu: 'PaymentRiskRules' },
+  'payment:risk:update': { label: '编辑规则', menu: 'PaymentRiskRules' },
+  'payment:risk:delete': { label: '删除规则', menu: 'PaymentRiskRules' },
+  'payment:risk:review': { label: '风控审核', menu: 'PaymentRiskRules' },
+  'payment:method:list': { label: '查询', menu: 'PaymentMethods' },
+  'payment:method:update': { label: '编辑方式', menu: 'PaymentMethods' },
+  'payment:report:view': { label: '查询', menu: 'PaymentReports' },
+  'payment:transfer:list': { label: '查询', menu: 'PaymentTransfers' },
+  'payment:transfer:create': { label: '发起转账', menu: 'PaymentTransfers' },
+  'payment:transfer:approve': { label: '转账审批', menu: 'PaymentTransfers' },
+  'payment:app:list': { label: '查询', menu: 'PaymentApps' },
+  'payment:app:manage': { label: '管理应用', menu: 'PaymentApps' },
+  'payment:contract:list': { label: '查询', menu: 'PaymentContracts' },
+  'payment:contract:manage': { label: '协议操作', menu: 'PaymentContracts' },
+  'payment:contract:plan': { label: '计划管理', menu: 'PaymentContracts' },
+  'payment:dispute:list': { label: '查询', menu: 'PaymentDisputes' },
+  'payment:dispute:handle': { label: '处理投诉', menu: 'PaymentDisputes' },
+  'payment:preauth:list': { label: '查询', menu: 'PaymentPreauths' },
+  'payment:preauth:manage': { label: '预授权操作', menu: 'PaymentPreauths' },
+});
+
+declare module '../core/permissions' {
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
+  interface PermissionRegistry extends PermissionCodes<typeof PAYMENT_PERMISSIONS> {}
+}

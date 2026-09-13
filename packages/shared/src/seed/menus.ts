@@ -1,5 +1,8 @@
 import type { Menu } from '../identity/contracts';
 import { MENU_ROOT_FEATURE_MAP } from '../licensing/feature-catalog';
+import { ALL_PERMISSIONS } from '../permissions';
+import type { PermissionMeta } from '../core/permissions';
+import { SEED_DATE } from './_base';
 import { SEED_MENUS_COMMON } from './menus/common';
 import { SEED_MENUS_SYSTEM } from './menus/system';
 import { SEED_MENUS_SETTINGS } from './menus/settings';
@@ -21,10 +24,13 @@ import { SEED_MENUS_GROWTH } from './menus/growth';
 import { SEED_MENUS_IOT } from './menus/iot';
 import { SEED_MENUS_DRIVE } from './menus/drive';
 
-export { SEED_DATE } from './_base';
+export { SEED_DATE };
 
 /**
  * 菜单种子数据 —— 按一级目录 ID 段分片维护（见 ./menus/）。
+ *
+ * 分片文件只写 directory / menu 节点；button 节点（权限码）由各域 `permissions.ts` 注册表生成
+ * （`expandPermissionButtons`），权限码在整个仓库只声明一次。
  *
  * 新增模块时只改对应段的分片文件，不要在本文件堆积条目：
  *   系统管理 1000 / 系统设置 2000 / 智能助手 3000 / 工作流 4000 / 消息中心 5000 /
@@ -34,7 +40,7 @@ export { SEED_DATE } from './_base';
  *
  * 数组顺序即菜单落库顺序，调整分片顺序会影响 SEED_MENUS 的相对次序。
  */
-export const SEED_MENUS: Menu[] = applyMenuFeatureKeys([
+export const SEED_MENUS: Menu[] = applyMenuFeatureKeys(expandPermissionButtons([
   ...SEED_MENUS_COMMON,
   ...SEED_MENUS_SYSTEM,
   ...SEED_MENUS_SETTINGS,
@@ -55,7 +61,55 @@ export const SEED_MENUS: Menu[] = applyMenuFeatureKeys([
   ...SEED_MENUS_GROWTH,
   ...SEED_MENUS_IOT,
   ...SEED_MENUS_DRIVE,
-]);
+], ALL_PERMISSIONS));
+
+function attachmentAt<T>(value: T | readonly (T | undefined)[] | undefined, index: number): T | undefined {
+  if (Array.isArray(value)) return (value as readonly (T | undefined)[])[index];
+  return value as T | undefined;
+}
+
+/**
+ * 把注册表里的权限码展开为 button 节点，紧跟其所属页面之后插入。
+ *
+ * 规则（与手写时代的 id 约定一致，已初始化环境的菜单 id 不变）：
+ * - 第 idx 个按钮 `id = 页面 id + 1 + idx`、`sort = idx`；注册表的 `id` / `sort` 可逐个覆盖；
+ * - 同一权限码挂多个页面时，`menu` / `id` / `sort` 数组按位置对应；
+ * - 页面按 `name` 匹配，注册表引用了不存在的页面在构造期抛错（种子不会带着幻觉权限落库）。
+ */
+export function expandPermissionButtons(pages: Menu[], registry: Readonly<Record<string, PermissionMeta>>): Menu[] {
+  const pageByName = new Map<string, Menu>();
+  for (const page of pages) if (page.name) pageByName.set(page.name, page);
+
+  const buttonsByPage = new Map<number, Menu[]>();
+  const seenIds = new Set(pages.map((p) => p.id));
+  for (const [code, meta] of Object.entries(registry)) {
+    const menus = typeof meta.menu === 'string' ? [meta.menu] : meta.menu;
+    menus.forEach((menuName, position) => {
+      const page = pageByName.get(menuName);
+      if (!page) throw new Error(`权限码 ${code} 引用了不存在的菜单页面 ${menuName}`);
+      const list = buttonsByPage.get(page.id) ?? [];
+      const idx = list.length;
+      const id = attachmentAt(meta.id, position) ?? page.id + 1 + idx;
+      if (seenIds.has(id)) throw new Error(`权限码 ${code} 生成的按钮 id ${id} 与其它菜单冲突`);
+      seenIds.add(id);
+      list.push({
+        id,
+        parentId: page.id,
+        title: meta.label,
+        type: 'button',
+        permission: code,
+        sort: attachmentAt(meta.sort, position) ?? idx,
+        status: 'enabled',
+        visible: true,
+        createdAt: SEED_DATE,
+        updatedAt: SEED_DATE,
+      } as Menu);
+      buttonsByPage.set(page.id, list);
+    });
+  }
+
+  return pages.flatMap((page) => [page, ...(buttonsByPage.get(page.id) ?? [])]);
+}
 
 /**
  * 按功能目录的 menuRoots 为整棵子树派生 featureKey。

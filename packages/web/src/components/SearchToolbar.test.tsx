@@ -7,6 +7,7 @@ import ExportButton from './ExportButton';
 import { ClearLogsButtons } from './logs/ClearLogsControl';
 import { ToolbarSlotContext } from './toolbar-slot-context';
 import { PermissionContext } from '@/hooks/usePermission';
+import type { Permission } from '@zenith/shared/core';
 
 vi.mock('@/hooks/useExportJobRunner', () => ({
   useExportJobRunner: () => ({ runExport: vi.fn(), isPending: false, pendingFormat: null }),
@@ -66,7 +67,7 @@ describe('SearchToolbar', () => {
   });
 
   it('hides the mobile menu trigger when actions render nothing at runtime (permission-gated buttons)', () => {
-    const gated = <ExportButton entity="demo" permission="demo:export" />;
+    const gated = <ExportButton entity="demo" permission={'demo:export' as Permission} />;
     const denied = render(
       <PermissionContext.Provider value={[]}>
         <SearchToolbar primary={<span>P</span>} actions={gated} />

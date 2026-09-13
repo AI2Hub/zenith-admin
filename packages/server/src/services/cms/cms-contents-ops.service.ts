@@ -9,6 +9,7 @@ import { assertChannelAccess, assertChannelsAccess } from './cms-channels.servic
 import { logContentOp, logContentOps } from './cms-content-op-logs.service';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { hasPermission } from '../../lib/context';
+import type { Permission } from '@zenith/shared/core';
 import type { AsyncTask } from '@zenith/shared/tasks';
 import { resolveCmsSiteOpsSettings } from './cms-site-settings';
 import { assertCompleteCmsBatch } from './cms-access';
@@ -487,7 +488,7 @@ export async function batchSetCmsContentFlags(ids: number[], flags: { isTop?: bo
 }
 
 /** 批量状态操作的动作 → 所需权限（与单条操作一致） */
-const CMS_BATCH_STATUS_PERMISSIONS: Record<'submit' | 'publish' | 'reject' | 'offline', string> = {
+const CMS_BATCH_STATUS_PERMISSIONS: Record<'submit' | 'publish' | 'reject' | 'offline', Permission> = {
   submit: 'cms:content:update',
   publish: 'cms:content:publish',
   offline: 'cms:content:publish',

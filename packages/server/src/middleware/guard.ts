@@ -13,6 +13,7 @@ import { lookupIpLocation } from '../lib/ip-location';
 import { getEffectiveTenantId } from '../lib/tenant';
 import { assertFeatureEnabled } from '../lib/licensing';
 import type { LicenseFeatureKey } from '@zenith/shared/licensing';
+import { permissionList, type Permission } from '@zenith/shared/core';
 
 export interface AuditLogOptions {
   description: string;
@@ -34,8 +35,8 @@ export function setAuditAfterData(_c: Context, data: unknown): void {
 }
 
 export interface GuardOptions {
-  /** 需要的权限码，传字符串或数组（满足其一即可） */
-  permission?: string | string[];
+  /** 需要的权限码，传单个或数组（满足其一即可）；只接受注册表里的码（`@zenith/shared/core` 的 `Permission`） */
+  permission?: Permission | readonly Permission[];
   /** 所属可授权功能：License 检查不豁免超管（授权是部署级商业约束，不是权限问题） */
   feature?: LicenseFeatureKey;
   /** 审计日志配置；不传则不记录操作日志 */
@@ -132,9 +133,7 @@ export function guard(opts: GuardOptions) {
     if (opts.permission) {
       const user = c.get('user');
       if (!isSuperAdmin(user)) {
-        const perms = Array.isArray(opts.permission)
-          ? opts.permission
-          : [opts.permission];
+        const perms = permissionList(opts.permission);
         const userPerms = await getUserPermissions(user.userId);
         const hasPermission = perms.some((p) => userPerms.includes(p));
         if (!hasPermission) {

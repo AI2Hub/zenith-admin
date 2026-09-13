@@ -9,3 +9,4 @@ export * from './contracts';
 export * from './notification-events';
 export * from './types';
 export * from './validation';
+export * from './permissions';

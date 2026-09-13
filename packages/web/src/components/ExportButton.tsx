@@ -1,6 +1,7 @@
 import { useContext } from 'react';
 import { Button, Dropdown, Space, SplitButtonGroup } from '@douyinfe/semi-ui';
 import { ChevronDown, Download } from 'lucide-react';
+import type { Permission } from '@zenith/shared/core';
 import type { ExportJobFormat, ExportJobRequestMode } from '@zenith/shared/tasks';
 import { ToolbarSlotContext } from '@/components/toolbar-slot-context';
 import { useExportJobRunner } from '@/hooks/useExportJobRunner';
@@ -18,7 +19,7 @@ interface ExportButtonProps {
   /** `flat` 为逐格式平铺按钮；放进工具栏移动端「更多操作」菜单时自动切换，无需显式传 */
   variant?: 'primary' | 'flat';
   /** Optional capability gate; omitted for non-CMS/shared callers. */
-  permission?: string;
+  permission?: Permission;
 }
 
 export function ExportButton({

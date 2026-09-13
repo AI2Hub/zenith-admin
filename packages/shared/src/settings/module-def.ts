@@ -1,6 +1,7 @@
 import type * as z from 'zod';
 import type { LicenseFeatureKey } from '../licensing/constants';
 import type { SettingsScope, SettingsVisibility } from './constants';
+import type { Permission } from '../core/permissions';
 
 /**
  * 设置模块定义：一个模块 = 一份 Zod 文档 schema + 治理元数据。
@@ -23,8 +24,8 @@ export interface SettingsModuleDef<S extends z.ZodObject = z.ZodObject> {
   readonly description: string;
   readonly scope: SettingsScope;
   readonly feature?: LicenseFeatureKey;
-  readonly readPermission: string | null;
-  readonly writePermission: string;
+  readonly readPermission: Permission | null;
+  readonly writePermission: Permission;
   readonly visibility?: Partial<Record<keyof z.output<S> & string, SettingsVisibility>>;
   readonly page?: string;
   readonly sort: number;

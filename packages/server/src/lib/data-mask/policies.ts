@@ -11,6 +11,7 @@ import { dataMaskPolicies, type DataMaskPolicyRow } from '../../db/schema';
 import { currentUserOrNull, hasPermission, currentCmsOpenApiAccess } from '../context';
 import { onInvalidate, onInvalidationReset } from '../invalidation-bus';
 import { isSuperAdmin } from '../permissions';
+import type { Permission } from '@zenith/shared/core';
 
 /**
  * 脱敏策略缓存与生效解析。
@@ -108,7 +109,8 @@ function viewerBypassesAll(): boolean {
 async function viewerHasAny(permissions: readonly string[]): Promise<boolean> {
   if (permissions.length === 0) return false;
   if (!currentUserOrNull() && !currentCmsOpenApiAccess()) return false;
-  return hasPermission(...permissions);
+  // 策略里的豁免权限码来自数据库配置（保存时按注册表校验），此处按已校验的码使用
+  return hasPermission(...(permissions as readonly Permission[]));
 }
 
 export interface FieldMaskDecision {

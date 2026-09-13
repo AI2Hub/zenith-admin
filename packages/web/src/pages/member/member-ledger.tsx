@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps, Data } from '@douyinfe/semi-ui/lib/es/table';
 import type { QueryKey } from '@tanstack/react-query';
+import type { Permission } from '@zenith/shared/core';
 import { MEMBER_BIZ_TYPE_LABELS } from '@zenith/shared/member';
 import { ListSearchToolbar } from '@/components/list-page';
 import ExportButton from '@/components/ExportButton';
@@ -63,7 +64,7 @@ interface MemberLedgerToolbarProps {
   /** 导出实体（`member.point-transactions` / `member.wallet-transactions`） */
   exportEntity: string;
   /** 导出按钮的权限码（无权限时不渲染） */
-  exportPermission: string;
+  exportPermission: Permission;
   filterTitle: string;
   create?: ReactNode;
 }

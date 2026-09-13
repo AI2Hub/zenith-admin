@@ -14,6 +14,7 @@ export * from './format';
 export * from './json';
 export * from './math';
 export * from './json-shape';
+export * from './permissions';
 export * from './random';
 export * from './sensitive';
 export * from './text';

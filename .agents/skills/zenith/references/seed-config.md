@@ -15,7 +15,8 @@
 
 - 新增**一级目录**：取当前最大段基数 + 1000，新建分片
 - 新增**页面**：在目标段内找到最后一个节点，从其后最近的 10 倍数槽位开始
-- 新增**按钮**：父菜单 ID 顺延 +1；按钮超过 9 个时自然占用后续 10 槽，下一个页面从其后最近的 10 倍数开始
+- **按钮不手写 id**：由权限码注册表生成，第 idx 个按钮 `id = 页面 id + 1 + idx`；一个页面预计超过 9 个权限时，
+  下一个页面从更远的 10 倍数槽位开始（报表段按 30 间隔）
 
 ## 授权语义
 
@@ -27,11 +28,15 @@
 
 ---
 
-## Step 9：菜单条目（`shared/src/seed/menus/{段}.ts`）
+## Step 9：菜单条目与权限码
+
+### 9a：页面（`shared/src/seed/menus/{段}.ts`）
 
 > **新增一级目录**时：在 `seed/menus/` 下新建分片，在 `seed/menus.ts` 中 import 并按顺序加入
 > `SEED_MENUS` 展开列表；分片内 `SEED_DATE` 从 `../_base` 导入（**不要**从 `../menus` 导入，
 > 会与聚合器形成 ESM 值环，分片先于 `SEED_DATE` 初始化而读到 `undefined`）。
+
+分片文件**只写 `directory` / `menu` 节点**，不写 `button`：
 
 ```ts
 // 一级目录 = 新 1000 段的基数，纯显示资源，不带 permission
@@ -46,41 +51,48 @@
   icon: 'CircleDot',                 // ← lucide-react 图标名（大驼峰）
   type: 'menu', sort: 10, status: 'enabled', visible: true,
   createdAt: SEED_DATE, updatedAt: SEED_DATE },
-
-// 按钮：不可导航，只挂权限码；ID 从父菜单顺延 +1，第一个固定为「查询」（sort: 0）
-{ id: <菜单ID+1>, parentId: <菜单ID>, title: '查询', type: 'button', sort: 0,
-  status: 'enabled', visible: true, permission: 'system:xxx:list',
-  createdAt: SEED_DATE, updatedAt: SEED_DATE },
-{ id: <菜单ID+2>, parentId: <菜单ID>, title: '新增XXX', type: 'button', sort: 1,
-  status: 'enabled', visible: true, permission: 'system:xxx:create',
-  createdAt: SEED_DATE, updatedAt: SEED_DATE },
-{ id: <菜单ID+3>, parentId: <菜单ID>, title: '编辑XXX', type: 'button', sort: 2,
-  status: 'enabled', visible: true, permission: 'system:xxx:update',
-  createdAt: SEED_DATE, updatedAt: SEED_DATE },
-{ id: <菜单ID+4>, parentId: <菜单ID>, title: '删除XXX', type: 'button', sort: 3,
-  status: 'enabled', visible: true, permission: 'system:xxx:delete',
-  createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ```
+
+### 9b：权限码（`shared/src/{业务域}/permissions.ts`）
+
+权限码在整个仓库只声明一次——各域的 `definePermissions()` 注册表；button 节点由 `seed/menus.ts` 的
+`expandPermissionButtons()` 按 `menu`（页面 `name`）生成，`Permission` 联合类型随之更新，
+服务端 `guard` / `mountCrud`、前端 `hasPermission` / `permission=` 的字面量拼错即编译报错：
+
+```ts
+export const XXX_PERMISSIONS = definePermissions({
+  'system:xxx:list':   { label: '查询',    menu: 'SystemXxx' },   // 首个即「查询」，sort 按声明顺序
+  'system:xxx:create': { label: '新增XXX', menu: 'SystemXxx' },
+  'system:xxx:update': { label: '编辑XXX', menu: 'SystemXxx' },
+  'system:xxx:delete': { label: '删除XXX', menu: 'SystemXxx' },
+  // 同一权限挂多个页面：menu 传数组；需要固定历史 id / sort 时逐位覆盖
+  'system:xxx:print':  { label: '打印', menu: ['SystemXxx', 'SystemYyy'], id: [undefined, 1234] },
+  // 服务端没有接口检查、只做前端门控的码必须标 uiOnly（permission-registry.test 守住两个方向）
+});
+```
+
+新增业务域时：建 `{域}/permissions.ts`，在域 `index.ts` `export * from './permissions'`，
+并把它加进 `shared/src/permissions.ts` 的 `PERMISSION_REGISTRY_BY_DOMAIN`。
 
 字段规则：
 
 | 字段 | 规则 |
 | --- | --- |
 | `component` | 相对 `packages/web/src/pages/` 的路径，**无 `.tsx` 扩展名**；前端用 `React.lazy` + 动态 import 按该路径加载。例：`'users/UsersPage'` → `pages/users/UsersPage.tsx` |
-| `name` | 一级目录 `XxxModule`；系统管理下的菜单 `SystemXxx`；独立模块菜单 `XxxManagement`；按钮 `undefined` |
+| `name` | 一级目录 `XxxModule`；系统管理下的菜单 `SystemXxx`；独立模块菜单 `XxxManagement`；注册表以它定位按钮归属，页面节点**必须有** |
 | `icon` | lucide-react 图标名（大驼峰），如 `CircleDot`、`LayoutList`、`BookOpen`，可在 <https://lucide.dev/icons/> 搜索 |
 
 实际写法参考（系统管理 = 1000 段，具体 ID 以源文件为准）：
 
 ```ts
+// seed/menus/system.ts
 { id: 1020, parentId: 1000, title: '部门管理', name: 'SystemDepartments',
   path: '/system/departments', component: 'system/departments/DepartmentsPage',
   icon: 'Building2', type: 'menu', sort: 2, status: 'enabled', visible: true,
   createdAt: SEED_DATE, updatedAt: SEED_DATE },
-{ id: 1021, parentId: 1020, title: '查询', type: 'button', sort: 0, status: 'enabled',
-  visible: true, permission: 'system:department:list', createdAt: SEED_DATE, updatedAt: SEED_DATE },
-{ id: 1022, parentId: 1020, title: '新增部门', type: 'button', sort: 1, status: 'enabled',
-  visible: true, permission: 'system:department:create', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+// identity/permissions.ts
+'system:department:list':   { label: '查询',     menu: 'SystemDepartments' },   // → button 1021
+'system:department:create': { label: '新增部门', menu: 'SystemDepartments' },   // → button 1022
 ```
 
 ---

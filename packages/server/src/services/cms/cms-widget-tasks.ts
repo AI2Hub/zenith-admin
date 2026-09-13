@@ -30,6 +30,7 @@ import {
 } from './cms-widgets.service';
 import { resolveEffectiveCmsSiteRow } from './cms-site-inheritance.service';
 import { invalidateCmsSiteCaches } from './cms-cache.service';
+import type { Permission } from '@zenith/shared/core';
 
 const SYSTEM_USER = { userId: 1, username: 'admin', roles: ['super_admin'], tenantId: null };
 export async function refreshCmsWidgetTargets(
@@ -168,7 +169,7 @@ export async function submitCmsWidgetBatchTask(input: {
   ids: number[];
   action: 'publish' | 'offline' | 'delete';
 }) {
-  const permission = `cms:widget:${input.action}`;
+  const permission: Permission = `cms:widget:${input.action}`;
   if (!(await hasPermission(permission))) {
     throw new Error(`缺少 ${permission} 权限`);
   }
@@ -243,7 +244,7 @@ export function registerCmsWidgetTaskHandlers(): void {
       const ids = [...new Set(payload.ids ?? [])].sort((a, b) => a - b);
       const action = payload.action;
       if (!action || ids.length === 0) throw new Error('缺少页面部件批量操作参数');
-      const permission = `cms:widget:${action}`;
+      const permission: Permission = `cms:widget:${action}`;
       if (!(await hasPermission(permission))) throw new Error(`任务创建者缺少 ${permission} 权限`);
      let processed = Number(ctx.checkpoint?.processed ?? 0);
       let succeeded = Number(ctx.checkpoint?.succeeded ?? 0);

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { CrudPermissionPrefix, Permission } from '@zenith/shared/core';
 import { createOperationColumn, type ResponsiveTableAction } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { deleteAction } from './deleteAction';
@@ -10,9 +11,9 @@ const resolve = <R, T>(value: WithRecord<R, T> | undefined, record: R): T | unde
   (typeof value === 'function' ? (value as (record: R) => T)(record) : value);
 
 export interface CrudOperationColumnOptions<R extends { id: IdLike }> {
-  /** 权限前缀（`workflow:datasource`）：编辑要求 `:update`，删除要求 `:delete`；不按约定时用 `permissions` 逐项指定 */
-  readonly permission?: string;
-  readonly permissions?: { readonly edit?: string; readonly remove?: string };
+  /** 权限前缀（`workflow:datasource`）：编辑要求 `:update`，删除要求 `:delete`，两码都须在注册表；不按约定时用 `permissions` 逐项指定 */
+  readonly permission?: CrudPermissionPrefix;
+  readonly permissions?: { readonly edit?: Permission; readonly remove?: Permission };
   /** 页面已算好的布尔门控（`canManage` 一类），与权限码门控叠加 */
   readonly allow?: { readonly edit?: boolean; readonly remove?: boolean };
   /** 按行隐藏（内置记录不可删、非草稿不可编辑…），与门控叠加 */
@@ -69,8 +70,9 @@ export function useCrudOperationColumn<R extends { id: IdLike }>(options: CrudOp
     permission, permissions, allow, hidden, edit, remove, label, title, content, successMessage, onDeleted, disabled,
     extra, extraBetween, extraAfter, width, desktopInlineKeys, editLabel, removeLabel, columnTitle, menuAriaLabel, emptyContent,
   } = options;
-  const editPermission = permissions?.edit ?? (permission ? `${permission}:update` : undefined);
-  const removePermission = permissions?.remove ?? (permission ? `${permission}:delete` : undefined);
+  // CrudPermissionPrefix 已保证 `${prefix}:update` / `${prefix}:delete` 都在注册表，模板拼接结果按 Permission 使用
+  const editPermission = permissions?.edit ?? (permission ? (`${permission}:update` as Permission) : undefined);
+  const removePermission = permissions?.remove ?? (permission ? (`${permission}:delete` as Permission) : undefined);
   const canEdit = Boolean(edit) && (allow?.edit ?? true) && (!editPermission || hasPermission(editPermission));
   const canRemove = Boolean(remove) && (allow?.remove ?? true) && (!removePermission || hasPermission(removePermission));
 

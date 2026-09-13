@@ -1,0 +1,57 @@
+import { definePermissions, type PermissionCodes } from '../core/permissions';
+
+/**
+ * ops 域权限码注册表：code → 按钮标题 / 所属页面（菜单 name）。
+ * 种子 button 节点由此生成（@zenith/shared/seed），契约操作 / 路由门禁 / 前端按钮以 `Permission` 类型引用。
+ * `uiOnly` = 服务端没有任何接口检查该码（纯前端门控或待清理）。
+ */
+export const OPS_PERMISSIONS = definePermissions({
+  'system:log:files': { label: '查看日志', menu: 'SystemLogFiles', sort: 1 },
+  'system:log:files:download': { label: '下载日志', menu: 'SystemLogFiles', sort: 2 },
+  'system:log:files:delete': { label: '删除日志', menu: 'SystemLogFiles', sort: 3 },
+  'system:db-admin:view': { label: '查询', menu: 'SystemDbAdmin' },
+  'system:db-admin:query': { label: '执行 SQL', menu: 'SystemDbAdmin' },
+  'system:db-admin:export': { label: '导出结果', menu: 'SystemDbAdmin' },
+  'system:db-admin:write': { label: '修改数据', menu: 'SystemDbAdmin' },
+  'system:db-admin:maintain': { label: '运维操作', menu: 'SystemDbAdmin' },
+  'system:db-admin:terminal': { label: '数据库终端', menu: 'SystemDbAdmin' },
+  'system:maintenance:manage': { label: '开启/关闭', menu: 'SystemMaintenance', sort: 1 },
+  'system:retention:view': { label: '查询', menu: 'SystemRetention' },
+  'system:retention:edit': { label: '编辑策略', menu: 'SystemRetention' },
+  'system:retention:run': { label: '立即清理', menu: 'SystemRetention' },
+  'system:ops:overview': { label: '查询', menu: 'SystemOpsOverview' },
+  'system:host:view': { label: '查询', menu: 'SystemOpsHosts' },
+  'system:host:manage': { label: '管理主机', menu: 'SystemOpsHosts' },
+  'system:host:use': { label: '远程操作', menu: 'SystemOpsHosts', id: 2604 },
+  'system:terminal:execute': { label: '执行终端', menu: ['SystemTerminal', 'TerminalRecordings'], sort: [1, undefined] },
+  'system:terminal:monitor': { label: '强制终止', menu: 'SystemTerminalSessions', sort: 1 },
+  'system:file:use': { label: '查询', menu: 'SystemFileManager' },
+  'system:process:view': { label: '查询', menu: 'SystemProcesses' },
+  'system:process:kill': { label: '结束进程', menu: ['SystemProcesses', 'SystemPorts'], id: [undefined, 2492], sort: [undefined, 1] },
+  'system:process:priority': { label: '调整优先级', menu: 'SystemProcesses' },
+  'system:port:view': { label: '查询', menu: 'SystemPorts', id: 2491, sort: 0 },
+  'system:docker:view': { label: '查询', menu: 'SystemDocker' },
+  'system:docker:manage': { label: '管理', menu: 'SystemDocker' },
+  'system:service:view': { label: '查询', menu: 'SystemServices' },
+  'system:service:manage': { label: '管理', menu: 'SystemServices' },
+  'system:log:view': { label: '查询', menu: 'SystemLogViewer' },
+  'system:network:diag': { label: '执行诊断', menu: 'SystemNetworkDiag' },
+  'system:firewall:view': { label: '查询', menu: 'SystemFirewall' },
+  'system:firewall:manage': { label: '管理规则', menu: 'SystemFirewall' },
+  'system:nginx:view': { label: '查询', menu: 'SystemNginxSites' },
+  'system:nginx:manage': { label: '管理站点', menu: 'SystemNginxSites' },
+  'system:nginx:reload': { label: '重载 Nginx', menu: 'SystemNginxSites' },
+  'system:ssl:view': { label: '查询', menu: 'SystemSslCertificates' },
+  'system:ssl:create': { label: '新增证书', menu: 'SystemSslCertificates' },
+  'system:ssl:delete': { label: '删除证书', menu: 'SystemSslCertificates' },
+  'system:app-release:list': { label: '查询', menu: 'SystemAppReleases' },
+  'system:app-release:create': { label: '新增版本', menu: 'SystemAppReleases' },
+  'system:app-release:update': { label: '编辑版本', menu: 'SystemAppReleases' },
+  'system:app-release:delete': { label: '删除版本', menu: 'SystemAppReleases' },
+  'system:app-release:publish': { label: '发布/撤回', menu: 'SystemAppReleases' },
+});
+
+declare module '../core/permissions' {
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- 声明合并：把本域权限码合并进全局 Permission 联合
+  interface PermissionRegistry extends PermissionCodes<typeof OPS_PERMISSIONS> {}
+}

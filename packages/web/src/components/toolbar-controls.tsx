@@ -12,6 +12,7 @@
  * />
  */
 import type { ReactNode } from 'react';
+import type { Permission } from '@zenith/shared/core';
 import { Button } from '@douyinfe/semi-ui';
 import { Ban, CircleCheck, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
 import { usePermission } from '@/hooks/usePermission';
@@ -56,7 +57,7 @@ export function RefreshButton({ onClick, disabled, loading, children = '刷新' 
 
 interface CreateButtonProps extends ToolbarButtonProps {
   /** 权限码：传入后无权限时不渲染，替代页面里的 `hasPermission('x:create') ? <CreateButton /> : null` */
-  readonly permission?: string;
+  readonly permission?: Permission;
 }
 
 /**

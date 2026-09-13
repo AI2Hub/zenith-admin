@@ -102,7 +102,7 @@ export default function EmailSendLogsPage() {
         )}
         onSearch={handleSearch}
         onReset={handleReset}
-        create={can('system:email-send-log:send') && (
+        create={can('system:email-config:update') && (
           <Button type="primary" icon={<Plus size={14} />} onClick={testModal.openCreate}>测试发送</Button>
         )}
         actions={(

@@ -54,10 +54,11 @@ import {
   listClientDevices,
 } from '../../services/ops/client-devices.service';
 import { mountCrud } from '../_crud';
+import type { Permission } from '@zenith/shared/core';
 
 const MODULE = '应用版本管理';
 const list = [authMiddleware, guard({ permission: 'system:app-release:list' })] as const;
-const audited = (permission: string, description: string, recordBody = true) =>
+const audited = (permission: Permission, description: string, recordBody = true) =>
   [authMiddleware, guard({ permission, audit: { description, module: MODULE, recordBody } })] as const;
 const notFoundResponse = { 404: { content: jsonContent(ErrorResponse), description: '不存在' } } as const;
 
