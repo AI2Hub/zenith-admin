@@ -150,7 +150,7 @@ export type IotDeviceLog = z.infer<typeof iotDeviceLogSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const iotDeviceListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按 SN / 设备名模糊匹配'),
+  keyword: keywordQuery(' SN / 设备名'),
   status: entityStatusQuery,
   productId: idQuery(),
   groupId: idQuery(),
@@ -176,7 +176,7 @@ export const iotDeviceEventListQuery = paginationQuery.extend({
 
 export const iotDeviceLogListQuery = paginationQuery.extend({
   level: queryEnum(IOT_LOG_LEVELS),
-  keyword: keywordQuery('按日志内容模糊匹配'),
+  keyword: keywordQuery('日志内容'),
   ...dateRangeQuery('上报时间'),
 });
 

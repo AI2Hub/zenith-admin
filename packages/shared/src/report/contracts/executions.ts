@@ -106,7 +106,7 @@ const executionFilterFields = {
   scene: z.string().max(32).optional(),
   success: queryBool(),
   startAt: dateRangeBound('起始时间'),
-  endAt: dateRangeBound('结束时间'),
+  endAt: dateRangeBound('结束时间', 'end'),
 };
 
 export const reportExecutionListQuery = paginationQuery.extend({

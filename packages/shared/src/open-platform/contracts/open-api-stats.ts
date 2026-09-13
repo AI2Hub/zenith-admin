@@ -90,7 +90,7 @@ export const openApiCallLogListQuery = paginationQuery.extend({
   method: z.string().max(10).optional(),
   statusCode: z.coerce.number().int().min(100).max(599).optional(),
   environment: queryEnum(OPEN_APP_ENVIRONMENTS),
-  keyword: keywordQuery('按路径 / 应用名称模糊匹配'),
+  keyword: keywordQuery('路径 / 应用名称'),
   ...dateRangeQuery(),
 });
 

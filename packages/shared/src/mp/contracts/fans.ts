@@ -51,7 +51,7 @@ export type MpFanBlacklistResult = z.infer<typeof mpFanBlacklistResultSchema>;
 
 export const mpFanListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
-  keyword: keywordQuery('按昵称 / openid / 备注模糊匹配'),
+  keyword: keywordQuery('昵称 / openid / 备注'),
   subscribe: queryEnum(MP_FAN_SUBSCRIBES),
   tagId: idQuery('按本地标签筛选'),
   blacklisted: queryBool('是否在黑名单'),

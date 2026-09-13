@@ -88,13 +88,16 @@
 - **契约操作命名**：标准 CRUD 固定为 `list` / `detail` / `create` / `update` / `remove`，可选 `all`（下拉源）/
   `removeBatch`（`DELETE /batch`）——web 的 `createResourceQueries` 按此约定派生 hooks；其余操作按业务动词命名
 - **契约积木**：路径 `{id}` 用 `idParam`；查询串里的关联 ID 筛选（`channelId` / `taskId`…）用 `idQuery(description?)`；
-  关键字模糊匹配 `keyword: keywordQuery('按名称 / 编码模糊匹配')`（带 `.max()` / `.trim()` 约束的关键字才逐个书写）；
+  关键字模糊匹配 `keyword: keywordQuery('名称 / 编码')`（参数是人可读的匹配字段，派生 OpenAPI 描述「按名称 / 编码模糊匹配」
+  与前端占位「搜索名称 / 编码」；带 `.max()` / `.trim()` 约束的关键字才逐个书写）；
   列表查询 `paginationQuery.extend({...})`；分页响应 `paginated(xxxSchema)`；
-  标准 `startTime` / `endTime` 范围 `...dateRangeQuery('创建时间')`（非标准键名如 `startAt` / `dateStart` 才逐个 `dateRangeBound()`）；
+  标准 `startTime` / `endTime` 范围 `...dateRangeQuery('创建时间')`（非标准键名如 `startAt` / `dateStart` 才逐个
+  `dateRangeBound(desc, 'start' | 'end')`，止端必须标 `'end'`）；
   `packages/shared/eslint.config.js` 对 `src/*/contracts/**` 封禁 `startTime` / `endTime` 键下的 `dateRangeBound()`、
   `xxxId` 键下手写的 `z.coerce.number().int().positive().optional()` 与 `keyword` 键下直写的 `z.string().optional()[.meta()]`；
-  查询串布尔 `queryBool()`、查询串枚举筛选 `queryEnum(XXX_VALUES)`（空串 = 未筛选）、
-  启用 / 禁用状态筛选 `entityStatusQuery`；
+  查询串布尔 `queryBool()`、查询串枚举筛选 `queryEnum(XXX_VALUES, { description, dict | options })`（空串 = 未筛选；
+  标签来源写 `dict: '字典编码'` 或 `options: XXX_OPTIONS`，前端筛选下拉据此取标签）、启用 / 禁用状态筛选 `entityStatusQuery`；
+  这些查询积木都写入 `x-filter` 语义（`core/filter-meta.ts`），**只描述参数是什么，不放控件名**；
   批量 ID `batchIdsBody`；审计列 `...auditFieldsSchema`；业务请求头 `headers: z.object({...})`；
   上传 `multipart(z.object({ file: fileField() }))`；非 JSON 响应 `kind: 'excel' | 'csv' | 'file' | 'sse'`。
   query 里**禁止**裸写 `z.enum([...]).optional()` / `xxxEnumSchema.optional()`、`z.coerce.boolean()`、`z.enum(['true', 'false'])`、
@@ -311,7 +314,7 @@
   纯日期时起点取 `00:00:00`、终点取 `23:59:59.999`；`parseDateTimeInput()` **只**用于单点时间
   （`scheduledAt` / `expireAt` 等实体字段）——它把 `2026-08-01` 解析成 `00:00:00`，用作范围终点会漏掉整天数据
 - **范围端点查询参数必须校验格式**：契约查询参数标准 `startTime` / `endTime` 用 `...dateRangeQuery('说明')`，
-  其它键名用 `dateRangeBound('说明')`（均来自 `@zenith/shared/core`），
+  其它键名用 `dateRangeBound('说明', 'start' | 'end')`（均来自 `@zenith/shared/core`），
   同时接受 `YYYY-MM-DD` 与 `YYYY-MM-DD HH:mm:ss`；**禁止**裸 `z.string().optional()`——
   `?endTime=abc` 会被静默当成「无筛选」返回全量数据
 - **Mock**：`mockDateTime()`（`mocks/utils/date.ts`）

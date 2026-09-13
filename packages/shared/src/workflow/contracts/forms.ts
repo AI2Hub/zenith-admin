@@ -30,7 +30,7 @@ export type WorkflowForm = z.infer<typeof workflowFormSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const workflowFormListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 编码模糊匹配'),
+  keyword: keywordQuery('名称 / 编码'),
   status: entityStatusQuery,
   categoryId: z.coerce.number().int().optional(),
 });

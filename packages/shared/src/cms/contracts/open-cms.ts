@@ -120,7 +120,7 @@ export const openCmsContentListQuery = openCmsSiteCodeQuery.extend({
   isHot: z.string().optional(),
   isOriginal: z.string().optional(),
   publishedFrom: dateRangeBound('发布时间起'),
-  publishedTo: dateRangeBound('发布时间止'),
+  publishedTo: dateRangeBound('发布时间止', 'end'),
   sort: z.string().max(200).optional().meta({ example: '-publishedAt', description: `可用字段：${CMS_OPEN_SORT_FIELDS.join(', ')}；前缀 - 为倒序` }),
   fields: z.string().max(500).optional().meta({ description: '字段裁剪，逗号分隔；id 始终返回' }),
   include: z.string().max(200).optional().meta({ description: `关联展开：${CMS_OPEN_INCLUDES.join(', ')}` }),

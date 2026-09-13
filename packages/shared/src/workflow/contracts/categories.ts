@@ -24,7 +24,7 @@ export type WorkflowCategory = z.infer<typeof workflowCategorySchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const workflowCategoryListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 编码模糊匹配'),
+  keyword: keywordQuery('名称 / 编码'),
 });
 
 export const workflowCategoryContract = defineContract('/api/workflows/categories', {

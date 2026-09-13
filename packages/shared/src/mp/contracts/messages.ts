@@ -46,7 +46,7 @@ export const mpMessageListQuery = paginationQuery.extend({
   openid: z.string().optional().meta({ description: '只看某个粉丝的会话' }),
   direction: queryEnum(MP_MESSAGE_DIRECTIONS),
   msgType: queryEnum(MP_MESSAGE_TYPES),
-  keyword: keywordQuery('按消息内容模糊匹配'),
+  keyword: keywordQuery('消息内容'),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

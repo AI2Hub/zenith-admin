@@ -42,7 +42,7 @@ export type InAppUnreadCount = z.infer<typeof inAppUnreadCountSchema>;
 
 
 export const inAppMessageListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按标题模糊匹配'),
+  keyword: keywordQuery('标题'),
   type: queryEnum(IN_APP_MESSAGE_TYPES),
   isRead: queryBool(),
 });

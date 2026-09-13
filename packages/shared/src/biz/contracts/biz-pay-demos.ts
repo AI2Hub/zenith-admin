@@ -36,7 +36,7 @@ export type BizPayDemoPayResult = z.infer<typeof bizPayDemoPayResultSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const bizPayDemoListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按事项名称模糊匹配'),
+  keyword: keywordQuery('事项名称'),
   status: queryEnum(BIZ_PAY_DEMO_STATUSES).meta({ description: '按业务状态过滤' }),
 });
 

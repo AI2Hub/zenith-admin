@@ -25,7 +25,7 @@ export type MpDraft = z.infer<typeof mpDraftSchema>;
 
 export const mpDraftListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
-  keyword: keywordQuery('按标题模糊匹配'),
+  keyword: keywordQuery('标题'),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

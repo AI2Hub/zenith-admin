@@ -30,7 +30,7 @@ export type BizLeave = z.infer<typeof bizLeaveSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const bizLeaveListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按事由模糊匹配'),
+  keyword: keywordQuery('事由'),
   status: queryEnum(BIZ_LEAVE_STATUSES).meta({ description: '按业务状态过滤' }),
 });
 

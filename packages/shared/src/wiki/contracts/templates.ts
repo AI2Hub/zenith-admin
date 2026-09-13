@@ -22,7 +22,7 @@ export type WikiTemplate = z.infer<typeof wikiTemplateSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const wikiTemplateListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 描述模糊匹配'),
+  keyword: keywordQuery('名称 / 描述'),
   status: entityStatusQuery,
 });
 

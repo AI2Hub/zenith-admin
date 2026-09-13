@@ -10,7 +10,7 @@ export const aiAuditMessageQuery = paginationQuery.extend({
   userId: idQuery('按用户 ID 筛选'),
   role: queryEnum(['user', 'assistant'] as const, '按消息角色筛选'),
   startDate: dateRangeBound('时间起（YYYY-MM-DD）'),
-  endDate: dateRangeBound('时间止（YYYY-MM-DD）'),
+  endDate: dateRangeBound('时间止（YYYY-MM-DD）', 'end'),
 });
 
 // ─── 契约：对话内容合规审计（管理员） ─────────────────────────────────────────

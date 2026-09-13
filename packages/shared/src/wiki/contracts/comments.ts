@@ -45,7 +45,7 @@ export const wikiCommentSchema: z.ZodType<WikiComment> = lazyRecursive(() => z.o
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const wikiCommentListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按评论内容模糊匹配'),
+  keyword: keywordQuery('评论内容'),
   status: queryEnum(WIKI_COMMENT_STATUSES),
   docId: idQuery(),
   ...dateRangeQuery('评论时间'),

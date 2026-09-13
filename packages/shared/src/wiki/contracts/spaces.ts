@@ -41,7 +41,7 @@ export type WikiSpaceMember = z.infer<typeof wikiSpaceMemberSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const wikiSpaceListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 描述模糊匹配'),
+  keyword: keywordQuery('名称 / 描述'),
   visibility: queryEnum(WIKI_SPACE_VISIBILITIES),
   status: entityStatusQuery,
 });

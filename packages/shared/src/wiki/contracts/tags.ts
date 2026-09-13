@@ -25,7 +25,7 @@ export type WikiDocTag = z.infer<typeof wikiDocTagSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const wikiTagListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称模糊匹配'),
+  keyword: keywordQuery('名称'),
 });
 
 export const wikiTagContract = defineContract('/api/wiki/tags', {

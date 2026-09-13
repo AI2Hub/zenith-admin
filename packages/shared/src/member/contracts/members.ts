@@ -102,7 +102,7 @@ export type MemberOverview = z.infer<typeof memberOverviewSchema>;
 // ─── 契约（后台） ────────────────────────────────────────────────────────────
 
 export const memberListQuery = paginationQuery.extend({
-  keyword: keywordQuery('昵称 / 手机号 / 用户名 / 邮箱模糊匹配'),
+  keyword: keywordQuery('昵称 / 手机号 / 用户名 / 邮箱'),
   status: queryEnum(MEMBER_STATUSES),
   levelId: idQuery(),
   tagId: idQuery(),
@@ -113,10 +113,10 @@ export const memberOptionsQuery = z.object({
 });
 
 export const memberLoginLogListQuery = paginationQuery.extend({
-  keyword: keywordQuery('会员昵称 / 手机号 / 用户名模糊匹配；纯数字额外按会员 ID 精确匹配'),
+  keyword: keywordQuery('会员昵称 / 手机号 / 用户名', { description: '按会员昵称 / 手机号 / 用户名模糊匹配；纯数字额外按会员 ID 精确匹配' }),
   status: queryEnum(LOGIN_STATUSES),
   dateStart: dateRangeBound('起始日期'),
-  dateEnd: dateRangeBound('结束日期'),
+  dateEnd: dateRangeBound('结束日期', 'end'),
 });
 
 export const memberContract = defineContract('/api/members', {

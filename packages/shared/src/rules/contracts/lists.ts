@@ -56,12 +56,12 @@ export type RuleListCheckResult = z.infer<typeof ruleListCheckResultSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const ruleListListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称模糊匹配'),
+  keyword: keywordQuery('名称'),
   type: queryEnum(RULE_LIST_TYPES),
 });
 
 export const ruleListItemListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按条目值模糊匹配'),
+  keyword: keywordQuery('条目值'),
 });
 
 export const ruleListItemParam = idParam.extend({

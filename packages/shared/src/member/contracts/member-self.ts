@@ -102,7 +102,7 @@ export const memberCouponListQuery = paginationQuery.extend({ status: queryEnum(
 
 export const memberCheckinHistoryQuery = paginationQuery.extend({
   dateStart: dateRangeBound('起始日期'),
-  dateEnd: dateRangeBound('结束日期'),
+  dateEnd: dateRangeBound('结束日期', 'end'),
 });
 
 export const memberNotificationListQuery = paginationQuery.extend({ unreadOnly: queryBool('仅未读') });

@@ -30,7 +30,7 @@ export type MpQrcode = z.infer<typeof mpQrcodeSchema>;
 export const mpQrcodeListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
   type: queryEnum(MP_QRCODE_TYPES),
-  keyword: keywordQuery('按名称 / 场景值模糊匹配'),
+  keyword: keywordQuery('名称 / 场景值'),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

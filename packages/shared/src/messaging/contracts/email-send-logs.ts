@@ -37,7 +37,7 @@ export type EmailSendResult = z.infer<typeof emailSendResultSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const emailSendLogListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按主题模糊匹配'),
+  keyword: keywordQuery('主题'),
   toEmail: z.string().optional(),
   status: queryEnum(SEND_STATUSES),
   source: queryEnum(SEND_SOURCES),

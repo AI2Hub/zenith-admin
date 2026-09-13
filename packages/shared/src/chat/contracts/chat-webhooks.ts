@@ -26,7 +26,7 @@ export type ChatWebhook = z.infer<typeof chatWebhookSchema>;
 // ─── 契约：后台管理 ──────────────────────────────────────────────────────────
 
 export const chatBotListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称模糊匹配'),
+  keyword: keywordQuery('名称'),
 });
 
 export const chatBotContract = defineContract('/api/chat-bots', {

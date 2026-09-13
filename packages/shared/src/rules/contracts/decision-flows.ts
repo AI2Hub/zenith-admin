@@ -60,7 +60,7 @@ export type RuleFlowEvaluateResult = z.infer<typeof ruleFlowEvaluateResultSchema
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const decisionFlowListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称模糊匹配'),
+  keyword: keywordQuery('名称'),
   status: queryEnum(RULE_DECISION_STATUSES),
 });
 

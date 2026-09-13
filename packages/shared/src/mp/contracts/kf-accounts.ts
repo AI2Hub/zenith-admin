@@ -27,7 +27,7 @@ export type MpKfAccount = z.infer<typeof mpKfAccountSchema>;
 
 export const mpKfAccountListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
-  keyword: keywordQuery('按客服昵称模糊匹配'),
+  keyword: keywordQuery('客服昵称'),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

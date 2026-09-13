@@ -76,7 +76,7 @@ export const chatInviteTokenParam = z.object({
 });
 
 export const chatUserSearchQuery = z.object({
-  keyword: keywordQuery('按昵称 / 用户名模糊匹配'),
+  keyword: keywordQuery('昵称 / 用户名'),
 });
 
 export const chatPresenceQuery = z.object({
@@ -99,7 +99,7 @@ export const chatMessageSearchQuery = paginationQuery.extend({
   types: z.string().optional().meta({ description: '逗号分隔的消息类型', example: 'text,image' }),
   senderId: idQuery(),
   startAt: dateRangeBound('起始时间'),
-  endAt: dateRangeBound('结束时间'),
+  endAt: dateRangeBound('结束时间', 'end'),
 });
 
 export const chatMessageContextQuery = z.object({

@@ -115,7 +115,7 @@ export type OAuth2MyGrant = z.infer<typeof oauth2MyGrantSchema>;
 
 /** 应用列表筛选（管理端与开发者中心共用） */
 export const oauth2ClientListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按应用名称模糊匹配'),
+  keyword: keywordQuery('应用名称'),
   environment: queryEnum(OPEN_APP_ENVIRONMENTS),
   reviewStatus: queryEnum(OPEN_APP_REVIEW_STATUSES),
 });

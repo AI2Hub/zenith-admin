@@ -84,7 +84,7 @@ export type IotMaintenanceWindow = z.infer<typeof iotMaintenanceWindowSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const iotAlarmListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按规则名 / 告警内容 / 设备名 / SN 模糊匹配'),
+  keyword: keywordQuery('规则名 / 告警内容 / 设备名 / SN '),
   status: queryEnum(IOT_ALARM_STATUSES),
   level: queryEnum(IOT_ALARM_LEVELS),
   ruleType: queryEnum(IOT_ALARM_RULE_TYPES),

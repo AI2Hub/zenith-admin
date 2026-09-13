@@ -83,13 +83,13 @@ export type IotOtaPayload = z.infer<typeof iotOtaPayloadSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const iotFirmwareListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按版本 / 文件名模糊匹配'),
+  keyword: keywordQuery('版本 / 文件名'),
   productId: idQuery(),
   status: entityStatusQuery,
 });
 
 export const iotOtaTaskListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按任务标题 / 目标版本模糊匹配'),
+  keyword: keywordQuery('任务标题 / 目标版本'),
   productId: idQuery(),
   status: queryEnum(IOT_OTA_TASK_STATUSES),
 });

@@ -26,7 +26,7 @@ export type RatePlan = z.infer<typeof ratePlanSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const ratePlanListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按编码 / 名称模糊匹配'),
+  keyword: keywordQuery('编码 / 名称'),
   status: entityStatusQuery,
 });
 

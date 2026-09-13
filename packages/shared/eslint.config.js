@@ -82,11 +82,11 @@ export default tseslint.config(
         },
         {
           selector: "Property[key.name='keyword'] > CallExpression[callee.property.name='optional'][callee.object.callee.property.name='string'][callee.object.callee.object.name='z']",
-          message: "列表查询的关键字参数请用 keywordQuery('按 X / Y 模糊匹配')（core/api-schemas），不要直写 z.string().optional()；带 .max() / .trim() 约束的关键字才逐个书写。",
+          message: "列表查询的关键字参数请用 keywordQuery('X / Y')（core/api-schemas），不要直写 z.string().optional()；带 .max() / .trim() 约束的关键字才逐个书写。",
         },
         {
           selector: "Property[key.name='keyword'] > CallExpression[callee.property.name='meta'][callee.object.callee.property.name='optional'][callee.object.callee.object.callee.property.name='string'][callee.object.callee.object.callee.object.name='z']",
-          message: "列表查询的关键字参数请用 keywordQuery('按 X / Y 模糊匹配')（core/api-schemas），不要直写 z.string().optional().meta({ description })。",
+          message: "列表查询的关键字参数请用 keywordQuery('X / Y')（core/api-schemas），不要直写 z.string().optional().meta({ description })。",
         },
       ],
     },

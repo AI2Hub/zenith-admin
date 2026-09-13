@@ -76,7 +76,7 @@ export type ShortLinkStats = z.infer<typeof shortLinkStatsSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const shortLinkListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按短码 / 标题 / 目标地址模糊匹配'),
+  keyword: keywordQuery('短码 / 标题 / 目标地址'),
   status: entityStatusQuery,
   bizType: queryEnum(SHORT_LINK_BIZ_TYPES),
   ...dateRangeQuery('创建时间'),

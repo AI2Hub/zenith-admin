@@ -39,7 +39,7 @@ export const regionSchema: z.ZodType<Region> = lazyRecursive(() => z.object({
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const regionTreeQuery = z.object({
-  keyword: keywordQuery('按名称 / 区划代码模糊匹配'),
+  keyword: keywordQuery('名称 / 区划代码'),
   status: entityStatusQuery,
   level: queryEnum(REGION_LEVELS),
 });

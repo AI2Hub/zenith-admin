@@ -133,7 +133,7 @@ export const reportAssetCatalogQuery = paginationQuery.extend({
   lifecycle: z.string().max(32).optional(),
   status: z.string().max(32).optional(),
   updatedStart: dateRangeBound('更新时间起'),
-  updatedEnd: dateRangeBound('更新时间止'),
+  updatedEnd: dateRangeBound('更新时间止', 'end'),
 });
 
 export const reportAssetUsageParam = z.object({

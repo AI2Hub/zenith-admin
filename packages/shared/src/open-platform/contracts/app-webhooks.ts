@@ -92,7 +92,7 @@ export type OpenWebhookEventMeta = z.infer<typeof openWebhookEventMetaSchema>;
 export const appWebhookListQuery = paginationQuery.extend({
   clientId: z.string().optional(),
   status: entityStatusQuery,
-  keyword: keywordQuery('按名称 / 回调地址模糊匹配'),
+  keyword: keywordQuery('名称 / 回调地址'),
 });
 
 export const appWebhookDeliveryListQuery = paginationQuery.extend({

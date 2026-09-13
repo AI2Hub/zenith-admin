@@ -69,7 +69,7 @@ export const reportDeliveryRunListQuery = paginationQuery.extend({
   status: queryEnum(REPORT_DELIVERY_STATUSES),
   triggerType: queryEnum(REPORT_DELIVERY_TRIGGER_TYPES),
   startAt: dateRangeBound('起始时间'),
-  endAt: dateRangeBound('结束时间'),
+  endAt: dateRangeBound('结束时间', 'end'),
   includeAttempts: queryBool('附带每次尝试明细'),
 });
 

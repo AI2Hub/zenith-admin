@@ -149,7 +149,7 @@ export type DirectorySyncConnectionTest = z.infer<typeof directorySyncConnection
 // ─── 契约：同步源 ────────────────────────────────────────────────────────────
 
 export const directorySyncSourceListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称模糊匹配'),
+  keyword: keywordQuery('名称'),
   type: queryEnum(DIRECTORY_SYNC_SOURCE_TYPES),
   status: entityStatusQuery,
 });
@@ -179,7 +179,7 @@ export const directorySyncRunItemListQuery = paginationQuery.extend({
 });
 
 export const directorySyncConflictListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按外部 ID / 名称模糊匹配'),
+  keyword: keywordQuery('外部 ID / 名称'),
   sourceId: idQuery(),
   status: queryEnum(DIRECTORY_SYNC_CONFLICT_STATUSES),
 });

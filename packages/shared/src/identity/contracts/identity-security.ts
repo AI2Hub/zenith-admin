@@ -24,7 +24,7 @@ export type LoginRiskEvent = z.infer<typeof loginRiskEventSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const loginRiskEventListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按用户名 / 原因 / IP 模糊匹配'),
+  keyword: keywordQuery('用户名 / 原因 / IP '),
 });
 
 export const identitySecurityContract = defineContract('/api/identity-security', {

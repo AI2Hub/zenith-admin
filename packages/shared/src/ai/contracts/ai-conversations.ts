@@ -93,7 +93,7 @@ export const aiFeedbackFilterQuery = z.object({
   status: queryEnum(AI_FEEDBACK_STATUSES, '处理状态筛选'),
   model: z.string().max(100).optional().meta({ description: '按模型筛选' }),
   startDate: dateRangeBound('反馈时间起（YYYY-MM-DD）'),
-  endDate: dateRangeBound('反馈时间止（YYYY-MM-DD）'),
+  endDate: dateRangeBound('反馈时间止（YYYY-MM-DD）', 'end'),
 });
 
 export const aiFeedbackListQuery = paginationQuery.extend(aiFeedbackFilterQuery.shape);

@@ -133,7 +133,7 @@ export type WikiDocReadReceipts = z.infer<typeof wikiDocReadReceiptsSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const wikiDocListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按标题 / 摘要 / 正文模糊匹配'),
+  keyword: keywordQuery('标题 / 摘要 / 正文'),
   spaceId: idQuery(),
   status: queryEnum(WIKI_DOC_STATUSES),
   tagId: idQuery(),
@@ -153,7 +153,7 @@ export const wikiDocTreeQuery = z.object({
 });
 
 export const wikiDocFavoriteListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按标题 / 摘要模糊匹配'),
+  keyword: keywordQuery('标题 / 摘要'),
 });
 
 export const wikiDocVersionParams = idParam.extend({

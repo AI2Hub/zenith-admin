@@ -27,7 +27,7 @@ export type MpMaterial = z.infer<typeof mpMaterialSchema>;
 export const mpMaterialListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
   type: queryEnum(MP_MATERIAL_TYPES),
-  keyword: keywordQuery('按素材名模糊匹配'),
+  keyword: keywordQuery('素材名'),
 });
 
 /** 二进制素材上传表单：字段以字符串提交，服务端解析后校验 */

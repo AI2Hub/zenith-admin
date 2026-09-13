@@ -43,7 +43,7 @@ export type MpUnmatchedKeyword = z.infer<typeof mpUnmatchedKeywordSchema>;
 export const mpAutoReplyListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
   replyType: queryEnum(MP_AUTO_REPLY_TYPES),
-  keyword: keywordQuery('按关键词模糊匹配'),
+  keyword: keywordQuery('关键词'),
 });
 
 export const mpUnmatchedKeywordListQuery = paginationQuery.extend({

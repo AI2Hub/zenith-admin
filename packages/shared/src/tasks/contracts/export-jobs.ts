@@ -115,7 +115,7 @@ export const exportJobListQuery = paginationQuery.extend({
   entity: z.string().optional(),
   status: queryEnum(EXPORT_JOB_STATUSES),
   format: queryEnum(EXPORT_JOB_FORMATS),
-  keyword: keywordQuery('匹配模块名 / 文件名 / 实体'),
+  keyword: keywordQuery('模块名 / 文件名 / 实体'),
   ...dateRangeQuery(),
 });
 

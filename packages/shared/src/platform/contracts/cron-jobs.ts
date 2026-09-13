@@ -254,7 +254,7 @@ export type CronValidateResult = z.infer<typeof cronValidateResultSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cronJobListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按任务名称模糊匹配'),
+  keyword: keywordQuery('任务名称'),
   status: entityStatusQuery,
 });
 
@@ -262,7 +262,7 @@ export const cronJobLogListQuery = paginationQuery.extend({
   jobId: idQuery(),
   status: queryEnum(CRON_RUN_STATUSES, '按执行状态筛选'),
   trigger: queryEnum(CRON_RUN_TRIGGERS, '按触发方式筛选'),
-  keyword: keywordQuery('按任务名称 / 输出模糊匹配'),
+  keyword: keywordQuery('任务名称 / 输出'),
   ...dateRangeQuery('开始时间'),
 });
 

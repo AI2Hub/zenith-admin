@@ -64,7 +64,7 @@ export type AiUsageStats = z.infer<typeof aiUsageStatsSchema>;
 
 export const aiUsageStatsQuery = z.object({
   startDate: dateRangeBound('起始日期 YYYY-MM-DD'),
-  endDate: dateRangeBound('结束日期 YYYY-MM-DD'),
+  endDate: dateRangeBound('结束日期 YYYY-MM-DD', 'end'),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

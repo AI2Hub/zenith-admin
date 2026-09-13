@@ -46,7 +46,7 @@ export type RoleUser = z.infer<typeof roleUserSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const roleListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 编码模糊匹配'),
+  keyword: keywordQuery('名称 / 编码'),
   status: entityStatusQuery,
   ...dateRangeQuery('创建时间'),
 });

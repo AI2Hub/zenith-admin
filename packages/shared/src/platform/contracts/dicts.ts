@@ -60,10 +60,10 @@ export const dictItemSchema: z.ZodType<DictItem> = lazyRecursive(() => z.object(
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const dictListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按字典名称 / 编码模糊匹配'),
+  keyword: keywordQuery('字典名称 / 编码'),
   status: entityStatusQuery,
   startDate: dateRangeBound('创建时间起'),
-  endDate: dateRangeBound('创建时间止'),
+  endDate: dateRangeBound('创建时间止', 'end'),
 });
 
 export const dictCodeParam = z.object({

@@ -22,7 +22,7 @@ export type Tag = z.infer<typeof tagSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const tagListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 描述模糊匹配'),
+  keyword: keywordQuery('名称 / 描述'),
   status: entityStatusQuery,
   groupName: z.string().optional(),
 });

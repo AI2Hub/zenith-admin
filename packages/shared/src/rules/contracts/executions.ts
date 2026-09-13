@@ -37,7 +37,7 @@ export const ruleExecutionListQuery = paginationQuery.extend({
   source: queryEnum(RULE_EXECUTION_SOURCES),
   matched: queryBool('仅命中 / 仅未命中'),
   dateStart: dateRangeBound('执行时间起'),
-  dateEnd: dateRangeBound('执行时间止'),
+  dateEnd: dateRangeBound('执行时间止', 'end'),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

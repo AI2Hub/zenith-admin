@@ -594,7 +594,7 @@ export const workflowJobListQuery = paginationQuery.extend({
   jobType: queryEnum(WORKFLOW_JOB_TYPES),
   status: queryEnum(WORKFLOW_JOB_STATUSES),
   instanceId: idQuery(),
-  keyword: keywordQuery('按幂等键 / traceId / 节点 key 模糊匹配'),
+  keyword: keywordQuery('幂等键 / traceId / 节点 key '),
 });
 
 export const workflowJobTraceParam = z.object({

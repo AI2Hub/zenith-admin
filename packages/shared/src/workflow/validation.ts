@@ -991,7 +991,7 @@ export const replayWorkflowEventDeliveriesSchema = z.object({
   eventType: z.enum(WORKFLOW_EVENT_TYPES).optional(),
   status: z.enum(['success', 'failed', 'pending', 'all']).optional(),
   startAt: dateRangeBound('起始时间'),
-  endAt: dateRangeBound('结束时间'),
+  endAt: dateRangeBound('结束时间', 'end'),
 });
 
 export type CreateWorkflowEventSubscriptionInput = z.input<typeof createWorkflowEventSubscriptionSchema>;

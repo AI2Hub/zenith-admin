@@ -79,7 +79,7 @@ export type UserGroupRulePreview = z.infer<typeof userGroupRulePreviewResultSche
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const userGroupListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 编码模糊匹配'),
+  keyword: keywordQuery('名称 / 编码'),
   status: entityStatusQuery,
 });
 

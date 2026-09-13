@@ -52,7 +52,7 @@
 - Web：`QueryOf<typeof xxxContract.list>`——客户端视角，带默认值的字段可省略。
 - 筛选条件需与导出中心等不带分页的调用方共用时，定义一个 `Omit<QueryOutputOf<…>, 'page' | 'pageSize'>` 的筛选类型。
 
-查询串里的启用 / 禁用状态筛选用 `entityStatusQuery`，其它枚举用 `queryEnum(XXX_VALUES)`，布尔用 `queryBool()`：三者都把筛选控件清空后发出的空串视为「全部」；`entityStatusSchema` 只用于请求体与实体字段。
+查询串里的启用 / 禁用状态筛选用 `entityStatusQuery`，其它枚举用 `queryEnum(XXX_VALUES, { dict | options })`（第二参数声明标签来源，前端筛选下拉据此取标签），布尔用 `queryBool()`：三者都把筛选控件清空后发出的空串视为「全部」；`entityStatusSchema` 只用于请求体与实体字段。
 
 ## 日期时间格式
 
@@ -61,7 +61,7 @@
 - 数据映射、导出和文件时间戳使用 `packages/server/src/lib/datetime.ts` 中的 `formatDateTime()` / `formatNullableDateTime()` / `formatDate()` / `formatFileTimestamp()`。
 - 单点时间入参使用 `parseDateTimeInput()`。
 - 范围端点使用 `parseDateRangeStart()` / `parseDateRangeEnd()`，或直接使用 `dateRangeConditions()`。
-- 路由查询 schema 中的范围端点用 `dateRangeBound('说明')`，接受 `YYYY-MM-DD` 与 `YYYY-MM-DD HH:mm:ss`。
+- 路由查询 schema 中的范围端点用 `...dateRangeQuery('说明')`（标准 `startTime` / `endTime`）或 `dateRangeBound('说明', 'start' | 'end')`（自定义键名），接受 `YYYY-MM-DD` 与 `YYYY-MM-DD HH:mm:ss`。
 - 业务接口契约不要使用 ISO datetime，数据映射不要直接 `toISOString()`。
 
 ## 认证方式

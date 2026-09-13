@@ -29,7 +29,7 @@ export type UserFeedback = z.infer<typeof userFeedbackSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const userFeedbackListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按反馈内容模糊匹配'),
+  keyword: keywordQuery('反馈内容'),
   category: queryEnum(USER_FEEDBACK_CATEGORIES),
   status: queryEnum(USER_FEEDBACK_STATUSES),
   ...dateRangeQuery('提交时间'),

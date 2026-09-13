@@ -169,11 +169,11 @@ export const channelKeywordQuery = z.object({
 });
 
 export const channelAdminListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 编码模糊匹配'),
+  keyword: keywordQuery('名称 / 编码'),
 });
 
 export const channelSubscriberListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按昵称 / 用户名模糊匹配'),
+  keyword: keywordQuery('昵称 / 用户名'),
 });
 
 // ─── 契约：频道本体 / 订阅 / 菜单 / 自动回复 / 订阅者 ────────────────────────

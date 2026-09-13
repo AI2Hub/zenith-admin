@@ -120,13 +120,15 @@ export type Xxx = z.infer<typeof xxxSchema>;
 export const xxxOptionSchema = xxxSchema.pick({ id: true, name: true, status: true }).meta({ id: 'XxxOption' });
 export type XxxOption = z.infer<typeof xxxOptionSchema>;
 
-// ─── 列表查询参数：分页 + 筛选。关键字用 keywordQuery（描述写明匹配的字段），启用 / 禁用状态用 entityStatusQuery，
-//     其它枚举用 queryEnum（空串 = 全部），标准 startTime / endTime 范围用 ...dateRangeQuery('作用的时间字段')
-//     （非标准键名才逐个 dateRangeBound）；不导出 z.infer 类型——server 用 QueryOutputOf、web 用 QueryOf 从契约操作派生 ──
+// ─── 列表查询参数：分页 + 筛选。关键字用 keywordQuery（写人可读的匹配字段，派生 OpenAPI 描述与前端占位），
+//     启用 / 禁用状态用 entityStatusQuery，其它枚举用 queryEnum（空串 = 全部；第二参数 { dict } 或 { options } 声明标签来源），
+//     标准 startTime / endTime 范围用 ...dateRangeQuery('作用的时间字段')（非标准键名才逐个 dateRangeBound(desc, 'start' | 'end')）。
+//     这些积木都写入 x-filter 语义（core/filter-meta.ts），前端 useListPage 的 filters() 据此派生筛选控件；
+//     不导出 z.infer 类型——server 用 QueryOutputOf、web 用 QueryOf 从契约操作派生 ──
 export const xxxListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 描述模糊匹配'),
+  keyword: keywordQuery('名称 / 描述'),
   status: entityStatusQuery,
-  type: queryEnum(XXX_TYPES),
+  type: queryEnum(XXX_TYPES, { description: '类型；空 = 全部', options: XXX_TYPE_OPTIONS }),
   ...dateRangeQuery('创建时间'),
 });
 
@@ -147,8 +149,9 @@ export const xxxContract = defineContract('/api/xxxs', {
 - 公开接口：`public: true`；设备签名 / 开放网关鉴权的接口：`security: 'device-signature' | 'open-gateway'`
   （默认 Bearer 登录令牌；凭证校验仍由 `middleware` 完成）；额外文档说明：`description`
 - 自定义路径参数：`params: z.object({ code: z.string().meta({ description: '编码', example: 'demo' }) })`
-- 查询串积木：布尔 `queryBool()`、枚举筛选 `queryEnum(XXX_VALUES)`、启用 / 禁用状态 `entityStatusQuery`
-  （三者都把空串视为未传，handler 无需再 `|| undefined`）、关键字 `keywordQuery(description?)`；`entityStatusSchema` 只用于请求体 / 实体字段
+- 查询串积木：布尔 `queryBool()`、枚举筛选 `queryEnum(XXX_VALUES, { dict | options })`、启用 / 禁用状态 `entityStatusQuery`
+  （三者都把空串视为未传，handler 无需再 `|| undefined`）、关键字 `keywordQuery(fields?)`、关联 ID `idQuery()`；
+  `entityStatusSchema` 只用于请求体 / 实体字段。积木的 `x-filter` 语义只描述参数是什么（匹配字段、标签来源），不放控件名
 - 业务请求头（如幂等键）：`headers: z.object({ 'x-idempotency-key': z.string().min(8).max(128) })`，键为小写头名；
   服务端 `c.req.valid('header')`，客户端在输入的 `headers` 段提供；认证头不在契约声明
 

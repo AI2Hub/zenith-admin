@@ -49,7 +49,7 @@ export const iotWhitelistStatsQuery = z.object({
 });
 
 export const iotWhitelistListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按 SN 模糊匹配'),
+  keyword: keywordQuery(' SN '),
   productId: idQuery(),
   used: queryBool('是否已核销'),
 });

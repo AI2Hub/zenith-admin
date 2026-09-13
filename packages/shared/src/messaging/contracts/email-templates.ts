@@ -23,7 +23,7 @@ export type EmailTemplate = z.infer<typeof emailTemplateSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const emailTemplateListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 编码模糊匹配'),
+  keyword: keywordQuery('名称 / 编码'),
   status: entityStatusQuery,
 });
 

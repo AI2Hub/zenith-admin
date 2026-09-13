@@ -67,7 +67,7 @@ export type MarketingParticipation = z.infer<typeof marketingParticipationSchema
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const marketingCampaignListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按活动名称 / 说明模糊匹配'),
+  keyword: keywordQuery('活动名称 / 说明'),
   status: queryEnum(MARKETING_CAMPAIGN_STATUSES),
   ...dateRangeQuery('创建时间'),
 });

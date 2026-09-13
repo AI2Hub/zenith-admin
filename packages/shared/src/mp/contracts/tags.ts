@@ -23,7 +23,7 @@ export type MpTag = z.infer<typeof mpTagSchema>;
 
 export const mpTagListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
-  keyword: keywordQuery('按标签名模糊匹配'),
+  keyword: keywordQuery('标签名'),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

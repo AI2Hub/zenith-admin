@@ -40,7 +40,7 @@ export type PositionMember = z.infer<typeof positionMemberSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const positionListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 编码模糊匹配'),
+  keyword: keywordQuery('名称 / 编码'),
   status: entityStatusQuery,
   ...dateRangeQuery('创建时间'),
 });

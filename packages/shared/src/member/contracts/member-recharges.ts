@@ -37,7 +37,7 @@ export const memberRechargeListQuery = paginationQuery.extend({
   status: queryEnum(MEMBER_RECHARGE_STATUSES),
   channel: queryEnum(PAYMENT_CHANNELS),
   dateStart: dateRangeBound('起始日期'),
-  dateEnd: dateRangeBound('结束日期'),
+  dateEnd: dateRangeBound('结束日期', 'end'),
 });
 
 export const memberRechargeContract = defineContract('/api/member-recharges', {

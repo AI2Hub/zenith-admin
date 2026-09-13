@@ -21,7 +21,7 @@ export type IotDeviceGroup = z.infer<typeof iotDeviceGroupSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const iotDeviceGroupListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 描述模糊匹配'),
+  keyword: keywordQuery('名称 / 描述'),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

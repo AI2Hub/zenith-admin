@@ -84,7 +84,7 @@ const rangeQueryFields = {
   datasetId: idQuery(),
   datasourceId: idQuery(),
   start: dateRangeBound('起始时间'),
-  end: dateRangeBound('结束时间'),
+  end: dateRangeBound('结束时间', 'end'),
 };
 
 export const reportQueryCostRangeQuery = z.object(rangeQueryFields);
@@ -101,7 +101,7 @@ export const reportQueryCostLogListQuery = paginationQuery.extend({
   scene: z.string().max(64).optional(),
   success: queryBool(),
   start: dateRangeBound('起始时间'),
-  end: dateRangeBound('结束时间'),
+  end: dateRangeBound('结束时间', 'end'),
 });
 
 export const reportQuotaUsageQuery = z.object({

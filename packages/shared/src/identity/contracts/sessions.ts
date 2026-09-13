@@ -23,7 +23,7 @@ export type OnlineSession = z.infer<typeof onlineSessionSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const sessionListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按用户名 / 昵称 / IP 模糊匹配'),
+  keyword: keywordQuery('用户名 / 昵称 / IP '),
 });
 
 export const sessionContract = defineContract('/api/sessions', {

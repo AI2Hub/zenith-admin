@@ -12,7 +12,7 @@ export const openIotDeviceSnParam = z.object({
 });
 
 export const openIotDeviceListQuery = paginationQuery.extend({
-  keyword: keywordQuery('SN / 名称模糊搜索'),
+  keyword: keywordQuery('SN / 名称'),
   productId: idQuery(),
   status: entityStatusQuery,
 });

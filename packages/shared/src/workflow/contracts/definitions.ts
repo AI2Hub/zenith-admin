@@ -293,7 +293,7 @@ export type WorkflowDefinitionHealthReport = z.infer<typeof workflowDefinitionHe
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const workflowDefinitionListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称模糊匹配'),
+  keyword: keywordQuery('名称'),
   status: queryEnum(WORKFLOW_DEFINITION_STATUSES),
   categoryId: z.coerce.number().int().optional(),
 });

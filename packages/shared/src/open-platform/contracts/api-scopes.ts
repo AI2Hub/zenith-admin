@@ -24,7 +24,7 @@ export type ApiScope = z.infer<typeof apiScopeSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const apiScopeListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按编码 / 名称模糊匹配'),
+  keyword: keywordQuery('编码 / 名称'),
   scopeGroup: z.string().optional(),
   status: entityStatusQuery,
 });

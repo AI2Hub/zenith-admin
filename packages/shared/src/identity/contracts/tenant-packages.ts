@@ -32,7 +32,7 @@ export type TenantPackageOption = z.infer<typeof tenantPackageOptionSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const tenantPackageListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称模糊匹配'),
+  keyword: keywordQuery('名称'),
   status: entityStatusQuery,
 });
 

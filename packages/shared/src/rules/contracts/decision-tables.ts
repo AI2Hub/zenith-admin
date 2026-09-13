@@ -216,7 +216,7 @@ export type RuleSimulateResult = z.infer<typeof ruleSimulateResultSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const decisionTableListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称模糊匹配'),
+  keyword: keywordQuery('名称'),
   status: queryEnum(RULE_DECISION_STATUSES),
 });
 

@@ -25,7 +25,7 @@ export type InAppTemplate = z.infer<typeof inAppTemplateSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const inAppTemplateListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 编码模糊匹配'),
+  keyword: keywordQuery('名称 / 编码'),
   type: queryEnum(IN_APP_MESSAGE_TYPES),
   status: entityStatusQuery,
 });

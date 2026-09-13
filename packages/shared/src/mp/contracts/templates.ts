@@ -57,7 +57,7 @@ export type MpBatchSendResult = z.infer<typeof mpBatchSendResultSchema>;
 
 export const mpTemplateListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
-  keyword: keywordQuery('按模板标题模糊匹配'),
+  keyword: keywordQuery('模板标题'),
 });
 
 export const mpTemplateSendLogListQuery = paginationQuery.extend({

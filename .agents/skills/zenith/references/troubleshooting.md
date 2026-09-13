@@ -128,7 +128,7 @@ ESM 值环导致 TDZ：某域 `validation.ts` 引用了另一域 `validation.ts`
 **症状**：`?endTime=abc` 或 `?endTime=2026/08/01` 不报错，返回未经筛选的全量列表。
 
 查询参数声明成了裸 `z.string().optional()`，Zod 放行后解析函数返回 `null`，条件被静默丢弃。
-改用 `dateRangeBound('说明')`（`@zenith/shared/core`），非法输入直接 400。
+改用 `dateRangeBound('说明', 'start' | 'end')`（`@zenith/shared/core`），非法输入直接 400。
 
 ### 关键字搜索把 `%` 当通配符 / 搜不到含下划线的内容
 

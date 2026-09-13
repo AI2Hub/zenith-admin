@@ -26,7 +26,7 @@ export type SmsTemplate = z.infer<typeof smsTemplateSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const smsTemplateListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 编码模糊匹配'),
+  keyword: keywordQuery('名称 / 编码'),
   provider: queryEnum(SMS_PROVIDERS),
   status: entityStatusQuery,
 });

@@ -91,7 +91,7 @@ export type MemberMilestoneStatus = z.infer<typeof memberMilestoneStatusSchema>;
 export const memberCheckinListQuery = paginationQuery.extend({
   memberKeyword: z.string().optional().meta({ description: '会员昵称 / 手机号 / 用户名模糊匹配；纯数字额外按会员 ID 精确匹配' }),
   dateStart: dateRangeBound('起始日期'),
-  dateEnd: dateRangeBound('结束日期'),
+  dateEnd: dateRangeBound('结束日期', 'end'),
 });
 
 export const memberCheckinCalendarQuery = z.object({

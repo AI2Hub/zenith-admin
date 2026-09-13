@@ -9,6 +9,7 @@ export * from './compare';
 export * from './constants';
 export * from './contract';
 export * from './enum-options';
+export * from './filter-meta';
 export * from './format';
 export * from './json';
 export * from './math';

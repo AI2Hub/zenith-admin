@@ -27,7 +27,7 @@ export type SmsConfig = z.infer<typeof smsConfigSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const smsConfigListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 签名模糊匹配'),
+  keyword: keywordQuery('名称 / 签名'),
   provider: queryEnum(SMS_PROVIDERS),
   status: entityStatusQuery,
 });

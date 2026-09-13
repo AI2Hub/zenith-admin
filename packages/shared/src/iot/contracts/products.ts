@@ -91,7 +91,7 @@ export type IotThingModel = z.infer<typeof iotThingModelSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const iotProductListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 描述模糊匹配'),
+  keyword: keywordQuery('名称 / 描述'),
   status: entityStatusQuery,
 });
 

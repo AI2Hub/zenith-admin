@@ -62,7 +62,7 @@ export type RevealedSensitiveValue = z.infer<typeof revealedSensitiveValueSchema
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const dataMaskFieldListQuery = z.object({
-  keyword: keywordQuery('按实体 / 字段 / 标签模糊匹配'),
+  keyword: keywordQuery('实体 / 字段 / 标签'),
   entity: z.string().optional(),
   maskType: queryEnum(MASK_TYPES, '生效脱敏类型'),
   enabled: queryBool('是否启用'),

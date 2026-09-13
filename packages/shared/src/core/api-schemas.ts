@@ -1,11 +1,13 @@
 import * as z from 'zod';
 import { USER_STATUSES } from './constants';
+import { filterMeta, type FilterMetaOption } from './filter-meta';
 
 /**
  * 契约层通用 schema 积木：路径 / 分页 / 状态 / 审计列 / 响应信封。
  *
  * OpenAPI 元数据一律用 zod 原生 `.meta()`：`id` 为组件名（`#/components/schemas/{id}`），
  * `description` / `example` 直接进入文档；server 端不对 shared schema 施加任何补丁。
+ * 列表查询积木同时写入 `x-filter` 语义（见 `filter-meta.ts`），前端筛选控件由此派生。
  */
 
 // ─── 通用状态 ────────────────────────────────────────────────────────────────
@@ -25,18 +27,24 @@ export const idParam = z.object({
  * 与路径参数 `idParam` 对称；列表查询里的 `xxxId` 一律用它，不再逐个写 `z.coerce.number().int().positive().optional()`。
  */
 export function idQuery(description?: string) {
-  const schema = z.coerce.number().int().positive().optional();
-  return description ? schema.meta({ description }) : schema;
+  return z.coerce.number().int().positive().optional().meta({ ...(description ? { description } : {}), ...filterMeta({ kind: 'id' }) });
+}
+
+export interface KeywordQueryOptions {
+  /** 覆盖自动生成的 OpenAPI 描述（匹配规则有额外说明时，如「纯数字额外按 ID 精确匹配」） */
+  readonly description?: string;
 }
 
 /**
  * 列表查询的关键字模糊匹配参数（`?keyword=…`）：可选字符串，缺省不过滤。
- * `description` 写明匹配的字段（「按名称 / 编码模糊匹配」），缺省为通用描述；
+ * `fields` 写人可读的匹配字段（「名称 / 编码」）：OpenAPI 描述生成「按名称 / 编码模糊匹配」，
+ * 前端筛选控件的占位生成「搜索名称 / 编码」——匹配哪些字段只在契约里说一次。
  * 服务端配合 `keywordCondition(q.keyword, [cols])`（trim / 判空 / 转义都在那里）。
  * 带长度上限或 `.trim()` 的关键字仍逐个书写，不套本积木。
  */
-export function keywordQuery(description = '关键字模糊匹配') {
-  return z.string().optional().meta({ description });
+export function keywordQuery(fields?: string, options: KeywordQueryOptions = {}) {
+  const description = options.description ?? (fields ? `按${fields}模糊匹配` : '关键字模糊匹配');
+  return z.string().optional().meta({ description, ...filterMeta({ kind: 'keyword', ...(fields ? { fields } : {}) }) });
 }
 
 /** 分页查询参数；列表接口用 `paginationQuery.extend({ ... })` 追加筛选字段 */
@@ -53,24 +61,24 @@ export type PaginationQuery = z.infer<typeof paginationQuery>;
  * 同时接受 `YYYY-MM-DD` 与 `YYYY-MM-DD HH:mm:ss`，非法输入直接 400 而不是被当成「无筛选」。
  * 服务端配合 `dateRangeConditions()` 解析：纯日期起点取 00:00:00、终点取 23:59:59.999。
  */
-export function dateRangeBound(description: string) {
+export function dateRangeBound(description: string, bound: 'start' | 'end' = 'start') {
   return z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/, '时间格式必须为 YYYY-MM-DD 或 YYYY-MM-DD HH:mm:ss')
     .optional()
-    .meta({ description, example: '2026-08-01 00:00:00' });
+    .meta({ description, example: '2026-08-01 00:00:00', ...filterMeta({ kind: 'date-bound', bound }) });
 }
 
 /**
  * 列表查询的标准时间范围端点 `startTime` / `endTime`，展开进 `paginationQuery.extend({ ..., ...dateRangeQuery('创建时间') })`。
  * `subject` 写明作用的时间字段（描述生成「创建时间起 / 创建时间止」），缺省为通用「起始时间 / 结束时间」；
- * 非标准键名（`startAt` / `dateStart` / `publishedFrom`…）仍逐个写 `dateRangeBound`。
+ * 非标准键名（`startAt` / `dateStart` / `publishedFrom`…）仍逐个写 `dateRangeBound(desc, 'start' | 'end')`。
  * 服务端配合 `dateRangeConditions(column, q.startTime, q.endTime)`，前端配合 `formatDateTimeRangeForApi(range)`。
  */
 export function dateRangeQuery(subject?: string) {
   return {
-    startTime: dateRangeBound(subject ? `${subject}起` : '起始时间'),
-    endTime: dateRangeBound(subject ? `${subject}止` : '结束时间'),
+    startTime: dateRangeBound(subject ? `${subject}起` : '起始时间', 'start'),
+    endTime: dateRangeBound(subject ? `${subject}止` : '结束时间', 'end'),
   };
 }
 
@@ -83,27 +91,42 @@ export function queryBool(description?: string) {
   return z
     .union([z.literal('').transform(() => undefined), z.stringbool()])
     .optional()
-    .meta({ type: 'boolean', ...(description ? { description } : {}) });
+    .meta({ type: 'boolean', ...(description ? { description } : {}), ...filterMeta({ kind: 'bool' }) });
+}
+
+export interface QueryEnumOptions {
+  readonly description?: string;
+  /** 标签来自运行时字典（`useDictItems(dict)`），如 `common_status` */
+  readonly dict?: string;
+  /** 静态标签（shared 常量导出的 `XXX_OPTIONS`）；与 `dict` 二选一 */
+  readonly options?: readonly FilterMetaOption[];
 }
 
 /**
  * 查询串枚举筛选参数（`?status=enabled`）。
  * 空串（筛选控件的「全部」项）视为未传，解析后的值不含空串，handler 无需再 `|| undefined`；
  * 不在取值集合内的输入 400。
+ * 第二个参数传描述字符串，或 `{ description, dict | options }` 同时声明标签来源（前端筛选下拉据此取标签）。
  */
-export function queryEnum<const T extends readonly string[]>(values: T, description?: string) {
+export function queryEnum<const T extends readonly string[]>(values: T, options?: string | QueryEnumOptions) {
+  const opts: QueryEnumOptions = typeof options === 'string' ? { description: options } : (options ?? {});
   return z
     .union([z.literal('').transform(() => undefined), z.enum(values)])
     .optional()
-    .meta({ type: 'string', enum: [...values], ...(description ? { description } : {}) });
+    .meta({
+      type: 'string',
+      enum: [...values],
+      ...(opts.description ? { description: opts.description } : {}),
+      ...filterMeta({ kind: 'enum', values: [...values], ...(opts.dict ? { dict: opts.dict } : {}), ...(opts.options ? { options: opts.options } : {}) }),
+    });
 }
 
 /**
- * 通用启用 / 禁用状态的查询串筛选（`?status=enabled`）；空串 = 全部。
+ * 通用启用 / 禁用状态的查询串筛选（`?status=enabled`）；空串 = 全部，标签取 `common_status` 字典。
  * 与请求体里的 `entityStatusSchema` 对应：列表 query 一律用本积木，**不要**写 `entityStatusSchema.optional()`
  * （后者对筛选控件清空后发出的 `?status=` 返回 400）。
  */
-export const entityStatusQuery = queryEnum(USER_STATUSES, '状态；空 = 全部');
+export const entityStatusQuery = queryEnum(USER_STATUSES, { description: '状态；空 = 全部', dict: 'common_status' });
 
 // ─── 请求体积木 ──────────────────────────────────────────────────────────────
 

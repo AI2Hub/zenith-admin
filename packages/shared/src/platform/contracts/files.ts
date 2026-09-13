@@ -121,7 +121,7 @@ const uploadIdParam = z.object({
 });
 
 export const fileListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按文件名 / 对象键 / 文件服务模糊匹配'),
+  keyword: keywordQuery('文件名 / 对象键 / 文件服务'),
   provider: queryEnum(FILE_STORAGE_PROVIDERS),
   fileType: queryEnum(FILE_TYPE_FILTERS),
   ...dateRangeQuery('上传时间'),

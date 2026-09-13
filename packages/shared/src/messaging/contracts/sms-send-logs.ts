@@ -43,7 +43,7 @@ export type SmsSendResult = z.infer<typeof smsSendResultSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const smsSendLogListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按内容模糊匹配'),
+  keyword: keywordQuery('内容'),
   phone: z.string().optional(),
   provider: queryEnum(SMS_PROVIDERS),
   status: queryEnum(SEND_STATUSES),

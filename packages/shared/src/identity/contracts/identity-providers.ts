@@ -95,7 +95,7 @@ export type IdentityProviderSyncResult = z.infer<typeof identityProviderSyncResu
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const identityProviderListQuery = paginationQuery.extend({
-  keyword: keywordQuery('按名称 / 编码模糊匹配'),
+  keyword: keywordQuery('名称 / 编码'),
   tenantId: idQuery(),
   type: queryEnum(IDENTITY_PROVIDER_TYPES),
   status: queryEnum(IDENTITY_PROVIDER_STATUSES),
