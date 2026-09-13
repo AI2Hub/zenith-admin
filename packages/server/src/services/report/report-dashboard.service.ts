@@ -42,7 +42,7 @@ import {
 import {
   ensureReportResourceAccess,
   filterReportResourceRowsByAccess,
-  listAccessibleReportResourceIds,
+  listAccessibleReportResourceIds, accessibleReportResourceCondition,
 } from './report-resource-acl.service';
 import {
   defaultReportOwnerId,
@@ -200,8 +200,8 @@ export async function listDashboards(query: QueryOutputOf<typeof reportDashboard
     favorited,
   } = query;
   const uid = currentUserOrNull()?.userId;
-  const accessibleIds = await listAccessibleReportResourceIds('dashboard');
-  if (accessibleIds && accessibleIds.length === 0) return emptyListResult(page, pageSize);
+  const visible = await accessibleReportResourceCondition('dashboard', reportDashboards.id);
+  if (visible === null) return emptyListResult(page, pageSize);
   // 「我的收藏」：先取收藏的仪表盘 id 集合，为空直接返回空页
   let favoriteIds: number[] | undefined;
   if (favorited && uid) {
@@ -213,7 +213,7 @@ export async function listDashboards(query: QueryOutputOf<typeof reportDashboard
   }
   const where = buildWhere(
     reportTenantScope(reportDashboards),
-    accessibleIds ? inArray(reportDashboards.id, accessibleIds) : undefined,
+    visible,
     folderId ? eq(reportDashboards.folderId, folderId) : undefined,
     ownerId ? eq(reportDashboards.ownerId, ownerId) : undefined,
     keywordCondition(keyword, [reportDashboards.name, reportDashboards.remark], 'ilike'),

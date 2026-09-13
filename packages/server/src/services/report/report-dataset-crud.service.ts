@@ -32,7 +32,7 @@ import {
 } from './report-access';
 import {
   ensureReportResourceAccess,
-  listAccessibleReportResourceIds,
+  listAccessibleReportResourceIds, accessibleReportResourceCondition,
 } from './report-resource-acl.service';
 import {
   defaultReportOwnerId,
@@ -162,11 +162,11 @@ export async function getDataset(id: number): Promise<ReportDataset> {
 export async function listDatasets(query: QueryOutputOf<typeof reportDatasetContract.list>) {
   const { page, pageSize, keyword, folderId, ownerId, datasourceId, type, status } = query;
   const tenantScope = reportTenantScope(reportDatasets);
-  const accessibleIds = await listAccessibleReportResourceIds('dataset');
-  if (accessibleIds && accessibleIds.length === 0) return emptyListResult(page, pageSize);
+  const visible = await accessibleReportResourceCondition('dataset', reportDatasets.id);
+  if (visible === null) return emptyListResult(page, pageSize);
   const where = buildWhere(
     tenantScope,
-    accessibleIds ? inArray(reportDatasets.id, accessibleIds) : undefined,
+    visible,
     folderId ? eq(reportDatasets.folderId, folderId) : undefined,
     ownerId ? eq(reportDatasets.ownerId, ownerId) : undefined,
     keywordCondition(keyword, [reportDatasets.name, reportDatasets.remark], 'ilike'),

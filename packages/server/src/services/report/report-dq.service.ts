@@ -23,7 +23,7 @@ import { normalizeReadonlyReportSql } from '../../lib/report-sql-safety';
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
 import { ensureDatasetExists, getDatasetData } from './report-dataset.service';
 import { reportScopedWhere, reportTenantScope } from './report-access';
-import { ensureReportResourceAccess, listAccessibleReportResourceIds } from './report-resource-acl.service';
+import { ensureReportResourceAccess, accessibleReportResourceCondition } from './report-resource-acl.service';
 import { dueCronFireTime, loadScheduleActor } from './report-schedule-shared';
 import { buildWhere, withPagination } from '../../lib/where-helpers';
 import { pickEntity } from '../../lib/entity-map';
@@ -270,17 +270,11 @@ async function ensureRule(id: number, role: 'viewer' | 'editor' = 'viewer') {
 export async function listReportDqRules(query: QueryOutputOf<typeof reportDqContract.rules>) {
   const { page, pageSize } = query;
   const scope = reportTenantScope(reportDqRules);
-  let accessibleIds: number[] | null | undefined;
-  if (query.datasetId) {
-    await ensureReportResourceAccess('dataset', query.datasetId, 'viewer');
-  } else {
-    accessibleIds = await listAccessibleReportResourceIds('dataset');
-    if (accessibleIds?.length === 0) return emptyListResult(page, pageSize);
-  }
+  const visible = await accessibleReportResourceCondition('dataset', reportDqRules.datasetId, { pinnedId: query.datasetId });
+  if (visible === null) return emptyListResult(page, pageSize);
   const where = buildWhere(
     scope,
-    query.datasetId ? eq(reportDqRules.datasetId, query.datasetId) : undefined,
-    accessibleIds ? inArray(reportDqRules.datasetId, accessibleIds) : undefined,
+    visible,
     query.type ? eq(reportDqRules.type, query.type) : undefined,
     query.enabled !== undefined ? eq(reportDqRules.enabled, query.enabled) : undefined,
   );
@@ -552,13 +546,8 @@ async function resolveDqNames(rows: Array<{ ruleId?: number | null; datasetId: n
 export async function listReportDqRuns(query: QueryOutputOf<typeof reportDqContract.runs>) {
   const { page, pageSize } = query;
   const scope = reportTenantScope(reportDqRuns);
-  let accessibleIds: number[] | null | undefined;
-  if (query.datasetId) {
-    await ensureReportResourceAccess('dataset', query.datasetId, 'viewer');
-  } else {
-    accessibleIds = await listAccessibleReportResourceIds('dataset');
-    if (accessibleIds?.length === 0) return emptyListResult(page, pageSize);
-  }
+  const visible = await accessibleReportResourceCondition('dataset', reportDqRuns.datasetId, { pinnedId: query.datasetId });
+  if (visible === null) return emptyListResult(page, pageSize);
   let ruleId: number | undefined;
   if (query.ruleId) {
     const rule = await ensureRule(query.ruleId);
@@ -566,8 +555,7 @@ export async function listReportDqRuns(query: QueryOutputOf<typeof reportDqContr
   }
   const where = buildWhere(
     scope,
-    query.datasetId ? eq(reportDqRuns.datasetId, query.datasetId) : undefined,
-    accessibleIds ? inArray(reportDqRuns.datasetId, accessibleIds) : undefined,
+    visible,
     ruleId ? eq(reportDqRuns.ruleId, ruleId) : undefined,
     query.status ? eq(reportDqRuns.status, query.status) : undefined,
   );
@@ -614,17 +602,11 @@ export async function getCurrentReportDqScore(datasetId: number): Promise<Report
 export async function listReportDqAnomalies(query: QueryOutputOf<typeof reportDqContract.anomalies>) {
   const { page, pageSize } = query;
   const scope = reportTenantScope(reportDqAnomalies);
-  let accessibleIds: number[] | null | undefined;
-  if (query.datasetId) {
-    await ensureReportResourceAccess('dataset', query.datasetId, 'viewer');
-  } else {
-    accessibleIds = await listAccessibleReportResourceIds('dataset');
-    if (accessibleIds?.length === 0) return emptyListResult(page, pageSize);
-  }
+  const visible = await accessibleReportResourceCondition('dataset', reportDqAnomalies.datasetId, { pinnedId: query.datasetId });
+  if (visible === null) return emptyListResult(page, pageSize);
   const where = buildWhere(
     scope,
-    query.datasetId ? eq(reportDqAnomalies.datasetId, query.datasetId) : undefined,
-    accessibleIds ? inArray(reportDqAnomalies.datasetId, accessibleIds) : undefined,
+    visible,
     query.status ? eq(reportDqAnomalies.status, query.status) : undefined,
   );
   const { list: rows, total } = await listRows({

@@ -8,7 +8,7 @@ import { requireRow } from '../../lib/db-assert';
 import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { HTTPException } from 'hono/http-exception';
 import type { ChatConversation } from '@zenith/shared/chat';
-import { fetchUserBrief, getUserNickname, listConversationMemberIds } from './chat-shared';
+import { fetchUserBrief, getUserNickname, listConversationMemberIds, requireGroupMember } from './chat-shared';
 import { appendSystemMessage } from './chat-messages.service';
 
 // ─── 创建群聊 ──────────────────────────────────────────────────────────────────
@@ -151,22 +151,10 @@ export async function removeGroupMember(conversationId: number, targetUserId: nu
   const me = currentUser();
   const myNickname = await getUserNickname(me.userId);
 
-  const conv = await db.query.chatConversations.findFirst({
-    where: eq(chatConversations.id, conversationId),
-  });
-  const conversation = requireRow(conv, '会话不存在');
-  if (conversation.type !== 'group') throw new HTTPException(400, { message: '只有群聊才能移除成员' });
-
   // 操作者必须是群主或管理员
-  const operatorMember = await db.query.chatConversationMembers.findFirst({
-    where: and(
-      eq(chatConversationMembers.conversationId, conversationId),
-      eq(chatConversationMembers.userId, me.userId),
-    ),
+  const { member: operatorMember } = await requireGroupMember(conversationId, ['owner', 'admin'], {
+    notGroup: '只有群聊才能移除成员', forbidden: '只有群主或管理员才能移除成员',
   });
-  if (operatorMember?.role !== 'owner' && operatorMember?.role !== 'admin') {
-    throw new HTTPException(403, { message: '只有群主或管理员才能移除成员' });
-  }
   if (targetUserId === me.userId) {
     throw new HTTPException(400, { message: '不能移除自己，请使用退出群聊' });
   }
@@ -217,22 +205,10 @@ export async function updateGroupInfo(
   const me = currentUser();
   const myNickname = await getUserNickname(me.userId);
 
-  const conv = await db.query.chatConversations.findFirst({
-    where: eq(chatConversations.id, conversationId),
-  });
-  const conversation = requireRow(conv, '会话不存在');
-  if (conversation.type !== 'group') throw new HTTPException(400, { message: '只有群聊才能修改信息' });
-
   // owner / admin 可改
-  const member = await db.query.chatConversationMembers.findFirst({
-    where: and(
-      eq(chatConversationMembers.conversationId, conversationId),
-      eq(chatConversationMembers.userId, me.userId),
-    ),
+  const { conversation } = await requireGroupMember(conversationId, ['owner', 'admin'], {
+    notGroup: '只有群聊才能修改信息', forbidden: '只有群主或管理员才能修改群聊信息',
   });
-  if (member?.role !== 'owner' && member?.role !== 'admin') {
-    throw new HTTPException(403, { message: '只有群主或管理员才能修改群聊信息' });
-  }
 
   const normalizedName = updates.name === undefined ? undefined : (updates.name.trim() || null);
   const normalizedAnnouncement = 'announcement' in updates ? (updates.announcement ?? null) : undefined;
@@ -277,21 +253,9 @@ export async function transferGroupOwnership(conversationId: number, newOwnerId:
     throw new HTTPException(400, { message: '不能转让给自己' });
   }
 
-  const conv = await db.query.chatConversations.findFirst({
-    where: eq(chatConversations.id, conversationId),
+  await requireGroupMember(conversationId, ['owner'], {
+    notGroup: '只有群聊才能转让群主', forbidden: '只有群主才能转让群主',
   });
-  const conversation = requireRow(conv, '会话不存在');
-  if (conversation.type !== 'group') throw new HTTPException(400, { message: '只有群聊才能转让群主' });
-
-  const currentMember = await db.query.chatConversationMembers.findFirst({
-    where: and(
-      eq(chatConversationMembers.conversationId, conversationId),
-      eq(chatConversationMembers.userId, me.userId),
-    ),
-  });
-  if (currentMember?.role !== 'owner') {
-    throw new HTTPException(403, { message: '只有群主才能转让群主' });
-  }
 
   const targetMember = await db.query.chatConversationMembers.findFirst({
     where: and(

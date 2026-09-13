@@ -1,5 +1,6 @@
 // chat 域内部共享 helper：仅供 services/chat 下各模块引用；对外统一走 chat.service.ts facade
 import { eq, and, sql } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { chatConversationMembers, chatConversations, chatMessages, users } from '../../db/schema';
 import { currentUser } from '../../lib/context';
@@ -91,6 +92,31 @@ export async function ensureConversationMember(conversationId: number) {
     ),
   });
   return requireRow(member, '无权访问该会话', 403);
+}
+
+type ChatMemberRole = (typeof chatConversationMembers.$inferSelect)['role'];
+
+/**
+ * 群聊管理动作的前置校验：会话必须存在且为群聊，当前用户须是成员且角色在 `roles` 内（群主 / 管理员）。
+ * 返回会话与本人成员行，供后续业务使用；文案由调用方按动作给出。
+ */
+export async function requireGroupMember(
+  conversationId: number,
+  roles: readonly ChatMemberRole[],
+  messages: { readonly notGroup: string; readonly forbidden: string; readonly notFound?: string },
+) {
+  const me = currentUser();
+  const conv = await db.query.chatConversations.findFirst({ where: eq(chatConversations.id, conversationId) });
+  const conversation = requireRow(conv, messages.notFound ?? '会话不存在');
+  if (conversation.type !== 'group') throw new HTTPException(400, { message: messages.notGroup });
+  const member = await db.query.chatConversationMembers.findFirst({
+    where: and(
+      eq(chatConversationMembers.conversationId, conversationId),
+      eq(chatConversationMembers.userId, me.userId),
+    ),
+  });
+  if (!member || !roles.includes(member.role)) throw new HTTPException(403, { message: messages.forbidden });
+  return { conversation, member, me };
 }
 
 export async function getUserNickname(userId: number): Promise<string | null> {

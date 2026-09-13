@@ -10,7 +10,7 @@ import { requireRow } from '../../lib/db-assert';
 import { buildListResult, emptyListResult } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { chatContract, type ForwardMessagesInput, type ChatMessage, type ChatMessageExtra, type ChatMessageSearchResult, type ChatMessageContext, type ChatMessageType, type ChatForwardedItem, type SendChatMessageInput } from '@zenith/shared/chat';
-import { notHiddenFor, rowSender, mapChatMessage, fetchUserBrief, listConversationMemberIds, ensureConversationMember, ensureMessageAccessible, touchConversation } from './chat-shared';
+import { notHiddenFor, rowSender, mapChatMessage, fetchUserBrief, listConversationMemberIds, ensureConversationMember, ensureMessageAccessible, touchConversation, requireGroupMember } from './chat-shared';
 import { aggregateReactions } from './chat-reactions.service';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 
@@ -330,22 +330,9 @@ export async function listAnnouncementHistory(conversationId: number): Promise<C
 }
 
 export async function deleteAnnouncementHistory(conversationId: number, messageId: number): Promise<void> {
-  const me = currentUser();
-  const conv = await db.query.chatConversations.findFirst({
-    where: eq(chatConversations.id, conversationId),
+  await requireGroupMember(conversationId, ['owner', 'admin'], {
+    notGroup: '只有群聊才有公告历史', forbidden: '只有群主或管理员才能删除公告历史',
   });
-  const conversation = requireRow(conv, '会话不存在');
-  if (conversation.type !== 'group') throw new HTTPException(400, { message: '只有群聊才有公告历史' });
-
-  const member = await db.query.chatConversationMembers.findFirst({
-    where: and(
-      eq(chatConversationMembers.conversationId, conversationId),
-      eq(chatConversationMembers.userId, me.userId),
-    ),
-  });
-  if (member?.role !== 'owner' && member?.role !== 'admin') {
-    throw new HTTPException(403, { message: '只有群主或管理员才能删除公告历史' });
-  }
 
   const msg = await db.query.chatMessages.findFirst({ where: eq(chatMessages.id, messageId) });
   if (msg?.conversationId !== conversationId) {

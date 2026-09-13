@@ -20,7 +20,7 @@ import { ensureDatasetExists, getDatasetData, resolveDatasetParams } from './rep
 import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './report-access';
 import {
   ensureReportResourceAccess,
-  listAccessibleReportResourceIds,
+  listAccessibleReportResourceIds, accessibleReportResourceCondition,
 } from './report-resource-acl.service';
 import {
   defaultReportOwnerId,
@@ -111,11 +111,11 @@ export async function getPrintTemplate(id: number): Promise<ReportPrintTemplate>
 export async function listPrintTemplates(query: QueryOutputOf<typeof reportPrintContract.list>) {
   const { page, pageSize, keyword, folderId, ownerId, status, sourceType, entityKind, entityRefId } = query;
   const tenantScope = reportTenantScope(reportPrintTemplates);
-  const accessibleIds = await listAccessibleReportResourceIds('print_template');
-  if (accessibleIds && accessibleIds.length === 0) return emptyListResult(page, pageSize);
+  const visible = await accessibleReportResourceCondition('print_template', reportPrintTemplates.id);
+  if (visible === null) return emptyListResult(page, pageSize);
   const where = buildWhere(
     tenantScope,
-    accessibleIds ? inArray(reportPrintTemplates.id, accessibleIds) : undefined,
+    visible,
     folderId ? eq(reportPrintTemplates.folderId, folderId) : undefined,
     ownerId ? eq(reportPrintTemplates.ownerId, ownerId) : undefined,
     sourceType ? eq(reportPrintTemplates.sourceType, sourceType) : undefined,

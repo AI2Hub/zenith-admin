@@ -35,7 +35,7 @@ import { config as appConfig } from '../../config';
 import { buildReportCopyName } from './report-copy-name';
 import {
   ensureReportResourceAccess,
-  listAccessibleReportResourceIds,
+  listAccessibleReportResourceIds, accessibleReportResourceCondition,
 } from './report-resource-acl.service';
 import {
   defaultReportOwnerId,
@@ -227,11 +227,11 @@ export async function getDatasource(id: number): Promise<ReportDatasource> {
 export async function listDatasources(query: QueryOutputOf<typeof reportDatasourceContract.list>) {
   const { page, pageSize, keyword, folderId, ownerId, type, status } = query;
   const tenantScope = reportTenantScope(reportDatasources);
-  const accessibleIds = await listAccessibleReportResourceIds('datasource');
-  if (accessibleIds && accessibleIds.length === 0) return emptyListResult(page, pageSize);
+  const visible = await accessibleReportResourceCondition('datasource', reportDatasources.id);
+  if (visible === null) return emptyListResult(page, pageSize);
   const where = buildWhere(
     tenantScope,
-    accessibleIds ? inArray(reportDatasources.id, accessibleIds) : undefined,
+    visible,
     folderId ? eq(reportDatasources.folderId, folderId) : undefined,
     ownerId ? eq(reportDatasources.ownerId, ownerId) : undefined,
     keywordCondition(keyword, [reportDatasources.name, reportDatasources.remark], 'ilike'),

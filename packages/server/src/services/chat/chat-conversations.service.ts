@@ -11,7 +11,7 @@ import { requireRow } from '../../lib/db-assert';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { HTTPException } from 'hono/http-exception';
 import type { ChatConversation, ChatReadState } from '@zenith/shared/chat';
-import { notHiddenFor, rowSender, mapChatMessage, ensureConversationMember, getUserNickname } from './chat-shared';
+import { notHiddenFor, rowSender, mapChatMessage, ensureConversationMember, getUserNickname, requireGroupMember } from './chat-shared';
 import { appendSystemMessage } from './chat-messages.service';
 
 // ─── 会话列表 ─────────────────────────────────────────────────────────────────
@@ -420,19 +420,9 @@ export async function removeConversation(conversationId: number): Promise<void> 
 // ─── 解散群聊（群主专属） ─────────────────────────────────────────────────────
 
 export async function disbandConversation(conversationId: number): Promise<void> {
-  const me = currentUser();
-
-  const conv = await db.query.chatConversations.findFirst({ where: eq(chatConversations.id, conversationId) });
-  const conversation = requireRow(conv, '会话不存在或无权操作');
-  if (conversation.type !== 'group') throw new HTTPException(400, { message: '仅群聊支持解散' });
-
-  const member = await db.query.chatConversationMembers.findFirst({
-    where: and(
-      eq(chatConversationMembers.conversationId, conversationId),
-      eq(chatConversationMembers.userId, me.userId),
-    ),
+  await requireGroupMember(conversationId, ['owner'], {
+    notFound: '会话不存在或无权操作', notGroup: '仅群聊支持解散', forbidden: '只有群主才能解散群聊',
   });
-  if (member?.role !== 'owner') throw new HTTPException(403, { message: '只有群主才能解散群聊' });
 
   // 广播目标需在删除前收集；成员/消息/邀请/申请由外键级联删除
   const members = await db

@@ -15,7 +15,7 @@ import { createInstance, withdrawInstance } from '../workflow/instances/lifecycl
 import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './report-access';
 import {
   ensureReportResourceAccess,
-  listAccessibleReportResourceIds,
+  accessibleReportResourceCondition,
 } from './report-resource-acl.service';
 import { ensureReportFillTemplate } from './report-fill-template.service';
 import { validateReportFillValues } from './report-fill-validation';
@@ -120,11 +120,11 @@ export async function listMyReportFillRecords(query: QueryOutputOf<typeof report
 
 export async function listAdminReportFillRecords(query: QueryOutputOf<typeof reportFillContract.adminRecords>) {
   const { page, pageSize } = query;
-  const accessibleTemplateIds = await listAccessibleReportResourceIds('fill_template');
-  if (accessibleTemplateIds && accessibleTemplateIds.length === 0) return emptyListResult(page, pageSize);
+  const visible = await accessibleReportResourceCondition('fill_template', reportFillRecords.templateId);
+  if (visible === null) return emptyListResult(page, pageSize);
   const where = buildWhere(
     reportTenantScope(reportFillRecords),
-    accessibleTemplateIds ? inArray(reportFillRecords.templateId, accessibleTemplateIds) : undefined,
+    visible,
     query.status ? eq(reportFillRecords.status, query.status) : undefined,
     query.templateId ? eq(reportFillRecords.templateId, query.templateId) : undefined,
     query.submitterId ? eq(reportFillRecords.submitterId, query.submitterId) : undefined,

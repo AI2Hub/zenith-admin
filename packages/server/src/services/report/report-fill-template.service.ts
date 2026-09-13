@@ -15,7 +15,7 @@ import type { CloneReportFillTemplateInput, CreateReportFillTemplateInput, Repor
 import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './report-access';
 import {
   ensureReportResourceAccess,
-  listAccessibleReportResourceIds,
+  listAccessibleReportResourceIds, accessibleReportResourceCondition,
 } from './report-resource-acl.service';
 import {
   defaultReportOwnerId,
@@ -77,11 +77,11 @@ async function validatePlacement(input: { ownerId?: number | null; folderId?: nu
 
 export async function listReportFillTemplates(query: QueryOutputOf<typeof reportFillContract.templates>) {
   const { page, pageSize } = query;
-  const accessibleIds = await listAccessibleReportResourceIds('fill_template');
-  if (accessibleIds && accessibleIds.length === 0) return emptyListResult(page, pageSize);
+  const visible = await accessibleReportResourceCondition('fill_template', reportFillTemplates.id);
+  if (visible === null) return emptyListResult(page, pageSize);
   const where = buildWhere(
     reportTenantScope(reportFillTemplates),
-    accessibleIds ? inArray(reportFillTemplates.id, accessibleIds) : undefined,
+    visible,
     keywordCondition(query.keyword, [reportFillTemplates.name, reportFillTemplates.code], 'ilike'),
     query.status ? eq(reportFillTemplates.status, query.status) : undefined,
     query.ownerId ? eq(reportFillTemplates.ownerId, query.ownerId) : undefined,

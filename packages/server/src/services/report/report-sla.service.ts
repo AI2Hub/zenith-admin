@@ -29,7 +29,7 @@ import {
   validateNotifyChannels,
 } from './report-delivery.service';
 import { reportScopedWhere, reportTenantScope } from './report-access';
-import { ensureReportResourceAccess, listAccessibleReportResourceIds } from './report-resource-acl.service';
+import { ensureReportResourceAccess, accessibleReportResourceCondition } from './report-resource-acl.service';
 import { maskReportSecret, prepareReportSecret } from './report-secrets';
 import { buildWhere } from '../../lib/where-helpers';
 import { pickEntity } from '../../lib/entity-map';
@@ -90,17 +90,11 @@ async function validateSlaInput(input: CreateReportSlaRuleInput | UpdateReportSl
 export async function listReportSlaRules(query: QueryOutputOf<typeof reportSlaContract.rules>) {
   const { page, pageSize } = query;
   const scope = reportTenantScope(reportSlaRules);
-  let accessibleIds: number[] | null | undefined;
-  if (query.datasetId) {
-    await ensureReportResourceAccess('dataset', query.datasetId, 'viewer');
-  } else {
-    accessibleIds = await listAccessibleReportResourceIds('dataset');
-    if (accessibleIds?.length === 0) return emptyListResult(page, pageSize);
-  }
+  const visible = await accessibleReportResourceCondition('dataset', reportSlaRules.datasetId, { pinnedId: query.datasetId });
+  if (visible === null) return emptyListResult(page, pageSize);
   const where = buildWhere(
     scope,
-    query.datasetId ? eq(reportSlaRules.datasetId, query.datasetId) : undefined,
-    accessibleIds ? inArray(reportSlaRules.datasetId, accessibleIds) : undefined,
+    visible,
     query.type ? eq(reportSlaRules.type, query.type) : undefined,
     query.enabled !== undefined ? eq(reportSlaRules.enabled, query.enabled) : undefined,
   );
@@ -326,13 +320,8 @@ export async function submitReportSlaEvaluation(id: number) {
 export async function listReportSlaViolations(query: QueryOutputOf<typeof reportSlaContract.violations>) {
   const { page, pageSize } = query;
   const scope = reportTenantScope(reportSlaViolations);
-  let accessibleIds: number[] | null | undefined;
-  if (query.datasetId) {
-    await ensureReportResourceAccess('dataset', query.datasetId, 'viewer');
-  } else {
-    accessibleIds = await listAccessibleReportResourceIds('dataset');
-    if (accessibleIds?.length === 0) return emptyListResult(page, pageSize);
-  }
+  const visible = await accessibleReportResourceCondition('dataset', reportSlaViolations.datasetId, { pinnedId: query.datasetId });
+  if (visible === null) return emptyListResult(page, pageSize);
   let ruleId: number | undefined;
   if (query.ruleId) {
     await ensureSlaRule(query.ruleId);
@@ -340,8 +329,7 @@ export async function listReportSlaViolations(query: QueryOutputOf<typeof report
   }
   const where = buildWhere(
     scope,
-    query.datasetId ? eq(reportSlaViolations.datasetId, query.datasetId) : undefined,
-    accessibleIds ? inArray(reportSlaViolations.datasetId, accessibleIds) : undefined,
+    visible,
     ruleId ? eq(reportSlaViolations.ruleId, ruleId) : undefined,
     query.status ? eq(reportSlaViolations.status, query.status) : undefined,
   );

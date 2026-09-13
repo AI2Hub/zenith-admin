@@ -29,7 +29,7 @@ import {
 } from './report-resource.service';
 import {
   ensureReportResourceAccess,
-  listAccessibleReportResourceIds,
+  listAccessibleReportResourceIds, accessibleReportResourceCondition,
 } from './report-resource-acl.service';
 import {
   aggregateMetricRows,
@@ -101,11 +101,11 @@ export async function getReportMetric(id: number): Promise<ReportMetric> {
 export async function listReportMetrics(query: QueryOutputOf<typeof reportMetricContract.list>) {
   const { page, pageSize, keyword, datasetId, folderId, ownerId, type, status } = query;
   const tenantScope = reportTenantScope(reportMetrics);
-  const accessibleIds = await listAccessibleReportResourceIds('metric');
-  if (accessibleIds && accessibleIds.length === 0) return emptyListResult(page, pageSize);
+  const visible = await accessibleReportResourceCondition('metric', reportMetrics.id);
+  if (visible === null) return emptyListResult(page, pageSize);
   const where = buildWhere(
     tenantScope,
-    accessibleIds ? inArray(reportMetrics.id, accessibleIds) : undefined,
+    visible,
     keywordCondition(keyword, [reportMetrics.name, reportMetrics.code], 'ilike'),
     datasetId ? eq(reportMetrics.datasetId, datasetId) : undefined,
     folderId !== undefined ? nullableEq(reportMetrics.folderId, folderId) : undefined,

@@ -1,6 +1,6 @@
 import { requireRow } from '../../lib/db-assert';
 import { HTTPException } from 'hono/http-exception';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { reportResourceAclSchema, type GrantReportResourceAclInput, type ReportAclRole, type ReportAclSubjectType, type ReportResourceAcl, type ReportResourceType, type UpdateReportResourceAclInput } from '@zenith/shared/report';
 import { db } from '../../db';
 import {
@@ -267,6 +267,33 @@ export async function filterReportResourceRowsByAccess<T extends { id: number }>
   if (ids === null) return rows;
   const allowed = new Set(ids);
   return rows.filter((row) => allowed.has(row.id));
+}
+
+/**
+ * 列表查询的资源可见范围条件（叠进 `buildWhere`）：
+ * - 指定了某个资源（`pinnedId`，如按 datasetId 过滤）→ 校验其访问权后返回 `eq(column, id)`；
+ * - 否则取当前用户可见的资源 id 集合：超管不限（`undefined`）、一个都不可见返回 **`null`**（调用方直接返回空页）、
+ *   其余 `inArray(column, ids)`。
+ *
+ * @example
+ * const visible = await accessibleReportResourceCondition('dataset', reportDqRules.datasetId, { pinnedId: query.datasetId });
+ * if (visible === null) return emptyListResult(page, pageSize);
+ * const where = buildWhere(scope, visible, …);
+ */
+export async function accessibleReportResourceCondition(
+  resourceType: ReportResourceType,
+  column: SQLWrapper,
+  options: { readonly pinnedId?: number; readonly requiredRole?: ReportAclRole } = {},
+): Promise<SQL | undefined | null> {
+  const role = options.requiredRole ?? 'viewer';
+  if (options.pinnedId) {
+    await ensureReportResourceAccess(resourceType, options.pinnedId, role);
+    return eq(column, options.pinnedId);
+  }
+  const ids = await listAccessibleReportResourceIds(resourceType, role);
+  if (ids === null) return undefined;
+  if (ids.length === 0) return null;
+  return inArray(column, ids);
 }
 
 async function ensureAclSubject(
