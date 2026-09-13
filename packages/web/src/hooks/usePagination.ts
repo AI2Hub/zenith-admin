@@ -9,6 +9,8 @@ export interface PaginationConfig {
   total: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
+  /** 覆盖每页条数选项（缺省由 ConfigurableTable 取 TABLE_PAGE_SIZE_OPTIONS） */
+  pageSizeOpts?: number[];
 }
 
 export interface UsePaginationReturn {
@@ -30,6 +32,8 @@ export interface UsePaginationReturn {
 export interface UsePaginationOptions {
   /** 覆盖默认页大小（默认取用户偏好） */
   pageSize?: number;
+  /** 覆盖每页条数选项（如文件列表的 20 / 50 / 100）；缺省用 ConfigurableTable 的 TABLE_PAGE_SIZE_OPTIONS */
+  pageSizeOpts?: number[];
   /**
    * 外部作用域键（当前公众号 / 站点 / 空间 / 目录…）：变化时在同一渲染内回到第 1 页。
    * 多个来源传数组，按元素 `Object.is` 比较（同 deps 语义）：`resetKey: [spaceId, folderId]`。
@@ -59,7 +63,7 @@ function sameResetKey(a: unknown, b: unknown): boolean {
  * ```
  */
 export function usePagination(options?: number | UsePaginationOptions): UsePaginationReturn {
-  const { pageSize: overrideDefaultPageSize, resetKey } = typeof options === 'number' ? { pageSize: options } : (options ?? {});
+  const { pageSize: overrideDefaultPageSize, pageSizeOpts, resetKey } = typeof options === 'number' ? { pageSize: options } : (options ?? {});
   const { preferences } = usePreferences();
   const defaultPageSize = overrideDefaultPageSize ?? preferences.tablePageSize ?? 10;
   const [page, setPage] = useState(1);
@@ -98,6 +102,7 @@ export function usePagination(options?: number | UsePaginationOptions): UsePagin
         currentPage: page,
         pageSize,
         total,
+        ...(pageSizeOpts ? { pageSizeOpts } : {}),
         onPageChange: (p: number) => {
           setPage(p);
           onFetch?.(p, pageSize);
@@ -109,7 +114,7 @@ export function usePagination(options?: number | UsePaginationOptions): UsePagin
         },
       };
     },
-    [page, pageSize],
+    [page, pageSize, pageSizeOpts],
   );
 
   return { page, pageSize, setPage, setPageSize, resetPage, buildPagination };

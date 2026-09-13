@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { Form, Toast, Spin, CheckboxGroup, Tag, Space } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { CreateTenantPackageInput, TenantPackage } from '@zenith/shared/identity';
@@ -9,8 +9,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useDictItems } from '@/hooks/useDictItems';
-import { compactParams } from '@/lib/query';
-import { useListSearch } from '@/hooks/useListSearch';
+import { useListPage } from '@/hooks/useListPage';
 import {
   tenantPackageKeys,
   useAssignTenantPackageFeatures,
@@ -23,7 +22,7 @@ import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { BatchDeleteButton, CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
-import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useRowSelection, useStatusToggle } from '@/components/list-page';
+import { confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection, useStatusToggle } from '@/components/list-page';
 
 interface SearchParams {
   keyword: string;
@@ -36,21 +35,15 @@ export default function TenantPackagesPage() {
   const { hasPermission } = usePermission();
   const { items: statusItems, options: statusOptions } = useDictItems('common_status');
 
-  // draft：搜索区输入中的条件；submitted：点击查询后实际生效的条件（进入 query key）
-  const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: tenantPackageKeys.lists });
   const { selectedRowKeys, hasSelection, clear: clearSelection, rowSelection } = useRowSelection();
-
-  // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
-
-  const listQuery = useTenantPackageList({ page, pageSize, ...filterQuery });
+  // 搜索状态 → 已提交筛选映射 → 列表查询 → 表格接线，一次接好
+  const { bind, bindKeyword, handleSearch, handleReset, tableProps } = useListPage({
+    defaults: defaultSearchParams,
+    listKey: tenantPackageKeys.lists,
+    useList: useTenantPackageList,
+    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
+    table: { rowSelection },
+  });
 
   // 新增/编辑弹窗：详情到达时由 useEditModal 自动重挂载表单
   const saveMutation = useSaveTenantPackage();
@@ -176,10 +169,7 @@ export default function TenantPackagesPage() {
 
       <ConfigurableTable<TenantPackage>
         columns={columns}
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          rowSelection,
-        })}
+        {...tableProps}
       />
 
       <AppModal {...modal.modalProps} width={520}>

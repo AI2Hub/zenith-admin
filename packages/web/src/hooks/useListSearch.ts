@@ -16,6 +16,8 @@ export interface UseListSearchOptions<T> {
   readonly extraKeys?: readonly QueryKey[];
   /** 覆盖默认页大小（默认取用户偏好） */
   readonly pageSize?: number;
+  /** 覆盖每页条数选项；见 `usePagination` 的同名选项 */
+  readonly pageSizeOpts?: number[];
   /**
    * 外部作用域键（当前公众号 / 站点 / 空间…）：变化时回到第 1 页，条件保留；多个来源传数组。
    * 见 `usePagination` 的同名选项；不要再写 `useEffect(() => setPage(1), [scopeId])`。
@@ -97,12 +99,13 @@ export function useListSearch<T>({
   listKey,
   extraKeys,
   pageSize: overridePageSize,
+  pageSizeOpts,
   resetKey,
   onSearch,
   onReset,
 }: UseListSearchOptions<T>): UseListSearchReturn<T> {
   const queryClient = useQueryClient();
-  const pagination = usePagination({ pageSize: overridePageSize, resetKey });
+  const pagination = usePagination({ pageSize: overridePageSize, pageSizeOpts, resetKey });
   const { setPage } = pagination;
 
   const [draftParams, setDraftParams] = useState<T>(defaults);
